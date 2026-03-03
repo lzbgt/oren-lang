@@ -159,6 +159,10 @@ var g_green_debug_word = 0 // u64* (mmap page), offsets:
 // [0]=idle_iters, [8]=steal_count, [16]=last_steal_p_id,
 // [24]=p_acquire_count, [32]=p_release_count, [40]=last_p_acquire_id, [48]=last_p_release_id,
 // [56]=last_p_acquire_tid, [64]=last_p_release_tid, [72]=p_acquire_seen_mask (bitset of P ids)
+var g_trace_green_runq = -1
+var g_trace_green_runq_envp = 0
+var g_trace_green_runq_argv = 0
+var g_trace_green_runq_argc = 0
 
 // Rolling config: enable a cached fast path for `_green_poll_until_budget`.
 // Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
@@ -464,6 +468,76 @@ fn _green_is_g(ptr) {
     if ptr < 4096 { return false }
     // Best-effort: check magic first.
     return ptr_get(ptr + green_g_off_magic()) == green_g_magic()
+}
+
+fn _green_trace_runq_enabled() {
+    if g_trace_green_runq == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_runq == 0 {
+        if cur_envp == g_trace_green_runq_envp &&
+           cur_argv == g_trace_green_runq_argv &&
+           cur_argc == g_trace_green_runq_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_RUNQ_ARGS")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_runq == -1 || g_trace_green_runq == 0 {
+            g_trace_green_runq = 0
+            g_trace_green_runq_envp = cur_envp
+            g_trace_green_runq_argv = cur_argv
+            g_trace_green_runq_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_runq = 1
+    g_trace_green_runq_envp = cur_envp
+    g_trace_green_runq_argv = cur_argv
+    g_trace_green_runq_argc = cur_argc
+    return true
+}
+
+fn _green_trace_runq_event(label, g) {
+    if _green_trace_runq_enabled() != true { return 0 }
+    if g == 0 {
+        print("trace: green_runq " + label + " g=0")
+        return 0
+    }
+    if g < 4096 {
+        print("trace: green_runq " + label + " g=" + oren_int_to_string(g) + " small=1")
+        return 0
+    }
+    var node = native_alloc_index_get(g)
+    if node == 0 { node = native_alloc_index_recover_ptr(g) }
+    var kind = 0
+    if node != 0 { kind = ptr_get(iadd(node, 16)) }
+    var magic = 0
+    var fn_obj = 0
+    var args_list = 0
+    var args_node = 0
+    var args_kind = 0
+    if node != 0 && kind == 4 {
+        magic = ptr_get(g + green_g_off_magic())
+        fn_obj = ptr_get(g + green_g_off_fn_obj())
+        args_list = ptr_get(g + green_g_off_args_list())
+        if args_list >= 4096 {
+            args_node = native_alloc_index_get(args_list)
+            if args_node == 0 { args_node = native_alloc_index_recover_ptr(args_list) }
+            if args_node != 0 { args_kind = ptr_get(iadd(args_node, 16)) }
+        }
+    }
+    print("trace: green_runq " + label +
+          " g=" + oren_int_to_string(g) +
+          " node=" + oren_int_to_string(node) +
+          " kind=" + oren_int_to_string(kind) +
+          " magic=" + oren_int_to_string(magic) +
+          " fn=" + oren_int_to_string(fn_obj) +
+          " args=" + oren_int_to_string(args_list) +
+          " args_node=" + oren_int_to_string(args_node) +
+          " args_kind=" + oren_int_to_string(args_kind))
+    return 0
 }
 
 fn _green_alloc_struct(size) {
@@ -1219,6 +1293,7 @@ fn _green_lock_release() {
 
 fn _green_runq_push_local_locked(p, g) {
     if p == 0 || g == 0 { return 0 }
+    _green_trace_runq_event("push_local", g)
     var buf = _green_p_runq_buf(p)
     var mask = _green_p_runq_mask(p)
     if buf == 0 || mask == 0 { return 0 }
@@ -1256,6 +1331,7 @@ fn _green_runq_pop_local_locked(p) {
     var g = ptr_get(buf + idx * 8)
     ptr_set(buf + idx * 8, 0)
     _green_p_set_runq_tail(p, tail)
+    if g != 0 { _green_trace_runq_event("pop_local", g) }
     return g
 }
 
@@ -1274,6 +1350,7 @@ fn _green_runq_steal_one_from_locked(victim_p) {
     var g = ptr_get(buf + idx * 8)
     ptr_set(buf + idx * 8, 0)
     _green_p_set_runq_head(victim_p, head + 1)
+    if g != 0 { _green_trace_runq_event("steal_one", g) }
     return g
 }
 
@@ -1294,6 +1371,7 @@ fn _green_runq_pop_locked(p) {
 
 fn _green_global_runq_push_locked(s, g) {
     if s == 0 || g == 0 { return 0 }
+    _green_trace_runq_event("push_global", g)
     var was_empty = 0
     _green_g_set_next(g, 0)
     var head = _green_state_glob_run_head(s)
@@ -1319,6 +1397,7 @@ fn _green_global_runq_pop_locked(s) {
         _green_state_set_glob_run_tail(s, 0)
     }
     _green_g_set_next(head, 0)
+    _green_trace_runq_event("pop_global", head)
     return head
 }
 

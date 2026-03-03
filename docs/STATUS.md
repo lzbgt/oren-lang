@@ -396,6 +396,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      or `Indexing on non-list` triggers (cap via `OREN_TRACE_LIST_GET_BAD_CAP`).
    - New: `OREN_TRACE_LIST_GET_BAD_SCAN=1` scans the alloc-index table for the offending
      pointer on `list_get_bad` (expensive; use only for targeted flake triage).
+   - New: `OREN_TRACE_GREEN_RUNQ_ARGS=1` logs `g->fn_obj/args_list` metadata at green
+     runq push/pop/steal to trace scheduler corruption (use sparingly).
    - Trace: `alloc_churn` run with size tracing shows `size=160000` corresponds to a list_int
      buffer (`cap=20000`, bytes=160000), so the size log is expected
      (log: `build/logs/bench_run_alloc_churn_20260226_084444/oren_native/run_0.log`).
