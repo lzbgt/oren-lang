@@ -1100,6 +1100,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     inner log shows `trace: green_entry_args ...` lines but no guard panic before the crash
     (logs: `build/logs/triage_stage2_quick_full_guard_reorder_5run_20260304_023602.log`,
     `build/logs/native_quick_stage2_flake_20260304_023602_run1_inner.log`).
+  - New: `OREN_TRACE_GREEN_ENTRY_ARGS_GUARD_LIGHT=1` logs args_list + fn without alloc-index
+    access to avoid guard crashes before panic (rolling, 2026-03-04).
+  - Trace: stage2 flake harness (1 run) with guard-light + list trace +
+    `OREN_GREEN_POLL_CACHE=1` + world-lock tracing completed with extended timeouts;
+    guard-light emits throughout the run (logs:
+    `build/logs/native_quick_stage2_flake_20260304_024138_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_024138_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
