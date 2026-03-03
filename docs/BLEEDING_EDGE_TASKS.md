@@ -1053,6 +1053,31 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
     `build/logs/triage_stage2_quick_full_poll_cache_trace10_20260304_015814.log`).
+  - Trace: stage2 full quick-integration harness (20 runs) with
+    `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
+    `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` failed on run 14 with
+    `Runtime Panic: Indexing on non-container` in
+    `__oren_fnwrap_worker_green_alloc_yield_integrity` (logs:
+    `build/logs/triage_stage2_quick_full_poll_cache_trace20_20260304_020532.log`,
+    `build/logs/native_quick_stage2_flake_20260304_021330_run14_inner.log`).
+  - Next: repro the run-14 panic with `OREN_TRACE_GREEN_ENTRY_ARGS=1` and
+    `OREN_QI_TRACE_GREEN_LIST=1` to capture args/list metadata at the failing entry.
+  - Trace: stage2 full quick-integration harness (20 runs) with
+    `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
+    `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` +
+    `OREN_TRACE_GREEN_ENTRY_ARGS=1` + `OREN_QI_TRACE_GREEN_LIST=1` crashed on run 1
+    (rc=139; no panic output) after `== green two workers world-lock smoke ==` with no
+    world-lock trace markers; inner log includes entry-args + list traces
+    (logs: `build/logs/triage_stage2_quick_full_poll_cache_trace20_entry_args_20260304_021500.log`,
+    `build/logs/native_quick_stage2_flake_20260304_021500_run1_inner.log`).
+  - Next: run world-lock smoke alone with `OREN_TRACE_GREEN_ENTRY_ARGS=1` +
+    `OREN_QI_TRACE_GREEN_LIST=1` + `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` to see if
+    the segfault reproduces outside the full harness.
+  - Trace: standalone world-lock smoke (3 runs) with
+    `OREN_TRACE_GREEN_ENTRY_ARGS=1` + `OREN_QI_TRACE_GREEN_LIST=1` +
+    `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` + `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50`
+    + `OREN_GREEN_POLL_CACHE=1` completed cleanly (summary log:
+    `build/logs/triage_green_world_lock_entry_args_20260304_021633.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
