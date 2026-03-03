@@ -980,6 +980,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=500` emitted periodic last-op dumps
     and completed (log:
     `build/logs/native_quick_last_ops_every_outer_watch_20260304_005730.log`).
+  - Trace: stage2 harness (3 runs) with `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=200`
+    completed; inner logs include periodic last-op dumps (logs:
+    `build/logs/triage_stage2_quick_last_ops_every200_20260304_005940.log`,
+    `build/logs/native_quick_stage2_flake_20260304_005940_run1_inner.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).
