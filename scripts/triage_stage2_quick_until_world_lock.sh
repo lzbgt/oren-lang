@@ -1,0 +1,256 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
+  echo "env: OREN_NATIVE_BUILD_TIMEOUT_SECS / OREN_NATIVE_RUN_TIMEOUT_SECS / OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS" >&2
+  exit 0
+fi
+
+runs="${1:-10}"
+compiler="${2:-./oren_stage2}"
+if ! [[ "$runs" =~ ^[0-9]+$ ]]; then
+  echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
+  exit 2
+fi
+if [[ "$runs" -le 0 ]]; then
+  echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
+  exit 2
+fi
+
+env_args=()
+if [[ "$#" -gt 2 ]]; then
+  env_args=("${@:3}")
+fi
+
+timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
+timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
+build_timeout_secs=10
+run_timeout_secs=5
+if [[ -n "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+  build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS}"
+fi
+if [[ -n "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
+  run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS}"
+fi
+
+run_with_timeout() {
+  local secs="$1"
+  shift
+  if [[ "${uname_s:-}" == "Darwin" ]]; then
+    if [[ -z "$secs" || "$secs" == "0" ]]; then
+      "$@"
+      return $?
+    fi
+    set +e
+    "$@" &
+    local pid=$!
+    (
+      sleep "$secs"
+      kill -TERM "$pid" 2>/dev/null
+      sleep "$timeout_kill_secs"
+      kill -KILL "$pid" 2>/dev/null
+    ) &
+    local watcher=$!
+    wait "$pid"
+    local rc=$?
+    kill "$watcher" 2>/dev/null
+    wait "$watcher" 2>/dev/null
+    set -e
+    return "$rc"
+  fi
+
+  if [[ -n "$timeout_bin" ]]; then
+    "$timeout_bin" -k "$timeout_kill_secs" "$secs" "$@"
+  else
+    "$@"
+  fi
+}
+
+run_with_timeout_retry() {
+  local secs="$1"
+  shift
+  run_with_timeout "$secs" "$@"
+  local rc=$?
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
+    local secs2=$((secs * 2))
+    echo "WARN: timeout (rc=$rc). Retrying with ${secs2}s." >&2
+    run_with_timeout "$secs2" "$@"
+    return $?
+  fi
+  return "$rc"
+}
+
+uname_s="$(uname -s)"
+uname_m="$(uname -m)"
+
+os_key=""
+case "$uname_s" in
+  Darwin) os_key="macos" ;;
+  Linux) os_key="linux" ;;
+  MINGW*|MSYS*|CYGWIN*) os_key="windows" ;;
+  *) echo "unsupported host OS: $uname_s" >&2; exit 2 ;;
+esac
+
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
+  run_timeout_secs=12
+fi
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+  build_timeout_secs=20
+fi
+
+arch_key=""
+case "$uname_m" in
+  arm64|aarch64) arch_key="arm64" ;;
+  x86_64|amd64) arch_key="x64" ;;
+  *) echo "unsupported host arch: $uname_m" >&2; exit 2 ;;
+esac
+
+platform="${arch_key}-${os_key}"
+
+mkdir -p build/tmp build/logs
+
+compiler_base="$(basename "$compiler")"
+exe_ext=""
+if [[ "$os_key" == "windows" ]]; then
+  exe_ext=".exe"
+  if [[ -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+    build_timeout_secs=30
+  fi
+  if [[ -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
+    run_timeout_secs=10
+  fi
+fi
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
+  if [[ "$compiler_base" == *stage2* ]]; then
+    run_timeout_secs=15
+  fi
+fi
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+  if [[ "$compiler_base" == *stage2* ]]; then
+    build_timeout_secs=25
+  fi
+fi
+
+green_cache_run_timeout_secs="$run_timeout_secs"
+if [[ -n "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
+  green_cache_run_timeout_secs="${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS}"
+fi
+
+run=1
+while [[ "$run" -le "$runs" ]]; do
+  ts="$(date +%Y%m%d_%H%M%S)"
+  log="build/logs/native_quick_until_world_lock_${ts}_run${run}.log"
+  echo "== run ${run}/${runs} ==" >&2
+  : >"$log"
+  {
+    echo "ts=$ts"
+    echo "run=${run}/${runs}"
+    echo "compiler=$compiler"
+    echo "platform=$platform"
+    echo "cwd=$(pwd)"
+    echo "uname=$(uname -a)"
+    echo "git_rev=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    echo "build_timeout_secs=$build_timeout_secs"
+    echo "run_timeout_secs=$run_timeout_secs"
+    echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
+  } >>"$log"
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    echo "env: ${env_args[*]}" >>"$log"
+  fi
+
+  qi_src="tests/native/test_quick_integration_native.oren"
+  qi_out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
+  qi_log="build/logs/${compiler_base}_native_quick_integration.log"
+  rm -f "$qi_log" "$qi_out" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$qi_src" \
+    --backend native --platform "$platform" --debug -o "$qi_out" >"$qi_log" 2>&1
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    run_with_timeout_retry "$run_timeout_secs" env "${env_args[@]}" "$qi_out" >>"$qi_log" 2>&1
+  else
+    run_with_timeout_retry "$run_timeout_secs" "$qi_out" >>"$qi_log" 2>&1
+  fi
+  echo "== native quick integration ==" >>"$log"
+  tail -n 5 "$qi_log" >>"$log"
+  echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$qi_log"
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    run_with_timeout_retry "$green_cache_run_timeout_secs" env OREN_GREEN_POLL_CACHE=1 "${env_args[@]}" "$qi_out" >>"$qi_log" 2>&1
+  else
+    run_with_timeout_retry "$green_cache_run_timeout_secs" env OREN_GREEN_POLL_CACHE=1 "$qi_out" >>"$qi_log" 2>&1
+  fi
+  tail -n 5 "$qi_log" >>"$log"
+
+  ul_src="tests/native/test_ulock_timeout_portable.oren"
+  ul_out="build/tmp/${compiler_base}_ulock_timeout_portable${exe_ext}"
+  ul_log="build/logs/${compiler_base}_ulock_timeout_portable.log"
+  rm -f "$ul_log" "$ul_out" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$ul_src" \
+    --backend native --platform "$platform" --debug -o "$ul_out" >"$ul_log" 2>&1
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    run_with_timeout_retry "$run_timeout_secs" env "${env_args[@]}" "$ul_out" >>"$ul_log" 2>&1
+  else
+    run_with_timeout_retry "$run_timeout_secs" "$ul_out" >>"$ul_log" 2>&1
+  fi
+  echo "== ulock timeout portable smoke ==" >>"$log"
+  tail -n 3 "$ul_log" >>"$log"
+
+  ot_src="tests/native/test_os_thread_park_unpark_smoke.oren"
+  ot_out="build/tmp/${compiler_base}_os_thread_park_unpark_smoke${exe_ext}"
+  ot_log="build/logs/${compiler_base}_os_thread_park_unpark_smoke.log"
+  rm -f "$ot_log" "$ot_out" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$ot_src" \
+    --backend native --platform "$platform" --debug -o "$ot_out" >"$ot_log" 2>&1
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    run_with_timeout_retry "$run_timeout_secs" env "${env_args[@]}" "$ot_out" >>"$ot_log" 2>&1
+  else
+    run_with_timeout_retry "$run_timeout_secs" "$ot_out" >>"$ot_log" 2>&1
+  fi
+  echo "== os thread park/unpark smoke ==" >>"$log"
+  tail -n 3 "$ot_log" >>"$log"
+
+  om_src="tests/native/test_os_thread_spawn_many_smoke.oren"
+  om_out="build/tmp/${compiler_base}_os_thread_spawn_many_smoke${exe_ext}"
+  om_log="build/logs/${compiler_base}_os_thread_spawn_many_smoke.log"
+  rm -f "$om_log" "$om_out" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$om_src" \
+    --backend native --platform "$platform" --debug -o "$om_out" >"$om_log" 2>&1
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    run_with_timeout_retry "$run_timeout_secs" env "${env_args[@]}" "$om_out" >>"$om_log" 2>&1
+  else
+    run_with_timeout_retry "$run_timeout_secs" "$om_out" >>"$om_log" 2>&1
+  fi
+  echo "== os thread spawn-many smoke ==" >>"$log"
+  tail -n 3 "$om_log" >>"$log"
+
+  gc_src="tests/native/test_gc_stw_os_thread_collect.oren"
+  gc_out="build/tmp/${compiler_base}_gc_stw_os_thread_collect${exe_ext}"
+  gc_log="build/logs/${compiler_base}_gc_stw_os_thread_collect.log"
+  rm -f "$gc_log" "$gc_out" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$gc_src" \
+    --backend native --platform "$platform" --debug -o "$gc_out" >"$gc_log" 2>&1
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    run_with_timeout_retry "$run_timeout_secs" env "${env_args[@]}" "$gc_out" >>"$gc_log" 2>&1
+  else
+    run_with_timeout_retry "$run_timeout_secs" "$gc_out" >>"$gc_log" 2>&1
+  fi
+  echo "== gc stw os-thread collect smoke ==" >>"$log"
+  tail -n 3 "$gc_log" >>"$log"
+
+  gw_src="tests/native/test_green_two_workers_world_lock_smoke.oren"
+  gw_out="build/tmp/${compiler_base}_green_two_workers_world_lock_smoke${exe_ext}"
+  gw_log="build/logs/${compiler_base}_green_two_workers_world_lock_smoke.log"
+  rm -f "$gw_log" "$gw_out" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$gw_src" \
+    --backend native --platform "$platform" --debug -o "$gw_out" >"$gw_log" 2>&1
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    run_with_timeout_retry "$run_timeout_secs" env "${env_args[@]}" "$gw_out" >>"$gw_log" 2>&1
+  else
+    run_with_timeout_retry "$run_timeout_secs" "$gw_out" >>"$gw_log" 2>&1
+  fi
+  echo "== green two workers world-lock smoke ==" >>"$log"
+  tail -n 3 "$gw_log" >>"$log"
+
+  run=$((run + 1))
+done
+
+echo "OK: ${runs} runs passed" >&2
