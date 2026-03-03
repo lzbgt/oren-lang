@@ -353,6 +353,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (log: `build/logs/arm64_tick_off_stage2_all_forced_20260303_213450.log`).
    - New debug knob: `OREN_TRACE_ARM64_STACK_RESTORE=1` logs stack restore deltas when the
      compiler repairs mismatched stack accounting on arm64 loop emission (2026-03-03).
+   - New: arm64 GC tick-off traces now include last stack-restore context (`last_restore_*`)
+     when tick_off is negative to correlate stack repairs with offset regressions (2026-03-03).
    - New: `OREN_TRACE_ARM64_GC_TICK_OFF=1` now tags traces with `kind=<loop_kind>` when available to
      attribute negative tick offsets to a specific loop emitter (2026-03-03).
    - New: arm64 GC tick-off trace now includes the last loop stack snapshot (`last_kind`, `last_base`,

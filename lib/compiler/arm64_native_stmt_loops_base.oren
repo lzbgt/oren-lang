@@ -87,6 +87,15 @@ fn _arm64_restore_stack_to(ctx, base_stack) {
     // correctness bugs because they can make later locals overlap earlier locals.
     var delta = ctx["stack_size"] - base_stack
     if delta == 0 { return nil }
+    if ctx != nil {
+        var kind = ctx["loop_kind"]
+        ctx["last_stack_restore"] = {
+            "delta": delta,
+            "base": base_stack,
+            "stack": ctx["stack_size"],
+            "kind": kind
+        }
+    }
     if _arm64_trace_stack_restore_enabled() && ctx != nil {
         var kind = ctx["loop_kind"]
         var kind_str = ""

@@ -39,9 +39,11 @@ fn _arm64_trace_gc_tick_off(ctx, loop_base_stack, tick_off, tick_mask) {
     var stack_size = 0
     var kind = nil
     var last = nil
+    var last_restore = nil
     if ctx != nil { stack_size = ctx["stack_size"] }
     if ctx != nil { kind = ctx["loop_kind"] }
     if ctx != nil { last = ctx["last_loop_stack"] }
+    if ctx != nil { last_restore = ctx["last_stack_restore"] }
     var msg = "[arm64_gc_tick_off] tick_off=" + oren_int_to_string(tick_off) +
         " base=" + oren_int_to_string(loop_base_stack) +
         " stack=" + oren_int_to_string(stack_size) +
@@ -72,6 +74,24 @@ fn _arm64_trace_gc_tick_off(ctx, loop_base_stack, tick_off, tick_mask) {
             " last_slots=" + last_slots_str +
             " last_bytes=" + last_bytes_str +
             " last_tick_off=" + last_tick_str
+    }
+    if tick_off < 0 && last_restore != nil {
+        var rs_delta = last_restore["delta"]
+        var rs_base = last_restore["base"]
+        var rs_stack = last_restore["stack"]
+        var rs_kind = last_restore["kind"]
+        var rs_delta_str = "nil"
+        if rs_delta != nil { rs_delta_str = oren_int_to_string(rs_delta) }
+        var rs_base_str = "nil"
+        if rs_base != nil { rs_base_str = oren_int_to_string(rs_base) }
+        var rs_stack_str = "nil"
+        if rs_stack != nil { rs_stack_str = oren_int_to_string(rs_stack) }
+        var rs_kind_str = "nil"
+        if rs_kind != nil { rs_kind_str = rs_kind }
+        msg = msg + " last_restore_delta=" + rs_delta_str +
+            " last_restore_base=" + rs_base_str +
+            " last_restore_stack=" + rs_stack_str +
+            " last_restore_kind=" + rs_kind_str
     }
     print(msg)
     return nil
