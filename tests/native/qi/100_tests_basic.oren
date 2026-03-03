@@ -55,6 +55,13 @@ fn test_cfg_debug_release() {
     return 0
 }
 
+fn test_std_assert_smoke() {
+    trace("QI: test_std_assert_smoke")
+    assertm.assert(true, "std assert ok")
+    assertm.assert_eq(1, 1, "std assert_eq ok")
+    return 0
+}
+
 @pack
 struct PV_H {
     v: u8,

@@ -3186,6 +3186,11 @@ Design direction:
 - `assert(cond, msg?)` in core language
 - `test "name" { ... }` blocks collected by a test runner
 
+Interim (rolling):
+
+- `std:assert` provides lightweight `assert`/`assert_eq` helpers in the stdlib.
+- Built-in `assert`/`test` are still planned for core-language integration.
+
 ### 3) Structured error model (self-healing support)
 
 Current v0 behavior:

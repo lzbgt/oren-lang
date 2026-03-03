@@ -199,6 +199,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      structured error model, visibility boundaries, bytes + typed buffers, variadic ergonomics
      (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
    - Not implemented: dynamic module loading; user-defined methods/inheritance (see `docs/LANGUAGE.md`).
+   - Interim: `std:assert` helper module provides `assert`/`assert_eq` in the stdlib (2026-03-03).
 
 6) **W3 - Tooling/ABI stability**
    - ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.

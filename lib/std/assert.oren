@@ -1,0 +1,32 @@
+// Minimal assert helpers (stdlib; rolling).
+//
+// Usage:
+//   import assert "std:assert"
+//   assert.assert(cond, "message")
+//   assert.assert_eq(a, b, "message")
+//
+// Notes:
+// - This is a lightweight stdlib helper while built-in `assert`/`test` are still planned.
+// - Pass nil or "" for msg if you want a generic failure line.
+
+fn _assert_fail(prefix, msg) {
+    if msg != nil && msg != "" {
+        print(prefix + msg)
+    } else {
+        print(prefix)
+    }
+    oren_exit(1)
+    return 0
+}
+
+fn assert(cond, msg) {
+    if cond { return 0 }
+    _assert_fail("assert failed: ", msg)
+    return 0
+}
+
+fn assert_eq(a, b, msg) {
+    if a == b { return 0 }
+    _assert_fail("assert_eq failed: ", msg)
+    return 0
+}
