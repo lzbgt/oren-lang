@@ -200,6 +200,15 @@ fn worker_green_alloc_yield_integrity(seed) {
         _qi_guard_green_list_header(ptrs, i, "get_before")
         _qi_trace_green_list_state(ptrs, i, "get_before")
         var p2 = oren_list_get(ptrs, i)
+        if g_qi_trace_green_list_guard != 0 {
+            if p2 == 0 || p2 < 4096 {
+                print("QI: green_list_guard bad_ptr label=get_after" +
+                      " ptr=" + oren_int_to_string(p2) +
+                      " idx=" + oren_int_to_string(i))
+                fail(9904)
+                return 0
+            }
+        }
         var got = ptr_get(p2)
         var want = seed + i * 131 + 7
         if got != want {
