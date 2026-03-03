@@ -1153,6 +1153,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `Indexing on non-container`; `list_trace_dump` shows node=0 at `oren_list_get`
     (logs: `build/logs/native_quick_stage2_flake_20260304_031436_run3.log`,
     `build/logs/native_quick_stage2_flake_20260304_031436_run3_inner.log`).
+  - Trace: quick-until-world-lock run with list corrupt tracing enabled
+    (`OREN_TRACE_LIST_CORRUPT=1`, cap=4) completed cleanly with list/entry traces off
+    (logs: `build/logs/native_quick_until_world_lock_20260304_031616_run1.log`,
+    `build/logs/native_quick_until_world_lock_20260304_031616_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
