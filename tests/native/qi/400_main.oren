@@ -57,6 +57,7 @@ fn main() {
     test_green_workers_local_ptr_survives_yields()
     test_green_worker_wake_while_sleepers()
     test_green_workers_many_tasks_bounded()
+    if _qi_env_truthy("OREN_TRACE_GREEN_LAST_OPS") { oren_green_last_ops_dump() }
     print("native quick integration OK")
     exit(0)
 }

@@ -964,6 +964,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: stage2 harness with `OREN_TRACE_GREEN_LAST_OPS=1` timed out on run 1
     before producing inner logs; no last-op dump (rc=143; log:
     `build/logs/triage_stage2_quick_last_ops_20260304_003205.log`).
+  - Trace: no-timeout `run_native_quick_integration.sh` with `OREN_TRACE_GREEN_LAST_OPS=1`
+    produced last-op entries (push_local/steal_one) before `native quick integration OK`
+    (log: `build/logs/native_quick_last_ops_dump_20260304_004424.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).
