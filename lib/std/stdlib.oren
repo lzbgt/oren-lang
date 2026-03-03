@@ -8,6 +8,7 @@
 
 import argparse "std:argparse"
 import buffer "std:buffer"
+import bytes "std:bytes"
 import casts "std:casts"
 import cbor "std:cbor"
 import ints "std:ints"

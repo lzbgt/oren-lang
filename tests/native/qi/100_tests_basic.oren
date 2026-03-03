@@ -82,6 +82,25 @@ fn test_std_strings_smoke() {
     return 0
 }
 
+fn test_std_bytes_smoke() {
+    trace("QI: test_std_bytes_smoke")
+    var b = bytesm.from_hex("00ff1020")
+    assert_true(oren_is_err(b) == false, 7810)
+    assert_eq(bytesm.len(b), 4, 7811)
+    assert_eq(bytesm.get_u8(b, 0), 0, 7812)
+    assert_eq(bytesm.get_u8(b, 1), 255, 7813)
+    bytesm.set_u8(b, 2, 171)
+    assert_eq(bytesm.get_u8(b, 2), 171, 7814)
+    assert_streq(bytesm.to_hex(b), "00ffab20", 7815)
+    var b2 = bytesm.pack([1, 2, 3])
+    assert_eq(bytesm.len(b2), 3, 7816)
+    var xs = bytesm.unpack(b2)
+    assert_eq(oren_list_len(xs), 3, 7817)
+    assert_eq(xs[0], 1, 7818)
+    assert_streq(bytesm.to_string(bytesm.from_string("hi")), "hi", 7819)
+    return 0
+}
+
 @pack
 struct PV_H {
     v: u8,

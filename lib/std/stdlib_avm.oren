@@ -14,6 +14,7 @@
 //   ./oren_stage2 build lib/std/stdlib_avm.oren --backend bytecode -o build/plugins/stdlib_bundle.obc --obc-lib
 
 import buffer "std:buffer"
+import bytes "std:bytes"
 import casts "std:casts"
 import ints "std:ints"
 import iter "std:iter"

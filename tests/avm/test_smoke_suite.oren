@@ -3,6 +3,7 @@
 import ints "../../lib/std/ints.oren"
 import assertm "../../lib/std/assert.oren"
 import strings "../../lib/std/strings.oren"
+import bytesm "../../lib/std/bytes.oren"
 
 fn fail() {
     // Force a non-zero VM exit by triggering an index error.
@@ -89,6 +90,22 @@ fn test_bytes() {
     }
     // 0 + 255 + 171 + 32
     assert_eq(sum, 458)
+}
+
+fn test_std_bytes_smoke() {
+    var b = bytesm.from_hex("00ff1020")
+    if oren_is_err(b) { fail() }
+    assert_eq(bytesm.len(b), 4)
+    assert_eq(bytesm.get_u8(b, 1), 255)
+    bytesm.set_u8(b, 2, 171)
+    assert_eq(bytesm.get_u8(b, 2), 171)
+    assert_eq(bytesm.to_hex(b), "00ffab20")
+    var b2 = bytesm.pack([9, 8])
+    assert_eq(bytesm.len(b2), 2)
+    var xs = bytesm.unpack(b2)
+    assert_eq(oren_list_len(xs), 2)
+    assert_eq(xs[1], 8)
+    assert_eq(bytesm.to_string(bytesm.from_string("ok")), "ok")
 }
 
 fn test_std_strings_smoke() {
@@ -993,6 +1010,7 @@ fn main() {
     test_map_order()
     test_control_flow()
     test_std_assert_smoke()
+    test_std_bytes_smoke()
     test_std_strings_smoke()
     test_int_casts()
     test_int_casts_checked()

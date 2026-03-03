@@ -11,6 +11,7 @@ fn main() {
     test_cfg_debug_release()
     test_std_assert_smoke()
     test_std_strings_smoke()
+    test_std_bytes_smoke()
     test_string_literals_static()
     test_type_tag_varargs()
     test_read_u8_buf_missing_returns_err()

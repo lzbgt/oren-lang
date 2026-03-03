@@ -278,6 +278,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
 - CLI/strings:
   - `std:argparse` (smoke: `tests/native/test_argparse_smoke.oren`)
   - `std:strings` (used by `std:crypto/pem` smoke)
+  - `std:bytes` (smokes: `tests/native/qi/100_tests_basic.oren`, `tests/avm/test_smoke_suite.oren`)
 - Encoding / crypto helpers:
   - `std:encoding/base64` (TLS/HTTPS/WSS loopback fixtures)
   - `std:crypto/pem` (smoke: `tests/native/test_pem_decode_smoke.oren`)
