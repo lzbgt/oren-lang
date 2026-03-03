@@ -1095,6 +1095,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     segfault (logs:
     `build/logs/triage_stage2_quick_full_poll_cache_guard_entry_20260304_022731.log`,
     `build/logs/native_quick_stage2_flake_20260304_022731_run1_inner.log`).
+  - Trace: stage2 full quick-integration harness (5 runs, guard before trace) still
+    segfaulted on run 1 (rc=139) during native quick integration with guard+scan enabled;
+    inner log shows `trace: green_entry_args ...` lines but no guard panic before the crash
+    (logs: `build/logs/triage_stage2_quick_full_guard_reorder_5run_20260304_023602.log`,
+    `build/logs/native_quick_stage2_flake_20260304_023602_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
