@@ -91,6 +91,25 @@ type pythonEmbedInfo struct {
 	Version     string `json:"version"`
 }
 
+func splitPythonCmdEnv(env string) []string {
+	env = strings.TrimSpace(env)
+	if env == "" {
+		return nil
+	}
+	if strings.HasPrefix(env, "\"") {
+		rest := env[1:]
+		if idx := strings.Index(rest, "\""); idx >= 0 {
+			exe := rest[:idx]
+			tail := strings.TrimSpace(rest[idx+1:])
+			if tail == "" {
+				return []string{exe}
+			}
+			return append([]string{exe}, strings.Fields(tail)...)
+		}
+	}
+	return strings.Fields(env)
+}
+
 func pythonEmbedInfoFromCmd(cmdArgs []string) (pythonEmbedInfo, error) {
 	if len(cmdArgs) == 0 {
 		return pythonEmbedInfo{}, fmt.Errorf("empty python command")
@@ -128,11 +147,7 @@ func pythonEmbedInfoFromCmd(cmdArgs []string) (pythonEmbedInfo, error) {
 
 func pythonEmbedInfoDetect() (pythonEmbedInfo, error) {
 	if env := strings.TrimSpace(os.Getenv("OREN_PYTHON")); env != "" {
-		env = strings.Trim(env, "\"")
-		if _, err := os.Stat(env); err == nil {
-			return pythonEmbedInfoFromCmd([]string{env})
-		}
-		cmd := strings.Fields(env)
+		cmd := splitPythonCmdEnv(env)
 		if len(cmd) > 0 {
 			return pythonEmbedInfoFromCmd(cmd)
 		}

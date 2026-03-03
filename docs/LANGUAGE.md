@@ -151,7 +151,7 @@ Toolchain selection (C backend, rolling):
 - Default C compiler is `cc` on POSIX hosts.
 - On **Windows hosts**, if `--cc` is not provided, the compiler defaults to **MSVC** `cl.exe` and attempts to auto-configure the VS environment (vswhere + VsDevCmd/vcvars) so a Developer Prompt is not required.
   - Escape hatches: `OREN_MSVC_INSTALL_PATH` (pin VS install root), `OREN_MSVC_VSWHERE` (pin `vswhere.exe` path).
-  - `--python` is supported under MSVC by querying Python’s `sysconfig` (the bootstrap path tries `python3`, `python`, then `py -3`; override via `OREN_PYTHON=/path/to/python` or `OREN_PYTHON="py -3"`).
+  - `--python` is supported under MSVC by querying Python’s `sysconfig` (the bootstrap path tries `python3`, `python`, then `py -3`; override via `OREN_PYTHON=/path/to/python`, `OREN_PYTHON="py -3"`, or `OREN_PYTHON="C:\Path With Spaces\python.exe -E"`).
   - When Python embedding is enabled, use `py_release(obj)` to drop long‑lived Python objects and avoid refcount leaks.
 - For **cross-compiling** a C-backend Windows artifact from a non-Windows host, you must pass an explicit cross compiler via `--cc` (the compiler will not auto-pick `cl.exe` off-host).
 
