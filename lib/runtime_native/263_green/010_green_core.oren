@@ -1371,6 +1371,7 @@ fn _green_lock_release() {
 
 fn _green_runq_push_local_locked(p, g) {
     if p == 0 || g == 0 { return 0 }
+    _green_runq_guard("push_local", g)
     _green_trace_runq_event("push_local", g)
     var buf = _green_p_runq_buf(p)
     var mask = _green_p_runq_mask(p)
@@ -1451,6 +1452,7 @@ fn _green_runq_pop_locked(p) {
 
 fn _green_global_runq_push_locked(s, g) {
     if s == 0 || g == 0 { return 0 }
+    _green_runq_guard("push_global", g)
     _green_trace_runq_event("push_global", g)
     var was_empty = 0
     _green_g_set_next(g, 0)
