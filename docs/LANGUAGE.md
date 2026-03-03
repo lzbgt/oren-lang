@@ -3156,7 +3156,7 @@ SIMD enablement (rolling):
 
 ### Optional Python FFI
 Python interop is only available when the runtime is built with Python embedding (`-DOREN_ENABLE_PYTHON` / compiler `--python`).
-- Windows note: the stage0 MSVC path derives include/lib flags from `python`/`python3`/`py -3` via `sysconfig` (override with `OREN_PYTHON`).
+- Windows note: MSVC and non‑MSVC C-backend paths derive include/lib flags from `python`/`python3`/`py -3` via `sysconfig` (override with `OREN_PYTHON`).
 - Import: `var math = py_import("math")`
 - Attribute access: `math.sqrt` (Python attribute get)
 - Indexing: `obj[key]` (Python `__getitem__`)
