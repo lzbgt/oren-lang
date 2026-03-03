@@ -919,6 +919,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_ENTRY_ARGS=1` + `OREN_TRACE_GREEN_RUNQ_ARGS=1` hit a
     bus error on run 1 (rc=138); runq/entry logs show args_list kind=2/magic ok
     immediately before the crash (log: `build/logs/native_quick_stage2_flake_20260303_233056_run1_inner.log`).
+  - Trace: stage2 harness with `OREN_TRACE_GREEN_RUNQ_GUARD=1` still hit a bus error
+    on run 1 (rc=138) before the guard printed; runq/entry logs still show kind=2/magic ok
+    (log: `build/logs/native_quick_stage2_flake_20260303_233935_run1_inner.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).
