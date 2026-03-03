@@ -1184,6 +1184,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     during native quick integration (logs:
     `build/logs/native_quick_stage2_flake_20260304_034443_run2.log`,
     `build/logs/native_quick_stage2_flake_20260304_034443_run2_inner.log`).
+  - Trace: stage2 flake harness (20 runs target) with list header guard enabled
+    and entry-args/list traces off timed out on run 10 (rc=143) during the
+    poll-cache run; inner log stops after the poll-cache header without panic
+    (logs: `build/logs/native_quick_stage2_flake_20260304_035219_run10.log`,
+    `build/logs/native_quick_stage2_flake_20260304_035219_run10_inner.log`).
   - Trace: stage2 flake harness (5 runs) with list header guard enabled plus
     post-`oren_list_get` pointer guard completed cleanly (log:
     `build/logs/native_quick_stage2_flake_20260304_034111_run5.log`).
