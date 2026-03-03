@@ -1035,6 +1035,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
     `build/logs/triage_stage2_quick_until_world_lock_trace10_20260304_013405.log`).
+  - New: quick-until-world-lock harness captures the in-flight inner log on
+    SIGTERM/SIGINT (writes `native_quick_until_world_lock_*_interrupt.log`).
   - Trace: stage2 full quick-integration harness (5 runs) with
     `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
