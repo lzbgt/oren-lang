@@ -1107,6 +1107,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     guard-light emits throughout the run (logs:
     `build/logs/native_quick_stage2_flake_20260304_024138_run1.log`,
     `build/logs/native_quick_stage2_flake_20260304_024138_run1_inner.log`).
+  - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
+    guard-light + entry-args/list tracing segfaulted (rc=139) during native quick
+    integration, confirming the crash can happen before the world-lock smoke (logs:
+    `build/logs/native_quick_until_world_lock_20260304_024843_run1.log`,
+    `build/logs/native_quick_until_world_lock_20260304_024843_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
