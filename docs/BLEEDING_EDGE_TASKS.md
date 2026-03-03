@@ -905,6 +905,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_LIST_GET_BAD=1` + `OREN_TRACE_GREEN_ENTRY_ARGS=1` segfaulted
     on run 1 (rc=139) after logging `green_entry_args` with list kind=2/magic ok
     (log: `build/logs/native_quick_stage2_flake_20260303_231403_run1_inner.log`).
+  - Trace: stage2 harness with `OREN_QI_TRACE_GREEN_LIST=1` +
+    `OREN_TRACE_LIST_GET_BAD=1` + `OREN_TRACE_LIST_GET_BAD_SCAN=1` +
+    `OREN_TRACE_GREEN_ENTRY_ARGS=1` segfaulted on run 3 (rc=139); no
+    `list_get_bad` fired before crash, and entry args still showed list kind=2/magic ok
+    (log: `build/logs/native_quick_stage2_flake_20260303_232159_run3_inner.log`).
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop
