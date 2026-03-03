@@ -6,6 +6,14 @@ var g_trace_green_entry_args = -1
 var g_trace_green_entry_args_envp = 0
 var g_trace_green_entry_args_argv = 0
 var g_trace_green_entry_args_argc = 0
+var g_trace_green_entry_args_guard = -1
+var g_trace_green_entry_args_guard_envp = 0
+var g_trace_green_entry_args_guard_argv = 0
+var g_trace_green_entry_args_guard_argc = 0
+var g_trace_green_entry_args_scan = -1
+var g_trace_green_entry_args_scan_envp = 0
+var g_trace_green_entry_args_scan_argv = 0
+var g_trace_green_entry_args_scan_argc = 0
 
 fn _green_trace_entry_args_enabled() {
     if g_trace_green_entry_args == 1 { return true }
@@ -66,6 +74,103 @@ fn _green_trace_entry_args(fn_obj, args_list) {
     return 0
 }
 
+fn _green_trace_entry_args_guard_enabled() {
+    if g_trace_green_entry_args_guard == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_entry_args_guard == 0 {
+        if cur_envp == g_trace_green_entry_args_guard_envp &&
+           cur_argv == g_trace_green_entry_args_guard_argv &&
+           cur_argc == g_trace_green_entry_args_guard_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_ENTRY_ARGS_GUARD")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_entry_args_guard == -1 || g_trace_green_entry_args_guard == 0 {
+            g_trace_green_entry_args_guard = 0
+            g_trace_green_entry_args_guard_envp = cur_envp
+            g_trace_green_entry_args_guard_argv = cur_argv
+            g_trace_green_entry_args_guard_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_entry_args_guard = 1
+    g_trace_green_entry_args_guard_envp = cur_envp
+    g_trace_green_entry_args_guard_argv = cur_argv
+    g_trace_green_entry_args_guard_argc = cur_argc
+    return true
+}
+
+fn _green_trace_entry_args_scan_enabled() {
+    if g_trace_green_entry_args_scan == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_entry_args_scan == 0 {
+        if cur_envp == g_trace_green_entry_args_scan_envp &&
+           cur_argv == g_trace_green_entry_args_scan_argv &&
+           cur_argc == g_trace_green_entry_args_scan_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_ENTRY_ARGS_SCAN")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_entry_args_scan == -1 || g_trace_green_entry_args_scan == 0 {
+            g_trace_green_entry_args_scan = 0
+            g_trace_green_entry_args_scan_envp = cur_envp
+            g_trace_green_entry_args_scan_argv = cur_argv
+            g_trace_green_entry_args_scan_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_entry_args_scan = 1
+    g_trace_green_entry_args_scan_envp = cur_envp
+    g_trace_green_entry_args_scan_argv = cur_argv
+    g_trace_green_entry_args_scan_argc = cur_argc
+    return true
+}
+
+fn _green_entry_args_guard(fn_obj, args_list) {
+    if _green_trace_entry_args_guard_enabled() != true { return 0 }
+    if args_list == 0 {
+        print("trace: green_entry_args_guard args_list=0 fn=" + oren_int_to_string(fn_obj))
+        oren_panic("green entry args_list is nil")
+        return 0
+    }
+    if args_list < 4096 {
+        print("trace: green_entry_args_guard small args_list=" + oren_int_to_string(args_list) +
+              " fn=" + oren_int_to_string(fn_obj))
+        oren_panic("green entry args_list is small int")
+        return 0
+    }
+    var node = native_alloc_index_get(args_list)
+    if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+    if node == 0 {
+        native_alloc_index_rebuild_live()
+        node = native_alloc_index_get(args_list)
+    }
+    if node == 0 {
+        if _green_trace_entry_args_scan_enabled() == true {
+            native_alloc_index_scan_ptr_debug(args_list, 0)
+        }
+        print("trace: green_entry_args_guard node=0 args_list=" + oren_int_to_string(args_list) +
+              " fn=" + oren_int_to_string(fn_obj))
+        oren_panic("green entry args_list not tracked")
+        return 0
+    }
+    var kind = ptr_get(iadd(node, 16))
+    if kind != 2 && kind != list_int_kind() {
+        print("trace: green_entry_args_guard kind=" + oren_int_to_string(kind) +
+              " args_list=" + oren_int_to_string(args_list) +
+              " fn=" + oren_int_to_string(fn_obj))
+        oren_panic("green entry args_list not a list")
+        return 0
+    }
+    return 0
+}
+
 @oren.keep
 fn __oren_green_entry() {
     var g = _green_thread_current_g_or0()
@@ -79,6 +184,7 @@ fn __oren_green_entry() {
     var args_list = ptr_get(g + green_g_off_args_list())
     _green_args_stamp_guard("entry", g)
     _green_trace_entry_args(fn_obj, args_list)
+    _green_entry_args_guard(fn_obj, args_list)
     var ret = oren_call_obj_list(fn_obj, args_list)
     ptr_set(g + green_g_off_result(), ret)
     // IMPORTANT (worker-mode join safety):
