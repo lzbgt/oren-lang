@@ -1088,6 +1088,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `run_native_quick_integration.sh` (logs:
     `build/logs/triage_stage2_quick_full_poll_cache_trace5_listgetbad_20260304_021923.log`,
     `build/logs/native_quick_stage2_flake_20260304_022003_run2_inner.log`).
+  - Trace: stage2 full quick-integration harness (5 runs) with entry-args guard + scan
+    (`OREN_TRACE_GREEN_ENTRY_ARGS_GUARD=1`, `OREN_TRACE_GREEN_ENTRY_ARGS_SCAN=1`) plus
+    list-get-bad tracing crashed on run 1 (rc=139) during native quick integration; inner
+    log still shows `trace: green_entry_args ... node=0` but no guard emit before the
+    segfault (logs:
+    `build/logs/triage_stage2_quick_full_poll_cache_guard_entry_20260304_022731.log`,
+    `build/logs/native_quick_stage2_flake_20260304_022731_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
