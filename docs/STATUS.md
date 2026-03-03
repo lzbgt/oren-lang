@@ -351,6 +351,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace (arm64 stage2 build, 2026-03-03, `make -B stage2` + `OREN_TRACE_ARM64_GC_TICK_OFF=all`):
      many `tick_off=0` entries (all `while_generic`), no negative offsets observed
      (log: `build/logs/arm64_tick_off_stage2_all_forced_20260303_213450.log`).
+   - New debug knob: `OREN_TRACE_ARM64_STACK_RESTORE=1` logs stack restore deltas when the
+     compiler repairs mismatched stack accounting on arm64 loop emission (2026-03-03).
    - New: `OREN_TRACE_ARM64_GC_TICK_OFF=1` now tags traces with `kind=<loop_kind>` when available to
      attribute negative tick offsets to a specific loop emitter (2026-03-03).
    - New: arm64 GC tick-off trace now includes the last loop stack snapshot (`last_kind`, `last_base`,
@@ -1410,6 +1412,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
+  - Note: `make test` hit another `test-native-quick-stage2` segfault (Error 139)
+    on 2026-03-03 (log: `build/logs/make_test_20260303_214100.log`);
+    rerun `scripts/run_native_quick_integration.sh ./oren_stage2` passed
+    (log: `build/logs/repro_native_quick_stage2_20260303_214042.log`). Track for flakes.
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,

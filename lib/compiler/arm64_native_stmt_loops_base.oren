@@ -24,6 +24,7 @@ var NATIVE_COMPILE_EXPR = nil
 var NATIVE_COMPILE_STMT = nil
 
 var ARM64_TRACE_LOOP_STACK = -1
+var ARM64_TRACE_STACK_RESTORE = -1
 
 fn _arm64_trace_loop_stack_enabled() {
     if ARM64_TRACE_LOOP_STACK == 1 { return true }
@@ -34,6 +35,18 @@ fn _arm64_trace_loop_stack_enabled() {
         return false
     }
     ARM64_TRACE_LOOP_STACK = 1
+    return true
+}
+
+fn _arm64_trace_stack_restore_enabled() {
+    if ARM64_TRACE_STACK_RESTORE == 1 { return true }
+    if ARM64_TRACE_STACK_RESTORE == 0 { return false }
+    var v = oren_env("OREN_TRACE_ARM64_STACK_RESTORE")
+    if v == nil || v == "" {
+        ARM64_TRACE_STACK_RESTORE = 0
+        return false
+    }
+    ARM64_TRACE_STACK_RESTORE = 1
     return true
 }
 
@@ -74,6 +87,16 @@ fn _arm64_restore_stack_to(ctx, base_stack) {
     // correctness bugs because they can make later locals overlap earlier locals.
     var delta = ctx["stack_size"] - base_stack
     if delta == 0 { return nil }
+    if _arm64_trace_stack_restore_enabled() && ctx != nil {
+        var kind = ctx["loop_kind"]
+        var kind_str = ""
+        if kind != nil { kind_str = kind }
+        var msg = "[arm64_stack_restore] delta=" + oren_int_to_string(delta) +
+            " base=" + oren_int_to_string(base_stack) +
+            " stack=" + oren_int_to_string(ctx["stack_size"])
+        if kind_str != "" { msg = msg + " kind=" + kind_str }
+        print(msg)
+    }
     if delta > 0 {
         emit_add_sp_any(ctx, delta)
     } else {
