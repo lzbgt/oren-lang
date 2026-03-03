@@ -861,14 +861,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (log: `build/logs/make_test_20260226_183026.log`); rerun `make test-native-quick` passed
     (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
   - New: `scripts/triage_native_quick_stage2_flake.sh` runs stage2 quick integration in a loop
-    and captures per-run logs for flake diagnosis (2026-03-03).
+    and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough args
+    for tracing (2026-03-03).
   - Note: `make test` hit `test-native-quick` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_215000.log`); rerun passed
     (log: `build/logs/make_test_20260303_215100.log`). Track as a potential flake.
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop
-    and captures per-run logs for flake diagnosis (2026-03-03).
+    and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough args
+    for tracing (2026-03-03).
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);

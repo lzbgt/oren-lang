@@ -1419,14 +1419,16 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     rerun `scripts/run_native_quick_integration.sh ./oren_stage2` passed
     (log: `build/logs/repro_native_quick_stage2_20260303_214042.log`). Track for flakes.
   - New: `scripts/triage_native_quick_stage2_flake.sh` runs the stage2 quick integration
-    repeatedly and captures per-run logs to help diagnose flaky segfaults (2026-03-03).
+    repeatedly and captures per-run logs to help diagnose flaky segfaults; supports
+    `ENV=VAL` passthrough args for tracing (2026-03-03).
   - Note: `make test` hit a `test-native-quick` segfault (Error 139) on 2026-03-03
     (log: `build/logs/make_test_20260303_215000.log`); rerun passed
     (log: `build/logs/make_test_20260303_215100.log`). Track for flakes.
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs the stage1 native quick integration
-    in a loop and captures per-run logs for flake diagnosis (2026-03-03).
+    in a loop and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough
+    args for tracing (2026-03-03).
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)

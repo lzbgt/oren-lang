@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
+  exit 0
+fi
+
 runs="${1:-10}"
 compiler="${2:-./oren_stage2}"
-
-if [[ "$runs" -le 0 ]]; then
-  echo "usage: $0 [runs] [compiler]" >&2
+if ! [[ "$runs" =~ ^[0-9]+$ ]]; then
+  echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
   exit 2
+fi
+if [[ "$runs" -le 0 ]]; then
+  echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
+  exit 2
+fi
+
+env_args=()
+if [[ "$#" -gt 2 ]]; then
+  env_args=("${@:3}")
 fi
 
 mkdir -p build/logs
@@ -19,7 +32,13 @@ while [[ "$run" -le "$runs" ]]; do
   inner_log="build/logs/native_quick_stage2_flake_${ts}_run${run}_inner.log"
   echo "== run ${run}/${runs} ==" >&2
   set +e
-  ./scripts/run_native_quick_integration.sh "$compiler" >"$log" 2>&1
+  : >"$log"
+  if [[ "${#env_args[@]}" -gt 0 ]]; then
+    echo "env: ${env_args[*]}" >>"$log"
+    env "${env_args[@]}" ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+  else
+    ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+  fi
   rc=$?
   set -e
   if [[ -f build/logs/oren_stage2_native_quick_integration.log ]]; then
