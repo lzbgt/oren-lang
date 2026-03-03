@@ -51,7 +51,12 @@ while [[ "$run" -le "$runs" ]]; do
     cp -f build/logs/oren_stage2_native_quick_integration.log "$inner_log"
   fi
   if [[ "$rc" -ne 0 ]]; then
-    failures=$((failures + 1))
+    err_log="build/logs/native_quick_stage2_flake_${ts}_run${run}_err.log"
+    if [[ -f build/logs/oren_stage2_native_quick_integration.log ]]; then
+      cp -f build/logs/oren_stage2_native_quick_integration.log "$err_log"
+    fi
+  fi
+  if [[ "$rc" -ne 0 ]]; then
     echo "FAIL: run ${run} rc=${rc} log=${log}" >&2
     tail -n 120 "$log" >&2 || true
     exit "$rc"
