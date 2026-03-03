@@ -1013,6 +1013,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     order-sensitive hangs.
   - Trace: stage2 quick-until-world-lock harness (1 run) with last-op dumps completed
     cleanly (log: `build/logs/native_quick_until_world_lock_20260304_011816_run1.log`).
+  - Trace: stage2 quick-until-world-lock harness (5 runs, 30s timeouts) completed
+    cleanly with last-op dumps (summary log:
+    `build/logs/triage_stage2_quick_until_world_lock_5run_20260304_011957.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).
