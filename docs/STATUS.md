@@ -1423,6 +1423,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     (log: `build/logs/make_test_20260303_215100.log`). Track for flakes.
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
+  - New: `scripts/triage_native_quick_flake.sh` runs the stage1 native quick integration
+    in a loop and captures per-run logs for flake diagnosis (2026-03-03).
+  - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
+    (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,
