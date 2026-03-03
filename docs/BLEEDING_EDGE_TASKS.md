@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-03-03
+**Last updated:** 2026-03-04
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -984,6 +984,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     completed; inner logs include periodic last-op dumps (logs:
     `build/logs/triage_stage2_quick_last_ops_every200_20260304_005940.log`,
     `build/logs/native_quick_stage2_flake_20260304_005940_run1_inner.log`).
+  - Trace: stage2 harness (10 runs, no timeouts) with
+    `OREN_TRACE_GREEN_LAST_OPS=1` + `OREN_TRACE_GREEN_LAST_OPS_CAP=128` +
+    `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=200` +
+    `OREN_NATIVE_BUILD_TIMEOUT_SECS=0` + `OREN_NATIVE_RUN_TIMEOUT_SECS=0` +
+    `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=0` hit a hang on run 4; outer
+    watchdog (300s) terminated the harness after `test_green_two_workers_world_lock_smoke`
+    started (logs: `build/logs/triage_stage2_quick_last_ops_every200_10run_20260304_010244.log`,
+    `build/logs/native_quick_stage2_flake_20260304_010429_run4.log`, inner log
+    `build/logs/oren_stage2_native_quick_integration.log` stops at
+    `== green two workers world-lock smoke ==`).
+  - Next: isolate `test_green_two_workers_world_lock_smoke` hangs by running the smoke
+    standalone with last-op dumps enabled and a watchdog that preserves the inner log.
+  - Trace: standalone `test_green_two_workers_world_lock_smoke` (3 runs, watchdog 120s)
+    with `OREN_TRACE_GREEN_LAST_OPS=1` + `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=200`
+    completed cleanly (log:
+    `build/logs/green_two_workers_world_lock_smoke_stage2_trace_20260304_010842.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).
