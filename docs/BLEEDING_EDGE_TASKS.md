@@ -1129,6 +1129,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_until_world_lock_20260304_025817_run1_inner.log`).
   - New: `OREN_QI_TRACE_GREEN_LIST_LIGHT=1` emits list trace labels/indices without
     calling `oren_type_tag`/`oren_type_name` or list predicates (rolling, 2026-03-04).
+  - New: `OREN_QI_TRACE_GREEN_LIST_LIGHT_STRIDE=<n>` samples list trace light output
+    every N indices (rolling, 2026-03-04).
   - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
     entry-args light + guard-light + list trace light segfaulted (rc=139) during
     native quick integration (logs:
@@ -1138,6 +1140,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     list trace light enabled but entry-args tracing disabled completed cleanly
     (logs: `build/logs/native_quick_until_world_lock_20260304_030625_run1.log`,
     `build/logs/native_quick_until_world_lock_20260304_030625_run1_inner.log`).
+  - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
+    entry-args light + guard-light + list trace light with stride=8 completed cleanly
+    (logs: `build/logs/native_quick_until_world_lock_20260304_030837_run1.log`,
+    `build/logs/native_quick_until_world_lock_20260304_030837_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
