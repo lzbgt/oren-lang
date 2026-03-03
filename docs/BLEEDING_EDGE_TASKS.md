@@ -870,6 +870,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_GREEN_POLL_CACHE=1` sub-run (panic: "Indexing on non-container";
     log: `build/logs/make_test_20260303_221100.log`); rerun passed
     (log: `build/logs/make_test_20260303_221200.log`). Track as a potential flake.
+  - Trace: stage1 flake harness with `OREN_GREEN_POLL_CACHE=1` timed out on run 1
+    (rc=143; log: `build/logs/triage_stage1_quick_green_cache_20260303_221009.log`);
+    rerun with `OREN_NATIVE_RUN_TIMEOUT_SECS=30` passed 5 runs
+    (log: `build/logs/triage_stage1_quick_green_cache_timeout_20260303_221058.log`).
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop
