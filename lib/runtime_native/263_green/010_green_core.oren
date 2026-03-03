@@ -54,7 +54,13 @@ fn green_g_off_io_epoch() { return 136 } // u64
 fn green_g_off_word_wait_addr() { return 144 }     // u64: address waited on
 fn green_g_off_word_wait_expected() { return 152 } // u64: expected value ("wait while equal")
 fn green_g_off_word_wait_rc() { return 160 }       // i64: timed-wait return code (0 or -60)
-fn green_g_bytes() { return 168 }
+// Debug-only args_list stamp (spawn-time header snapshot).
+fn green_g_off_args_stamp_ptr() { return 168 }
+fn green_g_off_args_stamp_len() { return 176 }
+fn green_g_off_args_stamp_cap() { return 184 }
+fn green_g_off_args_stamp_buf() { return 192 }
+fn green_g_off_args_stamp_magic() { return 200 }
+fn green_g_bytes() { return 208 }
 
 // Green states.
 fn green_g_state_runnable() { return 1 }
@@ -167,6 +173,10 @@ var g_trace_green_runq_guard = -1
 var g_trace_green_runq_guard_envp = 0
 var g_trace_green_runq_guard_argv = 0
 var g_trace_green_runq_guard_argc = 0
+var g_trace_green_args_stamp = -1
+var g_trace_green_args_stamp_envp = 0
+var g_trace_green_args_stamp_argv = 0
+var g_trace_green_args_stamp_argc = 0
 
 // Rolling config: enable a cached fast path for `_green_poll_until_budget`.
 // Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
@@ -573,8 +583,36 @@ fn _green_runq_guard_enabled() {
     return true
 }
 
-fn _green_runq_guard(label, g) {
-    if _green_runq_guard_enabled() != true { return 0 }
+fn _green_trace_args_stamp_enabled() {
+    if g_trace_green_args_stamp == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_args_stamp == 0 {
+        if cur_envp == g_trace_green_args_stamp_envp &&
+           cur_argv == g_trace_green_args_stamp_argv &&
+           cur_argc == g_trace_green_args_stamp_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_ARGS_STAMP")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_args_stamp == -1 || g_trace_green_args_stamp == 0 {
+            g_trace_green_args_stamp = 0
+            g_trace_green_args_stamp_envp = cur_envp
+            g_trace_green_args_stamp_argv = cur_argv
+            g_trace_green_args_stamp_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_args_stamp = 1
+    g_trace_green_args_stamp_envp = cur_envp
+    g_trace_green_args_stamp_argv = cur_argv
+    g_trace_green_args_stamp_argc = cur_argc
+    return true
+}
+
+fn _green_args_guard_core(label, g) {
     if g == 0 { return 0 }
     if g < 4096 {
         print("trace: green_runq_guard " + label + " g=" + oren_int_to_string(g) + " small=1")
@@ -615,6 +653,78 @@ fn _green_runq_guard(label, g) {
         oren_panic("green runq guard: args_list magic")
         return 0
     }
+    return args_list
+}
+
+fn _green_args_stamp_set(label, g) {
+    if _green_trace_args_stamp_enabled() != true { return 0 }
+    if g == 0 { return 0 }
+    ptr_set(g + green_g_off_args_stamp_ptr(), 0)
+    ptr_set(g + green_g_off_args_stamp_len(), 0)
+    ptr_set(g + green_g_off_args_stamp_cap(), 0)
+    ptr_set(g + green_g_off_args_stamp_buf(), 0)
+    ptr_set(g + green_g_off_args_stamp_magic(), 0)
+    var args_list = _green_args_guard_core(label, g)
+    if args_list == 0 { return 0 }
+    ptr_set(g + green_g_off_args_stamp_ptr(), args_list)
+    ptr_set(g + green_g_off_args_stamp_len(), ptr_get(iadd(args_list, 0)))
+    ptr_set(g + green_g_off_args_stamp_cap(), ptr_get(iadd(args_list, 8)))
+    ptr_set(g + green_g_off_args_stamp_buf(), ptr_get(iadd(args_list, 16)))
+    ptr_set(g + green_g_off_args_stamp_magic(), ptr_get(iadd(args_list, 24)))
+    return 0
+}
+
+fn _green_args_stamp_check(label, g, args_list) {
+    if _green_trace_args_stamp_enabled() != true { return 0 }
+    if g == 0 { return 0 }
+    var stamp_ptr = ptr_get(g + green_g_off_args_stamp_ptr())
+    if stamp_ptr == 0 { return 0 }
+    if stamp_ptr - args_list != 0 {
+        print("trace: green_args_stamp " + label + " ptr=" + oren_int_to_string(args_list) +
+              " stamp_ptr=" + oren_int_to_string(stamp_ptr))
+        oren_panic("green args stamp: ptr mismatch")
+        return 0
+    }
+    var stamp_len = ptr_get(g + green_g_off_args_stamp_len())
+    var stamp_cap = ptr_get(g + green_g_off_args_stamp_cap())
+    var stamp_buf = ptr_get(g + green_g_off_args_stamp_buf())
+    var stamp_magic = ptr_get(g + green_g_off_args_stamp_magic())
+    var cur_len = ptr_get(iadd(args_list, 0))
+    var cur_cap = ptr_get(iadd(args_list, 8))
+    var cur_buf = ptr_get(iadd(args_list, 16))
+    var cur_magic = ptr_get(iadd(args_list, 24))
+    if stamp_len - cur_len != 0 ||
+       stamp_cap - cur_cap != 0 ||
+       stamp_buf - cur_buf != 0 ||
+       stamp_magic - cur_magic != 0 {
+        print("trace: green_args_stamp " + label + " list=" + oren_int_to_string(args_list) +
+              " stamp_len=" + oren_int_to_string(stamp_len) +
+              " cur_len=" + oren_int_to_string(cur_len) +
+              " stamp_cap=" + oren_int_to_string(stamp_cap) +
+              " cur_cap=" + oren_int_to_string(cur_cap) +
+              " stamp_buf=" + oren_int_to_string(stamp_buf) +
+              " cur_buf=" + oren_int_to_string(cur_buf) +
+              " stamp_magic=" + oren_int_to_string(stamp_magic) +
+              " cur_magic=" + oren_int_to_string(cur_magic))
+        oren_panic("green args stamp: header mismatch")
+        return 0
+    }
+    return 0
+}
+
+fn _green_args_stamp_guard(label, g) {
+    if _green_trace_args_stamp_enabled() != true { return 0 }
+    var args_list = _green_args_guard_core(label, g)
+    if args_list == 0 { return 0 }
+    _green_args_stamp_check(label, g, args_list)
+    return 0
+}
+
+fn _green_runq_guard(label, g) {
+    if _green_runq_guard_enabled() != true { return 0 }
+    var args_list = _green_args_guard_core(label, g)
+    if args_list == 0 { return 0 }
+    _green_args_stamp_check(label, g, args_list)
     return 0
 }
 

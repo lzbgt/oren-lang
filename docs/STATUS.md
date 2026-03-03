@@ -400,6 +400,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      runq push/pop/steal to trace scheduler corruption (use sparingly).
    - New: `OREN_TRACE_GREEN_RUNQ_GUARD=1` asserts runq `g` magic + args_list list headers
      on spawn/enqueue/dequeue, panicking with details instead of bus errors (debug-only).
+   - New: `OREN_TRACE_GREEN_ARGS_STAMP=1` snapshots spawn-time args_list headers and
+     checks for drift at runq/entry (panics on mismatch; debug-only).
    - Trace: `alloc_churn` run with size tracing shows `size=160000` corresponds to a list_int
      buffer (`cap=20000`, bytes=160000), so the size log is expected
      (log: `build/logs/bench_run_alloc_churn_20260226_084444/oren_native/run_0.log`).

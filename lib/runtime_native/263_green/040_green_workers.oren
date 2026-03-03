@@ -652,6 +652,12 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_word_wait_addr(), 0)
     ptr_set(g + green_g_off_word_wait_expected(), 0)
     ptr_set(g + green_g_off_word_wait_rc(), 0)
+    ptr_set(g + green_g_off_args_stamp_ptr(), 0)
+    ptr_set(g + green_g_off_args_stamp_len(), 0)
+    ptr_set(g + green_g_off_args_stamp_cap(), 0)
+    ptr_set(g + green_g_off_args_stamp_buf(), 0)
+    ptr_set(g + green_g_off_args_stamp_magic(), 0)
+    _green_args_stamp_set("spawn_alloc", g)
     _green_runq_guard("spawn_alloc", g)
 
     // Initialize context to start at __oren_green_entry on the new stack.

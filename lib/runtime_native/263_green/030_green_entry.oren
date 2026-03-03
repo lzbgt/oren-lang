@@ -76,6 +76,7 @@ fn __oren_green_entry() {
     }
     var fn_obj = ptr_get(g + green_g_off_fn_obj())
     var args_list = ptr_get(g + green_g_off_args_list())
+    _green_args_stamp_guard("entry", g)
     _green_trace_entry_args(fn_obj, args_list)
     var ret = oren_call_obj_list(fn_obj, args_list)
     ptr_set(g + green_g_off_result(), ret)
