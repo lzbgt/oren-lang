@@ -2,6 +2,70 @@
 //
 // This must never return. It executes the task's target callable, then yields
 // back to the scheduler.
+var g_trace_green_entry_args = -1
+var g_trace_green_entry_args_envp = 0
+var g_trace_green_entry_args_argv = 0
+var g_trace_green_entry_args_argc = 0
+
+fn _green_trace_entry_args_enabled() {
+    if g_trace_green_entry_args == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_entry_args == 0 {
+        if cur_envp == g_trace_green_entry_args_envp &&
+           cur_argv == g_trace_green_entry_args_argv &&
+           cur_argc == g_trace_green_entry_args_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_ENTRY_ARGS")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_entry_args == -1 || g_trace_green_entry_args == 0 {
+            g_trace_green_entry_args = 0
+            g_trace_green_entry_args_envp = cur_envp
+            g_trace_green_entry_args_argv = cur_argv
+            g_trace_green_entry_args_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_entry_args = 1
+    g_trace_green_entry_args_envp = cur_envp
+    g_trace_green_entry_args_argv = cur_argv
+    g_trace_green_entry_args_argc = cur_argc
+    return true
+}
+
+fn _green_trace_entry_args(fn_obj, args_list) {
+    if _green_trace_entry_args_enabled() != true { return 0 }
+    var node = native_alloc_index_get(args_list)
+    if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+    var kind = 0
+    if node != 0 { kind = ptr_get(iadd(node, 16)) }
+    var magic = 0
+    var len = 0
+    var cap = 0
+    var buf = 0
+    if node != 0 && (kind == 2 || kind == list_int_kind()) {
+        magic = ptr_get(iadd(args_list, 24))
+        len = ptr_get(iadd(args_list, 0))
+        cap = ptr_get(iadd(args_list, 8))
+        buf = ptr_get(iadd(args_list, 16))
+    }
+    var small = 0
+    if args_list < 4096 { small = 1 }
+    print("trace: green_entry_args fn=" + oren_int_to_string(fn_obj) +
+          " list=" + oren_int_to_string(args_list) +
+          " node=" + oren_int_to_string(node) +
+          " kind=" + oren_int_to_string(kind) +
+          " magic=" + oren_int_to_string(magic) +
+          " len=" + oren_int_to_string(len) +
+          " cap=" + oren_int_to_string(cap) +
+          " buf=" + oren_int_to_string(buf) +
+          " small=" + oren_int_to_string(small))
+    return 0
+}
+
 @oren.keep
 fn __oren_green_entry() {
     var g = _green_thread_current_g_or0()
@@ -12,6 +76,7 @@ fn __oren_green_entry() {
     }
     var fn_obj = ptr_get(g + green_g_off_fn_obj())
     var args_list = ptr_get(g + green_g_off_args_list())
+    _green_trace_entry_args(fn_obj, args_list)
     var ret = oren_call_obj_list(fn_obj, args_list)
     ptr_set(g + green_g_off_result(), ret)
     // IMPORTANT (worker-mode join safety):
@@ -37,4 +102,3 @@ fn __oren_green_entry() {
     sys_exit(905)
     return 0
 }
-
