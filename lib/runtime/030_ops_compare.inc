@@ -18,7 +18,6 @@ OrenValue oren_add(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_INT) {
         return oren_float(a.as.float_val + (double)b.as.int_val);
     }
-    // TODO: String concat
     if (a.type == OREN_TYPE_STRING && b.type == OREN_TYPE_STRING) {
          // Rolling: deterministic string concat.
          //
