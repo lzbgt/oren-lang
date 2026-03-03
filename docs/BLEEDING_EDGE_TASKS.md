@@ -1025,6 +1025,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: stage2 quick-until-world-lock harness with
     `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` completed cleanly (summary log:
     `build/logs/triage_stage2_quick_until_world_lock_trace_20260304_012946.log`).
+  - Trace: stage2 quick-until-world-lock harness with
+    `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
+    `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
+    `build/logs/triage_stage2_quick_until_world_lock_trace2_20260304_013258.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
