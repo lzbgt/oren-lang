@@ -1,0 +1,660 @@
+// --- GC alloc core: list header validation (native runtime) ---
+//
+// List header integrity checks and ring diagnostics.
+
+fn native_gc_list_header_ok_impl(ptr, kind, chunk_size, allow_poison) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if chunk_size < 32 { return 0 }
+    if g_trace_gc_list_hdr_ok_cap > 0 {
+        var len = ptr_get(iadd(ptr, 0))
+        var cap = ptr_get(iadd(ptr, 8))
+        var buf = ptr_get(iadd(ptr, 16))
+        var magic = ptr_get(iadd(ptr, 24))
+        print("[gc_list_hdr_ok] ptr=" + oren_int_to_string(ptr) +
+            " kind=" + oren_int_to_string(kind) +
+            " chunk=" + oren_int_to_string(chunk_size) +
+            " len=" + oren_int_to_string(len) +
+            " cap=" + oren_int_to_string(cap) +
+            " buf=" + oren_int_to_string(buf) +
+            " magic=" + oren_int_to_string(magic) +
+            " allow_poison=" + oren_int_to_string(allow_poison))
+        g_trace_gc_list_hdr_ok_cap = g_trace_gc_list_hdr_ok_cap - 1
+    }
+    var magic = ptr_get(iadd(ptr, 24))
+    if magic != list_magic() {
+        if allow_poison == 0 { return 0 }
+        if g_gc_poison_list_headers == 0 { return 0 }
+        if magic != list_magic_poison() { return 0 }
+    }
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    if len < 0 || cap < 0 { return 0 }
+    if len > cap { return 0 }
+    if cap > 1073741824 { return 0 } // guard against corrupted caps
+    var inline_buf = iadd(ptr, 32)
+    if cap == 0 {
+        if buf != 0 { return 0 }
+        if chunk_size != 32 { return 0 }
+    } else {
+        if buf == 0 { return 0 }
+        if buf < 4096 { return 0 }
+        if buf == inline_buf {
+            var need = 32 + cap * 8
+            if chunk_size == 32 { return 1 } // external buf adjacent to header (no inline storage)
+            // malloc can round allocations up to 16 bytes; accept aligned inline sizes.
+            var aligned = ((need + 15) / 16) * 16
+            if chunk_size != need && chunk_size != aligned { return 0 }
+            return 1
+        }
+        // External buffer: header allocation may still include stale inline storage
+        // from the initial capacity. Accept any >=32 chunk size here.
+        return 1
+    }
+    return 1
+}
+
+fn native_gc_list_header_ok(ptr, kind, chunk_size) {
+    return native_gc_list_header_ok_impl(ptr, kind, chunk_size, 0)
+}
+
+fn native_gc_list_header_ok_allow_poison(ptr, kind, chunk_size) {
+    return native_gc_list_header_ok_impl(ptr, kind, chunk_size, 1)
+}
+
+fn native_gc_list_header_poison(ptr, kind) {
+    if g_gc_poison_list_headers == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if kind != 2 && kind != list_int_kind() { return 0 }
+    native_list_header_ring_put_gc(ptr, kind, 90)
+    ptr_set(iadd(ptr, 24), list_magic_poison())
+    if g_trace_gc_free_list_hdr_ring_all != 0 && g_trace_gc_list_hdr_poison_dumped == 0 {
+        g_trace_gc_list_hdr_poison_dumped = 1
+        if g_trace_list_hdr_ring_ptr == 0 {
+            native_list_header_ring_force_enable()
+        }
+        native_list_header_ring_filter_set(ptr)
+        native_list_header_ring_dump_all()
+    }
+    return 0
+}
+
+
+fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
+    var ring_kind = 0
+    if node_ptr != 0 {
+        ring_kind = ptr_get(iadd(node_ptr, 16))
+    }
+    native_list_header_ring_put_gc(ptr, ring_kind, 91)
+    if g_trace_gc_reuse_bad_list == 0 { return 0 }
+    if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
+    if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
+    var idx_node = native_alloc_index_get(ptr)
+    var idx_kind = 0
+    var idx_size = 0
+    if idx_node != 0 {
+        idx_kind = ptr_get(iadd(idx_node, 16))
+        idx_size = ptr_get(iadd(idx_node, 8))
+    }
+    var node_kind = 0
+    var node_size = 0
+    if node_ptr != 0 {
+        node_kind = ptr_get(iadd(node_ptr, 16))
+        node_size = ptr_get(iadd(node_ptr, 8))
+    }
+    print("[gc_reuse_bad_list_idx] ptr=" + oren_int_to_string(ptr) +
+        " idx_node=" + oren_int_to_string(idx_node) +
+        " idx_kind=" + oren_int_to_string(idx_kind) +
+        " idx_size=" + oren_int_to_string(idx_size) +
+        " node=" + oren_int_to_string(node_ptr) +
+        " node_kind=" + oren_int_to_string(node_kind) +
+        " node_size=" + oren_int_to_string(node_size))
+    var allocs_count = native_gc_ptr_in_allocs(ptr)
+    var free64 = 0
+    var free256 = 0
+    var free1024 = 0
+    var free_other = 0
+    if g_gc_reuse_buckets == 0 {
+        free_other = native_free_blocks_count_ptr_in_list(global_free_blocks_ptr(), ptr)
+    } else {
+        free64 = native_free_blocks_count_ptr_in_list(global_free_blocks_64_ptr(), ptr)
+        free256 = native_free_blocks_count_ptr_in_list(global_free_blocks_256_ptr(), ptr)
+        free1024 = native_free_blocks_count_ptr_in_list(global_free_blocks_1024_ptr(), ptr)
+        free_other = native_free_blocks_count_ptr_in_list(global_free_blocks_ptr(), ptr)
+    }
+    var free_total = free64 + free256 + free1024 + free_other
+    var root_info = native_gc_root_find(ptr)
+    var in_roots = 0
+    var root_kind = 0
+    var root_idx = 0
+    if root_info != 0 {
+        in_roots = 1
+        root_kind = root_info / 4294967296
+        root_idx = root_info % 4294967296
+    }
+    var root_count = 0
+    var root_node = 0
+    var root_node_ptr = 0
+    var root_node_kind = 0
+    var root_node_size = 0
+    var root_node_magic = 0
+    var root_slot_val = 0
+    var root_slot_offset = -1
+    var root_slot_index = -1
+    if in_roots != 0 && root_kind == 3 {
+        root_count = native_gc_root_count_ptr(ptr)
+        root_node = native_gc_root_node_at_idx(root_idx)
+        if root_node != 0 {
+            root_node_ptr = ptr_get(root_node)
+            root_node_kind = ptr_get(iadd(root_node, 16))
+            root_node_size = ptr_get(iadd(root_node, 8))
+            root_node_magic = ptr_get(iadd(root_node, 40))
+            if root_node_ptr != 0 && root_node_ptr >= 4096 {
+                root_slot_val = ptr_get(root_node_ptr)
+                if g_storage != 0 && root_node_ptr >= g_storage {
+                    var g_end = iadd(g_storage, global_storage_bytes())
+                    if root_node_ptr < g_end {
+                        var off = root_node_ptr - g_storage
+                        root_slot_offset = off
+                        root_slot_index = off / 8
+                    }
+                }
+            }
+        }
+    }
+    print("[gc_reuse_bad_list_ptr_state] ptr=" + oren_int_to_string(ptr) +
+        " allocs=" + oren_int_to_string(allocs_count) +
+        " free_total=" + oren_int_to_string(free_total) +
+        " free64=" + oren_int_to_string(free64) +
+        " free256=" + oren_int_to_string(free256) +
+        " free1024=" + oren_int_to_string(free1024) +
+        " free_other=" + oren_int_to_string(free_other) +
+        " guard=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard) +
+        " guard_last=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard_last) +
+        " in_roots=" + oren_int_to_string(in_roots) +
+        " root_kind=" + oren_int_to_string(root_kind) +
+        " root_idx=" + oren_int_to_string(root_idx) +
+        " root_count=" + oren_int_to_string(root_count) +
+        " root_node=" + oren_int_to_string(root_node) +
+        " root_node_ptr=" + oren_int_to_string(root_node_ptr) +
+        " root_slot_val=" + oren_int_to_string(root_slot_val) +
+        " root_slot_offset=" + oren_int_to_string(root_slot_offset) +
+        " root_slot_index=" + oren_int_to_string(root_slot_index) +
+        " root_node_kind=" + oren_int_to_string(root_node_kind) +
+        " root_node_size=" + oren_int_to_string(root_node_size) +
+        " root_node_magic=" + oren_int_to_string(root_node_magic))
+    if g_trace_gc_root_slots_checked == 0 {
+        var v_roots = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOTS")
+        if v_roots != 0 && ptr_get_byte(v_roots) != 0 && ptr_get_byte(v_roots) != 48 {
+            g_trace_gc_root_slots = 1
+        }
+        var v_cap = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOTS_CAP")
+        if v_cap != 0 {
+            var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+            if cap > 0 { g_trace_gc_root_slots_cap = cap }
+        }
+        var v_span = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOTS_SPAN")
+        if v_span != 0 {
+            var span = native_parse_i64_dec_cstr_or_neg1(v_span)
+            if span > 0 { g_trace_gc_root_slots_span = span }
+        }
+        if g_trace_gc_root_slots_cap <= 0 { g_trace_gc_root_slots_cap = 4 }
+        if g_trace_gc_root_slots_span <= 0 { g_trace_gc_root_slots_span = 2 }
+        g_trace_gc_root_slots_checked = 1
+    }
+    if g_trace_gc_root_slots != 0 && g_trace_gc_root_slots_cap > 0 && in_roots != 0 && root_kind == 3 {
+        g_trace_gc_root_slots_cap = g_trace_gc_root_slots_cap - 1
+        var root_list_len = 0
+        var root_list_limit = 200000
+        var root_cur = global_get_roots()
+        while root_cur != 0 && root_list_limit > 0 {
+            root_list_len = root_list_len + 1
+            root_cur = ptr_get(iadd(root_cur, 32))
+            root_list_limit = root_list_limit - 1
+        }
+        var span = g_trace_gc_root_slots_span
+        var base_idx = root_idx
+        if base_idx < 0 { base_idx = 0 }
+        if base_idx >= root_list_len {
+            print("[gc_root_slots] idx_oob idx=" + oren_int_to_string(root_idx) +
+                  " list_len=" + oren_int_to_string(root_list_len))
+            base_idx = root_list_len - 1
+        }
+        var start = base_idx - span
+        if start < 0 { start = 0 }
+        var end = base_idx + span
+        if end >= root_list_len { end = root_list_len - 1 }
+        print("[gc_root_slots] idx=" + oren_int_to_string(root_idx) +
+              " list_len=" + oren_int_to_string(root_list_len) +
+              " match_count=" + oren_int_to_string(root_count) +
+              " start=" + oren_int_to_string(start) +
+              " end=" + oren_int_to_string(end))
+        var ri = start
+        while ri <= end {
+            var rnode = native_gc_root_node_at_idx(ri)
+            var rptr = 0
+            var rval = 0
+            if rnode != 0 {
+                rptr = ptr_get(rnode)
+                if rptr != 0 && rptr >= 4096 { rval = ptr_get(rptr) }
+            }
+            print("[gc_root_slots] i=" + oren_int_to_string(ri) +
+                  " node=" + oren_int_to_string(rnode) +
+                  " ptr=" + oren_int_to_string(rptr) +
+                  " val=" + oren_int_to_string(rval))
+            ri = ri + 1
+        }
+    }
+    if g_trace_gc_root_matches_checked == 0 {
+        var v_matches = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_MATCHES")
+        if v_matches != 0 && ptr_get_byte(v_matches) != 0 && ptr_get_byte(v_matches) != 48 {
+            g_trace_gc_root_matches = 1
+        }
+        var v_mcap = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_MATCHES_CAP")
+        if v_mcap != 0 {
+            var capm = native_parse_i64_dec_cstr_or_neg1(v_mcap)
+            if capm > 0 { g_trace_gc_root_matches_cap = capm }
+        }
+        if g_trace_gc_root_matches_cap <= 0 { g_trace_gc_root_matches_cap = 8 }
+        g_trace_gc_root_matches_checked = 1
+    }
+    if g_trace_gc_root_matches != 0 && g_trace_gc_root_matches_cap > 0 && in_roots != 0 && root_kind == 3 {
+        var curm = global_get_roots()
+        var gim = 0
+        var limitm = 200000
+        while curm != 0 && limitm > 0 {
+            var slotm = ptr_get(curm)
+            if slotm != 0 {
+                var valm = 0
+                if slotm >= 4096 { valm = ptr_get(slotm) }
+                if valm - ptr == 0 {
+                    var slot_off = 0
+                    var slot_off_ok = 0
+                    if g_storage != 0 && slotm >= g_storage {
+                        slot_off = slotm - g_storage
+                        if slot_off >= 0 && slot_off < 1048576 { slot_off_ok = 1 }
+                    }
+                    print("[gc_root_match] idx=" + oren_int_to_string(gim) +
+                          " node=" + oren_int_to_string(curm) +
+                          " slot=" + oren_int_to_string(slotm) +
+                          " val=" + oren_int_to_string(valm) +
+                          " slot_off=" + oren_int_to_string(slot_off) +
+                          " slot_off_ok=" + oren_int_to_string(slot_off_ok))
+                    g_trace_gc_root_matches_cap = g_trace_gc_root_matches_cap - 1
+                    if g_trace_gc_root_matches_cap <= 0 { break }
+                }
+            }
+            curm = ptr_get(iadd(curm, 32))
+            gim = gim + 1
+            limitm = limitm - 1
+        }
+    }
+    if g_trace_gc_root_slot_summary_checked == 0 {
+        var v_sum = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOT_SUMMARY")
+        if v_sum != 0 && ptr_get_byte(v_sum) != 0 && ptr_get_byte(v_sum) != 48 {
+            g_trace_gc_root_slot_summary = 1
+        }
+        var v_scap = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOT_SUMMARY_CAP")
+        if v_scap != 0 {
+            var caps = native_parse_i64_dec_cstr_or_neg1(v_scap)
+            if caps > 0 { g_trace_gc_root_slot_summary_cap = caps }
+        }
+        if g_trace_gc_root_slot_summary_cap <= 0 { g_trace_gc_root_slot_summary_cap = 8 }
+        g_trace_gc_root_slot_summary_checked = 1
+    }
+    if g_trace_gc_root_slot_summary != 0 && g_trace_gc_root_slot_summary_done == 0 {
+        g_trace_gc_root_slot_summary_done = 1
+        var root_total = 0
+        var root_boot = 0
+        var root_non_boot = 0
+        var root_slot_null = 0
+        var root_val_null = 0
+        var root_cur2 = global_get_roots()
+        var root_lim2 = 200000
+        var boot_end = 0
+        if g_storage != 0 { boot_end = iadd(g_storage, global_storage_bytes()) }
+        var sample_left = g_trace_gc_root_slot_summary_cap
+        var idx2 = 0
+        while root_cur2 != 0 && root_lim2 > 0 {
+            root_total = root_total + 1
+            var slot2 = ptr_get(root_cur2)
+            if slot2 == 0 {
+                root_slot_null = root_slot_null + 1
+            } else {
+                var val2 = 0
+                if slot2 >= 4096 { val2 = ptr_get(slot2) }
+                if val2 == 0 { root_val_null = root_val_null + 1 }
+                var is_boot = 0
+                if g_storage != 0 && slot2 >= g_storage && slot2 < boot_end { is_boot = 1 }
+                if is_boot != 0 { root_boot = root_boot + 1 }
+                else {
+                    root_non_boot = root_non_boot + 1
+                    if sample_left > 0 {
+                        var off2 = 0
+                        var off_ok2 = 0
+                        if g_storage != 0 && slot2 >= g_storage {
+                            off2 = slot2 - g_storage
+                            if off2 >= 0 && off2 < 1048576 { off_ok2 = 1 }
+                        }
+                        print("[gc_root_slot_sample] idx=" + oren_int_to_string(idx2) +
+                              " slot=" + oren_int_to_string(slot2) +
+                              " val=" + oren_int_to_string(val2) +
+                              " slot_off=" + oren_int_to_string(off2) +
+                              " slot_off_ok=" + oren_int_to_string(off_ok2))
+                        sample_left = sample_left - 1
+                    }
+                }
+            }
+            root_cur2 = ptr_get(iadd(root_cur2, 32))
+            root_lim2 = root_lim2 - 1
+            idx2 = idx2 + 1
+        }
+        print("[gc_root_slot_summary] total=" + oren_int_to_string(root_total) +
+              " boot=" + oren_int_to_string(root_boot) +
+              " non_boot=" + oren_int_to_string(root_non_boot) +
+              " slot_null=" + oren_int_to_string(root_slot_null) +
+              " val_null=" + oren_int_to_string(root_val_null))
+    }
+    if idx_node == 0 {
+        var scan_node = node_ptr
+        if g_gc_reuse_bad_list_last_ptr - ptr == 0 && g_gc_reuse_bad_list_last_idx_node != 0 {
+            scan_node = g_gc_reuse_bad_list_last_idx_node
+        }
+        native_alloc_index_scan_ptr_debug(ptr, scan_node)
+    }
+    g_gc_reuse_bad_list_rebuild_trace = 1
+    if g_gc_reuse_bad_list_last_ptr - ptr == 0 {
+        if g_gc_reuse_bad_list_last_idx_node != 0 && idx_node == 0 {
+            print("[gc_reuse_bad_list_idx_flip] ptr=" + oren_int_to_string(ptr) +
+                " prev_idx_node=" + oren_int_to_string(g_gc_reuse_bad_list_last_idx_node) +
+                " node=" + oren_int_to_string(node_ptr))
+        }
+    }
+    g_gc_reuse_bad_list_last_ptr = ptr
+    g_gc_reuse_bad_list_last_idx_node = idx_node
+    g_gc_reuse_bad_list_triggers = g_gc_reuse_bad_list_triggers + 1
+    if g_trace_list_hdr_ring_ptr != 0 {
+        var ring_head = g_trace_list_hdr_ring_head
+        var ring_cap = g_trace_list_hdr_ring_cap
+        var ring_delta = 0
+        if g_gc_reuse_bad_list_last_ring_head != 0 {
+            ring_delta = ring_head - g_gc_reuse_bad_list_last_ring_head
+        }
+        print("[list_hdr_ring_state] list=" + oren_int_to_string(ptr) +
+            " head=" + oren_int_to_string(ring_head) +
+            " cap=" + oren_int_to_string(ring_cap) +
+            " delta=" + oren_int_to_string(ring_delta) +
+            " last_head=" + oren_int_to_string(g_gc_reuse_bad_list_last_ring_head))
+        g_gc_reuse_bad_list_last_ring_head = ring_head
+    }
+    if g_trace_gc_reuse_bad_list_ring_pre > 0 && g_gc_reuse_bad_list_pre_dumped == 0 {
+        if g_trace_list_hdr_ring_ptr == 0 {
+            native_list_header_ring_force_enable()
+        }
+        native_list_header_ring_dump_last_pre(ptr, g_trace_gc_reuse_bad_list_ring_pre)
+        if g_trace_list_hdr_ring_ptr != 0 {
+            native_list_header_ring_filter_set(ptr)
+            native_list_header_ring_dump_all()
+        }
+        native_list_header_ring_watch_set(ptr, g_trace_gc_reuse_bad_list_ring_pre)
+        g_gc_reuse_bad_list_pre_dumped = 1
+    }
+    if g_trace_gc_reuse_summary != 0 {
+        var take_by_ptr = g_gc_free_list_take_by_ptr_hits
+        var take_reuse = g_gc_free_list_take_reuse_hits
+        print("[gc_reuse_summary_at_bad_list] tries=" + oren_int_to_string(g_gc_reuse_try_count) +
+            " hits=" + oren_int_to_string(g_gc_reuse_hit_count) +
+            " misses=" + oren_int_to_string(g_gc_reuse_miss_count) +
+            " scan_steps=" + oren_int_to_string(g_gc_reuse_scan_steps) +
+            " scan_cap_hits=" + oren_int_to_string(g_gc_reuse_scan_cap_hits) +
+            " guard_live=" + oren_int_to_string(g_gc_reuse_guard_live_count) +
+            " guard_bad_list=" + oren_int_to_string(g_gc_reuse_guard_bad_list_count) +
+            " guard_bad_magic=" + oren_int_to_string(g_gc_reuse_guard_bad_node_magic_count) +
+            " guard_alloc_node=" + oren_int_to_string(g_gc_reuse_guard_alloc_node_count) +
+            " guard_alloc_index_dup=" + oren_int_to_string(g_gc_reuse_guard_alloc_index_dup_count) +
+            " kind_flip=" + oren_int_to_string(g_gc_reuse_bad_list_kind_flip_count) +
+            " bad_list_triggers=" + oren_int_to_string(g_gc_reuse_bad_list_triggers) +
+            " bad_list_prints=" + oren_int_to_string(g_gc_reuse_bad_list_prints) +
+            " take_total=" + oren_int_to_string(take_by_ptr + take_reuse) +
+            " take_by_ptr=" + oren_int_to_string(take_by_ptr) +
+            " take_reuse=" + oren_int_to_string(take_reuse))
+    }
+    g_trace_gc_reuse_bad_list_cap = g_trace_gc_reuse_bad_list_cap - 1
+    g_gc_reuse_bad_list_prints = g_gc_reuse_bad_list_prints + 1
+    if g_trace_gc_reuse_bad_list_safe != 0 {
+        var len = 0
+        var cap = 0
+        var buf = 0
+        var magic = 0
+        if ptr >= 4096 {
+            len = ptr_get(iadd(ptr, 0))
+            cap = ptr_get(iadd(ptr, 8))
+            buf = ptr_get(iadd(ptr, 16))
+            magic = ptr_get(iadd(ptr, 24))
+        }
+        var node_kind = 0
+        var node_size = 0
+        var node_freed = 0
+        var node_magic = 0
+        if node_ptr != 0 {
+            node_kind = ptr_get(iadd(node_ptr, 16))
+            node_size = ptr_get(iadd(node_ptr, 8))
+            node_freed = ptr_get(iadd(node_ptr, 24))
+            node_magic = ptr_get(iadd(node_ptr, 40))
+        }
+        print("[gc_reuse_bad_list] prints=" + oren_int_to_string(g_gc_reuse_bad_list_prints) +
+            " ptr=" + oren_int_to_string(ptr) +
+            " chunk=" + oren_int_to_string(chunk_size) +
+            " len=" + oren_int_to_string(len) +
+            " cap=" + oren_int_to_string(cap) +
+            " buf=" + oren_int_to_string(buf) +
+            " magic=" + oren_int_to_string(magic) +
+            " node=" + oren_int_to_string(node_ptr) +
+            " node_kind=" + oren_int_to_string(node_kind) +
+            " node_size=" + oren_int_to_string(node_size) +
+            " node_freed=" + oren_int_to_string(node_freed) +
+            " node_magic=" + oren_int_to_string(node_magic) +
+            " safe=1")
+        var do_recent = 1
+        if g_trace_gc_reuse_bad_list_kind_flip != 0 {
+            if g_gc_reuse_bad_list_last_kind != 0 {
+                if g_gc_reuse_bad_list_last_kind - node_kind == 0 {
+                    do_recent = 0
+                } else {
+                    g_gc_reuse_bad_list_kind_flip_count = g_gc_reuse_bad_list_kind_flip_count + 1
+                }
+            }
+        }
+        g_gc_reuse_bad_list_last_kind = node_kind
+        if g_gc_reuse_bad_list_prints == 1 {
+            native_list_debug_node(ptr)
+        }
+        if do_recent != 0 && g_trace_gc_reuse_bad_list_ring_recent > 0 {
+            native_list_header_ring_dump_last(ptr, g_trace_gc_reuse_bad_list_ring_recent)
+        }
+        return 0
+    }
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    var magic = ptr_get(iadd(ptr, 24))
+    var node_size = 0
+    var node_kind = 0
+    var node_freed = 0
+    var node_next = 0
+    var node_magic = 0
+    if node_ptr != 0 {
+        node_size = ptr_get(iadd(node_ptr, 8))
+        node_kind = ptr_get(iadd(node_ptr, 16))
+        node_freed = ptr_get(iadd(node_ptr, 24))
+        node_next = ptr_get(iadd(node_ptr, 32))
+        node_magic = ptr_get(iadd(node_ptr, 40))
+    }
+    if g_trace_list_hdr_ring_ptr == 0 {
+        native_list_header_ring_force_enable()
+    }
+    var do_recent = 1
+    if g_trace_gc_reuse_bad_list_kind_flip != 0 {
+        if g_gc_reuse_bad_list_last_kind != 0 {
+            if g_gc_reuse_bad_list_last_kind - node_kind == 0 {
+                do_recent = 0
+            } else {
+                g_gc_reuse_bad_list_kind_flip_count = g_gc_reuse_bad_list_kind_flip_count + 1
+            }
+        }
+    }
+    g_gc_reuse_bad_list_last_kind = node_kind
+    print("[gc_reuse_bad_list] prints=" + oren_int_to_string(g_gc_reuse_bad_list_prints) +
+        " ptr=" + oren_int_to_string(ptr) +
+        " chunk=" + oren_int_to_string(chunk_size) +
+        " len=" + oren_int_to_string(len) +
+        " cap=" + oren_int_to_string(cap) +
+        " buf=" + oren_int_to_string(buf) +
+        " magic=" + oren_int_to_string(magic) +
+        " node=" + oren_int_to_string(node_ptr) +
+        " node_size=" + oren_int_to_string(node_size) +
+        " node_kind=" + oren_int_to_string(node_kind) +
+        " node_freed=" + oren_int_to_string(node_freed) +
+        " node_next=" + oren_int_to_string(node_next) +
+        " node_magic=" + oren_int_to_string(node_magic))
+    if cap >= 0 && cap < 1048576 {
+        trace_list_alloc_ring_dump(ptr)
+        native_list_header_ring_dump(ptr)
+        if g_trace_list_hdr_ring_ptr != 0 {
+            native_list_header_ring_dump_all()
+        }
+    } else {
+        print("[gc_reuse_bad_list] ring_dump_skipped cap=" + oren_int_to_string(cap))
+    }
+    if do_recent != 0 && g_trace_gc_reuse_bad_list_ring_recent > 0 {
+        native_list_header_ring_dump_last(ptr, g_trace_gc_reuse_bad_list_ring_recent)
+    }
+    return 0
+}
+
+
+fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
+    if g_trace_gc_free_list_headers == 0 { return 0 }
+    if g_trace_gc_free_list_headers_cap <= 0 { return 0 }
+    g_trace_gc_free_list_headers_cap = g_trace_gc_free_list_headers_cap - 1
+    if g_trace_gc_free_list_hdr_ring == 0 && g_trace_gc_free_list_hdr_ring_left == 0 {
+        var v_ring = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING")
+        if v_ring != 0 && ptr_get_byte(v_ring) != 0 && ptr_get_byte(v_ring) != 48 {
+            g_trace_gc_free_list_hdr_ring = 1
+            var v_ring_all = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL")
+            if v_ring_all != 0 && ptr_get_byte(v_ring_all) != 0 && ptr_get_byte(v_ring_all) != 48 {
+                g_trace_gc_free_list_hdr_ring_all = 1
+            }
+            var v_every = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_EVERY")
+            if v_every != 0 {
+                var every = native_parse_i64_dec_cstr_or_neg1(v_every)
+                if every > 0 { g_trace_gc_free_list_hdr_ring_every = every }
+            }
+            var v_cap = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_CAP")
+            if v_cap != 0 {
+                var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+                if cap > 0 { g_trace_gc_free_list_hdr_ring_cap = cap }
+            }
+            if g_trace_gc_free_list_hdr_ring_every <= 0 { g_trace_gc_free_list_hdr_ring_every = 1 }
+            if g_trace_gc_free_list_hdr_ring_cap <= 0 { g_trace_gc_free_list_hdr_ring_cap = 16 }
+            g_trace_gc_free_list_hdr_ring_left = g_trace_gc_free_list_hdr_ring_cap
+            g_trace_gc_free_list_hdr_ring_seen = 0
+        }
+    }
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    var magic = ptr_get(iadd(ptr, 24))
+    var ring_dumped = 0
+    var mismatch = 0
+    var expected_size = 32
+    if cap > 0 && cap < 1048576 {
+        if buf == iadd(ptr, 32) {
+            expected_size = 32 + cap * 8
+        }
+    }
+    if chunk_size != expected_size {
+        mismatch = 1
+        var node_magic2 = 0
+        var node_next2 = 0
+        var node_freed2 = 0
+        if node_ptr != 0 {
+            node_magic2 = ptr_get(iadd(node_ptr, 40))
+            node_next2 = ptr_get(iadd(node_ptr, 32))
+            node_freed2 = ptr_get(iadd(node_ptr, 24))
+        }
+        print("[gc_free_list_size_mismatch] ptr=" + oren_int_to_string(ptr) +
+            " chunk=" + oren_int_to_string(chunk_size) +
+            " expect=" + oren_int_to_string(expected_size) +
+            " kind=" + oren_int_to_string(kind) +
+            " node=" + oren_int_to_string(node_ptr) +
+            " freed=" + oren_int_to_string(node_freed2) +
+            " next=" + oren_int_to_string(node_next2) +
+            " magic=" + oren_int_to_string(node_magic2))
+    }
+    print("[gc_free_list] ptr=" + oren_int_to_string(ptr) +
+        " chunk=" + oren_int_to_string(chunk_size) +
+        " kind=" + oren_int_to_string(kind) +
+        " len=" + oren_int_to_string(len) +
+        " cap=" + oren_int_to_string(cap) +
+        " buf=" + oren_int_to_string(buf) +
+        " magic=" + oren_int_to_string(magic))
+    if mismatch == 1 && ring_dumped == 0 && g_trace_list_hdr_ring_ptr != 0 {
+        native_list_header_ring_dump(ptr)
+        ring_dumped = 1
+    }
+    if chunk_size > 1048576 {
+        var node_magic = 0
+        var node_next = 0
+        var node_freed = 0
+        if node_ptr != 0 {
+            node_magic = ptr_get(iadd(node_ptr, 40))
+            node_next = ptr_get(iadd(node_ptr, 32))
+            node_freed = ptr_get(iadd(node_ptr, 24))
+        }
+        print("[gc_free_list_node] node=" + oren_int_to_string(node_ptr) +
+              " size=" + oren_int_to_string(chunk_size) +
+              " kind=" + oren_int_to_string(kind) +
+              " freed=" + oren_int_to_string(node_freed) +
+              " next=" + oren_int_to_string(node_next) +
+              " magic=" + oren_int_to_string(node_magic))
+        native_list_header_ring_dump(ptr)
+        ring_dumped = 1
+    }
+    if g_trace_gc_free_list_hdr_ring != 0 && g_trace_gc_free_list_hdr_ring_left > 0 {
+        if g_trace_list_hdr_ring_ptr == 0 {
+            native_list_header_ring_enable()
+        }
+        g_trace_gc_free_list_hdr_ring_seen = g_trace_gc_free_list_hdr_ring_seen + 1
+        var every = g_trace_gc_free_list_hdr_ring_every
+        if every <= 0 { every = 1 }
+        var rem = g_trace_gc_free_list_hdr_ring_seen - (g_trace_gc_free_list_hdr_ring_seen / every) * every
+        if rem == 0 {
+            if g_trace_gc_free_list_hdr_ring_all != 0 {
+                native_list_header_ring_filter_set(ptr)
+                native_list_header_ring_dump_all()
+            } else {
+                native_list_header_ring_dump(ptr)
+            }
+            g_trace_gc_free_list_hdr_ring_left = g_trace_gc_free_list_hdr_ring_left - 1
+            ring_dumped = 1
+        }
+    }
+    if native_gc_list_header_ok_allow_poison(ptr, kind, chunk_size) == 0 {
+        if ring_dumped == 0 {
+            native_list_header_ring_dump(ptr)
+        }
+        native_list_debug_node(ptr)
+    }
+    return 0
+}
+
+// Single-thread fast path (native runtime):
+// The self-host compiler and most tooling run single-threaded. Avoid taking the global lock
+// in that mode, because `oren_find_node` and container ops are extremely lock-heavy.
+//
+// This is automatically disabled once a second thread is registered.
+
+

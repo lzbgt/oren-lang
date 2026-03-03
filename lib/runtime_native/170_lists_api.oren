@@ -1,0 +1,890 @@
+// --- Lists API (native runtime) ---
+//
+// Public list/list_int operations built on core helpers.
+
+@oren.keep
+fn oren_list_len(list) {
+    if list == nil { return 0 }
+    if _list_assume_list_enabled() != true {
+        // Safety: do not dereference arbitrary large integers as pointers.
+        // Rely on the tracked-alloc metadata (native) / runtime tracking (C) to discriminate.
+        var node = _list_find_node(list)
+        if node == 0 {
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+        }
+        if node == 0 {
+            node = native_alloc_index_recover_ptr(list)
+        }
+        if node == 0 {
+            if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+                var cap = ptr_get(iadd(list, 8))
+                if cap >= 0 && cap < 1048576 {
+                    var total = 32
+                    if cap > 0 { total = total + cap * 8 }
+                    oren_track_alloc_new(list, total, 2)
+                    node = _list_find_node(list)
+                }
+            }
+        }
+        if node == 0 {
+            print("trace: list_len node=0 list=" + oren_int_to_string(list))
+            oren_panic("list_len on non-list")
+            return 0
+        }
+        var k = ptr_get(iadd(node, 16))
+        if k != 2 && k != list_int_kind() {
+            print("trace: list_len kind=" + oren_int_to_string(k) +
+                  " list=" + oren_int_to_string(list) +
+                  " node=" + oren_int_to_string(node))
+            oren_panic("list_len on non-list")
+            return 0
+        }
+        if ptr_get(iadd(list, 24)) != list_magic() {
+            print("trace: list_len magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
+                  " want=" + oren_int_to_string(list_magic()) +
+                  " list=" + oren_int_to_string(list))
+            oren_panic("list_len on non-list")
+            return 0
+        }
+    }
+    return ptr_get(iadd(list, 0))
+}
+
+@oren.keep
+fn oren_list_clear(list) {
+    if list == nil { return nil }
+    if _list_assume_list_enabled() != true {
+        var node = _list_find_node(list)
+        if node == 0 { oren_panic("list_clear on non-list"); return nil }
+        var k = ptr_get(iadd(node, 16))
+        if k != 2 { oren_panic("list_clear on non-list"); return nil }
+        if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_clear on non-list"); return nil }
+    }
+    ptr_set(iadd(list, 0), 0)
+    _list_trace_emit(10, list, 2) // list_clear
+    return nil
+}
+
+// Unsafe/fast-path (tooling/internal): clear list without find_node/magic checks.
+@oren.keep
+fn oren_list_clear_unchecked(list) {
+    if list == nil { return nil }
+    ptr_set(iadd(list, 0), 0)
+    return nil
+}
+
+@oren.keep
+fn oren_list_reserve(list, new_cap) {
+    if list == nil { return nil }
+    if new_cap == nil { return nil }
+    if native_value_is_true(new_cap) || native_value_is_false(new_cap) {
+        oren_panic("list_reserve expects int (got bool)")
+        return nil
+    }
+    if native_gc_find_node_nolock(new_cap) != 0 {
+        oren_panic("list_reserve expects int (got pointer)")
+        return nil
+    }
+    if new_cap < 0 { return nil }
+    if _list_assume_list_enabled() != true {
+        // Safety: do not dereference arbitrary large integers as pointers.
+        var node = _list_find_node(list)
+        if node == 0 {
+            // Best-effort: rebuild alloc index in case it is stale/corrupted.
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+        }
+        if node == 0 {
+            node = native_alloc_index_recover_ptr(list)
+        }
+        if node == 0 {
+            if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+                var cap2 = ptr_get(iadd(list, 8))
+                if cap2 >= 0 && cap2 < 1048576 {
+                    var total2 = 32
+                    if cap2 > 0 { total2 = total2 + cap2 * 8 }
+                    oren_track_alloc_new(list, total2, 2)
+                    node = _list_find_node(list)
+                }
+            }
+        }
+        if node == 0 {
+            native_list_reserve_panic(list, new_cap, 1)
+            oren_panic("list_reserve on non-list")
+            return nil
+        }
+        var k = ptr_get(iadd(node, 16))
+        if k != 2 {
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+            k = 0
+            if node != 0 { k = ptr_get(iadd(node, 16)) }
+            if k != 2 {
+                if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+                    var cap3 = ptr_get(iadd(list, 8))
+                    if cap3 >= 0 && cap3 < 1048576 {
+                        var total3 = 32
+                        if cap3 > 0 { total3 = total3 + cap3 * 8 }
+                        oren_track_alloc_new(list, total3, 2)
+                        node = _list_find_node(list)
+                        k = 0
+                        if node != 0 { k = ptr_get(iadd(node, 16)) }
+                    }
+                }
+            }
+            if k != 2 {
+                native_list_reserve_panic(list, new_cap, 2)
+                oren_panic("list_reserve on non-list")
+                return nil
+            }
+        }
+        if ptr_get(iadd(list, 24)) != list_magic() {
+            native_list_reserve_panic(list, new_cap, 3)
+            oren_panic("list_reserve on non-list")
+            return nil
+        }
+    }
+    var cap = ptr_get(iadd(list, 8))
+    if cap < 0 {
+        native_list_reserve_panic(list, new_cap, 4)
+        oren_panic("list_reserve on corrupt list")
+        return nil
+    }
+    if cap > list_max_cap() {
+        native_list_reserve_panic(list, new_cap, 5)
+        oren_panic("list_reserve on corrupt list")
+        return nil
+    }
+    var count = ptr_get(iadd(list, 0))
+    var buf = ptr_get(iadd(list, 16))
+    _list_reserve_trace_emit(2, list, cap, new_cap, buf, 1)
+    if new_cap <= cap { return nil }
+    var bytes = _list_bytes_for_cap(new_cap)
+    var new_buf = _list_alloc_buf(list, bytes, new_cap, 2, _alloc_site_list_buf(), 211)
+    var i = 0
+    while i < count {
+        ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+        i = i + 1
+    }
+    _list_reserve_bytes_bump(2, count, new_cap)
+    ptr_set(iadd(list, 8), new_cap)
+    ptr_set(iadd(list, 16), new_buf)
+    _list_reserve_trace_emit(2, list, new_cap, new_cap, new_buf, 2)
+    _list_corrupt_check(list, 1) // list_reserve
+    _list_trace_emit(3, list, 2) // list_reserve
+    return nil
+}
+
+@oren.keep
+fn native_list_len_panic(list, stage) {
+    // stage: 1=node missing, 2=kind mismatch, 3=magic mismatch
+    print("trace: list_len panic stage=" + oren_int_to_string(stage) +
+          " list=" + oren_int_to_string(list))
+    var node = _list_find_node(list)
+    if node == 0 {
+        print("trace: list_len node=0")
+    } else {
+        print("trace: list_len node=" + oren_int_to_string(node) +
+              " kind=" + oren_int_to_string(ptr_get(iadd(node, 16))))
+    }
+    if list != 0 && list >= 4096 {
+        print("trace: list_len magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
+              " want=" + oren_int_to_string(list_magic()))
+        print("trace: list_len count=" + oren_int_to_string(ptr_get(iadd(list, 0))) +
+              " cap=" + oren_int_to_string(ptr_get(iadd(list, 8))) +
+              " buf=" + oren_int_to_string(ptr_get(iadd(list, 16))))
+    }
+    if stage == 3 {
+        native_list_debug_node(list)
+    }
+    _list_trace_dump(list)
+    oren_panic("list_len on non-list")
+    return 0
+}
+
+@oren.keep
+fn native_list_reserve_panic(list, new_cap, stage) {
+    // stage: 1=node missing, 2=kind mismatch, 3=magic mismatch
+    print("trace: list_reserve panic stage=" + oren_int_to_string(stage) +
+          " list=" + oren_int_to_string(list) +
+          " new_cap=" + oren_int_to_string(new_cap))
+    var node = _list_find_node(list)
+    if node == 0 {
+        print("trace: list_reserve node=0")
+    } else {
+        print("trace: list_reserve node=" + oren_int_to_string(node) +
+              " kind=" + oren_int_to_string(ptr_get(iadd(node, 16))))
+    }
+    var arena_node = native_arena_find_node_nolock(list)
+    var in_arena = 0
+    if g_arena_base != 0 && list >= g_arena_base && list < g_arena_limit { in_arena = 1 }
+    print("trace: list_reserve arena_depth=" + oren_int_to_string(g_arena_depth) +
+          " arena_node=" + oren_int_to_string(arena_node) +
+          " arena_base=" + oren_int_to_string(g_arena_base) +
+          " arena_ptr=" + oren_int_to_string(g_arena_ptr) +
+          " arena_limit=" + oren_int_to_string(g_arena_limit) +
+          " arena_range=" + oren_int_to_string(in_arena))
+    if list != 0 && list >= 4096 {
+        print("trace: list_reserve magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
+              " want=" + oren_int_to_string(list_magic()))
+        print("trace: list_reserve count=" + oren_int_to_string(ptr_get(iadd(list, 0))) +
+              " cap=" + oren_int_to_string(ptr_get(iadd(list, 8))) +
+              " buf=" + oren_int_to_string(ptr_get(iadd(list, 16))))
+    }
+    if stage == 1 {
+        native_list_debug_node(list)
+    }
+    _list_trace_dump(list)
+}
+
+fn native_list_debug_node(list) {
+    if list == 0 || list < 4096 { return 0 }
+    var node = _list_find_node(list)
+    if node == 0 {
+        print("trace: list_debug node=0 list=" + oren_int_to_string(list))
+        return 0
+    }
+    var n_ptr = ptr_get(node)
+    var n_size = ptr_get(iadd(node, 8))
+    var n_kind = ptr_get(iadd(node, 16))
+    var n_freed = ptr_get(iadd(node, 24))
+    var n_next = ptr_get(iadd(node, 32))
+    var n_magic = ptr_get(iadd(node, 40))
+    print("trace: list_debug node_ptr=" + oren_int_to_string(n_ptr) +
+          " size=" + oren_int_to_string(n_size) +
+          " kind=" + oren_int_to_string(n_kind) +
+          " freed=" + oren_int_to_string(n_freed) +
+          " next=" + oren_int_to_string(n_next) +
+          " magic=" + oren_int_to_string(n_magic))
+    if n_ptr - list != 0 {
+        print("trace: list_debug node_ptr_mismatch list=" + oren_int_to_string(list) +
+              " node_ptr=" + oren_int_to_string(n_ptr))
+    }
+
+    // Check alloc-index entry (if present).
+    var idx = native_alloc_index_get(list)
+    if idx == 0 {
+        print("trace: list_debug alloc_index miss list=" + oren_int_to_string(list))
+    } else if idx - node != 0 {
+        print("trace: list_debug alloc_index mismatch idx=" + oren_int_to_string(idx) +
+              " node=" + oren_int_to_string(node))
+    }
+
+    // Scan allocs list for node membership (bounded).
+    var seen_alloc = 0
+    var cur = global_get_allocs()
+    var limit = 200000
+    while cur != 0 && limit > 0 {
+        if cur - node == 0 { seen_alloc = 1; break }
+        cur = ptr_get(iadd(cur, 32))
+        limit = limit - 1
+    }
+    if seen_alloc == 1 {
+        print("trace: list_debug node_in_allocs=1")
+    } else {
+        print("trace: list_debug node_in_allocs=0")
+    }
+
+    // Scan free blocks list for node membership (bounded).
+    var seen_free = 0
+    var cur_free = global_get_free_blocks()
+    limit = 200000
+    while cur_free != 0 && limit > 0 {
+        if cur_free - node == 0 { seen_free = 1; break }
+        cur_free = ptr_get(iadd(cur_free, 32))
+        limit = limit - 1
+    }
+    if seen_free == 1 {
+        print("trace: list_debug node_in_free_blocks=1")
+    } else {
+        print("trace: list_debug node_in_free_blocks=0")
+    }
+
+    // Scan free blocks buckets for node membership (bounded; trace-only).
+    var seen_free_64 = 0
+    var seen_free_256 = 0
+    var seen_free_1024 = 0
+    var seen_free_other = 0
+    var cur_free_64 = ptr_get(global_free_blocks_64_ptr())
+    limit = 200000
+    while cur_free_64 != 0 && limit > 0 {
+        if cur_free_64 - node == 0 { seen_free_64 = 1; break }
+        cur_free_64 = ptr_get(iadd(cur_free_64, 32))
+        limit = limit - 1
+    }
+    var cur_free_256 = ptr_get(global_free_blocks_256_ptr())
+    limit = 200000
+    while cur_free_256 != 0 && limit > 0 {
+        if cur_free_256 - node == 0 { seen_free_256 = 1; break }
+        cur_free_256 = ptr_get(iadd(cur_free_256, 32))
+        limit = limit - 1
+    }
+    var cur_free_1024 = ptr_get(global_free_blocks_1024_ptr())
+    limit = 200000
+    while cur_free_1024 != 0 && limit > 0 {
+        if cur_free_1024 - node == 0 { seen_free_1024 = 1; break }
+        cur_free_1024 = ptr_get(iadd(cur_free_1024, 32))
+        limit = limit - 1
+    }
+    var cur_free_other = ptr_get(global_free_blocks_ptr())
+    limit = 200000
+    while cur_free_other != 0 && limit > 0 {
+        if cur_free_other - node == 0 { seen_free_other = 1; break }
+        cur_free_other = ptr_get(iadd(cur_free_other, 32))
+        limit = limit - 1
+    }
+    print("trace: list_debug node_in_free_blocks_64=" + oren_int_to_string(seen_free_64) +
+          " node_in_free_blocks_256=" + oren_int_to_string(seen_free_256) +
+          " node_in_free_blocks_1024=" + oren_int_to_string(seen_free_1024) +
+          " node_in_free_blocks_other=" + oren_int_to_string(seen_free_other))
+    return 0
+}
+
+// Safe type predicate: must not panic.
+@oren.keep
+fn oren_is_list(v) {
+    if v == nil { return false }
+	    var node = oren_find_node(v)
+	    if node == 0 { return false }
+	    if ptr_get(iadd(node, 16)) != 2 { return false }
+	    if ptr_get(iadd(v, 24)) != list_magic() { return false }
+	    return true
+}
+
+// Safe type predicate: list<int> (unboxed list).
+@oren.keep
+fn oren_is_list_int(v) {
+    if v == nil { return false }
+    var node = oren_find_node(v)
+    if node == 0 { return false }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { return false }
+    if ptr_get(iadd(v, 24)) != list_magic() { return false }
+    return true
+}
+
+@oren.keep
+fn oren_list_int_len(list) {
+    if list == nil { return 0 }
+    var node = _list_find_node(list)
+    if node == 0 {
+        native_alloc_index_rebuild_live()
+        node = _list_find_node(list)
+    }
+    if node == 0 {
+        node = native_alloc_index_recover_ptr(list)
+    }
+    if node == 0 {
+        if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+            var cap = ptr_get(iadd(list, 8))
+            if cap >= 0 && cap < 1048576 {
+                var total = 32
+                if cap > 0 { total = total + cap * 8 }
+                oren_track_alloc_new(list, total, list_int_kind())
+                node = _list_find_node(list)
+            }
+        }
+    }
+    if node == 0 { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
+    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
+    return ptr_get(iadd(list, 0))
+}
+
+// Unsafe/fast-path (tooling/internal): list<int> len without find_node/magic checks.
+// Used by compiler hot paths where list provenance is already validated.
+@oren.keep
+fn oren_list_int_len_unchecked(list) {
+    if list == nil { return 0 }
+    return ptr_get(iadd(list, 0))
+}
+
+@oren.keep
+fn oren_list_int_clear(list) {
+    if list == nil { return nil }
+    var node = _list_find_node(list)
+    if node == 0 { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
+    ptr_set(iadd(list, 0), 0)
+    _list_trace_emit(12, list, list_int_kind()) // list_int_clear
+    return nil
+}
+
+// Unsafe/fast-path (tooling/internal): list<int> clear without find_node/magic checks.
+@oren.keep
+fn oren_list_int_clear_unchecked(list) {
+    if list == nil { return nil }
+    ptr_set(iadd(list, 0), 0)
+    return nil
+}
+
+@oren.keep
+fn oren_list_int_reserve(list, new_cap) {
+    if list == nil { return nil }
+    if new_cap == nil { return nil }
+    if native_value_is_true(new_cap) || native_value_is_false(new_cap) {
+        oren_panic("list_int_reserve expects int (got bool)")
+        return nil
+    }
+    if native_gc_find_node_nolock(new_cap) != 0 {
+        oren_panic("list_int_reserve expects int (got pointer)")
+        return nil
+    }
+    if new_cap < 0 { return nil }
+    var node = _list_find_node(list)
+    if node == 0 {
+        native_alloc_index_rebuild_live()
+        node = _list_find_node(list)
+    }
+    if node == 0 {
+        _list_reserve_fail_emit(1, list, node, list_int_kind(), new_cap)
+        _list_trace_dump(list)
+        oren_panic("list_int_reserve on non-list")
+        return nil
+    }
+    var k = ptr_get(iadd(node, 16))
+    if k != list_int_kind() {
+        native_alloc_index_rebuild_live()
+        node = _list_find_node(list)
+        k = 0
+        if node != 0 { k = ptr_get(iadd(node, 16)) }
+        if k != list_int_kind() {
+            _list_reserve_fail_emit(2, list, node, list_int_kind(), new_cap)
+            _list_trace_dump(list)
+            oren_panic("list_int_reserve on non-list")
+            return nil
+        }
+    }
+    if ptr_get(iadd(list, 24)) != list_magic() {
+        _list_reserve_fail_emit(3, list, node, list_int_kind(), new_cap)
+        _list_trace_dump(list)
+        oren_panic("list_int_reserve on non-list")
+        return nil
+    }
+    _list_corrupt_check(list, 10) // list_int_reserve (pre)
+    var cap = ptr_get(iadd(list, 8))
+    if cap < 0 {
+        _list_reserve_fail_emit(4, list, node, list_int_kind(), new_cap)
+        oren_panic("list_int_reserve on corrupt list")
+        return nil
+    }
+    if cap > list_max_cap() {
+        _list_reserve_fail_emit(5, list, node, list_int_kind(), new_cap)
+        oren_panic("list_int_reserve on corrupt list")
+        return nil
+    }
+    var count = ptr_get(iadd(list, 0))
+    var buf = ptr_get(iadd(list, 16))
+    _list_reserve_trace_emit(list_int_kind(), list, cap, new_cap, buf, 1)
+    if new_cap <= cap { return nil }
+    var bytes = _list_bytes_for_cap(new_cap)
+    var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
+    var i = 0
+    while i < count {
+        ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+        i = i + 1
+    }
+    _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
+    ptr_set(iadd(list, 8), new_cap)
+    ptr_set(iadd(list, 16), new_buf)
+    _list_reserve_trace_emit(list_int_kind(), list, new_cap, new_cap, new_buf, 2)
+    _list_corrupt_check(list, 11) // list_int_reserve
+    _list_trace_emit(6, list, list_int_kind()) // list_int_reserve
+    return nil
+}
+
+@oren.keep
+fn oren_list_int_push(list, value) {
+    if list == nil { oren_panic("list_int_push on nil"); return nil }
+    var node = _list_find_node(list)
+    if node == 0 { _list_trace_dump(list); oren_panic("list_int_push on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_push on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_push on non-list"); return nil }
+    _list_int_check_value(value)
+
+    var count = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+    if count >= cap {
+        if cap < 0 || cap > list_max_cap() {
+            _list_trace_dump(list)
+            oren_panic("list_int_push on corrupt list")
+            return nil
+        }
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
+        var i = 0
+        while i < count {
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
+        }
+        _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    }
+    ptr_set(iadd(buf, count * 8), value)
+    ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_corrupt_check(list, 12) // list_int_push
+    _list_trace_emit(7, list, list_int_kind()) // list_int_push
+    return nil
+}
+
+// Unsafe/fast-path (tooling/internal): list<int> push without find_node/magic/value checks.
+// Used by compiler hot paths where list provenance + value type are already validated.
+@oren.keep
+fn oren_list_int_push_unchecked(list, value) {
+    if list == nil { oren_panic("list_int_push_unchecked on nil"); return nil }
+    var count = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+    if count >= cap {
+        if cap < 0 || cap > list_max_cap() {
+            oren_panic("list_int_push_unchecked on corrupt list")
+            return nil
+        }
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
+        var i = 0
+        while i < count {
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
+        }
+        _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    }
+    ptr_set(iadd(buf, count * 8), value)
+    ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_corrupt_check(list, 13) // list_int_push_unchecked
+    _list_trace_emit(8, list, list_int_kind()) // list_int_push_unchecked
+    return nil
+}
+
+@oren.keep
+fn oren_list_int_get(list, idx) {
+    if list == nil { oren_panic("list_int_get on nil"); return nil }
+    var node = _list_find_node(list)
+    if node == 0 { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
+    var count = ptr_get(iadd(list, 0))
+    if idx < 0 { oren_panic("Index out of bounds (negative)"); return nil }
+    if idx >= count { oren_panic("Index out of bounds"); return nil }
+    var buf = ptr_get(iadd(list, 16))
+    return ptr_get(iadd(buf, idx * 8))
+}
+
+// Unsafe/fast-path (tooling/internal): list<int> get without find_node/magic checks.
+// Bounds + nil checks remain to keep semantics identical for safe list<int> paths.
+@oren.keep
+fn oren_list_int_get_unchecked(list, idx) {
+    if list == nil { oren_panic("list_int_get_unchecked on nil"); return nil }
+    var count = ptr_get(iadd(list, 0))
+    if idx < 0 { oren_panic("Index out of bounds (negative)"); return nil }
+    if idx >= count { oren_panic("Index out of bounds"); return nil }
+    var buf = ptr_get(iadd(list, 16))
+    return ptr_get(iadd(buf, idx * 8))
+}
+
+@oren.keep
+fn oren_list_int_set(list, idx, value) {
+    if list == nil { oren_panic("list_int_set on nil"); return nil }
+    var node = _list_find_node(list)
+    if node == 0 { _list_trace_dump(list); oren_panic("list_int_set on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_set on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_set on non-list") }
+    _list_int_check_value(value)
+
+    var count = ptr_get(iadd(list, 0))
+    if idx < 0 { oren_panic("Index out of bounds (negative)") }
+    var want = iadd(idx, 1)
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+
+    if want > cap {
+        if cap < 0 || cap > list_max_cap() {
+            _list_trace_dump(list)
+            oren_panic("list_int_set on corrupt list")
+            return nil
+        }
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        if new_cap < want { new_cap = want }
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 212)
+
+        var i = 0
+        while i < count {
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
+        }
+        _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
+        // Initialize new slots to 0.
+        while i < want {
+            ptr_set(iadd(new_buf, i * 8), 0)
+            i = iadd(i, 1)
+        }
+
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    } else {
+        if buf == 0 { oren_panic("list_int_set: buf nil") }
+    }
+
+    ptr_set(iadd(buf, idx * 8), value)
+    if want > count { ptr_set(iadd(list, 0), want) }
+    _list_corrupt_check(list, 14) // list_int_set
+    _list_trace_emit(11, list, list_int_kind()) // list_int_set
+    return value
+}
+
+	@oren.keep
+fn oren_list_push(list, value) {
+    if list == nil {
+        oren_panic("list_push on nil")
+        return nil
+    }
+    if _list_assume_list_enabled() != true {
+        // Safety: do not dereference arbitrary large integers as pointers.
+	    var node = _list_find_node(list)
+	    if node == 0 { oren_panic("list_push: untracked ptr"); return 0 }
+	    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_push: wrong kind"); return 0 }
+	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_push: bad magic"); return 0 }
+    }
+	    var count = ptr_get(iadd(list, 0))
+	    var cap = ptr_get(iadd(list, 8))
+			    var buf = ptr_get(iadd(list, 16))
+			    if count >= cap {
+			        if cap < 0 || cap > list_max_cap() {
+			            _list_trace_dump(list)
+			            oren_panic("list_push on corrupt list")
+			            return nil
+			        }
+			        var new_cap = cap * 2
+			        if new_cap < 4 { new_cap = 4 }
+		        var bytes = _list_bytes_for_cap(new_cap)
+		        var new_buf = _list_alloc_buf(list, bytes, new_cap, 2, _alloc_site_list_buf(), 211)
+		        var i = 0
+	        while i < count {
+	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+	            i = iadd(i, 1)
+	        }
+	        _list_reserve_bytes_bump(2, count, new_cap)
+        buf = new_buf
+	        cap = new_cap
+	        ptr_set(iadd(list, 8), cap)
+	        ptr_set(iadd(list, 16), buf)
+	    }
+    ptr_set(iadd(buf, count * 8), value)
+    ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_corrupt_check(list, 3) // list_push
+    _list_trace_emit(4, list, 2) // list_push
+    // Language-level semantics: `oren_list_push` is statement-like and returns `nil`.
+    // (The list header pointer is stable and does not need to be returned.)
+    return nil
+}
+
+// Unsafe/fast-path (tooling/internal): push without `oren_find_node` / kind/magic validation.
+// Used by compiler hot paths (astbin decode) where the container provenance is trusted.
+@oren.keep
+fn oren_list_push_unchecked(list, value) {
+    if list == nil { oren_panic("list_push_unchecked on nil"); return nil }
+    var count = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+	    var buf = ptr_get(iadd(list, 16))
+	    if count >= cap {
+	        if cap < 0 || cap > list_max_cap() {
+	            oren_panic("list_push_unchecked on corrupt list")
+	            return nil
+	        }
+	        var new_cap = cap * 2
+	        if new_cap < 4 { new_cap = 4 }
+	        var bytes = _list_bytes_for_cap(new_cap)
+	        var new_buf = _list_alloc_buf(list, bytes, new_cap, 2, _alloc_site_list_buf(), 211)
+	        var i = 0
+	        while i < count {
+	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+	            i = iadd(i, 1)
+        }
+        _list_reserve_bytes_bump(2, count, new_cap)
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    }
+    ptr_set(iadd(buf, count * 8), value)
+    ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_corrupt_check(list, 2) // list_push_unchecked
+    _list_trace_emit(5, list, 2) // list_push_unchecked
+    return nil
+}
+
+@oren.keep
+fn oren_list_get(list, idx) {
+    if list == nil {
+        oren_panic("Indexing on nil")
+        return nil
+    }
+    var count = 0
+    if _list_assume_list_enabled() != true {
+        // Safety: do not dereference arbitrary large integers as pointers.
+        // `x[i]` is defined for lists and maps; reject other values deterministically.
+        var node = _list_find_node(list)
+        if node == 0 {
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+        }
+        if node == 0 { _list_trace_dump(list); oren_panic("Indexing on non-container"); return nil }
+	    var kind = ptr_get(iadd(node, 16))
+	    if kind != 2 && kind != list_int_kind() {
+	        if kind == 3 {
+                // Not a list: treat as map indexing.
+                // Key kind is selected by `oren_map_get` using tracking metadata.
+                return oren_map_get(list, idx)
+            }
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+            if node != 0 {
+                kind = ptr_get(iadd(node, 16))
+                if kind == 3 {
+                    return oren_map_get(list, idx)
+                }
+                if kind == 2 || kind == list_int_kind() {
+                    // fall through to list handling
+                } else {
+                    _list_trace_dump(list)
+                    oren_panic("Indexing on non-container")
+                    return nil
+                }
+            } else {
+                _list_trace_dump(list)
+                oren_panic("Indexing on non-container")
+                return nil
+            }
+	    }
+	    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("Indexing on non-list"); return nil }
+        count = ptr_get(iadd(list, 0))
+    } else {
+        count = ptr_get(iadd(list, 0))
+    }
+    if idx < 0 { 
+        oren_panic("Index out of bounds (negative)")
+        return nil
+    }
+    if idx >= count { 
+        oren_panic("Index out of bounds")
+        return nil
+    }
+	    var buf = ptr_get(iadd(list, 16))
+	    return ptr_get(iadd(buf, idx * 8))
+}
+
+// Set list element, growing the list as needed. Returns the written value.
+//
+// Language-level semantics (rolling, matches C backend + tests):
+// - `xs[i] = v` on a list grows `xs` to length `i+1` if needed.
+// - New slots are initialized to `nil`.
+@oren.keep
+fn oren_list_set(list, idx, value) {
+    if list == nil { oren_panic("list_set on nil"); return nil }
+    // Safety: do not dereference arbitrary large integers as pointers.
+	    var count = 0
+        var is_list_int = 0
+        if _list_assume_list_enabled() != true {
+	        var node = _list_find_node(list)
+	        if node == 0 { oren_panic("list_set on non-list"); return nil }
+	        var kind = ptr_get(iadd(node, 16))
+	        if kind == list_int_kind() {
+	            is_list_int = 1
+	        } else if kind != 2 {
+	            oren_panic("list_set on non-list"); return nil
+	        }
+	        if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_set on non-list") }
+	        count = ptr_get(iadd(list, 0))
+        } else {
+            count = ptr_get(iadd(list, 0))
+        }
+        if is_list_int != 0 { _list_int_check_value(value) }
+	    if idx < 0 { oren_panic("Index out of bounds (negative)") }
+	    var want = iadd(idx, 1)
+	    var cap = ptr_get(iadd(list, 8))
+	    var buf = ptr_get(iadd(list, 16))
+
+    if want > cap {
+        if cap < 0 || cap > list_max_cap() {
+            _list_trace_dump(list)
+            oren_panic("list_set on corrupt list")
+            return nil
+        }
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        if new_cap < want { new_cap = want }
+        var alloc_site = _alloc_site_list_buf()
+        var kind = 2
+        if is_list_int != 0 {
+            alloc_site = _alloc_site_list_int_buf()
+            kind = list_int_kind()
+        }
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, kind, alloc_site, 212)
+
+        var i = 0
+        while i < count {
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
+        }
+        if is_list_int != 0 {
+            _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
+        } else {
+            _list_reserve_bytes_bump(2, count, new_cap)
+        }
+        if is_list_int != 0 {
+            // Initialize new slots to 0 for list<int>.
+            while i < want {
+                ptr_set(iadd(new_buf, i * 8), 0)
+                i = iadd(i, 1)
+            }
+        } else {
+            // Initialize new slots to nil.
+            while i < want {
+                ptr_set(iadd(new_buf, i * 8), nil)
+                i = iadd(i, 1)
+            }
+        }
+
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    } else {
+        if buf == 0 {
+            // cap may be 0 for an empty list, but then want>cap and we would have allocated above.
+            // If we reach here, treat it as a runtime invariant violation.
+            oren_panic("list buffer is nil")
+            return nil
+        }
+        // Grow count in-place; ensure newly exposed slots are nil.
+        var j = count
+        while j < want {
+            ptr_set(iadd(buf, j * 8), nil)
+            j = iadd(j, 1)
+        }
+    }
+
+    ptr_set(iadd(buf, idx * 8), value)
+    if want > count { ptr_set(iadd(list, 0), want) }
+    _list_corrupt_check(list, 4) // list_set
+    _list_trace_emit(9, list, 2) // list_set
+    return value
+}

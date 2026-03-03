@@ -3,7 +3,11 @@
 // Split into focused modules to keep the runtime reviewable:
 // - 100_time_gc_alloc_trace.oren: diagnostics + alloc-site/list tracing
 // - 100_time_gc_alloc_index.oren: alloc index + static/cstr0 tables
-// - 100_time_gc_alloc_core.oren: tracking + reuse + roots + find-node
+// - 100_time_gc_alloc_core.oren: wrapper for core submodules
+//   - 100_time_gc_alloc_core_scan_reuse.oren: stack scan + reuse + root helpers
+//   - 100_time_gc_alloc_core_list_hdr.oren: list header validation + ring dumps
+//   - 100_time_gc_alloc_core_track.oren: locking + alloc tracking fast paths
+//   - 100_time_gc_alloc_core_roots_gc.oren: root registration + find + GC collect
 //
 // NOTE: include order is semantically significant.
 
