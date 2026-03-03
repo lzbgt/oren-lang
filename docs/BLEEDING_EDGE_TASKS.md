@@ -1041,6 +1041,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
     `build/logs/triage_stage2_quick_full_trace10_20260304_014204.log`).
+  - Trace: stage2 full quick-integration harness (5 runs) with
+    `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
+    `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
+    `build/logs/triage_stage2_quick_full_poll_cache_trace_20260304_014906.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
