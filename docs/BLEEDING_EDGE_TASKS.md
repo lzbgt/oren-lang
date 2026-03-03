@@ -953,6 +953,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: manual `run_native_quick_integration.sh` with guard and 60s timeouts
     also hit rc=143 before producing inner logs (log:
     `build/logs/native_quick_poll_cache_guard_manual_20260304_001735.log`).
+  - New: `OREN_TRACE_GREEN_POLL_CACHE_GUARD_EVERY=<n>` samples guard checks every
+    N cached poll iterations (debug-only).
+  - Trace: stage2 harness with guard sampling (`EVERY=32`) still timed out on run 1
+    with empty inner logs (log:
+    `build/logs/triage_stage2_quick_poll_cache_guard_every32_20260304_002436.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).

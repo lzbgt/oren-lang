@@ -404,6 +404,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      checks for drift at runq/entry (panics on mismatch; debug-only).
    - New: `OREN_TRACE_GREEN_POLL_CACHE_GUARD=1` validates cached poll `ts/s/p` pointers
      and runq_buf before deref (debug-only).
+   - New: `OREN_TRACE_GREEN_POLL_CACHE_GUARD_EVERY=<n>` samples the poll-cache guard
+     every N cached iterations (debug-only).
    - Trace: `alloc_churn` run with size tracing shows `size=160000` corresponds to a list_int
      buffer (`cap=20000`, bytes=160000), so the size log is expected
      (log: `build/logs/bench_run_alloc_churn_20260226_084444/oren_native/run_0.log`).
