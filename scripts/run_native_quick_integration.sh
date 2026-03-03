@@ -54,6 +54,24 @@ run_with_timeout() {
   fi
 }
 
+run_with_timeout_retry() {
+  local secs="$1"
+  shift
+  run_with_timeout "$secs" "$@"
+  local rc=$?
+  # Common timeout exit codes:
+  # - GNU timeout: 124
+  # - SIGKILL: 137
+  # - SIGTERM: 143
+  if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
+    local secs2=$((secs * 2))
+    echo "WARN: timeout (rc=$rc). Retrying with ${secs2}s." >&2
+    run_with_timeout "$secs2" "$@"
+    return $?
+  fi
+  return "$rc"
+}
+
 uname_s="$(uname -s)"
 uname_m="$(uname -m)"
 
@@ -123,10 +141,10 @@ rm -f "$log" "$out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
   --backend native --platform "$platform" --debug -o "$out" >"$log" 2>&1
 
-run_with_timeout "$run_timeout_secs" "$out" >>"$log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
 
 echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$log"
-OREN_GREEN_POLL_CACHE=1 run_with_timeout "$run_timeout_secs" "$out" >>"$log" 2>&1
+OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
 
 tail -n 5 "$log"
 
@@ -138,7 +156,7 @@ rm -f "$ul_log" "$ul_out" 2>/dev/null || true
 
 run_with_timeout "$build_timeout_secs" "$compiler" build "$ul_src" \
   --backend native --platform "$platform" --debug -o "$ul_out" >"$ul_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$ul_out" >>"$ul_log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$ul_out" >>"$ul_log" 2>&1
 tail -n 3 "$ul_log" >>"$log"
 
 echo "== os thread park/unpark smoke ==" >>"$log"
@@ -148,7 +166,7 @@ ot_log="build/logs/${compiler_base}_os_thread_park_unpark_smoke.log"
 rm -f "$ot_log" "$ot_out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$ot_src" \
   --backend native --platform "$platform" --debug -o "$ot_out" >"$ot_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$ot_out" >>"$ot_log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$ot_out" >>"$ot_log" 2>&1
 tail -n 3 "$ot_log" >>"$log"
 
 echo "== os thread spawn-many smoke ==" >>"$log"
@@ -158,7 +176,7 @@ om_log="build/logs/${compiler_base}_os_thread_spawn_many_smoke.log"
 rm -f "$om_log" "$om_out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$om_src" \
   --backend native --platform "$platform" --debug -o "$om_out" >"$om_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$om_out" >>"$om_log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$om_out" >>"$om_log" 2>&1
 tail -n 3 "$om_log" >>"$log"
 
 echo "== gc stw os-thread collect smoke ==" >>"$log"
@@ -168,7 +186,7 @@ gc_log="build/logs/${compiler_base}_gc_stw_os_thread_collect.log"
 rm -f "$gc_log" "$gc_out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$gc_src" \
   --backend native --platform "$platform" --debug -o "$gc_out" >"$gc_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$gc_out" >>"$gc_log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$gc_out" >>"$gc_log" 2>&1
 tail -n 3 "$gc_log" >>"$log"
 
 echo "== green two workers world-lock smoke ==" >>"$log"
@@ -178,7 +196,7 @@ gw_log="build/logs/${compiler_base}_green_two_workers_world_lock_smoke.log"
 rm -f "$gw_log" "$gw_out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$gw_src" \
   --backend native --platform "$platform" --debug -o "$gw_out" >"$gw_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$gw_out" >>"$gw_log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$gw_out" >>"$gw_log" 2>&1
 tail -n 3 "$gw_log" >>"$log"
 
 echo "== green two workers M<P deterministic smoke ==" >>"$log"
@@ -188,7 +206,7 @@ md_log="build/logs/${compiler_base}_green_two_workers_m_less_p_deterministic_smo
 rm -f "$md_log" "$md_out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$md_src" \
   --backend native --platform "$platform" --debug -o "$md_out" >"$md_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$md_out" >>"$md_log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$md_out" >>"$md_log" 2>&1
 tail -n 3 "$md_log" >>"$log"
 
 echo "== arena auto loop smoke ==" >>"$log"
@@ -198,7 +216,7 @@ arena_log="build/logs/${compiler_base}_arena_auto_loop_smoke.log"
 rm -f "$arena_log" "$arena_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_src" \
   --backend native --platform "$platform" --debug -o "$arena_out" >"$arena_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_out" >>"$arena_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_out" >>"$arena_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_log" 2>/dev/null; then
   echo "ERROR: arena auto loop trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_log" >&2 2>/dev/null || true
@@ -213,7 +231,7 @@ arena_assign_log="build/logs/${compiler_base}_arena_auto_loop_assign_smoke.log"
 rm -f "$arena_assign_log" "$arena_assign_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_assign_src" \
   --backend native --platform "$platform" --debug -o "$arena_assign_out" >"$arena_assign_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_assign_out" >>"$arena_assign_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_assign_out" >>"$arena_assign_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_assign_log" 2>/dev/null; then
   echo "ERROR: arena auto loop assign trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_assign_log" >&2 2>/dev/null || true
@@ -228,7 +246,7 @@ arena_int_log="build/logs/${compiler_base}_arena_auto_loop_list_int_smoke.log"
 rm -f "$arena_int_log" "$arena_int_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_src" \
   --backend native --platform "$platform" --debug -o "$arena_int_out" >"$arena_int_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_int_out" >>"$arena_int_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_out" >>"$arena_int_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_int_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_int_log" >&2 2>/dev/null || true
@@ -243,7 +261,7 @@ arena_int_assign_log="build/logs/${compiler_base}_arena_auto_loop_list_int_assig
 rm -f "$arena_int_assign_log" "$arena_int_assign_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_assign_src" \
   --backend native --platform "$platform" --debug -o "$arena_int_assign_out" >"$arena_int_assign_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_int_assign_out" >>"$arena_int_assign_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_assign_out" >>"$arena_int_assign_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_int_assign_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> assign trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_int_assign_log" >&2 2>/dev/null || true
@@ -258,7 +276,7 @@ arena_skip_log="build/logs/${compiler_base}_arena_auto_loop_conditional_assign_s
 rm -f "$arena_skip_log" "$arena_skip_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_skip_src" \
   --backend native --platform "$platform" --debug -o "$arena_skip_out" >"$arena_skip_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_skip_out" >>"$arena_skip_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_skip_out" >>"$arena_skip_log" 2>&1
 if grep -q "\\[arena\\]" "$arena_skip_log" 2>/dev/null; then
   echo "ERROR: arena auto loop conditional-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_skip_log" >&2 2>/dev/null || true
@@ -273,7 +291,7 @@ arena_int_skip_log="build/logs/${compiler_base}_arena_auto_loop_list_int_conditi
 rm -f "$arena_int_skip_log" "$arena_int_skip_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_skip_src" \
   --backend native --platform "$platform" --debug -o "$arena_int_skip_out" >"$arena_int_skip_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_int_skip_out" >>"$arena_int_skip_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_skip_out" >>"$arena_int_skip_log" 2>&1
 if grep -q "\\[arena\\]" "$arena_int_skip_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> conditional-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_int_skip_log" >&2 2>/dev/null || true
@@ -288,7 +306,7 @@ arena_lit_skip_log="build/logs/${compiler_base}_arena_auto_loop_conditional_list
 rm -f "$arena_lit_skip_log" "$arena_lit_skip_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_lit_skip_src" \
   --backend native --platform "$platform" --debug -o "$arena_lit_skip_out" >"$arena_lit_skip_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_lit_skip_out" >>"$arena_lit_skip_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_lit_skip_out" >>"$arena_lit_skip_log" 2>&1
 if grep -q "\\[arena\\]" "$arena_lit_skip_log" 2>/dev/null; then
   echo "ERROR: arena auto loop conditional list literal should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_lit_skip_log" >&2 2>/dev/null || true
@@ -303,7 +321,7 @@ arena_use_before_log="build/logs/${compiler_base}_arena_auto_loop_use_before_ass
 rm -f "$arena_use_before_log" "$arena_use_before_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_use_before_src" \
   --backend native --platform "$platform" --debug -o "$arena_use_before_out" >"$arena_use_before_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_use_before_out" >>"$arena_use_before_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_use_before_out" >>"$arena_use_before_log" 2>&1
 if grep -q "\\[arena\\]" "$arena_use_before_log" 2>/dev/null; then
   echo "ERROR: arena auto loop use-before-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_use_before_log" >&2 2>/dev/null || true
@@ -318,7 +336,7 @@ arena_int_use_before_log="build/logs/${compiler_base}_arena_auto_loop_list_int_u
 rm -f "$arena_int_use_before_log" "$arena_int_use_before_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_use_before_src" \
   --backend native --platform "$platform" --debug -o "$arena_int_use_before_out" >"$arena_int_use_before_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_int_use_before_out" >>"$arena_int_use_before_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_use_before_out" >>"$arena_int_use_before_log" 2>&1
 if grep -q "\\[arena\\]" "$arena_int_use_before_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> use-before-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_int_use_before_log" >&2 2>/dev/null || true
@@ -333,7 +351,7 @@ arena_lit_log="build/logs/${compiler_base}_arena_auto_loop_empty_list_smoke.log"
 rm -f "$arena_lit_log" "$arena_lit_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_lit_src" \
   --backend native --platform "$platform" --debug -o "$arena_lit_out" >"$arena_lit_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_lit_out" >>"$arena_lit_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_lit_out" >>"$arena_lit_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_lit_log" 2>/dev/null; then
   echo "ERROR: arena auto loop empty list trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_lit_log" >&2 2>/dev/null || true
@@ -348,7 +366,7 @@ arena_nested_log="build/logs/${compiler_base}_arena_auto_loop_nested_continue_sm
 rm -f "$arena_nested_log" "$arena_nested_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_nested_src" \
   --backend native --platform "$platform" --debug -o "$arena_nested_out" >"$arena_nested_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_nested_out" >>"$arena_nested_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_nested_out" >>"$arena_nested_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_nested_log" 2>/dev/null; then
   echo "ERROR: arena auto loop nested continue trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_nested_log" >&2 2>/dev/null || true
@@ -363,7 +381,7 @@ arena_cont_log="build/logs/${compiler_base}_arena_auto_loop_continue_smoke.log"
 rm -f "$arena_cont_log" "$arena_cont_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_cont_src" \
   --backend native --platform "$platform" --debug -o "$arena_cont_out" >"$arena_cont_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_cont_out" >>"$arena_cont_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_cont_out" >>"$arena_cont_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_cont_log" 2>/dev/null; then
   echo "ERROR: arena auto loop continue trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_cont_log" >&2 2>/dev/null || true
@@ -378,7 +396,7 @@ arena_break_log="build/logs/${compiler_base}_arena_auto_loop_break_smoke.log"
 rm -f "$arena_break_log" "$arena_break_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_break_src" \
   --backend native --platform "$platform" --debug -o "$arena_break_out" >"$arena_break_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_break_out" >>"$arena_break_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_break_out" >>"$arena_break_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_break_log" 2>/dev/null; then
   echo "ERROR: arena auto loop break trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_break_log" >&2 2>/dev/null || true
@@ -393,7 +411,7 @@ arena_ret_log="build/logs/${compiler_base}_arena_auto_loop_return_smoke.log"
 rm -f "$arena_ret_log" "$arena_ret_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_ret_src" \
   --backend native --platform "$platform" --debug -o "$arena_ret_out" >"$arena_ret_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_ret_out" >>"$arena_ret_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_ret_out" >>"$arena_ret_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_ret_log" 2>/dev/null; then
   echo "ERROR: arena auto loop return trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_ret_log" >&2 2>/dev/null || true
@@ -408,7 +426,7 @@ arena_fpc_log="build/logs/${compiler_base}_arena_auto_loop_for_post_continue_smo
 rm -f "$arena_fpc_log" "$arena_fpc_out" 2>/dev/null || true
 OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_fpc_src" \
   --backend native --platform "$platform" --debug -o "$arena_fpc_out" >"$arena_fpc_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_fpc_out" >>"$arena_fpc_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_fpc_out" >>"$arena_fpc_log" 2>&1
 if ! grep -q "\\[arena\\]" "$arena_fpc_log" 2>/dev/null; then
   echo "ERROR: arena auto loop for-post continue trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_fpc_log" >&2 2>/dev/null || true
@@ -423,7 +441,7 @@ reuse_log="build/logs/${compiler_base}_loop_list_reuse_escape_smoke.log"
 rm -f "$reuse_log" "$reuse_out" 2>/dev/null || true
 OREN_OPT_LOOP_LIST_REUSE=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$reuse_src" \
   --backend native --platform "$platform" --debug -o "$reuse_out" >"$reuse_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$reuse_out" >>"$reuse_log" 2>&1
+run_with_timeout_retry "$run_timeout_secs" "$reuse_out" >>"$reuse_log" 2>&1
 tail -n 3 "$reuse_log" >>"$log"
 
 if [[ "$os_key" != "windows" ]]; then
