@@ -1144,6 +1144,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     entry-args light + guard-light + list trace light with stride=8 completed cleanly
     (logs: `build/logs/native_quick_until_world_lock_20260304_030837_run1.log`,
     `build/logs/native_quick_until_world_lock_20260304_030837_run1_inner.log`).
+  - Trace: stage2 flake harness (5 runs) with entry-args light + guard-light +
+    list trace light stride=8 segfaulted on run 1 during native quick integration
+    (logs: `build/logs/native_quick_stage2_flake_20260304_031123_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_031123_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
