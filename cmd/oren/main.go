@@ -128,6 +128,10 @@ func pythonEmbedInfoFromCmd(cmdArgs []string) (pythonEmbedInfo, error) {
 
 func pythonEmbedInfoDetect() (pythonEmbedInfo, error) {
 	if env := strings.TrimSpace(os.Getenv("OREN_PYTHON")); env != "" {
+		env = strings.Trim(env, "\"")
+		if _, err := os.Stat(env); err == nil {
+			return pythonEmbedInfoFromCmd([]string{env})
+		}
 		cmd := strings.Fields(env)
 		if len(cmd) > 0 {
 			return pythonEmbedInfoFromCmd(cmd)

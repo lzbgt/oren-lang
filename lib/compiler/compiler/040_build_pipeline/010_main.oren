@@ -17,6 +17,15 @@ fn _string_strip_trailing_cr(s) {
     return oren_string_slice(s, 0, sl - 1)
 }
 
+fn _string_strip_wrapping_quotes(s) {
+    if s == nil { return s }
+    var sl = oren_string_len(s)
+    if sl < 2 { return s }
+    if oren_string_char_at_unchecked(s, 0) != "\"" { return s }
+    if oren_string_char_at_unchecked(s, sl - 1) != "\"" { return s }
+    return oren_string_slice(s, 1, sl - 1)
+}
+
 fn _parse_kv_lines(s) {
     var out = {}
     if s == nil { return out }
@@ -102,7 +111,17 @@ fn _python_embed_probe_info() {
     }
     var i = 0
     while i < oren_list_len(candidates) {
-        var cmd = candidates[i] + " " + _cmd_quote_path_host(script_path)
+        var c0 = candidates[i]
+        var c_strip = _string_strip_wrapping_quotes(c0)
+        var cmd = nil
+        if file_exists(c_strip) {
+            var exe = c_strip
+            if host_is_windows() { exe = _path_to_windows_sep(exe) }
+            if host_is_windows() { cmd = cmd_quote(exe) + " " + _cmd_quote_path_host(script_path) }
+            else { cmd = shell_quote(exe) + " " + _cmd_quote_path_host(script_path) }
+        } else {
+            cmd = c0 + " " + _cmd_quote_path_host(script_path)
+        }
         var rc = _run_cmd_capture_stdout(cmd, out_path)
         if rc == 0 {
             var s = oren_read_file(out_path)
