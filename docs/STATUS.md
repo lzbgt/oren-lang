@@ -1421,6 +1421,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
   - Note: `make test` hit a `test-native-quick` segfault (Error 139) on 2026-03-03
     (log: `build/logs/make_test_20260303_215000.log`); rerun passed
     (log: `build/logs/make_test_20260303_215100.log`). Track for flakes.
+  - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
+    (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,
