@@ -885,6 +885,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `worker_green_alloc_yield_integrity` to diagnose green poll cache list corruption (2026-03-03).
   - New: `OREN_TRACE_GREEN_ENTRY_ARGS=1` logs `args_list` metadata at `__oren_green_entry`
     to catch corrupted spawn args before `oren_call_obj_list` (2026-03-03).
+  - New: `OREN_TRACE_LIST_GET_BAD_SCAN=1` dumps alloc-index probe info for
+    `list_get_bad` pointers (use sparingly; expensive).
   - Trace: stage2 flake harness with `OREN_TRACE_LIST_GET_BAD=1` timed out on run 2
     (rc=143; log: `build/logs/native_quick_stage2_flake_20260303_224014_run2.log` +
     inner `build/logs/native_quick_stage2_flake_20260303_224014_run2_inner.log`).
@@ -899,6 +901,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     with `node=0` before `worker_green_local_ptr_survives_yields` invoked;
     `__args` matched `args_list` pointer 4381103232 in the panic trace
     (log: `build/logs/native_quick_stage2_flake_20260303_230643_run9_inner.log`).
+  - Trace: stage2 harness with `OREN_QI_TRACE_GREEN_LIST=1` +
+    `OREN_TRACE_LIST_GET_BAD=1` + `OREN_TRACE_GREEN_ENTRY_ARGS=1` segfaulted
+    on run 1 (rc=139) after logging `green_entry_args` with list kind=2/magic ok
+    (log: `build/logs/native_quick_stage2_flake_20260303_231403_run1_inner.log`).
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop

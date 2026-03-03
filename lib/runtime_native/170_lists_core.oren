@@ -180,6 +180,10 @@ var g_trace_list_get_bad_cap = 0
 var g_trace_list_get_bad_envp = 0
 var g_trace_list_get_bad_argv = 0
 var g_trace_list_get_bad_argc = 0
+var g_trace_list_get_bad_scan = -1
+var g_trace_list_get_bad_scan_envp = 0
+var g_trace_list_get_bad_scan_argv = 0
+var g_trace_list_get_bad_scan_argc = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -603,7 +607,39 @@ fn _list_get_bad_emit(stage, list, idx, node, kind) {
           " small=" + oren_int_to_string(small) +
           " tag=" + oren_int_to_string(tag) +
           " name=" + name)
+    if node == 0 && _list_get_bad_scan_enabled() == true {
+        native_alloc_index_scan_ptr_debug(list, 0)
+    }
     return 0
+}
+
+fn _list_get_bad_scan_enabled() {
+    if g_trace_list_get_bad_scan == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_get_bad_scan == 0 {
+        if cur_envp == g_trace_list_get_bad_scan_envp &&
+           cur_argv == g_trace_list_get_bad_scan_argv &&
+           cur_argc == g_trace_list_get_bad_scan_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_GET_BAD_SCAN")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_list_get_bad_scan == -1 || g_trace_list_get_bad_scan == 0 {
+            g_trace_list_get_bad_scan = 0
+            g_trace_list_get_bad_scan_envp = cur_envp
+            g_trace_list_get_bad_scan_argv = cur_argv
+            g_trace_list_get_bad_scan_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_list_get_bad_scan = 1
+    g_trace_list_get_bad_scan_envp = cur_envp
+    g_trace_list_get_bad_scan_argv = cur_argv
+    g_trace_list_get_bad_scan_argc = cur_argc
+    return true
 }
 
 fn _list_reserve_bytes_enabled() {
