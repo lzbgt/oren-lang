@@ -10,12 +10,9 @@
 // - Pass nil or "" for msg if you want a generic failure line.
 
 fn _assert_fail(prefix, msg) {
-    if msg != nil && msg != "" {
-        print(prefix + msg)
-    } else {
-        print(prefix)
-    }
-    oren_exit(1)
+    var out = prefix
+    if msg != nil && msg != "" { out = out + msg }
+    oren_fail(1, out)
     return 0
 }
 
@@ -29,4 +26,27 @@ fn assert_eq(a, b, msg) {
     if a == b { return 0 }
     _assert_fail("assert_eq failed: ", msg)
     return 0
+}
+
+fn assert_ne(a, b, msg) {
+    if a != b { return 0 }
+    _assert_fail("assert_ne failed: ", msg)
+    return 0
+}
+
+fn assert_streq(a, b, msg) {
+    if strcmp(a, b) == 0 { return 0 }
+    _assert_fail("assert_streq failed: ", msg)
+    return 0
+}
+
+fn assert_err(v, msg) {
+    if oren_is_err(v) { return 0 }
+    _assert_fail("assert_err failed: ", msg)
+    return 0
+}
+
+fn assert_ok(v, msg) {
+    if oren_is_err(v) { _assert_fail("assert_ok failed: ", msg) }
+    return v
 }

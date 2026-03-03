@@ -3199,7 +3199,8 @@ Design direction:
 
 Interim (rolling):
 
-- `std:assert` provides lightweight `assert`/`assert_eq` helpers in the stdlib.
+- `std:assert` provides lightweight helpers in the stdlib:
+  `assert`, `assert_eq`, `assert_ne`, `assert_streq`, `assert_err`, `assert_ok`.
 - Built-in `assert`/`test` are still planned for core-language integration.
 
 ### 3) Structured error model (self-healing support)
