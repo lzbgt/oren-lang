@@ -1157,6 +1157,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (`OREN_TRACE_LIST_CORRUPT=1`, cap=4) completed cleanly with list/entry traces off
     (logs: `build/logs/native_quick_until_world_lock_20260304_031616_run1.log`,
     `build/logs/native_quick_until_world_lock_20260304_031616_run1_inner.log`).
+  - Trace: stage2 flake harness (5 runs) with list corrupt tracing enabled
+    (`OREN_TRACE_LIST_CORRUPT=1`, cap=8) still failed on run 5 during the poll-cache
+    run with `Indexing on non-container` and `list_trace_dump` node=0 at
+    `__oren_fnwrap_worker_green_alloc_yield_integrity` (logs:
+    `build/logs/native_quick_stage2_flake_20260304_032019_run5.log`,
+    `build/logs/native_quick_stage2_flake_20260304_032019_run5_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
