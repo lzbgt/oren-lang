@@ -6,6 +6,10 @@ var g_trace_green_entry_args = -1
 var g_trace_green_entry_args_envp = 0
 var g_trace_green_entry_args_argv = 0
 var g_trace_green_entry_args_argc = 0
+var g_trace_green_entry_args_light = -1
+var g_trace_green_entry_args_light_envp = 0
+var g_trace_green_entry_args_light_argv = 0
+var g_trace_green_entry_args_light_argc = 0
 var g_trace_green_entry_args_guard = -1
 var g_trace_green_entry_args_guard_envp = 0
 var g_trace_green_entry_args_guard_argv = 0
@@ -48,8 +52,45 @@ fn _green_trace_entry_args_enabled() {
     return true
 }
 
+fn _green_trace_entry_args_light_enabled() {
+    if g_trace_green_entry_args_light == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_entry_args_light == 0 {
+        if cur_envp == g_trace_green_entry_args_light_envp &&
+           cur_argv == g_trace_green_entry_args_light_argv &&
+           cur_argc == g_trace_green_entry_args_light_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_ENTRY_ARGS_LIGHT")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_entry_args_light == -1 || g_trace_green_entry_args_light == 0 {
+            g_trace_green_entry_args_light = 0
+            g_trace_green_entry_args_light_envp = cur_envp
+            g_trace_green_entry_args_light_argv = cur_argv
+            g_trace_green_entry_args_light_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_entry_args_light = 1
+    g_trace_green_entry_args_light_envp = cur_envp
+    g_trace_green_entry_args_light_argv = cur_argv
+    g_trace_green_entry_args_light_argc = cur_argc
+    return true
+}
+
 fn _green_trace_entry_args(fn_obj, args_list) {
     if _green_trace_entry_args_enabled() != true { return 0 }
+    if _green_trace_entry_args_light_enabled() == true {
+        var small = 0
+        if args_list < 4096 { small = 1 }
+        print("trace: green_entry_args light fn=" + oren_int_to_string(fn_obj) +
+              " list=" + oren_int_to_string(args_list) +
+              " small=" + oren_int_to_string(small))
+        return 0
+    }
     var node = native_alloc_index_get(args_list)
     if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
     var kind = 0
