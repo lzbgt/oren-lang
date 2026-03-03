@@ -793,6 +793,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace (arm64 stage2 build, 2026-03-03, `OREN_TRACE_ARM64_GC_TICK_OFF=1`):
      no `[arm64_gc_tick_off]` entries emitted (no negative offsets observed in the full build;
      log: `build/logs/arm64_tick_off_stage2_20260303_213032.log`).
+   - Trace (arm64 stage2 build, 2026-03-03, `OREN_TRACE_ARM64_GC_TICK_OFF=all`):
+     no `[arm64_gc_tick_off]` entries emitted (log: `build/logs/arm64_tick_off_stage2_all_20260303_213150.log`).
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
     - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
