@@ -1123,6 +1123,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     during the poll-cache run (no segfault); `list_trace_dump` shows `node=0` just
     before the panic (logs: `build/logs/native_quick_until_world_lock_20260304_025406_run1.log`,
     `build/logs/native_quick_until_world_lock_20260304_025406_run1_inner.log`).
+  - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
+    entry-args light trace + guard-light and list tracing disabled (`OREN_QI_TRACE_GREEN_LIST=0`)
+    completed cleanly (logs: `build/logs/native_quick_until_world_lock_20260304_025817_run1.log`,
+    `build/logs/native_quick_until_world_lock_20260304_025817_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
