@@ -1416,6 +1416,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     on 2026-03-03 (log: `build/logs/make_test_20260303_214100.log`);
     rerun `scripts/run_native_quick_integration.sh ./oren_stage2` passed
     (log: `build/logs/repro_native_quick_stage2_20260303_214042.log`). Track for flakes.
+  - New: `scripts/triage_native_quick_stage2_flake.sh` runs the stage2 quick integration
+    repeatedly and captures per-run logs to help diagnose flaky segfaults (2026-03-03).
+  - Note: `make test` hit a `test-native-quick` segfault (Error 139) on 2026-03-03
+    (log: `build/logs/make_test_20260303_215000.log`); rerun passed
+    (log: `build/logs/make_test_20260303_215100.log`). Track for flakes.
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,

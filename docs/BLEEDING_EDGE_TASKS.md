@@ -856,8 +856,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and investigate fairness/timeout robustness before tightening gates.
   - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
-     (log: `build/logs/make_test_20260226_183026.log`); rerun `make test-native-quick` passed
-     (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
+    (log: `build/logs/make_test_20260226_183026.log`); rerun `make test-native-quick` passed
+    (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
+  - New: `scripts/triage_native_quick_stage2_flake.sh` runs stage2 quick integration in a loop
+    and captures per-run logs for flake diagnosis (2026-03-03).
+  - Note: `make test` hit `test-native-quick` Error 139 on 2026-03-03
+    (log: `build/logs/make_test_20260303_215000.log`); rerun passed
+    (log: `build/logs/make_test_20260303_215100.log`). Track as a potential flake.
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);
      rerun `make test-native-quick` passed (log: `build/logs/make_test_native_quick_20260226_191323.log`).
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_193526.log`);
