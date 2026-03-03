@@ -38,9 +38,18 @@ fn _arm64_trace_loop_stack_enabled() {
 }
 
 fn _arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_bytes) {
-    if !_arm64_trace_loop_stack_enabled() { return nil }
     if ctx == nil { return nil }
     var stack_size = ctx["stack_size"]
+    // Record last loop stack state to help debug tick offset regressions.
+    ctx["last_loop_stack"] = {
+        "kind": kind,
+        "stack": stack_size,
+        "base": loop_base_stack,
+        "slots": slots,
+        "bytes": total_bytes,
+        "tick_off": tick_off
+    }
+    if !_arm64_trace_loop_stack_enabled() { return nil }
     var msg = "[arm64_loop_stack] kind=" + kind +
         " stack=" + oren_int_to_string(stack_size) +
         " base=" + oren_int_to_string(loop_base_stack) +

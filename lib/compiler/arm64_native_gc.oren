@@ -38,13 +38,41 @@ fn _arm64_trace_gc_tick_off(ctx, loop_base_stack, tick_off, tick_mask) {
     if ARM64_TRACE_GC_TICK_ALL != true && tick_off >= 0 { return nil }
     var stack_size = 0
     var kind = nil
+    var last = nil
     if ctx != nil { stack_size = ctx["stack_size"] }
     if ctx != nil { kind = ctx["loop_kind"] }
+    if ctx != nil { last = ctx["last_loop_stack"] }
     var msg = "[arm64_gc_tick_off] tick_off=" + oren_int_to_string(tick_off) +
         " base=" + oren_int_to_string(loop_base_stack) +
         " stack=" + oren_int_to_string(stack_size) +
         " mask=" + oren_int_to_string(tick_mask)
     if kind != nil && kind != "" { msg = msg + " kind=" + kind }
+    if tick_off < 0 && last != nil {
+        var last_kind = last["kind"]
+        var last_base = last["base"]
+        var last_stack = last["stack"]
+        var last_slots = last["slots"]
+        var last_bytes = last["bytes"]
+        var last_tick = last["tick_off"]
+        var last_kind_str = "nil"
+        if last_kind != nil { last_kind_str = last_kind }
+        var last_base_str = "nil"
+        if last_base != nil { last_base_str = oren_int_to_string(last_base) }
+        var last_stack_str = "nil"
+        if last_stack != nil { last_stack_str = oren_int_to_string(last_stack) }
+        var last_slots_str = "nil"
+        if last_slots != nil { last_slots_str = oren_int_to_string(last_slots) }
+        var last_bytes_str = "nil"
+        if last_bytes != nil { last_bytes_str = oren_int_to_string(last_bytes) }
+        var last_tick_str = "nil"
+        if last_tick != nil { last_tick_str = oren_int_to_string(last_tick) }
+        msg = msg + " last_kind=" + last_kind_str +
+            " last_base=" + last_base_str +
+            " last_stack=" + last_stack_str +
+            " last_slots=" + last_slots_str +
+            " last_bytes=" + last_bytes_str +
+            " last_tick_off=" + last_tick_str
+    }
     print(msg)
     return nil
 }
