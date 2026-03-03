@@ -1,0 +1,183 @@
+// ARM64 native program compiler (split modules)
+//
+// Prelude: imports, core helpers, and small utilities.
+
+import core "arm64_core.oren"
+import stmtm "arm64_native_stmt.oren"
+import parser "parser.oren"
+import lexer "lexer.oren"
+import token "token.oren"
+import capsule "capsule.oren"
+import abi "arm64_abi_macos.oren"
+import labi "arm64_abi_linux.oren"
+import callable "native_callable.oren"
+import exprm "arm64_native_expr.oren"
+import rtinj "native_runtime_inject.oren"
+import bundle "native_runtime_bundle.oren"
+import rtobj "native_runtime_obj_cache.oren"
+import coreir "coreir.oren"
+import nt "native_toplevel.oren"
+import nabi "native_abi.oren"
+
+// Re-export core helpers locally so the native program compiler stays readable.
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_finalize(b) { return core.bytes_finalize(b) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn align_up(n, align) { return core.align_up(n, align) }
+fn ceil_div(a, b) { return core.ceil_div(a, b) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_ldr_ptr(rt, rn) { return core.insn_ldr_ptr(rt, rn) }
+fn insn_ldr_ptr_off(rt, rn, offset) { return core.insn_ldr_ptr_off(rt, rn, offset) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
+fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
+fn insn_ldp_post() { return core.insn_ldp_post() }
+fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, rt2, rn, offset) }
+fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
+fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
+fn insn_svc(imm) { return core.insn_svc(imm) }
+fn insn_ret() { return core.insn_ret() }
+fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
+
+// Delegate statement compilation to the stmt module.
+fn native_compile_stmt(ctx, stmt) { return stmtm.native_compile_stmt(ctx, stmt) }
+
+fn native_diag_escape(msg) {
+    if msg == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(msg) {
+        var c = oren_string_char_at(msg, i)
+        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
+        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
+        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        out = out + c
+        i = i + 1
+    }
+    return out
+}
+
+fn native_env_str_eq(a, b) {
+    // Avoid depending on runtime string equality semantics in compiler hot paths.
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _native_str_contains_bytes(hay, needle) {
+    // Byte-based substring search for ASCII-ish strings (paths, env vars).
+    // Returns true if `needle` occurs in `hay`.
+    if hay == nil || needle == nil { return false }
+    var n = oren_string_len(hay)
+    var m = oren_string_len(needle)
+    if m == 0 { return true }
+    if m > n { return false }
+    var i = 0
+    while i <= (n - m) {
+        var j = 0
+        while j < m {
+            if (oren_string_byte_at_unchecked(hay, i + j) & 255) != (oren_string_byte_at_unchecked(needle, j) & 255) { break }
+            j = j + 1
+        }
+        if j == m { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _arm64_should_use_full_native_runtime_profile(linked) {
+    // Default runtime injection profile heuristic (rolling, perf-oriented):
+    // - Prefer the smaller core profile for typical programs to keep cold rtobj misses bounded.
+    // - Escalate to the full profile when program dependencies imply runtime networking is needed.
+    //
+    // NOTE: This intentionally uses the module graph (import closure), not deep AST scanning,
+    // to keep the decision fast and deterministic.
+    if linked == nil { return true } // safe default
+    var g = linked["module_graph"]
+    if g == nil { return true } // safe default
+
+    // Any module under `lib/std/net/` needs the full runtime profile today because std:net calls
+    // runtime primitives (`oren_tcp_*`, `oren_udp_*`, `oren_select_*`, `oren_net_get`).
+    //
+    // NOTE: module graph paths can be absolute (common on macOS/Linux) or repo-relative
+    // (common when running from extracted bundles / remote shells). Match both.
+    var entry = g["entry"]
+    if _native_str_contains_bytes(entry, "/lib/std/net/") ||
+       _native_str_contains_bytes(entry, "lib/std/net/") ||
+       _native_str_contains_bytes(entry, "\\lib\\std\\net\\") ||
+       _native_str_contains_bytes(entry, "lib\\std\\net\\") { return true }
+
+    var mods = g["modules"]
+    if mods == nil { return false }
+    var i = 0
+    while i < oren_list_len(mods) {
+        var m = mods[i]
+        if m != nil {
+            var p = m["path"]
+            if _native_str_contains_bytes(p, "/lib/std/net/") ||
+               _native_str_contains_bytes(p, "lib/std/net/") ||
+               _native_str_contains_bytes(p, "\\lib\\std\\net\\") ||
+               _native_str_contains_bytes(p, "lib\\std\\net\\") { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn native_emit_errors_and_exit(ctx) {
+    if ctx == nil { return nil }
+    if ctx["errors"] == nil { return nil }
+    if oren_list_len(ctx["errors"]) == 0 { return nil }
+    var first = ctx["errors"][0]
+    print("OREN_DIAG kind=codegen code=1 msg=" + native_diag_escape(first))
+    print("native backend errors:")
+    var ei = 0
+    while ei < oren_list_len(ctx["errors"]) {
+        print(ctx["errors"][ei])
+        ei = ei + 1
+    }
+    oren_exit(1)
+    return nil
+}
+
+fn _arm64_linked_has_toplevel_fn_named(linked, name) {
+    if linked == nil || name == nil { return false }
+    var stmts = linked["statements"]
+    if stmts == nil { return false }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var fn0 = coreir._stmt_to_function_decl(stmts[i])
+        if fn0 != nil && fn0["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+

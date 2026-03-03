@@ -1,0 +1,773 @@
+// ARM64 native program compiler: program entry + emission.
+//
+// Entry stub, runtime injection, and symbol resolution policy.
+
+fn native_compile_program_arm64(linked, platform) {
+    var trace = false
+    var v_trace = oren_env("OREN_TRACE_ARM64_NATIVE_COMPILE")
+    if v_trace != nil && v_trace != "" { trace = true }
+    if trace { print("[arm64] native_compile_program_arm64: enter") }
+    var t_enter = 0
+    if trace { t_enter = oren_time_now_ns() }
+    var ctx = _arm64_new_ctx(linked, platform)
+    
+    if platform["debug"] == true {
+        ctx["debug_info"] = {"funcs": []}
+    }
+
+    // Entry semantics (Tier‑1 native parity):
+    // - Always call `__top_level__` first
+    // - Call `main` only if the user defines it
+    var has_main = _arm64_linked_has_toplevel_fn_named(linked, "main")
+    var is_shared = platform != nil && platform["shared_lib"] == true
+    if trace {
+        if has_main { print("[arm64] has_main=true") } else { print("[arm64] has_main=false") }
+    }
+    
+    // Entry stub: calls main and exits with its result
+    var sys_exit = abi.darwin_sys_exit()
+    var svc_imm = abi.darwin_svc_imm()
+    var sys_reg = abi.darwin_syscall_reg()
+    if ctx["platform"]["os"] == "linux" {
+        sys_exit = labi.linux_sys_exit()
+        svc_imm = labi.linux_svc_imm()
+        sys_reg = labi.linux_syscall_reg()
+    }
+
+    // Capture argc/argv/envp before any calls clobber argument registers.
+    //
+    // Linux (ELF entry):
+    //   stack layout: [argc][argv...NULL][envp...NULL][auxv...]
+    //   we load argc/argv from SP.
+    //
+    // macOS (dyld LC_MAIN):
+    //   X0=argc, X1=argv (empirically X2 is not reliable for envp here).
+    //
+    // For both OSes we derive:
+    //   envp = argv + (argc + 1) * 8
+    if ctx["platform"]["os"] == "linux" && is_shared != true {
+        // X0 = *(SP), X1 = SP + 8  (argv)
+        push_u32_le(ctx["code"], insn_ldr_ptr(0, 31))
+        push_u32_le(ctx["code"], insn_add_imm(1, 31, 8))
+    }
+    if is_shared {
+        // Shared library constructor entry (Tier‑1 rolling):
+        // - called by the dynamic loader, not as an ELF entrypoint
+        // - no argc/argv/envp ABI; default to argc=0, argv=nil, envp=nil
+        //
+        // Also preserve AAPCS callee-saved regs across this constructor so the loader
+        // does not observe clobbered state.
+        //
+        // Save X19-X28 (pairs) before any calls. (We also save FP/LR below.)
+        push_u32_le(ctx["code"], insn_stp_pair_pre(19, 20, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(21, 22, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(23, 24, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(25, 26, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(27, 28, 31, -16))
+
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        push_u32_le(ctx["code"], insn_movz(1, 0))
+    }
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = argc (0 for shared libs)
+    push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = argv (nil for shared libs)
+
+    // envp = argv + (argc + 1) * 8
+    if is_shared {
+        push_u32_le(ctx["code"], insn_movz(21, 0)) // X21 = envp (nil)
+    } else {
+        push_u32_le(ctx["code"], insn_add_imm(2, 19, 1)) // X2 = argc + 1
+        push_u32_le(ctx["code"], insn_movz(3, 8))        // X3 = 8
+        push_u32_le(ctx["code"], insn_mul(2, 2, 3))      // X2 = (argc+1)*8
+        push_u32_le(ctx["code"], insn_add_reg(21, 20, 2)) // X21 = envp
+    }
+
+    push_u32_le(ctx["code"], insn_stp_pre())
+    push_u32_le(ctx["code"], insn_mov_fp_sp())
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    // Our generated functions do not currently preserve callee-saved registers
+    // (AAPCS would require preserving X19-X28). Because the entry stub must
+    // keep argc/argv/envp stable across runtime init calls, save them explicitly.
+    push_u32_le(ctx["code"], insn_sub_sp(32))
+    push_u32_le(ctx["code"], insn_str_reg_sp(19, 0))
+    push_u32_le(ctx["code"], insn_str_reg_sp(20, 8))
+    push_u32_le(ctx["code"], insn_str_reg_sp(21, 16))
+    ctx["stack_size"] = ctx["stack_size"] + 32
+    
+    // Init Heap Globals (X28=ptr, X27=limit) to 0 before any runtime calls.
+    push_u32_le(ctx["code"], insn_movz(28, 0))
+    push_u32_le(ctx["code"], insn_movz(27, 0))
+
+    // Tier‑1 bootstrap: initialize the runtime globals storage pointer (`g_storage`) and the
+    // nil/bool singleton slots before calling into `native_runtime_init`.
+    //
+    // This prevents early segfaults in boolean operations that load `value_false` / `value_true`
+    // from globals storage during runtime init.
+    if ctx["globals"] == nil || ctx["globals"]["g_storage"] == nil {
+        oren_list_push(ctx["errors"], "arm64 native: missing reserved global slot g_storage (Tier-1 bootstrap)")
+        return nil
+    }
+    if ctx["boot_globals_storage_off_enc"] == nil {
+        oren_list_push(ctx["errors"], "arm64 native: missing boot globals storage offset (Tier-1 bootstrap)")
+        return nil
+    }
+    var g_storage_off = ctx["globals"]["g_storage"] - 1
+    var boot_off = ctx["boot_globals_storage_off_enc"] - 1
+    // X0 = &g_storage_slot
+    var adr_gs_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_gs_pos, "data_off": g_storage_off})
+    // X2 = &g_storage_slot
+    push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+    // X0 = &boot_globals_storage
+    var adr_boot_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_boot_pos, "data_off": boot_off})
+    // X1 = boot_base
+    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+    // *(g_storage_slot) = boot_base
+    push_u32_le(ctx["code"], insn_str_ptr(1, 2))
+    // Initialize singleton slots inside the boot storage:
+    // - *(boot + 368) = boot + 392   (nil)
+    // - *(boot + 376) = boot + 400   (false)
+    // - *(boot + 384) = boot + 408   (true)
+    push_u32_le(ctx["code"], insn_add_imm(3, 1, 392)) // X3 = value ptr
+    push_u32_le(ctx["code"], insn_add_imm(4, 1, 368)) // X4 = slot addr
+    push_u32_le(ctx["code"], insn_str_ptr(3, 4))
+    push_u32_le(ctx["code"], insn_add_imm(3, 3, 8))
+    push_u32_le(ctx["code"], insn_add_imm(4, 4, 8))
+    push_u32_le(ctx["code"], insn_str_ptr(3, 4))
+    push_u32_le(ctx["code"], insn_add_imm(3, 3, 8))
+    push_u32_le(ctx["code"], insn_add_imm(4, 4, 8))
+    push_u32_le(ctx["code"], insn_str_ptr(3, 4))
+    
+    // Init Runtime
+    // The runtime needs to know which OS ABI this binary targets. Do not probe host
+    // syscalls at runtime; the native backend already knows the `--target`.
+    //
+    // Convention (rolling):
+    // - 1: macos
+    // - 2: linux
+    var target_os_id = 1
+    if ctx["platform"]["os"] == "linux" { target_os_id = 2 }
+    push_u32_le(ctx["code"], insn_movz(0, target_os_id))
+    var bl_init = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
+
+    // Register embedded string literals once at startup (Tier‑1 performance).
+    //
+    // Do this immediately after `native_runtime_init` so subsequent runtime helpers
+    // (capsule init, env parsing, etc) can safely use string literals as map keys.
+    //
+    // Table pointer derivation (PIE-safe):
+    //   slot_addr = &data[slot_off] (PC-relative ADRP+ADD via fixup)
+    //   table_off = *(u64*)slot_addr
+    //   data_base = slot_addr - slot_off
+    //   table_ptr = data_base + table_off
+    // Then call `oren_init_static_cstr0_table(table_ptr)` once.
+    var slot_off_enc = ctx["cstr0_table_slot_enc"]
+    if slot_off_enc > 0 {
+        var slot_off = slot_off_enc - 1
+        var adr_slot_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_slot_pos, "data_off": slot_off})
+        // X1 = table_off
+        push_u32_le(ctx["code"], insn_ldr_ptr(1, 0))
+        // X2 = slot_addr
+        push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+        // X3 = slot_off
+        emit_load_u64_imm(ctx, 3, slot_off)
+        // X2 = data_base
+        push_u32_le(ctx["code"], insn_sub_reg(2, 2, 3))
+        // X0 = table_ptr
+        push_u32_le(ctx["code"], insn_add_reg(0, 2, 1))
+        var bl_cstr = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_cstr, "name": "oren_init_static_cstr0_table"})
+    }
+
+    // macOS syscall-first OS-thread substrate (Darwin bsdthread).
+    //
+    // Register runtime-owned thread entry stubs at process init so future `bsdthread_create`
+    // starts threads inside the Oren runtime (no libpthread dependency).
+    //
+    // NOTE:
+    // - Keep this before restoring argc/argv/envp (we don't preserve callee-saved regs yet).
+    // - Skip for shared-library builds for now: a dylib constructor running inside an arbitrary
+    //   host process must not mutate the process-wide threadstart hooks (rolling safety).
+    if ctx["platform"]["os"] == "macos" && is_shared != true {
+        // X0 = &__oren_darwin_thread_start
+        var adr_ts_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_ts_pos, "name": "__oren_darwin_thread_start", "reg": 0})
+
+        // X1 = &__oren_darwin_start_wqthread
+        var adr_wq_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_wq_pos, "name": "__oren_darwin_start_wqthread", "reg": 1})
+
+        var bl_thr_init = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_thr_init, "name": "native_runtime_threading_init"})
+    }
+
+    // Restore argc/argv/envp saved across native_runtime_init.
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(19, 0))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(20, 8))
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(21, 16))
+    push_u32_le(ctx["code"], insn_add_sp(32))
+    ctx["stack_size"] = ctx["stack_size"] - 32
+
+    // Store argv/argc for oren_args() and envp for oren_getenv()/execve env inheritance.
+    //
+    // Preserve envp across the set_args call (our generated code does not preserve
+    // callee-saved registers yet), and set envp AFTER set_args so any runtime-side
+    // behavior cannot accidentally clear it.
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_reg_sp(21, 0))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    // native_runtime_set_args(argc, argv)
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // argc
+    push_u32_le(ctx["code"], insn_mov_reg(1, 20)) // argv
+    var bl_set_args = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_args, "name": "native_runtime_set_args"})
+
+    // native_runtime_set_envp(envp)
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(21, 0))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+
+    push_u32_le(ctx["code"], insn_mov_reg(0, 21)) // envp
+    var bl_set_envp = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
+
+    // Initialize runtime capsule mode when `--capsule` is enabled.
+    //
+    // NOTE: This is a compile-time capsule feature gate. Without `--capsule`, the native
+    // backend does not emit the capsule syscall hook ABI surface, so enabling capsule by
+    // env alone would not provide a capability-safe boundary.
+    if platform != nil && platform["capsule"] == true {
+        var bl_capsule = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
+    }
+
+    // Initialize GC mode for the native runtime (two-mode GC):
+    // - default enabled unless compiled with `--no-gc`
+    // - runtime env override: OREN_NO_GC=1 disables scanning
+    var gc_default = 1
+    if ctx["platform"]["no_gc"] == true { gc_default = 0 }
+    push_u32_le(ctx["code"], insn_movz(0, gc_default))
+    var bl_init_gc = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init_gc, "name": "native_runtime_init_gc_mode"})
+
+    // Register global slots as GC roots (native parity with C backend).
+    // Emit the root-registration helper after globals are allocated, then call it here.
+    var bl_roots = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_roots, "name": "__oren_global_roots_init"})
+
+    if platform["debug"] == true {
+        var debug_adr_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        ctx["debug_fixup_pos"] = debug_adr_pos
+        
+        var static_addr_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], insn_movz(1, 0))
+        push_u32_le(ctx["code"], insn_movk(1, 0, 1))
+        push_u32_le(ctx["code"], insn_movk(1, 0, 2))
+        push_u32_le(ctx["code"], insn_movk(1, 0, 3))
+        ctx["debug_static_addr_pos"] = static_addr_pos
+        
+        var bl_set_dbg = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_dbg, "name": "oren_set_debug_info"})
+    }
+
+    // Register Main Thread
+    push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP
+    var bl_reg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reg, "name": "oren_register_thread"})
+    
+    // Run synthesized top-level initializers/statements before main.
+    var bl_top = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_top, "name": "__top_level__"})
+
+    if is_shared {
+        // Shared library constructor: do NOT call `main`, do NOT exit the process.
+        // Instead, persist heap state for exported ABI wrappers and return to the loader.
+        //
+        // Store heap regs (X27=limit, X28=ptr) into the reserved `.data` spill slots.
+        var heap_limit_slot_off_enc = ctx["heap_limit_slot_enc"]
+        var heap_ptr_slot_off_enc = ctx["heap_ptr_slot_enc"]
+        if oren_type_tag(heap_limit_slot_off_enc) == 0 || oren_type_tag(heap_ptr_slot_off_enc) == 0 {
+            oren_list_push(ctx["errors"], "arm64 native: missing heap spill slots (heap_limit_slot_enc/heap_ptr_slot_enc) for shared library build")
+            return nil
+        }
+        var heap_limit_slot_off = heap_limit_slot_off_enc - 1
+        var heap_ptr_slot_off = heap_ptr_slot_off_enc - 1
+
+        // X16 = &heap_limit_slot; *X16 = X27
+        var adr_hl_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_hl_pos, "data_off": heap_limit_slot_off, "reg": 16})
+        push_u32_le(ctx["code"], insn_str_ptr(27, 16))
+
+        // X17 = &heap_ptr_slot; *X17 = X28
+        var adr_hp_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_hp_pos, "data_off": heap_ptr_slot_off, "reg": 17})
+        push_u32_le(ctx["code"], insn_str_ptr(28, 17))
+
+        // Tear down our normal entry-stub frame and return.
+        push_u32_le(ctx["code"], insn_ldp_post())
+        // Restore X27-X28 .. X19-X20 (reverse order).
+        push_u32_le(ctx["code"], insn_ldp_pair_post(27, 28, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(23, 24, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(21, 22, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(19, 20, 31, 16))
+        push_u32_le(ctx["code"], insn_ret())
+    } else {
+        // Run user main if present; otherwise exit with 0.
+        if has_main {
+            var main_fix = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
+            // Preserve exit code across shutdown
+            push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
+        } else {
+            push_u32_le(ctx["code"], insn_movz(19, 0)) // X19 = 0
+        }
+        var shutdown_fix = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // restore X0
+        // exit(X0)
+        push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
+        push_u32_le(ctx["code"], insn_svc(svc_imm))
+        // Should not return
+    }
+
+    // Record the end of the entry stub so debug symbolization can label it
+    // without overlapping the injected runtime function ranges.
+    ctx["entry_stub_end"] = bytes_len(ctx["code"])
+    
+    // Inject Runtime (supports `// @include "..."` expansion for modular runtime sources),
+    // and re-run whole-program DCE after injection to keep compilation time bounded.
+    //
+    // This is shared with the x86_64 native backend so Tier‑1 backends converge on one
+    // injection + DCE policy (and the same entry-stub DCE roots).
+    if trace { print("[arm64] runtime bundle prepare start") }
+    var t_bun0 = 0
+    if trace { t_bun0 = oren_time_now_ns() }
+    var runtime_path = "lib/runtime_native.oren"
+    if platform != nil && platform["capsule"] == true {
+        runtime_path = "lib/runtime_native_capsule.oren"
+    } else {
+        // Optional: smaller injected runtime profile to keep cold rtobj builds bounded.
+        //
+        // Values (rolling):
+        // - unset / "auto": default heuristic (prefers core; escalates to full for std:net)
+        // - "full": force full runtime (`lib/runtime_native.oren`)
+        // - "core" / "minimal": reduced runtime (`lib/runtime_native_core.oren`)
+        var prof = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
+        if native_env_str_eq(prof, "full") {
+            runtime_path = "lib/runtime_native.oren"
+        } else if native_env_str_eq(prof, "core") || native_env_str_eq(prof, "minimal") {
+            runtime_path = "lib/runtime_native_core.oren"
+        } else {
+            // Default-on heuristic:
+            // - core unless the program imports `std:net/*` (which requires runtime networking primitives).
+            runtime_path = "lib/runtime_native_core.oren"
+            if native_env_str_eq(prof, "auto") || prof == nil || prof == "" {
+                if _arm64_should_use_full_native_runtime_profile(linked) { runtime_path = "lib/runtime_native.oren" }
+            }
+        }
+    }
+    var used_rtobj = false
+    var runtime_stmts = []
+    var user_stmts = []
+
+    // High-leverage throughput win (rolling):
+    // Prefer a cached compiled runtime blob over compiling the full injected runtime on every build.
+    used_rtobj = _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path)
+
+    var bun = nil
+    if used_rtobj != true {
+        bun = bundle.prepare_native_runtime_bundle(ctx, "arm64", linked, platform, {"runtime_path": runtime_path, "inject_runtime": true})
+        if bun == nil { return ctx }
+        runtime_stmts = bun["runtime_stmts"]
+        user_stmts = bun["user_stmts"]
+    } else {
+        // Runtime already compiled into ctx; user statements come from the original program.
+        user_stmts = nil
+        if linked != nil { user_stmts = linked["statements"] }
+    }
+    if trace {
+        var dt_bun = (oren_time_now_ns() - t_bun0) / 1000000
+        var mode = "bundle"
+        if used_rtobj == true { mode = "rtobj" }
+        print("[arm64] runtime prepare (" + mode + ") +" + oren_int_to_string(dt_bun) + "ms")
+    }
+    if runtime_stmts == nil { runtime_stmts = [] }
+    if user_stmts == nil { user_stmts = [] }
+    if trace {
+        print("[arm64] runtime bundle prepare done runtime_stmts=" + oren_int_to_string(oren_list_len(runtime_stmts)) + " user_stmts=" + oren_int_to_string(oren_list_len(user_stmts)))
+    }
+
+    // Collect top-level named function declarations (runtime + user) so the native backend can:
+    // - treat named functions as first-class values (Identifier -> callable object)
+    // - compute lambda free-var captures without accidentally capturing global functions
+    //
+    // CoreIR v0 keeps function metadata deterministic across backends.
+    var t_fnmeta0 = 0
+    if trace { t_fnmeta0 = oren_time_now_ns() }
+    if used_rtobj == true {
+        // Runtime function metadata already seeded from the cached runtime object; add user declarations.
+        coreir.collect_top_level_functions_merge(ctx, linked, "arm64 native")
+    } else {
+        coreir.collect_top_level_functions(ctx, bun["linked"], "arm64 native")
+    }
+    if trace {
+        var dt_fnmeta = (oren_time_now_ns() - t_fnmeta0) / 1000000
+        print("[arm64] collect_top_level_functions +" + oren_int_to_string(dt_fnmeta) + "ms")
+    }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
+    // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
+    // so Tier‑1 native backends share the same nested-function semantics.
+    var t_rewrite0 = 0
+    if trace { t_rewrite0 = oren_time_now_ns() }
+    callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
+    if used_rtobj != true {
+        callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
+    }
+    if trace {
+        var dt_rewrite = (oren_time_now_ns() - t_rewrite0) / 1000000
+        print("[arm64] rewrite_local_fn_decls +" + oren_int_to_string(dt_rewrite) + "ms")
+    }
+
+    // Collect lambdas from runtime + user code (lambdas are anonymous Function nodes with name="").
+    //
+    // This annotates lambda nodes with:
+    //   - lambda_name: generated wrapper name
+    //   - captures: free vars in deterministic first-use order
+    //
+    // Note: the runtime contains a small number of local `fn` declarations which are normalized
+    // into lambdas+vars for Tier‑1 parity. Those lambdas must be collected too.
+    var t_lamb0 = 0
+    if trace { t_lamb0 = oren_time_now_ns() }
+    var li = 0
+    while li < oren_list_len(user_stmts) {
+        callable.collect_lambdas_in_statement(ctx, user_stmts[li])
+        li = li + 1
+    }
+    if used_rtobj != true {
+        li = 0
+        while li < oren_list_len(runtime_stmts) {
+            callable.collect_lambdas_in_statement(ctx, runtime_stmts[li])
+            li = li + 1
+        }
+    }
+    if trace {
+        var dt_lamb = (oren_time_now_ns() - t_lamb0) / 1000000
+        print("[arm64] collect_lambdas +" + oren_int_to_string(dt_lamb) + "ms")
+    }
+    
+    // Prepare globals + top-level wrapper for Tier‑1 parity.
+    var t_prep0 = 0
+    if trace { t_prep0 = oren_time_now_ns() }
+    var prep = _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts)
+    if prep == nil { return ctx }
+    if trace {
+        var dt_prep = (oren_time_now_ns() - t_prep0) / 1000000
+        print("[arm64] prepare_globals +" + oren_int_to_string(dt_prep) + "ms")
+    }
+    var runtime_decls = prep["runtime_decls"]
+    var user_decls = prep["user_decls"]
+    var top_stmt = prep["top_stmt"]
+    _arm64_trace_global_slots(ctx, "after_prepare_globals")
+    _arm64_emit_global_roots_init(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
+    // Compile runtime declarations (functions/types/ffi), but not runtime global initializers.
+    var i = 0
+    if trace { print("[arm64] compile runtime decls start n=" + oren_int_to_string(oren_list_len(runtime_decls))) }
+    var t_rt0 = 0
+    if trace { t_rt0 = oren_time_now_ns() }
+    while i < oren_list_len(runtime_decls) {
+        native_compile_stmt(ctx, runtime_decls[i])
+        i = i + 1
+    }
+    if trace {
+        var dt_rt = (oren_time_now_ns() - t_rt0) / 1000000
+        print("[arm64] compile runtime decls done +" + oren_int_to_string(dt_rt) + "ms")
+    }
+
+    // Compile user declarations (functions/types/ffi).
+    i = 0
+    if trace { print("[arm64] compile user decls start n=" + oren_int_to_string(oren_list_len(user_decls))) }
+    var t_user0 = 0
+    if trace { t_user0 = oren_time_now_ns() }
+    while i < oren_list_len(user_decls) {
+        native_compile_stmt(ctx, user_decls[i])
+        i = i + 1
+    }
+    if trace {
+        var dt_user = (oren_time_now_ns() - t_user0) / 1000000
+        print("[arm64] compile user decls done +" + oren_int_to_string(dt_user) + "ms")
+    }
+
+    // Compile synthesized __top_level__ last (it can reference any user/runtime symbols).
+    // The entry stub calls it before main.
+    var t_top0 = 0
+    if trace { t_top0 = oren_time_now_ns() }
+    native_compile_stmt(ctx, top_stmt)
+    if trace {
+        var dt_top = (oren_time_now_ns() - t_top0) / 1000000
+        print("[arm64] compile __top_level__ +" + oren_int_to_string(dt_top) + "ms")
+    }
+
+    // Synthesize wrappers for first-class named functions and for lambda literals.
+    // These wrappers implement the uniform callable ABI:
+    //   fn wrapper(__env, __args_list) -> value
+    //
+    // They are emitted after user code so forward references resolve via fixups.
+    var t_wrap0 = 0
+    if trace { t_wrap0 = oren_time_now_ns() }
+    var need = ctx["fnwrap_needed"]
+    var n_wrap = 0
+    var wi = 0
+    while wi < oren_list_len(ctx["func_decl_order"]) {
+        var fname = ctx["func_decl_order"][wi]
+        if need == nil || need[fname] == nil { wi = wi + 1; continue }
+        n_wrap = n_wrap + 1
+        var arity_enc = ctx["func_arity"][fname]
+        var arity = nil
+        if oren_type_tag(arity_enc) == 1 {
+            if arity_enc > 0 { arity = arity_enc - 1 }
+        }
+        if arity != nil {
+            var vf = nil
+            var vf_enc = ctx["func_varargs_fixed"][fname]
+            if oren_type_tag(vf_enc) == 1 {
+                if vf_enc > 0 { vf = vf_enc - 1 }
+            }
+            var wname = "__oren_fnwrap_" + fname
+            if ctx["functions"][wname] == nil {
+                native_compile_stmt(ctx, callable.synth_fnwrap(fname, arity, vf))
+            }
+        }
+        wi = wi + 1
+    }
+
+    wi = 0
+    while wi < oren_list_len(ctx["lambda_defs"]) {
+        var def = ctx["lambda_defs"][wi]
+        if def != nil && def["name"] != nil {
+            var lname = def["name"]
+            if ctx["functions"][lname] == nil {
+                native_compile_stmt(ctx, callable.synth_lambda_wrapper(def))
+            }
+        }
+        wi = wi + 1
+    }
+    if trace {
+        var dt_wrap = (oren_time_now_ns() - t_wrap0) / 1000000
+        print("[arm64] synth wrappers +" + oren_int_to_string(dt_wrap) + "ms fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+    }
+
+    // Debug pseudo-symbol for code region that is not a Function node:
+    // - the entry stub (prologue + runtime init + call __top_level__/main + exit)
+    if ctx["platform"]["debug"] == true {
+        var entry_end = ctx["entry_stub_end"]
+        if entry_end != nil && entry_end > 0 {
+            oren_list_push(ctx["debug_info"]["funcs"], {
+                "name": "__entry_stub__",
+                "start": 0,
+                "end": entry_end,
+                "file": "<native>",
+                "line": 0,
+                "col": 0,
+                "params": []
+            })
+        }
+
+        // __top_level__ is a real function symbol now; it will be included via normal function debug info.
+    }
+    
+    // Record entry (main) offset if present
+    ctx["entry_idx"] = 0
+    
+    // Generate `resolve_symbol` for stack traces.
+    //
+    // NOTE (native backend; rolling):
+    // In debug builds, the native runtime prefers the embedded debug-info table (`g_debug_info`)
+    // for accurate range-based symbolication. That table is authoritative and does not require
+    // generating a huge `resolve_symbol` function.
+    //
+    // Generating `resolve_symbol` by emitting + parsing a giant Oren source string is expensive,
+    // especially for self-hosted native compilers, and can dominate debug-build wall time.
+    //
+    // Policy:
+    // - Default: keep `resolve_symbol` as a tiny stub ("???") and rely on `g_debug_info` in debug mode.
+    // - Opt-in: set `OREN_NATIVE_RESOLVE_SYMBOL=1` to generate the full resolver (postmortem/debugging).
+    var want_resolve_symbol = false
+    var env_rs = oren_env("OREN_NATIVE_RESOLVE_SYMBOL")
+    if env_rs != nil && env_rs == "1" { want_resolve_symbol = true }
+
+    if want_resolve_symbol {
+        // NOTE: resolve_symbol must match the actual static __TEXT base + header size used by the emitters.
+        //
+        // Mach-O emitter uses:
+        //   text_base=0x100000000, header_size=2048
+        // so the first instruction is at 0x100000000 + 2048.
+        var base_addr = 4294969344
+        if ctx["platform"]["os"] == "linux" {
+            // ELF emitter uses: text_base=0x400000, header_size=(Ehdr 64) + (2*Phdr 56) = 176.
+            base_addr = 4194304 + 176
+        }
+
+        // Build list of {off:int, name:string} and sort descending by off.
+        // This ensures resolve_symbol picks the closest preceding function.
+        //
+        // NOTE (rtobj + debug):
+        // When we use a cached compiled runtime object, we do not have a runtime AST program to
+        // scan here. Instead, use the final `ctx["functions"]` map as the source of truth.
+        var sym_entries = []
+        var sym_seen = {}
+
+        // Pseudo-symbol for the unlabeled entry stub.
+        _arm64_sym_entries_push_unique(sym_seen, sym_entries, 0, "__entry_stub__")
+
+        // Prefer an explicit __top_level__ entry if present.
+        var top_off = ctx["functions"]["__top_level__"]
+        if top_off != nil { _arm64_sym_entries_push_unique(sym_seen, sym_entries, top_off, "__top_level__") }
+
+        // All compiled symbols (runtime + user + wrappers).
+        var j = 0
+        var pair = [nil, nil]
+        while 1 {
+            var ok = oren_iter_next_entry(ctx["functions"], j, pair)
+            if ok == 0 { break }
+            var nm = pair[0]
+            var off = pair[1]
+            _arm64_sym_entries_push_unique(sym_seen, sym_entries, off, nm)
+            j = j + 1
+        }
+
+        // Insertion sort (descending by off). Small N; keep it simple and deterministic.
+        var si = 1
+        while si < oren_list_len(sym_entries) {
+            var key = sym_entries[si]
+            var k_off = key["off"]
+            var k = si - 1
+            while k >= 0 {
+                if sym_entries[k]["off"] >= k_off { break }
+                sym_entries[k + 1] = sym_entries[k]
+                k = k - 1
+            }
+            sym_entries[k + 1] = key
+            si = si + 1
+        }
+
+        // PERF (critical for stage2-native):
+        // Avoid quadratic `sym_src = sym_src + ...` concatenation when the runtime contributes
+        // many symbols. Build a parts list and join once.
+        var sym_parts = []
+        oren_list_push(sym_parts, "fn resolve_symbol(addr) { var off = addr - ")
+        oren_list_push(sym_parts, oren_int_to_string(base_addr))
+        oren_list_push(sym_parts, " ")
+        j = 0
+        while j < oren_list_len(sym_entries) {
+            var e = sym_entries[j]
+            oren_list_push(sym_parts, "if off >= ")
+            oren_list_push(sym_parts, oren_int_to_string(e["off"]))
+            oren_list_push(sym_parts, " { return ")
+            oren_list_push(sym_parts, token.CH_QUOTE)
+            oren_list_push(sym_parts, e["name"])
+            oren_list_push(sym_parts, token.CH_QUOTE)
+            oren_list_push(sym_parts, " } ")
+            j = j + 1
+        }
+        oren_list_push(sym_parts, "return \"???\" }")
+        var sym_src = oren_string_join(sym_parts)
+
+        if trace { print("[arm64] generating resolve_symbol...") }
+        var l_sym = lexer.new_lexer(sym_src)
+        l_sym["file"] = "<native:symbol_table>"
+        var p_sym = parser.new_parser(l_sym)
+        var prog_sym = parser.parse_program(p_sym)
+        if oren_list_len(prog_sym["statements"]) > 0 {
+            native_compile_stmt(ctx, prog_sym["statements"][0])
+        } else {
+            print("native backend: failed to compile resolve_symbol")
+            // print(sym_src) // Debug
+        }
+    } else {
+        // Minimal stub to satisfy native runtime stack traces without inflating binaries.
+        // (Non-debug builds only need a valid symbol; names can be "???".)
+        if trace { print("[arm64] compile resolve_symbol stub") }
+        var sym_src2 = "fn resolve_symbol(addr) { return \"???\" }"
+        var l_sym2 = lexer.new_lexer(sym_src2)
+        l_sym2["file"] = "<native:symbol_table>"
+        var p_sym2 = parser.new_parser(l_sym2)
+        var prog_sym2 = parser.parse_program(p_sym2)
+        if oren_list_len(prog_sym2["statements"]) > 0 {
+            native_compile_stmt(ctx, prog_sym2["statements"][0])
+        } else {
+            print("native backend: failed to compile resolve_symbol stub")
+        }
+    }
+
+    if trace {
+        var dt_all = (oren_time_now_ns() - t_enter) / 1000000
+        print("[arm64] native_compile_program_arm64: done +" + oren_int_to_string(dt_all) + "ms")
+    }
+
+    // Finalize the embedded-string literal table after all codegen so it includes:
+    // - user literals
+    // - injected runtime literals
+    // - backend-emitted literal cstrs (diagnostics, etc)
+    var slot_enc2 = ctx["cstr0_table_slot_enc"]
+    if slot_enc2 > 0 {
+        var slot_off2 = slot_enc2 - 1
+        var offs = ctx["cstr0_list"]
+        if offs == nil { offs = [] }
+        while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+        var table_off2 = bytes_len(ctx["data"])
+        // Layout: [table_off][count][offs...]
+        push_u64_le(ctx["data"], table_off2)
+        push_u64_le(ctx["data"], oren_list_len(offs))
+        var ii = 0
+        while ii < oren_list_len(offs) {
+            push_u64_le(ctx["data"], offs[ii])
+            ii = ii + 1
+        }
+        // Write table_off into reserved slot as u64 (lo32/hi32).
+        set_u32_le(ctx["data"], slot_off2 + 0, int_mod(table_off2, 4294967296))
+        set_u32_le(ctx["data"], slot_off2 + 4, 0)
+    }
+
+    return ctx
+}
+
+// NOTE: Mach-O/ELF emitters were refactored into:
+// - lib/compiler/arm64_macho.oren
+// - lib/compiler/arm64_elf.oren

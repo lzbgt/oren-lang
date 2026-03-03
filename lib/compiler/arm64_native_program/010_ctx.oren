@@ -1,0 +1,258 @@
+// ARM64 native program compiler: context + globals helpers.
+//
+// Context initialization, rtobj helper decoding, and global-roots init.
+
+fn _arm64_new_ctx(linked, platform) {
+    // Initialize the shared arm64 native compiler context (code/data builders, maps, ABI).
+    //
+    // This is used both by the main program compiler and by native-runtime caching layers
+    // that compile the injected runtime into a reusable "runtime object" blob.
+    var ctx = {
+        "code": bytes_new(),
+        "data": bytes_new(),
+        "fixups": [],
+        "errors": [],
+        "locals": {},
+        "globals": {},
+        "globals_floaty": {},
+        "globals_inty": {},
+        "globals_int_const": {},
+        "globals_stringy": {},
+        "globals_list_stringy": {},
+        "functions": {},
+        "function_names": [],
+        // Named function declarations (name -> arity) collected before codegen.
+        // Used for first-class function values in the native backend.
+        "func_arity": {},
+        // Named function varargs mapping (name -> fixed param count). Presence means varargs.
+        "func_varargs_fixed": {},
+        "func_decl_order": [],
+        // Named-function wrappers are only needed when a function is used as a *value*
+        // (Identifier expression), not when it is only ever called directly.
+        "fnwrap_needed": {},
+        // Lambda collection state (lambdas are parsed as anonymous Function nodes with name="").
+        "lambda_defs": [],
+        "lambda_counter": 0,
+        "main_idx": nil,
+        "imports": {},
+        "import_list": [],
+        "stack_size": 0,
+        "in_function": false,
+        "loop_ctx": nil,
+        "scope": nil,
+        "locals_floaty": {},
+        "locals_inty": {},
+        "locals_int_const": {},
+        "locals_stringy": {},
+        "locals_list_stringy": {},
+        "platform": platform,
+        "call_abi": nabi.arm64(platform),
+        "aliases": nil,
+        "type_ns": nil,
+        // Rolling v0: structs are map-shaped across backends, so member access uses map_get/map_set.
+        // Keep the field_offsets knob for future layout-stable structs, but default to empty for now.
+        "field_offsets": {}
+    }
+    if linked != nil {
+        ctx["aliases"] = linked["aliases"]
+        ctx["type_ns"] = linked["type_ns"]
+    }
+    if ctx["aliases"] == nil { ctx["aliases"] = {} }
+    if ctx["type_ns"] == nil { ctx["type_ns"] = {} }
+
+    // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
+    // (See comments in `native_compile_program_arm64` for the entry stub details.)
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var cstr_slot_off = bytes_len(ctx["data"])
+    var z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
+
+    // Tier‑1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a
+    // small boot globals storage blob used before `native_runtime_init` runs.
+    //
+    // IMPORTANT:
+    // - This must be part of the runtime object `.data` prefix so offsets match across cache hits.
+    // - The entry stub writes:
+    //     g_storage = &boot_globals_storage
+    //     boot_globals_storage[value_nil/false/true] = distinct pointers within the blob
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var g_storage_slot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
+
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var boot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 512 { bytes_push(ctx["data"], 0); z = z + 1 }
+    ctx["boot_globals_storage_off_enc"] = boot_off + 1
+
+    // Tier‑1 export/FFI ABI bridge: reserve persistent heap spill slots.
+    //
+    // arm64 native uses dedicated heap registers (mirrors x64's r14/r15 design). Export wrappers
+    // will eventually use these spill slots to preserve platform ABI non-volatiles at external
+    // boundaries (e.g. `.dylib` / future `.so`), while keeping heap state persistent across calls.
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var heap_limit_slot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
+
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var heap_ptr_slot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
+
+    // Bounded debug knob:
+    // Enable fast-path list header tracing without per-call env lookups.
+    //   OREN_TRACE_NATIVE_LIST_HDR=1 ./oren_stage2 build ... --platform arm64-macos --no-cache
+    var trace_hdr_env = oren_env("OREN_TRACE_NATIVE_LIST_HDR")
+    if trace_hdr_env != nil {
+        ctx["trace_native_list_hdr"] = 1
+    }
+    // Bounded debug knob:
+    // Enable pre-track alloc request tracing for malloc/malloc_k.
+    //   OREN_TRACE_NATIVE_ALLOC_REQ=1 ./oren_stage2 build ... --platform arm64-macos --no-cache
+    if oren_env("OREN_TRACE_NATIVE_ALLOC_REQ") != nil {
+        ctx["trace_native_alloc_req"] = 1
+    }
+    var trace_compile = oren_env("OREN_TRACE_ARM64_NATIVE_COMPILE")
+    if trace_compile != nil && trace_compile != "" {
+        if trace_hdr_env == nil { print("[arm64] trace_native_list_hdr env=nil") }
+        else { print("[arm64] trace_native_list_hdr env=" + trace_hdr_env) }
+        if ctx["trace_native_list_hdr"] != nil { print("[arm64] trace_native_list_hdr=1") }
+        if ctx["trace_native_alloc_req"] != nil { print("[arm64] trace_native_alloc_req=1") }
+    }
+
+    return ctx
+}
+
+fn _rtobj_decode_int_enc(x_enc) {
+    if oren_type_tag(x_enc) == 0 { return nil }
+    return x_enc - 1
+}
+
+fn _arm64_sym_entries_push_unique(sym_seen, sym_entries, off, name) {
+    if sym_seen == nil || sym_entries == nil { return nil }
+    if off == nil { return nil }
+    if name == nil || name == "" { return nil }
+    if sym_seen[name] != nil { return nil }
+    sym_seen[name] = true
+    oren_list_push(sym_entries, {"off": off, "name": name})
+    return nil
+}
+
+fn _arm64_trace_global_slots(ctx, label) {
+    var v = oren_env("OREN_TRACE_GLOBAL_SLOTS")
+    if v == nil || v == "" { return nil }
+    if native_env_str_eq(v, "0") || native_env_str_eq(v, "false") { return nil }
+    if ctx == nil { return nil }
+    var gmap = ctx["globals"]
+    if gmap == nil { return nil }
+
+    var filter_name = oren_env("OREN_TRACE_GLOBAL_SLOT_NAME")
+    var filter_off = oren_env("OREN_TRACE_GLOBAL_SLOT_OFF")
+    var filter_idx = oren_env("OREN_TRACE_GLOBAL_SLOT_INDEX")
+    var want_off = nil
+    var want_idx = nil
+    if filter_off != nil && filter_off != "" { want_off = core.int_from_string(filter_off) }
+    if filter_idx != nil && filter_idx != "" { want_idx = core.int_from_string(filter_idx) }
+
+    var hdr = "[arm64_globals]"
+    if label != nil && label != "" { hdr = hdr + " " + label }
+    print(hdr)
+    var gi = 0
+    var pair = [nil, nil]
+    while 1 {
+        var okg = oren_iter_next_entry(gmap, gi, pair)
+        if okg == 0 { break }
+        var name = pair[0]
+        var off_enc = pair[1]
+        if name == nil || oren_type_tag(off_enc) != 1 { gi = gi + 1; continue }
+        var off = off_enc - 1
+        var idx = off / 8
+        var match = true
+        if filter_name != nil && filter_name != "" && native_env_str_eq(filter_name, name) != true { match = false }
+        if want_off != nil && off != want_off { match = false }
+        if want_idx != nil && idx != want_idx { match = false }
+        if match {
+            print("[arm64_globals] name=" + name + " off=" + oren_int_to_string(off) + " idx=" + oren_int_to_string(idx))
+        }
+        gi = gi + 1
+    }
+    return nil
+}
+
+fn _arm64_emit_global_roots_init(ctx) {
+    if ctx == nil { return 0 }
+    var name = "__oren_global_roots_init"
+    if ctx["functions"] != nil && ctx["functions"][name] != nil {
+        if ctx["errors"] != nil {
+            oren_list_push(ctx["errors"], "arm64 native: reserved function name " + name + " already defined")
+        }
+        return 0
+    }
+    var start = bytes_len(ctx["code"])
+    if ctx["functions"] != nil { ctx["functions"][name] = start }
+    // Prologue: save FP/LR.
+    push_u32_le(ctx["code"], insn_stp_pre())
+    push_u32_le(ctx["code"], insn_mov_fp_sp())
+    var gmap = ctx["globals"]
+    var runtime_globals = ctx["runtime_globals"]
+    var skip_runtime_globals = ctx["skip_runtime_global_roots"]
+    var trace_root_names = ctx["trace_gc_root_names"]
+    if gmap != nil {
+        var gi = 0
+        var pair = [nil, nil]
+        while 1 {
+            var okg = oren_iter_next_entry(gmap, gi, pair)
+            if okg == 0 { break }
+            var gname = pair[0]
+            if gname == "g_gc_reuse_bad_list_last_ptr" ||
+               gname == "g_find_cache_ptr0" ||
+               gname == "g_find_cache_ptr1" ||
+               gname == "g_find_cache_node0" ||
+               gname == "g_find_cache_node1" {
+                gi = gi + 1
+                continue
+            }
+            if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
+               gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
+                gi = gi + 1
+                continue
+            }
+            var off_enc = pair[1]
+            if oren_type_tag(off_enc) == 1 {
+                var off = off_enc - 1
+                if trace_root_names != nil && trace_root_names != 0 && gname != nil {
+                    var name_off = exprm.native_data_add_cstr0(ctx, gname)
+                    var adr_ptr_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_ptr_pos, "data_off": off})
+                    var adr_name_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_name_pos, "data_off": name_off, "reg": 1})
+                    var bl_name = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_name, "name": "native_gc_register_root_name"})
+                }
+                var adr_root_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_root_pos, "data_off": off})
+                var bl_root = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_root, "name": "native_gc_register_root"})
+            }
+            gi = gi + 1
+        }
+    }
+    // Epilogue: restore FP/LR and return.
+    push_u32_le(ctx["code"], insn_ldp_post())
+    push_u32_le(ctx["code"], insn_ret())
+    return 0
+}
