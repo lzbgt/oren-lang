@@ -881,6 +881,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (log: `build/logs/triage_stage1_quick_green_cache_timeout_20260303_221058.log`).
   - New: `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS` overrides the timeout for the
     `OREN_GREEN_POLL_CACHE=1` sub-run in `scripts/run_native_quick_integration.sh` (2026-03-03).
+  - New: `OREN_QI_TRACE_GREEN_LIST=1` logs list metadata before `oren_list_get` inside
+    `worker_green_alloc_yield_integrity` to diagnose green poll cache list corruption (2026-03-03).
   - Trace: stage2 flake harness with `OREN_TRACE_LIST_GET_BAD=1` timed out on run 2
     (rc=143; log: `build/logs/native_quick_stage2_flake_20260303_224014_run2.log` +
     inner `build/logs/native_quick_stage2_flake_20260303_224014_run2_inner.log`).

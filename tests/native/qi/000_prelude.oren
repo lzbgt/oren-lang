@@ -47,6 +47,7 @@ fn assert_streq(a, b, code) {
 }
 
 var g_qi_trace_on = 0
+var g_qi_trace_green_list = 0
 
 fn trace(msg) {
     // Opt-in progress markers for debugging remote hangs/timeouts.
@@ -63,6 +64,22 @@ fn _qi_env_truthy(key) {
     if v == "" { return false }
     if strcmp(v, "0") == 0 { return false }
     return true
+}
+
+fn _qi_trace_green_list_state(list, idx, label) {
+    if g_qi_trace_green_list == 0 { return 0 }
+    var tag = oren_type_tag(list)
+    var name = oren_type_name(list)
+    var is_list = oren_is_list(list)
+    var is_list_int = oren_is_list_int(list)
+    print("QI: green_list " + label +
+          " list=" + oren_int_to_string(list) +
+          " idx=" + oren_int_to_string(idx) +
+          " tag=" + oren_int_to_string(tag) +
+          " name=" + name +
+          " is_list=" + oren_int_to_string(is_list) +
+          " is_list_int=" + oren_int_to_string(is_list_int))
+    return 0
 }
 
 fn _qi_timeout_ms(ms) {
@@ -129,6 +146,7 @@ fn worker_green_alloc_yield_integrity(seed) {
     // Verify tags survived across many yields (and across interleaving with other green tasks).
     i = 0
     while i < oren_list_len(ptrs) {
+        _qi_trace_green_list_state(ptrs, i, "get_before")
         var p2 = oren_list_get(ptrs, i)
         var got = ptr_get(p2)
         var want = seed + i * 131 + 7
