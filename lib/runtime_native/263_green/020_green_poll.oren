@@ -142,6 +142,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         // Fairness tick: periodically prefer draining from the global run queue even if the local
         // runq is non-empty, so spawns from non-green threads cannot starve indefinitely.
         tick = tick + 1
+        _green_last_ops_maybe_dump(tick)
 
         // Drain detached tasks that completed.
         _green_zombie_drain()

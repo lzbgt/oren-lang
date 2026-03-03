@@ -189,6 +189,8 @@ var g_trace_green_last_ops_argc = 0
 var g_trace_green_last_ops_ptr = 0
 var g_trace_green_last_ops_cap = 0
 var g_trace_green_last_ops_head = 0
+var g_trace_green_last_ops_every = 0
+var g_trace_green_last_ops_last_tick = 0
 
 // Rolling config: enable a cached fast path for `_green_poll_until_budget`.
 // Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
@@ -703,6 +705,17 @@ fn _green_last_ops_enabled() {
         }
         g_trace_green_last_ops_cap = cap
     }
+    if g_trace_green_last_ops_every == 0 {
+        var ev = native_envp_get_value_ptr("OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS")
+        if ev != 0 {
+            var n = native_parse_i64_dec_cstr_or_neg1(ev)
+            if n > 0 {
+                if n < 1 { n = 1 }
+                if n > 1000000 { n = 1000000 }
+                g_trace_green_last_ops_every = n
+            }
+        }
+    }
     if g_trace_green_last_ops_ptr == 0 {
         var bytes = g_trace_green_last_ops_cap * 48
         var buf = sys_mmap_private_anon(bytes)
@@ -788,6 +801,18 @@ fn oren_green_last_ops_dump() {
               " extra=" + oren_int_to_string(extra) +
               " extra2=" + oren_int_to_string(extra2))
         i = i + 1
+    }
+    return 0
+}
+
+fn _green_last_ops_maybe_dump(tick) {
+    if _green_last_ops_enabled() != true { return 0 }
+    var every = g_trace_green_last_ops_every
+    if every <= 0 { return 0 }
+    var last = g_trace_green_last_ops_last_tick
+    if tick - last >= every {
+        g_trace_green_last_ops_last_tick = tick
+        oren_green_last_ops_dump()
     }
     return 0
 }
