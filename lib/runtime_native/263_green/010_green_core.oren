@@ -177,6 +177,10 @@ var g_trace_green_args_stamp = -1
 var g_trace_green_args_stamp_envp = 0
 var g_trace_green_args_stamp_argv = 0
 var g_trace_green_args_stamp_argc = 0
+var g_trace_green_poll_cache_guard = -1
+var g_trace_green_poll_cache_guard_envp = 0
+var g_trace_green_poll_cache_guard_argv = 0
+var g_trace_green_poll_cache_guard_argc = 0
 
 // Rolling config: enable a cached fast path for `_green_poll_until_budget`.
 // Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
@@ -610,6 +614,103 @@ fn _green_trace_args_stamp_enabled() {
     g_trace_green_args_stamp_argv = cur_argv
     g_trace_green_args_stamp_argc = cur_argc
     return true
+}
+
+fn _green_poll_cache_guard_enabled() {
+    if g_trace_green_poll_cache_guard == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_poll_cache_guard == 0 {
+        if cur_envp == g_trace_green_poll_cache_guard_envp &&
+           cur_argv == g_trace_green_poll_cache_guard_argv &&
+           cur_argc == g_trace_green_poll_cache_guard_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_POLL_CACHE_GUARD")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_poll_cache_guard == -1 || g_trace_green_poll_cache_guard == 0 {
+            g_trace_green_poll_cache_guard = 0
+            g_trace_green_poll_cache_guard_envp = cur_envp
+            g_trace_green_poll_cache_guard_argv = cur_argv
+            g_trace_green_poll_cache_guard_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_poll_cache_guard = 1
+    g_trace_green_poll_cache_guard_envp = cur_envp
+    g_trace_green_poll_cache_guard_argv = cur_argv
+    g_trace_green_poll_cache_guard_argc = cur_argc
+    return true
+}
+
+fn _green_poll_cache_guard(label, ts, s, p) {
+    if _green_poll_cache_guard_enabled() != true { return 0 }
+    if ts == 0 || ts < 4096 {
+        print("trace: green_poll_cache_guard " + label + " ts=" + oren_int_to_string(ts))
+        oren_panic("green poll cache guard: bad ts")
+        return 0
+    }
+    var ts_node = native_alloc_index_get(ts)
+    if ts_node == 0 {
+        print("trace: green_poll_cache_guard " + label + " ts=" + oren_int_to_string(ts) + " node=0")
+        oren_panic("green poll cache guard: ts untracked")
+        return 0
+    }
+    var ts_kind = ptr_get(iadd(ts_node, 16))
+    if ts_kind != 4 {
+        print("trace: green_poll_cache_guard " + label + " ts=" + oren_int_to_string(ts) +
+              " node=" + oren_int_to_string(ts_node) + " kind=" + oren_int_to_string(ts_kind))
+        oren_panic("green poll cache guard: ts kind")
+        return 0
+    }
+    if s == 0 || s < 4096 {
+        print("trace: green_poll_cache_guard " + label + " s=" + oren_int_to_string(s))
+        oren_panic("green poll cache guard: bad s")
+        return 0
+    }
+    var s_node = native_alloc_index_get(s)
+    if s_node == 0 {
+        print("trace: green_poll_cache_guard " + label + " s=" + oren_int_to_string(s) + " node=0")
+        oren_panic("green poll cache guard: s untracked")
+        return 0
+    }
+    var s_kind = ptr_get(iadd(s_node, 16))
+    if s_kind != 4 {
+        print("trace: green_poll_cache_guard " + label + " s=" + oren_int_to_string(s) +
+              " node=" + oren_int_to_string(s_node) + " kind=" + oren_int_to_string(s_kind))
+        oren_panic("green poll cache guard: s kind")
+        return 0
+    }
+    if p != 0 {
+        if p < 4096 {
+            print("trace: green_poll_cache_guard " + label + " p=" + oren_int_to_string(p) + " small=1")
+            oren_panic("green poll cache guard: small p")
+            return 0
+        }
+        var p_node = native_alloc_index_get(p)
+        if p_node == 0 {
+            print("trace: green_poll_cache_guard " + label + " p=" + oren_int_to_string(p) + " node=0")
+            oren_panic("green poll cache guard: p untracked")
+            return 0
+        }
+        var p_kind = ptr_get(iadd(p_node, 16))
+        if p_kind != 4 {
+            print("trace: green_poll_cache_guard " + label + " p=" + oren_int_to_string(p) +
+                  " node=" + oren_int_to_string(p_node) + " kind=" + oren_int_to_string(p_kind))
+            oren_panic("green poll cache guard: p kind")
+            return 0
+        }
+        var runq_buf = ptr_get(p + green_p_off_runq_buf())
+        if runq_buf != 0 && runq_buf < 4096 {
+            print("trace: green_poll_cache_guard " + label + " p=" + oren_int_to_string(p) +
+                  " runq_buf=" + oren_int_to_string(runq_buf))
+            oren_panic("green poll cache guard: bad runq_buf")
+            return 0
+        }
+    }
+    return 0
 }
 
 fn _green_args_guard_core(label, g) {

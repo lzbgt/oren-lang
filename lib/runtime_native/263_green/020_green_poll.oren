@@ -41,6 +41,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         } else {
             if p != 0 && p < 4096 { exit(940) }
         }
+        _green_poll_cache_guard("init", ts, s, p)
     }
     var tick = 0
     var steps_left = max_steps
@@ -87,6 +88,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             } else {
                 if p != 0 && p < 4096 { exit(940) }
             }
+            _green_poll_cache_guard("loop", ts, s, p)
         }
         if g_green_workers_started != 0 {
             // Stage N3: enforce "an M runs Oren code only while holding a P".

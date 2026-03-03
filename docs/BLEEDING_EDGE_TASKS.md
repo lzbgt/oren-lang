@@ -939,6 +939,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     output before crash (logs:
     `build/logs/native_quick_stage2_flake_20260304_001002_run1_inner.log`,
     `build/logs/triage_stage2_quick_args_stamp_entry_20260304_001002.log`).
+  - New: `OREN_TRACE_GREEN_POLL_CACHE_GUARD=1` validates cached poll `ts/s/p` pointers
+    and runq_buf before deref (debug-only).
+  - Trace: stage2 harness with `OREN_TRACE_GREEN_POLL_CACHE_GUARD=1` +
+    `OREN_TRACE_GREEN_RUNQ_ARGS=1` + `OREN_TRACE_GREEN_ENTRY_ARGS=1` timed out on run 1
+    (rc=143) before producing inner logs (log:
+    `build/logs/triage_stage2_quick_poll_cache_guard_20260304_001353.log`).
+  - Trace: reruns with higher run timeouts (guard only) still timed out on run 1
+    with empty inner logs (logs:
+    `build/logs/triage_stage2_quick_poll_cache_guard_timeout_20260304_001446.log`,
+    `build/logs/triage_stage2_quick_poll_cache_guard_only_20260304_001530.log`,
+    `build/logs/triage_stage2_quick_poll_cache_guard_only2_20260304_001620.log`).
+  - Trace: manual `run_native_quick_integration.sh` with guard and 60s timeouts
+    also hit rc=143 before producing inner logs (log:
+    `build/logs/native_quick_poll_cache_guard_manual_20260304_001735.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).
