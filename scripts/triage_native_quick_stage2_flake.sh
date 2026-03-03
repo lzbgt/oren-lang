@@ -23,8 +23,6 @@ if [[ "$#" -gt 2 ]]; then
 fi
 
 mkdir -p build/logs
-
-failures=0
 run=1
 while [[ "$run" -le "$runs" ]]; do
   ts="$(date +%Y%m%d_%H%M%S)"
@@ -33,6 +31,14 @@ while [[ "$run" -le "$runs" ]]; do
   echo "== run ${run}/${runs} ==" >&2
   set +e
   : >"$log"
+  {
+    echo "ts=$ts"
+    echo "run=${run}/${runs}"
+    echo "compiler=$compiler"
+    echo "cwd=$(pwd)"
+    echo "uname=$(uname -a)"
+    echo "git_rev=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+  } >>"$log"
   if [[ "${#env_args[@]}" -gt 0 ]]; then
     echo "env: ${env_args[*]}" >>"$log"
     env "${env_args[@]}" ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
