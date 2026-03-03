@@ -74,6 +74,7 @@ fn __oren_green_entry() {
         sys_exit(920)
         return 0
     }
+    _green_last_ops_put(6, g, 0, 0)
     var fn_obj = ptr_get(g + green_g_off_fn_obj())
     var args_list = ptr_get(g + green_g_off_args_list())
     _green_args_stamp_guard("entry", g)

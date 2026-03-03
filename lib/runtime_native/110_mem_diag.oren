@@ -472,6 +472,7 @@ fn oren_fail(code, msg) {
     // Fail-fast helper for tests + internal invariants.
     // Emits an AI-friendly diagnostic line + a stack trace.
     g_panicking = 1
+    oren_green_last_ops_dump()
     oren_diag_emit("fail", code, msg)
     if g_debug_info != 0 {
         stack_trace_debug()
@@ -485,6 +486,7 @@ fn oren_fail(code, msg) {
 @oren.keep
 fn oren_panic(msg) {
     g_panicking = 1
+    oren_green_last_ops_dump()
     oren_diag_emit("panic", 1, msg)
     print("Runtime Panic: ")
     oren_raw_print_str(msg)
