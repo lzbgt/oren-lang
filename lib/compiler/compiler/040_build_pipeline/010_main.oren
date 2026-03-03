@@ -434,7 +434,7 @@ fn compiler_main() {
 
         if kind == "tokens" {
             if dbg_flow != nil { print("DEBUG_FLOW dump tokens start") }
-            var js = dump.dump_tokens_json(path, strict, allow)
+            var js = dump.dump_tokens_json(path, strict, allow, (opts["strict-ident-prefixes"] == true), split_csv(opts["ident-allow-prefixes"]))
             if js == nil {
                 emit_diag("compile", 2, "dump tokens failed: " + path)
                 oren_exit(1)
@@ -466,6 +466,8 @@ fn compiler_main() {
             var p = parser.new_parser(l)
             p["strict_attrs"] = strict
             p["attr_allow_prefixes"] = allow
+            p["strict_ident_prefixes"] = (opts["strict-ident-prefixes"] == true)
+            p["ident_allow_prefixes"] = split_csv(opts["ident-allow-prefixes"])
             var prog = parser.parse_program(p)
             if oren_list_len(p["errors"]) > 0 {
                 var first_err = nil
@@ -513,6 +515,8 @@ fn compiler_main() {
             var pg = parser.new_parser(lg)
             pg["strict_attrs"] = strict
             pg["attr_allow_prefixes"] = allow
+            pg["strict_ident_prefixes"] = (opts["strict-ident-prefixes"] == true)
+            pg["ident_allow_prefixes"] = split_csv(opts["ident-allow-prefixes"])
             var progg = parser.parse_program(pg)
             if oren_list_len(pg["errors"]) > 0 {
                 var first_err = nil
@@ -595,6 +599,8 @@ fn compiler_main() {
 
         STRICT_ATTRS = (opts["strict-attrs"] == true)
         ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
+        STRICT_IDENT_PREFIXES = (opts["strict-ident-prefixes"] == true)
+        IDENT_ALLOW_PREFIXES = split_csv(opts["ident-allow-prefixes"])
         if seen["out"] == true { out_meta = opts["out"] }
 
         var rr = expand_includes_file_result(path, [])
@@ -613,6 +619,8 @@ fn compiler_main() {
         var p = parser.new_parser(l)
         p["strict_attrs"] = STRICT_ATTRS
         p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+        p["strict_ident_prefixes"] = STRICT_IDENT_PREFIXES
+        p["ident_allow_prefixes"] = IDENT_ALLOW_PREFIXES
         var prog = parser.parse_program(p)
         if oren_list_len(p["errors"]) > 0 {
             var first_err = nil
@@ -880,6 +888,8 @@ fn compiler_main() {
 
     STRICT_ATTRS = (opts["strict-attrs"] == true)
     ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
+    STRICT_IDENT_PREFIXES = (opts["strict-ident-prefixes"] == true)
+    IDENT_ALLOW_PREFIXES = split_csv(opts["ident-allow-prefixes"])
     CAPSULE = (opts["capsule"] == true)
     CAP_ALLOW_DOMAINS = split_csv(opts["cap-allow-domains"])
 
@@ -1127,6 +1137,8 @@ fn compiler_main() {
     }
     p["strict_attrs"] = STRICT_ATTRS
     p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    p["strict_ident_prefixes"] = STRICT_IDENT_PREFIXES
+    p["ident_allow_prefixes"] = IDENT_ALLOW_PREFIXES
     if trace_build { print("[build] parse start") }
     var prog = parser.parse_program(p)
     if trace_build {

@@ -36,7 +36,7 @@ fn write_or_print(out_path, content) {
     return 0
 }
 
-fn dump_tokens_json(src_path, strict_attrs, attr_allow_prefixes) {
+fn dump_tokens_json(src_path, strict_attrs, attr_allow_prefixes, strict_ident_prefixes, ident_allow_prefixes) {
     var trace = oren_env("OREN_TRACE_DUMP")
     if trace != nil && trace != "" { print("TRACE_DUMP dump_tokens_json: read_file start") }
     var src = oren_read_file(src_path)
@@ -77,6 +77,8 @@ fn dump_tokens_json(src_path, strict_attrs, attr_allow_prefixes) {
     var p = parser.new_parser(l)
     p["strict_attrs"] = strict_attrs
     p["attr_allow_prefixes"] = attr_allow_prefixes
+    p["strict_ident_prefixes"] = strict_ident_prefixes
+    p["ident_allow_prefixes"] = ident_allow_prefixes
 
     // Token stream dump (up to EOF).
     var out = "[\n"

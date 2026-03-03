@@ -494,6 +494,24 @@ if [[ "$rc" -eq 0 ]]; then
 fi
 tail -n 5 "$tc_log"
 
+echo "== reserved identifier prefix smoke =="
+rp_src="tests/fixtures/reserved_ident_prefix_fail.oren"
+rp_log="build/logs/${compiler_base}_reserved_ident_prefix_smoke.log"
+rp_out="build/tmp/${compiler_base}_reserved_ident_prefix_smoke.obc"
+rm -f "$rp_log" "$rp_out" 2>/dev/null || true
+
+set +e
+"$compiler" build "$rp_src" --backend bytecode --strict-ident-prefixes -o "$rp_out" >"$rp_log" 2>&1
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+  echo "FAIL: reserved identifier prefix smoke expected failure but build succeeded"
+  tail -n 80 "$rp_log"
+  exit 1
+fi
+tail -n 5 "$rp_log"
+
 echo "== nil-compare guard smoke (late scalar use) =="
 ng_src="tests/fixtures/nil_guard_bad_late_scalar_nil_compare.oren"
 ng_log="build/logs/${compiler_base}_nil_guard_smoke.log"

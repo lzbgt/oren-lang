@@ -105,6 +105,9 @@ fn new_parser(l) {
     // Defaults are permissive (rolling mode).
     p["strict_attrs"] = false
     p["attr_allow_prefixes"] = []
+    // Identifier prefix validation knobs (set by the compiler front-end).
+    p["strict_ident_prefixes"] = false
+    p["ident_allow_prefixes"] = []
 
     // Built-in, compiler-recognized attribute names (strict mode allows only these
     // unless a prefix is explicitly allowlisted).
@@ -326,6 +329,58 @@ fn attr_is_allowlisted(p, name) {
         i = i + 1
     }
     return false
+}
+
+fn ident_is_allowlisted(p, name) {
+    var prefixes = p["ident_allow_prefixes"]
+    var i = 0
+    while i < oren_list_len(prefixes) {
+        var pref = prefixes[i]
+        if pref != nil && pref != "" {
+            if str_starts_with(name, pref) { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn _ident_seg_reserved_prefix(seg) {
+    if seg == nil || seg == "" { return nil }
+    if str_starts_with(seg, "__oren_") { return "__oren_" }
+    if str_starts_with(seg, "oren_") { return "oren_" }
+    if str_starts_with(seg, "sys_") { return "sys_" }
+    return nil
+}
+
+fn ident_reserved_prefix(name) {
+    if name == nil || name == "" { return nil }
+    var n = oren_string_len(name)
+    var start = 0
+    var i = 0
+    while i <= n {
+        if i == n || oren_string_char_at(name, i) == "." {
+            if i > start {
+                var seg = oren_string_slice(name, start, i)
+                var pref = _ident_seg_reserved_prefix(seg)
+                if pref != nil { return pref }
+            }
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn ident_prefix_validate(p, name, context) {
+    if p["strict_ident_prefixes"] != true { return nil }
+    if name == nil || name == "" { return nil }
+    if ident_is_allowlisted(p, name) { return nil }
+    var pref = ident_reserved_prefix(name)
+    if pref == nil { return nil }
+    var ctx = context
+    if ctx == nil || ctx == "" { ctx = "identifier" }
+    parser_add_error(p, ctx + " name '" + name + "' uses reserved prefix '" + pref + "' (allowed only for runtime/compiler intrinsics; use stdlib or local alias)")
+    return nil
 }
 
 fn attr_normalize_name(name) {

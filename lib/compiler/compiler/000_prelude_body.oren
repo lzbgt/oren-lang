@@ -33,6 +33,8 @@ fn cli_spec() {
     argparse.cmd_flag(build, "--python", nil, "(C backend) enable Python integration (requires python3-config)")
     argparse.cmd_flag_env(build, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted", "OREN_STRICT_ATTRS")
     argparse.cmd_option_env(build, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(build, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
+    argparse.cmd_option_env(build, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
     argparse.cmd_flag_env(build, "--capsule", nil, "(native backend) capability-safe subset: deny host effects unless allowlisted", "OREN_CAPSULE")
     argparse.cmd_option_env(build, "--cap-allow-domains", nil, "string", "", "CSV allow capability domains in capsule mode", "OREN_CAP_ALLOW_DOMAINS")
     argparse.cmd_option(build, "--codesign", nil, "string", "", "(macOS) codesign identity")
@@ -56,6 +58,8 @@ fn cli_spec() {
     argparse.cmd_flag(emitc, "--typecheck", nil, "Typecheck annotated code (fail fast on type errors; still builds on success)")
     argparse.cmd_flag_env(emitc, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted", "OREN_STRICT_ATTRS")
     argparse.cmd_option_env(emitc, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(emitc, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
+    argparse.cmd_option_env(emitc, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
     argparse.cmd_flag_env(emitc, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds", "OREN_DETERMINISTIC")
     argparse.cmd_flag(emitc, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed builds)")
 
@@ -67,6 +71,8 @@ fn cli_spec() {
     argparse.cmd_option(meta, "--platform", nil, "string", "", "Platform for ABI/layout lowering: arm64-macos|arm64-linux|x64-windows|x64-linux (preferred; overrides --arch/--target)")
     argparse.cmd_flag_env(meta, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted", "OREN_STRICT_ATTRS")
     argparse.cmd_option_env(meta, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(meta, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
+    argparse.cmd_option_env(meta, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
     argparse.cmd_flag_env(meta, "--deterministic", nil, "Deterministic mode: emit stable artifact hash (sha256) for metadata output", "OREN_DETERMINISTIC")
     argparse.cmd_flag(meta, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed metadata)")
 
@@ -88,6 +94,8 @@ fn cli_spec() {
     argparse.cmd_option(dumpcmd, "--platform", nil, "string", "", "Platform for lowering: arm64-macos|arm64-linux|x64-windows|x64-linux (preferred; overrides --arch/--target)")
     argparse.cmd_flag_env(dumpcmd, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted", "OREN_STRICT_ATTRS")
     argparse.cmd_option_env(dumpcmd, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(dumpcmd, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
+    argparse.cmd_option_env(dumpcmd, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
 
     var selftest_native = argparse.add_command(p, "selftest-native", "Fast native runtime self-test (no parsing/linking)")
 

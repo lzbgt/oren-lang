@@ -1379,6 +1379,13 @@ In strict mode:
 
 See `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren` (these fixtures can be exercised via the native test targets, e.g. `make test-native-all`).
 
+#### Strict identifier prefix mode (compiler option)
+
+For reserved identifier enforcement (avoid user-defined `oren_` / `sys_` / `__oren_` symbols):
+
+- `./oren build ... --strict-ident-prefixes`
+- `./oren build ... --ident-allow-prefixes myorg.,acme.` (allowlist prefixes in strict mode)
+
 #### ABI layout example
 
 ```oren
@@ -3378,6 +3385,13 @@ Strict attribute mode is implemented and enforced at parse-time:
 - `--attr-allow-prefixes myorg.,acme.`: allowlist custom namespaces in strict mode
 
 This is intended for audited builds and later swarm/consensus workflows.
+
+### Strict identifier prefix mode
+
+Reserved identifier prefixes can be enforced at parse-time:
+
+- `--strict-ident-prefixes`: reject user-defined identifiers starting with `oren_`, `sys_`, or `__oren_`
+- `--ident-allow-prefixes myorg.,acme.`: allowlist prefixes in strict mode
 
 ## 3.2 Conditional compilation (`@cfg` / canonical `@oren.cfg`)
 

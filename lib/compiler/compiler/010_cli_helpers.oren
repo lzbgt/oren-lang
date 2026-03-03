@@ -384,6 +384,8 @@ var MODULE_ID_COUNTER = 0
 // Defaults keep rolling mode permissive.
 var STRICT_ATTRS = false
 var ATTR_ALLOW_PREFIXES = []
+var STRICT_IDENT_PREFIXES = false
+var IDENT_ALLOW_PREFIXES = []
 var CAPSULE = false
 var CAP_ALLOW_DOMAINS = []
 

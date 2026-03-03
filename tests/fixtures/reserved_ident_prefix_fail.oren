@@ -1,0 +1,3 @@
+fn oren_bad() {
+    return 1
+}

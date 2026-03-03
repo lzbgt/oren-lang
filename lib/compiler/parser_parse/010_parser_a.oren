@@ -171,6 +171,7 @@ fn parse_enum_decl(p) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var enum_name = p["cur"]["literal"]
+    ident_prefix_validate(p, enum_name, "enum")
     if !expect_peek(p, token.TOK_LBRACE) { return nil }
 
     var out = []
@@ -191,6 +192,7 @@ fn parse_enum_decl(p) {
             return ast.new_stmt_list(out)
         }
         var vname = p["cur"]["literal"]
+        ident_prefix_validate(p, vname, "enum variant")
 
         // Optional payload names: (a,b,c)
         var payload_names = []
@@ -204,6 +206,7 @@ fn parse_enum_decl(p) {
                     parser_add_error(p, "enum payload expects identifier field names")
                     return ast.new_stmt_list(out)
                 }
+                ident_prefix_validate(p, p["cur"]["literal"], "enum payload")
                 oren_list_push(payload_names, p["cur"]["literal"])
                 while peek_is(p, token.TOK_COMMA) {
                     parser_next_token(p) // ','
@@ -212,6 +215,7 @@ fn parse_enum_decl(p) {
                         parser_add_error(p, "enum payload expects identifier field names")
                         return ast.new_stmt_list(out)
                     }
+                    ident_prefix_validate(p, p["cur"]["literal"], "enum payload")
                     oren_list_push(payload_names, p["cur"]["literal"])
                 }
                 if !expect_peek(p, token.TOK_RPAREN) { return ast.new_stmt_list(out) }
@@ -423,6 +427,7 @@ fn parse_var(p) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var name = ast.new_identifier(p["cur"])
+    ident_prefix_validate(p, name["value"], "variable")
 
     // Optional type annotation sugar:
     //   var x: u64 = ...
@@ -444,6 +449,7 @@ fn parse_var(p) {
 
 fn parse_short_var(p) {
     var name = ast.new_identifier(p["cur"])
+    ident_prefix_validate(p, name["value"], "variable")
     var tok = token.new_token(token.TOK_LET, "var")
     parser_next_token(p) // :=
     parser_next_token(p) // value
@@ -458,6 +464,7 @@ fn parse_typed_short_var(p) {
     //
     // This is only valid as a declaration (not assignment).
     var name = ast.new_identifier(p["cur"])
+    ident_prefix_validate(p, name["value"], "variable")
     var tok = token.new_token(token.TOK_LET, "var")
 
     parser_next_token(p) // :
@@ -538,4 +545,3 @@ fn parse_expression(p, prec) {
     }
     return left
 }
-

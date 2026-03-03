@@ -473,6 +473,8 @@ fn _ml_parse_program_from_src(file, src) {
     var p = parser.new_parser(l)
     p["strict_attrs"] = STRICT_ATTRS
     p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    p["strict_ident_prefixes"] = STRICT_IDENT_PREFIXES
+    p["ident_allow_prefixes"] = IDENT_ALLOW_PREFIXES
     var prog = parser.parse_program(p)
     // Defensive: parser must return a program map with "statements".
     if prog == nil || prog["statements"] == nil || oren_is_list(prog["statements"]) != true {
@@ -505,6 +507,8 @@ fn _ml_parse_program_from_src_result(file, src) {
     var p = parser.new_parser(l)
     p["strict_attrs"] = STRICT_ATTRS
     p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    p["strict_ident_prefixes"] = STRICT_IDENT_PREFIXES
+    p["ident_allow_prefixes"] = IDENT_ALLOW_PREFIXES
     var prog = parser.parse_program(p)
 
     // Defensive: parser must return a program map with "statements".

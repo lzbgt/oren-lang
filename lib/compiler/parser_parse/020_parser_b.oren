@@ -64,6 +64,7 @@ fn parse_lambda(p) {
                 parser_add_error(p, "lambda expects identifier parameters")
                 return nil
             }
+            ident_prefix_validate(p, p["cur"]["literal"], "parameter")
             oren_list_push(params, ast.new_identifier(p["cur"]))
             while peek_is(p, token.TOK_COMMA) {
                 parser_next_token(p) // comma
@@ -72,6 +73,7 @@ fn parse_lambda(p) {
                     parser_add_error(p, "lambda expects identifier parameters")
                     return nil
                 }
+                ident_prefix_validate(p, p["cur"]["literal"], "parameter")
                 oren_list_push(params, ast.new_identifier(p["cur"]))
             }
             if !expect_peek(p, token.TOK_BITOR) { return nil }
@@ -361,6 +363,7 @@ fn parse_function(p) {
     if peek_is_ident_like(p) {
         parser_next_token(p)
         name = p["cur"]["literal"]
+        ident_prefix_validate(p, name, "function")
     }
     var trace_fn = false
     var v_trace_fn = oren_env("OREN_TRACE_PARSE_FN")
@@ -503,6 +506,7 @@ fn parse_param_name_and_ann(p, attrs) {
         return nil
     }
     var id = ast.new_identifier(p["cur"])
+    ident_prefix_validate(p, id["value"], "parameter")
     if is_varargs { id["is_varargs"] = true }
 
     if peek_is(p, token.TOK_COLON) {

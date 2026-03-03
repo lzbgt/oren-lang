@@ -234,6 +234,7 @@ fn parse_for(p) {
     // - This keeps backends minimal: it relies only on existing `for`, indexing, and `oren_list_len`.
     if cur_is(p, token.TOK_IDENT) && (peek_is(p, token.TOK_IN) || peek_is(p, token.TOK_COLON)) {
         var user_name = ast.new_identifier(p["cur"])
+        ident_prefix_validate(p, user_name["value"], "for-in variable")
 
         // Optional iterator variable annotation:
         //   for x: u8 in bytes { ... }
@@ -413,6 +414,7 @@ fn parse_import(p) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var name = ast.new_identifier(p["cur"])
+    ident_prefix_validate(p, name["value"], "import alias")
     // GC safety (rolling): pin locals across expect_peek/parse to avoid stack-scan misses.
     p["_gc_import_name"] = name
     if !expect_peek(p, token.TOK_STRING) {
@@ -432,6 +434,7 @@ fn parse_type_decl(p) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var name = ast.new_identifier(p["cur"])
+    ident_prefix_validate(p, name["value"], "type")
     if !expect_peek(p, token.TOK_LBRACE) { return nil }
 
     var fields = []
@@ -563,6 +566,7 @@ fn parse_ffi(p) {
                 }
                 name = ast.new_identifier(p["cur"])
             }
+            ident_prefix_validate(p, name["value"], "ffi symbol")
             var st = ast.new_ffi(tok, name)
             st["link_name"] = link_name
             if item_attrs != nil && oren_list_len(item_attrs) > 0 { st["attrs"] = item_attrs }
@@ -615,6 +619,7 @@ fn parse_ffi(p) {
         if !expect_peek(p, token.TOK_IDENT) { return nil }
         name2 = ast.new_identifier(p["cur"])
     }
+    ident_prefix_validate(p, name2["value"], "ffi symbol")
     var st2 = ast.new_ffi(tok, name2)
     st2["link_name"] = link_name2
     if group_link_attr != nil { st2["attrs"] = _merge_attrs(st2["attrs"], [group_link_attr]) }
