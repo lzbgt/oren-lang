@@ -1011,6 +1011,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `scripts/triage_stage2_quick_until_world_lock.sh` runs native quick integration
     plus the smokes leading up to `test_green_two_workers_world_lock_smoke` to isolate
     order-sensitive hangs.
+  - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside
+    `test_green_two_workers_world_lock_smoke` to localize hangs.
   - Trace: stage2 quick-until-world-lock harness (1 run) with last-op dumps completed
     cleanly (log: `build/logs/native_quick_until_world_lock_20260304_011816_run1.log`).
   - Trace: stage2 quick-until-world-lock harness (5 runs, 30s timeouts) completed

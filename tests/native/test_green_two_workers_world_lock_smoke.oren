@@ -16,8 +16,12 @@ fn worker_green_yield_then_ret() {
 }
 
 fn main() {
+    var trace = (oren_env("OREN_TRACE_GREEN_WORLD_LOCK_SMOKE") != nil)
+    if trace { print("trace: world lock smoke begin") }
+
     var rcwl = oren_green_set_world_lock_mode(1)
     if rcwl != 0 { print("FAIL: world lock mode rc=" + oren_int_to_string(rcwl)); exit(1) }
+    if trace { print("trace: world lock mode set") }
 
     var hs = []
     var i = 0
@@ -28,11 +32,14 @@ fn main() {
         oren_list_push(hs, h)
         i = i + 1
     }
+    if trace { print("trace: spawned " + oren_int_to_string(oren_list_len(hs)) + " tasks") }
     var rcw = oren_green_start_workers(2)
     if rcw != 0 { print("FAIL: start_workers rc=" + oren_int_to_string(rcw)); exit(2) }
+    if trace { print("trace: start_workers ok") }
 
     var wc = oren_green_debug_worker_count()
     if wc != 2 { print("FAIL: worker_count=" + oren_int_to_string(wc)); exit(3) }
+    if trace { print("trace: worker_count ok") }
 
     i = 0
     while i < oren_list_len(hs) {
@@ -42,11 +49,15 @@ fn main() {
             print("FAIL: join r=" + oren_int_to_string(r))
             exit(4)
         }
+        if trace && i % 10 == 0 { print("trace: join " + oren_int_to_string(i)) }
         i = i + 1
     }
+    if trace { print("trace: joins complete") }
 
     // STW regression: must not deadlock with multiple worker threads present.
+    if trace { print("trace: gc collect start") }
     oren_gc_collect()
+    if trace { print("trace: gc collect done") }
 
     print("ok: green two workers world lock smoke")
     return 0
