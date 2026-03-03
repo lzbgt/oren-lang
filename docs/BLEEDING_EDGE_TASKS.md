@@ -886,6 +886,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     inner `build/logs/native_quick_stage2_flake_20260303_224014_run2_inner.log`).
   - Trace: stage2 flake harness rerun with `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=30` passed
     10 runs and emitted no `list_get_bad` lines (log: `build/logs/native_quick_stage2_flake_20260303_224533_run10.log`).
+  - Trace: attempted 50-run stage2 harness with `OREN_TRACE_LIST_GET_BAD=1` +
+    `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=30`; manually stopped after 18 runs
+    (log: `build/logs/native_quick_stage2_flake_20260303_225644_run18.log`); no
+    `list_get_bad` lines observed in completed runs.
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop
