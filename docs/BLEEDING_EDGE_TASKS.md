@@ -889,6 +889,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `list_get_bad` pointers (use sparingly; expensive).
   - New: `OREN_TRACE_GREEN_RUNQ_ARGS=1` logs `g->fn_obj/args_list` metadata at
     runq push/pop/steal to catch corruption between enqueue/dequeue (2026-03-03).
+  - New: `OREN_TRACE_GREEN_RUNQ_GUARD=1` validates runq `g` + args_list headers on
+    dequeue and panics with details before a bus error (debug-only).
   - Trace: stage2 flake harness with `OREN_TRACE_LIST_GET_BAD=1` timed out on run 2
     (rc=143; log: `build/logs/native_quick_stage2_flake_20260303_224014_run2.log` +
     inner `build/logs/native_quick_stage2_flake_20260303_224014_run2_inner.log`).
@@ -917,6 +919,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_ENTRY_ARGS=1` + `OREN_TRACE_GREEN_RUNQ_ARGS=1` hit a
     bus error on run 1 (rc=138); runq/entry logs show args_list kind=2/magic ok
     immediately before the crash (log: `build/logs/native_quick_stage2_flake_20260303_233056_run1_inner.log`).
+  - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
+    (log: `build/logs/make_test_20260303_233334.log`); rerun passed
+    (log: `build/logs/make_test_20260303_233544.log`).
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop
