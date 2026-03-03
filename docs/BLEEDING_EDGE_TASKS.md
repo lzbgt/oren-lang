@@ -1016,6 +1016,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: stage2 quick-until-world-lock harness (5 runs, 30s timeouts) completed
     cleanly with last-op dumps (summary log:
     `build/logs/triage_stage2_quick_until_world_lock_5run_20260304_011957.log`).
+  - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
+    `triage_stage2_quick_until_world_lock.sh`.
+  - Trace: skip-before-world-lock run completed cleanly (log:
+    `build/logs/native_quick_until_world_lock_20260304_012236_run1.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).

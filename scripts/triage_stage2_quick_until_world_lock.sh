@@ -4,6 +4,7 @@ set -euo pipefail
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
   echo "env: OREN_NATIVE_BUILD_TIMEOUT_SECS / OREN_NATIVE_RUN_TIMEOUT_SECS / OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS" >&2
+  echo "env: OREN_QI_STOP_BEFORE_WORLD_LOCK=1 (skip world-lock smoke)" >&2
   exit 0
 fi
 
@@ -137,6 +138,8 @@ if [[ -n "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
   green_cache_run_timeout_secs="${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS}"
 fi
 
+stop_before_world_lock="${OREN_QI_STOP_BEFORE_WORLD_LOCK:-0}"
+
 run=1
 while [[ "$run" -le "$runs" ]]; do
   ts="$(date +%Y%m%d_%H%M%S)"
@@ -235,6 +238,12 @@ while [[ "$run" -le "$runs" ]]; do
   fi
   echo "== gc stw os-thread collect smoke ==" >>"$log"
   tail -n 3 "$gc_log" >>"$log"
+
+  if [[ "$stop_before_world_lock" == "1" ]]; then
+    echo "== green two workers world-lock smoke (skipped) ==" >>"$log"
+    run=$((run + 1))
+    continue
+  fi
 
   gw_src="tests/native/test_green_two_workers_world_lock_smoke.oren"
   gw_out="build/tmp/${compiler_base}_green_two_workers_world_lock_smoke${exe_ext}"
