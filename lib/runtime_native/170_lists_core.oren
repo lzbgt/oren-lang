@@ -175,6 +175,11 @@ var g_trace_list_reserve_fail = -1
 var g_trace_list_reserve_fail_envp = 0
 var g_trace_list_reserve_fail_argv = 0
 var g_trace_list_reserve_fail_argc = 0
+var g_trace_list_get_bad = -1
+var g_trace_list_get_bad_cap = 0
+var g_trace_list_get_bad_envp = 0
+var g_trace_list_get_bad_argv = 0
+var g_trace_list_get_bad_argc = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -535,6 +540,69 @@ fn _list_reserve_fail_emit(stage, list, node, expected_kind, new_cap) {
         var nk = ptr_get(iadd(node, 16))
         print("[list_reserve_fail] node_kind=" + oren_int_to_string(nk))
     }
+    return 0
+}
+
+fn _list_get_bad_enabled() {
+    if g_trace_list_get_bad == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_get_bad == 0 {
+        if cur_envp == g_trace_list_get_bad_envp &&
+           cur_argv == g_trace_list_get_bad_argv &&
+           cur_argc == g_trace_list_get_bad_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_GET_BAD")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_list_get_bad == -1 || g_trace_list_get_bad == 0 {
+            g_trace_list_get_bad = 0
+            g_trace_list_get_bad_envp = cur_envp
+            g_trace_list_get_bad_argv = cur_argv
+            g_trace_list_get_bad_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_list_get_bad = 1
+    g_trace_list_get_bad_envp = cur_envp
+    g_trace_list_get_bad_argv = cur_argv
+    g_trace_list_get_bad_argc = cur_argc
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_GET_BAD_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
+        var cap = oren_int_from_string(v_cap)
+        if cap > 0 { g_trace_list_get_bad_cap = cap }
+    }
+    if g_trace_list_get_bad_cap <= 0 { g_trace_list_get_bad_cap = 128 }
+    return true
+}
+
+fn _list_get_bad_emit(stage, list, idx, node, kind) {
+    if _list_get_bad_enabled() != true { return 0 }
+    if g_trace_list_get_bad_cap <= 0 { return 0 }
+    g_trace_list_get_bad_cap = g_trace_list_get_bad_cap - 1
+    var small = 0
+    if list < 4096 { small = 1 }
+    var tag = -1
+    var name = ""
+    if node != 0 || small != 0 {
+        tag = oren_type_tag(list)
+        name = oren_type_name(list)
+    }
+    var magic = 0
+    if node != 0 {
+        magic = ptr_get(iadd(list, 24))
+    }
+    print("trace: list_get_bad stage=" + oren_int_to_string(stage) +
+          " list=" + oren_int_to_string(list) +
+          " idx=" + oren_int_to_string(idx) +
+          " node=" + oren_int_to_string(node) +
+          " kind=" + oren_int_to_string(kind) +
+          " magic=" + oren_int_to_string(magic) +
+          " small=" + oren_int_to_string(small) +
+          " tag=" + oren_int_to_string(tag) +
+          " name=" + name)
     return 0
 }
 

@@ -745,10 +745,15 @@ fn oren_list_get(list, idx) {
             native_alloc_index_rebuild_live()
             node = _list_find_node(list)
         }
-        if node == 0 { _list_trace_dump(list); oren_panic("Indexing on non-container"); return nil }
-	    var kind = ptr_get(iadd(node, 16))
-	    if kind != 2 && kind != list_int_kind() {
-	        if kind == 3 {
+        if node == 0 {
+            _list_get_bad_emit(1, list, idx, node, 0)
+            _list_trace_dump(list)
+            oren_panic("Indexing on non-container")
+            return nil
+        }
+        var kind = ptr_get(iadd(node, 16))
+        if kind != 2 && kind != list_int_kind() {
+            if kind == 3 {
                 // Not a list: treat as map indexing.
                 // Key kind is selected by `oren_map_get` using tracking metadata.
                 return oren_map_get(list, idx)
@@ -763,17 +768,24 @@ fn oren_list_get(list, idx) {
                 if kind == 2 || kind == list_int_kind() {
                     // fall through to list handling
                 } else {
+                    _list_get_bad_emit(2, list, idx, node, kind)
                     _list_trace_dump(list)
                     oren_panic("Indexing on non-container")
                     return nil
                 }
             } else {
+                _list_get_bad_emit(3, list, idx, node, 0)
                 _list_trace_dump(list)
                 oren_panic("Indexing on non-container")
                 return nil
             }
-	    }
-	    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("Indexing on non-list"); return nil }
+        }
+        if ptr_get(iadd(list, 24)) != list_magic() {
+            _list_get_bad_emit(4, list, idx, node, kind)
+            _list_trace_dump(list)
+            oren_panic("Indexing on non-list")
+            return nil
+        }
         count = ptr_get(iadd(list, 0))
     } else {
         count = ptr_get(iadd(list, 0))

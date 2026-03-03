@@ -869,8 +869,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (log: `build/logs/make_test_20260303_215100.log`). Track as a potential flake.
   - Note: `make test` hit `test-native-quick` Error 1 on 2026-03-03 in the
     `OREN_GREEN_POLL_CACHE=1` sub-run (panic: "Indexing on non-container";
-    log: `build/logs/make_test_20260303_221100.log`); rerun passed
+    logs: `build/logs/make_test_20260303_221100.log`,
+    `build/logs/make_test_20260303_223310.log` + inner
+    `build/logs/oren_stage2_native_quick_integration.log`); rerun passed
     (log: `build/logs/make_test_20260303_221200.log`). Track as a potential flake.
+  - New: `OREN_TRACE_LIST_GET_BAD=1` emits list-get diagnostics when "Indexing on non-container"
+    triggers; use this for the `OREN_GREEN_POLL_CACHE=1` flake (cap via `OREN_TRACE_LIST_GET_BAD_CAP`).
   - Trace: stage1 flake harness with `OREN_GREEN_POLL_CACHE=1` timed out on run 1
     (rc=143; log: `build/logs/triage_stage1_quick_green_cache_20260303_221009.log`);
     rerun with `OREN_NATIVE_RUN_TIMEOUT_SECS=30` passed 5 runs

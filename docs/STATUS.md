@@ -392,6 +392,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace optimizer list reserve insertion with `OREN_TRACE_LIST_RESERVE=1`.
    - Trace implausible `track_alloc_new` sizes with `OREN_TRACE_TRACK_ALLOC_NEW_SIZE=1`
      (default min 1<<30; tunable via `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN`/`_CAP`).
+   - New: `OREN_TRACE_LIST_GET_BAD=1` logs list-get diagnostics when `Indexing on non-container`
+     or `Indexing on non-list` triggers (cap via `OREN_TRACE_LIST_GET_BAD_CAP`).
    - Trace: `alloc_churn` run with size tracing shows `size=160000` corresponds to a list_int
      buffer (`cap=20000`, bytes=160000), so the size log is expected
      (log: `build/logs/bench_run_alloc_churn_20260226_084444/oren_native/run_0.log`).
