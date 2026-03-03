@@ -24,11 +24,29 @@ fi
 
 mkdir -p build/logs
 
+current_log=""
+current_inner_src=""
+current_err_log=""
+trap_cleanup() {
+  local sig="$1"
+  if [[ -n "${current_log}" ]]; then
+    echo "INTERRUPTED: signal ${sig}" >>"$current_log"
+  fi
+  if [[ -n "${current_inner_src}" && -n "${current_err_log}" && -f "${current_inner_src}" ]]; then
+    cp -f "${current_inner_src}" "${current_err_log}" 2>/dev/null || true
+  fi
+}
+trap 'trap_cleanup TERM; exit 143' TERM
+trap 'trap_cleanup INT; exit 130' INT
+
 run=1
 while [[ "$run" -le "$runs" ]]; do
   ts="$(date +%Y%m%d_%H%M%S)"
   log="build/logs/native_quick_flake_${ts}_run${run}.log"
   inner_log="build/logs/native_quick_flake_${ts}_run${run}_inner.log"
+  current_log="$log"
+  current_inner_src="build/logs/oren_native_quick_integration.log"
+  current_err_log="build/logs/native_quick_flake_${ts}_run${run}_interrupt.log"
   echo "== run ${run}/${runs} ==" >&2
   set +e
   : >"$log"

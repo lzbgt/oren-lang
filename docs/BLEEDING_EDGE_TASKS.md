@@ -1011,6 +1011,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `scripts/triage_stage2_quick_until_world_lock.sh` runs native quick integration
     plus the smokes leading up to `test_green_two_workers_world_lock_smoke` to isolate
     order-sensitive hangs.
+  - New: quick flake triage scripts capture the in-flight inner log on SIGTERM/SIGINT
+    (writes `*_interrupt.log` alongside the per-run log) for hang forensics.
   - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside
     `test_green_two_workers_world_lock_smoke` and dumps `oren_green_last_ops_dump()`
     at key milestones (and every 10 joins) to localize hangs.
