@@ -35,8 +35,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
-- Reweight: rtobj cache hash must reflect trace codegen flags (alloc_req/list_hdr/list_reserve) to keep runtime tracing
-  consistent under cache hits; treat as a W5 runtime robustness gate.
+- Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
+  including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move
   semantic parity, runtime robustness, or perf parity metrics.
 

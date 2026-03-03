@@ -63,6 +63,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
    - Guardrails and traces exist, but correctness gates are not yet stable.
+   - Fix: rtobj seed keys now include trace hash opts (alloc_req/list_hdr/list_reserve) so
+     trace builds cannot reuse non-trace runtime objects under cache hits (2026-03-03).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid

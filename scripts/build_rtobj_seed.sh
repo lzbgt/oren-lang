@@ -148,6 +148,27 @@ sanitize_runtime_path() {
   echo "$p" | sed -E 's#[/\\\\:]#_#g'
 }
 
+rtobj_env_enabled() {
+  local name="$1"
+  local v="${!name-}"
+  [[ -z "${v:-}" ]] && return 1
+  [[ "$v" == "0" || "$v" == "false" ]] && return 1
+  return 0
+}
+
+rtobj_hash_opts() {
+  local opts=()
+  if rtobj_env_enabled OREN_TRACE_NATIVE_ALLOC_REQ; then opts+=("alloc_req"); fi
+  if rtobj_env_enabled OREN_TRACE_NATIVE_LIST_HDR; then opts+=("list_hdr"); fi
+  if rtobj_env_enabled OREN_TRACE_NATIVE_LIST_RESERVE; then opts+=("list_reserve"); fi
+  if [[ ${#opts[@]} -eq 0 ]]; then
+    echo ""
+    return 0
+  fi
+  local IFS=,
+  echo "${opts[*]}"
+}
+
 	runtime_hash_from_cache() {
 	  # Best-effort: reuse the compiler's persisted runtime hash cache to pick the correct rtobj key.
   #
@@ -160,7 +181,14 @@ sanitize_runtime_path() {
 	  local line
 	  line="$(grep -E "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
 	  [[ -z "$line" ]] && return 1
-	  echo "${line#hash=}"
+	  local rh="${line#hash=}"
+	  local opts
+	  opts="$(rtobj_hash_opts)"
+	  if [[ -n "$opts" ]]; then
+	    echo "${rh}_opt_${opts}"
+	    return 0
+	  fi
+	  echo "${rh}"
 	  return 0
 	}
 
