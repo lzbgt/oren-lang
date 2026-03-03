@@ -541,138 +541,152 @@ int main(int argc, char** argv) {
                 return 1;
             }
             uint8_t type = data[pos++];
-            if (type == 0) { // NIL
-                consts[ci].type = AVM_VAL_NIL;
-            }
-            if (type == 1) { // INT
-                if (pos + 8 > len) {
-                    fprintf(stderr, "Invalid INT const\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
+            switch (type) {
+                case 0: { // NIL
+                    consts[ci].type = AVM_VAL_NIL;
+                    break;
                 }
-                int64_t val = 0;
-                for (int k = 0; k < 8; k++) {
-                    val |= (int64_t)data[pos++] << (k * 8);
-                }
-                consts[ci].type = AVM_VAL_INT;
-                consts[ci].as.i = val;
-            }
-            if (type == 2) { // BOOL (rolling): u8 0|1
-                if (pos + 1 > len) {
-                    fprintf(stderr, "Invalid BOOL const\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                uint8_t b = data[pos++];
-                consts[ci].type = AVM_VAL_BOOL;
-                consts[ci].as.i = (b != 0) ? 1 : 0;
-            }
-            if (type == 3) { // FLOAT (rolling): IEEE-754 f64 bits as u64 little-endian
-                if (pos + 8 > len) {
-                    fprintf(stderr, "Invalid FLOAT const\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                uint64_t bits = 0;
-                for (int k = 0; k < 8; k++) {
-                    bits |= (uint64_t)data[pos++] << (k * 8);
-                }
-                double d = 0.0;
-                memcpy(&d, &bits, sizeof(bits));
-                consts[ci].type = AVM_VAL_FLOAT;
-                consts[ci].as.f = d;
-            }
-            if (type == 4) { // STRING
-                if (pos + 2 > len) {
-                    fprintf(stderr, "Invalid STRING const\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
-                pos += 2;
-                if (pos + slen > len) {
-                    fprintf(stderr, "Invalid STRING const\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                char* s = (char*)malloc((size_t)slen + 1);
-                if (!s) {
-                    fprintf(stderr, "OOM\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                for (uint16_t k = 0; k < slen; k++) s[k] = (char)data[pos++];
-                s[slen] = 0;
-                consts[ci].type = AVM_VAL_STRING;
-                consts[ci].as.p = s;
-            }
-            if (type == 8) { // BYTES (rolling): u32 len + raw bytes
-                if (pos + 4 > len) {
-                    fprintf(stderr, "Invalid BYTES const\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                uint32_t blen = (uint32_t)data[pos] | ((uint32_t)data[pos + 1] << 8) | ((uint32_t)data[pos + 2] << 16) | ((uint32_t)data[pos + 3] << 24);
-                pos += 4;
-                if (pos + blen > len) {
-                    fprintf(stderr, "Invalid BYTES const\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
-                if (!b) {
-                    fprintf(stderr, "OOM\n");
-                    free_constant_pool(consts, (size_t)ci);
-                    free(consts);
-                    free(data);
-                    free(break_pcs);
-                    return 1;
-                }
-                b->len = (int)blen;
-                b->capacity = (int)blen;
-                b->data = NULL;
-                if (blen > 0) {
-                    b->data = (uint8_t*)malloc((size_t)blen);
-                    if (!b->data) {
-                        fprintf(stderr, "OOM\n");
-                        free(b);
+                case 1: { // INT
+                    if (pos + 8 > len) {
+                        fprintf(stderr, "Invalid INT const\n");
                         free_constant_pool(consts, (size_t)ci);
                         free(consts);
                         free(data);
                         free(break_pcs);
                         return 1;
                     }
-                    memcpy(b->data, data + pos, blen);
+                    int64_t val = 0;
+                    for (int k = 0; k < 8; k++) {
+                        val |= (int64_t)data[pos++] << (k * 8);
+                    }
+                    consts[ci].type = AVM_VAL_INT;
+                    consts[ci].as.i = val;
+                    break;
                 }
-                pos += blen;
-                consts[ci].type = AVM_VAL_BYTES;
-                consts[ci].as.b = b;
+                case 2: { // BOOL (rolling): u8 0|1
+                    if (pos + 1 > len) {
+                        fprintf(stderr, "Invalid BOOL const\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    uint8_t b = data[pos++];
+                    consts[ci].type = AVM_VAL_BOOL;
+                    consts[ci].as.i = (b != 0) ? 1 : 0;
+                    break;
+                }
+                case 3: { // FLOAT (rolling): IEEE-754 f64 bits as u64 little-endian
+                    if (pos + 8 > len) {
+                        fprintf(stderr, "Invalid FLOAT const\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    uint64_t bits = 0;
+                    for (int k = 0; k < 8; k++) {
+                        bits |= (uint64_t)data[pos++] << (k * 8);
+                    }
+                    double d = 0.0;
+                    memcpy(&d, &bits, sizeof(bits));
+                    consts[ci].type = AVM_VAL_FLOAT;
+                    consts[ci].as.f = d;
+                    break;
+                }
+                case 4: { // STRING
+                    if (pos + 2 > len) {
+                        fprintf(stderr, "Invalid STRING const\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
+                    pos += 2;
+                    if (pos + slen > len) {
+                        fprintf(stderr, "Invalid STRING const\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    char* s = (char*)malloc((size_t)slen + 1);
+                    if (!s) {
+                        fprintf(stderr, "OOM\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    for (uint16_t k = 0; k < slen; k++) s[k] = (char)data[pos++];
+                    s[slen] = 0;
+                    consts[ci].type = AVM_VAL_STRING;
+                    consts[ci].as.p = s;
+                    break;
+                }
+                case 8: { // BYTES (rolling): u32 len + raw bytes
+                    if (pos + 4 > len) {
+                        fprintf(stderr, "Invalid BYTES const\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    uint32_t blen = (uint32_t)data[pos] | ((uint32_t)data[pos + 1] << 8) | ((uint32_t)data[pos + 2] << 16) | ((uint32_t)data[pos + 3] << 24);
+                    pos += 4;
+                    if (blen > (uint32_t)INT_MAX || pos + blen > len) {
+                        fprintf(stderr, "Invalid BYTES const\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+                    if (!b) {
+                        fprintf(stderr, "OOM\n");
+                        free_constant_pool(consts, (size_t)ci);
+                        free(consts);
+                        free(data);
+                        free(break_pcs);
+                        return 1;
+                    }
+                    b->len = (int)blen;
+                    b->capacity = (int)blen;
+                    b->data = NULL;
+                    if (blen > 0) {
+                        b->data = (uint8_t*)malloc((size_t)blen);
+                        if (!b->data) {
+                            fprintf(stderr, "OOM\n");
+                            free(b);
+                            free_constant_pool(consts, (size_t)ci);
+                            free(consts);
+                            free(data);
+                            free(break_pcs);
+                            return 1;
+                        }
+                        memcpy(b->data, data + pos, blen);
+                    }
+                    pos += blen;
+                    consts[ci].type = AVM_VAL_BYTES;
+                    consts[ci].as.b = b;
+                    break;
+                }
+                default:
+                    fprintf(stderr, "Invalid constant type: %u\n", (unsigned)type);
+                    free_constant_pool(consts, (size_t)ci);
+                    free(consts);
+                    free(data);
+                    free(break_pcs);
+                    return 1;
             }
-            // TODO: Other types
         }
 
         // Code

@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-02-27
+**Last updated:** 2026-03-03
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -88,6 +88,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 2) **W5 runtime robustness: GC reuse + list header integrity**
    - Root-cause list header corruption before enabling reuse paths.
+   - Next: harden free-node list integrity and determinism guards to re-enable raw-node reuse
+     in `malloc_raw` paths (`native_try_reuse_node`).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
@@ -878,6 +880,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
+   - Next: enable `--python` embedding flags for stage0 MSVC builds (bootstrap/windows parity).
    - Fix AVM build breaks that block `make verify-backend-parity-tags` (select case parsing + helper visibility + headers).
    - Investigate repeated `/v1/tools` polling failures from `index-*.js`
      (fetch to `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?...`).

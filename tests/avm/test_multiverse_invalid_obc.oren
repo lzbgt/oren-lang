@@ -25,6 +25,14 @@ fn main() {
     var msg = oren_err_msg(r)
     assert_true(msg != nil)
 
+    // Unknown constant type (valid header + const count, invalid const tag).
+    var bad2 = oren_bytes_from_hex("cd0e010099")
+    assert_true(oren_is_err(bad2) == false)
+    var r2 = oren_avm_run_obc_bytes(bad2, cfg)
+    assert_true(oren_is_err(r2) == true)
+    var msg2 = oren_err_msg(r2)
+    assert_true(msg2 != nil)
+
     print("multiverse invalid obc: OK")
 }
 
