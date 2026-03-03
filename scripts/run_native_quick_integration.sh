@@ -128,6 +128,10 @@ if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
 fi
 out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
 log="build/logs/${compiler_base}_native_quick_integration.log"
+green_cache_run_timeout_secs="$run_timeout_secs"
+if [[ -n "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
+  green_cache_run_timeout_secs="${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS}"
+fi
 
 echo "== native quick integration =="
 echo "compiler=$compiler"
@@ -144,7 +148,8 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
 run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
 
 echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$log"
-OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
+echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs" >>"$log"
+OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
 
 tail -n 5 "$log"
 

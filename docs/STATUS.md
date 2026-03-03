@@ -1432,6 +1432,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     (rc=143; log: `build/logs/triage_stage1_quick_green_cache_20260303_221009.log`);
     rerun with `OREN_NATIVE_RUN_TIMEOUT_SECS=30` passed 5 runs
     (log: `build/logs/triage_stage1_quick_green_cache_timeout_20260303_221058.log`).
+  - New: `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS` overrides the timeout for the
+    `OREN_GREEN_POLL_CACHE=1` sub-run in `scripts/run_native_quick_integration.sh` (2026-03-03).
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs the stage1 native quick integration
