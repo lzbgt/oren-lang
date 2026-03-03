@@ -75,6 +75,8 @@ fn _run_cmd_capture_stdout(cmd_line, out_path) {
         var ws = oren_write_file(sp, oren_string_join(parts))
         if oren_is_err(ws) { return 1 }
         var rc = oren_system("cmd.exe /d /c " + cmd_quote(sp))
+        // Best-effort cleanup.
+        oren_unlink(sp)
         return rc
     }
     return oren_system(cmd_line + " > " + shell_quote(out_path) + " 2>/dev/null")
@@ -128,12 +130,16 @@ fn _python_embed_probe_info() {
             if !oren_is_err(s) {
                 var info = _parse_kv_lines(s)
                 if info != nil && info["include"] != nil && info["include"] != "" {
+                    oren_unlink(script_path)
+                    oren_unlink(out_path)
                     return info
                 }
             }
         }
         i = i + 1
     }
+    oren_unlink(script_path)
+    oren_unlink(out_path)
     return nil
 }
 
