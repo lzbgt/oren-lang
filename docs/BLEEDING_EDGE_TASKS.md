@@ -890,7 +890,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `OREN_TRACE_GREEN_RUNQ_ARGS=1` logs `g->fn_obj/args_list` metadata at
     runq push/pop/steal to catch corruption between enqueue/dequeue (2026-03-03).
   - New: `OREN_TRACE_GREEN_RUNQ_GUARD=1` validates runq `g` + args_list headers on
-    enqueue/dequeue and panics with details before a bus error (debug-only).
+    spawn/enqueue/dequeue and panics with details before a bus error (debug-only).
   - Trace: stage2 flake harness with `OREN_TRACE_LIST_GET_BAD=1` timed out on run 2
     (rc=143; log: `build/logs/native_quick_stage2_flake_20260303_224014_run2.log` +
     inner `build/logs/native_quick_stage2_flake_20260303_224014_run2_inner.log`).

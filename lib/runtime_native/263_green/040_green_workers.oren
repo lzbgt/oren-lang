@@ -652,6 +652,7 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_word_wait_addr(), 0)
     ptr_set(g + green_g_off_word_wait_expected(), 0)
     ptr_set(g + green_g_off_word_wait_rc(), 0)
+    _green_runq_guard("spawn_alloc", g)
 
     // Initialize context to start at __oren_green_entry on the new stack.
     var entry_pc = oren_code_addr(__oren_green_entry)
