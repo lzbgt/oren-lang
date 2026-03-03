@@ -996,10 +996,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `== green two workers world-lock smoke ==`).
   - Next: isolate `test_green_two_workers_world_lock_smoke` hangs by running the smoke
     standalone with last-op dumps enabled and a watchdog that preserves the inner log.
+  - New: `scripts/triage_green_two_workers_world_lock_smoke.sh` loops the world-lock
+    smoke with env passthrough and a watchdog (`OREN_WORLD_LOCK_SMOKE_TIMEOUT_SECS`).
   - Trace: standalone `test_green_two_workers_world_lock_smoke` (3 runs, watchdog 120s)
     with `OREN_TRACE_GREEN_LAST_OPS=1` + `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=200`
     completed cleanly (log:
     `build/logs/green_two_workers_world_lock_smoke_stage2_trace_20260304_010842.log`).
+  - Trace: `scripts/triage_green_two_workers_world_lock_smoke.sh` (3 runs) completed
+    cleanly with last-op dumps (summary log:
+    `build/logs/triage_green_two_workers_world_lock_smoke_20260304_011231.log`).
   - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
     (log: `build/logs/make_test_20260303_233334.log`); rerun passed
     (log: `build/logs/make_test_20260303_233544.log`).
