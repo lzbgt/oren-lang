@@ -1839,6 +1839,17 @@ Rolling restriction (practical today):
 User code should not define variables/functions with these prefixes; the compiler may treat them as
 special globals (for example, they are not captured as closure variables in native backends).
 
+Practical guidance (today):
+
+- Treat `oren_*` / `sys_*` as **low-level intrinsics**. Use them when you need the exact runtime hook,
+  or when you are writing stdlib/runtime code.
+- For user-facing code, prefer `std:*` modules and language sugar. If a wrapper doesn’t exist yet,
+  consider defining a local alias with a clearer name:
+
+```oren
+fn yield_now() { return oren_yield() }
+```
+
 ### Literals
 - **Integer**: one or more digits: `[0-9]+`
 - **Float**: digits, then `.`, then optional digits: `[0-9]+ "." [0-9]*`
