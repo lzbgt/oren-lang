@@ -830,12 +830,7 @@ fn free(ptr) {
                     }
                 }
                 // Reuse tracking node storage.
-                ptr_set(cur, 0)
-                ptr_set(iadd(cur, 8), 40)
-                ptr_set(iadd(cur, 16), 0)
-                ptr_set(iadd(cur, 24), 0)
-                ptr_set(iadd(cur, 32), global_get_free_nodes())
-                global_set_free_nodes(cur)
+                native_free_nodes_push(cur)
             } else {
                 // Mark node as freed so stale index entries can't resurrect it.
                 ptr_set(iadd(cur, 24), 1)

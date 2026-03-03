@@ -88,8 +88,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 2) **W5 runtime robustness: GC reuse + list header integrity**
    - Root-cause list header corruption before enabling reuse paths.
-   - Next: harden free-node list integrity and determinism guards to re-enable raw-node reuse
-     in `malloc_raw` paths (`native_try_reuse_node`).
+   - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
+     reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid

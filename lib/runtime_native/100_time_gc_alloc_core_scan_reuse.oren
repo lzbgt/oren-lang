@@ -336,41 +336,79 @@ fn native_gc_scan_stack() {
 
 fn native_node_magic() { return 5717241888024741957 } // 0x4f52454e4e4f4445 ("ORENNODE")
 
+fn native_free_nodes_push(node) {
+    if node == 0 { return 0 }
+    if node < 4096 { return 0 }
+    ptr_set(node, 0)
+    ptr_set(iadd(node, 8), 48)
+    ptr_set(iadd(node, 16), 0)
+    ptr_set(iadd(node, 24), 0)
+    ptr_set(iadd(node, 40), native_node_magic())
+    ptr_set(iadd(node, 32), global_get_free_nodes())
+    global_set_free_nodes(node)
+    return 0
+}
+
 // Try to reuse a raw node allocation (used by malloc_raw callers like root lists).
 // This must NOT reuse freed "blocks" (which are tracked allocation records pointing at object memory),
 // otherwise we'd lose pointers to freed object memory and create leaks/corruption.
 @oren.keep
 
 fn native_try_reuse_node(size) {
-    // Rolling robustness: disable raw-node reuse for now.
-    //
-    // Rationale:
-    // - `malloc_raw` is used for runtime metadata nodes (alloc tracking nodes, root nodes, thread nodes).
-    // - A single corrupted node in the free-nodes list can cause allocator to return an invalid pointer,
-    //   which then crashes in `oren_track_alloc` with small addresses like 0xF.
-    // - Tier‑1 correctness is higher priority than micro-optimizing metadata reuse during rolling.
-    //
-    // TODO: re-enable after we harden free-node list integrity + add determinism guards.
-    return 0
-
+    if size <= 0 { return 0 }
     if oren_globals() == 0 { return 0 }
     acquire_lock()
     var prev = 0
     var cur = global_get_free_nodes()
+    var steps = 0
     while cur != 0 {
-        var node_size = ptr_get(iadd(cur, 8))
-        if ptr_get(iadd(cur, 40)) != native_node_magic() {
-            var next_bad = ptr_get(iadd(cur, 32))
+        steps = steps + 1
+        if steps > 1048576 {
+            // Determinism guard: drop a corrupted free_nodes list to avoid infinite loops.
+            global_set_free_nodes(0)
+            release_lock()
+            return 0
+        }
+        if cur < 4096 {
             if prev == 0 {
-                global_set_free_nodes(next_bad)
+                global_set_free_nodes(0)
             } else {
-                ptr_set(iadd(prev, 32), next_bad)
+                ptr_set(iadd(prev, 32), 0)
             }
-            cur = next_bad
+            cur = 0
+            continue
+        }
+        var next = ptr_get(iadd(cur, 32))
+        if next == cur || (next != 0 && next < 4096) {
+            if prev == 0 {
+                global_set_free_nodes(0)
+            } else {
+                ptr_set(iadd(prev, 32), 0)
+            }
+            cur = 0
+            continue
+        }
+        var node_size = ptr_get(iadd(cur, 8))
+        var node_magic = ptr_get(iadd(cur, 40))
+        if node_magic != native_node_magic() {
+            if prev == 0 {
+                global_set_free_nodes(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
+            continue
+        }
+        if node_size < 48 || ptr_get(cur) != 0 || ptr_get(iadd(cur, 16)) != 0 || ptr_get(iadd(cur, 24)) != 0 {
+            if prev == 0 {
+                global_set_free_nodes(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
             continue
         }
         if node_size >= size {
-            var next = ptr_get(iadd(cur, 32))
             if prev == 0 {
                 global_set_free_nodes(next)
             } else {
@@ -382,7 +420,7 @@ fn native_try_reuse_node(size) {
             return cur
         }
         prev = cur
-        cur = ptr_get(iadd(cur, 32))
+        cur = next
     }
     release_lock()
     return 0
@@ -740,13 +778,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                 ptr_set(iadd(prev, 32), next)
             }
             // Drop this node from reuse and recycle its storage.
-            ptr_set(cur, 0)
-            ptr_set(iadd(cur, 8), 48)
-            ptr_set(iadd(cur, 16), 0)
-            ptr_set(iadd(cur, 24), 0)
-            ptr_set(iadd(cur, 40), native_node_magic())
-            ptr_set(iadd(cur, 32), global_get_free_nodes())
-            global_set_free_nodes(cur)
+            native_free_nodes_push(cur)
             cur = next
             continue
         }
@@ -889,13 +921,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                         native_alloc_index_remove_ptr(chunk_ptr)
                     }
                     // Drop this block from reuse and recycle the tracking node.
-                    ptr_set(cur, 0)
-                    ptr_set(iadd(cur, 8), 48)
-                    ptr_set(iadd(cur, 16), 0)
-                    ptr_set(iadd(cur, 24), 0)
-                    ptr_set(iadd(cur, 40), native_node_magic())
-                    ptr_set(iadd(cur, 32), global_get_free_nodes())
-                    global_set_free_nodes(cur)
+                    native_free_nodes_push(cur)
                     if trace_reuse { g_gc_reuse_guard_bad_list_count = g_gc_reuse_guard_bad_list_count + 1 }
                     cur = next
                     continue
@@ -956,13 +982,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                 var idx_node = native_alloc_index_get(chunk_ptr)
                 if idx_node != cur {
                     // Recycle node back to free_nodes and avoid returning a mismatched pointer.
-                    ptr_set(cur, 0)
-                    ptr_set(iadd(cur, 8), 48)
-                    ptr_set(iadd(cur, 16), 0)
-                    ptr_set(iadd(cur, 24), 0)
-                    ptr_set(iadd(cur, 40), native_node_magic())
-                    ptr_set(iadd(cur, 32), global_get_free_nodes())
-                    global_set_free_nodes(cur)
+                    native_free_nodes_push(cur)
                     if trace_reuse { g_gc_reuse_guard_bad_list_count = g_gc_reuse_guard_bad_list_count + 1 }
                     cur = next
                     continue
@@ -1203,5 +1223,3 @@ fn native_gc_root_node_at_idx(idx) {
     }
     return 0
 }
-
-

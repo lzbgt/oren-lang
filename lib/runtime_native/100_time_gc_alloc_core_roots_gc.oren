@@ -125,13 +125,7 @@ fn native_gc_unregister_root(ptr) {
                 ptr_set(iadd(prev, 32), next)
             }
             // Reuse node storage via free list.
-            ptr_set(cur, 0)
-            ptr_set(iadd(cur, 8), 48)
-            ptr_set(iadd(cur, 40), native_node_magic())
-            ptr_set(iadd(cur, 16), 0)
-            ptr_set(iadd(cur, 24), 0)
-            ptr_set(iadd(cur, 32), global_get_free_nodes())
-            global_set_free_nodes(cur)
+            native_free_nodes_push(cur)
             release_lock()
             return 0
         }
@@ -714,13 +708,7 @@ fn native_gc_collect() {
                 }
 
                 // Reuse the tracking node storage via free_nodes list.
-                ptr_set(cur_sweep, 0)
-                ptr_set(iadd(cur_sweep, 8), 48)
-                ptr_set(iadd(cur_sweep, 40), native_node_magic())
-                ptr_set(iadd(cur_sweep, 16), 0)
-                ptr_set(iadd(cur_sweep, 24), 0)
-                ptr_set(iadd(cur_sweep, 32), global_get_free_nodes())
-                global_set_free_nodes(cur_sweep)
+                native_free_nodes_push(cur_sweep)
             } else {
                 if kind == 2 || kind == list_int_kind() {
                     var sz_free = ptr_get(iadd(cur_sweep, 8))
