@@ -50,6 +50,7 @@ var g_qi_trace_on = 0
 var g_qi_trace_green_list = 0
 var g_qi_trace_green_list_light = 0
 var g_qi_trace_green_list_light_stride = 1
+var g_qi_trace_green_list_guard = 0
 
 fn trace(msg) {
     // Opt-in progress markers for debugging remote hangs/timeouts.
@@ -90,6 +91,45 @@ fn _qi_trace_green_list_state(list, idx, label) {
           " name=" + name +
           " is_list=" + oren_int_to_string(is_list) +
           " is_list_int=" + oren_int_to_string(is_list_int))
+    return 0
+}
+
+fn _qi_guard_green_list_header(list, idx, label) {
+    if g_qi_trace_green_list_guard == 0 { return 0 }
+    if list == nil {
+        print("QI: green_list_guard nil list label=" + label +
+              " idx=" + oren_int_to_string(idx))
+        fail(9901)
+        return 0
+    }
+    if list < 4096 {
+        print("QI: green_list_guard small list=" + oren_int_to_string(list) +
+              " label=" + label + " idx=" + oren_int_to_string(idx))
+        fail(9902)
+        return 0
+    }
+    var len = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+    var magic = ptr_get(iadd(list, 24))
+    var bad = 0
+    if cap < 0 || len < 0 || len > cap { bad = 1 }
+    if cap == 0 {
+        if len != 0 { bad = 1 }
+        if buf != 0 { bad = 1 }
+    } else {
+        if buf == 0 || buf < 4096 { bad = 1 }
+    }
+    if bad != 0 {
+        print("QI: green_list_guard bad label=" + label +
+              " list=" + oren_int_to_string(list) +
+              " idx=" + oren_int_to_string(idx) +
+              " len=" + oren_int_to_string(len) +
+              " cap=" + oren_int_to_string(cap) +
+              " buf=" + oren_int_to_string(buf) +
+              " magic=" + oren_int_to_string(magic))
+        fail(9903)
+    }
     return 0
 }
 
@@ -157,6 +197,7 @@ fn worker_green_alloc_yield_integrity(seed) {
     // Verify tags survived across many yields (and across interleaving with other green tasks).
     i = 0
     while i < oren_list_len(ptrs) {
+        _qi_guard_green_list_header(ptrs, i, "get_before")
         _qi_trace_green_list_state(ptrs, i, "get_before")
         var p2 = oren_list_get(ptrs, i)
         var got = ptr_get(p2)
