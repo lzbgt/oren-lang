@@ -48,6 +48,7 @@ fn assert_streq(a, b, code) {
 
 var g_qi_trace_on = 0
 var g_qi_trace_green_list = 0
+var g_qi_trace_green_list_light = 0
 
 fn trace(msg) {
     // Opt-in progress markers for debugging remote hangs/timeouts.
@@ -67,7 +68,13 @@ fn _qi_env_truthy(key) {
 }
 
 fn _qi_trace_green_list_state(list, idx, label) {
-    if g_qi_trace_green_list == 0 { return 0 }
+    if g_qi_trace_green_list == 0 && g_qi_trace_green_list_light == 0 { return 0 }
+    if g_qi_trace_green_list_light != 0 {
+        print("QI: green_list light " + label +
+              " list=" + oren_int_to_string(list) +
+              " idx=" + oren_int_to_string(idx))
+        return 0
+    }
     var tag = oren_type_tag(list)
     var name = oren_type_name(list)
     var is_list = oren_is_list(list)
