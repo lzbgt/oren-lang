@@ -18,6 +18,6 @@ import casts "std:casts"
 import ints "std:ints"
 import iter "std:iter"
 import list "std:list"
+import assert "std:assert"
 import result "std:result"
 import strings "std:strings"
-

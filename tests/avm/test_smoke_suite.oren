@@ -1,6 +1,7 @@
 @myorg.tag(name="avm-smoke-suite")
 
 import ints "../../lib/std/ints.oren"
+import assertm "../../lib/std/assert.oren"
 
 fn fail() {
     // Force a non-zero VM exit by triggering an index error.
@@ -116,6 +117,11 @@ fn test_control_flow() {
         if j == 3 { break }
     }
     assert_eq(j, 3)
+}
+
+fn test_std_assert_smoke() {
+    assertm.assert(true, "avm std assert ok")
+    assertm.assert_eq(2, 2, "avm std assert_eq ok")
 }
 
 fn test_bytes_set_endian() {
@@ -968,6 +974,7 @@ fn main() {
     test_bytes_set_endian()
     test_map_order()
     test_control_flow()
+    test_std_assert_smoke()
     test_int_casts()
     test_int_casts_checked()
     test_pack_view()
