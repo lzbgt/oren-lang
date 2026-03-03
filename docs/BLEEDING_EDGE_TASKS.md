@@ -1179,6 +1179,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     during native quick integration (logs:
     `build/logs/native_quick_stage2_flake_20260304_033702_run3.log`,
     `build/logs/native_quick_stage2_flake_20260304_033702_run3_inner.log`).
+  - Trace: stage2 flake harness (10 runs) with list header guard enabled and
+    entry-args light tracing (guard-light on, guard off) segfaulted on run 2
+    during native quick integration (logs:
+    `build/logs/native_quick_stage2_flake_20260304_034443_run2.log`,
+    `build/logs/native_quick_stage2_flake_20260304_034443_run2_inner.log`).
   - Trace: stage2 flake harness (5 runs) with list header guard enabled plus
     post-`oren_list_get` pointer guard completed cleanly (log:
     `build/logs/native_quick_stage2_flake_20260304_034111_run5.log`).
