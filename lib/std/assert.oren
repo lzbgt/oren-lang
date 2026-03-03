@@ -4,6 +4,10 @@
 //   import assert "std:assert"
 //   assert.assert(cond, "message")
 //   assert.assert_eq(a, b, "message")
+//   assert.assert_ne(a, b, "message")
+//   assert.assert_streq(a, b, "message")
+//   assert.assert_err(v, "message")
+//   var x = assert.assert_ok(v, "message")
 //
 // Notes:
 // - This is a lightweight stdlib helper while built-in `assert`/`test` are still planned.

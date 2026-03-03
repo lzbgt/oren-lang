@@ -122,6 +122,11 @@ fn test_control_flow() {
 fn test_std_assert_smoke() {
     assertm.assert(true, "avm std assert ok")
     assertm.assert_eq(2, 2, "avm std assert_eq ok")
+    assertm.assert_ne(2, 3, "avm std assert_ne ok")
+    assertm.assert_streq("ok", "ok", "avm std assert_streq ok")
+    assertm.assert_err(oren_err(2, "boom"), "avm std assert_err ok")
+    var okv = assertm.assert_ok(9, "avm std assert_ok ok")
+    assert_eq(okv, 9)
 }
 
 fn test_bytes_set_endian() {
