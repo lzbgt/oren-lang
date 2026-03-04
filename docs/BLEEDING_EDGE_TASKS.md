@@ -1120,6 +1120,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     alloc-index access (lightweight trace-only mode; rolling, 2026-03-04).
   - New: `OREN_TRACE_GREEN_ENTRY_ARGS_LIGHT_STRIDE=<n>` samples entry-args light
     tracing every Nth entry (rolling, 2026-03-04).
+  - New: entry-args guard logs include `g` state + args stamp when `node=0` is
+    detected (rolling, 2026-03-04).
   - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
     entry-args light trace + guard-light + list tracing hit `Indexing on non-container`
     during the poll-cache run (no segfault); `list_trace_dump` shows `node=0` just
@@ -1271,6 +1273,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_125154_run1.log`,
     `build/logs/native_quick_stage2_flake_20260304_125154_run1_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_125154_run1_err.log`).
+  - Trace: stage2 flake harness (1 run) with list tracing disabled and entry-args
+    guard on (guard-light off, entry-args light off) timed out on run 1 (rc=143);
+    inner log was empty (logs:
+    `build/logs/native_quick_stage2_flake_20260304_125415_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_125415_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_125415_run1_err.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:

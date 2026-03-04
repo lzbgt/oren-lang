@@ -238,7 +238,39 @@ fn _green_trace_entry_args_guard_light_enabled() {
     return true
 }
 
-fn _green_entry_args_guard(fn_obj, args_list) {
+fn _green_entry_args_guard_dump_g(g, fn_obj, args_list) {
+    if g == 0 {
+        print("trace: green_entry_args_guard g=0 fn=" + oren_int_to_string(fn_obj) +
+              " args_list=" + oren_int_to_string(args_list))
+        return 0
+    }
+    var magic = ptr_get(g + green_g_off_magic())
+    var state = ptr_get(g + green_g_off_state())
+    var g_fn = ptr_get(g + green_g_off_fn_obj())
+    var g_args = ptr_get(g + green_g_off_args_list())
+    var stack_node = ptr_get(g + green_g_off_stack_node())
+    var stamp_ptr = ptr_get(g + green_g_off_args_stamp_ptr())
+    var stamp_len = ptr_get(g + green_g_off_args_stamp_len())
+    var stamp_cap = ptr_get(g + green_g_off_args_stamp_cap())
+    var stamp_buf = ptr_get(g + green_g_off_args_stamp_buf())
+    var stamp_magic = ptr_get(g + green_g_off_args_stamp_magic())
+    print("trace: green_entry_args_guard g=" + oren_int_to_string(g) +
+          " magic=" + oren_int_to_string(magic) +
+          " state=" + oren_int_to_string(state) +
+          " stack_node=" + oren_int_to_string(stack_node) +
+          " fn=" + oren_int_to_string(fn_obj) +
+          " g_fn=" + oren_int_to_string(g_fn) +
+          " args_list=" + oren_int_to_string(args_list) +
+          " g_args=" + oren_int_to_string(g_args))
+    print("trace: green_entry_args_guard stamp ptr=" + oren_int_to_string(stamp_ptr) +
+          " len=" + oren_int_to_string(stamp_len) +
+          " cap=" + oren_int_to_string(stamp_cap) +
+          " buf=" + oren_int_to_string(stamp_buf) +
+          " magic=" + oren_int_to_string(stamp_magic))
+    return 0
+}
+
+fn _green_entry_args_guard(g, fn_obj, args_list) {
     if _green_trace_entry_args_guard_enabled() != true { return 0 }
     if args_list == 0 {
         print("trace: green_entry_args_guard args_list=0 fn=" + oren_int_to_string(fn_obj))
@@ -266,6 +298,7 @@ fn _green_entry_args_guard(fn_obj, args_list) {
         if _green_trace_entry_args_scan_enabled() == true {
             native_alloc_index_scan_ptr_debug(args_list, 0)
         }
+        _green_entry_args_guard_dump_g(g, fn_obj, args_list)
         print("trace: green_entry_args_guard node=0 args_list=" + oren_int_to_string(args_list) +
               " fn=" + oren_int_to_string(fn_obj))
         oren_panic("green entry args_list not tracked")
@@ -294,7 +327,7 @@ fn __oren_green_entry() {
     var fn_obj = ptr_get(g + green_g_off_fn_obj())
     var args_list = ptr_get(g + green_g_off_args_list())
     _green_args_stamp_guard("entry", g)
-    _green_entry_args_guard(fn_obj, args_list)
+    _green_entry_args_guard(g, fn_obj, args_list)
     _green_trace_entry_args(fn_obj, args_list)
     var ret = oren_call_obj_list(fn_obj, args_list)
     ptr_set(g + green_g_off_result(), ret)
