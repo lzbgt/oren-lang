@@ -176,6 +176,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     passed cleanly (log:
     `build/logs/triage_stage1_flake_debug_retrack_20260304_210139.log`,
     2026-03-04).
+  - Trace: stage1 quick flake debug guardrail run (20 runs) with jitter
+    (`OREN_QI_JITTER_MAX_MS=50`) after args_list retrack passed cleanly (log:
+    `build/logs/triage_stage1_flake_debug_retrack_jitter_20260304_210806.log`,
+    2026-03-04).
   - Trace: stage1 quick flake (50 runs) with jitter (`OREN_QI_JITTER_MAX_MS=50`) and
     auto rerun guardrails hit rc=143 at run 16; auto rerun with guardrails succeeded
     (log: `build/logs/triage_stage1_flake_autorun_jitter_20260304_195330.log`,
