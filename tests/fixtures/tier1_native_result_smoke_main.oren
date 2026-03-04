@@ -4,6 +4,7 @@
 
 import r "../../lib/std/result.oren"
 import list "std:list"
+import buffer "std:buffer"
 
 fn main() {
     // Non-existent file => error
@@ -41,6 +42,13 @@ fn main() {
     var empty = []
     var empty_last = list.try_last(empty)
     if r.is_err(empty_last) != true { return 11 }
+
+    // std:buffer structured errors
+    var b = buffer.u8_new(4)
+    var s = buffer.slice_new(b, 0, 4)
+    if r.is_err(s) { return 12 }
+    var bad_slice = buffer.slice_new(b, 3, 4)
+    if r.is_err(bad_slice) != true { return 13 }
 
     return 0
 }
