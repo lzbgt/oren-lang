@@ -12,6 +12,20 @@ fn len(xs) { return oren_list_len(xs) }
 
 fn is_empty(xs) { return oren_list_len(xs) == 0 }
 
+fn _is_int(v) {
+    // Conservative int check (matches std:ui/commands behavior).
+    if v == nil { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == false
+}
+
+fn _len_or_err(xs, ctx) {
+    var n = oren_list_len(xs)
+    if n == nil || oren_is_err(n) { return oren_err(4, ctx + ": xs must be list") }
+    return n
+}
+
 // --- list<int> (unboxed, native backend) ---
 // Explicit opt-in; falls back to boxed list on non-native backends.
 // Note: index syntax (`xs[i]`) now works for list<int> on native backend (uses list-int checks).
@@ -82,6 +96,36 @@ fn slice_view(xs, off, n) {
 fn push(xs, v) {
     oren_list_push(xs, v)
     return nil
+}
+
+// --- structured error helpers (value-or-err) ---
+
+fn try_len(xs) {
+    return _len_or_err(xs, "list.try_len")
+}
+
+fn try_get(xs, i) {
+    var n = _len_or_err(xs, "list.try_get")
+    if oren_is_err(n) { return n }
+    if _is_int(i) == false { return oren_err(4, "list.try_get: index not int") }
+    if i < 0 || i >= n { return oren_err(4, "list.try_get: index out of bounds") }
+    return xs[i]
+}
+
+fn try_set(xs, i, v) {
+    var n = _len_or_err(xs, "list.try_set")
+    if oren_is_err(n) { return n }
+    if _is_int(i) == false { return oren_err(4, "list.try_set: index not int") }
+    if i < 0 || i >= n { return oren_err(4, "list.try_set: index out of bounds") }
+    xs[i] = v
+    return nil
+}
+
+fn try_last(xs) {
+    var n = _len_or_err(xs, "list.try_last")
+    if oren_is_err(n) { return n }
+    if n <= 0 { return oren_err(4, "list.try_last: empty list") }
+    return xs[n - 1]
 }
 
 fn get(xs, i) { return xs[i] }

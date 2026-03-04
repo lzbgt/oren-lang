@@ -365,6 +365,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
    - New: `std:result` smoke fixture wired into native quick integration
      (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).
+   - New: `std:list` structured helpers (`try_len`/`try_get`/`try_set`/`try_last`) return
+     `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
    - Implemented (rolling): core `assert(cond, msg?)` statement and `oren test` runner for
      `test "name" { ... }` blocks (2026-03-04).
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`)

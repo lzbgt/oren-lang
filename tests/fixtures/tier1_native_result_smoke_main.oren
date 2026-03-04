@@ -3,6 +3,7 @@
 // Validates std:result helpers on a guaranteed error path.
 
 import r "../../lib/std/result.oren"
+import list "std:list"
 
 fn main() {
     // Non-existent file => error
@@ -21,6 +22,25 @@ fn main() {
     // ok_or_errno should pass through success.
     var okv = r.ok_or_errno(5, "read")
     if okv != 5 { return 5 }
+
+    // std:list structured error helpers
+    var xs = [1, 2]
+    var okv = list.try_get(xs, 1)
+    if r.is_err(okv) { return 6 }
+    if okv != 2 { return 7 }
+
+    var oob = list.try_get(xs, 3)
+    if r.is_err(oob) != true { return 8 }
+
+    var bad = list.try_set(xs, -1, 0)
+    if r.is_err(bad) != true { return 9 }
+
+    var last = list.try_last(xs)
+    if r.is_err(last) || last != 2 { return 10 }
+
+    var empty = []
+    var empty_last = list.try_last(empty)
+    if r.is_err(empty_last) != true { return 11 }
 
     return 0
 }

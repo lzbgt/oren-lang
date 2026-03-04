@@ -1681,6 +1681,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
    - New: `std:result` smoke fixture in native quick integration
      (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).
+   - New: `std:list` structured helpers (`try_len`/`try_get`/`try_set`/`try_last`) return
+     `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
    - Not implemented yet: dynamic module loading; user-defined methods/inheritance (track when design lands).
    - Gate: feature fixtures across backends + updated `docs/LANGUAGE.md`/`docs/STATUS.md`.
 
