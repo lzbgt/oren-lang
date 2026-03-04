@@ -693,9 +693,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
      entries (logs:
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap_20260305_023629_1.log`,
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap_20260305_023629_1_correlate2.log`).
-   - Next: confirm list_hdr ring captures list_int fast-path writes for the corrupted ptr
-     (current dump only shows op=91 GC entries; consider enabling native list_hdr tracing
-     or auditing list_int fast paths for ring hooks).
+   - Repro (2026-03-05): with fast list_int loop ring emission enabled, corruption still
+     shows only op=91 entries (logs:
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap2_20260305_024825_1.log`,
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap2_20260305_024825_1_correlate.log`).
+   - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
+     exit even without compile-time trace flags, so GC corruptions can be correlated from
+     standard trace runs.
+   - Next: if corruption still shows only op=91 GC entries, consider adding per-iteration
+     ring updates under a trace guard to capture in-loop header writes.
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
