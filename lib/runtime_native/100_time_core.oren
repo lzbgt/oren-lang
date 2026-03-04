@@ -881,6 +881,10 @@ fn __oren_crash_footer_handler(sig) {
     native_crash_footer_write_u64(g_trace_list_hdr_ring_ptr)
     native_crash_footer_write_cstr(" list_hdr_ring_guard=")
     native_crash_footer_write_u64(g_trace_list_hdr_ring_ptr_guard)
+    native_crash_footer_write_cstr(" list_hdr_ring_cap=")
+    native_crash_footer_write_u64(g_trace_list_hdr_ring_cap)
+    native_crash_footer_write_cstr(" list_hdr_ring_head=")
+    native_crash_footer_write_u64(g_trace_list_hdr_ring_head)
     native_crash_footer_write_cstr("\n")
     print("[crash_footer] signal=" + oren_int_to_string(sig) +
         " alloc_index_zeroed=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
