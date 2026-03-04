@@ -473,7 +473,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.33× C, `dot_product` 2.57× C.
-   - New run (arm64, 2026-03-04, runs=5, warmups=1):
+   - New run (arm64, 2026-03-05, runs=3, warmups=1):
      - loop_sum: C 0.067194s, native 0.225078s (3.35× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
      - dot_product: C 0.005185s, native 0.013571s (2.62× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
    - Expand inty propagation and arithmetic fast paths.
@@ -481,11 +481,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
      - New: capsule-only NET/PROC tables now allocate in `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
      - New: `OREN_TRACE_RUNTIME_INIT=1` prints native_runtime_init phase timings.
-   - Init/steady split (loop_sum, arm64 macOS, 2026-02-26, n=20,000,000; reps=1 vs 10; 5 runs):
-      - C: init 0.001671s, steady 0.065029s
-      - Oren C: init 0.002010s, steady 0.059002s
-      - Native: init 0.003006s, steady 0.223682s
-      - OBC: init 0.002651s, steady 0.091270s
+   - Init/steady split (loop_sum, arm64 macOS, 2026-03-05, n=20,000,000; reps=1 vs 10; 3 runs):
+      - C: init 0.003130s, steady 0.064991s
+      - Oren C: init 0.002705s, steady 0.059376s
+      - Native: init 0.001412s, steady 0.225120s
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
    - New: native LCG fast loops use reciprocal-based fastmod when mod constants fit (arm64 + x64).
    - Boxed list dot/get-sum regression guard added to native QI (2026-02-19).
