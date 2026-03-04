@@ -20,6 +20,7 @@ mkdir -p build/logs build/tmp
 
 trace_ring_cap="${OREN_TRACE_LIST_HDR_RING_CAP:-4096}"
 trace_corrupt_cap="${OREN_TRACE_LIST_CORRUPT_CAP:-256}"
+src="${OREN_TRACE_ARITH_SRC:-tests/native/fixtures/arith_div0.oren}"
 
 for i in $(seq 1 "$runs"); do
   ts="$(date +%Y%m%d_%H%M%S)"
@@ -35,7 +36,7 @@ for i in $(seq 1 "$runs"); do
     echo "uname=$uname_out"
     echo "git_rev=$git_rev"
     echo "env: OREN_TRACE_LIST_HDR_RING=1 OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1 OREN_TRACE_LIST_HDR_RING_CAP=${trace_ring_cap} OREN_TRACE_LIST_CORRUPT=1 OREN_TRACE_LIST_CORRUPT_CAP=${trace_corrupt_cap}"
-    echo "== build: C backend (arith_div0) =="
+    echo "== build: C backend (${src}) =="
   } >"$log"
 
   set +e
@@ -44,7 +45,7 @@ for i in $(seq 1 "$runs"); do
   OREN_TRACE_LIST_HDR_RING_CAP="$trace_ring_cap" \
   OREN_TRACE_LIST_CORRUPT=1 \
   OREN_TRACE_LIST_CORRUPT_CAP="$trace_corrupt_cap" \
-  "$compiler" build tests/native/fixtures/arith_div0.oren --backend c -o build/tmp/arith_div0_c_dbg \
+  "$compiler" build "$src" --backend c -o build/tmp/arith_div0_c_dbg \
     >>"$log" 2>&1
   rc=$?
   set -e
