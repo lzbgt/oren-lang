@@ -1124,6 +1124,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     detected (rolling, 2026-03-04).
   - New: `OREN_TRACE_GREEN_ARGS_STAMP=1` now logs args-stamp set events with
     header fields (rolling, 2026-03-04).
+  - New: `OREN_TRACE_GREEN_ARGS_STAMP_STRIDE=<n>` samples args-stamp set logs
+    every Nth stamp (rolling, 2026-03-04).
   - New: runq guard now dumps `g` state + args stamp when `args_list` is
     untracked (`node=0`) (rolling, 2026-03-04).
   - New: spawn alloc logs args_list header/node when args-stamp tracing enabled
@@ -1344,6 +1346,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
     and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` completed cleanly (log:
     `build/logs/native_quick_stage2_flake_20260304_131909_run1.log`).
+  - Trace: stage2 flake harness (3 runs) with list tracing disabled, entry-args
+    guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
+    `OREN_TRACE_GREEN_ARGS_STAMP_STRIDE=16`, and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8`
+    failed on run 1 with `green runq guard: args_list untracked`; spawn_alloc stamp
+    was empty while entry stamp populated (logs:
+    `build/logs/native_quick_stage2_flake_20260304_133143_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_133143_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_133143_run1_err.log`).
   - Trace: stage2 flake harness (5 runs) with list tracing disabled, entry-args
     guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
     and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` ended on run 2 with rc=137 while
