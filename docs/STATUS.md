@@ -148,6 +148,17 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
   - Trace: stage1 quick flake (5 runs) with list corruption tracing and larger ring
     capacity completed cleanly (log:
     `build/logs/triage_stage1_flake_noguard_20260304_185130.log`, 2026-03-04).
+  - Trace: stage1 quick flake (30 runs) with list corruption tracing (no guardrails)
+    segfaulted at run 4 (rc=139); log:
+    `build/logs/triage_stage1_flake_noguard_30_20260304_185445.log` (run log:
+    `build/logs/oren_native_quick_flake_20260304_185547_run4.log`, 2026-03-04).
+  - Trace: stage1 quick flake debug guardrail run (20 runs) with list corruption
+    tracing + free-list ring passed cleanly (log:
+    `build/logs/triage_stage1_flake_debug_trace_20260304_185657.log`, 2026-03-04).
+  - Trace: stage1 quick flake (10 runs) with list corruption tracing + list header
+    ring (cap 8192) and extended timeouts passed cleanly (log:
+    `build/logs/triage_stage1_flake_ringonly_timeout_20260304_190448.log`,
+    2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
   - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`
