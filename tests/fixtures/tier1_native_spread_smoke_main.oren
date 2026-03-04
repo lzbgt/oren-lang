@@ -1,0 +1,19 @@
+// Spread + varargs smoke (native quick integration).
+//
+// - validates call-site spread for user-defined varargs
+// - validates spread into variadic builtins (print)
+
+fn count(...rest) {
+    return oren_list_len(rest)
+}
+
+fn main() {
+    var xs = [1, 2, 3]
+    var r = count(xs...)
+    if r != 3 { return 1 }
+
+    print("spread", xs...)
+    var ys = [4, 5]
+    print("mix", 0, ys...)
+    return 0
+}

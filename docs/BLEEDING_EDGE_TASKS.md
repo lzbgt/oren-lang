@@ -1675,8 +1675,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 9) **W4 feature set completeness (essential modern features)**
    - Implement across backends (C/native/OBC): `yield`/stackless coroutines, structured error model,
-     visibility boundaries, bytes + typed buffers, variadic ergonomics.
+     visibility boundaries, bytes + typed buffers.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
+   - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Not implemented yet: dynamic module loading; user-defined methods/inheritance (track when design lands).
    - Gate: feature fixtures across backends + updated `docs/LANGUAGE.md`/`docs/STATUS.md`.
 

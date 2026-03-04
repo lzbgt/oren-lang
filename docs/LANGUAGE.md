@@ -3286,6 +3286,13 @@ Motivation:
 
 Recommended staged design:
 
+Rolling status:
+
+- Implemented (rolling): call-site spread for variadic builtins and user-defined varargs across backends.
+- Evidence: `tests/fixtures/tier1_native_spread_smoke_main.oren`,
+  `tests/modules/test_varargs.oren`, `tests/avm/test_varargs_spawn.oren`.
+- Constraint: spread must be last argument (only one spread per call).
+
 1) **Call-site spread/splat for variadic builtins**
    - Example: `print(xs...)` where `xs` is a `list` of values.
    - This does not require changing the calling convention for user-defined functions.

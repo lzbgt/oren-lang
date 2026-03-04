@@ -40,7 +40,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
 - **Feature set maturity**: essential modern features are still planned (see `docs/LANGUAGE.md`):
   `yield`/stackless coroutines, structured error model, visibility boundaries,
-  first-class bytes + typed buffers, and variadic ergonomics; dynamic module loading and user-defined methods remain unimplemented.
+  first-class bytes + typed buffers; dynamic module loading and user-defined methods remain unimplemented.
 
 Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
 
@@ -360,10 +360,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 5) **W4 - Feature set completeness (essential modern features)**
    - Planned (not yet implemented): `yield`/stackless coroutines, structured error model,
-     visibility boundaries, bytes + typed buffers, variadic ergonomics
+     visibility boundaries, bytes + typed buffers
      (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
    - Implemented (rolling): core `assert(cond, msg?)` statement and `oren test` runner for
      `test "name" { ... }` blocks (2026-03-04).
+   - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`)
+     covered by native quick integration + varargs fixtures (2026-03-04).
    - Not implemented: dynamic module loading; user-defined methods/inheritance (see `docs/LANGUAGE.md`).
    - Interim: `std:assert` helper module provides `assert`/`assert_eq` in the stdlib (2026-03-03).
 

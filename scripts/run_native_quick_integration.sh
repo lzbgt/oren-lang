@@ -217,6 +217,18 @@ if [[ "${OREN_QI_SKIP_TEST_RUNNER:-0}" != "1" ]]; then
   tail -n 3 "$tr_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_SPREAD_SMOKE:-0}" != "1" ]]; then
+  echo "== spread/varargs smoke ==" >>"$log"
+  sp_src="tests/fixtures/tier1_native_spread_smoke_main.oren"
+  sp_out="build/tmp/${compiler_base}_spread_smoke${exe_ext}"
+  sp_log="build/logs/${compiler_base}_spread_smoke.log"
+  rm -f "$sp_out" "$sp_log" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$sp_src" \
+    --backend native --platform "$platform" --debug -o "$sp_out" >"$sp_log" 2>&1
+  run_with_timeout "$run_timeout_secs" "$sp_out" >>"$sp_log" 2>&1
+  tail -n 3 "$sp_log" >>"$log"
+fi
+
 echo "== ulock timeout portable smoke ==" >>"$log"
 ul_src="tests/native/test_ulock_timeout_portable.oren"
 ul_out="build/tmp/${compiler_base}_ulock_timeout_portable${exe_ext}"
