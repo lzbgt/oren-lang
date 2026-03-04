@@ -1222,6 +1222,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: stage2 flake harness (5 runs) with list header guard enabled and
     entry-args light tracing (guard-light on, guard on, stride=32) completed
     cleanly (log: `build/logs/native_quick_stage2_flake_20260304_123621_run5.log`).
+  - Trace: stage2 flake harness (10 runs) with list header guard enabled and
+    entry-args light tracing (guard-light on, guard on, stride=32) failed on
+    run 1 with `Indexing on non-container`; `list_trace_dump` shows `node=0`
+    in `oren_list_get` (logs: `build/logs/native_quick_stage2_flake_20260304_123756_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_123756_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_123756_run1_err.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
