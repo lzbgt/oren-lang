@@ -766,6 +766,7 @@ var g_trace_crash_footer = 0
 var g_crash_footer_handled = 0
 var g_crash_footer_buf = 0
 var g_crash_footer_buf_cap = 0
+var g_crash_footer_installed = 0
 // Optional tracing: per-track_alloc timing.
 var g_trace_track_alloc_time = 0
 // Optional tracing: per-site allocation counters (raw metadata array).
@@ -891,6 +892,10 @@ fn native_install_crash_footer() {
     // macOS signals: SIGBUS=10, SIGSEGV=11.
     __oren_signal(10, handler)
     __oren_signal(11, handler)
+    if g_crash_footer_installed == 0 {
+        g_crash_footer_installed = 1
+        print("[crash_footer] installed")
+    }
     return 0
 }
 

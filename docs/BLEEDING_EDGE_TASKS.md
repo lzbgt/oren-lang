@@ -457,6 +457,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: crash footer now emits a minimal `crash_footer_raw` line via `sys_write`
     before higher-level printing, to improve chances of output under severe
     corruption (debug-only; not signal-safe, 2026-03-05).
+  - New: crash footer now logs `[crash_footer] installed` when the handler is
+    registered (debug-only, 2026-03-05).
   - Tool: list<int> panic footer now always emits alloc-index counts; enabling
     `OREN_TRACE_LIST_PANIC_FOOTER=1` also dumps the list header ring for the offending list
     (debug-only, 2026-03-05).
