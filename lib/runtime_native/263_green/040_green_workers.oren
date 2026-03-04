@@ -686,6 +686,17 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_args_stamp_buf(), 0)
     ptr_set(g + green_g_off_args_stamp_magic(), 0)
     if _green_trace_args_stamp_enabled() == true {
+        var node_guard = native_alloc_index_get(args_list)
+        if node_guard == 0 { node_guard = native_alloc_index_recover_ptr(args_list) }
+        if node_guard == 0 {
+            print("trace: green_spawn_alloc args_list untracked args=" +
+                  oren_int_to_string(args_list) +
+                  " fn=" + oren_int_to_string(fn_obj))
+            oren_panic("green spawn_alloc: args_list untracked")
+            return 0
+        }
+    }
+    if _green_trace_args_stamp_enabled() == true {
         var stride = _green_trace_spawn_alloc_stride_value()
         var log_it = 1
         if stride > 1 {
