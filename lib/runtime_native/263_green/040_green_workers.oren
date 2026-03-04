@@ -1,4 +1,32 @@
 // --- Optional background scheduler workers (Stage N2 groundwork) ---
+var g_trace_green_spawn_alloc_stride = 1
+var g_trace_green_spawn_alloc_stride_envp = 0
+var g_trace_green_spawn_alloc_stride_argv = 0
+var g_trace_green_spawn_alloc_stride_argc = 0
+var g_trace_green_spawn_alloc_count = 0
+
+fn _green_trace_spawn_alloc_stride_value() {
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_spawn_alloc_stride_envp == cur_envp &&
+       g_trace_green_spawn_alloc_stride_argv == cur_argv &&
+       g_trace_green_spawn_alloc_stride_argc == cur_argc {
+        return g_trace_green_spawn_alloc_stride
+    }
+    var stride = 1
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE")
+    if v != 0 && ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        var parsed = oren_int_from_string(v)
+        if parsed > 0 { stride = parsed }
+    }
+    g_trace_green_spawn_alloc_stride = stride
+    g_trace_green_spawn_alloc_stride_envp = cur_envp
+    g_trace_green_spawn_alloc_stride_argv = cur_argv
+    g_trace_green_spawn_alloc_stride_argc = cur_argc
+    return stride
+}
+
 @oren.keep
 fn oren_green_start_workers(n) {
     _green_init_if_needed()
@@ -658,27 +686,35 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_args_stamp_buf(), 0)
     ptr_set(g + green_g_off_args_stamp_magic(), 0)
     if _green_trace_args_stamp_enabled() == true {
-        var node = native_alloc_index_get(args_list)
-        if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
-        var kind = 0
-        var magic = 0
-        var len = 0
-        var cap = 0
-        var buf = 0
-        if args_list != 0 && args_list >= 4096 {
-            len = ptr_get(iadd(args_list, 0))
-            cap = ptr_get(iadd(args_list, 8))
-            buf = ptr_get(iadd(args_list, 16))
-            magic = ptr_get(iadd(args_list, 24))
+        var stride = _green_trace_spawn_alloc_stride_value()
+        var log_it = 1
+        if stride > 1 {
+            g_trace_green_spawn_alloc_count = g_trace_green_spawn_alloc_count + 1
+            if (g_trace_green_spawn_alloc_count % stride) != 0 { log_it = 0 }
         }
-        if node != 0 { kind = ptr_get(iadd(node, 16)) }
-        print("trace: green_spawn_alloc args_list=" + oren_int_to_string(args_list) +
-              " node=" + oren_int_to_string(node) +
-              " kind=" + oren_int_to_string(kind) +
-              " len=" + oren_int_to_string(len) +
-              " cap=" + oren_int_to_string(cap) +
-              " buf=" + oren_int_to_string(buf) +
-              " magic=" + oren_int_to_string(magic))
+        if log_it != 0 {
+            var node = native_alloc_index_get(args_list)
+            if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+            var kind = 0
+            var magic = 0
+            var len = 0
+            var cap = 0
+            var buf = 0
+            if args_list != 0 && args_list >= 4096 {
+                len = ptr_get(iadd(args_list, 0))
+                cap = ptr_get(iadd(args_list, 8))
+                buf = ptr_get(iadd(args_list, 16))
+                magic = ptr_get(iadd(args_list, 24))
+            }
+            if node != 0 { kind = ptr_get(iadd(node, 16)) }
+            print("trace: green_spawn_alloc args_list=" + oren_int_to_string(args_list) +
+                  " node=" + oren_int_to_string(node) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " len=" + oren_int_to_string(len) +
+                  " cap=" + oren_int_to_string(cap) +
+                  " buf=" + oren_int_to_string(buf) +
+                  " magic=" + oren_int_to_string(magic))
+        }
     }
     _green_args_stamp_set("spawn_alloc", g)
     _green_runq_guard("spawn_alloc", g)
