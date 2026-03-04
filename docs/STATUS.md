@@ -223,6 +223,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     guardrails log:
     `build/logs/oren_native_quick_flake_20260304_202353_run7_guardrails.log`,
     2026-03-04).
+  - Trace: stage1 quick flake with green-cache-first + skip-base-run + jitter + auto
+    rerun guardrails hit rc=143 at run 27; auto rerun guardrails succeeded (log:
+    `build/logs/triage_stage1_flake_greenonly_autorun_20260304_202536.log`, run log:
+    `build/logs/oren_native_quick_flake_20260304_203350_run27.log`, guardrails log:
+    `build/logs/oren_native_quick_flake_20260304_203350_run27_guardrails.log`,
+    2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
   - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`

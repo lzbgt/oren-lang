@@ -165,6 +165,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `build/logs/triage_stage1_flake_jitter_autorun_greenfirst_20260304_202152.log`, run log:
      `build/logs/oren_native_quick_flake_20260304_202353_run7.log`, guardrails log:
      `build/logs/oren_native_quick_flake_20260304_202353_run7_guardrails.log`, 2026-03-04).
+   - Trace: stage1 quick flake with green-cache-first + skip-base-run + jitter + auto
+     rerun guardrails hit rc=143 at run 27; auto rerun guardrails succeeded (log:
+     `build/logs/triage_stage1_flake_greenonly_autorun_20260304_202536.log`, run log:
+     `build/logs/oren_native_quick_flake_20260304_203350_run27.log`, guardrails log:
+     `build/logs/oren_native_quick_flake_20260304_203350_run27_guardrails.log`,
+     2026-03-04).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
