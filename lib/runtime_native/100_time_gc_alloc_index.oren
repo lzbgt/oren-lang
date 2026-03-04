@@ -8,6 +8,8 @@ var g_alloc_index_len = 0
 var g_alloc_index_dedup_hits = 0
 var g_alloc_index_tomb = 1 // sentinel (not a valid pointer)
 var g_alloc_index_probe_exhausted = 0
+var g_alloc_index_list_zeroed_count = 0
+var g_alloc_index_list_bad_count = 0
 var g_static_allocs = 0
 var g_cstr0_set_ptr = 0
 var g_cstr0_set_cap = 0
@@ -306,7 +308,12 @@ fn native_alloc_index_put_node(node) {
                 var zeroed = 0
                 if magic == 0 && len == 0 && cap == 0 && buf == 0 { zeroed = 1 }
                 var tag = "[alloc_index_list_bad]"
-                if zeroed != 0 { tag = "[alloc_index_list_zeroed]" }
+                if zeroed != 0 {
+                    tag = "[alloc_index_list_zeroed]"
+                    g_alloc_index_list_zeroed_count = g_alloc_index_list_zeroed_count + 1
+                } else {
+                    g_alloc_index_list_bad_count = g_alloc_index_list_bad_count + 1
+                }
                 print(tag + " ptr=" + oren_int_to_string(ptr) +
                       " node=" + oren_int_to_string(node) +
                       " kind=" + oren_int_to_string(kind) +
@@ -314,7 +321,9 @@ fn native_alloc_index_put_node(node) {
                       " len=" + oren_int_to_string(len) +
                       " cap=" + oren_int_to_string(cap) +
                       " buf=" + oren_int_to_string(buf) +
-                      " magic=" + oren_int_to_string(magic))
+                      " magic=" + oren_int_to_string(magic) +
+                      " zeroed_count=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
+                      " bad_count=" + oren_int_to_string(g_alloc_index_list_bad_count))
             }
             if size >= 1073741824 {
                 var expected = 32

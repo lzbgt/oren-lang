@@ -647,6 +647,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Update (2026-03-05): alloc-index now emits `[alloc_index_list_zeroed]` when a list header
     is still zeroed (magic/len/cap/buf all 0), separating fresh allocations from genuine
     corruption in `[alloc_index_list_bad]`.
+  - Update (2026-03-05): alloc-index list trace lines now include `zeroed_count`/`bad_count`
+    counters to quantify noise reduction across a run.
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records
     OREN/AVM env + logs for reproducible trace runs. Use `ALLOC_CHURN_RUN_TIMEOUT_SECS`
     to bound long-running traces.

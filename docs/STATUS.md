@@ -730,6 +730,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      ring updates under a trace guard to capture in-loop header writes.
    - Update (2026-03-05): alloc-index now emits `[alloc_index_list_zeroed]` when headers are
      still zeroed (magic/len/cap/buf all 0), reducing noise in `[alloc_index_list_bad]`.
+   - Update (2026-03-05): alloc-index list trace lines now include `zeroed_count`/`bad_count`
+     counters to track noise vs true corruption across runs.
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
