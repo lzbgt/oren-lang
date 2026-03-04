@@ -3250,6 +3250,7 @@ Planned direction:
 
 - add a standardized `Result`-style convention (or explicit `try`/`catch`) so libraries can recover
 - define a stable error value shape (code/message/context)
+ - design spec: `docs/design/structured_error_model.md`
 
 ### 4) Visibility and module boundaries
 

@@ -1678,6 +1678,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      visibility boundaries, bytes + typed buffers.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
+   - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
    - Not implemented yet: dynamic module loading; user-defined methods/inheritance (track when design lands).
    - Gate: feature fixtures across backends + updated `docs/LANGUAGE.md`/`docs/STATUS.md`.
 
