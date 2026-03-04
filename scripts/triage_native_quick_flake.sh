@@ -72,13 +72,17 @@ while [[ "$run" -le "$runs" ]]; do
   fi
   if [[ "$rc" -ne 0 ]]; then
     local_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_err.log"
-    if [[ -f build/logs/oren_native_quick_integration.log ]]; then
-      cp -f build/logs/oren_native_quick_integration.log "$local_err_log"
+    if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
+      cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$local_err_log"
     fi
   fi
   if [[ "$rc" -ne 0 ]]; then
     echo "FAIL: run ${run} rc=${rc} log=${log}" >&2
     tail -n 120 "$log" >&2 || true
+    if [[ -f "$inner_log" ]]; then
+      echo "== inner log tail ==" >&2
+      tail -n 80 "$inner_log" >&2 || true
+    fi
     exit "$rc"
   fi
   run=$((run + 1))
