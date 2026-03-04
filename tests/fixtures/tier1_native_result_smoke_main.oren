@@ -58,39 +58,45 @@ fn main() {
     if r.is_err(b64_bad) != true { return 14 }
     var b64_bad_in = base64.encode_bytes(123)
     if r.is_err(b64_bad_in) != true { return 15 }
+    var b64_ws = base64.decode_bytes_strict("TQ==\n")
+    if r.is_err(b64_ws) != true { return 16 }
+    var b64_ok = base64.decode_bytes_strict("TQ==")
+    if r.is_err(b64_ok) { return 17 }
+    var b64_ok_len = bytes.try_len(b64_ok)
+    if r.is_err(b64_ok_len) || b64_ok_len != 1 { return 18 }
 
     // std:strings structured errors
     var bad_len = strings.try_len(123)
-    if r.is_err(bad_len) != true { return 16 }
+    if r.is_err(bad_len) != true { return 19 }
     var ch = strings.try_char_at("hi", 1)
-    if r.is_err(ch) || ch != "i" { return 17 }
+    if r.is_err(ch) || ch != "i" { return 20 }
     var bad_slice = strings.try_slice("hi", 0, 3)
-    if r.is_err(bad_slice) != true { return 18 }
+    if r.is_err(bad_slice) != true { return 21 }
 
     // std:bytes structured errors
     var b = bytes.from_hex("00ff")
-    if r.is_err(b) { return 19 }
+    if r.is_err(b) { return 22 }
     var bl = bytes.try_len(b)
-    if r.is_err(bl) || bl != 2 { return 20 }
+    if r.is_err(bl) || bl != 2 { return 23 }
     var bv = bytes.try_get_u8(b, 1)
-    if r.is_err(bv) || bv != 255 { return 21 }
+    if r.is_err(bv) || bv != 255 { return 24 }
     var bad_b = bytes.try_get_u8(b, 3)
-    if r.is_err(bad_b) != true { return 22 }
+    if r.is_err(bad_b) != true { return 25 }
     var bad_set = bytes.try_set_u8(b, 0, 300)
-    if r.is_err(bad_set) != true { return 23 }
+    if r.is_err(bad_set) != true { return 26 }
     var bad_hex = bytes.try_from_hex("zz")
-    if r.is_err(bad_hex) != true { return 24 }
+    if r.is_err(bad_hex) != true { return 27 }
     var hex = bytes.try_to_hex(b)
-    if r.is_err(hex) || hex != "00ff" { return 25 }
+    if r.is_err(hex) || hex != "00ff" { return 28 }
 
     // std:buffer structured errors
     var ub = buffer.u8_new(3)
     var ub_len = buffer.try_len(ub)
-    if r.is_err(ub_len) || ub_len != 3 { return 26 }
+    if r.is_err(ub_len) || ub_len != 3 { return 29 }
     var ub_bad = buffer.try_load_u8(ub, 3)
-    if r.is_err(ub_bad) != true { return 27 }
+    if r.is_err(ub_bad) != true { return 30 }
     var ub_bad_set = buffer.try_store_u8(ub, 0, 300)
-    if r.is_err(ub_bad_set) != true { return 28 }
+    if r.is_err(ub_bad_set) != true { return 31 }
 
     return 0
 }

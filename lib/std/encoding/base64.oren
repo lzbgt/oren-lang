@@ -199,3 +199,17 @@ fn decode_bytes(s) {
 
     return out
 }
+
+fn decode_bytes_strict(s) {
+    // Strict variant: rejects any whitespace (for protocols that require exact base64).
+    if s == nil { return oren_err(4, "base64.decode_bytes_strict: string is nil") }
+    var n = oren_string_len(s)
+    if n == nil || oren_is_err(n) { return oren_err(4, "base64.decode_bytes_strict: s must be string") }
+    var i = 0
+    while i < n {
+        var c = ptr_get_byte(s + i) & 255
+        if _b64_is_ws(c) == 1 { return oren_err(4, "base64.decode_bytes_strict: whitespace not allowed") }
+        i = i + 1
+    }
+    return decode_bytes(s)
+}
