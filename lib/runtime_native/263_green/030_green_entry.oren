@@ -10,6 +10,11 @@ var g_trace_green_entry_args_light = -1
 var g_trace_green_entry_args_light_envp = 0
 var g_trace_green_entry_args_light_argv = 0
 var g_trace_green_entry_args_light_argc = 0
+var g_trace_green_entry_args_light_stride = 1
+var g_trace_green_entry_args_light_stride_envp = 0
+var g_trace_green_entry_args_light_stride_argv = 0
+var g_trace_green_entry_args_light_stride_argc = 0
+var g_trace_green_entry_args_light_count = 0
 var g_trace_green_entry_args_guard = -1
 var g_trace_green_entry_args_guard_envp = 0
 var g_trace_green_entry_args_guard_argv = 0
@@ -81,9 +86,36 @@ fn _green_trace_entry_args_light_enabled() {
     return true
 }
 
+fn _green_trace_entry_args_light_stride_value() {
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_entry_args_light_stride_envp == cur_envp &&
+       g_trace_green_entry_args_light_stride_argv == cur_argv &&
+       g_trace_green_entry_args_light_stride_argc == cur_argc {
+        return g_trace_green_entry_args_light_stride
+    }
+    var stride = 1
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_ENTRY_ARGS_LIGHT_STRIDE")
+    if v != 0 && ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        var parsed = oren_int_from_string(v)
+        if parsed > 0 { stride = parsed }
+    }
+    g_trace_green_entry_args_light_stride = stride
+    g_trace_green_entry_args_light_stride_envp = cur_envp
+    g_trace_green_entry_args_light_stride_argv = cur_argv
+    g_trace_green_entry_args_light_stride_argc = cur_argc
+    return stride
+}
+
 fn _green_trace_entry_args(fn_obj, args_list) {
     if _green_trace_entry_args_enabled() != true { return 0 }
     if _green_trace_entry_args_light_enabled() == true {
+        var stride = _green_trace_entry_args_light_stride_value()
+        if stride > 1 {
+            g_trace_green_entry_args_light_count = g_trace_green_entry_args_light_count + 1
+            if (g_trace_green_entry_args_light_count % stride) != 0 { return 0 }
+        }
         var small = 0
         if args_list < 4096 { small = 1 }
         print("trace: green_entry_args light fn=" + oren_int_to_string(fn_obj) +

@@ -1118,6 +1118,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_until_world_lock_20260304_025148_run1_inner.log`).
   - New: `OREN_TRACE_GREEN_ENTRY_ARGS_LIGHT=1` enables entry-args tracing without
     alloc-index access (lightweight trace-only mode; rolling, 2026-03-04).
+  - New: `OREN_TRACE_GREEN_ENTRY_ARGS_LIGHT_STRIDE=<n>` samples entry-args light
+    tracing every Nth entry (rolling, 2026-03-04).
   - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
     entry-args light trace + guard-light + list tracing hit `Indexing on non-container`
     during the poll-cache run (no segfault); `list_trace_dump` shows `node=0` just
@@ -1200,6 +1202,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: stage2 flake harness (5 runs) with list header guard enabled plus
     post-`oren_list_get` pointer guard completed cleanly (log:
     `build/logs/native_quick_stage2_flake_20260304_034111_run5.log`).
+  - Trace: stage2 flake harness (5 runs) with list header guard enabled and
+    entry-args light tracing (guard-light on, guard off, stride=32) completed
+    cleanly (log: `build/logs/native_quick_stage2_flake_20260304_041850_run5.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
