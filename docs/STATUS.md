@@ -733,6 +733,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      reducing noise in `[alloc_index_list_bad]`.
    - Update (2026-03-05): alloc-index list trace lines now include `zeroed_count`/`bad_count`
      counters to track noise vs true corruption across runs.
+   - Update (2026-03-05): GC summary now prints `[alloc_index_list_counts]` when
+     `OREN_TRACE_ALLOC_INDEX=1` to report per-sweep zeroed/bad totals.
    - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` +
      `OREN_TRACE_ALLOC_INDEX_ZEROED=1` (`OREN_BENCH_ITERS=2000`) reported `zeroed_count=2`
      and `bad_count=0` (log:

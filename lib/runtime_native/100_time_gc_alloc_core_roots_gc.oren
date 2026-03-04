@@ -879,6 +879,8 @@ fn native_gc_collect() {
             " dedup_hits=" + oren_int_to_string(g_alloc_index_dedup_hits) +
             " len=" + oren_int_to_string(g_alloc_index_len) +
             " cap=" + oren_int_to_string(g_alloc_index_cap))
+        print("[alloc_index_list_counts] zeroed=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
+            " bad=" + oren_int_to_string(g_alloc_index_list_bad_count))
         if g_alloc_index_dedup_cap > 0 && g_alloc_index_dedup_hits > g_alloc_index_dedup_cap {
             print("[alloc_index] dedup cap exceeded cap=" + oren_int_to_string(g_alloc_index_dedup_cap) +
                   " hits=" + oren_int_to_string(g_alloc_index_dedup_hits))
@@ -890,6 +892,8 @@ fn native_gc_collect() {
         g_alloc_index_rebuild_static = 0
         g_alloc_index_probe_exhausted_count = 0
         g_alloc_index_dedup_hits = 0
+        g_alloc_index_list_zeroed_count = 0
+        g_alloc_index_list_bad_count = 0
     }
     if g_trace_alloc_index_remove_time != 0 {
         var avg = 0
