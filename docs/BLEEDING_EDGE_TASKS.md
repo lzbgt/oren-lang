@@ -1126,6 +1126,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     header fields (rolling, 2026-03-04).
   - New: runq guard now dumps `g` state + args stamp when `args_list` is
     untracked (`node=0`) (rolling, 2026-03-04).
+  - New: spawn alloc logs args_list header/node when args-stamp tracing enabled
+    (rolling, 2026-03-04).
   - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
     entry-args light trace + guard-light + list tracing hit `Indexing on non-container`
     during the poll-cache run (no segfault); `list_trace_dump` shows `node=0` just
@@ -1315,6 +1317,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_130610_run1.log`,
     `build/logs/native_quick_stage2_flake_20260304_130610_run1_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_130610_run1_err.log`).
+  - Trace: stage2 flake harness (1 run) with list tracing disabled, entry-args
+    guard on (guard-light off, entry-args light off), and
+    `OREN_TRACE_GREEN_ARGS_STAMP=1` completed cleanly with spawn-alloc header
+    logging enabled (log: `build/logs/native_quick_stage2_flake_20260304_130842_run1.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
