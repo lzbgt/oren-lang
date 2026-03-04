@@ -182,6 +182,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     (`OREN_QI_ONLY_GREEN_CACHE=1`, `OREN_QI_JITTER_MAX_MS=50`) completed cleanly
     (log: `build/logs/quick_integration_green_only_jitter_20260304_195118.log`,
     2026-03-04).
+  - Trace: quick integration base-only run with jitter
+    (`OREN_QI_SKIP_GREEN_CACHE=1`, `OREN_QI_JITTER_MAX_MS=50`) completed cleanly
+    (log: `build/logs/quick_integration_base_only_jitter_20260304_195240.log`,
+    2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
   - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`

@@ -129,6 +129,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (`OREN_QI_ONLY_GREEN_CACHE=1`, `OREN_QI_JITTER_MAX_MS=50`) completed cleanly
      (log: `build/logs/quick_integration_green_only_jitter_20260304_195118.log`,
      2026-03-04).
+   - Trace: quick integration base-only run with jitter
+     (`OREN_QI_SKIP_GREEN_CACHE=1`, `OREN_QI_JITTER_MAX_MS=50`) completed cleanly
+     (log: `build/logs/quick_integration_base_only_jitter_20260304_195240.log`,
+     2026-03-04).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
