@@ -1211,6 +1211,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     poll-cache header (logs: `build/logs/native_quick_stage2_flake_20260304_122903_run3.log`,
     `build/logs/native_quick_stage2_flake_20260304_122903_run3_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_122903_run3_err.log`).
+  - Trace: stage2 flake harness (10 runs) with list header guard enabled and
+    entry-args light tracing (guard-light on, guard off, stride=32) failed on
+    run 2 after raising `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=90` with
+    `OREN_DIAG` fail code 797 in
+    `test_gc_stw_wakes_netpoll_blocked_threads` during native quick integration
+    (logs: `build/logs/native_quick_stage2_flake_20260304_123235_run2.log`,
+    `build/logs/native_quick_stage2_flake_20260304_123235_run2_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_123235_run2_err.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
