@@ -39,6 +39,7 @@ fn oren_new_list(cap) {
     var prev_magic = ptr_get(iadd(header, 24))
     var rec_node = native_alloc_index_recover_ptr(header)
     if rec_node == 0 { rec_node = native_alloc_index_get(header) }
+    _list_ctor_trace_emit("pre_init", header, 2, total, cap, rec_node)
     _list_hdr_reinit_trace_emit(header, 2, total, cap, prev_len, prev_cap, prev_buf, prev_magic, "new_list", rec_node)
     var buf = 0
     if cap > 0 {
@@ -48,10 +49,12 @@ fn oren_new_list(cap) {
     ptr_set(iadd(header, 8), cap)     // capacity
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    _list_ctor_trace_emit("post_init", header, 2, total, cap, native_alloc_index_get(header))
     if native_alloc_index_get(header) == 0 {
         if rec_node == 0 { rec_node = native_alloc_index_recover_ptr(header) }
         if rec_node == 0 { oren_track_alloc_new(header, total, 2) }
     }
+    _list_ctor_trace_emit("post_track", header, 2, total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, 2, total, site, 1)
     _list_trace_emit(1, header, 2) // new_list
     return header
@@ -75,6 +78,7 @@ fn oren_new_list_int(cap) {
     var prev_magic = ptr_get(iadd(header, 24))
     var rec2 = native_alloc_index_recover_ptr(header)
     if rec2 == 0 { rec2 = native_alloc_index_get(header) }
+    _list_ctor_trace_emit("pre_init", header, list_int_kind(), total, cap, rec2)
     _list_hdr_reinit_trace_emit(header, list_int_kind(), total, cap, prev_len, prev_cap, prev_buf, prev_magic, "new_list_int", rec2)
     var buf = 0
     if cap > 0 {
@@ -84,10 +88,12 @@ fn oren_new_list_int(cap) {
     ptr_set(iadd(header, 8), cap)     // capacity
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    _list_ctor_trace_emit("post_init", header, list_int_kind(), total, cap, native_alloc_index_get(header))
     if native_alloc_index_get(header) == 0 {
         if rec2 == 0 { rec2 = native_alloc_index_recover_ptr(header) }
         if rec2 == 0 { oren_track_alloc_new(header, total, list_int_kind()) }
     }
+    _list_ctor_trace_emit("post_track", header, list_int_kind(), total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, list_int_kind(), total, site, 1)
     _list_trace_emit(2, header, list_int_kind()) // new_list_int
     return header
@@ -129,6 +135,11 @@ var g_trace_list_hdr_reinit_cap = 0
 var g_trace_list_hdr_reinit_checked = 0
 var g_trace_list_hdr_reinit_ptr = 0
 var g_trace_list_hdr_reinit_node = 0
+var g_trace_list_ctor = 0
+var g_trace_list_ctor_cap = 0
+var g_trace_list_ctor_checked = 0
+var g_trace_list_ctor_ptr = 0
+var g_trace_list_ctor_node = 0
 var g_trace_list_hdr_ring = -1
 var g_trace_list_hdr_ring_cap = 0
 var g_trace_list_hdr_ring_ptr = 0
@@ -1296,6 +1307,52 @@ fn _list_hdr_reinit_trace_emit(list, kind, total, cap, prev_len, prev_cap, prev_
           " prev_buf=" + oren_int_to_string(prev_buf) +
           " prev_magic=" + oren_int_to_string(prev_magic) +
           " freed_seen=" + oren_int_to_string(seen) +
+          " node=" + oren_int_to_string(node))
+    return 0
+}
+
+fn _list_ctor_trace_emit(stage, list, kind, total, cap_req, node) {
+    if g_trace_list_ctor_checked == 0 {
+        var v_trace = native_envp_get_value_ptr("OREN_TRACE_LIST_CTOR")
+        if v_trace != 0 && ptr_get_byte(v_trace) != 0 && ptr_get_byte(v_trace) != 48 {
+            g_trace_list_ctor = 1
+        }
+        var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_CTOR_CAP")
+        if v_cap != 0 {
+            var capv = native_parse_i64_dec_cstr_or_neg1(v_cap)
+            if capv > 0 { g_trace_list_ctor_cap = capv }
+        }
+        var v_ptr = native_envp_get_value_ptr("OREN_TRACE_LIST_CTOR_PTR")
+        if v_ptr != 0 {
+            var ptrv = native_parse_i64_dec_cstr_or_neg1(v_ptr)
+            if ptrv > 0 { g_trace_list_ctor_ptr = ptrv }
+        }
+        var v_node = native_envp_get_value_ptr("OREN_TRACE_LIST_CTOR_NODE")
+        if v_node != 0 {
+            var nodev = native_parse_i64_dec_cstr_or_neg1(v_node)
+            if nodev > 0 { g_trace_list_ctor_node = nodev }
+        }
+        if g_trace_list_ctor_cap <= 0 { g_trace_list_ctor_cap = 16 }
+        g_trace_list_ctor_checked = 1
+    }
+    if g_trace_list_ctor == 0 { return 0 }
+    if g_trace_list_ctor_cap <= 0 { return 0 }
+    if g_trace_list_ctor_ptr != 0 && list - g_trace_list_ctor_ptr != 0 { return 0 }
+    if g_trace_list_ctor_node != 0 && node - g_trace_list_ctor_node != 0 { return 0 }
+    g_trace_list_ctor_cap = g_trace_list_ctor_cap - 1
+    var len = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+    var magic = ptr_get(iadd(list, 24))
+    print("[list_ctor] stage=" + stage +
+          " ptr=" + oren_int_to_string(list) +
+          " kind=" + oren_int_to_string(kind) +
+          " total=" + oren_int_to_string(total) +
+          " cap_req=" + oren_int_to_string(cap_req) +
+          " len=" + oren_int_to_string(len) +
+          " cap=" + oren_int_to_string(cap) +
+          " buf=" + oren_int_to_string(buf) +
+          " magic=" + oren_int_to_string(magic) +
           " node=" + oren_int_to_string(node))
     return 0
 }

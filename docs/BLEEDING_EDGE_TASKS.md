@@ -630,6 +630,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (op=1/2) so ring dumps include arena-backed list headers.
   - New: `OREN_TRACE_ALLOC_INDEX=1` now logs `[alloc_index_list_bad]` when list/list_int
     nodes are inserted with non-magic headers (excluding poison) to catch kind/ptr drift.
+  - New: `OREN_TRACE_LIST_CTOR=1` logs `[list_ctor]` stages (`pre_init`, `post_init`, `post_track`)
+    for list/list_int allocations, with filters `OREN_TRACE_LIST_CTOR_PTR` /
+    `OREN_TRACE_LIST_CTOR_NODE` to align ctor events with `[alloc_index_list_bad]` pointers.
+  - Next: rerun alloc_churn with `OREN_TRACE_LIST_CTOR_PTR=<ptr>` (from `[alloc_index_list_bad]`)
+    to see whether ctor stages occur before/after alloc-index insertion for the bad header.
   - Trace (2026-03-05): alloc_churn gc_ring_poison_hi_alloc_index hits `[alloc_index_list_bad]`
     immediately with magic=0 before `gc_reuse_bad_list`, implying alloc-index sees invalid
     headers at insert time (logs:

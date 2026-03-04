@@ -714,6 +714,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (op=1/2) so ring dumps include arena-backed list headers.
    - New: `OREN_TRACE_ALLOC_INDEX=1` now logs `[alloc_index_list_bad]` when list/list_int
      nodes are inserted with non-magic headers (excluding poison), to catch kind/ptr drift.
+   - New: `OREN_TRACE_LIST_CTOR=1` logs `[list_ctor]` stages (`pre_init`, `post_init`, `post_track`)
+     for list/list_int allocations; filter via `OREN_TRACE_LIST_CTOR_PTR` /
+     `OREN_TRACE_LIST_CTOR_NODE` to line up ctor events with `[alloc_index_list_bad]`.
    - Repro (2026-03-05): gc_ring_poison_hi_alloc_index shows `[alloc_index_list_bad]` with
      magic=0 at alloc-index insert time, before `gc_reuse_bad_list` fires (logs:
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_alloc_index_20260305_030652_1.log`,
@@ -721,6 +724,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `build/logs/alloc_churn_hunt_alloc_index_20260305_030652.log`).
    - Next: if corruption still shows only op=91 GC entries, consider adding per-iteration
      ring updates under a trace guard to capture in-loop header writes.
+   - Next: use `OREN_TRACE_LIST_CTOR_PTR=<ptr>` from `[alloc_index_list_bad]` to confirm whether
+     ctor `post_init`/`post_track` fires before or after alloc-index insertion for the bad header.
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run

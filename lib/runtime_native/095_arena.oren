@@ -643,13 +643,18 @@ fn native_arena_new_list(cap) {
     if header == -1 { exit(200) }
     var site = _alloc_site_list_header()
     native_alloc_site_bump(site)
+    var rec_node = native_alloc_index_recover_ptr(header)
+    if rec_node == 0 { rec_node = native_alloc_index_get(header) }
+    _list_ctor_trace_emit("pre_init", header, 2, total, cap, rec_node)
     var buf = 0
     if cap > 0 { buf = iadd(header, 32) }
     ptr_set(iadd(header, 0), 0)
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    _list_ctor_trace_emit("post_init", header, 2, total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, 2, total, site, 2)
+    _list_ctor_trace_emit("post_track", header, 2, total, cap, native_alloc_index_get(header))
     _list_trace_emit(1, header, 2) // new_list (arena)
     if trace_list_track_consume() != 0 {
         print("[list_track] arena_alloc ptr=" + oren_int_to_string(header) +
@@ -668,13 +673,18 @@ fn native_arena_new_list_int(cap) {
     if header == -1 { exit(200) }
     var site = _alloc_site_list_int_header()
     native_alloc_site_bump(site)
+    var rec_node = native_alloc_index_recover_ptr(header)
+    if rec_node == 0 { rec_node = native_alloc_index_get(header) }
+    _list_ctor_trace_emit("pre_init", header, list_int_kind(), total, cap, rec_node)
     var buf = 0
     if cap > 0 { buf = iadd(header, 32) }
     ptr_set(iadd(header, 0), 0)
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    _list_ctor_trace_emit("post_init", header, list_int_kind(), total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, list_int_kind(), total, site, 2)
+    _list_ctor_trace_emit("post_track", header, list_int_kind(), total, cap, native_alloc_index_get(header))
     _list_trace_emit(2, header, list_int_kind()) // new_list_int (arena)
     if trace_list_track_consume() != 0 {
         print("[list_track] arena_alloc ptr=" + oren_int_to_string(header) +
