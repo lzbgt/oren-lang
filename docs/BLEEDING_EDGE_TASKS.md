@@ -1445,6 +1445,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_142341_run1.log`,
     `build/logs/native_quick_stage2_flake_20260304_142341_run1_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_142341_run1_err.log`).
+  - Trace: stage2 flake harness (5 runs) with tracing mostly off but
+    `OREN_TRACE_GREEN_ARGS_STAMP=1` (stride=1024) and
+    `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` ended on run 1 with rc=139
+    (segmentation fault) after spawn traces (logs:
+    `build/logs/native_quick_stage2_flake_20260304_142726_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_142726_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_142726_run1_err.log`).
   - Trace: stage2 flake harness (3 runs) with tracing mostly off but
     `OREN_TRACE_GREEN_ARGS_STAMP=1` (stride=128) and
     `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` ended on run 1 with rc=138 (bus error)
