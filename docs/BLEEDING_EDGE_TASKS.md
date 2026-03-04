@@ -1381,6 +1381,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_ARGS_STAMP_STRIDE=64`, and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=64`
     completed cleanly with post-world-lock spawn header logging enabled (log:
     `build/logs/native_quick_stage2_flake_20260304_134013_run1.log`).
+  - Trace: stage2 flake harness (3 runs) with list tracing disabled, entry-args
+    guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
+    `OREN_TRACE_GREEN_ARGS_STAMP_STRIDE=64`, and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=64`
+    ended on run 1 with rc=137; pre/post world-lock spawn logs show args_list
+    still tracked up to the end of the inner log (logs:
+    `build/logs/native_quick_stage2_flake_20260304_134319_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_134319_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_134319_run1_err.log`).
   - Trace: stage2 flake harness (5 runs) with list tracing disabled, entry-args
     guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
     and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` ended on run 2 with rc=137 while
