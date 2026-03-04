@@ -732,6 +732,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      still zeroed (magic/len/cap/buf all 0), reducing noise in `[alloc_index_list_bad]`.
    - Update (2026-03-05): alloc-index list trace lines now include `zeroed_count`/`bad_count`
      counters to track noise vs true corruption across runs.
+   - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` (`OREN_BENCH_ITERS=2000`)
+     reported `zeroed_count=2` and `bad_count=0` (log:
+     `build/logs/alloc_churn_trace_alloc_index_counts_20260305_033136.log`).
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
