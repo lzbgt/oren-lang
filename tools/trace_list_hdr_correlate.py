@@ -52,7 +52,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def fmt_hdr(entry) -> str:
+    prefix = ""
+    if "idx" in entry:
+        prefix = f"idx={entry['idx']} "
     return (
+        prefix +
         f"src={entry['src']} op={entry['op']} kind={entry['kind']} len={entry['len']} "
         f"cap={entry['cap']} buf={entry['buf']} magic={entry['magic']}"
     )
@@ -210,6 +214,7 @@ def main() -> int:
                     idx, ptr, op, ln, cap, buf, magic, kind = map(int, m.groups())
                     ring_entry = {
                         "src": "crash_footer_raw",
+                        "idx": idx,
                         "op": op,
                         "kind": kind,
                         "len": ln,
