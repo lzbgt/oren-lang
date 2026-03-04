@@ -232,6 +232,9 @@ fn _opt_rewrite_list_pushes_expr(expr, list_names) {
                     var rnm = recv["value"]
                     if rnm != nil && list_names[rnm] == true {
                         fnn["value"] = "oren_list_push_unchecked"
+                        if oren_env("OREN_TRACE_LIST_RESERVE") != nil {
+                            print("[opt] list_push_unchecked name=" + rnm)
+                        }
                         changed = true
                     }
                 }
@@ -354,6 +357,9 @@ fn _opt_rewrite_list_int_pushes_expr(expr, list_names, safe_ints) {
                     if rnm != nil && list_names[rnm] == true {
                         if _opt_backend_allows_list_int_unchecked() == true && _opt_is_safe_int_expr(val, safe_ints) {
                             fnn["value"] = "oren_list_int_push_unchecked"
+                            if oren_env("OREN_TRACE_LIST_RESERVE") != nil {
+                                print("[opt] list_int_push_unchecked name=" + rnm)
+                            }
                             changed = true
                         }
                     }
