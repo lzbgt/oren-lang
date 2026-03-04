@@ -451,6 +451,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
     continues across crashes, logs non-zero exit statuses, and captures stderr in logs
     (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces, 2026-02-27).
+  - Tool: `OREN_TRACE_CRASH_FOOTER=1` installs a best-effort crash footer on macOS
+    (SIGSEGV/SIGBUS) that dumps alloc-index counts plus list header ring contents when
+    the process crashes (debug-only; not signal-safe, 2026-03-05).
   - Tool: `[alloc_index_list_counts_at_bad_list]` now prints alloc-index zeroed/bad counts
     plus index len/cap at each `[gc_reuse_bad_list]` when `OREN_TRACE_ALLOC_INDEX=1`
     (2026-03-05).

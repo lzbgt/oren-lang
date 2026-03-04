@@ -759,6 +759,9 @@ var g_trace_alloc_index_zeroed = 0
 var g_trace_alloc_index_list_bad_ring_recent = 0
 // Optional tracing: alloc-index remove timing.
 var g_trace_alloc_index_remove_time = 0
+// Optional tracing: crash footer (best-effort SIGSEGV/SIGBUS diagnostics).
+var g_trace_crash_footer = 0
+var g_crash_footer_handled = 0
 // Optional tracing: per-track_alloc timing.
 var g_trace_track_alloc_time = 0
 // Optional tracing: per-site allocation counters (raw metadata array).
@@ -826,6 +829,47 @@ var g_alloc_site_ptr = 0
 var g_alloc_site_cap = 0
 var g_alloc_site_total = 0
 
+// Crash footer (macOS-only for now): best-effort diagnostics on SIGSEGV/SIGBUS.
+// Debug-only and not signal-safe; gated by OREN_TRACE_CRASH_FOOTER=1.
+@cfg(os="macos")
+@ffi.libc
+@ffi.ret("ptr")
+ffi {
+    signal as __oren_signal
+}
+@cfg(not_os="macos")
+fn __oren_signal(sig, handler) { return 0 }
+
+fn __oren_crash_footer_handler(sig) {
+    if g_crash_footer_handled != 0 {
+        sys_exit(139)
+        return 0
+    }
+    g_crash_footer_handled = 1
+    print("[crash_footer] signal=" + oren_int_to_string(sig) +
+        " alloc_index_zeroed=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
+        " alloc_index_bad=" + oren_int_to_string(g_alloc_index_list_bad_count) +
+        " alloc_index_len=" + oren_int_to_string(g_alloc_index_len) +
+        " alloc_index_cap=" + oren_int_to_string(g_alloc_index_cap))
+    if g_trace_list_hdr_ring_ptr != 0 {
+        native_list_header_ring_dump_all()
+    } else {
+        print("[crash_footer] list_hdr_ring=0")
+    }
+    sys_exit(139)
+    return 0
+}
+
+fn native_install_crash_footer() {
+    if g_trace_crash_footer == 0 { return 0 }
+    var handler = oren_code_addr(__oren_crash_footer_handler)
+    if handler == 0 { return 0 }
+    // macOS signals: SIGBUS=10, SIGSEGV=11.
+    __oren_signal(10, handler)
+    __oren_signal(11, handler)
+    return 0
+}
+
 @oren.keep
 fn native_runtime_init_gc_mode(default_enabled) {
     // default_enabled is provided by the compiler from `--no-gc`.
@@ -860,6 +904,8 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_alloc_index_zeroed = 0
     g_trace_alloc_index_list_bad_ring_recent = 0
     g_trace_alloc_index_remove_time = 0
+    g_trace_crash_footer = 0
+    g_crash_footer_handled = 0
     g_trace_track_alloc_time = 0
     g_trace_alloc_site = 0
     g_trace_arena = 0
@@ -1324,6 +1370,14 @@ fn native_runtime_init_gc_mode(default_enabled) {
         }
         if g_alloc_site_cap <= 0 { g_alloc_site_cap = 64 }
         native_alloc_site_init(g_alloc_site_cap)
+    }
+    var v_crash_footer = native_envp_get_value_ptr("OREN_TRACE_CRASH_FOOTER")
+    if v_crash_footer != 0 {
+        if ptr_get_byte(v_crash_footer) != 0 && ptr_get_byte(v_crash_footer) != 48 {
+            g_trace_crash_footer = 1
+            native_list_header_ring_force_enable()
+            native_install_crash_footer()
+        }
     }
     return 0
 }
