@@ -633,14 +633,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `OREN_TRACE_LIST_CTOR=1` logs `[list_ctor]` stages (`pre_init`, `post_init`, `post_track`)
     for list/list_int allocations, with filters `OREN_TRACE_LIST_CTOR_PTR` /
     `OREN_TRACE_LIST_CTOR_NODE` to align ctor events with `[alloc_index_list_bad]` pointers.
-  - Next: rerun alloc_churn with `OREN_TRACE_LIST_CTOR_PTR=<ptr>` (from `[alloc_index_list_bad]`)
-    to see whether ctor stages occur before/after alloc-index insertion for the bad header.
   - Trace (2026-03-05): alloc_churn gc_ring_poison_hi_alloc_index hits `[alloc_index_list_bad]`
     immediately with magic=0 before `gc_reuse_bad_list`, implying alloc-index sees invalid
     headers at insert time (logs:
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_alloc_index_20260305_030652_1.log`,
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_alloc_index_20260305_030652_1_correlate.log`,
     `build/logs/alloc_churn_hunt_alloc_index_20260305_030652.log`).
+  - Trace (2026-03-05): ctor-trace run shows `[alloc_index_list_bad]` fires before
+    `[list_ctor] stage=pre_init` for the same ptr, so alloc-index insertion happens
+    ahead of list header initialization; magic=0 appears to be expected for fresh
+    list allocations (log:
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_ctortrace_20260305_031847.log`).
+  - Next: tighten alloc-index bad-list filtering (or add a `zeroed=1` tag) so fresh list
+    allocations don't look like corruption in `[alloc_index_list_bad]` output.
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records
     OREN/AVM env + logs for reproducible trace runs. Use `ALLOC_CHURN_RUN_TIMEOUT_SECS`
     to bound long-running traces.
