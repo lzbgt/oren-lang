@@ -142,6 +142,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
   - Trace: stage2 quick flake debug run (5 runs) with list_hdr dup + gc_list_hdr_kind
     tracing completed cleanly (log:
     `build/logs/triage_stage2_flake_debug_dup_20260304_184142.log`, 2026-03-04).
+  - Trace: stage1 quick flake debug run (5 runs) with list_hdr dup + gc_list_hdr_kind
+    tracing completed cleanly (log:
+    `build/logs/triage_stage1_flake_debug_dup_20260304_184754.log`, 2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
   - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`
