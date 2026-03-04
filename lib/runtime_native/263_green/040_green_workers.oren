@@ -762,6 +762,29 @@ fn oren_green_spawn(fn_obj, args_list) {
               " magic=" + oren_int_to_string(magic))
     }
     var wl = _green_world_lock_host_enter()
+    if _green_trace_args_stamp_enabled() == true {
+        var node2 = native_alloc_index_get(args_list)
+        if node2 == 0 { node2 = native_alloc_index_recover_ptr(args_list) }
+        var kind2 = 0
+        var magic2 = 0
+        var len2 = 0
+        var cap2 = 0
+        var buf2 = 0
+        if args_list != 0 && args_list >= 4096 {
+            len2 = ptr_get(iadd(args_list, 0))
+            cap2 = ptr_get(iadd(args_list, 8))
+            buf2 = ptr_get(iadd(args_list, 16))
+            magic2 = ptr_get(iadd(args_list, 24))
+        }
+        if node2 != 0 { kind2 = ptr_get(iadd(node2, 16)) }
+        print("trace: green_spawn wl args_list=" + oren_int_to_string(args_list) +
+              " node=" + oren_int_to_string(node2) +
+              " kind=" + oren_int_to_string(kind2) +
+              " len=" + oren_int_to_string(len2) +
+              " cap=" + oren_int_to_string(cap2) +
+              " buf=" + oren_int_to_string(buf2) +
+              " magic=" + oren_int_to_string(magic2))
+    }
     var g = _green_spawn_alloc_g(fn_obj, args_list)
     if g == 0 {
         _green_world_lock_host_exit(wl)
