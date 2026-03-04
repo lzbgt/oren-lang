@@ -303,7 +303,11 @@ fn native_alloc_index_put_node(node) {
             var want_magic = list_magic()
             var want_poison = list_magic_poison()
             if magic - want_magic != 0 && magic - want_poison != 0 {
-                print("[alloc_index_list_bad] ptr=" + oren_int_to_string(ptr) +
+                var zeroed = 0
+                if magic == 0 && len == 0 && cap == 0 && buf == 0 { zeroed = 1 }
+                var tag = "[alloc_index_list_bad]"
+                if zeroed != 0 { tag = "[alloc_index_list_zeroed]" }
+                print(tag + " ptr=" + oren_int_to_string(ptr) +
                       " node=" + oren_int_to_string(node) +
                       " kind=" + oren_int_to_string(kind) +
                       " size=" + oren_int_to_string(size) +

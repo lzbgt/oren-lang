@@ -728,8 +728,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (log: `build/logs/alloc_churn_trace_gc_ring_poison_hi_ctortrace_20260305_031847.log`).
    - Next: if corruption still shows only op=91 GC entries, consider adding per-iteration
      ring updates under a trace guard to capture in-loop header writes.
-   - Next: tighten alloc-index bad-list filtering (or add a `zeroed=1` tag) so fresh list
-     allocations don't look like corruption in `[alloc_index_list_bad]` output.
+   - Update (2026-03-05): alloc-index now emits `[alloc_index_list_zeroed]` when headers are
+     still zeroed (magic/len/cap/buf all 0), reducing noise in `[alloc_index_list_bad]`.
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
