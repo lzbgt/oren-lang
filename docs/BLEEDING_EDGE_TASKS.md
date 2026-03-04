@@ -757,7 +757,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     hunt), emitting logs under `build/logs/`. Set `ALLOC_CHURN_HUNT_CORRELATE=0` to
     skip auto-correlation; tune output via `ALLOC_CHURN_HUNT_CORRELATE_LIMIT/MAX`.
     The harness now prints the first `[crash_footer_raw]` line plus a few ring dump
-    lines when a run fails or times out (2026-03-05).
+    lines when a run fails or times out, and runs the correlator on failures/timeouts
+    when enabled (2026-03-05).
   - Trace: alloc_churn with GC reuse + `OREN_TRACE_ALLOC_INDEX=1` + free-list header tracing
     appeared to loop on alloc-index rebuild logs and was killed
     (log: `build/logs/alloc_churn_trace_repro_reuse_20260226e.log`).

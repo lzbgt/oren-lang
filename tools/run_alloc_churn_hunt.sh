@@ -63,6 +63,14 @@ while [[ "${run_idx}" -le "${max_runs}" ]]; do
           rg -m 3 -n "\\[crash_footer_raw\\] ring idx=" "${run_log}"
         fi
       fi
+      if [[ "${correlate}" != "0" && -n "${python_bin}" && -f "${correlate_tool}" ]]; then
+        correlate_log="${log_dir}/alloc_churn_trace_${tag}_correlate.log"
+        if "${python_bin}" "${correlate_tool}" --log "${run_log}" --limit "${correlate_limit}" --max "${correlate_max}" > "${correlate_log}" 2>&1; then
+          echo "alloc_churn_hunt: correlate log written to ${correlate_log}"
+        else
+          echo "alloc_churn_hunt: correlate failed (see ${correlate_log})"
+        fi
+      fi
     fi
     echo "alloc_churn_hunt: run_status=${run_status} (see ${env_log})"
     exit 1
@@ -75,6 +83,14 @@ while [[ "${run_idx}" -le "${max_runs}" ]]; do
         if rg -m 1 -n "\\[crash_footer_raw\\] ring idx=" "${run_log}" >/dev/null; then
           echo "alloc_churn_hunt: crash_footer_raw ring dump (first 3)"
           rg -m 3 -n "\\[crash_footer_raw\\] ring idx=" "${run_log}"
+        fi
+      fi
+      if [[ "${correlate}" != "0" && -n "${python_bin}" && -f "${correlate_tool}" ]]; then
+        correlate_log="${log_dir}/alloc_churn_trace_${tag}_correlate.log"
+        if "${python_bin}" "${correlate_tool}" --log "${run_log}" --limit "${correlate_limit}" --max "${correlate_max}" > "${correlate_log}" 2>&1; then
+          echo "alloc_churn_hunt: correlate log written to ${correlate_log}"
+        else
+          echo "alloc_churn_hunt: correlate failed (see ${correlate_log})"
         fi
       fi
     fi
