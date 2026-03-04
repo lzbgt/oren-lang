@@ -1407,6 +1407,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` completed cleanly with
     `OREN_NATIVE_RUN_TIMEOUT_SECS=15` (log:
     `build/logs/native_quick_stage2_flake_20260304_135238_run1.log`).
+  - Trace: stage2 flake harness (3 runs) with tracing off and
+    `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` completed cleanly with
+    `OREN_NATIVE_RUN_TIMEOUT_SECS=15` (log:
+    `build/logs/native_quick_stage2_flake_20260304_135650_run3.log`).
   - Trace: stage2 flake harness (5 runs) with list tracing disabled, entry-args
     guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
     and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` ended on run 2 with rc=137 while
