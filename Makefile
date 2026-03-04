@@ -67,6 +67,10 @@ ORENSIGN_BIN := orensign$(EXE_EXT)
 AVM_BIN := avm$(EXE_EXT)
 OREN_RUNTIME_ROBUSTNESS_RUNS ?= 1
 OREN_RUNTIME_ROBUSTNESS_COMPILER ?= ./$(OREN_STAGE2_BIN)
+OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS ?=
+OREN_RUNTIME_ROBUSTNESS_C_RUNS ?=
+OREN_RUNTIME_ROBUSTNESS_C_FIXTURES ?=
+OREN_RUNTIME_ROBUSTNESS_TRACE_ENV ?=
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(strip $(OREN_SKIP_CODESIGN)),1)
     $(error OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS)
@@ -459,6 +463,10 @@ verify-backend-parity: verify-backend-parity-boxed-list verify-backend-parity-li
 	@echo "verify-backend-parity OK"
 
 verify-runtime-robustness: oren_stage2
+	OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS="$(OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS)" \
+	OREN_RUNTIME_ROBUSTNESS_C_RUNS="$(OREN_RUNTIME_ROBUSTNESS_C_RUNS)" \
+	OREN_RUNTIME_ROBUSTNESS_C_FIXTURES="$(OREN_RUNTIME_ROBUSTNESS_C_FIXTURES)" \
+	OREN_RUNTIME_ROBUSTNESS_TRACE_ENV="$(OREN_RUNTIME_ROBUSTNESS_TRACE_ENV)" \
 	./scripts/verify_runtime_robustness_w5.sh $(OREN_RUNTIME_ROBUSTNESS_RUNS) $(OREN_RUNTIME_ROBUSTNESS_COMPILER)
 
 # GUI bring-up smoke (headful, opt-in).

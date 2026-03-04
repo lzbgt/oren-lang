@@ -142,7 +142,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     run the W5 runtime-robustness smoke (stage2 quick integration + C-backend build
     fixtures) with guardrail traces; optional `OREN_RUNTIME_ROBUSTNESS_TRACE_ENV` forwards
     trace env vars into child scripts for faster production-readiness triage. Make target
-    knobs: `OREN_RUNTIME_ROBUSTNESS_RUNS` and `OREN_RUNTIME_ROBUSTNESS_COMPILER` (2026-03-04).
+    knobs: `OREN_RUNTIME_ROBUSTNESS_RUNS`, `OREN_RUNTIME_ROBUSTNESS_COMPILER`,
+    `OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS`, `OREN_RUNTIME_ROBUSTNESS_C_RUNS`,
+    `OREN_RUNTIME_ROBUSTNESS_C_FIXTURES`, and `OREN_RUNTIME_ROBUSTNESS_TRACE_ENV` (2026-03-04).
    - Trace: global slot dump maps `idx=434` / `off=3472` to `g_trace_list_hdr_ring_ptr_guard_last`
      after rebuilding stage2 (`alloc_churn_build_globals_idx434_manual_20260227.log`, 2026-02-27).
    - Trace: precheck_guard9 (cached + no-cache) still shows bad-list roots with
