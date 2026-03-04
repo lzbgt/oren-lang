@@ -119,6 +119,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: stage1 quick flake with list corruption tracing + free-list ring passed
      cleanly (log:
      `build/logs/triage_stage1_flake_freelist_ring_20260304_191805.log`, 2026-03-04).
+   - Trace: stage1 quick flake with jitter (`OREN_QI_JITTER_MAX_MS=50`) and auto rerun
+     guardrails hit rc=143 at run 16; auto rerun guardrails succeeded (log:
+     `build/logs/triage_stage1_flake_autorun_jitter_20260304_195330.log`, run log:
+     `build/logs/oren_native_quick_flake_20260304_194557_run16.log`, guardrails log:
+     `build/logs/oren_native_quick_flake_20260304_194557_run16_guardrails.log`,
+     2026-03-04).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
