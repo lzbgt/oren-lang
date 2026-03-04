@@ -343,8 +343,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     continues across crashes, logs non-zero exit statuses, and captures stderr in logs
     (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces, 2026-02-27).
   - Tool: `tools/trace_list_hdr_correlate.py --log <log> --limit 5 --max 50` now surfaces
-    `list_corrupt` and `gc_list_*_corrupt` events alongside free-list samples to pinpoint
-    last header writes (2026-03-05).
+    `list_corrupt` and `gc_list_*_corrupt` events alongside free-list samples and attaches
+    ring dumps when present to pinpoint last header writes (2026-03-05).
   - Tool: `tools/run_alloc_churn_hunt.sh [max_runs] [tag_base]` repeats alloc_churn traces
     until a corruption signature is observed (or a timeout/failure stops the run), using
     the trace harness logs under `build/logs/` (set `ALLOC_CHURN_HUNT_CORRELATE=0` to skip
@@ -684,10 +684,18 @@ Weights reflect expected impact on C parity and breadth of affected code.
       `build/logs/alloc_churn_trace_gc_ring_recent_20260305_014912_corr.log`).
     - Fix: free-list size-mismatch logging now matches list header validation (accepts aligned
       inline sizes and adjacent external buffers) to reduce false positives in traces (2026-03-05).
-    - Repro (2026-03-05): higher-pressure alloc_churn with GC poison + reuse + list_int
-      (`OREN_BENCH_LIST_LEN=512`, `OREN_GC_ALLOC_THRESHOLD=5000`) hits
-      `gc list_int header corrupt` (log:
-      `build/logs/alloc_churn_trace_gc_ring_poison_hi_20260305_020406.log`).
+   - Repro (2026-03-05): higher-pressure alloc_churn with GC poison + reuse + list_int
+     (`OREN_BENCH_LIST_LEN=512`, `OREN_GC_ALLOC_THRESHOLD=5000`) hits
+     `gc list_int header corrupt` (log:
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_20260305_020406.log`).
+   - Repro (2026-03-05): same env with `OREN_TRACE_GC_REUSE_BAD_LIST_CAP=4` triggers
+     `gc_reuse_bad_list` and `gc list_int header corrupt`; ring dump shows only op=91
+     entries (logs:
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap_20260305_023629_1.log`,
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap_20260305_023629_1_correlate2.log`).
+   - Next: confirm list_hdr ring captures list_int fast-path writes for the corrupted ptr
+     (current dump only shows op=91 GC entries; consider enabling native list_hdr tracing
+     or auditing list_int fast paths for ring hooks).
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run

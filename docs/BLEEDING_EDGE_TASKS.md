@@ -598,14 +598,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (`OREN_BENCH_LIST_LEN=512`, `OREN_GC_ALLOC_THRESHOLD=5000`) hits
     `gc list_int header corrupt` (log:
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_20260305_020406.log`).
+  - Repro (2026-03-05): same env with `OREN_TRACE_GC_REUSE_BAD_LIST_CAP=4` triggers
+    `gc_reuse_bad_list` and `gc list_int header corrupt`; list_hdr ring dump shows only
+    op=91 entries (logs:
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap_20260305_023629_1.log`,
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap_20260305_023629_1_correlate2.log`).
   - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now auto-enables free-list header dumps +
     list_hdr ring capture (no separate `OREN_TRACE_LIST_HDR_RING` needed, 2026-02-26).
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`
     samples alongside `[gc_free_list]` without extra ring flags
     (log: `build/logs/alloc_churn_trace_gc_ring_20260226_172250.log`).
   - Tool: `tools/trace_list_hdr_correlate.py --log <log> --limit 5 --max 50` correlates
-    `[list_hdr]` and `[list_hdr_ring]` traces with `[gc_free_list]` samples, and now
-    surfaces `list_corrupt` / `gc_list_*_corrupt` events to spot last header writes.
+    `[list_hdr]` and `[list_hdr_ring]` traces with `[gc_free_list]` samples, surfaces
+    `list_corrupt` / `gc_list_*_corrupt` events, and attaches ring dumps when present to
+    spot last header writes.
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records
     OREN/AVM env + logs for reproducible trace runs. Use `ALLOC_CHURN_RUN_TIMEOUT_SECS`
     to bound long-running traces.

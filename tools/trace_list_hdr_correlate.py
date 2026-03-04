@@ -112,6 +112,7 @@ def main() -> int:
     limit = max(1, args.limit)
     max_out = max(1, args.max)
     per_ptr = collections.defaultdict(lambda: collections.deque(maxlen=limit))
+    per_ptr_ring = collections.defaultdict(list)
     per_ptr_recent = collections.defaultdict(list)
     per_ptr_recent_hits = collections.defaultdict(list)
     pending_bad_list_recent = collections.Counter()
@@ -149,6 +150,7 @@ def main() -> int:
                         "buf": buf,
                         "magic": magic,
                     }
+                    per_ptr_ring[ptr].append(ring_entry)
                     if pending_gc is not None and pending_gc["ptr"] == ptr:
                         pending_gc["ring_entries"].append(ring_entry)
                     continue
@@ -224,7 +226,7 @@ def main() -> int:
                         "ptr": ptr,
                         "chunk": chunk,
                         "entries": list(per_ptr.get(ptr, ())),
-                        "ring_entries": [],
+                        "ring_entries": list(per_ptr_ring.get(ptr, ())),
                     }
                     events.append(event)
                     if ptr in per_ptr_recent:
@@ -245,7 +247,7 @@ def main() -> int:
                         "buf": buf,
                         "magic": magic,
                         "entries": list(per_ptr.get(ptr, ())),
-                        "ring_entries": [],
+                        "ring_entries": list(per_ptr_ring.get(ptr, ())),
                     }
                     events.append(event)
                     if ptr in per_ptr_recent:
