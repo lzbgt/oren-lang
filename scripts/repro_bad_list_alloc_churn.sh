@@ -7,6 +7,7 @@ LOG_DIR="${LOG_DIR:-$ROOT/build/logs}"
 RUNS="${RUNS:-10}"
 BUILD="${BUILD:-1}"
 EXTRA_TRACE="${EXTRA_TRACE:-0}"
+CRASH_FOOTER="${CRASH_FOOTER:-1}"
 
 if ! command -v rg >/dev/null 2>&1; then
   echo "rg is required (ripgrep)." >&2
@@ -40,10 +41,14 @@ for ((i=0; i<RUNS; i++)); do
 
   set +e
   trace_extra_env=()
+  crash_footer_env=()
   if [ "$EXTRA_TRACE" != "0" ]; then
     trace_extra_env+=("OREN_TRACE_GC_REUSE_SUMMARY=1")
     trace_extra_env+=("OREN_TRACE_GC_LIST_HDR_KIND=64")
     trace_extra_env+=("OREN_TRACE_GC_LIST_HDR_OK=64")
+  fi
+  if [ "$CRASH_FOOTER" != "0" ]; then
+    crash_footer_env+=("OREN_TRACE_CRASH_FOOTER=1")
   fi
 
   env OREN_BENCH_ITERS="$iters" \
@@ -65,6 +70,7 @@ for ((i=0; i<RUNS; i++)); do
       OREN_TRACE_GC_RING_PRE=1 \
       OREN_TRACE_GC_RING_RECENT=1 \
       "${trace_extra_env[@]}" \
+      "${crash_footer_env[@]}" \
       "$BIN" > "$log" 2>&1
   status=$?
   set -e
