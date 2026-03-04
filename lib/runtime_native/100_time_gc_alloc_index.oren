@@ -335,6 +335,9 @@ fn native_alloc_index_put_node(node) {
                           " magic=" + oren_int_to_string(magic) +
                           " zeroed_count=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
                           " bad_count=" + oren_int_to_string(g_alloc_index_list_bad_count))
+                    if g_trace_alloc_index_list_bad_ring_recent > 0 {
+                        native_list_header_ring_dump_last(ptr, g_trace_alloc_index_list_bad_ring_recent)
+                    }
                 }
             }
             if size >= 1073741824 {

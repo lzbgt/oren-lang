@@ -735,6 +735,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      counters to track noise vs true corruption across runs.
    - Update (2026-03-05): GC summary now prints `[alloc_index_list_counts]` when
      `OREN_TRACE_ALLOC_INDEX=1` to report per-sweep zeroed/bad totals.
+   - Update (2026-03-05): `OREN_TRACE_ALLOC_INDEX_LIST_BAD_RING_RECENT=<n>` dumps the last
+     `<n>` list_hdr ring entries when `[alloc_index_list_bad]` fires.
    - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` +
      `OREN_BENCH_GC_EVERY=50` emitted repeated `[alloc_index_list_counts]` lines
      (log: `build/logs/alloc_churn_trace_alloc_index_counts_summary_gc_20260305_034720.log`).
