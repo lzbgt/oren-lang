@@ -141,6 +141,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     loop a C-backend build fixture (default `arith_div0.oren`, override with
     `OREN_TRACE_ARITH_SRC=...`) with list header ring guardrails to reproduce
     list_int header corruption (2026-03-04).
+  - New: `scripts/verify_runtime_robustness_w5.sh` + `make verify-runtime-robustness`
+    run the W5 runtime-robustness smoke (stage2 quick integration + C-backend build
+    fixtures) with guardrail traces for faster production-readiness triage (2026-03-04).
    - Trace: global slot dump maps `idx=434` / `off=3472` to `g_trace_list_hdr_ring_ptr_guard_last`
      after rebuilding stage2 (`alloc_churn_build_globals_idx434_manual_20260227.log`, 2026-02-27).
    - Trace: precheck_guard9 (cached + no-cache) still shows bad-list roots with
@@ -277,6 +280,7 @@ Local (fast):
 - `make verify-backend-parity-tags`
 - `make verify-backend-parity-arith-panics`
 - `make verify-backend-parity-index-panics`
+- `make verify-runtime-robustness`
 - `./scripts/verify_x64_linux_qemu_smoke.sh`
 
 Note: `make verify-backend-parity-tags` depends on AVM CLI/VM build; keep select-case parsing + helper visibility in sync with the split.

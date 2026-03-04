@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -455,6 +455,9 @@ verify-backend-parity-index-panics: oren_stage2 avm
 # Cross-backend parity aggregate: run all parity smokes together.
 verify-backend-parity: verify-backend-parity-boxed-list verify-backend-parity-list-int verify-backend-parity-tags verify-backend-parity-arith-panics verify-backend-parity-index-panics
 	@echo "verify-backend-parity OK"
+
+verify-runtime-robustness: oren_stage2
+	./scripts/verify_runtime_robustness_w5.sh 1 ./$(OREN_STAGE2_BIN)
 
 # GUI bring-up smoke (headful, opt-in).
 # This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
