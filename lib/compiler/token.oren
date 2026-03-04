@@ -57,6 +57,7 @@ var TOK_CLASS = "CLASS"
 var TOK_NIL = "NIL"
 var TOK_FFI = "FFI"
 var TOK_TEST = "TEST"
+var TOK_ASSERT = "ASSERT"
 var TOK_SPAWN = "SPAWN"
 var TOK_SWITCH = "SWITCH"
 var TOK_CASE = "CASE"
@@ -188,6 +189,7 @@ fn lookup_ident(ident) {
     if ident == "nil" { return TOK_NIL }
     if ident == "ffi" { return TOK_FFI }
     if ident == "test" { return TOK_TEST }
+    if ident == "assert" { return TOK_ASSERT }
     if ident == "spawn" { return TOK_SPAWN }
     if ident == "switch" { return TOK_SWITCH }
     if ident == "case" { return TOK_CASE }
@@ -264,6 +266,7 @@ fn is_builtin_type_token(tt) {
 // and legal in dotted namespaces/type positions.
 fn is_ident_like_token(tt) {
     if tt == TOK_IDENT { return true }
+    if tt == TOK_ASSERT { return true }
     return is_builtin_type_token(tt)
 }
 

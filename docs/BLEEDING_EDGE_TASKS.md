@@ -31,7 +31,7 @@ kept in sync with `docs/STATUS.md`.
 Priority weights (rolling, refreshed after x64 emit ops split):
 - W5 items remain the top leverage path to production parity (perf + semantic + runtime robustness).
 - W4/W3 follow; W3 large-file refactors are currently complete.
-- New: alloc_churn regressed to 22.8× C (arm64, 2026-03-04); requires perf work to restore <= 8× gate.
+- New: alloc_churn back within the 8× gate at 5.54× C (arm64, 2026-03-04).
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
@@ -42,10 +42,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-03-04): `alloc_churn` 22.8× C, `alloc_drop` 1.45× C.
-   - New run (arm64, 2026-03-04, runs=5, warmups=1):
-     - alloc_churn: C 0.002778s, native 0.635249s (228.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
-     - alloc_drop: C 0.002940s, native 0.004280s (1.46× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+   - Baseline (arm64 native, 2026-03-04): `alloc_churn` 5.54× C, `alloc_drop` 1.58× C.
+   - New run (arm64, 2026-03-04, runs=5, warmups=1; log: `build/logs/bench_alloc_churn_drop_20260304_235146.log`):
+     - alloc_churn: C 0.002886s, native 0.015997s (5.54× C).
+     - alloc_drop: C 0.002986s, native 0.004703s (1.58× C).
    - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
    - New: latest snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
@@ -1674,8 +1674,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: list<int> fixtures + OBC perf parity.
 
 9) **W4 feature set completeness (essential modern features)**
-   - Implement across backends (C/native/OBC): `yield`/stackless coroutines, built-in `assert`/`test`,
+   - Implement across backends (C/native/OBC): `yield`/stackless coroutines, built-in `test` runner,
      structured error model, visibility boundaries, bytes + typed buffers, variadic ergonomics.
+   - Implemented (rolling): core `assert(cond, msg?)` statement.
    - Not implemented yet: dynamic module loading; user-defined methods/inheritance (track when design lands).
    - Gate: feature fixtures across backends + updated `docs/LANGUAGE.md`/`docs/STATUS.md`.
 

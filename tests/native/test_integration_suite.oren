@@ -29,6 +29,11 @@ fn assert_streq(a, b, code) {
     fail(code)
 }
 
+fn test_assert_stmt() {
+    assert(true)
+    assert(1 + 1 == 2, "assert stmt ok")
+}
+
 fn u16be_at(p, off) {
     var hi = ptr_get_byte(p + off)
     var lo = ptr_get_byte(p + off + 1)
@@ -1344,6 +1349,7 @@ fn main() {
     // ENV test must run first because it may execve() once.
     test_env_execve_getenv()
 
+    test_assert_stmt()
     test_core_smoke()
     test_malloc_bump()
     test_syscall_errno()

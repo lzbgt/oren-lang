@@ -159,6 +159,11 @@ fn test_std_assert_smoke() {
     assert_eq(okv, 9)
 }
 
+fn test_assert_stmt() {
+    assert(true)
+    assert(2 + 2 == 4, "assert stmt ok")
+}
+
 fn test_bytes_set_endian() {
     // list<int> path
     var l16 = [0, 0]
@@ -1010,6 +1015,7 @@ fn main() {
     test_map_order()
     test_control_flow()
     test_std_assert_smoke()
+    test_assert_stmt()
     test_std_bytes_smoke()
     test_std_strings_smoke()
     test_int_casts()

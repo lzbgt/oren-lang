@@ -503,6 +503,7 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_IMPL) { return parse_impl_decl(p) }
     if cur_is(p, token.TOK_FFI) { return parse_ffi(p) }
     if cur_is(p, token.TOK_TEST) { return parse_test(p) }
+    if cur_is(p, token.TOK_ASSERT) { return parse_assert(p) }
     if cur_is(p, token.TOK_SPAWN) { return parse_spawn(p) }
     if cur_is(p, token.TOK_LBRACE) { return parse_block(p) }
     if cur_is(p, token.TOK_IDENT) {

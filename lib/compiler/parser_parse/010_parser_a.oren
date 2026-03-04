@@ -423,6 +423,38 @@ fn parse_test(p) {
     return ast.new_expr_stmt(tok, fn_node)
 }
 
+fn parse_assert(p) {
+    var tok = p["cur"]
+    // assert(cond, msg?)
+    if !expect_peek(p, token.TOK_LPAREN) { return nil }
+    parser_next_token(p)
+    var cond = parse_expression(p, LOWEST)
+    var msg = nil
+    if peek_is(p, token.TOK_COMMA) {
+        parser_next_token(p) // comma
+        parser_next_token(p) // expr
+        msg = parse_expression(p, LOWEST)
+    }
+    if !expect_peek(p, token.TOK_RPAREN) { return nil }
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+
+    if msg == nil {
+        var msg_tok = token.new_token(token.TOK_STRING, "assert failed")
+        msg = ast.new_string(msg_tok)
+    }
+
+    var not_tok = token.new_token(token.TOK_BANG, "!")
+    var not_cond = ast.new_prefix(not_tok, "!", cond)
+    var fail_tok = token.new_token(token.TOK_IDENT, "oren_fail")
+    var fail_fn = ast.new_identifier(fail_tok)
+    var code_tok = token.new_token(token.TOK_INT, "1")
+    var fail_call = ast.new_call(tok, fail_fn, [ast.new_integer(code_tok), msg])
+    var fail_stmt = ast.new_expr_stmt(tok, fail_call)
+    var block = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+    oren_list_push(block["stmts"], fail_stmt)
+    return ast.new_if(tok, not_cond, block, nil)
+}
+
 fn parse_var(p) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }

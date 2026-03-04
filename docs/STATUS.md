@@ -359,9 +359,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
 
 5) **W4 - Feature set completeness (essential modern features)**
-   - Planned (not yet implemented): `yield`/stackless coroutines, built-in `assert`/`test`,
+   - Planned (not yet implemented): `yield`/stackless coroutines, built-in `test` runner,
      structured error model, visibility boundaries, bytes + typed buffers, variadic ergonomics
      (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
+   - Implemented (rolling): core `assert(cond, msg?)` statement lowers to `oren_fail`
+     for deterministic runtime panics (2026-03-04).
    - Not implemented: dynamic module loading; user-defined methods/inheritance (see `docs/LANGUAGE.md`).
    - Interim: `std:assert` helper module provides `assert`/`assert_eq` in the stdlib (2026-03-03).
 
