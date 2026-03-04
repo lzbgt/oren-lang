@@ -22,6 +22,210 @@ fn _env_int(key, fallback) {
     return out
 }
 
+fn _alloc_churn_list(n, gc_every, clear_list, small_ints, list_len) {
+    var acc = 0
+    if clear_list != 0 {
+        var gc_count = 0
+        var i = 0
+        while i < n {
+            var xs = []
+            var j = 0
+            while j < list_len {
+                var v = i + j
+                if small_ints != 0 { v = j }
+                oren_list_push(xs, v)
+                j = j + 1
+            }
+            acc = acc + xs[0]
+            if gc_every > 0 && i > 0 {
+                gc_count = gc_count + 1
+                if gc_count == gc_every {
+                    gc_count = 0
+                    oren_gc_collect()
+                }
+            }
+            xs = nil
+            i = i + 1
+        }
+    } else {
+        var gc_count2 = 0
+        var i2 = 0
+        while i2 < n {
+            var xs2 = []
+            var j2 = 0
+            while j2 < list_len {
+                var v2 = i2 + j2
+                if small_ints != 0 { v2 = j2 }
+                oren_list_push(xs2, v2)
+                j2 = j2 + 1
+            }
+            acc = acc + xs2[0]
+            if gc_every > 0 && i2 > 0 {
+                gc_count2 = gc_count2 + 1
+                if gc_count2 == gc_every {
+                    gc_count2 = 0
+                    oren_gc_collect()
+                }
+            }
+            i2 = i2 + 1
+        }
+    }
+    return acc
+}
+
+fn _alloc_churn_list_len128(n, gc_every, clear_list, small_ints) {
+    var acc = 0
+    if clear_list != 0 {
+        var gc_count = 0
+        var i = 0
+        while i < n {
+            var xs = []
+            var j = 0
+            while j < 128 {
+                var v = i + j
+                if small_ints != 0 { v = j }
+                oren_list_push(xs, v)
+                j = j + 1
+            }
+            acc = acc + xs[0]
+            if gc_every > 0 && i > 0 {
+                gc_count = gc_count + 1
+                if gc_count == gc_every {
+                    gc_count = 0
+                    oren_gc_collect()
+                }
+            }
+            xs = nil
+            i = i + 1
+        }
+    } else {
+        var gc_count2 = 0
+        var i2 = 0
+        while i2 < n {
+            var xs2 = []
+            var j2 = 0
+            while j2 < 128 {
+                var v2 = i2 + j2
+                if small_ints != 0 { v2 = j2 }
+                oren_list_push(xs2, v2)
+                j2 = j2 + 1
+            }
+            acc = acc + xs2[0]
+            if gc_every > 0 && i2 > 0 {
+                gc_count2 = gc_count2 + 1
+                if gc_count2 == gc_every {
+                    gc_count2 = 0
+                    oren_gc_collect()
+                }
+            }
+            i2 = i2 + 1
+        }
+    }
+    return acc
+}
+
+fn _alloc_churn_list_int(n, gc_every, clear_list, small_ints, list_len) {
+    var acc = 0
+    if clear_list != 0 {
+        var gc_count = 0
+        var i = 0
+        while i < n {
+            var xs = oren_new_list_int(0)
+            var j = 0
+            while j < list_len {
+                var v = i + j
+                if small_ints != 0 { v = j }
+                oren_list_int_push(xs, v)
+                j = j + 1
+            }
+            acc = acc + oren_list_int_get(xs, 0)
+            if gc_every > 0 && i > 0 {
+                gc_count = gc_count + 1
+                if gc_count == gc_every {
+                    gc_count = 0
+                    oren_gc_collect()
+                }
+            }
+            xs = nil
+            i = i + 1
+        }
+    } else {
+        var gc_count2 = 0
+        var i2 = 0
+        while i2 < n {
+            var xs2 = oren_new_list_int(0)
+            var j2 = 0
+            while j2 < list_len {
+                var v2 = i2 + j2
+                if small_ints != 0 { v2 = j2 }
+                oren_list_int_push(xs2, v2)
+                j2 = j2 + 1
+            }
+            acc = acc + oren_list_int_get(xs2, 0)
+            if gc_every > 0 && i2 > 0 {
+                gc_count2 = gc_count2 + 1
+                if gc_count2 == gc_every {
+                    gc_count2 = 0
+                    oren_gc_collect()
+                }
+            }
+            i2 = i2 + 1
+        }
+    }
+    return acc
+}
+
+fn _alloc_churn_list_int_len128(n, gc_every, clear_list, small_ints) {
+    var acc = 0
+    if clear_list != 0 {
+        var gc_count = 0
+        var i = 0
+        while i < n {
+            var xs = oren_new_list_int(0)
+            var j = 0
+            while j < 128 {
+                var v = i + j
+                if small_ints != 0 { v = j }
+                oren_list_int_push(xs, v)
+                j = j + 1
+            }
+            acc = acc + oren_list_int_get(xs, 0)
+            if gc_every > 0 && i > 0 {
+                gc_count = gc_count + 1
+                if gc_count == gc_every {
+                    gc_count = 0
+                    oren_gc_collect()
+                }
+            }
+            xs = nil
+            i = i + 1
+        }
+    } else {
+        var gc_count2 = 0
+        var i2 = 0
+        while i2 < n {
+            var xs2 = oren_new_list_int(0)
+            var j2 = 0
+            while j2 < 128 {
+                var v2 = i2 + j2
+                if small_ints != 0 { v2 = j2 }
+                oren_list_int_push(xs2, v2)
+                j2 = j2 + 1
+            }
+            acc = acc + oren_list_int_get(xs2, 0)
+            if gc_every > 0 && i2 > 0 {
+                gc_count2 = gc_count2 + 1
+                if gc_count2 == gc_every {
+                    gc_count2 = 0
+                    oren_gc_collect()
+                }
+            }
+            i2 = i2 + 1
+        }
+    }
+    return acc
+}
+
 fn main() {
     // Allocation churn to surface leaks / GC regressions.
     // Note: we trigger GC periodically to keep live set bounded.
@@ -30,32 +234,26 @@ fn main() {
     var clear_list = _env_int("OREN_BENCH_CLEAR_LIST", 0)
     var small_ints = _env_int("OREN_BENCH_SMALL_INTS", 0)
     var force_list_int = _env_int("OREN_BENCH_FORCE_LIST_INT", 0)
-    var list_len = _env_int("OREN_BENCH_LIST_LEN", 128)
-    var gc_count = 0
-    var i = 0
+    var list_len = 128
+    var list_len_override = 0
+    var list_len_env = oren_env("OREN_BENCH_LIST_LEN")
+    if list_len_env != nil {
+        list_len = _env_int("OREN_BENCH_LIST_LEN", 128)
+        list_len_override = 1
+    }
     var acc = 0
-    while i < n {
-        var xs = []
-        if force_list_int != 0 { xs = oren_new_list_int(0) }
-        var j = 0
-        while j < list_len {
-            var v = i + j
-            if small_ints != 0 { v = j }
-            if force_list_int != 0 { oren_list_int_push(xs, v) }
-            else { oren_list_push(xs, v) }
-            j = j + 1
+    if force_list_int != 0 {
+        if list_len_override != 0 {
+            acc = _alloc_churn_list_int(n, gc_every, clear_list, small_ints, list_len)
+        } else {
+            acc = _alloc_churn_list_int_len128(n, gc_every, clear_list, small_ints)
         }
-        if force_list_int != 0 { acc = acc + oren_list_int_get(xs, 0) }
-        else { acc = acc + xs[0] }
-        if gc_every > 0 && i > 0 {
-            gc_count = gc_count + 1
-            if gc_count == gc_every {
-                gc_count = 0
-                oren_gc_collect()
-            }
+    } else {
+        if list_len_override != 0 {
+            acc = _alloc_churn_list(n, gc_every, clear_list, small_ints, list_len)
+        } else {
+            acc = _alloc_churn_list_len128(n, gc_every, clear_list, small_ints)
         }
-        if clear_list != 0 { xs = nil }
-        i = i + 1
     }
     print(acc)
 }

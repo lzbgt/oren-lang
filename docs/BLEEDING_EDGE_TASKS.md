@@ -31,7 +31,7 @@ kept in sync with `docs/STATUS.md`.
 Priority weights (rolling, refreshed after x64 emit ops split):
 - W5 items remain the top leverage path to production parity (perf + semantic + runtime robustness).
 - W4/W3 follow; W3 large-file refactors are currently complete.
-- New: alloc_churn is back within the 8× gate after default-on loop list reuse; keep monitoring for regressions.
+- New: alloc_churn regressed to 22.8× C (arm64, 2026-03-04); requires perf work to restore <= 8× gate.
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
@@ -42,7 +42,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
+   - Baseline (arm64 native, 2026-03-04): `alloc_churn` 22.8× C, `alloc_drop` 1.45× C.
    - New run (arm64, 2026-03-04, runs=5, warmups=1):
      - alloc_churn: C 0.002778s, native 0.635249s (228.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
      - alloc_drop: C 0.002940s, native 0.004280s (1.46× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).

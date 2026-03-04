@@ -439,6 +439,11 @@ OrenValue oren_list_int_push(OrenValue list, OrenValue value) {
     return oren_list_push(list, value);
 }
 
+OrenValue oren_list_int_push_unchecked(OrenValue list, OrenValue value) {
+    if (!oren_list_int_check_value(value)) return OREN_NIL;
+    return oren_list_push_unchecked(list, value);
+}
+
 OrenValue oren_list_int_get(OrenValue list, OrenValue index) {
     if (list.type == OREN_TYPE_LIST) {
         if (index.type != OREN_TYPE_INT) {

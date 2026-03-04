@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; `alloc_churn` 6.62×, `alloc_drop` 1.28× on arm64, 2026-02-26).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; latest `alloc_churn` 22.8×, `alloc_drop` 1.45× on arm64, 2026-03-04).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -56,7 +56,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; `alloc_churn` 6.62× C, `alloc_drop` 1.28× C (arm64, 2026-02-26).
+   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; latest `alloc_churn` 22.8× C, `alloc_drop` 1.45× C (arm64, 2026-03-04).
    - Priority: hot loops remain above the 2× gate; allocation/GC is now within the 8×/5× gates on arm64.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
