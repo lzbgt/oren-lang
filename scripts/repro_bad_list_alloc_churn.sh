@@ -72,6 +72,11 @@ for ((i=0; i<RUNS; i++)); do
     echo "run $i exited status $status (log=$log)" >&2
   fi
 
+  if rg -n "\\[crash_footer_raw\\]" "$log" >/dev/null; then
+    line="$(rg -m 1 -n "\\[crash_footer_raw\\]" "$log")"
+    echo "crash_footer_raw: $line"
+  fi
+
   if rg -n "\\[gc_reuse_bad_list\\]" "$log" >/dev/null; then
     line="$(rg -n "\\[gc_reuse_bad_list\\]" "$log" | head -n 1)"
     ptr="$(echo "$line" | sed -E 's/.*ptr=([0-9]+).*/\\1/')"
