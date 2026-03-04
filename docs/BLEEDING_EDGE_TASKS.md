@@ -644,15 +644,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     ahead of list header initialization; magic=0 appears to be expected for fresh
     list allocations (log:
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_ctortrace_20260305_031847.log`).
-  - Update (2026-03-05): alloc-index now emits `[alloc_index_list_zeroed]` when a list header
-    is still zeroed (magic/len/cap/buf all 0), separating fresh allocations from genuine
-    corruption in `[alloc_index_list_bad]`.
+  - Update (2026-03-05): alloc-index now emits `[alloc_index_list_zeroed]` only when
+    `OREN_TRACE_ALLOC_INDEX_ZEROED=1` and the list header is still zeroed (magic/len/cap/buf
+    all 0), separating fresh allocations from genuine corruption in
+    `[alloc_index_list_bad]`.
   - Update (2026-03-05): alloc-index list trace lines now include `zeroed_count`/`bad_count`
     counters to quantify noise reduction across a run.
-  - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` (`OREN_BENCH_ITERS=2000`)
-    reported `zeroed_count=2` and `bad_count=0` (log:
+  - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` +
+    `OREN_TRACE_ALLOC_INDEX_ZEROED=1` (`OREN_BENCH_ITERS=2000`) reported `zeroed_count=2`
+    and `bad_count=0` (log:
     `build/logs/alloc_churn_trace_alloc_index_counts_20260305_033136.log`).
-  - Trace (2026-03-05): higher-pressure alloc_churn with GC reuse knobs reported
+  - Trace (2026-03-05): higher-pressure alloc_churn with GC reuse knobs +
+    `OREN_TRACE_ALLOC_INDEX_ZEROED=1` reported
     `zeroed_count=256` and `bad_count=0` (log:
     `build/logs/alloc_churn_trace_alloc_index_counts_hi_20260305_033237.log`).
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records

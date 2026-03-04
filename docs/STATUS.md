@@ -728,14 +728,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (log: `build/logs/alloc_churn_trace_gc_ring_poison_hi_ctortrace_20260305_031847.log`).
    - Next: if corruption still shows only op=91 GC entries, consider adding per-iteration
      ring updates under a trace guard to capture in-loop header writes.
-   - Update (2026-03-05): alloc-index now emits `[alloc_index_list_zeroed]` when headers are
-     still zeroed (magic/len/cap/buf all 0), reducing noise in `[alloc_index_list_bad]`.
+   - Update (2026-03-05): alloc-index now emits `[alloc_index_list_zeroed]` only when
+     `OREN_TRACE_ALLOC_INDEX_ZEROED=1` and headers are still zeroed (magic/len/cap/buf all 0),
+     reducing noise in `[alloc_index_list_bad]`.
    - Update (2026-03-05): alloc-index list trace lines now include `zeroed_count`/`bad_count`
      counters to track noise vs true corruption across runs.
-   - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` (`OREN_BENCH_ITERS=2000`)
-     reported `zeroed_count=2` and `bad_count=0` (log:
+   - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` +
+     `OREN_TRACE_ALLOC_INDEX_ZEROED=1` (`OREN_BENCH_ITERS=2000`) reported `zeroed_count=2`
+     and `bad_count=0` (log:
      `build/logs/alloc_churn_trace_alloc_index_counts_20260305_033136.log`).
-   - Trace (2026-03-05): higher-pressure alloc_churn with GC reuse knobs reported
+   - Trace (2026-03-05): higher-pressure alloc_churn with GC reuse knobs +
+     `OREN_TRACE_ALLOC_INDEX_ZEROED=1` reported
      `zeroed_count=256` and `bad_count=0` (log:
      `build/logs/alloc_churn_trace_alloc_index_counts_hi_20260305_033237.log`).
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so

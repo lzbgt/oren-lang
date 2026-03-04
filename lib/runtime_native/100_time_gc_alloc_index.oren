@@ -307,23 +307,35 @@ fn native_alloc_index_put_node(node) {
             if magic - want_magic != 0 && magic - want_poison != 0 {
                 var zeroed = 0
                 if magic == 0 && len == 0 && cap == 0 && buf == 0 { zeroed = 1 }
-                var tag = "[alloc_index_list_bad]"
                 if zeroed != 0 {
-                    tag = "[alloc_index_list_zeroed]"
                     g_alloc_index_list_zeroed_count = g_alloc_index_list_zeroed_count + 1
+                    if g_trace_alloc_index_zeroed != 0 {
+                        var tag = "[alloc_index_list_zeroed]"
+                        print(tag + " ptr=" + oren_int_to_string(ptr) +
+                              " node=" + oren_int_to_string(node) +
+                              " kind=" + oren_int_to_string(kind) +
+                              " size=" + oren_int_to_string(size) +
+                              " len=" + oren_int_to_string(len) +
+                              " cap=" + oren_int_to_string(cap) +
+                              " buf=" + oren_int_to_string(buf) +
+                              " magic=" + oren_int_to_string(magic) +
+                              " zeroed_count=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
+                              " bad_count=" + oren_int_to_string(g_alloc_index_list_bad_count))
+                    }
                 } else {
                     g_alloc_index_list_bad_count = g_alloc_index_list_bad_count + 1
+                    var tag = "[alloc_index_list_bad]"
+                    print(tag + " ptr=" + oren_int_to_string(ptr) +
+                          " node=" + oren_int_to_string(node) +
+                          " kind=" + oren_int_to_string(kind) +
+                          " size=" + oren_int_to_string(size) +
+                          " len=" + oren_int_to_string(len) +
+                          " cap=" + oren_int_to_string(cap) +
+                          " buf=" + oren_int_to_string(buf) +
+                          " magic=" + oren_int_to_string(magic) +
+                          " zeroed_count=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
+                          " bad_count=" + oren_int_to_string(g_alloc_index_list_bad_count))
                 }
-                print(tag + " ptr=" + oren_int_to_string(ptr) +
-                      " node=" + oren_int_to_string(node) +
-                      " kind=" + oren_int_to_string(kind) +
-                      " size=" + oren_int_to_string(size) +
-                      " len=" + oren_int_to_string(len) +
-                      " cap=" + oren_int_to_string(cap) +
-                      " buf=" + oren_int_to_string(buf) +
-                      " magic=" + oren_int_to_string(magic) +
-                      " zeroed_count=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
-                      " bad_count=" + oren_int_to_string(g_alloc_index_list_bad_count))
             }
             if size >= 1073741824 {
                 var expected = 32
