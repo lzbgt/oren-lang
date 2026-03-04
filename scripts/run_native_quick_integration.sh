@@ -12,11 +12,21 @@ skip_base_run="${OREN_QI_SKIP_BASE_RUN:-0}"
 skip_green_cache="${OREN_QI_SKIP_GREEN_CACHE:-0}"
 stop_after_green_cache="${OREN_QI_STOP_AFTER_GREEN_CACHE:-0}"
 only_green_cache="${OREN_QI_ONLY_GREEN_CACHE:-0}"
+green_cache_first="${OREN_QI_GREEN_CACHE_FIRST:-0}"
+green_cache_runs="${OREN_QI_GREEN_CACHE_RUNS:-1}"
 
 if [[ "$only_green_cache" == "1" ]]; then
   skip_base_run=1
   stop_after_green_cache=1
   skip_green_cache=0
+fi
+if ! [[ "$green_cache_runs" =~ ^[0-9]+$ ]]; then
+  echo "OREN_QI_GREEN_CACHE_RUNS must be a positive integer" >&2
+  exit 2
+fi
+if [[ "$green_cache_runs" -le 0 ]]; then
+  echo "OREN_QI_GREEN_CACHE_RUNS must be >= 1" >&2
+  exit 2
 fi
 if [[ -n "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS}"
@@ -155,18 +165,40 @@ rm -f "$log" "$out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
   --backend native --platform "$platform" --debug -o "$out" >"$log" 2>&1
 
-if [[ "$skip_base_run" == "1" ]]; then
-  echo "SKIP: base run disabled (OREN_QI_SKIP_BASE_RUN=1)" >>"$log"
-else
-  run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
-fi
-
-if [[ "$skip_green_cache" == "1" ]]; then
-  echo "SKIP: green cache run disabled (OREN_QI_SKIP_GREEN_CACHE=1)" >>"$log"
-else
+run_green_cache() {
+  if [[ "$skip_green_cache" == "1" ]]; then
+    echo "SKIP: green cache run disabled (OREN_QI_SKIP_GREEN_CACHE=1)" >>"$log"
+    return 0
+  fi
   echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$log"
   echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs" >>"$log"
-  OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
+  echo "green_cache_runs=$green_cache_runs" >>"$log"
+  local i
+  for ((i=1; i<=green_cache_runs; i++)); do
+    if [[ "$green_cache_runs" -gt 1 ]]; then
+      echo "== green cache run ${i}/${green_cache_runs} ==" >>"$log"
+    fi
+    OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
+  done
+}
+
+run_base() {
+  if [[ "$skip_base_run" == "1" ]]; then
+    echo "SKIP: base run disabled (OREN_QI_SKIP_BASE_RUN=1)" >>"$log"
+    return 0
+  fi
+  run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
+}
+
+if [[ "$green_cache_first" == "1" ]]; then
+  run_green_cache
+  if [[ "$stop_after_green_cache" == "1" ]]; then
+    exit 0
+  fi
+  run_base
+else
+  run_base
+  run_green_cache
 fi
 
 tail -n 5 "$log"

@@ -223,6 +223,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     `OREN_QI_SKIP_BASE_RUN=1`, `OREN_QI_SKIP_GREEN_CACHE=1`,
     `OREN_QI_STOP_AFTER_GREEN_CACHE=1`, or `OREN_QI_ONLY_GREEN_CACHE=1` to isolate
     quick-integration timeouts (2026-03-04).
+  - New: `scripts/run_native_quick_integration.sh` supports `OREN_QI_GREEN_CACHE_FIRST=1`
+    to run the green-cache phase before the base run and `OREN_QI_GREEN_CACHE_RUNS=<n>`
+    to repeat the green-cache phase (2026-03-04).
    - Trace: global slot dump maps `idx=434` / `off=3472` to `g_trace_list_hdr_ring_ptr_guard_last`
      after rebuilding stage2 (`alloc_churn_build_globals_idx434_manual_20260227.log`, 2026-02-27).
    - Trace: precheck_guard9 (cached + no-cache) still shows bad-list roots with
