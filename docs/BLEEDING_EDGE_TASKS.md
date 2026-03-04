@@ -1474,6 +1474,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_144207_run3.log`,
     `build/logs/native_quick_stage2_flake_20260304_144207_run3_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_144207_run3_err.log`).
+  - Trace: stage2 flake harness (1 run) with spawn ring (cap=64) plus list
+    header ring + ptr guard (`OREN_TRACE_LIST_HDR_RING=1`,
+    `OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1`, cap=2048) completed cleanly (logs:
+    `build/logs/native_quick_stage2_flake_20260304_144424_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_144424_run1_inner.log`).
   - Trace: stage2 flake harness (3 runs) with tracing mostly off but
     `OREN_TRACE_GREEN_ARGS_STAMP=1` (stride=128) and
     `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` ended on run 1 with rc=138 (bus error)
