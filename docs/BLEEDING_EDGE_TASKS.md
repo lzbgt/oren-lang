@@ -1685,6 +1685,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
    - New: `std:buffer` slice helpers return `oren_err` on invalid input; covered by
      result smoke fixture (2026-03-05).
+   - New: `std:encoding/base64.decode_bytes` error handling covered by result
+     smoke fixture (2026-03-05).
    - Not implemented yet: dynamic module loading; user-defined methods/inheritance (track when design lands).
    - Gate: feature fixtures across backends + updated `docs/LANGUAGE.md`/`docs/STATUS.md`.
 

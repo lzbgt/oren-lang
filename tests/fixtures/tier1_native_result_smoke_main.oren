@@ -5,6 +5,7 @@
 import r "../../lib/std/result.oren"
 import list "std:list"
 import buffer "std:buffer"
+import base64 "std:encoding/base64"
 
 fn main() {
     // Non-existent file => error
@@ -49,6 +50,10 @@ fn main() {
     if r.is_err(s) { return 12 }
     var bad_slice = buffer.slice_new(b, 3, 4)
     if r.is_err(bad_slice) != true { return 13 }
+
+    // std:encoding/base64 errors
+    var b64_bad = base64.decode_bytes("!!!")
+    if r.is_err(b64_bad) != true { return 14 }
 
     return 0
 }
