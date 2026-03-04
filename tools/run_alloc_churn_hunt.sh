@@ -7,6 +7,11 @@ set -euo pipefail
 max_runs="${1:-50}"
 tag_base="${2:-gc_hunt_$(date +%Y%m%d_%H%M%S)}"
 sleep_secs="${HUNT_SLEEP_SECS:-0}"
+correlate="${ALLOC_CHURN_HUNT_CORRELATE:-${HUNT_CORRELATE:-1}}"
+correlate_limit="${ALLOC_CHURN_HUNT_CORRELATE_LIMIT:-5}"
+correlate_max="${ALLOC_CHURN_HUNT_CORRELATE_MAX:-50}"
+correlate_tool="tools/trace_list_hdr_correlate.py"
+python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "")"
 
 log_dir="build/logs"
 mkdir -p "${log_dir}"
@@ -36,6 +41,14 @@ while [[ "${run_idx}" -le "${max_runs}" ]]; do
     if rg -m 1 -n "${fail_pat}" "${run_log}" >/dev/null; then
       echo "alloc_churn_hunt: corruption signature found in ${run_log}"
       rg -n "${fail_pat}" "${run_log}" | head -n 5
+      if [[ "${correlate}" != "0" && -n "${python_bin}" && -f "${correlate_tool}" ]]; then
+        correlate_log="${log_dir}/alloc_churn_trace_${tag}_correlate.log"
+        if "${python_bin}" "${correlate_tool}" --log "${run_log}" --limit "${correlate_limit}" --max "${correlate_max}" > "${correlate_log}" 2>&1; then
+          echo "alloc_churn_hunt: correlate log written to ${correlate_log}"
+        else
+          echo "alloc_churn_hunt: correlate failed (see ${correlate_log})"
+        fi
+      fi
       exit 0
     fi
   fi

@@ -20,6 +20,12 @@ GC_FREE_RE = re.compile(
 GC_REUSE_BAD_LIST_RE = re.compile(
     r"\[gc_reuse_bad_list\] .*ptr=(\d+)\b"
 )
+GC_LIST_CORRUPT_RE = re.compile(
+    r"trace: gc (list(?:_int)?) corrupt list=(\d+) chunk=(\d+)"
+)
+LIST_CORRUPT_RE = re.compile(
+    r"trace: list_corrupt stage=(\d+) list=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -90,6 +96,15 @@ def fmt_gc(entry) -> str:
         f"ptr={entry['ptr']} chunk={entry['chunk']} kind={entry['kind']} "
         f"len={entry['len']} cap={entry['cap']} buf={entry['buf']} magic={entry['magic']}"
     )
+
+def fmt_list_corrupt(entry) -> str:
+    return (
+        f"stage={entry['stage']} list={entry['ptr']} len={entry['len']} cap={entry['cap']} "
+        f"buf={entry['buf']} magic={entry['magic']}"
+    )
+
+def fmt_gc_list_corrupt(entry) -> str:
+    return f"ptr={entry['ptr']} chunk={entry['chunk']}"
 
 
 def main() -> int:
@@ -198,6 +213,47 @@ def main() -> int:
                         )
                     continue
 
+                m = GC_LIST_CORRUPT_RE.search(line)
+                if m:
+                    kind_tag, ptr, chunk = m.groups()
+                    ptr = int(ptr)
+                    chunk = int(chunk)
+                    src = "gc_list_corrupt" if kind_tag == "list" else "gc_list_int_corrupt"
+                    event = {
+                        "src": src,
+                        "ptr": ptr,
+                        "chunk": chunk,
+                        "entries": list(per_ptr.get(ptr, ())),
+                        "ring_entries": [],
+                    }
+                    events.append(event)
+                    if ptr in per_ptr_recent:
+                        per_ptr_recent_hits[ptr].append(
+                            {"src": src, "entries": list(per_ptr_recent[ptr])}
+                        )
+                    continue
+
+                m = LIST_CORRUPT_RE.search(line)
+                if m:
+                    stage, ptr, ln, cap, buf, magic = map(int, m.groups())
+                    event = {
+                        "src": "list_corrupt",
+                        "ptr": ptr,
+                        "stage": stage,
+                        "len": ln,
+                        "cap": cap,
+                        "buf": buf,
+                        "magic": magic,
+                        "entries": list(per_ptr.get(ptr, ())),
+                        "ring_entries": [],
+                    }
+                    events.append(event)
+                    if ptr in per_ptr_recent:
+                        per_ptr_recent_hits[ptr].append(
+                            {"src": "list_corrupt", "entries": list(per_ptr_recent[ptr])}
+                        )
+                    continue
+
                 m = GC_FREE_RE.search(line)
                 if not m:
                     continue
@@ -210,6 +266,7 @@ def main() -> int:
                         }
                     )
                 event = {
+                    "src": "gc_free_list",
                     "ptr": ptr,
                     "chunk": chunk,
                     "kind": kind,
@@ -231,7 +288,14 @@ def main() -> int:
     printed_recent_ptrs = set()
     for event in events:
         emitted += 1
-        print(f"[gc_free_list] {fmt_gc(event)}")
+        if event["src"] == "gc_free_list":
+            print(f"[gc_free_list] {fmt_gc(event)}")
+        elif event["src"] == "list_corrupt":
+            print(f"[list_corrupt] {fmt_list_corrupt(event)}")
+        elif event["src"] in ("gc_list_corrupt", "gc_list_int_corrupt"):
+            print(f"[{event['src']}] {fmt_gc_list_corrupt(event)}")
+        else:
+            print(f"[{event['src']}] ptr={event['ptr']}")
         entries = event["entries"]
         ring_entries = event["ring_entries"]
         recent_entries = per_ptr_recent.get(event["ptr"], [])
