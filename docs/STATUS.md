@@ -348,7 +348,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     `list_corrupt` and `gc_list_*_corrupt` events alongside free-list samples and attaches
     ring dumps (including crash_footer_raw ring lines) when present to pinpoint last
     header writes; it also emits ring-only blocks when only ring entries are available
-    (2026-03-05).
+    and annotates crash_footer ring head/cap when present (2026-03-05).
 - Tool: `tools/run_alloc_churn_hunt.sh [max_runs] [tag_base]` repeats alloc_churn traces
   until a corruption signature is observed (or a timeout/failure stops the run), using
   the trace harness logs under `build/logs/` (set `ALLOC_CHURN_HUNT_CORRELATE=0` to skip

@@ -692,7 +692,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `[list_hdr]`, `[list_hdr_ring]`, and `crash_footer_raw` ring traces with
     `[gc_free_list]` samples, surfaces `list_corrupt` / `gc_list_*_corrupt` events, and
     attaches ring dumps when present to spot last header writes; it also emits ring-only
-    blocks when only ring entries are available.
+    blocks when only ring entries are available and annotates crash_footer ring head/cap
+    when present.
   - Update (2026-03-05): arena list/list_int allocations now emit list_hdr ring entries
     (op=1/2) so ring dumps include arena-backed list headers.
   - New: `OREN_TRACE_ALLOC_INDEX=1` now logs `[alloc_index_list_bad]` when list/list_int

@@ -17,6 +17,9 @@ LIST_HDR_RING_RECENT_RE = re.compile(
 CRASH_FOOTER_RING_RE = re.compile(
     r"\[crash_footer_raw\] ring idx=(\d+) list=(\d+) op=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+) kind=(-?\d+)"
 )
+CRASH_FOOTER_HDR_RE = re.compile(
+    r"\[crash_footer_raw\].*list_hdr_ring_cap=(\d+).*list_hdr_ring_head=(\d+)"
+)
 GC_FREE_RE = re.compile(
     r"\[gc_free_list\] ptr=(\d+) chunk=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
@@ -114,6 +117,13 @@ def fmt_gc_list_corrupt(entry) -> str:
     return f"ptr={entry['ptr']} chunk={entry['chunk']}"
 
 
+def fmt_crash_footer_ring_meta(meta) -> str:
+    return (
+        f"crash_footer_ring cap={meta['cap']} head={meta['head']} "
+        f"head_idx={meta['head_idx']}"
+    )
+
+
 def main() -> int:
     args = parse_args()
     limit = max(1, args.limit)
@@ -126,10 +136,21 @@ def main() -> int:
     recent_order = []
     events = []
     pending_gc = None
+    crash_footer_meta = None
 
     try:
         with open(args.log, "r", encoding="utf-8", errors="ignore") as fh:
             for line in fh:
+                m = CRASH_FOOTER_HDR_RE.search(line)
+                if m:
+                    cap, head = map(int, m.groups())
+                    if cap > 0:
+                        crash_footer_meta = {
+                            "cap": cap,
+                            "head": head,
+                            "head_idx": head % cap,
+                        }
+                    continue
                 m = LIST_HDR_RE.search(line)
                 if m:
                     op, ptr, kind, ln, cap, buf, magic = map(int, m.groups())
@@ -333,6 +354,12 @@ def main() -> int:
             for idx, entry in enumerate(entries):
                 print(f"  list_hdr[{idx}] {fmt_hdr(entry)}")
             for idx, entry in enumerate(ring_entries):
+                if (
+                    idx == 0
+                    and crash_footer_meta is not None
+                    and any(r["src"] == "crash_footer_raw" for r in ring_entries)
+                ):
+                    print(f"  {fmt_crash_footer_ring_meta(crash_footer_meta)}")
                 print(f"  list_hdr_ring[{idx}] {fmt_hdr(entry)}")
         if recent_entries:
             for idx, entry in enumerate(recent_entries):
@@ -357,6 +384,10 @@ def main() -> int:
             if total > limit:
                 ring_entries = ring_entries[-limit:]
                 print(f"  list_hdr_ring: showing last {len(ring_entries)} of {total}")
+            if crash_footer_meta is not None and any(
+                r["src"] == "crash_footer_raw" for r in ring_entries
+            ):
+                print(f"  {fmt_crash_footer_ring_meta(crash_footer_meta)}")
             for idx, entry in enumerate(ring_entries):
                 print(f"  list_hdr_ring[{idx}] {fmt_hdr(entry)}")
             ring_only_emitted += 1
