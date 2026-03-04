@@ -670,6 +670,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
       (tunable via `_EVERY`/`_CAP`) to correlate recent list header writes with freed headers (2026-02-26).
     - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` dumps the full ring snapshot (bounded by ring size)
       for free-list samples when pointer filtering misses (2026-02-26).
+    - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING_RECENT=<n>` dumps the last `n` ring entries for a sampled
+      free-list header to focus on the most recent writes (2026-03-05).
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run

@@ -586,6 +586,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (tunable via `_EVERY`/`_CAP`) to correlate recent list header writes with freed headers (2026-02-26).
   - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` dumps the full ring snapshot (bounded by ring size)
     for free-list samples when pointer filtering misses (2026-02-26).
+  - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING_RECENT=<n>` dumps the last `n` ring entries for a sampled
+    free-list header to focus on the most recent writes (2026-03-05).
   - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now auto-enables free-list header dumps +
     list_hdr ring capture (no separate `OREN_TRACE_LIST_HDR_RING` needed, 2026-02-26).
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`
