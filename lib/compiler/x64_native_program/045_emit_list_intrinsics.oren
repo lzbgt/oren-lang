@@ -26,6 +26,29 @@ fn _emit_call_rel32_1arg_x64(ctx, locals, sym, arg0_off) {
     return nil
 }
 
+fn _emit_call_rel32_4args_x64(ctx, locals, sym, arg0_off, arg1_reg, arg2_imm, arg3_imm) {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
+    var a3_enc = abi.int_arg_reg(ctx["abi"], 3)
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 || oren_type_tag(a3_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg reg for call4 " + sym)
+        return nil
+    }
+    var a0 = a0_enc - 1
+    var a1 = a1_enc - 1
+    var a2 = a2_enc - 1
+    var a3 = a3_enc - 1
+    _emit_mov_r64_mrbp(ctx, a0, 0 - arg0_off)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(a1, arg1_reg))
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(a2, arg2_imm))
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(a3, arg3_imm))
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": sym})
+    return nil
+}
+
 fn _emit_list_len_intrinsic_v0_x64(ctx, expr, locals) {
     if ctx == nil { return nil }
     if locals == nil { err(ctx, "x64 native v0: oren_list_len requires locals"); return nil }
@@ -497,6 +520,7 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
     var l_node_ok = _new_label(ctx, "list_int_push_node_ok")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_node_ok)
+    _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 1, 8)
     _emit_abort_panic_str(ctx, "list_int_push on non-list")
     _emit_label(ctx, labels, l_node_ok)
 
@@ -507,6 +531,7 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8)) // LIST_INT
     var l_kind_ok = _new_label(ctx, "list_int_push_kind_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_kind_ok)
+    _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 2, 8)
     _emit_abort_panic_str(ctx, "list_int_push on non-list")
     _emit_label(ctx, labels, l_kind_ok)
 
@@ -518,6 +543,7 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
     var l_magic_ok = _new_label(ctx, "list_int_push_magic_ok")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
+    _emit_call_rel32_4args_x64(ctx, locals, "native_list_panic_footer", off_list, 11, 3, 8)
     _emit_abort_panic_str(ctx, "list_int_push on non-list")
     _emit_label(ctx, labels, l_magic_ok)
 
