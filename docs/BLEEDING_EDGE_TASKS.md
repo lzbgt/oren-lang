@@ -556,8 +556,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringdup_once.log`, 2026-02-26).
   - Trace: ring-all filter run emits a single `list_hdr_ring idx=...` line for the bad pointer
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter.log`, 2026-02-26).
-  - Tool: `tools/trace_list_hdr_correlate.py` now includes `[list_hdr_ring]` entries when
-    correlating `gc_free_list` samples (rolling, 2026-02-26).
+  - Tool: `tools/trace_list_hdr_correlate.py` now includes `[list_hdr_ring]` and
+    `crash_footer_raw` ring entries when correlating `gc_free_list` samples
+    (rolling, 2026-03-05).
   - Tool: correlator accepts ring-all `idx=` entries to match `list_hdr_ring` dumps
     when `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` is set (rolling, 2026-02-26).
   - Tool: correlator now ingests `[list_hdr_ring_recent]` and emits recent-op blocks
@@ -688,9 +689,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     samples alongside `[gc_free_list]` without extra ring flags
     (log: `build/logs/alloc_churn_trace_gc_ring_20260226_172250.log`).
   - Tool: `tools/trace_list_hdr_correlate.py --log <log> --limit 5 --max 50` correlates
-    `[list_hdr]` and `[list_hdr_ring]` traces with `[gc_free_list]` samples, surfaces
-    `list_corrupt` / `gc_list_*_corrupt` events, and attaches ring dumps when present to
-    spot last header writes.
+    `[list_hdr]`, `[list_hdr_ring]`, and `crash_footer_raw` ring traces with
+    `[gc_free_list]` samples, surfaces `list_corrupt` / `gc_list_*_corrupt` events, and
+    attaches ring dumps when present to spot last header writes.
   - Update (2026-03-05): arena list/list_int allocations now emit list_hdr ring entries
     (op=1/2) so ring dumps include arena-backed list headers.
   - New: `OREN_TRACE_ALLOC_INDEX=1` now logs `[alloc_index_list_bad]` when list/list_int

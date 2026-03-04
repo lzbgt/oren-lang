@@ -14,6 +14,9 @@ LIST_HDR_RING_RE = re.compile(
 LIST_HDR_RING_RECENT_RE = re.compile(
     r"\[list_hdr_ring_(recent|pre)\] list=(\d+) idx=(\d+) age=(\d+) op=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
+CRASH_FOOTER_RING_RE = re.compile(
+    r"\[crash_footer_raw\] ring idx=(\d+) list=(\d+) op=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+) kind=(-?\d+)"
+)
 GC_FREE_RE = re.compile(
     r"\[gc_free_list\] ptr=(\d+) chunk=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
@@ -200,6 +203,23 @@ def main() -> int:
                             }
                         )
                         pending_bad_list_recent[ptr] -= 1
+                    continue
+
+                m = CRASH_FOOTER_RING_RE.search(line)
+                if m:
+                    idx, ptr, op, ln, cap, buf, magic, kind = map(int, m.groups())
+                    ring_entry = {
+                        "src": "crash_footer_raw",
+                        "op": op,
+                        "kind": kind,
+                        "len": ln,
+                        "cap": cap,
+                        "buf": buf,
+                        "magic": magic,
+                    }
+                    per_ptr_ring[ptr].append(ring_entry)
+                    if pending_gc is not None and pending_gc["ptr"] == ptr:
+                        pending_gc["ring_entries"].append(ring_entry)
                     continue
 
                 m = GC_REUSE_BAD_LIST_RE.search(line)
