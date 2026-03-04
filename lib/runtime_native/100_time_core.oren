@@ -764,6 +764,8 @@ var g_trace_list_panic_footer = 0
 // Optional tracing: crash footer (best-effort SIGSEGV/SIGBUS diagnostics).
 var g_trace_crash_footer = 0
 var g_crash_footer_handled = 0
+var g_crash_footer_buf = 0
+var g_crash_footer_buf_cap = 0
 // Optional tracing: per-track_alloc timing.
 var g_trace_track_alloc_time = 0
 // Optional tracing: per-site allocation counters (raw metadata array).
@@ -848,6 +850,18 @@ fn __oren_crash_footer_handler(sig) {
         return 0
     }
     g_crash_footer_handled = 1
+    // Signal-safe-ish crash footer: avoid allocations and higher-level string ops.
+    native_crash_footer_write_cstr("[crash_footer_raw] signal=")
+    native_crash_footer_write_u64(sig)
+    native_crash_footer_write_cstr(" alloc_index_zeroed=")
+    native_crash_footer_write_u64(g_alloc_index_list_zeroed_count)
+    native_crash_footer_write_cstr(" alloc_index_bad=")
+    native_crash_footer_write_u64(g_alloc_index_list_bad_count)
+    native_crash_footer_write_cstr(" alloc_index_len=")
+    native_crash_footer_write_u64(g_alloc_index_len)
+    native_crash_footer_write_cstr(" alloc_index_cap=")
+    native_crash_footer_write_u64(g_alloc_index_cap)
+    native_crash_footer_write_cstr("\n")
     print("[crash_footer] signal=" + oren_int_to_string(sig) +
         " alloc_index_zeroed=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
         " alloc_index_bad=" + oren_int_to_string(g_alloc_index_list_bad_count) +
@@ -864,11 +878,57 @@ fn __oren_crash_footer_handler(sig) {
 
 fn native_install_crash_footer() {
     if g_trace_crash_footer == 0 { return 0 }
+    if g_crash_footer_buf == 0 {
+        var cap = 128
+        var buf = native_malloc_raw_or_mmap(cap)
+        if buf != 0 {
+            g_crash_footer_buf = buf
+            g_crash_footer_buf_cap = cap
+        }
+    }
     var handler = oren_code_addr(__oren_crash_footer_handler)
     if handler == 0 { return 0 }
     // macOS signals: SIGBUS=10, SIGSEGV=11.
     __oren_signal(10, handler)
     __oren_signal(11, handler)
+    return 0
+}
+
+fn native_crash_footer_write_cstr(msg_cstr) {
+    if msg_cstr == 0 { return 0 }
+    sys_write(2, msg_cstr, native_cstr_len(msg_cstr))
+    return 0
+}
+
+fn native_crash_footer_write_u64(n) {
+    var buf = g_crash_footer_buf
+    var cap = g_crash_footer_buf_cap
+    if buf == 0 || cap <= 0 { return 0 }
+    var i = 0
+    if n == 0 {
+        ptr_set_byte(buf, 48)
+        i = 1
+    } else {
+        var v = n
+        while v > 0 && i < cap {
+            var digit = v % 10
+            ptr_set_byte(iadd(buf, i), 48 + digit)
+            v = v / 10
+            i = i + 1
+        }
+    }
+    if i <= 0 { return 0 }
+    var left = 0
+    var right = i - 1
+    while left < right {
+        var a = ptr_get_byte(iadd(buf, left))
+        var b = ptr_get_byte(iadd(buf, right))
+        ptr_set_byte(iadd(buf, left), b)
+        ptr_set_byte(iadd(buf, right), a)
+        left = left + 1
+        right = right - 1
+    }
+    sys_write(2, buf, i)
     return 0
 }
 

@@ -352,6 +352,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Tool: `OREN_TRACE_CRASH_FOOTER=1` installs a best-effort crash footer on macOS
      (SIGSEGV/SIGBUS) that dumps alloc-index counts plus list header ring contents when
      the process crashes (debug-only; not signal-safe, 2026-03-05).
+   - New: crash footer now emits a minimal `crash_footer_raw` line via `sys_write`
+     before higher-level printing, to improve chances of output under severe
+     corruption (debug-only; not signal-safe, 2026-03-05).
    - Tool: list<int> panic footer now always emits alloc-index counts; enabling
      `OREN_TRACE_LIST_PANIC_FOOTER=1` also dumps the list header ring for the offending list
      (debug-only, 2026-03-05).
