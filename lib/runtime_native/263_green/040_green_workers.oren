@@ -8,6 +8,13 @@ var g_trace_green_spawn_alloc_guard = -1
 var g_trace_green_spawn_alloc_guard_envp = 0
 var g_trace_green_spawn_alloc_guard_argv = 0
 var g_trace_green_spawn_alloc_guard_argc = 0
+var g_trace_green_spawn_ring = -1
+var g_trace_green_spawn_ring_cap = 0
+var g_trace_green_spawn_ring_ptr = 0
+var g_trace_green_spawn_ring_head = 0
+var g_trace_green_spawn_ring_envp = 0
+var g_trace_green_spawn_ring_argv = 0
+var g_trace_green_spawn_ring_argc = 0
 
 fn _green_trace_spawn_alloc_stride_value() {
     var cur_envp = global_get_envp()
@@ -58,6 +65,127 @@ fn _green_trace_spawn_alloc_guard_enabled() {
     g_trace_green_spawn_alloc_guard_argv = cur_argv
     g_trace_green_spawn_alloc_guard_argc = cur_argc
     return true
+}
+
+fn _green_spawn_ring_enabled() {
+    if g_trace_green_spawn_ring == 1 && g_trace_green_spawn_ring_ptr != 0 {
+        return true
+    }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_spawn_ring == 0 {
+        if cur_envp == g_trace_green_spawn_ring_envp &&
+           cur_argv == g_trace_green_spawn_ring_argv &&
+           cur_argc == g_trace_green_spawn_ring_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_SPAWN_RING")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_spawn_ring == -1 || g_trace_green_spawn_ring == 0 {
+            g_trace_green_spawn_ring = 0
+            g_trace_green_spawn_ring_envp = cur_envp
+            g_trace_green_spawn_ring_argv = cur_argv
+            g_trace_green_spawn_ring_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_spawn_ring = 1
+    g_trace_green_spawn_ring_envp = cur_envp
+    g_trace_green_spawn_ring_argv = cur_argv
+    g_trace_green_spawn_ring_argc = cur_argc
+    if g_trace_green_spawn_ring_cap <= 0 { g_trace_green_spawn_ring_cap = 128 }
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_GREEN_SPAWN_RING_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 && ptr_get_byte(v_cap) != 48 {
+        var parsed = oren_int_from_string(v_cap)
+        if parsed > 0 { g_trace_green_spawn_ring_cap = parsed }
+    }
+    if g_trace_green_spawn_ring_ptr == 0 && g_trace_green_spawn_ring_cap > 0 {
+        var bytes = g_trace_green_spawn_ring_cap * 64
+        var buf = native_malloc_raw_or_mmap(bytes)
+        if buf == 0 || buf == -1 {
+            g_trace_green_spawn_ring = 0
+            return false
+        }
+        var slots = g_trace_green_spawn_ring_cap * 8
+        var i = 0
+        while i < slots {
+            ptr_set(iadd(buf, i * 8), 0)
+            i = i + 1
+        }
+        g_trace_green_spawn_ring_ptr = buf
+        g_trace_green_spawn_ring_head = 0
+    }
+    if g_trace_green_spawn_ring_ptr == 0 || g_trace_green_spawn_ring_cap <= 0 {
+        g_trace_green_spawn_ring = 0
+        return false
+    }
+    return true
+}
+
+fn _green_spawn_ring_put(args_list, fn_obj, node, kind, len, cap, buf, magic) {
+    if _green_spawn_ring_enabled() != true { return 0 }
+    var capn = g_trace_green_spawn_ring_cap
+    if capn <= 0 { return 0 }
+    var base = g_trace_green_spawn_ring_ptr
+    if base == 0 { return 0 }
+    var idx = g_trace_green_spawn_ring_head % capn
+    var off = idx * 64
+    ptr_set(iadd(base, off), args_list)
+    ptr_set(iadd(base, off + 8), fn_obj)
+    ptr_set(iadd(base, off + 16), node)
+    ptr_set(iadd(base, off + 24), kind)
+    ptr_set(iadd(base, off + 32), len)
+    ptr_set(iadd(base, off + 40), cap)
+    ptr_set(iadd(base, off + 48), buf)
+    ptr_set(iadd(base, off + 56), magic)
+    g_trace_green_spawn_ring_head = g_trace_green_spawn_ring_head + 1
+    return 0
+}
+
+fn _green_spawn_ring_dump_last(limit, reason) {
+    if _green_spawn_ring_enabled() != true { return 0 }
+    var capn = g_trace_green_spawn_ring_cap
+    if capn <= 0 { return 0 }
+    var base = g_trace_green_spawn_ring_ptr
+    if base == 0 { return 0 }
+    if limit <= 0 { limit = 32 }
+    if limit > capn { limit = capn }
+    print("[green_spawn_ring_dump] reason=" + reason +
+          " head=" + oren_int_to_string(g_trace_green_spawn_ring_head) +
+          " cap=" + oren_int_to_string(capn))
+    var head = g_trace_green_spawn_ring_head
+    var step = 0
+    while step < limit {
+        var pos = head - 1 - step
+        if pos < 0 { pos = pos + capn }
+        if pos < 0 { break }
+        var idx = pos % capn
+        var off = idx * 64
+        var args_list = ptr_get(iadd(base, off))
+        var fn_obj = ptr_get(iadd(base, off + 8))
+        var node = ptr_get(iadd(base, off + 16))
+        if args_list != 0 || fn_obj != 0 || node != 0 {
+            var kind = ptr_get(iadd(base, off + 24))
+            var len = ptr_get(iadd(base, off + 32))
+            var cap = ptr_get(iadd(base, off + 40))
+            var buf = ptr_get(iadd(base, off + 48))
+            var magic = ptr_get(iadd(base, off + 56))
+            print("[green_spawn_ring] idx=" + oren_int_to_string(idx) +
+                  " age=" + oren_int_to_string(step) +
+                  " args_list=" + oren_int_to_string(args_list) +
+                  " fn=" + oren_int_to_string(fn_obj) +
+                  " node=" + oren_int_to_string(node) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " len=" + oren_int_to_string(len) +
+                  " cap=" + oren_int_to_string(cap) +
+                  " buf=" + oren_int_to_string(buf) +
+                  " magic=" + oren_int_to_string(magic))
+        }
+        step = step + 1
+    }
+    return 0
 }
 
 @oren.keep
@@ -720,16 +848,35 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_args_stamp_magic(), 0)
     var guard_on = _green_trace_spawn_alloc_guard_enabled()
     var stamp_on = _green_trace_args_stamp_enabled()
+    var ring_on = _green_spawn_ring_enabled()
     var node_guard = 0
-    if guard_on == true || stamp_on == true {
+    if guard_on == true || stamp_on == true || ring_on == true {
         node_guard = native_alloc_index_get(args_list)
         if node_guard == 0 { node_guard = native_alloc_index_recover_ptr(args_list) }
         if guard_on == true && node_guard == 0 {
             print("trace: green_spawn_alloc args_list untracked args=" +
                   oren_int_to_string(args_list) +
                   " fn=" + oren_int_to_string(fn_obj))
+            _green_spawn_ring_dump_last(32, "spawn_alloc_untracked")
             oren_panic("green spawn_alloc: args_list untracked")
             return 0
+        }
+    }
+    var kind = 0
+    var magic = 0
+    var len = 0
+    var cap = 0
+    var buf = 0
+    if stamp_on == true || ring_on == true {
+        if args_list != 0 && args_list >= 4096 {
+            len = ptr_get(iadd(args_list, 0))
+            cap = ptr_get(iadd(args_list, 8))
+            buf = ptr_get(iadd(args_list, 16))
+            magic = ptr_get(iadd(args_list, 24))
+        }
+        if node_guard != 0 { kind = ptr_get(iadd(node_guard, 16)) }
+        if ring_on == true {
+            _green_spawn_ring_put(args_list, fn_obj, node_guard, kind, len, cap, buf, magic)
         }
     }
     if stamp_on == true {
@@ -740,18 +887,6 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
             if (g_trace_green_spawn_alloc_count % stride) != 0 { log_it = 0 }
         }
         if log_it != 0 {
-            var kind = 0
-            var magic = 0
-            var len = 0
-            var cap = 0
-            var buf = 0
-            if args_list != 0 && args_list >= 4096 {
-                len = ptr_get(iadd(args_list, 0))
-                cap = ptr_get(iadd(args_list, 8))
-                buf = ptr_get(iadd(args_list, 16))
-                magic = ptr_get(iadd(args_list, 24))
-            }
-            if node_guard != 0 { kind = ptr_get(iadd(node_guard, 16)) }
             print("trace: green_spawn_alloc args_list=" + oren_int_to_string(args_list) +
                   " node=" + oren_int_to_string(node_guard) +
                   " kind=" + oren_int_to_string(kind) +
