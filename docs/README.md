@@ -49,6 +49,12 @@ Build and run a hello binary (C backend by default):
 ./hello
 ```
 
+Run test blocks with the built-in test runner:
+
+```bash
+./oren test tests/fixtures/test_runner_smoke.oren --backend native
+```
+
 Emit bytecode and run under AVM:
 
 ```bash

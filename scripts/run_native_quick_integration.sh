@@ -207,6 +207,16 @@ if [[ "$stop_after_green_cache" == "1" ]]; then
   exit 0
 fi
 
+if [[ "${OREN_QI_SKIP_TEST_RUNNER:-0}" != "1" ]]; then
+  echo "== test runner smoke ==" >>"$log"
+  tr_src="tests/fixtures/test_runner_smoke.oren"
+  tr_log="build/logs/${compiler_base}_test_runner_smoke.log"
+  rm -f "$tr_log" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" test "$tr_src" \
+    --backend native --platform "$platform" --debug >"$tr_log" 2>&1
+  tail -n 3 "$tr_log" >>"$log"
+fi
+
 echo "== ulock timeout portable smoke ==" >>"$log"
 ul_src="tests/native/test_ulock_timeout_portable.oren"
 ul_out="build/tmp/${compiler_base}_ulock_timeout_portable${exe_ext}"

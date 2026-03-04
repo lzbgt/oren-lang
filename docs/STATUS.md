@@ -39,7 +39,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
 - **Feature set maturity**: essential modern features are still planned (see `docs/LANGUAGE.md`):
-  `yield`/stackless coroutines, built-in `assert`/`test`, structured error model, visibility boundaries,
+  `yield`/stackless coroutines, structured error model, visibility boundaries,
   first-class bytes + typed buffers, and variadic ergonomics; dynamic module loading and user-defined methods remain unimplemented.
 
 Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
@@ -359,11 +359,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
 
 5) **W4 - Feature set completeness (essential modern features)**
-   - Planned (not yet implemented): `yield`/stackless coroutines, built-in `test` runner,
-     structured error model, visibility boundaries, bytes + typed buffers, variadic ergonomics
+   - Planned (not yet implemented): `yield`/stackless coroutines, structured error model,
+     visibility boundaries, bytes + typed buffers, variadic ergonomics
      (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
-   - Implemented (rolling): core `assert(cond, msg?)` statement lowers to `oren_fail`
-     for deterministic runtime panics (2026-03-04).
+   - Implemented (rolling): core `assert(cond, msg?)` statement and `oren test` runner for
+     `test "name" { ... }` blocks (2026-03-04).
    - Not implemented: dynamic module loading; user-defined methods/inheritance (see `docs/LANGUAGE.md`).
    - Interim: `std:assert` helper module provides `assert`/`assert_eq` in the stdlib (2026-03-03).
 
@@ -1724,6 +1724,7 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 3) **Refactor oversized native emitters (>2000 lines)** (M, W2)
 4) **Refactor `lib/runtime_native/100_time_gc_alloc.oren` (>2000 lines)** (M, W2)
 5) **Refactor `lib/compiler/optimizer.oren` (>2000 lines)** (M, W2)
+6) **Refactor `lib/compiler/compiler/040_build_pipeline/010_main.oren` (>2000 lines)** (M, W2)
 
 ---
 

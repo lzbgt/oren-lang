@@ -93,7 +93,7 @@ Oren is an **agent-native**, syscall-first language and toolchain:
 
 The Stage1 compiler (`./oren`) is intended to behave like a modern tool (Python `click` style):
 
-- Subcommands: `oren build`, `oren emit-c`, `oren meta`, `oren dump`, `oren scan`, `oren completion`
+- Subcommands: `oren build`, `oren test`, `oren emit-c`, `oren meta`, `oren dump`, `oren scan`, `oren completion`
 - Human help:
   - `oren --help`
   - `oren build --help`
@@ -3222,9 +3222,23 @@ Design direction:
 Rolling status:
 
 - Implemented: core `assert(cond, msg?)` statement lowers to `oren_fail`.
+- Implemented: `oren test` runs `test "name" { ... }` blocks (lowered to `test_<name>` funcs).
 - `std:assert` provides lightweight helpers in the stdlib:
   `assert`, `assert_eq`, `assert_ne`, `assert_streq`, `assert_err`, `assert_ok`.
-- Planned: built-in `test` runner integration remains pending.
+
+Example:
+
+```oren
+test "smoke" {
+    assert(1 + 1 == 2, "math ok")
+}
+```
+
+Run:
+
+```bash
+./oren test path/to/file.oren --backend native
+```
 
 ### 3) Structured error model (self-healing support)
 

@@ -306,6 +306,67 @@ fn load_module(base, path, config) {
     return mod
 }
 
+fn _ml_collect_test_funcs_from_stmts(stmts) {
+    var out = []
+    if stmts == nil { return out }
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var s = stmts[i]
+        if s != nil && s["type"] == "ExprStmt" {
+            var e = s["expr"]
+            if e != nil && e["type"] == "Function" && e["is_test"] == true {
+                var nm = e["name"]
+                if nm != nil && nm != "" {
+                    var label = e["test_name"]
+                    if seen[nm] == true {
+                        var msg = "duplicate test name after sanitization: " + nm
+                        if label != nil && label != "" { msg = msg + " (label: " + label + ")" }
+                        emit_diag("compile", 2, msg)
+                        print(msg)
+                        oren_exit(2)
+                    }
+                    seen[nm] = true
+                    oren_list_push(out, {"name": nm, "label": label})
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _ml_append_test_runner_calls(stmts, tests) {
+    if stmts == nil || tests == nil { return nil }
+    var i = 0
+    while i < oren_list_len(tests) {
+        var t = tests[i]
+        var name = t["name"]
+        var tok = {"type": "IDENT", "literal": name}
+        var ident = ast.new_identifier(tok)
+        var call = ast.new_call(tok, ident, [])
+        var stmt = ast.new_expr_stmt(tok, call)
+        oren_list_push(stmts, stmt)
+        i = i + 1
+    }
+    if oren_list_len(tests) > 0 {
+        var msg_tok = {"type": "STRING", "literal": "ok: tests passed"}
+        var msg = ast.new_string(msg_tok)
+        var print_tok = {"type": "IDENT", "literal": "print"}
+        var print_ident = ast.new_identifier(print_tok)
+        var print_call = ast.new_call(print_tok, print_ident, [msg])
+        var print_stmt = ast.new_expr_stmt(print_tok, print_call)
+        oren_list_push(stmts, print_stmt)
+        var exit_tok = {"type": "IDENT", "literal": "oren_exit"}
+        var exit_ident = ast.new_identifier(exit_tok)
+        var code_tok = {"type": "INT", "literal": "0"}
+        var exit_call = ast.new_call(exit_tok, exit_ident, [ast.new_integer(code_tok)])
+        var exit_stmt = ast.new_expr_stmt(exit_tok, exit_call)
+        oren_list_push(stmts, exit_stmt)
+    }
+    return nil
+}
+
 fn link_program(entry_path, root_prog, config) {
     var trace_passes = oren_env("OREN_TRACE_PASSES") != nil
     var trace_phases = oren_env("OREN_TRACE_PHASES") != nil
@@ -456,6 +517,12 @@ fn link_program(entry_path, root_prog, config) {
             oren_list_push(merged_traits, root_prog["traits"][rti])
             rti = rti + 1
         }
+    }
+    var test_mode = false
+    if config != nil && config["test_mode"] == true { test_mode = true }
+    if test_mode == true {
+        var tests = _ml_collect_test_funcs_from_stmts(merged_stmts)
+        _ml_append_test_runner_calls(merged_stmts, tests)
     }
     if trace_phases {
         var dt2 = oren_time_now_ns() - t0

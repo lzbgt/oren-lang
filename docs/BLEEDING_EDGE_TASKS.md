@@ -1674,9 +1674,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: list<int> fixtures + OBC perf parity.
 
 9) **W4 feature set completeness (essential modern features)**
-   - Implement across backends (C/native/OBC): `yield`/stackless coroutines, built-in `test` runner,
-     structured error model, visibility boundaries, bytes + typed buffers, variadic ergonomics.
-   - Implemented (rolling): core `assert(cond, msg?)` statement.
+   - Implement across backends (C/native/OBC): `yield`/stackless coroutines, structured error model,
+     visibility boundaries, bytes + typed buffers, variadic ergonomics.
+   - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Not implemented yet: dynamic module loading; user-defined methods/inheritance (track when design lands).
    - Gate: feature fixtures across backends + updated `docs/LANGUAGE.md`/`docs/STATUS.md`.
 

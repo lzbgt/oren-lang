@@ -77,6 +77,45 @@ fn _cmd_quote_path_host(path) {
     return shell_quote(path)
 }
 
+fn _run_test_artifact(backend, out_path) {
+    if backend == "bytecode" {
+        var avm_path = "./avm"
+        if host_is_windows() { avm_path = "./avm.exe" }
+        if oren_exists(avm_path) != true {
+            print("== ensure: avm ==")
+            var mk = oren_system("make avm")
+            if mk != 0 {
+                print("avm build failed")
+                oren_exit(1)
+            }
+        }
+        var cmd_obc = ""
+        if host_is_windows() {
+            cmd_obc = "cmd.exe /d /c " + _cmd_quote_path_host(avm_path) + " " + _cmd_quote_path_host(out_path)
+        } else {
+            cmd_obc = _cmd_quote_path_host(avm_path) + " " + _cmd_quote_path_host(out_path)
+        }
+        var rc_obc = normalize_rc(oren_system(cmd_obc))
+        if rc_obc != 0 {
+            print("Test run failed (avm) rc=" + oren_int_to_string(rc_obc))
+            oren_exit(rc_obc)
+        }
+        return nil
+    }
+    var cmd_bin = ""
+    if host_is_windows() {
+        cmd_bin = "cmd.exe /d /c " + _cmd_quote_path_host(out_path)
+    } else {
+        cmd_bin = _cmd_quote_path_host(out_path)
+    }
+    var rc = normalize_rc(oren_system(cmd_bin))
+    if rc != 0 {
+        print("Test run failed rc=" + oren_int_to_string(rc))
+        oren_exit(rc)
+    }
+    return nil
+}
+
 fn _run_cmd_capture_stdout(cmd_line, out_path) {
     if cmd_line == nil || cmd_line == "" { return 1 }
     if out_path == nil || out_path == "" { return 1 }
@@ -902,7 +941,13 @@ fn compiler_main() {
         return nil
     }
 
-    if cmd_name != "build" && cmd_name != "emit-c" {
+    var run_after_build = false
+    var test_mode = false
+    if cmd_name == "test" {
+        run_after_build = true
+        test_mode = true
+    }
+    if cmd_name != "build" && cmd_name != "emit-c" && cmd_name != "test" {
         // Should not happen: argparse parse() already validated commands.
         emit_diag("compile", 2, "unknown command: " + cmd_name)
         print("unknown command: " + cmd_name)
@@ -990,7 +1035,7 @@ fn compiler_main() {
     if arch == "auto" { arch = ""; seen["arch"] = false }
     if trace_build { print("[build] parsed target=" + target + " arch=" + arch) }
     var platform0 = opts["platform"]
-		        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
+    if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
     if platform0 != nil && platform0 != "" {
         if trace_build { print("[build] parsed platform=" + platform0) }
         var ps0 = parse_platform_spec(platform0)
@@ -1070,6 +1115,23 @@ fn compiler_main() {
     stdlib_obc = opts["stdlib-obc"]
     link_obc = opts["link-obc"]
     link_libs = opts["link"]
+    if test_mode {
+        if emit_c {
+            emit_diag("compile", 2, "oren test: --emit-c is not supported")
+            print("oren test: --emit-c is not supported")
+            oren_exit(2)
+        }
+        if is_shared_lib {
+            emit_diag("compile", 2, "oren test: --lib/--shared are not supported")
+            print("oren test: --lib/--shared are not supported")
+            oren_exit(2)
+        }
+        if obc_lib {
+            emit_diag("compile", 2, "oren test: --obc-lib is not supported")
+            print("oren test: --obc-lib is not supported")
+            oren_exit(2)
+        }
+    }
 
     // macOS codesign policy (rolling):
     // - For local execution, macOS can reject/kill unsigned binaries.
@@ -1260,6 +1322,7 @@ fn compiler_main() {
             "call_depth_max": call_depth_max,
             "capsule": 0,
             "cap_domains": CAP_ALLOW_DOMAINS,
+            "test_mode": 0,
             "stdlib_mode": stdlib_mode,
             "stdlib_obc": stdlib_obc,
             "link_obc": link_obc,
@@ -1270,6 +1333,7 @@ fn compiler_main() {
         if debug_mode { cfg["debug_mode"] = 1 }
         if is_shared_lib { cfg["shared_lib"] = 1 }
         if CAPSULE { cfg["capsule"] = 1 }
+        if test_mode { cfg["test_mode"] = 1 }
 
         var t_key0 = 0
         if trace_build { t_key0 = oren_time_now_ns() }
@@ -1300,6 +1364,7 @@ fn compiler_main() {
                     if target == "macos" { oren_system("otool -tV " + shell_quote(out_path)) }
                     else { oren_system("objdump -d " + shell_quote(out_path)) }
                 }
+                if run_after_build { _run_test_artifact(backend, out_path) }
                 return nil
             }
         } else {
@@ -1395,7 +1460,7 @@ fn compiler_main() {
         if stdlib_mode == "obc" { allow_undef = true }
         if oren_list_len(link_obc) > 0 { allow_undef = true }
 
-        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib})
+        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
 
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
         if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
@@ -1541,6 +1606,7 @@ fn compiler_main() {
             if cache_enabled && cache_key != nil {
                 cache_store_artifact(cache_dir, cache_key, out_bytes)
             }
+            if run_after_build { _run_test_artifact(backend, out_path) }
             return nil
         }
 
@@ -1555,6 +1621,7 @@ fn compiler_main() {
         if cache_enabled && cache_key != nil {
             cache_store_artifact(cache_dir, cache_key, out_bytes2)
         }
+        if run_after_build { _run_test_artifact(backend, out_path) }
         return nil
     }
 
@@ -1565,7 +1632,7 @@ fn compiler_main() {
             oren_exit(2)
         }
 
-        var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib})
+        var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib, "test_mode": test_mode})
         if trace_build_summary { t_sum_link_done = oren_time_now_ns() }
         // Memory hygiene (rolling):
         // - After linking, the native backend no longer needs the parsed root AST `prog`.
@@ -1844,6 +1911,7 @@ fn compiler_main() {
                 oren_system("objdump -d " + shell_quote(out_path))
             }
         }
+        if run_after_build { _run_test_artifact(backend, out_path) }
         return nil
     }
 
@@ -1853,7 +1921,7 @@ fn compiler_main() {
     // *new* function definitions during linking. The C transpiler consumes per-module
     // ASTs (MODULE_ORDER + prog), so we must sync generated functions back into those
     // unit programs before transpiling.
-    var linked_c = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck})
+    var linked_c = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "test_mode": test_mode})
     c_backend_sync_generated_functions(prog, MODULE_ORDER, linked_c)
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     // IMPORTANT (rolling hygiene):
@@ -2127,5 +2195,6 @@ fn compiler_main() {
             oren_chmod(out_path, 493) // 0755
         }
     }
+    if run_after_build { _run_test_artifact(backend, out_path) }
     return nil
 }

@@ -410,7 +410,24 @@ fn parse_test(p) {
     
     if !expect_peek(p, token.TOK_STRING) { return nil }
     var test_name = p["cur"]["literal"]
-    var func_name = "test_" + test_name
+    var safe_name = ""
+    var ti = 0
+    while ti < oren_string_len(test_name) {
+        var c = oren_string_char_at(test_name, ti)
+        var ok = false
+        if c != "" {
+            var b = oren_string_char_code_at(c, 0)
+            if b >= 97 && b <= 122 { ok = true } // a..z
+            if b >= 65 && b <= 90 { ok = true }  // A..Z
+            if b >= 48 && b <= 57 { ok = true }  // 0..9
+        }
+        if c == "_" { ok = true }
+        if ok { safe_name = safe_name + c }
+        else { safe_name = safe_name + "_" }
+        ti = ti + 1
+    }
+    if safe_name == "" { safe_name = "case" }
+    var func_name = "test_" + safe_name
     
     // Check if block follows
     if !expect_peek(p, token.TOK_LBRACE) { return nil }
@@ -419,6 +436,8 @@ fn parse_test(p) {
     // Create function AST
     // params = []
     var fn_node = ast.new_function(tok, func_name, [], body)
+    fn_node["is_test"] = true
+    fn_node["test_name"] = test_name
     if doc != nil { fn_node["doc"] = doc }
     return ast.new_expr_stmt(tok, fn_node)
 }
