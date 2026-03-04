@@ -561,12 +561,7 @@ void avm_run(AvmVM* vm) {
                 off |= (int16_t)code[vm->pc++];
                 off |= (int16_t)code[vm->pc++] << 8;
                 AvmValue cond = vm->stack[--vm->sp];
-                int truthy = 0;
-                if (cond.type == AVM_VAL_BOOL) truthy = cond.as.i != 0;
-                else if (cond.type == AVM_VAL_INT) truthy = cond.as.i != 0;
-                else if (cond.type == AVM_VAL_NIL) truthy = 0;
-                else truthy = 1;
-                if (truthy) vm->pc = (int)(vm->pc + off);
+                if (avm_truthy(cond)) vm->pc = (int)(vm->pc + off);
                 break;
             }
             case 0x4E: { // JMP32 i32
@@ -589,12 +584,7 @@ void avm_run(AvmVM* vm) {
                 int32_t off = 0;
                 memcpy(&off, &u, sizeof(off));
                 AvmValue cond = vm->stack[--vm->sp];
-                int truthy = 0;
-                if (cond.type == AVM_VAL_BOOL) truthy = cond.as.i != 0;
-                else if (cond.type == AVM_VAL_INT) truthy = cond.as.i != 0;
-                else if (cond.type == AVM_VAL_NIL) truthy = 0;
-                else truthy = 1;
-                if (truthy) vm->pc = (int)((int64_t)vm->pc + (int64_t)off);
+                if (avm_truthy(cond)) vm->pc = (int)((int64_t)vm->pc + (int64_t)off);
                 break;
             }
             case 0x38: { // CALL u16 u8

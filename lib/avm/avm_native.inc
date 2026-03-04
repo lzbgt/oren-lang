@@ -6319,8 +6319,8 @@ static uint64_t avm_value_u64(AvmValue v, uint64_t def) {
 
 static int avm_value_truthy(AvmValue v) {
     if (v.type == AVM_VAL_BOOL) return v.as.i != 0;
-    if (v.type == AVM_VAL_INT) return v.as.i != 0;
-    return 0;
+    if (v.type == AVM_VAL_NIL) return 0;
+    return 1;
 }
 
 static AvmBytes* avm_new_log_bytes() {

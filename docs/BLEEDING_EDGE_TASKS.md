@@ -90,6 +90,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Root-cause list header corruption before enabling reuse paths.
    - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
      reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
+   - Repro (2026-03-04): `make verify-backend-parity` failed while building
+     `tests/native/fixtures/arith_div0.oren` (C backend) with
+     `gc list_int header corrupt` (log: `build/logs/arith_div0_c_build.log`).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid

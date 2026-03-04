@@ -8,7 +8,6 @@
 
 static inline int avm_truthy(AvmValue v) {
     if (v.type == AVM_VAL_BOOL) return v.as.i != 0;
-    if (v.type == AVM_VAL_INT) return v.as.i != 0;
     if (v.type == AVM_VAL_NIL) return 0;
     return 1;
 }

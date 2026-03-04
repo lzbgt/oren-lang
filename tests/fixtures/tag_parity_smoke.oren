@@ -26,9 +26,11 @@ fn assert_true(label, cond) {
 }
 
 fn assert_false(label, cond) {
-    if cond == false { return 0 }
-    print("tag_parity: " + label + " expected false")
-    exit(5)
+    if cond { 
+        print("tag_parity: " + label + " expected false")
+        exit(5)
+    }
+    return 0
 }
 
 fn main() {
