@@ -46,7 +46,7 @@ while [[ "$run" -le "$runs" ]]; do
   log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}.log"
   inner_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_inner.log"
   current_log="$log"
-  current_inner_src="build/logs/oren_native_quick_integration.log"
+  current_inner_src="build/logs/${compiler_base}_native_quick_integration.log"
   current_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_interrupt.log"
   echo "== run ${run}/${runs} ==" >&2
   set +e
