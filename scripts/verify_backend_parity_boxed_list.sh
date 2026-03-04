@@ -30,6 +30,15 @@ run_with_timeout() {
   fi
 }
 
+# Optional runtime tracing knobs (forwarded to build/run commands).
+# Example: OREN_BACKEND_PARITY_TRACE_ENV='OREN_TRACE_LIST_HDR_RING=1 OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1'
+trace_env="${OREN_BACKEND_PARITY_TRACE_ENV:-}"
+trace_env_arr=()
+if [[ -n "$trace_env" ]]; then
+  # shellcheck disable=SC2206
+  trace_env_arr=($trace_env)
+fi
+
 uname_s="$(uname -s)"
 uname_m="$(uname -m)"
 
@@ -84,25 +93,25 @@ rm -f "$out_c" "$out_native" "$out_obc" "$log_c" "$log_native" "$log_obc" \
   "$run_c" "$run_native" "$run_obc" 2>/dev/null || true
 
 echo "== build: C backend ==" >&2
-run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend c -o "$out_c" >"$log_c" 2>&1
+run_with_timeout "$build_timeout_secs" env "${trace_env_arr[@]}" "$COMPILER" build "$src" --backend c -o "$out_c" >"$log_c" 2>&1
 test -f "$out_c" || { echo "FAIL: missing $out_c" >&2; tail -n 120 "$log_c" >&2 || true; exit 3; }
 
 echo "== build: native backend ==" >&2
-run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out_native" >"$log_native" 2>&1
+run_with_timeout "$build_timeout_secs" env "${trace_env_arr[@]}" "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out_native" >"$log_native" 2>&1
 test -f "$out_native" || { echo "FAIL: missing $out_native" >&2; tail -n 120 "$log_native" >&2 || true; exit 4; }
 
 echo "== build: bytecode backend ==" >&2
-run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend bytecode -o "$out_obc" >"$log_obc" 2>&1
+run_with_timeout "$build_timeout_secs" env "${trace_env_arr[@]}" "$COMPILER" build "$src" --backend bytecode -o "$out_obc" >"$log_obc" 2>&1
 test -f "$out_obc" || { echo "FAIL: missing $out_obc" >&2; tail -n 120 "$log_obc" >&2 || true; exit 5; }
 
 echo "== run: C backend ==" >&2
-run_with_timeout "$run_timeout_secs" "$out_c" >"$run_c" 2>&1
+run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" "$out_c" >"$run_c" 2>&1
 
 echo "== run: native backend ==" >&2
-run_with_timeout "$run_timeout_secs" "$out_native" >"$run_native" 2>&1
+run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" "$out_native" >"$run_native" 2>&1
 
 echo "== run: OBC (avm) ==" >&2
-run_with_timeout "$run_timeout_secs" ./avm "$out_obc" >"$run_obc" 2>&1
+run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" ./avm "$out_obc" >"$run_obc" 2>&1
 
 normalize_out() {
   local f="$1"
