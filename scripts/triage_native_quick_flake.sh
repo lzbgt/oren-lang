@@ -67,8 +67,8 @@ while [[ "$run" -le "$runs" ]]; do
   fi
   rc=$?
   set -e
-  if [[ -f build/logs/oren_native_quick_integration.log ]]; then
-    cp -f build/logs/oren_native_quick_integration.log "$inner_log"
+  if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
+    cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$inner_log"
   fi
   if [[ "$rc" -ne 0 ]]; then
     local_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_err.log"
