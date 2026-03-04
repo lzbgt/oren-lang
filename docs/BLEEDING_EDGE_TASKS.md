@@ -1344,6 +1344,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
     and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` completed cleanly (log:
     `build/logs/native_quick_stage2_flake_20260304_131909_run1.log`).
+  - Trace: stage2 flake harness (5 runs) with list tracing disabled, entry-args
+    guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
+    and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` ended on run 2 with rc=137 while
+    emitting only spawn-alloc/entry traces (no guard panics captured) (logs:
+    `build/logs/native_quick_stage2_flake_20260304_132306_run2.log`,
+    `build/logs/native_quick_stage2_flake_20260304_132306_run2_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_132306_run2_err.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
