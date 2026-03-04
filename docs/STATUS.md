@@ -118,8 +118,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: optional list header poisoning on GC free sets magic to `list_magic_poison`
      (`OREN_GC_POISON_LIST_HEADERS=1`); reuse precheck tolerates poison while GC mark
      remains strict to surface use-after-free (2026-02-26).
-   - New: list header ring guard now logs `[list_hdr_ring_ptr_guard_last_corrupt]` when
-     `g_trace_list_hdr_ring_ptr_guard_last` is not 0/1 to catch unexpected writes (2026-02-27).
+  - New: list header ring guard now logs `[list_hdr_ring_ptr_guard_last_corrupt]` when
+    `g_trace_list_hdr_ring_ptr_guard_last` is not 0/1 to catch unexpected writes (2026-02-27).
+  - New: `scripts/triage_native_quick_stage2_flake_debug.sh` + `make test-native-quick-stage2-flake-debug`
+    run the stage2 quick integration loop with spawn ring + list header ring guardrails
+    enabled for flake triage (2026-03-04).
    - Trace: global slot dump maps `idx=434` / `off=3472` to `g_trace_list_hdr_ring_ptr_guard_last`
      after rebuilding stage2 (`alloc_churn_build_globals_idx434_manual_20260227.log`, 2026-02-27).
    - Trace: precheck_guard9 (cached + no-cache) still shows bad-list roots with
