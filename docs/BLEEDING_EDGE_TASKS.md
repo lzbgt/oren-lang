@@ -1246,6 +1246,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_124453_run2.log`,
     `build/logs/native_quick_stage2_flake_20260304_124453_run2_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_124453_run2_err.log`).
+  - Trace: stage2 flake harness (1 run) with list header guard enabled plus
+    list-light tracing (stride=1) and entry-args guard on (entry-args light off)
+    segfaulted during native quick integration before list-light output emitted
+    (logs: `build/logs/native_quick_stage2_flake_20260304_124631_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_124631_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_124631_run1_err.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
