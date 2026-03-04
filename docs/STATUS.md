@@ -396,6 +396,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Trace: crash_footer_raw ring fields confirmed non-zero after auto-enabling ring
      (summary log: `build/logs/repro_bad_list_alloc_churn_ring_20260305_060019.log`,
      2026-03-05).
+   - Trace: crash_footer_raw now shows ring head/cap values in bad-list repros
+     (logs: `build/logs/alloc_churn_bad_list_auto_20260305_060705_0.log`,
+     `build/logs/alloc_churn_bad_list_auto_20260305_060705_1.log`, 2026-03-05).
    - Tool: `[alloc_index_list_counts_at_bad_list]` now prints alloc-index zeroed/bad counts
      plus index len/cap at each `[gc_reuse_bad_list]` when `OREN_TRACE_ALLOC_INDEX=1`
      (2026-03-05).
