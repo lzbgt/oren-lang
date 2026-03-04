@@ -17,6 +17,7 @@ if [[ "$runs" -le 0 ]]; then
   exit 2
 fi
 
+compiler_base="$(basename "$compiler")"
 env_args=()
 if [[ "$#" -gt 2 ]]; then
   env_args=("${@:3}")
@@ -42,11 +43,11 @@ trap 'trap_cleanup INT; exit 130' INT
 run=1
 while [[ "$run" -le "$runs" ]]; do
   ts="$(date +%Y%m%d_%H%M%S)"
-  log="build/logs/native_quick_flake_${ts}_run${run}.log"
-  inner_log="build/logs/native_quick_flake_${ts}_run${run}_inner.log"
+  log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}.log"
+  inner_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_inner.log"
   current_log="$log"
   current_inner_src="build/logs/oren_native_quick_integration.log"
-  current_err_log="build/logs/native_quick_flake_${ts}_run${run}_interrupt.log"
+  current_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_interrupt.log"
   echo "== run ${run}/${runs} ==" >&2
   set +e
   : >"$log"
@@ -70,7 +71,7 @@ while [[ "$run" -le "$runs" ]]; do
     cp -f build/logs/oren_native_quick_integration.log "$inner_log"
   fi
   if [[ "$rc" -ne 0 ]]; then
-    local_err_log="build/logs/native_quick_flake_${ts}_run${run}_err.log"
+    local_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_err.log"
     if [[ -f build/logs/oren_native_quick_integration.log ]]; then
       cp -f build/logs/oren_native_quick_integration.log "$local_err_log"
     fi
