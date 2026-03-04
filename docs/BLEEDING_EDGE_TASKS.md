@@ -1333,6 +1333,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_ARGS_STAMP=1` completed cleanly with
     `OREN_NATIVE_RUN_TIMEOUT_SECS=15` (log:
     `build/logs/native_quick_stage2_flake_20260304_131338_run1.log`).
+  - Trace: stage2 flake harness (3 runs) with list tracing disabled, entry-args
+    guard on (guard-light off, entry-args light off), and
+    `OREN_TRACE_GREEN_ARGS_STAMP=1` completed cleanly with
+    `OREN_NATIVE_RUN_TIMEOUT_SECS=15` (log:
+    `build/logs/native_quick_stage2_flake_20260304_131635_run3.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
