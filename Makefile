@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -410,6 +410,11 @@ test-native-quick: oren
 # Fast native smoke (stage2): use stage2 compiler to build+run the same test.
 test-native-quick-stage2: oren_stage2
 		@./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
+
+# Debug flake triage (stage1): run quick integration loop with spawn ring
+# + list header ring guardrails enabled. Not part of default verify/test.
+test-native-quick-flake-debug: oren
+		@./scripts/triage_native_quick_flake_debug.sh 3 "./$(OREN_BIN)"
 
 # Debug flake triage (stage2): run the stage2 quick integration loop with spawn ring
 # + list header ring guardrails enabled. Not part of default verify/test.

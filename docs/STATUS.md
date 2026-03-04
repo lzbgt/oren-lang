@@ -125,6 +125,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     enabled for flake triage; timeouts can be overridden via
     `OREN_NATIVE_RUN_TIMEOUT_SECS` / `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS` /
     `OREN_NATIVE_BUILD_TIMEOUT_SECS` (2026-03-04).
+  - New: `scripts/triage_native_quick_flake_debug.sh` + `make test-native-quick-flake-debug`
+    provide the same guardrail triage for stage1 native quick integration (2026-03-04).
   - New: `make verify-backend-parity` runs all cross-backend parity smokes in one shot
     (boxed list, list<int>, tags, arith panics, index panics) (2026-03-04).
   - New: `scripts/verify_backend_parity_*.sh` accepts `OREN_BACKEND_PARITY_TRACE_ENV`
