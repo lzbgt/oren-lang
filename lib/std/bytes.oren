@@ -8,6 +8,43 @@
 
 fn len(bytes) { return oren_bytes_len(bytes) }
 
+fn _is_int(v) {
+    if v == nil { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == false
+}
+
+fn _len_or_err(bytes, ctx) {
+    var n = oren_bytes_len(bytes)
+    if n == nil || oren_is_err(n) { return oren_err(4, ctx + ": bytes must be list<int> or u8_buf") }
+    return n
+}
+
+// --- structured error helpers (value-or-err) ---
+
+fn try_len(bytes) {
+    return _len_or_err(bytes, "bytes.try_len")
+}
+
+fn try_get_u8(bytes, idx) {
+    var n = _len_or_err(bytes, "bytes.try_get_u8")
+    if oren_is_err(n) { return n }
+    if _is_int(idx) == false { return oren_err(4, "bytes.try_get_u8: index not int") }
+    if idx < 0 || idx >= n { return oren_err(4, "bytes.try_get_u8: index out of bounds") }
+    return oren_bytes_get_u8(bytes, idx)
+}
+
+fn try_set_u8(bytes, idx, v) {
+    var n = _len_or_err(bytes, "bytes.try_set_u8")
+    if oren_is_err(n) { return n }
+    if _is_int(idx) == false { return oren_err(4, "bytes.try_set_u8: index not int") }
+    if _is_int(v) == false { return oren_err(4, "bytes.try_set_u8: value not int") }
+    if idx < 0 || idx >= n { return oren_err(4, "bytes.try_set_u8: index out of bounds") }
+    if v < 0 || v > 255 { return oren_err(4, "bytes.try_set_u8: byte out of range") }
+    return oren_bytes_set_u8(bytes, idx, v)
+}
+
 fn from_hex(s) { return oren_bytes_from_hex(s) }
 
 fn to_hex(bytes) { return oren_bytes_to_hex(bytes) }

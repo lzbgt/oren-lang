@@ -7,6 +7,7 @@ import list "std:list"
 import buffer "std:buffer"
 import base64 "std:encoding/base64"
 import strings "std:strings"
+import bytes "std:bytes"
 
 fn main() {
     // Non-existent file => error
@@ -63,6 +64,18 @@ fn main() {
     if r.is_err(ch) || ch != "i" { return 16 }
     var bad_slice = strings.try_slice("hi", 0, 3)
     if r.is_err(bad_slice) != true { return 17 }
+
+    // std:bytes structured errors
+    var b = bytes.from_hex("00ff")
+    if r.is_err(b) { return 18 }
+    var bl = bytes.try_len(b)
+    if r.is_err(bl) || bl != 2 { return 19 }
+    var bv = bytes.try_get_u8(b, 1)
+    if r.is_err(bv) || bv != 255 { return 20 }
+    var bad_b = bytes.try_get_u8(b, 3)
+    if r.is_err(bad_b) != true { return 21 }
+    var bad_set = bytes.try_set_u8(b, 0, 300)
+    if r.is_err(bad_set) != true { return 22 }
 
     return 0
 }
