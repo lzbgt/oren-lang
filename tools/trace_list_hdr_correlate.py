@@ -36,7 +36,9 @@ LIST_CORRUPT_RE = re.compile(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Correlate list_hdr traces with gc_free_list samples.",
+        description=(
+            "Correlate list_hdr/list_hdr_ring/crash_footer_raw traces with gc_free_list samples."
+        ),
     )
     parser.add_argument("--log", required=True, help="Path to a log file.")
     parser.add_argument(
