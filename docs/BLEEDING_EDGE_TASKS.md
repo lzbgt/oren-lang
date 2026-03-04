@@ -1389,6 +1389,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_134319_run1.log`,
     `build/logs/native_quick_stage2_flake_20260304_134319_run1_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_134319_run1_err.log`).
+  - Trace: stage2 flake harness (3 runs) with entry-args tracing disabled and
+    args-stamp/spawn logging sampled at stride=128 ended on run 3 with rc=138
+    (bus error) after spawn logs (logs:
+    `build/logs/native_quick_stage2_flake_20260304_134703_run3.log`,
+    `build/logs/native_quick_stage2_flake_20260304_134703_run3_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_134703_run3_err.log`).
   - Trace: stage2 flake harness (5 runs) with list tracing disabled, entry-args
     guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
     and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` ended on run 2 with rc=137 while
