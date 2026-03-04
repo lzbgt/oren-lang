@@ -136,6 +136,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     allows `make verify-backend-parity` to complete cleanly on 2026-03-04 (log: `build/logs/verify_backend_parity_trace_20260304.log`).
   - Trace: stage2 native quick integration segfaulted during QI dbg sugar (rc=139);
     log: `build/logs/oren_stage2_native_quick_flake_20260304_161224_run1.log` (2026-03-04).
+  - Trace: stage2 quick flake debug guardrail run (3 runs) completed cleanly under
+    list header ring + spawn ring + list corruption tracing (log:
+    `build/logs/triage_stage2_flake_debug_20260304_183646.log`, 2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
   - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`
