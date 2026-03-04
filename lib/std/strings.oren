@@ -11,6 +11,44 @@ fn to_bytes(s) { return oren_bytes_from_string(s) }
 
 fn from_bytes(bs) { return oren_string_from_bytes(bs) }
 
+fn _is_int(v) {
+    if v == nil { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == false
+}
+
+fn _len_or_err(s, ctx) {
+    if s == nil || oren_is_string(s) != true { return oren_err(4, ctx + ": s must be string") }
+    var n = oren_string_len(s)
+    if n == nil || oren_is_err(n) { return oren_err(4, ctx + ": s must be string") }
+    return n
+}
+
+// --- structured error helpers (value-or-err) ---
+
+fn try_len(s) {
+    return _len_or_err(s, "strings.try_len")
+}
+
+fn try_char_at(s, i) {
+    var n = _len_or_err(s, "strings.try_char_at")
+    if oren_is_err(n) { return n }
+    if _is_int(i) == false { return oren_err(4, "strings.try_char_at: index not int") }
+    if i < 0 || i >= n { return oren_err(4, "strings.try_char_at: index out of bounds") }
+    return oren_string_char_at(s, i)
+}
+
+fn try_slice(s, start, end) {
+    var n = _len_or_err(s, "strings.try_slice")
+    if oren_is_err(n) { return n }
+    if _is_int(start) == false || _is_int(end) == false { return oren_err(4, "strings.try_slice: start/end not int") }
+    if start < 0 || end < 0 { return oren_err(4, "strings.try_slice: negative range") }
+    if start > end { return oren_err(4, "strings.try_slice: start > end") }
+    if end > n { return oren_err(4, "strings.try_slice: out of bounds") }
+    return oren_string_slice(s, start, end)
+}
+
 fn starts_with(s, prefix) {
     if s == nil || prefix == nil { return false }
     var sb = oren_bytes_from_string(s)

@@ -6,6 +6,7 @@ import r "../../lib/std/result.oren"
 import list "std:list"
 import buffer "std:buffer"
 import base64 "std:encoding/base64"
+import strings "std:strings"
 
 fn main() {
     // Non-existent file => error
@@ -54,6 +55,14 @@ fn main() {
     // std:encoding/base64 errors
     var b64_bad = base64.decode_bytes("!!!")
     if r.is_err(b64_bad) != true { return 14 }
+
+    // std:strings structured errors
+    var bad_len = strings.try_len(123)
+    if r.is_err(bad_len) != true { return 15 }
+    var ch = strings.try_char_at("hi", 1)
+    if r.is_err(ch) || ch != "i" { return 16 }
+    var bad_slice = strings.try_slice("hi", 0, 3)
+    if r.is_err(bad_slice) != true { return 17 }
 
     return 0
 }
