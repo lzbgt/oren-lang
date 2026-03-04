@@ -914,6 +914,27 @@ fn _green_args_guard_core(label, g) {
     var node = native_alloc_index_get(args_list)
     if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
     if node == 0 {
+        var magic = ptr_get(g + green_g_off_magic())
+        var state = ptr_get(g + green_g_off_state())
+        var fn_obj = ptr_get(g + green_g_off_fn_obj())
+        var stack_node = ptr_get(g + green_g_off_stack_node())
+        var stamp_ptr = ptr_get(g + green_g_off_args_stamp_ptr())
+        var stamp_len = ptr_get(g + green_g_off_args_stamp_len())
+        var stamp_cap = ptr_get(g + green_g_off_args_stamp_cap())
+        var stamp_buf = ptr_get(g + green_g_off_args_stamp_buf())
+        var stamp_magic = ptr_get(g + green_g_off_args_stamp_magic())
+        print("trace: green_runq_guard " + label + " g=" + oren_int_to_string(g) +
+              " magic=" + oren_int_to_string(magic) +
+              " state=" + oren_int_to_string(state) +
+              " stack_node=" + oren_int_to_string(stack_node) +
+              " fn=" + oren_int_to_string(fn_obj) +
+              " args=" + oren_int_to_string(args_list))
+        print("trace: green_runq_guard " + label +
+              " stamp ptr=" + oren_int_to_string(stamp_ptr) +
+              " len=" + oren_int_to_string(stamp_len) +
+              " cap=" + oren_int_to_string(stamp_cap) +
+              " buf=" + oren_int_to_string(stamp_buf) +
+              " magic=" + oren_int_to_string(stamp_magic))
         print("trace: green_runq_guard " + label + " args=" + oren_int_to_string(args_list) + " node=0")
         oren_panic("green runq guard: args_list untracked")
         return 0
