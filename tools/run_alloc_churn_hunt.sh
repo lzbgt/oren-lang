@@ -58,6 +58,10 @@ while [[ "${run_idx}" -le "${max_runs}" ]]; do
       if rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}" >/dev/null; then
         echo "alloc_churn_hunt: crash_footer_raw in ${run_log}"
         rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}"
+        if rg -m 1 -n "\\[crash_footer_raw\\] ring idx=" "${run_log}" >/dev/null; then
+          echo "alloc_churn_hunt: crash_footer_raw ring dump (first 3)"
+          rg -m 3 -n "\\[crash_footer_raw\\] ring idx=" "${run_log}"
+        fi
       fi
     fi
     echo "alloc_churn_hunt: run_status=${run_status} (see ${env_log})"
@@ -68,6 +72,10 @@ while [[ "${run_idx}" -le "${max_runs}" ]]; do
       if rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}" >/dev/null; then
         echo "alloc_churn_hunt: crash_footer_raw in ${run_log}"
         rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}"
+        if rg -m 1 -n "\\[crash_footer_raw\\] ring idx=" "${run_log}" >/dev/null; then
+          echo "alloc_churn_hunt: crash_footer_raw ring dump (first 3)"
+          rg -m 3 -n "\\[crash_footer_raw\\] ring idx=" "${run_log}"
+        fi
       fi
     fi
     echo "alloc_churn_hunt: timed out (see ${env_log})"

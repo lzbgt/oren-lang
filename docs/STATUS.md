@@ -350,7 +350,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
   until a corruption signature is observed (or a timeout/failure stops the run), using
   the trace harness logs under `build/logs/` (set `ALLOC_CHURN_HUNT_CORRELATE=0` to skip
   auto-correlation; tune via `ALLOC_CHURN_HUNT_CORRELATE_LIMIT/MAX`). The harness now
-  prints the first `[crash_footer_raw]` line when a run fails or times out (2026-03-05).
+  prints the first `[crash_footer_raw]` line plus the first few ring dump lines when a
+  run fails or times out (2026-03-05).
    - Tool: `OREN_TRACE_CRASH_FOOTER=1` installs a best-effort crash footer on macOS
      (SIGSEGV/SIGBUS) that dumps alloc-index counts plus list header ring contents when
      the process crashes (debug-only; not signal-safe, 2026-03-05).

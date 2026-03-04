@@ -75,6 +75,10 @@ for ((i=0; i<RUNS; i++)); do
   if rg -n "\\[crash_footer_raw\\]" "$log" >/dev/null; then
     line="$(rg -m 1 -n "\\[crash_footer_raw\\]" "$log")"
     echo "crash_footer_raw: $line"
+    if rg -n "\\[crash_footer_raw\\] ring idx=" "$log" >/dev/null; then
+      echo "crash_footer_raw_ring:"
+      rg -m 3 -n "\\[crash_footer_raw\\] ring idx=" "$log"
+    fi
   fi
 
   if rg -n "\\[gc_reuse_bad_list\\]" "$log" >/dev/null; then

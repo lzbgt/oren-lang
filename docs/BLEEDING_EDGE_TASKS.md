@@ -451,7 +451,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
     continues across crashes, logs non-zero exit statuses, and captures stderr in logs
     (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces; now also
-    prints the first `[crash_footer_raw]` line when present, 2026-03-05).
+    prints the first `[crash_footer_raw]` line plus a few ring dump lines when present,
+    2026-03-05).
   - Tool: `OREN_TRACE_CRASH_FOOTER=1` installs a best-effort crash footer on macOS
     (SIGSEGV/SIGBUS) that dumps alloc-index counts plus list header ring contents when
     the process crashes (debug-only; not signal-safe, 2026-03-05).
@@ -752,8 +753,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     trace harness until a corruption signature is found (or a timeout/failure stops the
     hunt), emitting logs under `build/logs/`. Set `ALLOC_CHURN_HUNT_CORRELATE=0` to
     skip auto-correlation; tune output via `ALLOC_CHURN_HUNT_CORRELATE_LIMIT/MAX`.
-    The harness now prints the first `[crash_footer_raw]` line when a run fails or
-    times out (2026-03-05).
+    The harness now prints the first `[crash_footer_raw]` line plus a few ring dump
+    lines when a run fails or times out (2026-03-05).
   - Trace: alloc_churn with GC reuse + `OREN_TRACE_ALLOC_INDEX=1` + free-list header tracing
     appeared to loop on alloc-index rebuild logs and was killed
     (log: `build/logs/alloc_churn_trace_repro_reuse_20260226e.log`).
