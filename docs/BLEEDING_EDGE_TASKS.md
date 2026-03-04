@@ -871,8 +871,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 3) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
    - New run (arm64, 2026-03-04, runs=5, warmups=1):
-     - loop_sum: C 0.066739s, native 0.237463s (3.56× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
-     - dot_product: C 0.005035s, native 0.013433s (2.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+     - loop_sum: C 0.067194s, native 0.225078s (3.35× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
+     - dot_product: C 0.005185s, native 0.013571s (2.62× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
     - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).

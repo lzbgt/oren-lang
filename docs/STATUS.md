@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-03-04
+**Last updated:** 2026-03-05
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; latest `alloc_churn` 5.54×, `alloc_drop` 1.58× on arm64, 2026-03-04).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.35×, `dot_product` 2.62×; latest `alloc_churn` 5.54×, `alloc_drop` 1.58× on arm64, 2026-03-05).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -56,7 +56,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; latest `alloc_churn` 5.54× C, `alloc_drop` 1.58× C (arm64, 2026-03-04).
+   - Baselines: `loop_sum` 3.35× C, `dot_product` 2.62× C; latest `alloc_churn` 5.54× C, `alloc_drop` 1.58× C (arm64, 2026-03-05).
    - Priority: hot loops remain above the 2× gate; alloc_drop and alloc_churn are within the 5×/8× gates.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
@@ -474,8 +474,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.33× C, `dot_product` 2.57× C.
    - New run (arm64, 2026-03-04, runs=5, warmups=1):
-     - loop_sum: C 0.066739s, native 0.237463s (3.56× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
-     - dot_product: C 0.005035s, native 0.013433s (2.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+     - loop_sum: C 0.067194s, native 0.225078s (3.35× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
+     - dot_product: C 0.005185s, native 0.013571s (2.62× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
