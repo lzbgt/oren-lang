@@ -5,6 +5,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
   echo "env: OREN_QI_AUTO_RERUN_GUARDRAILS=1 to re-run failures with guardrails" >&2
   echo "env: OREN_QI_AUTO_RERUN_ENV='KEY=VAL ...' to override guardrail env" >&2
+  echo "env: OREN_QI_JITTER_MAX_MS=<n> to sleep up to n ms before each run" >&2
   exit 0
 fi
 
@@ -43,6 +44,11 @@ trap 'trap_cleanup TERM; exit 143' TERM
 trap 'trap_cleanup INT; exit 130' INT
 
 auto_rerun="${OREN_QI_AUTO_RERUN_GUARDRAILS:-0}"
+jitter_max_ms="${OREN_QI_JITTER_MAX_MS:-0}"
+if ! [[ "$jitter_max_ms" =~ ^[0-9]+$ ]]; then
+  echo "OREN_QI_JITTER_MAX_MS must be a non-negative integer" >&2
+  exit 2
+fi
 auto_env_default=(
   "OREN_TRACE_LIST_CORRUPT=1"
   "OREN_TRACE_LIST_HDR_RING=1"
@@ -65,6 +71,9 @@ run_integration() {
     echo "ts=$ts"
     echo "run=${run}/${runs}"
     echo "compiler=$compiler"
+    if [[ "${jitter_ms:-0}" -gt 0 ]]; then
+      echo "jitter_ms=$jitter_ms"
+    fi
     echo "cwd=$(pwd)"
     echo "uname=$(uname -a)"
     echo "git_rev=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
@@ -80,6 +89,19 @@ run_integration() {
 
 run=1
 while [[ "$run" -le "$runs" ]]; do
+  jitter_ms=0
+  if [[ "$jitter_max_ms" -gt 0 ]]; then
+    jitter_ms=$((RANDOM % (jitter_max_ms + 1)))
+    if [[ "$jitter_ms" -gt 0 ]]; then
+      jitter_s=$((jitter_ms / 1000))
+      jitter_rem_ms=$((jitter_ms % 1000))
+      if [[ "$jitter_s" -gt 0 ]]; then
+        sleep "$(printf '%d.%03d' "$jitter_s" "$jitter_rem_ms")"
+      else
+        sleep "0.$(printf '%03d' "$jitter_rem_ms")"
+      fi
+    fi
+  fi
   ts="$(date +%Y%m%d_%H%M%S)"
   log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}.log"
   inner_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_inner.log"

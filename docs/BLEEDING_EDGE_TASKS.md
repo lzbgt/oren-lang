@@ -1562,6 +1562,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `scripts/triage_native_quick_flake.sh` can auto re-run flakes with guardrails via
     `OREN_QI_AUTO_RERUN_GUARDRAILS=1`; override env with
     `OREN_QI_AUTO_RERUN_ENV='KEY=VAL ...'` for guardrail capture (2026-03-04).
+  - New: `scripts/triage_native_quick_flake.sh` supports per-run jitter via
+    `OREN_QI_JITTER_MAX_MS=<n>` to vary scheduling when chasing timing-sensitive flakes
+    (2026-03-04).
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);
