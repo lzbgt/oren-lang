@@ -656,6 +656,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `<n>` list_hdr ring entries when `[alloc_index_list_bad]` fires.
   - Update (2026-03-05): `[gc_reuse_bad_list]` now includes `freed_seen=<0|1>` when
     `OREN_TRACE_GC_FREED_LISTS=1` to flag potential use-after-free list headers.
+  - Trace (2026-03-05): alloc_churn with `OREN_TRACE_GC_FREED_LISTS=1` showed `freed_seen=0`
+    across multiple `[gc_reuse_bad_list]` prints (log:
+    `build/logs/alloc_churn_trace_alloc_index_bad_freed_20260305_041225.log`).
   - Trace (2026-03-05): alloc_churn run with `OREN_TRACE_ALLOC_INDEX_LIST_BAD_RING_RECENT=8`
     hit `gc list_int corrupt` and emitted list_hdr ring dumps from GC reuse traces, but did
     not trigger `[alloc_index_list_bad]` yet (log:
