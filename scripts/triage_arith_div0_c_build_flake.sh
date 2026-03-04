@@ -21,10 +21,12 @@ mkdir -p build/logs build/tmp
 trace_ring_cap="${OREN_TRACE_LIST_HDR_RING_CAP:-4096}"
 trace_corrupt_cap="${OREN_TRACE_LIST_CORRUPT_CAP:-256}"
 src="${OREN_TRACE_ARITH_SRC:-tests/native/fixtures/arith_div0.oren}"
+src_base="$(basename "$src")"
+src_tag="${src_base%.oren}"
 
 for i in $(seq 1 "$runs"); do
   ts="$(date +%Y%m%d_%H%M%S)"
-  log="build/logs/arith_div0_c_build_flake_${ts}_run${i}.log"
+  log="build/logs/${src_tag}_c_build_flake_${ts}_run${i}.log"
   uname_out="$(uname -a)"
   git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
