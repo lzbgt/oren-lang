@@ -1,0 +1,26 @@
+// Structured error smoke (native quick integration).
+//
+// Validates std:result helpers on a guaranteed error path.
+
+import r "../../lib/std/result.oren"
+
+fn main() {
+    // Non-existent file => error
+    var v = oren_read_file("__oren_result_smoke_missing__.txt")
+    if r.is_err(v) != true { return 1 }
+
+    // unwrap_or should return fallback on error.
+    var s = r.unwrap_or(v, "fallback")
+    if s != "fallback" { return 2 }
+
+    // errno adapter should map negative rc to err.
+    var e = r.ok_or_errno(0 - 12, "alloc") // -ENOMEM
+    if r.is_err(e) != true { return 3 }
+    if oren_err_code(e) != 12 { return 4 }
+
+    // ok_or_errno should pass through success.
+    var okv = r.ok_or_errno(5, "read")
+    if okv != 5 { return 5 }
+
+    return 0
+}

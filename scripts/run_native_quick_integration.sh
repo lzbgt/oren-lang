@@ -229,6 +229,18 @@ if [[ "${OREN_QI_SKIP_SPREAD_SMOKE:-0}" != "1" ]]; then
   tail -n 3 "$sp_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_RESULT_SMOKE:-0}" != "1" ]]; then
+  echo "== result smoke ==" >>"$log"
+  rs_src="tests/fixtures/tier1_native_result_smoke_main.oren"
+  rs_out="build/tmp/${compiler_base}_result_smoke${exe_ext}"
+  rs_log="build/logs/${compiler_base}_result_smoke.log"
+  rm -f "$rs_out" "$rs_log" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$rs_src" \
+    --backend native --platform "$platform" --debug -o "$rs_out" >"$rs_log" 2>&1
+  run_with_timeout "$run_timeout_secs" "$rs_out" >>"$rs_log" 2>&1
+  tail -n 3 "$rs_log" >>"$log"
+fi
+
 echo "== ulock timeout portable smoke ==" >>"$log"
 ul_src="tests/native/test_ulock_timeout_portable.oren"
 ul_out="build/tmp/${compiler_base}_ulock_timeout_portable${exe_ext}"

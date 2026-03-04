@@ -363,6 +363,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      visibility boundaries, bytes + typed buffers
      (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
+   - New: `std:result` smoke fixture wired into native quick integration
+     (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).
    - Implemented (rolling): core `assert(cond, msg?)` statement and `oren test` runner for
      `test "name" { ... }` blocks (2026-03-04).
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`)
