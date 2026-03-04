@@ -464,6 +464,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `list_int_push on non-list` panic (no `[crash_footer]` output), indicating
     a non-SEGV failure mode before bad-list triggers
     (log: `build/logs/alloc_churn_trace_crash_footer_20260305_044237.log`, 2026-03-05).
+  - Trace: repro bad-list alloc_churn runs (poison headers + reuse) segfaulted
+    quickly and still emitted no `[crash_footer]` output, even with
+    `OREN_TRACE_CRASH_FOOTER=1` enabled
+    (logs: `build/logs/alloc_churn_bad_list_auto_20260305_050800_0.log`,
+    `build/logs/alloc_churn_bad_list_auto_20260305_050830_0.log`, 2026-03-05).
   - Tool: `[alloc_index_list_counts_at_bad_list]` now prints alloc-index zeroed/bad counts
     plus index len/cap at each `[gc_reuse_bad_list]` when `OREN_TRACE_ALLOC_INDEX=1`
     (2026-03-05).
