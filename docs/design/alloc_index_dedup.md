@@ -56,3 +56,5 @@ Helper:
 - `scripts/suggest_alloc_index_dedup_cap.sh [--run] [log_path]`
   - Runs GC-stress (optional) and suggests a cap from `dedup_hits` with a configurable
     multiplier (`DEDUP_CAP_MULT`, default 4).
+  - Uses `OREN_COMPILER` when running GC-stress and defaults the log path to
+    `build/logs/${compiler_base}_native_quick_integration.log`.
