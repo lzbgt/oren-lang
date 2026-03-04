@@ -54,10 +54,22 @@ while [[ "${run_idx}" -le "${max_runs}" ]]; do
   fi
 
   if [[ "${run_status}" != "" && "${run_status}" != "0" ]]; then
+    if [[ -f "${run_log}" ]]; then
+      if rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}" >/dev/null; then
+        echo "alloc_churn_hunt: crash_footer_raw in ${run_log}"
+        rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}"
+      fi
+    fi
     echo "alloc_churn_hunt: run_status=${run_status} (see ${env_log})"
     exit 1
   fi
   if [[ "${run_timed_out}" == "1" ]]; then
+    if [[ -f "${run_log}" ]]; then
+      if rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}" >/dev/null; then
+        echo "alloc_churn_hunt: crash_footer_raw in ${run_log}"
+        rg -m 1 -n "\\[crash_footer_raw\\]" "${run_log}"
+      fi
+    fi
     echo "alloc_churn_hunt: timed out (see ${env_log})"
     exit 1
   fi
