@@ -342,8 +342,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
     continues across crashes, logs non-zero exit statuses, and captures stderr in logs
     (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces; set
-    `CRASH_FOOTER=0` to skip enabling crash_footer; now also prints the first
-    `[crash_footer_raw]` line when present, 2026-03-05).
+    `CRASH_FOOTER=0` to skip enabling crash_footer; it now runs the correlator on runs
+    that emit crash_footer output unless `REPRO_BAD_LIST_CORRELATE=0` is set, and prints
+    the first `[crash_footer_raw]` line when present, 2026-03-05).
   - Tool: `tools/trace_list_hdr_correlate.py --log <log> --limit 5 --max 50` now surfaces
     `list_corrupt` and `gc_list_*_corrupt` events alongside free-list samples and attaches
     ring dumps (including crash_footer_raw ring lines) when present to pinpoint last

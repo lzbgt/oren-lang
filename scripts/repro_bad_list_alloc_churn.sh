@@ -8,6 +8,11 @@ RUNS="${RUNS:-10}"
 BUILD="${BUILD:-1}"
 EXTRA_TRACE="${EXTRA_TRACE:-0}"
 CRASH_FOOTER="${CRASH_FOOTER:-1}"
+REPRO_BAD_LIST_CORRELATE="${REPRO_BAD_LIST_CORRELATE:-1}"
+REPRO_BAD_LIST_CORRELATE_LIMIT="${REPRO_BAD_LIST_CORRELATE_LIMIT:-5}"
+REPRO_BAD_LIST_CORRELATE_MAX="${REPRO_BAD_LIST_CORRELATE_MAX:-50}"
+CORRELATE_TOOL="$ROOT/tools/trace_list_hdr_correlate.py"
+PYTHON_BIN="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "")"
 
 if ! command -v rg >/dev/null 2>&1; then
   echo "rg is required (ripgrep)." >&2
@@ -84,6 +89,14 @@ for ((i=0; i<RUNS; i++)); do
     if rg -n "\\[crash_footer_raw\\] ring idx=" "$log" >/dev/null; then
       echo "crash_footer_raw_ring:"
       rg -m 3 -n "\\[crash_footer_raw\\] ring idx=" "$log"
+    fi
+    if [ "$REPRO_BAD_LIST_CORRELATE" != "0" ] && [ -n "$PYTHON_BIN" ] && [ -f "$CORRELATE_TOOL" ]; then
+      correlate_log="${LOG_DIR}/alloc_churn_bad_list_correlate_${ts}_${i}.log"
+      if "$PYTHON_BIN" "$CORRELATE_TOOL" --log "$log" --limit "$REPRO_BAD_LIST_CORRELATE_LIMIT" --max "$REPRO_BAD_LIST_CORRELATE_MAX" > "$correlate_log" 2>&1; then
+        echo "correlate: $correlate_log"
+      else
+        echo "correlate failed: $correlate_log" >&2
+      fi
     fi
   fi
 
