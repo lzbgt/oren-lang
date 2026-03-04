@@ -886,6 +886,9 @@ fn __oren_crash_footer_handler(sig) {
     native_crash_footer_write_cstr(" list_hdr_ring_head=")
     native_crash_footer_write_u64(g_trace_list_hdr_ring_head)
     native_crash_footer_write_cstr("\n")
+    if g_trace_list_hdr_ring_ptr != 0 && g_trace_list_hdr_ring_cap > 0 {
+        native_crash_footer_dump_list_hdr_ring_raw(16)
+    }
     print("[crash_footer] signal=" + oren_int_to_string(sig) +
         " alloc_index_zeroed=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
         " alloc_index_bad=" + oren_int_to_string(g_alloc_index_list_bad_count) +
@@ -897,6 +900,62 @@ fn __oren_crash_footer_handler(sig) {
         print("[crash_footer] list_hdr_ring=0")
     }
     sys_exit(139)
+    return 0
+}
+
+fn native_crash_footer_dump_list_hdr_ring_raw(max_entries) {
+    var base = g_trace_list_hdr_ring_ptr
+    var cap = g_trace_list_hdr_ring_cap
+    if base == 0 || cap <= 0 { return 0 }
+    if max_entries <= 0 { return 0 }
+    if g_trace_list_hdr_ring_ptr_guard != 0 &&
+       g_trace_list_hdr_ring_ptr_guard != 1 {
+        return 0
+    }
+    var entries = max_entries
+    if entries > cap { entries = cap }
+    var head = g_trace_list_hdr_ring_head
+    var head_idx = head % cap
+    var start = head_idx - entries
+    if start < 0 { start = start + cap }
+    native_crash_footer_write_cstr("[crash_footer_raw] ring_dump entries=")
+    native_crash_footer_write_u64(entries)
+    native_crash_footer_write_cstr(" head_idx=")
+    native_crash_footer_write_u64(head_idx)
+    native_crash_footer_write_cstr(" start=")
+    native_crash_footer_write_u64(start)
+    native_crash_footer_write_cstr("\n")
+    var i = 0
+    while i < entries {
+        var idx = start + i
+        if idx >= cap { idx = idx - cap }
+        var off = idx * 56
+        var list = ptr_get(iadd(base, off))
+        var op = ptr_get(iadd(base, off + 8))
+        var len = ptr_get(iadd(base, off + 16))
+        var list_cap = ptr_get(iadd(base, off + 24))
+        var buf = ptr_get(iadd(base, off + 32))
+        var magic = ptr_get(iadd(base, off + 40))
+        var kind = ptr_get(iadd(base, off + 48))
+        native_crash_footer_write_cstr("[crash_footer_raw] ring idx=")
+        native_crash_footer_write_u64(idx)
+        native_crash_footer_write_cstr(" list=")
+        native_crash_footer_write_u64(list)
+        native_crash_footer_write_cstr(" op=")
+        native_crash_footer_write_u64(op)
+        native_crash_footer_write_cstr(" len=")
+        native_crash_footer_write_u64(len)
+        native_crash_footer_write_cstr(" cap=")
+        native_crash_footer_write_u64(list_cap)
+        native_crash_footer_write_cstr(" buf=")
+        native_crash_footer_write_u64(buf)
+        native_crash_footer_write_cstr(" magic=")
+        native_crash_footer_write_u64(magic)
+        native_crash_footer_write_cstr(" kind=")
+        native_crash_footer_write_u64(kind)
+        native_crash_footer_write_cstr("\n")
+        i = i + 1
+    }
     return 0
 }
 
