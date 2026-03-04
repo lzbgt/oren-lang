@@ -83,20 +83,14 @@ for ((i=0; i<RUNS; i++)); do
     echo "run $i exited status $status (log=$log)" >&2
   fi
 
+  crash_footer_hit=0
   if rg -n "\\[crash_footer_raw\\]" "$log" >/dev/null; then
+    crash_footer_hit=1
     line="$(rg -m 1 -n "\\[crash_footer_raw\\]" "$log")"
     echo "crash_footer_raw: $line"
     if rg -n "\\[crash_footer_raw\\] ring idx=" "$log" >/dev/null; then
       echo "crash_footer_raw_ring:"
       rg -m 3 -n "\\[crash_footer_raw\\] ring idx=" "$log"
-    fi
-    if [ "$REPRO_BAD_LIST_CORRELATE" != "0" ] && [ -n "$PYTHON_BIN" ] && [ -f "$CORRELATE_TOOL" ]; then
-      correlate_log="${LOG_DIR}/alloc_churn_bad_list_correlate_${ts}_${i}.log"
-      if "$PYTHON_BIN" "$CORRELATE_TOOL" --log "$log" --limit "$REPRO_BAD_LIST_CORRELATE_LIMIT" --max "$REPRO_BAD_LIST_CORRELATE_MAX" > "$correlate_log" 2>&1; then
-        echo "correlate: $correlate_log"
-      else
-        echo "correlate failed: $correlate_log" >&2
-      fi
     fi
   fi
 
@@ -107,7 +101,26 @@ for ((i=0; i<RUNS; i++)); do
     echo "bad-list hit: log=$log ptr=$ptr node=$node"
     echo "filters: OREN_TRACE_LIST_HDR_REINIT_PTR=$ptr OREN_TRACE_ALLOC_KIND_CHANGE_PTR=$ptr"
     echo "filters: OREN_TRACE_LIST_HDR_REINIT_NODE=$node OREN_TRACE_ALLOC_KIND_CHANGE_NODE=$node"
+    if [ "$REPRO_BAD_LIST_CORRELATE" != "0" ] && [ -n "$PYTHON_BIN" ] && [ -f "$CORRELATE_TOOL" ]; then
+      correlate_log="${LOG_DIR}/alloc_churn_bad_list_correlate_${ts}_${i}.log"
+      if "$PYTHON_BIN" "$CORRELATE_TOOL" --log "$log" --limit "$REPRO_BAD_LIST_CORRELATE_LIMIT" --max "$REPRO_BAD_LIST_CORRELATE_MAX" > "$correlate_log" 2>&1; then
+        echo "correlate: $correlate_log"
+      else
+        echo "correlate failed: $correlate_log" >&2
+      fi
+    fi
     exit 0
+  fi
+
+  if [ "$crash_footer_hit" -ne 0 ]; then
+    if [ "$REPRO_BAD_LIST_CORRELATE" != "0" ] && [ -n "$PYTHON_BIN" ] && [ -f "$CORRELATE_TOOL" ]; then
+      correlate_log="${LOG_DIR}/alloc_churn_bad_list_correlate_${ts}_${i}.log"
+      if "$PYTHON_BIN" "$CORRELATE_TOOL" --log "$log" --limit "$REPRO_BAD_LIST_CORRELATE_LIMIT" --max "$REPRO_BAD_LIST_CORRELATE_MAX" > "$correlate_log" 2>&1; then
+        echo "correlate: $correlate_log"
+      else
+        echo "correlate failed: $correlate_log" >&2
+      fi
+    fi
   fi
 done
 
