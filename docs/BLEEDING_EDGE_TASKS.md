@@ -1415,6 +1415,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` completed cleanly with
     `OREN_NATIVE_RUN_TIMEOUT_SECS=30` (log:
     `build/logs/native_quick_stage2_flake_20260304_140000_run3.log`).
+  - Trace: stage2 flake harness (5 runs) with tracing off and
+    `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` completed cleanly with
+    `OREN_NATIVE_RUN_TIMEOUT_SECS=30` (log:
+    `build/logs/native_quick_stage2_flake_20260304_140741_run5.log`).
   - Trace: stage2 flake harness (3 runs) with tracing mostly off but
     `OREN_TRACE_GREEN_ARGS_STAMP=1` (stride=128) and
     `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` ended on run 1 with rc=138 (bus error)
