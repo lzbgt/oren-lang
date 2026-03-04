@@ -5,6 +5,10 @@ runs="${1:-3}"
 compiler="${2:-./oren_stage2}"
 shift $(( $# > 0 ? 1 : 0 )) || true
 shift $(( $# > 0 ? 1 : 0 )) || true
+env_args=()
+if [[ "$#" -gt 0 ]]; then
+  env_args=("$@")
+fi
 
 if ! [[ "$runs" =~ ^[0-9]+$ ]]; then
   echo "Usage: $0 [runs] [compiler] [ENV=VAL ...]"
@@ -23,6 +27,7 @@ trace_corrupt_cap="${OREN_TRACE_LIST_CORRUPT_CAP:-256}"
 src="${OREN_TRACE_ARITH_SRC:-tests/native/fixtures/arith_div0.oren}"
 src_base="$(basename "$src")"
 src_tag="${src_base%.oren}"
+out="build/tmp/${src_tag}_c_dbg"
 
 for i in $(seq 1 "$runs"); do
   ts="$(date +%Y%m%d_%H%M%S)"
@@ -38,22 +43,27 @@ for i in $(seq 1 "$runs"); do
     echo "uname=$uname_out"
     echo "git_rev=$git_rev"
     echo "env: OREN_TRACE_LIST_HDR_RING=1 OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1 OREN_TRACE_LIST_HDR_RING_CAP=${trace_ring_cap} OREN_TRACE_LIST_CORRUPT=1 OREN_TRACE_LIST_CORRUPT_CAP=${trace_corrupt_cap}"
+    if [[ "${#env_args[@]}" -gt 0 ]]; then
+      echo "extra_env: ${env_args[*]}"
+    fi
     echo "== build: C backend (${src}) =="
   } >"$log"
 
   set +e
-  OREN_TRACE_LIST_HDR_RING=1 \
-  OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1 \
-  OREN_TRACE_LIST_HDR_RING_CAP="$trace_ring_cap" \
-  OREN_TRACE_LIST_CORRUPT=1 \
-  OREN_TRACE_LIST_CORRUPT_CAP="$trace_corrupt_cap" \
-  "$compiler" build "$src" --backend c -o build/tmp/arith_div0_c_dbg \
+  env OREN_TRACE_LIST_HDR_RING=1 \
+    OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1 \
+    OREN_TRACE_LIST_HDR_RING_CAP="$trace_ring_cap" \
+    OREN_TRACE_LIST_CORRUPT=1 \
+    OREN_TRACE_LIST_CORRUPT_CAP="$trace_corrupt_cap" \
+    "${env_args[@]}" \
+    "$compiler" build "$src" --backend c -o "$out" \
     >>"$log" 2>&1
   rc=$?
   set -e
 
   if [[ "$rc" -ne 0 ]]; then
     echo "FAIL: run $i rc=$rc log=$log" >&2
+    tail -n 120 "$log" >&2 || true
     exit "$rc"
   fi
 
