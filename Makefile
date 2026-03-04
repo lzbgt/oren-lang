@@ -65,6 +65,8 @@ OREN_STAGE2_BIN := oren_stage2$(EXE_EXT)
 OREDOC_BIN := oredoc$(EXE_EXT)
 ORENSIGN_BIN := orensign$(EXE_EXT)
 AVM_BIN := avm$(EXE_EXT)
+OREN_RUNTIME_ROBUSTNESS_RUNS ?= 1
+OREN_RUNTIME_ROBUSTNESS_COMPILER ?= ./$(OREN_STAGE2_BIN)
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(strip $(OREN_SKIP_CODESIGN)),1)
     $(error OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS)
@@ -457,7 +459,7 @@ verify-backend-parity: verify-backend-parity-boxed-list verify-backend-parity-li
 	@echo "verify-backend-parity OK"
 
 verify-runtime-robustness: oren_stage2
-	./scripts/verify_runtime_robustness_w5.sh 1 ./$(OREN_STAGE2_BIN)
+	./scripts/verify_runtime_robustness_w5.sh $(OREN_RUNTIME_ROBUSTNESS_RUNS) $(OREN_RUNTIME_ROBUSTNESS_COMPILER)
 
 # GUI bring-up smoke (headful, opt-in).
 # This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
