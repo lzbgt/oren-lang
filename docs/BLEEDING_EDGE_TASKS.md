@@ -1571,6 +1571,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `scripts/triage_native_quick_flake.sh` supports per-run jitter via
     `OREN_QI_JITTER_MAX_MS=<n>` to vary scheduling when chasing timing-sensitive flakes
     (2026-03-04).
+  - New: `scripts/run_native_quick_integration.sh` supports phase controls via
+    `OREN_QI_SKIP_BASE_RUN=1`, `OREN_QI_SKIP_GREEN_CACHE=1`,
+    `OREN_QI_STOP_AFTER_GREEN_CACHE=1`, or `OREN_QI_ONLY_GREEN_CACHE=1` to isolate
+    quick-integration timeouts (2026-03-04).
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);

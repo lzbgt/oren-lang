@@ -8,6 +8,16 @@ timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
 build_timeout_secs=10
 run_timeout_secs=5
+skip_base_run="${OREN_QI_SKIP_BASE_RUN:-0}"
+skip_green_cache="${OREN_QI_SKIP_GREEN_CACHE:-0}"
+stop_after_green_cache="${OREN_QI_STOP_AFTER_GREEN_CACHE:-0}"
+only_green_cache="${OREN_QI_ONLY_GREEN_CACHE:-0}"
+
+if [[ "$only_green_cache" == "1" ]]; then
+  skip_base_run=1
+  stop_after_green_cache=1
+  skip_green_cache=0
+fi
 if [[ -n "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS}"
 fi
@@ -145,13 +155,25 @@ rm -f "$log" "$out" 2>/dev/null || true
 run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
   --backend native --platform "$platform" --debug -o "$out" >"$log" 2>&1
 
-run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
+if [[ "$skip_base_run" == "1" ]]; then
+  echo "SKIP: base run disabled (OREN_QI_SKIP_BASE_RUN=1)" >>"$log"
+else
+  run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
+fi
 
-echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$log"
-echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs" >>"$log"
-OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
+if [[ "$skip_green_cache" == "1" ]]; then
+  echo "SKIP: green cache run disabled (OREN_QI_SKIP_GREEN_CACHE=1)" >>"$log"
+else
+  echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$log"
+  echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs" >>"$log"
+  OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
+fi
 
 tail -n 5 "$log"
+
+if [[ "$stop_after_green_cache" == "1" ]]; then
+  exit 0
+fi
 
 echo "== ulock timeout portable smoke ==" >>"$log"
 ul_src="tests/native/test_ulock_timeout_portable.oren"
