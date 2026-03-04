@@ -67,6 +67,12 @@ for i in $(seq 1 "$runs"); do
     exit "$rc"
   fi
 
+  if [[ ! -f "$out" ]]; then
+    echo "FAIL: run $i missing output $out log=$log" >&2
+    tail -n 120 "$log" >&2 || true
+    exit 3
+  fi
+
 done
 
 echo "OK: $runs runs passed" >&2
