@@ -1,6 +1,6 @@
 # Start Here: Oren Docs (Canonical)
 
-**Last updated:** 2026-02-19
+**Last updated:** 2026-03-04
 
 This file is the single **entry point** for the Oren docs. It merges the former root README
 orientation with the docs index so you can start in one place and branch out only when needed.
@@ -33,6 +33,7 @@ make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler
 make test       # fast native smoke
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
+make verify-runtime-robustness  # W5 runtime robustness smoke (stage2 + C-backend builds)
 ```
 
 Build and run a hello binary (C backend by default):

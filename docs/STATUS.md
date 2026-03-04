@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-03-03
+**Last updated:** 2026-03-04
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
