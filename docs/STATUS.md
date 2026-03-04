@@ -737,6 +737,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `OREN_TRACE_ALLOC_INDEX=1` to report per-sweep zeroed/bad totals.
    - Update (2026-03-05): `OREN_TRACE_ALLOC_INDEX_LIST_BAD_RING_RECENT=<n>` dumps the last
      `<n>` list_hdr ring entries when `[alloc_index_list_bad]` fires.
+   - Update (2026-03-05): `[gc_reuse_bad_list]` now includes `freed_seen=<0|1>` when
+     `OREN_TRACE_GC_FREED_LISTS=1` to flag potential use-after-free list headers.
    - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX_LIST_BAD_RING_RECENT=8`
      hit `gc list_int corrupt` and emitted list_hdr ring dumps from GC reuse traces, but
      did not trigger `[alloc_index_list_bad]` yet (log:

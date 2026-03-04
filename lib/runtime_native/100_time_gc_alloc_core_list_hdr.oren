@@ -423,6 +423,7 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     }
     g_trace_gc_reuse_bad_list_cap = g_trace_gc_reuse_bad_list_cap - 1
     g_gc_reuse_bad_list_prints = g_gc_reuse_bad_list_prints + 1
+    var freed_seen = native_gc_freed_list_seen(ptr)
     if g_trace_gc_reuse_bad_list_safe != 0 {
         var len = 0
         var cap = 0
@@ -451,6 +452,7 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             " cap=" + oren_int_to_string(cap) +
             " buf=" + oren_int_to_string(buf) +
             " magic=" + oren_int_to_string(magic) +
+            " freed_seen=" + oren_int_to_string(freed_seen) +
             " node=" + oren_int_to_string(node_ptr) +
             " node_kind=" + oren_int_to_string(node_kind) +
             " node_size=" + oren_int_to_string(node_size) +
@@ -513,6 +515,7 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         " cap=" + oren_int_to_string(cap) +
         " buf=" + oren_int_to_string(buf) +
         " magic=" + oren_int_to_string(magic) +
+        " freed_seen=" + oren_int_to_string(freed_seen) +
         " node=" + oren_int_to_string(node_ptr) +
         " node_size=" + oren_int_to_string(node_size) +
         " node_kind=" + oren_int_to_string(node_kind) +
