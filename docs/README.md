@@ -35,6 +35,11 @@ make test       # fast native smoke
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage2 + C-backend builds)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
+
+# Optional knobs for runtime robustness:
+# - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
+# - OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS, OREN_RUNTIME_ROBUSTNESS_C_RUNS
+# - OREN_RUNTIME_ROBUSTNESS_C_FIXTURES, OREN_RUNTIME_ROBUSTNESS_TRACE_ENV
 ```
 
 Build and run a hello binary (C backend by default):
