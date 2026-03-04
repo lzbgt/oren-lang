@@ -363,6 +363,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      installs handlers via `sigaction` with `SA_ONSTACK` on macOS (debug-only, 2026-03-05).
    - New: `crash_footer_raw` now includes list header ring pointer + guard values
      to help diagnose ring corruption (debug-only, 2026-03-05).
+   - New: enabling `OREN_TRACE_CRASH_FOOTER=1` now force-enables list header ring
+     capture so crash footers can report ring state even without separate trace
+     flags (debug-only, 2026-03-05).
    - Tool: list<int> panic footer now always emits alloc-index counts; enabling
      `OREN_TRACE_LIST_PANIC_FOOTER=1` also dumps the list header ring for the offending list
      (debug-only, 2026-03-05).

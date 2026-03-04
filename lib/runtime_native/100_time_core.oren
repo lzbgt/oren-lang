@@ -906,6 +906,9 @@ fn native_install_crash_footer() {
             g_crash_footer_buf_cap = cap
         }
     }
+    if g_trace_list_hdr_ring_ptr == 0 {
+        native_list_header_ring_force_enable()
+    }
     native_install_crash_altstack()
     var handler = oren_code_addr(__oren_crash_footer_handler)
     if handler == 0 { return 0 }
