@@ -58,6 +58,8 @@ def fmt_hdr(entry) -> str:
     prefix = ""
     if "idx" in entry:
         prefix = f"idx={entry['idx']} "
+        if "age" in entry:
+            prefix += f"age={entry['age']} "
     return (
         prefix +
         f"src={entry['src']} op={entry['op']} kind={entry['kind']} len={entry['len']} "
@@ -243,6 +245,9 @@ def main() -> int:
                         "buf": buf,
                         "magic": magic,
                     }
+                    if crash_footer_meta is not None:
+                        head_idx = crash_footer_meta["head_idx"]
+                        ring_entry["age"] = (head_idx - 1 - idx) % crash_footer_meta["cap"]
                     per_ptr_ring[ptr].append(ring_entry)
                     if pending_gc is not None and pending_gc["ptr"] == ptr:
                         pending_gc["ring_entries"].append(ring_entry)
