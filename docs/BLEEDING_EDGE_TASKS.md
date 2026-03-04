@@ -1138,6 +1138,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     tracing is enabled (rolling, 2026-03-04).
   - New: `oren_green_spawn` logs args_list header again after world-lock enter
     when args-stamp tracing is enabled (rolling, 2026-03-04).
+  - New: `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` enables spawn-alloc args_list
+    untracked guard independent of args-stamp tracing (rolling, 2026-03-04).
   - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
     entry-args light trace + guard-light + list tracing hit `Indexing on non-container`
     during the poll-cache run (no segfault); `list_trace_dump` shows `node=0` just
@@ -1395,6 +1397,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_134703_run3.log`,
     `build/logs/native_quick_stage2_flake_20260304_134703_run3_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_134703_run3_err.log`).
+  - Trace: stage2 flake harness (1 run) with tracing off and
+    `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` timed out on run 1 (rc=143); inner
+    log was empty (logs:
+    `build/logs/native_quick_stage2_flake_20260304_134941_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_134941_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_134941_run1_err.log`).
   - Trace: stage2 flake harness (5 runs) with list tracing disabled, entry-args
     guard on (guard-light off, entry-args light off), `OREN_TRACE_GREEN_ARGS_STAMP=1`,
     and `OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=8` ended on run 2 with rc=137 while

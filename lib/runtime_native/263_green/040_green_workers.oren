@@ -4,6 +4,10 @@ var g_trace_green_spawn_alloc_stride_envp = 0
 var g_trace_green_spawn_alloc_stride_argv = 0
 var g_trace_green_spawn_alloc_stride_argc = 0
 var g_trace_green_spawn_alloc_count = 0
+var g_trace_green_spawn_alloc_guard = -1
+var g_trace_green_spawn_alloc_guard_envp = 0
+var g_trace_green_spawn_alloc_guard_argv = 0
+var g_trace_green_spawn_alloc_guard_argc = 0
 
 fn _green_trace_spawn_alloc_stride_value() {
     var cur_envp = global_get_envp()
@@ -25,6 +29,35 @@ fn _green_trace_spawn_alloc_stride_value() {
     g_trace_green_spawn_alloc_stride_argv = cur_argv
     g_trace_green_spawn_alloc_stride_argc = cur_argc
     return stride
+}
+
+fn _green_trace_spawn_alloc_guard_enabled() {
+    if g_trace_green_spawn_alloc_guard == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_green_spawn_alloc_guard == 0 {
+        if cur_envp == g_trace_green_spawn_alloc_guard_envp &&
+           cur_argv == g_trace_green_spawn_alloc_guard_argv &&
+           cur_argc == g_trace_green_spawn_alloc_guard_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_green_spawn_alloc_guard == -1 || g_trace_green_spawn_alloc_guard == 0 {
+            g_trace_green_spawn_alloc_guard = 0
+            g_trace_green_spawn_alloc_guard_envp = cur_envp
+            g_trace_green_spawn_alloc_guard_argv = cur_argv
+            g_trace_green_spawn_alloc_guard_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_green_spawn_alloc_guard = 1
+    g_trace_green_spawn_alloc_guard_envp = cur_envp
+    g_trace_green_spawn_alloc_guard_argv = cur_argv
+    g_trace_green_spawn_alloc_guard_argc = cur_argc
+    return true
 }
 
 @oren.keep
@@ -685,10 +718,13 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_args_stamp_cap(), 0)
     ptr_set(g + green_g_off_args_stamp_buf(), 0)
     ptr_set(g + green_g_off_args_stamp_magic(), 0)
-    if _green_trace_args_stamp_enabled() == true {
-        var node_guard = native_alloc_index_get(args_list)
+    var guard_on = _green_trace_spawn_alloc_guard_enabled()
+    var stamp_on = _green_trace_args_stamp_enabled()
+    var node_guard = 0
+    if guard_on == true || stamp_on == true {
+        node_guard = native_alloc_index_get(args_list)
         if node_guard == 0 { node_guard = native_alloc_index_recover_ptr(args_list) }
-        if node_guard == 0 {
+        if guard_on == true && node_guard == 0 {
             print("trace: green_spawn_alloc args_list untracked args=" +
                   oren_int_to_string(args_list) +
                   " fn=" + oren_int_to_string(fn_obj))
@@ -696,7 +732,7 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
             return 0
         }
     }
-    if _green_trace_args_stamp_enabled() == true {
+    if stamp_on == true {
         var stride = _green_trace_spawn_alloc_stride_value()
         var log_it = 1
         if stride > 1 {
@@ -704,8 +740,6 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
             if (g_trace_green_spawn_alloc_count % stride) != 0 { log_it = 0 }
         }
         if log_it != 0 {
-            var node = native_alloc_index_get(args_list)
-            if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
             var kind = 0
             var magic = 0
             var len = 0
@@ -717,9 +751,9 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
                 buf = ptr_get(iadd(args_list, 16))
                 magic = ptr_get(iadd(args_list, 24))
             }
-            if node != 0 { kind = ptr_get(iadd(node, 16)) }
+            if node_guard != 0 { kind = ptr_get(iadd(node_guard, 16)) }
             print("trace: green_spawn_alloc args_list=" + oren_int_to_string(args_list) +
-                  " node=" + oren_int_to_string(node) +
+                  " node=" + oren_int_to_string(node_guard) +
                   " kind=" + oren_int_to_string(kind) +
                   " len=" + oren_int_to_string(len) +
                   " cap=" + oren_int_to_string(cap) +
