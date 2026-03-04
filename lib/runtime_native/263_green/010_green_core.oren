@@ -949,6 +949,13 @@ fn _green_args_stamp_set(label, g) {
     ptr_set(g + green_g_off_args_stamp_cap(), ptr_get(iadd(args_list, 8)))
     ptr_set(g + green_g_off_args_stamp_buf(), ptr_get(iadd(args_list, 16)))
     ptr_set(g + green_g_off_args_stamp_magic(), ptr_get(iadd(args_list, 24)))
+    print("trace: green_args_stamp set " + label +
+          " g=" + oren_int_to_string(g) +
+          " args=" + oren_int_to_string(args_list) +
+          " len=" + oren_int_to_string(ptr_get(iadd(args_list, 0))) +
+          " cap=" + oren_int_to_string(ptr_get(iadd(args_list, 8))) +
+          " buf=" + oren_int_to_string(ptr_get(iadd(args_list, 16))) +
+          " magic=" + oren_int_to_string(ptr_get(iadd(args_list, 24))))
     return 0
 }
 
