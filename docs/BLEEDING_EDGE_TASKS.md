@@ -1219,6 +1219,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (logs: `build/logs/native_quick_stage2_flake_20260304_123235_run2.log`,
     `build/logs/native_quick_stage2_flake_20260304_123235_run2_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_123235_run2_err.log`).
+  - Trace: stage2 flake harness (5 runs) with list header guard enabled and
+    entry-args light tracing (guard-light on, guard on, stride=32) completed
+    cleanly (log: `build/logs/native_quick_stage2_flake_20260304_123621_run5.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
