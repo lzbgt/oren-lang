@@ -8,6 +8,7 @@ import buffer "std:buffer"
 import base64 "std:encoding/base64"
 import strings "std:strings"
 import bytes "std:bytes"
+import pem "std:crypto/pem"
 
 fn main() {
     // Non-existent file => error
@@ -64,39 +65,43 @@ fn main() {
     if r.is_err(b64_ok) { return 17 }
     var b64_ok_len = bytes.try_len(b64_ok)
     if r.is_err(b64_ok_len) || b64_ok_len != 1 { return 18 }
+    var pem_bad = pem.decode_blocks_strict("-----BEGIN CERT-----\nTQ== \n-----END CERT-----\n")
+    if r.is_err(pem_bad) != true { return 19 }
+    var pem_ok = pem.decode_blocks_strict("-----BEGIN CERT-----\nTQ==\n-----END CERT-----")
+    if r.is_err(pem_ok) { return 20 }
 
     // std:strings structured errors
     var bad_len = strings.try_len(123)
-    if r.is_err(bad_len) != true { return 19 }
+    if r.is_err(bad_len) != true { return 21 }
     var ch = strings.try_char_at("hi", 1)
-    if r.is_err(ch) || ch != "i" { return 20 }
+    if r.is_err(ch) || ch != "i" { return 22 }
     var bad_slice = strings.try_slice("hi", 0, 3)
-    if r.is_err(bad_slice) != true { return 21 }
+    if r.is_err(bad_slice) != true { return 23 }
 
     // std:bytes structured errors
     var b = bytes.from_hex("00ff")
-    if r.is_err(b) { return 22 }
+    if r.is_err(b) { return 24 }
     var bl = bytes.try_len(b)
-    if r.is_err(bl) || bl != 2 { return 23 }
+    if r.is_err(bl) || bl != 2 { return 25 }
     var bv = bytes.try_get_u8(b, 1)
-    if r.is_err(bv) || bv != 255 { return 24 }
+    if r.is_err(bv) || bv != 255 { return 26 }
     var bad_b = bytes.try_get_u8(b, 3)
-    if r.is_err(bad_b) != true { return 25 }
+    if r.is_err(bad_b) != true { return 27 }
     var bad_set = bytes.try_set_u8(b, 0, 300)
-    if r.is_err(bad_set) != true { return 26 }
+    if r.is_err(bad_set) != true { return 28 }
     var bad_hex = bytes.try_from_hex("zz")
-    if r.is_err(bad_hex) != true { return 27 }
+    if r.is_err(bad_hex) != true { return 29 }
     var hex = bytes.try_to_hex(b)
-    if r.is_err(hex) || hex != "00ff" { return 28 }
+    if r.is_err(hex) || hex != "00ff" { return 30 }
 
     // std:buffer structured errors
     var ub = buffer.u8_new(3)
     var ub_len = buffer.try_len(ub)
-    if r.is_err(ub_len) || ub_len != 3 { return 29 }
+    if r.is_err(ub_len) || ub_len != 3 { return 31 }
     var ub_bad = buffer.try_load_u8(ub, 3)
-    if r.is_err(ub_bad) != true { return 30 }
+    if r.is_err(ub_bad) != true { return 32 }
     var ub_bad_set = buffer.try_store_u8(ub, 0, 300)
-    if r.is_err(ub_bad_set) != true { return 31 }
+    if r.is_err(ub_bad_set) != true { return 33 }
 
     return 0
 }

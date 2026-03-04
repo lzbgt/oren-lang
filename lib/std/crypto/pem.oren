@@ -156,3 +156,69 @@ fn decode_blocks(pem_text) {
     return out
 }
 
+fn decode_blocks_strict(pem_text) {
+    // Strict variant: reject whitespace inside base64 payloads.
+    if pem_text == nil { return oren_err(4, "pem.decode_blocks_strict: pem_text is nil") }
+    var n = oren_string_len(pem_text)
+    var i = 0
+    var out = []
+
+    while i < n {
+        if _is_line_start(pem_text, i) == true && _starts_with_at(pem_text, i, "-----BEGIN ") == true {
+            var line_end = _find_line_end(pem_text, i)
+            var type_start = i + oren_string_len("-----BEGIN ")
+            var dash_pos = _find_five_dashes(pem_text, type_start, line_end)
+            if dash_pos < 0 { return oren_err(4, "pem.decode_blocks_strict: malformed BEGIN line") }
+            var block_type = oren_string_slice(pem_text, type_start, dash_pos)
+            if block_type == nil || block_type == "" { return oren_err(4, "pem.decode_blocks_strict: empty block type") }
+
+            // Move to first body line.
+            i = _skip_line_break(pem_text, line_end)
+
+            // Collect base64 payload bytes (ASCII) without any whitespace.
+            var b64_bytes = [] // list<u8>
+            var found_end = false
+            while i < n {
+                if _is_line_start(pem_text, i) == true && _starts_with_at(pem_text, i, "-----END ") == true {
+                    var end_line = _find_line_end(pem_text, i)
+                    var end_type_start = i + oren_string_len("-----END ")
+                    var end_dash = _find_five_dashes(pem_text, end_type_start, end_line)
+                    if end_dash < 0 { return oren_err(4, "pem.decode_blocks_strict: malformed END line") }
+                    var end_type = oren_string_slice(pem_text, end_type_start, end_dash)
+                    if strings.streq(end_type, block_type) != true {
+                        return oren_err(4, "pem.decode_blocks_strict: END type mismatch (BEGIN " + block_type + ", END " + end_type + ")")
+                    }
+                    i = _skip_line_break(pem_text, end_line)
+                    found_end = true
+                    break
+                }
+
+                var le = _find_line_end(pem_text, i)
+                if le > i {
+                    if _line_has_colon(pem_text, i, le) == true {
+                        return oren_err(4, "pem.decode_blocks_strict: headers are not supported in v0 (line contains ':')")
+                    }
+                    var k = i
+                    while k < le {
+                        var b = oren_string_byte_at_unchecked(pem_text, k) & 255
+                        if base64.b64_is_ws(b) == 1 { return oren_err(4, "pem.decode_blocks_strict: whitespace not allowed in base64") }
+                        list.push(b64_bytes, b)
+                        k = k + 1
+                    }
+                }
+                i = _skip_line_break(pem_text, le)
+            }
+
+            if found_end != true { return oren_err(4, "pem.decode_blocks_strict: missing END for type " + block_type) }
+
+            var b64_str = oren_string_from_bytes(b64_bytes)
+            var decoded = base64.decode_bytes_strict(b64_str)
+            if oren_is_err(decoded) { return decoded }
+            oren_list_push(out, {"type": block_type, "bytes": decoded})
+            continue
+        }
+        i = i + 1
+    }
+
+    return out
+}

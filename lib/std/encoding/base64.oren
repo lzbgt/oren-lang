@@ -19,6 +19,15 @@ fn _b64_char(idx) {
     return ptr_get_byte(_b64_table_ptr() + idx) & 255
 }
 
+fn b64_is_ws(c) {
+    // ASCII whitespace we accept in decode (RFC4648 allows newlines in MIME variants).
+    if c == 9 { return 1 }  // '\t'
+    if c == 10 { return 1 } // '\n'
+    if c == 13 { return 1 } // '\r'
+    if c == 32 { return 1 } // ' '
+    return 0
+}
+
 fn encode_bytes(input_bytes) {
     if input_bytes == nil {
         input_bytes = oren_bytes_pack([])
@@ -59,22 +68,13 @@ fn encode_bytes(input_bytes) {
     return oren_string_from_bytes(oren_bytes_pack(out))
 }
 
-fn _b64_is_ws(c) {
-    // ASCII whitespace we accept in decode (RFC4648 allows newlines in MIME variants).
-    if c == 9 { return 1 }  // '\t'
-    if c == 10 { return 1 } // '\n'
-    if c == 13 { return 1 } // '\r'
-    if c == 32 { return 1 } // ' '
-    return 0
-}
-
 fn _b64_val(c) {
     // Returns:
     // - 0..63 for valid alphabet
     // - -1 for '=' padding
     // - -2 for whitespace (caller may skip)
     // - -3 for invalid
-    if _b64_is_ws(c) == 1 { return -2 }
+    if b64_is_ws(c) == 1 { return -2 }
     if c == 61 { return -1 } // '='
     if c >= 65 && c <= 90 { return c - 65 } // 'A'..'Z'
     if c >= 97 && c <= 122 { return 26 + (c - 97) } // 'a'..'z'
@@ -90,7 +90,7 @@ fn _b64_count_clean_chars(s) {
     var out = 0
     while i < n {
         var c = ptr_get_byte(s + i) & 255
-        if _b64_is_ws(c) == 0 { out = out + 1 }
+        if b64_is_ws(c) == 0 { out = out + 1 }
         i = i + 1
     }
     return out
@@ -114,7 +114,7 @@ fn decode_bytes(s) {
     var i = n - 1
     while i >= 0 && seen < 2 {
         var c = ptr_get_byte(s + i) & 255
-        if _b64_is_ws(c) == 0 {
+        if b64_is_ws(c) == 0 {
             seen = seen + 1
             if c == 61 { pad = pad + 1 }
         }
@@ -208,7 +208,7 @@ fn decode_bytes_strict(s) {
     var i = 0
     while i < n {
         var c = ptr_get_byte(s + i) & 255
-        if _b64_is_ws(c) == 1 { return oren_err(4, "base64.decode_bytes_strict: whitespace not allowed") }
+        if b64_is_ws(c) == 1 { return oren_err(4, "base64.decode_bytes_strict: whitespace not allowed") }
         i = i + 1
     }
     return decode_bytes(s)
