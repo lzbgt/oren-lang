@@ -159,6 +159,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     ring (cap 8192) and extended timeouts passed cleanly (log:
     `build/logs/triage_stage1_flake_ringonly_timeout_20260304_190448.log`,
     2026-03-04).
+  - Trace: stage1 quick flake (10 runs) with list corruption tracing + green spawn
+    ring only passed cleanly (log:
+    `build/logs/triage_stage1_flake_spawn_ringonly_20260304_191042.log`,
+    2026-03-04).
+  - Trace: stage1 quick flake (10 runs) with list corruption tracing + list header
+    ring dup guard (cap 8192) passed cleanly (log:
+    `build/logs/triage_stage1_flake_list_ringdup_20260304_191425.log`,
+    2026-03-04).
+  - Trace: stage1 quick flake (10 runs) with list corruption tracing + free-list
+    ring passed cleanly (log:
+    `build/logs/triage_stage1_flake_freelist_ring_20260304_191805.log`,
+    2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
   - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`

@@ -110,6 +110,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: stage1 quick flake with list corruption tracing + list header ring (cap 8192)
      and extended timeouts passed cleanly (log:
      `build/logs/triage_stage1_flake_ringonly_timeout_20260304_190448.log`, 2026-03-04).
+   - Trace: stage1 quick flake with list corruption tracing + green spawn ring only
+     passed cleanly (log:
+     `build/logs/triage_stage1_flake_spawn_ringonly_20260304_191042.log`, 2026-03-04).
+   - Trace: stage1 quick flake with list corruption tracing + list header ring dup guard
+     (cap 8192) passed cleanly (log:
+     `build/logs/triage_stage1_flake_list_ringdup_20260304_191425.log`, 2026-03-04).
+   - Trace: stage1 quick flake with list corruption tracing + free-list ring passed
+     cleanly (log:
+     `build/logs/triage_stage1_flake_freelist_ring_20260304_191805.log`, 2026-03-04).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
