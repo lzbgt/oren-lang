@@ -4601,6 +4601,7 @@ Rolling status (fact):
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`) (STW GC must not deadlock while another OS thread is blocked in `oren_os_thread_join_timeout(..., timeout_us=0)`).
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_wait_for_exited_os_threads_win`) (Windows: exited OS threads must be marked DEAD on exit so STW does not wait for them).
   - Rolling constraint: any runtime path that can block in a kernel wait must either be bounded or poll `oren_gc_safepoint()` periodically, otherwise STW can deadlock.
+  - Bytecode/AVM note (rolling): `oren_gc_collect()` is currently a **no-op** on the bytecode backend (no explicit AVM GC hook yet).
 
 Practical consequence:
 

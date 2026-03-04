@@ -43,6 +43,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
    - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
+   - New run (arm64, 2026-03-04, runs=5, warmups=1):
+     - alloc_churn: C 0.002778s, native 0.635249s (228.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+     - alloc_drop: C 0.002940s, native 0.004280s (1.46× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+   - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
    - New: latest snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
    - Trace: list_alloc shows list_int headers sized at 32 bytes (cap=0, arena mode) with no list_buf events even when enabled; investigate reserve/fast-path behavior (2026-02-25).
@@ -854,6 +858,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 3) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
+   - New run (arm64, 2026-03-04, runs=5, warmups=1):
+     - loop_sum: C 0.066739s, native 0.237463s (3.56× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+     - dot_product: C 0.005035s, native 0.013433s (2.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
     - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).

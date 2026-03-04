@@ -872,6 +872,17 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_u16(ctx, idx)
             return nil
         }
+        if name == "oren_gc_collect" {
+            if oren_list_len(expr["args"]) != 0 {
+            bytecode_error(ctx, "bytecode backend: oren_gc_collect expects ()")
+            return nil
+            }
+            // AVM currently exposes no explicit GC hook; treat as a no-op that returns nil.
+            var idx = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, idx)
+            return nil
+        }
         
         // Rolling ABI: prefer domain-based natives for effectful calls.
         // CORE calls currently map op == legacy native id.

@@ -446,6 +446,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.33× C, `dot_product` 2.57× C.
+   - New run (arm64, 2026-03-04, runs=5, warmups=1):
+     - loop_sum: C 0.066739s, native 0.237463s (3.56× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+     - dot_product: C 0.005035s, native 0.013433s (2.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
@@ -527,6 +530,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
    - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
+   - New run (arm64, 2026-03-04, runs=5, warmups=1):
+     - alloc_churn: C 0.002778s, native 0.635249s (228.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+     - alloc_drop: C 0.002940s, native 0.004280s (1.46× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+   - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
    - `alloc_churn` and `alloc_drop` are now within the 8×/5× gates on arm64.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
      - `alloc_churn` median total=2 (list_int_header=1, list_int_buf=1, list_header=0, list_buf=0).
