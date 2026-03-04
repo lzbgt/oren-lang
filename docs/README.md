@@ -34,6 +34,7 @@ make            # build stage1 self-hosted compiler
 make test       # fast native smoke
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage2 + C-backend builds)
+make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 ```
 
 Build and run a hello binary (C backend by default):
