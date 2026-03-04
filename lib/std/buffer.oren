@@ -13,6 +13,19 @@ import list "std:list"
 
 fn _err_invalid(msg) { return oren_err(4, msg) }
 
+fn _is_int(v) {
+    if v == nil { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == false
+}
+
+fn _len_or_err(buf, ctx) {
+    var n = oren_buf_len(buf)
+    if n == nil || oren_is_err(n) { return oren_err(4, ctx + ": buf must be typed buffer") }
+    return n
+}
+
 // Constructors (thin wrappers)
 fn u8_new(n) { return oren_u8_buf_new(n) }
 fn i32_new(n) { return oren_i32_buf_new(n) }
@@ -21,6 +34,30 @@ fn f32_new(n) { return oren_f32_buf_new(n) }
 fn f64_new(n) { return oren_f64_buf_new(n) }
 
 fn len(buf) { return oren_buf_len(buf) }
+
+// --- structured error helpers (value-or-err) ---
+
+fn try_len(buf) {
+    return _len_or_err(buf, "buffer.try_len")
+}
+
+fn try_load_u8(buf, idx) {
+    var n = _len_or_err(buf, "buffer.try_load_u8")
+    if oren_is_err(n) { return n }
+    if _is_int(idx) == false { return oren_err(4, "buffer.try_load_u8: index not int") }
+    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_load_u8: index out of bounds") }
+    return oren_buf_load_u8(buf, idx)
+}
+
+fn try_store_u8(buf, idx, v) {
+    var n = _len_or_err(buf, "buffer.try_store_u8")
+    if oren_is_err(n) { return n }
+    if _is_int(idx) == false { return oren_err(4, "buffer.try_store_u8: index not int") }
+    if _is_int(v) == false { return oren_err(4, "buffer.try_store_u8: value not int") }
+    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_store_u8: index out of bounds") }
+    if v < 0 || v > 255 { return oren_err(4, "buffer.try_store_u8: byte out of range") }
+    return oren_buf_store_u8(buf, idx, v)
+}
 
 // --- generic zero-copy views ---
 
