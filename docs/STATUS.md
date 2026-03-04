@@ -338,10 +338,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `OREN_TRACE_LIST_HDR_REINIT_PTR`/`OREN_TRACE_LIST_HDR_REINIT_NODE`, 2026-02-27).
    - Tool: `OREN_TRACE_GC_LIST_HDR_POISON_NODE=1` logs the allocs-list node and alloc-index
      state when a list header is poisoned during sweep (cap via `OREN_TRACE_GC_LIST_HDR_POISON_NODE_CAP`, 2026-02-27).
-   - Tool: `scripts/repro_bad_list_alloc_churn.sh` brute-forces alloc_churn configs until a
-     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
-     continues across crashes, logs non-zero exit statuses, and captures stderr in logs
-     (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces, 2026-02-27).
+  - Tool: `scripts/repro_bad_list_alloc_churn.sh` brute-forces alloc_churn configs until a
+    `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
+    continues across crashes, logs non-zero exit statuses, and captures stderr in logs
+    (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces, 2026-02-27).
+  - Tool: `tools/run_alloc_churn_hunt.sh [max_runs] [tag_base]` repeats alloc_churn traces
+    until a corruption signature is observed (or a timeout/failure stops the run), using
+    the trace harness logs under `build/logs/`.
    - Trace: poison-node logs show `node_in_allocs=0`, `allocs_count=0`, and `idx_node` matching
      the sweep node at poison time; later `reuse_take` reactivates the same node before the
      bad-list event, pointing to corruption after reuse rather than a stale allocs entry

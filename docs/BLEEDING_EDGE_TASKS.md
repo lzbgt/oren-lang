@@ -608,6 +608,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records
     OREN/AVM env + logs for reproducible trace runs. Use `ALLOC_CHURN_RUN_TIMEOUT_SECS`
     to bound long-running traces.
+  - Tool: `tools/run_alloc_churn_hunt.sh [max_runs] [tag_base]` repeats the alloc_churn
+    trace harness until a corruption signature is found (or a timeout/failure stops the
+    hunt), emitting logs under `build/logs/`.
   - Trace: alloc_churn with GC reuse + `OREN_TRACE_ALLOC_INDEX=1` + free-list header tracing
     appeared to loop on alloc-index rebuild logs and was killed
     (log: `build/logs/alloc_churn_trace_repro_reuse_20260226e.log`).
