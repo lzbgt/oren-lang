@@ -3,6 +3,8 @@ set -euo pipefail
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   echo "usage: $0 [runs] [compiler] [ENV=VAL ...]" >&2
+  echo "env: OREN_QI_AUTO_RERUN_GUARDRAILS=1 to re-run failures with guardrails" >&2
+  echo "env: OREN_QI_AUTO_RERUN_ENV='KEY=VAL ...' to override guardrail env" >&2
   exit 0
 fi
 
@@ -40,6 +42,42 @@ trap_cleanup() {
 trap 'trap_cleanup TERM; exit 143' TERM
 trap 'trap_cleanup INT; exit 130' INT
 
+auto_rerun="${OREN_QI_AUTO_RERUN_GUARDRAILS:-0}"
+auto_env_default=(
+  "OREN_TRACE_LIST_CORRUPT=1"
+  "OREN_TRACE_LIST_HDR_RING=1"
+  "OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1"
+  "OREN_TRACE_LIST_HDR_RING_CAP=2048"
+  "OREN_TRACE_LIST_HDR_RING_DUP=1"
+  "OREN_TRACE_LIST_HDR_RING_DUP_CAP=128"
+  "OREN_TRACE_GC_FREE_LIST_HDR_RING=1"
+  "OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1"
+  "OREN_TRACE_GREEN_SPAWN_ALLOC_STRIDE=256"
+  "OREN_TRACE_GREEN_SPAWN_RING=1"
+  "OREN_TRACE_GREEN_SPAWN_RING_CAP=64"
+)
+
+run_integration() {
+  local log="$1"
+  shift
+  : >"$log"
+  {
+    echo "ts=$ts"
+    echo "run=${run}/${runs}"
+    echo "compiler=$compiler"
+    echo "cwd=$(pwd)"
+    echo "uname=$(uname -a)"
+    echo "git_rev=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+  } >>"$log"
+  if [[ "$#" -gt 0 ]]; then
+    echo "env: $*" >>"$log"
+    env "$@" ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+  else
+    ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+  fi
+  return $?
+}
+
 run=1
 while [[ "$run" -le "$runs" ]]; do
   ts="$(date +%Y%m%d_%H%M%S)"
@@ -50,20 +88,10 @@ while [[ "$run" -le "$runs" ]]; do
   current_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_interrupt.log"
   echo "== run ${run}/${runs} ==" >&2
   set +e
-  : >"$log"
-  {
-    echo "ts=$ts"
-    echo "run=${run}/${runs}"
-    echo "compiler=$compiler"
-    echo "cwd=$(pwd)"
-    echo "uname=$(uname -a)"
-    echo "git_rev=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
-  } >>"$log"
   if [[ "${#env_args[@]}" -gt 0 ]]; then
-    echo "env: ${env_args[*]}" >>"$log"
-    env "${env_args[@]}" ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+    run_integration "$log" "${env_args[@]}"
   else
-    ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+    run_integration "$log"
   fi
   rc=$?
   set -e
@@ -77,6 +105,37 @@ while [[ "$run" -le "$runs" ]]; do
     fi
   fi
   if [[ "$rc" -ne 0 ]]; then
+    if [[ "$auto_rerun" == "1" ]]; then
+      guard_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_guardrails.log"
+      guard_inner="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_guardrails_inner.log"
+      guard_env=()
+      if [[ -n "${OREN_QI_AUTO_RERUN_ENV:-}" ]]; then
+        read -r -a guard_env <<<"${OREN_QI_AUTO_RERUN_ENV}"
+      else
+        guard_env=("${auto_env_default[@]}")
+      fi
+      if [[ "${#env_args[@]}" -gt 0 ]]; then
+        guard_env=("${env_args[@]}" "${guard_env[@]}")
+      fi
+      echo "auto_rerun_guardrails=1" >>"$log"
+      echo "auto_rerun_env: ${guard_env[*]}" >>"$log"
+      set +e
+      run_integration "$guard_log" "${guard_env[@]}"
+      guard_rc=$?
+      set -e
+      if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
+        cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$guard_inner"
+      fi
+      echo "auto_rerun_rc=${guard_rc} guard_log=${guard_log}" >>"$log"
+      if [[ "$guard_rc" -ne 0 ]]; then
+        echo "== guardrails log tail ==" >&2
+        tail -n 120 "$guard_log" >&2 || true
+        if [[ -f "$guard_inner" ]]; then
+          echo "== guardrails inner log tail ==" >&2
+          tail -n 80 "$guard_inner" >&2 || true
+        fi
+      fi
+    fi
     echo "FAIL: run ${run} rc=${rc} log=${log}" >&2
     tail -n 120 "$log" >&2 || true
     if [[ -f "$inner_log" ]]; then

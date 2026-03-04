@@ -184,6 +184,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     knobs: `OREN_RUNTIME_ROBUSTNESS_RUNS`, `OREN_RUNTIME_ROBUSTNESS_COMPILER`,
     `OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS`, `OREN_RUNTIME_ROBUSTNESS_C_RUNS`,
     `OREN_RUNTIME_ROBUSTNESS_C_FIXTURES`, and `OREN_RUNTIME_ROBUSTNESS_TRACE_ENV` (2026-03-04).
+  - New: `scripts/triage_native_quick_flake.sh` supports auto re-run with guardrails via
+    `OREN_QI_AUTO_RERUN_GUARDRAILS=1`; override env with
+    `OREN_QI_AUTO_RERUN_ENV='KEY=VAL ...'` to capture guardrail traces on flakes
+    (2026-03-04).
    - Trace: global slot dump maps `idx=434` / `off=3472` to `g_trace_list_hdr_ring_ptr_guard_last`
      after rebuilding stage2 (`alloc_churn_build_globals_idx434_manual_20260227.log`, 2026-02-27).
    - Trace: precheck_guard9 (cached + no-cache) still shows bad-list roots with
