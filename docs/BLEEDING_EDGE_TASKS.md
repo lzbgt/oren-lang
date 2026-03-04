@@ -1720,7 +1720,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Done: `lib/compiler/x64_native_program/060_emit_ops.oren` split into focused emit modules
      (`055_emit_ops_locals`, `056_emit_ops_match`, `057_emit_ops_while_emit`)
      (<2000 lines each, 2026-02-25).
-   - Next targets: none (current non-generated sources are <2000 lines).
+   - Next targets (>=2000 lines, 2026-03-05 scan):
+     - `lib/runtime_native/263_green/010_green_core.oren` (~2371 lines).
+     - `pkg/transpiler/transpiler.go` (~2269 lines).
+     - `lib/compiler/compiler/040_build_pipeline/010_main.oren` (~2200 lines).
 
 11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
