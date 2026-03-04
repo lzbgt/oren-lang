@@ -67,6 +67,7 @@ fn lower_linked_program_in_place(linked) {
             optloops.sink_list_lit_into_if(ss[i]["expr"]["body"])
             var lower_allow_empty = true
             _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty, nil)
+            optloops.split_invariant_list_push_in_block(ss[i]["expr"]["body"])
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
             _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
             optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)

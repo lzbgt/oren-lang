@@ -1722,6 +1722,200 @@ fn _opt_expr_is_list_ctor_any(expr) {
     return false
 }
 
+fn _opt_expr_is_ident_name(expr, name) {
+    if expr == nil || name == nil { return false }
+    return expr["type"] == "Identifier" && _opt_str_eq(expr["value"], name)
+}
+
+fn _opt_stmt_is_simple_inc(stmt, name) {
+    if stmt == nil || name == nil { return false }
+    var t = stmt["type"]
+    if t == "Assign" {
+        var nm = opthelp.is_ident(stmt["name"])
+        if nm == nil || _opt_str_eq(nm, name) != true { return false }
+        var v = stmt["value"]
+        if v == nil || v["type"] != "Infix" || v["op"] != "+" { return false }
+        if _opt_expr_is_ident_name(v["left"], name) != true { return false }
+        var right = v["right"]
+        return right != nil && right["type"] == "Integer" && _opt_str_eq(right["value"], "1")
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left == nil || left["type"] != "Identifier" { return false }
+        if _opt_str_eq(left["value"], name) != true { return false }
+        var v2 = stmt["value"]
+        if v2 == nil || v2["type"] != "Infix" || v2["op"] != "+" { return false }
+        if _opt_expr_is_ident_name(v2["left"], name) != true { return false }
+        var right2 = v2["right"]
+        return right2 != nil && right2["type"] == "Integer" && _opt_str_eq(right2["value"], "1")
+    }
+    return false
+}
+
+fn _opt_stmt_is_list_push_with_tmp(stmt, tmp_name) {
+    if stmt == nil || tmp_name == nil { return nil }
+    if stmt["type"] != "ExprStmt" { return nil }
+    var expr = stmt["expr"]
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn_expr = expr["fn"]
+    var nm = nil
+    if fn_expr != nil && fn_expr["type"] == "Identifier" { nm = fn_expr["value"] }
+    if nm == nil { return nil }
+    if _opt_str_eq(nm, "oren_list_push") != true &&
+       _opt_str_eq(nm, "STD_list_push") != true &&
+       _opt_str_eq(nm, "oren_list_int_push") != true &&
+       _opt_str_eq(nm, "STD_list_int_push") != true &&
+       _opt_str_eq(nm, "oren_list_int_push_unchecked") != true {
+        return nil
+    }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    if _opt_expr_is_ident_name(args[1], tmp_name) != true { return nil }
+    var list_name = opthelp.is_ident(args[0])
+    if list_name == nil { return nil }
+    return {"name": nm, "list": list_name, "list_expr": args[0], "tmp_expr": args[1]}
+}
+
+fn _opt_split_invariant_list_push_while(stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return nil }
+    var idx_name = opthelp.is_ident(cond["left"])
+    if idx_name == nil { return nil }
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return nil }
+    var ss = body["stmts"]
+    if ss == nil || oren_list_len(ss) != 4 { return nil }
+
+    var st0 = ss[0]
+    var st1 = ss[1]
+    var st2 = ss[2]
+    var st3 = ss[3]
+
+    var tmp_name = nil
+    var expr1 = nil
+    if st0 != nil && (st0["type"] == "Var" || st0["type"] == "Assign") {
+        tmp_name = opthelp.is_ident(st0["name"])
+        expr1 = st0["value"]
+    }
+    if tmp_name == nil || expr1 == nil { return nil }
+    if _opt_expr_is_side_effect_free(expr1) != true { return nil }
+
+    var if_stmt = nil
+    if st1 != nil && st1["type"] == "If" { if_stmt = st1 }
+    else if st1 != nil && st1["type"] == "ExprStmt" {
+        var e = st1["expr"]
+        if e != nil && e["type"] == "If" { if_stmt = e }
+    }
+    if if_stmt == nil { return nil }
+    if if_stmt["alt"] != nil { return nil }
+    var consq = if_stmt["consq"]
+    if consq == nil || consq["type"] != "Block" { return nil }
+    var cs = consq["stmts"]
+    if cs == nil || oren_list_len(cs) != 1 { return nil }
+    var cst = cs[0]
+    var expr2 = nil
+    if cst != nil && (cst["type"] == "Assign" || cst["type"] == "Set") {
+        if cst["type"] == "Assign" {
+            var nm2 = opthelp.is_ident(cst["name"])
+            if nm2 == nil || _opt_str_eq(nm2, tmp_name) != true { return nil }
+            expr2 = cst["value"]
+        } else {
+            var left = cst["left"]
+            if left == nil || left["type"] != "Identifier" { return nil }
+            if _opt_str_eq(left["value"], tmp_name) != true { return nil }
+            expr2 = cst["value"]
+        }
+    }
+    if expr2 == nil { return nil }
+    if _opt_expr_is_side_effect_free(expr2) != true { return nil }
+
+    var push_info = _opt_stmt_is_list_push_with_tmp(st2, tmp_name)
+    if push_info == nil { return nil }
+    var list_name = push_info["list"]
+
+    if _opt_stmt_is_simple_inc(st3, idx_name) != true { return nil }
+
+    var assigned = {}
+    opthelp.collect_assigned_names_stmt(assigned, body)
+    if assigned != nil {
+        for nm3 in assigned {
+            if _opt_str_eq(nm3, idx_name) || _opt_str_eq(nm3, tmp_name) || _opt_str_eq(nm3, list_name) {
+                continue
+            }
+            if _opt_expr_has_ident(if_stmt["cond"], nm3) { return nil }
+        }
+    }
+    if _opt_expr_is_side_effect_free(if_stmt["cond"]) != true { return nil }
+    if _opt_expr_has_ident(if_stmt["cond"], idx_name) { return nil }
+    if _opt_expr_has_ident(if_stmt["cond"], tmp_name) { return nil }
+    if _opt_expr_has_ident(if_stmt["cond"], list_name) { return nil }
+    if _opt_expr_has_ident(expr1, list_name) { return nil }
+    if _opt_expr_has_ident(expr2, list_name) { return nil }
+
+    var fn_expr = {"type": "Identifier", "token": nil, "value": push_info["name"]}
+    var push1 = ast.new_call(stmt["token"], fn_expr, [push_info["list_expr"], expr1])
+    var push2 = ast.new_call(stmt["token"], fn_expr, [push_info["list_expr"], expr2])
+    var body1 = {"type": "Block", "token": body["token"], "stmts": [ast.new_expr_stmt(stmt["token"], push1), st3]}
+    var body2 = {"type": "Block", "token": body["token"], "stmts": [ast.new_expr_stmt(stmt["token"], push2), st3]}
+    var loop1 = {"type": "While", "token": stmt["token"], "cond": stmt["cond"], "body": body1, "attrs": stmt["attrs"]}
+    var loop2 = {"type": "While", "token": stmt["token"], "cond": stmt["cond"], "body": body2, "attrs": stmt["attrs"]}
+    return {"type": "If", "token": stmt["token"], "cond": if_stmt["cond"],
+        "consq": {"type": "Block", "token": body["token"], "stmts": [loop2]},
+        "alt": {"type": "Block", "token": body["token"], "stmts": [loop1]}}
+}
+
+fn split_invariant_list_push_in_block(block) {
+    if _opt_arena_backend_allows() != true { return false }
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var out = []
+    var changed = false
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        var replaced = nil
+        if st != nil && st["type"] == "While" {
+            replaced = _opt_split_invariant_list_push_while(st)
+        }
+        if replaced != nil {
+            oren_list_push(out, replaced)
+            changed = true
+        } else {
+            if st != nil && st["type"] == "If" {
+                if st["consq"] != nil && split_invariant_list_push_in_block(st["consq"]) { changed = true }
+                if st["alt"] != nil && split_invariant_list_push_in_block(st["alt"]) { changed = true }
+            } else if st != nil && st["type"] == "ExprStmt" {
+                var e2 = st["expr"]
+                if e2 != nil && e2["type"] == "If" {
+                    if e2["consq"] != nil && split_invariant_list_push_in_block(e2["consq"]) { changed = true }
+                    if e2["alt"] != nil && split_invariant_list_push_in_block(e2["alt"]) { changed = true }
+                }
+            } else if st != nil && st["type"] == "While" {
+                if st["body"] != nil && split_invariant_list_push_in_block(st["body"]) { changed = true }
+            } else if st != nil && st["type"] == "For" {
+                if st["body"] != nil && split_invariant_list_push_in_block(st["body"]) { changed = true }
+            } else if st != nil && st["type"] == "Switch" {
+                var cases = st["cases"]
+                if cases != nil {
+                    var ci = 0
+                    while ci < oren_list_len(cases) {
+                        var c = cases[ci]
+                        if c != nil && c["body"] != nil && split_invariant_list_push_in_block(c["body"]) { changed = true }
+                        ci = ci + 1
+                    }
+                }
+                if st["default"] != nil && split_invariant_list_push_in_block(st["default"]) { changed = true }
+            }
+            oren_list_push(out, st)
+        }
+        i = i + 1
+    }
+    if changed { block["stmts"] = out }
+    return changed
+}
+
 fn _opt_insert_list_reserve_in_block(block, safe_vars) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]

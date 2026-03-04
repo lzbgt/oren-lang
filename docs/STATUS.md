@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; latest `alloc_churn` 104.37×, `alloc_drop` 1.47× on arm64, 2026-03-04).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; latest `alloc_churn` 5.54×, `alloc_drop` 1.58× on arm64, 2026-03-04).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -56,8 +56,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; latest `alloc_churn` 104.37× C, `alloc_drop` 1.47× C (arm64, 2026-03-04).
-   - Priority: hot loops remain above the 2× gate; alloc_drop is within the 5× gate while alloc_churn is far above the 8× gate.
+   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; latest `alloc_churn` 5.54× C, `alloc_drop` 1.58× C (arm64, 2026-03-04).
+   - Priority: hot loops remain above the 2× gate; alloc_drop and alloc_churn are within the 5×/8× gates.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
@@ -530,9 +530,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
    - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
-   - New run (arm64, 2026-03-04, runs=5, warmups=1):
-     - alloc_churn: C 0.002778s, native 0.635249s (228.67× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
-     - alloc_drop: C 0.002940s, native 0.004280s (1.46× C) (log: `build/logs/bench_run_perf_gate_20260304_213121.log`).
+   - New run (arm64, 2026-03-04, runs=5, warmups=1; log: `build/logs/bench_alloc_churn_drop_20260304_235146.log`):
+     - alloc_churn: C 0.002886s, native 0.015997s (5.54× C).
+     - alloc_drop: C 0.002986s, native 0.004703s (1.58× C).
    - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
    - `alloc_churn` and `alloc_drop` are now within the 8×/5× gates on arm64.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
@@ -1083,10 +1083,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Design spec: `docs/design/arena_loop_policy.md` (loop arena policy + GC reuse safety).
    - New: per-iteration loops use `oren_arena_iter_push/pop` with optional cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
    - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
-   - Update (2026-03-04): re-ran `alloc_churn`/`alloc_drop` benchmarks after the list<int> safe-int fix;
-     alloc_drop remains within gate (1.47× C) while alloc_churn regressed to 104.37× C (see latest results).
-   - Investigate alloc_churn regression: confirm list_reserve insertion + list<int> lowering on native,
-     and isolate whether loop-local lists are missing reserve/unchecked push rewrites.
+   - Update (2026-03-04): alloc_churn regression resolved by splitting loop-invariant list_int temps into
+     an outer `if` and fast-path `while` so `fast_list_int_push_while` can match again; alloc_churn
+     5.54× C, alloc_drop 1.58× C (arm64, runs=5; `benchmarks/results/alloc_churn_darwin_arm64_20260304_235146.md`).
    - Fix (2026-03-04): list_int safe-int dataflow now preserves local temps across nested blocks;
      alloc_churn compile trace shows list_push call sites include `v`/`v2` in safe keys
      (log: `build/logs/bench_build_oren_native_alloc_churn_20260304_232251.log`).

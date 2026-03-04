@@ -7,6 +7,10 @@ fn sink_list_lit_into_if(block) {
     return listm.sink_list_lit_into_if(block)
 }
 
+fn split_invariant_list_push_in_block(block) {
+    return listm.split_invariant_list_push_in_block(block)
+}
+
 fn wrap_arena_loops_in_block(block) {
     return arena.wrap_arena_loops_in_block(block)
 }
