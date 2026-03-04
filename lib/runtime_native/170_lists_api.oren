@@ -238,6 +238,31 @@ fn native_list_reserve_panic(list, new_cap, stage) {
     _list_trace_dump(list)
 }
 
+@oren.keep
+fn native_list_panic_footer(list, node, stage, want_kind) {
+    if g_trace_list_panic_footer == 0 { return 0 }
+    var node_kind = 0
+    if node != 0 { node_kind = ptr_get(iadd(node, 16)) }
+    var magic = 0
+    if list != 0 && list >= 4096 { magic = ptr_get(iadd(list, 24)) }
+    print("[list_panic_footer] stage=" + oren_int_to_string(stage) +
+          " list=" + oren_int_to_string(list) +
+          " node=" + oren_int_to_string(node) +
+          " node_kind=" + oren_int_to_string(node_kind) +
+          " want_kind=" + oren_int_to_string(want_kind) +
+          " magic=" + oren_int_to_string(magic) +
+          " alloc_index_zeroed=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
+          " alloc_index_bad=" + oren_int_to_string(g_alloc_index_list_bad_count) +
+          " alloc_index_len=" + oren_int_to_string(g_alloc_index_len) +
+          " alloc_index_cap=" + oren_int_to_string(g_alloc_index_cap))
+    if g_trace_list_hdr_ring_ptr != 0 {
+        native_list_header_ring_dump_last(list, 64)
+    } else {
+        print("[list_panic_footer] list_hdr_ring=0")
+    }
+    return 0
+}
+
 fn native_list_debug_node(list) {
     if list == 0 || list < 4096 { return 0 }
     var node = _list_find_node(list)
@@ -498,9 +523,24 @@ fn oren_list_int_reserve(list, new_cap) {
 fn oren_list_int_push(list, value) {
     if list == nil { oren_panic("list_int_push on nil"); return nil }
     var node = _list_find_node(list)
-    if node == 0 { _list_trace_dump(list); oren_panic("list_int_push on non-list"); return nil }
-    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_push on non-list"); return nil }
-    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_push on non-list"); return nil }
+    if node == 0 {
+        native_list_panic_footer(list, node, 1, list_int_kind())
+        _list_trace_dump(list)
+        oren_panic("list_int_push on non-list")
+        return nil
+    }
+    if ptr_get(iadd(node, 16)) != list_int_kind() {
+        native_list_panic_footer(list, node, 2, list_int_kind())
+        _list_trace_dump(list)
+        oren_panic("list_int_push on non-list")
+        return nil
+    }
+    if ptr_get(iadd(list, 24)) != list_magic() {
+        native_list_panic_footer(list, node, 3, list_int_kind())
+        _list_trace_dump(list)
+        oren_panic("list_int_push on non-list")
+        return nil
+    }
     _list_int_check_value(value)
 
     var count = ptr_get(iadd(list, 0))
@@ -508,6 +548,7 @@ fn oren_list_int_push(list, value) {
     var buf = ptr_get(iadd(list, 16))
     if count >= cap {
         if cap < 0 || cap > list_max_cap() {
+            native_list_panic_footer(list, node, 4, list_int_kind())
             _list_trace_dump(list)
             oren_panic("list_int_push on corrupt list")
             return nil

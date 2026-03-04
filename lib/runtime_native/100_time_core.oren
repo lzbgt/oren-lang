@@ -759,6 +759,8 @@ var g_trace_alloc_index_zeroed = 0
 var g_trace_alloc_index_list_bad_ring_recent = 0
 // Optional tracing: alloc-index remove timing.
 var g_trace_alloc_index_remove_time = 0
+// Optional tracing: list panic footer (list_int_* on non-list).
+var g_trace_list_panic_footer = 0
 // Optional tracing: crash footer (best-effort SIGSEGV/SIGBUS diagnostics).
 var g_trace_crash_footer = 0
 var g_crash_footer_handled = 0
@@ -904,6 +906,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_alloc_index_zeroed = 0
     g_trace_alloc_index_list_bad_ring_recent = 0
     g_trace_alloc_index_remove_time = 0
+    g_trace_list_panic_footer = 0
     g_trace_crash_footer = 0
     g_crash_footer_handled = 0
     g_trace_track_alloc_time = 0
@@ -1370,6 +1373,13 @@ fn native_runtime_init_gc_mode(default_enabled) {
         }
         if g_alloc_site_cap <= 0 { g_alloc_site_cap = 64 }
         native_alloc_site_init(g_alloc_site_cap)
+    }
+    var v_list_panic_footer = native_envp_get_value_ptr("OREN_TRACE_LIST_PANIC_FOOTER")
+    if v_list_panic_footer != 0 {
+        if ptr_get_byte(v_list_panic_footer) != 0 && ptr_get_byte(v_list_panic_footer) != 48 {
+            g_trace_list_panic_footer = 1
+            native_list_header_ring_force_enable()
+        }
     }
     var v_crash_footer = native_envp_get_value_ptr("OREN_TRACE_CRASH_FOOTER")
     if v_crash_footer != 0 {
