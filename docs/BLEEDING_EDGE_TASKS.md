@@ -613,6 +613,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre2_20260305_025533_1_correlate.log`,
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1.log`,
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1_correlate.log`).
+  - Repro (2026-03-05): enabling `OREN_TRACE_ALLOC_KIND_CHANGE` triggers an early segfault
+    before any trace output (logs:
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip_20260305_025937_1.log`,
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip2_20260305_030010_1.log`).
   - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now auto-enables free-list header dumps +
     list_hdr ring capture (no separate `OREN_TRACE_LIST_HDR_RING` needed, 2026-02-26).
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`

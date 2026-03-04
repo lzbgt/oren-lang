@@ -703,6 +703,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre2_20260305_025533_1_correlate.log`,
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1.log`,
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1_correlate.log`).
+   - Repro (2026-03-05): enabling `OREN_TRACE_ALLOC_KIND_CHANGE` triggers an early segfault
+     before any trace output (logs:
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip_20260305_025937_1.log`,
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip2_20260305_030010_1.log`).
    - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
      exit even without compile-time trace flags, so GC corruptions can be correlated from
      standard trace runs.
