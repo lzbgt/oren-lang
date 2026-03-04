@@ -56,26 +56,28 @@ fn main() {
     // std:encoding/base64 errors
     var b64_bad = base64.decode_bytes("!!!")
     if r.is_err(b64_bad) != true { return 14 }
+    var b64_bad_in = base64.encode_bytes(123)
+    if r.is_err(b64_bad_in) != true { return 15 }
 
     // std:strings structured errors
     var bad_len = strings.try_len(123)
-    if r.is_err(bad_len) != true { return 15 }
+    if r.is_err(bad_len) != true { return 16 }
     var ch = strings.try_char_at("hi", 1)
-    if r.is_err(ch) || ch != "i" { return 16 }
+    if r.is_err(ch) || ch != "i" { return 17 }
     var bad_slice = strings.try_slice("hi", 0, 3)
-    if r.is_err(bad_slice) != true { return 17 }
+    if r.is_err(bad_slice) != true { return 18 }
 
     // std:bytes structured errors
     var b = bytes.from_hex("00ff")
-    if r.is_err(b) { return 18 }
+    if r.is_err(b) { return 19 }
     var bl = bytes.try_len(b)
-    if r.is_err(bl) || bl != 2 { return 19 }
+    if r.is_err(bl) || bl != 2 { return 20 }
     var bv = bytes.try_get_u8(b, 1)
-    if r.is_err(bv) || bv != 255 { return 20 }
+    if r.is_err(bv) || bv != 255 { return 21 }
     var bad_b = bytes.try_get_u8(b, 3)
-    if r.is_err(bad_b) != true { return 21 }
+    if r.is_err(bad_b) != true { return 22 }
     var bad_set = bytes.try_set_u8(b, 0, 300)
-    if r.is_err(bad_set) != true { return 22 }
+    if r.is_err(bad_set) != true { return 23 }
 
     return 0
 }

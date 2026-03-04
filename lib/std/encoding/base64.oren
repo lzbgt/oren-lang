@@ -25,7 +25,9 @@ fn encode_bytes(input_bytes) {
     }
 
     var xs = oren_bytes_unpack(input_bytes) // list<u8>
+    if oren_is_err(xs) { return xs }
     var n = list.len(xs)
+    if n == nil || oren_is_err(n) { return oren_err(4, "base64.encode_bytes: input must be list<int> or u8_buf") }
 
     var out = [] // list<u8> ascii
     var i = 0

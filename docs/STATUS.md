@@ -371,6 +371,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      result smoke fixture (2026-03-05).
    - New: `std:encoding/base64.decode_bytes` error handling covered by result
      smoke fixture (2026-03-05).
+   - New: `std:encoding/base64.encode_bytes` validates input and returns `oren_err`
+     on invalid values; covered by result smoke fixture (2026-03-05).
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
    - New: `std:bytes` structured helpers (`try_len`/`try_get_u8`/`try_set_u8`) return
