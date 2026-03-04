@@ -45,6 +45,17 @@ fn try_set_u8(bytes, idx, v) {
     return oren_bytes_set_u8(bytes, idx, v)
 }
 
+fn try_from_hex(s) {
+    if s == nil || oren_is_string(s) != true { return oren_err(4, "bytes.try_from_hex: s must be string") }
+    return oren_bytes_from_hex(s)
+}
+
+fn try_to_hex(bytes) {
+    var n = _len_or_err(bytes, "bytes.try_to_hex")
+    if oren_is_err(n) { return n }
+    return oren_bytes_to_hex(bytes)
+}
+
 fn from_hex(s) { return oren_bytes_from_hex(s) }
 
 fn to_hex(bytes) { return oren_bytes_to_hex(bytes) }

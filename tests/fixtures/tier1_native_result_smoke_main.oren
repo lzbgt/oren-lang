@@ -78,15 +78,19 @@ fn main() {
     if r.is_err(bad_b) != true { return 22 }
     var bad_set = bytes.try_set_u8(b, 0, 300)
     if r.is_err(bad_set) != true { return 23 }
+    var bad_hex = bytes.try_from_hex("zz")
+    if r.is_err(bad_hex) != true { return 24 }
+    var hex = bytes.try_to_hex(b)
+    if r.is_err(hex) || hex != "00ff" { return 25 }
 
     // std:buffer structured errors
     var ub = buffer.u8_new(3)
     var ub_len = buffer.try_len(ub)
-    if r.is_err(ub_len) || ub_len != 3 { return 24 }
+    if r.is_err(ub_len) || ub_len != 3 { return 26 }
     var ub_bad = buffer.try_load_u8(ub, 3)
-    if r.is_err(ub_bad) != true { return 25 }
+    if r.is_err(ub_bad) != true { return 27 }
     var ub_bad_set = buffer.try_store_u8(ub, 0, 300)
-    if r.is_err(ub_bad_set) != true { return 26 }
+    if r.is_err(ub_bad_set) != true { return 28 }
 
     return 0
 }
