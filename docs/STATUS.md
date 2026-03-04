@@ -697,9 +697,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
      shows only op=91 entries (logs:
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap2_20260305_024825_1.log`,
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap2_20260305_024825_1_correlate.log`).
+   - Repro (2026-03-05): with ring_pre enabled (and arena list ring emission), still only
+     op=91 entries; arena off does not change (logs:
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre2_20260305_025533_1.log`,
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre2_20260305_025533_1_correlate.log`,
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1.log`,
+     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1_correlate.log`).
    - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
      exit even without compile-time trace flags, so GC corruptions can be correlated from
      standard trace runs.
+   - Update (2026-03-05): arena list/list_int allocations now emit list_hdr ring entries
+     (op=1/2) so ring dumps include arena-backed list headers.
    - Next: if corruption still shows only op=91 GC entries, consider adding per-iteration
      ring updates under a trace guard to capture in-loop header writes.
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so

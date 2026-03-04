@@ -607,6 +607,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     shows only op=91 entries (logs:
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap2_20260305_024825_1.log`,
     `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntcap2_20260305_024825_1_correlate.log`).
+  - Repro (2026-03-05): with ring_pre enabled (and arena list ring emission), still only
+    op=91 entries; arena off does not change (logs:
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre2_20260305_025533_1.log`,
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre2_20260305_025533_1_correlate.log`,
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1.log`,
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1_correlate.log`).
   - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now auto-enables free-list header dumps +
     list_hdr ring capture (no separate `OREN_TRACE_LIST_HDR_RING` needed, 2026-02-26).
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`
@@ -616,6 +622,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `[list_hdr]` and `[list_hdr_ring]` traces with `[gc_free_list]` samples, surfaces
     `list_corrupt` / `gc_list_*_corrupt` events, and attaches ring dumps when present to
     spot last header writes.
+  - Update (2026-03-05): arena list/list_int allocations now emit list_hdr ring entries
+    (op=1/2) so ring dumps include arena-backed list headers.
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records
     OREN/AVM env + logs for reproducible trace runs. Use `ALLOC_CHURN_RUN_TIMEOUT_SECS`
     to bound long-running traces.
