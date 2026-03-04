@@ -374,6 +374,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `OREN_TRACE_CRASH_FOOTER=1` enabled
      (logs: `build/logs/alloc_churn_bad_list_auto_20260305_050800_0.log`,
      `build/logs/alloc_churn_bad_list_auto_20260305_050830_0.log`, 2026-03-05).
+   - Trace: repro bad-list alloc_churn runs now emit `[crash_footer_raw]` after
+     enabling sigaltstack + sigaction (logs:
+     `build/logs/alloc_churn_bad_list_auto_20260305_053740_0.log`,
+     `build/logs/alloc_churn_bad_list_auto_20260305_053740_1.log`, 2026-03-05).
+     Wrapper log reports rc=132 (Illegal instruction) while the crash footer
+     reports signal 11; keep for context (summary log:
+     `build/logs/repro_bad_list_alloc_churn_sigaltstack_20260305_053739.log`).
    - Tool: `[alloc_index_list_counts_at_bad_list]` now prints alloc-index zeroed/bad counts
      plus index len/cap at each `[gc_reuse_bad_list]` when `OREN_TRACE_ALLOC_INDEX=1`
      (2026-03-05).
