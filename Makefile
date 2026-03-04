@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-stage2-flake-debug test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -409,6 +409,10 @@ test-native-quick-stage2: oren_stage2
 # + list header ring guardrails enabled. Not part of default verify/test.
 test-native-quick-stage2-flake-debug: oren_stage2
 		@./scripts/triage_native_quick_stage2_flake_debug.sh 3 "./$(OREN_STAGE2_BIN)"
+
+# Debug C-backend build flake (arith_div0): loop builds with list header ring guardrails.
+test-native-quick-arith-div0-flake: oren_stage2
+		@./scripts/triage_arith_div0_c_build_flake.sh 3 "./$(OREN_STAGE2_BIN)"
 
 # GC-stress native quick integration (stage2): force frequent GC to catch tracking issues.
 test-native-quick-gc-stress-stage2: oren_stage2

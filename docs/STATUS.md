@@ -129,6 +129,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     (boxed list, list<int>, tags, arith panics, index panics) (2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
+  - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`
+    loop the C-backend build of `tests/native/fixtures/arith_div0.oren` with list header
+    ring guardrails to reproduce list_int header corruption (2026-03-04).
    - Trace: global slot dump maps `idx=434` / `off=3472` to `g_trace_list_hdr_ring_ptr_guard_last`
      after rebuilding stage2 (`alloc_churn_build_globals_idx434_manual_20260227.log`, 2026-02-27).
    - Trace: precheck_guard9 (cached + no-cache) still shows bad-list roots with
