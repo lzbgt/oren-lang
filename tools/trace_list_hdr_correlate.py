@@ -312,6 +312,7 @@ def main() -> int:
 
     emitted = 0
     recent_emitted = 0
+    ring_only_emitted = 0
     printed_recent_ptrs = set()
     for event in events:
         emitted += 1
@@ -342,6 +343,25 @@ def main() -> int:
             printed_recent_ptrs.add(event["ptr"])
         if emitted >= max_out:
             break
+
+    if per_ptr_ring and emitted < max_out:
+        for ptr, ring_entries in per_ptr_ring.items():
+            if ring_only_emitted >= max_out:
+                break
+            if ptr in printed_recent_ptrs:
+                continue
+            if not ring_entries:
+                continue
+            print(f"[list_hdr_ring_only] list={ptr}")
+            total = len(ring_entries)
+            if total > limit:
+                ring_entries = ring_entries[-limit:]
+                print(f"  list_hdr_ring: showing last {len(ring_entries)} of {total}")
+            for idx, entry in enumerate(ring_entries):
+                print(f"  list_hdr_ring[{idx}] {fmt_hdr(entry)}")
+            ring_only_emitted += 1
+            if ring_only_emitted >= max_out:
+                break
 
     if recent_order and recent_emitted < max_out:
         for ptr in recent_order:

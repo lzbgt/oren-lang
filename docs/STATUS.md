@@ -347,7 +347,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
   - Tool: `tools/trace_list_hdr_correlate.py --log <log> --limit 5 --max 50` now surfaces
     `list_corrupt` and `gc_list_*_corrupt` events alongside free-list samples and attaches
     ring dumps (including crash_footer_raw ring lines) when present to pinpoint last
-    header writes (2026-03-05).
+    header writes; it also emits ring-only blocks when only ring entries are available
+    (2026-03-05).
 - Tool: `tools/run_alloc_churn_hunt.sh [max_runs] [tag_base]` repeats alloc_churn traces
   until a corruption signature is observed (or a timeout/failure stops the run), using
   the trace harness logs under `build/logs/` (set `ALLOC_CHURN_HUNT_CORRELATE=0` to skip
