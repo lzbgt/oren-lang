@@ -19,6 +19,7 @@ if [[ "$runs" -le 0 ]]; then
   exit 2
 fi
 
+compiler_base="$(basename "$compiler")"
 env_args=()
 if [[ "$#" -gt 2 ]]; then
   env_args=("${@:3}")
@@ -158,10 +159,10 @@ stop_before_world_lock="${OREN_QI_STOP_BEFORE_WORLD_LOCK:-0}"
 run=1
 while [[ "$run" -le "$runs" ]]; do
   ts="$(date +%Y%m%d_%H%M%S)"
-  log="build/logs/native_quick_until_world_lock_${ts}_run${run}.log"
+  log="build/logs/${compiler_base}_native_quick_until_world_lock_${ts}_run${run}.log"
   current_log="$log"
-  current_inner_src="build/logs/oren_stage2_native_quick_integration.log"
-  current_err_log="build/logs/native_quick_until_world_lock_${ts}_run${run}_interrupt.log"
+  current_inner_src="build/logs/${compiler_base}_native_quick_integration.log"
+  current_err_log="build/logs/${compiler_base}_native_quick_until_world_lock_${ts}_run${run}_interrupt.log"
   echo "== run ${run}/${runs} ==" >&2
   : >"$log"
   {
