@@ -14,11 +14,13 @@ If log_path is omitted, the script uses:
 
 Environment:
   DEDUP_CAP_MULT  Multiplier for suggested cap (default: 4).
+  OREN_COMPILER   Compiler name used for GC-stress run (default: ./oren_stage2).
 EOF
 }
 
 run_gc_stress() {
-  OREN_TRACE_ALLOC_INDEX=1 make test-native-quick-gc-stress-stage2
+  local compiler="${OREN_COMPILER:-./oren_stage2}"
+  OREN_TRACE_ALLOC_INDEX=1 make test-native-quick-gc-stress-stage2 OREN_COMPILER="$compiler"
 }
 
 main() {
@@ -52,7 +54,9 @@ main() {
   fi
 
   if [[ -z "$log_path" ]]; then
-    log_path="build/logs/oren_stage2_native_quick_integration.log"
+    local compiler_base
+    compiler_base="$(basename "${OREN_COMPILER:-./oren_stage2}")"
+    log_path="build/logs/${compiler_base}_native_quick_integration.log"
   fi
   if [[ ! -f "$log_path" ]]; then
     echo "error: log not found: $log_path" >&2
@@ -61,17 +65,15 @@ main() {
 
   local max=0
   local hits
-  hits=$(awk '
+  hits=$(sed -n 's/.*dedup_hits=\([0-9][0-9]*\).*/\1/p' "$log_path" | awk '
     {
-      if (match($0, /dedup_hits=([0-9]+)/, m)) {
-        v = m[1] + 0
-        if (v > max) { max = v }
-      }
+      v = $1 + 0
+      if (v > max) { max = v }
     }
     END {
       print max
     }
-  ' "$log_path")
+  ')
 
   if [[ "${hits:-0}" -le 0 ]]; then
     echo "no dedup_hits found in: $log_path"
