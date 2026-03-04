@@ -97,6 +97,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      with list header ring guardrails (logs:
      `build/logs/arith_div0_c_build_flake_20260304_152304_run1.log`,
      `build/logs/arith_div0_c_build_flake_20260304_152305_run5.log`).
+   - Trace: `arith_div_overflow` C-backend build flake harness (10 runs) completed
+     cleanly under list header ring guardrails (logs:
+     `build/logs/arith_div0_c_build_flake_20260304_152630_run1.log`,
+     `build/logs/arith_div0_c_build_flake_20260304_152632_run10.log`).
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
