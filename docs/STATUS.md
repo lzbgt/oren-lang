@@ -736,6 +736,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Update (2026-03-05): GC summary now prints `[alloc_index_list_counts]` when
      `OREN_TRACE_ALLOC_INDEX=1` to report per-sweep zeroed/bad totals.
    - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` +
+     `OREN_BENCH_GC_EVERY=50` emitted repeated `[alloc_index_list_counts]` lines
+     (log: `build/logs/alloc_churn_trace_alloc_index_counts_summary_gc_20260305_034720.log`).
+   - Trace (2026-03-05): alloc_churn with `OREN_TRACE_ALLOC_INDEX=1` +
      `OREN_TRACE_ALLOC_INDEX_ZEROED=1` (`OREN_BENCH_ITERS=2000`) reported `zeroed_count=2`
      and `bad_count=0` (log:
      `build/logs/alloc_churn_trace_alloc_index_counts_20260305_033136.log`).
