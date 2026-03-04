@@ -739,6 +739,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `<n>` list_hdr ring entries when `[alloc_index_list_bad]` fires.
    - Update (2026-03-05): `[gc_reuse_bad_list]` now includes `freed_seen=<0|1>` when
      `OREN_TRACE_GC_FREED_LISTS=1` to flag potential use-after-free list headers.
+   - Update (2026-03-05): list header corruption dumps now include
+     `[alloc_index_list_counts_at_bad]` when `OREN_TRACE_ALLOC_INDEX=1` so counts are
+     preserved even if GC panics.
    - Trace (2026-03-05): alloc_churn with `OREN_TRACE_GC_FREED_LISTS=1` showed `freed_seen=0`
      across multiple `[gc_reuse_bad_list]` prints (log:
      `build/logs/alloc_churn_trace_alloc_index_bad_freed_20260305_041225.log`).

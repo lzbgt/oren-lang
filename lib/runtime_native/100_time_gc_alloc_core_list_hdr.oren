@@ -98,6 +98,11 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         idx_kind = ptr_get(iadd(idx_node, 16))
         idx_size = ptr_get(iadd(idx_node, 8))
     }
+    if g_trace_alloc_index != 0 {
+        print("[alloc_index_list_counts_at_bad] zeroed=" +
+            oren_int_to_string(g_alloc_index_list_zeroed_count) +
+            " bad=" + oren_int_to_string(g_alloc_index_list_bad_count))
+    }
     var node_kind = 0
     var node_size = 0
     if node_ptr != 0 {
