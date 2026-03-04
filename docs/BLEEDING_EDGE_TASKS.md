@@ -594,6 +594,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/alloc_churn_trace_gc_ring_recent_20260305_014912_corr.log`).
   - Fix: free-list size-mismatch logging now matches list header validation (accepts aligned
     inline sizes and adjacent external buffers) to reduce false positives in traces (2026-03-05).
+  - Repro (2026-03-05): higher-pressure alloc_churn with GC poison + reuse + list_int
+    (`OREN_BENCH_LIST_LEN=512`, `OREN_GC_ALLOC_THRESHOLD=5000`) hits
+    `gc list_int header corrupt` (log:
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_20260305_020406.log`).
   - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now auto-enables free-list header dumps +
     list_hdr ring capture (no separate `OREN_TRACE_LIST_HDR_RING` needed, 2026-02-26).
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`

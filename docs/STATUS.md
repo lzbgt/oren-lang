@@ -678,6 +678,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
       `build/logs/alloc_churn_trace_gc_ring_recent_20260305_014912_corr.log`).
     - Fix: free-list size-mismatch logging now matches list header validation (accepts aligned
       inline sizes and adjacent external buffers) to reduce false positives in traces (2026-03-05).
+    - Repro (2026-03-05): higher-pressure alloc_churn with GC poison + reuse + list_int
+      (`OREN_BENCH_LIST_LEN=512`, `OREN_GC_ALLOC_THRESHOLD=5000`) hits
+      `gc list_int header corrupt` (log:
+      `build/logs/alloc_churn_trace_gc_ring_poison_hi_20260305_020406.log`).
     - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
       list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
