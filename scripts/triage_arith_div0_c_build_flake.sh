@@ -14,6 +14,10 @@ if ! [[ "$runs" =~ ^[0-9]+$ ]]; then
   echo "Usage: $0 [runs] [compiler] [ENV=VAL ...]"
   exit 2
 fi
+if [[ "$runs" -le 0 ]]; then
+  echo "Usage: $0 [runs] [compiler] [ENV=VAL ...]"
+  exit 2
+fi
 
 if [[ ! -x "$compiler" ]]; then
   echo "Compiler not found or not executable: $compiler"

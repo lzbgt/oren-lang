@@ -58,15 +58,17 @@ if [[ "$stage2_runs" =~ ^[0-9]+$ ]] && [[ "$stage2_runs" -gt 0 ]]; then
     >>"$log" 2>&1
 fi
 
-for fixture in "${fixture_arr[@]}"; do
-  if [[ -z "$fixture" ]]; then
-    continue
-  fi
-  echo "== C backend build flake (runs=$c_runs, src=$fixture) ==" | tee -a "$log"
-  OREN_TRACE_ARITH_SRC="$fixture" \
-    ./scripts/triage_arith_div0_c_build_flake.sh "$c_runs" "$compiler" \
-      "${trace_env_arr[@]}" "$@" \
-      >>"$log" 2>&1
-done
+if [[ "$c_runs" =~ ^[0-9]+$ ]] && [[ "$c_runs" -gt 0 ]]; then
+  for fixture in "${fixture_arr[@]}"; do
+    if [[ -z "$fixture" ]]; then
+      continue
+    fi
+    echo "== C backend build flake (runs=$c_runs, src=$fixture) ==" | tee -a "$log"
+    OREN_TRACE_ARITH_SRC="$fixture" \
+      ./scripts/triage_arith_div0_c_build_flake.sh "$c_runs" "$compiler" \
+        "${trace_env_arr[@]}" "$@" \
+        >>"$log" 2>&1
+  done
+fi
 
 echo "OK: runtime robustness W5 checks passed (log=$log)" >&2
