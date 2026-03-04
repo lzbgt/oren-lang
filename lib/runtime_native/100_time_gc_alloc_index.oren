@@ -296,11 +296,23 @@ fn native_alloc_index_put_node(node) {
         var kind = ptr_get(iadd(node, 16))
         if kind == 2 || kind == list_int_kind() {
             var size = ptr_get(iadd(node, 8))
+            var len = ptr_get(iadd(ptr, 0))
+            var cap = ptr_get(iadd(ptr, 8))
+            var buf = ptr_get(iadd(ptr, 16))
+            var magic = ptr_get(iadd(ptr, 24))
+            var want_magic = list_magic()
+            var want_poison = list_magic_poison()
+            if magic - want_magic != 0 && magic - want_poison != 0 {
+                print("[alloc_index_list_bad] ptr=" + oren_int_to_string(ptr) +
+                      " node=" + oren_int_to_string(node) +
+                      " kind=" + oren_int_to_string(kind) +
+                      " size=" + oren_int_to_string(size) +
+                      " len=" + oren_int_to_string(len) +
+                      " cap=" + oren_int_to_string(cap) +
+                      " buf=" + oren_int_to_string(buf) +
+                      " magic=" + oren_int_to_string(magic))
+            }
             if size >= 1073741824 {
-                var len = ptr_get(iadd(ptr, 0))
-                var cap = ptr_get(iadd(ptr, 8))
-                var buf = ptr_get(iadd(ptr, 16))
-                var magic = ptr_get(iadd(ptr, 24))
                 var expected = 32
                 if cap > 0 && cap < 1048576 {
                     if buf == iadd(ptr, 32) { expected = expected + cap * 8 }

@@ -628,6 +628,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     spot last header writes.
   - Update (2026-03-05): arena list/list_int allocations now emit list_hdr ring entries
     (op=1/2) so ring dumps include arena-backed list headers.
+  - New: `OREN_TRACE_ALLOC_INDEX=1` now logs `[alloc_index_list_bad]` when list/list_int
+    nodes are inserted with non-magic headers (excluding poison) to catch kind/ptr drift.
+  - Trace (2026-03-05): alloc_churn gc_ring_poison_hi_alloc_index hits `[alloc_index_list_bad]`
+    immediately with magic=0 before `gc_reuse_bad_list`, implying alloc-index sees invalid
+    headers at insert time (logs:
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_alloc_index_20260305_030652_1.log`,
+    `build/logs/alloc_churn_trace_gc_ring_poison_hi_alloc_index_20260305_030652_1_correlate.log`,
+    `build/logs/alloc_churn_hunt_alloc_index_20260305_030652.log`).
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records
     OREN/AVM env + logs for reproducible trace runs. Use `ALLOC_CHURN_RUN_TIMEOUT_SECS`
     to bound long-running traces.
