@@ -575,13 +575,17 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
     var ring_dumped = 0
     var mismatch = 0
     var expected_size = 32
-    if cap > 0 && cap < 1048576 {
-        if buf == iadd(ptr, 32) {
-            expected_size = 32 + cap * 8
+    if cap == 0 {
+        if chunk_size != 32 { mismatch = 1 }
+    } else if cap > 0 && cap < 1048576 && buf == iadd(ptr, 32) {
+        var need = 32 + cap * 8
+        var aligned = ((need + 15) / 16) * 16
+        if chunk_size != 32 && chunk_size != need && chunk_size != aligned {
+            mismatch = 1
+            expected_size = need
         }
     }
-    if chunk_size != expected_size {
-        mismatch = 1
+    if mismatch == 1 {
         var node_magic2 = 0
         var node_next2 = 0
         var node_freed2 = 0
@@ -675,4 +679,3 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
 // in that mode, because `oren_find_node` and container ops are extremely lock-heavy.
 //
 // This is automatically disabled once a second thread is registered.
-
