@@ -426,6 +426,13 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             " take_by_ptr=" + oren_int_to_string(take_by_ptr) +
             " take_reuse=" + oren_int_to_string(take_reuse))
     }
+    if g_trace_alloc_index != 0 {
+        print("[alloc_index_list_counts_at_bad_list] zeroed=" +
+            oren_int_to_string(g_alloc_index_list_zeroed_count) +
+            " bad=" + oren_int_to_string(g_alloc_index_list_bad_count) +
+            " index_len=" + oren_int_to_string(g_alloc_index_len) +
+            " index_cap=" + oren_int_to_string(g_alloc_index_cap))
+    }
     g_trace_gc_reuse_bad_list_cap = g_trace_gc_reuse_bad_list_cap - 1
     g_gc_reuse_bad_list_prints = g_gc_reuse_bad_list_prints + 1
     var freed_seen = native_gc_freed_list_seen(ptr)

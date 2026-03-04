@@ -349,6 +349,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     until a corruption signature is observed (or a timeout/failure stops the run), using
     the trace harness logs under `build/logs/` (set `ALLOC_CHURN_HUNT_CORRELATE=0` to skip
     auto-correlation; tune via `ALLOC_CHURN_HUNT_CORRELATE_LIMIT/MAX`).
+   - Tool: `[alloc_index_list_counts_at_bad_list]` now prints alloc-index zeroed/bad counts
+     plus index len/cap at each `[gc_reuse_bad_list]` when `OREN_TRACE_ALLOC_INDEX=1`
+     (2026-03-05).
    - Trace: alloc_churn hunt with alloc-index tracing enabled
      (`OREN_TRACE_ALLOC_INDEX=1`, `OREN_TRACE_ALLOC_INDEX_LIST_BAD_RING_RECENT=64`, runs=10)
      completed with no corruption signatures or `alloc_index_list_counts_at_bad` output
