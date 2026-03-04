@@ -1469,6 +1469,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: stage2 flake harness (3 runs) with spawn ring enabled (cap=64),
     guard on, and longer timeouts (60s) completed cleanly (log:
     `build/logs/native_quick_stage2_flake_20260304_143647_run1.log`).
+  - Trace: stage2 flake harness (5 runs) with spawn ring enabled (cap=64),
+    guard on, and longer timeouts (60s) timed out on run 3 (rc=143) (logs:
+    `build/logs/native_quick_stage2_flake_20260304_144207_run3.log`,
+    `build/logs/native_quick_stage2_flake_20260304_144207_run3_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_144207_run3_err.log`).
   - Trace: stage2 flake harness (3 runs) with tracing mostly off but
     `OREN_TRACE_GREEN_ARGS_STAMP=1` (stride=128) and
     `OREN_TRACE_GREEN_SPAWN_ALLOC_GUARD=1` ended on run 1 with rc=138 (bus error)
