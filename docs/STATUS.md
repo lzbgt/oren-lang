@@ -127,6 +127,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     `OREN_NATIVE_BUILD_TIMEOUT_SECS` (2026-03-04).
   - New: `make verify-backend-parity` runs all cross-backend parity smokes in one shot
     (boxed list, list<int>, tags, arith panics, index panics) (2026-03-04).
+  - New: `scripts/verify_backend_parity_arith_panics.sh` accepts
+    `OREN_BACKEND_PARITY_TRACE_ENV` to forward trace env vars into build/run steps
+    for deeper corruption diagnosis (2026-03-04).
   - Fix: AVM truthiness now treats int zero as truthy to match Oren semantics
     (only `nil`/`false` are falsey) (2026-03-04).
   - New: `scripts/triage_arith_div0_c_build_flake.sh` + `make test-native-quick-arith-div0-flake`
