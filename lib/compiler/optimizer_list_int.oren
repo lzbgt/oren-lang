@@ -345,11 +345,32 @@ fn _opt_safe_ints_after_stmt(stmt, safe_ints, tag) {
         return safe_ints
     }
     if t == "If" {
+        if tag == "uses" && safe_ints != nil && safe_ints["j"] == true {
+            var keys_before = ""
+            for k in safe_ints {
+                if safe_ints[k] == true {
+                    if keys_before != "" { keys_before = keys_before + "," }
+                    keys_before = keys_before + k
+                }
+            }
+            _opt_trace_list_int("[opt] list_int safe_int_if_before keys=" + keys_before)
+        }
         var consq = _opt_map_clone_safe(safe_ints)
         if stmt["consq"] != nil { consq = _opt_safe_ints_after_stmt(stmt["consq"], consq, tag) }
         var alt = _opt_map_clone_safe(safe_ints)
         if stmt["alt"] != nil { alt = _opt_safe_ints_after_stmt(stmt["alt"], alt, tag) }
-        return _opt_safe_ints_intersect(consq, alt)
+        var out = _opt_safe_ints_intersect(consq, alt)
+        if tag == "uses" && out != nil && out["j"] == true {
+            var keys_after = ""
+            for k2 in out {
+                if out[k2] == true {
+                    if keys_after != "" { keys_after = keys_after + "," }
+                    keys_after = keys_after + k2
+                }
+            }
+            _opt_trace_list_int("[opt] list_int safe_int_if_after keys=" + keys_after)
+        }
+        return out
     }
     _opt_safe_ints_invalidate_in_stmt(stmt, safe_ints)
     return safe_ints
@@ -688,6 +709,59 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
                     var en = st0["expr"]
                     var cn = _opt_call_name(en)
                     if cn == "oren_list_push" || cn == "STD_list_push" || cn == "oren_list_int_push" || cn == "STD_list_int_push" {
+                        if i > 0 {
+                            var prev = ss[i - 1]
+                            if prev != nil {
+                                var ptype = prev["type"]
+                                var pname = opthelp.is_ident(prev["name"])
+                                if pname == nil { pname = "" }
+                                var pextra = ""
+                                if ptype == "ExprStmt" {
+                                    var pexpr = prev["expr"]
+                                    if pexpr != nil {
+                                        pextra = pexpr["type"]
+                                        if pextra == "Call" {
+                                            var pcall = _opt_call_name(pexpr)
+                                            if pcall != nil { pextra = "Call:" + pcall }
+                                        }
+                                    }
+                                }
+                                _opt_trace_list_int("[opt] list_int uses_prev_stmt type=" + ptype + " name=" + pname + " extra=" + pextra)
+                            }
+                        }
+                        var wstart = i - 2
+                        if wstart < 0 { wstart = 0 }
+                        var wend = i + 2
+                        if wend >= oren_list_len(ss) { wend = oren_list_len(ss) - 1 }
+                        var w = ""
+                        var wi = wstart
+                        while wi <= wend {
+                            var stw = ss[wi]
+                            var wtype = ""
+                            var wname = ""
+                            if stw != nil {
+                                wtype = stw["type"]
+                                wname = opthelp.is_ident(stw["name"])
+                                if wname == nil { wname = "" }
+                                if wtype == "ExprStmt" {
+                                    var ew = stw["expr"]
+                                    if ew != nil {
+                                        var et = ew["type"]
+                                        if et == "Call" {
+                                            var ewcall = _opt_call_name(ew)
+                                            if ewcall != nil { wtype = "ExprStmt(Call:" + ewcall + ")" }
+                                        } else {
+                                            wtype = "ExprStmt(" + et + ")"
+                                        }
+                                    }
+                                }
+                            }
+                            if w != "" { w = w + " | " }
+                            w = w + oren_int_to_string(wi) + ":" + wtype
+                            if wname != "" { w = w + "(" + wname + ")" }
+                            wi = wi + 1
+                        }
+                        _opt_trace_list_int("[opt] list_int uses_window " + w)
                         var keys = ""
                         for k in snap_ints {
                             if snap_ints[k] == true {
@@ -698,8 +772,37 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
                         _opt_trace_list_int("[opt] list_int uses_pre_call name=" + cn + " keys=" + keys)
                     }
                 }
-                _opt_scan_list_int_uses_stmt(ss[i], list_state, snap_ints)
+                _opt_scan_list_int_uses_stmt(ss[i], list_state, _opt_map_clone_safe(snap_ints))
                 snap_ints = _opt_safe_ints_after_stmt(ss[i], snap_ints, "uses")
+                if i + 1 < oren_list_len(ss) {
+                    var nxt = ss[i + 1]
+                    var log_next = false
+                    if nxt != nil && nxt["type"] == "ExprStmt" {
+                        var nexpr = nxt["expr"]
+                        var ncall = _opt_call_name(nexpr)
+                        if ncall == "oren_list_push" || ncall == "STD_list_push" || ncall == "oren_list_int_push" || ncall == "STD_list_int_push" {
+                            log_next = true
+                        } else if nexpr != nil && nexpr["type"] == "If" && i + 2 < oren_list_len(ss) {
+                            var nxt2 = ss[i + 2]
+                            if nxt2 != nil && nxt2["type"] == "ExprStmt" {
+                                var n2call = _opt_call_name(nxt2["expr"])
+                                if n2call == "oren_list_push" || n2call == "STD_list_push" || n2call == "oren_list_int_push" || n2call == "STD_list_int_push" {
+                                    log_next = true
+                                }
+                            }
+                        }
+                    }
+                    if log_next {
+                        var keys_after = ""
+                        for k3 in snap_ints {
+                            if snap_ints[k3] == true {
+                                if keys_after != "" { keys_after = keys_after + "," }
+                                keys_after = keys_after + k3
+                            }
+                        }
+                        _opt_trace_list_int("[opt] list_int uses_keys_after_stmt idx=" + oren_int_to_string(i) + " keys=" + keys_after)
+                    }
+                }
                 i = i + 1
             }
         }
@@ -909,7 +1012,7 @@ fn _opt_mark_list_int_touch_in_stmt(stmt, list_state, safe_ints, list_touch) {
             var snap_ints = _opt_map_clone_safe(safe_ints)
             var i = 0
             while i < oren_list_len(ss) {
-                _opt_mark_list_int_touch_in_stmt(ss[i], list_state, snap_ints, list_touch)
+                _opt_mark_list_int_touch_in_stmt(ss[i], list_state, _opt_map_clone_safe(snap_ints), list_touch)
                 snap_ints = _opt_safe_ints_after_stmt(ss[i], snap_ints, "touch")
                 i = i + 1
             }

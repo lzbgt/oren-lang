@@ -1083,9 +1083,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - New: per-iteration loops use `oren_arena_iter_push/pop` with optional cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
    - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
    - Next: re-run `alloc_churn`/`alloc_drop` benchmarks now that empty-list lowering can propagate int-safe context across nested blocks (list<int> emit-c verified).
-   - Trace (2026-03-04): list_int pass still marks alloc_churn list_push unsafe; push_arg_unsafe shows safe_ints
-     keys missing local temps (`v`/`v2`) at call sites (keys=acc,gc_count,i,j); fix safe-int dataflow
-     across nested blocks (log: `build/logs/alloc_churn_trace_list_int_20260304_230107.log`).
+   - Fix (2026-03-04): list_int safe-int dataflow now preserves local temps across nested blocks;
+     alloc_churn compile trace shows list_push call sites include `v`/`v2` in safe keys
+     (log: `build/logs/bench_build_oren_native_alloc_churn_20260304_232251.log`).
    - Fix: loop list reset now requires first-assign dominance in the loop body to avoid auto-arena on use-before-assign patterns
      (keeps `test_arena_auto_loop_use_before_assign_skip_smoke` stable).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
