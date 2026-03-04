@@ -573,6 +573,30 @@ fn _green_trace_runq_event(label, g) {
     return 0
 }
 
+fn _green_args_list_node(args_list, allow_retrack) {
+    if args_list == 0 { return 0 }
+    var node = native_alloc_index_get(args_list)
+    if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+    if node == 0 && allow_retrack == 1 {
+        native_alloc_index_rebuild_live()
+        node = native_alloc_index_get(args_list)
+        if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+    }
+    if node == 0 && allow_retrack == 1 {
+        if args_list >= 4096 && ptr_get(iadd(args_list, 24)) == list_magic() {
+            var cap = ptr_get(iadd(args_list, 8))
+            var len = ptr_get(iadd(args_list, 0))
+            if cap >= 0 && cap < 1048576 && len >= 0 && len <= cap {
+                var total = 32
+                if cap > 0 { total = total + cap * 8 }
+                oren_track_alloc_new(args_list, total, 2)
+                node = native_alloc_index_get(args_list)
+            }
+        }
+    }
+    return node
+}
+
 fn _green_runq_guard_enabled() {
     if g_trace_green_runq_guard == 1 { return true }
     var cur_envp = global_get_envp()

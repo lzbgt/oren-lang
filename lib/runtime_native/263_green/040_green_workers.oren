@@ -851,12 +851,24 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     var ring_on = _green_spawn_ring_enabled()
     var node_guard = 0
     if guard_on == true || stamp_on == true || ring_on == true {
-        node_guard = native_alloc_index_get(args_list)
-        if node_guard == 0 { node_guard = native_alloc_index_recover_ptr(args_list) }
+        node_guard = _green_args_list_node(args_list, 1)
         if guard_on == true && node_guard == 0 {
             print("trace: green_spawn_alloc args_list untracked args=" +
                   oren_int_to_string(args_list) +
                   " fn=" + oren_int_to_string(fn_obj))
+            if args_list != 0 && args_list >= 4096 {
+                var raw_len = ptr_get(iadd(args_list, 0))
+                var raw_cap = ptr_get(iadd(args_list, 8))
+                var raw_buf = ptr_get(iadd(args_list, 16))
+                var raw_magic = ptr_get(iadd(args_list, 24))
+                print("trace: green_spawn_alloc args_list raw len=" +
+                      oren_int_to_string(raw_len) +
+                      " cap=" + oren_int_to_string(raw_cap) +
+                      " buf=" + oren_int_to_string(raw_buf) +
+                      " magic=" + oren_int_to_string(raw_magic))
+                native_list_debug_node(args_list)
+                _list_trace_dump(args_list)
+            }
             _green_spawn_ring_dump_last(32, "spawn_alloc_untracked")
             oren_panic("green spawn_alloc: args_list untracked")
             return 0
@@ -908,8 +920,7 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
 @oren.keep
 fn oren_green_spawn(fn_obj, args_list) {
     if _green_trace_args_stamp_enabled() == true {
-        var node = native_alloc_index_get(args_list)
-        if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+        var node = _green_args_list_node(args_list, 1)
         var kind = 0
         var magic = 0
         var len = 0
@@ -932,8 +943,7 @@ fn oren_green_spawn(fn_obj, args_list) {
     }
     var wl = _green_world_lock_host_enter()
     if _green_trace_args_stamp_enabled() == true {
-        var node2 = native_alloc_index_get(args_list)
-        if node2 == 0 { node2 = native_alloc_index_recover_ptr(args_list) }
+        var node2 = _green_args_list_node(args_list, 1)
         var kind2 = 0
         var magic2 = 0
         var len2 = 0

@@ -90,6 +90,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Root-cause list header corruption before enabling reuse paths.
    - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
      reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
+   - Fix: green spawn/entry now re-track args_list headers on alloc-index misses when magic+len/cap look sane (2026-03-04).
    - Repro (2026-03-04): `make verify-backend-parity` failed while building
      `tests/native/fixtures/arith_div0.oren` (C backend) with
      `gc list_int header corrupt` (log: `build/logs/arith_div0_c_build.log`).
@@ -1639,6 +1640,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `scripts/run_native_quick_integration.sh` supports `OREN_QI_GREEN_CACHE_FIRST=1`
     to run the green-cache phase before the base run and `OREN_QI_GREEN_CACHE_RUNS=<n>`
     to repeat the green-cache phase (2026-03-04).
+  - New: green spawn alloc guard now dumps raw args_list header + list debug traces
+    when the args_list is untracked, before panicking (2026-03-04).
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);

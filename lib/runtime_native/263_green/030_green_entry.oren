@@ -288,12 +288,7 @@ fn _green_entry_args_guard(g, fn_obj, args_list) {
               " fn=" + oren_int_to_string(fn_obj))
         return 0
     }
-    var node = native_alloc_index_get(args_list)
-    if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
-    if node == 0 {
-        native_alloc_index_rebuild_live()
-        node = native_alloc_index_get(args_list)
-    }
+    var node = _green_args_list_node(args_list, 1)
     if node == 0 {
         if _green_trace_entry_args_scan_enabled() == true {
             native_alloc_index_scan_ptr_debug(args_list, 0)

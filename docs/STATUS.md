@@ -97,6 +97,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: alloc-index recovery scans live allocs on map/list misses to reinsert missing nodes before panicking (2026-02-26).
    - New: list/map constructors re-track headers when alloc-index misses to prevent untracked containers under GC stress (2026-02-26).
    - New: map/list checks re-track headers on alloc-index misses when magic+cap look sane to reduce false panics (2026-02-26).
+   - Fix: green spawn/entry now re-track args_list headers on alloc-index misses when magic+len/cap look sane to avoid false panics under GC churn (2026-03-04).
    - New: arm64/x64 `oren_list_len` intrinsics now fall back to magic+count on untracked headers
      to avoid false panics under GC stress (2026-02-26).
    - New: `oren_track_alloc_new` now de-duplicates existing alloc-index nodes to prevent duplicate
@@ -271,6 +272,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
   - New: `scripts/run_native_quick_integration.sh` supports `OREN_QI_GREEN_CACHE_FIRST=1`
     to run the green-cache phase before the base run and `OREN_QI_GREEN_CACHE_RUNS=<n>`
     to repeat the green-cache phase (2026-03-04).
+  - New: green spawn alloc guard now dumps raw args_list header + list debug traces
+    when the args_list is untracked, before panicking (2026-03-04).
    - Trace: global slot dump maps `idx=434` / `off=3472` to `g_trace_list_hdr_ring_ptr_guard_last`
      after rebuilding stage2 (`alloc_churn_build_globals_idx434_manual_20260227.log`, 2026-02-27).
    - Trace: precheck_guard9 (cached + no-cache) still shows bad-list roots with
