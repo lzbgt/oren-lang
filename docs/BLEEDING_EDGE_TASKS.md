@@ -454,6 +454,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Tool: `OREN_TRACE_CRASH_FOOTER=1` installs a best-effort crash footer on macOS
     (SIGSEGV/SIGBUS) that dumps alloc-index counts plus list header ring contents when
     the process crashes (debug-only; not signal-safe, 2026-03-05).
+  - Trace: alloc_churn trace with crash footer + alloc-index tracing hit
+    `list_int_push on non-list` panic (no `[crash_footer]` output), indicating
+    a non-SEGV failure mode before bad-list triggers
+    (log: `build/logs/alloc_churn_trace_crash_footer_20260305_044237.log`, 2026-03-05).
   - Tool: `[alloc_index_list_counts_at_bad_list]` now prints alloc-index zeroed/bad counts
     plus index len/cap at each `[gc_reuse_bad_list]` when `OREN_TRACE_ALLOC_INDEX=1`
     (2026-03-05).
