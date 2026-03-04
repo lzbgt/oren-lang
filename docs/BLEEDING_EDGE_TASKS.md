@@ -1264,6 +1264,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     integration (logs: `build/logs/native_quick_stage2_flake_20260304_124943_run1.log`,
     `build/logs/native_quick_stage2_flake_20260304_124943_run1_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_124943_run1_err.log`).
+  - Trace: stage2 flake harness (1 run) with list tracing disabled and entry-args
+    guard on (guard-light off, entry-args light off) hit `green entry args_list
+    not tracked` (guard `node=0`), then also logged `Indexing on non-container`
+    with `list_trace_dump` showing `node=0` (logs:
+    `build/logs/native_quick_stage2_flake_20260304_125154_run1.log`,
+    `build/logs/native_quick_stage2_flake_20260304_125154_run1_inner.log`,
+    `build/logs/native_quick_stage2_flake_20260304_125154_run1_err.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
