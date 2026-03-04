@@ -451,6 +451,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
     continues across crashes, logs non-zero exit statuses, and captures stderr in logs
     (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces, 2026-02-27).
+  - Trace: alloc_churn hunt with alloc-index tracing enabled
+    (`OREN_TRACE_ALLOC_INDEX=1`, `OREN_TRACE_ALLOC_INDEX_LIST_BAD_RING_RECENT=64`, runs=10)
+    completed with no corruption signatures or `alloc_index_list_counts_at_bad` output
+    (log: `build/logs/alloc_churn_hunt_counts_at_bad_20260305_042000.log`, 2026-03-05).
+  - Trace: `scripts/repro_bad_list_alloc_churn.sh` with alloc-index tracing + extra list-hdr
+    traces (`RUNS=20`, `EXTRA_TRACE=1`) exited with repeated segfaults (status 139) and no
+    `gc_reuse_bad_list` / `alloc_index_list_counts_at_bad` hits (summary log:
+    `build/logs/repro_bad_list_counts_at_bad_20260305_042036.log`, per-run logs:
+    `build/logs/alloc_churn_bad_list_auto_20260305_0420*.log`, 2026-03-05).
   - Trace: list header ok trace emitted entries (e.g., `kind=8` and `kind=2`)
     before a segfault (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_ok_20260227.log`, 2026-02-27).

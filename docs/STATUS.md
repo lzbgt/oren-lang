@@ -349,6 +349,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     until a corruption signature is observed (or a timeout/failure stops the run), using
     the trace harness logs under `build/logs/` (set `ALLOC_CHURN_HUNT_CORRELATE=0` to skip
     auto-correlation; tune via `ALLOC_CHURN_HUNT_CORRELATE_LIMIT/MAX`).
+   - Trace: alloc_churn hunt with alloc-index tracing enabled
+     (`OREN_TRACE_ALLOC_INDEX=1`, `OREN_TRACE_ALLOC_INDEX_LIST_BAD_RING_RECENT=64`, runs=10)
+     completed with no corruption signatures or `alloc_index_list_counts_at_bad` output
+     (log: `build/logs/alloc_churn_hunt_counts_at_bad_20260305_042000.log`, 2026-03-05).
+   - Trace: `scripts/repro_bad_list_alloc_churn.sh` with alloc-index tracing + extra list-hdr
+     traces (`RUNS=20`, `EXTRA_TRACE=1`) exited with repeated segfaults (status 139) and no
+     `gc_reuse_bad_list` / `alloc_index_list_counts_at_bad` hits (summary log:
+     `build/logs/repro_bad_list_counts_at_bad_20260305_042036.log`, per-run logs:
+     `build/logs/alloc_churn_bad_list_auto_20260305_0420*.log`, 2026-03-05).
    - Trace: poison-node logs show `node_in_allocs=0`, `allocs_count=0`, and `idx_node` matching
      the sweep node at poison time; later `reuse_take` reactivates the same node before the
      bad-list event, pointing to corruption after reuse rather than a stale allocs entry
