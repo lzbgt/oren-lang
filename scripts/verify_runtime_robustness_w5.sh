@@ -53,8 +53,8 @@ IFS=',' read -r -a fixture_arr <<< "$fixtures"
 
 if [[ "$stage2_runs" =~ ^[0-9]+$ ]] && [[ "$stage2_runs" -gt 0 ]]; then
   echo "== stage2 native quick integration (runs=$stage2_runs) ==" | tee -a "$log"
-  env "${trace_env_arr[@]}" \
-    ./scripts/triage_native_quick_stage2_flake_debug.sh "$stage2_runs" "$compiler" "$@" \
+  ./scripts/triage_native_quick_stage2_flake_debug.sh "$stage2_runs" "$compiler" \
+    "${trace_env_arr[@]}" "$@" \
     >>"$log" 2>&1
 fi
 
@@ -63,10 +63,10 @@ for fixture in "${fixture_arr[@]}"; do
     continue
   fi
   echo "== C backend build flake (runs=$c_runs, src=$fixture) ==" | tee -a "$log"
-  env "${trace_env_arr[@]}" \
-    OREN_TRACE_ARITH_SRC="$fixture" \
-      ./scripts/triage_arith_div0_c_build_flake.sh "$c_runs" "$compiler" "$@" \
-        >>"$log" 2>&1
+  OREN_TRACE_ARITH_SRC="$fixture" \
+    ./scripts/triage_arith_div0_c_build_flake.sh "$c_runs" "$compiler" \
+      "${trace_env_arr[@]}" "$@" \
+      >>"$log" 2>&1
 done
 
 echo "OK: runtime robustness W5 checks passed (log=$log)" >&2
