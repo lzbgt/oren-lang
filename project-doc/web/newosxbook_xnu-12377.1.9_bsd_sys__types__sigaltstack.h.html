@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Source of /bsd/sys/_types/_sigaltstack.h (From xnu-12377.1.9) </title>
+
+
+
+<div style=" position : fixed; background-color : yellow ; text-align : center; border : 1px solid red ; min-width : 800px; width : 100% ">
+This is xnu-12377.1.9. See this file in: 
+
+<script>
+function changeTree (Ver)
+{
+
+	// Replace document's "tree=....&" with "Ver=$Ver"
+	
+	ver = document.location.href;
+	if (ver.indexOf("tree") == -1) { ver += "&tree=11111";}
+
+	if (ver.indexOf("ver") != -1 ) {
+		if (Ver.indexOf("xnu") == 0) Ver = Ver.substring(4);
+		newVer = ver.replace (/ver=[0-9.]*/, "ver=" + Ver);
+
+
+	}
+
+	else 
+	{
+	if (ver.indexOf("xnu-") != -1) {
+	newVer = ver.replace (/tree=xnu-[0-9.]*/, "tree=" + Ver);
+	}
+	else {
+	newVer = ver.replace (/tree=xnu[0-9.]*/, "tree=" + Ver);
+	}
+	}
+	document.location.href= newVer;
+
+}
+</script>
+<select name="srcVer" id="srcVer" onchange="changeTree(this.value); ">
+<option value="xnu-12377.1.9">xnu-12377.1.9 (Darwin 25)</option>
+<option value="xnu-8792.81.2">xnu-8792.81.2 (MacOS 18, Darwin 22)</option>
+<option value="xnu-8019">xnu-8019 (MacOS 17.0, Darwin 21)</option>
+<option value="xnu-6153.11.26">xnu-6153.11.26 (MacOS 15.0, Darwin 19)</option>
+<option value="xnu-4903.221.2" ">xnu-4903.221.2 (MacOS 14.0, Darwin 18)</option>
+<option value="xnu-4570.41.2" >xnu-4570.41.2 (MacOS 13.3, Darwin 17)</option>
+<option value="xnu-3789.70.16">xnu-3789.70.16 (MacOS 12.6, Darwin 16)</option>
+<option value="xnu-3248.20.55">xnu-3248.20.55 (MacOS 11.2, Darwin 15)</option>
+<option value="xnu-2782.40.9">xnu-2782.40.9 (MacOS 10.10.5, Darwin 14)</option>
+<option value="xnu-2422.115.4">xnu-2422.115.4 (MacOS 10.9.5, Darwin 13)</option>
+<option value="xnu-2050.24.15">xnu-2050.24.15 (MacOS 10.8.4, Darwin 12)</option>
+<option value="xnu-1699.32.7">xnu-1699.32.7 (MacOS 10.7.5, Darwin 11)</option>
+<option value="xnu-1504.15.3">xnu-1504.15.3 (MacOS 10.6.8, Darwin 10)</option>
+<option value="xnu-1228.15.4">xnu-1228.15.4 (MacOS 10.5.8, Darwin 9)</option>
+	</select>
+	</div>
+<div style="position: fixed; height : 90%; top:40px; overflow: scroll;">
+
+
+
+<link rel="stylesheet" type="text/css" href="css/sh_vim.css" />
+</head>
+<body onload="sh_highlightDocument(); dumpFunctions();">
+<script src="js/sh_main.js"></script>
+<script src="js/sh_c.js"></script>
+
+
+
+<pre class="sh_c">/*
+ * Copyright (c) 2003-2012 Apple Inc. All rights reserved.
+ *
+ * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
+ *
+ * This file contains Original Code and/or Modifications of Original Code
+ * as defined in and that are subject to the Apple Public Source License
+ * Version 2.0 (the 'License'). You may not use this file except in
+ * compliance with the License. The rights granted to you under the License
+ * may not be used to create, or enable the creation or redistribution of,
+ * unlawful or unlicensed copies of an Apple operating system, or to
+ * circumvent, violate, or enable the circumvention or violation of, any
+ * terms of an Apple operating system software license agreement.
+ *
+ * Please obtain a copy of the License at
+ * http://www.opensource.apple.com/apsl/ and read it before using this file.
+ *
+ * The Original Code and all software distributed under the License are
+ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+ * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+ * Please see the License for the specific language governing rights and
+ * limitations under the License.
+ *
+ * @APPLE_OSREFERENCE_LICENSE_HEADER_END@
+ */
+
+/* Structure used in sigaltstack call. */
+#ifndef _STRUCT_SIGALTSTACK
+
+#include &lt;sys/cdefs.h&gt; /* __DARWIN_UNIX03 */
+
+#if __DARWIN_UNIX03
+#define _STRUCT_SIGALTSTACK     struct __darwin_sigaltstack
+#else /* !__DARWIN_UNIX03 */
+#define _STRUCT_SIGALTSTACK     struct sigaltstack
+#endif /* __DARWIN_UNIX03 */
+
+#include &lt;machine/types.h&gt; /* __darwin_size_t */
+
+_STRUCT_SIGALTSTACK
+{
+	void            *ss_sp;         /* signal stack base */
+	__darwin_size_t ss_size;        /* signal stack length */
+	int             ss_flags;       /* SA_DISABLE and/or SA_ONSTACK */
+};
+typedef _STRUCT_SIGALTSTACK     stack_t; /* [???] signal stack */
+
+#endif /* _STRUCT_SIGALTSTACK */
+</pre></div>
+</body>
+</html>

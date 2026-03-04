@@ -767,6 +767,10 @@ var g_crash_footer_handled = 0
 var g_crash_footer_buf = 0
 var g_crash_footer_buf_cap = 0
 var g_crash_footer_installed = 0
+var g_crash_footer_altstack = 0
+var g_crash_footer_altstack_size = 0
+var g_crash_footer_sigaltstack_struct = 0
+var g_crash_footer_sigaction_struct = 0
 // Optional tracing: per-track_alloc timing.
 var g_trace_track_alloc_time = 0
 // Optional tracing: per-site allocation counters (raw metadata array).
@@ -842,8 +846,19 @@ var g_alloc_site_total = 0
 ffi {
     signal as __oren_signal
 }
+@cfg(os="macos")
+@ffi.libc
+@ffi.ret("i32")
+ffi {
+    sigaction as __oren_sigaction
+    sigaltstack as __oren_sigaltstack
+}
 @cfg(not_os="macos")
 fn __oren_signal(sig, handler) { return 0 }
+@cfg(not_os="macos")
+fn __oren_sigaction(sig, act, oact) { return -38 }
+@cfg(not_os="macos")
+fn __oren_sigaltstack(ss, oss) { return -38 }
 
 fn __oren_crash_footer_handler(sig) {
     if g_crash_footer_handled != 0 {
@@ -887,15 +902,68 @@ fn native_install_crash_footer() {
             g_crash_footer_buf_cap = cap
         }
     }
+    native_install_crash_altstack()
     var handler = oren_code_addr(__oren_crash_footer_handler)
     if handler == 0 { return 0 }
-    // macOS signals: SIGBUS=10, SIGSEGV=11.
-    __oren_signal(10, handler)
-    __oren_signal(11, handler)
+    native_install_crash_sigaction(10, handler)
+    native_install_crash_sigaction(11, handler)
     if g_crash_footer_installed == 0 {
         g_crash_footer_installed = 1
         print("[crash_footer] installed")
     }
+    return 0
+}
+
+fn native_install_crash_sigaction(sig, handler) {
+    if g_target_os != 1 {
+        __oren_signal(sig, handler)
+        return 0
+    }
+    var act = native_crash_sigaction_ptr()
+    if act == 0 {
+        __oren_signal(sig, handler)
+        return 0
+    }
+    native_crash_sigaction_init(act, handler)
+    __oren_sigaction(sig, act, 0)
+    return 0
+}
+
+fn native_crash_sigaction_ptr() {
+    if g_crash_footer_sigaction_struct != 0 { return g_crash_footer_sigaction_struct }
+    var buf = native_malloc_raw_or_mmap(32)
+    if buf == 0 { return 0 }
+    g_crash_footer_sigaction_struct = buf
+    return buf
+}
+
+fn native_crash_sigaction_init(act, handler) {
+    // struct sigaction (Darwin): [handler ptr, mask(u32)+flags(u32)]
+    ptr_set(act, handler)
+    var flags = crash_sig_flag_onstack()
+    var mask_flags = (flags << 32) | 0
+    ptr_set(iadd(act, 8), mask_flags)
+    return 0
+}
+
+fn crash_sig_flag_onstack() { return 1 } // SA_ONSTACK (0x0001)
+fn crash_sigstk_size() { return 131072 } // SIGSTKSZ
+
+fn native_install_crash_altstack() {
+    if g_target_os != 1 { return 0 }
+    if g_crash_footer_altstack != 0 { return 0 }
+    var size = crash_sigstk_size()
+    var stack = native_malloc_raw_or_mmap(size)
+    if stack == 0 { return 0 }
+    var ss = native_malloc_raw_or_mmap(32)
+    if ss == 0 { return 0 }
+    ptr_set(ss, stack)
+    ptr_set(iadd(ss, 8), size)
+    ptr_set(iadd(ss, 16), 0) // ss_flags
+    g_crash_footer_altstack = stack
+    g_crash_footer_altstack_size = size
+    g_crash_footer_sigaltstack_struct = ss
+    __oren_sigaltstack(ss, 0)
     return 0
 }
 

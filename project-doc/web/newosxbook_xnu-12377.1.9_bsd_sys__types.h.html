@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Source of /bsd/sys/_types.h (From xnu-12377.1.9) </title>
+
+
+
+<div style=" position : fixed; background-color : yellow ; text-align : center; border : 1px solid red ; min-width : 800px; width : 100% ">
+This is xnu-12377.1.9. See this file in: 
+
+<script>
+function changeTree (Ver)
+{
+
+	// Replace document's "tree=....&" with "Ver=$Ver"
+	
+	ver = document.location.href;
+	if (ver.indexOf("tree") == -1) { ver += "&tree=11111";}
+
+	if (ver.indexOf("ver") != -1 ) {
+		if (Ver.indexOf("xnu") == 0) Ver = Ver.substring(4);
+		newVer = ver.replace (/ver=[0-9.]*/, "ver=" + Ver);
+
+
+	}
+
+	else 
+	{
+	if (ver.indexOf("xnu-") != -1) {
+	newVer = ver.replace (/tree=xnu-[0-9.]*/, "tree=" + Ver);
+	}
+	else {
+	newVer = ver.replace (/tree=xnu[0-9.]*/, "tree=" + Ver);
+	}
+	}
+	document.location.href= newVer;
+
+}
+</script>
+<select name="srcVer" id="srcVer" onchange="changeTree(this.value); ">
+<option value="xnu-12377.1.9">xnu-12377.1.9 (Darwin 25)</option>
+<option value="xnu-8792.81.2">xnu-8792.81.2 (MacOS 18, Darwin 22)</option>
+<option value="xnu-8019">xnu-8019 (MacOS 17.0, Darwin 21)</option>
+<option value="xnu-6153.11.26">xnu-6153.11.26 (MacOS 15.0, Darwin 19)</option>
+<option value="xnu-4903.221.2" ">xnu-4903.221.2 (MacOS 14.0, Darwin 18)</option>
+<option value="xnu-4570.41.2" >xnu-4570.41.2 (MacOS 13.3, Darwin 17)</option>
+<option value="xnu-3789.70.16">xnu-3789.70.16 (MacOS 12.6, Darwin 16)</option>
+<option value="xnu-3248.20.55">xnu-3248.20.55 (MacOS 11.2, Darwin 15)</option>
+<option value="xnu-2782.40.9">xnu-2782.40.9 (MacOS 10.10.5, Darwin 14)</option>
+<option value="xnu-2422.115.4">xnu-2422.115.4 (MacOS 10.9.5, Darwin 13)</option>
+<option value="xnu-2050.24.15">xnu-2050.24.15 (MacOS 10.8.4, Darwin 12)</option>
+<option value="xnu-1699.32.7">xnu-1699.32.7 (MacOS 10.7.5, Darwin 11)</option>
+<option value="xnu-1504.15.3">xnu-1504.15.3 (MacOS 10.6.8, Darwin 10)</option>
+<option value="xnu-1228.15.4">xnu-1228.15.4 (MacOS 10.5.8, Darwin 9)</option>
+	</select>
+	</div>
+<div style="position: fixed; height : 90%; top:40px; overflow: scroll;">
+
+
+
+<link rel="stylesheet" type="text/css" href="css/sh_vim.css" />
+</head>
+<body onload="sh_highlightDocument(); dumpFunctions();">
+<script src="js/sh_main.js"></script>
+<script src="js/sh_c.js"></script>
+
+
+
+<pre class="sh_c">/*
+ * Copyright (c) 2003-2007 Apple Inc. All rights reserved.
+ *
+ * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
+ *
+ * This file contains Original Code and/or Modifications of Original Code
+ * as defined in and that are subject to the Apple Public Source License
+ * Version 2.0 (the 'License'). You may not use this file except in
+ * compliance with the License. The rights granted to you under the License
+ * may not be used to create, or enable the creation or redistribution of,
+ * unlawful or unlicensed copies of an Apple operating system, or to
+ * circumvent, violate, or enable the circumvention or violation of, any
+ * terms of an Apple operating system software license agreement.
+ *
+ * Please obtain a copy of the License at
+ * http://www.opensource.apple.com/apsl/ and read it before using this file.
+ *
+ * The Original Code and all software distributed under the License are
+ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+ * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+ * Please see the License for the specific language governing rights and
+ * limitations under the License.
+ *
+ * @APPLE_OSREFERENCE_LICENSE_HEADER_END@
+ */
+
+#ifndef _SYS__TYPES_H_
+#define _SYS__TYPES_H_
+
+#include &lt;sys/cdefs.h&gt;
+#include &lt;machine/_types.h&gt;
+
+#if defined(KERNEL)
+#ifdef XNU_KERNEL_PRIVATE
+/*
+ * Xcode doesn't currently set up search paths correctly for Kernel extensions,
+ * so the clang headers are not seen in the correct order to use their types.
+ */
+#endif
+#define USE_CLANG_TYPES 0
+#else
+#if defined(__has_feature) &amp;&amp; __has_feature(modules)
+#define USE_CLANG_TYPES 1
+#else
+#define USE_CLANG_TYPES 0
+#endif
+#endif
+
+#if USE_CLANG_TYPES
+#include &lt;sys/_types/_null.h&gt;
+#endif
+
+/*
+ * Type definitions; takes common type definitions that must be used
+ * in multiple header files due to [XSI], removes them from the system
+ * space, and puts them in the implementation space.
+ */
+
+#if USE_CLANG_TYPES
+#define __DARWIN_NULL NULL
+#elif defined(__cplusplus)
+#ifdef __GNUG__
+#define __DARWIN_NULL __null
+#else /* ! __GNUG__ */
+#ifdef __LP64__
+#define __DARWIN_NULL (0L)
+#else /* !__LP64__ */
+#define __DARWIN_NULL 0
+#endif /* __LP64__ */
+#endif /* __GNUG__ */
+#else /* ! __cplusplus */
+#define __DARWIN_NULL ((void *)0)
+#endif
+
+#if !defined(DRIVERKIT)
+typedef __int64_t       __darwin_blkcnt_t;      /* total blocks */
+typedef __int32_t       __darwin_blksize_t;     /* preferred block size */
+typedef __int32_t       __darwin_dev_t;         /* dev_t */
+typedef unsigned int    __darwin_fsblkcnt_t;    /* Used by statvfs and fstatvfs */
+typedef unsigned int    __darwin_fsfilcnt_t;    /* Used by statvfs and fstatvfs */
+typedef __uint32_t      __darwin_gid_t;         /* [???] process and group IDs */
+typedef __uint32_t      __darwin_id_t;          /* [XSI] pid_t, uid_t, or gid_t*/
+typedef __uint64_t      __darwin_ino64_t;       /* [???] Used for 64 bit inodes */
+#if __DARWIN_64_BIT_INO_T
+typedef __darwin_ino64_t __darwin_ino_t;        /* [???] Used for inodes */
+#else /* !__DARWIN_64_BIT_INO_T */
+typedef __uint32_t      __darwin_ino_t;         /* [???] Used for inodes */
+#endif /* __DARWIN_64_BIT_INO_T */
+typedef __darwin_natural_t __darwin_mach_port_name_t; /* Used by mach */
+typedef __darwin_mach_port_name_t __darwin_mach_port_t; /* Used by mach */
+typedef __uint16_t      __darwin_mode_t;        /* [???] Some file attributes */
+typedef __int64_t       __darwin_off_t;         /* [???] Used for file sizes */
+typedef __int32_t       __darwin_pid_t;         /* [???] process and group IDs */
+typedef __uint32_t      __darwin_sigset_t;      /* [???] signal set */
+typedef __int32_t       __darwin_suseconds_t;   /* [???] microseconds */
+typedef __uint32_t      __darwin_uid_t;         /* [???] user IDs */
+typedef __uint32_t      __darwin_useconds_t;    /* [???] microseconds */
+#endif /* !defined(DRIVERKIT) */
+typedef unsigned char   __darwin_uuid_t[16];
+typedef char    __darwin_uuid_string_t[37];
+
+#undef USE_CLANG_TYPES
+
+#if !defined(KERNEL) &amp;&amp; !defined(DRIVERKIT)
+#include &lt;sys/_pthread/_pthread_types.h&gt;
+#endif /* !defined(KERNEL) &amp;&amp; !defined(DRIVERKIT) */
+
+#if defined(__GNUC__) &amp;&amp; (__GNUC__ == 3 &amp;&amp; __GNUC_MINOR__ &gt;= 5 || __GNUC__ &gt; 3)
+#define __offsetof(type, field) __builtin_offsetof(type, field)
+#else /* !(gcc &gt;= 3.5) */
+#define __offsetof(type, field) ((size_t)(&amp;((type *)0)-&gt;field))
+#endif /* (gcc &gt;= 3.5) */
+
+#ifdef KERNEL
+#include &lt;sys/_types/_offsetof.h&gt;
+#endif /* KERNEL */
+
+#endif  /* _SYS__TYPES_H_ */
+</pre></div>
+</body>
+</html>
