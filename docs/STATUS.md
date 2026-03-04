@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; latest `alloc_churn` 22.8×, `alloc_drop` 1.45× on arm64, 2026-03-04).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; latest `alloc_churn` 104.37×, `alloc_drop` 1.47× on arm64, 2026-03-04).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -56,8 +56,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; latest `alloc_churn` 22.8× C, `alloc_drop` 1.45× C (arm64, 2026-03-04).
-   - Priority: hot loops remain above the 2× gate; allocation/GC is now within the 8×/5× gates on arm64.
+   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; latest `alloc_churn` 104.37× C, `alloc_drop` 1.47× C (arm64, 2026-03-04).
+   - Priority: hot loops remain above the 2× gate; alloc_drop is within the 5× gate while alloc_churn is far above the 8× gate.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
@@ -695,7 +695,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: loop list reuse hoists safe, non-escaping list allocations out of loops and replaces per-iter
      init with `*_clear_unchecked` calls; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`.
      - Reuse smoke: `test_arena_auto_loop_smoke` passes with reuse enabled on arm64 macOS (2026-02-25).
-   - `alloc_churn` native was 46.65× C in the 2026-02-25 snapshot; latest snapshot is 6.62× C (2026-02-26).
+   - `alloc_churn` native was 46.65× C in the 2026-02-25 snapshot; reached 6.62× C on 2026-02-26,
+     but regressed to 104.37× C in the 2026-03-04 snapshot.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, native-only):
      median total=20000, list_int_header=20000, list_header=0, list_buf=0, list_int_buf=0
      (log: `build/logs/bench_alloc_churn_alloc_site_20260225_234114.log`).
@@ -1082,7 +1083,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Design spec: `docs/design/arena_loop_policy.md` (loop arena policy + GC reuse safety).
    - New: per-iteration loops use `oren_arena_iter_push/pop` with optional cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
    - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
-   - Next: re-run `alloc_churn`/`alloc_drop` benchmarks now that empty-list lowering can propagate int-safe context across nested blocks (list<int> emit-c verified).
+   - Update (2026-03-04): re-ran `alloc_churn`/`alloc_drop` benchmarks after the list<int> safe-int fix;
+     alloc_drop remains within gate (1.47× C) while alloc_churn regressed to 104.37× C (see latest results).
+   - Investigate alloc_churn regression: confirm list_reserve insertion + list<int> lowering on native,
+     and isolate whether loop-local lists are missing reserve/unchecked push rewrites.
    - Fix (2026-03-04): list_int safe-int dataflow now preserves local temps across nested blocks;
      alloc_churn compile trace shows list_push call sites include `v`/`v2` in safe keys
      (log: `build/logs/bench_build_oren_native_alloc_churn_20260304_232251.log`).

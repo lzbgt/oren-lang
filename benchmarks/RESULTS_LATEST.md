@@ -11,8 +11,8 @@ Legend: `x` = slowdown relative to C median.
 
 | benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |
 | --- | --- | --- | --- | --- | --- |
-| alloc_churn | 0.002775 | 0.049681 (17.90×) | 0.063258 (22.79×) | 0.271996 (98.01×) | `benchmarks/results/alloc_churn_darwin_arm64_20260304_215704.md` |
-| alloc_drop | 0.002953 | 0.002461 (0.83×) | 0.004275 (1.45×) | 0.003854 (1.31×) | `benchmarks/results/alloc_drop_darwin_arm64_20260304_215709.md` |
+| alloc_churn | 0.002737 | 0.047325 (17.29×) | 0.285658 (104.37×) | 0.270297 (98.76×) | `benchmarks/results/alloc_churn_darwin_arm64_20260304_233032.md` |
+| alloc_drop | 0.002948 | 0.002571 (0.87×) | 0.004343 (1.47×) | 0.004541 (1.54×) | `benchmarks/results/alloc_drop_darwin_arm64_20260304_233036.md` |
 | array_sum | 0.004047 | 0.007922 (1.96×) | 0.008590 (2.12×) | 0.283780 (70.13×) | `benchmarks/results/array_sum_darwin_arm64_20260226_042835.md` |
 | array_sum_int | 0.004201 | 0.008025 (1.91×) | 0.008884 (2.11×) | 0.278792 (66.36×) | `benchmarks/results/array_sum_int_darwin_arm64_20260226_041613.md` |
 | dot_product | 0.005037 | 0.013096 (2.60×) | 0.012924 (2.57×) | 0.412298 (81.86×) | `benchmarks/results/dot_product_darwin_arm64_20260226_042830.md` |
