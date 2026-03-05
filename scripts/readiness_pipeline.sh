@@ -14,6 +14,7 @@ Options:
   --summary-limit <n>              Max entries in summary (default: 20).
   --stats-limit <n>                Max entries in stats (default: 200; 0=all).
   --no-csv                         Skip CSV export.
+  --rollup-days <n>                Rollup days (default: 30; 0=all).
   --prune <n>                       Prune index to last N entries after run (0=skip).
   --dry-run                        Dry-run report; writes to *_dry_run outputs.
   -h, --help                       Show help.
@@ -29,6 +30,7 @@ summary_limit=20
 stats_limit=200
 prune_keep=0
 emit_csv=1
+rollup_days=30
 dry_run=0
 
 while [[ $# -gt 0 ]]; do
@@ -64,6 +66,10 @@ while [[ $# -gt 0 ]]; do
     --no-csv)
       emit_csv=0
       shift
+      ;;
+    --rollup-days)
+      rollup_days="${2:-}"
+      shift 2
       ;;
     --prune)
       prune_keep="${2:-}"
@@ -103,6 +109,8 @@ summary_html="build/reports/readiness_summary.html"
 stats_md="build/reports/readiness_index_stats.md"
 stats_json="build/reports/readiness_index_stats.json"
 csv_path="build/reports/readiness_index.csv"
+rollup_md="build/reports/readiness_rollup.md"
+rollup_json="build/reports/readiness_rollup.json"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -110,6 +118,8 @@ if [[ "$dry_run" == "1" ]]; then
   stats_md="build/reports/readiness_index_stats_dry_run.md"
   stats_json="build/reports/readiness_index_stats_dry_run.json"
   csv_path="build/reports/readiness_index_dry_run.csv"
+  rollup_md="build/reports/readiness_rollup_dry_run.md"
+  rollup_json="build/reports/readiness_rollup_dry_run.json"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -142,6 +152,8 @@ fi
     --out-md "$summary_md" --out-html "$summary_html"
   ./scripts/readiness_report_index_stats.py --index "$index_path" --limit "$stats_limit" \
     --out-md "$stats_md" --out-json "$stats_json"
+  ./scripts/readiness_report_index_rollup.py --index "$index_path" --limit-days "$rollup_days" \
+    --out-md "$rollup_md" --out-json "$rollup_json"
   if [[ "$emit_csv" == "1" ]]; then
     ./scripts/readiness_report_index_export_csv.py --index "$index_path" --out-csv "$csv_path"
   fi

@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-index-stats readiness-report-index-prune readiness-report-index-csv readiness-pipeline verify-readiness-report verify-readiness-report-summary verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-pipeline benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-index-stats readiness-report-index-prune readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-pipeline verify-readiness-report verify-readiness-report-summary verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-pipeline benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -499,6 +499,12 @@ readiness-report-index-prune:
 readiness-report-index-csv:
 	@./scripts/readiness_report_index_export_csv.py
 
+readiness-report-index-query:
+	@./scripts/readiness_report_index_query.py
+
+readiness-report-index-rollup:
+	@./scripts/readiness_report_index_rollup.py
+
 readiness-pipeline:
 	@./scripts/readiness_pipeline.sh
 
@@ -513,6 +519,9 @@ verify-readiness-report-index-tools:
 
 verify-readiness-report-index-csv:
 	@./scripts/verify_readiness_report_index_export_csv_smoke.sh
+
+verify-readiness-report-index-query-rollup:
+	@./scripts/verify_readiness_report_index_query_rollup_smoke.sh
 
 verify-readiness-pipeline:
 	@./scripts/verify_readiness_pipeline_smoke.sh

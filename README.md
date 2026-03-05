@@ -22,6 +22,8 @@ make readiness-report-summary  # build summary markdown + HTML
 make readiness-report-index-stats  # build index stats (md + json)
 make readiness-report-index-prune  # prune index to last N entries
 make readiness-report-index-csv  # export index to CSV
+make readiness-report-index-query  # filter index by fields/time
+make readiness-report-index-rollup  # daily rollup (md + json)
 make readiness-pipeline  # run readiness report + summary + stats + validate
 ```
 

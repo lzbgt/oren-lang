@@ -42,6 +42,8 @@ make readiness-report-summary  # generates markdown + HTML summary from index
 make readiness-report-index-stats  # index stats (md + json)
 make readiness-report-index-prune  # prune index to last N entries
 make readiness-report-index-csv  # export index to CSV
+make readiness-report-index-query  # filter index by fields/time
+make readiness-report-index-rollup  # daily rollup (md + json)
 make readiness-pipeline  # run report + summary + stats + validate in one shot
 make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
@@ -92,12 +94,18 @@ Index CSV output:
 
 - `build/reports/readiness_index.csv`
 
+Rollup outputs (daily):
+
+- `build/reports/readiness_rollup.md`
+- `build/reports/readiness_rollup.json`
+
 Pipeline (single entrypoint):
 
 ```bash
 ./scripts/readiness_pipeline.sh --profile quick --tag nightly
 ./scripts/readiness_pipeline.sh --profile full --prune 200
 ./scripts/readiness_pipeline.sh --profile quick --no-csv
+./scripts/readiness_pipeline.sh --profile quick --rollup-days 14
 ```
 
 Build and run a hello binary (C backend by default):
