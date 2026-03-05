@@ -142,6 +142,7 @@ Pipeline (single entrypoint):
 ./scripts/readiness_pipeline.sh --profile quick --no-profile-summary
 ./scripts/readiness_pipeline.sh --profile quick --no-tag-summary
 ./scripts/readiness_pipeline.sh --profile quick --audit --audit-allow-missing
+./scripts/readiness_pipeline.sh --profile quick --no-dashboard
 ```
 
 Build and run a hello binary (C backend by default):

@@ -376,7 +376,8 @@ fi
     --out-md "$rollup_md" --out-json "$rollup_json"
   if [[ "$emit_dashboard" == "1" ]]; then
     ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$dashboard_html" \
-      --limit "$summary_limit" --rollup-days "$rollup_days" --trend-json "$trend_json"
+      --limit "$summary_limit" --rollup-days "$rollup_days" --trend-json "$trend_json" \
+      --profiles-json "$profiles_json" --tags-json "$tags_json"
   fi
   if [[ "$emit_schema" == "1" ]]; then
     ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"

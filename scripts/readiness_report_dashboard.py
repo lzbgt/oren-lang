@@ -43,6 +43,16 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Trend JSON path (optional)",
     )
+    parser.add_argument(
+        "--profiles-json",
+        default="",
+        help="Profiles JSON path (optional)",
+    )
+    parser.add_argument(
+        "--tags-json",
+        default="",
+        help="Tags JSON path (optional)",
+    )
     return parser.parse_args()
 
 
@@ -147,6 +157,62 @@ def read_json(path: str) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def render_profiles(data: Dict[str, Any]) -> str:
+    profiles = data.get("profiles") if isinstance(data.get("profiles"), dict) else {}
+    if not profiles:
+        return ""
+    rows = []
+    for name in sorted(profiles.keys()):
+        entry = profiles[name]
+        duration = entry.get("duration", {}) if isinstance(entry, dict) else {}
+        latest = entry.get("latest", {}) if isinstance(entry, dict) else {}
+        latest_label = latest.get("timestamp", "-")
+        if latest.get("overall"):
+            latest_label = f"{latest_label} ({latest.get('overall','-')})"
+        rows.append(
+            "<tr>"
+            f"<td>{name}</td>"
+            f"<td>{entry.get('total','-')}</td>"
+            f"<td>{entry.get('pass_rate','-')}</td>"
+            f"<td>{latest_label}</td>"
+            f"<td>{duration.get('avg','-')} / {duration.get('min','-')} / {duration.get('max','-')}</td>"
+            "</tr>"
+        )
+    return (
+        "<h2>Profiles</h2>\n"
+        "<table><thead><tr><th>Profile</th><th>Total</th><th>Pass %</th><th>Latest</th><th>Duration avg/min/max</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
+def render_tags(data: Dict[str, Any]) -> str:
+    tags = data.get("tags") if isinstance(data.get("tags"), dict) else {}
+    if not tags:
+        return ""
+    rows = []
+    for name in sorted(tags.keys()):
+        entry = tags[name]
+        duration = entry.get("duration", {}) if isinstance(entry, dict) else {}
+        latest = entry.get("latest", {}) if isinstance(entry, dict) else {}
+        latest_label = latest.get("timestamp", "-")
+        if latest.get("overall"):
+            latest_label = f"{latest_label} ({latest.get('overall','-')})"
+        rows.append(
+            "<tr>"
+            f"<td>{name}</td>"
+            f"<td>{entry.get('total','-')}</td>"
+            f"<td>{entry.get('pass_rate','-')}</td>"
+            f"<td>{latest_label}</td>"
+            f"<td>{duration.get('avg','-')} / {duration.get('min','-')} / {duration.get('max','-')}</td>"
+            "</tr>"
+        )
+    return (
+        "<h2>Tags</h2>\n"
+        "<table><thead><tr><th>Tag</th><th>Total</th><th>Pass %</th><th>Latest</th><th>Duration avg/min/max</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -168,6 +234,8 @@ def main() -> int:
     streak = compute_streak(entries_sorted)
     latest = entries_sorted[-1] if entries_sorted else {}
     trend = read_json(args.trend_json)
+    profiles = read_json(args.profiles_json)
+    tags = read_json(args.tags_json)
 
     rows = []
     for entry in reversed(entries_view):
@@ -287,6 +355,8 @@ def main() -> int:
       {''.join(rollup_rows)}
     </tbody>
   </table>
+  {render_profiles(profiles)}
+  {render_tags(tags)}
 </body>
 </html>
 """
