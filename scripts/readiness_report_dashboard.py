@@ -196,6 +196,7 @@ def compute_rollup(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "pass": 0,
                 "fail": 0,
                 "avg_duration_sec": None,
+                "status_overview_present": 0,
             }
         bucket = by_day[day]
         bucket["total"] += 1
@@ -203,6 +204,9 @@ def compute_rollup(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             bucket["pass"] += 1
         elif entry.get("overall") == "FAIL":
             bucket["fail"] += 1
+        status_overview_md = entry.get("status_overview_md", "")
+        if isinstance(status_overview_md, str) and status_overview_md.strip():
+            bucket["status_overview_present"] += 1
         dur = entry.get("total_duration_sec")
         if isinstance(dur, int):
             if bucket["avg_duration_sec"] is None:
@@ -547,6 +551,7 @@ def main() -> int:
             f"<td>{row['pass']}</td>"
             f"<td>{row['fail']}</td>"
             f"<td>{row['pass_rate']:.1f}</td>"
+            f"<td>{row.get('status_overview_present','-')}</td>"
             f"<td>{row['avg_duration_sec'] if row['avg_duration_sec'] is not None else '-'}</td>"
             "</tr>"
         )
@@ -695,6 +700,7 @@ def main() -> int:
         <th>Pass</th>
         <th>Fail</th>
         <th>Pass %</th>
+        <th>Overview</th>
         <th>Avg Dur (s)</th>
       </tr>
     </thead>
