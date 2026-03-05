@@ -6,6 +6,8 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
+from status_html_render import render_status_faq, render_status_matrix, render_status_snapshot, status_css
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -60,6 +62,14 @@ def parse_jsonl(path: str) -> List[Dict[str, Any]]:
             if isinstance(entry, dict):
                 entries.append(entry)
     return entries
+
+
+def read_json(path: str) -> Dict[str, Any]:
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, dict) else {}
 
 
 def fmt_duration(seconds: Optional[int]) -> str:
@@ -167,6 +177,14 @@ def write_html(path: str, title: str, entries: List[Dict[str, Any]]) -> None:
     summary_latest = "-"
     if latest:
         summary_latest = f"{fmt_timestamp(latest.get('timestamp',''))} ({latest.get('overall','-')})"
+    status_faq = read_json(str(latest.get("status_faq_json", ""))) if latest else {}
+    status_snapshot = read_json(str(latest.get("status_snapshot_json", ""))) if latest else {}
+    status_matrix = read_json(str(latest.get("status_matrix_json", ""))) if latest else {}
+    status_sections = (
+        render_status_faq(status_faq)
+        + render_status_snapshot(status_snapshot)
+        + render_status_matrix(status_matrix)
+    )
 
     html = f"""<!doctype html>
 <html>
@@ -184,6 +202,7 @@ def write_html(path: str, title: str, entries: List[Dict[str, Any]]) -> None:
     .fail {{ color: #b00020; font-weight: bold; }}
     .unknown {{ color: #555; }}
     code {{ background: #f7f7f7; padding: 2px 4px; }}
+    {status_css()}
   </style>
 </head>
 <body>
@@ -209,6 +228,7 @@ def write_html(path: str, title: str, entries: List[Dict[str, Any]]) -> None:
       {''.join(row(e) for e in entries)}
     </tbody>
   </table>
+  {status_sections}
 </body>
 </html>
 """

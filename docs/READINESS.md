@@ -89,6 +89,8 @@ Index tools:
 - Dashboard accepts `--status-snapshot-json` and `--status-matrix-json` to render
   structured snapshot + matrix sections.
 - Dashboard renders `items_structured` lines when present in the FAQ JSON.
+- Readiness summary HTML renders the latest status FAQ/snapshot/matrix sections
+  when the latest index entry includes their JSON paths.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.
