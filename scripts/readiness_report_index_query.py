@@ -70,6 +70,18 @@ def parse_args() -> argparse.Namespace:
         help="Require a field to be missing/empty (repeatable).",
     )
     parser.add_argument(
+        "--require-file",
+        action="append",
+        default=[],
+        help="Require a field path to exist (repeatable).",
+    )
+    parser.add_argument(
+        "--missing-file",
+        action="append",
+        default=[],
+        help="Require a field path to be missing (repeatable).",
+    )
+    parser.add_argument(
         "--out",
         default="build/reports/readiness_index_query.jsonl",
         help="Output JSONL path (use '-' for stdout)",
@@ -116,6 +128,18 @@ def match(entry: Dict[str, Any], args: argparse.Namespace) -> bool:
             return False
     for field in args.missing_field:
         if entry.get(field) not in (None, "", []):
+            return False
+    for field in args.require_file:
+        value = entry.get(field)
+        if value in (None, "", []):
+            return False
+        if not os.path.exists(str(value)):
+            return False
+    for field in args.missing_file:
+        value = entry.get(field)
+        if value in (None, "", []):
+            continue
+        if os.path.exists(str(value)):
             return False
     return True
 
