@@ -30,6 +30,7 @@ Index + derived outputs:
 - `build/reports/readiness_index_profiles.{md,json}` — per-profile summary.
 - `build/reports/readiness_index_tags.{md,json}` — per-tag summary.
 - `build/reports/readiness_index_audit.{md,json}` — audit of index paths.
+- `build/reports/readiness_index_audit_trend.{md,json}` — audit trend window.
 - `build/reports/readiness_collect/` — collected report snapshots.
 - `build/reports/readiness_collect_index.{md,json}` — collection index.
 - `build/reports/readiness_collect.tar.gz` — packed collection archive.
@@ -74,6 +75,7 @@ Index tools:
 - `make readiness-report-index-tags` — per-tag summary.
 - `make readiness-report-index-audit` — audit index paths.
 - Audit checks optional status snapshot/matrix paths when present.
+- `make readiness-report-index-audit-trend` — audit latest window.
 - `scripts/readiness_report_dashboard.py` accepts `--audit-json` to show audit summary.
 - Dashboard surfaces an "Audit missing" card when audit JSON is provided.
 - `make readiness-report-collect` — collect last N report snapshots.
@@ -101,7 +103,8 @@ Trim examples:
 Pipeline:
 
 - `make readiness-pipeline` — report + summary + stats + rollup + validate (CSV optional).
-- Pipeline flags: `--no-status-matrix`, `--status-matrix-diff-against <path>`.
+- Pipeline flags: `--no-status-matrix`, `--status-matrix-diff-against <path>`,
+  `--audit-trend-window <n>`, `--no-audit-trend`.
 
 Smoke verifiers:
 

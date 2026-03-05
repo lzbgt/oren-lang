@@ -30,6 +30,7 @@ make readiness-report-index-trend  # trend summary over latest window
 make readiness-report-index-profiles  # per-profile summary
 make readiness-report-index-tags  # per-tag summary
 make readiness-report-index-audit  # audit index paths
+make readiness-report-index-audit-trend  # audit latest window
 make readiness-report-collect  # collect last N reports into snapshots
 make readiness-report-collect-list  # list collected snapshots
 make readiness-report-collect-pack  # pack collected snapshots into tar.gz

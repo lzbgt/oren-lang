@@ -38,6 +38,8 @@ Options:
   --audit                           Run index audit (checks for missing report/json/log_dir paths).
   --audit-allow-missing             Audit reports missing paths but does not fail.
   --audit-max-missing <n>           Fail audit if missing_any exceeds n (default: -1).
+  --audit-trend-window <n>          Audit trend window size (default: 20, 0=all).
+  --no-audit-trend                  Skip audit trend output.
   --collect <n>                     Collect last N readiness reports (0=skip, default: 0).
   --collect-dir <path>              Output directory for collected snapshots.
   --collect-include-dry-run         Include dry_run entries in collection.
@@ -90,6 +92,8 @@ emit_tag_summary=1
 emit_audit=0
 audit_allow_missing=0
 audit_max_missing=-1
+audit_trend_window=20
+emit_audit_trend=1
 collect_count=0
 collect_dir="build/reports/readiness_collect"
 collect_include_dry_run=0
@@ -223,6 +227,14 @@ while [[ $# -gt 0 ]]; do
       audit_max_missing="${2:-}"
       shift 2
       ;;
+    --audit-trend-window)
+      audit_trend_window="${2:-}"
+      shift 2
+      ;;
+    --no-audit-trend)
+      emit_audit_trend=0
+      shift
+      ;;
     --collect)
       collect_count="${2:-}"
       shift 2
@@ -329,6 +341,8 @@ tags_md="build/reports/readiness_index_tags.md"
 tags_json="build/reports/readiness_index_tags.json"
 audit_md="build/reports/readiness_index_audit.md"
 audit_json="build/reports/readiness_index_audit.json"
+audit_trend_md="build/reports/readiness_index_audit_trend.md"
+audit_trend_json="build/reports/readiness_index_audit_trend.json"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -359,6 +373,8 @@ if [[ "$dry_run" == "1" ]]; then
   tags_json="build/reports/readiness_index_tags_dry_run.json"
   audit_md="build/reports/readiness_index_audit_dry_run.md"
   audit_json="build/reports/readiness_index_audit_dry_run.json"
+  audit_trend_md="build/reports/readiness_index_audit_trend_dry_run.md"
+  audit_trend_json="build/reports/readiness_index_audit_trend_dry_run.json"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -417,6 +433,8 @@ fi
   echo "audit=${emit_audit}"
   echo "audit_allow_missing=${audit_allow_missing}"
   echo "audit_max_missing=${audit_max_missing}"
+  echo "audit_trend_window=${audit_trend_window}"
+  echo "audit_trend=${emit_audit_trend}"
   echo "collect_count=${collect_count}"
   echo "collect_dir=${collect_dir}"
   echo "collect_include_dry_run=${collect_include_dry_run}"
@@ -480,6 +498,13 @@ fi
       audit_args+=(--include-dry-run)
     fi
     ./scripts/readiness_report_index_audit.py "${audit_args[@]}"
+    if [[ "$emit_audit_trend" == "1" ]]; then
+      trend_args=(--index "$index_path" --out-md "$audit_trend_md" --out-json "$audit_trend_json" --limit "$audit_trend_window")
+      if [[ "$dry_run" == "1" ]]; then
+        trend_args+=(--include-dry-run)
+      fi
+      ./scripts/readiness_report_index_audit_trend.py "${trend_args[@]}"
+    fi
   fi
   if [[ "$collect_count" =~ ^[0-9]+$ && "$collect_count" -gt 0 ]]; then
     collect_args=(--index "$index_path" --out-dir "$collect_dir" --limit "$collect_count" --overwrite)

@@ -50,6 +50,7 @@ make readiness-report-index-trend  # trend summary over latest window
 make readiness-report-index-profiles  # per-profile summary
 make readiness-report-index-tags  # per-tag summary
 make readiness-report-index-audit  # audit index paths
+make readiness-report-index-audit-trend  # audit latest window
 make readiness-report-collect  # collect last N reports into snapshots
 make readiness-report-collect-list  # list collected snapshots
 make readiness-report-collect-pack  # pack collected snapshots into tar.gz
@@ -73,6 +74,7 @@ make verify-readiness-report-index-trend  # smoke for index trend
 make verify-readiness-report-index-profiles  # smoke for index profiles
 make verify-readiness-report-index-tags  # smoke for index tags
 make verify-readiness-report-index-audit  # smoke for index audit
+make verify-readiness-report-index-audit-trend  # smoke for audit trend
 make verify-readiness-report-collect  # smoke for report collect
 make verify-readiness-report-collect-pack  # smoke for report collect pack
 make verify-readiness-report-sanitize  # smoke for report sanitize
