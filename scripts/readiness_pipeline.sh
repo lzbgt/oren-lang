@@ -667,6 +667,41 @@ fi
       fi
       ./scripts/readiness_report_index_audit_trend.py "${trend_args[@]}"
     fi
+    OREN_AUDIT_JSON="$audit_json" \
+    OREN_AUDIT_TREND_JSON="$audit_trend_json" \
+    OREN_AUDIT_MAX_MISSING="$audit_max_missing" \
+    OREN_AUDIT_TREND_MAX_MISSING="$audit_trend_max_missing" \
+    python3 - <<'PY'
+import json
+import os
+
+def read_int(path, key):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        value = data.get(key)
+        return value if isinstance(value, int) else None
+    except Exception:
+        return None
+
+audit_json = os.environ.get("OREN_AUDIT_JSON", "")
+audit_trend_json = os.environ.get("OREN_AUDIT_TREND_JSON", "")
+audit_max = int(os.environ.get("OREN_AUDIT_MAX_MISSING", "-1"))
+trend_max = int(os.environ.get("OREN_AUDIT_TREND_MAX_MISSING", "-1"))
+audit_missing = read_int(audit_json, "missing_any") if audit_json else None
+trend_missing = read_int(audit_trend_json, "missing_any") if audit_trend_json else None
+
+alerts = []
+if audit_max >= 0 and audit_missing is not None and audit_missing > audit_max:
+    alerts.append(f"audit_missing_any {audit_missing} > {audit_max}")
+if trend_max >= 0 and trend_missing is not None and trend_missing > trend_max:
+    alerts.append(f"audit_trend_missing_any {trend_missing} > {trend_max}")
+
+if alerts:
+    print("audit_alert: " + "; ".join(alerts))
+elif audit_max >= 0 or trend_max >= 0:
+    print("audit_ok: thresholds not exceeded")
+PY
   fi
   if [[ "$collect_count" =~ ^[0-9]+$ && "$collect_count" -gt 0 ]]; then
     collect_args=(--index "$index_path" --out-dir "$collect_dir" --limit "$collect_count" --overwrite)

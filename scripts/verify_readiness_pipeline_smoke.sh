@@ -59,6 +59,7 @@ rg -n "timestamp,profile,overall" "build/reports/readiness_index_dry_run.csv" >/
 rg -n "Readiness rollup" "build/reports/readiness_rollup_dry_run.md" >/dev/null
 rg -n "Oren readiness dashboard" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "OK: readiness index schema validated" "$log_path" >/dev/null
+rg -n "audit_ok: thresholds not exceeded" "$log_path" >/dev/null
 rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary_dry_run.md" >/dev/null
 rg -n "metric,left,right,delta" "build/reports/readiness_index_diff_summary_dry_run.csv" >/dev/null
 rg -n "Status snapshot" "build/reports/status_snapshot_dry_run.md" >/dev/null
@@ -83,6 +84,7 @@ rg -n "Audit missing" "build/reports/readiness_dashboard_dry_run.html" >/dev/nul
 rg -n "Audit trend" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit samples" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Top missing \\(trend\\)" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "All clear: audit thresholds not exceeded." "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness collection" "$work_dir/collect/readiness_collect_index.md" >/dev/null
 test -f "$work_dir/collect.tar.gz"
 

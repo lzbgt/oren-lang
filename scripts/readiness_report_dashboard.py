@@ -494,6 +494,7 @@ def main() -> int:
             if isinstance(top_entry[1], int) and top_entry[1] > 0:
                 trend_top_missing = f"{top_entry[0]} ({top_entry[1]})"
     alert = ""
+    ok_banner = ""
     alert_parts = []
     if isinstance(audit_missing_any, int) and args.audit_missing_threshold >= 0:
         if audit_missing_any > args.audit_missing_threshold:
@@ -508,6 +509,9 @@ def main() -> int:
             )
     if alert_parts:
         alert = "<div class='alert'>" + " • ".join(alert_parts) + "</div>"
+    else:
+        if args.audit_missing_threshold >= 0 or args.audit_trend_missing_threshold >= 0:
+            ok_banner = "<div class='ok-banner'>All clear: audit thresholds not exceeded.</div>"
 
     html = f"""<!doctype html>
 <html>
@@ -524,6 +528,7 @@ def main() -> int:
     .card .ok {{ color: #0a7a2f; font-weight: bold; }}
     .card .fail {{ color: #b00020; font-weight: bold; }}
     .alert {{ border: 1px solid #b00020; background: #fff4f4; color: #6b0000; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
+    .ok-banner {{ border: 1px solid #0a7a2f; background: #f2fff5; color: #0a7a2f; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
     table {{ border-collapse: collapse; width: 100%; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}
     th {{ background: #f2f2f2; text-align: left; }}
@@ -537,6 +542,7 @@ def main() -> int:
   <h1>{args.title}</h1>
   <div class="meta">Index: <code>{args.index}</code></div>
   {alert}
+  {ok_banner}
   <div class="grid">
     <div class="card">
       <div>Total entries</div>

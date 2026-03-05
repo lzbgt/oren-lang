@@ -121,6 +121,7 @@ Pipeline:
 - Dashboard accepts `--audit-samples-json` to render audit samples (optional).
 - Dashboard accepts `--audit-samples-only-missing` to filter samples.
 - Dashboard supports `--audit-missing-threshold` and `--audit-trend-missing-threshold` to show an alert banner.
+- Dashboard shows a green "All clear" banner when thresholds are configured and not exceeded.
 - Audit trend view includes missing-by-kind totals when provided.
 - Audit trend view highlights the top missing field when available.
 - Dashboard grid highlights top missing field from audit summary.
