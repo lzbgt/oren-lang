@@ -49,6 +49,12 @@
     "log_dir": {
       "type": "string"
     },
+    "status_snapshot_md": {
+      "type": "string"
+    },
+    "status_snapshot_json": {
+      "type": "string"
+    },
     "tag": {
       "type": "string"
     }

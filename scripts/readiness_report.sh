@@ -13,6 +13,8 @@ Options:
   --json [path]                   Write a JSON summary (default path if omitted).
   --index [path]                  Append a JSONL summary (default path if omitted).
   --tag <name>                    Attach a tag to the report (e.g., ci/nightly).
+  --status-path <path>            STATUS.md path (default: docs/STATUS.md).
+  --status-snapshot [dir]         Write status snapshot md/json (default: build/reports).
   --update-latest                 Write build/reports/readiness_latest.* (auto on real runs).
   --no-latest                     Skip latest report copies.
   --no-status-snippet             Omit docs/STATUS.md readiness sections.
@@ -40,6 +42,11 @@ include_status=1
 include_env=0
 keep_going=0
 dry_run=0
+status_path="docs/STATUS.md"
+status_snapshot_enabled=0
+status_snapshot_dir=""
+status_snapshot_md=""
+status_snapshot_json=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -81,6 +88,19 @@ while [[ $# -gt 0 ]]; do
     --tag)
       tag="${2:-}"
       shift 2
+      ;;
+    --status-path)
+      status_path="${2:-}"
+      shift 2
+      ;;
+    --status-snapshot)
+      status_snapshot_enabled=1
+      if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
+        status_snapshot_dir="$2"
+        shift 2
+      else
+        shift
+      fi
       ;;
     --update-latest)
       update_latest=1
@@ -153,6 +173,15 @@ if [[ "$index_enabled" == "1" ]]; then
   fi
 fi
 
+if [[ "$status_snapshot_enabled" == "1" ]]; then
+  if [[ -z "$status_snapshot_dir" ]]; then
+    status_snapshot_dir="$report_dir"
+  fi
+  mkdir -p "$status_snapshot_dir"
+  status_snapshot_md="${status_snapshot_dir}/status_snapshot_${timestamp}.md"
+  status_snapshot_json="${status_snapshot_dir}/status_snapshot_${timestamp}.json"
+fi
+
 if [[ "$dry_run" == "1" && "$update_latest_requested" == "0" ]]; then
   update_latest=0
 fi
@@ -190,8 +219,16 @@ extract_status_section() {
     return 0
   fi
   awk -v title="$title" '
-    index($0, "### " title) == 1 { printing=1; print; next }
-    $0 ~ "^### " { if (printing) exit }
+    $0 ~ "^#" {
+      if (printing) exit
+      header=$0
+      sub(/^#+[[:space:]]+/, "", header)
+      if (index(header, title) == 1) {
+        printing=1
+        print
+        next
+      }
+    }
     printing { print }
   ' "$file"
 }
@@ -296,8 +333,9 @@ done
 status_backend=""
 status_feature=""
 if [[ "$include_status" == "1" ]]; then
-  status_backend="$(extract_status_section "Backend readiness (rolling snapshot)" "docs/STATUS.md")"
-  status_feature="$(extract_status_section "Feature readiness gaps (requested)" "docs/STATUS.md")"
+  status_prod="$(extract_status_section "Production readiness gap (rolling snapshot)" "$status_path")"
+  status_backend="$(extract_status_section "Backend readiness (rolling snapshot)" "$status_path")"
+  status_feature="$(extract_status_section "Feature readiness gaps (requested)" "$status_path")"
 fi
 
 git_diff_stat=""
@@ -331,6 +369,10 @@ fi
   if [[ "$index_enabled" == "1" ]]; then
     echo "- index: ${index_path}"
   fi
+  if [[ "$status_snapshot_enabled" == "1" ]]; then
+    echo "- status_snapshot_md: ${status_snapshot_md}"
+    echo "- status_snapshot_json: ${status_snapshot_json}"
+  fi
   echo "- total_duration_sec: ${total_duration}"
   echo "- dry-run: ${dry_run}"
   echo ""
@@ -358,10 +400,14 @@ fi
       echo "  - log: \`${log}\`"
     fi
   done
-  if [[ "$include_status" == "1" && ( -n "$status_backend" || -n "$status_feature" ) ]]; then
+  if [[ "$include_status" == "1" && ( -n "$status_prod" || -n "$status_backend" || -n "$status_feature" ) ]]; then
     echo ""
     echo "## Status snapshot (docs/STATUS.md)"
     echo ""
+    if [[ -n "$status_prod" ]]; then
+      echo "$status_prod"
+      echo ""
+    fi
     if [[ -n "$status_backend" ]]; then
       echo "$status_backend"
       echo ""
@@ -392,6 +438,10 @@ fi
     echo '```'
   fi
 } >"$out_path"
+
+if [[ "$status_snapshot_enabled" == "1" ]]; then
+  ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"
+fi
 
 if [[ -n "$json_path" ]]; then
   readarray -t git_status_lines <<<"$git_status"
@@ -430,6 +480,10 @@ if [[ -n "$json_path" ]]; then
     if [[ "$index_enabled" == "1" ]]; then
       echo "    ,\"index\": \"$(json_escape "$index_path")\""
     fi
+    if [[ "$status_snapshot_enabled" == "1" ]]; then
+      echo "    ,\"status_snapshot_md\": \"$(json_escape "$status_snapshot_md")\""
+      echo "    ,\"status_snapshot_json\": \"$(json_escape "$status_snapshot_json")\""
+    fi
     echo "  },"
     if [[ -n "$tag" ]]; then
       echo "  \"tag\": \"$(json_escape "$tag")\","
@@ -463,6 +517,7 @@ if [[ -n "$json_path" ]]; then
     echo "  ]"
     if [[ "$include_status" == "1" ]]; then
       echo "  ,\"status_snapshot\": {"
+      echo "    \"production_readiness_gap\": \"$(json_escape "$status_prod")\","
       echo "    \"backend_readiness\": \"$(json_escape "$status_backend")\","
       echo "    \"feature_gaps\": \"$(json_escape "$status_feature")\""
       echo "  }"
@@ -491,6 +546,9 @@ if [[ "$index_enabled" == "1" ]]; then
     idx_json+="false"
   fi
   idx_json+=",\"total_duration_sec\":${total_duration},\"git_rev\":\"$(json_escape "$git_rev")\",\"git_dirty\":\"$(json_escape "$git_dirty")\",\"report\":\"$(json_escape "$out_path")\",\"json\":\"$(json_escape "$json_path")\",\"log_dir\":\"$(json_escape "$log_dir")\""
+  if [[ "$status_snapshot_enabled" == "1" ]]; then
+    idx_json+=",\"status_snapshot_md\":\"$(json_escape "$status_snapshot_md")\",\"status_snapshot_json\":\"$(json_escape "$status_snapshot_json")\""
+  fi
   if [[ -n "$tag" ]]; then
     idx_json+=",\"tag\":\"$(json_escape "$tag")\""
   fi
@@ -517,6 +575,10 @@ if [[ "$update_latest" == "1" ]]; then
     echo "report=${out_path}"
     if [[ -n "$json_path" ]]; then
       echo "json=${json_path}"
+    fi
+    if [[ "$status_snapshot_enabled" == "1" ]]; then
+      echo "status_snapshot_md=${status_snapshot_md}"
+      echo "status_snapshot_json=${status_snapshot_json}"
     fi
     if [[ "$index_enabled" == "1" ]]; then
       echo "index=${index_path}"

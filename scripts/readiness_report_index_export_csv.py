@@ -19,6 +19,8 @@ FIELDS = [
     "report",
     "json",
     "log_dir",
+    "status_snapshot_md",
+    "status_snapshot_json",
 ]
 
 

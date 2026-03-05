@@ -241,6 +241,9 @@ report_args=(--profile "$profile" --json --index "$index_path")
 if [[ -n "$tag" ]]; then
   report_args+=(--tag "$tag")
 fi
+if [[ -n "$status_path" ]]; then
+  report_args+=(--status-path "$status_path")
+fi
 if [[ -n "$status_diff_against" ]]; then
   emit_status_snapshot=1
 fi

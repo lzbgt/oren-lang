@@ -82,6 +82,8 @@ Readiness report flags (optional):
 ./scripts/readiness_report.sh --index
 ./scripts/readiness_report.sh --tag nightly
 ./scripts/readiness_report.sh --no-status-snippet
+./scripts/readiness_report.sh --status-snapshot
+./scripts/readiness_report.sh --status-path docs/STATUS.md
 ./scripts/readiness_report.sh --include-env
 ```
 
