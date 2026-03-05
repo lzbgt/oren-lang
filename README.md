@@ -26,6 +26,7 @@ make readiness-report-index-query  # filter index by fields/time
 make readiness-report-index-rollup  # daily rollup (md + json)
 make readiness-report-dashboard  # build HTML dashboard
 make readiness-report-index-diff  # diff two index files
+make readiness-report-index-diff-summary  # diff summary stats
 make readiness-pipeline  # run readiness report + summary + stats + validate
 ```
 

@@ -19,6 +19,7 @@ Options:
   --no-schema                      Skip JSON schema validation.
   --prune <n>                       Prune index to last N entries after run (0=skip).
   --log <path>                      Write pipeline log to path (default: build/logs/readiness_pipeline_<ts>.log).
+  --diff-against <path>             Compare index with another JSONL and emit summary diff.
   --dry-run                        Dry-run report; writes to *_dry_run outputs.
   -h, --help                       Show help.
 EOF
@@ -38,6 +39,7 @@ emit_dashboard=1
 emit_schema=1
 dry_run=0
 log_path=""
+diff_against=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -89,6 +91,10 @@ while [[ $# -gt 0 ]]; do
       log_path="${2:-}"
       shift 2
       ;;
+    --diff-against)
+      diff_against="${2:-}"
+      shift 2
+      ;;
     --prune)
       prune_keep="${2:-}"
       shift 2
@@ -135,6 +141,8 @@ csv_path="build/reports/readiness_index.csv"
 rollup_md="build/reports/readiness_rollup.md"
 rollup_json="build/reports/readiness_rollup.json"
 dashboard_html="build/reports/readiness_dashboard.html"
+diff_summary_md="build/reports/readiness_index_diff_summary.md"
+diff_summary_json="build/reports/readiness_index_diff_summary.json"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -145,6 +153,8 @@ if [[ "$dry_run" == "1" ]]; then
   rollup_md="build/reports/readiness_rollup_dry_run.md"
   rollup_json="build/reports/readiness_rollup_dry_run.json"
   dashboard_html="build/reports/readiness_dashboard_dry_run.html"
+  diff_summary_md="build/reports/readiness_index_diff_summary_dry_run.md"
+  diff_summary_json="build/reports/readiness_index_diff_summary_dry_run.json"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -185,6 +195,10 @@ fi
   fi
   if [[ "$emit_schema" == "1" ]]; then
     ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"
+  fi
+  if [[ -n "$diff_against" ]]; then
+    ./scripts/readiness_report_index_diff_summary.py --left "$diff_against" --right "$index_path" \
+      --out-md "$diff_summary_md" --out-json "$diff_summary_json"
   fi
   if [[ "$emit_csv" == "1" ]]; then
     ./scripts/readiness_report_index_export_csv.py --index "$index_path" --out-csv "$csv_path"
