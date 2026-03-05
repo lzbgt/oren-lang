@@ -70,6 +70,7 @@ rg -n "Trend window" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness index profiles" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
 rg -n "Readiness index tags" "build/reports/readiness_index_tags_dry_run.md" >/dev/null
 rg -n "Readiness index audit" "build/reports/readiness_index_audit_dry_run.md" >/dev/null
+rg -n "checked,missing_any,missing_report,missing_json,missing_log_dir" "build/reports/readiness_index_audit_dry_run.csv" >/dev/null
 rg -n "Readiness index audit trend" "build/reports/readiness_index_audit_trend_dry_run.md" >/dev/null
 rg -n "timestamp,profile,tag,overall,missing_any,missing" "build/reports/readiness_index_audit_trend_dry_run.csv" >/dev/null
 rg -n "Profiles" "build/reports/readiness_dashboard_dry_run.html" >/dev/null

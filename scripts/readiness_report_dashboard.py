@@ -336,6 +336,28 @@ def audit_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def audit_top_missing(summary: Dict[str, Any]) -> str:
+    if not summary:
+        return "-"
+    def count_value(val: Any) -> int:
+        if isinstance(val, int):
+            return val
+        return 0
+    counts = {
+        "report": count_value(summary.get("missing_report", 0)),
+        "json": count_value(summary.get("missing_json", 0)),
+        "log_dir": count_value(summary.get("missing_log_dir", 0)),
+        "status_snapshot_md": count_value(summary.get("missing_status_snapshot_md", 0)),
+        "status_snapshot_json": count_value(summary.get("missing_status_snapshot_json", 0)),
+        "status_matrix_md": count_value(summary.get("missing_status_matrix_md", 0)),
+        "status_matrix_json": count_value(summary.get("missing_status_matrix_json", 0)),
+    }
+    top = max(counts.items(), key=lambda item: item[1])
+    if top[1] == 0:
+        return "-"
+    return f"{top[0]} ({top[1]})"
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -362,6 +384,7 @@ def main() -> int:
     audit = read_json(args.audit_json)
     audit_trend = read_json(args.audit_trend_json)
     audit_stats = audit_summary(audit)
+    audit_top = audit_top_missing(audit_stats)
 
     rows = []
     for entry in reversed(entries_view):
@@ -452,6 +475,7 @@ def main() -> int:
       <div><strong>{trend.get('window_pass_rate','-')}</strong>%</div>
     </div>
     {f"<div class='card'><div>Audit missing</div><div><strong class='{audit_missing_cls}'>{audit_stats.get('missing_any','-')}</strong> / {audit_stats.get('checked','-')}</div></div>" if audit_stats else ""}
+    {f"<div class='card'><div>Top missing</div><div><strong>{audit_top}</strong></div></div>" if audit_stats else ""}
   </div>
 
   <h2>Recent runs (latest {len(entries_view)})</h2>

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import csv
 import json
 import os
 import sys
@@ -24,6 +25,11 @@ def parse_args() -> argparse.Namespace:
         "--out-json",
         default="build/reports/readiness_index_audit.json",
         help="Output JSON path",
+    )
+    parser.add_argument(
+        "--out-csv",
+        default="",
+        help="Output CSV path (optional)",
     )
     parser.add_argument(
         "--allow-missing",
@@ -235,6 +241,41 @@ def write_json(path: str, summary: Dict[str, Any]) -> None:
         f.write("\n")
 
 
+def write_csv(path: str, summary: Dict[str, Any]) -> None:
+    if not path:
+        return
+    ensure_parent_dir(path)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "checked",
+                "missing_any",
+                "missing_report",
+                "missing_json",
+                "missing_log_dir",
+                "missing_status_snapshot_md",
+                "missing_status_snapshot_json",
+                "missing_status_matrix_md",
+                "missing_status_matrix_json",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "checked": summary.get("checked", 0),
+                "missing_any": summary.get("missing_any", 0),
+                "missing_report": summary.get("missing_report", 0),
+                "missing_json": summary.get("missing_json", 0),
+                "missing_log_dir": summary.get("missing_log_dir", 0),
+                "missing_status_snapshot_md": summary.get("missing_status_snapshot_md", 0),
+                "missing_status_snapshot_json": summary.get("missing_status_snapshot_json", 0),
+                "missing_status_matrix_md": summary.get("missing_status_matrix_md", 0),
+                "missing_status_matrix_json": summary.get("missing_status_matrix_json", 0),
+            }
+        )
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -243,6 +284,8 @@ def main() -> int:
     summary = audit_entries(entries, args.include_dry_run, args.sample)
     write_markdown(args.out_md, summary)
     write_json(args.out_json, summary)
+    if args.out_csv:
+        write_csv(args.out_csv, summary)
     print(f"OK: wrote {args.out_md} and {args.out_json}")
     if args.allow_missing:
         return 0

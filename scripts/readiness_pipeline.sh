@@ -431,6 +431,7 @@ tags_md="build/reports/readiness_index_tags.md"
 tags_json="build/reports/readiness_index_tags.json"
 audit_md="build/reports/readiness_index_audit.md"
 audit_json="build/reports/readiness_index_audit.json"
+audit_csv="build/reports/readiness_index_audit.csv"
 audit_trend_md="build/reports/readiness_index_audit_trend.md"
 audit_trend_json="build/reports/readiness_index_audit_trend.json"
 audit_trend_csv="build/reports/readiness_index_audit_trend.csv"
@@ -464,6 +465,7 @@ if [[ "$dry_run" == "1" ]]; then
   tags_json="build/reports/readiness_index_tags_dry_run.json"
   audit_md="build/reports/readiness_index_audit_dry_run.md"
   audit_json="build/reports/readiness_index_audit_dry_run.json"
+  audit_csv="build/reports/readiness_index_audit_dry_run.csv"
   audit_trend_md="build/reports/readiness_index_audit_trend_dry_run.md"
   audit_trend_json="build/reports/readiness_index_audit_trend_dry_run.json"
   audit_trend_csv="build/reports/readiness_index_audit_trend_dry_run.csv"
@@ -595,7 +597,7 @@ fi
     ./scripts/readiness_report_index_tags.py --index "$index_path" --out-md "$tags_md" --out-json "$tags_json"
   fi
   if [[ "$emit_audit" == "1" ]]; then
-    audit_args=(--index "$index_path" --out-md "$audit_md" --out-json "$audit_json")
+    audit_args=(--index "$index_path" --out-md "$audit_md" --out-json "$audit_json" --out-csv "$audit_csv")
     if [[ "$audit_allow_missing" == "1" ]]; then
       audit_args+=(--allow-missing)
     fi
