@@ -16,6 +16,7 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
 - For a reproducible snapshot, run `make readiness-report` (writes markdown + logs under `build/`).
   Use `make readiness-report-json` or `./scripts/readiness_report.sh --json` for machine-readable output.
   Append JSONL summaries via `make readiness-report-index`; latest pointers live under `build/reports/readiness_latest.*`.
+  Generate summaries via `make readiness-report-summary` (writes `build/reports/readiness_summary.*`).
 
 ---
 
@@ -1829,6 +1830,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
   - Note: `make test` hit a `test-native-quick` segfault (Error 139) on 2026-03-03
     (log: `build/logs/make_test_20260303_215000.log`); rerun passed
     (log: `build/logs/make_test_20260303_215100.log`). Track for flakes.
+  - Note: `make test` hit a `test-native-quick` segfault (Error 139) on 2026-03-05
+    (log: `build/logs/make_test_20260305_202158.log`); rerun passed
+    (log: `build/logs/make_test_20260305_202230.log`). Track for flakes.
   - Note: `make test` hit `test-native-quick` Error 1 on 2026-03-03 in the
     `OREN_GREEN_POLL_CACHE=1` sub-run (panic: "Indexing on non-container";
     log: `build/logs/make_test_20260303_221100.log`); rerun passed

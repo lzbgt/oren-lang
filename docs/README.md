@@ -38,7 +38,9 @@ make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make readiness-report  # generates build/reports/readiness_report_*.md
 make readiness-report-json  # readiness report + JSON summary
 make readiness-report-index  # append JSONL summary to build/reports/readiness_index.jsonl
+make readiness-report-summary  # generates markdown + HTML summary from index
 make verify-readiness-report  # dry-run smoke for readiness report script
+make verify-readiness-report-summary  # smoke for summary generator
 
 # Optional knobs for runtime robustness:
 # - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
@@ -69,6 +71,11 @@ Latest report pointers (written on real runs):
 - `build/reports/readiness_latest.md`
 - `build/reports/readiness_latest.json`
 - `build/reports/readiness_latest.meta`
+
+Summary outputs (from index):
+
+- `build/reports/readiness_summary.md`
+- `build/reports/readiness_summary.html`
 
 Build and run a hello binary (C backend by default):
 
