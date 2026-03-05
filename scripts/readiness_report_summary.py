@@ -6,7 +6,15 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from status_html_render import render_status_faq, render_status_matrix, render_status_snapshot, status_css
+from status_html_render import (
+    limit_status_faq,
+    limit_status_matrix,
+    limit_status_snapshot,
+    render_status_faq,
+    render_status_matrix,
+    render_status_snapshot,
+    status_css,
+)
 from status_item_format import format_multiline_item
 
 
@@ -197,81 +205,6 @@ def render_status_matrix_md(data: Dict[str, Any], max_items: int) -> str:
     return "\n".join(out).rstrip()
 
 
-def _trunc_structured_item(total: int) -> Dict[str, Any]:
-    label = f"(truncated, {total} total)"
-    return {"raw": label, "lines": [label], "head": label}
-
-
-def _limit_list(items: List[Any], max_items: int) -> List[Any]:
-    if max_items <= 0 or len(items) <= max_items:
-        return items
-    return items[:max_items] + [f"(truncated, {len(items)} total)"]
-
-
-def _limit_structured(items: List[Any], max_items: int) -> List[Any]:
-    if max_items <= 0 or len(items) <= max_items:
-        return items
-    return items[:max_items] + [_trunc_structured_item(len(items))]
-
-
-def limit_status_faq(data: Dict[str, Any], max_items: int) -> Dict[str, Any]:
-    if not data or max_items <= 0:
-        return data
-    questions = data.get("questions")
-    if not isinstance(questions, list):
-        return data
-    trimmed = []
-    for entry in questions:
-        if not isinstance(entry, dict):
-            continue
-        out = dict(entry)
-        structured = entry.get("items_structured")
-        items = entry.get("items")
-        if isinstance(structured, list):
-            out["items_structured"] = _limit_structured(list(structured), max_items)
-        elif isinstance(items, list):
-            out["items"] = _limit_list(list(items), max_items)
-        trimmed.append(out)
-    return {"questions": trimmed}
-
-
-def limit_status_snapshot(data: Dict[str, Any], max_items: int) -> Dict[str, Any]:
-    if not data or max_items <= 0:
-        return data
-    sections = data.get("sections")
-    if not isinstance(sections, dict):
-        return data
-    trimmed_sections: Dict[str, Any] = {}
-    for key, section in sections.items():
-        if not isinstance(section, dict):
-            continue
-        out = dict(section)
-        structured = section.get("items_structured")
-        items = section.get("items")
-        if isinstance(structured, list):
-            out["items_structured"] = _limit_structured(list(structured), max_items)
-        elif isinstance(items, list):
-            out["items"] = _limit_list(list(items), max_items)
-        trimmed_sections[key] = out
-    return {"sections": trimmed_sections}
-
-
-def limit_status_matrix(data: Dict[str, Any], max_items: int) -> Dict[str, Any]:
-    if not data or max_items <= 0:
-        return data
-    sections = data.get("sections") if isinstance(data.get("sections"), dict) else data
-    if not isinstance(sections, dict):
-        return data
-    trimmed_sections: Dict[str, Any] = {}
-    for key, rows in sections.items():
-        if not isinstance(rows, list):
-            continue
-        if len(rows) <= max_items:
-            trimmed_sections[key] = rows
-            continue
-        trunc_row = {"name": f"(truncated, {len(rows)} total)", "notes": "", "notes_lines": []}
-        trimmed_sections[key] = rows[:max_items] + [trunc_row]
-    return {"sections": trimmed_sections}
 
 
 def fmt_duration(seconds: Optional[int]) -> str:

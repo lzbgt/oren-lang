@@ -32,15 +32,15 @@ cat >"$audit_samples_json" <<'EOF'
 EOF
 
 cat >"$status_faq_json" <<'EOF'
-{"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items_structured":[{"raw":"C backend: not production\\n  Native: rolling","lines":["C backend: not production","  Native: rolling"],"head":"C backend: not production","continuations":["  Native: rolling"]}]}]}
+{"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items_structured":[{"raw":"C backend: not production\\n  Native: rolling","lines":["C backend: not production","  Native: rolling"],"head":"C backend: not production","continuations":["  Native: rolling"]},{"raw":"Native backend: rolling","lines":["Native backend: rolling"],"head":"Native backend: rolling"}]}]}
 EOF
 
 cat >"$status_snapshot_json" <<'EOF'
-{"sections":{"production_readiness_gap":{"title":"Production readiness gap","items_structured":[{"raw":"Semantic maturity: rolling\\n  detail","lines":["Semantic maturity: rolling","  detail"],"head":"Semantic maturity: rolling","continuations":["  detail"]}]},"backend_readiness":{"title":"Backend readiness","items":["C backend: bootstrap path only"]},"feature_readiness_gaps":{"title":"Feature readiness gaps","items":["GMP concurrency: substrate only"]}}}
+{"sections":{"production_readiness_gap":{"title":"Production readiness gap","items_structured":[{"raw":"Semantic maturity: rolling\\n  detail","lines":["Semantic maturity: rolling","  detail"],"head":"Semantic maturity: rolling","continuations":["  detail"]},{"raw":"Performance parity: hot loops above target","lines":["Performance parity: hot loops above target"],"head":"Performance parity: hot loops above target"}]},"backend_readiness":{"title":"Backend readiness","items":["C backend: bootstrap path only"]},"feature_readiness_gaps":{"title":"Feature readiness gaps","items":["GMP concurrency: substrate only"]}}}
 EOF
 
 cat >"$status_matrix_json" <<'EOF'
-{"sections":{"production_readiness_gap":[{"name":"Semantic maturity","notes":"rolling","notes_lines":["rolling"],"raw":"**Semantic maturity**: rolling."}],"backend_readiness":[{"name":"C backend","notes":"bootstrap path only","notes_lines":["bootstrap path only"],"raw":"**C backend**: bootstrap path only."}],"feature_readiness_gaps":[{"name":"GMP concurrency (native)","notes":"substrate only","notes_lines":["substrate only"],"raw":"**GMP concurrency (native)**: substrate only."}]}}
+{"sections":{"production_readiness_gap":[{"name":"Semantic maturity","notes":"rolling","notes_lines":["rolling"],"raw":"**Semantic maturity**: rolling."},{"name":"Performance parity","notes":"hot loops above target","notes_lines":["hot loops above target"],"raw":"**Performance parity**: hot loops above target."}],"backend_readiness":[{"name":"C backend","notes":"bootstrap path only","notes_lines":["bootstrap path only"],"raw":"**C backend**: bootstrap path only."}],"feature_readiness_gaps":[{"name":"GMP concurrency (native)","notes":"substrate only","notes_lines":["substrate only"],"raw":"**GMP concurrency (native)**: substrate only."}]}}
 EOF
 
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
@@ -71,5 +71,16 @@ rg -n "Status Snapshot" "$out_html" >/dev/null
 rg -n "Semantic maturity: rolling" "$out_html" >/dev/null
 rg -n "Status Matrix" "$out_html" >/dev/null
 rg -n "GMP concurrency" "$out_html" >/dev/null
+
+out_html_limit="${work_dir}/dashboard_limit.html"
+./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html_limit" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
+  --audit-json "$audit_json" --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_samples_json" \
+  --status-faq-json "$status_faq_json" \
+  --status-snapshot-json "$status_snapshot_json" \
+  --status-matrix-json "$status_matrix_json" \
+  --status-max-items 1 \
+  --audit-samples-only-missing --audit-missing-threshold 2 --audit-trend-missing-threshold 2 \
+  --audit-missing-warn-threshold 0 --audit-trend-missing-warn-threshold 0
+rg -n "truncated" "$out_html_limit" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

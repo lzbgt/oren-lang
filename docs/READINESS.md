@@ -89,6 +89,7 @@ Index tools:
 - Dashboard accepts `--status-snapshot-json` and `--status-matrix-json` to render
   structured snapshot + matrix sections.
 - Dashboard renders `items_structured` lines when present in the FAQ JSON.
+- Dashboard supports `--status-max-items <n>` to limit rendered status items.
 - Readiness summary HTML renders the latest status FAQ/snapshot/matrix sections
   when the latest index entry includes their JSON paths.
 - Readiness summary markdown mirrors the latest status FAQ/snapshot/matrix sections

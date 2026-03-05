@@ -8,6 +8,9 @@ from typing import Any, Dict, List
 
 from status_html_render import (
     html_escape,
+    limit_status_faq,
+    limit_status_matrix,
+    limit_status_snapshot,
     render_status_faq,
     render_status_matrix,
     render_status_snapshot,
@@ -90,6 +93,12 @@ def parse_args() -> argparse.Namespace:
         "--status-matrix-json",
         default="",
         help="Status matrix JSON path (optional)",
+    )
+    parser.add_argument(
+        "--status-max-items",
+        type=int,
+        default=10,
+        help="Max items per status section (default: 10, <=0 means no limit).",
     )
     parser.add_argument(
         "--audit-samples-limit",
@@ -491,6 +500,10 @@ def main() -> int:
     status_faq = read_json(args.status_faq_json)
     status_snapshot = read_json(args.status_snapshot_json)
     status_matrix = read_json(args.status_matrix_json)
+    if args.status_max_items > 0:
+        status_faq = limit_status_faq(status_faq, args.status_max_items)
+        status_snapshot = limit_status_snapshot(status_snapshot, args.status_max_items)
+        status_matrix = limit_status_matrix(status_matrix, args.status_max_items)
     audit_stats = audit_summary(audit)
     audit_top = audit_top_missing(audit_stats)
     audit_missing_any = audit_stats.get("missing_any") if audit_stats else None
