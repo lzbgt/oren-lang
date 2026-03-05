@@ -275,6 +275,22 @@ def render_audit(data: Dict[str, Any]) -> str:
     )
 
 
+def audit_summary(data: Dict[str, Any]) -> Dict[str, Any]:
+    if not data:
+        return {}
+    return {
+        "checked": data.get("checked"),
+        "missing_any": data.get("missing_any"),
+        "missing_report": data.get("missing_report"),
+        "missing_json": data.get("missing_json"),
+        "missing_log_dir": data.get("missing_log_dir"),
+        "missing_status_snapshot_md": data.get("missing_status_snapshot_md"),
+        "missing_status_snapshot_json": data.get("missing_status_snapshot_json"),
+        "missing_status_matrix_md": data.get("missing_status_matrix_md"),
+        "missing_status_matrix_json": data.get("missing_status_matrix_json"),
+    }
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -299,6 +315,7 @@ def main() -> int:
     profiles = read_json(args.profiles_json)
     tags = read_json(args.tags_json)
     audit = read_json(args.audit_json)
+    audit_stats = audit_summary(audit)
 
     rows = []
     for entry in reversed(entries_view):
@@ -382,6 +399,7 @@ def main() -> int:
       <div>Trend pass rate</div>
       <div><strong>{trend.get('window_pass_rate','-')}</strong>%</div>
     </div>
+    {f"<div class='card'><div>Audit missing</div><div><strong>{audit_stats.get('missing_any','-')}</strong> / {audit_stats.get('checked','-')}</div></div>" if audit_stats else ""}
   </div>
 
   <h2>Recent runs (latest {len(entries_view)})</h2>

@@ -68,6 +68,7 @@ rg -n "Readiness index audit" "build/reports/readiness_index_audit_dry_run.md" >
 rg -n "Profiles" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Tags" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit summary" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "Audit missing" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness collection" "$work_dir/collect/readiness_collect_index.md" >/dev/null
 test -f "$work_dir/collect.tar.gz"
 
