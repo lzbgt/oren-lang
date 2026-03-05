@@ -8,6 +8,8 @@ audit_json="${work_dir}/audit.json"
 audit_trend_json="${work_dir}/audit_trend.json"
 audit_samples_json="${work_dir}/audit_samples.json"
 status_faq_json="${work_dir}/status_faq.json"
+status_snapshot_json="${work_dir}/status_snapshot.json"
+status_matrix_json="${work_dir}/status_matrix.json"
 
 rm -rf "$work_dir" 2>/dev/null || true
 mkdir -p "$work_dir"
@@ -33,9 +35,19 @@ cat >"$status_faq_json" <<'EOF'
 {"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items_structured":[{"raw":"C backend: not production\\n  Native: rolling","lines":["C backend: not production","  Native: rolling"],"head":"C backend: not production","continuations":["  Native: rolling"]}]}]}
 EOF
 
+cat >"$status_snapshot_json" <<'EOF'
+{"sections":{"production_readiness_gap":{"title":"Production readiness gap","items_structured":[{"raw":"Semantic maturity: rolling\\n  detail","lines":["Semantic maturity: rolling","  detail"],"head":"Semantic maturity: rolling","continuations":["  detail"]}]},"backend_readiness":{"title":"Backend readiness","items":["C backend: bootstrap path only"]},"feature_readiness_gaps":{"title":"Feature readiness gaps","items":["GMP concurrency: substrate only"]}}}
+EOF
+
+cat >"$status_matrix_json" <<'EOF'
+{"sections":{"production_readiness_gap":[{"name":"Semantic maturity","notes":"rolling","notes_lines":["rolling"],"raw":"**Semantic maturity**: rolling."}],"backend_readiness":[{"name":"C backend","notes":"bootstrap path only","notes_lines":["bootstrap path only"],"raw":"**C backend**: bootstrap path only."}],"feature_readiness_gaps":[{"name":"GMP concurrency (native)","notes":"substrate only","notes_lines":["substrate only"],"raw":"**GMP concurrency (native)**: substrate only."}]}}
+EOF
+
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
   --audit-json "$audit_json" --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_samples_json" \
   --status-faq-json "$status_faq_json" \
+  --status-snapshot-json "$status_snapshot_json" \
+  --status-matrix-json "$status_matrix_json" \
   --audit-samples-only-missing --audit-missing-threshold 2 --audit-trend-missing-threshold 2 \
   --audit-missing-warn-threshold 0 --audit-trend-missing-warn-threshold 0
 
@@ -55,5 +67,9 @@ rg -n "<li>Audit trend missing_any" "$out_html" >/dev/null
 rg -n "Status FAQ" "$out_html" >/dev/null
 rg -n "Are the backends production-ready" "$out_html" >/dev/null
 rg -n "Native: rolling" "$out_html" >/dev/null
+rg -n "Status Snapshot" "$out_html" >/dev/null
+rg -n "Semantic maturity: rolling" "$out_html" >/dev/null
+rg -n "Status Matrix" "$out_html" >/dev/null
+rg -n "GMP concurrency" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

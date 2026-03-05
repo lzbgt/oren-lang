@@ -74,6 +74,16 @@ def parse_args() -> argparse.Namespace:
         help="Status FAQ JSON path (optional)",
     )
     parser.add_argument(
+        "--status-snapshot-json",
+        default="",
+        help="Status snapshot JSON path (optional)",
+    )
+    parser.add_argument(
+        "--status-matrix-json",
+        default="",
+        help="Status matrix JSON path (optional)",
+    )
+    parser.add_argument(
         "--audit-samples-limit",
         type=int,
         default=10,
@@ -482,6 +492,138 @@ def render_status_faq(data: Dict[str, Any]) -> str:
     return "<h2>Status FAQ</h2>\n" + "".join(blocks)
 
 
+def render_status_snapshot(data: Dict[str, Any]) -> str:
+    if not data:
+        return ""
+    sections = data.get("sections")
+    if not isinstance(sections, dict) or not sections:
+        return ""
+
+    def section_items(section: Dict[str, Any]) -> List[str]:
+        structured = section.get("items_structured")
+        if isinstance(structured, list) and structured:
+            items = []
+            for entry in structured:
+                if not isinstance(entry, dict):
+                    continue
+                lines = entry.get("lines")
+                if isinstance(lines, list) and lines:
+                    items.append("\n".join(str(line) for line in lines))
+                    continue
+                raw = entry.get("raw")
+                if isinstance(raw, str) and raw:
+                    items.append(raw)
+            if items:
+                return items
+        items = section.get("items")
+        if isinstance(items, list) and items:
+            return [str(item) for item in items]
+        return []
+
+    def render_item_lines(lines: List[str]) -> str:
+        if not lines:
+            return ""
+        head = html_escape(lines[0])
+        cont = "".join(
+            f"<div class='status-item-cont'>{html_escape(line)}</div>"
+            for line in lines[1:]
+        )
+        return f"<li><div class='status-item-head'>{head}</div>{cont}</li>"
+
+    order = ("production_readiness_gap", "backend_readiness", "feature_readiness_gaps")
+    blocks: List[str] = []
+    for key in order:
+        section = sections.get(key)
+        if not isinstance(section, dict):
+            continue
+        title = html_escape(section.get("title") or key)
+        items = section_items(section)
+        if items:
+            rendered = []
+            for item in items:
+                lines = str(item).splitlines()
+                rendered.append(render_item_lines(lines))
+            items_html = "<ul>" + "".join(rendered) + "</ul>"
+        else:
+            items_html = "<div class='meta'>(no items)</div>"
+        blocks.append(
+            "<div class='status-block'>"
+            f"<div class='status-title'>{title}</div>"
+            f"{items_html}</div>"
+        )
+    if not blocks:
+        return ""
+    return "<h2>Status Snapshot</h2>\n" + "".join(blocks)
+
+
+def render_status_matrix(data: Dict[str, Any]) -> str:
+    if not data:
+        return ""
+    sections = data.get("sections") if isinstance(data.get("sections"), dict) else data
+    if not isinstance(sections, dict) or not sections:
+        return ""
+
+    def render_notes_lines(lines: List[str]) -> str:
+        if not lines:
+            return "-"
+        head = html_escape(lines[0])
+        cont = "".join(
+            f"<div class='status-item-cont'>{html_escape(line)}</div>"
+            for line in lines[1:]
+        )
+        return f"<div class='status-item-head'>{head}</div>{cont}"
+
+    def notes_lines(row: Dict[str, Any]) -> List[str]:
+        lines = row.get("notes_lines")
+        if isinstance(lines, list) and lines:
+            return [str(line) for line in lines]
+        notes = row.get("notes")
+        if isinstance(notes, str) and notes:
+            return notes.splitlines()
+        raw = row.get("raw")
+        if isinstance(raw, str) and raw:
+            return raw.splitlines()
+        raw_lines = row.get("raw_lines")
+        if isinstance(raw_lines, list) and raw_lines:
+            return [str(line) for line in raw_lines]
+        return []
+
+    order = ("production_readiness_gap", "backend_readiness", "feature_readiness_gaps")
+    title_map = {
+        "production_readiness_gap": "Production readiness gap",
+        "backend_readiness": "Backend readiness",
+        "feature_readiness_gaps": "Feature readiness gaps",
+    }
+    blocks: List[str] = []
+    for key in order:
+        rows = sections.get(key, [])
+        if not isinstance(rows, list) or not rows:
+            continue
+        title = html_escape(title_map.get(key, key))
+        body_rows = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            name = html_escape(row.get("name", "-"))
+            notes = render_notes_lines(notes_lines(row))
+            body_rows.append(f"<tr><td>{name}</td><td>{notes}</td></tr>")
+        if not body_rows:
+            continue
+        table = (
+            "<table>"
+            "<thead><tr><th>Name</th><th>Notes</th></tr></thead>"
+            f"<tbody>{''.join(body_rows)}</tbody></table>"
+        )
+        blocks.append(
+            "<div class='status-block'>"
+            f"<div class='status-title'>{title}</div>"
+            f"{table}</div>"
+        )
+    if not blocks:
+        return ""
+    return "<h2>Status Matrix</h2>\n" + "".join(blocks)
+
+
 def audit_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     if not data:
         return {}
@@ -551,6 +693,8 @@ def main() -> int:
     audit_trend = read_json(args.audit_trend_json)
     audit_samples = read_json(args.audit_samples_json)
     status_faq = read_json(args.status_faq_json)
+    status_snapshot = read_json(args.status_snapshot_json)
+    status_matrix = read_json(args.status_matrix_json)
     audit_stats = audit_summary(audit)
     audit_top = audit_top_missing(audit_stats)
     audit_missing_any = audit_stats.get("missing_any") if audit_stats else None
@@ -659,6 +803,10 @@ def main() -> int:
     .faq-question {{ font-weight: bold; margin-bottom: 6px; }}
     .faq-item-head {{ font-weight: 500; }}
     .faq-item-cont {{ margin-left: 14px; color: #555; font-size: 12px; }}
+    .status-block {{ border: 1px solid #e0e0e0; padding: 12px; border-radius: 6px; margin-bottom: 12px; background: #fff; }}
+    .status-title {{ font-weight: bold; margin-bottom: 8px; }}
+    .status-item-head {{ font-weight: 500; }}
+    .status-item-cont {{ margin-left: 14px; color: #555; font-size: 12px; }}
     table {{ border-collapse: collapse; width: 100%; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}
     th {{ background: #f2f2f2; text-align: left; }}
@@ -740,6 +888,8 @@ def main() -> int:
   {render_profiles(profiles)}
   {render_tags(tags)}
   {render_status_faq(status_faq)}
+  {render_status_snapshot(status_snapshot)}
+  {render_status_matrix(status_matrix)}
   {render_audit(audit)}
   {render_audit_trend(audit_trend)}
   {render_audit_samples(audit_samples, args.audit_samples_limit, args.audit_samples_only_missing)}

@@ -86,6 +86,8 @@ Index tools:
 - `scripts/readiness_report_dashboard.py` accepts `--audit-json` to show audit summary.
 - Dashboard surfaces an "Audit missing" card when audit JSON is provided.
 - Dashboard accepts `--status-faq-json` to render the STATUS FAQ section.
+- Dashboard accepts `--status-snapshot-json` and `--status-matrix-json` to render
+  structured snapshot + matrix sections.
 - Dashboard renders `items_structured` lines when present in the FAQ JSON.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.

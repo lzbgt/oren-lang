@@ -647,6 +647,8 @@ fi
       --profiles-json "$profiles_json" \
       --tags-json "$tags_json" \
       --status-faq-json "$status_faq_json" \
+      --status-snapshot-json "$status_snapshot_json" \
+      --status-matrix-json "$status_matrix_json" \
       --audit-json "$audit_json" \
       --audit-trend-json "$audit_trend_json" \
       --audit-samples-json "$audit_json" \
