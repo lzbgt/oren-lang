@@ -40,6 +40,13 @@ Options:
   --audit-max-missing <n>           Fail audit if missing_any exceeds n (default: -1).
   --audit-trend-window <n>          Audit trend window size (default: 20, 0=all).
   --audit-trend-max-missing <n>     Fail if audit trend missing_any exceeds n (default: -1).
+  --audit-trend-max-report <n>      Fail if audit trend missing report exceeds n (default: -1).
+  --audit-trend-max-json <n>        Fail if audit trend missing json exceeds n (default: -1).
+  --audit-trend-max-log-dir <n>     Fail if audit trend missing log_dir exceeds n (default: -1).
+  --audit-trend-max-status-snapshot-md <n>  Fail if missing status_snapshot_md exceeds n (default: -1).
+  --audit-trend-max-status-snapshot-json <n> Fail if missing status_snapshot_json exceeds n (default: -1).
+  --audit-trend-max-status-matrix-md <n>    Fail if missing status_matrix_md exceeds n (default: -1).
+  --audit-trend-max-status-matrix-json <n>  Fail if missing status_matrix_json exceeds n (default: -1).
   --no-audit-trend                  Skip audit trend output.
   --collect <n>                     Collect last N readiness reports (0=skip, default: 0).
   --collect-dir <path>              Output directory for collected snapshots.
@@ -96,6 +103,13 @@ audit_max_missing=-1
 audit_trend_window=20
 emit_audit_trend=1
 audit_trend_max_missing=-1
+audit_trend_max_report=-1
+audit_trend_max_json=-1
+audit_trend_max_log_dir=-1
+audit_trend_max_status_snapshot_md=-1
+audit_trend_max_status_snapshot_json=-1
+audit_trend_max_status_matrix_md=-1
+audit_trend_max_status_matrix_json=-1
 collect_count=0
 collect_dir="build/reports/readiness_collect"
 collect_include_dry_run=0
@@ -235,6 +249,34 @@ while [[ $# -gt 0 ]]; do
       ;;
     --audit-trend-max-missing)
       audit_trend_max_missing="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-report)
+      audit_trend_max_report="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-json)
+      audit_trend_max_json="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-log-dir)
+      audit_trend_max_log_dir="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-status-snapshot-md)
+      audit_trend_max_status_snapshot_md="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-status-snapshot-json)
+      audit_trend_max_status_snapshot_json="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-status-matrix-md)
+      audit_trend_max_status_matrix_md="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-status-matrix-json)
+      audit_trend_max_status_matrix_json="${2:-}"
       shift 2
       ;;
     --no-audit-trend)
@@ -442,6 +484,13 @@ fi
   echo "audit_trend_window=${audit_trend_window}"
   echo "audit_trend=${emit_audit_trend}"
   echo "audit_trend_max_missing=${audit_trend_max_missing}"
+  echo "audit_trend_max_report=${audit_trend_max_report}"
+  echo "audit_trend_max_json=${audit_trend_max_json}"
+  echo "audit_trend_max_log_dir=${audit_trend_max_log_dir}"
+  echo "audit_trend_max_status_snapshot_md=${audit_trend_max_status_snapshot_md}"
+  echo "audit_trend_max_status_snapshot_json=${audit_trend_max_status_snapshot_json}"
+  echo "audit_trend_max_status_matrix_md=${audit_trend_max_status_matrix_md}"
+  echo "audit_trend_max_status_matrix_json=${audit_trend_max_status_matrix_json}"
   echo "collect_count=${collect_count}"
   echo "collect_dir=${collect_dir}"
   echo "collect_include_dry_run=${collect_include_dry_run}"
@@ -513,6 +562,27 @@ fi
       fi
       if [[ "$audit_trend_max_missing" != "-1" ]]; then
         trend_args+=(--max-missing-any "$audit_trend_max_missing")
+      fi
+      if [[ "$audit_trend_max_report" != "-1" ]]; then
+        trend_args+=(--max-missing-report "$audit_trend_max_report")
+      fi
+      if [[ "$audit_trend_max_json" != "-1" ]]; then
+        trend_args+=(--max-missing-json "$audit_trend_max_json")
+      fi
+      if [[ "$audit_trend_max_log_dir" != "-1" ]]; then
+        trend_args+=(--max-missing-log-dir "$audit_trend_max_log_dir")
+      fi
+      if [[ "$audit_trend_max_status_snapshot_md" != "-1" ]]; then
+        trend_args+=(--max-missing-status-snapshot-md "$audit_trend_max_status_snapshot_md")
+      fi
+      if [[ "$audit_trend_max_status_snapshot_json" != "-1" ]]; then
+        trend_args+=(--max-missing-status-snapshot-json "$audit_trend_max_status_snapshot_json")
+      fi
+      if [[ "$audit_trend_max_status_matrix_md" != "-1" ]]; then
+        trend_args+=(--max-missing-status-matrix-md "$audit_trend_max_status_matrix_md")
+      fi
+      if [[ "$audit_trend_max_status_matrix_json" != "-1" ]]; then
+        trend_args+=(--max-missing-status-matrix-json "$audit_trend_max_status_matrix_json")
       fi
       ./scripts/readiness_report_index_audit_trend.py "${trend_args[@]}"
     fi

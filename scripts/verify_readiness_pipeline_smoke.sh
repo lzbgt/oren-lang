@@ -45,6 +45,9 @@ EOF
   --diff-against "$baseline" --gate-pass-rate 50 --gate-window 1 --trim-since-days 1 \
   --status-path "$status_path" --status-diff-against "$status_baseline" --status-matrix-diff-against "$status_baseline" \
   --audit --audit-allow-missing --audit-trend-window 5 --audit-trend-max-missing 99 \
+  --audit-trend-max-report 99 --audit-trend-max-json 99 --audit-trend-max-log-dir 99 \
+  --audit-trend-max-status-snapshot-md 99 --audit-trend-max-status-snapshot-json 99 \
+  --audit-trend-max-status-matrix-md 99 --audit-trend-max-status-matrix-json 99 \
   --collect 1 --collect-include-dry-run --collect-dir "$work_dir/collect" --collect-pack --collect-pack-out "$work_dir/collect.tar.gz"
 
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null

@@ -53,6 +53,48 @@ def parse_args() -> argparse.Namespace:
         default=-1,
         help="Fail if missing_any exceeds this count (disabled if <0)",
     )
+    parser.add_argument(
+        "--max-missing-report",
+        type=int,
+        default=-1,
+        help="Fail if missing report exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-json",
+        type=int,
+        default=-1,
+        help="Fail if missing json exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-log-dir",
+        type=int,
+        default=-1,
+        help="Fail if missing log_dir exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-status-snapshot-md",
+        type=int,
+        default=-1,
+        help="Fail if missing status_snapshot_md exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-status-snapshot-json",
+        type=int,
+        default=-1,
+        help="Fail if missing status_snapshot_json exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-status-matrix-md",
+        type=int,
+        default=-1,
+        help="Fail if missing status_matrix_md exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-status-matrix-json",
+        type=int,
+        default=-1,
+        help="Fail if missing status_matrix_json exceeds this count (disabled if <0)",
+    )
     return parser.parse_args()
 
 
@@ -180,6 +222,23 @@ def main() -> int:
     if args.max_missing_any >= 0 and trend.get("missing_any", 0) > args.max_missing_any:
         print(f"FAIL: missing_any {trend.get('missing_any', 0)} > {args.max_missing_any}", file=sys.stderr)
         return 2
+    missing_by_kind = trend.get("missing_by_kind", {})
+    thresholds = {
+        "report": args.max_missing_report,
+        "json": args.max_missing_json,
+        "log_dir": args.max_missing_log_dir,
+        "status_snapshot_md": args.max_missing_status_snapshot_md,
+        "status_snapshot_json": args.max_missing_status_snapshot_json,
+        "status_matrix_md": args.max_missing_status_matrix_md,
+        "status_matrix_json": args.max_missing_status_matrix_json,
+    }
+    for field, threshold in thresholds.items():
+        if threshold >= 0 and missing_by_kind.get(field, 0) > threshold:
+            print(
+                f"FAIL: missing_{field} {missing_by_kind.get(field, 0)} > {threshold}",
+                file=sys.stderr,
+            )
+            return 2
     return 0
 
 

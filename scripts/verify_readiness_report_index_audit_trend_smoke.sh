@@ -18,7 +18,8 @@ cat >"$index_path" <<EOF_INDEX
 {"timestamp":"20260305_120000","profile":"full","overall":"FAIL","dry_run":false,"total_duration_sec":120,"git_rev":"deadbeef","git_dirty":"dirty","report":"${work_dir}/missing_report.md","json":"${work_dir}/report.json","log_dir":"${work_dir}/logs","status_matrix_md":"${work_dir}/missing_matrix.md","tag":"ci"}
 EOF_INDEX
 
-./scripts/readiness_report_index_audit_trend.py --index "$index_path" --out-md "$out_md" --out-json "$out_json" --limit 10 --max-missing-any 10
+./scripts/readiness_report_index_audit_trend.py --index "$index_path" --out-md "$out_md" --out-json "$out_json" --limit 10 \
+  --max-missing-any 10 --max-missing-report 10 --max-missing-json 10 --max-missing-log-dir 10 --max-missing-status-matrix-md 10
 
 rg -n "Readiness index audit trend" "$out_md" >/dev/null
 rg -n "missing_any" "$out_md" >/dev/null
