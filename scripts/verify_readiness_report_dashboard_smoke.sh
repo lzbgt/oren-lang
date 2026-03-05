@@ -26,5 +26,6 @@ rg -n "deadbeef" "$out_html" >/dev/null
 rg -n "Daily rollup" "$out_html" >/dev/null
 rg -n "Audit summary" "$out_html" >/dev/null
 rg -n "Audit missing" "$out_html" >/dev/null
+rg -n "class='ok'" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

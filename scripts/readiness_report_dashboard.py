@@ -350,6 +350,10 @@ def main() -> int:
     if latest:
         latest_text = f"{fmt_timestamp(latest.get('timestamp',''))} ({latest.get('overall','-')})"
 
+    audit_missing = audit_stats.get("missing_any")
+    audit_missing_cls = ""
+    if isinstance(audit_missing, int):
+        audit_missing_cls = "ok" if audit_missing == 0 else "fail"
     html = f"""<!doctype html>
 <html>
 <head>
@@ -362,6 +366,8 @@ def main() -> int:
     .meta {{ margin-bottom: 16px; }}
     .grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
     .card {{ border: 1px solid #ddd; padding: 12px; border-radius: 6px; background: #fafafa; }}
+    .card .ok {{ color: #0a7a2f; font-weight: bold; }}
+    .card .fail {{ color: #b00020; font-weight: bold; }}
     table {{ border-collapse: collapse; width: 100%; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}
     th {{ background: #f2f2f2; text-align: left; }}
@@ -399,7 +405,7 @@ def main() -> int:
       <div>Trend pass rate</div>
       <div><strong>{trend.get('window_pass_rate','-')}</strong>%</div>
     </div>
-    {f"<div class='card'><div>Audit missing</div><div><strong>{audit_stats.get('missing_any','-')}</strong> / {audit_stats.get('checked','-')}</div></div>" if audit_stats else ""}
+    {f"<div class='card'><div>Audit missing</div><div><strong class='{audit_missing_cls}'>{audit_stats.get('missing_any','-')}</strong> / {audit_stats.get('checked','-')}</div></div>" if audit_stats else ""}
   </div>
 
   <h2>Recent runs (latest {len(entries_view)})</h2>
