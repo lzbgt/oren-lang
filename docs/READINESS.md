@@ -84,7 +84,7 @@ Index tools:
 - `make readiness-report-index-profiles` — per-profile summary.
 - `make readiness-report-index-tags` — per-tag summary.
 - `make readiness-report-index-audit` — audit index paths.
-- Audit checks optional status snapshot/faq/matrix paths when present.
+- Audit checks optional status snapshot/faq/matrix/overview paths when present.
 - `make readiness-report-index-audit-trend` — audit latest window.
 - `scripts/readiness_report_dashboard.py` accepts `--audit-json` to show audit summary.
 - Dashboard surfaces an "Audit missing" card when audit JSON is provided.

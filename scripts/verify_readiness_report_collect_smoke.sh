@@ -12,6 +12,7 @@ status_faq_md="${work_dir}/status_faq.md"
 status_faq_json="${work_dir}/status_faq.json"
 status_matrix_md="${work_dir}/status_matrix.md"
 status_matrix_json="${work_dir}/status_matrix.json"
+status_overview_md="${work_dir}/status_overview.md"
 collect_dir="${work_dir}/collect"
 list_md="${work_dir}/collect_index.md"
 list_json="${work_dir}/collect_index.json"
@@ -27,9 +28,10 @@ mkdir -p "$work_dir" "$log_dir"
 : > "$status_faq_json"
 : > "$status_matrix_md"
 : > "$status_matrix_json"
+: > "$status_overview_md"
 
 cat >"$index_path" <<EOF_INDEX
-{"timestamp":"20260305_210000","profile":"quick","overall":"PASS","dry_run":false,"total_duration_sec":42,"git_rev":"abcd1234","git_dirty":"clean","report":"${report_path}","json":"${report_json}","log_dir":"${log_dir}","tag":"nightly","status_snapshot_md":"${status_md}","status_snapshot_json":"${status_json}","status_faq_md":"${status_faq_md}","status_faq_json":"${status_faq_json}","status_matrix_md":"${status_matrix_md}","status_matrix_json":"${status_matrix_json}"}
+{"timestamp":"20260305_210000","profile":"quick","overall":"PASS","dry_run":false,"total_duration_sec":42,"git_rev":"abcd1234","git_dirty":"clean","report":"${report_path}","json":"${report_json}","log_dir":"${log_dir}","tag":"nightly","status_snapshot_md":"${status_md}","status_snapshot_json":"${status_json}","status_faq_md":"${status_faq_md}","status_faq_json":"${status_faq_json}","status_matrix_md":"${status_matrix_md}","status_matrix_json":"${status_matrix_json}","status_overview_md":"${status_overview_md}"}
 EOF_INDEX
 
 ./scripts/readiness_report_collect.py --index "$index_path" --out-dir "$collect_dir" --limit 1 --overwrite
@@ -54,6 +56,10 @@ if [[ ! -f "$collect_dir/$snapshot_dir/status_faq.md" ]]; then
 fi
 if [[ ! -f "$collect_dir/$snapshot_dir/status_matrix.md" ]]; then
   echo "missing status_matrix.md" >&2
+  exit 1
+fi
+if [[ ! -f "$collect_dir/$snapshot_dir/status_overview.md" ]]; then
+  echo "missing status_overview.md" >&2
   exit 1
 fi
 

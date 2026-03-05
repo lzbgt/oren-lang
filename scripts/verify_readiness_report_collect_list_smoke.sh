@@ -23,6 +23,7 @@ cat >"${collect_dir}/sample/snapshot.json" <<'EOF'
   "status_faq_json": "status_faq.json",
   "status_matrix_md": "status_matrix.md",
   "status_matrix_json": "status_matrix.json",
+  "status_overview_md": "status_overview.md",
   "log_dir": "logs"
 }
 EOF
