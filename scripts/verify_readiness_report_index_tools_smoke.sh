@@ -25,6 +25,8 @@ rg -n "deadbeef" "$stats_md" >/dev/null
 rg -n "deadbeef" "$stats_json" >/dev/null
 rg -n "status_overview_20260306_010000.md" "$stats_md" >/dev/null
 rg -n "status_overview_20260306_010000.md" "$stats_json" >/dev/null
+rg -n "status_overview_present" "$stats_md" >/dev/null
+rg -n "\"status_overview_present\"" "$stats_json" >/dev/null
 rg -n "deadbeef" "$pruned" >/dev/null
 
 echo "OK: readiness index tools smoke verified"

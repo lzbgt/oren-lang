@@ -68,6 +68,7 @@ rg -n "Oren readiness summary" "build/reports/readiness_summary_dry_run.md" >/de
 rg -n "truncated" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "status_overview_" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "Readiness index stats" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
+rg -n "status_overview_present" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
 rg -n "timestamp,profile,overall" "build/reports/readiness_index_dry_run.csv" >/dev/null
 rg -n "Readiness rollup" "build/reports/readiness_rollup_dry_run.md" >/dev/null
 rg -n "Overview" "build/reports/readiness_rollup_dry_run.md" >/dev/null

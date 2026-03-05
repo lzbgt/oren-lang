@@ -24,6 +24,7 @@ Index + derived outputs:
 - `build/reports/readiness_dashboard.html` — HTML dashboard.
 - `build/reports/readiness_index_stats.md` — stats from index.
 - `build/reports/readiness_index_stats.json` — stats (JSON).
+- Index stats include `status_overview_present`.
 - `build/reports/readiness_index.csv` — CSV export.
 - `build/reports/readiness_rollup.md` — daily rollup.
 - `build/reports/readiness_rollup.json` — daily rollup (JSON).

@@ -140,6 +140,7 @@ Index stats outputs:
 
 - `build/reports/readiness_index_stats.md`
 - `build/reports/readiness_index_stats.json`
+- Index stats include `status_overview_present`.
 
 Index CSV output:
 

@@ -82,6 +82,7 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     profile_counts = defaultdict(lambda: defaultdict(int))
     tag_counts = defaultdict(lambda: defaultdict(int))
     durations = []
+    status_overview_present = 0
     latest = entries[-1] if entries else {}
     streak_kind = ""
     streak_len = 0
@@ -105,6 +106,9 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         dur = entry.get("total_duration_sec")
         if isinstance(dur, int):
             durations.append(dur)
+        status_overview_md = entry.get("status_overview_md", "")
+        if isinstance(status_overview_md, str) and status_overview_md.strip():
+            status_overview_present += 1
 
     pass_count = overall_counts.get("PASS", 0)
     fail_count = overall_counts.get("FAIL", 0)
@@ -122,6 +126,7 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         "duration_avg": duration_avg,
         "duration_min": duration_min,
         "duration_max": duration_max,
+        "status_overview_present": status_overview_present,
         "streak": {
             "kind": streak_kind,
             "len": streak_len,
@@ -145,6 +150,7 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
     duration_avg = stats["duration_avg"]
     duration_min = stats["duration_min"]
     duration_max = stats["duration_max"]
+    status_overview_present = stats.get("status_overview_present", 0)
     latest = stats["latest"]
     streak = stats.get("streak", {})
 
@@ -159,6 +165,7 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
         f.write(f"- pass rate: {pass_rate:.1f}%\n")
         f.write(f"- pass: {overall_counts.get('PASS', 0)}\n")
         f.write(f"- fail: {overall_counts.get('FAIL', 0)}\n")
+        f.write(f"- status_overview_present: {status_overview_present}\n")
         if streak:
             f.write(f"- streak: {streak.get('kind','-')} x{streak.get('len','-')}\n")
         f.write("\n")
