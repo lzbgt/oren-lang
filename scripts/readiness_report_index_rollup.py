@@ -53,6 +53,12 @@ def parse_jsonl(path: str) -> List[Dict[str, Any]]:
     return entries
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def day_key(timestamp: str) -> str:
     if not timestamp:
         return "unknown"
@@ -112,7 +118,7 @@ def compute_rollup(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def write_markdown(path: str, rollup: List[Dict[str, Any]]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         f.write("# Readiness rollup (daily)\n\n")
         f.write("| Day | Total | Pass | Fail | Pass % | Avg Dur (s) | Min | Max |\n")
@@ -127,7 +133,7 @@ def write_markdown(path: str, rollup: List[Dict[str, Any]]) -> None:
 
 
 def write_json(path: str, rollup: List[Dict[str, Any]]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(rollup, f, indent=2, sort_keys=True)
         f.write("\n")

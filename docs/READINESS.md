@@ -49,6 +49,7 @@ Index tools:
 - `make readiness-report-index` — append to index (via report tool).
 - `make readiness-report-index-stats` — stats (md + json).
 - `make readiness-report-index-prune` — keep last N entries.
+- `make readiness-report-index-trim` — trim by timestamp range.
 - `make readiness-report-index-csv` — CSV export.
 - `make readiness-report-index-query` — filter index by fields/time.
 - `make readiness-report-index-rollup` — daily rollup.
@@ -59,6 +60,13 @@ Index tools:
 - `make readiness-report-index-gate` — enforce pass/fail thresholds.
 - `make readiness-report-index-lint` — check ordering/duplicates.
 - `make readiness-report-index-split` — split index by profile/tag.
+
+Trim examples:
+
+```bash
+./scripts/readiness_report_index_trim.py --since 20260301_000000 --until 20260305_235959
+./scripts/readiness_report_index_trim.py --since-days 30
+```
 
 Pipeline:
 
@@ -72,4 +80,5 @@ Smoke verifiers:
 - `make verify-readiness-report-index-csv`
 - `make verify-readiness-report-index-query-rollup`
 - `make verify-readiness-report-index-merge-compact`
+- `make verify-readiness-report-index-trim`
 - `make verify-readiness-pipeline`

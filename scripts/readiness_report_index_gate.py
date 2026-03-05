@@ -85,6 +85,12 @@ def compute_streak(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"kind": last, "len": length}
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -106,7 +112,7 @@ def main() -> int:
     }
 
     if args.out_json:
-        os.makedirs(os.path.dirname(args.out_json), exist_ok=True)
+        ensure_parent_dir(args.out_json)
         with open(args.out_json, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, sort_keys=True)
             f.write("\n")

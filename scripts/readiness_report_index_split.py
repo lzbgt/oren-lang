@@ -61,8 +61,14 @@ def slugify(value: str) -> str:
     return value or "unknown"
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def write_jsonl(path: str, entries: List[Dict[str, Any]]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         for entry in entries:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")

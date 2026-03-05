@@ -53,8 +53,14 @@ def load_entries(path: str) -> List[Dict[str, Any]]:
     return entries
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def write_jsonl(path: str, entries: List[Dict[str, Any]]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         for entry in entries:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")
@@ -80,7 +86,8 @@ def main() -> int:
         if not os.path.exists(args.index):
             print("WARN: index does not exist; nothing to write", file=sys.stderr)
             return 0
-        fd, tmp_path = tempfile.mkstemp(prefix="readiness_index_", suffix=".jsonl", dir=os.path.dirname(out_path))
+        tmp_dir = os.path.dirname(out_path) or "."
+        fd, tmp_path = tempfile.mkstemp(prefix="readiness_index_", suffix=".jsonl", dir=tmp_dir)
         os.close(fd)
         try:
             write_jsonl(tmp_path, kept_entries)

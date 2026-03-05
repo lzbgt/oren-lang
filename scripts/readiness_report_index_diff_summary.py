@@ -101,8 +101,14 @@ def diff_stats(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def write_markdown(path: str, left_path: str, right_path: str, left: Dict[str, Any], right: Dict[str, Any], delta: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         f.write("# Readiness index summary diff\n\n")
         f.write(f"- left: `{left_path}`\n")
@@ -119,7 +125,7 @@ def write_markdown(path: str, left_path: str, right_path: str, left: Dict[str, A
 
 
 def write_json(path: str, payload: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=True)
         f.write("\n")

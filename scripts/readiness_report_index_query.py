@@ -102,12 +102,18 @@ def match(entry: Dict[str, Any], args: argparse.Namespace) -> bool:
     return True
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def write_jsonl(path: str, entries: List[Dict[str, Any]]) -> None:
     if path == "-":
         for entry in entries:
             sys.stdout.write(json.dumps(entry, separators=(",", ":")) + "\n")
         return
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         for entry in entries:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")

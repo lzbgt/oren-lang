@@ -54,6 +54,12 @@ def parse_jsonl(path: str) -> List[Dict[str, Any]]:
     return entries
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def fmt_timestamp(ts: str) -> str:
     if not ts:
         return "-"
@@ -131,7 +137,7 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def write_markdown(path: str, stats: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     total = stats["total"]
     pass_rate = stats["pass_rate"]
     overall_counts = stats["overall_counts"]
@@ -187,7 +193,7 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
 
 
 def write_json(path: str, stats: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(stats, f, indent=2, sort_keys=True)
         f.write("\n")

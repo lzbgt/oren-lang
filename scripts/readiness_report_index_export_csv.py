@@ -63,6 +63,12 @@ def parse_jsonl(path: str) -> List[Dict[str, Any]]:
     return entries
 
 
+def ensure_parent_dir(path: str) -> None:
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -70,7 +76,7 @@ def main() -> int:
         print(f"WARN: no entries found in {args.index}", file=sys.stderr)
     if args.limit and args.limit > 0:
         entries = entries[-args.limit :]
-    os.makedirs(os.path.dirname(args.out_csv), exist_ok=True)
+    ensure_parent_dir(args.out_csv)
     with open(args.out_csv, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()

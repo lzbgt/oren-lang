@@ -25,6 +25,10 @@ Options:
   --gate-max-fail-streak <n>        Fail if consecutive FAIL streak exceeds n.
   --gate-max-fail-count <n>         Fail if fail count exceeds n.
   --gate-allow-empty                Allow empty index in gate.
+  --trim-since <ts>                 Trim index to entries >= ts (YYYYMMDD_HHMMSS).
+  --trim-until <ts>                 Trim index to entries <= ts (YYYYMMDD_HHMMSS).
+  --trim-since-days <n>             Trim to last N days (local time).
+  --trim-until-days <n>             Trim to entries up to N days ago (local time).
   --dry-run                        Dry-run report; writes to *_dry_run outputs.
   -h, --help                       Show help.
 EOF
@@ -50,6 +54,10 @@ gate_window=0
 gate_max_fail_streak="-1"
 gate_max_fail_count="-1"
 gate_allow_empty=0
+trim_since=""
+trim_until=""
+trim_since_days="-1"
+trim_until_days="-1"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -124,6 +132,22 @@ while [[ $# -gt 0 ]]; do
     --gate-allow-empty)
       gate_allow_empty=1
       shift
+      ;;
+    --trim-since)
+      trim_since="${2:-}"
+      shift 2
+      ;;
+    --trim-until)
+      trim_until="${2:-}"
+      shift 2
+      ;;
+    --trim-since-days)
+      trim_since_days="${2:-}"
+      shift 2
+      ;;
+    --trim-until-days)
+      trim_until_days="${2:-}"
+      shift 2
       ;;
     --prune)
       prune_keep="${2:-}"
@@ -211,8 +235,28 @@ fi
   echo "summary_limit=${summary_limit}"
   echo "stats_limit=${stats_limit}"
   echo "prune_keep=${prune_keep}"
+  echo "trim_since=${trim_since}"
+  echo "trim_until=${trim_until}"
+  echo "trim_since_days=${trim_since_days}"
+  echo "trim_until_days=${trim_until_days}"
   echo ""
   ./scripts/readiness_report.sh "${report_args[@]}"
+  if [[ -n "$trim_since" || -n "$trim_until" || "$trim_since_days" != "-1" || "$trim_until_days" != "-1" ]]; then
+    trim_args=(--index "$index_path")
+    if [[ -n "$trim_since" ]]; then
+      trim_args+=(--since "$trim_since")
+    fi
+    if [[ -n "$trim_until" ]]; then
+      trim_args+=(--until "$trim_until")
+    fi
+    if [[ "$trim_since_days" != "-1" ]]; then
+      trim_args+=(--since-days "$trim_since_days")
+    fi
+    if [[ "$trim_until_days" != "-1" ]]; then
+      trim_args+=(--until-days "$trim_until_days")
+    fi
+    ./scripts/readiness_report_index_trim.py "${trim_args[@]}"
+  fi
   ./scripts/readiness_report_summary.py --index "$index_path" --limit "$summary_limit" \
     --out-md "$summary_md" --out-html "$summary_html"
   ./scripts/readiness_report_index_stats.py --index "$index_path" --limit "$stats_limit" \
