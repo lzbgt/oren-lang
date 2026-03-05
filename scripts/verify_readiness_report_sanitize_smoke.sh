@@ -16,6 +16,12 @@ cat >"$report_in" <<'EOF_MD'
 - logs: /abs/path/to/logs
 - json: /abs/path/to/report.json
 - index: /abs/path/to/index.jsonl
+- status_snapshot_md: /abs/path/to/status_snapshot.md
+- status_snapshot_json: /abs/path/to/status_snapshot.json
+- status_faq_md: /abs/path/to/status_faq.md
+- status_faq_json: /abs/path/to/status_faq.json
+- status_matrix_md: /abs/path/to/status_matrix.md
+- status_matrix_json: /abs/path/to/status_matrix.json
 - git: abcdef (dirty)
 
 ## Environment (OREN_*)
@@ -49,6 +55,9 @@ EOF_JSON
 ./scripts/readiness_report_sanitize.py --report "$report_in" --json "$json_in" --out-md "$report_out" --out-json "$json_out"
 
 rg -n "<redacted>" "$report_out" >/dev/null
+rg -n "status_snapshot_md: <redacted>" "$report_out" >/dev/null
+rg -n "status_faq_md: <redacted>" "$report_out" >/dev/null
+rg -n "status_matrix_md: <redacted>" "$report_out" >/dev/null
 ! rg -n "OREN_FOO" "$report_out" >/dev/null
 ! rg -n "Workspace diff" "$report_out" >/dev/null
 rg -n "<redacted>" "$json_out" >/dev/null

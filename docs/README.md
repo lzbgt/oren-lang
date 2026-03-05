@@ -77,6 +77,7 @@ make verify-readiness-report-index-tags  # smoke for index tags
 make verify-readiness-report-index-audit  # smoke for index audit
 make verify-readiness-report-index-audit-trend  # smoke for audit trend
 make verify-readiness-report-collect  # smoke for report collect
+make verify-readiness-report-collect-list  # smoke for report collect list
 make verify-readiness-report-collect-pack  # smoke for report collect pack
 make verify-readiness-report-sanitize  # smoke for report sanitize
 make verify-readiness-pipeline  # smoke for pipeline

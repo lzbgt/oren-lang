@@ -108,6 +108,10 @@ def sanitize_markdown(lines: List[str], keep_paths: bool, keep_git: bool, keep_e
         if line.startswith("- index: ") and not keep_paths:
             out.append("- index: <redacted>")
             continue
+        if line.startswith("- status_") and not keep_paths and ":" in line:
+            prefix = line.split(":", 1)[0]
+            out.append(f"{prefix}: <redacted>")
+            continue
         if line.strip().startswith("- log: `") and not keep_paths:
             out.append("  - log: `<redacted>`")
             continue

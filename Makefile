@@ -646,6 +646,9 @@ verify-readiness-report-index-audit-trend:
 verify-readiness-report-collect:
 	@./scripts/verify_readiness_report_collect_smoke.sh
 
+verify-readiness-report-collect-list:
+	@./scripts/verify_readiness_report_collect_list_smoke.sh
+
 verify-readiness-report-collect-pack:
 	@./scripts/verify_readiness_report_collect_pack_smoke.sh
 
