@@ -166,6 +166,15 @@ def fmt_timestamp(ts: str) -> str:
         return ts
 
 
+def fmt_path_html(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    if not text:
+        return "-"
+    return f"<code>{html_escape(text)}</code>"
+
+
 def day_key(timestamp: str) -> str:
     if not timestamp:
         return "unknown"
@@ -525,6 +534,7 @@ def main() -> int:
             f"<td>{entry.get('git_rev','-')}</td>"
             f"<td>{entry.get('tag','-')}</td>"
             f"<td><code>{entry.get('report','-')}</code></td>"
+            f"<td>{fmt_path_html(entry.get('status_overview_md'))}</td>"
             "</tr>"
         )
 
@@ -668,6 +678,7 @@ def main() -> int:
         <th>Git</th>
         <th>Tag</th>
         <th>Report</th>
+        <th>Overview</th>
       </tr>
     </thead>
     <tbody>

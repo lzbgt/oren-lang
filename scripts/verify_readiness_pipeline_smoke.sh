@@ -66,11 +66,13 @@ EOF
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
 rg -n "Oren readiness summary" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "truncated" "build/reports/readiness_summary_dry_run.md" >/dev/null
+rg -n "status_overview_" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "Readiness index stats" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
 rg -n "timestamp,profile,overall" "build/reports/readiness_index_dry_run.csv" >/dev/null
 rg -n "Readiness rollup" "build/reports/readiness_rollup_dry_run.md" >/dev/null
 rg -n "Oren readiness dashboard" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "truncated" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "status_overview_" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "OK: readiness index schema validated" "$log_path" >/dev/null
 rg -n "audit_ok: thresholds not exceeded" "$log_path" >/dev/null
 rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary_dry_run.md" >/dev/null

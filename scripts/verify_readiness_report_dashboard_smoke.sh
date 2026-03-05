@@ -10,13 +10,14 @@ audit_samples_json="${work_dir}/audit_samples.json"
 status_faq_json="${work_dir}/status_faq.json"
 status_snapshot_json="${work_dir}/status_snapshot.json"
 status_matrix_json="${work_dir}/status_matrix.json"
+status_overview_md="${work_dir}/status_overview.md"
 
 rm -rf "$work_dir" 2>/dev/null || true
 mkdir -p "$work_dir"
 
 cat >"$index_path" <<'EOF'
 {"timestamp":"20260305_010000","profile":"quick","overall":"PASS","dry_run":false,"total_duration_sec":42,"git_rev":"abcd1234","git_dirty":"clean","report":"build/reports/readiness_report_20260305_010000.md","json":"build/reports/readiness_report_20260305_010000.json","log_dir":"build/logs/readiness_20260305_010000","tag":"nightly"}
-{"timestamp":"20260305_120000","profile":"full","overall":"FAIL","dry_run":false,"total_duration_sec":120,"git_rev":"deadbeef","git_dirty":"dirty","report":"build/reports/readiness_report_20260305_120000.md","json":"build/reports/readiness_report_20260305_120000.json","log_dir":"build/logs/readiness_20260305_120000","tag":"ci"}
+{"timestamp":"20260305_120000","profile":"full","overall":"FAIL","dry_run":false,"total_duration_sec":120,"git_rev":"deadbeef","git_dirty":"dirty","report":"build/reports/readiness_report_20260305_120000.md","json":"build/reports/readiness_report_20260305_120000.json","log_dir":"build/logs/readiness_20260305_120000","tag":"ci","status_overview_md":"build/tmp/readiness_dashboard_smoke/status_overview.md"}
 EOF
 
 cat >"$audit_json" <<'EOF'
@@ -41,6 +42,13 @@ EOF
 
 cat >"$status_matrix_json" <<'EOF'
 {"sections":{"production_readiness_gap":[{"name":"Semantic maturity","notes":"rolling","notes_lines":["rolling"],"raw":"**Semantic maturity**: rolling."},{"name":"Performance parity","notes":"hot loops above target","notes_lines":["hot loops above target"],"raw":"**Performance parity**: hot loops above target."}],"backend_readiness":[{"name":"C backend","notes":"bootstrap path only","notes_lines":["bootstrap path only"],"raw":"**C backend**: bootstrap path only."}],"feature_readiness_gaps":[{"name":"GMP concurrency (native)","notes":"substrate only","notes_lines":["substrate only"],"raw":"**GMP concurrency (native)**: substrate only."}]}}
+EOF
+
+cat >"$status_overview_md" <<'EOF'
+# Status Overview
+
+## Status Snapshot
+- Semantic maturity: rolling
 EOF
 
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
@@ -71,6 +79,7 @@ rg -n "Status Snapshot" "$out_html" >/dev/null
 rg -n "Semantic maturity: rolling" "$out_html" >/dev/null
 rg -n "Status Matrix" "$out_html" >/dev/null
 rg -n "GMP concurrency" "$out_html" >/dev/null
+rg -n "status_overview.md" "$out_html" >/dev/null
 
 out_html_limit="${work_dir}/dashboard_limit.html"
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html_limit" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \

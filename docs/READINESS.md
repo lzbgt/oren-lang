@@ -97,8 +97,10 @@ Index tools:
   when the latest index entry includes their JSON paths.
 - Readiness summary markdown mirrors the latest status FAQ/snapshot/matrix sections
   when the latest index entry includes their JSON paths.
+- Readiness summary tables include `status_overview_md` when present.
 - Use `--no-status-sections` with `readiness_report_summary.py` to disable embedding
   status sections in summary outputs.
+- Dashboard recent runs table includes `status_overview_md` when present.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.

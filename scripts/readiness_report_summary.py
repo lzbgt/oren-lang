@@ -122,6 +122,24 @@ def fmt_timestamp(ts: str) -> str:
         return ts
 
 
+def fmt_path_md(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    if not text:
+        return "-"
+    return f"`{text}`"
+
+
+def fmt_path_html(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    if not text:
+        return "-"
+    return f"<code>{text}</code>"
+
+
 def latest_by(entries: List[Dict[str, Any]], key: str, value: str) -> Optional[Dict[str, Any]]:
     for entry in reversed(entries):
         if entry.get(key) == value:
@@ -151,6 +169,9 @@ def write_markdown(
         f.write(f"- pass rate: {pass_rate} ({passes} pass / {fails} fail)\n")
         if latest:
             f.write(f"- latest: {fmt_timestamp(latest.get('timestamp',''))} ({latest.get('overall','-')})\n")
+            latest_overview = str(latest.get("status_overview_md", "")).strip()
+            if latest_overview:
+                f.write(f"- latest status overview: `{latest_overview}`\n")
         if last_fail:
             f.write(
                 f"- last fail: {fmt_timestamp(last_fail.get('timestamp',''))} "
@@ -162,8 +183,8 @@ def write_markdown(
                 f"(profile={last_pass.get('profile','-')}, git={last_pass.get('git_rev','-')})\n"
             )
         f.write("\n")
-        f.write("| Timestamp | Profile | Overall | Duration | Git | Tag | Report |\n")
-        f.write("| --- | --- | --- | --- | --- | --- | --- |\n")
+        f.write("| Timestamp | Profile | Overall | Duration | Git | Tag | Report | Overview |\n")
+        f.write("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
         for entry in entries:
             f.write(
                 "| "
@@ -176,6 +197,7 @@ def write_markdown(
                         str(entry.get("git_rev", "-")),
                         str(entry.get("tag", "-")),
                         f"`{entry.get('report','-')}`",
+                        fmt_path_md(entry.get("status_overview_md")),
                     ]
                 )
                 + " |\n"
@@ -222,12 +244,17 @@ def write_html(
             f"<td>{entry.get('git_rev','-')}</td>"
             f"<td>{entry.get('tag','-')}</td>"
             f"<td><code>{entry.get('report','-')}</code></td>"
+            f"<td>{fmt_path_html(entry.get('status_overview_md'))}</td>"
             "</tr>"
         )
 
     summary_latest = "-"
+    summary_overview = ""
     if latest:
         summary_latest = f"{fmt_timestamp(latest.get('timestamp',''))} ({latest.get('overall','-')})"
+        latest_overview = str(latest.get("status_overview_md", "")).strip()
+        if latest_overview:
+            summary_overview = f"<div>Latest status overview: <code>{latest_overview}</code></div>"
     status_sections = ""
     if include_status and latest:
         status_faq = read_json(str(latest.get("status_faq_json", "")))
@@ -267,6 +294,7 @@ def write_html(
     <div>Total entries: {total}</div>
     <div>Pass rate: {pass_rate} ({passes} pass / {fails} fail)</div>
     <div>Latest: {summary_latest}</div>
+    {summary_overview}
   </div>
   <table>
     <thead>
@@ -278,6 +306,7 @@ def write_html(
         <th>Git</th>
         <th>Tag</th>
         <th>Report</th>
+        <th>Overview</th>
       </tr>
     </thead>
     <tbody>
