@@ -25,6 +25,7 @@ FIELDS = [
     "status_faq_json",
     "status_matrix_md",
     "status_matrix_json",
+    "status_overview_md",
 ]
 
 

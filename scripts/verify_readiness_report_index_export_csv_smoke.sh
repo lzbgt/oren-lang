@@ -18,6 +18,7 @@ EOF
 rg -n "timestamp,profile,overall" "$out_csv" >/dev/null
 rg -n "status_faq_md" "$out_csv" >/dev/null
 rg -n "status_matrix_md" "$out_csv" >/dev/null
+rg -n "status_overview_md" "$out_csv" >/dev/null
 rg -n "deadbeef" "$out_csv" >/dev/null
 
 echo "OK: readiness index CSV export smoke verified"

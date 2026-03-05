@@ -95,6 +95,7 @@ rg -n "timestamp,profile,tag,overall,missing_any,missing" "build/reports/readine
 rg -n "Profiles" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Tags" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit summary" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "Missing status_overview_md" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit missing" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit trend" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit samples" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
