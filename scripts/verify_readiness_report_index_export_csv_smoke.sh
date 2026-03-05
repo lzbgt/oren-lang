@@ -16,6 +16,7 @@ EOF
 ./scripts/readiness_report_index_export_csv.py --index "$index_path" --out-csv "$out_csv" --limit 0
 
 rg -n "timestamp,profile,overall" "$out_csv" >/dev/null
+rg -n "status_matrix_md" "$out_csv" >/dev/null
 rg -n "deadbeef" "$out_csv" >/dev/null
 
 echo "OK: readiness index CSV export smoke verified"

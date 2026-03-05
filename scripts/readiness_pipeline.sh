@@ -28,6 +28,8 @@ Options:
   --status-path <path>              STATUS.md path for snapshot (default: docs/STATUS.md).
   --no-status-snapshot              Skip status snapshot output.
   --status-diff-against <path>      Diff status snapshot against STATUS.md or snapshot JSON.
+  --no-status-matrix                Skip status matrix output.
+  --status-matrix-diff-against <path> Diff status matrix against STATUS.md or matrix JSON.
   --no-latest-summary               Skip index latest summary output.
   --trend-window <n>                Trend window size for index trend (default: 20).
   --no-trend                        Skip trend output.
@@ -78,6 +80,8 @@ trim_until_days="-1"
 status_path="docs/STATUS.md"
 emit_status_snapshot=1
 status_diff_against=""
+emit_status_matrix=1
+status_matrix_diff_against=""
 emit_latest_summary=1
 trend_window=20
 emit_trend=1
@@ -177,6 +181,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --status-diff-against)
       status_diff_against="${2:-}"
+      shift 2
+      ;;
+    --no-status-matrix)
+      emit_status_matrix=0
+      shift
+      ;;
+    --status-matrix-diff-against)
+      status_matrix_diff_against="${2:-}"
       shift 2
       ;;
     --no-latest-summary)
@@ -303,6 +315,10 @@ status_snapshot_md="build/reports/status_snapshot.md"
 status_snapshot_json="build/reports/status_snapshot.json"
 status_snapshot_diff_md="build/reports/status_snapshot_diff.md"
 status_snapshot_diff_json="build/reports/status_snapshot_diff.json"
+status_matrix_md="build/reports/status_matrix.md"
+status_matrix_json="build/reports/status_matrix.json"
+status_matrix_diff_md="build/reports/status_matrix_diff.md"
+status_matrix_diff_json="build/reports/status_matrix_diff.json"
 latest_md="build/reports/readiness_index_latest.md"
 latest_json="build/reports/readiness_index_latest.json"
 trend_md="build/reports/readiness_index_trend.md"
@@ -329,6 +345,10 @@ if [[ "$dry_run" == "1" ]]; then
   status_snapshot_json="build/reports/status_snapshot_dry_run.json"
   status_snapshot_diff_md="build/reports/status_snapshot_diff_dry_run.md"
   status_snapshot_diff_json="build/reports/status_snapshot_diff_dry_run.json"
+  status_matrix_md="build/reports/status_matrix_dry_run.md"
+  status_matrix_json="build/reports/status_matrix_dry_run.json"
+  status_matrix_diff_md="build/reports/status_matrix_diff_dry_run.md"
+  status_matrix_diff_json="build/reports/status_matrix_diff_dry_run.json"
   latest_md="build/reports/readiness_index_latest_dry_run.md"
   latest_json="build/reports/readiness_index_latest_dry_run.json"
   trend_md="build/reports/readiness_index_trend_dry_run.md"
@@ -350,6 +370,15 @@ if [[ -n "$status_path" ]]; then
 fi
 if [[ -n "$status_diff_against" ]]; then
   emit_status_snapshot=1
+fi
+if [[ -n "$status_matrix_diff_against" ]]; then
+  emit_status_matrix=1
+fi
+if [[ "$emit_status_snapshot" == "1" ]]; then
+  report_args+=(--status-snapshot "build/reports")
+fi
+if [[ "$emit_status_matrix" == "1" ]]; then
+  report_args+=(--status-matrix "build/reports")
 fi
 if [[ "$include_env" == "1" ]]; then
   report_args+=(--include-env)
@@ -378,6 +407,8 @@ fi
   echo "status_path=${status_path}"
   echo "status_snapshot=${emit_status_snapshot}"
   echo "status_diff_against=${status_diff_against}"
+  echo "status_matrix=${emit_status_matrix}"
+  echo "status_matrix_diff_against=${status_matrix_diff_against}"
   echo "latest_summary=${emit_latest_summary}"
   echo "trend_window=${trend_window}"
   echo "trend=${emit_trend}"
@@ -471,6 +502,13 @@ fi
   if [[ -n "$status_diff_against" ]]; then
     ./scripts/status_snapshot_diff.py --left "$status_diff_against" --right "$status_path" \
       --out-md "$status_snapshot_diff_md" --out-json "$status_snapshot_diff_json"
+  fi
+  if [[ "$emit_status_matrix" == "1" ]]; then
+    ./scripts/status_matrix.py --status "$status_path" --out-md "$status_matrix_md" --out-json "$status_matrix_json"
+  fi
+  if [[ -n "$status_matrix_diff_against" ]]; then
+    ./scripts/status_matrix_diff.py --left "$status_matrix_diff_against" --right "$status_path" \
+      --out-md "$status_matrix_diff_md" --out-json "$status_matrix_diff_json"
   fi
   if [[ -n "$diff_against" ]]; then
     ./scripts/readiness_report_index_diff_summary.py --left "$diff_against" --right "$index_path" \

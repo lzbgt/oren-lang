@@ -15,6 +15,7 @@ Options:
   --tag <name>                    Attach a tag to the report (e.g., ci/nightly).
   --status-path <path>            STATUS.md path (default: docs/STATUS.md).
   --status-snapshot [dir]         Write status snapshot md/json (default: build/reports).
+  --status-matrix [dir]           Write status matrix md/json (default: build/reports).
   --update-latest                 Write build/reports/readiness_latest.* (auto on real runs).
   --no-latest                     Skip latest report copies.
   --no-status-snippet             Omit docs/STATUS.md readiness sections.
@@ -47,6 +48,10 @@ status_snapshot_enabled=0
 status_snapshot_dir=""
 status_snapshot_md=""
 status_snapshot_json=""
+status_matrix_enabled=0
+status_matrix_dir=""
+status_matrix_md=""
+status_matrix_json=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -97,6 +102,15 @@ while [[ $# -gt 0 ]]; do
       status_snapshot_enabled=1
       if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
         status_snapshot_dir="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --status-matrix)
+      status_matrix_enabled=1
+      if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
+        status_matrix_dir="$2"
         shift 2
       else
         shift
@@ -180,6 +194,14 @@ if [[ "$status_snapshot_enabled" == "1" ]]; then
   mkdir -p "$status_snapshot_dir"
   status_snapshot_md="${status_snapshot_dir}/status_snapshot_${timestamp}.md"
   status_snapshot_json="${status_snapshot_dir}/status_snapshot_${timestamp}.json"
+fi
+if [[ "$status_matrix_enabled" == "1" ]]; then
+  if [[ -z "$status_matrix_dir" ]]; then
+    status_matrix_dir="$report_dir"
+  fi
+  mkdir -p "$status_matrix_dir"
+  status_matrix_md="${status_matrix_dir}/status_matrix_${timestamp}.md"
+  status_matrix_json="${status_matrix_dir}/status_matrix_${timestamp}.json"
 fi
 
 if [[ "$dry_run" == "1" && "$update_latest_requested" == "0" ]]; then
@@ -373,6 +395,10 @@ fi
     echo "- status_snapshot_md: ${status_snapshot_md}"
     echo "- status_snapshot_json: ${status_snapshot_json}"
   fi
+  if [[ "$status_matrix_enabled" == "1" ]]; then
+    echo "- status_matrix_md: ${status_matrix_md}"
+    echo "- status_matrix_json: ${status_matrix_json}"
+  fi
   echo "- total_duration_sec: ${total_duration}"
   echo "- dry-run: ${dry_run}"
   echo ""
@@ -442,6 +468,9 @@ fi
 if [[ "$status_snapshot_enabled" == "1" ]]; then
   ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"
 fi
+if [[ "$status_matrix_enabled" == "1" ]]; then
+  ./scripts/status_matrix.py --status "$status_path" --out-md "$status_matrix_md" --out-json "$status_matrix_json"
+fi
 
 if [[ -n "$json_path" ]]; then
   readarray -t git_status_lines <<<"$git_status"
@@ -483,6 +512,10 @@ if [[ -n "$json_path" ]]; then
     if [[ "$status_snapshot_enabled" == "1" ]]; then
       echo "    ,\"status_snapshot_md\": \"$(json_escape "$status_snapshot_md")\""
       echo "    ,\"status_snapshot_json\": \"$(json_escape "$status_snapshot_json")\""
+    fi
+    if [[ "$status_matrix_enabled" == "1" ]]; then
+      echo "    ,\"status_matrix_md\": \"$(json_escape "$status_matrix_md")\""
+      echo "    ,\"status_matrix_json\": \"$(json_escape "$status_matrix_json")\""
     fi
     echo "  },"
     if [[ -n "$tag" ]]; then
@@ -549,6 +582,9 @@ if [[ "$index_enabled" == "1" ]]; then
   if [[ "$status_snapshot_enabled" == "1" ]]; then
     idx_json+=",\"status_snapshot_md\":\"$(json_escape "$status_snapshot_md")\",\"status_snapshot_json\":\"$(json_escape "$status_snapshot_json")\""
   fi
+  if [[ "$status_matrix_enabled" == "1" ]]; then
+    idx_json+=",\"status_matrix_md\":\"$(json_escape "$status_matrix_md")\",\"status_matrix_json\":\"$(json_escape "$status_matrix_json")\""
+  fi
   if [[ -n "$tag" ]]; then
     idx_json+=",\"tag\":\"$(json_escape "$tag")\""
   fi
@@ -579,6 +615,10 @@ if [[ "$update_latest" == "1" ]]; then
     if [[ "$status_snapshot_enabled" == "1" ]]; then
       echo "status_snapshot_md=${status_snapshot_md}"
       echo "status_snapshot_json=${status_snapshot_json}"
+    fi
+    if [[ "$status_matrix_enabled" == "1" ]]; then
+      echo "status_matrix_md=${status_matrix_md}"
+      echo "status_matrix_json=${status_matrix_json}"
     fi
     if [[ "$index_enabled" == "1" ]]; then
       echo "index=${index_path}"

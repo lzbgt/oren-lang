@@ -21,6 +21,8 @@ FIELDS = [
     "log_dir",
     "status_snapshot_md",
     "status_snapshot_json",
+    "status_matrix_md",
+    "status_matrix_json",
 ]
 
 

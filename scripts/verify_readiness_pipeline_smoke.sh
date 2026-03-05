@@ -43,7 +43,8 @@ EOF
 
 ./scripts/readiness_pipeline.sh --dry-run --index "$index_path" --tag smoke --summary-limit 5 --stats-limit 5 --log "$log_path" \
   --diff-against "$baseline" --gate-pass-rate 50 --gate-window 1 --trim-since-days 1 \
-  --status-path "$status_path" --status-diff-against "$status_baseline" --audit --audit-allow-missing \
+  --status-path "$status_path" --status-diff-against "$status_baseline" --status-matrix-diff-against "$status_baseline" \
+  --audit --audit-allow-missing \
   --collect 1 --collect-include-dry-run --collect-dir "$work_dir/collect" --collect-pack --collect-pack-out "$work_dir/collect.tar.gz"
 
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
@@ -56,6 +57,8 @@ rg -n "OK: readiness index schema validated" "$log_path" >/dev/null
 rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary_dry_run.md" >/dev/null
 rg -n "Status snapshot" "build/reports/status_snapshot_dry_run.md" >/dev/null
 rg -n "Status snapshot diff" "build/reports/status_snapshot_diff_dry_run.md" >/dev/null
+rg -n "Status readiness matrix" "build/reports/status_matrix_dry_run.md" >/dev/null
+rg -n "Status matrix diff" "build/reports/status_matrix_diff_dry_run.md" >/dev/null
 rg -n "Readiness index latest" "build/reports/readiness_index_latest_dry_run.md" >/dev/null
 rg -n "Readiness index trend" "build/reports/readiness_index_trend_dry_run.md" >/dev/null
 rg -n "Trend window" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
