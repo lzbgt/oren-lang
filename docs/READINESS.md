@@ -116,6 +116,7 @@ Pipeline:
   `--audit-max-status-snapshot-md <n>`, `--audit-max-status-snapshot-json <n>`,
   `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`.
 - Dashboard accepts `--audit-trend-json` to render audit trend rows.
+- Dashboard accepts `--audit-samples-json` to render audit samples (optional).
 - Audit trend view includes missing-by-kind totals when provided.
 - Audit trend view highlights the top missing field when available.
 - Dashboard grid highlights top missing field from audit summary.

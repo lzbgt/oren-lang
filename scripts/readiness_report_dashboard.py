@@ -63,6 +63,17 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Audit trend JSON path (optional)",
     )
+    parser.add_argument(
+        "--audit-samples-json",
+        default="",
+        help="Audit samples JSON path (optional)",
+    )
+    parser.add_argument(
+        "--audit-samples-limit",
+        type=int,
+        default=10,
+        help="Max audit samples to render (default: 10, 0=none)",
+    )
     return parser.parse_args()
 
 
@@ -320,6 +331,37 @@ def render_audit_trend(data: Dict[str, Any]) -> str:
     )
 
 
+def render_audit_samples(data: Dict[str, Any], limit: int) -> str:
+    if not data or limit == 0:
+        return ""
+    samples = data.get("samples", [])
+    if not isinstance(samples, list) or not samples:
+        return (
+            "<h2>Audit samples</h2>\n"
+            "<div class='meta'>No missing samples recorded.</div>"
+        )
+    if limit > 0:
+        samples = samples[:limit]
+    rows = []
+    for sample in samples:
+        missing = sample.get("missing", [])
+        if isinstance(missing, list):
+            missing = ", ".join(missing)
+        rows.append(
+            "<tr>"
+            f"<td>{sample.get('timestamp','-')}</td>"
+            f"<td>{sample.get('profile','-')}</td>"
+            f"<td>{sample.get('tag','-')}</td>"
+            f"<td>{missing}</td>"
+            "</tr>"
+        )
+    return (
+        "<h2>Audit samples</h2>\n"
+        "<table><thead><tr><th>Timestamp</th><th>Profile</th><th>Tag</th><th>Missing</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
 def audit_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     if not data:
         return {}
@@ -383,6 +425,7 @@ def main() -> int:
     tags = read_json(args.tags_json)
     audit = read_json(args.audit_json)
     audit_trend = read_json(args.audit_trend_json)
+    audit_samples = read_json(args.audit_samples_json)
     audit_stats = audit_summary(audit)
     audit_top = audit_top_missing(audit_stats)
 
@@ -516,6 +559,7 @@ def main() -> int:
   {render_tags(tags)}
   {render_audit(audit)}
   {render_audit_trend(audit_trend)}
+  {render_audit_samples(audit_samples, args.audit_samples_limit)}
 </body>
 </html>
 """
