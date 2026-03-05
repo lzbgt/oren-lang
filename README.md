@@ -17,6 +17,7 @@ make            # stage1 self-hosted compiler
 make test       # fast native smoke
 make readiness-report  # quick readiness snapshot (build/reports)
 make readiness-report-json  # readiness snapshot + JSON summary
+make readiness-report-index  # append JSONL summary for automation
 ```
 
 Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are

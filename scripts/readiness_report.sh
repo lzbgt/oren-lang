@@ -11,6 +11,10 @@ Options:
   --full                          Alias for --profile full.
   --out <path>                    Write the report markdown to <path>.
   --json [path]                   Write a JSON summary (default path if omitted).
+  --index [path]                  Append a JSONL summary (default path if omitted).
+  --tag <name>                    Attach a tag to the report (e.g., ci/nightly).
+  --update-latest                 Write build/reports/readiness_latest.* (auto on real runs).
+  --no-latest                     Skip latest report copies.
   --no-status-snippet             Omit docs/STATUS.md readiness sections.
   --include-env                   Include OREN_* environment variables in the report.
   --keep-going                    Run all steps even if one fails.
@@ -27,6 +31,11 @@ EOF
 profile="quick"
 out_path=""
 json_path=""
+index_path=""
+index_enabled=0
+tag=""
+update_latest=1
+update_latest_requested=0
 include_status=1
 include_env=0
 keep_going=0
@@ -58,6 +67,29 @@ while [[ $# -gt 0 ]]; do
         json_path="auto"
         shift
       fi
+      ;;
+    --index)
+      index_enabled=1
+      if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
+        index_path="$2"
+        shift 2
+      else
+        index_path="auto"
+        shift
+      fi
+      ;;
+    --tag)
+      tag="${2:-}"
+      shift 2
+      ;;
+    --update-latest)
+      update_latest=1
+      update_latest_requested=1
+      shift
+      ;;
+    --no-latest)
+      update_latest=0
+      shift
       ;;
     --no-status-snippet)
       include_status=0
@@ -111,6 +143,18 @@ if [[ -n "$json_path" ]]; then
   else
     mkdir -p "$(dirname "$json_path")"
   fi
+fi
+
+if [[ "$index_enabled" == "1" ]]; then
+  if [[ -z "$index_path" || "$index_path" == "auto" ]]; then
+    index_path="${report_dir}/readiness_index.jsonl"
+  else
+    mkdir -p "$(dirname "$index_path")"
+  fi
+fi
+
+if [[ "$dry_run" == "1" && "$update_latest_requested" == "0" ]]; then
+  update_latest=0
 fi
 
 git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
@@ -242,6 +286,13 @@ if [[ "$had_failure" == "1" ]]; then
   overall="FAIL"
 fi
 
+total_duration=0
+for d in "${step_durations[@]}"; do
+  if [[ -n "$d" ]]; then
+    total_duration=$((total_duration + d))
+  fi
+done
+
 status_backend=""
 status_feature=""
 if [[ "$include_status" == "1" ]]; then
@@ -268,12 +319,19 @@ fi
   echo ""
   echo "- timestamp: ${timestamp}"
   echo "- profile: ${profile}"
+  if [[ -n "$tag" ]]; then
+    echo "- tag: ${tag}"
+  fi
   echo "- host: ${uname_s} ${uname_m}"
   echo "- git: ${git_rev} (${git_dirty})"
   echo "- logs: ${log_dir}"
   if [[ -n "$json_path" ]]; then
     echo "- json: ${json_path}"
   fi
+  if [[ "$index_enabled" == "1" ]]; then
+    echo "- index: ${index_path}"
+  fi
+  echo "- total_duration_sec: ${total_duration}"
   echo "- dry-run: ${dry_run}"
   echo ""
   echo "## Summary"
@@ -369,13 +427,20 @@ if [[ -n "$json_path" ]]; then
     echo "    \"report\": \"$(json_escape "$out_path")\","
     echo "    \"logs\": \"$(json_escape "$log_dir")\","
     echo "    \"json\": \"$(json_escape "$json_path")\""
+    if [[ "$index_enabled" == "1" ]]; then
+      echo "    ,\"index\": \"$(json_escape "$index_path")\""
+    fi
     echo "  },"
+    if [[ -n "$tag" ]]; then
+      echo "  \"tag\": \"$(json_escape "$tag")\","
+    fi
     if [[ "$dry_run" == "1" ]]; then
       echo "  \"dry_run\": true,"
     else
       echo "  \"dry_run\": false,"
     fi
     echo "  \"overall\": \"$(json_escape "$overall")\","
+    echo "  \"total_duration_sec\": ${total_duration},"
     echo "  \"steps\": ["
     for i in "${!step_names[@]}"; do
       name="${step_names[$i]}"
@@ -418,10 +483,55 @@ if [[ -n "$json_path" ]]; then
   } >"$json_path"
 fi
 
+if [[ "$index_enabled" == "1" ]]; then
+  idx_json="{\"timestamp\":\"$(json_escape "$timestamp")\",\"profile\":\"$(json_escape "$profile")\",\"overall\":\"$(json_escape "$overall")\",\"dry_run\":"
+  if [[ "$dry_run" == "1" ]]; then
+    idx_json+="true"
+  else
+    idx_json+="false"
+  fi
+  idx_json+=",\"total_duration_sec\":${total_duration},\"git_rev\":\"$(json_escape "$git_rev")\",\"git_dirty\":\"$(json_escape "$git_dirty")\",\"report\":\"$(json_escape "$out_path")\",\"json\":\"$(json_escape "$json_path")\",\"log_dir\":\"$(json_escape "$log_dir")\""
+  if [[ -n "$tag" ]]; then
+    idx_json+=",\"tag\":\"$(json_escape "$tag")\""
+  fi
+  idx_json+="}"
+  echo "$idx_json" >>"$index_path"
+fi
+
+if [[ "$update_latest" == "1" ]]; then
+  latest_md="${report_dir}/readiness_latest.md"
+  cp -f "$out_path" "$latest_md"
+  if [[ -n "$json_path" ]]; then
+    latest_json="${report_dir}/readiness_latest.json"
+    cp -f "$json_path" "$latest_json"
+  fi
+  {
+    echo "timestamp=${timestamp}"
+    echo "profile=${profile}"
+    if [[ -n "$tag" ]]; then
+      echo "tag=${tag}"
+    fi
+    echo "overall=${overall}"
+    echo "dry_run=${dry_run}"
+    echo "total_duration_sec=${total_duration}"
+    echo "report=${out_path}"
+    if [[ -n "$json_path" ]]; then
+      echo "json=${json_path}"
+    fi
+    if [[ "$index_enabled" == "1" ]]; then
+      echo "index=${index_path}"
+    fi
+    echo "log_dir=${log_dir}"
+  } >"${report_dir}/readiness_latest.meta"
+fi
+
 echo "== readiness report =="
 echo "report: ${out_path}"
 if [[ -n "$json_path" ]]; then
   echo "json: ${json_path}"
+fi
+if [[ "$index_enabled" == "1" ]]; then
+  echo "index: ${index_path}"
 fi
 echo "overall: ${overall}"
 

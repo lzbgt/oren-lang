@@ -37,6 +37,7 @@ make verify-runtime-robustness  # W5 runtime robustness smoke (stage2 + C-backen
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make readiness-report  # generates build/reports/readiness_report_*.md
 make readiness-report-json  # readiness report + JSON summary
+make readiness-report-index  # append JSONL summary to build/reports/readiness_index.jsonl
 make verify-readiness-report  # dry-run smoke for readiness report script
 
 # Optional knobs for runtime robustness:
@@ -57,9 +58,17 @@ Readiness report flags (optional):
 
 ```bash
 ./scripts/readiness_report.sh --json
+./scripts/readiness_report.sh --index
+./scripts/readiness_report.sh --tag nightly
 ./scripts/readiness_report.sh --no-status-snippet
 ./scripts/readiness_report.sh --include-env
 ```
+
+Latest report pointers (written on real runs):
+
+- `build/reports/readiness_latest.md`
+- `build/reports/readiness_latest.json`
+- `build/reports/readiness_latest.meta`
 
 Build and run a hello binary (C backend by default):
 
