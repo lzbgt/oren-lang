@@ -29,6 +29,7 @@ cat >"$right_status" <<'DATA'
 ## Production readiness gap
 - **Semantic maturity**: rolling.
 - **Performance parity**: hot loops above target.
+  detail line
 
 ### Backend readiness
 - **C backend**: bootstrap path only.
@@ -43,6 +44,7 @@ DATA
 rg -n "Status matrix diff" "$out_md" >/dev/null
 rg -n "Production readiness gap" "$out_md" >/dev/null
 rg -n "Performance parity" "$out_md" >/dev/null
+rg -n "detail line" "$out_md" >/dev/null
 rg -n "\"added\"" "$out_json" >/dev/null
 rg -n "Compiler-in-AVM" "$out_json" >/dev/null
 

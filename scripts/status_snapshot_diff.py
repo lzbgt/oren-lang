@@ -4,8 +4,9 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
+from status_item_format import format_multiline_item, items_from_section
 from status_snapshot_lib import SECTION_MATCHES, snapshot_from_status
 
 
@@ -34,7 +35,7 @@ def ensure_parent_dir(path: str) -> None:
         os.makedirs(dir_name, exist_ok=True)
 
 
-def load_snapshot_json(path: str) -> Dict[str, Dict[str, List[str]]]:
+def load_snapshot_json(path: str) -> Dict[str, Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
         payload = json.load(f)
     if not isinstance(payload, dict):
@@ -44,7 +45,7 @@ def load_snapshot_json(path: str) -> Dict[str, Dict[str, List[str]]]:
     return payload  # allow raw sections dict
 
 
-def load_sections(path: str) -> Dict[str, Dict[str, List[str]]]:
+def load_sections(path: str) -> Dict[str, Dict[str, Any]]:
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     if path.endswith(".json"):
@@ -67,13 +68,13 @@ def diff_items(left_items: List[str], right_items: List[str]) -> Tuple[List[str]
     return added, removed
 
 
-def build_diff(left: Dict[str, Dict[str, List[str]]], right: Dict[str, Dict[str, List[str]]]) -> Dict[str, Dict[str, List[str]]]:
-    diff: Dict[str, Dict[str, List[str]]] = {}
+def build_diff(left: Dict[str, Dict[str, Any]], right: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    diff: Dict[str, Dict[str, Any]] = {}
     for key in SECTION_MATCHES.keys():
         left_section = left.get(key, {})
         right_section = right.get(key, {})
-        left_items = list(left_section.get("items", []))
-        right_items = list(right_section.get("items", []))
+        left_items = items_from_section(left_section)
+        right_items = items_from_section(right_section)
         added, removed = diff_items(left_items, right_items)
         diff[key] = {
             "title": right_section.get("title") or left_section.get("title") or key,
@@ -85,7 +86,7 @@ def build_diff(left: Dict[str, Dict[str, List[str]]], right: Dict[str, Dict[str,
     return diff
 
 
-def write_markdown(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, List[str]]]) -> None:
+def write_markdown(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, Any]]) -> None:
     ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         f.write("# Status snapshot diff\n\n")
@@ -101,19 +102,21 @@ def write_markdown(path: str, left_path: str, right_path: str, diff: Dict[str, D
             f.write("Added:\n\n")
             if added:
                 for item in added:
-                    f.write(f"- {item}\n")
+                    for line in format_multiline_item(item):
+                        f.write(f"{line}\n")
             else:
                 f.write("- (none)\n")
             f.write("\nRemoved:\n\n")
             if removed:
                 for item in removed:
-                    f.write(f"- {item}\n")
+                    for line in format_multiline_item(item):
+                        f.write(f"{line}\n")
             else:
                 f.write("- (none)\n")
             f.write("\n")
 
 
-def write_json(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, List[str]]]) -> None:
+def write_json(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, Any]]) -> None:
     ensure_parent_dir(path)
     payload = {
         "left": left_path,

@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from status_matrix_lib import matrix_from_sections
 from status_snapshot_lib import snapshot_from_status
@@ -66,7 +66,7 @@ def write_table(
 def write_markdown(
     path: str,
     status_path: str,
-    sections: Dict[str, Dict[str, List[str]]],
+    sections: Dict[str, Dict[str, Any]],
 ) -> None:
     ensure_parent_dir(path)
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -101,7 +101,7 @@ def write_markdown(
 def write_json(
     path: str,
     status_path: str,
-    sections: Dict[str, Dict[str, List[str]]],
+    sections: Dict[str, Dict[str, Any]],
 ) -> None:
     ensure_parent_dir(path)
     out = {

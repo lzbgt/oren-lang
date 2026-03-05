@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 
 SECTION_MATCHES = {
@@ -58,16 +58,43 @@ def collect_section(lines: List[str], header_match: str) -> Tuple[str, List[str]
     return current_title, items
 
 
-def snapshot_from_lines(lines: List[str]) -> Dict[str, Dict[str, List[str]]]:
-    payload: Dict[str, Dict[str, List[str]]] = {}
+def item_lines(item: str) -> List[str]:
+    return item.splitlines() if item else []
+
+
+def structured_item(item: str) -> Dict[str, Any]:
+    lines = item_lines(item)
+    head = lines[0].strip() if lines else ""
+    continuations = [line.rstrip() for line in lines[1:]]
+    continuations_stripped = [line.strip() for line in continuations]
+    has_nested_bullets = any(
+        line.strip().startswith("- ") for line in continuations if line.strip()
+    )
+    return {
+        "raw": item,
+        "lines": lines,
+        "head": head,
+        "continuations": continuations,
+        "continuations_stripped": continuations_stripped,
+        "has_nested_bullets": has_nested_bullets,
+    }
+
+
+def structured_items(items: List[str]) -> List[Dict[str, Any]]:
+    return [structured_item(item) for item in items]
+
+
+def snapshot_from_lines(lines: List[str]) -> Dict[str, Dict[str, Any]]:
+    payload: Dict[str, Dict[str, Any]] = {}
     for key, match in SECTION_MATCHES.items():
         title, items = collect_section(lines, match)
         payload[key] = {
             "title": title or match,
             "items": items,
+            "items_structured": structured_items(items),
         }
     return payload
 
 
-def snapshot_from_status(path: str) -> Dict[str, Dict[str, List[str]]]:
+def snapshot_from_status(path: str) -> Dict[str, Dict[str, Any]]:
     return snapshot_from_lines(load_lines(path))

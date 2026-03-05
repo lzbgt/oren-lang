@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
+from status_item_format import format_multiline_item, items_from_section
 from status_faq import build_questions
 from status_snapshot_lib import snapshot_from_status
 
@@ -111,8 +112,8 @@ def build_diff(
     for key in ordered_keys:
         left_entry = left_map.get(key, {})
         right_entry = right_map.get(key, {})
-        left_items = list(left_entry.get("items", []) or [])
-        right_items = list(right_entry.get("items", []) or [])
+        left_items = items_from_section(left_entry)
+        right_items = items_from_section(right_entry)
         added, removed = diff_items(left_items, right_items)
         diff.append(
             {
@@ -144,14 +145,16 @@ def write_markdown(path: str, left_path: str, right_path: str, diff: List[Dict[s
             added = entry.get("added", [])
             if added:
                 for item in added:
-                    f.write(f"- {item}\n")
+                    for line in format_multiline_item(item):
+                        f.write(f"{line}\n")
             else:
                 f.write("- (none)\n")
             f.write("\nRemoved:\n\n")
             removed = entry.get("removed", [])
             if removed:
                 for item in removed:
-                    f.write(f"- {item}\n")
+                    for line in format_multiline_item(item):
+                        f.write(f"{line}\n")
             else:
                 f.write("- (none)\n")
             f.write("\n")

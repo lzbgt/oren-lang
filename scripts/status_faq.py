@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 from typing import Any, Dict, List
 
-from status_snapshot_lib import snapshot_from_status
+from status_snapshot_lib import snapshot_from_status, structured_items
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,34 +37,45 @@ def ensure_parent_dir(path: str) -> None:
         os.makedirs(dir_name, exist_ok=True)
 
 
-def build_questions(payload: Dict[str, Dict[str, List[str]]]) -> List[Dict[str, Any]]:
+def build_questions(payload: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [
         {
             "question": "Are the backends production-ready?",
             "section_key": "backend_readiness",
             "items": section_items(payload, "backend_readiness"),
+            "items_structured": section_items_structured(payload, "backend_readiness"),
         },
         {
             "question": "Which feature readiness gaps are still open?",
             "section_key": "feature_readiness_gaps",
             "items": section_items(payload, "feature_readiness_gaps"),
+            "items_structured": section_items_structured(payload, "feature_readiness_gaps"),
         },
         {
             "question": "What are the current production readiness gaps?",
             "section_key": "production_readiness_gap",
             "items": section_items(payload, "production_readiness_gap"),
+            "items_structured": section_items_structured(payload, "production_readiness_gap"),
         },
     ]
 
 
-def section_items(payload: Dict[str, Dict[str, List[str]]], key: str) -> List[str]:
+def section_items(payload: Dict[str, Dict[str, Any]], key: str) -> List[str]:
     section = payload.get(key, {})
     items = section.get("items", [])
     return list(items) if isinstance(items, list) else []
 
 
+def section_items_structured(payload: Dict[str, Dict[str, Any]], key: str) -> List[Dict[str, Any]]:
+    section = payload.get(key, {})
+    items = section.get("items", [])
+    if not isinstance(items, list):
+        return []
+    return structured_items(items)
+
+
 def write_markdown(
-    path: str, status_path: str, payload: Dict[str, Dict[str, List[str]]]
+    path: str, status_path: str, payload: Dict[str, Dict[str, Any]]
 ) -> None:
     ensure_parent_dir(path)
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -103,7 +114,7 @@ def write_markdown(
 
 
 def write_json(
-    path: str, status_path: str, payload: Dict[str, Dict[str, List[str]]]
+    path: str, status_path: str, payload: Dict[str, Dict[str, Any]]
 ) -> None:
     ensure_parent_dir(path)
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

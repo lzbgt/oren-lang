@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from status_snapshot_lib import snapshot_from_status
 
@@ -37,7 +37,7 @@ def ensure_parent_dir(path: str) -> None:
         os.makedirs(dir_name, exist_ok=True)
 
 
-def write_markdown(path: str, status_path: str, payload: Dict[str, Dict[str, List[str]]]) -> None:
+def write_markdown(path: str, status_path: str, payload: Dict[str, Dict[str, Any]]) -> None:
     ensure_parent_dir(path)
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(path, "w", encoding="utf-8") as f:
@@ -57,7 +57,7 @@ def write_markdown(path: str, status_path: str, payload: Dict[str, Dict[str, Lis
             f.write("\n")
 
 
-def write_json(path: str, status_path: str, payload: Dict[str, Dict[str, List[str]]]) -> None:
+def write_json(path: str, status_path: str, payload: Dict[str, Dict[str, Any]]) -> None:
     ensure_parent_dir(path)
     out = {
         "source": status_path,

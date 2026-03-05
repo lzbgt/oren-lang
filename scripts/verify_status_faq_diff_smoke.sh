@@ -29,6 +29,7 @@ cat >"$right_status" <<'EOF'
 
 ### Feature readiness gaps (requested)
 - feature two
+  detail two
 EOF
 
 ./scripts/status_faq_diff.py --left "$left_status" --right "$right_status" --out-md "$out_md" --out-json "$out_json"
@@ -36,6 +37,7 @@ EOF
 rg -n "Status FAQ diff" "$out_md" >/dev/null
 rg -n "backend two" "$out_md" >/dev/null
 rg -n "feature one" "$out_md" >/dev/null
+rg -n "detail two" "$out_md" >/dev/null
 rg -n "\"questions\"" "$out_json" >/dev/null
 
 echo "OK: status FAQ diff smoke verified"

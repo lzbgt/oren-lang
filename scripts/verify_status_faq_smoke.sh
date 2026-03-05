@@ -37,5 +37,6 @@ rg -n "gap one" "$out_md" >/dev/null
 rg -n "\"question\"" "$out_json" >/dev/null
 rg -n "\"backend_readiness\"" "$out_json" >/dev/null
 rg -n "feature detail" "$out_json" >/dev/null
+rg -n "\"items_structured\"" "$out_json" >/dev/null
 
 echo "OK: status faq smoke verified"

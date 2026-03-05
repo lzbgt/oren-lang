@@ -38,5 +38,7 @@ rg -n "\"backend_readiness\"" "$out_json" >/dev/null
 rg -n "\"name\": \"C backend\"" "$out_json" >/dev/null
 rg -n "\"name\": \"item-2\"" "$out_json" >/dev/null
 rg -n "continuation detail" "$out_json" >/dev/null
+rg -n "\"notes_lines\"" "$out_json" >/dev/null
+rg -n "\"raw_lines\"" "$out_json" >/dev/null
 
 echo "OK: status matrix smoke verified"

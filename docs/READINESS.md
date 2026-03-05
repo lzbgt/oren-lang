@@ -104,6 +104,9 @@ Index tools:
 - `make status-faq` — generate a readiness FAQ from STATUS.md.
 - `make status-faq-diff` — diff readiness FAQ outputs or STATUS.md snapshots.
 - `make verify-status-faq` — smoke test for the status FAQ generator.
+- STATUS snapshot/FAQ JSON includes `items_structured` with `raw`, `lines`, `head`,
+  `continuations`, `continuations_stripped`, and `has_nested_bullets`.
+- STATUS matrix JSON rows include `raw_lines` and `notes_lines` arrays.
 
 Trim examples:
 

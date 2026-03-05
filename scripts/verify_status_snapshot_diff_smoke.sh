@@ -16,6 +16,7 @@ cat >"$left_status" <<'DATA'
 ## Production readiness gap (rolling snapshot)
 - item one
 - item two
+  continuation line
 
 ### Backend readiness (rolling snapshot)
 - backend one
@@ -30,6 +31,7 @@ cat >"$right_status" <<'DATA'
 ## Production readiness gap (rolling snapshot)
 - item two
 - item three
+  detail three
 
 ### Backend readiness (rolling snapshot)
 - backend one
@@ -43,7 +45,9 @@ DATA
 
 rg -n "Status snapshot diff" "$out_md" >/dev/null
 rg -n "item three" "$out_md" >/dev/null
+rg -n "detail three" "$out_md" >/dev/null
 rg -n "item one" "$out_md" >/dev/null
+rg -n "continuation line" "$out_md" >/dev/null
 rg -n "backend two" "$out_md" >/dev/null
 rg -n "feature two" "$out_md" >/dev/null
 rg -n "production_readiness_gap" "$out_json" >/dev/null

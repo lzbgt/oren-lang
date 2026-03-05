@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from status_snapshot_lib import snapshot_from_status
 
@@ -23,7 +23,7 @@ LABEL_PATTERNS = (
 )
 
 
-def parse_item(item: str, index: int) -> Dict[str, str]:
+def parse_item(item: str, index: int) -> Dict[str, Any]:
     if not item:
         return {
             "name": f"item-{index}",
@@ -43,32 +43,36 @@ def parse_item(item: str, index: int) -> Dict[str, str]:
             return {
                 "name": match.group(1).strip(),
                 "notes": notes,
+                "notes_lines": notes.splitlines() if notes else [],
+                "raw_lines": item.splitlines() if item else [],
                 "raw": item,
             }
     return {
         "name": f"item-{index}",
         "notes": f"{head}\n{tail}".rstrip(),
+        "notes_lines": [line for line in (f"{head}\n{tail}".rstrip()).splitlines() if line],
+        "raw_lines": item.splitlines() if item else [],
         "raw": item,
     }
 
 
-def rows_from_items(items: List[str]) -> List[Dict[str, str]]:
+def rows_from_items(items: List[str]) -> List[Dict[str, Any]]:
     return [parse_item(item, idx) for idx, item in enumerate(items, start=1)]
 
 
-def matrix_from_sections(sections: Dict[str, Dict[str, List[str]]]) -> Dict[str, List[Dict[str, str]]]:
-    matrix: Dict[str, List[Dict[str, str]]] = {}
+def matrix_from_sections(sections: Dict[str, Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    matrix: Dict[str, List[Dict[str, Any]]] = {}
     for key in SECTION_ORDER:
         matrix[key] = rows_from_items(sections.get(key, {}).get("items", []))
     return matrix
 
 
-def matrix_from_status(path: str) -> Dict[str, List[Dict[str, str]]]:
+def matrix_from_status(path: str) -> Dict[str, List[Dict[str, Any]]]:
     sections = snapshot_from_status(path)
     return matrix_from_sections(sections)
 
 
-def row_identity(row: Dict[str, str]) -> str:
+def row_identity(row: Dict[str, Any]) -> str:
     raw = row.get("raw")
     if raw:
         return raw

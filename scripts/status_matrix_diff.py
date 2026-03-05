@@ -4,8 +4,9 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
+from status_item_format import format_multiline_item
 from status_matrix_lib import SECTION_ORDER, SECTION_TITLES, matrix_from_status, row_identity
 
 
@@ -34,7 +35,7 @@ def ensure_parent_dir(path: str) -> None:
         os.makedirs(dir_name, exist_ok=True)
 
 
-def load_matrix_json(path: str) -> Dict[str, List[Dict[str, str]]]:
+def load_matrix_json(path: str) -> Dict[str, List[Dict[str, Any]]]:
     with open(path, "r", encoding="utf-8") as f:
         payload = json.load(f)
     if not isinstance(payload, dict):
@@ -44,7 +45,7 @@ def load_matrix_json(path: str) -> Dict[str, List[Dict[str, str]]]:
     return payload
 
 
-def load_matrix(path: str) -> Dict[str, List[Dict[str, str]]]:
+def load_matrix(path: str) -> Dict[str, List[Dict[str, Any]]]:
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     if path.endswith(".json"):
@@ -59,7 +60,7 @@ def load_matrix(path: str) -> Dict[str, List[Dict[str, str]]]:
     return matrix_from_status(path)
 
 
-def diff_rows(left_rows: List[Dict[str, str]], right_rows: List[Dict[str, str]]) -> Dict[str, List[str]]:
+def diff_rows(left_rows: List[Dict[str, Any]], right_rows: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     left_ids = [row_identity(row) for row in left_rows]
     right_ids = [row_identity(row) for row in right_rows]
     left_set = set(left_ids)
@@ -75,10 +76,10 @@ def diff_rows(left_rows: List[Dict[str, str]], right_rows: List[Dict[str, str]])
 
 
 def build_diff(
-    left: Dict[str, List[Dict[str, str]]],
-    right: Dict[str, List[Dict[str, str]]],
-) -> Dict[str, Dict[str, List[str]]]:
-    diff: Dict[str, Dict[str, List[str]]] = {}
+    left: Dict[str, List[Dict[str, Any]]],
+    right: Dict[str, List[Dict[str, Any]]],
+) -> Dict[str, Dict[str, Any]]:
+    diff: Dict[str, Dict[str, Any]] = {}
     for key in SECTION_ORDER:
         left_rows = list(left.get(key, []))
         right_rows = list(right.get(key, []))
@@ -88,7 +89,7 @@ def build_diff(
     return diff
 
 
-def write_markdown(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, List[str]]]) -> None:
+def write_markdown(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, Any]]) -> None:
     ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         f.write("# Status matrix diff\n\n")
@@ -105,19 +106,21 @@ def write_markdown(path: str, left_path: str, right_path: str, diff: Dict[str, D
             f.write("Added:\n\n")
             if added:
                 for item in added:
-                    f.write(f"- {item}\n")
+                    for line in format_multiline_item(item):
+                        f.write(f"{line}\n")
             else:
                 f.write("- (none)\n")
             f.write("\nRemoved:\n\n")
             if removed:
                 for item in removed:
-                    f.write(f"- {item}\n")
+                    for line in format_multiline_item(item):
+                        f.write(f"{line}\n")
             else:
                 f.write("- (none)\n")
             f.write("\n")
 
 
-def write_json(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, List[str]]]) -> None:
+def write_json(path: str, left_path: str, right_path: str, diff: Dict[str, Dict[str, Any]]) -> None:
     ensure_parent_dir(path)
     payload = {
         "left": left_path,
