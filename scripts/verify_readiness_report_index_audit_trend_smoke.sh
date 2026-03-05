@@ -27,6 +27,7 @@ EOF_INDEX
 rg -n "Readiness index audit trend" "$out_md" >/dev/null
 rg -n "missing_any" "$out_md" >/dev/null
 rg -n "status_faq_md" "$out_md" >/dev/null
+rg -n "status_overview_md" "$out_md" >/dev/null
 rg -n "\"missing_any\"" "$out_json" >/dev/null
 rg -n "\"missing_by_kind\"" "$out_json" >/dev/null
 rg -n "timestamp,profile,tag,overall,missing_any,missing" "$out_csv" >/dev/null

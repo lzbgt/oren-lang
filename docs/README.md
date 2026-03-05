@@ -114,6 +114,8 @@ Readiness report flags (optional):
 ./scripts/readiness_report.sh --no-status-snippet
 ./scripts/readiness_report.sh --status-snapshot
 ./scripts/readiness_report.sh --status-faq
+./scripts/readiness_report.sh --status-matrix
+./scripts/readiness_report.sh --status-markdown
 ./scripts/readiness_report.sh --status-path docs/STATUS.md
 ./scripts/readiness_report.sh --include-env
 ```

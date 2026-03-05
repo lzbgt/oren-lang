@@ -53,11 +53,13 @@ EOF
   --status-max-items 1 \
   --audit --audit-allow-missing --audit-max-report 99 --audit-max-json 99 --audit-max-log-dir 99 \
   --audit-max-status-snapshot-md 99 --audit-max-status-snapshot-json 99 --audit-max-status-matrix-md 99 --audit-max-status-matrix-json 99 \
+  --audit-max-status-overview-md 99 \
   --audit-warn-missing 99 \
   --audit-trend-window 5 --audit-trend-max-missing 99 \
   --audit-trend-max-report 99 --audit-trend-max-json 99 --audit-trend-max-log-dir 99 \
   --audit-trend-max-status-snapshot-md 99 --audit-trend-max-status-snapshot-json 99 \
   --audit-trend-max-status-matrix-md 99 --audit-trend-max-status-matrix-json 99 \
+  --audit-trend-max-status-overview-md 99 \
   --audit-trend-warn-missing 99 \
   --collect 1 --collect-include-dry-run --collect-dir "$work_dir/collect" --collect-pack --collect-pack-out "$work_dir/collect.tar.gz"
 
@@ -75,6 +77,7 @@ rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary
 rg -n "metric,left,right,delta" "build/reports/readiness_index_diff_summary_dry_run.csv" >/dev/null
 rg -n "Status snapshot" "build/reports/status_snapshot_dry_run.md" >/dev/null
 rg -n "Status FAQ" "build/reports/status_faq_dry_run.md" >/dev/null
+rg -n "Status Overview" "build/reports/status_overview_dry_run.md" >/dev/null
 rg -n "Status snapshot diff" "build/reports/status_snapshot_diff_dry_run.md" >/dev/null
 rg -n "Status readiness matrix" "build/reports/status_matrix_dry_run.md" >/dev/null
 rg -n "Status matrix diff" "build/reports/status_matrix_diff_dry_run.md" >/dev/null
@@ -84,7 +87,7 @@ rg -n "Trend window" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness index profiles" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
 rg -n "Readiness index tags" "build/reports/readiness_index_tags_dry_run.md" >/dev/null
 rg -n "Readiness index audit" "build/reports/readiness_index_audit_dry_run.md" >/dev/null
-rg -n "checked,missing_any,missing_report,missing_json,missing_log_dir" "build/reports/readiness_index_audit_dry_run.csv" >/dev/null
+rg -n "missing_status_overview_md" "build/reports/readiness_index_audit_dry_run.csv" >/dev/null
 rg -n "timestamp,profile,tag,missing,report,json,log_dir" "build/reports/readiness_index_audit_samples_dry_run.csv" >/dev/null
 rg -n "Readiness index audit trend" "build/reports/readiness_index_audit_trend_dry_run.md" >/dev/null
 rg -n "timestamp,profile,tag,overall,missing_any,missing" "build/reports/readiness_index_audit_trend_dry_run.csv" >/dev/null

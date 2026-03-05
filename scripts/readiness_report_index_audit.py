@@ -102,6 +102,12 @@ def parse_args() -> argparse.Namespace:
         help="Fail if missing status_matrix_json exceeds this count (disabled if <0)",
     )
     parser.add_argument(
+        "--max-missing-status-overview-md",
+        type=int,
+        default=-1,
+        help="Fail if missing status_overview_md exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
         "--include-dry-run",
         action="store_true",
         help="Include dry_run entries in audit (default: skip)",
@@ -155,6 +161,7 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
     missing_status_faq_json = 0
     missing_status_matrix_md = 0
     missing_status_matrix_json = 0
+    missing_status_overview_md = 0
     missing_any = 0
     samples: List[Dict[str, Any]] = []
     checked = 0
@@ -172,6 +179,7 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
         status_faq_json = str(entry.get("status_faq_json", ""))
         status_matrix_md = str(entry.get("status_matrix_md", ""))
         status_matrix_json = str(entry.get("status_matrix_json", ""))
+        status_overview_md = str(entry.get("status_overview_md", ""))
         report_ok = file_exists(report_path)
         json_ok = file_exists(json_path)
         log_ok = file_exists(log_dir)
@@ -181,6 +189,7 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
         status_faq_json_ok = not status_faq_json or file_exists(status_faq_json)
         status_matrix_md_ok = not status_matrix_md or file_exists(status_matrix_md)
         status_matrix_json_ok = not status_matrix_json or file_exists(status_matrix_json)
+        status_overview_md_ok = not status_overview_md or file_exists(status_overview_md)
         missing = []
         if not report_ok:
             missing_report += 1
@@ -209,6 +218,9 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
         if not status_matrix_json_ok:
             missing_status_matrix_json += 1
             missing.append("status_matrix_json")
+        if not status_overview_md_ok:
+            missing_status_overview_md += 1
+            missing.append("status_overview_md")
         if missing:
             missing_any += 1
             if len(samples) < sample:
@@ -227,6 +239,7 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
                         "status_faq_json": status_faq_json,
                         "status_matrix_md": status_matrix_md,
                         "status_matrix_json": status_matrix_json,
+                        "status_overview_md": status_overview_md,
                     }
                 )
 
@@ -241,6 +254,7 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
         "missing_status_faq_json": missing_status_faq_json,
         "missing_status_matrix_md": missing_status_matrix_md,
         "missing_status_matrix_json": missing_status_matrix_json,
+        "missing_status_overview_md": missing_status_overview_md,
         "missing_any": missing_any,
         "samples": samples,
     }
@@ -260,6 +274,7 @@ def write_markdown(path: str, summary: Dict[str, Any]) -> None:
         f.write(f"- missing status_faq_json: {summary['missing_status_faq_json']}\n")
         f.write(f"- missing status_matrix_md: {summary['missing_status_matrix_md']}\n")
         f.write(f"- missing status_matrix_json: {summary['missing_status_matrix_json']}\n")
+        f.write(f"- missing status_overview_md: {summary['missing_status_overview_md']}\n")
         f.write(f"- missing any: {summary['missing_any']}\n\n")
         f.write("## Samples\n\n")
         if not summary["samples"]:
@@ -295,6 +310,7 @@ def write_csv(path: str, summary: Dict[str, Any]) -> None:
                 "missing_status_faq_json",
                 "missing_status_matrix_md",
                 "missing_status_matrix_json",
+                "missing_status_overview_md",
             ],
         )
         writer.writeheader()
@@ -311,6 +327,7 @@ def write_csv(path: str, summary: Dict[str, Any]) -> None:
                 "missing_status_faq_json": summary.get("missing_status_faq_json", 0),
                 "missing_status_matrix_md": summary.get("missing_status_matrix_md", 0),
                 "missing_status_matrix_json": summary.get("missing_status_matrix_json", 0),
+                "missing_status_overview_md": summary.get("missing_status_overview_md", 0),
             }
         )
 
@@ -336,6 +353,7 @@ def write_samples_csv(path: str, summary: Dict[str, Any]) -> None:
                 "status_faq_json",
                 "status_matrix_md",
                 "status_matrix_json",
+                "status_overview_md",
             ],
         )
         writer.writeheader()
@@ -358,6 +376,7 @@ def write_samples_csv(path: str, summary: Dict[str, Any]) -> None:
                     "status_faq_json": sample.get("status_faq_json", ""),
                     "status_matrix_md": sample.get("status_matrix_md", ""),
                     "status_matrix_json": sample.get("status_matrix_json", ""),
+                    "status_overview_md": sample.get("status_overview_md", ""),
                 }
             )
 
@@ -389,6 +408,7 @@ def main() -> int:
         "status_faq_json": args.max_missing_status_faq_json,
         "status_matrix_md": args.max_missing_status_matrix_md,
         "status_matrix_json": args.max_missing_status_matrix_json,
+        "status_overview_md": args.max_missing_status_overview_md,
     }
     for field, threshold in thresholds.items():
         if threshold >= 0 and summary.get(f"missing_{field}", 0) > threshold:

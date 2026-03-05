@@ -17,6 +17,7 @@ Options:
   --status-snapshot [dir]         Write status snapshot md/json (default: build/reports).
   --status-faq [dir]              Write status FAQ md/json (default: build/reports).
   --status-matrix [dir]           Write status matrix md/json (default: build/reports).
+  --status-markdown [dir]         Write combined status overview markdown (default: build/reports).
   --update-latest                 Write build/reports/readiness_latest.* (auto on real runs).
   --no-latest                     Skip latest report copies.
   --no-status-snippet             Omit docs/STATUS.md readiness sections.
@@ -57,6 +58,13 @@ status_matrix_enabled=0
 status_matrix_dir=""
 status_matrix_md=""
 status_matrix_json=""
+status_markdown_enabled=0
+status_markdown_dir=""
+status_markdown_md=""
+status_markdown_work_dir=""
+status_markdown_snapshot_json=""
+status_markdown_faq_json=""
+status_markdown_matrix_json=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -125,6 +133,15 @@ while [[ $# -gt 0 ]]; do
       status_matrix_enabled=1
       if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
         status_matrix_dir="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --status-markdown)
+      status_markdown_enabled=1
+      if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
+        status_markdown_dir="$2"
         shift 2
       else
         shift
@@ -224,6 +241,30 @@ if [[ "$status_matrix_enabled" == "1" ]]; then
   mkdir -p "$status_matrix_dir"
   status_matrix_md="${status_matrix_dir}/status_matrix_${timestamp}.md"
   status_matrix_json="${status_matrix_dir}/status_matrix_${timestamp}.json"
+fi
+if [[ "$status_markdown_enabled" == "1" ]]; then
+  if [[ -z "$status_markdown_dir" ]]; then
+    status_markdown_dir="$report_dir"
+  fi
+  mkdir -p "$status_markdown_dir"
+  status_markdown_md="${status_markdown_dir}/status_overview_${timestamp}.md"
+  status_markdown_work_dir="${log_dir}/status_markdown"
+  mkdir -p "$status_markdown_work_dir"
+  if [[ "$status_snapshot_enabled" == "1" ]]; then
+    status_markdown_snapshot_json="$status_snapshot_json"
+  else
+    status_markdown_snapshot_json="${status_markdown_work_dir}/status_snapshot.json"
+  fi
+  if [[ "$status_faq_enabled" == "1" ]]; then
+    status_markdown_faq_json="$status_faq_json"
+  else
+    status_markdown_faq_json="${status_markdown_work_dir}/status_faq.json"
+  fi
+  if [[ "$status_matrix_enabled" == "1" ]]; then
+    status_markdown_matrix_json="$status_matrix_json"
+  else
+    status_markdown_matrix_json="${status_markdown_work_dir}/status_matrix.json"
+  fi
 fi
 
 if [[ "$dry_run" == "1" && "$update_latest_requested" == "0" ]]; then
@@ -425,6 +466,9 @@ fi
     echo "- status_matrix_md: ${status_matrix_md}"
     echo "- status_matrix_json: ${status_matrix_json}"
   fi
+  if [[ "$status_markdown_enabled" == "1" ]]; then
+    echo "- status_overview_md: ${status_markdown_md}"
+  fi
   echo "- total_duration_sec: ${total_duration}"
   echo "- dry-run: ${dry_run}"
   echo ""
@@ -500,6 +544,23 @@ fi
 if [[ "$status_matrix_enabled" == "1" ]]; then
   ./scripts/status_matrix.py --status "$status_path" --out-md "$status_matrix_md" --out-json "$status_matrix_json"
 fi
+if [[ "$status_markdown_enabled" == "1" ]]; then
+  if [[ "$status_snapshot_enabled" != "1" ]]; then
+    ./scripts/status_snapshot.py --status "$status_path" --out-md "${status_markdown_work_dir}/status_snapshot.md" --out-json "$status_markdown_snapshot_json"
+  fi
+  if [[ "$status_faq_enabled" != "1" ]]; then
+    ./scripts/status_faq.py --status "$status_path" --out-md "${status_markdown_work_dir}/status_faq.md" --out-json "$status_markdown_faq_json"
+  fi
+  if [[ "$status_matrix_enabled" != "1" ]]; then
+    ./scripts/status_matrix.py --status "$status_path" --out-md "${status_markdown_work_dir}/status_matrix.md" --out-json "$status_markdown_matrix_json"
+  fi
+  ./scripts/status_markdown_render.py \
+    --faq-json "$status_markdown_faq_json" \
+    --snapshot-json "$status_markdown_snapshot_json" \
+    --matrix-json "$status_markdown_matrix_json" \
+    --title "Status Overview" \
+    --out-md "$status_markdown_md"
+fi
 
 if [[ -n "$json_path" ]]; then
   readarray -t git_status_lines <<<"$git_status"
@@ -549,6 +610,9 @@ if [[ -n "$json_path" ]]; then
     if [[ "$status_matrix_enabled" == "1" ]]; then
       echo "    ,\"status_matrix_md\": \"$(json_escape "$status_matrix_md")\""
       echo "    ,\"status_matrix_json\": \"$(json_escape "$status_matrix_json")\""
+    fi
+    if [[ "$status_markdown_enabled" == "1" ]]; then
+      echo "    ,\"status_overview_md\": \"$(json_escape "$status_markdown_md")\""
     fi
     echo "  },"
     if [[ -n "$tag" ]]; then
@@ -621,6 +685,9 @@ if [[ "$index_enabled" == "1" ]]; then
   if [[ "$status_matrix_enabled" == "1" ]]; then
     idx_json+=",\"status_matrix_md\":\"$(json_escape "$status_matrix_md")\",\"status_matrix_json\":\"$(json_escape "$status_matrix_json")\""
   fi
+  if [[ "$status_markdown_enabled" == "1" ]]; then
+    idx_json+=",\"status_overview_md\":\"$(json_escape "$status_markdown_md")\""
+  fi
   if [[ -n "$tag" ]]; then
     idx_json+=",\"tag\":\"$(json_escape "$tag")\""
   fi
@@ -659,6 +726,9 @@ if [[ "$update_latest" == "1" ]]; then
     if [[ "$status_matrix_enabled" == "1" ]]; then
       echo "status_matrix_md=${status_matrix_md}"
       echo "status_matrix_json=${status_matrix_json}"
+    fi
+    if [[ "$status_markdown_enabled" == "1" ]]; then
+      echo "status_overview_md=${status_markdown_md}"
     fi
     if [[ "$index_enabled" == "1" ]]; then
       echo "index=${index_path}"

@@ -110,6 +110,7 @@ Index tools:
 - `./scripts/readiness_report.sh --status-snapshot` — emit status snapshot files alongside the report.
 - `./scripts/readiness_report.sh --status-faq` — emit status FAQ files alongside the report.
 - `./scripts/readiness_report.sh --status-matrix` — emit status matrix files alongside the report.
+- `./scripts/readiness_report.sh --status-markdown` — emit a combined status overview markdown.
 - `./scripts/readiness_report.sh --status-path <path>` — override STATUS.md path for report + snapshot.
 - `make status-faq` — generate a readiness FAQ from STATUS.md.
 - `make status-faq-diff` — diff readiness FAQ outputs or STATUS.md snapshots.
@@ -130,18 +131,20 @@ Trim examples:
 Pipeline:
 
 - `make readiness-pipeline` — report + summary + stats + rollup + validate (CSV optional).
-- Pipeline flags: `--no-status-matrix`, `--no-status-faq`, `--status-matrix-diff-against <path>`,
-  `--status-max-items <n>`,
+- Pipeline flags: `--no-status-matrix`, `--no-status-faq`, `--no-status-overview`,
+  `--status-matrix-diff-against <path>`, `--status-max-items <n>`,
   `--audit-trend-window <n>`, `--audit-trend-max-missing <n>`,
   `--audit-trend-max-report <n>`, `--audit-trend-max-json <n>`,
   `--audit-trend-max-log-dir <n>`, `--audit-trend-max-status-snapshot-md <n>`,
   `--audit-trend-max-status-snapshot-json <n>`, `--audit-trend-max-status-faq-md <n>`,
   `--audit-trend-max-status-faq-json <n>`, `--audit-trend-max-status-matrix-md <n>`,
-  `--audit-trend-max-status-matrix-json <n>`, `--no-audit-trend`,
+  `--audit-trend-max-status-matrix-json <n>`, `--audit-trend-max-status-overview-md <n>`,
+  `--no-audit-trend`,
   `--audit-max-report <n>`, `--audit-max-json <n>`, `--audit-max-log-dir <n>`,
   `--audit-max-status-snapshot-md <n>`, `--audit-max-status-snapshot-json <n>`,
   `--audit-max-status-faq-md <n>`, `--audit-max-status-faq-json <n>`,
-  `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`.
+  `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`,
+  `--audit-max-status-overview-md <n>`.
 - Dashboard accepts `--audit-trend-json` to render audit trend rows.
 - Dashboard accepts `--audit-samples-json` to render audit samples (optional).
 - Dashboard accepts `--audit-samples-only-missing` to filter samples.

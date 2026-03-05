@@ -67,6 +67,9 @@
     "status_matrix_json": {
       "type": "string"
     },
+    "status_overview_md": {
+      "type": "string"
+    },
     "tag": {
       "type": "string"
     }

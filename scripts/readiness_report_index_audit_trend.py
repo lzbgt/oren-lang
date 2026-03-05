@@ -17,6 +17,7 @@ FIELDS = (
     "status_faq_json",
     "status_matrix_md",
     "status_matrix_json",
+    "status_overview_md",
 )
 
 
@@ -119,6 +120,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=-1,
         help="Fail if missing status_matrix_json exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-status-overview-md",
+        type=int,
+        default=-1,
+        help="Fail if missing status_overview_md exceeds this count (disabled if <0)",
     )
     return parser.parse_args()
 
@@ -316,6 +323,7 @@ def main() -> int:
         "status_faq_json": args.max_missing_status_faq_json,
         "status_matrix_md": args.max_missing_status_matrix_md,
         "status_matrix_json": args.max_missing_status_matrix_json,
+        "status_overview_md": args.max_missing_status_overview_md,
     }
     for field, threshold in thresholds.items():
         if threshold >= 0 and missing_by_kind.get(field, 0) > threshold:

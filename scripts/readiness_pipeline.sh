@@ -31,6 +31,7 @@ Options:
   --status-diff-against <path>      Diff status snapshot against STATUS.md or snapshot JSON.
   --no-status-matrix                Skip status matrix output.
   --status-matrix-diff-against <path> Diff status matrix against STATUS.md or matrix JSON.
+  --no-status-overview              Skip status overview markdown output.
   --status-max-items <n>            Limit status items in summary/dashboard (default: 10; <=0 means no limit).
   --no-latest-summary               Skip index latest summary output.
   --trend-window <n>                Trend window size for index trend (default: 20).
@@ -49,6 +50,7 @@ Options:
   --audit-max-status-faq-json <n>  Fail if audit missing status_faq_json exceeds n (default: -1).
   --audit-max-status-matrix-md <n>  Fail if audit missing status_matrix_md exceeds n (default: -1).
   --audit-max-status-matrix-json <n> Fail if audit missing status_matrix_json exceeds n (default: -1).
+  --audit-max-status-overview-md <n> Fail if audit missing status_overview_md exceeds n (default: -1).
   --audit-warn-missing <n>          Warn if audit missing_any exceeds n (default: -1).
   --audit-trend-warn-missing <n>    Warn if audit trend missing_any exceeds n (default: -1).
   --audit-trend-window <n>          Audit trend window size (default: 20, 0=all).
@@ -62,6 +64,7 @@ Options:
   --audit-trend-max-status-faq-json <n> Fail if missing status_faq_json exceeds n (default: -1).
   --audit-trend-max-status-matrix-md <n>    Fail if missing status_matrix_md exceeds n (default: -1).
   --audit-trend-max-status-matrix-json <n>  Fail if missing status_matrix_json exceeds n (default: -1).
+  --audit-trend-max-status-overview-md <n>  Fail if missing status_overview_md exceeds n (default: -1).
   --no-audit-trend                  Skip audit trend output.
   --collect <n>                     Collect last N readiness reports (0=skip, default: 0).
   --collect-dir <path>              Output directory for collected snapshots.
@@ -109,6 +112,7 @@ emit_status_faq=1
 status_diff_against=""
 emit_status_matrix=1
 status_matrix_diff_against=""
+emit_status_overview=1
 emit_latest_summary=1
 trend_window=20
 emit_trend=1
@@ -126,6 +130,7 @@ audit_max_status_faq_md=-1
 audit_max_status_faq_json=-1
 audit_max_status_matrix_md=-1
 audit_max_status_matrix_json=-1
+audit_max_status_overview_md=-1
 audit_warn_missing=-1
 audit_trend_warn_missing=-1
 audit_trend_window=20
@@ -140,6 +145,7 @@ audit_trend_max_status_faq_md=-1
 audit_trend_max_status_faq_json=-1
 audit_trend_max_status_matrix_md=-1
 audit_trend_max_status_matrix_json=-1
+audit_trend_max_status_overview_md=-1
 collect_count=0
 collect_dir="build/reports/readiness_collect"
 collect_include_dry_run=0
@@ -232,6 +238,7 @@ while [[ $# -gt 0 ]]; do
     --no-status-snapshot)
       emit_status_snapshot=0
       emit_status_faq=0
+      emit_status_overview=0
       shift
       ;;
     --no-status-faq)
@@ -244,6 +251,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-status-matrix)
       emit_status_matrix=0
+      shift
+      ;;
+    --no-status-overview)
+      emit_status_overview=0
       shift
       ;;
     --status-matrix-diff-against)
@@ -318,6 +329,10 @@ while [[ $# -gt 0 ]]; do
       audit_max_status_matrix_json="${2:-}"
       shift 2
       ;;
+    --audit-max-status-overview-md)
+      audit_max_status_overview_md="${2:-}"
+      shift 2
+      ;;
     --audit-warn-missing)
       audit_warn_missing="${2:-}"
       shift 2
@@ -368,6 +383,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --audit-trend-max-status-matrix-json)
       audit_trend_max_status_matrix_json="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-status-overview-md)
+      audit_trend_max_status_overview_md="${2:-}"
       shift 2
       ;;
     --no-audit-trend)
@@ -471,6 +490,7 @@ status_faq_md="build/reports/status_faq.md"
 status_faq_json="build/reports/status_faq.json"
 status_matrix_md="build/reports/status_matrix.md"
 status_matrix_json="build/reports/status_matrix.json"
+status_overview_md="build/reports/status_overview.md"
 status_matrix_diff_md="build/reports/status_matrix_diff.md"
 status_matrix_diff_json="build/reports/status_matrix_diff.json"
 latest_md="build/reports/readiness_index_latest.md"
@@ -510,6 +530,7 @@ if [[ "$dry_run" == "1" ]]; then
   status_faq_json="build/reports/status_faq_dry_run.json"
   status_matrix_md="build/reports/status_matrix_dry_run.md"
   status_matrix_json="build/reports/status_matrix_dry_run.json"
+  status_overview_md="build/reports/status_overview_dry_run.md"
   status_matrix_diff_md="build/reports/status_matrix_diff_dry_run.md"
   status_matrix_diff_json="build/reports/status_matrix_diff_dry_run.json"
   latest_md="build/reports/readiness_index_latest_dry_run.md"
@@ -552,6 +573,9 @@ fi
   if [[ "$emit_status_matrix" == "1" ]]; then
     report_args+=(--status-matrix "build/reports")
   fi
+  if [[ "$emit_status_overview" == "1" ]]; then
+    report_args+=(--status-markdown "build/reports")
+  fi
 if [[ "$include_env" == "1" ]]; then
   report_args+=(--include-env)
 fi
@@ -583,6 +607,7 @@ fi
   echo "status_diff_against=${status_diff_against}"
   echo "status_matrix=${emit_status_matrix}"
   echo "status_matrix_diff_against=${status_matrix_diff_against}"
+  echo "status_overview=${emit_status_overview}"
   echo "latest_summary=${emit_latest_summary}"
   echo "trend_window=${trend_window}"
   echo "trend=${emit_trend}"
@@ -600,6 +625,7 @@ fi
   echo "audit_max_status_faq_json=${audit_max_status_faq_json}"
   echo "audit_max_status_matrix_md=${audit_max_status_matrix_md}"
   echo "audit_max_status_matrix_json=${audit_max_status_matrix_json}"
+  echo "audit_max_status_overview_md=${audit_max_status_overview_md}"
   echo "audit_warn_missing=${audit_warn_missing}"
   echo "audit_trend_warn_missing=${audit_trend_warn_missing}"
   echo "audit_trend_window=${audit_trend_window}"
@@ -614,6 +640,7 @@ fi
   echo "audit_trend_max_status_faq_json=${audit_trend_max_status_faq_json}"
   echo "audit_trend_max_status_matrix_md=${audit_trend_max_status_matrix_md}"
   echo "audit_trend_max_status_matrix_json=${audit_trend_max_status_matrix_json}"
+  echo "audit_trend_max_status_overview_md=${audit_trend_max_status_overview_md}"
   echo "collect_count=${collect_count}"
   echo "collect_dir=${collect_dir}"
   echo "collect_include_dry_run=${collect_include_dry_run}"
@@ -716,6 +743,9 @@ fi
     if [[ "$audit_max_status_matrix_json" != "-1" ]]; then
       audit_args+=(--max-missing-status-matrix-json "$audit_max_status_matrix_json")
     fi
+    if [[ "$audit_max_status_overview_md" != "-1" ]]; then
+      audit_args+=(--max-missing-status-overview-md "$audit_max_status_overview_md")
+    fi
     if [[ "$dry_run" == "1" ]]; then
       audit_args+=(--include-dry-run)
     fi
@@ -754,6 +784,9 @@ fi
       fi
       if [[ "$audit_trend_max_status_matrix_json" != "-1" ]]; then
         trend_args+=(--max-missing-status-matrix-json "$audit_trend_max_status_matrix_json")
+      fi
+      if [[ "$audit_trend_max_status_overview_md" != "-1" ]]; then
+        trend_args+=(--max-missing-status-overview-md "$audit_trend_max_status_overview_md")
       fi
       ./scripts/readiness_report_index_audit_trend.py "${trend_args[@]}"
     fi
@@ -820,6 +853,14 @@ PY
   fi
   if [[ "$emit_status_matrix" == "1" ]]; then
     ./scripts/status_matrix.py --status "$status_path" --out-md "$status_matrix_md" --out-json "$status_matrix_json"
+  fi
+  if [[ "$emit_status_overview" == "1" ]]; then
+    ./scripts/status_markdown_render.py \
+      --faq-json "$status_faq_json" \
+      --snapshot-json "$status_snapshot_json" \
+      --matrix-json "$status_matrix_json" \
+      --title "Status Overview" \
+      --out-md "$status_overview_md"
   fi
   if [[ -n "$status_matrix_diff_against" ]]; then
     ./scripts/status_matrix_diff.py --left "$status_matrix_diff_against" --right "$status_path" \
