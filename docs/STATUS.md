@@ -532,6 +532,7 @@ Local (fast):
 
 - `make test`
 - `make verify-native-quick`
+- `make verify-native-quick-simd`
 - `make verify-backend-parity-boxed-list`
 - `make verify-backend-parity-list-int`
 - `make verify-backend-parity-tags`
