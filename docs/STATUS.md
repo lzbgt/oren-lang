@@ -2008,3 +2008,4 @@ Status legend:
 | AVM SIMD (NEON, gated) | Planned/Rolling | `lib/avm/avm_native.c` | Track in this file |
 
 Latest SIMD determinism run: `make verify-simd-determinism` on arm64-macos (2026-03-05). Output reported `SIMD_ENABLED=0` (scalar) and `SIMD_ENABLED=1` (SIMD); outputs matched.
+Latest native+SIMD gate: `make verify-native-quick-simd` on arm64-macos (2026-03-05) passed.
