@@ -884,16 +884,14 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: set_envp ok")
     }
 
-    // native_runtime_capsule_init() when `--capsule` is enabled.
+    // native_runtime_capsule_init() (env + capsule init).
     //
-    // NOTE: This is a compile-time capsule feature gate. Without `--capsule`, the native
-    // backend does not emit the capsule syscall hook ABI surface, so enabling capsule by
-    // env alone would not provide a capability-safe boundary.
-    if platform != nil && platform["capsule"] == true {
-        var call_capsule_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
-    }
+    // NOTE: In non-capsule builds this is a permissive stub that only applies shared
+    // env overrides (call depth, SIMD, allocator). Capsule enforcement is only
+    // meaningful when compiled with `--capsule`.
+    var call_capsule_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
 
     // native_runtime_init_gc_mode(default_enabled)
     var gc_default = 1

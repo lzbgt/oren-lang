@@ -250,16 +250,14 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
 
-    // Initialize runtime capsule mode when `--capsule` is enabled.
+    // Initialize runtime env/capsule mode.
     //
-    // NOTE: This is a compile-time capsule feature gate. Without `--capsule`, the native
-    // backend does not emit the capsule syscall hook ABI surface, so enabling capsule by
-    // env alone would not provide a capability-safe boundary.
-    if platform != nil && platform["capsule"] == true {
-        var bl_capsule = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
-    }
+    // NOTE: In non-capsule builds this is a permissive stub that only applies shared
+    // env overrides (call depth, SIMD, allocator). Capsule enforcement is only
+    // meaningful when compiled with `--capsule`.
+    var bl_capsule = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
 
     // Initialize GC mode for the native runtime (two-mode GC):
     // - default enabled unless compiled with `--no-gc`
