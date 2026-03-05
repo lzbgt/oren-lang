@@ -44,6 +44,19 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
 
+### Backend readiness (rolling snapshot)
+
+- **C backend**: bootstrap path only; depends on host C toolchain; ABI/opcodes rolling; not production‑grade.
+- **Native backend**: Tier‑1 intent only; tagged‑value convergence still rolling; GC/allocator correctness is improving but not yet stable at production gates; hot‑loop parity still above target.
+- **AVM backend**: deterministic VM; single‑threaded today; heap uses `malloc` (no GC yet); opcode/ABI stability is rolling; capability gating exists but maturity is below production.
+
+### Feature readiness gaps (requested)
+
+- **GMP concurrency (native)**: Stage N2 substrate exists (green workers + OS‑thread substrate), but no production‑grade GMP/netpoller or true async IO across Tier‑1.
+- **Compiler‑in‑AVM**: design intent only; no AVM‑hosted compiler pipeline yet.
+- **AVM multiverse (nested universes)**: basic nested execution + VFS inheritance fixtures exist, but budgeted child‑universe scheduling and snapshot/restore are still rolling.
+- **Scientific computing / AI acceleration**: typed buffers + limited SIMD (arm64 NEON) exist; x64 SIMD + kernel coverage are incomplete; no GPU/AI accelerator path or BLAS‑grade library surface yet.
+
 ---
 
 ## Production readiness scorecard (weighted, rolling snapshot)
@@ -1909,12 +1922,16 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 
 ## P2 (Later)
 
-1) **Allow non-macOS hosts for partial targets** (S, W2)
-2) **Package manager / signed module workflow** (M, W2)
-3) **Refactor oversized native emitters (>2000 lines)** (M, W2)
-4) **Refactor `lib/runtime_native/100_time_gc_alloc.oren` (>2000 lines)** (M, W2)
-5) **Refactor `lib/compiler/optimizer.oren` (>2000 lines)** (M, W2)
-6) **Refactor `lib/compiler/compiler/040_build_pipeline/010_main.oren` (>2000 lines)** (M, W2)
+1) **Production‑grade GMP/netpoller (true async IO + channels/select across Tier‑1)** (L, W2)
+2) **Compiler‑in‑AVM bring‑up (OBC toolchain inside AVM)** (L, W2)
+3) **AVM multiverse maturity (budgeted child universes + snapshot/restore)** (M, W2)
+4) **Scientific/AI acceleration roadmap (SIMD kernel coverage + GPU/BLAS path)** (M, W2)
+5) **Allow non-macOS hosts for partial targets** (S, W2)
+6) **Package manager / signed module workflow** (M, W2)
+7) **Refactor oversized native emitters (>2000 lines)** (M, W2)
+8) **Refactor `lib/runtime_native/100_time_gc_alloc.oren` (>2000 lines)** (M, W2)
+9) **Refactor `lib/compiler/optimizer.oren` (>2000 lines)** (M, W2)
+10) **Refactor `lib/compiler/compiler/040_build_pipeline/010_main.oren` (>2000 lines)** (M, W2)
 
 ---
 
