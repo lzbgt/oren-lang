@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-03-04
+**Last updated:** 2026-03-05
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -39,6 +39,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move
   semantic parity, runtime robustness, or perf parity metrics.
+- Update: readiness dashboard now supports audit warning thresholds (2026-03-05).
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
