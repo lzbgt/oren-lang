@@ -74,7 +74,7 @@ Index tools:
 - `make readiness-report-index-prune` — keep last N entries.
 - `make readiness-report-index-trim` — trim by timestamp range.
 - `make readiness-report-index-csv` — CSV export.
-- `make readiness-report-index-query` — filter index by fields/time.
+- `make readiness-report-index-query` — filter index by fields/time (supports `--require-field` / `--missing-field`).
 - `make readiness-report-index-rollup` — daily rollup.
 - `make readiness-report-index-latest` — latest entry by profile/tag.
 - `make readiness-report-index-trend` — trend summary over latest window.

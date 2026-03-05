@@ -58,6 +58,18 @@ def parse_args() -> argparse.Namespace:
         help="Sort order by timestamp (default: asc)",
     )
     parser.add_argument(
+        "--require-field",
+        action="append",
+        default=[],
+        help="Require a non-empty field (repeatable).",
+    )
+    parser.add_argument(
+        "--missing-field",
+        action="append",
+        default=[],
+        help="Require a field to be missing/empty (repeatable).",
+    )
+    parser.add_argument(
         "--out",
         default="build/reports/readiness_index_query.jsonl",
         help="Output JSONL path (use '-' for stdout)",
@@ -99,6 +111,12 @@ def match(entry: Dict[str, Any], args: argparse.Namespace) -> bool:
         return False
     if args.until and ts > args.until:
         return False
+    for field in args.require_field:
+        if entry.get(field) in (None, "", []):
+            return False
+    for field in args.missing_field:
+        if entry.get(field) not in (None, "", []):
+            return False
     return True
 
 
