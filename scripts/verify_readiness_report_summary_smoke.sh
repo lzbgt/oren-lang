@@ -35,6 +35,9 @@ rg -n "Smoke Summary" "$out_md" >/dev/null
 rg -n "pass rate" "$out_md" >/dev/null
 rg -n "2026-03-06" "$out_md" >/dev/null
 rg -n "FAIL" "$out_md" >/dev/null
+rg -n "Status FAQ" "$out_md" >/dev/null
+rg -n "Status Snapshot" "$out_md" >/dev/null
+rg -n "Status Matrix" "$out_md" >/dev/null
 rg -n "<title>Smoke Summary</title>" "$out_html" >/dev/null
 rg -n "deadbeef" "$out_html" >/dev/null
 rg -n "Status FAQ" "$out_html" >/dev/null
