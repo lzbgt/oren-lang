@@ -7,6 +7,7 @@ out_html="${work_dir}/dashboard.html"
 audit_json="${work_dir}/audit.json"
 audit_trend_json="${work_dir}/audit_trend.json"
 audit_samples_json="${work_dir}/audit_samples.json"
+status_faq_json="${work_dir}/status_faq.json"
 
 rm -rf "$work_dir" 2>/dev/null || true
 mkdir -p "$work_dir"
@@ -28,8 +29,13 @@ cat >"$audit_samples_json" <<'EOF'
 {"samples":[{"timestamp":"20260305_120000","profile":"full","tag":"ci","missing":["report"]}]}
 EOF
 
+cat >"$status_faq_json" <<'EOF'
+{"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items":["C backend: not production","Native: rolling"]}]}
+EOF
+
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
   --audit-json "$audit_json" --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_samples_json" \
+  --status-faq-json "$status_faq_json" \
   --audit-samples-only-missing --audit-missing-threshold 2 --audit-trend-missing-threshold 2 \
   --audit-missing-warn-threshold 0 --audit-trend-missing-warn-threshold 0
 
@@ -46,5 +52,7 @@ rg -n "Audit samples" "$out_html" >/dev/null
 rg -n "Audit trend missing_any" "$out_html" >/dev/null
 rg -n "Audit warnings" "$out_html" >/dev/null
 rg -n "<li>Audit trend missing_any" "$out_html" >/dev/null
+rg -n "Status FAQ" "$out_html" >/dev/null
+rg -n "Are the backends production-ready" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

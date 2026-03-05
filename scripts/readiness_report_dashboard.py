@@ -69,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         help="Audit samples JSON path (optional)",
     )
     parser.add_argument(
+        "--status-faq-json",
+        default="",
+        help="Status FAQ JSON path (optional)",
+    )
+    parser.add_argument(
         "--audit-samples-limit",
         type=int,
         default=10,
@@ -205,6 +210,19 @@ def read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data if isinstance(data, dict) else {}
+
+
+def html_escape(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value)
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#x27;")
+    )
 
 
 def render_profiles(data: Dict[str, Any]) -> str:
@@ -393,6 +411,34 @@ def render_audit_samples(data: Dict[str, Any], limit: int, only_missing: bool) -
     )
 
 
+def render_status_faq(data: Dict[str, Any]) -> str:
+    if not data:
+        return ""
+    questions = data.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return ""
+    blocks: List[str] = []
+    for entry in questions:
+        if not isinstance(entry, dict):
+            continue
+        question = html_escape(entry.get("question", "-"))
+        items = entry.get("items", [])
+        if isinstance(items, list) and items:
+            items_html = "<ul>" + "".join(
+                f"<li>{html_escape(item)}</li>" for item in items
+            ) + "</ul>"
+        else:
+            items_html = "<div class='meta'>(no items)</div>"
+        blocks.append(
+            "<div class='faq-block'>"
+            f"<div class='faq-question'>{question}</div>"
+            f"{items_html}</div>"
+        )
+    if not blocks:
+        return ""
+    return "<h2>Status FAQ</h2>\n" + "".join(blocks)
+
+
 def audit_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     if not data:
         return {}
@@ -457,6 +503,7 @@ def main() -> int:
     audit = read_json(args.audit_json)
     audit_trend = read_json(args.audit_trend_json)
     audit_samples = read_json(args.audit_samples_json)
+    status_faq = read_json(args.status_faq_json)
     audit_stats = audit_summary(audit)
     audit_top = audit_top_missing(audit_stats)
     audit_missing_any = audit_stats.get("missing_any") if audit_stats else None
@@ -561,6 +608,8 @@ def main() -> int:
     .alert {{ border: 1px solid #b00020; background: #fff4f4; color: #6b0000; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
     .alert.warn {{ border: 1px solid #b36b00; background: #fff8ef; color: #7a4400; }}
     .ok-banner {{ border: 1px solid #0a7a2f; background: #f2fff5; color: #0a7a2f; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
+    .faq-block {{ border: 1px solid #e0e0e0; padding: 12px; border-radius: 6px; margin-bottom: 10px; background: #fff; }}
+    .faq-question {{ font-weight: bold; margin-bottom: 6px; }}
     table {{ border-collapse: collapse; width: 100%; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}
     th {{ background: #f2f2f2; text-align: left; }}
@@ -641,6 +690,7 @@ def main() -> int:
   </table>
   {render_profiles(profiles)}
   {render_tags(tags)}
+  {render_status_faq(status_faq)}
   {render_audit(audit)}
   {render_audit_trend(audit_trend)}
   {render_audit_samples(audit_samples, args.audit_samples_limit, args.audit_samples_only_missing)}
