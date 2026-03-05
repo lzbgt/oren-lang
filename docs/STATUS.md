@@ -17,6 +17,7 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
   Use `make readiness-report-json` or `./scripts/readiness_report.sh --json` for machine-readable output.
   Append JSONL summaries via `make readiness-report-index`; latest pointers live under `build/reports/readiness_latest.*`.
   Generate summaries via `make readiness-report-summary` (writes `build/reports/readiness_summary.*`).
+  Index tools: `make readiness-report-index-stats` and `make readiness-report-index-prune`.
 
 ---
 

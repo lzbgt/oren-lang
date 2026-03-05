@@ -19,6 +19,8 @@ make readiness-report  # quick readiness snapshot (build/reports)
 make readiness-report-json  # readiness snapshot + JSON summary
 make readiness-report-index  # append JSONL summary for automation
 make readiness-report-summary  # build summary markdown + HTML
+make readiness-report-index-stats  # build index stats (md + json)
+make readiness-report-index-prune  # prune index to last N entries
 ```
 
 Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are
