@@ -65,6 +65,7 @@ rg -n "audit_ok: thresholds not exceeded" "$log_path" >/dev/null
 rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary_dry_run.md" >/dev/null
 rg -n "metric,left,right,delta" "build/reports/readiness_index_diff_summary_dry_run.csv" >/dev/null
 rg -n "Status snapshot" "build/reports/status_snapshot_dry_run.md" >/dev/null
+rg -n "Status FAQ" "build/reports/status_faq_dry_run.md" >/dev/null
 rg -n "Status snapshot diff" "build/reports/status_snapshot_diff_dry_run.md" >/dev/null
 rg -n "Status readiness matrix" "build/reports/status_matrix_dry_run.md" >/dev/null
 rg -n "Status matrix diff" "build/reports/status_matrix_diff_dry_run.md" >/dev/null

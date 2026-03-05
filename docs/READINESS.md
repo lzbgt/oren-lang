@@ -97,6 +97,8 @@ Index tools:
 - `./scripts/readiness_report.sh --status-snapshot` — emit status snapshot files alongside the report.
 - `./scripts/readiness_report.sh --status-matrix` — emit status matrix files alongside the report.
 - `./scripts/readiness_report.sh --status-path <path>` — override STATUS.md path for report + snapshot.
+- `make status-faq` — generate a readiness FAQ from STATUS.md.
+- `make verify-status-faq` — smoke test for the status FAQ generator.
 
 Trim examples:
 
@@ -108,7 +110,7 @@ Trim examples:
 Pipeline:
 
 - `make readiness-pipeline` — report + summary + stats + rollup + validate (CSV optional).
-- Pipeline flags: `--no-status-matrix`, `--status-matrix-diff-against <path>`,
+- Pipeline flags: `--no-status-matrix`, `--no-status-faq`, `--status-matrix-diff-against <path>`,
   `--audit-trend-window <n>`, `--audit-trend-max-missing <n>`,
   `--audit-trend-max-report <n>`, `--audit-trend-max-json <n>`,
   `--audit-trend-max-log-dir <n>`, `--audit-trend-max-status-snapshot-md <n>`,

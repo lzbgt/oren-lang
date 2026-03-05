@@ -27,6 +27,7 @@ Options:
   --gate-allow-empty                Allow empty index in gate.
   --status-path <path>              STATUS.md path for snapshot (default: docs/STATUS.md).
   --no-status-snapshot              Skip status snapshot output.
+  --no-status-faq                   Skip status FAQ output.
   --status-diff-against <path>      Diff status snapshot against STATUS.md or snapshot JSON.
   --no-status-matrix                Skip status matrix output.
   --status-matrix-diff-against <path> Diff status matrix against STATUS.md or matrix JSON.
@@ -98,6 +99,7 @@ trim_since_days="-1"
 trim_until_days="-1"
 status_path="docs/STATUS.md"
 emit_status_snapshot=1
+emit_status_faq=1
 status_diff_against=""
 emit_status_matrix=1
 status_matrix_diff_against=""
@@ -215,6 +217,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-status-snapshot)
       emit_status_snapshot=0
+      emit_status_faq=0
+      shift
+      ;;
+    --no-status-faq)
+      emit_status_faq=0
       shift
       ;;
     --status-diff-against)
@@ -430,6 +437,8 @@ status_snapshot_md="build/reports/status_snapshot.md"
 status_snapshot_json="build/reports/status_snapshot.json"
 status_snapshot_diff_md="build/reports/status_snapshot_diff.md"
 status_snapshot_diff_json="build/reports/status_snapshot_diff.json"
+status_faq_md="build/reports/status_faq.md"
+status_faq_json="build/reports/status_faq.json"
 status_matrix_md="build/reports/status_matrix.md"
 status_matrix_json="build/reports/status_matrix.json"
 status_matrix_diff_md="build/reports/status_matrix_diff.md"
@@ -467,6 +476,8 @@ if [[ "$dry_run" == "1" ]]; then
   status_snapshot_json="build/reports/status_snapshot_dry_run.json"
   status_snapshot_diff_md="build/reports/status_snapshot_diff_dry_run.md"
   status_snapshot_diff_json="build/reports/status_snapshot_diff_dry_run.json"
+  status_faq_md="build/reports/status_faq_dry_run.md"
+  status_faq_json="build/reports/status_faq_dry_run.json"
   status_matrix_md="build/reports/status_matrix_dry_run.md"
   status_matrix_json="build/reports/status_matrix_dry_run.json"
   status_matrix_diff_md="build/reports/status_matrix_diff_dry_run.md"
@@ -534,6 +545,7 @@ fi
   echo "trim_until_days=${trim_until_days}"
   echo "status_path=${status_path}"
   echo "status_snapshot=${emit_status_snapshot}"
+  echo "status_faq=${emit_status_faq}"
   echo "status_diff_against=${status_diff_against}"
   echo "status_matrix=${emit_status_matrix}"
   echo "status_matrix_diff_against=${status_matrix_diff_against}"
@@ -735,6 +747,9 @@ PY
   fi
   if [[ "$emit_status_snapshot" == "1" ]]; then
     ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"
+  fi
+  if [[ "$emit_status_faq" == "1" ]]; then
+    ./scripts/status_faq.py --status "$status_path" --out-md "$status_faq_md" --out-json "$status_faq_json"
   fi
   if [[ -n "$status_diff_against" ]]; then
     ./scripts/status_snapshot_diff.py --left "$status_diff_against" --right "$status_path" \
