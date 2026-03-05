@@ -84,6 +84,7 @@ Summary outputs (from index):
 
 - `build/reports/readiness_summary.md`
 - `build/reports/readiness_summary.html`
+- `build/reports/readiness_dashboard.html`
 
 Index stats outputs:
 

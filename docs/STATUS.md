@@ -20,6 +20,7 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
   Index tools: `make readiness-report-index-stats`, `make readiness-report-index-prune`,
   `make readiness-report-index-csv`, `make readiness-report-index-query`, `make readiness-report-index-rollup`,
   `make readiness-report-index-merge`, `make readiness-report-index-compact`.
+  Dashboards: `make readiness-report-dashboard`.
   Use `make readiness-pipeline` to run report + summary + stats + validate in one shot.
 
 ---

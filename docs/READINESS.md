@@ -17,6 +17,7 @@ Index + derived outputs:
 - `build/reports/readiness_index.jsonl` — append-only index (JSONL).
 - `build/reports/readiness_summary.md` — summary table from index.
 - `build/reports/readiness_summary.html` — HTML summary.
+- `build/reports/readiness_dashboard.html` — HTML dashboard.
 - `build/reports/readiness_index_stats.md` — stats from index.
 - `build/reports/readiness_index_stats.json` — stats (JSON).
 - `build/reports/readiness_index.csv` — CSV export.

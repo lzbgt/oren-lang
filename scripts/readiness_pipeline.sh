@@ -15,6 +15,7 @@ Options:
   --stats-limit <n>                Max entries in stats (default: 200; 0=all).
   --no-csv                         Skip CSV export.
   --rollup-days <n>                Rollup days (default: 30; 0=all).
+  --no-dashboard                   Skip HTML dashboard.
   --prune <n>                       Prune index to last N entries after run (0=skip).
   --dry-run                        Dry-run report; writes to *_dry_run outputs.
   -h, --help                       Show help.
@@ -31,6 +32,7 @@ stats_limit=200
 prune_keep=0
 emit_csv=1
 rollup_days=30
+emit_dashboard=1
 dry_run=0
 
 while [[ $# -gt 0 ]]; do
@@ -70,6 +72,10 @@ while [[ $# -gt 0 ]]; do
     --rollup-days)
       rollup_days="${2:-}"
       shift 2
+      ;;
+    --no-dashboard)
+      emit_dashboard=0
+      shift
       ;;
     --prune)
       prune_keep="${2:-}"
@@ -111,6 +117,7 @@ stats_json="build/reports/readiness_index_stats.json"
 csv_path="build/reports/readiness_index.csv"
 rollup_md="build/reports/readiness_rollup.md"
 rollup_json="build/reports/readiness_rollup.json"
+dashboard_html="build/reports/readiness_dashboard.html"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -120,6 +127,7 @@ if [[ "$dry_run" == "1" ]]; then
   csv_path="build/reports/readiness_index_dry_run.csv"
   rollup_md="build/reports/readiness_rollup_dry_run.md"
   rollup_json="build/reports/readiness_rollup_dry_run.json"
+  dashboard_html="build/reports/readiness_dashboard_dry_run.html"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -154,6 +162,10 @@ fi
     --out-md "$stats_md" --out-json "$stats_json"
   ./scripts/readiness_report_index_rollup.py --index "$index_path" --limit-days "$rollup_days" \
     --out-md "$rollup_md" --out-json "$rollup_json"
+  if [[ "$emit_dashboard" == "1" ]]; then
+    ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$dashboard_html" \
+      --limit "$summary_limit" --rollup-days "$rollup_days"
+  fi
   if [[ "$emit_csv" == "1" ]]; then
     ./scripts/readiness_report_index_export_csv.py --index "$index_path" --out-csv "$csv_path"
   fi
