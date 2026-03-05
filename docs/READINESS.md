@@ -74,6 +74,7 @@ Index tools:
 - `make readiness-report-index-tags` — per-tag summary.
 - `make readiness-report-index-audit` — audit index paths.
 - Audit checks optional status snapshot/matrix paths when present.
+- `scripts/readiness_report_dashboard.py` accepts `--audit-json` to show audit summary.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.

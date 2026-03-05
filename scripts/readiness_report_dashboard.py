@@ -53,6 +53,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Tags JSON path (optional)",
     )
+    parser.add_argument(
+        "--audit-json",
+        default="",
+        help="Audit JSON path (optional)",
+    )
     return parser.parse_args()
 
 
@@ -213,6 +218,63 @@ def render_tags(data: Dict[str, Any]) -> str:
     )
 
 
+def render_audit(data: Dict[str, Any]) -> str:
+    if not data:
+        return ""
+    summary = {
+        "checked": data.get("checked", "-"),
+        "missing_any": data.get("missing_any", "-"),
+        "missing_report": data.get("missing_report", "-"),
+        "missing_json": data.get("missing_json", "-"),
+        "missing_log_dir": data.get("missing_log_dir", "-"),
+        "missing_status_snapshot_md": data.get("missing_status_snapshot_md", "-"),
+        "missing_status_snapshot_json": data.get("missing_status_snapshot_json", "-"),
+        "missing_status_matrix_md": data.get("missing_status_matrix_md", "-"),
+        "missing_status_matrix_json": data.get("missing_status_matrix_json", "-"),
+    }
+    rows = []
+    for key, label in (
+        ("checked", "Checked"),
+        ("missing_any", "Missing any"),
+        ("missing_report", "Missing report"),
+        ("missing_json", "Missing json"),
+        ("missing_log_dir", "Missing log_dir"),
+        ("missing_status_snapshot_md", "Missing status_snapshot_md"),
+        ("missing_status_snapshot_json", "Missing status_snapshot_json"),
+        ("missing_status_matrix_md", "Missing status_matrix_md"),
+        ("missing_status_matrix_json", "Missing status_matrix_json"),
+    ):
+        rows.append(f"<tr><td>{label}</td><td>{summary.get(key, '-')}</td></tr>")
+    sample_rows = []
+    samples = data.get("samples", [])
+    if isinstance(samples, list) and samples:
+        for sample in samples:
+            missing = sample.get("missing", [])
+            if isinstance(missing, list):
+                missing = ", ".join(missing)
+            sample_rows.append(
+                "<tr>"
+                f"<td>{sample.get('timestamp','-')}</td>"
+                f"<td>{sample.get('profile','-')}</td>"
+                f"<td>{sample.get('tag','-')}</td>"
+                f"<td>{missing}</td>"
+                "</tr>"
+            )
+    samples_table = ""
+    if sample_rows:
+        samples_table = (
+            "<h3>Missing samples</h3>\n"
+            "<table><thead><tr><th>Timestamp</th><th>Profile</th><th>Tag</th><th>Missing</th></tr></thead>"
+            f"<tbody>{''.join(sample_rows)}</tbody></table>"
+        )
+    return (
+        "<h2>Audit summary</h2>\n"
+        "<table><thead><tr><th>Metric</th><th>Value</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+        f"{samples_table}"
+    )
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -236,6 +298,7 @@ def main() -> int:
     trend = read_json(args.trend_json)
     profiles = read_json(args.profiles_json)
     tags = read_json(args.tags_json)
+    audit = read_json(args.audit_json)
 
     rows = []
     for entry in reversed(entries_view):
@@ -357,6 +420,7 @@ def main() -> int:
   </table>
   {render_profiles(profiles)}
   {render_tags(tags)}
+  {render_audit(audit)}
 </body>
 </html>
 """
