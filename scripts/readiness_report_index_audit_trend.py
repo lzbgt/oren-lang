@@ -47,6 +47,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include dry_run entries (default: skip)",
     )
+    parser.add_argument(
+        "--max-missing-any",
+        type=int,
+        default=-1,
+        help="Fail if missing_any exceeds this count (disabled if <0)",
+    )
     return parser.parse_args()
 
 
@@ -171,6 +177,9 @@ def main() -> int:
     write_markdown(args.out_md, trend)
     write_json(args.out_json, trend)
     print(f"OK: wrote {args.out_md} and {args.out_json}")
+    if args.max_missing_any >= 0 and trend.get("missing_any", 0) > args.max_missing_any:
+        print(f"FAIL: missing_any {trend.get('missing_any', 0)} > {args.max_missing_any}", file=sys.stderr)
+        return 2
     return 0
 
 

@@ -5,6 +5,7 @@ work_dir="build/tmp/readiness_dashboard_smoke"
 index_path="${work_dir}/readiness_index.jsonl"
 out_html="${work_dir}/dashboard.html"
 audit_json="${work_dir}/audit.json"
+audit_trend_json="${work_dir}/audit_trend.json"
 
 rm -rf "$work_dir" 2>/dev/null || true
 mkdir -p "$work_dir"
@@ -18,8 +19,12 @@ cat >"$audit_json" <<'EOF'
 {"checked":2,"missing_any":0,"missing_report":0,"missing_json":0,"missing_log_dir":0,"samples":[]}
 EOF
 
+cat >"$audit_trend_json" <<'EOF'
+{"window":5,"checked":2,"missing_any":1,"entries":[{"timestamp":"20260305_120000","profile":"full","tag":"ci","overall":"FAIL","missing_any":1,"missing":["report"]}]}
+EOF
+
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
-  --audit-json "$audit_json"
+  --audit-json "$audit_json" --audit-trend-json "$audit_trend_json"
 
 rg -n "Smoke Dashboard" "$out_html" >/dev/null
 rg -n "deadbeef" "$out_html" >/dev/null
@@ -27,5 +32,6 @@ rg -n "Daily rollup" "$out_html" >/dev/null
 rg -n "Audit summary" "$out_html" >/dev/null
 rg -n "Audit missing" "$out_html" >/dev/null
 rg -n "class='ok'" "$out_html" >/dev/null
+rg -n "Audit trend" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

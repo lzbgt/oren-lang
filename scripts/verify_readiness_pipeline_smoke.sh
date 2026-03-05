@@ -44,7 +44,7 @@ EOF
 ./scripts/readiness_pipeline.sh --dry-run --index "$index_path" --tag smoke --summary-limit 5 --stats-limit 5 --log "$log_path" \
   --diff-against "$baseline" --gate-pass-rate 50 --gate-window 1 --trim-since-days 1 \
   --status-path "$status_path" --status-diff-against "$status_baseline" --status-matrix-diff-against "$status_baseline" \
-  --audit --audit-allow-missing --audit-trend-window 5 \
+  --audit --audit-allow-missing --audit-trend-window 5 --audit-trend-max-missing 99 \
   --collect 1 --collect-include-dry-run --collect-dir "$work_dir/collect" --collect-pack --collect-pack-out "$work_dir/collect.tar.gz"
 
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
@@ -70,6 +70,7 @@ rg -n "Profiles" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Tags" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit summary" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit missing" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "Audit trend" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness collection" "$work_dir/collect/readiness_collect_index.md" >/dev/null
 test -f "$work_dir/collect.tar.gz"
 

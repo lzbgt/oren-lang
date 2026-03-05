@@ -104,7 +104,8 @@ Pipeline:
 
 - `make readiness-pipeline` — report + summary + stats + rollup + validate (CSV optional).
 - Pipeline flags: `--no-status-matrix`, `--status-matrix-diff-against <path>`,
-  `--audit-trend-window <n>`, `--no-audit-trend`.
+  `--audit-trend-window <n>`, `--audit-trend-max-missing <n>`, `--no-audit-trend`.
+- Dashboard accepts `--audit-trend-json` to render audit trend rows.
 
 Smoke verifiers:
 

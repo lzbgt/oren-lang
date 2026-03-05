@@ -39,6 +39,7 @@ Options:
   --audit-allow-missing             Audit reports missing paths but does not fail.
   --audit-max-missing <n>           Fail audit if missing_any exceeds n (default: -1).
   --audit-trend-window <n>          Audit trend window size (default: 20, 0=all).
+  --audit-trend-max-missing <n>     Fail if audit trend missing_any exceeds n (default: -1).
   --no-audit-trend                  Skip audit trend output.
   --collect <n>                     Collect last N readiness reports (0=skip, default: 0).
   --collect-dir <path>              Output directory for collected snapshots.
@@ -94,6 +95,7 @@ audit_allow_missing=0
 audit_max_missing=-1
 audit_trend_window=20
 emit_audit_trend=1
+audit_trend_max_missing=-1
 collect_count=0
 collect_dir="build/reports/readiness_collect"
 collect_include_dry_run=0
@@ -229,6 +231,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --audit-trend-window)
       audit_trend_window="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-max-missing)
+      audit_trend_max_missing="${2:-}"
       shift 2
       ;;
     --no-audit-trend)
@@ -435,6 +441,7 @@ fi
   echo "audit_max_missing=${audit_max_missing}"
   echo "audit_trend_window=${audit_trend_window}"
   echo "audit_trend=${emit_audit_trend}"
+  echo "audit_trend_max_missing=${audit_trend_max_missing}"
   echo "collect_count=${collect_count}"
   echo "collect_dir=${collect_dir}"
   echo "collect_include_dry_run=${collect_include_dry_run}"
@@ -468,7 +475,8 @@ fi
   if [[ "$emit_dashboard" == "1" ]]; then
     ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$dashboard_html" \
       --limit "$summary_limit" --rollup-days "$rollup_days" --trend-json "$trend_json" \
-      --profiles-json "$profiles_json" --tags-json "$tags_json" --audit-json "$audit_json"
+      --profiles-json "$profiles_json" --tags-json "$tags_json" --audit-json "$audit_json" \
+      --audit-trend-json "$audit_trend_json"
   fi
   if [[ "$emit_schema" == "1" ]]; then
     ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"
@@ -502,6 +510,9 @@ fi
       trend_args=(--index "$index_path" --out-md "$audit_trend_md" --out-json "$audit_trend_json" --limit "$audit_trend_window")
       if [[ "$dry_run" == "1" ]]; then
         trend_args+=(--include-dry-run)
+      fi
+      if [[ "$audit_trend_max_missing" != "-1" ]]; then
+        trend_args+=(--max-missing-any "$audit_trend_max_missing")
       fi
       ./scripts/readiness_report_index_audit_trend.py "${trend_args[@]}"
     fi

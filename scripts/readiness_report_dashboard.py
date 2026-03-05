@@ -58,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Audit JSON path (optional)",
     )
+    parser.add_argument(
+        "--audit-trend-json",
+        default="",
+        help="Audit trend JSON path (optional)",
+    )
     return parser.parse_args()
 
 
@@ -275,6 +280,35 @@ def render_audit(data: Dict[str, Any]) -> str:
     )
 
 
+def render_audit_trend(data: Dict[str, Any]) -> str:
+    if not data:
+        return ""
+    window = data.get("window", 0)
+    checked = data.get("checked", 0)
+    missing_any = data.get("missing_any", 0)
+    rows = []
+    for entry in data.get("entries", []):
+        missing = entry.get("missing", [])
+        if isinstance(missing, list):
+            missing = ", ".join(missing)
+        rows.append(
+            "<tr>"
+            f"<td>{entry.get('timestamp','-')}</td>"
+            f"<td>{entry.get('profile','-')}</td>"
+            f"<td>{entry.get('tag','-')}</td>"
+            f"<td>{entry.get('overall','-')}</td>"
+            f"<td>{entry.get('missing_any','-')}</td>"
+            f"<td>{missing}</td>"
+            "</tr>"
+        )
+    return (
+        "<h2>Audit trend</h2>\n"
+        f"<div class='meta'>Window: {window} • Checked: {checked} • Missing any: {missing_any}</div>\n"
+        "<table><thead><tr><th>Timestamp</th><th>Profile</th><th>Tag</th><th>Overall</th><th>Missing count</th><th>Missing</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
 def audit_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     if not data:
         return {}
@@ -315,6 +349,7 @@ def main() -> int:
     profiles = read_json(args.profiles_json)
     tags = read_json(args.tags_json)
     audit = read_json(args.audit_json)
+    audit_trend = read_json(args.audit_trend_json)
     audit_stats = audit_summary(audit)
 
     rows = []
@@ -445,6 +480,7 @@ def main() -> int:
   {render_profiles(profiles)}
   {render_tags(tags)}
   {render_audit(audit)}
+  {render_audit_trend(audit_trend)}
 </body>
 </html>
 """
