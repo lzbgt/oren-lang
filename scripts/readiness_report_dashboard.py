@@ -508,7 +508,8 @@ def main() -> int:
                 f"Audit trend missing_any {trend_missing_any} > {args.audit_trend_missing_threshold}"
             )
     if alert_parts:
-        alert = "<div class='alert'>" + " • ".join(alert_parts) + "</div>"
+        detail = "<ul>" + "".join(f"<li>{part}</li>" for part in alert_parts) + "</ul>"
+        alert = "<div class='alert'><div><strong>Audit thresholds exceeded</strong></div>" + detail + "</div>"
     else:
         if args.audit_missing_threshold >= 0 or args.audit_trend_missing_threshold >= 0:
             ok_banner = "<div class='ok-banner'>All clear: audit thresholds not exceeded.</div>"
