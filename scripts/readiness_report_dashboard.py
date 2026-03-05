@@ -38,6 +38,11 @@ def parse_args() -> argparse.Namespace:
         default="Oren readiness dashboard",
         help="Title for dashboard",
     )
+    parser.add_argument(
+        "--trend-json",
+        default="",
+        help="Trend JSON path (optional)",
+    )
     return parser.parse_args()
 
 
@@ -134,6 +139,14 @@ def compute_streak(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"kind": last, "len": length}
 
 
+def read_json(path: str) -> Dict[str, Any]:
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, dict) else {}
+
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -154,6 +167,7 @@ def main() -> int:
     pass_rate = f"{(passes / total * 100):.1f}%" if total else "-"
     streak = compute_streak(entries_sorted)
     latest = entries_sorted[-1] if entries_sorted else {}
+    trend = read_json(args.trend_json)
 
     rows = []
     for entry in reversed(entries_view):
@@ -228,6 +242,14 @@ def main() -> int:
     <div class="card">
       <div>Latest</div>
       <div><strong>{latest_text}</strong></div>
+    </div>
+    <div class="card">
+      <div>Trend window</div>
+      <div><strong>{trend.get('window','-')}</strong></div>
+    </div>
+    <div class="card">
+      <div>Trend pass rate</div>
+      <div><strong>{trend.get('window_pass_rate','-')}</strong>%</div>
     </div>
   </div>
 

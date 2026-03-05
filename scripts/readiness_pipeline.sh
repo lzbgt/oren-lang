@@ -29,6 +29,8 @@ Options:
   --no-status-snapshot              Skip status snapshot output.
   --status-diff-against <path>      Diff status snapshot against STATUS.md or snapshot JSON.
   --no-latest-summary               Skip index latest summary output.
+  --trend-window <n>                Trend window size for index trend (default: 20).
+  --no-trend                        Skip trend output.
   --trim-since <ts>                 Trim index to entries >= ts (YYYYMMDD_HHMMSS).
   --trim-until <ts>                 Trim index to entries <= ts (YYYYMMDD_HHMMSS).
   --trim-since-days <n>             Trim to last N days (local time).
@@ -66,6 +68,8 @@ status_path="docs/STATUS.md"
 emit_status_snapshot=1
 status_diff_against=""
 emit_latest_summary=1
+trend_window=20
+emit_trend=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -157,6 +161,14 @@ while [[ $# -gt 0 ]]; do
       emit_latest_summary=0
       shift
       ;;
+    --trend-window)
+      trend_window="${2:-}"
+      shift 2
+      ;;
+    --no-trend)
+      emit_trend=0
+      shift
+      ;;
     --trim-since)
       trim_since="${2:-}"
       shift 2
@@ -227,6 +239,8 @@ status_snapshot_diff_md="build/reports/status_snapshot_diff.md"
 status_snapshot_diff_json="build/reports/status_snapshot_diff.json"
 latest_md="build/reports/readiness_index_latest.md"
 latest_json="build/reports/readiness_index_latest.json"
+trend_md="build/reports/readiness_index_trend.md"
+trend_json="build/reports/readiness_index_trend.json"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -245,6 +259,8 @@ if [[ "$dry_run" == "1" ]]; then
   status_snapshot_diff_json="build/reports/status_snapshot_diff_dry_run.json"
   latest_md="build/reports/readiness_index_latest_dry_run.md"
   latest_json="build/reports/readiness_index_latest_dry_run.json"
+  trend_md="build/reports/readiness_index_trend_dry_run.md"
+  trend_json="build/reports/readiness_index_trend_dry_run.json"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -285,6 +301,8 @@ fi
   echo "status_snapshot=${emit_status_snapshot}"
   echo "status_diff_against=${status_diff_against}"
   echo "latest_summary=${emit_latest_summary}"
+  echo "trend_window=${trend_window}"
+  echo "trend=${emit_trend}"
   echo ""
   ./scripts/readiness_report.sh "${report_args[@]}"
   if [[ -n "$trim_since" || -n "$trim_until" || "$trim_since_days" != "-1" || "$trim_until_days" != "-1" ]]; then
@@ -311,13 +329,17 @@ fi
     --out-md "$rollup_md" --out-json "$rollup_json"
   if [[ "$emit_dashboard" == "1" ]]; then
     ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$dashboard_html" \
-      --limit "$summary_limit" --rollup-days "$rollup_days"
+      --limit "$summary_limit" --rollup-days "$rollup_days" --trend-json "$trend_json"
   fi
   if [[ "$emit_schema" == "1" ]]; then
     ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"
   fi
   if [[ "$emit_latest_summary" == "1" ]]; then
     ./scripts/readiness_report_index_latest.py --index "$index_path" --out-md "$latest_md" --out-json "$latest_json"
+  fi
+  if [[ "$emit_trend" == "1" ]]; then
+    ./scripts/readiness_report_index_trend.py --index "$index_path" --window "$trend_window" \
+      --out-md "$trend_md" --out-json "$trend_json"
   fi
   if [[ "$emit_status_snapshot" == "1" ]]; then
     ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"
