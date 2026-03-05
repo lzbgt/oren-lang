@@ -46,6 +46,7 @@ make readiness-report-index-query  # filter index by fields/time
 make readiness-report-index-rollup  # daily rollup (md + json)
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats
+make readiness-report-index-gate  # enforce pass/fail thresholds
 make readiness-pipeline  # run report + summary + stats + validate in one shot
 make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
@@ -111,6 +112,7 @@ Pipeline (single entrypoint):
 ./scripts/readiness_pipeline.sh --profile quick --rollup-days 14
 ./scripts/readiness_pipeline.sh --profile quick --log build/logs/readiness_pipeline_manual.log
 ./scripts/readiness_pipeline.sh --profile quick --diff-against build/reports/readiness_index.jsonl
+./scripts/readiness_pipeline.sh --profile quick --gate-pass-rate 80 --gate-window 20
 ```
 
 Build and run a hello binary (C backend by default):

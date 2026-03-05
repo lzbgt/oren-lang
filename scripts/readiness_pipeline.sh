@@ -20,6 +20,11 @@ Options:
   --prune <n>                       Prune index to last N entries after run (0=skip).
   --log <path>                      Write pipeline log to path (default: build/logs/readiness_pipeline_<ts>.log).
   --diff-against <path>             Compare index with another JSONL and emit summary diff.
+  --gate-pass-rate <pct>            Fail if pass rate is below pct (windowed).
+  --gate-window <n>                 Gate window size (default: 0=all).
+  --gate-max-fail-streak <n>        Fail if consecutive FAIL streak exceeds n.
+  --gate-max-fail-count <n>         Fail if fail count exceeds n.
+  --gate-allow-empty                Allow empty index in gate.
   --dry-run                        Dry-run report; writes to *_dry_run outputs.
   -h, --help                       Show help.
 EOF
@@ -40,6 +45,11 @@ emit_schema=1
 dry_run=0
 log_path=""
 diff_against=""
+gate_pass_rate="-1"
+gate_window=0
+gate_max_fail_streak="-1"
+gate_max_fail_count="-1"
+gate_allow_empty=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -94,6 +104,26 @@ while [[ $# -gt 0 ]]; do
     --diff-against)
       diff_against="${2:-}"
       shift 2
+      ;;
+    --gate-pass-rate)
+      gate_pass_rate="${2:-}"
+      shift 2
+      ;;
+    --gate-window)
+      gate_window="${2:-}"
+      shift 2
+      ;;
+    --gate-max-fail-streak)
+      gate_max_fail_streak="${2:-}"
+      shift 2
+      ;;
+    --gate-max-fail-count)
+      gate_max_fail_count="${2:-}"
+      shift 2
+      ;;
+    --gate-allow-empty)
+      gate_allow_empty=1
+      shift
       ;;
     --prune)
       prune_keep="${2:-}"
@@ -199,6 +229,22 @@ fi
   if [[ -n "$diff_against" ]]; then
     ./scripts/readiness_report_index_diff_summary.py --left "$diff_against" --right "$index_path" \
       --out-md "$diff_summary_md" --out-json "$diff_summary_json"
+  fi
+  if [[ "$gate_pass_rate" != "-1" || "$gate_max_fail_streak" != "-1" || "$gate_max_fail_count" != "-1" ]]; then
+    gate_args=(--index "$index_path" --window "$gate_window")
+    if [[ "$gate_pass_rate" != "-1" ]]; then
+      gate_args+=(--min-pass-rate "$gate_pass_rate")
+    fi
+    if [[ "$gate_max_fail_streak" != "-1" ]]; then
+      gate_args+=(--max-fail-streak "$gate_max_fail_streak")
+    fi
+    if [[ "$gate_max_fail_count" != "-1" ]]; then
+      gate_args+=(--max-fail-count "$gate_max_fail_count")
+    fi
+    if [[ "$gate_allow_empty" == "1" ]]; then
+      gate_args+=(--allow-empty)
+    fi
+    ./scripts/readiness_report_index_gate.py "${gate_args[@]}"
   fi
   if [[ "$emit_csv" == "1" ]]; then
     ./scripts/readiness_report_index_export_csv.py --index "$index_path" --out-csv "$csv_path"

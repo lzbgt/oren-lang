@@ -27,6 +27,7 @@ make readiness-report-index-rollup  # daily rollup (md + json)
 make readiness-report-dashboard  # build HTML dashboard
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats
+make readiness-report-index-gate  # enforce pass/fail thresholds
 make readiness-pipeline  # run readiness report + summary + stats + validate
 ```
 

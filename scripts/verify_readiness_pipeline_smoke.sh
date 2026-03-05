@@ -13,7 +13,7 @@ cat >"$baseline" <<'EOF'
 {"timestamp":"20260304_010000","profile":"quick","overall":"PASS","dry_run":false,"total_duration_sec":40,"git_rev":"abcd1234","git_dirty":"clean","report":"a","json":"a","log_dir":"a","tag":"nightly"}
 EOF
 
-./scripts/readiness_pipeline.sh --dry-run --index "$index_path" --tag smoke --summary-limit 5 --stats-limit 5 --log "$log_path" --diff-against "$baseline"
+./scripts/readiness_pipeline.sh --dry-run --index "$index_path" --tag smoke --summary-limit 5 --stats-limit 5 --log "$log_path" --diff-against "$baseline" --gate-pass-rate 50 --gate-window 1
 
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
 rg -n "Oren readiness summary" "build/reports/readiness_summary_dry_run.md" >/dev/null

@@ -56,6 +56,7 @@ Index tools:
 - `make readiness-report-index-compact` — dedupe + keep last N.
 - `make readiness-report-index-diff` — compare two index files.
 - `make readiness-report-index-diff-summary` — compare index summary stats.
+- `make readiness-report-index-gate` — enforce pass/fail thresholds.
 
 Pipeline:
 
