@@ -44,7 +44,9 @@ EOF
 ./scripts/readiness_pipeline.sh --dry-run --index "$index_path" --tag smoke --summary-limit 5 --stats-limit 5 --log "$log_path" \
   --diff-against "$baseline" --gate-pass-rate 50 --gate-window 1 --trim-since-days 1 \
   --status-path "$status_path" --status-diff-against "$status_baseline" --status-matrix-diff-against "$status_baseline" \
-  --audit --audit-allow-missing --audit-trend-window 5 --audit-trend-max-missing 99 \
+  --audit --audit-allow-missing --audit-max-report 99 --audit-max-json 99 --audit-max-log-dir 99 \
+  --audit-max-status-snapshot-md 99 --audit-max-status-snapshot-json 99 --audit-max-status-matrix-md 99 --audit-max-status-matrix-json 99 \
+  --audit-trend-window 5 --audit-trend-max-missing 99 \
   --audit-trend-max-report 99 --audit-trend-max-json 99 --audit-trend-max-log-dir 99 \
   --audit-trend-max-status-snapshot-md 99 --audit-trend-max-status-snapshot-json 99 \
   --audit-trend-max-status-matrix-md 99 --audit-trend-max-status-matrix-json 99 \

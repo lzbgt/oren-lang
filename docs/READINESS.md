@@ -108,7 +108,10 @@ Pipeline:
   `--audit-trend-max-report <n>`, `--audit-trend-max-json <n>`,
   `--audit-trend-max-log-dir <n>`, `--audit-trend-max-status-snapshot-md <n>`,
   `--audit-trend-max-status-snapshot-json <n>`, `--audit-trend-max-status-matrix-md <n>`,
-  `--audit-trend-max-status-matrix-json <n>`, `--no-audit-trend`.
+  `--audit-trend-max-status-matrix-json <n>`, `--no-audit-trend`,
+  `--audit-max-report <n>`, `--audit-max-json <n>`, `--audit-max-log-dir <n>`,
+  `--audit-max-status-snapshot-md <n>`, `--audit-max-status-snapshot-json <n>`,
+  `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`.
 - Dashboard accepts `--audit-trend-json` to render audit trend rows.
 
 Smoke verifiers:

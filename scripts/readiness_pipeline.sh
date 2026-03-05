@@ -38,6 +38,13 @@ Options:
   --audit                           Run index audit (checks for missing report/json/log_dir paths).
   --audit-allow-missing             Audit reports missing paths but does not fail.
   --audit-max-missing <n>           Fail audit if missing_any exceeds n (default: -1).
+  --audit-max-report <n>            Fail if audit missing report exceeds n (default: -1).
+  --audit-max-json <n>              Fail if audit missing json exceeds n (default: -1).
+  --audit-max-log-dir <n>           Fail if audit missing log_dir exceeds n (default: -1).
+  --audit-max-status-snapshot-md <n> Fail if audit missing status_snapshot_md exceeds n (default: -1).
+  --audit-max-status-snapshot-json <n> Fail if audit missing status_snapshot_json exceeds n (default: -1).
+  --audit-max-status-matrix-md <n>  Fail if audit missing status_matrix_md exceeds n (default: -1).
+  --audit-max-status-matrix-json <n> Fail if audit missing status_matrix_json exceeds n (default: -1).
   --audit-trend-window <n>          Audit trend window size (default: 20, 0=all).
   --audit-trend-max-missing <n>     Fail if audit trend missing_any exceeds n (default: -1).
   --audit-trend-max-report <n>      Fail if audit trend missing report exceeds n (default: -1).
@@ -100,6 +107,13 @@ emit_tag_summary=1
 emit_audit=0
 audit_allow_missing=0
 audit_max_missing=-1
+audit_max_report=-1
+audit_max_json=-1
+audit_max_log_dir=-1
+audit_max_status_snapshot_md=-1
+audit_max_status_snapshot_json=-1
+audit_max_status_matrix_md=-1
+audit_max_status_matrix_json=-1
 audit_trend_window=20
 emit_audit_trend=1
 audit_trend_max_missing=-1
@@ -241,6 +255,34 @@ while [[ $# -gt 0 ]]; do
       ;;
     --audit-max-missing)
       audit_max_missing="${2:-}"
+      shift 2
+      ;;
+    --audit-max-report)
+      audit_max_report="${2:-}"
+      shift 2
+      ;;
+    --audit-max-json)
+      audit_max_json="${2:-}"
+      shift 2
+      ;;
+    --audit-max-log-dir)
+      audit_max_log_dir="${2:-}"
+      shift 2
+      ;;
+    --audit-max-status-snapshot-md)
+      audit_max_status_snapshot_md="${2:-}"
+      shift 2
+      ;;
+    --audit-max-status-snapshot-json)
+      audit_max_status_snapshot_json="${2:-}"
+      shift 2
+      ;;
+    --audit-max-status-matrix-md)
+      audit_max_status_matrix_md="${2:-}"
+      shift 2
+      ;;
+    --audit-max-status-matrix-json)
+      audit_max_status_matrix_json="${2:-}"
       shift 2
       ;;
     --audit-trend-window)
@@ -481,6 +523,13 @@ fi
   echo "audit=${emit_audit}"
   echo "audit_allow_missing=${audit_allow_missing}"
   echo "audit_max_missing=${audit_max_missing}"
+  echo "audit_max_report=${audit_max_report}"
+  echo "audit_max_json=${audit_max_json}"
+  echo "audit_max_log_dir=${audit_max_log_dir}"
+  echo "audit_max_status_snapshot_md=${audit_max_status_snapshot_md}"
+  echo "audit_max_status_snapshot_json=${audit_max_status_snapshot_json}"
+  echo "audit_max_status_matrix_md=${audit_max_status_matrix_md}"
+  echo "audit_max_status_matrix_json=${audit_max_status_matrix_json}"
   echo "audit_trend_window=${audit_trend_window}"
   echo "audit_trend=${emit_audit_trend}"
   echo "audit_trend_max_missing=${audit_trend_max_missing}"
@@ -550,6 +599,27 @@ fi
     fi
     if [[ "$audit_max_missing" != "-1" ]]; then
       audit_args+=(--max-missing "$audit_max_missing")
+    fi
+    if [[ "$audit_max_report" != "-1" ]]; then
+      audit_args+=(--max-missing-report "$audit_max_report")
+    fi
+    if [[ "$audit_max_json" != "-1" ]]; then
+      audit_args+=(--max-missing-json "$audit_max_json")
+    fi
+    if [[ "$audit_max_log_dir" != "-1" ]]; then
+      audit_args+=(--max-missing-log-dir "$audit_max_log_dir")
+    fi
+    if [[ "$audit_max_status_snapshot_md" != "-1" ]]; then
+      audit_args+=(--max-missing-status-snapshot-md "$audit_max_status_snapshot_md")
+    fi
+    if [[ "$audit_max_status_snapshot_json" != "-1" ]]; then
+      audit_args+=(--max-missing-status-snapshot-json "$audit_max_status_snapshot_json")
+    fi
+    if [[ "$audit_max_status_matrix_md" != "-1" ]]; then
+      audit_args+=(--max-missing-status-matrix-md "$audit_max_status_matrix_md")
+    fi
+    if [[ "$audit_max_status_matrix_json" != "-1" ]]; then
+      audit_args+=(--max-missing-status-matrix-json "$audit_max_status_matrix_json")
     fi
     if [[ "$dry_run" == "1" ]]; then
       audit_args+=(--include-dry-run)
