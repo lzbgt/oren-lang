@@ -14,6 +14,7 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
 - Update fixtures and this doc when behavior changes.
 - High-level goals live in `docs/BLEEDING_EDGE_TASKS.md`.
 - For a reproducible snapshot, run `make readiness-report` (writes markdown + logs under `build/`).
+  Use `make readiness-report-json` or `./scripts/readiness_report.sh --json` for machine-readable output.
 
 ---
 

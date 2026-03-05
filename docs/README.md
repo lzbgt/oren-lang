@@ -36,6 +36,7 @@ make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage2 + C-backend builds)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make readiness-report  # generates build/reports/readiness_report_*.md
+make readiness-report-json  # readiness report + JSON summary
 make verify-readiness-report  # dry-run smoke for readiness report script
 
 # Optional knobs for runtime robustness:
@@ -50,6 +51,14 @@ Readiness report profiles:
 make readiness-report-minimal  # native quick only
 make readiness-report          # quick (native quick + backend parity)
 make readiness-report-full     # quick + GC stress + runtime robustness
+```
+
+Readiness report flags (optional):
+
+```bash
+./scripts/readiness_report.sh --json
+./scripts/readiness_report.sh --no-status-snippet
+./scripts/readiness_report.sh --include-env
 ```
 
 Build and run a hello binary (C backend by default):

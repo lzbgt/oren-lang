@@ -16,6 +16,7 @@ make bootstrap   # stage0 Go compiler
 make            # stage1 self-hosted compiler
 make test       # fast native smoke
 make readiness-report  # quick readiness snapshot (build/reports)
+make readiness-report-json  # readiness snapshot + JSON summary
 ```
 
 Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are
