@@ -40,7 +40,9 @@ rg -n "20260305_010000" "$query_overview_out" >/dev/null
 rg -n "20260305_010000" "$query_overview_exists_out" >/dev/null
 ! rg -n "20260306_090000" "$query_overview_exists_out" >/dev/null
 rg -n "Readiness rollup" "$rollup_md" >/dev/null
+rg -n "Overview" "$rollup_md" >/dev/null
 rg -n "\"day\": \"2026-03-05\"" "$rollup_json" >/dev/null
 rg -n "\"pass\": 1" "$rollup_json" >/dev/null
+rg -n "\"status_overview_present\": 1" "$rollup_json" >/dev/null
 
 echo "OK: readiness index query + rollup smoke verified"

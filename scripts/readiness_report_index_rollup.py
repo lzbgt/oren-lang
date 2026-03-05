@@ -82,6 +82,7 @@ def compute_rollup(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "avg_duration_sec": None,
                 "max_duration_sec": None,
                 "min_duration_sec": None,
+                "status_overview_present": 0,
             }
         bucket = by_day[day]
         bucket["total"] += 1
@@ -89,6 +90,9 @@ def compute_rollup(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             bucket["pass"] += 1
         elif entry.get("overall") == "FAIL":
             bucket["fail"] += 1
+        status_overview_md = entry.get("status_overview_md", "")
+        if isinstance(status_overview_md, str) and status_overview_md.strip():
+            bucket["status_overview_present"] += 1
         dur = entry.get("total_duration_sec")
         if isinstance(dur, int):
             if bucket["avg_duration_sec"] is None:
@@ -121,12 +125,13 @@ def write_markdown(path: str, rollup: List[Dict[str, Any]]) -> None:
     ensure_parent_dir(path)
     with open(path, "w", encoding="utf-8") as f:
         f.write("# Readiness rollup (daily)\n\n")
-        f.write("| Day | Total | Pass | Fail | Pass % | Avg Dur (s) | Min | Max |\n")
-        f.write("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+        f.write("| Day | Total | Pass | Fail | Pass % | Overview | Avg Dur (s) | Min | Max |\n")
+        f.write("| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
         for row in rollup:
             f.write(
                 f"| {row['day']} | {row['total']} | {row['pass']} | {row['fail']} | "
-                f"{row['pass_rate']:.1f} | {row['avg_duration_sec'] if row['avg_duration_sec'] is not None else '-'} | "
+                f"{row['pass_rate']:.1f} | {row['status_overview_present']} | "
+                f"{row['avg_duration_sec'] if row['avg_duration_sec'] is not None else '-'} | "
                 f"{row['min_duration_sec'] if row['min_duration_sec'] is not None else '-'} | "
                 f"{row['max_duration_sec'] if row['max_duration_sec'] is not None else '-'} |\n"
             )

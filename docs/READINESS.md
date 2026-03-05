@@ -27,6 +27,7 @@ Index + derived outputs:
 - `build/reports/readiness_index.csv` — CSV export.
 - `build/reports/readiness_rollup.md` — daily rollup.
 - `build/reports/readiness_rollup.json` — daily rollup (JSON).
+- Rollup includes `status_overview_present` counts per day.
 - `build/reports/readiness_index_latest.{md,json}` — latest entry by profile/tag.
 - `build/reports/readiness_index_trend.{md,json}` — trend summary over latest window.
 - `build/reports/readiness_index_profiles.{md,json}` — per-profile summary.
