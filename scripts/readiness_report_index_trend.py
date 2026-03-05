@@ -92,6 +92,17 @@ def duration_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def status_overview_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    total = len(entries)
+    present = 0
+    for entry in entries:
+        value = entry.get("status_overview_md", "")
+        if isinstance(value, str) and value.strip():
+            present += 1
+    rate = round((present / total * 100), 1) if total else 0.0
+    return {"count": present, "rate": rate}
+
+
 def compute_trend(entries: List[Dict[str, Any]], window: int) -> Dict[str, Any]:
     total = len(entries)
     if window <= 0:
@@ -102,12 +113,18 @@ def compute_trend(entries: List[Dict[str, Any]], window: int) -> Dict[str, Any]:
     latest = entries[-1] if entries else {}
     streak_kind, streak_len = fail_streak(entries)
     win_streak_kind, win_streak_len = fail_streak(window_entries)
+    overview_overall = status_overview_stats(entries)
+    overview_window = status_overview_stats(window_entries)
     return {
         "total": total,
         "window": window,
         "window_count": len(window_entries),
         "overall_pass_rate": pass_rate(entries),
         "window_pass_rate": pass_rate(window_entries),
+        "status_overview": {
+            "overall": overview_overall,
+            "window": overview_window,
+        },
         "latest": {
             "timestamp": latest.get("timestamp", ""),
             "profile": latest.get("profile", ""),
@@ -144,6 +161,15 @@ def write_markdown(path: str, trend: Dict[str, Any]) -> None:
         f.write("## Streak\n\n")
         f.write(f"- overall: {trend['streak']['kind']} x{trend['streak']['len']}\n")
         f.write(f"- window: {trend['window_streak']['kind']} x{trend['window_streak']['len']}\n\n")
+        f.write("## Status overview coverage\n\n")
+        f.write(
+            f"- overall: {trend['status_overview']['overall']['count']} "
+            f"({trend['status_overview']['overall']['rate']:.1f}%)\n"
+        )
+        f.write(
+            f"- window: {trend['status_overview']['window']['count']} "
+            f"({trend['status_overview']['window']['rate']:.1f}%)\n\n"
+        )
         f.write("## Latest\n\n")
         f.write(f"- timestamp: {trend['latest']['timestamp'] or '-'}\n")
         f.write(f"- profile: {trend['latest']['profile'] or '-'}\n")

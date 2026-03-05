@@ -22,9 +22,13 @@ rg -n "window size: 2" "$out_md" >/dev/null
 rg -n "overall: 66.7%" "$out_md" >/dev/null
 rg -n "window: 50.0%" "$out_md" >/dev/null
 rg -n "status_overview_c.md" "$out_md" >/dev/null
+rg -n "Status overview coverage" "$out_md" >/dev/null
+rg -n "overall: 2 \\(66.7%\\)" "$out_md" >/dev/null
+rg -n "window: 2 \\(100.0%\\)" "$out_md" >/dev/null
 rg -n "\"window\": 2" "$out_json" >/dev/null
 rg -n "\"overall_pass_rate\": 66.7" "$out_json" >/dev/null
 rg -n "\"window_pass_rate\": 50.0" "$out_json" >/dev/null
 rg -n "\"status_overview_md\": \"status_overview_c.md\"" "$out_json" >/dev/null
+rg -n "\"status_overview\"" "$out_json" >/dev/null
 
 echo "OK: readiness index trend smoke verified"

@@ -117,6 +117,7 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     duration_max = max(durations) if durations else None
     duration_min = min(durations) if durations else None
 
+    status_overview_rate = round((status_overview_present / total * 100), 1) if total else 0.0
     return {
         "total": total,
         "pass_rate": pass_rate,
@@ -127,6 +128,7 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         "duration_min": duration_min,
         "duration_max": duration_max,
         "status_overview_present": status_overview_present,
+        "status_overview_rate": status_overview_rate,
         "streak": {
             "kind": streak_kind,
             "len": streak_len,
@@ -151,6 +153,7 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
     duration_min = stats["duration_min"]
     duration_max = stats["duration_max"]
     status_overview_present = stats.get("status_overview_present", 0)
+    status_overview_rate = stats.get("status_overview_rate", 0.0)
     latest = stats["latest"]
     streak = stats.get("streak", {})
 
@@ -166,6 +169,7 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
         f.write(f"- pass: {overall_counts.get('PASS', 0)}\n")
         f.write(f"- fail: {overall_counts.get('FAIL', 0)}\n")
         f.write(f"- status_overview_present: {status_overview_present}\n")
+        f.write(f"- status_overview_rate: {status_overview_rate:.1f}%\n")
         if streak:
             f.write(f"- streak: {streak.get('kind','-')} x{streak.get('len','-')}\n")
         f.write("\n")

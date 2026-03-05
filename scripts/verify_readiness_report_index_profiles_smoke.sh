@@ -18,6 +18,7 @@ EOF_INDEX
 ./scripts/readiness_report_index_profiles.py --index "$index_path" --out-md "$out_md" --out-json "$out_json"
 
 rg -n "Readiness index profiles" "$out_md" >/dev/null
+rg -n "Overview %" "$out_md" >/dev/null
 rg -n "quick" "$out_md" >/dev/null
 rg -n "full" "$out_md" >/dev/null
 rg -n "status_overview_c.md" "$out_md" >/dev/null
@@ -25,5 +26,6 @@ rg -n "\"profiles\"" "$out_json" >/dev/null
 rg -n "\"quick\"" "$out_json" >/dev/null
 rg -n "\"full\"" "$out_json" >/dev/null
 rg -n "\"status_overview_md\"" "$out_json" >/dev/null
+rg -n "\"status_overview_rate\"" "$out_json" >/dev/null
 
 echo "OK: readiness index profiles smoke verified"

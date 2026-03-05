@@ -14,6 +14,7 @@ stop_after_green_cache="${OREN_QI_STOP_AFTER_GREEN_CACHE:-0}"
 only_green_cache="${OREN_QI_ONLY_GREEN_CACHE:-0}"
 green_cache_first="${OREN_QI_GREEN_CACHE_FIRST:-0}"
 green_cache_runs="${OREN_QI_GREEN_CACHE_RUNS:-1}"
+green_cache_retries="${OREN_QI_GREEN_CACHE_RETRIES:-1}"
 
 if [[ "$only_green_cache" == "1" ]]; then
   skip_base_run=1
@@ -173,12 +174,25 @@ run_green_cache() {
   echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$log"
   echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs" >>"$log"
   echo "green_cache_runs=$green_cache_runs" >>"$log"
+  echo "green_cache_retries=$green_cache_retries" >>"$log"
   local i
   for ((i=1; i<=green_cache_runs; i++)); do
     if [[ "$green_cache_runs" -gt 1 ]]; then
       echo "== green cache run ${i}/${green_cache_runs} ==" >>"$log"
     fi
-    OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
+    local attempt=0
+    while true; do
+      OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
+      local rc=$?
+      if [[ "$rc" -eq 0 ]]; then
+        break
+      fi
+      if [[ "$attempt" -ge "$green_cache_retries" ]]; then
+        return "$rc"
+      fi
+      attempt=$((attempt + 1))
+      echo "WARN: green cache run failed (rc=${rc}); retry ${attempt}/${green_cache_retries}" >>"$log"
+    done
   done
 }
 

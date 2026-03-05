@@ -140,7 +140,8 @@ Index stats outputs:
 
 - `build/reports/readiness_index_stats.md`
 - `build/reports/readiness_index_stats.json`
-- Index stats include `status_overview_present`.
+- Index stats include `status_overview_present` and `status_overview_rate`.
+- Profile/tag summaries include `status_overview_rate`.
 
 Index CSV output:
 

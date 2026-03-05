@@ -69,6 +69,7 @@ rg -n "truncated" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "status_overview_" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "Readiness index stats" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
 rg -n "status_overview_present" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
+rg -n "status_overview_rate" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
 rg -n "timestamp,profile,overall" "build/reports/readiness_index_dry_run.csv" >/dev/null
 rg -n "Readiness rollup" "build/reports/readiness_rollup_dry_run.md" >/dev/null
 rg -n "Overview" "build/reports/readiness_rollup_dry_run.md" >/dev/null
@@ -94,8 +95,10 @@ rg -n "Trend window" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Overview" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness index profiles" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
 rg -n "status_overview_" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
+rg -n "Overview %" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
 rg -n "Readiness index tags" "build/reports/readiness_index_tags_dry_run.md" >/dev/null
 rg -n "status_overview_" "build/reports/readiness_index_tags_dry_run.md" >/dev/null
+rg -n "Overview %" "build/reports/readiness_index_tags_dry_run.md" >/dev/null
 rg -n "Readiness index audit" "build/reports/readiness_index_audit_dry_run.md" >/dev/null
 rg -n "missing_status_overview_md" "build/reports/readiness_index_audit_dry_run.csv" >/dev/null
 rg -n "timestamp,profile,tag,missing,report,json,log_dir" "build/reports/readiness_index_audit_samples_dry_run.csv" >/dev/null

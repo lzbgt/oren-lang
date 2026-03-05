@@ -24,7 +24,7 @@ Index + derived outputs:
 - `build/reports/readiness_dashboard.html` — HTML dashboard.
 - `build/reports/readiness_index_stats.md` — stats from index.
 - `build/reports/readiness_index_stats.json` — stats (JSON).
-- Index stats include `status_overview_present`.
+- Index stats include `status_overview_present` and `status_overview_rate`.
 - `build/reports/readiness_index.csv` — CSV export.
 - `build/reports/readiness_rollup.md` — daily rollup.
 - `build/reports/readiness_rollup.json` — daily rollup (JSON).
@@ -105,7 +105,9 @@ Index tools:
   status sections in summary outputs.
 - Dashboard recent runs table includes `status_overview_md` when present.
 - Latest/trend/stats markdown outputs surface `status_overview_md` when present.
+- Trend outputs include status overview coverage counts + rates.
 - Profiles/tags markdown outputs surface `status_overview_md` when present.
+- Profiles/tags summaries include `status_overview_present`/`status_overview_rate`.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.
