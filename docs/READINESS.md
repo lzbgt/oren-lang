@@ -31,6 +31,7 @@ Index + derived outputs:
 - `build/reports/readiness_index_tags.{md,json}` — per-tag summary.
 - `build/reports/readiness_index_audit.{md,json}` — audit of index paths.
 - `build/reports/readiness_index_audit.csv` — audit summary CSV.
+- `build/reports/readiness_index_audit_samples.csv` — audit missing samples CSV.
 - `build/reports/readiness_index_audit_trend.{md,json}` — audit trend window.
 - `build/reports/readiness_index_audit_trend.csv` — audit trend CSV rows.
 - `build/reports/readiness_collect/` — collected report snapshots.

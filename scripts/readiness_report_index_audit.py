@@ -32,6 +32,11 @@ def parse_args() -> argparse.Namespace:
         help="Output CSV path (optional)",
     )
     parser.add_argument(
+        "--out-samples-csv",
+        default="",
+        help="Output CSV for missing samples (optional)",
+    )
+    parser.add_argument(
         "--allow-missing",
         action="store_true",
         help="Do not fail on missing files; report only",
@@ -276,6 +281,48 @@ def write_csv(path: str, summary: Dict[str, Any]) -> None:
         )
 
 
+def write_samples_csv(path: str, summary: Dict[str, Any]) -> None:
+    if not path:
+        return
+    ensure_parent_dir(path)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "timestamp",
+                "profile",
+                "tag",
+                "missing",
+                "report",
+                "json",
+                "log_dir",
+                "status_snapshot_md",
+                "status_snapshot_json",
+                "status_matrix_md",
+                "status_matrix_json",
+            ],
+        )
+        writer.writeheader()
+        for sample in summary.get("samples", []):
+            missing = sample.get("missing", [])
+            if isinstance(missing, list):
+                missing = ",".join(missing)
+            writer.writerow(
+                {
+                    "timestamp": sample.get("timestamp", ""),
+                    "profile": sample.get("profile", ""),
+                    "tag": sample.get("tag", ""),
+                    "missing": missing,
+                    "report": sample.get("report", ""),
+                    "json": sample.get("json", ""),
+                    "log_dir": sample.get("log_dir", ""),
+                    "status_snapshot_md": sample.get("status_snapshot_md", ""),
+                    "status_snapshot_json": sample.get("status_snapshot_json", ""),
+                    "status_matrix_md": sample.get("status_matrix_md", ""),
+                    "status_matrix_json": sample.get("status_matrix_json", ""),
+                }
+            )
+
 def main() -> int:
     args = parse_args()
     entries = parse_jsonl(args.index)
@@ -286,6 +333,8 @@ def main() -> int:
     write_json(args.out_json, summary)
     if args.out_csv:
         write_csv(args.out_csv, summary)
+    if args.out_samples_csv:
+        write_samples_csv(args.out_samples_csv, summary)
     print(f"OK: wrote {args.out_md} and {args.out_json}")
     if args.allow_missing:
         return 0
