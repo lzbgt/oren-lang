@@ -33,6 +33,7 @@ make readiness-report-index-audit  # audit index paths
 make readiness-report-collect  # collect last N reports into snapshots
 make readiness-report-collect-list  # list collected snapshots
 make readiness-report-collect-pack  # pack collected snapshots into tar.gz
+make readiness-report-sanitize  # sanitize report + json for sharing
 make readiness-report-dashboard  # build HTML dashboard
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats

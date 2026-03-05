@@ -32,6 +32,7 @@ Index + derived outputs:
 - `build/reports/readiness_collect/` — collected report snapshots.
 - `build/reports/readiness_collect_index.{md,json}` — collection index.
 - `build/reports/readiness_collect.tar.gz` — packed collection archive.
+- `build/reports/readiness_report_sanitized.{md,json}` — sanitized report outputs.
 
 ## Index schema (JSONL)
 
@@ -72,6 +73,7 @@ Index tools:
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.
+- `make readiness-report-sanitize` — sanitize report + json for sharing.
 - `make readiness-report-index-merge` — merge multiple index files.
 - `make readiness-report-index-compact` — dedupe + keep last N.
 - `make readiness-report-index-diff` — compare two index files.
@@ -105,6 +107,7 @@ Smoke verifiers:
 - `make verify-readiness-report-index-audit`
 - `make verify-readiness-report-collect`
 - `make verify-readiness-report-collect-pack`
+- `make verify-readiness-report-sanitize`
 - `make verify-readiness-pipeline`
 - `make verify-status-snapshot`
 - `make verify-status-snapshot-diff`
