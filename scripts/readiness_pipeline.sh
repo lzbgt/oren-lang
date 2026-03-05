@@ -31,6 +31,7 @@ Options:
   --status-diff-against <path>      Diff status snapshot against STATUS.md or snapshot JSON.
   --no-status-matrix                Skip status matrix output.
   --status-matrix-diff-against <path> Diff status matrix against STATUS.md or matrix JSON.
+  --status-max-items <n>            Limit status items in summary/dashboard (default: 10; <=0 means no limit).
   --no-latest-summary               Skip index latest summary output.
   --trend-window <n>                Trend window size for index trend (default: 20).
   --no-trend                        Skip trend output.
@@ -91,6 +92,7 @@ emit_dashboard=1
 emit_schema=1
 dry_run=0
 log_path=""
+status_max_items=10
 diff_against=""
 gate_pass_rate="-1"
 gate_window=0
@@ -221,6 +223,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --status-path)
       status_path="${2:-}"
+      shift 2
+      ;;
+    --status-max-items)
+      status_max_items="${2:-10}"
       shift 2
       ;;
     --no-status-snapshot)
@@ -565,6 +571,7 @@ fi
   echo "dry_run=${dry_run}"
   echo "summary_limit=${summary_limit}"
   echo "stats_limit=${stats_limit}"
+  echo "status_max_items=${status_max_items}"
   echo "prune_keep=${prune_keep}"
   echo "trim_since=${trim_since}"
   echo "trim_until=${trim_until}"
@@ -632,7 +639,7 @@ fi
     ./scripts/readiness_report_index_trim.py "${trim_args[@]}"
   fi
   ./scripts/readiness_report_summary.py --index "$index_path" --limit "$summary_limit" \
-    --out-md "$summary_md" --out-html "$summary_html"
+    --out-md "$summary_md" --out-html "$summary_html" --status-max-items "$status_max_items"
   ./scripts/readiness_report_index_stats.py --index "$index_path" --limit "$stats_limit" \
     --out-md "$stats_md" --out-json "$stats_json"
   ./scripts/readiness_report_index_rollup.py --index "$index_path" --limit-days "$rollup_days" \
@@ -649,6 +656,7 @@ fi
       --status-faq-json "$status_faq_json" \
       --status-snapshot-json "$status_snapshot_json" \
       --status-matrix-json "$status_matrix_json" \
+      --status-max-items "$status_max_items" \
       --audit-json "$audit_json" \
       --audit-trend-json "$audit_trend_json" \
       --audit-samples-json "$audit_json" \

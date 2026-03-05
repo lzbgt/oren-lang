@@ -50,6 +50,12 @@ make status-matrix  # render readiness matrix from STATUS.md
 make status-matrix-diff  # diff readiness matrices or STATUS.md
 ```
 
+Pipeline example:
+
+```bash
+./scripts/readiness_pipeline.sh --profile quick --status-max-items 5
+```
+
 Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are
 expected in the output; treat a non-zero exit status as failure.
 

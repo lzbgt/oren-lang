@@ -165,6 +165,7 @@ Pipeline (single entrypoint):
 ./scripts/readiness_pipeline.sh --profile quick --collect 3 --collect-copy-logs --collect-pack
 ./scripts/readiness_report_sanitize.py --report build/reports/readiness_latest.md --json build/reports/readiness_latest.json
 ./scripts/readiness_pipeline.sh --profile quick --no-dashboard
+./scripts/readiness_pipeline.sh --profile quick --status-max-items 5
 ```
 
 Build and run a hello binary (C backend by default):

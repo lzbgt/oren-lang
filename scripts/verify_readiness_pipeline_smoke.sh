@@ -20,12 +20,15 @@ cat >"$status_path" <<'EOF'
 
 ## Production readiness gap (rolling snapshot)
 - item one
+- item two
 
 ### Backend readiness (rolling snapshot)
 - backend one
+- backend two
 
 ### Feature readiness gaps (requested)
 - feature one
+- feature two
 EOF
 
 cat >"$status_baseline" <<'EOF'
@@ -33,17 +36,21 @@ cat >"$status_baseline" <<'EOF'
 
 ## Production readiness gap (rolling snapshot)
 - item zero
+- item alpha
 
 ### Backend readiness (rolling snapshot)
 - backend zero
+- backend alpha
 
 ### Feature readiness gaps (requested)
 - feature zero
+- feature alpha
 EOF
 
 ./scripts/readiness_pipeline.sh --dry-run --index "$index_path" --tag smoke --summary-limit 5 --stats-limit 5 --log "$log_path" \
   --diff-against "$baseline" --gate-pass-rate 50 --gate-window 1 --trim-since-days 1 \
   --status-path "$status_path" --status-diff-against "$status_baseline" --status-matrix-diff-against "$status_baseline" \
+  --status-max-items 1 \
   --audit --audit-allow-missing --audit-max-report 99 --audit-max-json 99 --audit-max-log-dir 99 \
   --audit-max-status-snapshot-md 99 --audit-max-status-snapshot-json 99 --audit-max-status-matrix-md 99 --audit-max-status-matrix-json 99 \
   --audit-warn-missing 99 \
@@ -56,10 +63,12 @@ EOF
 
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
 rg -n "Oren readiness summary" "build/reports/readiness_summary_dry_run.md" >/dev/null
+rg -n "truncated" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "Readiness index stats" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
 rg -n "timestamp,profile,overall" "build/reports/readiness_index_dry_run.csv" >/dev/null
 rg -n "Readiness rollup" "build/reports/readiness_rollup_dry_run.md" >/dev/null
 rg -n "Oren readiness dashboard" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "truncated" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "OK: readiness index schema validated" "$log_path" >/dev/null
 rg -n "audit_ok: thresholds not exceeded" "$log_path" >/dev/null
 rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary_dry_run.md" >/dev/null

@@ -129,6 +129,7 @@ Pipeline:
 
 - `make readiness-pipeline` — report + summary + stats + rollup + validate (CSV optional).
 - Pipeline flags: `--no-status-matrix`, `--no-status-faq`, `--status-matrix-diff-against <path>`,
+  `--status-max-items <n>`,
   `--audit-trend-window <n>`, `--audit-trend-max-missing <n>`,
   `--audit-trend-max-report <n>`, `--audit-trend-max-json <n>`,
   `--audit-trend-max-log-dir <n>`, `--audit-trend-max-status-snapshot-md <n>`,
