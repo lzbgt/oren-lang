@@ -50,6 +50,7 @@ make avm
 
 Start here: `docs/README.md` (canonical entry point and doc map).
 Readiness schema/tooling: `docs/READINESS.md`.
+Readiness index JSON schema: `docs/readiness_index.schema.json`.
 
 ## Benchmarks
 

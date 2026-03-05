@@ -40,6 +40,8 @@ Each line is a JSON object with required fields:
 - `log_dir` (string): log directory
 - `tag` (string, optional): e.g. `nightly`, `ci`
 
+Schema file: `docs/readiness_index.schema.json`.
+
 ## Tools
 
 Index tools:

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Oren readiness index entry",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "profile",
+    "overall",
+    "dry_run",
+    "total_duration_sec",
+    "git_rev",
+    "git_dirty",
+    "report",
+    "json",
+    "log_dir"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{8}_[0-9]{6}$"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "overall": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "total_duration_sec": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "git_rev": {
+      "type": "string"
+    },
+    "git_dirty": {
+      "type": "string",
+      "enum": ["clean", "dirty"]
+    },
+    "report": {
+      "type": "string"
+    },
+    "json": {
+      "type": "string"
+    },
+    "log_dir": {
+      "type": "string"
+    },
+    "tag": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

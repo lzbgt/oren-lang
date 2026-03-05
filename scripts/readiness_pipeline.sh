@@ -16,6 +16,7 @@ Options:
   --no-csv                         Skip CSV export.
   --rollup-days <n>                Rollup days (default: 30; 0=all).
   --no-dashboard                   Skip HTML dashboard.
+  --no-schema                      Skip JSON schema validation.
   --prune <n>                       Prune index to last N entries after run (0=skip).
   --dry-run                        Dry-run report; writes to *_dry_run outputs.
   -h, --help                       Show help.
@@ -33,6 +34,7 @@ prune_keep=0
 emit_csv=1
 rollup_days=30
 emit_dashboard=1
+emit_schema=1
 dry_run=0
 
 while [[ $# -gt 0 ]]; do
@@ -75,6 +77,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-dashboard)
       emit_dashboard=0
+      shift
+      ;;
+    --no-schema)
+      emit_schema=0
       shift
       ;;
     --prune)
@@ -165,6 +171,9 @@ fi
   if [[ "$emit_dashboard" == "1" ]]; then
     ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$dashboard_html" \
       --limit "$summary_limit" --rollup-days "$rollup_days"
+  fi
+  if [[ "$emit_schema" == "1" ]]; then
+    ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"
   fi
   if [[ "$emit_csv" == "1" ]]; then
     ./scripts/readiness_report_index_export_csv.py --index "$index_path" --out-csv "$csv_path"

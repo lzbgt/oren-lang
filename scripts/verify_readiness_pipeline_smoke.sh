@@ -15,5 +15,6 @@ rg -n "Readiness index stats" "build/reports/readiness_index_stats_dry_run.md" >
 rg -n "timestamp,profile,overall" "build/reports/readiness_index_dry_run.csv" >/dev/null
 rg -n "Readiness rollup" "build/reports/readiness_rollup_dry_run.md" >/dev/null
 rg -n "Oren readiness dashboard" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "OK: readiness index schema validated" "build/logs/readiness_pipeline_"*.log >/dev/null
 
 echo "OK: readiness pipeline smoke verified"
