@@ -4,7 +4,9 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List
+
+from status_snapshot_lib import snapshot_from_status
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,57 +35,6 @@ def ensure_parent_dir(path: str) -> None:
     dir_name = os.path.dirname(path)
     if dir_name:
         os.makedirs(dir_name, exist_ok=True)
-
-
-def load_lines(path: str) -> List[str]:
-    if not os.path.exists(path):
-        return []
-    with open(path, "r", encoding="utf-8") as f:
-        return [line.rstrip("\n") for line in f]
-
-
-def is_heading(line: str) -> bool:
-    return line.startswith("#") and line.lstrip().startswith("#")
-
-
-def heading_text(line: str) -> str:
-    return line.lstrip("# ").strip().lower()
-
-
-def collect_section(lines: List[str], header_match: str) -> Tuple[str, List[str]]:
-    current_title = ""
-    collecting = False
-    items: List[str] = []
-    for line in lines:
-        if is_heading(line):
-            title = heading_text(line)
-            if header_match in title:
-                collecting = True
-                current_title = line.strip().lstrip("#").strip()
-                continue
-            if collecting:
-                break
-        if collecting:
-            striped = line.strip()
-            if striped.startswith("- "):
-                items.append(striped[2:])
-    return current_title, items
-
-
-def snapshot(lines: List[str]) -> Dict[str, Dict[str, List[str]]]:
-    sections = {
-        "production_readiness_gap": "production readiness gap",
-        "backend_readiness": "backend readiness",
-        "feature_readiness_gaps": "feature readiness gaps",
-    }
-    payload: Dict[str, Dict[str, List[str]]] = {}
-    for key, match in sections.items():
-        title, items = collect_section(lines, match)
-        payload[key] = {
-            "title": title or match,
-            "items": items,
-        }
-    return payload
 
 
 def write_markdown(path: str, status_path: str, payload: Dict[str, Dict[str, List[str]]]) -> None:
@@ -120,11 +71,10 @@ def write_json(path: str, status_path: str, payload: Dict[str, Dict[str, List[st
 
 def main() -> int:
     args = parse_args()
-    lines = load_lines(args.status)
-    if not lines:
+    if not os.path.exists(args.status):
         print(f"ERROR: status file not found or empty: {args.status}", file=sys.stderr)
         return 2
-    payload = snapshot(lines)
+    payload = snapshot_from_status(args.status)
     write_markdown(args.out_md, args.status, payload)
     write_json(args.out_json, args.status, payload)
     print(f"OK: wrote {args.out_md} and {args.out_json}")

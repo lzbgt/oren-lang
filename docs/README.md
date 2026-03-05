@@ -52,12 +52,14 @@ make readiness-report-index-lint  # check ordering/duplicates
 make readiness-report-index-split  # split index by profile/tag
 make readiness-pipeline  # run report + summary + stats + validate in one shot
 make status-snapshot  # snapshot docs/STATUS.md into build/reports
+make status-snapshot-diff  # diff STATUS.md snapshots
 make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
 make verify-readiness-report-index-tools  # smoke for index tools
 make verify-readiness-report-index-trim  # smoke for index trim
 make verify-readiness-pipeline  # smoke for pipeline
 make verify-status-snapshot  # smoke for status snapshot
+make verify-status-snapshot-diff  # smoke for status snapshot diff
 
 # Optional knobs for runtime robustness:
 # - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
@@ -121,6 +123,7 @@ Pipeline (single entrypoint):
 ./scripts/readiness_pipeline.sh --profile quick --gate-pass-rate 80 --gate-window 20
 ./scripts/readiness_pipeline.sh --profile quick --trim-since-days 30
 ./scripts/readiness_pipeline.sh --profile quick --no-status-snapshot
+./scripts/readiness_pipeline.sh --profile quick --status-diff-against docs/STATUS.md
 ```
 
 Build and run a hello binary (C backend by default):
