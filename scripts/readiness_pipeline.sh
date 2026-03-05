@@ -45,6 +45,8 @@ Options:
   --audit-max-status-snapshot-json <n> Fail if audit missing status_snapshot_json exceeds n (default: -1).
   --audit-max-status-matrix-md <n>  Fail if audit missing status_matrix_md exceeds n (default: -1).
   --audit-max-status-matrix-json <n> Fail if audit missing status_matrix_json exceeds n (default: -1).
+  --audit-warn-missing <n>          Warn if audit missing_any exceeds n (default: -1).
+  --audit-trend-warn-missing <n>    Warn if audit trend missing_any exceeds n (default: -1).
   --audit-trend-window <n>          Audit trend window size (default: 20, 0=all).
   --audit-trend-max-missing <n>     Fail if audit trend missing_any exceeds n (default: -1).
   --audit-trend-max-report <n>      Fail if audit trend missing report exceeds n (default: -1).
@@ -114,6 +116,8 @@ audit_max_status_snapshot_md=-1
 audit_max_status_snapshot_json=-1
 audit_max_status_matrix_md=-1
 audit_max_status_matrix_json=-1
+audit_warn_missing=-1
+audit_trend_warn_missing=-1
 audit_trend_window=20
 emit_audit_trend=1
 audit_trend_max_missing=-1
@@ -283,6 +287,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --audit-max-status-matrix-json)
       audit_max_status_matrix_json="${2:-}"
+      shift 2
+      ;;
+    --audit-warn-missing)
+      audit_warn_missing="${2:-}"
+      shift 2
+      ;;
+    --audit-trend-warn-missing)
+      audit_trend_warn_missing="${2:-}"
       shift 2
       ;;
     --audit-trend-window)
@@ -540,6 +552,8 @@ fi
   echo "audit_max_status_snapshot_json=${audit_max_status_snapshot_json}"
   echo "audit_max_status_matrix_md=${audit_max_status_matrix_md}"
   echo "audit_max_status_matrix_json=${audit_max_status_matrix_json}"
+  echo "audit_warn_missing=${audit_warn_missing}"
+  echo "audit_trend_warn_missing=${audit_trend_warn_missing}"
   echo "audit_trend_window=${audit_trend_window}"
   echo "audit_trend=${emit_audit_trend}"
   echo "audit_trend_max_missing=${audit_trend_max_missing}"
@@ -585,7 +599,8 @@ fi
       --limit "$summary_limit" --rollup-days "$rollup_days" --trend-json "$trend_json" \
       --profiles-json "$profiles_json" --tags-json "$tags_json" --audit-json "$audit_json" \
       --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_json" \
-      --audit-missing-threshold "$audit_max_missing" --audit-trend-missing-threshold "$audit_trend_max_missing"
+  --audit-missing-threshold "$audit_max_missing" --audit-trend-missing-threshold "$audit_trend_max_missing"
+      --audit-missing-warn-threshold "$audit_warn_missing" --audit-trend-missing-warn-threshold "$audit_trend_warn_missing"
   fi
   if [[ "$emit_schema" == "1" ]]; then
     ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"

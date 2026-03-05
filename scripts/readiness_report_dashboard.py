@@ -91,6 +91,18 @@ def parse_args() -> argparse.Namespace:
         default=-1,
         help="Show alert if audit trend missing_any exceeds this threshold (disabled if <0).",
     )
+    parser.add_argument(
+        "--audit-missing-warn-threshold",
+        type=int,
+        default=-1,
+        help="Show warning if audit missing_any exceeds this threshold (disabled if <0).",
+    )
+    parser.add_argument(
+        "--audit-trend-missing-warn-threshold",
+        type=int,
+        default=-1,
+        help="Show warning if audit trend missing_any exceeds this threshold (disabled if <0).",
+    )
     return parser.parse_args()
 
 
@@ -495,23 +507,41 @@ def main() -> int:
                 trend_top_missing = f"{top_entry[0]} ({top_entry[1]})"
     alert = ""
     ok_banner = ""
-    alert_parts = []
-    if isinstance(audit_missing_any, int) and args.audit_missing_threshold >= 0:
-        if audit_missing_any > args.audit_missing_threshold:
-            alert_parts.append(
+    fail_parts = []
+    warn_parts = []
+    if isinstance(audit_missing_any, int):
+        if args.audit_missing_threshold >= 0 and audit_missing_any > args.audit_missing_threshold:
+            fail_parts.append(
                 f"Audit missing_any {audit_missing_any} > {args.audit_missing_threshold}"
             )
-    if isinstance(audit_trend, dict) and args.audit_trend_missing_threshold >= 0:
-        trend_missing_any = audit_trend.get("missing_any")
-        if isinstance(trend_missing_any, int) and trend_missing_any > args.audit_trend_missing_threshold:
-            alert_parts.append(
-                f"Audit trend missing_any {trend_missing_any} > {args.audit_trend_missing_threshold}"
+        elif args.audit_missing_warn_threshold >= 0 and audit_missing_any > args.audit_missing_warn_threshold:
+            warn_parts.append(
+                f"Audit missing_any {audit_missing_any} > {args.audit_missing_warn_threshold}"
             )
-    if alert_parts:
-        detail = "<ul>" + "".join(f"<li>{part}</li>" for part in alert_parts) + "</ul>"
+    if isinstance(audit_trend, dict):
+        trend_missing_any = audit_trend.get("missing_any")
+        if isinstance(trend_missing_any, int):
+            if args.audit_trend_missing_threshold >= 0 and trend_missing_any > args.audit_trend_missing_threshold:
+                fail_parts.append(
+                    f"Audit trend missing_any {trend_missing_any} > {args.audit_trend_missing_threshold}"
+                )
+            elif args.audit_trend_missing_warn_threshold >= 0 and trend_missing_any > args.audit_trend_missing_warn_threshold:
+                warn_parts.append(
+                    f"Audit trend missing_any {trend_missing_any} > {args.audit_trend_missing_warn_threshold}"
+                )
+    if fail_parts:
+        detail = "<ul>" + "".join(f"<li>{part}</li>" for part in fail_parts) + "</ul>"
         alert = "<div class='alert'><div><strong>Audit thresholds exceeded</strong></div>" + detail + "</div>"
+    elif warn_parts:
+        detail = "<ul>" + "".join(f"<li>{part}</li>" for part in warn_parts) + "</ul>"
+        alert = "<div class='alert warn'><div><strong>Audit warnings</strong></div>" + detail + "</div>"
     else:
-        if args.audit_missing_threshold >= 0 or args.audit_trend_missing_threshold >= 0:
+        if (
+            args.audit_missing_threshold >= 0
+            or args.audit_trend_missing_threshold >= 0
+            or args.audit_missing_warn_threshold >= 0
+            or args.audit_trend_missing_warn_threshold >= 0
+        ):
             ok_banner = "<div class='ok-banner'>All clear: audit thresholds not exceeded.</div>"
 
     html = f"""<!doctype html>
@@ -529,6 +559,7 @@ def main() -> int:
     .card .ok {{ color: #0a7a2f; font-weight: bold; }}
     .card .fail {{ color: #b00020; font-weight: bold; }}
     .alert {{ border: 1px solid #b00020; background: #fff4f4; color: #6b0000; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
+    .alert.warn {{ border: 1px solid #b36b00; background: #fff8ef; color: #7a4400; }}
     .ok-banner {{ border: 1px solid #0a7a2f; background: #f2fff5; color: #0a7a2f; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
     table {{ border-collapse: collapse; width: 100%; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}

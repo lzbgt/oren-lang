@@ -46,10 +46,12 @@ EOF
   --status-path "$status_path" --status-diff-against "$status_baseline" --status-matrix-diff-against "$status_baseline" \
   --audit --audit-allow-missing --audit-max-report 99 --audit-max-json 99 --audit-max-log-dir 99 \
   --audit-max-status-snapshot-md 99 --audit-max-status-snapshot-json 99 --audit-max-status-matrix-md 99 --audit-max-status-matrix-json 99 \
+  --audit-warn-missing 99 \
   --audit-trend-window 5 --audit-trend-max-missing 99 \
   --audit-trend-max-report 99 --audit-trend-max-json 99 --audit-trend-max-log-dir 99 \
   --audit-trend-max-status-snapshot-md 99 --audit-trend-max-status-snapshot-json 99 \
   --audit-trend-max-status-matrix-md 99 --audit-trend-max-status-matrix-json 99 \
+  --audit-trend-warn-missing 99 \
   --collect 1 --collect-include-dry-run --collect-dir "$work_dir/collect" --collect-pack --collect-pack-out "$work_dir/collect.tar.gz"
 
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
@@ -84,6 +86,7 @@ rg -n "Audit missing" "build/reports/readiness_dashboard_dry_run.html" >/dev/nul
 rg -n "Audit trend" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit samples" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Top missing \\(trend\\)" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "All clear: audit thresholds not exceeded." "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "All clear: audit thresholds not exceeded." "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness collection" "$work_dir/collect/readiness_collect_index.md" >/dev/null
 test -f "$work_dir/collect.tar.gz"
