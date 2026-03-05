@@ -58,6 +58,8 @@ Each line is a JSON object with required fields:
 - `tag` (string, optional): e.g. `nightly`, `ci`
 - `status_snapshot_md` (string, optional): status snapshot markdown path
 - `status_snapshot_json` (string, optional): status snapshot JSON path
+- `status_faq_md` (string, optional): status FAQ markdown path
+- `status_faq_json` (string, optional): status FAQ JSON path
 - `status_matrix_md` (string, optional): status matrix markdown path
 - `status_matrix_json` (string, optional): status matrix JSON path
 
@@ -79,7 +81,7 @@ Index tools:
 - `make readiness-report-index-profiles` — per-profile summary.
 - `make readiness-report-index-tags` — per-tag summary.
 - `make readiness-report-index-audit` — audit index paths.
-- Audit checks optional status snapshot/matrix paths when present.
+- Audit checks optional status snapshot/faq/matrix paths when present.
 - `make readiness-report-index-audit-trend` — audit latest window.
 - `scripts/readiness_report_dashboard.py` accepts `--audit-json` to show audit summary.
 - Dashboard surfaces an "Audit missing" card when audit JSON is provided.
@@ -96,6 +98,7 @@ Index tools:
 - `make readiness-report-index-lint` — check ordering/duplicates.
 - `make readiness-report-index-split` — split index by profile/tag.
 - `./scripts/readiness_report.sh --status-snapshot` — emit status snapshot files alongside the report.
+- `./scripts/readiness_report.sh --status-faq` — emit status FAQ files alongside the report.
 - `./scripts/readiness_report.sh --status-matrix` — emit status matrix files alongside the report.
 - `./scripts/readiness_report.sh --status-path <path>` — override STATUS.md path for report + snapshot.
 - `make status-faq` — generate a readiness FAQ from STATUS.md.
@@ -115,10 +118,12 @@ Pipeline:
   `--audit-trend-window <n>`, `--audit-trend-max-missing <n>`,
   `--audit-trend-max-report <n>`, `--audit-trend-max-json <n>`,
   `--audit-trend-max-log-dir <n>`, `--audit-trend-max-status-snapshot-md <n>`,
-  `--audit-trend-max-status-snapshot-json <n>`, `--audit-trend-max-status-matrix-md <n>`,
+  `--audit-trend-max-status-snapshot-json <n>`, `--audit-trend-max-status-faq-md <n>`,
+  `--audit-trend-max-status-faq-json <n>`, `--audit-trend-max-status-matrix-md <n>`,
   `--audit-trend-max-status-matrix-json <n>`, `--no-audit-trend`,
   `--audit-max-report <n>`, `--audit-max-json <n>`, `--audit-max-log-dir <n>`,
   `--audit-max-status-snapshot-md <n>`, `--audit-max-status-snapshot-json <n>`,
+  `--audit-max-status-faq-md <n>`, `--audit-max-status-faq-json <n>`,
   `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`.
 - Dashboard accepts `--audit-trend-json` to render audit trend rows.
 - Dashboard accepts `--audit-samples-json` to render audit samples (optional).

@@ -55,6 +55,12 @@
     "status_snapshot_json": {
       "type": "string"
     },
+    "status_faq_md": {
+      "type": "string"
+    },
+    "status_faq_json": {
+      "type": "string"
+    },
     "status_matrix_md": {
       "type": "string"
     },

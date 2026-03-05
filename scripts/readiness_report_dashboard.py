@@ -292,6 +292,8 @@ def render_audit(data: Dict[str, Any]) -> str:
         "missing_log_dir": data.get("missing_log_dir", "-"),
         "missing_status_snapshot_md": data.get("missing_status_snapshot_md", "-"),
         "missing_status_snapshot_json": data.get("missing_status_snapshot_json", "-"),
+        "missing_status_faq_md": data.get("missing_status_faq_md", "-"),
+        "missing_status_faq_json": data.get("missing_status_faq_json", "-"),
         "missing_status_matrix_md": data.get("missing_status_matrix_md", "-"),
         "missing_status_matrix_json": data.get("missing_status_matrix_json", "-"),
     }
@@ -304,6 +306,8 @@ def render_audit(data: Dict[str, Any]) -> str:
         ("missing_log_dir", "Missing log_dir"),
         ("missing_status_snapshot_md", "Missing status_snapshot_md"),
         ("missing_status_snapshot_json", "Missing status_snapshot_json"),
+        ("missing_status_faq_md", "Missing status_faq_md"),
+        ("missing_status_faq_json", "Missing status_faq_json"),
         ("missing_status_matrix_md", "Missing status_matrix_md"),
         ("missing_status_matrix_json", "Missing status_matrix_json"),
     ):
@@ -450,6 +454,8 @@ def audit_summary(data: Dict[str, Any]) -> Dict[str, Any]:
         "missing_log_dir": data.get("missing_log_dir"),
         "missing_status_snapshot_md": data.get("missing_status_snapshot_md"),
         "missing_status_snapshot_json": data.get("missing_status_snapshot_json"),
+        "missing_status_faq_md": data.get("missing_status_faq_md"),
+        "missing_status_faq_json": data.get("missing_status_faq_json"),
         "missing_status_matrix_md": data.get("missing_status_matrix_md"),
         "missing_status_matrix_json": data.get("missing_status_matrix_json"),
     }
@@ -468,6 +474,8 @@ def audit_top_missing(summary: Dict[str, Any]) -> str:
         "log_dir": count_value(summary.get("missing_log_dir", 0)),
         "status_snapshot_md": count_value(summary.get("missing_status_snapshot_md", 0)),
         "status_snapshot_json": count_value(summary.get("missing_status_snapshot_json", 0)),
+        "status_faq_md": count_value(summary.get("missing_status_faq_md", 0)),
+        "status_faq_json": count_value(summary.get("missing_status_faq_json", 0)),
         "status_matrix_md": count_value(summary.get("missing_status_matrix_md", 0)),
         "status_matrix_json": count_value(summary.get("missing_status_matrix_json", 0)),
     }

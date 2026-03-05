@@ -8,6 +8,10 @@ report_json="${work_dir}/report.json"
 log_dir="${work_dir}/logs"
 status_md="${work_dir}/status.md"
 status_json="${work_dir}/status.json"
+status_faq_md="${work_dir}/status_faq.md"
+status_faq_json="${work_dir}/status_faq.json"
+status_matrix_md="${work_dir}/status_matrix.md"
+status_matrix_json="${work_dir}/status_matrix.json"
 collect_dir="${work_dir}/collect"
 list_md="${work_dir}/collect_index.md"
 list_json="${work_dir}/collect_index.json"
@@ -19,9 +23,13 @@ mkdir -p "$work_dir" "$log_dir"
 : > "$report_json"
 : > "$status_md"
 : > "$status_json"
+: > "$status_faq_md"
+: > "$status_faq_json"
+: > "$status_matrix_md"
+: > "$status_matrix_json"
 
 cat >"$index_path" <<EOF_INDEX
-{"timestamp":"20260305_210000","profile":"quick","overall":"PASS","dry_run":false,"total_duration_sec":42,"git_rev":"abcd1234","git_dirty":"clean","report":"${report_path}","json":"${report_json}","log_dir":"${log_dir}","tag":"nightly","status_snapshot_md":"${status_md}","status_snapshot_json":"${status_json}"}
+{"timestamp":"20260305_210000","profile":"quick","overall":"PASS","dry_run":false,"total_duration_sec":42,"git_rev":"abcd1234","git_dirty":"clean","report":"${report_path}","json":"${report_json}","log_dir":"${log_dir}","tag":"nightly","status_snapshot_md":"${status_md}","status_snapshot_json":"${status_json}","status_faq_md":"${status_faq_md}","status_faq_json":"${status_faq_json}","status_matrix_md":"${status_matrix_md}","status_matrix_json":"${status_matrix_json}"}
 EOF_INDEX
 
 ./scripts/readiness_report_collect.py --index "$index_path" --out-dir "$collect_dir" --limit 1 --overwrite
@@ -38,6 +46,14 @@ if [[ ! -f "$collect_dir/$snapshot_dir/readiness_report.md" ]]; then
 fi
 if [[ ! -f "$collect_dir/$snapshot_dir/status_snapshot.md" ]]; then
   echo "missing status_snapshot.md" >&2
+  exit 1
+fi
+if [[ ! -f "$collect_dir/$snapshot_dir/status_faq.md" ]]; then
+  echo "missing status_faq.md" >&2
+  exit 1
+fi
+if [[ ! -f "$collect_dir/$snapshot_dir/status_matrix.md" ]]; then
+  echo "missing status_matrix.md" >&2
   exit 1
 fi
 

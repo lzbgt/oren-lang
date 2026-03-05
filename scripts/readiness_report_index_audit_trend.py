@@ -13,6 +13,8 @@ FIELDS = (
     "log_dir",
     "status_snapshot_md",
     "status_snapshot_json",
+    "status_faq_md",
+    "status_faq_json",
     "status_matrix_md",
     "status_matrix_json",
 )
@@ -93,6 +95,18 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=-1,
         help="Fail if missing status_snapshot_json exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-status-faq-md",
+        type=int,
+        default=-1,
+        help="Fail if missing status_faq_md exceeds this count (disabled if <0)",
+    )
+    parser.add_argument(
+        "--max-missing-status-faq-json",
+        type=int,
+        default=-1,
+        help="Fail if missing status_faq_json exceeds this count (disabled if <0)",
     )
     parser.add_argument(
         "--max-missing-status-matrix-md",
@@ -298,6 +312,8 @@ def main() -> int:
         "log_dir": args.max_missing_log_dir,
         "status_snapshot_md": args.max_missing_status_snapshot_md,
         "status_snapshot_json": args.max_missing_status_snapshot_json,
+        "status_faq_md": args.max_missing_status_faq_md,
+        "status_faq_json": args.max_missing_status_faq_json,
         "status_matrix_md": args.max_missing_status_matrix_md,
         "status_matrix_json": args.max_missing_status_matrix_json,
     }

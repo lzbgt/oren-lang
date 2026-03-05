@@ -116,6 +116,10 @@ def main() -> int:
         report_json = str(entry.get("json", ""))
         status_md = str(entry.get("status_snapshot_md", ""))
         status_json = str(entry.get("status_snapshot_json", ""))
+        status_faq_md = str(entry.get("status_faq_md", ""))
+        status_faq_json = str(entry.get("status_faq_json", ""))
+        status_matrix_md = str(entry.get("status_matrix_md", ""))
+        status_matrix_json = str(entry.get("status_matrix_json", ""))
         log_dir = str(entry.get("log_dir", ""))
 
         copy_file(report, os.path.join(snapshot_dir, "readiness_report.md"))
@@ -124,6 +128,14 @@ def main() -> int:
             copy_file(status_md, os.path.join(snapshot_dir, "status_snapshot.md"))
         if status_json:
             copy_file(status_json, os.path.join(snapshot_dir, "status_snapshot.json"))
+        if status_faq_md:
+            copy_file(status_faq_md, os.path.join(snapshot_dir, "status_faq.md"))
+        if status_faq_json:
+            copy_file(status_faq_json, os.path.join(snapshot_dir, "status_faq.json"))
+        if status_matrix_md:
+            copy_file(status_matrix_md, os.path.join(snapshot_dir, "status_matrix.md"))
+        if status_matrix_json:
+            copy_file(status_matrix_json, os.path.join(snapshot_dir, "status_matrix.json"))
         if args.copy_logs:
             copy_dir(log_dir, os.path.join(snapshot_dir, "logs"))
 
@@ -136,6 +148,10 @@ def main() -> int:
             "json": report_json,
             "status_snapshot_md": status_md,
             "status_snapshot_json": status_json,
+            "status_faq_md": status_faq_md,
+            "status_faq_json": status_faq_json,
+            "status_matrix_md": status_matrix_md,
+            "status_matrix_json": status_matrix_json,
             "log_dir": log_dir,
         }
         with open(os.path.join(snapshot_dir, "snapshot.json"), "w", encoding="utf-8") as f:
