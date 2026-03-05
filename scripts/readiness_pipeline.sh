@@ -25,6 +25,8 @@ Options:
   --gate-max-fail-streak <n>        Fail if consecutive FAIL streak exceeds n.
   --gate-max-fail-count <n>         Fail if fail count exceeds n.
   --gate-allow-empty                Allow empty index in gate.
+  --status-path <path>              STATUS.md path for snapshot (default: docs/STATUS.md).
+  --no-status-snapshot              Skip status snapshot output.
   --trim-since <ts>                 Trim index to entries >= ts (YYYYMMDD_HHMMSS).
   --trim-until <ts>                 Trim index to entries <= ts (YYYYMMDD_HHMMSS).
   --trim-since-days <n>             Trim to last N days (local time).
@@ -58,6 +60,8 @@ trim_since=""
 trim_until=""
 trim_since_days="-1"
 trim_until_days="-1"
+status_path="docs/STATUS.md"
+emit_status_snapshot=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -133,6 +137,14 @@ while [[ $# -gt 0 ]]; do
       gate_allow_empty=1
       shift
       ;;
+    --status-path)
+      status_path="${2:-}"
+      shift 2
+      ;;
+    --no-status-snapshot)
+      emit_status_snapshot=0
+      shift
+      ;;
     --trim-since)
       trim_since="${2:-}"
       shift 2
@@ -197,6 +209,8 @@ rollup_json="build/reports/readiness_rollup.json"
 dashboard_html="build/reports/readiness_dashboard.html"
 diff_summary_md="build/reports/readiness_index_diff_summary.md"
 diff_summary_json="build/reports/readiness_index_diff_summary.json"
+status_snapshot_md="build/reports/status_snapshot.md"
+status_snapshot_json="build/reports/status_snapshot.json"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -209,6 +223,8 @@ if [[ "$dry_run" == "1" ]]; then
   dashboard_html="build/reports/readiness_dashboard_dry_run.html"
   diff_summary_md="build/reports/readiness_index_diff_summary_dry_run.md"
   diff_summary_json="build/reports/readiness_index_diff_summary_dry_run.json"
+  status_snapshot_md="build/reports/status_snapshot_dry_run.md"
+  status_snapshot_json="build/reports/status_snapshot_dry_run.json"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -239,6 +255,8 @@ fi
   echo "trim_until=${trim_until}"
   echo "trim_since_days=${trim_since_days}"
   echo "trim_until_days=${trim_until_days}"
+  echo "status_path=${status_path}"
+  echo "status_snapshot=${emit_status_snapshot}"
   echo ""
   ./scripts/readiness_report.sh "${report_args[@]}"
   if [[ -n "$trim_since" || -n "$trim_until" || "$trim_since_days" != "-1" || "$trim_until_days" != "-1" ]]; then
@@ -269,6 +287,9 @@ fi
   fi
   if [[ "$emit_schema" == "1" ]]; then
     ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"
+  fi
+  if [[ "$emit_status_snapshot" == "1" ]]; then
+    ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"
   fi
   if [[ -n "$diff_against" ]]; then
     ./scripts/readiness_report_index_diff_summary.py --left "$diff_against" --right "$index_path" \

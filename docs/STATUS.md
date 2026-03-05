@@ -26,6 +26,8 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
   Dashboards: `make readiness-report-dashboard`.
   Schema: `make readiness-report-index-schema`.
   Use `make readiness-pipeline` to run report + summary + stats + validate in one shot.
+  For a docs-only snapshot of this file, run `make status-snapshot`
+  (writes `build/reports/status_snapshot.{md,json}`).
 
 ---
 

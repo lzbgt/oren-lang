@@ -24,5 +24,6 @@ rg -n "Readiness rollup" "build/reports/readiness_rollup_dry_run.md" >/dev/null
 rg -n "Oren readiness dashboard" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "OK: readiness index schema validated" "$log_path" >/dev/null
 rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary_dry_run.md" >/dev/null
+rg -n "Status snapshot" "build/reports/status_snapshot_dry_run.md" >/dev/null
 
 echo "OK: readiness pipeline smoke verified"

@@ -32,6 +32,7 @@ make readiness-report-index-gate  # enforce pass/fail thresholds
 make readiness-report-index-lint  # check ordering/duplicates
 make readiness-report-index-split  # split index by profile/tag
 make readiness-pipeline  # run readiness report + summary + stats + validate
+make status-snapshot  # snapshot docs/STATUS.md into build/reports
 ```
 
 Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are
