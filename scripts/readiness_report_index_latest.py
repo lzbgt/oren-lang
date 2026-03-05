@@ -61,6 +61,15 @@ def entry_timestamp(entry: Dict[str, Any]) -> str:
     return str(entry.get("timestamp", ""))
 
 
+def fmt_path_md(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    if not text:
+        return "-"
+    return f"`{text}`"
+
+
 def pick_latest(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     latest = {}
     latest_ts = ""
@@ -107,18 +116,21 @@ def write_markdown(path: str, summary: Dict[str, Any], groups: List[str]) -> Non
         f.write(f"- latest timestamp: {latest.get('timestamp','-')}\n")
         f.write(f"- latest profile: {latest.get('profile','-')}\n")
         f.write(f"- latest overall: {latest.get('overall','-')}\n")
+        latest_overview = str(latest.get("status_overview_md", "")).strip()
+        if latest_overview:
+            f.write(f"- latest status overview: `{latest_overview}`\n")
         f.write("\n")
         for group in groups:
             f.write(f"## Latest by {group}\n\n")
-            f.write("| Key | Timestamp | Overall | Profile | Tag | Git | Report |\n")
-            f.write("| --- | --- | --- | --- | --- | --- | --- |\n")
+            f.write("| Key | Timestamp | Overall | Profile | Tag | Git | Report | Overview |\n")
+            f.write("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
             items = summary.get("groups", {}).get(group, {})
             for key in sorted(items.keys()):
                 entry = items[key]
                 f.write(
                     f"| {key} | {entry.get('timestamp','-')} | {entry.get('overall','-')} | "
                     f"{entry.get('profile','-')} | {entry.get('tag','-')} | {entry.get('git_rev','-')} | "
-                    f"{entry.get('report','-')} |\n"
+                    f"{entry.get('report','-')} | {fmt_path_md(entry.get('status_overview_md'))} |\n"
                 )
             f.write("\n")
 

@@ -132,6 +132,7 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
             "overall": latest.get("overall", ""),
             "git_rev": latest.get("git_rev", ""),
             "tag": latest.get("tag", ""),
+            "status_overview_md": latest.get("status_overview_md", ""),
         },
     }
 
@@ -172,6 +173,8 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
         f.write(f"- overall: {latest.get('overall','-')}\n")
         f.write(f"- git: {latest.get('git_rev','-')}\n")
         f.write(f"- tag: {latest.get('tag','-')}\n")
+        if latest.get("status_overview_md"):
+            f.write(f"- status overview: {latest.get('status_overview_md')}\n")
         f.write("\n")
         f.write("## By profile\n\n")
         f.write("| Profile | Pass | Fail | Total |\n")

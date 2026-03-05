@@ -84,7 +84,9 @@ rg -n "Status snapshot diff" "build/reports/status_snapshot_diff_dry_run.md" >/d
 rg -n "Status readiness matrix" "build/reports/status_matrix_dry_run.md" >/dev/null
 rg -n "Status matrix diff" "build/reports/status_matrix_diff_dry_run.md" >/dev/null
 rg -n "Readiness index latest" "build/reports/readiness_index_latest_dry_run.md" >/dev/null
+rg -n "status_overview_" "build/reports/readiness_index_latest_dry_run.md" >/dev/null
 rg -n "Readiness index trend" "build/reports/readiness_index_trend_dry_run.md" >/dev/null
+rg -n "status_overview_" "build/reports/readiness_index_trend_dry_run.md" >/dev/null
 rg -n "Trend window" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness index profiles" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
 rg -n "Readiness index tags" "build/reports/readiness_index_tags_dry_run.md" >/dev/null

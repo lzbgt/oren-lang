@@ -101,6 +101,7 @@ Index tools:
 - Use `--no-status-sections` with `readiness_report_summary.py` to disable embedding
   status sections in summary outputs.
 - Dashboard recent runs table includes `status_overview_md` when present.
+- Latest/trend/stats markdown outputs surface `status_overview_md` when present.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.

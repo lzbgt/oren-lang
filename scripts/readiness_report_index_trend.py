@@ -114,6 +114,7 @@ def compute_trend(entries: List[Dict[str, Any]], window: int) -> Dict[str, Any]:
             "overall": latest.get("overall", ""),
             "tag": latest.get("tag", ""),
             "git_rev": latest.get("git_rev", ""),
+            "status_overview_md": latest.get("status_overview_md", ""),
         },
         "streak": {
             "kind": streak_kind,
@@ -148,7 +149,10 @@ def write_markdown(path: str, trend: Dict[str, Any]) -> None:
         f.write(f"- profile: {trend['latest']['profile'] or '-'}\n")
         f.write(f"- overall: {trend['latest']['overall'] or '-'}\n")
         f.write(f"- tag: {trend['latest']['tag'] or '-'}\n")
-        f.write(f"- git: {trend['latest']['git_rev'] or '-'}\n\n")
+        f.write(f"- git: {trend['latest']['git_rev'] or '-'}\n")
+        if trend["latest"].get("status_overview_md"):
+            f.write(f"- status overview: {trend['latest']['status_overview_md']}\n")
+        f.write("\n")
         f.write("## Duration (sec)\n\n")
         f.write(f"- overall avg/min/max: {trend['duration']['overall']['avg']} / {trend['duration']['overall']['min']} / {trend['duration']['overall']['max']}\n")
         f.write(f"- window avg/min/max: {trend['duration']['window']['avg']} / {trend['duration']['window']['min']} / {trend['duration']['window']['max']}\n")

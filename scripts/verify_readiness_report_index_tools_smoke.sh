@@ -12,7 +12,7 @@ mkdir -p "$work_dir"
 
 cat >"$index_path" <<'EOF'
 {"timestamp":"20260305_210000","profile":"quick","overall":"PASS","dry_run":false,"total_duration_sec":42,"git_rev":"abcd1234","git_dirty":"clean","report":"build/reports/readiness_report_20260305_210000.md","json":"build/reports/readiness_report_20260305_210000.json","log_dir":"build/logs/readiness_20260305_210000","tag":"nightly"}
-{"timestamp":"20260306_010000","profile":"full","overall":"FAIL","dry_run":false,"total_duration_sec":120,"git_rev":"deadbeef","git_dirty":"dirty","report":"build/reports/readiness_report_20260306_010000.md","json":"build/reports/readiness_report_20260306_010000.json","log_dir":"build/logs/readiness_20260306_010000","tag":"ci"}
+{"timestamp":"20260306_010000","profile":"full","overall":"FAIL","dry_run":false,"total_duration_sec":120,"git_rev":"deadbeef","git_dirty":"dirty","report":"build/reports/readiness_report_20260306_010000.md","json":"build/reports/readiness_report_20260306_010000.json","log_dir":"build/logs/readiness_20260306_010000","tag":"ci","status_overview_md":"build/reports/status_overview_20260306_010000.md"}
 EOF
 
 ./scripts/readiness_report_index_validate.py --index "$index_path"
@@ -23,6 +23,8 @@ rg -n "Readiness index stats" "$stats_md" >/dev/null
 rg -n "\"total\": 2" "$stats_json" >/dev/null
 rg -n "deadbeef" "$stats_md" >/dev/null
 rg -n "deadbeef" "$stats_json" >/dev/null
+rg -n "status_overview_20260306_010000.md" "$stats_md" >/dev/null
+rg -n "status_overview_20260306_010000.md" "$stats_json" >/dev/null
 rg -n "deadbeef" "$pruned" >/dev/null
 
 echo "OK: readiness index tools smoke verified"
