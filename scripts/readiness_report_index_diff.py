@@ -58,11 +58,30 @@ def entry_key(entry: Dict[str, Any]) -> Tuple[str, str, str, str]:
     )
 
 
+def fmt_overview(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    return text or "-"
+
+
+def pick_latest(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    latest: Dict[str, Any] = {}
+    latest_ts = ""
+    for entry in entries:
+        ts = str(entry.get("timestamp", ""))
+        if ts >= latest_ts:
+            latest_ts = ts
+            latest = entry
+    return latest
+
+
 def summary(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     total = len(entries)
     passes = sum(1 for e in entries if e.get("overall") == "PASS")
     fails = sum(1 for e in entries if e.get("overall") == "FAIL")
     latest_ts = max((str(e.get("timestamp", "")) for e in entries), default="")
+    latest_entry = pick_latest(entries)
     pass_rate = (passes / total * 100) if total else 0.0
     return {
         "total": total,
@@ -70,6 +89,7 @@ def summary(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         "fails": fails,
         "pass_rate": round(pass_rate, 1),
         "latest_timestamp": latest_ts,
+        "latest_status_overview_md": latest_entry.get("status_overview_md", ""),
     }
 
 
@@ -95,15 +115,17 @@ def write_markdown(
         f.write(f"- left: `{left_path}`\n")
         f.write(f"- right: `{right_path}`\n\n")
         f.write("## Summary\n\n")
-        f.write("| Side | Total | Pass | Fail | Pass % | Latest |\n")
-        f.write("| --- | --- | --- | --- | --- | --- |\n")
+        f.write("| Side | Total | Pass | Fail | Pass % | Latest | Latest overview |\n")
+        f.write("| --- | --- | --- | --- | --- | --- | --- |\n")
         f.write(
             f"| left | {left_summary['total']} | {left_summary['passes']} | {left_summary['fails']} | "
-            f"{left_summary['pass_rate']} | {left_summary['latest_timestamp']} |\n"
+            f"{left_summary['pass_rate']} | {left_summary['latest_timestamp']} | "
+            f"{fmt_overview(left_summary.get('latest_status_overview_md'))} |\n"
         )
         f.write(
             f"| right | {right_summary['total']} | {right_summary['passes']} | {right_summary['fails']} | "
-            f"{right_summary['pass_rate']} | {right_summary['latest_timestamp']} |\n"
+            f"{right_summary['pass_rate']} | {right_summary['latest_timestamp']} | "
+            f"{fmt_overview(right_summary.get('latest_status_overview_md'))} |\n"
         )
         f.write(f"\n- overlap: {overlap}\n")
         f.write(f"- left-only: {len(left_only)}\n")

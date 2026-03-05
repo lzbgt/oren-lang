@@ -63,6 +63,13 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     durations = [e.get("total_duration_sec") for e in entries if isinstance(e.get("total_duration_sec"), int)]
     avg_dur = round(sum(durations) / len(durations), 1) if durations else None
     latest = max((str(e.get("timestamp", "")) for e in entries), default="")
+    latest_entry: Dict[str, Any] = {}
+    latest_ts = ""
+    for entry in entries:
+        ts = str(entry.get("timestamp", ""))
+        if ts >= latest_ts:
+            latest_ts = ts
+            latest_entry = entry
     streak_kind = ""
     streak_len = 0
     if entries:
@@ -81,6 +88,7 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         "pass_rate": round(pass_rate, 1),
         "avg_duration_sec": avg_dur,
         "latest_timestamp": latest,
+        "latest_status_overview_md": latest_entry.get("status_overview_md", ""),
         "streak": {"kind": streak_kind, "len": streak_len},
     }
 
@@ -127,6 +135,7 @@ def write_markdown(path: str, left_path: str, right_path: str, left: Dict[str, A
         f.write(f"| pass_rate | {left['pass_rate']} | {right['pass_rate']} | {delta['pass_rate']} |\n")
         f.write(f"| avg_duration_sec | {left['avg_duration_sec']} | {right['avg_duration_sec']} | {delta['avg_duration_sec']} |\n")
         f.write(f"| latest_timestamp | {left['latest_timestamp']} | {right['latest_timestamp']} | - |\n")
+        f.write(f"| latest_status_overview_md | {left['latest_status_overview_md']} | {right['latest_status_overview_md']} | - |\n")
         f.write(f"| streak | {left['streak']['kind']} x{left['streak']['len']} | {right['streak']['kind']} x{right['streak']['len']} | - |\n")
 
 
@@ -159,6 +168,7 @@ def write_csv(path: str, left: Dict[str, Any], right: Dict[str, Any], delta: Dic
             ("pass_rate", left["pass_rate"], right["pass_rate"], delta["pass_rate"]),
             ("avg_duration_sec", left["avg_duration_sec"], right["avg_duration_sec"], delta["avg_duration_sec"]),
             ("latest_timestamp", left["latest_timestamp"], right["latest_timestamp"], ""),
+            ("latest_status_overview_md", left["latest_status_overview_md"], right["latest_status_overview_md"], ""),
             (
                 "streak",
                 f"{left['streak']['kind']} x{left['streak']['len']}",

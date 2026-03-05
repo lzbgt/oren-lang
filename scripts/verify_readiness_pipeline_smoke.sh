@@ -77,6 +77,7 @@ rg -n "OK: readiness index schema validated" "$log_path" >/dev/null
 rg -n "audit_ok: thresholds not exceeded" "$log_path" >/dev/null
 rg -n "Readiness index summary diff" "build/reports/readiness_index_diff_summary_dry_run.md" >/dev/null
 rg -n "metric,left,right,delta" "build/reports/readiness_index_diff_summary_dry_run.csv" >/dev/null
+rg -n "latest_status_overview_md" "build/reports/readiness_index_diff_summary_dry_run.csv" >/dev/null
 rg -n "Status snapshot" "build/reports/status_snapshot_dry_run.md" >/dev/null
 rg -n "Status FAQ" "build/reports/status_faq_dry_run.md" >/dev/null
 rg -n "Status Overview" "build/reports/status_overview_dry_run.md" >/dev/null
