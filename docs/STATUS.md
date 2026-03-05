@@ -28,6 +28,10 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
   Use `make readiness-pipeline` to run report + summary + stats + validate in one shot.
   For a docs-only snapshot of this file, run `make status-snapshot`
   (writes `build/reports/status_snapshot.{md,json}`).
+  For a readiness matrix derived from this file, run `make status-matrix`
+  (writes `build/reports/status_matrix.{md,json}`).
+  Diff matrices (or STATUS.md revisions) via `make status-matrix-diff`
+  (writes `build/reports/status_matrix_diff.{md,json}`).
   Diff snapshots with `make status-snapshot-diff`.
 
 ---
