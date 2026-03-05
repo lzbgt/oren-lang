@@ -18,6 +18,7 @@ Options:
   --no-dashboard                   Skip HTML dashboard.
   --no-schema                      Skip JSON schema validation.
   --prune <n>                       Prune index to last N entries after run (0=skip).
+  --log <path>                      Write pipeline log to path (default: build/logs/readiness_pipeline_<ts>.log).
   --dry-run                        Dry-run report; writes to *_dry_run outputs.
   -h, --help                       Show help.
 EOF
@@ -36,6 +37,7 @@ rollup_days=30
 emit_dashboard=1
 emit_schema=1
 dry_run=0
+log_path=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -83,6 +85,10 @@ while [[ $# -gt 0 ]]; do
       emit_schema=0
       shift
       ;;
+    --log)
+      log_path="${2:-}"
+      shift 2
+      ;;
     --prune)
       prune_keep="${2:-}"
       shift 2
@@ -114,7 +120,12 @@ fi
 timestamp="$(date +%Y%m%d_%H%M%S)"
 log_dir="build/logs"
 mkdir -p "$log_dir" "build/reports"
-log="${log_dir}/readiness_pipeline_${timestamp}.log"
+if [[ -n "$log_path" ]]; then
+  log="$log_path"
+  mkdir -p "$(dirname "$log")"
+else
+  log="${log_dir}/readiness_pipeline_${timestamp}.log"
+fi
 
 summary_md="build/reports/readiness_summary.md"
 summary_html="build/reports/readiness_summary.html"

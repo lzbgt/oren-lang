@@ -19,7 +19,7 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
   Generate summaries via `make readiness-report-summary` (writes `build/reports/readiness_summary.*`).
   Index tools: `make readiness-report-index-stats`, `make readiness-report-index-prune`,
   `make readiness-report-index-csv`, `make readiness-report-index-query`, `make readiness-report-index-rollup`,
-  `make readiness-report-index-merge`, `make readiness-report-index-compact`.
+  `make readiness-report-index-merge`, `make readiness-report-index-compact`, `make readiness-report-index-diff`.
   Dashboards: `make readiness-report-dashboard`.
   Schema: `make readiness-report-index-schema`.
   Use `make readiness-pipeline` to run report + summary + stats + validate in one shot.
@@ -1839,6 +1839,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
   - Note: `make test` hit a `test-native-quick` segfault (Error 139) on 2026-03-05
     (log: `build/logs/make_test_20260305_202158.log`); rerun passed
     (log: `build/logs/make_test_20260305_202230.log`). Track for flakes.
+  - Note: `make test` hit a `test-native-quick-stage2` segfault (Error 139) on 2026-03-05
+    (log: `build/logs/make_test_20260305_210315.log`); rerun passed
+    (log: `build/logs/make_test_20260305_210418.log`). Track for flakes.
   - Note: `make test` hit `test-native-quick` Error 1 on 2026-03-03 in the
     `OREN_GREEN_POLL_CACHE=1` sub-run (panic: "Indexing on non-container";
     log: `build/logs/make_test_20260303_221100.log`); rerun passed
