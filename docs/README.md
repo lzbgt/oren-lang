@@ -146,6 +146,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 - `docs/STATUS.md` — task tracker + feature matrix, gaps, roadmap, agentic requirements
 - `docs/BLEEDING_EDGE_TASKS.md` — bleeding-edge goals + derived task buckets
+- `docs/READINESS.md` — readiness report schema + tooling
 
 **Language (user-facing)**
 

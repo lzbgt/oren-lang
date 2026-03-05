@@ -48,6 +48,7 @@ make avm
 ## Docs
 
 Start here: `docs/README.md` (canonical entry point and doc map).
+Readiness schema/tooling: `docs/READINESS.md`.
 
 ## Benchmarks
 

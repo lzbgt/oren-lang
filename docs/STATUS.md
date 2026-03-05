@@ -18,7 +18,8 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
   Append JSONL summaries via `make readiness-report-index`; latest pointers live under `build/reports/readiness_latest.*`.
   Generate summaries via `make readiness-report-summary` (writes `build/reports/readiness_summary.*`).
   Index tools: `make readiness-report-index-stats`, `make readiness-report-index-prune`,
-  `make readiness-report-index-csv`, `make readiness-report-index-query`, `make readiness-report-index-rollup`.
+  `make readiness-report-index-csv`, `make readiness-report-index-query`, `make readiness-report-index-rollup`,
+  `make readiness-report-index-merge`, `make readiness-report-index-compact`.
   Use `make readiness-pipeline` to run report + summary + stats + validate in one shot.
 
 ---
