@@ -24,17 +24,30 @@ LABEL_PATTERNS = (
 
 
 def parse_item(item: str, index: int) -> Dict[str, str]:
+    if not item:
+        return {
+            "name": f"item-{index}",
+            "notes": "",
+            "raw": item,
+        }
+    lines = item.splitlines()
+    head = lines[0].strip()
+    tail_lines = lines[1:]
+    tail = "\n".join([line.rstrip() for line in tail_lines]).rstrip()
     for pattern in LABEL_PATTERNS:
-        match = pattern.match(item)
+        match = pattern.match(head)
         if match:
+            notes = match.group(2).strip()
+            if tail:
+                notes = f"{notes}\n{tail}"
             return {
                 "name": match.group(1).strip(),
-                "notes": match.group(2).strip(),
+                "notes": notes,
                 "raw": item,
             }
     return {
         "name": f"item-{index}",
-        "notes": item.strip(),
+        "notes": f"{head}\n{tail}".rstrip(),
         "raw": item,
     }
 

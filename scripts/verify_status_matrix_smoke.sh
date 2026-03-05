@@ -14,6 +14,8 @@ cat >"$status_path" <<'DATA'
 
 ## Production readiness gap (rolling snapshot)
 - **Semantic maturity**: tagged value model is rolling.
+  continuation detail
+  - nested note
 - stability gap without label
 
 ### Backend readiness (rolling snapshot)
@@ -31,8 +33,10 @@ rg -n "Backend readiness" "$out_md" >/dev/null
 rg -n "Feature readiness gaps" "$out_md" >/dev/null
 rg -n "C backend" "$out_md" >/dev/null
 rg -n "GMP concurrency" "$out_md" >/dev/null
+rg -n "continuation detail" "$out_md" >/dev/null
 rg -n "\"backend_readiness\"" "$out_json" >/dev/null
 rg -n "\"name\": \"C backend\"" "$out_json" >/dev/null
 rg -n "\"name\": \"item-2\"" "$out_json" >/dev/null
+rg -n "continuation detail" "$out_json" >/dev/null
 
 echo "OK: status matrix smoke verified"

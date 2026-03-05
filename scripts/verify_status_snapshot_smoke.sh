@@ -15,6 +15,8 @@ cat >"$status_path" <<'DATA'
 ## Production readiness gap (rolling snapshot)
 - item one
 - item two
+  continuation line
+  - nested bullet
 
 ### Backend readiness (rolling snapshot)
 - backend one
@@ -29,6 +31,8 @@ rg -n "Status snapshot" "$out_md" >/dev/null
 rg -n "item one" "$out_md" >/dev/null
 rg -n "backend one" "$out_md" >/dev/null
 rg -n "feature one" "$out_md" >/dev/null
+rg -n "continuation line" "$out_md" >/dev/null
+rg -n "nested bullet" "$out_md" >/dev/null
 rg -n "production_readiness_gap" "$out_json" >/dev/null
 rg -n "backend_readiness" "$out_json" >/dev/null
 rg -n "feature_readiness_gaps" "$out_json" >/dev/null

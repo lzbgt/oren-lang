@@ -28,6 +28,7 @@ def collect_section(lines: List[str], header_match: str) -> Tuple[str, List[str]
     current_title = ""
     collecting = False
     items: List[str] = []
+    current_lines: List[str] = []
     for line in lines:
         if is_heading(line):
             title = heading_text(line)
@@ -37,10 +38,23 @@ def collect_section(lines: List[str], header_match: str) -> Tuple[str, List[str]
                 continue
             if collecting:
                 break
-        if collecting:
-            striped = line.strip()
-            if striped.startswith("- "):
-                items.append(striped[2:])
+        if not collecting:
+            continue
+        if line.startswith("- "):
+            if current_lines:
+                items.append("\n".join(current_lines))
+            current_lines = [line[2:].rstrip()]
+            continue
+        striped = line.strip()
+        if not striped:
+            continue
+        if not current_lines:
+            continue
+        if line.startswith(" ") or line.startswith("\t"):
+            current_lines.append(line.rstrip())
+            continue
+    if current_lines:
+        items.append("\n".join(current_lines))
     return current_title, items
 
 
