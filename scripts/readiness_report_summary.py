@@ -45,6 +45,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable embedding status FAQ/snapshot/matrix sections in outputs.",
     )
+    parser.add_argument(
+        "--status-max-items",
+        type=int,
+        default=10,
+        help="Max items per status section (default: 10, <=0 means no limit).",
+    )
     return parser.parse_args()
 
 
@@ -99,9 +105,11 @@ def normalize_structured_items(value: Any) -> List[str]:
     return []
 
 
-def render_items_md(items: List[str], max_items: int = 10) -> List[str]:
+def render_items_md(items: List[str], max_items: int) -> List[str]:
     if not items:
         return ["- (no items)"]
+    if max_items <= 0:
+        max_items = len(items)
     lines: List[str] = []
     for item in items[:max_items]:
         for line in format_multiline_item(item):
@@ -111,7 +119,7 @@ def render_items_md(items: List[str], max_items: int = 10) -> List[str]:
     return lines
 
 
-def render_status_faq_md(data: Dict[str, Any]) -> str:
+def render_status_faq_md(data: Dict[str, Any], max_items: int) -> str:
     questions = data.get("questions")
     if not isinstance(questions, list) or not questions:
         return ""
@@ -126,12 +134,12 @@ def render_status_faq_md(data: Dict[str, Any]) -> str:
             raw_items = entry.get("items")
             if isinstance(raw_items, list):
                 items = [str(item) for item in raw_items]
-        out.extend(render_items_md(items))
+        out.extend(render_items_md(items, max_items))
         out.append("")
     return "\n".join(out).rstrip()
 
 
-def render_status_snapshot_md(data: Dict[str, Any]) -> str:
+def render_status_snapshot_md(data: Dict[str, Any], max_items: int) -> str:
     sections = data.get("sections")
     if not isinstance(sections, dict) or not sections:
         return ""
@@ -148,12 +156,12 @@ def render_status_snapshot_md(data: Dict[str, Any]) -> str:
             raw_items = section.get("items")
             if isinstance(raw_items, list):
                 items = [str(item) for item in raw_items]
-        out.extend(render_items_md(items))
+        out.extend(render_items_md(items, max_items))
         out.append("")
     return "\n".join(out).rstrip()
 
 
-def render_status_matrix_md(data: Dict[str, Any]) -> str:
+def render_status_matrix_md(data: Dict[str, Any], max_items: int) -> str:
     sections = data.get("sections") if isinstance(data.get("sections"), dict) else data
     if not isinstance(sections, dict) or not sections:
         return ""
@@ -184,9 +192,86 @@ def render_status_matrix_md(data: Dict[str, Any]) -> str:
                 notes = row.get("raw", "")
             item = f"{name}: {notes}" if notes else name
             items.append(item)
-        out.extend(render_items_md(items))
+        out.extend(render_items_md(items, max_items))
         out.append("")
     return "\n".join(out).rstrip()
+
+
+def _trunc_structured_item(total: int) -> Dict[str, Any]:
+    label = f"(truncated, {total} total)"
+    return {"raw": label, "lines": [label], "head": label}
+
+
+def _limit_list(items: List[Any], max_items: int) -> List[Any]:
+    if max_items <= 0 or len(items) <= max_items:
+        return items
+    return items[:max_items] + [f"(truncated, {len(items)} total)"]
+
+
+def _limit_structured(items: List[Any], max_items: int) -> List[Any]:
+    if max_items <= 0 or len(items) <= max_items:
+        return items
+    return items[:max_items] + [_trunc_structured_item(len(items))]
+
+
+def limit_status_faq(data: Dict[str, Any], max_items: int) -> Dict[str, Any]:
+    if not data or max_items <= 0:
+        return data
+    questions = data.get("questions")
+    if not isinstance(questions, list):
+        return data
+    trimmed = []
+    for entry in questions:
+        if not isinstance(entry, dict):
+            continue
+        out = dict(entry)
+        structured = entry.get("items_structured")
+        items = entry.get("items")
+        if isinstance(structured, list):
+            out["items_structured"] = _limit_structured(list(structured), max_items)
+        elif isinstance(items, list):
+            out["items"] = _limit_list(list(items), max_items)
+        trimmed.append(out)
+    return {"questions": trimmed}
+
+
+def limit_status_snapshot(data: Dict[str, Any], max_items: int) -> Dict[str, Any]:
+    if not data or max_items <= 0:
+        return data
+    sections = data.get("sections")
+    if not isinstance(sections, dict):
+        return data
+    trimmed_sections: Dict[str, Any] = {}
+    for key, section in sections.items():
+        if not isinstance(section, dict):
+            continue
+        out = dict(section)
+        structured = section.get("items_structured")
+        items = section.get("items")
+        if isinstance(structured, list):
+            out["items_structured"] = _limit_structured(list(structured), max_items)
+        elif isinstance(items, list):
+            out["items"] = _limit_list(list(items), max_items)
+        trimmed_sections[key] = out
+    return {"sections": trimmed_sections}
+
+
+def limit_status_matrix(data: Dict[str, Any], max_items: int) -> Dict[str, Any]:
+    if not data or max_items <= 0:
+        return data
+    sections = data.get("sections") if isinstance(data.get("sections"), dict) else data
+    if not isinstance(sections, dict):
+        return data
+    trimmed_sections: Dict[str, Any] = {}
+    for key, rows in sections.items():
+        if not isinstance(rows, list):
+            continue
+        if len(rows) <= max_items:
+            trimmed_sections[key] = rows
+            continue
+        trunc_row = {"name": f"(truncated, {len(rows)} total)", "notes": "", "notes_lines": []}
+        trimmed_sections[key] = rows[:max_items] + [trunc_row]
+    return {"sections": trimmed_sections}
 
 
 def fmt_duration(seconds: Optional[int]) -> str:
@@ -221,7 +306,13 @@ def latest_by(entries: List[Dict[str, Any]], key: str, value: str) -> Optional[D
     return None
 
 
-def write_markdown(path: str, title: str, entries: List[Dict[str, Any]], include_status: bool) -> None:
+def write_markdown(
+    path: str,
+    title: str,
+    entries: List[Dict[str, Any]],
+    include_status: bool,
+    max_items: int,
+) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     latest = entries[-1] if entries else None
     last_fail = latest_by(entries, "overall", "FAIL")
@@ -271,9 +362,9 @@ def write_markdown(path: str, title: str, entries: List[Dict[str, Any]], include
             status_snapshot = read_json(str(latest.get("status_snapshot_json", "")))
             status_matrix = read_json(str(latest.get("status_matrix_json", "")))
             sections = [
-                render_status_faq_md(status_faq),
-                render_status_snapshot_md(status_snapshot),
-                render_status_matrix_md(status_matrix),
+                render_status_faq_md(status_faq, max_items),
+                render_status_snapshot_md(status_snapshot, max_items),
+                render_status_matrix_md(status_matrix, max_items),
             ]
             rendered = "\n\n".join(section for section in sections if section)
             if rendered:
@@ -282,7 +373,13 @@ def write_markdown(path: str, title: str, entries: List[Dict[str, Any]], include
                 f.write("\n")
 
 
-def write_html(path: str, title: str, entries: List[Dict[str, Any]], include_status: bool) -> None:
+def write_html(
+    path: str,
+    title: str,
+    entries: List[Dict[str, Any]],
+    include_status: bool,
+    max_items: int,
+) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     latest = entries[-1] if entries else None
     total = len(entries)
@@ -313,6 +410,9 @@ def write_html(path: str, title: str, entries: List[Dict[str, Any]], include_sta
         status_faq = read_json(str(latest.get("status_faq_json", "")))
         status_snapshot = read_json(str(latest.get("status_snapshot_json", "")))
         status_matrix = read_json(str(latest.get("status_matrix_json", "")))
+        status_faq = limit_status_faq(status_faq, max_items)
+        status_snapshot = limit_status_snapshot(status_snapshot, max_items)
+        status_matrix = limit_status_matrix(status_matrix, max_items)
         status_sections = (
             render_status_faq(status_faq)
             + render_status_snapshot(status_snapshot)
@@ -377,8 +477,8 @@ def main() -> int:
     if args.limit > 0:
         entries = entries[-args.limit :]
     include_status = not args.no_status_sections
-    write_markdown(args.out_md, args.title, entries, include_status)
-    write_html(args.out_html, args.title, entries, include_status)
+    write_markdown(args.out_md, args.title, entries, include_status, args.status_max_items)
+    write_html(args.out_html, args.title, entries, include_status, args.status_max_items)
     print(f"OK: wrote {args.out_md} and {args.out_html}")
     return 0
 

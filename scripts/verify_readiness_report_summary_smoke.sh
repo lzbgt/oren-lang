@@ -13,7 +13,7 @@ rm -rf "$work_dir" 2>/dev/null || true
 mkdir -p "$work_dir"
 
 cat >"$status_faq_json" <<'EOF'
-{"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items":["C backend: rolling"]}]}
+{"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items":["C backend: rolling","Native backend: rolling"]}]}
 EOF
 
 cat >"$status_snapshot_json" <<'EOF'
@@ -53,5 +53,10 @@ out_html_no="${work_dir}/summary_no.html"
 ! rg -n "Status Snapshot" "$out_html_no" >/dev/null
 ! rg -n "Status Matrix" "$out_html_no" >/dev/null
 rg -n "Status Matrix" "$out_html" >/dev/null
+
+out_md_limit="${work_dir}/summary_limit.md"
+out_html_limit="${work_dir}/summary_limit.html"
+./scripts/readiness_report_summary.py --index "$index_path" --limit 10 --out-md "$out_md_limit" --out-html "$out_html_limit" --title "Smoke Summary" --status-max-items 1
+rg -n "truncated" "$out_md_limit" >/dev/null
 
 echo "OK: readiness summary smoke verified"
