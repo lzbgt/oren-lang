@@ -1,6 +1,6 @@
 # Start Here: Oren Docs (Canonical)
 
-**Last updated:** 2026-03-04
+**Last updated:** 2026-03-05
 
 This file is the single **entry point** for the Oren docs. It merges the former root README
 orientation with the docs index so you can start in one place and branch out only when needed.
@@ -35,11 +35,21 @@ make test       # fast native smoke
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage2 + C-backend builds)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
+make readiness-report  # generates build/reports/readiness_report_*.md
+make verify-readiness-report  # dry-run smoke for readiness report script
 
 # Optional knobs for runtime robustness:
 # - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
 # - OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS, OREN_RUNTIME_ROBUSTNESS_C_RUNS
 # - OREN_RUNTIME_ROBUSTNESS_C_FIXTURES, OREN_RUNTIME_ROBUSTNESS_TRACE_ENV
+```
+
+Readiness report profiles:
+
+```bash
+make readiness-report-minimal  # native quick only
+make readiness-report          # quick (native quick + backend parity)
+make readiness-report-full     # quick + GC stress + runtime robustness
 ```
 
 Build and run a hello binary (C backend by default):
