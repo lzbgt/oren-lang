@@ -50,6 +50,8 @@ make readiness-report-index-trend  # trend summary over latest window
 make readiness-report-index-profiles  # per-profile summary
 make readiness-report-index-tags  # per-tag summary
 make readiness-report-index-audit  # audit index paths
+make readiness-report-collect  # collect last N reports into snapshots
+make readiness-report-collect-list  # list collected snapshots
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats
 make readiness-report-index-gate  # enforce pass/fail thresholds
@@ -67,6 +69,7 @@ make verify-readiness-report-index-trend  # smoke for index trend
 make verify-readiness-report-index-profiles  # smoke for index profiles
 make verify-readiness-report-index-tags  # smoke for index tags
 make verify-readiness-report-index-audit  # smoke for index audit
+make verify-readiness-report-collect  # smoke for report collect
 make verify-readiness-pipeline  # smoke for pipeline
 make verify-status-snapshot  # smoke for status snapshot
 make verify-status-snapshot-diff  # smoke for status snapshot diff
@@ -142,6 +145,7 @@ Pipeline (single entrypoint):
 ./scripts/readiness_pipeline.sh --profile quick --no-profile-summary
 ./scripts/readiness_pipeline.sh --profile quick --no-tag-summary
 ./scripts/readiness_pipeline.sh --profile quick --audit --audit-allow-missing
+./scripts/readiness_pipeline.sh --profile quick --collect 3 --collect-copy-logs
 ./scripts/readiness_pipeline.sh --profile quick --no-dashboard
 ```
 

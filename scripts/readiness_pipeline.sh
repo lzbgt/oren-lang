@@ -36,6 +36,10 @@ Options:
   --audit                           Run index audit (checks for missing report/json/log_dir paths).
   --audit-allow-missing             Audit reports missing paths but does not fail.
   --audit-max-missing <n>           Fail audit if missing_any exceeds n (default: -1).
+  --collect <n>                     Collect last N readiness reports (0=skip, default: 0).
+  --collect-dir <path>              Output directory for collected snapshots.
+  --collect-include-dry-run         Include dry_run entries in collection.
+  --collect-copy-logs               Copy log_dir contents into snapshot.
   --trim-since <ts>                 Trim index to entries >= ts (YYYYMMDD_HHMMSS).
   --trim-until <ts>                 Trim index to entries <= ts (YYYYMMDD_HHMMSS).
   --trim-since-days <n>             Trim to last N days (local time).
@@ -80,6 +84,10 @@ emit_tag_summary=1
 emit_audit=0
 audit_allow_missing=0
 audit_max_missing=-1
+collect_count=0
+collect_dir="build/reports/readiness_collect"
+collect_include_dry_run=0
+collect_copy_logs=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -198,6 +206,22 @@ while [[ $# -gt 0 ]]; do
     --audit-max-missing)
       audit_max_missing="${2:-}"
       shift 2
+      ;;
+    --collect)
+      collect_count="${2:-}"
+      shift 2
+      ;;
+    --collect-dir)
+      collect_dir="${2:-}"
+      shift 2
+      ;;
+    --collect-include-dry-run)
+      collect_include_dry_run=1
+      shift
+      ;;
+    --collect-copy-logs)
+      collect_copy_logs=1
+      shift
       ;;
     --trim-since)
       trim_since="${2:-}"
@@ -350,6 +374,10 @@ fi
   echo "audit=${emit_audit}"
   echo "audit_allow_missing=${audit_allow_missing}"
   echo "audit_max_missing=${audit_max_missing}"
+  echo "collect_count=${collect_count}"
+  echo "collect_dir=${collect_dir}"
+  echo "collect_include_dry_run=${collect_include_dry_run}"
+  echo "collect_copy_logs=${collect_copy_logs}"
   echo ""
   ./scripts/readiness_report.sh "${report_args[@]}"
   if [[ -n "$trim_since" || -n "$trim_until" || "$trim_since_days" != "-1" || "$trim_until_days" != "-1" ]]; then
@@ -407,6 +435,18 @@ fi
       audit_args+=(--include-dry-run)
     fi
     ./scripts/readiness_report_index_audit.py "${audit_args[@]}"
+  fi
+  if [[ "$collect_count" =~ ^[0-9]+$ && "$collect_count" -gt 0 ]]; then
+    collect_args=(--index "$index_path" --out-dir "$collect_dir" --limit "$collect_count" --overwrite)
+    if [[ "$collect_include_dry_run" == "1" ]]; then
+      collect_args+=(--include-dry-run)
+    fi
+    if [[ "$collect_copy_logs" == "1" ]]; then
+      collect_args+=(--copy-logs)
+    fi
+    ./scripts/readiness_report_collect.py "${collect_args[@]}"
+    ./scripts/readiness_report_collect_list.py --dir "$collect_dir" --out "$collect_dir/readiness_collect_index.md" \
+      --out-json "$collect_dir/readiness_collect_index.json"
   fi
   if [[ "$emit_status_snapshot" == "1" ]]; then
     ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"
