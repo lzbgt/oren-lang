@@ -79,6 +79,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only render samples with missing entries.",
     )
+    parser.add_argument(
+        "--audit-missing-threshold",
+        type=int,
+        default=-1,
+        help="Show alert if audit missing_any exceeds this threshold (disabled if <0).",
+    )
+    parser.add_argument(
+        "--audit-trend-missing-threshold",
+        type=int,
+        default=-1,
+        help="Show alert if audit trend missing_any exceeds this threshold (disabled if <0).",
+    )
     return parser.parse_args()
 
 
@@ -435,6 +447,7 @@ def main() -> int:
     audit_samples = read_json(args.audit_samples_json)
     audit_stats = audit_summary(audit)
     audit_top = audit_top_missing(audit_stats)
+    audit_missing_any = audit_stats.get("missing_any") if audit_stats else None
 
     rows = []
     for entry in reversed(entries_view):
@@ -480,6 +493,22 @@ def main() -> int:
             top_entry = max(missing_by_kind.items(), key=lambda item: item[1])
             if isinstance(top_entry[1], int) and top_entry[1] > 0:
                 trend_top_missing = f"{top_entry[0]} ({top_entry[1]})"
+    alert = ""
+    alert_parts = []
+    if isinstance(audit_missing_any, int) and args.audit_missing_threshold >= 0:
+        if audit_missing_any > args.audit_missing_threshold:
+            alert_parts.append(
+                f"Audit missing_any {audit_missing_any} > {args.audit_missing_threshold}"
+            )
+    if isinstance(audit_trend, dict) and args.audit_trend_missing_threshold >= 0:
+        trend_missing_any = audit_trend.get("missing_any")
+        if isinstance(trend_missing_any, int) and trend_missing_any > args.audit_trend_missing_threshold:
+            alert_parts.append(
+                f"Audit trend missing_any {trend_missing_any} > {args.audit_trend_missing_threshold}"
+            )
+    if alert_parts:
+        alert = "<div class='alert'>" + " • ".join(alert_parts) + "</div>"
+
     html = f"""<!doctype html>
 <html>
 <head>
@@ -494,6 +523,7 @@ def main() -> int:
     .card {{ border: 1px solid #ddd; padding: 12px; border-radius: 6px; background: #fafafa; }}
     .card .ok {{ color: #0a7a2f; font-weight: bold; }}
     .card .fail {{ color: #b00020; font-weight: bold; }}
+    .alert {{ border: 1px solid #b00020; background: #fff4f4; color: #6b0000; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
     table {{ border-collapse: collapse; width: 100%; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}
     th {{ background: #f2f2f2; text-align: left; }}
@@ -506,6 +536,7 @@ def main() -> int:
 <body>
   <h1>{args.title}</h1>
   <div class="meta">Index: <code>{args.index}</code></div>
+  {alert}
   <div class="grid">
     <div class="card">
       <div>Total entries</div>

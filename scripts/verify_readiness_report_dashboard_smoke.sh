@@ -30,7 +30,7 @@ EOF
 
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
   --audit-json "$audit_json" --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_samples_json" \
-  --audit-samples-only-missing
+  --audit-samples-only-missing --audit-missing-threshold 0 --audit-trend-missing-threshold 0
 
 rg -n "Smoke Dashboard" "$out_html" >/dev/null
 rg -n "deadbeef" "$out_html" >/dev/null
@@ -44,5 +44,6 @@ rg -n "Audit trend" "$out_html" >/dev/null
 rg -n "Missing by kind" "$out_html" >/dev/null
 rg -n "Top missing" "$out_html" >/dev/null
 rg -n "Audit samples" "$out_html" >/dev/null
+rg -n "Audit trend missing_any" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

@@ -584,7 +584,8 @@ fi
     ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$dashboard_html" \
       --limit "$summary_limit" --rollup-days "$rollup_days" --trend-json "$trend_json" \
       --profiles-json "$profiles_json" --tags-json "$tags_json" --audit-json "$audit_json" \
-      --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_json"
+      --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_json" \
+      --audit-missing-threshold "$audit_max_missing" --audit-trend-missing-threshold "$audit_trend_max_missing"
   fi
   if [[ "$emit_schema" == "1" ]]; then
     ./scripts/readiness_report_index_validate_schema.py --index "$index_path" --schema "docs/readiness_index.schema.json"
