@@ -102,6 +102,7 @@ Index tools:
   status sections in summary outputs.
 - Dashboard recent runs table includes `status_overview_md` when present.
 - Latest/trend/stats markdown outputs surface `status_overview_md` when present.
+- Profiles/tags markdown outputs surface `status_overview_md` when present.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.

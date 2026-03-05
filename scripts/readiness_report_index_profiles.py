@@ -96,6 +96,7 @@ def summarize(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
             "overall": latest.get("overall", ""),
             "tag": latest.get("tag", ""),
             "git_rev": latest.get("git_rev", ""),
+            "status_overview_md": latest.get("status_overview_md", ""),
         },
         "duration": duration_stats(entries),
     }
@@ -114,8 +115,8 @@ def write_markdown(path: str, profiles: Dict[str, Dict[str, Any]], total_entries
     with open(path, "w", encoding="utf-8") as f:
         f.write("# Readiness index profiles\n\n")
         f.write(f"- total entries: {total_entries}\n\n")
-        f.write("| Profile | Total | Pass | Fail | Pass % | Latest | Duration avg/min/max |\n")
-        f.write("| --- | --- | --- | --- | --- | --- | --- |\n")
+        f.write("| Profile | Total | Pass | Fail | Pass % | Latest | Overview | Duration avg/min/max |\n")
+        f.write("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
         for profile in sorted(profiles.keys()):
             data = profiles[profile]
             latest = data.get("latest", {})
@@ -123,10 +124,11 @@ def write_markdown(path: str, profiles: Dict[str, Dict[str, Any]], total_entries
             latest_label = latest.get("timestamp", "-")
             if latest.get("overall"):
                 latest_label = f"{latest_label} ({latest.get('overall','-')})"
+            overview = latest.get("status_overview_md", "-") or "-"
             f.write(
                 f"| {profile} | {data.get('total',0)} | {data.get('passes',0)} | {data.get('fails',0)} | "
                 f"{data.get('pass_rate',0.0)} | {latest_label} | "
-                f"{duration.get('avg')} / {duration.get('min')} / {duration.get('max')} |\n"
+                f"{overview} | {duration.get('avg')} / {duration.get('min')} / {duration.get('max')} |\n"
             )
 
 
