@@ -1511,15 +1511,21 @@ fn run_i64_buf_ops() {
     if oren_is_err(r) { return fail(954, "buf_add_i64_into err") }
 
     var sum = 0
+    var ref_hash = 1469598103934665603
+    var got_hash = 1469598103934665603
     i = 0
     while i < n {
         var refV = oren_buf_load_i64(out_ref, i)
         var gotV = oren_buf_load_i64(out_got, i)
         if refV != gotV { return fail(960, "add mismatch (i64)") }
         sum = sum + gotV
+        ref_hash = hash_u64_mix(ref_hash, refV + (i * 1315423911))
+        got_hash = hash_u64_mix(got_hash, gotV + (i * 1315423911))
         i = i + 1
     }
+    if ref_hash != got_hash { return fail(961, "add hash mismatch (i64)") }
     print("I64_ADD_SUM=" + oren_int_to_string(sum))
+    print("I64_ADD_HASH=" + oren_int_to_string(got_hash))
     return 0
 }
 
