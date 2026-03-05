@@ -17,6 +17,9 @@ make            # stage1 self-hosted compiler
 make test       # fast native smoke
 ```
 
+Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are
+expected in the output; treat a non-zero exit status as failure.
+
 Build and run a hello binary:
 
 ```bash
