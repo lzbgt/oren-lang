@@ -30,7 +30,7 @@ cat >"$audit_samples_json" <<'EOF'
 EOF
 
 cat >"$status_faq_json" <<'EOF'
-{"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items":["C backend: not production","Native: rolling"]}]}
+{"questions":[{"question":"Are the backends production-ready?","section_key":"backend_readiness","items_structured":[{"raw":"C backend: not production\\n  Native: rolling","lines":["C backend: not production","  Native: rolling"],"head":"C backend: not production","continuations":["  Native: rolling"]}]}]}
 EOF
 
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
@@ -54,5 +54,6 @@ rg -n "Audit warnings" "$out_html" >/dev/null
 rg -n "<li>Audit trend missing_any" "$out_html" >/dev/null
 rg -n "Status FAQ" "$out_html" >/dev/null
 rg -n "Are the backends production-ready" "$out_html" >/dev/null
+rg -n "Native: rolling" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

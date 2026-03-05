@@ -422,16 +422,55 @@ def render_status_faq(data: Dict[str, Any]) -> str:
     if not isinstance(questions, list) or not questions:
         return ""
     blocks: List[str] = []
+
+    def item_lines_from_structured(item: Any) -> List[str]:
+        if not isinstance(item, dict):
+            return []
+        lines = item.get("lines")
+        if isinstance(lines, list) and lines:
+            return [str(line) for line in lines]
+        raw = item.get("raw")
+        if isinstance(raw, str) and raw:
+            return raw.splitlines()
+        head = item.get("head")
+        if isinstance(head, str) and head:
+            return [head]
+        return []
+
+    def render_item_lines(lines: List[str]) -> str:
+        if not lines:
+            return ""
+        head = html_escape(lines[0])
+        cont = "".join(
+            f"<div class='faq-item-cont'>{html_escape(line)}</div>"
+            for line in lines[1:]
+        )
+        return f"<li><div class='faq-item-head'>{head}</div>{cont}</li>"
+
     for entry in questions:
         if not isinstance(entry, dict):
             continue
         question = html_escape(entry.get("question", "-"))
-        items = entry.get("items", [])
-        if isinstance(items, list) and items:
-            items_html = "<ul>" + "".join(
-                f"<li>{html_escape(item)}</li>" for item in items
-            ) + "</ul>"
-        else:
+        structured = entry.get("items_structured")
+        items_html = ""
+        if isinstance(structured, list) and structured:
+            rendered_items = []
+            for item in structured:
+                lines = item_lines_from_structured(item)
+                rendered = render_item_lines(lines)
+                if rendered:
+                    rendered_items.append(rendered)
+            if rendered_items:
+                items_html = "<ul>" + "".join(rendered_items) + "</ul>"
+        if not items_html:
+            items = entry.get("items", [])
+            if isinstance(items, list) and items:
+                rendered_items = []
+                for item in items:
+                    lines = str(item).splitlines()
+                    rendered_items.append(render_item_lines(lines))
+                items_html = "<ul>" + "".join(rendered_items) + "</ul>"
+        if not items_html:
             items_html = "<div class='meta'>(no items)</div>"
         blocks.append(
             "<div class='faq-block'>"
@@ -618,6 +657,8 @@ def main() -> int:
     .ok-banner {{ border: 1px solid #0a7a2f; background: #f2fff5; color: #0a7a2f; padding: 12px; border-radius: 6px; margin-bottom: 16px; }}
     .faq-block {{ border: 1px solid #e0e0e0; padding: 12px; border-radius: 6px; margin-bottom: 10px; background: #fff; }}
     .faq-question {{ font-weight: bold; margin-bottom: 6px; }}
+    .faq-item-head {{ font-weight: 500; }}
+    .faq-item-cont {{ margin-left: 14px; color: #555; font-size: 12px; }}
     table {{ border-collapse: collapse; width: 100%; }}
     th, td {{ border: 1px solid #ddd; padding: 8px; font-size: 13px; }}
     th {{ background: #f2f2f2; text-align: left; }}
