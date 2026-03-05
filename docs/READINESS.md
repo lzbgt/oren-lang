@@ -35,6 +35,7 @@ Index + derived outputs:
 - `build/reports/readiness_index_audit_trend.{md,json}` — audit trend window.
 - `build/reports/readiness_index_audit_trend.csv` — audit trend CSV rows.
 - `build/reports/readiness_index_audit_trend_samples.csv` — audit trend missing samples CSV.
+- `build/reports/readiness_index_diff_summary.csv` — diff summary CSV.
 - `build/reports/readiness_collect/` — collected report snapshots.
 - `build/reports/readiness_collect_index.{md,json}` — collection index.
 - `build/reports/readiness_collect.tar.gz` — packed collection archive.

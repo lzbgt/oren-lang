@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import csv
 import json
 import os
 import sys
@@ -21,6 +22,11 @@ def parse_args() -> argparse.Namespace:
         "--out-json",
         default="build/reports/readiness_index_diff_summary.json",
         help="Output JSON path",
+    )
+    parser.add_argument(
+        "--out-csv",
+        default="",
+        help="Output CSV path (optional)",
     )
     parser.add_argument(
         "--limit",
@@ -131,6 +137,46 @@ def write_json(path: str, payload: Dict[str, Any]) -> None:
         f.write("\n")
 
 
+def write_csv(path: str, left: Dict[str, Any], right: Dict[str, Any], delta: Dict[str, Any]) -> None:
+    if not path:
+        return
+    ensure_parent_dir(path)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "metric",
+                "left",
+                "right",
+                "delta",
+            ],
+        )
+        writer.writeheader()
+        rows = [
+            ("total", left["total"], right["total"], delta["total"]),
+            ("passes", left["passes"], right["passes"], delta["passes"]),
+            ("fails", left["fails"], right["fails"], delta["fails"]),
+            ("pass_rate", left["pass_rate"], right["pass_rate"], delta["pass_rate"]),
+            ("avg_duration_sec", left["avg_duration_sec"], right["avg_duration_sec"], delta["avg_duration_sec"]),
+            ("latest_timestamp", left["latest_timestamp"], right["latest_timestamp"], ""),
+            (
+                "streak",
+                f"{left['streak']['kind']} x{left['streak']['len']}",
+                f"{right['streak']['kind']} x{right['streak']['len']}",
+                "",
+            ),
+        ]
+        for metric, lval, rval, dval in rows:
+            writer.writerow(
+                {
+                    "metric": metric,
+                    "left": lval,
+                    "right": rval,
+                    "delta": dval,
+                }
+            )
+
+
 def main() -> int:
     args = parse_args()
     left_entries = parse_jsonl(args.left)
@@ -148,6 +194,8 @@ def main() -> int:
     payload = {"left": left_stats, "right": right_stats, "delta": delta}
     write_markdown(args.out_md, args.left, args.right, left_stats, right_stats, delta)
     write_json(args.out_json, payload)
+    if args.out_csv:
+        write_csv(args.out_csv, left_stats, right_stats, delta)
     print(f"OK: wrote {args.out_md} and {args.out_json}")
     return 0
 

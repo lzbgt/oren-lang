@@ -413,6 +413,7 @@ rollup_json="build/reports/readiness_rollup.json"
 dashboard_html="build/reports/readiness_dashboard.html"
 diff_summary_md="build/reports/readiness_index_diff_summary.md"
 diff_summary_json="build/reports/readiness_index_diff_summary.json"
+diff_summary_csv="build/reports/readiness_index_diff_summary.csv"
 status_snapshot_md="build/reports/status_snapshot.md"
 status_snapshot_json="build/reports/status_snapshot.json"
 status_snapshot_diff_md="build/reports/status_snapshot_diff.md"
@@ -449,6 +450,7 @@ if [[ "$dry_run" == "1" ]]; then
   dashboard_html="build/reports/readiness_dashboard_dry_run.html"
   diff_summary_md="build/reports/readiness_index_diff_summary_dry_run.md"
   diff_summary_json="build/reports/readiness_index_diff_summary_dry_run.json"
+  diff_summary_csv="build/reports/readiness_index_diff_summary_dry_run.csv"
   status_snapshot_md="build/reports/status_snapshot_dry_run.md"
   status_snapshot_json="build/reports/status_snapshot_dry_run.json"
   status_snapshot_diff_md="build/reports/status_snapshot_diff_dry_run.md"
@@ -696,7 +698,7 @@ fi
   fi
   if [[ -n "$diff_against" ]]; then
     ./scripts/readiness_report_index_diff_summary.py --left "$diff_against" --right "$index_path" \
-      --out-md "$diff_summary_md" --out-json "$diff_summary_json"
+      --out-md "$diff_summary_md" --out-json "$diff_summary_json" --out-csv "$diff_summary_csv"
   fi
   if [[ "$gate_pass_rate" != "-1" || "$gate_max_fail_streak" != "-1" || "$gate_max_fail_count" != "-1" ]]; then
     gate_args=(--index "$index_path" --window "$gate_window")
