@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -473,6 +473,10 @@ verify-runtime-robustness: oren_stage2
 	OREN_RUNTIME_ROBUSTNESS_C_FIXTURES="$(OREN_RUNTIME_ROBUSTNESS_C_FIXTURES)" \
 	OREN_RUNTIME_ROBUSTNESS_TRACE_ENV="$(OREN_RUNTIME_ROBUSTNESS_TRACE_ENV)" \
 	./scripts/verify_runtime_robustness_w5.sh $(OREN_RUNTIME_ROBUSTNESS_RUNS) $(OREN_RUNTIME_ROBUSTNESS_COMPILER)
+
+# SIMD determinism guard (scalar vs SIMD output must match).
+verify-simd-determinism: oren_stage2
+	@./scripts/verify_simd_determinism.sh
 
 # GUI bring-up smoke (headful, opt-in).
 # This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
