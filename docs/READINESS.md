@@ -24,6 +24,7 @@ Index + derived outputs:
 - `build/reports/readiness_index.csv` — CSV export.
 - `build/reports/readiness_rollup.md` — daily rollup.
 - `build/reports/readiness_rollup.json` — daily rollup (JSON).
+- `build/reports/readiness_index_latest.{md,json}` — latest entry by profile/tag.
 
 ## Index schema (JSONL)
 
@@ -56,6 +57,7 @@ Index tools:
 - `make readiness-report-index-csv` — CSV export.
 - `make readiness-report-index-query` — filter index by fields/time.
 - `make readiness-report-index-rollup` — daily rollup.
+- `make readiness-report-index-latest` — latest entry by profile/tag.
 - `make readiness-report-index-merge` — merge multiple index files.
 - `make readiness-report-index-compact` — dedupe + keep last N.
 - `make readiness-report-index-diff` — compare two index files.

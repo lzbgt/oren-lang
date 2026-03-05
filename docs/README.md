@@ -45,6 +45,7 @@ make readiness-report-index-trim  # trim index by timestamp range
 make readiness-report-index-csv  # export index to CSV
 make readiness-report-index-query  # filter index by fields/time
 make readiness-report-index-rollup  # daily rollup (md + json)
+make readiness-report-index-latest  # latest entry by profile/tag
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats
 make readiness-report-index-gate  # enforce pass/fail thresholds
@@ -57,6 +58,7 @@ make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
 make verify-readiness-report-index-tools  # smoke for index tools
 make verify-readiness-report-index-trim  # smoke for index trim
+make verify-readiness-report-index-latest  # smoke for index latest
 make verify-readiness-pipeline  # smoke for pipeline
 make verify-status-snapshot  # smoke for status snapshot
 make verify-status-snapshot-diff  # smoke for status snapshot diff
@@ -126,6 +128,7 @@ Pipeline (single entrypoint):
 ./scripts/readiness_pipeline.sh --profile quick --trim-since-days 30
 ./scripts/readiness_pipeline.sh --profile quick --no-status-snapshot
 ./scripts/readiness_pipeline.sh --profile quick --status-diff-against docs/STATUS.md
+./scripts/readiness_pipeline.sh --profile quick --no-latest-summary
 ```
 
 Build and run a hello binary (C backend by default):
