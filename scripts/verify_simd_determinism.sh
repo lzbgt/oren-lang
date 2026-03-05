@@ -84,6 +84,8 @@ simd_out="build/logs/simd_suite_simd.log"
 scalar_norm="build/logs/simd_suite_scalar.norm"
 simd_norm="build/logs/simd_suite_simd.norm"
 
+require_simd="${OREN_SIMD_REQUIRE_ENABLED:-0}"
+
 echo "== SIMD determinism verify =="
 echo "compiler=$COMPILER"
 echo "platform=$platform"
@@ -115,8 +117,21 @@ if [[ "$simd_rc" -ne 0 ]]; then
   exit 4
 fi
 
-grep -F "SIMD_ENABLED=" "$scalar_out" || true
-grep -F "SIMD_ENABLED=" "$simd_out" || true
+scalar_simd="$(grep -F "SIMD_ENABLED=" "$scalar_out" | tail -n 1 | cut -d= -f2 || true)"
+simd_simd="$(grep -F "SIMD_ENABLED=" "$simd_out" | tail -n 1 | cut -d= -f2 || true)"
+
+if [[ -z "$scalar_simd" || -z "$simd_simd" ]]; then
+  echo "FAIL: missing SIMD_ENABLED markers in output" >&2
+  exit 6
+fi
+
+echo "SIMD_ENABLED_SCALAR=${scalar_simd}"
+echo "SIMD_ENABLED_SIMD=${simd_simd}"
+
+if [[ "$require_simd" == "1" && "$simd_simd" != "1" ]]; then
+  echo "FAIL: SIMD not enabled (set OREN_SIMD_REQUIRE_ENABLED=0 to allow)" >&2
+  exit 7
+fi
 
 grep -v '^SIMD_ENABLED=' "$scalar_out" >"$scalar_norm"
 grep -v '^SIMD_ENABLED=' "$simd_out" >"$simd_norm"
