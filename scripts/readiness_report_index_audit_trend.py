@@ -249,16 +249,16 @@ def write_csv(path: str, trend: Dict[str, Any]) -> None:
             missing = entry.get("missing", [])
             if isinstance(missing, list):
                 missing = ",".join(missing)
-        writer.writerow(
-            {
+            writer.writerow(
+                {
                     "timestamp": entry.get("timestamp", ""),
                     "profile": entry.get("profile", ""),
                     "tag": entry.get("tag", ""),
                     "overall": entry.get("overall", ""),
                     "missing_any": entry.get("missing_any", ""),
                     "missing": missing,
-            }
-        )
+                }
+            )
 
 
 def write_samples_csv(path: str, trend: Dict[str, Any]) -> None:

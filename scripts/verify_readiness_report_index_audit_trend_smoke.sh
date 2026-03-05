@@ -30,6 +30,8 @@ rg -n "status_faq_md" "$out_md" >/dev/null
 rg -n "\"missing_any\"" "$out_json" >/dev/null
 rg -n "\"missing_by_kind\"" "$out_json" >/dev/null
 rg -n "timestamp,profile,tag,overall,missing_any,missing" "$out_csv" >/dev/null
+rg -n "20260305_010000" "$out_csv" >/dev/null
+rg -n "20260305_120000" "$out_csv" >/dev/null
 rg -n "timestamp,profile,tag,overall,missing_any,missing" "$out_samples_csv" >/dev/null
 
 echo "OK: readiness index audit trend smoke verified"
