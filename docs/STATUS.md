@@ -2005,3 +2005,5 @@ Status legend:
 | arm64 NEON intrinsics | Rolling | `lib/compiler/arm64_native_expr/**` | `tests/native/test_simd_suite.oren` |
 | x64 SIMD baseline (SSE2) | Planned | x64 codegen + runtime kernels | Track in this file |
 | AVM SIMD (NEON, gated) | Planned/Rolling | `lib/avm/avm_native.c` | Track in this file |
+
+Latest SIMD determinism run: `make verify-simd-determinism` on arm64-macos (2026-03-05). Output reported `SIMD_ENABLED=0` in both scalar and SIMD runs; kernel coverage still gated on enablement.
