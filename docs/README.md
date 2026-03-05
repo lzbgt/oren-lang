@@ -64,6 +64,7 @@ make readiness-pipeline  # run report + summary + stats + validate in one shot
 make status-snapshot  # snapshot docs/STATUS.md into build/reports
 make status-snapshot-diff  # diff STATUS.md snapshots
 make status-faq  # readiness FAQ from STATUS.md
+make status-faq-diff  # diff readiness FAQ outputs
 make status-matrix  # render readiness matrix from STATUS.md
 make status-matrix-diff  # diff readiness matrices or STATUS.md
 make verify-readiness-report  # dry-run smoke for readiness report script
@@ -84,6 +85,7 @@ make verify-readiness-pipeline  # smoke for pipeline
 make verify-status-snapshot  # smoke for status snapshot
 make verify-status-snapshot-diff  # smoke for status snapshot diff
 make verify-status-faq  # smoke for status faq
+make verify-status-faq-diff  # smoke for status faq diff
 make verify-status-matrix  # smoke for status matrix
 make verify-status-matrix-diff  # smoke for status matrix diff
 

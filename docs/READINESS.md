@@ -102,6 +102,7 @@ Index tools:
 - `./scripts/readiness_report.sh --status-matrix` — emit status matrix files alongside the report.
 - `./scripts/readiness_report.sh --status-path <path>` — override STATUS.md path for report + snapshot.
 - `make status-faq` — generate a readiness FAQ from STATUS.md.
+- `make status-faq-diff` — diff readiness FAQ outputs or STATUS.md snapshots.
 - `make verify-status-faq` — smoke test for the status FAQ generator.
 
 Trim examples:

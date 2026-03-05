@@ -45,6 +45,7 @@ make readiness-pipeline  # run readiness report + summary + stats + validate
 make status-snapshot  # snapshot docs/STATUS.md into build/reports
 make status-snapshot-diff  # diff STATUS.md snapshots
 make status-faq  # readiness FAQ from STATUS.md
+make status-faq-diff  # diff readiness FAQ outputs
 make status-matrix  # render readiness matrix from STATUS.md
 make status-matrix-diff  # diff readiness matrices or STATUS.md
 ```

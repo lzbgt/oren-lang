@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from status_snapshot_lib import snapshot_from_status
 
@@ -35,6 +35,26 @@ def ensure_parent_dir(path: str) -> None:
     dir_name = os.path.dirname(path)
     if dir_name:
         os.makedirs(dir_name, exist_ok=True)
+
+
+def build_questions(payload: Dict[str, Dict[str, List[str]]]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "question": "Are the backends production-ready?",
+            "section_key": "backend_readiness",
+            "items": section_items(payload, "backend_readiness"),
+        },
+        {
+            "question": "Which feature readiness gaps are still open?",
+            "section_key": "feature_readiness_gaps",
+            "items": section_items(payload, "feature_readiness_gaps"),
+        },
+        {
+            "question": "What are the current production readiness gaps?",
+            "section_key": "production_readiness_gap",
+            "items": section_items(payload, "production_readiness_gap"),
+        },
+    ]
 
 
 def section_items(payload: Dict[str, Dict[str, List[str]]], key: str) -> List[str]:
@@ -87,23 +107,7 @@ def write_json(
 ) -> None:
     ensure_parent_dir(path)
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    questions = [
-        {
-            "question": "Are the backends production-ready?",
-            "section_key": "backend_readiness",
-            "items": section_items(payload, "backend_readiness"),
-        },
-        {
-            "question": "Which feature readiness gaps are still open?",
-            "section_key": "feature_readiness_gaps",
-            "items": section_items(payload, "feature_readiness_gaps"),
-        },
-        {
-            "question": "What are the current production readiness gaps?",
-            "section_key": "production_readiness_gap",
-            "items": section_items(payload, "production_readiness_gap"),
-        },
-    ]
+    questions = build_questions(payload)
     out = {
         "source": status_path,
         "generated_at": generated_at,
