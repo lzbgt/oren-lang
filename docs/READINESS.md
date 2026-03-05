@@ -73,6 +73,7 @@ Index tools:
 - `make readiness-report-index-profiles` — per-profile summary.
 - `make readiness-report-index-tags` — per-tag summary.
 - `make readiness-report-index-audit` — audit index paths.
+- Audit checks optional status snapshot/matrix paths when present.
 - `make readiness-report-collect` — collect last N report snapshots.
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.

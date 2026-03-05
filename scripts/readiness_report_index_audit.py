@@ -84,6 +84,10 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
     missing_report = 0
     missing_json = 0
     missing_log_dir = 0
+    missing_status_snapshot_md = 0
+    missing_status_snapshot_json = 0
+    missing_status_matrix_md = 0
+    missing_status_matrix_json = 0
     missing_any = 0
     samples: List[Dict[str, Any]] = []
     checked = 0
@@ -95,9 +99,17 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
         report_path = str(entry.get("report", ""))
         json_path = str(entry.get("json", ""))
         log_dir = str(entry.get("log_dir", ""))
+        status_snapshot_md = str(entry.get("status_snapshot_md", ""))
+        status_snapshot_json = str(entry.get("status_snapshot_json", ""))
+        status_matrix_md = str(entry.get("status_matrix_md", ""))
+        status_matrix_json = str(entry.get("status_matrix_json", ""))
         report_ok = file_exists(report_path)
         json_ok = file_exists(json_path)
         log_ok = file_exists(log_dir)
+        status_snapshot_md_ok = not status_snapshot_md or file_exists(status_snapshot_md)
+        status_snapshot_json_ok = not status_snapshot_json or file_exists(status_snapshot_json)
+        status_matrix_md_ok = not status_matrix_md or file_exists(status_matrix_md)
+        status_matrix_json_ok = not status_matrix_json or file_exists(status_matrix_json)
         missing = []
         if not report_ok:
             missing_report += 1
@@ -108,6 +120,18 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
         if not log_ok:
             missing_log_dir += 1
             missing.append("log_dir")
+        if not status_snapshot_md_ok:
+            missing_status_snapshot_md += 1
+            missing.append("status_snapshot_md")
+        if not status_snapshot_json_ok:
+            missing_status_snapshot_json += 1
+            missing.append("status_snapshot_json")
+        if not status_matrix_md_ok:
+            missing_status_matrix_md += 1
+            missing.append("status_matrix_md")
+        if not status_matrix_json_ok:
+            missing_status_matrix_json += 1
+            missing.append("status_matrix_json")
         if missing:
             missing_any += 1
             if len(samples) < sample:
@@ -120,6 +144,10 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
                         "report": report_path,
                         "json": json_path,
                         "log_dir": log_dir,
+                        "status_snapshot_md": status_snapshot_md,
+                        "status_snapshot_json": status_snapshot_json,
+                        "status_matrix_md": status_matrix_md,
+                        "status_matrix_json": status_matrix_json,
                     }
                 )
 
@@ -128,6 +156,10 @@ def audit_entries(entries: List[Dict[str, Any]], include_dry_run: bool, sample: 
         "missing_report": missing_report,
         "missing_json": missing_json,
         "missing_log_dir": missing_log_dir,
+        "missing_status_snapshot_md": missing_status_snapshot_md,
+        "missing_status_snapshot_json": missing_status_snapshot_json,
+        "missing_status_matrix_md": missing_status_matrix_md,
+        "missing_status_matrix_json": missing_status_matrix_json,
         "missing_any": missing_any,
         "samples": samples,
     }
@@ -141,6 +173,10 @@ def write_markdown(path: str, summary: Dict[str, Any]) -> None:
         f.write(f"- missing report: {summary['missing_report']}\n")
         f.write(f"- missing json: {summary['missing_json']}\n")
         f.write(f"- missing log_dir: {summary['missing_log_dir']}\n")
+        f.write(f"- missing status_snapshot_md: {summary['missing_status_snapshot_md']}\n")
+        f.write(f"- missing status_snapshot_json: {summary['missing_status_snapshot_json']}\n")
+        f.write(f"- missing status_matrix_md: {summary['missing_status_matrix_md']}\n")
+        f.write(f"- missing status_matrix_json: {summary['missing_status_matrix_json']}\n")
         f.write(f"- missing any: {summary['missing_any']}\n\n")
         f.write("## Samples\n\n")
         if not summary["samples"]:
