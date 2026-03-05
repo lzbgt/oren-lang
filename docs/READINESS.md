@@ -57,6 +57,8 @@ Index tools:
 - `make readiness-report-index-diff` — compare two index files.
 - `make readiness-report-index-diff-summary` — compare index summary stats.
 - `make readiness-report-index-gate` — enforce pass/fail thresholds.
+- `make readiness-report-index-lint` — check ordering/duplicates.
+- `make readiness-report-index-split` — split index by profile/tag.
 
 Pipeline:
 

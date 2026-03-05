@@ -28,6 +28,8 @@ make readiness-report-dashboard  # build HTML dashboard
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats
 make readiness-report-index-gate  # enforce pass/fail thresholds
+make readiness-report-index-lint  # check ordering/duplicates
+make readiness-report-index-split  # split index by profile/tag
 make readiness-pipeline  # run readiness report + summary + stats + validate
 ```
 

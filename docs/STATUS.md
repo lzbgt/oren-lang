@@ -22,6 +22,7 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
   `make readiness-report-index-merge`, `make readiness-report-index-compact`, `make readiness-report-index-diff`.
   Summary diff: `make readiness-report-index-diff-summary`.
   Gates: `make readiness-report-index-gate`.
+  Lint/split: `make readiness-report-index-lint`, `make readiness-report-index-split`.
   Dashboards: `make readiness-report-dashboard`.
   Schema: `make readiness-report-index-schema`.
   Use `make readiness-pipeline` to run report + summary + stats + validate in one shot.

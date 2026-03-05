@@ -47,6 +47,8 @@ make readiness-report-index-rollup  # daily rollup (md + json)
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats
 make readiness-report-index-gate  # enforce pass/fail thresholds
+make readiness-report-index-lint  # check ordering/duplicates
+make readiness-report-index-split  # split index by profile/tag
 make readiness-pipeline  # run report + summary + stats + validate in one shot
 make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
