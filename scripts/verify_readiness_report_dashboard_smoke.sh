@@ -20,7 +20,7 @@ cat >"$audit_json" <<'EOF'
 EOF
 
 cat >"$audit_trend_json" <<'EOF'
-{"window":5,"checked":2,"missing_any":1,"entries":[{"timestamp":"20260305_120000","profile":"full","tag":"ci","overall":"FAIL","missing_any":1,"missing":["report"]}]}
+{"window":5,"checked":2,"missing_any":1,"missing_by_kind":{"report":1,"json":0},"entries":[{"timestamp":"20260305_120000","profile":"full","tag":"ci","overall":"FAIL","missing_any":1,"missing":["report"]}]}
 EOF
 
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
@@ -33,5 +33,6 @@ rg -n "Audit summary" "$out_html" >/dev/null
 rg -n "Audit missing" "$out_html" >/dev/null
 rg -n "class='ok'" "$out_html" >/dev/null
 rg -n "Audit trend" "$out_html" >/dev/null
+rg -n "Missing by kind" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"

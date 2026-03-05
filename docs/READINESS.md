@@ -113,6 +113,7 @@ Pipeline:
   `--audit-max-status-snapshot-md <n>`, `--audit-max-status-snapshot-json <n>`,
   `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`.
 - Dashboard accepts `--audit-trend-json` to render audit trend rows.
+- Audit trend view includes missing-by-kind totals when provided.
 
 Smoke verifiers:
 

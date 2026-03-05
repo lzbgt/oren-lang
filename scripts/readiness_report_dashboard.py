@@ -286,6 +286,13 @@ def render_audit_trend(data: Dict[str, Any]) -> str:
     window = data.get("window", 0)
     checked = data.get("checked", 0)
     missing_any = data.get("missing_any", 0)
+    missing_by_kind = data.get("missing_by_kind", {})
+    legend = ""
+    if isinstance(missing_by_kind, dict) and missing_by_kind:
+        items = []
+        for key in sorted(missing_by_kind.keys()):
+            items.append(f"{key}: {missing_by_kind.get(key, 0)}")
+        legend = "<div class='meta'>Missing by kind: " + ", ".join(items) + "</div>\n"
     rows = []
     for entry in data.get("entries", []):
         missing = entry.get("missing", [])
@@ -304,6 +311,7 @@ def render_audit_trend(data: Dict[str, Any]) -> str:
     return (
         "<h2>Audit trend</h2>\n"
         f"<div class='meta'>Window: {window} • Checked: {checked} • Missing any: {missing_any}</div>\n"
+        f"{legend}"
         "<table><thead><tr><th>Timestamp</th><th>Profile</th><th>Tag</th><th>Overall</th><th>Missing count</th><th>Missing</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )
