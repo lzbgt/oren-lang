@@ -42,6 +42,16 @@ rg -n "<title>Smoke Summary</title>" "$out_html" >/dev/null
 rg -n "deadbeef" "$out_html" >/dev/null
 rg -n "Status FAQ" "$out_html" >/dev/null
 rg -n "Status Snapshot" "$out_html" >/dev/null
+
+out_md_no="${work_dir}/summary_no.md"
+out_html_no="${work_dir}/summary_no.html"
+./scripts/readiness_report_summary.py --index "$index_path" --limit 10 --out-md "$out_md_no" --out-html "$out_html_no" --title "Smoke Summary" --no-status-sections
+! rg -n "Status FAQ" "$out_md_no" >/dev/null
+! rg -n "Status Snapshot" "$out_md_no" >/dev/null
+! rg -n "Status Matrix" "$out_md_no" >/dev/null
+! rg -n "Status FAQ" "$out_html_no" >/dev/null
+! rg -n "Status Snapshot" "$out_html_no" >/dev/null
+! rg -n "Status Matrix" "$out_html_no" >/dev/null
 rg -n "Status Matrix" "$out_html" >/dev/null
 
 echo "OK: readiness summary smoke verified"

@@ -40,6 +40,11 @@ def parse_args() -> argparse.Namespace:
         default="Oren readiness summary",
         help="Title for summary outputs",
     )
+    parser.add_argument(
+        "--no-status-sections",
+        action="store_true",
+        help="Disable embedding status FAQ/snapshot/matrix sections in outputs.",
+    )
     return parser.parse_args()
 
 
@@ -216,7 +221,7 @@ def latest_by(entries: List[Dict[str, Any]], key: str, value: str) -> Optional[D
     return None
 
 
-def write_markdown(path: str, title: str, entries: List[Dict[str, Any]]) -> None:
+def write_markdown(path: str, title: str, entries: List[Dict[str, Any]], include_status: bool) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     latest = entries[-1] if entries else None
     last_fail = latest_by(entries, "overall", "FAIL")
@@ -261,7 +266,7 @@ def write_markdown(path: str, title: str, entries: List[Dict[str, Any]]) -> None
                 )
                 + " |\n"
             )
-        if latest:
+        if include_status and latest:
             status_faq = read_json(str(latest.get("status_faq_json", "")))
             status_snapshot = read_json(str(latest.get("status_snapshot_json", "")))
             status_matrix = read_json(str(latest.get("status_matrix_json", "")))
@@ -277,7 +282,7 @@ def write_markdown(path: str, title: str, entries: List[Dict[str, Any]]) -> None
                 f.write("\n")
 
 
-def write_html(path: str, title: str, entries: List[Dict[str, Any]]) -> None:
+def write_html(path: str, title: str, entries: List[Dict[str, Any]], include_status: bool) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     latest = entries[-1] if entries else None
     total = len(entries)
@@ -303,14 +308,16 @@ def write_html(path: str, title: str, entries: List[Dict[str, Any]]) -> None:
     summary_latest = "-"
     if latest:
         summary_latest = f"{fmt_timestamp(latest.get('timestamp',''))} ({latest.get('overall','-')})"
-    status_faq = read_json(str(latest.get("status_faq_json", ""))) if latest else {}
-    status_snapshot = read_json(str(latest.get("status_snapshot_json", ""))) if latest else {}
-    status_matrix = read_json(str(latest.get("status_matrix_json", ""))) if latest else {}
-    status_sections = (
-        render_status_faq(status_faq)
-        + render_status_snapshot(status_snapshot)
-        + render_status_matrix(status_matrix)
-    )
+    status_sections = ""
+    if include_status and latest:
+        status_faq = read_json(str(latest.get("status_faq_json", "")))
+        status_snapshot = read_json(str(latest.get("status_snapshot_json", "")))
+        status_matrix = read_json(str(latest.get("status_matrix_json", "")))
+        status_sections = (
+            render_status_faq(status_faq)
+            + render_status_snapshot(status_snapshot)
+            + render_status_matrix(status_matrix)
+        )
 
     html = f"""<!doctype html>
 <html>
@@ -369,8 +376,9 @@ def main() -> int:
         print(f"WARN: no entries found in {args.index}", file=sys.stderr)
     if args.limit > 0:
         entries = entries[-args.limit :]
-    write_markdown(args.out_md, args.title, entries)
-    write_html(args.out_html, args.title, entries)
+    include_status = not args.no_status_sections
+    write_markdown(args.out_md, args.title, entries, include_status)
+    write_html(args.out_html, args.title, entries, include_status)
     print(f"OK: wrote {args.out_md} and {args.out_html}")
     return 0
 
