@@ -134,6 +134,8 @@ fn run_i32_buf_ops() {
 
     var ref_add_sum = 0
     var ref_mul_sum = 0
+    var ref_add_hash = 1469598103934665603
+    var ref_mul_hash = 1469598103934665603
     i = 0
     while i < n {
         var xa = oren_buf_load_i32(a, i)
@@ -142,6 +144,10 @@ fn run_i32_buf_ops() {
         oren_buf_store_i32(out_mul, i, xa * xb)
         ref_add_sum = ref_add_sum + oren_buf_load_i32(out_add, i)
         ref_mul_sum = ref_mul_sum + oren_buf_load_i32(out_mul, i)
+        var mixA = oren_buf_load_i32(out_add, i) + (i * 1315423911)
+        var mixM = oren_buf_load_i32(out_mul, i) + (i * 2654435761)
+        ref_add_hash = hash_u64_mix(ref_add_hash, mixA)
+        ref_mul_hash = hash_u64_mix(ref_mul_hash, mixM)
         i = i + 1
     }
 
@@ -157,18 +163,28 @@ fn run_i32_buf_ops() {
 
     var got_add_sum = 0
     var got_mul_sum = 0
+    var got_add_hash = 1469598103934665603
+    var got_mul_hash = 1469598103934665603
     i = 0
     while i < n {
         got_add_sum = got_add_sum + oren_buf_load_i32(out2_add, i)
         got_mul_sum = got_mul_sum + oren_buf_load_i32(out2_mul, i)
+        var mixA = oren_buf_load_i32(out2_add, i) + (i * 1315423911)
+        var mixM = oren_buf_load_i32(out2_mul, i) + (i * 2654435761)
+        got_add_hash = hash_u64_mix(got_add_hash, mixA)
+        got_mul_hash = hash_u64_mix(got_mul_hash, mixM)
         i = i + 1
     }
 
     if got_add_sum != ref_add_sum { return fail(220, "add sum mismatch (i32)") }
     if got_mul_sum != ref_mul_sum { return fail(221, "mul sum mismatch (i32)") }
+    if got_add_hash != ref_add_hash { return fail(222, "add hash mismatch (i32)") }
+    if got_mul_hash != ref_mul_hash { return fail(223, "mul hash mismatch (i32)") }
 
     print("I32_ADD_SUM=" + oren_int_to_string(got_add_sum))
     print("I32_MUL_SUM=" + oren_int_to_string(got_mul_sum))
+    print("I32_ADD_HASH=" + oren_int_to_string(got_add_hash))
+    print("I32_MUL_HASH=" + oren_int_to_string(got_mul_hash))
     return 0
 }
 
