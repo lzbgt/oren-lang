@@ -33,6 +33,9 @@ Options:
   --no-trend                        Skip trend output.
   --no-profile-summary              Skip profile summary output.
   --no-tag-summary                  Skip tag summary output.
+  --audit                           Run index audit (checks for missing report/json/log_dir paths).
+  --audit-allow-missing             Audit reports missing paths but does not fail.
+  --audit-max-missing <n>           Fail audit if missing_any exceeds n (default: -1).
   --trim-since <ts>                 Trim index to entries >= ts (YYYYMMDD_HHMMSS).
   --trim-until <ts>                 Trim index to entries <= ts (YYYYMMDD_HHMMSS).
   --trim-since-days <n>             Trim to last N days (local time).
@@ -74,6 +77,9 @@ trend_window=20
 emit_trend=1
 emit_profile_summary=1
 emit_tag_summary=1
+emit_audit=0
+audit_allow_missing=0
+audit_max_missing=-1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -181,6 +187,18 @@ while [[ $# -gt 0 ]]; do
       emit_tag_summary=0
       shift
       ;;
+    --audit)
+      emit_audit=1
+      shift
+      ;;
+    --audit-allow-missing)
+      audit_allow_missing=1
+      shift
+      ;;
+    --audit-max-missing)
+      audit_max_missing="${2:-}"
+      shift 2
+      ;;
     --trim-since)
       trim_since="${2:-}"
       shift 2
@@ -257,6 +275,8 @@ profiles_md="build/reports/readiness_index_profiles.md"
 profiles_json="build/reports/readiness_index_profiles.json"
 tags_md="build/reports/readiness_index_tags.md"
 tags_json="build/reports/readiness_index_tags.json"
+audit_md="build/reports/readiness_index_audit.md"
+audit_json="build/reports/readiness_index_audit.json"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -281,6 +301,8 @@ if [[ "$dry_run" == "1" ]]; then
   profiles_json="build/reports/readiness_index_profiles_dry_run.json"
   tags_md="build/reports/readiness_index_tags_dry_run.md"
   tags_json="build/reports/readiness_index_tags_dry_run.json"
+  audit_md="build/reports/readiness_index_audit_dry_run.md"
+  audit_json="build/reports/readiness_index_audit_dry_run.json"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -325,6 +347,9 @@ fi
   echo "trend=${emit_trend}"
   echo "profiles=${emit_profile_summary}"
   echo "tags=${emit_tag_summary}"
+  echo "audit=${emit_audit}"
+  echo "audit_allow_missing=${audit_allow_missing}"
+  echo "audit_max_missing=${audit_max_missing}"
   echo ""
   ./scripts/readiness_report.sh "${report_args[@]}"
   if [[ -n "$trim_since" || -n "$trim_until" || "$trim_since_days" != "-1" || "$trim_until_days" != "-1" ]]; then
@@ -368,6 +393,19 @@ fi
   fi
   if [[ "$emit_tag_summary" == "1" ]]; then
     ./scripts/readiness_report_index_tags.py --index "$index_path" --out-md "$tags_md" --out-json "$tags_json"
+  fi
+  if [[ "$emit_audit" == "1" ]]; then
+    audit_args=(--index "$index_path" --out-md "$audit_md" --out-json "$audit_json")
+    if [[ "$audit_allow_missing" == "1" ]]; then
+      audit_args+=(--allow-missing)
+    fi
+    if [[ "$audit_max_missing" != "-1" ]]; then
+      audit_args+=(--max-missing "$audit_max_missing")
+    fi
+    if [[ "$dry_run" == "1" ]]; then
+      audit_args+=(--include-dry-run)
+    fi
+    ./scripts/readiness_report_index_audit.py "${audit_args[@]}"
   fi
   if [[ "$emit_status_snapshot" == "1" ]]; then
     ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"

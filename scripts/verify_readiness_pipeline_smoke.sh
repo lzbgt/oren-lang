@@ -43,7 +43,7 @@ EOF
 
 ./scripts/readiness_pipeline.sh --dry-run --index "$index_path" --tag smoke --summary-limit 5 --stats-limit 5 --log "$log_path" \
   --diff-against "$baseline" --gate-pass-rate 50 --gate-window 1 --trim-since-days 1 \
-  --status-path "$status_path" --status-diff-against "$status_baseline"
+  --status-path "$status_path" --status-diff-against "$status_baseline" --audit --audit-allow-missing
 
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
 rg -n "Oren readiness summary" "build/reports/readiness_summary_dry_run.md" >/dev/null
@@ -60,5 +60,6 @@ rg -n "Readiness index trend" "build/reports/readiness_index_trend_dry_run.md" >
 rg -n "Trend window" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness index profiles" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
 rg -n "Readiness index tags" "build/reports/readiness_index_tags_dry_run.md" >/dev/null
+rg -n "Readiness index audit" "build/reports/readiness_index_audit_dry_run.md" >/dev/null
 
 echo "OK: readiness pipeline smoke verified"

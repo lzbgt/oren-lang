@@ -28,6 +28,7 @@ Index + derived outputs:
 - `build/reports/readiness_index_trend.{md,json}` — trend summary over latest window.
 - `build/reports/readiness_index_profiles.{md,json}` — per-profile summary.
 - `build/reports/readiness_index_tags.{md,json}` — per-tag summary.
+- `build/reports/readiness_index_audit.{md,json}` — audit of index paths.
 
 ## Index schema (JSONL)
 
@@ -64,6 +65,7 @@ Index tools:
 - `make readiness-report-index-trend` — trend summary over latest window.
 - `make readiness-report-index-profiles` — per-profile summary.
 - `make readiness-report-index-tags` — per-tag summary.
+- `make readiness-report-index-audit` — audit index paths.
 - `make readiness-report-index-merge` — merge multiple index files.
 - `make readiness-report-index-compact` — dedupe + keep last N.
 - `make readiness-report-index-diff` — compare two index files.
@@ -94,6 +96,7 @@ Smoke verifiers:
 - `make verify-readiness-report-index-query-rollup`
 - `make verify-readiness-report-index-merge-compact`
 - `make verify-readiness-report-index-trim`
+- `make verify-readiness-report-index-audit`
 - `make verify-readiness-pipeline`
 - `make verify-status-snapshot`
 - `make verify-status-snapshot-diff`
