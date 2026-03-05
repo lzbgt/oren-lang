@@ -2001,6 +2001,7 @@ Status legend:
 | Feature | Status | Where (impl) | Evidence |
 |---|---|---|---|
 | SIMD toggle | Rolling | `lib/runtime_native/040_capsule_core.oren` | `tests/native/test_simd_suite.oren` |
+| SIMD determinism guard (scalar vs SIMD) | Rolling | `scripts/verify_simd_determinism.sh` | `tests/native/test_simd_suite.oren` |
 | arm64 NEON intrinsics | Rolling | `lib/compiler/arm64_native_expr/**` | `tests/native/test_simd_suite.oren` |
 | x64 SIMD baseline (SSE2) | Planned | x64 codegen + runtime kernels | Track in this file |
 | AVM SIMD (NEON, gated) | Planned/Rolling | `lib/avm/avm_native.c` | Track in this file |
