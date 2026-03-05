@@ -32,6 +32,7 @@ Options:
   --trend-window <n>                Trend window size for index trend (default: 20).
   --no-trend                        Skip trend output.
   --no-profile-summary              Skip profile summary output.
+  --no-tag-summary                  Skip tag summary output.
   --trim-since <ts>                 Trim index to entries >= ts (YYYYMMDD_HHMMSS).
   --trim-until <ts>                 Trim index to entries <= ts (YYYYMMDD_HHMMSS).
   --trim-since-days <n>             Trim to last N days (local time).
@@ -72,6 +73,7 @@ emit_latest_summary=1
 trend_window=20
 emit_trend=1
 emit_profile_summary=1
+emit_tag_summary=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -175,6 +177,10 @@ while [[ $# -gt 0 ]]; do
       emit_profile_summary=0
       shift
       ;;
+    --no-tag-summary)
+      emit_tag_summary=0
+      shift
+      ;;
     --trim-since)
       trim_since="${2:-}"
       shift 2
@@ -249,6 +255,8 @@ trend_md="build/reports/readiness_index_trend.md"
 trend_json="build/reports/readiness_index_trend.json"
 profiles_md="build/reports/readiness_index_profiles.md"
 profiles_json="build/reports/readiness_index_profiles.json"
+tags_md="build/reports/readiness_index_tags.md"
+tags_json="build/reports/readiness_index_tags.json"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -271,6 +279,8 @@ if [[ "$dry_run" == "1" ]]; then
   trend_json="build/reports/readiness_index_trend_dry_run.json"
   profiles_md="build/reports/readiness_index_profiles_dry_run.md"
   profiles_json="build/reports/readiness_index_profiles_dry_run.json"
+  tags_md="build/reports/readiness_index_tags_dry_run.md"
+  tags_json="build/reports/readiness_index_tags_dry_run.json"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -314,6 +324,7 @@ fi
   echo "trend_window=${trend_window}"
   echo "trend=${emit_trend}"
   echo "profiles=${emit_profile_summary}"
+  echo "tags=${emit_tag_summary}"
   echo ""
   ./scripts/readiness_report.sh "${report_args[@]}"
   if [[ -n "$trim_since" || -n "$trim_until" || "$trim_since_days" != "-1" || "$trim_until_days" != "-1" ]]; then
@@ -354,6 +365,9 @@ fi
   fi
   if [[ "$emit_profile_summary" == "1" ]]; then
     ./scripts/readiness_report_index_profiles.py --index "$index_path" --out-md "$profiles_md" --out-json "$profiles_json"
+  fi
+  if [[ "$emit_tag_summary" == "1" ]]; then
+    ./scripts/readiness_report_index_tags.py --index "$index_path" --out-md "$tags_md" --out-json "$tags_json"
   fi
   if [[ "$emit_status_snapshot" == "1" ]]; then
     ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"

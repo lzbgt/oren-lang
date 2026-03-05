@@ -48,6 +48,7 @@ make readiness-report-index-rollup  # daily rollup (md + json)
 make readiness-report-index-latest  # latest entry by profile/tag
 make readiness-report-index-trend  # trend summary over latest window
 make readiness-report-index-profiles  # per-profile summary
+make readiness-report-index-tags  # per-tag summary
 make readiness-report-index-diff  # diff two index files
 make readiness-report-index-diff-summary  # diff summary stats
 make readiness-report-index-gate  # enforce pass/fail thresholds
@@ -63,6 +64,7 @@ make verify-readiness-report-index-trim  # smoke for index trim
 make verify-readiness-report-index-latest  # smoke for index latest
 make verify-readiness-report-index-trend  # smoke for index trend
 make verify-readiness-report-index-profiles  # smoke for index profiles
+make verify-readiness-report-index-tags  # smoke for index tags
 make verify-readiness-pipeline  # smoke for pipeline
 make verify-status-snapshot  # smoke for status snapshot
 make verify-status-snapshot-diff  # smoke for status snapshot diff
@@ -136,6 +138,7 @@ Pipeline (single entrypoint):
 ./scripts/readiness_pipeline.sh --profile quick --trend-window 50
 ./scripts/readiness_pipeline.sh --profile quick --no-trend
 ./scripts/readiness_pipeline.sh --profile quick --no-profile-summary
+./scripts/readiness_pipeline.sh --profile quick --no-tag-summary
 ```
 
 Build and run a hello binary (C backend by default):

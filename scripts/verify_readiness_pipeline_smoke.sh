@@ -59,5 +59,6 @@ rg -n "Readiness index latest" "build/reports/readiness_index_latest_dry_run.md"
 rg -n "Readiness index trend" "build/reports/readiness_index_trend_dry_run.md" >/dev/null
 rg -n "Trend window" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness index profiles" "build/reports/readiness_index_profiles_dry_run.md" >/dev/null
+rg -n "Readiness index tags" "build/reports/readiness_index_tags_dry_run.md" >/dev/null
 
 echo "OK: readiness pipeline smoke verified"

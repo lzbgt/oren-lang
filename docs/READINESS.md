@@ -27,6 +27,7 @@ Index + derived outputs:
 - `build/reports/readiness_index_latest.{md,json}` — latest entry by profile/tag.
 - `build/reports/readiness_index_trend.{md,json}` — trend summary over latest window.
 - `build/reports/readiness_index_profiles.{md,json}` — per-profile summary.
+- `build/reports/readiness_index_tags.{md,json}` — per-tag summary.
 
 ## Index schema (JSONL)
 
@@ -62,6 +63,7 @@ Index tools:
 - `make readiness-report-index-latest` — latest entry by profile/tag.
 - `make readiness-report-index-trend` — trend summary over latest window.
 - `make readiness-report-index-profiles` — per-profile summary.
+- `make readiness-report-index-tags` — per-tag summary.
 - `make readiness-report-index-merge` — merge multiple index files.
 - `make readiness-report-index-compact` — dedupe + keep last N.
 - `make readiness-report-index-diff` — compare two index files.
