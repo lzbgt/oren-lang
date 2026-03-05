@@ -473,6 +473,13 @@ def main() -> int:
     audit_missing_cls = ""
     if isinstance(audit_missing, int):
         audit_missing_cls = "ok" if audit_missing == 0 else "fail"
+    trend_top_missing = "-"
+    if isinstance(audit_trend, dict):
+        missing_by_kind = audit_trend.get("missing_by_kind", {})
+        if isinstance(missing_by_kind, dict) and missing_by_kind:
+            top_entry = max(missing_by_kind.items(), key=lambda item: item[1])
+            if isinstance(top_entry[1], int) and top_entry[1] > 0:
+                trend_top_missing = f"{top_entry[0]} ({top_entry[1]})"
     html = f"""<!doctype html>
 <html>
 <head>
@@ -526,6 +533,7 @@ def main() -> int:
     </div>
     {f"<div class='card'><div>Audit missing</div><div><strong class='{audit_missing_cls}'>{audit_stats.get('missing_any','-')}</strong> / {audit_stats.get('checked','-')}</div></div>" if audit_stats else ""}
     {f"<div class='card'><div>Top missing</div><div><strong>{audit_top}</strong></div></div>" if audit_stats else ""}
+    {f"<div class='card'><div>Top missing (trend)</div><div><strong>{trend_top_missing}</strong></div></div>" if audit_trend else ""}
   </div>
 
   <h2>Recent runs (latest {len(entries_view)})</h2>

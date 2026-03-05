@@ -81,6 +81,7 @@ rg -n "Audit summary" "build/reports/readiness_dashboard_dry_run.html" >/dev/nul
 rg -n "Audit missing" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit trend" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Audit samples" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
+rg -n "Top missing \\(trend\\)" "build/reports/readiness_dashboard_dry_run.html" >/dev/null
 rg -n "Readiness collection" "$work_dir/collect/readiness_collect_index.md" >/dev/null
 test -f "$work_dir/collect.tar.gz"
 

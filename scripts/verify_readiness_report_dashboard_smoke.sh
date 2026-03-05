@@ -39,6 +39,7 @@ rg -n "Audit summary" "$out_html" >/dev/null
 rg -n "Audit missing" "$out_html" >/dev/null
 rg -n "class='ok'" "$out_html" >/dev/null
 rg -n "Top missing" "$out_html" >/dev/null
+rg -n "Top missing \\(trend\\)" "$out_html" >/dev/null
 rg -n "Audit trend" "$out_html" >/dev/null
 rg -n "Missing by kind" "$out_html" >/dev/null
 rg -n "Top missing" "$out_html" >/dev/null

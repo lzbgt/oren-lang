@@ -122,6 +122,7 @@ Pipeline:
 - Audit trend view includes missing-by-kind totals when provided.
 - Audit trend view highlights the top missing field when available.
 - Dashboard grid highlights top missing field from audit summary.
+- Dashboard grid highlights top missing field from audit trend window.
 
 Smoke verifiers:
 
