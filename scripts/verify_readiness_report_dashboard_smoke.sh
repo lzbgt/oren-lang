@@ -29,7 +29,8 @@ cat >"$audit_samples_json" <<'EOF'
 EOF
 
 ./scripts/readiness_report_dashboard.py --index "$index_path" --out-html "$out_html" --limit 10 --rollup-days 7 --title "Smoke Dashboard" \
-  --audit-json "$audit_json" --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_samples_json"
+  --audit-json "$audit_json" --audit-trend-json "$audit_trend_json" --audit-samples-json "$audit_samples_json" \
+  --audit-samples-only-missing
 
 rg -n "Smoke Dashboard" "$out_html" >/dev/null
 rg -n "deadbeef" "$out_html" >/dev/null

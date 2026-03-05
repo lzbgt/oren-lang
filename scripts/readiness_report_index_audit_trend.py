@@ -43,6 +43,11 @@ def parse_args() -> argparse.Namespace:
         help="Output CSV path (optional)",
     )
     parser.add_argument(
+        "--out-samples-csv",
+        default="",
+        help="Output CSV for missing samples (optional)",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=20,
@@ -230,6 +235,34 @@ def write_csv(path: str, trend: Dict[str, Any]) -> None:
             missing = entry.get("missing", [])
             if isinstance(missing, list):
                 missing = ",".join(missing)
+        writer.writerow(
+            {
+                    "timestamp": entry.get("timestamp", ""),
+                    "profile": entry.get("profile", ""),
+                    "tag": entry.get("tag", ""),
+                    "overall": entry.get("overall", ""),
+                    "missing_any": entry.get("missing_any", ""),
+                    "missing": missing,
+            }
+        )
+
+
+def write_samples_csv(path: str, trend: Dict[str, Any]) -> None:
+    if not path:
+        return
+    ensure_parent_dir(path)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["timestamp", "profile", "tag", "overall", "missing_any", "missing"],
+        )
+        writer.writeheader()
+        for entry in trend.get("entries", []):
+            missing = entry.get("missing", [])
+            if not missing:
+                continue
+            if isinstance(missing, list):
+                missing = ",".join(missing)
             writer.writerow(
                 {
                     "timestamp": entry.get("timestamp", ""),
@@ -252,6 +285,8 @@ def main() -> int:
     write_json(args.out_json, trend)
     if args.out_csv:
         write_csv(args.out_csv, trend)
+    if args.out_samples_csv:
+        write_samples_csv(args.out_samples_csv, trend)
     print(f"OK: wrote {args.out_md} and {args.out_json}")
     if args.max_missing_any >= 0 and trend.get("missing_any", 0) > args.max_missing_any:
         print(f"FAIL: missing_any {trend.get('missing_any', 0)} > {args.max_missing_any}", file=sys.stderr)

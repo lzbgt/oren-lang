@@ -34,6 +34,7 @@ Index + derived outputs:
 - `build/reports/readiness_index_audit_samples.csv` — audit missing samples CSV.
 - `build/reports/readiness_index_audit_trend.{md,json}` — audit trend window.
 - `build/reports/readiness_index_audit_trend.csv` — audit trend CSV rows.
+- `build/reports/readiness_index_audit_trend_samples.csv` — audit trend missing samples CSV.
 - `build/reports/readiness_collect/` — collected report snapshots.
 - `build/reports/readiness_collect_index.{md,json}` — collection index.
 - `build/reports/readiness_collect.tar.gz` — packed collection archive.
@@ -117,6 +118,7 @@ Pipeline:
   `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`.
 - Dashboard accepts `--audit-trend-json` to render audit trend rows.
 - Dashboard accepts `--audit-samples-json` to render audit samples (optional).
+- Dashboard accepts `--audit-samples-only-missing` to filter samples.
 - Audit trend view includes missing-by-kind totals when provided.
 - Audit trend view highlights the top missing field when available.
 - Dashboard grid highlights top missing field from audit summary.

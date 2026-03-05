@@ -74,6 +74,11 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="Max audit samples to render (default: 10, 0=none)",
     )
+    parser.add_argument(
+        "--audit-samples-only-missing",
+        action="store_true",
+        help="Only render samples with missing entries.",
+    )
     return parser.parse_args()
 
 
@@ -331,7 +336,7 @@ def render_audit_trend(data: Dict[str, Any]) -> str:
     )
 
 
-def render_audit_samples(data: Dict[str, Any], limit: int) -> str:
+def render_audit_samples(data: Dict[str, Any], limit: int, only_missing: bool) -> str:
     if not data or limit == 0:
         return ""
     samples = data.get("samples", [])
@@ -345,6 +350,8 @@ def render_audit_samples(data: Dict[str, Any], limit: int) -> str:
     rows = []
     for sample in samples:
         missing = sample.get("missing", [])
+        if only_missing and not missing:
+            continue
         if isinstance(missing, list):
             missing = ", ".join(missing)
         rows.append(
@@ -559,7 +566,7 @@ def main() -> int:
   {render_tags(tags)}
   {render_audit(audit)}
   {render_audit_trend(audit_trend)}
-  {render_audit_samples(audit_samples, args.audit_samples_limit)}
+  {render_audit_samples(audit_samples, args.audit_samples_limit, args.audit_samples_only_missing)}
 </body>
 </html>
 """
