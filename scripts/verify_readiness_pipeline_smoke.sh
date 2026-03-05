@@ -12,5 +12,6 @@ mkdir -p "$work_dir"
 rg -n "\"tag\":\"smoke\"" "$index_path" >/dev/null
 rg -n "Oren readiness summary" "build/reports/readiness_summary_dry_run.md" >/dev/null
 rg -n "Readiness index stats" "build/reports/readiness_index_stats_dry_run.md" >/dev/null
+rg -n "timestamp,profile,overall" "build/reports/readiness_index_dry_run.csv" >/dev/null
 
 echo "OK: readiness pipeline smoke verified"

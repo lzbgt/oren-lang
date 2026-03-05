@@ -77,6 +77,17 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     tag_counts = defaultdict(lambda: defaultdict(int))
     durations = []
     latest = entries[-1] if entries else {}
+    streak_kind = ""
+    streak_len = 0
+    if entries:
+        last_overall = entries[-1].get("overall", "")
+        if isinstance(last_overall, str):
+            streak_kind = last_overall
+            for entry in reversed(entries):
+                if entry.get("overall") == last_overall:
+                    streak_len += 1
+                else:
+                    break
 
     for entry in entries:
         overall = entry.get("overall", "UNKNOWN")
@@ -105,6 +116,10 @@ def compute_stats(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         "duration_avg": duration_avg,
         "duration_min": duration_min,
         "duration_max": duration_max,
+        "streak": {
+            "kind": streak_kind,
+            "len": streak_len,
+        },
         "latest": {
             "timestamp": latest.get("timestamp", ""),
             "profile": latest.get("profile", ""),
@@ -124,6 +139,7 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
     duration_min = stats["duration_min"]
     duration_max = stats["duration_max"]
     latest = stats["latest"]
+    streak = stats.get("streak", {})
 
     def fmt_float(val: Optional[float]) -> str:
         if val is None:
@@ -136,6 +152,8 @@ def write_markdown(path: str, stats: Dict[str, Any]) -> None:
         f.write(f"- pass rate: {pass_rate:.1f}%\n")
         f.write(f"- pass: {overall_counts.get('PASS', 0)}\n")
         f.write(f"- fail: {overall_counts.get('FAIL', 0)}\n")
+        if streak:
+            f.write(f"- streak: {streak.get('kind','-')} x{streak.get('len','-')}\n")
         f.write("\n")
         f.write("## Duration (sec)\n\n")
         f.write(f"- avg: {fmt_float(duration_avg)}\n")
