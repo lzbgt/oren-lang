@@ -120,6 +120,10 @@ Readiness report flags (optional):
 ./scripts/readiness_report.sh --include-env
 ```
 
+Status overview outputs (when enabled):
+
+- `build/reports/status_overview_*.md`
+
 Latest report pointers (written on real runs):
 
 - `build/reports/readiness_latest.md`
@@ -145,6 +149,7 @@ Rollup outputs (daily):
 
 - `build/reports/readiness_rollup.md`
 - `build/reports/readiness_rollup.json`
+- Rollup includes daily `status_overview_present` counts when status overview files are emitted.
 
 Pipeline (single entrypoint):
 

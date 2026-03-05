@@ -18,6 +18,16 @@ REQUIRED_FIELDS = {
     "json": str,
     "log_dir": str,
 }
+OPTIONAL_FIELDS = {
+    "tag": str,
+    "status_snapshot_md": str,
+    "status_snapshot_json": str,
+    "status_faq_md": str,
+    "status_faq_json": str,
+    "status_matrix_md": str,
+    "status_matrix_json": str,
+    "status_overview_md": str,
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +71,15 @@ def validate_entry(entry: Dict[str, Any]) -> List[str]:
         else:
             if not isinstance(val, expected_type):
                 errors.append(f"field {key} expected {expected_type.__name__}, got {type(val).__name__}")
+    for key, expected_type in OPTIONAL_FIELDS.items():
+        if key not in entry:
+            continue
+        val = entry[key]
+        if val is None:
+            errors.append(f"field {key} expected {expected_type.__name__}, got None")
+            continue
+        if not isinstance(val, expected_type):
+            errors.append(f"field {key} expected {expected_type.__name__}, got {type(val).__name__}")
     overall = entry.get("overall")
     if isinstance(overall, str) and overall not in ("PASS", "FAIL"):
         errors.append(f"field overall expected PASS/FAIL, got {overall}")
