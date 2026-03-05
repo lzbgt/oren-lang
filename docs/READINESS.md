@@ -31,6 +31,7 @@ Index + derived outputs:
 - `build/reports/readiness_index_tags.{md,json}` — per-tag summary.
 - `build/reports/readiness_index_audit.{md,json}` — audit of index paths.
 - `build/reports/readiness_index_audit_trend.{md,json}` — audit trend window.
+- `build/reports/readiness_index_audit_trend.csv` — audit trend CSV rows.
 - `build/reports/readiness_collect/` — collected report snapshots.
 - `build/reports/readiness_collect_index.{md,json}` — collection index.
 - `build/reports/readiness_collect.tar.gz` — packed collection archive.
@@ -114,6 +115,7 @@ Pipeline:
   `--audit-max-status-matrix-md <n>`, `--audit-max-status-matrix-json <n>`.
 - Dashboard accepts `--audit-trend-json` to render audit trend rows.
 - Audit trend view includes missing-by-kind totals when provided.
+- Audit trend view highlights the top missing field when available.
 
 Smoke verifiers:
 

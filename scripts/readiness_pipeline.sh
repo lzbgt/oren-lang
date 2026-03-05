@@ -433,6 +433,7 @@ audit_md="build/reports/readiness_index_audit.md"
 audit_json="build/reports/readiness_index_audit.json"
 audit_trend_md="build/reports/readiness_index_audit_trend.md"
 audit_trend_json="build/reports/readiness_index_audit_trend.json"
+audit_trend_csv="build/reports/readiness_index_audit_trend.csv"
 
 if [[ "$dry_run" == "1" ]]; then
   summary_md="build/reports/readiness_summary_dry_run.md"
@@ -465,6 +466,7 @@ if [[ "$dry_run" == "1" ]]; then
   audit_json="build/reports/readiness_index_audit_dry_run.json"
   audit_trend_md="build/reports/readiness_index_audit_trend_dry_run.md"
   audit_trend_json="build/reports/readiness_index_audit_trend_dry_run.json"
+  audit_trend_csv="build/reports/readiness_index_audit_trend_dry_run.csv"
 fi
 
 report_args=(--profile "$profile" --json --index "$index_path")
@@ -626,7 +628,7 @@ fi
     fi
     ./scripts/readiness_report_index_audit.py "${audit_args[@]}"
     if [[ "$emit_audit_trend" == "1" ]]; then
-      trend_args=(--index "$index_path" --out-md "$audit_trend_md" --out-json "$audit_trend_json" --limit "$audit_trend_window")
+      trend_args=(--index "$index_path" --out-md "$audit_trend_md" --out-json "$audit_trend_json" --out-csv "$audit_trend_csv" --limit "$audit_trend_window")
       if [[ "$dry_run" == "1" ]]; then
         trend_args+=(--include-dry-run)
       fi

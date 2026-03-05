@@ -34,5 +34,6 @@ rg -n "Audit missing" "$out_html" >/dev/null
 rg -n "class='ok'" "$out_html" >/dev/null
 rg -n "Audit trend" "$out_html" >/dev/null
 rg -n "Missing by kind" "$out_html" >/dev/null
+rg -n "Top missing" "$out_html" >/dev/null
 
 echo "OK: readiness dashboard smoke verified"
