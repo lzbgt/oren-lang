@@ -67,6 +67,7 @@ make status-faq  # readiness FAQ from STATUS.md
 make status-faq-diff  # diff readiness FAQ outputs
 make status-matrix  # render readiness matrix from STATUS.md
 make status-matrix-diff  # diff readiness matrices or STATUS.md
+make status-markdown  # render status FAQ/snapshot/matrix JSON into markdown
 make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
 make verify-readiness-report-index-tools  # smoke for index tools
@@ -88,6 +89,7 @@ make verify-status-faq  # smoke for status faq
 make verify-status-faq-diff  # smoke for status faq diff
 make verify-status-matrix  # smoke for status matrix
 make verify-status-matrix-diff  # smoke for status matrix diff
+make verify-status-markdown  # smoke for status markdown renderer
 
 # Optional knobs for runtime robustness:
 # - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
