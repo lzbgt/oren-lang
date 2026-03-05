@@ -41,9 +41,11 @@ make readiness-report-index  # append JSONL summary to build/reports/readiness_i
 make readiness-report-summary  # generates markdown + HTML summary from index
 make readiness-report-index-stats  # index stats (md + json)
 make readiness-report-index-prune  # prune index to last N entries
+make readiness-pipeline  # run report + summary + stats + validate in one shot
 make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
 make verify-readiness-report-index-tools  # smoke for index tools
+make verify-readiness-pipeline  # smoke for pipeline
 
 # Optional knobs for runtime robustness:
 # - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
@@ -84,6 +86,13 @@ Index stats outputs:
 
 - `build/reports/readiness_index_stats.md`
 - `build/reports/readiness_index_stats.json`
+
+Pipeline (single entrypoint):
+
+```bash
+./scripts/readiness_pipeline.sh --profile quick --tag nightly
+./scripts/readiness_pipeline.sh --profile full --prune 200
+```
 
 Build and run a hello binary (C backend by default):
 

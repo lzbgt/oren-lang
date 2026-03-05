@@ -21,6 +21,7 @@ make readiness-report-index  # append JSONL summary for automation
 make readiness-report-summary  # build summary markdown + HTML
 make readiness-report-index-stats  # build index stats (md + json)
 make readiness-report-index-prune  # prune index to last N entries
+make readiness-pipeline  # run readiness report + summary + stats + validate
 ```
 
 Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are

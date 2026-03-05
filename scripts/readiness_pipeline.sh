@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/readiness_pipeline.sh [options]
+
+Options:
+  --profile <minimal|quick|full>   Verification profile (default: quick).
+  --tag <name>                     Attach a tag to the report/index.
+  --index <path>                   Index path (default: build/reports/readiness_index.jsonl).
+  --include-env                    Include OREN_* env vars in report.
+  --keep-going                     Run all steps even if one fails (report step only).
+  --summary-limit <n>              Max entries in summary (default: 20).
+  --stats-limit <n>                Max entries in stats (default: 200; 0=all).
+  --prune <n>                       Prune index to last N entries after run (0=skip).
+  --dry-run                        Dry-run report; writes to *_dry_run outputs.
+  -h, --help                       Show help.
+EOF
+}
+
+profile="quick"
+tag=""
+index_path=""
+include_env=0
+keep_going=0
+summary_limit=20
+stats_limit=200
+prune_keep=0
+dry_run=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile)
+      profile="${2:-}"
+      shift 2
+      ;;
+    --tag)
+      tag="${2:-}"
+      shift 2
+      ;;
+    --index)
+      index_path="${2:-}"
+      shift 2
+      ;;
+    --include-env)
+      include_env=1
+      shift
+      ;;
+    --keep-going)
+      keep_going=1
+      shift
+      ;;
+    --summary-limit)
+      summary_limit="${2:-}"
+      shift 2
+      ;;
+    --stats-limit)
+      stats_limit="${2:-}"
+      shift 2
+      ;;
+    --prune)
+      prune_keep="${2:-}"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$index_path" ]]; then
+  if [[ "$dry_run" == "1" ]]; then
+    index_path="build/reports/readiness_index_dry_run.jsonl"
+  else
+    index_path="build/reports/readiness_index.jsonl"
+  fi
+fi
+
+timestamp="$(date +%Y%m%d_%H%M%S)"
+log_dir="build/logs"
+mkdir -p "$log_dir" "build/reports"
+log="${log_dir}/readiness_pipeline_${timestamp}.log"
+
+summary_md="build/reports/readiness_summary.md"
+summary_html="build/reports/readiness_summary.html"
+stats_md="build/reports/readiness_index_stats.md"
+stats_json="build/reports/readiness_index_stats.json"
+
+if [[ "$dry_run" == "1" ]]; then
+  summary_md="build/reports/readiness_summary_dry_run.md"
+  summary_html="build/reports/readiness_summary_dry_run.html"
+  stats_md="build/reports/readiness_index_stats_dry_run.md"
+  stats_json="build/reports/readiness_index_stats_dry_run.json"
+fi
+
+report_args=(--profile "$profile" --json --index "$index_path")
+if [[ -n "$tag" ]]; then
+  report_args+=(--tag "$tag")
+fi
+if [[ "$include_env" == "1" ]]; then
+  report_args+=(--include-env)
+fi
+if [[ "$keep_going" == "1" ]]; then
+  report_args+=(--keep-going)
+fi
+if [[ "$dry_run" == "1" ]]; then
+  report_args+=(--dry-run --no-latest)
+fi
+
+{
+  echo "== readiness pipeline =="
+  echo "timestamp=${timestamp}"
+  echo "profile=${profile}"
+  echo "tag=${tag}"
+  echo "index=${index_path}"
+  echo "dry_run=${dry_run}"
+  echo "summary_limit=${summary_limit}"
+  echo "stats_limit=${stats_limit}"
+  echo "prune_keep=${prune_keep}"
+  echo ""
+  ./scripts/readiness_report.sh "${report_args[@]}"
+  ./scripts/readiness_report_summary.py --index "$index_path" --limit "$summary_limit" \
+    --out-md "$summary_md" --out-html "$summary_html"
+  ./scripts/readiness_report_index_stats.py --index "$index_path" --limit "$stats_limit" \
+    --out-md "$stats_md" --out-json "$stats_json"
+  ./scripts/readiness_report_index_validate.py --index "$index_path"
+  if [[ "$prune_keep" =~ ^[0-9]+$ && "$prune_keep" -gt 0 ]]; then
+    ./scripts/readiness_report_index_prune.py --index "$index_path" --keep "$prune_keep"
+  fi
+} >"$log" 2>&1
+
+echo "OK: readiness pipeline completed"
+echo "log: ${log}"
