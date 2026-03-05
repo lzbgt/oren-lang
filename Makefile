@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-collect readiness-report-collect-list readiness-pipeline status-snapshot status-snapshot-diff verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-collect readiness-report-collect-list readiness-report-collect-pack readiness-pipeline status-snapshot status-snapshot-diff verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-report-collect-pack verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -556,6 +556,9 @@ readiness-report-collect:
 readiness-report-collect-list:
 	@./scripts/readiness_report_collect_list.py
 
+readiness-report-collect-pack:
+	@./scripts/readiness_report_collect_pack.py
+
 readiness-pipeline:
 	@./scripts/readiness_pipeline.sh
 
@@ -624,6 +627,9 @@ verify-readiness-report-index-audit:
 
 verify-readiness-report-collect:
 	@./scripts/verify_readiness_report_collect_smoke.sh
+
+verify-readiness-report-collect-pack:
+	@./scripts/verify_readiness_report_collect_pack_smoke.sh
 
 verify-readiness-pipeline:
 	@./scripts/verify_readiness_pipeline_smoke.sh

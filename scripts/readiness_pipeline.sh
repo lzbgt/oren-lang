@@ -40,6 +40,8 @@ Options:
   --collect-dir <path>              Output directory for collected snapshots.
   --collect-include-dry-run         Include dry_run entries in collection.
   --collect-copy-logs               Copy log_dir contents into snapshot.
+  --collect-pack                    Pack collected snapshots into tar.gz.
+  --collect-pack-out <path>         Output tar.gz path (default: build/reports/readiness_collect.tar.gz).
   --trim-since <ts>                 Trim index to entries >= ts (YYYYMMDD_HHMMSS).
   --trim-until <ts>                 Trim index to entries <= ts (YYYYMMDD_HHMMSS).
   --trim-since-days <n>             Trim to last N days (local time).
@@ -88,6 +90,8 @@ collect_count=0
 collect_dir="build/reports/readiness_collect"
 collect_include_dry_run=0
 collect_copy_logs=0
+collect_pack=0
+collect_pack_out="build/reports/readiness_collect.tar.gz"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -222,6 +226,14 @@ while [[ $# -gt 0 ]]; do
     --collect-copy-logs)
       collect_copy_logs=1
       shift
+      ;;
+    --collect-pack)
+      collect_pack=1
+      shift
+      ;;
+    --collect-pack-out)
+      collect_pack_out="${2:-}"
+      shift 2
       ;;
     --trim-since)
       trim_since="${2:-}"
@@ -378,6 +390,8 @@ fi
   echo "collect_dir=${collect_dir}"
   echo "collect_include_dry_run=${collect_include_dry_run}"
   echo "collect_copy_logs=${collect_copy_logs}"
+  echo "collect_pack=${collect_pack}"
+  echo "collect_pack_out=${collect_pack_out}"
   echo ""
   ./scripts/readiness_report.sh "${report_args[@]}"
   if [[ -n "$trim_since" || -n "$trim_until" || "$trim_since_days" != "-1" || "$trim_until_days" != "-1" ]]; then
@@ -447,6 +461,9 @@ fi
     ./scripts/readiness_report_collect.py "${collect_args[@]}"
     ./scripts/readiness_report_collect_list.py --dir "$collect_dir" --out "$collect_dir/readiness_collect_index.md" \
       --out-json "$collect_dir/readiness_collect_index.json"
+    if [[ "$collect_pack" == "1" ]]; then
+      ./scripts/readiness_report_collect_pack.py --dir "$collect_dir" --out "$collect_pack_out" --prefix "readiness_collect"
+    fi
   fi
   if [[ "$emit_status_snapshot" == "1" ]]; then
     ./scripts/status_snapshot.py --status "$status_path" --out-md "$status_snapshot_md" --out-json "$status_snapshot_json"
