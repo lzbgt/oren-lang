@@ -1084,6 +1084,20 @@ fn _astbin_guess_pool_cap_for_v2(v) {
         var nfx = oren_list_len(fx)
         if nfx > 0 { cap2 = nfx * 2 }
     }
+    var fxc = v["fixups_compact"]
+    if fxc != nil && _astbin_is_map(fxc) {
+        var nfx2 = 0
+        var blp = fxc["bl_pos_enc"]
+        if blp != nil && _astbin_is_list(blp) { nfx2 = nfx2 + oren_list_len(blp) }
+        var adp = fxc["adr_data_pos_enc"]
+        if adp != nil && _astbin_is_list(adp) { nfx2 = nfx2 + oren_list_len(adp) }
+        var acp = fxc["adr_code_pos_enc"]
+        if acp != nil && _astbin_is_list(acp) { nfx2 = nfx2 + oren_list_len(acp) }
+        if nfx2 > 0 {
+            var cand_fx = nfx2 * 2
+            if cand_fx > cap2 { cap2 = cand_fx }
+        }
+    }
     var fnm = v["fn_offs_enc"]
     if fnm != nil && _astbin_is_map(fnm) {
         var nfn = oren_map_len(fnm)

@@ -568,7 +568,7 @@ fn native_compile_program_arm64(linked, platform) {
                 if vf_enc > 0 { vf = vf_enc - 1 }
             }
             var wname = "__oren_fnwrap_" + fname
-            if ctx["functions"][wname] == nil {
+            if _arm64_lookup_function(ctx, wname) == nil {
                 native_compile_stmt(ctx, callable.synth_fnwrap(fname, arity, vf))
             }
         }
@@ -580,7 +580,7 @@ fn native_compile_program_arm64(linked, platform) {
         var def = ctx["lambda_defs"][wi]
         if def != nil && def["name"] != nil {
             var lname = def["name"]
-            if ctx["functions"][lname] == nil {
+            if _arm64_lookup_function(ctx, lname) == nil {
                 native_compile_stmt(ctx, callable.synth_lambda_wrapper(def))
             }
         }
@@ -655,7 +655,7 @@ fn native_compile_program_arm64(linked, platform) {
         _arm64_sym_entries_push_unique(sym_seen, sym_entries, 0, "__entry_stub__")
 
         // Prefer an explicit __top_level__ entry if present.
-        var top_off = ctx["functions"]["__top_level__"]
+        var top_off = _arm64_lookup_function(ctx, "__top_level__")
         if top_off != nil { _arm64_sym_entries_push_unique(sym_seen, sym_entries, top_off, "__top_level__") }
 
         // All compiled symbols (runtime + user + wrappers).
@@ -668,6 +668,22 @@ fn native_compile_program_arm64(linked, platform) {
             var off = pair[1]
             _arm64_sym_entries_push_unique(sym_seen, sym_entries, off, nm)
             j = j + 1
+        }
+        var rt_fn = ctx["runtime_functions_enc"]
+        if rt_fn != nil {
+            var rt_base = ctx["rtobj_functions_base_code"]
+            if rt_base == nil { rt_base = 0 }
+            j = 0
+            while 1 {
+                var ok_rt = oren_iter_next_entry(rt_fn, j, pair)
+                if ok_rt == 0 { break }
+                var nm_rt = pair[0]
+                var off_rt_enc = pair[1]
+                if nm_rt != nil && oren_type_tag(off_rt_enc) != 0 {
+                    _arm64_sym_entries_push_unique(sym_seen, sym_entries, rt_base + (off_rt_enc - 1), nm_rt)
+                }
+                j = j + 1
+            }
         }
 
         // Insertion sort (descending by off). Small N; keep it simple and deterministic.

@@ -1285,6 +1285,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: dense world-lock smoke triage (5 runs, watchdog 300s) with
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
     `build/logs/triage_green_two_workers_world_lock_smoke_dense_20260304_011459.log`).
+  - New (2026-03-07): `make verify-green-world-lock-guarded` wraps the standalone smoke in
+    a cheap 3-pass gate with `OREN_GREEN_POLL_CACHE=1`,
+    `OREN_TRACE_GREEN_RUNQ_GUARD=1`, and `OREN_TRACE_GREEN_ARGS_STAMP=1`.
+  - Reweight (2026-03-07): once the guarded standalone smoke is green, the higher-leverage
+    repro path is the earlier native quick integration / green-cache sequence, not the
+    standalone world-lock fixture by itself.
+  - New (2026-03-07): `make verify-green-preworld-guarded` runs that earlier path directly
+    with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` and slightly longer run timeouts so it can act
+    as a cheap pre-world-lock regression gate instead of a one-off triage command.
+  - New (2026-03-07): `make verify-green-fairness-guarded` runs stage2 quick integration only
+    through `test_green_global_runq_fairness` with `OREN_QI_STOP_AFTER_GREEN_FAIRNESS=1`
+    and `OREN_TRACE_GREEN_FAIRNESS=1`; it also sets `OREN_QI_STOP_AFTER_GREEN_CACHE=1`
+    so the known fairness flake has a cheap dedicated gate with progress markers in the
+    inner log without paying for the unrelated follow-on smokes.
+  - Verified (2026-03-07): `make verify-green-preworld-guarded` passed
+    (`build/logs/codex_verify_green_preworld_guarded_20260307.log`), and the per-run wrapper log
+    now captures the step summaries plus an explicit
+    `skip_reason=OREN_QI_STOP_BEFORE_WORLD_LOCK=1`
+    (`build/logs/oren_stage2_native_quick_until_world_lock_20260307_002343_run1.log`).
+  - Verified (2026-03-07): `make verify-green-fairness-guarded` passed 3/3 runs
+    (`build/logs/codex_verify_green_fairness_guarded_20260307_pass.log`), and the per-run
+    logs now stop immediately after the base + green-cache fairness passes while keeping
+    the fairness progress markers in the inner log.
   - New: `scripts/triage_stage2_quick_until_world_lock.sh` runs native quick integration
     plus the smokes leading up to `test_green_two_workers_world_lock_smoke` to isolate
     order-sensitive hangs.
@@ -1668,6 +1691,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_stage2_flake_20260304_134319_run1.log`,
     `build/logs/native_quick_stage2_flake_20260304_134319_run1_inner.log`,
     `build/logs/native_quick_stage2_flake_20260304_134319_run1_err.log`).
+  - Verified (2026-03-07): standalone guarded world-lock smoke passed 3/3 runs with
+    `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_RUNQ_GUARD=1`, and
+    `OREN_TRACE_GREEN_ARGS_STAMP=1` (summary log:
+    `build/logs/codex_green_world_lock_smoke_20260306.log`).
   - Trace: stage2 flake harness (3 runs) with entry-args tracing disabled and
     args-stamp/spawn logging sampled at stride=128 ended on run 3 with rc=138
     (bus error) after spawn logs (logs:
@@ -1798,11 +1825,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
     `build/logs/native_quick_until_world_lock_20260304_012236_run1.log`).
-  - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
-    (log: `build/logs/make_test_20260303_233334.log`); rerun passed
-    (log: `build/logs/make_test_20260303_233544.log`).
-  - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
-    (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
+	  - Note: `make test` hit `test-native-quick-stage2` Error 139 on 2026-03-03
+	    (log: `build/logs/make_test_20260303_233334.log`); rerun passed
+	    (log: `build/logs/make_test_20260303_233544.log`).
+	  - Update (2026-03-08): arm64 self-hosted rtobj apply now completes after moving runtime
+	    function lookup + runtime fixup handling to lazier paths; latest traced cache-hit build
+	    reaches Mach-O fixup application with runtime prepare reduced to about `+16648ms`
+	    (log: `build/logs/codex_stage2_build_gc_stw_collect_trace10_20260307.log`).
+	  - Next: reduce per-fixup overhead in `lib/compiler/arm64_macho.oren` so the
+	    `[emit] macho arm64: apply fixups start` phase stops dominating stage2 native builds.
+	  - Next: make the forced cold rtobj seed path cheap enough to refresh cache entries quickly
+	    after compiler-side metadata/layout changes (current log:
+	    `build/logs/codex_build_rtobj_seed_arm64_20260308.log`).
+	  - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
+	    (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop
     and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough args
     for tracing, logs git/uname metadata, and saves failure copies of the inner

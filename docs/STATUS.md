@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-03-05
+**Last updated:** 2026-03-07
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -114,6 +114,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      preventing races in multi-worker world-lock mode (2026-02-26).
    - Fix: host metadata lookups (`oren_find_node`) now enter the world lock when workers
      are active, avoiding list/map metadata races during world-lock tests (2026-02-26).
+   - Fix: alloc-index recovery (`native_alloc_index_recover_ptr`) now enters the host
+     world lock, and green runq/entry guards now use `_green_args_list_node(..., 1)` so
+     sane args_list headers can rebuild/retrack through transient alloc-index misses before
+     panicking (2026-03-06).
+   - Verified: guarded world-lock smoke passed 3/3 runs with
+     `OREN_GREEN_POLL_CACHE=1 OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1`
+     (log: `build/logs/codex_green_world_lock_smoke_20260306.log`, 2026-03-06).
    - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
      after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption
@@ -809,13 +816,38 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre2_20260305_025533_1_correlate.log`,
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1.log`,
      `build/logs/alloc_churn_trace_gc_ring_poison_hi_huntpre3_arenaoff_20260305_025745_1_correlate.log`).
-   - Repro (2026-03-05): enabling `OREN_TRACE_ALLOC_KIND_CHANGE` triggers an early segfault
-     before any trace output (logs:
-     `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip_20260305_025937_1.log`,
-     `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip2_20260305_030010_1.log`).
-   - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
-     exit even without compile-time trace flags, so GC corruptions can be correlated from
-     standard trace runs.
+	  - Repro (2026-03-05): enabling `OREN_TRACE_ALLOC_KIND_CHANGE` triggers an early segfault
+	    before any trace output (logs:
+	    `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip_20260305_025937_1.log`,
+	    `build/logs/alloc_churn_trace_gc_ring_poison_hi_kindflip2_20260305_030010_1.log`).
+	  - Fix (2026-03-07): typed-buffer heap payloads no longer allocate with kind `8`
+	    (`LIST_INT`); small/uninit payloads now stay raw tracked blocks so GC cannot
+	    validate arbitrary payload bytes as list_int headers under forced-GC stress.
+	  - Fix (2026-03-07): list/list_int, map, buf, func, and arena list constructors now
+	    allocate raw first and only retype after header initialization, closing a window where
+	    forced GC could observe partially initialized structured headers.
+	  - Verification (2026-03-07): stage1 native quick integration now passes again after the
+	    typed-buffer payload regression was added/fixed (`build/logs/codex_test_native_quick_20260307_regressionfix2.log`);
+	    `tests/native/test_gc_stw_os_thread_collect.oren` also passes with the rebuilt stage1 compiler
+	    (`build/logs/codex_test_gc_stw_os_thread_collect_stage1_20260307.log`).
+	  - Remaining blocker (2026-03-07): `make test` currently advances through stage1 native quick
+	    and then stops at `test-native-quick-stage2` with wrapper exit `143`; this is now a stage2
+	    quick-integration build-time verification problem rather than the earlier stage1 runtime panic
+	    (`build/logs/codex_make_test_20260307_prodfix_final.log`).
+	  - Update (2026-03-08): arm64 stage2 rtobj apply no longer stalls on eager runtime
+	    function/fixup materialization. Cached runtime functions are resolved lazily, and runtime
+	    fixups now have a compact cache encoding path plus lazy emitter resolution. Latest traced
+	    stage2 build gets through `[rtobj] apply hit done` and reaches Mach-O fixup application;
+	    runtime prepare dropped from about `+23530ms` to `+16648ms`
+	    (`build/logs/codex_stage2_build_gc_stw_collect_trace10_20260307.log`).
+	  - Remaining blocker (2026-03-08): self-hosted arm64 stage2 still spends excessive time in
+	    Mach-O fixup application after codegen (`[emit] macho arm64: fixup[0] start` in
+	    `build/logs/codex_stage2_build_gc_stw_collect_trace10_20260307.log`), and a forced cold
+	    rtobj seed build remains slow enough that it did not finish within the current turn
+	    (`build/logs/codex_build_rtobj_seed_arm64_20260308.log`).
+	   - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
+	     exit even without compile-time trace flags, so GC corruptions can be correlated from
+	     standard trace runs.
    - Update (2026-03-05): arena list/list_int allocations now emit list_hdr ring entries
      (op=1/2) so ring dumps include arena-backed list headers.
    - New: `OREN_TRACE_ALLOC_INDEX=1` now logs `[alloc_index_list_bad]` when list/list_int
@@ -1885,6 +1917,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
    - New: tag parity now asserts list/list_int identity equality (`==`/`!=`) for alias vs distinct lists (rolling, 2026-02-26).
+   - New: tag parity now also asserts `nil == nil`, strict bool-vs-int equality, map
+     identity equality, and func identity equality across C/native/OBC (2026-03-06).
    - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr) (rolling, 2026-02-24).
    - Fix: native stringy inference no longer treats empty list literals as list<string> (prevents strcmp on list pointers; restores list equality semantics, 2026-02-26).
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
@@ -1900,6 +1934,30 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 
 6) **Native scheduler / green-task integration** (L, W4)
    - Keep syscall-first constraints.
+   - Reweight (2026-03-07): standalone world-lock smoke is no longer the highest-signal
+     entry point for this flake family once runq/args-stamp guards are enabled; prioritize
+     the earlier native quick integration / green-cache path when chasing remaining crashes.
+   - New: `make verify-green-world-lock-guarded` runs a cheap 3-pass standalone gate with
+     `OREN_GREEN_POLL_CACHE=1 OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1`.
+   - New: `make verify-green-preworld-guarded` runs the earlier native quick integration /
+     green-cache sequence with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` plus the same guards and
+     slightly longer run timeouts, so pre-world-lock regressions get a dedicated cheap gate.
+   - New: `make verify-green-fairness-guarded` runs stage2 quick integration only through
+     `test_green_global_runq_fairness` (`OREN_QI_STOP_AFTER_GREEN_FAIRNESS=1`) and keeps
+     `OREN_TRACE_GREEN_FAIRNESS=1` on; it also sets `OREN_QI_STOP_AFTER_GREEN_CACHE=1`
+     so the gate ends right after the base + green-cache quick-integration passes instead
+     of paying for the unrelated follow-on smokes. This keeps the fairness gate cheap
+     while preserving progress markers in the inner log.
+   - Verified (2026-03-07): `make verify-green-preworld-guarded` passed cleanly
+     (log: `build/logs/codex_verify_green_preworld_guarded_20260307.log`), and the wrapper now
+     records per-step summaries plus `skip_reason=OREN_QI_STOP_BEFORE_WORLD_LOCK=1` in the
+     per-run log (`build/logs/oren_stage2_native_quick_until_world_lock_20260307_002343_run1.log`).
+   - Verified (2026-03-07): `make verify-green-fairness-guarded` passed 3/3 runs
+     (log: `build/logs/codex_verify_green_fairness_guarded_20260307_pass.log`); the per-run
+     logs now stop after the base + green-cache fairness passes and carry explicit progress
+     markers from `test_green_global_runq_fairness`.
+   - Verified (2026-03-07): the guarded standalone gate passed cleanly; `make test` also
+     remained green after the retrack/world-lock fixes.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`

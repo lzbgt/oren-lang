@@ -188,7 +188,7 @@ fn _arm64_trace_global_slots(ctx, label) {
 fn _arm64_emit_global_roots_init(ctx) {
     if ctx == nil { return 0 }
     var name = "__oren_global_roots_init"
-    if ctx["functions"] != nil && ctx["functions"][name] != nil {
+    if _arm64_lookup_function(ctx, name) != nil {
         if ctx["errors"] != nil {
             oren_list_push(ctx["errors"], "arm64 native: reserved function name " + name + " already defined")
         }
@@ -255,4 +255,24 @@ fn _arm64_emit_global_roots_init(ctx) {
     push_u32_le(ctx["code"], insn_ldp_post())
     push_u32_le(ctx["code"], insn_ret())
     return 0
+}
+
+fn _arm64_runtime_function_offset(ctx, name) {
+    if ctx == nil || name == nil { return nil }
+    var rt = ctx["runtime_functions_enc"]
+    if rt == nil { return nil }
+    var off_enc = rt[name]
+    if oren_type_tag(off_enc) == 0 { return nil }
+    var base = ctx["rtobj_functions_base_code"]
+    if base == nil { base = 0 }
+    return base + (off_enc - 1)
+}
+
+fn _arm64_lookup_function(ctx, name) {
+    if ctx == nil || name == nil { return nil }
+    if ctx["functions"] != nil {
+        var off = ctx["functions"][name]
+        if off != nil { return off }
+    }
+    return _arm64_runtime_function_offset(ctx, name)
 }
