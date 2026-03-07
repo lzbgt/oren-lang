@@ -845,6 +845,20 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	    `build/logs/codex_stage2_build_gc_stw_collect_trace10_20260307.log`), and a forced cold
 	    rtobj seed build remains slow enough that it did not finish within the current turn
 	    (`build/logs/codex_build_rtobj_seed_arm64_20260308.log`).
+	  - Update (2026-03-08): Mach-O fixup application now caches resolved function targets per
+	    build, and rtobj apply migrates legacy `fixups_enc` cache entries into the compact
+	    `runtime_fixups_compact` form in memory. With the rebuilt stage1 compiler, the legacy
+	    debug cache-hit path now runs through `fixup[10000]` and `fixup[20000]` and finishes the
+	    native emit (`build/logs/codex_stage1_build_gc_stw_collect_trace14_20260308.log`).
+	  - Update (2026-03-08): the missing arm64 `d0` runtime-object cache entry was regenerated
+	    under the current compiler, and the stored meta now contains `fixups_compact`
+	    (`build/logs/codex_stage1_build_gc_stw_collect_nodebug_trace16_20260308.log`).
+	  - Verification (2026-03-08): `make oren_stage2` passes again after the legacy-fixup
+	    migration + target-cache change (`build/logs/codex_make_oren_stage2_20260308_final.log`).
+	  - Current blocker (2026-03-08): `make test` no longer fails in the old stage2 emitter
+	    timeout slot, but it still stops in `test-native-quick` with an illegal-instruction crash
+	    while running the produced binary (`build/logs/oren_native_quick_integration.log` and
+	    `build/logs/codex_make_test_20260308_rtobj_fixup_migrate.log`).
 	   - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
 	     exit even without compile-time trace flags, so GC corruptions can be correlated from
 	     standard trace runs.

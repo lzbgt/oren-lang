@@ -37,6 +37,17 @@ fn _macho_lookup_function(ctx, functions, name) {
     return base + _macho_decode_rtobj_fix_int(off_enc)
 }
 
+fn _macho_lookup_function_cached(cache, ctx, functions, name) {
+    if name == nil { return nil }
+    if cache != nil {
+        var off_enc = cache[name]
+        if oren_type_tag(off_enc) != 0 { return off_enc - 1 }
+    }
+    var off = _macho_lookup_function(ctx, functions, name)
+    if cache != nil && oren_type_tag(off) != 0 { cache[name] = off + 1 }
+    return off
+}
+
 fn _macho_rtobj_fixups_count_compact(fx) {
     if fx == nil { return 0 }
     var n = 0
@@ -676,6 +687,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     if rtobj_fixups_compact != nil { rtobj_fixups_n = _macho_rtobj_fixups_count_compact(rtobj_fixups_compact) }
     else if rtobj_fixups != nil { rtobj_fixups_n = oren_list_len(rtobj_fixups) }
     if trace_emit { print("[emit] macho arm64: imports=" + oren_int_to_string(oren_list_len(imports)) + " fixups=" + oren_int_to_string(rtobj_fixups_n + oren_list_len(fixups))) }
+    var fixup_target_cache = oren_map_new_cap(0)
+    if oren_is_err(fixup_target_cache) { fixup_target_cache = {} }
     
     // FFI Tables
     var strtab = bytes_new()
@@ -842,7 +855,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             var pos_bl = rtobj_fix_base + _macho_decode_rtobj_fix_int(bl_poss[i])
             var name_bl = bl_names[i]
-            var target_bl = _macho_lookup_function(ctx, functions, name_bl)
+            var target_bl = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl)
             if target_bl == nil {
                 var e_bl = "native backend: undefined function " + name_bl
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_bl))
@@ -895,7 +908,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             var pos_ac = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_code_poss[k_ac])
             var name_ac = adr_code_names[k_ac]
-            var target_ac = _macho_lookup_function(ctx, functions, name_ac)
+            var target_ac = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac)
             if target_ac == nil {
                 var e_ac = "native backend: undefined function " + name_ac
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_ac))
@@ -926,7 +939,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
 
             if fix_rt["type"] == "bl" {
                 var name_rt = fix_rt["name"]
-                var target_rt = _macho_lookup_function(ctx, functions, name_rt)
+                var target_rt = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_rt)
                 if target_rt == nil {
                     var e_rt = "native backend: undefined function " + name_rt
                     print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_rt))
@@ -953,7 +966,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
 
             if fix_rt["type"] == "adr_code" {
                 var name_rt2 = fix_rt["name"]
-                var target_rt2 = _macho_lookup_function(ctx, functions, name_rt2)
+                var target_rt2 = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_rt2)
                 if target_rt2 == nil {
                     var e_rt2 = "native backend: undefined function " + name_rt2
                     print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_rt2))
@@ -986,7 +999,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         
         if fix["type"] == "bl" {
             var name2 = fix["name"]
-            var target = _macho_lookup_function(ctx, functions, name2)
+            var target = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name2)
             if target == nil {
                 var e = "native backend: undefined function " + name2
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e))
@@ -1013,7 +1026,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
 
         if fix["type"] == "adr_code" {
             var name3 = fix["name"]
-            var target2 = _macho_lookup_function(ctx, functions, name3)
+            var target2 = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name3)
             if target2 == nil {
                 var e = "native backend: undefined function " + name3
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e))

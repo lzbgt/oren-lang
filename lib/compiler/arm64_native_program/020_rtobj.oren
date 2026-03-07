@@ -173,8 +173,14 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
         if fx != nil {
             var fx_n = oren_list_len(fx)
             if trace_apply { print("[arm64_rtobj_apply] fixups count=" + oren_int_to_string(fx_n)) }
-            ctx["runtime_fixups_enc"] = fx
-            ctx["runtime_fixups_count"] = fx_n
+            var fx_compact_migrated = _arm64_rtobj_encode_fixups_compact(fx)
+            if fx_compact_migrated != nil {
+                ctx["runtime_fixups_compact"] = fx_compact_migrated
+                ctx["runtime_fixups_count"] = _arm64_rtobj_fixups_count_compact(fx_compact_migrated)
+            } else {
+                ctx["runtime_fixups_enc"] = fx
+                ctx["runtime_fixups_count"] = fx_n
+            }
             ctx["rtobj_fixups_base_code"] = base_code
         }
     }
@@ -715,7 +721,11 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
         }
         if trace { print("[rtobj] apply hit start") }
         var ok_hit = _arm64_rtobj_apply_to_ctx(ctx, hit)
-        if trace { print("[rtobj] apply hit done ok=" + oren_int_to_string(ok_hit)) }
+        if trace {
+            var ok_hit_s = "false"
+            if ok_hit { ok_hit_s = "true" }
+            print("[rtobj] apply hit done ok=" + ok_hit_s)
+        }
         if trace {
             var cg = ctx["globals"]
             var cgn = 0

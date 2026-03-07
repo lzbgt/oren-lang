@@ -1832,8 +1832,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	    function lookup + runtime fixup handling to lazier paths; latest traced cache-hit build
 	    reaches Mach-O fixup application with runtime prepare reduced to about `+16648ms`
 	    (log: `build/logs/codex_stage2_build_gc_stw_collect_trace10_20260307.log`).
-	  - Next: reduce per-fixup overhead in `lib/compiler/arm64_macho.oren` so the
-	    `[emit] macho arm64: apply fixups start` phase stops dominating stage2 native builds.
+	  - Update (2026-03-08): emitter fixup application now caches resolved targets, and rtobj
+	    apply migrates legacy `fixups_enc` cache hits into the compact in-memory representation.
+	    The rebuilt stage1 compiler now gets the old debug cache-hit path through
+	    `fixup[10000]` / `fixup[20000]` and finishes native emit
+	    (`build/logs/codex_stage1_build_gc_stw_collect_trace14_20260308.log`).
+	  - Update (2026-03-08): a fresh arm64 `d0` runtime-object cache entry was regenerated with
+	    on-disk `fixups_compact`, and `make oren_stage2` passes again with that warmed cache
+	    (`build/logs/codex_stage1_build_gc_stw_collect_nodebug_trace16_20260308.log`,
+	    `build/logs/codex_make_oren_stage2_20260308_final.log`).
+	  - Next: measure and reduce the remaining self-hosted delta between the fast stage1
+	    migrated-cache path and the slower stage2 fixup loop, now that both legacy and fresh
+	    cache formats are unblocked.
+	  - Next: root-cause the new integrated `test-native-quick` illegal-instruction crash
+	    (`build/logs/oren_native_quick_integration.log`) before treating the arm64 compiler path
+	    as production-stable.
 	  - Next: make the forced cold rtobj seed path cheap enough to refresh cache entries quickly
 	    after compiler-side metadata/layout changes (current log:
 	    `build/logs/codex_build_rtobj_seed_arm64_20260308.log`).
