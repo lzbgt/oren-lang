@@ -770,10 +770,12 @@ fn rtobj_paths(cache_dir, key) {
         "meta_check": dir + "/meta.check",
         "fixups_compact": dir + "/fixups_compact.astbin",
         "fix_bl_pos": dir + "/fix_bl_pos.u8",
+        "fix_bl_target": dir + "/fix_bl_target.u8",
         "fix_adr_data_pos": dir + "/fix_adr_data_pos.u8",
         "fix_adr_data_off": dir + "/fix_adr_data_off.u8",
         "fix_adr_data_reg": dir + "/fix_adr_data_reg.u8",
         "fix_adr_code_pos": dir + "/fix_adr_code_pos.u8",
+        "fix_adr_code_target": dir + "/fix_adr_code_target.u8",
         "fix_adr_code_reg": dir + "/fix_adr_code_reg.u8",
         "cstr0_offsets": dir + "/cstr0_offsets.u8",
         "debug_blob": dir + "/debug_blob.u8",
@@ -841,13 +843,32 @@ fn _rtobj_encode_reg_u64_sidecar_from_enc_list(xs) {
     return bytes.bytes_finalize(b)
 }
 
-fn _rtobj_build_fixups_compact_u8_sidecars(fx) {
+fn _rtobj_build_fixups_compact_target_u8_from_names(names, fn_offs_enc) {
+    if names == nil { return nil }
+    var b = bytes.bytes_new()
+    var i = 0
+    while i < oren_list_len(names) {
+        var nm = names[i]
+        var off_enc = nil
+        if fn_offs_enc != nil && nm != nil { off_enc = fn_offs_enc[nm] }
+        if oren_type_tag(off_enc) == 1 && off_enc > 0 { bytes.bytes_push_u64_le(b, off_enc) }
+        else { bytes.bytes_push_u64_le(b, 0) }
+        i = i + 1
+    }
+    return bytes.bytes_finalize(b)
+}
+
+fn _rtobj_build_fixups_compact_u8_sidecars(fx, fn_offs_enc) {
     if fx == nil { return nil }
     var out = {}
     var any = false
     if fx["bl_pos_enc"] != nil {
         out["bl_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["bl_pos_enc"])
         if out["bl_pos_u8"] != nil { any = true }
+    }
+    if fx["bl_name"] != nil {
+        out["bl_target_u8"] = _rtobj_build_fixups_compact_target_u8_from_names(fx["bl_name"], fn_offs_enc)
+        if out["bl_target_u8"] != nil { any = true }
     }
     if fx["adr_data_pos_enc"] != nil {
         out["adr_data_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["adr_data_pos_enc"])
@@ -865,6 +886,10 @@ fn _rtobj_build_fixups_compact_u8_sidecars(fx) {
         out["adr_code_pos_u8"] = _rtobj_encode_u64_sidecar_from_enc_list(fx["adr_code_pos_enc"])
         if out["adr_code_pos_u8"] != nil { any = true }
     }
+    if fx["adr_code_name"] != nil {
+        out["adr_code_target_u8"] = _rtobj_build_fixups_compact_target_u8_from_names(fx["adr_code_name"], fn_offs_enc)
+        if out["adr_code_target_u8"] != nil { any = true }
+    }
     if fx["adr_code_reg_enc"] != nil {
         out["adr_code_reg_u8"] = _rtobj_encode_reg_u64_sidecar_from_enc_list(fx["adr_code_reg_enc"])
         if out["adr_code_reg_u8"] != nil { any = true }
@@ -880,6 +905,8 @@ fn rtobj_load_fixups_compact_u8_sidecars(cache_dir, key) {
     var any = false
     var bl = _rtobj_load_u64_u8_sidecar(paths["fix_bl_pos"])
     if bl != nil { out["bl_pos_u8"] = bl; any = true }
+    var blt = _rtobj_load_u64_u8_sidecar(paths["fix_bl_target"])
+    if blt != nil { out["bl_target_u8"] = blt; any = true }
     var adp = _rtobj_load_u64_u8_sidecar(paths["fix_adr_data_pos"])
     if adp != nil { out["adr_data_pos_u8"] = adp; any = true }
     var ado = _rtobj_load_u64_u8_sidecar(paths["fix_adr_data_off"])
@@ -888,6 +915,8 @@ fn rtobj_load_fixups_compact_u8_sidecars(cache_dir, key) {
     if adr != nil { out["adr_data_reg_u8"] = adr; any = true }
     var acp = _rtobj_load_u64_u8_sidecar(paths["fix_adr_code_pos"])
     if acp != nil { out["adr_code_pos_u8"] = acp; any = true }
+    var act = _rtobj_load_u64_u8_sidecar(paths["fix_adr_code_target"])
+    if act != nil { out["adr_code_target_u8"] = act; any = true }
     var acr = _rtobj_load_u64_u8_sidecar(paths["fix_adr_code_reg"])
     if acr != nil { out["adr_code_reg_u8"] = acr; any = true }
     if any != true { return nil }
@@ -900,12 +929,33 @@ fn rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fx_u8) {
     var paths = rtobj_paths(cache_dir, key)
     _ensure_dir(paths["dir"])
     if fx_u8["bl_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_bl_pos"], fx_u8["bl_pos_u8"]) }
+    if fx_u8["bl_target_u8"] != nil { _rtobj_write_atomic(paths["fix_bl_target"], fx_u8["bl_target_u8"]) }
     if fx_u8["adr_data_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_data_pos"], fx_u8["adr_data_pos_u8"]) }
     if fx_u8["adr_data_data_off_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_data_off"], fx_u8["adr_data_data_off_u8"]) }
     if fx_u8["adr_data_reg_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_data_reg"], fx_u8["adr_data_reg_u8"]) }
     if fx_u8["adr_code_pos_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_pos"], fx_u8["adr_code_pos_u8"]) }
+    if fx_u8["adr_code_target_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_target"], fx_u8["adr_code_target_u8"]) }
     if fx_u8["adr_code_reg_u8"] != nil { _rtobj_write_atomic(paths["fix_adr_code_reg"], fx_u8["adr_code_reg_u8"]) }
     return nil
+}
+
+fn _rtobj_fixups_compact_u8_sidecars_complete(fx, fx_u8) {
+    if fx == nil || fx_u8 == nil { return false }
+    if fx["bl_pos_enc"] != nil {
+        if fx_u8["bl_pos_u8"] == nil { return false }
+        if fx["bl_name"] != nil && fx_u8["bl_target_u8"] == nil { return false }
+    }
+    if fx["adr_data_pos_enc"] != nil {
+        if fx_u8["adr_data_pos_u8"] == nil { return false }
+        if fx_u8["adr_data_data_off_u8"] == nil { return false }
+        if fx_u8["adr_data_reg_u8"] == nil { return false }
+    }
+    if fx["adr_code_pos_enc"] != nil {
+        if fx_u8["adr_code_pos_u8"] == nil { return false }
+        if fx["adr_code_name"] != nil && fx_u8["adr_code_target_u8"] == nil { return false }
+        if fx_u8["adr_code_reg_u8"] == nil { return false }
+    }
+    return true
 }
 
 fn _rtobj_build_cstr0_offsets_u8_from_enc(cstr0_list_enc) {
@@ -1197,8 +1247,11 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
     meta["code_u8"] = code
     meta["data_tail_u8"] = data_tail
     var fixups_compact_u8 = rtobj_load_fixups_compact_u8_sidecars(seed_dir, key)
-    if fixups_compact_u8 == nil && meta["fixups_compact"] != nil {
-        fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"])
+    if meta["fixups_compact"] != nil && _rtobj_fixups_compact_u8_sidecars_complete(meta["fixups_compact"], fixups_compact_u8) != true {
+        fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"], meta["fn_offs_enc"])
+        if fixups_compact_u8 != nil {
+            rtobj_store_fixups_compact_u8_sidecars(seed_dir, key, fixups_compact_u8)
+        }
     }
     if fixups_compact_u8 != nil { meta["fixups_compact_u8"] = fixups_compact_u8 }
     var cstr0_offsets_u8 = rtobj_load_cstr0_offsets_sidecar(seed_dir, key)
@@ -1334,8 +1387,8 @@ fn rtobj_load(cache_dir, key) {
         }
     }
     var fixups_compact_u8 = rtobj_load_fixups_compact_u8_sidecars(cache_dir, key)
-    if fixups_compact_u8 == nil && meta["fixups_compact"] != nil {
-        fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"])
+    if meta["fixups_compact"] != nil && _rtobj_fixups_compact_u8_sidecars_complete(meta["fixups_compact"], fixups_compact_u8) != true {
+        fixups_compact_u8 = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"], meta["fn_offs_enc"])
         if fixups_compact_u8 != nil {
             rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fixups_compact_u8)
             if trace { print("[rtobj] load fixups_compact_u8 sidecars rebuilt") }
@@ -1417,7 +1470,7 @@ fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8, cstr0_offsets_u8) {
         rtobj_store_fixups_compact_sidecar(cache_dir, key, meta["fixups_compact"])
         var fixups_compact_u8_store = meta["fixups_compact_u8"]
         if fixups_compact_u8_store == nil {
-            fixups_compact_u8_store = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"])
+            fixups_compact_u8_store = _rtobj_build_fixups_compact_u8_sidecars(meta["fixups_compact"], meta["fn_offs_enc"])
         }
         if fixups_compact_u8_store != nil {
             rtobj_store_fixups_compact_u8_sidecars(cache_dir, key, fixups_compact_u8_store)

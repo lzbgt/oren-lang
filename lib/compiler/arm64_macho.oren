@@ -1050,7 +1050,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var bl_poss = rtobj_fixups_compact["bl_pos_enc"]
         var bl_names = rtobj_fixups_compact["bl_name"]
         var bl_poss_u8 = nil
-        if rtobj_fixups_compact_u8 != nil { bl_poss_u8 = rtobj_fixups_compact_u8["bl_pos_u8"] }
+        var bl_target_u8 = nil
+        if rtobj_fixups_compact_u8 != nil {
+            bl_poss_u8 = rtobj_fixups_compact_u8["bl_pos_u8"]
+            bl_target_u8 = rtobj_fixups_compact_u8["bl_target_u8"]
+        }
         var bl_n = 0
         if bl_poss != nil { bl_n = oren_list_len(bl_poss) }
         i = 0
@@ -1068,8 +1072,18 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var pos_bl = 0
             if bl_poss_u8 != nil { pos_bl = rtobj_fix_base + _macho_read_u64_le_u8(bl_poss_u8, i * 8) }
             else { pos_bl = rtobj_fix_base + _macho_decode_rtobj_fix_int(bl_poss[i]) }
-            var name_bl = bl_names[i]
-            var target_bl = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl)
+            var target_bl = nil
+            var name_bl = nil
+            if bl_target_u8 != nil {
+                var target_bl_enc = _macho_read_u64_le_u8(bl_target_u8, i * 8)
+                if target_bl_enc > 0 {
+                    target_bl = ctx["rtobj_functions_base_code"] + (target_bl_enc - 1)
+                }
+            }
+            if target_bl == nil {
+                name_bl = bl_names[i]
+                target_bl = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl)
+            }
             if target_bl == nil {
                 var e_bl = "native backend: undefined function " + name_bl
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_bl))
@@ -1135,9 +1149,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var adr_code_names = rtobj_fixups_compact["adr_code_name"]
         var adr_code_regs = rtobj_fixups_compact["adr_code_reg_enc"]
         var adr_code_poss_u8 = nil
+        var adr_code_target_u8 = nil
         var adr_code_regs_u8 = nil
         if rtobj_fixups_compact_u8 != nil {
             adr_code_poss_u8 = rtobj_fixups_compact_u8["adr_code_pos_u8"]
+            adr_code_target_u8 = rtobj_fixups_compact_u8["adr_code_target_u8"]
             adr_code_regs_u8 = rtobj_fixups_compact_u8["adr_code_reg_u8"]
         }
         var adr_code_n = 0
@@ -1157,8 +1173,18 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var pos_ac = 0
             if adr_code_poss_u8 != nil { pos_ac = rtobj_fix_base + _macho_read_u64_le_u8(adr_code_poss_u8, k_ac * 8) }
             else { pos_ac = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_code_poss[k_ac]) }
-            var name_ac = adr_code_names[k_ac]
-            var target_ac = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac)
+            var target_ac = nil
+            var name_ac = nil
+            if adr_code_target_u8 != nil {
+                var target_ac_enc = _macho_read_u64_le_u8(adr_code_target_u8, k_ac * 8)
+                if target_ac_enc > 0 {
+                    target_ac = ctx["rtobj_functions_base_code"] + (target_ac_enc - 1)
+                }
+            }
+            if target_ac == nil {
+                name_ac = adr_code_names[k_ac]
+                target_ac = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac)
+            }
             if target_ac == nil {
                 var e_ac = "native backend: undefined function " + name_ac
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_ac))

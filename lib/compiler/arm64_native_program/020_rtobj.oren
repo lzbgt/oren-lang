@@ -204,7 +204,7 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
             var fx_compact_migrated = _arm64_rtobj_encode_fixups_compact_from_enc(fx)
             if fx_compact_migrated != nil {
                 ctx["runtime_fixups_compact"] = fx_compact_migrated
-                var fx_compact_u8_migrated = rtobj._rtobj_build_fixups_compact_u8_sidecars(fx_compact_migrated)
+                var fx_compact_u8_migrated = rtobj._rtobj_build_fixups_compact_u8_sidecars(fx_compact_migrated, fn_offs_enc)
                 if fx_compact_u8_migrated != nil {
                     ctx["runtime_fixups_compact_u8"] = fx_compact_u8_migrated
                     meta["fixups_compact_u8"] = fx_compact_u8_migrated
