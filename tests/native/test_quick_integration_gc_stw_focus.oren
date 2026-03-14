@@ -1,0 +1,68 @@
+// Focused native quick-integration slice for the flaky GC/STW + netpoll wake path.
+//
+// This keeps the same textual include graph as the full quick integration fixture,
+// but stops immediately after the GC/netpoll wake regression test so flake loops stay fast.
+//
+// @include "qi/000_prelude.oren"
+// @include "qi/100_tests_basic.oren"
+// @include "qi/200_tests_wait_gc.oren"
+// @include "qi/300_tests_green.oren"
+
+fn main() {
+    if oren_getenv("OREN_QI_TRACE") != 0 { g_qi_trace_on = 1 }
+    if _qi_env_truthy("OREN_QI_TRACE_GREEN_LIST") { g_qi_trace_green_list = 1 }
+    if _qi_env_truthy("OREN_QI_TRACE_GREEN_LIST_LIGHT") { g_qi_trace_green_list_light = 1 }
+    if _qi_env_truthy("OREN_QI_TRACE_GREEN_LIST_GUARD") { g_qi_trace_green_list_guard = 1 }
+    var v_stride = oren_env("OREN_QI_TRACE_GREEN_LIST_LIGHT_STRIDE")
+    if v_stride != nil && v_stride != "" && strcmp(v_stride, "0") != 0 {
+        var stride = oren_int_from_string(v_stride)
+        if stride > 0 { g_qi_trace_green_list_light_stride = stride }
+    }
+
+    test_core()
+    test_list_set_clear_stress()
+    test_global_roots_survive_gc()
+    test_arena_list_smoke()
+    test_arena_loop_attrs()
+    test_boxed_list_dot_sum()
+    test_entropy()
+    test_cfg_debug_release()
+    test_std_assert_smoke()
+    test_std_strings_smoke()
+    test_std_bytes_smoke()
+    test_string_literals_static()
+    test_type_tag_varargs()
+    test_read_u8_buf_missing_returns_err()
+    test_read_file_missing_returns_err()
+    test_numeric_casts()
+    test_float_and_bytes()
+    test_json()
+    test_ui_headless()
+    test_spawn_join()
+    test_proc_system_windows()
+    test_select()
+    test_wait_on_addr_mismatch_is_success()
+    test_wait_on_addr_in_green_does_not_block_scheduler()
+    test_wait_on_addr_timeout_in_green_does_not_block_scheduler()
+    test_time_mono_ns_monotonic()
+    test_green_start_workers_rejects_in_green()
+    test_green_bind_p_rejects_in_green()
+    test_green_acquire_p_rejects_in_green()
+    test_green_sp_alignment_x64()
+    test_green_p_count_api()
+    test_green_multi_p_single_thread_poll_steal()
+    test_green_poll_cache_does_not_corrupt_p_ptr()
+    test_green_p_acquire_release_blocks_start_workers()
+    test_green_idle_p_pool_acquire_any()
+    test_green_start_workers_does_not_reserve_extra_ps()
+    test_green_workers_join()
+    test_green_worker_release_acquire_p_when_parked()
+    test_gc_collect_does_not_deadlock_with_green_worker_idle()
+    test_gc_stw_os_thread_collect_scans_parked_stack()
+    test_gc_stw_wakes_netpoll_blocked_threads()
+
+    print("ok: qi gc stw focus")
+    exit(0)
+}
+
+main()

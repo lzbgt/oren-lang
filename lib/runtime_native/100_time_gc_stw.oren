@@ -48,6 +48,9 @@ fn native_gc_stw_begin() {
     var trace = native_envp_get_value_ptr("OREN_TRACE_GC_STW")
     var trace_on = 0
     if trace != 0 && ptr_get_byte(trace) != 0 { trace_on = 1 }
+    var trace_waiters = native_envp_get_value_ptr("OREN_TRACE_GC_STW_WAITERS")
+    var trace_waiters_on = 0
+    if trace_waiters != 0 && ptr_get_byte(trace_waiters) != 0 { trace_waiters_on = 1 }
     var stw_ptr = native_gc_stw_state_ptr()
     var parked_ptr = native_gc_stw_parked_ptr()
     var owner_ptr = native_gc_stw_owner_ptr()
@@ -109,11 +112,21 @@ fn native_gc_stw_begin() {
               " expected=" + oren_int_to_string(expected))
     }
 
+    var waits = 0
     while expected > 0 {
         var cur = native_atomic_load_u64(parked_ptr)
         if cur >= expected { break }
         // Wait until parked count changes (threads wake us when they park).
         oren_wait_on_addr(parked_ptr, cur, 1000000)
+        waits = waits + 1
+        if trace_waiters_on != 0 {
+            var cur2 = native_atomic_load_u64(parked_ptr)
+            if cur2 < expected {
+                if waits <= 2 || (waits % 5) == 0 {
+                    native_gc_stw_trace_waiters(owner_node, cur2, expected, waits)
+                }
+            }
+        }
     }
 
     // Ensure parked threads have published saved_sp before GC scans stacks.
@@ -181,6 +194,38 @@ fn native_gc_stw_expected_parked_count(owner_node) {
     }
     if g_runtime_single_threaded == 0 { release_lock() }
     return n
+}
+
+fn native_gc_stw_trace_waiters(owner_node, parked, expected, waits) {
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    var THREAD_NODE_FLAG_STW_PARKED = 2
+    var THREAD_NODE_FLAG_DEAD = 4
+    print("trace: gc_stw_wait parked=" + oren_int_to_string(parked) +
+          " expected=" + oren_int_to_string(expected) +
+          " waits=" + oren_int_to_string(waits))
+    var cur = global_get_threads()
+    while cur != 0 {
+        var flags = ptr_get(iadd(cur, 48))
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 &&
+           (flags & THREAD_NODE_FLAG_DEAD) == 0 &&
+           (owner_node == 0 || cur - owner_node != 0) &&
+           (flags & THREAD_NODE_FLAG_STW_PARKED) == 0 {
+            var tid = ptr_get(iadd(cur, 56))
+            var saved = ptr_get(iadd(cur, 80))
+            var backup_saved = ptr_get(iadd(cur, 8))
+            var sched_saved = ptr_get(iadd(cur, 72))
+            var stack_size = ptr_get(iadd(cur, 88))
+            print("trace: gc_stw_waiter node=" + oren_int_to_string(cur) +
+                  " tid=" + oren_int_to_string(tid) +
+                  " flags=" + oren_int_to_string(flags) +
+                  " saved=" + oren_int_to_string(saved) +
+                  " backup=" + oren_int_to_string(backup_saved) +
+                  " sched=" + oren_int_to_string(sched_saved) +
+                  " stack_size=" + oren_int_to_string(stack_size))
+        }
+        cur = ptr_get(iadd(cur, 16))
+    }
+    return 0
 }
 
 fn native_gc_stw_end() {

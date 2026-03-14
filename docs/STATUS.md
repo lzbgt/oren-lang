@@ -1972,6 +1972,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     `make test-native-quick-green-cache-flake` run only the stage1 green-cache rerun path with
     `OREN_QI_TRACE=1`, `OREN_TRACE_GC_STW=1`, `OREN_TRACE_GREEN_RUNQ_GUARD=1`, and
     `OREN_TRACE_GREEN_ENTRY_ARGS_GUARD=1`.
+  - New (2026-03-15): `scripts/run_native_quick_integration.sh` now accepts `OREN_QI_SRC` +
+    `OREN_QI_LABEL`, `scripts/triage_native_quick_flake.sh` follows the labeled log/phase files,
+    and `scripts/triage_native_quick_gc_stw_focus_flake.sh` +
+    `make test-native-quick-gc-stw-focus-flake` run a focused quick-integration prefix through
+    `test_gc_stw_wakes_netpoll_blocked_threads()` with `OREN_TRACE_GC_STW_WAITERS=1`.
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
   - Trace (2026-03-15): the focused green-cache-only harness hit a timeout on run 3
@@ -1985,6 +1990,14 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     `OREN_GREEN_POLL_CACHE=1` loop also passed 10/10
     (`build/logs/codex_stage1_qi_green_cache_flake_20260315.log`), so the remaining issue is a
     low-frequency race rather than a deterministic stage1 quick failure.
+  - Trace (2026-03-15): the new focused GC/STW+netpoll fixture passed 10/10
+    (`build/logs/codex_gc_stw_focus_flake_20260315.log`), and the full stage1 green-cache flake
+    harness also passed 20/20 with the new STW waiter dump enabled
+    (`build/logs/codex_stage1_green_cache_flake_with_waiters_20260315.log`).
+    The waiter traces now show the collector-side tail concretely: the last non-parked thread is
+    an ordinary OS-thread node with `flags=1`, `saved=0`, and either a transient backup `saved_sp`
+    or a plain 512 KiB thread stack, which then parks on the next wait. That means the new
+    diagnostics are working, but this snapshot did not re-hit the original timeout.
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,

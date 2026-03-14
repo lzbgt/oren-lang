@@ -2,7 +2,8 @@
 set -euo pipefail
 
 compiler="${1:-./oren}"
-test_src="tests/native/test_quick_integration_native.oren"
+test_src="${OREN_QI_SRC:-tests/native/test_quick_integration_native.oren}"
+test_label="${OREN_QI_LABEL:-native_quick_integration}"
 
 timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
@@ -147,8 +148,8 @@ if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
     build_timeout_secs=25
   fi
 fi
-out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
-log="build/logs/${compiler_base}_native_quick_integration.log"
+out="build/tmp/${compiler_base}_${test_label}${exe_ext}"
+log="build/logs/${compiler_base}_${test_label}.log"
 phases_log="${OREN_TRACE_BUILD_PHASES_PATH:-${log%.log}.phases.log}"
 if [[ "$phases_log" == "0" ]]; then
   phases_log=""
@@ -161,6 +162,7 @@ fi
 echo "== native quick integration =="
 echo "compiler=$compiler"
 echo "platform=$platform"
+echo "label=$test_label"
 echo "src=$test_src"
 echo "out=$out"
 echo "log=$log"
@@ -179,6 +181,7 @@ fi
   echo "== native quick integration =="
   echo "compiler=$compiler"
   echo "platform=$platform"
+  echo "label=$test_label"
   echo "src=$test_src"
   echo "out=$out"
   if [[ -n "$phases_log" ]]; then

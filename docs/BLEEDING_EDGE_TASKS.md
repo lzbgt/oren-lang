@@ -1360,11 +1360,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New (2026-03-15): `scripts/triage_native_quick_green_cache_flake.sh` +
     `make test-native-quick-green-cache-flake` isolate only the stage1 green-cache rerun path
     with STW/runq guards enabled.
+  - New (2026-03-15): `scripts/run_native_quick_integration.sh` now accepts `OREN_QI_SRC` +
+    `OREN_QI_LABEL`, and `scripts/triage_native_quick_gc_stw_focus_flake.sh` +
+    `make test-native-quick-gc-stw-focus-flake` isolate the quick-integration prefix through
+    `test_gc_stw_wakes_netpoll_blocked_threads()` with collector-side waiter dumps enabled.
   - Trace (2026-03-15): the focused green-cache-only harness hit a timeout on run 3
     (`build/logs/codex_stage1_qi_green_cache_only_guarded_20260315.log`), with the last STW
     trace showing `expected=9` parked threads before the run timed out. Follow-up traced loops
     passed 10/10, so treat this as a low-frequency runtime race in the dirty stage1 green/STW
     path, not as a deterministic compiler regression.
+  - Trace (2026-03-15): the new focused GC/STW+netpoll flake loop passed 10/10
+    (`build/logs/codex_gc_stw_focus_flake_20260315.log`), and the broader stage1
+    green-cache-only harness passed 20/20 with `OREN_TRACE_GC_STW_WAITERS=1`
+    (`build/logs/codex_stage1_green_cache_flake_with_waiters_20260315.log`).
+    The new waiter dump now shows which thread is last to park when STW tails:
+    regular OS-thread nodes with `flags=1`, `saved=0`, and transient `backup_saved` /
+    512 KiB stack metadata that then park on the next wait. Keep using this path until the
+    original timeout reproduces again.
   - New: quick flake triage scripts capture the in-flight inner log on SIGTERM/SIGINT
     (writes `*_interrupt.log` alongside the per-run log) for hang forensics.
   - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside

@@ -21,6 +21,7 @@ if [[ "$runs" -le 0 ]]; then
 fi
 
 compiler_base="$(basename "$compiler")"
+qi_label="${OREN_QI_LABEL:-native_quick_integration}"
 env_args=()
 if [[ "$#" -gt 2 ]]; then
   env_args=("${@:3}")
@@ -112,9 +113,9 @@ while [[ "$run" -le "$runs" ]]; do
   inner_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_inner.log"
   phases_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_phases.log"
   current_log="$log"
-  current_inner_src="build/logs/${compiler_base}_native_quick_integration.log"
+  current_inner_src="build/logs/${compiler_base}_${qi_label}.log"
   current_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_interrupt.log"
-  current_phases_src="build/logs/${compiler_base}_native_quick_integration.phases.log"
+  current_phases_src="build/logs/${compiler_base}_${qi_label}.phases.log"
   current_phases_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_interrupt_phases.log"
   echo "== run ${run}/${runs} ==" >&2
   set +e
@@ -125,20 +126,20 @@ while [[ "$run" -le "$runs" ]]; do
   fi
   rc=$?
   set -e
-  if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
-    cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$inner_log"
+  if [[ -f "build/logs/${compiler_base}_${qi_label}.log" ]]; then
+    cp -f "build/logs/${compiler_base}_${qi_label}.log" "$inner_log"
   fi
-  if [[ -f "build/logs/${compiler_base}_native_quick_integration.phases.log" ]]; then
-    cp -f "build/logs/${compiler_base}_native_quick_integration.phases.log" "$phases_log"
+  if [[ -f "build/logs/${compiler_base}_${qi_label}.phases.log" ]]; then
+    cp -f "build/logs/${compiler_base}_${qi_label}.phases.log" "$phases_log"
   fi
   if [[ "$rc" -ne 0 ]]; then
     local_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_err.log"
     local_phases_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_err_phases.log"
-    if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
-      cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$local_err_log"
+    if [[ -f "build/logs/${compiler_base}_${qi_label}.log" ]]; then
+      cp -f "build/logs/${compiler_base}_${qi_label}.log" "$local_err_log"
     fi
-    if [[ -f "build/logs/${compiler_base}_native_quick_integration.phases.log" ]]; then
-      cp -f "build/logs/${compiler_base}_native_quick_integration.phases.log" "$local_phases_err_log"
+    if [[ -f "build/logs/${compiler_base}_${qi_label}.phases.log" ]]; then
+      cp -f "build/logs/${compiler_base}_${qi_label}.phases.log" "$local_phases_err_log"
     fi
   fi
   if [[ "$rc" -ne 0 ]]; then
@@ -161,11 +162,11 @@ while [[ "$run" -le "$runs" ]]; do
       run_integration "$guard_log" "${guard_env[@]}"
       guard_rc=$?
       set -e
-      if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
-        cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$guard_inner"
+      if [[ -f "build/logs/${compiler_base}_${qi_label}.log" ]]; then
+        cp -f "build/logs/${compiler_base}_${qi_label}.log" "$guard_inner"
       fi
-      if [[ -f "build/logs/${compiler_base}_native_quick_integration.phases.log" ]]; then
-        cp -f "build/logs/${compiler_base}_native_quick_integration.phases.log" "$guard_phases"
+      if [[ -f "build/logs/${compiler_base}_${qi_label}.phases.log" ]]; then
+        cp -f "build/logs/${compiler_base}_${qi_label}.phases.log" "$guard_phases"
       fi
       echo "auto_rerun_rc=${guard_rc} guard_log=${guard_log}" >>"$log"
       if [[ "$guard_rc" -ne 0 ]]; then
