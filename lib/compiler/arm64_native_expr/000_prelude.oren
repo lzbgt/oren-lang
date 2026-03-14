@@ -5,6 +5,10 @@ import labi "arm64_abi_linux.oren"
 import token "token.oren"
 import callabi "native_abi.oren"
 
+fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos, name) }
+fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
+fn arm64_ctx_fixup_adr_code(ctx, pos, name, reg) { return core.arm64_ctx_fixup_adr_code(ctx, pos, name, reg) }
+
 fn native_src_line_col(src, pos) {
     // Map byte offset -> (line, col), 1-based.
     var line = 1
@@ -232,6 +236,8 @@ fn native_emit_gc_safepoint_call_expr(ctx) {
     var bl_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_gc_safepoint"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_gc_safepoint")
 
     push_u32_le(ctx["code"], insn_ldp_pair_post(27, 28, 31, 16))
     push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 31, 16))
@@ -561,18 +567,25 @@ fn native_emit_panic(ctx, msg) {
     var adr_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off, "reg": nil})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], data_off)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
 
     // oren_ensure_tracked(msg, kind=STRING)
     push_u32_le(ctx["code"], insn_movz(1, 1))
     var bl_track = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_track)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_ensure_tracked")
 
     // oren_panic(msg)  (never returns)
     var bl_panic = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_panic, "name": "oren_panic"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_panic)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_panic")
     return 0
 }
 

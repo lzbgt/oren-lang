@@ -40,6 +40,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                var bl_find_node = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
+	                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node)
+	                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 	
                 // node == 0 => fallback on magic or panic
                 push_u32_le(ctx["code"], insn_movz(1, 0))
@@ -59,6 +61,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_list_panic0 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic0, "name": "native_list_len_panic"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic0)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_len_panic")
                 var magic_ok_pos0 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_magic_ok0, insn_b_cond((magic_ok_pos0 - br_magic_ok0) / 4, 0)) // EQ
                 // count (fallback)
@@ -80,6 +84,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_list_panic1 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic1, "name": "native_list_len_panic"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic1)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_len_panic")
 	                var kind_ok_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_kind_ok, insn_b_cond((kind_ok_pos - br_kind_ok) / 4, 0)) // EQ
 	
@@ -95,6 +101,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_list_panic2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic2, "name": "native_list_len_panic"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic2)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_len_panic")
 	                var is_list_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_is_list, insn_b_cond((is_list_pos - br_is_list) / 4, 0)) // EQ
 
@@ -177,6 +185,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_find_node_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_i, "name": "oren_find_node"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node_i)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
                 // node == 0 => fallback on magic or panic
                 push_u32_le(ctx["code"], insn_movz(1, 0))
@@ -279,6 +289,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                var bl_find_node2 = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
 	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node2, "name": "oren_find_node"})
+	                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node2)
+	                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 	
 	                // node == 0 => panic
 	                push_u32_le(ctx["code"], insn_movz(2, 0))
@@ -325,6 +337,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_list_push_unchecked"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push_unchecked")
                 var br_done2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
@@ -352,6 +366,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                     var bl_trace = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
                     push_u32_le(ctx["code"], insn_add_sp(16))
                 }
 
@@ -412,6 +428,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_find_node2i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node2i, "name": "oren_find_node"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node2i)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
                 // Preserve node for panic footer traces.
                 push_u32_le(ctx["code"], insn_mov_reg(21, 0)) // X21 = node
 
@@ -428,6 +446,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_list_panic1 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic1, "name": "native_list_panic_footer"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic1)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_panic_footer")
                 native_emit_panic(ctx, "list_int_push on non-list")
                 var node_ok_pos2i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_node_nonzero2i, insn_b_cond((node_ok_pos2i - br_node_nonzero2i) / 4, 1)) // NE
@@ -446,6 +466,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_list_panic2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic2, "name": "native_list_panic_footer"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic2)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_panic_footer")
                 native_emit_panic(ctx, "list_int_push on non-list")
                 var kind_ok_pos2i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_kind_ok2i, insn_b_cond((kind_ok_pos2i - br_kind_ok2i) / 4, 0)) // EQ
@@ -466,6 +488,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_list_panic3 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic3, "name": "native_list_panic_footer"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic3)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_panic_footer")
                 native_emit_panic(ctx, "list_int_push on non-list")
                 var is_list_pos2i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_is_list2i, insn_b_cond((is_list_pos2i - br_is_list2i) / 4, 0)) // EQ
@@ -475,6 +499,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_check_val = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_check_val, "name": "_list_int_check_value"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_check_val)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_int_check_value")
 
                 // Restore list/value after check.
                 push_u32_le(ctx["code"], insn_mov_reg(0, 19))
@@ -494,6 +520,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_pos_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_i, "name": "oren_list_int_push_unchecked"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos_i)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_int_push_unchecked")
                 var br_done2i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
@@ -521,6 +549,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                     var bl_trace_i = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_i, "name": "oren_trace_list_header"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace_i)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
                     push_u32_le(ctx["code"], insn_add_sp(16))
                 }
 
@@ -643,6 +673,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_find_node_g = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_g, "name": "oren_find_node"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node_g)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
                 // node == 0 => panic
                 push_u32_le(ctx["code"], insn_movz(2, 0))
@@ -758,6 +790,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_find_node_s = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_s, "name": "oren_find_node"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node_s)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
                 // node == 0 => panic
                 push_u32_le(ctx["code"], insn_movz(2, 0))
@@ -794,6 +828,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_check_val_s = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_check_val_s, "name": "_list_int_check_value"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_check_val_s)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_int_check_value")
 
                 // Restore list/value after check.
                 push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
@@ -822,6 +858,8 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var bl_set_s = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_s, "name": "oren_list_int_set"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set_s)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_int_set")
                 var br_done_s = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 

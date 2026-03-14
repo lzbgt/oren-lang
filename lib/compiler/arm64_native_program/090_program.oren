@@ -140,14 +140,20 @@ fn native_compile_program_arm64(linked, platform) {
     var adr_gs_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_gs_pos, "data_off": g_storage_off})
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_gs_pos, "data_off": g_storage_off, "reg": nil})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_gs_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], g_storage_off)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
     // X2 = &g_storage_slot
     push_u32_le(ctx["code"], insn_mov_reg(2, 0))
     // X0 = &boot_globals_storage
     var adr_boot_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_boot_pos, "data_off": boot_off})
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_boot_pos, "data_off": boot_off, "reg": nil})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_boot_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], boot_off)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
     // X1 = boot_base
     push_u32_le(ctx["code"], insn_mov_reg(1, 0))
     // *(g_storage_slot) = boot_base
@@ -179,6 +185,8 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_init = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_init)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_init")
 
     // Register embedded string literals once at startup (Tier‑1 performance).
     //
@@ -197,7 +205,10 @@ fn native_compile_program_arm64(linked, platform) {
         var adr_slot_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_slot_pos, "data_off": slot_off})
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_slot_pos, "data_off": slot_off, "reg": nil})
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_slot_pos)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], slot_off)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
         // X1 = table_off
         push_u32_le(ctx["code"], insn_ldr_ptr(1, 0))
         // X2 = slot_addr
@@ -211,6 +222,8 @@ fn native_compile_program_arm64(linked, platform) {
         var bl_cstr = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_cstr, "name": "oren_init_static_cstr0_table"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_cstr)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_init_static_cstr0_table")
     }
 
     // macOS syscall-first OS-thread substrate (Darwin bsdthread).
@@ -228,16 +241,24 @@ fn native_compile_program_arm64(linked, platform) {
         push_u32_le(ctx["code"], 0)
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_ts_pos, "name": "__oren_darwin_thread_start", "reg": 0})
+        oren_list_push(ctx["fixups_local_compact"]["adr_code_pos"], adr_ts_pos)
+        oren_list_push(ctx["fixups_local_compact"]["adr_code_name"], "__oren_darwin_thread_start")
+        oren_list_push(ctx["fixups_local_compact"]["adr_code_reg"], 0)
 
         // X1 = &__oren_darwin_start_wqthread
         var adr_wq_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_wq_pos, "name": "__oren_darwin_start_wqthread", "reg": 1})
+        oren_list_push(ctx["fixups_local_compact"]["adr_code_pos"], adr_wq_pos)
+        oren_list_push(ctx["fixups_local_compact"]["adr_code_name"], "__oren_darwin_start_wqthread")
+        oren_list_push(ctx["fixups_local_compact"]["adr_code_reg"], 1)
 
         var bl_thr_init = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_thr_init, "name": "native_runtime_threading_init"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_thr_init)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_threading_init")
     }
 
     // Restore argc/argv/envp saved across native_runtime_init.
@@ -262,6 +283,8 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_set_args = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_args, "name": "native_runtime_set_args"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set_args)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_set_args")
 
     // native_runtime_set_envp(envp)
     push_u32_le(ctx["code"], insn_ldr_reg_sp(21, 0))
@@ -272,6 +295,8 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_set_envp = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set_envp)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_set_envp")
 
     // Initialize runtime env/capsule mode.
     //
@@ -281,6 +306,8 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_capsule = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_capsule)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_capsule_init")
 
     // Initialize GC mode for the native runtime (two-mode GC):
     // - default enabled unless compiled with `--no-gc`
@@ -291,12 +318,16 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_init_gc = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init_gc, "name": "native_runtime_init_gc_mode"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_init_gc)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_init_gc_mode")
 
     // Register global slots as GC roots (native parity with C backend).
     // Emit the root-registration helper after globals are allocated, then call it here.
     var bl_roots = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_roots, "name": "__oren_global_roots_init"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_roots)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "__oren_global_roots_init")
 
     if platform["debug"] == true {
         var debug_adr_pos = bytes_len(ctx["code"])
@@ -314,6 +345,8 @@ fn native_compile_program_arm64(linked, platform) {
         var bl_set_dbg = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_dbg, "name": "oren_set_debug_info"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set_dbg)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_set_debug_info")
     }
 
     // Register Main Thread
@@ -321,11 +354,15 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_reg = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reg, "name": "oren_register_thread"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_reg)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_register_thread")
     
     // Run synthesized top-level initializers/statements before main.
     var bl_top = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_top, "name": "__top_level__"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_top)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "__top_level__")
 
     if is_shared {
         // Shared library constructor: do NOT call `main`, do NOT exit the process.
@@ -346,6 +383,9 @@ fn native_compile_program_arm64(linked, platform) {
         push_u32_le(ctx["code"], 0)
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_hl_pos, "data_off": heap_limit_slot_off, "reg": 16})
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_hl_pos)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], heap_limit_slot_off)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 16)
         push_u32_le(ctx["code"], insn_str_ptr(27, 16))
 
         // X17 = &heap_ptr_slot; *X17 = X28
@@ -353,6 +393,9 @@ fn native_compile_program_arm64(linked, platform) {
         push_u32_le(ctx["code"], 0)
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_hp_pos, "data_off": heap_ptr_slot_off, "reg": 17})
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_hp_pos)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], heap_ptr_slot_off)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 17)
         push_u32_le(ctx["code"], insn_str_ptr(28, 17))
 
         // Tear down our normal entry-stub frame and return.
@@ -370,6 +413,8 @@ fn native_compile_program_arm64(linked, platform) {
             var main_fix = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], main_fix)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "main")
             // Preserve exit code across shutdown
             push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
         } else {
@@ -378,6 +423,8 @@ fn native_compile_program_arm64(linked, platform) {
         var shutdown_fix = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], shutdown_fix)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_gc_shutdown")
         push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // restore X0
         // exit(X0)
         push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
@@ -605,7 +652,7 @@ fn native_compile_program_arm64(linked, platform) {
                 if vf_enc > 0 { vf = vf_enc - 1 }
             }
             var wname = "__oren_fnwrap_" + fname
-            if _arm64_lookup_function(ctx, wname) == nil {
+            if core.arm64_lookup_function(ctx, wname) == nil {
                 native_compile_stmt(ctx, callable.synth_fnwrap(fname, arity, vf))
             }
         }
@@ -617,7 +664,7 @@ fn native_compile_program_arm64(linked, platform) {
         var def = ctx["lambda_defs"][wi]
         if def != nil && def["name"] != nil {
             var lname = def["name"]
-            if _arm64_lookup_function(ctx, lname) == nil {
+            if core.arm64_lookup_function(ctx, lname) == nil {
                 native_compile_stmt(ctx, callable.synth_lambda_wrapper(def))
             }
         }
@@ -695,7 +742,7 @@ fn native_compile_program_arm64(linked, platform) {
         _arm64_sym_entries_push_unique(sym_seen, sym_entries, 0, "__entry_stub__")
 
         // Prefer an explicit __top_level__ entry if present.
-        var top_off = _arm64_lookup_function(ctx, "__top_level__")
+        var top_off = core.arm64_lookup_function(ctx, "__top_level__")
         if top_off != nil { _arm64_sym_entries_push_unique(sym_seen, sym_entries, top_off, "__top_level__") }
 
         // All compiled symbols (runtime + user + wrappers).

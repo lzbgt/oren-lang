@@ -84,6 +84,8 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     var bl_epoll_pwait_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_pwait_pre, "name": "native_capsule_sys_epoll_pwait_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_epoll_pwait_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_epoll_pwait_pre")
                 }
     
                 if ctx["platform"]["os"] != "linux" {
@@ -146,6 +148,8 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     var bl_fork_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fork_pre, "name": "native_capsule_sys_fork_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_fork_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_fork_pre")
                 }
     	            if ctx["platform"]["os"] == "linux" {
     	                // Linux does not have a dedicated fork syscall on aarch64.
@@ -200,6 +204,8 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                             var bl_fork_post_linux = bytes_len(ctx["code"])
                             push_u32_le(ctx["code"], 0)
                             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fork_post_linux, "name": "native_capsule_sys_fork_post"})
+                            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_fork_post_linux)
+                            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_fork_post")
                         }
     	                return true
     	            }
@@ -270,6 +276,8 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     var bl_fork_post = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fork_post, "name": "native_capsule_sys_fork_post"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_fork_post)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_fork_post")
                 }
                 return true
             }
@@ -303,6 +311,8 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     var bl_execve_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_execve_pre, "name": "native_capsule_sys_execve_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_execve_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_execve_pre")
                     // X0 = envp_to_use
                     push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2 = envp_to_use
                 }
@@ -372,6 +382,8 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     var bl_wait_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_wait_pre, "name": "native_capsule_sys_wait4_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_wait_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_wait4_pre")
                 }
     
                 // Reload args for syscall: X0=pid, X1=status_ptr, X2=options, X3=rusage
@@ -435,6 +447,8 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     var bl_kill_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kill_pre, "name": "native_capsule_sys_kill_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_kill_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_kill_pre")
                 }
     
                 // Reload args for syscall.

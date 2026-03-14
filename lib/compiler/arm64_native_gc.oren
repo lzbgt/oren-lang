@@ -5,6 +5,7 @@ import core "arm64_core.oren"
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos, name) }
 
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
@@ -108,6 +109,8 @@ fn native_emit_gc_safepoint_call(ctx) {
     var bl_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_gc_safepoint"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_gc_safepoint")
 
     push_u32_le(ctx["code"], insn_ldp_pair_post(27, 28, 31, 16))
     push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 31, 16))

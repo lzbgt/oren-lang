@@ -2,6 +2,9 @@ import codegen "codegen_arm64.oren"
 import core "arm64_core.oren"
 import abi "arm64_abi_macos.oren"
 
+fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
+fn arm64_ctx_fixup_got_load(ctx, pos, got_index) { return core.arm64_ctx_fixup_got_load(ctx, pos, got_index) }
+
 fn macho_diag_escape(msg) {
     if msg == nil { return "" }
     var out = ""
@@ -54,6 +57,34 @@ fn _macho_lookup_function_cached(cache, ctx, functions, name) {
     return off
 }
 
+fn _macho_str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    if la != oren_string_len(b) { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _macho_lookup_function_linear(names, offs, ctx, functions, name) {
+    if name == nil { return nil }
+    var i = 0
+    while i < oren_list_len(names) {
+        if _macho_str_eq_bytes(names[i], name) == true { return offs[i] }
+        i = i + 1
+    }
+    var off = _macho_lookup_function(ctx, functions, name)
+    if off != nil {
+        oren_list_push(names, name)
+        oren_list_push(offs, off)
+    }
+    return off
+}
+
 fn _macho_rtobj_fixups_count_compact(fx) {
     if fx == nil { return 0 }
     var n = 0
@@ -63,55 +94,133 @@ fn _macho_rtobj_fixups_count_compact(fx) {
     return n
 }
 
+fn _macho_local_fixups_count_compact(fx) {
+    if fx == nil { return 0 }
+    var n = 0
+    if fx["bl_pos"] != nil { n = n + oren_list_len(fx["bl_pos"]) }
+    if fx["adr_data_pos"] != nil { n = n + oren_list_len(fx["adr_data_pos"]) }
+    if fx["adr_code_pos"] != nil { n = n + oren_list_len(fx["adr_code_pos"]) }
+    if fx["got_pos"] != nil { n = n + oren_list_len(fx["got_pos"]) }
+    return n
+}
+
+fn _macho_local_fixups_compact_diff(a, b) {
+    if a == nil && b == nil { return nil }
+    if a == nil || b == nil { return "nil" }
+    var keys = [
+        "bl_pos", "bl_name",
+        "adr_data_pos", "adr_data_off", "adr_data_reg",
+        "adr_code_pos", "adr_code_name", "adr_code_reg",
+        "got_pos", "got_index"
+    ]
+    var ki = 0
+    while ki < oren_list_len(keys) {
+        var k = keys[ki]
+        var av = a[k]
+        var bv = b[k]
+        var an = 0
+        var bn = 0
+        if av != nil { an = oren_list_len(av) }
+        if bv != nil { bn = oren_list_len(bv) }
+        if an != bn {
+            return k + ".len a=" + oren_int_to_string(an) + " b=" + oren_int_to_string(bn)
+        }
+        var i = 0
+        while i < an {
+            if av[i] != bv[i] {
+                return k + ".i=" + oren_int_to_string(i)
+            }
+            i = i + 1
+        }
+        ki = ki + 1
+    }
+    return nil
+}
+
 fn _macho_local_fixups_compact(fixups) {
     if fixups == nil { return nil }
-    var out = {
-        "bl_pos": [], "bl_name": [],
-        "adr_data_pos": [], "adr_data_off": [], "adr_data_reg": [],
-        "adr_code_pos": [], "adr_code_name": [], "adr_code_reg": [],
-        "got_pos": [], "got_index": []
+    var bl_n = 0
+    var adr_data_n = 0
+    var adr_code_n = 0
+    var got_n = 0
+    var ci = 0
+    while ci < oren_list_len(fixups) {
+        var cf = fixups[ci]
+        if cf != nil {
+            var cpos = cf["pos"]
+            if oren_type_tag(cpos) == 1 {
+                var cty = cf["type"]
+                if cty == "bl" {
+                    if cf["name"] != nil { bl_n = bl_n + 1 }
+                } else if cty == "adr_data" {
+                    if oren_type_tag(cf["data_off"]) == 1 { adr_data_n = adr_data_n + 1 }
+                } else if cty == "adr_code" {
+                    if cf["name"] != nil { adr_code_n = adr_code_n + 1 }
+                } else if cty == "got_load" {
+                    if oren_type_tag(cf["got_index"]) == 1 { got_n = got_n + 1 }
+                }
+            }
+        }
+        ci = ci + 1
     }
+    var bl_pos = oren_list_new_cap(bl_n); if oren_is_err(bl_pos) { bl_pos = [] }
+    var bl_name = oren_list_new_cap(bl_n); if oren_is_err(bl_name) { bl_name = [] }
+    var adr_data_pos = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_pos) { adr_data_pos = [] }
+    var adr_data_off = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_off) { adr_data_off = [] }
+    var adr_data_reg = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_reg) { adr_data_reg = [] }
+    var adr_code_pos = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_pos) { adr_code_pos = [] }
+    var adr_code_name = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_name) { adr_code_name = [] }
+    var adr_code_reg = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_reg) { adr_code_reg = [] }
+    var got_pos = oren_list_new_cap(got_n); if oren_is_err(got_pos) { got_pos = [] }
+    var got_index = oren_list_new_cap(got_n); if oren_is_err(got_index) { got_index = [] }
     var i = 0
     while i < oren_list_len(fixups) {
         var fx = fixups[i]
         if fx != nil {
-            var ty = fx["type"]
             var pos = fx["pos"]
-            if ty == "bl" {
-                var nm = fx["name"]
-                if oren_type_tag(pos) == 1 && nm != nil {
-                    oren_list_push(out["bl_pos"], pos)
-                    oren_list_push(out["bl_name"], nm)
-                }
-            } else if ty == "adr_data" {
-                var data_off = fx["data_off"]
-                if oren_type_tag(pos) == 1 && oren_type_tag(data_off) == 1 {
-                    oren_list_push(out["adr_data_pos"], pos)
-                    oren_list_push(out["adr_data_off"], data_off)
-                    var reg = fx["reg"]
-                    if oren_type_tag(reg) == 1 { oren_list_push(out["adr_data_reg"], reg) }
-                    else { oren_list_push(out["adr_data_reg"], 0) }
-                }
-            } else if ty == "adr_code" {
-                var nm2 = fx["name"]
-                if oren_type_tag(pos) == 1 && nm2 != nil {
-                    oren_list_push(out["adr_code_pos"], pos)
-                    oren_list_push(out["adr_code_name"], nm2)
-                    var reg2 = fx["reg"]
-                    if oren_type_tag(reg2) == 1 { oren_list_push(out["adr_code_reg"], reg2) }
-                    else { oren_list_push(out["adr_code_reg"], 0) }
-                }
-            } else if ty == "got_load" {
-                var got_idx = fx["got_index"]
-                if oren_type_tag(pos) == 1 && oren_type_tag(got_idx) == 1 {
-                    oren_list_push(out["got_pos"], pos)
-                    oren_list_push(out["got_index"], got_idx)
+            if oren_type_tag(pos) == 1 {
+                var ty = fx["type"]
+                if ty == "bl" {
+                    var nm = fx["name"]
+                    if nm != nil {
+                        oren_list_push_unchecked(bl_pos, pos)
+                        oren_list_push_unchecked(bl_name, nm)
+                    }
+                } else if ty == "adr_data" {
+                    var data_off = fx["data_off"]
+                    if oren_type_tag(data_off) == 1 {
+                        oren_list_push_unchecked(adr_data_pos, pos)
+                        oren_list_push_unchecked(adr_data_off, data_off)
+                        var reg = fx["reg"]
+                        if oren_type_tag(reg) == 1 { oren_list_push_unchecked(adr_data_reg, reg) }
+                        else { oren_list_push_unchecked(adr_data_reg, 0) }
+                    }
+                } else if ty == "adr_code" {
+                    var nm2 = fx["name"]
+                    if nm2 != nil {
+                        oren_list_push_unchecked(adr_code_pos, pos)
+                        oren_list_push_unchecked(adr_code_name, nm2)
+                        var reg2 = fx["reg"]
+                        if oren_type_tag(reg2) == 1 { oren_list_push_unchecked(adr_code_reg, reg2) }
+                        else { oren_list_push_unchecked(adr_code_reg, 0) }
+                    }
+                } else if ty == "got_load" {
+                    var got_idx = fx["got_index"]
+                    if oren_type_tag(got_idx) == 1 {
+                        oren_list_push_unchecked(got_pos, pos)
+                        oren_list_push_unchecked(got_index, got_idx)
+                    }
                 }
             }
         }
         i = i + 1
     }
-    return out
+    return {
+        "bl_pos": bl_pos, "bl_name": bl_name,
+        "adr_data_pos": adr_data_pos, "adr_data_off": adr_data_off, "adr_data_reg": adr_data_reg,
+        "adr_code_pos": adr_code_pos, "adr_code_name": adr_code_name, "adr_code_reg": adr_code_reg,
+        "got_pos": got_pos, "got_index": got_index
+    }
 }
 
 fn _macho_phase_log_path() {
@@ -978,7 +1087,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         push_u32_le(code, insn_ldr_ptr(16, 16))
         push_u32_le(code, insn_br(16))
         
-        oren_list_push(fixups, {"type": "got_load", "pos": stub_pos, "got_index": i_imp})
+        arm64_ctx_fixup_got_load(ctx, stub_pos, i_imp)
         
         // Symbol Table
         var name_idx = bytes_len(strtab)
@@ -1072,7 +1181,10 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var debug_off = bytes_len(data)
         bytes_extend(data, debug_blob)
         if ctx["debug_fixup_pos"] != nil {
-            oren_list_push(fixups, {"type": "adr_data", "pos": ctx["debug_fixup_pos"], "data_off": debug_off})
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": ctx["debug_fixup_pos"], "data_off": debug_off, "reg": nil})
+            oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], ctx["debug_fixup_pos"])
+            oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], debug_off)
+            oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
             
             var sa = text_base + text_size + debug_off
             var p = ctx["debug_static_addr_pos"]
@@ -1319,14 +1431,29 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         }
     }
     if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.rtobj.done", "n=" + oren_int_to_string(rtobj_fixups_n)) }
-    var fixups_local = _macho_local_fixups_compact(fixups)
+    var fixups_local = ctx["fixups_local_compact"]
+    var fixups_local_fallback = nil
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.compact.start", "n=" + oren_int_to_string(oren_list_len(fixups))) }
+    if fixups_local == nil || _macho_local_fixups_count_compact(fixups_local) != oren_list_len(fixups) {
+        fixups_local = _macho_local_fixups_compact(fixups)
+    } else if oren_env("OREN_VERIFY_LOCAL_FIXUPS") != nil {
+        fixups_local_fallback = _macho_local_fixups_compact(fixups)
+        var diff_local = _macho_local_fixups_compact_diff(fixups_local, fixups_local_fallback)
+        if diff_local != nil {
+            if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.compact.mismatch", diff_local) }
+            fixups_local = fixups_local_fallback
+        }
+    }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.compact.done", "n=" + oren_int_to_string(_macho_local_fixups_count_compact(fixups_local))) }
     var local_bl_pos = fixups_local["bl_pos"]
     var local_bl_name = fixups_local["bl_name"]
+    var local_bl_target = fixups_local["bl_target"]
     var local_adr_data_pos = fixups_local["adr_data_pos"]
     var local_adr_data_off = fixups_local["adr_data_off"]
     var local_adr_data_reg = fixups_local["adr_data_reg"]
     var local_adr_code_pos = fixups_local["adr_code_pos"]
     var local_adr_code_name = fixups_local["adr_code_name"]
+    var local_adr_code_target = fixups_local["adr_code_target"]
     var local_adr_code_reg = fixups_local["adr_code_reg"]
     var local_got_pos = fixups_local["got_pos"]
     var local_got_index = fixups_local["got_index"]
@@ -1337,6 +1464,40 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             " adr_code=" + oren_int_to_string(oren_list_len(local_adr_code_pos)) +
             " got=" + oren_int_to_string(oren_list_len(local_got_pos)))
     }
+    var local_target_names = []
+    var local_target_offs = []
+    if local_bl_target == nil || oren_list_len(local_bl_target) != oren_list_len(local_bl_name) {
+        local_bl_target = oren_list_new_cap(oren_list_len(local_bl_name))
+        if oren_is_err(local_bl_target) { local_bl_target = [] }
+        i = 0
+        while i < oren_list_len(local_bl_name) {
+            oren_list_push(local_bl_target, nil)
+            i = i + 1
+        }
+        fixups_local["bl_target"] = local_bl_target
+    }
+    i = 0
+    while i < oren_list_len(local_bl_name) {
+        if phase_log != nil {
+            if i == 0 || i == 4096 || i == 8192 {
+                _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.progress", "i=" + oren_int_to_string(i))
+            }
+        }
+        var target_local = local_bl_target[i]
+        if target_local == nil {
+            var name_bl_local = local_bl_name[i]
+            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, ctx, functions, name_bl_local)
+            if target_local == nil {
+                var e_local_bl = "native backend: undefined function " + name_bl_local
+                print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
+                print(e_local_bl)
+                oren_exit(1)
+            }
+            local_bl_target[i] = target_local
+        }
+        i = i + 1
+    }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.done", "n=" + oren_int_to_string(oren_list_len(local_bl_target))) }
     i = 0
     while i < oren_list_len(local_bl_pos) {
         if phase_log != nil {
@@ -1345,19 +1506,45 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
         }
         var pos_bl_local = local_bl_pos[i]
-        var name_bl_local = local_bl_name[i]
-        var target_local = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl_local)
-        if target_local == nil {
-            var e_local_bl = "native backend: undefined function " + name_bl_local
-            print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
-            print(e_local_bl)
-            oren_exit(1)
-        }
+        var target_local = local_bl_target[i]
         var offset_local = (target_local - pos_bl_local) / 4
         set_u32_le(code, pos_bl_local, insn_bl(offset_local))
         i = i + 1
     }
     if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.done", "n=" + oren_int_to_string(oren_list_len(local_bl_pos))) }
+    if local_adr_code_target == nil || oren_list_len(local_adr_code_target) != oren_list_len(local_adr_code_name) {
+        local_adr_code_target = oren_list_new_cap(oren_list_len(local_adr_code_name))
+        if oren_is_err(local_adr_code_target) { local_adr_code_target = [] }
+        i = 0
+        while i < oren_list_len(local_adr_code_name) {
+            oren_list_push(local_adr_code_target, nil)
+            i = i + 1
+        }
+        fixups_local["adr_code_target"] = local_adr_code_target
+    }
+    i = 0
+    while i < oren_list_len(local_adr_code_name) {
+        if phase_log != nil {
+            if i == 0 || i == 4096 || i == 8192 {
+                _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.progress", "i=" + oren_int_to_string(i))
+            }
+        }
+        var target2_local = local_adr_code_target[i]
+        if target2_local == nil {
+            var name_ac_local = local_adr_code_name[i]
+            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, ctx, functions, name_ac_local)
+            if target2_local == nil {
+                var e_local_ac = "native backend: undefined function " + name_ac_local
+                print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))
+                print(e_local_ac)
+                oren_exit(1)
+            }
+            local_adr_code_target[i] = target2_local
+        }
+        i = i + 1
+    }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.resolve.unique.done", "n=" + oren_int_to_string(oren_list_len(local_target_names))) }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.done", "n=" + oren_int_to_string(oren_list_len(local_adr_code_target))) }
     i = 0
     while i < oren_list_len(local_adr_data_pos) {
         if phase_log != nil {
@@ -1387,14 +1574,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
         }
         var pos_ac_local = local_adr_code_pos[i]
-        var name_ac_local = local_adr_code_name[i]
-        var target2_local = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac_local)
-        if target2_local == nil {
-            var e_local_ac = "native backend: undefined function " + name_ac_local
-            print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))
-            print(e_local_ac)
-            oren_exit(1)
-        }
+        var target2_local = local_adr_code_target[i]
         var reg_ac_local = local_adr_code_reg[i]
         var target_addr2_local = text_base + header_size + target2_local
         var pc2_local = text_base + header_size + pos_ac_local

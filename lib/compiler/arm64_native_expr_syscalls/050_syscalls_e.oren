@@ -132,6 +132,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     var bl_gtod_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_gtod_pre, "name": "native_capsule_sys_gettimeofday_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_gtod_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_gettimeofday_pre")
                 }
     
                 // Reload args for syscall (pre-hook may clobber regs).
@@ -250,6 +252,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     var bl_ns_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_ns_pre, "name": "native_capsule_sys_nanosleep_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_ns_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_nanosleep_pre")
                 }
     
                 // Preserve heap globals across syscalls (rolling ABI hygiene).
@@ -467,8 +471,12 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], 0)
                     if fn_name == "sys_send" {
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_sendto_pre"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre_send)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_sendto_pre")
                     } else {
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_recvfrom_pre"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre_send)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_recvfrom_pre")
                     }
                 }
     
@@ -532,6 +540,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     var bl_kqueue_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_pre, "name": "native_capsule_sys_kqueue_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_kqueue_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_kqueue_pre")
                 }
                 // SYS_kqueue = 362
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -556,6 +566,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     var bl_kqueue_post = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_post, "name": "native_capsule_sys_kqueue_post"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_kqueue_post)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_kqueue_post")
                 }
                 return true
             }
@@ -572,6 +584,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     var bl_epoll_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_pre, "name": "native_capsule_sys_epoll_create1_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_epoll_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_epoll_create1_pre")
                 }
     
                 if ctx["platform"]["os"] != "linux" {
@@ -596,6 +610,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     var bl_epoll_post = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_post, "name": "native_capsule_sys_epoll_create1_post"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_epoll_post)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_epoll_create1_post")
                 }
                 return true
             }
@@ -638,6 +654,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     var bl_epoll_ctl_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_ctl_pre, "name": "native_capsule_sys_epoll_ctl_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_epoll_ctl_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_epoll_ctl_pre")
                 }
     
                 if ctx["platform"]["os"] != "linux" {

@@ -27,6 +27,8 @@
                     var bl_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_bsdthread_create_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_bsdthread_create_pre")
                 }
 
                 compile_expr(ctx, args[3]) // pthread -> X0
@@ -85,6 +87,8 @@
                     var bl_pre2 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre2, "name": "native_capsule_sys_bsdthread_terminate_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre2)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_bsdthread_terminate_pre")
                 }
 
                 compile_expr(ctx, args[2]) // port -> X0
@@ -159,6 +163,8 @@
                     var bl_bsdthread_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_bsdthread_pre, "name": "native_capsule_sys_bsdthread_register_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_bsdthread_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_bsdthread_register_pre")
                 }
     
                 compile_expr(ctx, args[6]) // tsd_offset -> X0
@@ -220,6 +226,8 @@
                     var bl_pipe_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_pre, "name": "native_capsule_sys_pipe_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pipe_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_pipe_pre")
                 }
                 
                 var sys_pipe = abi.darwin_sys_pipe()
@@ -275,6 +283,8 @@
                         var bl_pipe_post = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post, "name": "native_capsule_sys_pipe_post"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pipe_post)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_pipe_post")
                     }
                     push_u32_le(ctx["code"], insn_movz(0, 0)) // return 0
     
@@ -371,6 +381,8 @@
                         var bl_pipe_post2 = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pipe_post2, "name": "native_capsule_sys_pipe_post"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pipe_post2)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_pipe_post")
                     }
                     push_u32_le(ctx["code"], insn_mov_reg(0, 3)) // return rc
                 }
@@ -413,6 +425,8 @@
                     var bl_tc_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_tc_pre, "name": "native_capsule_sys_clone_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_tc_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_clone_pre")
                 }
 
                 // Load args from the parent stack into scratch regs and pop the temp slots.
@@ -570,6 +584,8 @@
                     var bl_clone_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_clone_pre, "name": "native_capsule_sys_clone_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_clone_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_clone_pre")
                 }
     
                 // Load args for syscall (Oren signature):

@@ -146,6 +146,9 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 		                push_u32_le(ctx["code"], 0)
 		                push_u32_le(ctx["code"], 0)
 		                oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos, "name": nm, "reg": 0})
+		                oren_list_push(ctx["fixups_local_compact"]["adr_code_pos"], adr_pos)
+		                oren_list_push(ctx["fixups_local_compact"]["adr_code_name"], nm)
+		                oren_list_push(ctx["fixups_local_compact"]["adr_code_reg"], 0)
 		                return true
 		            }
 
@@ -345,8 +348,12 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
 	                if fn_name == "malloc_raw" {
 	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse_node"})
+	                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_reuse_pos)
+	                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_try_reuse_node")
 	                } else {
 	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
+	                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_reuse_pos)
+	                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_try_reuse")
 	                }
 	                
 	                // RESTORE X9 (and X10 for malloc_k)
@@ -527,6 +534,8 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                         var bl_trace_pos = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_pos, "name": "oren_trace_alloc_request"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace_pos)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_alloc_request")
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 16))
@@ -536,6 +545,8 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                     var bl_track_pos = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc_new"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_track_pos)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_track_alloc_new")
                 }
                 if fn_name == "malloc_k" {
                     // Track allocation with caller-provided kind.
@@ -553,6 +564,8 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                         var bl_trace_pos2 = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_pos2, "name": "oren_trace_alloc_request"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace_pos2)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_alloc_request")
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
                         push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 16))
@@ -562,6 +575,8 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                     var bl_track_pos2 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos2, "name": "oren_track_alloc_new"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_track_pos2)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_track_alloc_new")
                 }
 	                
 	                // Return path

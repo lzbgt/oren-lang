@@ -14,6 +14,9 @@ fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
 fn align_up(n, align) { return core.align_up(n, align) }
 fn ceil_div(a, b) { return core.ceil_div(a, b) }
 fn int_mod(a, b) { return core.int_mod(a, b) }
+fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos, name) }
+fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
+fn arm64_ctx_fixup_adr_code(ctx, pos, name, reg) { return core.arm64_ctx_fixup_adr_code(ctx, pos, name, reg) }
 fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
 fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
 fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }

@@ -28,6 +28,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     var bl_pre3 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre3, "name": "native_capsule_sys_bind_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre3)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_bind_pre")
                 }
     
                 // Reload args for syscall.
@@ -71,6 +73,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     var bl_post3 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post3, "name": "native_capsule_sys_bind_post"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_post3)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_bind_post")
                 }
     
                 // Pop args (3 slots).
@@ -101,6 +105,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     var bl_pre4 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre4, "name": "native_capsule_sys_listen_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre4)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_listen_pre")
                 }
     
                 // Reload args for syscall.
@@ -142,6 +148,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     var bl_post4 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post4, "name": "native_capsule_sys_listen_post"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_post4)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_listen_post")
                 }
     
                 // Pop args (2 slots).
@@ -177,6 +185,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     var bl_pre5 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre5, "name": "native_capsule_sys_accept_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre5)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_accept_pre")
                 }
     
                 // Reload args for syscall.
@@ -220,6 +230,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     var bl_post5 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post5, "name": "native_capsule_sys_accept_post"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_post5)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_accept_post")
                 }
     
                 // Pop args (3 slots).
@@ -259,8 +271,12 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], 0)
                     if fn_name == "sys_getsockname" {
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_getsockname_pre"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_getsockname_pre")
                     } else {
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_getpeername_pre"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_getpeername_pre")
                     }
                 }
     
@@ -346,8 +362,12 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], 0)
                     if fn_name == "sys_setsockopt" {
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_setsockopt_pre"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_setsockopt_pre")
                     } else {
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_getsockopt_pre"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_getsockopt_pre")
                     }
                 }
     
@@ -488,6 +508,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                     var bl_pre = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_shutdown_pre"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_shutdown_pre")
                 }
     
                 // Reload args for syscall.
@@ -577,8 +599,12 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                         push_u32_le(ctx["code"], 0)
                         if fn_name == "sys_sendto" {
                             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre6, "name": "native_capsule_sys_sendto_pre"})
+                            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre6)
+                            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_sendto_pre")
                         } else {
                             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre6, "name": "native_capsule_sys_recvfrom_pre"})
+                            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pre6)
+                            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_recvfrom_pre")
                         }
                     }
                 }
@@ -589,6 +615,8 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                         var bl_kevent_pre = bytes_len(ctx["code"])
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kevent_pre, "name": "native_capsule_sys_kevent_pre"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_kevent_pre)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_capsule_sys_kevent_pre")
                     }
                 }
     

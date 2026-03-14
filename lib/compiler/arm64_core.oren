@@ -131,6 +131,79 @@ fn ceil_div(a, b) {
 
 fn int_mod(a, b) { return a - (a / b) * b }
 
+fn arm64_ctx_fixups_local_compact_ensure(ctx) {
+    if ctx == nil { return nil }
+    var fx = ctx["fixups_local_compact"]
+    if fx != nil { return fx }
+    fx = {
+        "bl_pos": [], "bl_name": [], "bl_target": [],
+        "adr_data_pos": [], "adr_data_off": [], "adr_data_reg": [],
+        "adr_code_pos": [], "adr_code_name": [], "adr_code_target": [], "adr_code_reg": [],
+        "got_pos": [], "got_index": []
+    }
+    ctx["fixups_local_compact"] = fx
+    return fx
+}
+
+fn arm64_ctx_fixup_bl(ctx, pos, name) {
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": pos, "name": name})
+    if oren_type_tag(pos) != 1 || name == nil { return nil }
+    var fx = arm64_ctx_fixups_local_compact_ensure(ctx)
+    oren_list_push(fx["bl_pos"], pos)
+    oren_list_push(fx["bl_name"], name)
+    return nil
+}
+
+fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) {
+    if oren_type_tag(reg) == 1 {
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": pos, "data_off": data_off, "reg": reg})
+    } else {
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": pos, "data_off": data_off})
+    }
+    if oren_type_tag(pos) != 1 || oren_type_tag(data_off) != 1 { return nil }
+    var fx = arm64_ctx_fixups_local_compact_ensure(ctx)
+    oren_list_push(fx["adr_data_pos"], pos)
+    oren_list_push(fx["adr_data_off"], data_off)
+    if oren_type_tag(reg) == 1 { oren_list_push(fx["adr_data_reg"], reg) }
+    else { oren_list_push(fx["adr_data_reg"], 0) }
+    return nil
+}
+
+fn arm64_ctx_fixup_adr_code(ctx, pos, name, reg) {
+    oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": pos, "name": name, "reg": reg})
+    if oren_type_tag(pos) != 1 || name == nil { return nil }
+    var fx = arm64_ctx_fixups_local_compact_ensure(ctx)
+    oren_list_push(fx["adr_code_pos"], pos)
+    oren_list_push(fx["adr_code_name"], name)
+    if oren_type_tag(reg) == 1 { oren_list_push(fx["adr_code_reg"], reg) }
+    else { oren_list_push(fx["adr_code_reg"], 0) }
+    return nil
+}
+
+fn arm64_ctx_fixup_got_load(ctx, pos, got_index) {
+    oren_list_push(ctx["fixups"], {"type": "got_load", "pos": pos, "got_index": got_index})
+    if oren_type_tag(pos) != 1 || oren_type_tag(got_index) != 1 { return nil }
+    var fx = arm64_ctx_fixups_local_compact_ensure(ctx)
+    oren_list_push(fx["got_pos"], pos)
+    oren_list_push(fx["got_index"], got_index)
+    return nil
+}
+
+fn arm64_lookup_function(ctx, name) {
+    if ctx == nil || name == nil { return nil }
+    if ctx["functions"] != nil {
+        var off = ctx["functions"][name]
+        if off != nil { return off }
+    }
+    var rt = ctx["runtime_functions_enc"]
+    if rt == nil { return nil }
+    var off_enc = rt[name]
+    if oren_type_tag(off_enc) == 0 { return nil }
+    var base = ctx["rtobj_functions_base_code"]
+    if base == nil { base = 0 }
+    return base + (off_enc - 1)
+}
+
 fn emit_sub_sp_any(ctx, bytes) {
     // SUB SP, SP, #imm12 (imm12 max 4095). Keep 16B alignment.
     var n = bytes

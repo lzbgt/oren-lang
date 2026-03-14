@@ -19,6 +19,7 @@ fn int_mod(a, b) { return core.int_mod(a, b) }
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
 fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos, name) }
 
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
@@ -151,6 +152,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         var bl_find = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -195,6 +198,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var bl_sum_flag = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sum_flag, "name": "native_is_string_ptr"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_sum_flag)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_is_string_ptr")
     push_u32_le(ctx["code"], insn_mov_reg(26, 0))
 
     if unique_lists {
@@ -273,6 +278,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
             var bl_sum_str = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sum_str, "name": "native_is_string_ptr"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_sum_str)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_is_string_ptr")
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             var jpos_sum_not_str = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) // patched: b.eq iadd
@@ -281,6 +288,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
             var bl_val_str = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_val_str, "name": "native_is_string_ptr"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_val_str)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_is_string_ptr")
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             var jpos_val_not_str = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) // patched: b.eq iadd
@@ -290,6 +299,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
             var bl_concat = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_concat, "name": "string_concat"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_concat)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "string_concat")
             push_u32_le(ctx["code"], insn_mov_reg(23, 0))
             var jpos_skip_iadd = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) // patched: b after iadd
@@ -430,6 +441,8 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         var bl_find = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -705,6 +718,8 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         var bl_find = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -1020,6 +1035,8 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
         var bl_find = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -1263,6 +1280,8 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var bl_find = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -1301,12 +1320,16 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
             var bl_trace_reserve = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_reserve, "name": "oren_trace_list_reserve_fast"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace_reserve)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_reserve_fast")
         }
         emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
         emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
         var bl_reserve = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reserve, "name": "oren_list_int_reserve"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_reserve)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_int_reserve")
         emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after call
 
         var cap_ok_pos = bytes_len(ctx["code"])
@@ -1397,6 +1420,8 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var bl_trace = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
         li2 = li2 + 1
     }
 
@@ -1508,6 +1533,8 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
         var bl_find = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -1544,6 +1571,8 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
         var bl_reserve = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reserve, "name": "oren_list_reserve"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_reserve)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_reserve")
         emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after call
 
         var cap_ok_pos = bytes_len(ctx["code"])
@@ -1636,6 +1665,8 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
             var bl_trace = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
         }
         li2 = li2 + 1
     }

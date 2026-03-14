@@ -7,6 +7,7 @@ fn bytes_len(b) { return core.bytes_len(b) }
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
 
 fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
 
@@ -57,6 +58,9 @@ fn _arm64_emit_load_g_storage_ptr(ctx, tok, dst_reg) {
     push_u32_le(ctx["code"], 0)
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": goff, "reg": dst_reg})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], goff)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], dst_reg)
     push_u32_le(ctx["code"], insn_ldr_ptr(dst_reg, dst_reg))
     return nil
 }

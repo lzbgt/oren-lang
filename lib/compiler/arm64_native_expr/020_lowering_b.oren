@@ -20,6 +20,8 @@ fn native_expr_chunk_call(ctx, expr) {
                 var bl_new_list_sp = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_sp, "name": "oren_new_list"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list_sp)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
     
                 // Save fixed_list on stack
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -41,6 +43,8 @@ fn native_expr_chunk_call(ctx, expr) {
                     var bl_push_sp = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_sp, "name": "oren_list_push"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push_sp)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
                     i_sp = i_sp + 1
                 }
     
@@ -62,6 +66,8 @@ fn native_expr_chunk_call(ctx, expr) {
                 var bl_spread = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_spread, "name": "oren_call_obj_spread"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_spread)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_call_obj_spread")
                 return true
             }
     
@@ -87,6 +93,8 @@ fn native_expr_chunk_call(ctx, expr) {
                 var bl_new_list_ind = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_ind, "name": "oren_new_list"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list_ind)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
     
                 // Save args_list on stack
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -110,6 +118,8 @@ fn native_expr_chunk_call(ctx, expr) {
                     var bl_push_ind = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_ind, "name": "oren_list_push"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push_ind)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
                     i_ind = i_ind + 1
                 }
     
@@ -168,6 +178,8 @@ fn native_expr_chunk_call(ctx, expr) {
                 var bl_new_list_ind2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_ind2, "name": "oren_new_list"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list_ind2)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
     
                 // Save args_list on stack
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -191,6 +203,8 @@ fn native_expr_chunk_call(ctx, expr) {
                     var bl_push_ind2 = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_ind2, "name": "oren_list_push"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push_ind2)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
                     i_ind2 = i_ind2 + 1
                 }
     
@@ -235,6 +249,8 @@ fn native_expr_chunk_call(ctx, expr) {
                 var bl_new_list_v = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list_v, "name": "oren_new_list"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list_v)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
     
                 // Save args_list on stack
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -258,6 +274,8 @@ fn native_expr_chunk_call(ctx, expr) {
                     var bl_push_v = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push_v, "name": "oren_list_push"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push_v)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
                     i_v = i_v + 1
                 }
     
@@ -370,6 +388,8 @@ fn native_expr_chunk_call(ctx, expr) {
     var bl_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": fn_name})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], fn_name)
 
     // ABI correctness: some `ffi` symbols return 32-bit or void values.
     //
