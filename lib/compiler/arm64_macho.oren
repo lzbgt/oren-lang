@@ -626,6 +626,8 @@ fn emit_debug_info(ctx, text_base, header_size) {
     var rt_ends = ctx["rtobj_debug_func_end_enc"]
     var rt_blob = ctx["rtobj_debug_blob_u8"]
     var rt_patch_pos = ctx["rtobj_debug_patch_pos_u8"]
+    var rt_start_u8 = ctx["rtobj_debug_start_u8"]
+    var rt_end_u8 = ctx["rtobj_debug_end_u8"]
     var rt_base_code = ctx["rtobj_debug_funcs_base_code"]
     var phase_log = _macho_phase_log_path()
     var rt_funcs_count = 0
@@ -702,8 +704,15 @@ fn emit_debug_info(ctx, text_base, header_size) {
                 }
             }
             var patch_pos = _macho_read_u64_le_u8(rt_patch_pos, ri1 * 8)
-            var rt_start = _macho_decode_rtobj_fix_int(rt_starts[ri1])
-            var rt_end = _macho_decode_rtobj_fix_int(rt_ends[ri1])
+            var rt_start = nil
+            var rt_end = nil
+            if rt_start_u8 != nil && rt_end_u8 != nil {
+                rt_start = _macho_read_u64_le_u8(rt_start_u8, ri1 * 8)
+                rt_end = _macho_read_u64_le_u8(rt_end_u8, ri1 * 8)
+            } else {
+                rt_start = _macho_decode_rtobj_fix_int(rt_starts[ri1])
+                rt_end = _macho_decode_rtobj_fix_int(rt_ends[ri1])
+            }
             if patch_pos != nil && rt_start != nil && rt_end != nil {
                 rt_funcs_kept = rt_funcs_kept + 1
                 _macho_store_u64_le_ptr(rt_dstp, rt_blob_off + patch_pos, base + rt_base_code + rt_start)
@@ -863,6 +872,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         print("[emit] macho arm64: filtered " + oren_int_to_string(import_collide_count) + " import(s) that collide with local function symbols (sample=" + sample_s + ")")
     }
     var rtobj_fixups_compact = ctx["runtime_fixups_compact"]
+    var rtobj_fixups_compact_u8 = ctx["runtime_fixups_compact_u8"]
     var rtobj_fixups = ctx["runtime_fixups_enc"]
     var rtobj_fixups_n = 0
     if rtobj_fixups_compact != nil { rtobj_fixups_n = _macho_rtobj_fixups_count_compact(rtobj_fixups_compact) }
@@ -1034,20 +1044,30 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     if trace_emit { print("[emit] macho arm64: apply fixups start n=" + oren_int_to_string(rtobj_fixups_n + oren_list_len(fixups))) }
     var rtobj_fix_base = ctx["rtobj_fixups_base_code"]
     if rtobj_fix_base == nil { rtobj_fix_base = 0 }
+    var code_vmaddr_base = text_base + header_size
     var i = 0
     if rtobj_fixups_compact != nil {
         var bl_poss = rtobj_fixups_compact["bl_pos_enc"]
         var bl_names = rtobj_fixups_compact["bl_name"]
+        var bl_poss_u8 = nil
+        if rtobj_fixups_compact_u8 != nil { bl_poss_u8 = rtobj_fixups_compact_u8["bl_pos_u8"] }
         var bl_n = 0
         if bl_poss != nil { bl_n = oren_list_len(bl_poss) }
         i = 0
         while bl_poss != nil && i < bl_n {
+            if phase_log != nil {
+                if i == 0 || i == 8192 || i == 16384 || i == 24576 {
+                    _macho_phase_log_append(phase_log, "macho.fixups.rtobj.bl.progress", "i=" + oren_int_to_string(i))
+                }
+            }
             if trace_emit {
                 if i == 0 { print("[emit] macho arm64: fixup[0] start") }
                 if i == 10000 { print("[emit] macho arm64: fixup[10000]") }
                 if i == 20000 { print("[emit] macho arm64: fixup[20000]") }
             }
-            var pos_bl = rtobj_fix_base + _macho_decode_rtobj_fix_int(bl_poss[i])
+            var pos_bl = 0
+            if bl_poss_u8 != nil { pos_bl = rtobj_fix_base + _macho_read_u64_le_u8(bl_poss_u8, i * 8) }
+            else { pos_bl = rtobj_fix_base + _macho_decode_rtobj_fix_int(bl_poss[i]) }
             var name_bl = bl_names[i]
             var target_bl = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl)
             if target_bl == nil {
@@ -1060,47 +1080,83 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             set_u32_le(code, pos_bl, insn_bl(offset_bl))
             i = i + 1
         }
+        if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.rtobj.bl.done", "n=" + oren_int_to_string(bl_n)) }
 
         var adr_data_poss = rtobj_fixups_compact["adr_data_pos_enc"]
         var adr_data_offs = rtobj_fixups_compact["adr_data_data_off_enc"]
         var adr_data_regs = rtobj_fixups_compact["adr_data_reg_enc"]
+        var adr_data_poss_u8 = nil
+        var adr_data_offs_u8 = nil
+        var adr_data_regs_u8 = nil
+        if rtobj_fixups_compact_u8 != nil {
+            adr_data_poss_u8 = rtobj_fixups_compact_u8["adr_data_pos_u8"]
+            adr_data_offs_u8 = rtobj_fixups_compact_u8["adr_data_data_off_u8"]
+            adr_data_regs_u8 = rtobj_fixups_compact_u8["adr_data_reg_u8"]
+        }
         var adr_data_n = 0
         if adr_data_poss != nil { adr_data_n = oren_list_len(adr_data_poss) }
         while adr_data_poss != nil && i < (bl_n + adr_data_n) {
             var k_ad = i - bl_n
+            if phase_log != nil {
+                if k_ad == 0 || k_ad == 8192 || k_ad == 16384 {
+                    _macho_phase_log_append(phase_log, "macho.fixups.rtobj.adr_data.progress", "i=" + oren_int_to_string(k_ad))
+                }
+            }
             if trace_emit {
                 if i == 0 { print("[emit] macho arm64: fixup[0] start") }
                 if i == 10000 { print("[emit] macho arm64: fixup[10000]") }
                 if i == 20000 { print("[emit] macho arm64: fixup[20000]") }
             }
-            var pos_ad = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_data_poss[k_ad])
-            var data_off_ad = _macho_decode_rtobj_fix_int(adr_data_offs[k_ad])
+            var pos_ad = 0
+            if adr_data_poss_u8 != nil { pos_ad = rtobj_fix_base + _macho_read_u64_le_u8(adr_data_poss_u8, k_ad * 8) }
+            else { pos_ad = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_data_poss[k_ad]) }
+            var data_off_ad = 0
+            if adr_data_offs_u8 != nil { data_off_ad = _macho_read_u64_le_u8(adr_data_offs_u8, k_ad * 8) }
+            else { data_off_ad = _macho_decode_rtobj_fix_int(adr_data_offs[k_ad]) }
             var target_addr_ad = data_vmaddr + data_off_ad
-            var pc_ad = text_base + header_size + pos_ad
+            var pc_ad = code_vmaddr_base + pos_ad
             var pc_page_ad = pc_ad - int_mod(pc_ad, 4096)
             var target_page_ad = target_addr_ad - int_mod(target_addr_ad, 4096)
             var delta_pages_ad = (target_page_ad - pc_page_ad) / 4096
             var page_off_ad = int_mod(target_addr_ad, 4096)
-            var reg_ad = _macho_decode_rtobj_fix_reg(adr_data_regs[k_ad])
-            if reg_ad == nil { reg_ad = 0 }
+            var reg_ad = 0
+            if adr_data_regs_u8 != nil { reg_ad = _macho_read_u64_le_u8(adr_data_regs_u8, k_ad * 8) }
+            else {
+                var reg_ad_dec = _macho_decode_rtobj_fix_reg(adr_data_regs[k_ad])
+                if reg_ad_dec != nil { reg_ad = reg_ad_dec }
+            }
             set_u32_le(code, pos_ad, insn_adrp(reg_ad, delta_pages_ad))
             set_u32_le(code, pos_ad + 4, insn_add_imm(reg_ad, reg_ad, page_off_ad))
             i = i + 1
         }
+        if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.rtobj.adr_data.done", "n=" + oren_int_to_string(adr_data_n)) }
 
         var adr_code_poss = rtobj_fixups_compact["adr_code_pos_enc"]
         var adr_code_names = rtobj_fixups_compact["adr_code_name"]
         var adr_code_regs = rtobj_fixups_compact["adr_code_reg_enc"]
+        var adr_code_poss_u8 = nil
+        var adr_code_regs_u8 = nil
+        if rtobj_fixups_compact_u8 != nil {
+            adr_code_poss_u8 = rtobj_fixups_compact_u8["adr_code_pos_u8"]
+            adr_code_regs_u8 = rtobj_fixups_compact_u8["adr_code_reg_u8"]
+        }
         var adr_code_n = 0
         if adr_code_poss != nil { adr_code_n = oren_list_len(adr_code_poss) }
         while adr_code_poss != nil && i < (bl_n + adr_data_n + adr_code_n) {
             var k_ac = i - bl_n - adr_data_n
+            if phase_log != nil {
+                if k_ac == 0 || k_ac == 8192 || k_ac == 16384 {
+                    _macho_phase_log_append(phase_log, "macho.fixups.rtobj.adr_code.progress", "i=" + oren_int_to_string(k_ac))
+                }
+            }
             if trace_emit {
                 if i == 0 { print("[emit] macho arm64: fixup[0] start") }
                 if i == 10000 { print("[emit] macho arm64: fixup[10000]") }
                 if i == 20000 { print("[emit] macho arm64: fixup[20000]") }
             }
-            var pos_ac = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_code_poss[k_ac])
+            var pos_ac = 0
+            if adr_code_poss_u8 != nil { pos_ac = rtobj_fix_base + _macho_read_u64_le_u8(adr_code_poss_u8, k_ac * 8) }
+            else { pos_ac = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_code_poss[k_ac]) }
             var name_ac = adr_code_names[k_ac]
             var target_ac = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac)
             if target_ac == nil {
@@ -1109,10 +1165,14 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 print(e_ac)
                 oren_exit(1)
             }
-            var reg_ac = _macho_decode_rtobj_fix_reg(adr_code_regs[k_ac])
-            if reg_ac == nil { reg_ac = 0 }
-            var target_addr_ac = text_base + header_size + target_ac
-            var pc_ac = text_base + header_size + pos_ac
+            var reg_ac = 0
+            if adr_code_regs_u8 != nil { reg_ac = _macho_read_u64_le_u8(adr_code_regs_u8, k_ac * 8) }
+            else {
+                var reg_ac_dec = _macho_decode_rtobj_fix_reg(adr_code_regs[k_ac])
+                if reg_ac_dec != nil { reg_ac = reg_ac_dec }
+            }
+            var target_addr_ac = code_vmaddr_base + target_ac
+            var pc_ac = code_vmaddr_base + pos_ac
             var pc_page_ac = pc_ac - int_mod(pc_ac, 4096)
             var target_page_ac = target_addr_ac - int_mod(target_addr_ac, 4096)
             var delta_pages_ac = (target_page_ac - pc_page_ac) / 4096
@@ -1121,6 +1181,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             set_u32_le(code, pos_ac + 4, insn_add_imm(reg_ac, reg_ac, page_off_ac))
             i = i + 1
         }
+        if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.rtobj.adr_code.done", "n=" + oren_int_to_string(adr_code_n)) }
     } else {
         while i < rtobj_fixups_n {
             if trace_emit {

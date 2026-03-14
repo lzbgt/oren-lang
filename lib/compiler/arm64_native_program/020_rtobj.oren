@@ -179,6 +179,8 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
             ctx["rtobj_debug_func_end_enc"] = dbg_ends
             if meta["debug_blob_u8"] != nil { ctx["rtobj_debug_blob_u8"] = meta["debug_blob_u8"] }
             if meta["debug_patch_pos_u8"] != nil { ctx["rtobj_debug_patch_pos_u8"] = meta["debug_patch_pos_u8"] }
+            if meta["debug_start_u8"] != nil { ctx["rtobj_debug_start_u8"] = meta["debug_start_u8"] }
+            if meta["debug_end_u8"] != nil { ctx["rtobj_debug_end_u8"] = meta["debug_end_u8"] }
             ctx["rtobj_debug_funcs_base_code"] = base_code
         }
     }
@@ -191,6 +193,7 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
         var fx_n2 = _arm64_rtobj_fixups_count_compact(fx_compact)
         if trace_apply { print("[arm64_rtobj_apply] fixups count=" + oren_int_to_string(fx_n2)) }
         ctx["runtime_fixups_compact"] = fx_compact
+        if meta["fixups_compact_u8"] != nil { ctx["runtime_fixups_compact_u8"] = meta["fixups_compact_u8"] }
         ctx["runtime_fixups_count"] = fx_n2
         ctx["rtobj_fixups_base_code"] = base_code
     } else {
@@ -201,11 +204,19 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
             var fx_compact_migrated = _arm64_rtobj_encode_fixups_compact_from_enc(fx)
             if fx_compact_migrated != nil {
                 ctx["runtime_fixups_compact"] = fx_compact_migrated
+                var fx_compact_u8_migrated = rtobj._rtobj_build_fixups_compact_u8_sidecars(fx_compact_migrated)
+                if fx_compact_u8_migrated != nil {
+                    ctx["runtime_fixups_compact_u8"] = fx_compact_u8_migrated
+                    meta["fixups_compact_u8"] = fx_compact_u8_migrated
+                }
                 ctx["runtime_fixups_count"] = _arm64_rtobj_fixups_count_compact(fx_compact_migrated)
                 var cache_dir = meta["cache_dir"]
                 var cache_key = meta["cache_key"]
                 if cache_dir != nil && cache_key != nil {
                     rtobj.rtobj_store_fixups_compact_sidecar(cache_dir, cache_key, fx_compact_migrated)
+                    if fx_compact_u8_migrated != nil {
+                        rtobj.rtobj_store_fixups_compact_u8_sidecars(cache_dir, cache_key, fx_compact_u8_migrated)
+                    }
                 }
             } else {
                 ctx["runtime_fixups_enc"] = fx
