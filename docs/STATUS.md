@@ -1965,8 +1965,26 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     in a loop and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough
     args for tracing, logs git/uname metadata, and saves failure copies of the inner
     quick-integration log (2026-03-03).
+  - Update (2026-03-15): `scripts/triage_native_quick_flake.sh` now also snapshots the per-run
+    quick-integration phase log, so timeout/flake runs preserve both `*_inner.log` and
+    `*_phases.log` artifacts automatically.
+  - New (2026-03-15): `scripts/triage_native_quick_green_cache_flake.sh` +
+    `make test-native-quick-green-cache-flake` run only the stage1 green-cache rerun path with
+    `OREN_QI_TRACE=1`, `OREN_TRACE_GC_STW=1`, `OREN_TRACE_GREEN_RUNQ_GUARD=1`, and
+    `OREN_TRACE_GREEN_ENTRY_ARGS_GUARD=1`.
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
+  - Trace (2026-03-15): the focused green-cache-only harness hit a timeout on run 3
+    (`build/logs/codex_stage1_qi_green_cache_only_guarded_20260315.log`,
+    `build/logs/oren_native_quick_flake_20260315_041515_run3_inner.log`). The last STW trace
+    observed `gc_stw_begin owner=4302225408 expected=9` and then only four parked-node lines
+    before timeout, so the current flaky tail is still in stage1 GC/STW + green-cache runtime
+    execution, not in the compiler build path.
+  - Trace (2026-03-15): a traced green-cache-only rerun passed 10/10
+    (`build/logs/codex_stage1_qi_green_cache_only_trace_20260315.log`), and a broader
+    `OREN_GREEN_POLL_CACHE=1` loop also passed 10/10
+    (`build/logs/codex_stage1_qi_green_cache_flake_20260315.log`), so the remaining issue is a
+    low-frequency race rather than a deterministic stage1 quick failure.
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,

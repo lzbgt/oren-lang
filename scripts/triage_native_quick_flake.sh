@@ -31,6 +31,8 @@ mkdir -p build/logs
 current_log=""
 current_inner_src=""
 current_err_log=""
+current_phases_src=""
+current_phases_err_log=""
 trap_cleanup() {
   local sig="$1"
   if [[ -n "${current_log}" ]]; then
@@ -38,6 +40,9 @@ trap_cleanup() {
   fi
   if [[ -n "${current_inner_src}" && -n "${current_err_log}" && -f "${current_inner_src}" ]]; then
     cp -f "${current_inner_src}" "${current_err_log}" 2>/dev/null || true
+  fi
+  if [[ -n "${current_phases_src}" && -n "${current_phases_err_log}" && -f "${current_phases_src}" ]]; then
+    cp -f "${current_phases_src}" "${current_phases_err_log}" 2>/dev/null || true
   fi
 }
 trap 'trap_cleanup TERM; exit 143' TERM
@@ -105,9 +110,12 @@ while [[ "$run" -le "$runs" ]]; do
   ts="$(date +%Y%m%d_%H%M%S)"
   log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}.log"
   inner_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_inner.log"
+  phases_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_phases.log"
   current_log="$log"
   current_inner_src="build/logs/${compiler_base}_native_quick_integration.log"
   current_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_interrupt.log"
+  current_phases_src="build/logs/${compiler_base}_native_quick_integration.phases.log"
+  current_phases_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_interrupt_phases.log"
   echo "== run ${run}/${runs} ==" >&2
   set +e
   if [[ "${#env_args[@]}" -gt 0 ]]; then
@@ -120,16 +128,24 @@ while [[ "$run" -le "$runs" ]]; do
   if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
     cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$inner_log"
   fi
+  if [[ -f "build/logs/${compiler_base}_native_quick_integration.phases.log" ]]; then
+    cp -f "build/logs/${compiler_base}_native_quick_integration.phases.log" "$phases_log"
+  fi
   if [[ "$rc" -ne 0 ]]; then
     local_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_err.log"
+    local_phases_err_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_err_phases.log"
     if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
       cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$local_err_log"
+    fi
+    if [[ -f "build/logs/${compiler_base}_native_quick_integration.phases.log" ]]; then
+      cp -f "build/logs/${compiler_base}_native_quick_integration.phases.log" "$local_phases_err_log"
     fi
   fi
   if [[ "$rc" -ne 0 ]]; then
     if [[ "$auto_rerun" == "1" ]]; then
       guard_log="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_guardrails.log"
       guard_inner="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_guardrails_inner.log"
+      guard_phases="build/logs/${compiler_base}_native_quick_flake_${ts}_run${run}_guardrails_phases.log"
       guard_env=()
       if [[ -n "${OREN_QI_AUTO_RERUN_ENV:-}" ]]; then
         read -r -a guard_env <<<"${OREN_QI_AUTO_RERUN_ENV}"
@@ -148,6 +164,9 @@ while [[ "$run" -le "$runs" ]]; do
       if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
         cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$guard_inner"
       fi
+      if [[ -f "build/logs/${compiler_base}_native_quick_integration.phases.log" ]]; then
+        cp -f "build/logs/${compiler_base}_native_quick_integration.phases.log" "$guard_phases"
+      fi
       echo "auto_rerun_rc=${guard_rc} guard_log=${guard_log}" >>"$log"
       if [[ "$guard_rc" -ne 0 ]]; then
         echo "== guardrails log tail ==" >&2
@@ -163,6 +182,10 @@ while [[ "$run" -le "$runs" ]]; do
     if [[ -f "$inner_log" ]]; then
       echo "== inner log tail ==" >&2
       tail -n 80 "$inner_log" >&2 || true
+    fi
+    if [[ -f "$phases_log" ]]; then
+      echo "== phases log tail ==" >&2
+      tail -n 80 "$phases_log" >&2 || true
     fi
     exit "$rc"
   fi

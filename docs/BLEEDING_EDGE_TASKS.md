@@ -1354,6 +1354,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - New: `scripts/triage_stage2_quick_until_world_lock.sh` runs native quick integration
     plus the smokes leading up to `test_green_two_workers_world_lock_smoke` to isolate
     order-sensitive hangs.
+  - Update (2026-03-15): `scripts/triage_native_quick_flake.sh` now snapshots the per-run
+    quick-integration phase log as well as the inner log, so timeout runs preserve both
+    artifacts automatically.
+  - New (2026-03-15): `scripts/triage_native_quick_green_cache_flake.sh` +
+    `make test-native-quick-green-cache-flake` isolate only the stage1 green-cache rerun path
+    with STW/runq guards enabled.
+  - Trace (2026-03-15): the focused green-cache-only harness hit a timeout on run 3
+    (`build/logs/codex_stage1_qi_green_cache_only_guarded_20260315.log`), with the last STW
+    trace showing `expected=9` parked threads before the run timed out. Follow-up traced loops
+    passed 10/10, so treat this as a low-frequency runtime race in the dirty stage1 green/STW
+    path, not as a deterministic compiler regression.
   - New: quick flake triage scripts capture the in-flight inner log on SIGTERM/SIGINT
     (writes `*_interrupt.log` alongside the per-run log) for hang forensics.
   - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside
