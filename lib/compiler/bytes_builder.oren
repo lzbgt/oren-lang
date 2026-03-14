@@ -155,6 +155,27 @@ fn bytes_extend_u8_buf(b, ubuf) {
     return nil
 }
 
+fn bytes_extend_string(b, s) {
+    // Extend a bytes builder from a string without materializing an intermediate list<int>.
+    //
+    // PERF (native self-hosted compiler):
+    // - `oren_bytes_from_string(...)` is efficient in the native runtime, but still allocates a
+    //   transient list object.
+    // - Per-byte `bytes_push(...)` loops avoid that list but add builder overhead for every byte.
+    // - This path keeps both costs out of hot emitters like debug-info serialization.
+    if s == nil { return nil }
+    var n = oren_string_len(s)
+    if n <= 0 { return nil }
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + n)
+    var srcp = s
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_extend_string: buf data ptr is nil") }
+    _memcpy8(iadd(dstp, used), srcp, n)
+    _bytes_set_len_raw(b, used + n)
+    return nil
+}
+
 fn bytes_set_u8(b, idx, v) {
     var used = _bytes_len_raw(b)
     if idx < 0 || idx >= used { oren_fail(1, "bytes_set_u8: index out of bounds") }

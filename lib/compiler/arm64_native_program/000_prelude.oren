@@ -24,8 +24,11 @@ fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
 fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_extend_u8_buf(b, ubuf) { return core.bytes_extend_u8_buf(b, ubuf) }
+fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn bytes_finalize(b) { return core.bytes_finalize(b) }
+fn bytes_set_u64_le(buf, offset, n) { return core.bytes_set_u64_le(buf, offset, n) }
 fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
 fn align_up(n, align) { return core.align_up(n, align) }
 fn ceil_div(a, b) { return core.ceil_div(a, b) }
@@ -180,4 +183,3 @@ fn _arm64_linked_has_toplevel_fn_named(linked, name) {
     }
     return false
 }
-

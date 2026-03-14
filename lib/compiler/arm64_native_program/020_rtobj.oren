@@ -18,6 +18,22 @@ fn _arm64_rtobj_clone_map_with_cap(src, cap) {
     return out
 }
 
+fn _arm64_rtobj_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _arm64_rtobj_phase_log_append(path, phase, detail) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(oren_time_now_ns())
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
 fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
     if ctx == nil || meta == nil { return false }
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -74,21 +90,20 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
     }
     if trace_apply { print("[arm64_rtobj_apply] globals done") }
 
-    // Merge runtime cstr0 offsets list (store decoded offs into ctx list).
+    // Keep runtime cstr0 offsets encoded until final data-table emission.
+    //
+    // Stage2-native arm64 was spending disproportionate time in the eager
+    // reserve+push merge here even though the cached list is modest. Stashing the
+    // encoded rtobj list avoids that startup hot path and lets final emission
+    // write the runtime entries directly.
     if trace_apply { print("[arm64_rtobj_apply] cstr0 start") }
-    if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
+    var c0_u8 = meta["cstr0_offsets_u8"]
+    if c0_u8 != nil {
+        ctx["rtobj_cstr0_offsets_u8"] = c0_u8
+    }
     var c0 = meta["cstr0_list_enc"]
     if c0 != nil {
-        oren_list_reserve(ctx["cstr0_list"], oren_list_len(ctx["cstr0_list"]) + oren_list_len(c0))
-        var i0 = 0
-        while i0 < oren_list_len(c0) {
-            var off_enc2 = c0[i0]
-            var off2 = _rtobj_decode_int_enc(off_enc2)
-            if off2 != nil {
-                oren_list_push(ctx["cstr0_list"], off2)
-            }
-            i0 = i0 + 1
-        }
+        ctx["rtobj_cstr0_list_enc"] = c0
     }
     if trace_apply { print("[arm64_rtobj_apply] cstr0 done") }
 
@@ -133,28 +148,38 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
         if dbg != nil {
             if ctx["debug_info"] == nil { ctx["debug_info"] = {"funcs": []} }
             if ctx["debug_info"]["funcs"] == nil { ctx["debug_info"]["funcs"] = [] }
-            oren_list_reserve(ctx["debug_info"]["funcs"], oren_list_len(ctx["debug_info"]["funcs"]) + oren_list_len(dbg))
-            var di = 0
-            while di < oren_list_len(dbg) {
-                var f0 = dbg[di]
-                if f0 != nil {
-                    var nm_dbg = f0["name"]
-                    var st_dbg = _rtobj_decode_int_enc(f0["start_enc"])
-                    var en_dbg = _rtobj_decode_int_enc(f0["end_enc"])
-                    if nm_dbg != nil && st_dbg != nil && en_dbg != nil {
-                        oren_list_push(ctx["debug_info"]["funcs"], {
-                            "name": nm_dbg,
-                            "start": base_code + st_dbg,
-                            "end": base_code + en_dbg,
-                            "file": "<runtime>",
-                            "line": 0,
-                            "col": 0,
-                            "params": []
-                        })
+            var dbg_names = nil
+            var dbg_starts = nil
+            var dbg_ends = nil
+            if oren_is_map(dbg) == true && dbg["name"] != nil && dbg["start_enc"] != nil && dbg["end_enc"] != nil {
+                dbg_names = dbg["name"]
+                dbg_starts = dbg["start_enc"]
+                dbg_ends = dbg["end_enc"]
+            } else {
+                // Compatibility path for older cache entries that stored a list of maps.
+                dbg_names = []
+                dbg_starts = []
+                dbg_ends = []
+                var di = 0
+                while di < oren_list_len(dbg) {
+                    var df = dbg[di]
+                    if df != nil &&
+                       df["name"] != nil &&
+                       df["start_enc"] != nil &&
+                       df["end_enc"] != nil {
+                        oren_list_push(dbg_names, df["name"])
+                        oren_list_push(dbg_starts, df["start_enc"])
+                        oren_list_push(dbg_ends, df["end_enc"])
                     }
+                    di = di + 1
                 }
-                di = di + 1
             }
+            ctx["rtobj_debug_func_names"] = dbg_names
+            ctx["rtobj_debug_func_start_enc"] = dbg_starts
+            ctx["rtobj_debug_func_end_enc"] = dbg_ends
+            if meta["debug_blob_u8"] != nil { ctx["rtobj_debug_blob_u8"] = meta["debug_blob_u8"] }
+            if meta["debug_patch_pos_u8"] != nil { ctx["rtobj_debug_patch_pos_u8"] = meta["debug_patch_pos_u8"] }
+            ctx["rtobj_debug_funcs_base_code"] = base_code
         }
     }
     if trace_apply { print("[arm64_rtobj_apply] debug_funcs done") }
@@ -173,10 +198,15 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
         if fx != nil {
             var fx_n = oren_list_len(fx)
             if trace_apply { print("[arm64_rtobj_apply] fixups count=" + oren_int_to_string(fx_n)) }
-            var fx_compact_migrated = _arm64_rtobj_encode_fixups_compact(fx)
+            var fx_compact_migrated = _arm64_rtobj_encode_fixups_compact_from_enc(fx)
             if fx_compact_migrated != nil {
                 ctx["runtime_fixups_compact"] = fx_compact_migrated
                 ctx["runtime_fixups_count"] = _arm64_rtobj_fixups_count_compact(fx_compact_migrated)
+                var cache_dir = meta["cache_dir"]
+                var cache_key = meta["cache_key"]
+                if cache_dir != nil && cache_key != nil {
+                    rtobj.rtobj_store_fixups_compact_sidecar(cache_dir, cache_key, fx_compact_migrated)
+                }
             } else {
                 ctx["runtime_fixups_enc"] = fx
                 ctx["runtime_fixups_count"] = fx_n
@@ -268,6 +298,17 @@ fn _arm64_rtobj_encode_offsets_list_int(xs) {
     return out
 }
 
+fn _arm64_rtobj_encode_offsets_u8_from_int_list(xs) {
+    if xs == nil { return nil }
+    var b = bytes_new()
+    var i = 0
+    while i < oren_list_len(xs) {
+        push_u64_le(b, xs[i])
+        i = i + 1
+    }
+    return bytes_finalize(b)
+}
+
 fn _arm64_rtobj_encode_fixups(fixups) {
     if fixups == nil { return [] }
     var out = []
@@ -297,10 +338,39 @@ fn _arm64_rtobj_encode_fixups(fixups) {
 
 fn _arm64_rtobj_encode_fixups_compact(fixups) {
     if fixups == nil { return nil }
+    var bl_n = 0
+    var adr_data_n = 0
+    var adr_code_n = 0
+    var ci = 0
+    while ci < oren_list_len(fixups) {
+        var cf = fixups[ci]
+        if cf != nil {
+            var cpos = cf["pos"]
+            if oren_type_tag(cpos) == 1 {
+                var cty = cf["type"]
+                if cty == "bl" {
+                    if cf["name"] != nil { bl_n = bl_n + 1 }
+                } else if cty == "adr_data" {
+                    if oren_type_tag(cf["data_off"]) == 1 { adr_data_n = adr_data_n + 1 }
+                } else if cty == "adr_code" {
+                    if cf["name"] != nil { adr_code_n = adr_code_n + 1 }
+                }
+            }
+        }
+        ci = ci + 1
+    }
+    var bl_pos_enc = oren_list_new_cap(bl_n); if oren_is_err(bl_pos_enc) { bl_pos_enc = [] }
+    var bl_name = oren_list_new_cap(bl_n); if oren_is_err(bl_name) { bl_name = [] }
+    var adr_data_pos_enc = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_pos_enc) { adr_data_pos_enc = [] }
+    var adr_data_data_off_enc = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_data_off_enc) { adr_data_data_off_enc = [] }
+    var adr_data_reg_enc = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_reg_enc) { adr_data_reg_enc = [] }
+    var adr_code_pos_enc = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_pos_enc) { adr_code_pos_enc = [] }
+    var adr_code_name = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_name) { adr_code_name = [] }
+    var adr_code_reg_enc = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_reg_enc) { adr_code_reg_enc = [] }
     var out = {
-        "bl_pos_enc": [], "bl_name": [],
-        "adr_data_pos_enc": [], "adr_data_data_off_enc": [], "adr_data_reg_enc": [],
-        "adr_code_pos_enc": [], "adr_code_name": [], "adr_code_reg_enc": []
+        "bl_pos_enc": bl_pos_enc, "bl_name": bl_name,
+        "adr_data_pos_enc": adr_data_pos_enc, "adr_data_data_off_enc": adr_data_data_off_enc, "adr_data_reg_enc": adr_data_reg_enc,
+        "adr_code_pos_enc": adr_code_pos_enc, "adr_code_name": adr_code_name, "adr_code_reg_enc": adr_code_reg_enc
     }
     var i = 0
     while i < oren_list_len(fixups) {
@@ -312,26 +382,101 @@ fn _arm64_rtobj_encode_fixups_compact(fixups) {
                 if ty == "bl" {
                     var nm = f0["name"]
                     if nm != nil {
-                        oren_list_push(out["bl_pos_enc"], pos + 1)
-                        oren_list_push(out["bl_name"], nm)
+                        oren_list_push_unchecked(out["bl_pos_enc"], pos + 1)
+                        oren_list_push_unchecked(out["bl_name"], nm)
                     }
                 } else if ty == "adr_data" {
                     var data_off = f0["data_off"]
                     if oren_type_tag(data_off) == 1 {
-                        oren_list_push(out["adr_data_pos_enc"], pos + 1)
-                        oren_list_push(out["adr_data_data_off_enc"], data_off + 1)
+                        oren_list_push_unchecked(out["adr_data_pos_enc"], pos + 1)
+                        oren_list_push_unchecked(out["adr_data_data_off_enc"], data_off + 1)
                         var reg = f0["reg"]
-                        if oren_type_tag(reg) == 1 { oren_list_push(out["adr_data_reg_enc"], reg + 1) }
-                        else { oren_list_push(out["adr_data_reg_enc"], 0) }
+                        if oren_type_tag(reg) == 1 { oren_list_push_unchecked(out["adr_data_reg_enc"], reg + 1) }
+                        else { oren_list_push_unchecked(out["adr_data_reg_enc"], 0) }
                     }
                 } else if ty == "adr_code" {
                     var nm2 = f0["name"]
                     if nm2 != nil {
-                        oren_list_push(out["adr_code_pos_enc"], pos + 1)
-                        oren_list_push(out["adr_code_name"], nm2)
+                        oren_list_push_unchecked(out["adr_code_pos_enc"], pos + 1)
+                        oren_list_push_unchecked(out["adr_code_name"], nm2)
                         var reg2 = f0["reg"]
-                        if oren_type_tag(reg2) == 1 { oren_list_push(out["adr_code_reg_enc"], reg2 + 1) }
-                        else { oren_list_push(out["adr_code_reg_enc"], 0) }
+                        if oren_type_tag(reg2) == 1 { oren_list_push_unchecked(out["adr_code_reg_enc"], reg2 + 1) }
+                        else { oren_list_push_unchecked(out["adr_code_reg_enc"], 0) }
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _arm64_rtobj_encode_fixups_compact_from_enc(fixups_enc) {
+    if fixups_enc == nil { return nil }
+    var bl_n = 0
+    var adr_data_n = 0
+    var adr_code_n = 0
+    var ci = 0
+    while ci < oren_list_len(fixups_enc) {
+        var cf = fixups_enc[ci]
+        if cf != nil {
+            var cpos = cf["pos"]
+            if oren_type_tag(cpos) == 1 {
+                var cty = cf["type"]
+                if cty == "bl" {
+                    if cf["name"] != nil { bl_n = bl_n + 1 }
+                } else if cty == "adr_data" {
+                    if oren_type_tag(cf["data_off"]) == 1 { adr_data_n = adr_data_n + 1 }
+                } else if cty == "adr_code" {
+                    if cf["name"] != nil { adr_code_n = adr_code_n + 1 }
+                }
+            }
+        }
+        ci = ci + 1
+    }
+    var bl_pos_enc = oren_list_new_cap(bl_n); if oren_is_err(bl_pos_enc) { bl_pos_enc = [] }
+    var bl_name = oren_list_new_cap(bl_n); if oren_is_err(bl_name) { bl_name = [] }
+    var adr_data_pos_enc = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_pos_enc) { adr_data_pos_enc = [] }
+    var adr_data_data_off_enc = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_data_off_enc) { adr_data_data_off_enc = [] }
+    var adr_data_reg_enc = oren_list_new_cap(adr_data_n); if oren_is_err(adr_data_reg_enc) { adr_data_reg_enc = [] }
+    var adr_code_pos_enc = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_pos_enc) { adr_code_pos_enc = [] }
+    var adr_code_name = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_name) { adr_code_name = [] }
+    var adr_code_reg_enc = oren_list_new_cap(adr_code_n); if oren_is_err(adr_code_reg_enc) { adr_code_reg_enc = [] }
+    var out = {
+        "bl_pos_enc": bl_pos_enc, "bl_name": bl_name,
+        "adr_data_pos_enc": adr_data_pos_enc, "adr_data_data_off_enc": adr_data_data_off_enc, "adr_data_reg_enc": adr_data_reg_enc,
+        "adr_code_pos_enc": adr_code_pos_enc, "adr_code_name": adr_code_name, "adr_code_reg_enc": adr_code_reg_enc
+    }
+    var i = 0
+    while i < oren_list_len(fixups_enc) {
+        var f0 = fixups_enc[i]
+        if f0 != nil {
+            var pos_enc = f0["pos"]
+            if oren_type_tag(pos_enc) == 1 {
+                var ty = f0["type"]
+                if ty == "bl" {
+                    var nm = f0["name"]
+                    if nm != nil {
+                        oren_list_push_unchecked(out["bl_pos_enc"], pos_enc)
+                        oren_list_push_unchecked(out["bl_name"], nm)
+                    }
+                } else if ty == "adr_data" {
+                    var data_off_enc = f0["data_off"]
+                    if oren_type_tag(data_off_enc) == 1 {
+                        oren_list_push_unchecked(out["adr_data_pos_enc"], pos_enc)
+                        oren_list_push_unchecked(out["adr_data_data_off_enc"], data_off_enc)
+                        var reg_enc = f0["reg"]
+                        if oren_type_tag(reg_enc) == 1 { oren_list_push_unchecked(out["adr_data_reg_enc"], reg_enc) }
+                        else { oren_list_push_unchecked(out["adr_data_reg_enc"], 0) }
+                    }
+                } else if ty == "adr_code" {
+                    var nm2 = f0["name"]
+                    if nm2 != nil {
+                        oren_list_push_unchecked(out["adr_code_pos_enc"], pos_enc)
+                        oren_list_push_unchecked(out["adr_code_name"], nm2)
+                        var reg_enc2 = f0["reg"]
+                        if oren_type_tag(reg_enc2) == 1 { oren_list_push_unchecked(out["adr_code_reg_enc"], reg_enc2) }
+                        else { oren_list_push_unchecked(out["adr_code_reg_enc"], 0) }
                     }
                 }
             }
@@ -351,11 +496,17 @@ fn _arm64_rtobj_fixups_count_compact(fx) {
 }
 
 fn _arm64_rtobj_encode_debug_funcs(funcs) {
-    // Encode debug-info function ranges into a compact cache-friendly form.
+    // Encode runtime debug-info into parallel arrays.
+    //
+    // A list-of-maps shape is convenient to write, but self-hosted stage2-native arm64 was
+    // spending disproportionate time re-reading astbin-decoded map fields during final debug
+    // emission. Parallel arrays keep the cache representation compact and fast to replay.
     //
     // Store ints as +1 to avoid 0-as-nil when the compiler runs under the native runtime.
-    if funcs == nil { return [] }
-    var out = []
+    if funcs == nil { return {"name": [], "start_enc": [], "end_enc": []} }
+    var names = []
+    var starts = []
+    var ends = []
     var i = 0
     while i < oren_list_len(funcs) {
         var f0 = funcs[i]
@@ -364,12 +515,14 @@ fn _arm64_rtobj_encode_debug_funcs(funcs) {
             var st = f0["start"]
             var en = f0["end"]
             if nm != nil && oren_type_tag(st) == 1 && oren_type_tag(en) == 1 {
-                oren_list_push(out, {"name": nm, "start_enc": st + 1, "end_enc": en + 1})
+                oren_list_push(names, nm)
+                oren_list_push(starts, st + 1)
+                oren_list_push(ends, en + 1)
             }
         }
         i = i + 1
     }
-    return out
+    return {"name": names, "start_enc": starts, "end_enc": ends}
 }
 
 fn _arm64_rtobj_trace_fail(ctx, stage) {
@@ -663,6 +816,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         "func_decl_order": ctx["func_decl_order"],
         "lambda_counter_enc": ctx["lambda_counter"] + 1
     }
+    var cstr0_offsets_u8 = _arm64_rtobj_encode_offsets_u8_from_int_list(ctx["cstr0_list"])
     if platform != nil && platform["debug"] == true {
         meta["debug_funcs_enc"] = _arm64_rtobj_encode_debug_funcs(ctx["debug_info"]["funcs"])
     }
@@ -693,7 +847,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
               " data_bytes=" + oren_int_to_string(oren_buf_len(data_u8)) +
               " fixups_n=" + oren_int_to_string(fx_n))
     }
-    return {"meta": meta, "code_u8": code_u8, "data_tail_u8": tail}
+    return {"meta": meta, "code_u8": code_u8, "data_tail_u8": tail, "cstr0_offsets_u8": cstr0_offsets_u8}
 }
 
 fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
@@ -703,6 +857,7 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     var trace = rtobj.rtobj_trace_enabled()
     var t0 = 0
     if trace { t0 = oren_time_now_ns() }
+    var phase_log = _arm64_rtobj_phase_log_path()
 
     var rh = rtobj.rtobj_runtime_hash(ctx, runtime_path)
     if rh == nil || rh == "" { return false }
@@ -712,6 +867,7 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
 
     var hit = rtobj.rtobj_load(dir, key)
     if hit != nil {
+        if phase_log != nil { _arm64_rtobj_phase_log_append(phase_log, "rtobj.hit", "key=" + key) }
         if trace { print("[rtobj] hit backend=arm64 key=" + key) }
         if trace {
             var gl = hit["globals"]
@@ -720,7 +876,13 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
             print("[rtobj] meta globals len=" + oren_int_to_string(gln))
         }
         if trace { print("[rtobj] apply hit start") }
+        if phase_log != nil { _arm64_rtobj_phase_log_append(phase_log, "rtobj.apply.hit.start", "key=" + key) }
         var ok_hit = _arm64_rtobj_apply_to_ctx(ctx, hit)
+        if phase_log != nil {
+            var ok_hit_s2 = "0"
+            if ok_hit { ok_hit_s2 = "1" }
+            _arm64_rtobj_phase_log_append(phase_log, "rtobj.apply.hit.done", "ok=" + ok_hit_s2 + " key=" + key)
+        }
         if trace {
             var ok_hit_s = "false"
             if ok_hit { ok_hit_s = "true" }
@@ -744,8 +906,14 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     // is empty (e.g. benchmarking scripts that isolate cache dirs).
     var seed_hit = rtobj.rtobj_try_load_seed_into_cache(dir, key)
     if seed_hit != nil {
+        if phase_log != nil { _arm64_rtobj_phase_log_append(phase_log, "rtobj.seed_hit", "key=" + key) }
         if trace { print("[rtobj] seed-hit backend=arm64 key=" + key) }
         var ok_seed = _arm64_rtobj_apply_to_ctx(ctx, seed_hit)
+        if phase_log != nil {
+            var ok_seed_s = "0"
+            if ok_seed { ok_seed_s = "1" }
+            _arm64_rtobj_phase_log_append(phase_log, "rtobj.apply.seed.done", "ok=" + ok_seed_s + " key=" + key)
+        }
         if trace {
             var cg_seed = ctx["globals"]
             var cgn_seed = 0
@@ -761,15 +929,18 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     }
 
     if trace { print("[rtobj] miss backend=arm64 key=" + key + " (building)") }
+    if phase_log != nil { _arm64_rtobj_phase_log_append(phase_log, "rtobj.miss.build.start", "key=" + key) }
     var built = _arm64_build_runtime_obj(platform, runtime_path, rh, bsig)
     if built == nil {
+        if phase_log != nil { _arm64_rtobj_phase_log_append(phase_log, "rtobj.miss.build.fail", "key=" + key) }
         if trace { print("[rtobj] build failed backend=arm64 (falling back)") }
         return false
     }
+    if phase_log != nil { _arm64_rtobj_phase_log_append(phase_log, "rtobj.miss.build.done", "key=" + key) }
 
     // Persist to cache.
     var meta = built["meta"]
-    rtobj.rtobj_store(dir, key, meta, built["code_u8"], built["data_tail_u8"])
+    rtobj.rtobj_store(dir, key, meta, built["code_u8"], built["data_tail_u8"], built["cstr0_offsets_u8"])
 
     // Apply immediately (avoid re-reading).
     meta["code_u8"] = built["code_u8"]

@@ -768,9 +768,176 @@ fn rtobj_paths(cache_dir, key) {
         "dir": dir,
         "meta": dir + "/meta.astbin",
         "meta_check": dir + "/meta.check",
+        "fixups_compact": dir + "/fixups_compact.astbin",
+        "cstr0_offsets": dir + "/cstr0_offsets.u8",
+        "debug_blob": dir + "/debug_blob.u8",
+        "debug_patch_pos": dir + "/debug_patch_pos.u8",
         "code": dir + "/code.u8",
         "data_tail": dir + "/data_tail.u8"
     }
+}
+
+fn rtobj_load_fixups_compact_sidecar(cache_dir, key) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    var bs = oren_read_u8_buf(paths["fixups_compact"])
+    if oren_is_err(bs) { return nil }
+    return astbin.astbin_decode(bs)
+}
+
+fn rtobj_store_fixups_compact_sidecar(cache_dir, key, fixups_compact) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    if fixups_compact == nil { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    _ensure_dir(paths["dir"])
+    var bs = astbin.astbin_encode(fixups_compact)
+    if bs == nil { return nil }
+    _rtobj_write_atomic(paths["fixups_compact"], bs)
+    return nil
+}
+
+fn _rtobj_build_cstr0_offsets_u8_from_enc(cstr0_list_enc) {
+    if cstr0_list_enc == nil { return nil }
+    var b = bytes.bytes_new()
+    var i = 0
+    while i < oren_list_len(cstr0_list_enc) {
+        var off_enc = cstr0_list_enc[i]
+        if oren_type_tag(off_enc) == 1 && off_enc > 0 {
+            bytes.bytes_push_u64_le(b, off_enc - 1)
+        }
+        i = i + 1
+    }
+    return bytes.bytes_finalize(b)
+}
+
+fn rtobj_load_cstr0_offsets_sidecar(cache_dir, key) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    var bs = oren_read_u8_buf(paths["cstr0_offsets"])
+    if oren_is_err(bs) { return nil }
+    var n = oren_buf_len(bs)
+    if n < 0 { return nil }
+    if (n / 8) * 8 != n { return nil }
+    return bs
+}
+
+fn rtobj_store_cstr0_offsets_sidecar(cache_dir, key, cstr0_offsets_u8) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    if cstr0_offsets_u8 == nil { return nil }
+    if oren_is_u8_buf(cstr0_offsets_u8) != true { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    _ensure_dir(paths["dir"])
+    _rtobj_write_atomic(paths["cstr0_offsets"], cstr0_offsets_u8)
+    return nil
+}
+
+fn _rtobj_align_bytes_8(b) {
+    if b == nil { return nil }
+    while (bytes.bytes_len(b) / 8) * 8 != bytes.bytes_len(b) {
+        bytes.bytes_push(b, 0)
+    }
+    return nil
+}
+
+fn _rtobj_normalize_debug_funcs_enc(debug_funcs_enc) {
+    if debug_funcs_enc == nil { return nil }
+    if oren_is_map(debug_funcs_enc) == true &&
+       debug_funcs_enc["name"] != nil &&
+       debug_funcs_enc["start_enc"] != nil &&
+       debug_funcs_enc["end_enc"] != nil {
+        return {
+            "name": debug_funcs_enc["name"],
+            "start_enc": debug_funcs_enc["start_enc"],
+            "end_enc": debug_funcs_enc["end_enc"]
+        }
+    }
+    var names = []
+    var starts = []
+    var ends = []
+    var i = 0
+    while i < oren_list_len(debug_funcs_enc) {
+        var df = debug_funcs_enc[i]
+        if df != nil &&
+           df["name"] != nil &&
+           df["start_enc"] != nil &&
+           df["end_enc"] != nil {
+            oren_list_push(names, df["name"])
+            oren_list_push(starts, df["start_enc"])
+            oren_list_push(ends, df["end_enc"])
+        }
+        i = i + 1
+    }
+    return {"name": names, "start_enc": starts, "end_enc": ends}
+}
+
+fn _rtobj_build_debug_blob_sidecars_from_enc(debug_funcs_enc) {
+    var norm = _rtobj_normalize_debug_funcs_enc(debug_funcs_enc)
+    if norm == nil { return nil }
+    var names = norm["name"]
+    var starts = norm["start_enc"]
+    var ends = norm["end_enc"]
+    if names == nil || starts == nil || ends == nil { return nil }
+    var n = oren_list_len(names)
+    if oren_list_len(starts) < n { n = oren_list_len(starts) }
+    if oren_list_len(ends) < n { n = oren_list_len(ends) }
+    var blob = bytes.bytes_new()
+    var patch = bytes.bytes_new()
+    var i = 0
+    while i < n {
+        var nm = names[i]
+        var st = starts[i]
+        var en = ends[i]
+        if nm != nil && st != nil && en != nil {
+            var pos = bytes.bytes_len(blob)
+            bytes.bytes_push_u64_le(blob, 0)
+            bytes.bytes_push_u64_le(blob, 0)
+            bytes.bytes_push_u64_le(patch, pos)
+            var name_len = oren_string_len(nm)
+            bytes.bytes_push_u64_le(blob, name_len)
+            bytes.bytes_extend_list(blob, oren_bytes_from_string(nm))
+            _rtobj_align_bytes_8(blob)
+            bytes.bytes_push_u64_le(blob, 0)
+            bytes.bytes_push_u64_le(blob, 0)
+            bytes.bytes_push_u64_le(blob, 0)
+        }
+        i = i + 1
+    }
+    return {
+        "debug_blob_u8": bytes.bytes_finalize(blob),
+        "debug_patch_pos_u8": bytes.bytes_finalize(patch),
+        "debug_funcs_enc_norm": norm
+    }
+}
+
+fn rtobj_load_debug_blob_sidecar(cache_dir, key) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    var bs = oren_read_u8_buf(paths["debug_blob"])
+    if oren_is_err(bs) { return nil }
+    return bs
+}
+
+fn rtobj_load_debug_patch_pos_sidecar(cache_dir, key) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    var bs = oren_read_u8_buf(paths["debug_patch_pos"])
+    if oren_is_err(bs) { return nil }
+    var n = oren_buf_len(bs)
+    if n < 0 { return nil }
+    if (n / 8) * 8 != n { return nil }
+    return bs
+}
+
+fn rtobj_store_debug_sidecars(cache_dir, key, debug_blob_u8, debug_patch_pos_u8) {
+    if cache_dir == nil || cache_dir == "" || key == nil || key == "" { return nil }
+    if debug_blob_u8 == nil || debug_patch_pos_u8 == nil { return nil }
+    if oren_is_u8_buf(debug_blob_u8) != true { return nil }
+    if oren_is_u8_buf(debug_patch_pos_u8) != true { return nil }
+    var paths = rtobj_paths(cache_dir, key)
+    _ensure_dir(paths["dir"])
+    _rtobj_write_atomic(paths["debug_blob"], debug_blob_u8)
+    _rtobj_write_atomic(paths["debug_patch_pos"], debug_patch_pos_u8)
+    return nil
 }
 
 fn _rtobj_meta_check_build(meta_bs) {
@@ -893,6 +1060,25 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
 
     meta["code_u8"] = code
     meta["data_tail_u8"] = data_tail
+    var cstr0_offsets_u8 = rtobj_load_cstr0_offsets_sidecar(seed_dir, key)
+    if cstr0_offsets_u8 == nil && meta["cstr0_list_enc"] != nil {
+        cstr0_offsets_u8 = _rtobj_build_cstr0_offsets_u8_from_enc(meta["cstr0_list_enc"])
+    }
+    if cstr0_offsets_u8 != nil { meta["cstr0_offsets_u8"] = cstr0_offsets_u8 }
+    var debug_blob_u8 = rtobj_load_debug_blob_sidecar(seed_dir, key)
+    var debug_patch_pos_u8 = rtobj_load_debug_patch_pos_sidecar(seed_dir, key)
+    if (debug_blob_u8 == nil || debug_patch_pos_u8 == nil) && meta["debug_funcs_enc"] != nil {
+        var dbg_sidecars_seed = _rtobj_build_debug_blob_sidecars_from_enc(meta["debug_funcs_enc"])
+        if dbg_sidecars_seed != nil {
+            if debug_blob_u8 == nil { debug_blob_u8 = dbg_sidecars_seed["debug_blob_u8"] }
+            if debug_patch_pos_u8 == nil { debug_patch_pos_u8 = dbg_sidecars_seed["debug_patch_pos_u8"] }
+            if dbg_sidecars_seed["debug_funcs_enc_norm"] != nil { meta["debug_funcs_enc"] = dbg_sidecars_seed["debug_funcs_enc_norm"] }
+        }
+    }
+    if debug_blob_u8 != nil { meta["debug_blob_u8"] = debug_blob_u8 }
+    if debug_patch_pos_u8 != nil { meta["debug_patch_pos_u8"] = debug_patch_pos_u8 }
+    meta["cache_dir"] = cache_dir
+    meta["cache_key"] = key
 
     if trace {
         var dt0 = (oren_time_now_ns() - t0) / 1000000
@@ -908,6 +1094,11 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
         _rtobj_write_atomic(dst["meta_check"], meta_check)
         _rtobj_write_atomic(dst["code"], code)
         _rtobj_write_atomic(dst["data_tail"], data_tail)
+        if cstr0_offsets_u8 != nil { _rtobj_write_atomic(dst["cstr0_offsets"], cstr0_offsets_u8) }
+        if debug_blob_u8 != nil && debug_patch_pos_u8 != nil {
+            _rtobj_write_atomic(dst["debug_blob"], debug_blob_u8)
+            _rtobj_write_atomic(dst["debug_patch_pos"], debug_patch_pos_u8)
+        }
         if trace { print("[rtobj] seed-copied to cache dir=" + cache_dir) }
     }
 
@@ -988,12 +1179,50 @@ fn rtobj_load(cache_dir, key) {
         var dt2 = oren_time_now_ns() - t0
         print("[rtobj] load code+data bytes done +" + oren_int_to_string(dt2 / 1000000) + "ms")
     }
+    if meta["fixups_compact"] == nil {
+        var fx_compact_sidecar = rtobj_load_fixups_compact_sidecar(cache_dir, key)
+        if fx_compact_sidecar != nil {
+            meta["fixups_compact"] = fx_compact_sidecar
+            if trace { print("[rtobj] load fixups_compact sidecar hit") }
+        }
+    }
+    var cstr0_offsets_u8 = rtobj_load_cstr0_offsets_sidecar(cache_dir, key)
+    if cstr0_offsets_u8 == nil && meta["cstr0_list_enc"] != nil {
+        cstr0_offsets_u8 = _rtobj_build_cstr0_offsets_u8_from_enc(meta["cstr0_list_enc"])
+        if cstr0_offsets_u8 != nil {
+            rtobj_store_cstr0_offsets_sidecar(cache_dir, key, cstr0_offsets_u8)
+            if trace { print("[rtobj] load cstr0_offsets sidecar rebuilt") }
+        }
+    } else if cstr0_offsets_u8 != nil {
+        if trace { print("[rtobj] load cstr0_offsets sidecar hit") }
+    }
+    if cstr0_offsets_u8 != nil { meta["cstr0_offsets_u8"] = cstr0_offsets_u8 }
+    var debug_blob_u8 = rtobj_load_debug_blob_sidecar(cache_dir, key)
+    var debug_patch_pos_u8 = rtobj_load_debug_patch_pos_sidecar(cache_dir, key)
+    if (debug_blob_u8 == nil || debug_patch_pos_u8 == nil) && meta["debug_funcs_enc"] != nil {
+        var dbg_sidecars = _rtobj_build_debug_blob_sidecars_from_enc(meta["debug_funcs_enc"])
+        if dbg_sidecars != nil {
+            if debug_blob_u8 == nil { debug_blob_u8 = dbg_sidecars["debug_blob_u8"] }
+            if debug_patch_pos_u8 == nil { debug_patch_pos_u8 = dbg_sidecars["debug_patch_pos_u8"] }
+            if dbg_sidecars["debug_funcs_enc_norm"] != nil { meta["debug_funcs_enc"] = dbg_sidecars["debug_funcs_enc_norm"] }
+            if debug_blob_u8 != nil && debug_patch_pos_u8 != nil {
+                rtobj_store_debug_sidecars(cache_dir, key, debug_blob_u8, debug_patch_pos_u8)
+                if trace { print("[rtobj] load debug sidecars rebuilt") }
+            }
+        }
+    } else if debug_blob_u8 != nil && debug_patch_pos_u8 != nil {
+        if trace { print("[rtobj] load debug sidecars hit") }
+    }
+    if debug_blob_u8 != nil { meta["debug_blob_u8"] = debug_blob_u8 }
+    if debug_patch_pos_u8 != nil { meta["debug_patch_pos_u8"] = debug_patch_pos_u8 }
     meta["code_u8"] = code
     meta["data_tail_u8"] = data_tail
+    meta["cache_dir"] = cache_dir
+    meta["cache_key"] = key
     return meta
 }
 
-fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8) {
+fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8, cstr0_offsets_u8) {
     var trace = rtobj_trace_enabled()
     var t0 = 0
     if trace { t0 = oren_time_now_ns() }
@@ -1020,6 +1249,19 @@ fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8) {
         t0 = oren_time_now_ns()
     }
     _rtobj_write_atomic(paths["meta_check"], meta_check)
+    if meta["fixups_compact"] != nil {
+        rtobj_store_fixups_compact_sidecar(cache_dir, key, meta["fixups_compact"])
+    }
+    if cstr0_offsets_u8 != nil {
+        rtobj_store_cstr0_offsets_sidecar(cache_dir, key, cstr0_offsets_u8)
+    }
+    if meta["debug_funcs_enc"] != nil {
+        var dbg_sidecars_store = _rtobj_build_debug_blob_sidecars_from_enc(meta["debug_funcs_enc"])
+        if dbg_sidecars_store != nil {
+            if dbg_sidecars_store["debug_funcs_enc_norm"] != nil { meta["debug_funcs_enc"] = dbg_sidecars_store["debug_funcs_enc_norm"] }
+            rtobj_store_debug_sidecars(cache_dir, key, dbg_sidecars_store["debug_blob_u8"], dbg_sidecars_store["debug_patch_pos_u8"])
+        }
+    }
     _rtobj_write_atomic(paths["code"], code_u8)
     if trace {
         var dt3 = oren_time_now_ns() - t0

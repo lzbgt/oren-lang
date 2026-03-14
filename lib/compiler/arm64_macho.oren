@@ -22,6 +22,12 @@ fn _macho_decode_rtobj_fix_int(enc) {
     return enc - 1
 }
 
+fn _macho_decode_rtobj_fix_reg(enc) {
+    if oren_type_tag(enc) != 1 { return nil }
+    if enc <= 0 { return nil }
+    return enc - 1
+}
+
 fn _macho_lookup_function(ctx, functions, name) {
     if name == nil { return nil }
     if functions != nil {
@@ -55,6 +61,56 @@ fn _macho_rtobj_fixups_count_compact(fx) {
     if fx["adr_data_pos_enc"] != nil { n = n + oren_list_len(fx["adr_data_pos_enc"]) }
     if fx["adr_code_pos_enc"] != nil { n = n + oren_list_len(fx["adr_code_pos_enc"]) }
     return n
+}
+
+fn _macho_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _macho_phase_log_append(path, phase, detail) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(oren_time_now_ns())
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
+fn _macho_read_u64_le_u8(ub, off) {
+    if ub == nil { return nil }
+    if oren_is_u8_buf(ub) != true { return nil }
+    if off < 0 { return nil }
+    var n = oren_buf_len(ub)
+    if off + 7 >= n { return nil }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return nil }
+    var b0 = ptr_get_byte(iadd(p, off + 0)) & 255
+    var b1 = ptr_get_byte(iadd(p, off + 1)) & 255
+    var b2 = ptr_get_byte(iadd(p, off + 2)) & 255
+    var b3 = ptr_get_byte(iadd(p, off + 3)) & 255
+    var b4 = ptr_get_byte(iadd(p, off + 4)) & 255
+    var b5 = ptr_get_byte(iadd(p, off + 5)) & 255
+    var b6 = ptr_get_byte(iadd(p, off + 6)) & 255
+    var b7 = ptr_get_byte(iadd(p, off + 7)) & 255
+    return b0 + b1 * 256 + b2 * 65536 + b3 * 16777216 +
+           (b4 + b5 * 256 + b6 * 65536 + b7 * 16777216) * 4294967296
+}
+
+fn _macho_store_u64_le_ptr(dstp, off, n) {
+    if dstp == 0 { return nil }
+    ptr_set_byte(iadd(dstp, off + 0), int_mod(n, 256))
+    ptr_set_byte(iadd(dstp, off + 1), int_mod(n / 256, 256))
+    ptr_set_byte(iadd(dstp, off + 2), int_mod(n / 65536, 256))
+    ptr_set_byte(iadd(dstp, off + 3), int_mod(n / 16777216, 256))
+    var hi = n / 4294967296
+    ptr_set_byte(iadd(dstp, off + 4), int_mod(hi, 256))
+    ptr_set_byte(iadd(dstp, off + 5), int_mod(hi / 256, 256))
+    ptr_set_byte(iadd(dstp, off + 6), int_mod(hi / 65536, 256))
+    ptr_set_byte(iadd(dstp, off + 7), int_mod(hi / 16777216, 256))
+    return nil
 }
 
 // Mach-O emitter for arm64 (Darwin).
@@ -547,14 +603,55 @@ fn macho_exit_code_bytes(code) {
     return b
 }
 
+fn _macho_push_utf8_aligned(p, s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    push_u64_le(p, n)
+    var i = 0
+    while i < n {
+        bytes_push(p, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
+    return nil
+}
+
 fn emit_debug_info(ctx, text_base, header_size) {
     var p = bytes_new()
     var funcs = ctx["debug_info"]["funcs"]
-    var count = oren_list_len(funcs)
-    push_u64_le(p, count)
+    var funcs_count = oren_list_len(funcs)
+    var rt_funcs = ctx["rtobj_debug_funcs_enc"]
+    var rt_names = ctx["rtobj_debug_func_names"]
+    var rt_starts = ctx["rtobj_debug_func_start_enc"]
+    var rt_ends = ctx["rtobj_debug_func_end_enc"]
+    var rt_blob = ctx["rtobj_debug_blob_u8"]
+    var rt_patch_pos = ctx["rtobj_debug_patch_pos_u8"]
+    var rt_base_code = ctx["rtobj_debug_funcs_base_code"]
+    var phase_log = _macho_phase_log_path()
+    var rt_funcs_count = 0
+    if rt_base_code == nil { rt_base_code = 0 }
+    if rt_names != nil && rt_starts != nil && rt_ends != nil {
+        rt_funcs_count = oren_list_len(rt_names)
+        if oren_list_len(rt_starts) < rt_funcs_count { rt_funcs_count = oren_list_len(rt_starts) }
+        if oren_list_len(rt_ends) < rt_funcs_count { rt_funcs_count = oren_list_len(rt_ends) }
+        if rt_patch_pos != nil {
+            var rt_patch_n = oren_buf_len(rt_patch_pos) / 8
+            if rt_patch_n < rt_funcs_count { rt_funcs_count = rt_patch_n }
+        }
+    } else if rt_funcs != nil {
+        // `debug_funcs_enc` is already filtered at rtobj-build time to only include valid
+        // name/start/end entries. Re-scanning and decoding it again here became the dominant
+        // self-hosted debug-build cost on stage2-native arm64.
+        rt_funcs_count = oren_list_len(rt_funcs)
+    }
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.debug.emit.start", "user_funcs=" + oren_int_to_string(funcs_count) + " rt_funcs_raw=" + oren_int_to_string(rt_funcs_count))
+    }
+    push_u64_le(p, funcs_count + rt_funcs_count)
     
     var i = 0
-    while i < count {
+    var user_params_count = 0
+    while i < funcs_count {
         var f = funcs[i]
         // Absolute __TEXT addresses (for debug tooling) are based on the final load address.
         // Keep this derived from the current layout (no magic constants).
@@ -562,21 +659,13 @@ fn emit_debug_info(ctx, text_base, header_size) {
         push_u64_le(p, base + f["start"])
         push_u64_le(p, base + f["end"])
         
-        var name_bytes = oren_bytes_from_string(f["name"])
-        push_u64_le(p, oren_list_len(name_bytes))
-        var k = 0
-        while k < oren_list_len(name_bytes) { bytes_push(p, name_bytes[k]); k = k + 1 }
-        while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
+        _macho_push_utf8_aligned(p, f["name"])
 
         // Optional source location for deterministic "panic" diagnostics.
         // File stored as UTF-8; line/col are 1-based (0 means unknown).
         var ffile = f["file"]
         if ffile == nil { ffile = "" }
-        var file_bytes = oren_bytes_from_string(ffile)
-        push_u64_le(p, oren_list_len(file_bytes))
-        k = 0
-        while k < oren_list_len(file_bytes) { bytes_push(p, file_bytes[k]); k = k + 1 }
-        while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
+        _macho_push_utf8_aligned(p, ffile)
         var line = f["line"]
         var col = f["col"]
         if line == nil { line = 0 }
@@ -589,15 +678,99 @@ fn emit_debug_info(ctx, text_base, header_size) {
         var j = 0
         while j < oren_list_len(params) {
             var param = params[j]
-            var pname_bytes = oren_bytes_from_string(param["name"])
-            push_u64_le(p, oren_list_len(pname_bytes))
-            var m = 0
-            while m < oren_list_len(pname_bytes) { bytes_push(p, pname_bytes[m]); m = m + 1 }
-            while int_mod(bytes_len(p), 8) != 0 { bytes_push(p, 0) }
+            user_params_count = user_params_count + 1
+            _macho_push_utf8_aligned(p, param["name"])
             push_u64_le(p, param["offset"])
             j = j + 1
         }
         i = i + 1
+    }
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.debug.emit.user.done", "funcs=" + oren_int_to_string(funcs_count) + " params=" + oren_int_to_string(user_params_count) + " bytes=" + oren_int_to_string(bytes_len(p)))
+    }
+    if rt_blob != nil && rt_patch_pos != nil && rt_names != nil && rt_starts != nil && rt_ends != nil {
+        var base = text_base + header_size
+        var rt_blob_off = bytes_len(p)
+        core.bytes_extend_u8_buf(p, rt_blob)
+        var rt_dstp = oren_buf_data_ptr_unchecked(p["buf"])
+        var rt_funcs_kept = 0
+        var ri1 = 0
+        while ri1 < rt_funcs_count {
+            if phase_log != nil {
+                if ri1 == 0 || ri1 == 64 || ri1 == 128 || ri1 == 256 || ri1 == 512 || ri1 == 1024 {
+                    _macho_phase_log_append(phase_log, "macho.debug.emit.rt.progress", "i=" + oren_int_to_string(ri1) + " bytes=" + oren_int_to_string(bytes_len(p)))
+                }
+            }
+            var patch_pos = _macho_read_u64_le_u8(rt_patch_pos, ri1 * 8)
+            var rt_start = _macho_decode_rtobj_fix_int(rt_starts[ri1])
+            var rt_end = _macho_decode_rtobj_fix_int(rt_ends[ri1])
+            if patch_pos != nil && rt_start != nil && rt_end != nil {
+                rt_funcs_kept = rt_funcs_kept + 1
+                _macho_store_u64_le_ptr(rt_dstp, rt_blob_off + patch_pos, base + rt_base_code + rt_start)
+                _macho_store_u64_le_ptr(rt_dstp, rt_blob_off + patch_pos + 8, base + rt_base_code + rt_end)
+            }
+            ri1 = ri1 + 1
+        }
+        if phase_log != nil {
+            _macho_phase_log_append(phase_log, "macho.debug.emit.rt.done", "funcs=" + oren_int_to_string(rt_funcs_kept) + " bytes=" + oren_int_to_string(bytes_len(p)))
+        }
+    } else if rt_names != nil && rt_starts != nil && rt_ends != nil {
+        var base = text_base + header_size
+        var rt_funcs_kept = 0
+        var ri1 = 0
+        while ri1 < rt_funcs_count {
+            if phase_log != nil {
+                if ri1 == 0 || ri1 == 64 || ri1 == 128 || ri1 == 256 || ri1 == 512 || ri1 == 1024 {
+                    _macho_phase_log_append(phase_log, "macho.debug.emit.rt.progress", "i=" + oren_int_to_string(ri1) + " bytes=" + oren_int_to_string(bytes_len(p)))
+                }
+            }
+            var rt_name = rt_names[ri1]
+            var rt_start = _macho_decode_rtobj_fix_int(rt_starts[ri1])
+            var rt_end = _macho_decode_rtobj_fix_int(rt_ends[ri1])
+            if rt_name != nil && rt_start != nil && rt_end != nil {
+                rt_funcs_kept = rt_funcs_kept + 1
+                push_u64_le(p, base + rt_base_code + rt_start)
+                push_u64_le(p, base + rt_base_code + rt_end)
+                _macho_push_utf8_aligned(p, rt_name)
+                push_u64_le(p, 0)
+                push_u64_le(p, 0)
+                push_u64_le(p, 0)
+            }
+            ri1 = ri1 + 1
+        }
+        if phase_log != nil {
+            _macho_phase_log_append(phase_log, "macho.debug.emit.rt.done", "funcs=" + oren_int_to_string(rt_funcs_kept) + " bytes=" + oren_int_to_string(bytes_len(p)))
+        }
+    } else if rt_funcs != nil {
+        var base = text_base + header_size
+        var rt_funcs_kept = 0
+        var ri1 = 0
+        while ri1 < oren_list_len(rt_funcs) {
+            if phase_log != nil {
+                if ri1 == 0 || ri1 == 64 || ri1 == 128 || ri1 == 256 || ri1 == 512 || ri1 == 1024 {
+                    _macho_phase_log_append(phase_log, "macho.debug.emit.rt.progress", "i=" + oren_int_to_string(ri1) + " bytes=" + oren_int_to_string(bytes_len(p)))
+                }
+            }
+            var rf1 = rt_funcs[ri1]
+            if rf1 != nil {
+                var rt_name = rf1["name"]
+                var rt_start = _macho_decode_rtobj_fix_int(rf1["start_enc"])
+                var rt_end = _macho_decode_rtobj_fix_int(rf1["end_enc"])
+                if rt_name != nil && rt_start != nil && rt_end != nil {
+                    rt_funcs_kept = rt_funcs_kept + 1
+                    push_u64_le(p, base + rt_base_code + rt_start)
+                    push_u64_le(p, base + rt_base_code + rt_end)
+                    _macho_push_utf8_aligned(p, rt_name)
+                    push_u64_le(p, 0)
+                    push_u64_le(p, 0)
+                    push_u64_le(p, 0)
+                }
+            }
+            ri1 = ri1 + 1
+        }
+        if phase_log != nil {
+            _macho_phase_log_append(phase_log, "macho.debug.emit.rt.done", "funcs=" + oren_int_to_string(rt_funcs_kept) + " bytes=" + oren_int_to_string(bytes_len(p)))
+        }
     }
     return p
 }
@@ -627,10 +800,15 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var trace_emit = false
     var v_trace = oren_env("OREN_TRACE_NATIVE_EMIT")
     if v_trace != nil && v_trace != "" { trace_emit = true }
+    var phase_log = _macho_phase_log_path()
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.emit.start", "out=" + out_path) }
     if trace_emit { print("[emit] macho arm64: compile start") }
     var ctx = native_compile_program_arm64(linked, {"os": "macos", "arch": "arm64", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
     native_emit_errors_and_exit(ctx)
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.codegen.done", "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) + " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
+    }
     if trace_emit { print("[emit] macho arm64: compile done") }
     
     var code = ctx["code"]
@@ -670,6 +848,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         ii_imp = ii_imp + 1
     }
     ctx["import_list"] = imports
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.imports.filtered.done", "raw=" + oren_int_to_string(oren_list_len(imports_raw)) + " imports=" + oren_int_to_string(oren_list_len(imports)) + " collided=" + oren_int_to_string(import_collide_count))
+    }
     var trace_imports = oren_env("OREN_TRACE_NATIVE_IMPORTS") != nil
     if (trace_emit || trace_imports) && import_collide_count > 0 {
         var sample_s = ""
@@ -762,6 +943,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         
         i_imp = i_imp + 1
     }
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.import_stubs.done", "imports=" + oren_int_to_string(oren_list_len(imports)))
+    }
     if trace_emit { print("[emit] macho arm64: stubs+symtab for imports done") }
 
     if is_shared || (exports != nil && oren_list_len(exports) != 0) {
@@ -791,6 +975,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             i_exp = i_exp + 1
         }
     }
+    if phase_log != nil {
+        var exports_n = 0
+        if exports != nil { exports_n = oren_list_len(exports) }
+        _macho_phase_log_append(phase_log, "macho.exports.done", "exports=" + oren_int_to_string(exports_n))
+    }
     
     while int_mod(bytes_len(code), 4) != 0 { bytes_push(code, 0) }
     
@@ -816,6 +1005,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     
     // Append debug info
     if debug_mode {
+        if phase_log != nil { _macho_phase_log_append(phase_log, "macho.debug.start", "") }
         var debug_blob = emit_debug_info(ctx, text_base, header_size)
         while int_mod(bytes_len(data), 8) != 0 { bytes_push(data, 0) }
         var debug_off = bytes_len(data)
@@ -830,6 +1020,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             set_u32_le(code, p+8, insn_movk(1, int_mod(sa / u64_2_32(), 65536), 2))
             set_u32_le(code, p+12, insn_movk(1, int_mod(sa / u64_2_48(), 65536), 3))
         }
+        if phase_log != nil { _macho_phase_log_append(phase_log, "macho.debug.done", "bytes=" + oren_int_to_string(bytes_len(debug_blob))) }
     }
 
     var data_len = bytes_len(data)
@@ -837,6 +1028,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var data_vmaddr = text_base + text_size
     
     // Apply fixups
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.fixups.start", "rtobj=" + oren_int_to_string(rtobj_fixups_n) + " local=" + oren_int_to_string(oren_list_len(fixups)))
+    }
     if trace_emit { print("[emit] macho arm64: apply fixups start n=" + oren_int_to_string(rtobj_fixups_n + oren_list_len(fixups))) }
     var rtobj_fix_base = ctx["rtobj_fixups_base_code"]
     if rtobj_fix_base == nil { rtobj_fix_base = 0 }
@@ -887,7 +1081,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var target_page_ad = target_addr_ad - int_mod(target_addr_ad, 4096)
             var delta_pages_ad = (target_page_ad - pc_page_ad) / 4096
             var page_off_ad = int_mod(target_addr_ad, 4096)
-            var reg_ad = _macho_decode_rtobj_fix_int(adr_data_regs[k_ad])
+            var reg_ad = _macho_decode_rtobj_fix_reg(adr_data_regs[k_ad])
             if reg_ad == nil { reg_ad = 0 }
             set_u32_le(code, pos_ad, insn_adrp(reg_ad, delta_pages_ad))
             set_u32_le(code, pos_ad + 4, insn_add_imm(reg_ad, reg_ad, page_off_ad))
@@ -915,7 +1109,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 print(e_ac)
                 oren_exit(1)
             }
-            var reg_ac = _macho_decode_rtobj_fix_int(adr_code_regs[k_ac])
+            var reg_ac = _macho_decode_rtobj_fix_reg(adr_code_regs[k_ac])
             if reg_ac == nil { reg_ac = 0 }
             var target_addr_ac = text_base + header_size + target_ac
             var pc_ac = text_base + header_size + pos_ac
@@ -986,6 +1180,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             i = i + 1
         }
     }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.rtobj.done", "n=" + oren_int_to_string(rtobj_fixups_n)) }
     i = 0
     while i < oren_list_len(fixups) {
         if trace_emit {
@@ -1058,6 +1253,10 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         
         i = i + 1
     }
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.fixups.local.done", "n=" + oren_int_to_string(oren_list_len(fixups)))
+        _macho_phase_log_append(phase_log, "macho.fixups.done", "total=" + oren_int_to_string(rtobj_fixups_n + oren_list_len(fixups)))
+    }
     if trace_emit { print("[emit] macho arm64: apply fixups done") }
     
     // Pad strtab to 16 bytes for stable layout/alignment
@@ -1100,6 +1299,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         print(e)
         oren_exit(1)
     }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.write.done", "out=" + out_path) }
     oren_chmod(out_path, 493) // 0755
     return nil
 }

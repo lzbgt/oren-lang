@@ -77,6 +77,26 @@ fn _cmd_quote_path_host(path) {
     return shell_quote(path)
 }
 
+fn _build_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _build_phase_log_append(path, phase, detail, t0) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var now = oren_time_now_ns()
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(now)
+    if t0 != nil && t0 > 0 {
+        line = line + " total_ms=" + oren_int_to_string((now - t0) / 1000000)
+    }
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
 fn _run_test_artifact(backend, out_path) {
     if backend == "bytecode" {
         var avm_path = "./avm"
@@ -1012,7 +1032,12 @@ fn compiler_main() {
     var t_sum_emit_done = 0
     var t_sum_codesign_done = 0
     var t_sum_hash_done = 0
+    var trace_phase_path = _build_phase_log_path()
     if trace_build_summary { t_sum0 = oren_time_now_ns() }
+    if trace_phase_path != nil {
+        oren_write_file(trace_phase_path, "")
+        _build_phase_log_append(trace_phase_path, "build.enter", "cmd=" + cmd_name + " path=" + path, t_sum0)
+    }
     // These options can also be configured via env (wired via std:argparse env defaults).
     // Use parsed opts as the canonical source to keep precedence consistent.
 
@@ -1437,6 +1462,9 @@ fn compiler_main() {
         print("[build] parse done +" + oren_int_to_string(dt_parse / 1000000) + "ms errors=" + oren_int_to_string(oren_list_len(p["errors"])))
     }
     if trace_build_summary { t_sum_parse_done = oren_time_now_ns() }
+    if trace_phase_path != nil {
+        _build_phase_log_append(trace_phase_path, "build.parse.done", "errors=" + oren_int_to_string(oren_list_len(p["errors"])), t_sum0)
+    }
     if oren_list_len(p["errors"]) > 0 {
         var first_err = nil
         if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
@@ -1634,6 +1662,11 @@ fn compiler_main() {
 
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib, "test_mode": test_mode})
         if trace_build_summary { t_sum_link_done = oren_time_now_ns() }
+        if trace_phase_path != nil {
+            var linked_stmts = 0
+            if linked != nil && linked["statements"] != nil { linked_stmts = oren_list_len(linked["statements"]) }
+            _build_phase_log_append(trace_phase_path, "build.link.done", "stmts=" + oren_int_to_string(linked_stmts), t_sum0)
+        }
         // Memory hygiene (rolling):
         // - After linking, the native backend no longer needs the parsed root AST `prog`.
         // - The module loader globals (MODULES/MODULE_ORDER/MODULE_STACK) retain per-module
@@ -1794,6 +1827,9 @@ fn compiler_main() {
                 t_emit0 = oren_time_now_ns()
                 print("[build] native emit start (arm64) target=" + target)
             }
+            if trace_phase_path != nil {
+                _build_phase_log_append(trace_phase_path, "build.native.emit.start", "arch=arm64 target=" + target, t_sum0)
+            }
             if target == "linux" {
                 arm64_elf.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, CAPSULE, CAP_ALLOW_DOMAINS)
             } else {
@@ -1804,6 +1840,9 @@ fn compiler_main() {
                 print("[build] native emit done +" + oren_int_to_string(dt_emit / 1000000) + "ms")
             }
             if trace_build_summary { t_sum_emit_done = oren_time_now_ns() }
+            if trace_phase_path != nil {
+                _build_phase_log_append(trace_phase_path, "build.native.emit.done", "arch=arm64 target=" + target, t_sum0)
+            }
 		        } else {
 		            if arch == "x64" || arch == "x86_64" || arch == "amd64" {
 		                var t_emit1 = 0
@@ -2099,6 +2138,9 @@ fn compiler_main() {
                     cmd = cmd + " -DOREN_ENABLE_PYTHON $(python3-config --cflags) $(python3-config --embed --ldflags)"
                 }
             }
+        }
+        if trace_phase_path != nil {
+            _build_phase_log_append(trace_phase_path, "build.done", "out=" + out_path, t_sum0)
         }
     } else {
         cmd = cc + " -O2 -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib -pthread"

@@ -2,10 +2,33 @@
 //
 // Entry stub, runtime injection, and symbol resolution policy.
 
+fn _arm64_program_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _arm64_program_phase_log_append(path, phase, detail) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(oren_time_now_ns())
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
+fn _arm64_program_set_u64_le(buf, offset, n) {
+    bytes_set_u64_le(buf, offset, n)
+    return nil
+}
+
 fn native_compile_program_arm64(linked, platform) {
     var trace = false
     var v_trace = oren_env("OREN_TRACE_ARM64_NATIVE_COMPILE")
     if v_trace != nil && v_trace != "" { trace = true }
+    var phase_log = _arm64_program_phase_log_path()
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.enter", "") }
     if trace { print("[arm64] native_compile_program_arm64: enter") }
     var t_enter = 0
     if trace { t_enter = oren_time_now_ns() }
@@ -423,6 +446,11 @@ fn native_compile_program_arm64(linked, platform) {
         if used_rtobj == true { mode = "rtobj" }
         print("[arm64] runtime prepare (" + mode + ") +" + oren_int_to_string(dt_bun) + "ms")
     }
+    if phase_log != nil {
+        var rt_mode = "bundle"
+        if used_rtobj == true { rt_mode = "rtobj" }
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.runtime_prepare.done", "mode=" + rt_mode + " runtime_stmts=" + oren_int_to_string(oren_list_len(runtime_stmts)) + " user_stmts=" + oren_int_to_string(oren_list_len(user_stmts)))
+    }
     if runtime_stmts == nil { runtime_stmts = [] }
     if user_stmts == nil { user_stmts = [] }
     if trace {
@@ -446,6 +474,7 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_fnmeta = (oren_time_now_ns() - t_fnmeta0) / 1000000
         print("[arm64] collect_top_level_functions +" + oren_int_to_string(dt_fnmeta) + "ms")
     }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.fnmeta.done", "") }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
@@ -460,6 +489,7 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_rewrite = (oren_time_now_ns() - t_rewrite0) / 1000000
         print("[arm64] rewrite_local_fn_decls +" + oren_int_to_string(dt_rewrite) + "ms")
     }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.rewrite.done", "") }
 
     // Collect lambdas from runtime + user code (lambdas are anonymous Function nodes with name="").
     //
@@ -487,6 +517,7 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_lamb = (oren_time_now_ns() - t_lamb0) / 1000000
         print("[arm64] collect_lambdas +" + oren_int_to_string(dt_lamb) + "ms")
     }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.lambdas.done", "lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"]))) }
     
     // Prepare globals + top-level wrapper for Tier‑1 parity.
     var t_prep0 = 0
@@ -500,6 +531,9 @@ fn native_compile_program_arm64(linked, platform) {
     var runtime_decls = prep["runtime_decls"]
     var user_decls = prep["user_decls"]
     var top_stmt = prep["top_stmt"]
+    if phase_log != nil {
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.prepare.done", "runtime_decls=" + oren_int_to_string(oren_list_len(runtime_decls)) + " user_decls=" + oren_int_to_string(oren_list_len(user_decls)))
+    }
     _arm64_trace_global_slots(ctx, "after_prepare_globals")
     _arm64_emit_global_roots_init(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
@@ -517,6 +551,7 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_rt = (oren_time_now_ns() - t_rt0) / 1000000
         print("[arm64] compile runtime decls done +" + oren_int_to_string(dt_rt) + "ms")
     }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.runtime_decls.done", "n=" + oren_int_to_string(oren_list_len(runtime_decls))) }
 
     // Compile user declarations (functions/types/ffi).
     i = 0
@@ -531,6 +566,7 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_user = (oren_time_now_ns() - t_user0) / 1000000
         print("[arm64] compile user decls done +" + oren_int_to_string(dt_user) + "ms")
     }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.user_decls.done", "n=" + oren_int_to_string(oren_list_len(user_decls))) }
 
     // Compile synthesized __top_level__ last (it can reference any user/runtime symbols).
     // The entry stub calls it before main.
@@ -541,6 +577,7 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_top = (oren_time_now_ns() - t_top0) / 1000000
         print("[arm64] compile __top_level__ +" + oren_int_to_string(dt_top) + "ms")
     }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.top.done", "") }
 
     // Synthesize wrappers for first-class named functions and for lambda literals.
     // These wrappers implement the uniform callable ABI:
@@ -589,6 +626,9 @@ fn native_compile_program_arm64(linked, platform) {
     if trace {
         var dt_wrap = (oren_time_now_ns() - t_wrap0) / 1000000
         print("[arm64] synth wrappers +" + oren_int_to_string(dt_wrap) + "ms fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+    }
+    if phase_log != nil {
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.wrappers.done", "fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
     }
 
     // Debug pseudo-symbol for code region that is not a Function node:
@@ -734,6 +774,7 @@ fn native_compile_program_arm64(linked, platform) {
             print("native backend: failed to compile resolve_symbol")
             // print(sym_src) // Debug
         }
+        if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.resolve_symbol.done", "mode=full") }
     } else {
         // Minimal stub to satisfy native runtime stack traces without inflating binaries.
         // (Non-debug builds only need a valid symbol; names can be "???".)
@@ -748,6 +789,7 @@ fn native_compile_program_arm64(linked, platform) {
         } else {
             print("native backend: failed to compile resolve_symbol stub")
         }
+        if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.resolve_symbol.done", "mode=stub") }
     }
 
     if trace {
@@ -764,19 +806,52 @@ fn native_compile_program_arm64(linked, platform) {
         var slot_off2 = slot_enc2 - 1
         var offs = ctx["cstr0_list"]
         if offs == nil { offs = [] }
+        var rt_offs_u8 = ctx["rtobj_cstr0_offsets_u8"]
+        var rt_offs_enc = ctx["rtobj_cstr0_list_enc"]
+        var rt_count = 0
+        if rt_offs_u8 != nil && oren_is_u8_buf(rt_offs_u8) == true {
+            rt_count = oren_buf_len(rt_offs_u8) / 8
+        } else if rt_offs_enc != nil {
+            rt_count = oren_list_len(rt_offs_enc)
+        }
+        var user_count = oren_list_len(offs)
+        if phase_log != nil {
+            _arm64_program_phase_log_append(phase_log, "arm64.codegen.cstr_table.start", "rt=" + oren_int_to_string(rt_count) + " user=" + oren_int_to_string(user_count))
+        }
         while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
         var table_off2 = bytes_len(ctx["data"])
+        var total_count = rt_count + user_count
+        if phase_log != nil {
+            _arm64_program_phase_log_append(phase_log, "arm64.codegen.cstr_table.extend.done", "bytes=" + oren_int_to_string((2 + total_count) * 8))
+        }
         // Layout: [table_off][count][offs...]
         push_u64_le(ctx["data"], table_off2)
-        push_u64_le(ctx["data"], oren_list_len(offs))
+        push_u64_le(ctx["data"], total_count)
+        if rt_offs_u8 != nil && oren_is_u8_buf(rt_offs_u8) == true {
+            bytes_extend_u8_buf(ctx["data"], rt_offs_u8)
+        } else if rt_offs_enc != nil {
+            var ri1 = 0
+            while ri1 < oren_list_len(rt_offs_enc) {
+                var rt_off1 = _rtobj_decode_int_enc(rt_offs_enc[ri1])
+                if rt_off1 != nil {
+                    push_u64_le(ctx["data"], rt_off1)
+                }
+                ri1 = ri1 + 1
+            }
+        }
+        if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.cstr_table.rt.done", "n=" + oren_int_to_string(rt_count)) }
         var ii = 0
-        while ii < oren_list_len(offs) {
+        while ii < user_count {
             push_u64_le(ctx["data"], offs[ii])
             ii = ii + 1
         }
+        if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.cstr_table.user.done", "n=" + oren_int_to_string(user_count)) }
         // Write table_off into reserved slot as u64 (lo32/hi32).
-        set_u32_le(ctx["data"], slot_off2 + 0, int_mod(table_off2, 4294967296))
-        set_u32_le(ctx["data"], slot_off2 + 4, 0)
+        _arm64_program_set_u64_le(ctx["data"], slot_off2, table_off2)
+    }
+    if phase_log != nil {
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.cstr_table.done", "data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.done", "code_bytes=" + oren_int_to_string(bytes_len(ctx["code"])) + " data_bytes=" + oren_int_to_string(bytes_len(ctx["data"])))
     }
 
     return ctx

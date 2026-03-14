@@ -591,7 +591,7 @@ fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
 
     // Persist to cache.
     var meta = built["meta"]
-    rtobj.rtobj_store(dir, key, meta, built["code_u8"], built["data_tail_u8"])
+    rtobj.rtobj_store(dir, key, meta, built["code_u8"], built["data_tail_u8"], nil)
 
     // Apply immediately (avoid re-reading).
     meta["code_u8"] = built["code_u8"]
@@ -612,4 +612,3 @@ fn _x64_symtab_push_unique(sym_seen, sym_names, nm) {
     oren_list_push(sym_names, nm)
     return nil
 }
-

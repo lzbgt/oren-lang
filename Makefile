@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-index-audit-trend readiness-report-collect readiness-report-collect-list readiness-report-collect-pack readiness-report-sanitize readiness-pipeline status-snapshot status-snapshot-diff status-faq status-faq-diff status-matrix status-matrix-diff status-markdown verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-index-audit-trend verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-report-collect-pack verify-readiness-report-sanitize verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff verify-status-faq verify-status-faq-diff verify-status-matrix verify-status-matrix-diff verify-status-markdown benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-green-world-lock-guarded verify-green-preworld-guarded verify-green-fairness-guarded verify-backend-parity verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-index-audit-trend readiness-report-collect readiness-report-collect-list readiness-report-collect-pack readiness-report-sanitize readiness-pipeline status-snapshot status-snapshot-diff status-faq status-faq-diff status-matrix status-matrix-diff status-markdown verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-index-audit-trend verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-report-collect-pack verify-readiness-report-sanitize verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff verify-status-faq verify-status-faq-diff verify-status-matrix verify-status-matrix-diff verify-status-markdown benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -368,22 +368,35 @@ stage2: oren_stage2 rtobj-seed astbin-seed
 
 # Generate/update rtobj seed for the host platform (best-effort).
 # This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
+# Seed both non-debug and debug runtime objects because native quick integration uses `--debug`.
 rtobj-seed: oren_stage2
-		@if [ -n "$(HOST_PLATFORM)" ]; then \
-			./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
-			./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true; \
-		else \
-			echo "NOTE: host platform unknown; skipping rtobj seed"; \
+			@if [ -n "$(HOST_PLATFORM)" ]; then \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --debug || true; \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true; \
+			else \
+				echo "NOTE: host platform unknown; skipping rtobj seed"; \
 		fi
 
 # Generate/update rtobj seed for cross x64 targets (best-effort).
 # This keeps `make verify-native-x64-compile` bounded even on a clean cache
 # (the NET/TLS/HTTP2 smoke is intentionally large; see `scripts/verify_native_x64_compile_only.sh` for its timeout guard).
 rtobj-seed-x64: oren_stage2
-		@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
-		@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
-		@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
-		@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
+
+# Generate/update only the host debug/core rtobj seed needed by stage2 native quick integration.
+# Keep this narrow so the fast smoke doesn't pay the capsule seed refresh.
+rtobj-seed-quick-stage2: oren_stage2
+			@if [ -n "$(HOST_PLATFORM)" ]; then \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --debug || true; \
+			else \
+				echo "NOTE: host platform unknown; skipping stage2 quick rtobj seed"; \
+			fi
 
 # Generate/update runtime astbin seed for the host platform (best-effort).
 astbin-seed: oren
@@ -408,8 +421,13 @@ test-native-quick: oren
 				@./scripts/run_native_quick_integration.sh "./$(OREN_BIN)"
 
 # Fast native smoke (stage2): use stage2 compiler to build+run the same test.
-test-native-quick-stage2: oren_stage2
-		@./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
+#
+# Warm the rtobj seed first: this path builds the quick-integration fixture with `--debug`,
+# and the default per-step budget in `run_native_quick_integration.sh` is too low when the
+# self-hosted compiler has to pay a cold debug rtobj build.
+test-native-quick-stage2: oren_stage2 rtobj-seed-quick-stage2
+		@OREN_NATIVE_BUILD_TIMEOUT_SECS=120 OREN_NATIVE_RUN_TIMEOUT_SECS=20 \
+		  ./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
 
 # Debug flake triage (stage1): run quick integration loop with spawn ring
 # + list header ring guardrails enabled. Not part of default verify/test.
@@ -446,6 +464,21 @@ verify-native-quick-simd: verify-native-quick verify-simd-determinism
 # GC-stress verify: include forced-GC quick integration to catch tracking regressions.
 verify-native-quick-gc: verify-native-quick test-native-quick-gc-stress-stage2
 	@echo "verify-native-quick-gc OK"
+
+# Guarded scheduler smoke: standalone world-lock repro with poll cache + args-list guards.
+verify-green-world-lock-guarded: oren_stage2
+	@./scripts/triage_green_two_workers_world_lock_smoke.sh 3 "./$(OREN_STAGE2_BIN)" OREN_GREEN_POLL_CACHE=1 OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1
+	@echo "verify-green-world-lock-guarded OK"
+
+# Guarded scheduler smoke: pre-world-lock quick integration / green-cache path only.
+verify-green-preworld-guarded: oren_stage2
+	@OREN_QI_STOP_BEFORE_WORLD_LOCK=1 OREN_NATIVE_RUN_TIMEOUT_SECS=20 OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=20 ./scripts/triage_stage2_quick_until_world_lock.sh 1 "./$(OREN_STAGE2_BIN)" OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1
+	@echo "verify-green-preworld-guarded OK"
+
+# Guarded scheduler smoke: stage2 quick integration stops after global-runq fairness.
+verify-green-fairness-guarded: oren_stage2
+	@OREN_QI_STOP_AFTER_GREEN_FAIRNESS=1 OREN_QI_STOP_AFTER_GREEN_CACHE=1 OREN_NATIVE_RUN_TIMEOUT_SECS=20 OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=20 ./scripts/triage_native_quick_stage2_flake.sh 3 "./$(OREN_STAGE2_BIN)" OREN_TRACE_GREEN_FAIRNESS=1
+	@echo "verify-green-fairness-guarded OK"
 
 # Cross-backend parity smoke: boxed list sum/dot output must match (C/native/OBC).
 verify-backend-parity-boxed-list: oren_stage2 avm

@@ -75,6 +75,8 @@ Schema file: `docs/readiness_index.schema.json`.
 
 Index tools:
 
+- `make readiness-report-summary` — render markdown + HTML summary from the index.
+- `make readiness-report-dashboard` — render the HTML dashboard from the index.
 - `make readiness-report-index` — append to index (via report tool).
 - `make readiness-report-index-stats` — stats (md + json).
 - `make readiness-report-index-prune` — keep last N entries.
@@ -82,6 +84,9 @@ Index tools:
 - `make readiness-report-index-csv` — CSV export.
 - `make readiness-report-index-query` — filter index by fields/time (supports `--require-field` / `--missing-field` / `--require-file` / `--missing-file`).
 - `make readiness-report-index-rollup` — daily rollup.
+- `make readiness-report-index-merge` — merge multiple index files.
+- `make readiness-report-index-compact` — dedupe + keep last N.
+- `make readiness-report-index-schema` — validate the index file against `docs/readiness_index.schema.json`.
 - `make readiness-report-index-latest` — latest entry by profile/tag.
 - `make readiness-report-index-trend` — trend summary over latest window.
 - `make readiness-report-index-profiles` — per-profile summary.
@@ -112,8 +117,6 @@ Index tools:
 - `make readiness-report-collect-list` — list collected snapshots.
 - `make readiness-report-collect-pack` — pack collected snapshots into tar.gz.
 - `make readiness-report-sanitize` — sanitize report + json for sharing.
-- `make readiness-report-index-merge` — merge multiple index files.
-- `make readiness-report-index-compact` — dedupe + keep last N.
 - `make readiness-report-index-diff` — compare two index files.
 - `make readiness-report-index-diff-summary` — compare index summary stats.
 - `make readiness-report-index-gate` — enforce pass/fail thresholds.
@@ -173,15 +176,33 @@ Smoke verifiers:
 
 - `make verify-readiness-report`
 - `make verify-readiness-report-summary`
+- `make verify-readiness-report-dashboard`
 - `make verify-readiness-report-index-tools`
 - `make verify-readiness-report-index-csv`
 - `make verify-readiness-report-index-query-rollup`
 - `make verify-readiness-report-index-merge-compact`
+- `make verify-readiness-report-index-schema`
+- `make verify-readiness-report-index-diff`
+- `make verify-readiness-report-index-diff-summary`
+- `make verify-readiness-report-index-gate`
+- `make verify-readiness-report-index-lint`
+- `make verify-readiness-report-index-split`
 - `make verify-readiness-report-index-trim`
+- `make verify-readiness-report-index-latest`
+- `make verify-readiness-report-index-trend`
+- `make verify-readiness-report-index-profiles`
+- `make verify-readiness-report-index-tags`
 - `make verify-readiness-report-index-audit`
+- `make verify-readiness-report-index-audit-trend`
 - `make verify-readiness-report-collect`
+- `make verify-readiness-report-collect-list`
 - `make verify-readiness-report-collect-pack`
 - `make verify-readiness-report-sanitize`
 - `make verify-readiness-pipeline`
 - `make verify-status-snapshot`
 - `make verify-status-snapshot-diff`
+- `make verify-status-faq`
+- `make verify-status-faq-diff`
+- `make verify-status-matrix`
+- `make verify-status-matrix-diff`
+- `make verify-status-markdown`

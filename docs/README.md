@@ -1,6 +1,6 @@
 # Start Here: Oren Docs (Canonical)
 
-**Last updated:** 2026-03-05
+**Last updated:** 2026-03-14
 
 This file is the single **entry point** for the Oren docs. It merges the former root README
 orientation with the docs index so you can start in one place and branch out only when needed.
@@ -36,15 +36,21 @@ make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage2 + C-backend builds)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make readiness-report  # generates build/reports/readiness_report_*.md
+make readiness-report-full  # quick + GC stress + runtime robustness
+make readiness-report-minimal  # native quick only
 make readiness-report-json  # readiness report + JSON summary
 make readiness-report-index  # append JSONL summary to build/reports/readiness_index.jsonl
 make readiness-report-summary  # generates markdown + HTML summary from index
+make readiness-report-dashboard  # generates HTML dashboard from index
 make readiness-report-index-stats  # index stats (md + json)
 make readiness-report-index-prune  # prune index to last N entries
 make readiness-report-index-trim  # trim index by timestamp range
 make readiness-report-index-csv  # export index to CSV
 make readiness-report-index-query  # filter index by fields/time (supports --require-field/--missing-field/--require-file/--missing-file)
 make readiness-report-index-rollup  # daily rollup (md + json)
+make readiness-report-index-merge  # merge multiple index files
+make readiness-report-index-compact  # dedupe index and optionally keep last N
+make readiness-report-index-schema  # validate the readiness index schema
 make readiness-report-index-latest  # latest entry by profile/tag
 make readiness-report-index-trend  # trend summary over latest window
 make readiness-report-index-profiles  # per-profile summary
@@ -70,7 +76,17 @@ make status-matrix-diff  # diff readiness matrices or STATUS.md
 make status-markdown  # render status FAQ/snapshot/matrix JSON into markdown
 make verify-readiness-report  # dry-run smoke for readiness report script
 make verify-readiness-report-summary  # smoke for summary generator
+make verify-readiness-report-dashboard  # smoke for dashboard generator
 make verify-readiness-report-index-tools  # smoke for index tools
+make verify-readiness-report-index-csv  # smoke for CSV export
+make verify-readiness-report-index-query-rollup  # smoke for query + rollup
+make verify-readiness-report-index-merge-compact  # smoke for merge + compact
+make verify-readiness-report-index-schema  # smoke for schema validation
+make verify-readiness-report-index-diff  # smoke for index diff
+make verify-readiness-report-index-diff-summary  # smoke for diff summary
+make verify-readiness-report-index-gate  # smoke for pass/fail gate
+make verify-readiness-report-index-lint  # smoke for ordering/duplicate lint
+make verify-readiness-report-index-split  # smoke for index split
 make verify-readiness-report-index-trim  # smoke for index trim
 make verify-readiness-report-index-latest  # smoke for index latest
 make verify-readiness-report-index-trend  # smoke for index trend

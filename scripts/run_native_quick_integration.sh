@@ -149,6 +149,10 @@ if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
 fi
 out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
 log="build/logs/${compiler_base}_native_quick_integration.log"
+phases_log="${OREN_TRACE_BUILD_PHASES_PATH:-${log%.log}.phases.log}"
+if [[ "$phases_log" == "0" ]]; then
+  phases_log=""
+fi
 green_cache_run_timeout_secs="$run_timeout_secs"
 if [[ -n "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
   green_cache_run_timeout_secs="${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS}"
@@ -160,11 +164,56 @@ echo "platform=$platform"
 echo "src=$test_src"
 echo "out=$out"
 echo "log=$log"
+if [[ -n "$phases_log" ]]; then
+  echo "phases_log=$phases_log"
+fi
+echo "build_timeout_secs=$build_timeout_secs"
+echo "run_timeout_secs=$run_timeout_secs"
+echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
 
 rm -f "$log" "$out" 2>/dev/null || true
+if [[ -n "$phases_log" ]]; then
+  rm -f "$phases_log" 2>/dev/null || true
+fi
+{
+  echo "== native quick integration =="
+  echo "compiler=$compiler"
+  echo "platform=$platform"
+  echo "src=$test_src"
+  echo "out=$out"
+  if [[ -n "$phases_log" ]]; then
+    echo "phases_log=$phases_log"
+  fi
+  echo "build_timeout_secs=$build_timeout_secs"
+  echo "run_timeout_secs=$run_timeout_secs"
+  echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
+} >>"$log"
 
-run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
-  --backend native --platform "$platform" --debug -o "$out" >"$log" 2>&1
+set +e
+if [[ -n "$phases_log" ]]; then
+  run_with_timeout "$build_timeout_secs" env "OREN_TRACE_BUILD_PHASES_PATH=$phases_log" \
+    "$compiler" build "$test_src" --backend native --platform "$platform" --debug -o "$out" >>"$log" 2>&1
+else
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
+    --backend native --platform "$platform" --debug -o "$out" >>"$log" 2>&1
+fi
+build_rc=$?
+set -e
+if [[ "$build_rc" -ne 0 ]]; then
+  if [[ "$build_rc" -eq 124 || "$build_rc" -eq 137 || "$build_rc" -eq 143 ]]; then
+    echo "ERROR: quick integration build timed out or was terminated (rc=$build_rc, build_timeout_secs=$build_timeout_secs)" >>"$log"
+  else
+    echo "ERROR: quick integration build failed (rc=$build_rc)" >>"$log"
+  fi
+  if [[ -n "$phases_log" && -f "$phases_log" ]]; then
+    {
+      echo "== build phase log =="
+      tail -n 20 "$phases_log"
+    } >>"$log"
+  fi
+  tail -n 20 "$log"
+  exit "$build_rc"
+fi
 
 run_green_cache() {
   if [[ "$skip_green_cache" == "1" ]]; then
