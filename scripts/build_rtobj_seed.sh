@@ -20,6 +20,7 @@ cd "$ROOT"
 
 platform=""
 compiler="./oren_stage2"
+build_compiler=""
 debug_flag="--no-debug"
 force="${OREN_FORCE_RUNTIME_OBJ_SEED:-}"
 runtime_profile="${OREN_NATIVE_RUNTIME_PROFILE:-}"
@@ -32,6 +33,8 @@ Usage: scripts/build_rtobj_seed.sh [options]
 Options:
   --platform <spec>   target platform (e.g. arm64-macos, x64-linux). Default: auto-detect host.
   --compiler <path>   compiler binary (default: ./oren_stage2)
+  --build-compiler <path>
+                     compiler used only for cold seed population builds
   --capsule           seed the capsule runtime entry (lib/runtime_native_capsule.oren)
   --runtime-profile <full|core|minimal>
                      select the non-capsule runtime profile to seed (default: env OREN_NATIVE_RUNTIME_PROFILE, else "auto")
@@ -46,6 +49,7 @@ Env:
   OREN_NATIVE_RUNTIME_OBJ_SEED_DIR    destination seed dir (default: build/cache/native_runtime_obj_seed)
   OREN_FORCE_RUNTIME_OBJ_SEED         if set, do not take the fast no-op path
   OREN_NATIVE_RUNTIME_PROFILE         runtime profile override ("auto"/"core"/"minimal"/"full")
+  OREN_RT_OBJ_SEED_BUILD_COMPILER     override compiler used for cold seed population builds
   OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE
                                       opt-out for capsule rtobj caching (set to 0/false)
 EOF
@@ -55,6 +59,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --platform) platform="${2:-}"; shift 2 ;;
     --compiler) compiler="${2:-}"; shift 2 ;;
+    --build-compiler) build_compiler="${2:-}"; shift 2 ;;
     --capsule) capsule="1"; shift ;;
     --runtime-profile) runtime_profile="${2:-}"; shift 2 ;;
     --debug) debug_flag="--debug"; shift ;;
@@ -64,6 +69,13 @@ while [[ $# -gt 0 ]]; do
     *) echo "ERROR: unknown arg: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+if [[ -z "$build_compiler" ]]; then
+  build_compiler="${OREN_RT_OBJ_SEED_BUILD_COMPILER:-}"
+fi
+if [[ -z "$build_compiler" ]]; then
+  build_compiler="$compiler"
+fi
 
 if [[ -z "$platform" ]]; then
   uname_s="$(uname -s)"
@@ -351,10 +363,18 @@ if [[ -z "$force" ]]; then
 fi
 
 echo "NOTE: no existing rtobj cache entry found; populating cache once via a small build..." >&2
+if [[ "$build_compiler" != "$compiler" ]]; then
+  echo "NOTE: cold seed build compiler=$build_compiler (requested compiler=$compiler)" >&2
+fi
 
 if [[ ! -x "$compiler" ]]; then
   echo "ERROR: compiler not found/executable: $compiler" >&2
   echo "Hint: build it with: make stage2" >&2
+  exit 2
+fi
+if [[ ! -x "$build_compiler" ]]; then
+  echo "ERROR: build compiler not found/executable: $build_compiler" >&2
+  echo "Hint: pass --build-compiler <path> or set OREN_RT_OBJ_SEED_BUILD_COMPILER" >&2
   exit 2
 fi
 
@@ -372,7 +392,7 @@ if [[ "$capsule" = "1" ]]; then
 fi
 OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
 OREN_NATIVE_RUNTIME_PROFILE="$rp" \
-  "$compiler" build examples/hello.oren --backend native --platform "$platform" \
+  "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
   $capsule_flag \
   "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
 

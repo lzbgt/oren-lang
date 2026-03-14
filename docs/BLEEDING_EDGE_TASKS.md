@@ -1324,6 +1324,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     hash hits and only pay the cold `examples/hello --capsule` build when the current
     capsule hash is actually missing. Re-run `make rtobj-seed` after the first fill to
     verify the path stays cheap on hits.
+  - Fix (2026-03-15): host capsule cold-seed population now uses `./oren` as the build
+    compiler while still keying the artifact by runtime hash + backend sig. Measured on
+    arm64-macos: `./oren build examples/hello.oren --backend native --platform arm64-macos
+    --capsule --no-debug --no-cache` completed in about 12.9s and produced the desired
+    rtobj cache key, whereas the concurrent `./oren_stage2` cold build was still inside
+    `rtobj.miss.build.start` after 10s. `scripts/build_rtobj_seed.sh --compiler ./oren_stage2
+    --build-compiler ./oren --capsule --no-debug` now fills the seed once and the next run
+    is a no-op hit.
   - New: `scripts/triage_stage2_quick_until_world_lock.sh` runs native quick integration
     plus the smokes leading up to `test_green_two_workers_world_lock_smoke` to isolate
     order-sensitive hangs.

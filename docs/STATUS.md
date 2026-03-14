@@ -1930,6 +1930,13 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     hash hits and only pay the cold `examples/hello --capsule` build when the current
     capsule hash is actually missing. The remaining slow path is the first cold fill, not
     repeated forced refresh.
+  - Fix (2026-03-15): host capsule cold-seed population now uses `./oren` as the build
+    compiler while still keying the artifact by runtime hash + backend sig. On arm64-macos,
+    the measured cold build through `./oren` completed in about 12.9s and produced
+    `s2_b_arm64_bv_arm64_v0_13_os_macos_a_arm64_d0_g0_rh_v2_4794050200960657605_5906515236269388757`;
+    the same cold path under `./oren_stage2` was still inside `rtobj.miss.build.start`
+    after 10s. After the first fill, the same seed command now returns
+    `OK: rtobj seed already present (no-op)`.
   - New: `scripts/triage_native_quick_flake.sh` runs the stage1 native quick integration
     in a loop and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough
     args for tracing, logs git/uname metadata, and saves failure copies of the inner

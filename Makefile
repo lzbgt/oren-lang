@@ -371,11 +371,14 @@ stage2: oren_stage2 rtobj-seed astbin-seed
 # Seed both non-debug and debug runtime objects because native quick integration uses `--debug`.
 # Capsule seeds are also hash-keyed, so let the seed script no-op/copy on cache hits instead of
 # force-refreshing `examples/hello` on every `make test`.
+# For the remaining cold capsule miss path, prefer the already-built stage1 compiler (`./oren`)
+# to populate the cache key once; the seed artifact is keyed by runtime hash + backend sig, not by
+# which compiler binary produced it.
 rtobj-seed: oren_stage2
 			@if [ -n "$(HOST_PLATFORM)" ]; then \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --debug || true; \
-				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug || true; \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true; \
 			else \
 				echo "NOTE: host platform unknown; skipping rtobj seed"; \
 		fi
