@@ -1342,6 +1342,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Fix (2026-03-15): `stage2` / `rtobj-seed` now warm `astbin-seed` before the host rtobj
     seed fill, so first-run capsule seed refreshes can use the direct astbin override
     immediately.
+  - Fix (2026-03-15): `rtobj-seed-x64` now warms `astbin-seed-x64` first, and the x64 capsule
+    cold-fill path also uses `./oren` as the build compiler while leaving `./oren_stage2` as the
+    requested compiler. Measured on x64-linux with empty rtobj cache/seed dirs: the cold
+    capsule seed command completed in about 6.3s and logged the direct astbin seed file under
+    `build/cache/native_runtime_astbin_seed/`.
+  - Fix (2026-03-15): cross-target non-capsule x64 rtobj cold fills now also use
+    `--build-compiler ./oren`. Measured on x64-linux with empty rtobj cache/seed dirs: the old
+    stage2-only `--no-debug` path was still CPU-bound after about 39s, while the stage1-fallback
+    path completed in about 5.0s with the direct core astbin seed file.
   - New: `scripts/triage_stage2_quick_until_world_lock.sh` runs native quick integration
     plus the smokes leading up to `test_green_two_workers_world_lock_smoke` to isolate
     order-sensitive hangs.

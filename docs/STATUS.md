@@ -1949,6 +1949,18 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
   - Fix (2026-03-15): `stage2`/`rtobj-seed` now warm `astbin-seed` before the host rtobj seed
     path, so first-run capsule seed fills can use the direct astbin override instead of paying
     a cold runtime expansion first.
+  - Fix (2026-03-15): `rtobj-seed-x64` now depends on `astbin-seed-x64`, and the cross-target
+    capsule cold-fill path also uses `./oren` as the build compiler while keeping
+    `./oren_stage2` as the requested compiler. Measured on x64-linux with empty rtobj cache/seed
+    dirs: `scripts/build_rtobj_seed.sh --platform x64-linux --compiler ./oren_stage2 --build-compiler ./oren --capsule --no-debug`
+    completed in about 6.3s and logged the direct astbin seed path under
+    `build/cache/native_runtime_astbin_seed/v2_4792361169917478041_5905402636049619153_os_linux_pruned3.astbin`.
+  - Fix (2026-03-15): cross-target non-capsule x64 rtobj cold fills now use the same stage1
+    fallback. Measured on x64-linux with empty rtobj cache/seed dirs: the old
+    `scripts/build_rtobj_seed.sh --platform x64-linux --compiler ./oren_stage2 --no-debug`
+    path was still CPU-bound after about 39s, while the new
+    `--build-compiler ./oren` path completed in about 5.0s and logged the direct
+    `.../v2_3546383463129521835_7184909999781679587_os_linux_pruned3.astbin` seed file.
   - New: `scripts/triage_native_quick_flake.sh` runs the stage1 native quick integration
     in a loop and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough
     args for tracing, logs git/uname metadata, and saves failure copies of the inner

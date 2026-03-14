@@ -386,13 +386,18 @@ rtobj-seed: oren_stage2 astbin-seed
 # Generate/update rtobj seed for cross x64 targets (best-effort).
 # This keeps `make verify-native-x64-compile` bounded even on a clean cache
 # (the NET/TLS/HTTP2 smoke is intentionally large; see `scripts/verify_native_x64_compile_only.sh` for its timeout guard).
-rtobj-seed-x64: oren_stage2
-			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
-			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --debug || true
-			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
-			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --debug || true
-			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug || true
-			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug || true
+#
+# Warm x64 astbin seeds first so cold capsule rtobj fills can inject the prebuilt runtime astbin
+# directly instead of re-expanding the runtime on first miss.
+# Prefer stage1 for the one-time cold fill; hit/no-op behavior still keys the final artifact by
+# runtime hash + backend sig and still treats `./oren_stage2` as the requested compiler.
+rtobj-seed-x64: oren_stage2 astbin-seed-x64
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true
 
 # Generate/update only the host debug/core rtobj seed needed by stage2 native quick integration.
 # Keep this narrow so the fast smoke doesn't pay the capsule seed refresh.
