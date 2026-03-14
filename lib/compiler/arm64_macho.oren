@@ -63,6 +63,57 @@ fn _macho_rtobj_fixups_count_compact(fx) {
     return n
 }
 
+fn _macho_local_fixups_compact(fixups) {
+    if fixups == nil { return nil }
+    var out = {
+        "bl_pos": [], "bl_name": [],
+        "adr_data_pos": [], "adr_data_off": [], "adr_data_reg": [],
+        "adr_code_pos": [], "adr_code_name": [], "adr_code_reg": [],
+        "got_pos": [], "got_index": []
+    }
+    var i = 0
+    while i < oren_list_len(fixups) {
+        var fx = fixups[i]
+        if fx != nil {
+            var ty = fx["type"]
+            var pos = fx["pos"]
+            if ty == "bl" {
+                var nm = fx["name"]
+                if oren_type_tag(pos) == 1 && nm != nil {
+                    oren_list_push(out["bl_pos"], pos)
+                    oren_list_push(out["bl_name"], nm)
+                }
+            } else if ty == "adr_data" {
+                var data_off = fx["data_off"]
+                if oren_type_tag(pos) == 1 && oren_type_tag(data_off) == 1 {
+                    oren_list_push(out["adr_data_pos"], pos)
+                    oren_list_push(out["adr_data_off"], data_off)
+                    var reg = fx["reg"]
+                    if oren_type_tag(reg) == 1 { oren_list_push(out["adr_data_reg"], reg) }
+                    else { oren_list_push(out["adr_data_reg"], 0) }
+                }
+            } else if ty == "adr_code" {
+                var nm2 = fx["name"]
+                if oren_type_tag(pos) == 1 && nm2 != nil {
+                    oren_list_push(out["adr_code_pos"], pos)
+                    oren_list_push(out["adr_code_name"], nm2)
+                    var reg2 = fx["reg"]
+                    if oren_type_tag(reg2) == 1 { oren_list_push(out["adr_code_reg"], reg2) }
+                    else { oren_list_push(out["adr_code_reg"], 0) }
+                }
+            } else if ty == "got_load" {
+                var got_idx = fx["got_index"]
+                if oren_type_tag(pos) == 1 && oren_type_tag(got_idx) == 1 {
+                    oren_list_push(out["got_pos"], pos)
+                    oren_list_push(out["got_index"], got_idx)
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
 fn _macho_phase_log_path() {
     var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
     if p == nil || p == "" || p == "0" { return nil }
@@ -1268,78 +1319,114 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         }
     }
     if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.rtobj.done", "n=" + oren_int_to_string(rtobj_fixups_n)) }
+    var fixups_local = _macho_local_fixups_compact(fixups)
+    var local_bl_pos = fixups_local["bl_pos"]
+    var local_bl_name = fixups_local["bl_name"]
+    var local_adr_data_pos = fixups_local["adr_data_pos"]
+    var local_adr_data_off = fixups_local["adr_data_off"]
+    var local_adr_data_reg = fixups_local["adr_data_reg"]
+    var local_adr_code_pos = fixups_local["adr_code_pos"]
+    var local_adr_code_name = fixups_local["adr_code_name"]
+    var local_adr_code_reg = fixups_local["adr_code_reg"]
+    var local_got_pos = fixups_local["got_pos"]
+    var local_got_index = fixups_local["got_index"]
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.fixups.local.counts",
+            "bl=" + oren_int_to_string(oren_list_len(local_bl_pos)) +
+            " adr_data=" + oren_int_to_string(oren_list_len(local_adr_data_pos)) +
+            " adr_code=" + oren_int_to_string(oren_list_len(local_adr_code_pos)) +
+            " got=" + oren_int_to_string(oren_list_len(local_got_pos)))
+    }
     i = 0
-    while i < oren_list_len(fixups) {
-        if trace_emit {
-            var j = rtobj_fixups_n + i
-            if j == 0 { print("[emit] macho arm64: fixup[0] start") }
-            if j == 10000 { print("[emit] macho arm64: fixup[10000]") }
-            if j == 20000 { print("[emit] macho arm64: fixup[20000]") }
-        }
-        var fix = fixups[i]
-        var pos = fix["pos"]
-        
-        if fix["type"] == "bl" {
-            var name2 = fix["name"]
-            var target = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name2)
-            if target == nil {
-                var e = "native backend: undefined function " + name2
-                print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e))
-                print(e)
-                oren_exit(1)
+    while i < oren_list_len(local_bl_pos) {
+        if phase_log != nil {
+            if i == 0 || i == 4096 || i == 8192 {
+                _macho_phase_log_append(phase_log, "macho.fixups.local.bl.progress", "i=" + oren_int_to_string(i))
             }
-            var offset = (target - pos) / 4
-            set_u32_le(code, pos, insn_bl(offset))
         }
-        
-        if fix["type"] == "adr_data" {
-            var data_off = fix["data_off"]
-            var target_addr = data_vmaddr + data_off
-            var pc = text_base + header_size + pos
-            var pc_page = pc - int_mod(pc, 4096)
-            var target_page = target_addr - int_mod(target_addr, 4096)
-            var delta_pages = (target_page - pc_page) / 4096
-            var page_off = int_mod(target_addr, 4096)
-            var reg = fix["reg"]
-            if reg == nil { reg = 0 }
-            set_u32_le(code, pos, insn_adrp(reg, delta_pages))
-            set_u32_le(code, pos + 4, insn_add_imm(reg, reg, page_off))
+        var pos_bl_local = local_bl_pos[i]
+        var name_bl_local = local_bl_name[i]
+        var target_local = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl_local)
+        if target_local == nil {
+            var e_local_bl = "native backend: undefined function " + name_bl_local
+            print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
+            print(e_local_bl)
+            oren_exit(1)
         }
-
-        if fix["type"] == "adr_code" {
-            var name3 = fix["name"]
-            var target2 = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name3)
-            if target2 == nil {
-                var e = "native backend: undefined function " + name3
-                print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e))
-                print(e)
-                oren_exit(1)
-            }
-            var reg = fix["reg"]
-            var target_addr = text_base + header_size + target2
-            var pc2 = text_base + header_size + pos
-            var pc_page2 = pc2 - int_mod(pc2, 4096)
-            var target_page2 = target_addr - int_mod(target_addr, 4096)
-            var delta_pages2 = (target_page2 - pc_page2) / 4096
-            var page_off2 = int_mod(target_addr, 4096)
-            set_u32_le(code, pos, insn_adrp(reg, delta_pages2))
-            set_u32_le(code, pos + 4, insn_add_imm(reg, reg, page_off2))
-        }
-
-        if fix["type"] == "got_load" {
-             var got_idx = fix["got_index"]
-             var got_entry_addr = data_vmaddr + got_offset + (got_idx * 8)
-             var pc2 = text_base + header_size + pos
-             var pc_page3 = pc2 - int_mod(pc2, 4096)
-             var target_page3 = got_entry_addr - int_mod(got_entry_addr, 4096)
-             var delta_pages3 = (target_page3 - pc_page3) / 4096
-             var page_off3 = int_mod(got_entry_addr, 4096)
-             set_u32_le(code, pos, insn_adrp(16, delta_pages3))
-             set_u32_le(code, pos + 4, insn_add_imm(16, 16, page_off3))
-        }
-        
+        var offset_local = (target_local - pos_bl_local) / 4
+        set_u32_le(code, pos_bl_local, insn_bl(offset_local))
         i = i + 1
     }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.done", "n=" + oren_int_to_string(oren_list_len(local_bl_pos))) }
+    i = 0
+    while i < oren_list_len(local_adr_data_pos) {
+        if phase_log != nil {
+            if i == 0 || i == 4096 || i == 8192 {
+                _macho_phase_log_append(phase_log, "macho.fixups.local.adr_data.progress", "i=" + oren_int_to_string(i))
+            }
+        }
+        var pos_ad_local = local_adr_data_pos[i]
+        var data_off_local = local_adr_data_off[i]
+        var target_addr_local = data_vmaddr + data_off_local
+        var pc_local = text_base + header_size + pos_ad_local
+        var pc_page_local = pc_local - int_mod(pc_local, 4096)
+        var target_page_local = target_addr_local - int_mod(target_addr_local, 4096)
+        var delta_pages_local = (target_page_local - pc_page_local) / 4096
+        var page_off_local = int_mod(target_addr_local, 4096)
+        var reg_local = local_adr_data_reg[i]
+        set_u32_le(code, pos_ad_local, insn_adrp(reg_local, delta_pages_local))
+        set_u32_le(code, pos_ad_local + 4, insn_add_imm(reg_local, reg_local, page_off_local))
+        i = i + 1
+    }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_data.done", "n=" + oren_int_to_string(oren_list_len(local_adr_data_pos))) }
+    i = 0
+    while i < oren_list_len(local_adr_code_pos) {
+        if phase_log != nil {
+            if i == 0 || i == 4096 || i == 8192 {
+                _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.progress", "i=" + oren_int_to_string(i))
+            }
+        }
+        var pos_ac_local = local_adr_code_pos[i]
+        var name_ac_local = local_adr_code_name[i]
+        var target2_local = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac_local)
+        if target2_local == nil {
+            var e_local_ac = "native backend: undefined function " + name_ac_local
+            print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))
+            print(e_local_ac)
+            oren_exit(1)
+        }
+        var reg_ac_local = local_adr_code_reg[i]
+        var target_addr2_local = text_base + header_size + target2_local
+        var pc2_local = text_base + header_size + pos_ac_local
+        var pc_page2_local = pc2_local - int_mod(pc2_local, 4096)
+        var target_page2_local = target_addr2_local - int_mod(target_addr2_local, 4096)
+        var delta_pages2_local = (target_page2_local - pc_page2_local) / 4096
+        var page_off2_local = int_mod(target_addr2_local, 4096)
+        set_u32_le(code, pos_ac_local, insn_adrp(reg_ac_local, delta_pages2_local))
+        set_u32_le(code, pos_ac_local + 4, insn_add_imm(reg_ac_local, reg_ac_local, page_off2_local))
+        i = i + 1
+    }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.done", "n=" + oren_int_to_string(oren_list_len(local_adr_code_pos))) }
+    i = 0
+    while i < oren_list_len(local_got_pos) {
+        if phase_log != nil {
+            if i == 0 || i == 4096 || i == 8192 {
+                _macho_phase_log_append(phase_log, "macho.fixups.local.got.progress", "i=" + oren_int_to_string(i))
+            }
+        }
+        var pos_got_local = local_got_pos[i]
+        var got_idx_local = local_got_index[i]
+        var got_entry_addr_local = data_vmaddr + got_offset + (got_idx_local * 8)
+        var pc_got_local = text_base + header_size + pos_got_local
+        var pc_page3_local = pc_got_local - int_mod(pc_got_local, 4096)
+        var target_page3_local = got_entry_addr_local - int_mod(got_entry_addr_local, 4096)
+        var delta_pages3_local = (target_page3_local - pc_page3_local) / 4096
+        var page_off3_local = int_mod(got_entry_addr_local, 4096)
+        set_u32_le(code, pos_got_local, insn_adrp(16, delta_pages3_local))
+        set_u32_le(code, pos_got_local + 4, insn_add_imm(16, 16, page_off3_local))
+        i = i + 1
+    }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.got.done", "n=" + oren_int_to_string(oren_list_len(local_got_pos))) }
     if phase_log != nil {
         _macho_phase_log_append(phase_log, "macho.fixups.local.done", "n=" + oren_int_to_string(oren_list_len(fixups)))
         _macho_phase_log_append(phase_log, "macho.fixups.done", "total=" + oren_int_to_string(rtobj_fixups_n + oren_list_len(fixups)))
