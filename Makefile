@@ -360,11 +360,11 @@ $(OREN_STAGE2_BIN): $(OREN_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 bootstrap: oren_bootstrap
 stage1: oren
 # `make stage2` is the primary rolling path; keep it fast on first-run by also ensuring
-# a rtobj seed exists (best-effort, cheap copy).
+# runtime-astbin and rtobj seeds exist (best-effort, cheap copy).
 #
-# Also ensure a runtime-astbin seed exists so capsule builds don't pay an extremely slow
-# stage2-native "cold parse" cost for `lib/runtime_native_capsule.oren`.
-stage2: oren_stage2 rtobj-seed astbin-seed
+# Order matters for cold capsule fills: the rtobj seed builder can now point directly at the
+# astbin seed to skip runtime include expansion/fingerprinting, so warm astbin first.
+stage2: oren_stage2 astbin-seed rtobj-seed
 
 # Generate/update rtobj seed for the host platform (best-effort).
 # This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
@@ -374,7 +374,7 @@ stage2: oren_stage2 rtobj-seed astbin-seed
 # For the remaining cold capsule miss path, prefer the already-built stage1 compiler (`./oren`)
 # to populate the cache key once; the seed artifact is keyed by runtime hash + backend sig, not by
 # which compiler binary produced it.
-rtobj-seed: oren_stage2
+rtobj-seed: oren_stage2 astbin-seed
 			@if [ -n "$(HOST_PLATFORM)" ]; then \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --debug || true; \

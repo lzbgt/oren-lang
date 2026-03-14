@@ -111,6 +111,7 @@ esac
 
 cache_dir="${OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR:-build/cache/native_runtime_obj}"
 seed_dir="${OREN_NATIVE_RUNTIME_OBJ_SEED_DIR:-build/cache/native_runtime_obj_seed}"
+astbin_seed_dir="${OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR:-build/cache/native_runtime_astbin_seed}"
 
 dbg="d0"
 if [[ "$debug_flag" = "--debug" ]]; then dbg="d1"; fi
@@ -152,6 +153,45 @@ else
     *) echo "ERROR: unsupported --runtime-profile: ${runtime_profile}" >&2; exit 2 ;;
   esac
 fi
+
+runtime_astbin_seed_variant() {
+  if [[ "$capsule" = "1" ]]; then
+    echo "capsule"
+    return 0
+  fi
+  case "${runtime_profile:-}" in
+    full) echo "native_full" ;;
+    *) echo "native_core" ;;
+  esac
+}
+
+find_runtime_astbin_seed_path() {
+  if [[ -z "$astbin_seed_dir" || "$astbin_seed_dir" = "0" || "$astbin_seed_dir" = "false" ]]; then
+    return 1
+  fi
+  local index="${astbin_seed_dir}/.runtime_astbin_seed_index_os_${os}.txt"
+  if [[ ! -f "$index" ]]; then
+    return 1
+  fi
+  local variant
+  variant="$(runtime_astbin_seed_variant)"
+  if [[ -z "$variant" ]]; then
+    return 1
+  fi
+  local base
+  base="$(
+    (grep -E "^${variant}=" "$index" || true) | head -n 1 | sed -E "s/^${variant}=//"
+  )"
+  if [[ -z "$base" ]]; then
+    return 1
+  fi
+  local p="${astbin_seed_dir}/${base}"
+  if [[ ! -f "$p" ]]; then
+    return 1
+  fi
+  echo "$p"
+  return 0
+}
 
 hash_cache_dir="${OREN_NATIVE_RUNTIME_HASH_CACHE_DIR:-build/cache/native_runtime_hash}"
 
@@ -367,6 +407,11 @@ if [[ "$build_compiler" != "$compiler" ]]; then
   echo "NOTE: cold seed build compiler=$build_compiler (requested compiler=$compiler)" >&2
 fi
 
+runtime_astbin_seed_path="$(find_runtime_astbin_seed_path || true)"
+if [[ -n "$runtime_astbin_seed_path" ]]; then
+  echo "NOTE: cold seed build using runtime astbin seed=$runtime_astbin_seed_path" >&2
+fi
+
 if [[ ! -x "$compiler" ]]; then
   echo "ERROR: compiler not found/executable: $compiler" >&2
   echo "Hint: build it with: make stage2" >&2
@@ -390,11 +435,20 @@ capsule_flag=""
 if [[ "$capsule" = "1" ]]; then
   capsule_flag="--capsule"
 fi
-OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
-OREN_NATIVE_RUNTIME_PROFILE="$rp" \
-  "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
-  $capsule_flag \
-  "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
+if [[ -n "$runtime_astbin_seed_path" ]]; then
+  OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
+  OREN_NATIVE_RUNTIME_PROFILE="$rp" \
+  OREN_NATIVE_RUNTIME_ASTBIN="$runtime_astbin_seed_path" \
+    "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
+    $capsule_flag \
+    "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
+else
+  OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
+  OREN_NATIVE_RUNTIME_PROFILE="$rp" \
+    "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
+    $capsule_flag \
+    "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
+fi
 
 want_rh="$(runtime_hash_from_cache || true)"
 if [[ -z "$want_rh" ]]; then

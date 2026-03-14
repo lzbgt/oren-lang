@@ -1937,6 +1937,18 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     the same cold path under `./oren_stage2` was still inside `rtobj.miss.build.start`
     after 10s. After the first fill, the same seed command now returns
     `OK: rtobj seed already present (no-op)`.
+  - Fix (2026-03-15): the cold capsule rtobj-seed path now injects the prebuilt capsule
+    runtime astbin seed directly via `OREN_NATIVE_RUNTIME_ASTBIN`, instead of merely leaving
+    the astbin seed available for the compiler to discover after runtime expansion and
+    fingerprinting. Measured on arm64-macos with empty rtobj cache/seed dirs: the previous
+    cold capsule miss stayed around 12.7s even when `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR`
+    was populated, while the new direct-astbin path in
+    `scripts/build_rtobj_seed.sh --compiler ./oren_stage2 --build-compiler ./oren --capsule --no-debug`
+    completed in about 5.2s and logged
+    `NOTE: cold seed build using runtime astbin seed=.../v2_4792361169917478041_5905402636049619153_os_macos_pruned3.astbin`.
+  - Fix (2026-03-15): `stage2`/`rtobj-seed` now warm `astbin-seed` before the host rtobj seed
+    path, so first-run capsule seed fills can use the direct astbin override instead of paying
+    a cold runtime expansion first.
   - New: `scripts/triage_native_quick_flake.sh` runs the stage1 native quick integration
     in a loop and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough
     args for tracing, logs git/uname metadata, and saves failure copies of the inner

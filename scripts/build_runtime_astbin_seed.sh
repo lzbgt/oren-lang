@@ -175,13 +175,17 @@ if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
   # - runtime_sources_sha256 (all runtime inputs that affect the bundle fingerprint)
   # - compiler_sha256 (so compiler fingerprinting changes also invalidate the seed)
   meta="$seed_dir/.runtime_astbin_seed_meta_os_${os}.txt"
+  index="$seed_dir/.runtime_astbin_seed_index_os_${os}.txt"
   # Expect at least:
   # - full runtime
   # - core runtime
   # - capsule runtime
-  if [[ "$total" -ge 3 && -f "$meta" ]]; then
+  if [[ "$total" -ge 3 && -f "$meta" && -f "$index" ]]; then
     want_runtime_sha="$(runtime_sources_sha256)"
     want_compiler_sha="$(sha256_file "$compiler")"
+    have_seed_gen="$(
+      (grep -E "^seed_gen=" "$index" || true) | head -n 1 | sed -E 's/^seed_gen=//'
+    )"
 
     have_runtime_sha="$(
       # NOTE: this script runs with `set -euo pipefail`. Treat "missing key" as empty instead of aborting
@@ -192,7 +196,7 @@ if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
       (grep -E "^compiler_sha256=" "$meta" || true) | head -n 1 | sed -E 's/^compiler_sha256=//'
     )"
 
-    if [[ -n "$want_runtime_sha" && -n "$want_compiler_sha" && "$want_runtime_sha" == "$have_runtime_sha" && "$want_compiler_sha" == "$have_compiler_sha" ]]; then
+    if [[ -n "$want_runtime_sha" && -n "$want_compiler_sha" && "$have_seed_gen" == "2" && "$want_runtime_sha" == "$have_runtime_sha" && "$want_compiler_sha" == "$have_compiler_sha" ]]; then
       echo "OK: runtime astbin seed already present (os=$os files=$total)" >&2
       exit 0
     fi
@@ -270,8 +274,11 @@ build_one() {
     exit 1
   fi
 
-  cp -f "$p" "$seed_dir/"
-  echo "OK: seeded $(basename "$p")"
+  local base
+  base="$(basename "$p")"
+  cp -f "$p" "$seed_dir/$base"
+  echo "OK: seeded $base" >&2
+  printf "%s\n" "$base"
 }
 
 echo "== runtime astbin seed ==" >&2
@@ -282,13 +289,13 @@ echo "seed_dir=$seed_dir" >&2
 
 # Full non-capsule runtime (lib/runtime_native.oren).
 # Force the profile so this remains correct even when the compiler default heuristic prefers "core".
-build_one "native_full" "full" "tests/native/test_quick_integration_native.oren"
+native_full_base="$(build_one "native_full" "full" "tests/native/test_quick_integration_native.oren")"
 
 # Core non-capsule runtime (lib/runtime_native_core.oren).
-build_one "native_core" "core" "examples/hello.oren"
+native_core_base="$(build_one "native_core" "core" "examples/hello.oren")"
 
 # Capsule runtime (lib/runtime_native_capsule.oren).
-build_one "capsule" "" "tests/native/fixtures/capsule_ok.oren" --capsule
+capsule_base="$(build_one "capsule" "" "tests/native/fixtures/capsule_ok.oren" --capsule)"
 
 os="${platform#*-}"
 meta="$seed_dir/.runtime_astbin_seed_meta_os_${os}.txt"
@@ -301,5 +308,15 @@ meta="$seed_dir/.runtime_astbin_seed_meta_os_${os}.txt"
   echo "runtime_sources_sha256=$(runtime_sources_sha256)"
   echo "created_at_ns=$(date +%s%N 2>/dev/null || date +%s)"
 } >"$meta"
+
+index="$seed_dir/.runtime_astbin_seed_index_os_${os}.txt"
+{
+  echo "seed_gen=2"
+  echo "os=$os"
+  echo "platform=$platform"
+  echo "native_full=$native_full_base"
+  echo "native_core=$native_core_base"
+  echo "capsule=$capsule_base"
+} >"$index"
 
 echo "OK: runtime astbin seed updated" >&2
