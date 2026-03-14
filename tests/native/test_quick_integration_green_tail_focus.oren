@@ -1,0 +1,32 @@
+// Focused native quick-integration tail for the stage1 green-cache/STW runtime race.
+//
+// This starts at the first worker-heavy section that consistently raises STW expected parked
+// counts above 2, so loops stay much faster than the full quick-integration fixture.
+//
+// @include "qi/000_prelude.oren"
+// @include "qi/100_tests_basic.oren"
+// @include "qi/200_tests_wait_gc.oren"
+// @include "qi/300_tests_green.oren"
+
+fn main() {
+    if oren_getenv("OREN_QI_TRACE") != 0 { g_qi_trace_on = 1 }
+
+    test_green_workers_join()
+    test_green_worker_release_acquire_p_when_parked()
+    test_gc_collect_does_not_deadlock_with_green_worker_idle()
+    test_gc_stw_os_thread_collect_scans_parked_stack()
+    test_gc_stw_wakes_netpoll_blocked_threads()
+    test_gc_collect_does_not_deadlock_with_green_join_waiter()
+    test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()
+    test_gc_collect_does_not_wait_for_exited_os_threads_win()
+    test_select_in_green_workers()
+    test_select_multi_case_in_green_workers()
+    test_select_idle_does_not_spin_cpu()
+    test_green_topology_rejects_after_workers()
+    test_green_global_runq_fairness()
+
+    print("ok: qi green tail focus")
+    exit(0)
+}
+
+main()

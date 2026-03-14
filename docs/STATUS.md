@@ -1977,6 +1977,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     and `scripts/triage_native_quick_gc_stw_focus_flake.sh` +
     `make test-native-quick-gc-stw-focus-flake` run a focused quick-integration prefix through
     `test_gc_stw_wakes_netpoll_blocked_threads()` with `OREN_TRACE_GC_STW_WAITERS=1`.
+  - New (2026-03-15): `scripts/triage_native_quick_green_tail_flake.sh` +
+    `make test-native-quick-green-tail-flake` isolate the later
+    `green_workers_join -> ... -> green_global_runq_fairness` band under
+    green-cache-only reruns, targeting the region where the current traces first reach
+    `expected=3` / `expected=4` parked threads.
   - Trace: stage1 quick-integration flake harness ran 5 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage1_quick_20260303_215453.log`).
   - Trace (2026-03-15): the focused green-cache-only harness hit a timeout on run 3
@@ -1998,6 +2003,18 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     an ordinary OS-thread node with `flags=1`, `saved=0`, and either a transient backup `saved_sp`
     or a plain 512 KiB thread stack, which then parks on the next wait. That means the new
     diagnostics are working, but this snapshot did not re-hit the original timeout.
+  - Trace (2026-03-15): the new waiter dump also narrows the current high-value band:
+    in successful stage1 green-cache reruns, `expected=3` begins at
+    `test_gc_collect_does_not_deadlock_with_green_join_waiter()` and `expected=4` at
+    `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()`
+    (`build/logs/oren_native_quick_flake_20260315_043203_run3_inner.log`,
+    `build/logs/oren_native_quick_flake_20260315_043252_run14_inner.log`).
+  - Trace (2026-03-15): the new late-tail focused flake loop also passed 10/10
+    (`build/logs/codex_green_tail_flake_20260315.log`), but it reproduces those
+    `expected=3` / `expected=4` collector waits in a much smaller slice
+    (`build/logs/oren_native_quick_flake_20260315_043744_run1_inner.log`,
+    `build/logs/oren_native_quick_flake_20260315_043757_run8_inner.log`). So the next runtime
+    investigation should stay on this smaller tail instead of the full quick-integration path.
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,

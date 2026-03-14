@@ -1364,6 +1364,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_QI_LABEL`, and `scripts/triage_native_quick_gc_stw_focus_flake.sh` +
     `make test-native-quick-gc-stw-focus-flake` isolate the quick-integration prefix through
     `test_gc_stw_wakes_netpoll_blocked_threads()` with collector-side waiter dumps enabled.
+  - New (2026-03-15): `scripts/triage_native_quick_green_tail_flake.sh` +
+    `make test-native-quick-green-tail-flake` isolate the later green-worker/STW/join/select tail
+    under green-cache-only reruns, targeting the first observed `expected=3` / `expected=4`
+    collector waits.
   - Trace (2026-03-15): the focused green-cache-only harness hit a timeout on run 3
     (`build/logs/codex_stage1_qi_green_cache_only_guarded_20260315.log`), with the last STW
     trace showing `expected=9` parked threads before the run timed out. Follow-up traced loops
@@ -1377,6 +1381,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     regular OS-thread nodes with `flags=1`, `saved=0`, and transient `backup_saved` /
     512 KiB stack metadata that then park on the next wait. Keep using this path until the
     original timeout reproduces again.
+  - Trace (2026-03-15): in the successful green-cache reruns, the first larger collector waits
+    occur at `test_gc_collect_does_not_deadlock_with_green_join_waiter()` (`expected=3`) and
+    `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()` (`expected=4`), so the next
+    tight reproducer should start there instead of from the earlier GC/netpoll wake smoke.
+  - Trace (2026-03-15): the new late-tail flake loop passed 10/10
+    (`build/logs/codex_green_tail_flake_20260315.log`) while still reproducing the smaller
+    `expected=3` / `expected=4` collector waits in isolation
+    (`build/logs/oren_native_quick_flake_20260315_043744_run1_inner.log`,
+    `build/logs/oren_native_quick_flake_20260315_043757_run8_inner.log`).
   - New: quick flake triage scripts capture the in-flight inner log on SIGTERM/SIGINT
     (writes `*_interrupt.log` alongside the per-run log) for hang forensics.
   - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside
