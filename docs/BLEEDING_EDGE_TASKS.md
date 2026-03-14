@@ -1308,6 +1308,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (`build/logs/codex_verify_green_fairness_guarded_20260307_pass.log`), and the per-run
     logs now stop immediately after the base + green-cache fairness passes while keeping
     the fairness progress markers in the inner log.
+  - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
+    in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
+    cleanly, and the fresh phase log now reaches `macho.fixups.done` plus
+    `build.native.emit.done` before the quick-integration binary runs
+    (`build/logs/oren_stage2_native_quick_integration.phases.log`,
+    `build/logs/oren_stage2_native_quick_integration.log`).
+  - Verified (2026-03-15): the current full-suite run progresses past
+    `test-native-quick-stage2`; `build/logs/make_test_after_47c7fada.log` reaches the
+    capsule rtobj-seed path only after stage1 + stage2 native quick integration pass,
+    so the earlier arm64 stage2 compiler timeout/local-fixup blocker is no longer the
+    active gate.
+  - Fix (2026-03-15): `rtobj-seed` no longer force-refreshes the capsule seed on every run.
+    The Makefile now lets `scripts/build_rtobj_seed.sh` no-op/copy on matching capsule
+    hash hits and only pay the cold `examples/hello --capsule` build when the current
+    capsule hash is actually missing. Re-run `make rtobj-seed` after the first fill to
+    verify the path stays cheap on hits.
   - New: `scripts/triage_stage2_quick_until_world_lock.sh` runs native quick integration
     plus the smokes leading up to `test_green_two_workers_world_lock_smoke` to isolate
     order-sensitive hangs.

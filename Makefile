@@ -369,11 +369,13 @@ stage2: oren_stage2 rtobj-seed astbin-seed
 # Generate/update rtobj seed for the host platform (best-effort).
 # This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
 # Seed both non-debug and debug runtime objects because native quick integration uses `--debug`.
+# Capsule seeds are also hash-keyed, so let the seed script no-op/copy on cache hits instead of
+# force-refreshing `examples/hello` on every `make test`.
 rtobj-seed: oren_stage2
 			@if [ -n "$(HOST_PLATFORM)" ]; then \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --debug || true; \
-				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true; \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug || true; \
 			else \
 				echo "NOTE: host platform unknown; skipping rtobj seed"; \
 		fi
@@ -386,8 +388,8 @@ rtobj-seed-x64: oren_stage2
 			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --debug || true
 			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
 			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --debug || true
-			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
-			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug || true
 
 # Generate/update only the host debug/core rtobj seed needed by stage2 native quick integration.
 # Keep this narrow so the fast smoke doesn't pay the capsule seed refresh.

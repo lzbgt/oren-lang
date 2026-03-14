@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-03-07
+**Last updated:** 2026-03-15
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -1914,6 +1914,22 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     `OREN_GREEN_POLL_CACHE=1` sub-run in `scripts/run_native_quick_integration.sh` (2026-03-03).
   - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
     (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
+  - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer stalls in
+    the compiler native-emit path. `./scripts/run_native_quick_integration.sh ./oren_stage2`
+    completed cleanly, and the fresh phase log reaches `macho.fixups.done` plus
+    `build.native.emit.done` before the quick-integration binary runs
+    (`build/logs/oren_stage2_native_quick_integration.phases.log`,
+    `build/logs/oren_stage2_native_quick_integration.log`).
+  - Verified (2026-03-15): the current `make test` run advances past
+    `test-native-quick-stage2`; `build/logs/make_test_after_47c7fada.log` reaches the
+    capsule rtobj-seed path only after both stage1 and stage2 native quick integration
+    pass, so the previous arm64 stage2 local-fixup timeout is no longer the active suite
+    blocker.
+  - Fix (2026-03-15): `rtobj-seed` no longer force-refreshes the capsule seed on every run.
+    The Makefile now lets `scripts/build_rtobj_seed.sh` no-op/copy on matching capsule
+    hash hits and only pay the cold `examples/hello --capsule` build when the current
+    capsule hash is actually missing. The remaining slow path is the first cold fill, not
+    repeated forced refresh.
   - New: `scripts/triage_native_quick_flake.sh` runs the stage1 native quick integration
     in a loop and captures per-run logs for flake diagnosis; supports `ENV=VAL` passthrough
     args for tracing, logs git/uname metadata, and saves failure copies of the inner
