@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-03-05
+**Last updated:** 2026-03-15
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -1390,6 +1390,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `expected=3` / `expected=4` collector waits in isolation
     (`build/logs/oren_native_quick_flake_20260315_043744_run1_inner.log`,
     `build/logs/oren_native_quick_flake_20260315_043757_run8_inner.log`).
+  - New (2026-03-15): `scripts/triage_native_quick_green_join_waiters_stress_flake.sh` +
+    `make test-native-quick-green-join-waiters-stress-flake` stress only the two join-waiter
+    tests in-process, with explicit per-step markers and selectable modes:
+    `OREN_QI_STRESS_MODE=green|os|both`.
+  - Trace (2026-03-15): that new stress fixture is the best current reproducer. `green`-only
+    and `os`-only both pass for 4 iterations, but the default alternating `both` mode still
+    segfaults in the green-cache rerun path, and it does so in the second
+    `test_gc_collect_does_not_deadlock_with_green_join_waiter()` iteration
+    (`build/logs/codex_green_join_waiters_stress_flake_20260315.log`).
   - New: quick flake triage scripts capture the in-flight inner log on SIGTERM/SIGINT
     (writes `*_interrupt.log` alongside the per-run log) for hang forensics.
   - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside

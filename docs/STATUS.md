@@ -2015,6 +2015,22 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     (`build/logs/oren_native_quick_flake_20260315_043744_run1_inner.log`,
     `build/logs/oren_native_quick_flake_20260315_043757_run8_inner.log`). So the next runtime
     investigation should stay on this smaller tail instead of the full quick-integration path.
+  - New (2026-03-15): `scripts/triage_native_quick_green_join_waiters_stress_flake.sh` +
+    `make test-native-quick-green-join-waiters-stress-flake` now stress just the two first
+    collector-tail join-waiter tests in-process, with explicit per-step markers and a smaller
+    default loop count (`OREN_QI_STRESS_ITERS=4`).
+  - Trace (2026-03-15): the new join-waiter stress fixture narrowed the failure further.
+    `OREN_QI_STRESS_MODE=green` and `OREN_QI_STRESS_MODE=os` both pass cleanly for 4 iterations
+    (logs: `build/logs/codex_green_join_waiters_stress_green_seq_20260315.log`,
+    `build/logs/codex_green_join_waiters_stress_os_seq_20260315.log`), but the default alternating
+    `both` mode still segfaults under the green-cache rerun path
+    (`build/logs/codex_green_join_waiters_stress_flake_20260315.log`).
+  - Trace (2026-03-15): the alternating stress reproducer now shows the crash happens inside the
+    second `test_gc_collect_does_not_deadlock_with_green_join_waiter()` call, after
+    `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()` has already run once.
+    The failing run prints `iter=2/4 before test_gc_collect_does_not_deadlock_with_green_join_waiter`
+    and then segfaults (inner log tail embedded in
+    `build/logs/codex_green_join_waiters_stress_flake_20260315.log`).
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,
