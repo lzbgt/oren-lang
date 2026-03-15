@@ -115,7 +115,9 @@ fn native_buf_new(len, elem_size, tag) {
     if len > 2147483647 { return oren_err(4, "buf_new: length too large") }
     if elem_size != 1 && elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new: invalid elem_size") }
 
-    var header = malloc_k(56, 7)
+    // Allocate as raw first, then retype after the BUF header is fully initialized.
+    // Otherwise forced GC can follow a garbage payload pointer from an uninitialized header.
+    var header = malloc_k(56, 0)
     if header == 0 || header == -1 { return oren_err(8, "buf_new: alloc failed") }
 
     var bytes_len = len * elem_size
@@ -148,8 +150,16 @@ fn native_buf_new(len, elem_size, tag) {
         } else {
             // Small payload: heap allocate and align within the block.
             // Over-allocate so we can align the working payload pointer while keeping the GC anchor stable.
+            //
+            // IMPORTANT:
+            // - This payload is raw byte storage, not a LIST_INT header/object.
+            // - `list_int_kind()` is also `8`, so tracking heap payloads with kind=8 lets GC
+            //   misclassify raw bytes as LIST_INT and validate arbitrary payload contents as a
+            //   list header under mark/sweep.
+            // - Keep heap payloads as kind=0 (raw tracked block): reachable via the BUF header,
+            //   not recursively scanned as a structured container, and reclaimed via free_blocks.
             var cap = bytes_len + (buf_align_default() - 1)
-            data = malloc_k(cap, 8)
+            data = malloc_k(cap, 0)
             if data == 0 || data == -1 { return oren_err(8, "buf_new: payload alloc failed") }
             data_ptr = native_align_up(data, buf_align_default())
             // Zero-fill (malloc does not promise zeroed memory).
@@ -167,6 +177,7 @@ fn native_buf_new(len, elem_size, tag) {
     ptr_set(header + 24, buf_magic())
     ptr_set(header + 32, tag)
     ptr_set(header + 40, data_ptr)
+    oren_track_alloc(header, 56, 7)
     return header
 }
 
@@ -184,7 +195,8 @@ fn native_buf_new_uninit(len, elem_size, tag) {
     if len > 2147483647 { return oren_err(4, "buf_new_uninit: length too large") }
     if elem_size != 1 && elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new_uninit: invalid elem_size") }
 
-    var header = malloc_k(56, 7)
+    // Allocate as raw first, then retype after the BUF header is fully initialized.
+    var header = malloc_k(56, 0)
     if header == 0 || header == -1 { return oren_err(8, "buf_new_uninit: alloc failed") }
 
     var bytes_len = len * elem_size
@@ -212,9 +224,11 @@ fn native_buf_new_uninit(len, elem_size, tag) {
             oren_track_alloc(data, bytes_len, 9)
         } else {
             // Small/medium payload: heap allocate and align within the block.
-            // IMPORTANT: no zero-fill here (caller must initialize).
+            // IMPORTANT:
+            // - no zero-fill here (caller must initialize)
+            // - track as raw kind=0, not LIST_INT-kind 8, for the same reason as `native_buf_new`
             var cap = bytes_len + (buf_align_default() - 1)
-            data = malloc_k(cap, 8)
+            data = malloc_k(cap, 0)
             if data == 0 || data == -1 { return oren_err(8, "buf_new_uninit: payload alloc failed") }
             data_ptr = native_align_up(data, buf_align_default())
         }
@@ -226,6 +240,7 @@ fn native_buf_new_uninit(len, elem_size, tag) {
     ptr_set(header + 24, buf_magic())
     ptr_set(header + 32, tag)
     ptr_set(header + 40, data_ptr)
+    oren_track_alloc(header, 56, 7)
     return header
 }
 
@@ -255,7 +270,8 @@ fn native_buf_wrap_ptr(data, len, elem_size, tag) {
         if cap < bytes_len { return oren_err(4, "buf_wrap_ptr: payload too small") }
     }
 
-    var header = malloc_k(56, 7)
+    // Allocate as raw first, then retype after the BUF header is fully initialized.
+    var header = malloc_k(56, 0)
     if header == 0 || header == -1 { return oren_err(8, "buf_wrap_ptr: alloc failed") }
 
     ptr_set(header + 0, len)
@@ -264,5 +280,6 @@ fn native_buf_wrap_ptr(data, len, elem_size, tag) {
     ptr_set(header + 24, buf_magic())
     ptr_set(header + 32, tag)
     ptr_set(header + 40, data)
+    oren_track_alloc(header, 56, 7)
     return header
 }

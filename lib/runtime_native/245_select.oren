@@ -153,6 +153,7 @@ fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
                     return 0 - 12
                 }
                 native_netpoll_wait_init(w, g, i, epoch)
+                oren_retag_struct(w, native_netpoll_wait_bytes())
                 ptr_set(iadd(wait_ptrs, i * 8), w)
                 oren_list_push(wait_roots, w)
             }

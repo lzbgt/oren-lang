@@ -185,6 +185,7 @@ fn test_green_global_runq_fairness() {
     // Green tasks are the default `spawn` path on macOS/Linux today.
     // Windows uses CreateThread for `spawn`, so skip this test there.
     if g_target_os == 3 { return 0 }
+    var fairness_trace = _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS")
 
     // Ensure background worker mode is active.
     var rc = oren_green_start_workers(1)
@@ -204,6 +205,7 @@ fn test_green_global_runq_fairness() {
         oren_list_push(hogs, h)
         i = i + 1
     }
+    if fairness_trace { print("fairness: hogs=8 spawned") }
 
     // Spawn short tasks from the main thread (outside green context). These are injected via the global runq.
     // Without fairness, these can starve indefinitely if the local runq is never empty.
@@ -214,14 +216,17 @@ fn test_green_global_runq_fairness() {
         oren_list_push(hs, h2)
         i = i + 1
     }
+    if fairness_trace { print("fairness: short_tasks=40 spawned") }
 
     i = 0
     while i < oren_list_len(hs) {
         var hh = oren_list_get(hs, i)
         var r = oren_join_timeout(hh, _qi_timeout_ms(2000))
         assert_eq(r, 1, 486)
+        if fairness_trace && ((i + 1) % 10) == 0 { print("fairness: short joins=" + oren_int_to_string(i + 1)) }
         i = i + 1
     }
+    if fairness_trace { print("fairness: short joins complete") }
 
     // Stop hog tasks and join them so they don't leak into later tests.
     ptr_set(meta + _off_green_hog_stop(), 1)
@@ -230,8 +235,10 @@ fn test_green_global_runq_fairness() {
         var hh2 = oren_list_get(hogs, i)
         var r2 = oren_join_timeout(hh2, _qi_timeout_ms(2000))
         assert_eq(r2, 0, 487)
+        if fairness_trace && ((i + 1) % 4) == 0 { print("fairness: hog joins=" + oren_int_to_string(i + 1)) }
         i = i + 1
     }
+    if fairness_trace { print("fairness: hog joins complete") }
     sys_munmap(meta, 4096)
     return 0
 }

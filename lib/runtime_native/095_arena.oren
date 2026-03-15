@@ -561,13 +561,26 @@ fn native_arena_track(ptr, size, kind) {
 fn native_arena_alloc_k(size, kind) {
     var p = native_arena_alloc_raw(size)
     if p != 0 {
-        native_arena_track(p, size, kind)
+        // Allocate as raw first; callers must retype after header initialization.
+        native_arena_track(p, size, 0)
         return p
     }
     if g_arena_last_spill_reason != 0 {
         native_arena_trace_spill_emit(size, kind, g_arena_last_spill_reason)
     }
-    return malloc_k(size, kind)
+    return malloc_k(size, 0)
+}
+
+fn native_arena_retag(ptr, size, kind) {
+    var node = native_arena_find_node_nolock(ptr)
+    if node != 0 {
+        ptr_set(iadd(node, 8), size)
+        ptr_set(iadd(node, 16), kind)
+        ptr_set(iadd(node, 24), 0)
+        ptr_set(iadd(node, 40), native_node_magic())
+        return ptr
+    }
+    return oren_track_alloc(ptr, size, kind)
 }
 
 fn native_arena_push() {
@@ -652,6 +665,7 @@ fn native_arena_new_list(cap) {
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    native_arena_retag(header, total, 2)
     _list_ctor_trace_emit("post_init", header, 2, total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, 2, total, site, 2)
     _list_ctor_trace_emit("post_track", header, 2, total, cap, native_alloc_index_get(header))
@@ -682,6 +696,7 @@ fn native_arena_new_list_int(cap) {
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    native_arena_retag(header, total, list_int_kind())
     _list_ctor_trace_emit("post_init", header, list_int_kind(), total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, list_int_kind(), total, site, 2)
     _list_ctor_trace_emit("post_track", header, list_int_kind(), total, cap, native_alloc_index_get(header))

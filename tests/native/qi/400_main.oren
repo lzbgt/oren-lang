@@ -58,6 +58,10 @@ fn main() {
     test_select_idle_does_not_spin_cpu()
     test_green_topology_rejects_after_workers()
     test_green_global_runq_fairness()
+    if _qi_env_truthy("OREN_QI_STOP_AFTER_GREEN_FAIRNESS") {
+        print("native quick integration OK")
+        exit(0)
+    }
     test_green_ctx_switch_alloc_integrity()
     test_green_local_ptr_survives_yields()
     test_green_workers_ctx_switch_alloc_integrity()

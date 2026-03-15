@@ -366,17 +366,26 @@ fn native_alloc_index_recover_ptr(ptr) {
     if ptr == 0 { return 0 }
     if ptr < 4096 { return 0 }
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var wl = _green_world_lock_host_enter()
     acquire_lock()
     var cur = global_get_allocs()
     while cur != 0 {
         if ptr_get(cur) - ptr == 0 {
             native_alloc_index_put_node(cur)
+            if g_runtime_single_threaded == 1 {
+                g_find_cache_ptr1 = g_find_cache_ptr0
+                g_find_cache_node1 = g_find_cache_node0
+                g_find_cache_ptr0 = ptr
+                g_find_cache_node0 = cur
+            }
             release_lock()
+            _green_world_lock_host_exit(wl)
             return cur
         }
         cur = ptr_get(iadd(cur, 32))
     }
     release_lock()
+    _green_world_lock_host_exit(wl)
     return 0
 }
 

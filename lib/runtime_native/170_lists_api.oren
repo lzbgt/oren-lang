@@ -55,7 +55,7 @@ fn oren_list_len(list) {
 fn oren_list_clear(list) {
     if list == nil { return nil }
     if _list_assume_list_enabled() != true {
-        var node = _list_find_node(list)
+        var node = _list_find_node_known_kind(list, 2)
         if node == 0 { oren_panic("list_clear on non-list"); return nil }
         var k = ptr_get(iadd(node, 16))
         if k != 2 { oren_panic("list_clear on non-list"); return nil }
@@ -378,18 +378,18 @@ fn native_list_debug_node(list) {
 @oren.keep
 fn oren_is_list(v) {
     if v == nil { return false }
-	    var node = oren_find_node(v)
-	    if node == 0 { return false }
-	    if ptr_get(iadd(node, 16)) != 2 { return false }
-	    if ptr_get(iadd(v, 24)) != list_magic() { return false }
-	    return true
+    var node = _list_find_node_known_kind(v, 2)
+    if node == 0 { return false }
+    if ptr_get(iadd(node, 16)) != 2 { return false }
+    if ptr_get(iadd(v, 24)) != list_magic() { return false }
+    return true
 }
 
 // Safe type predicate: list<int> (unboxed list).
 @oren.keep
 fn oren_is_list_int(v) {
     if v == nil { return false }
-    var node = oren_find_node(v)
+    var node = _list_find_node_known_kind(v, list_int_kind())
     if node == 0 { return false }
     if ptr_get(iadd(node, 16)) != list_int_kind() { return false }
     if ptr_get(iadd(v, 24)) != list_magic() { return false }
@@ -399,25 +399,7 @@ fn oren_is_list_int(v) {
 @oren.keep
 fn oren_list_int_len(list) {
     if list == nil { return 0 }
-    var node = _list_find_node(list)
-    if node == 0 {
-        native_alloc_index_rebuild_live()
-        node = _list_find_node(list)
-    }
-    if node == 0 {
-        node = native_alloc_index_recover_ptr(list)
-    }
-    if node == 0 {
-        if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
-            var cap = ptr_get(iadd(list, 8))
-            if cap >= 0 && cap < 1048576 {
-                var total = 32
-                if cap > 0 { total = total + cap * 8 }
-                oren_track_alloc_new(list, total, list_int_kind())
-                node = _list_find_node(list)
-            }
-        }
-    }
+    var node = _list_find_node_known_kind(list, list_int_kind())
     if node == 0 { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
     if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
     if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
@@ -435,7 +417,7 @@ fn oren_list_int_len_unchecked(list) {
 @oren.keep
 fn oren_list_int_clear(list) {
     if list == nil { return nil }
-    var node = _list_find_node(list)
+    var node = _list_find_node_known_kind(list, list_int_kind())
     if node == 0 { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
     if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
     if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
@@ -465,11 +447,7 @@ fn oren_list_int_reserve(list, new_cap) {
         return nil
     }
     if new_cap < 0 { return nil }
-    var node = _list_find_node(list)
-    if node == 0 {
-        native_alloc_index_rebuild_live()
-        node = _list_find_node(list)
-    }
+    var node = _list_find_node_known_kind(list, list_int_kind())
     if node == 0 {
         _list_reserve_fail_emit(1, list, node, list_int_kind(), new_cap)
         _list_trace_dump(list)
@@ -530,7 +508,7 @@ fn oren_list_int_reserve(list, new_cap) {
 @oren.keep
 fn oren_list_int_push(list, value) {
     if list == nil { oren_panic("list_int_push on nil"); return nil }
-    var node = _list_find_node(list)
+    var node = _list_find_node_known_kind(list, list_int_kind())
     if node == 0 {
         native_list_panic_footer(list, node, 1, list_int_kind())
         _list_trace_dump(list)
@@ -621,7 +599,7 @@ fn oren_list_int_push_unchecked(list, value) {
 @oren.keep
 fn oren_list_int_get(list, idx) {
     if list == nil { oren_panic("list_int_get on nil"); return nil }
-    var node = _list_find_node(list)
+    var node = _list_find_node_known_kind(list, list_int_kind())
     if node == 0 { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
     if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
     if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
@@ -647,7 +625,7 @@ fn oren_list_int_get_unchecked(list, idx) {
 @oren.keep
 fn oren_list_int_set(list, idx, value) {
     if list == nil { oren_panic("list_int_set on nil"); return nil }
-    var node = _list_find_node(list)
+    var node = _list_find_node_known_kind(list, list_int_kind())
     if node == 0 { _list_trace_dump(list); oren_panic("list_int_set on non-list"); return nil }
     if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_set on non-list"); return nil }
     if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_set on non-list") }
@@ -706,7 +684,7 @@ fn oren_list_push(list, value) {
     }
     if _list_assume_list_enabled() != true {
         // Safety: do not dereference arbitrary large integers as pointers.
-	    var node = _list_find_node(list)
+	    var node = _list_find_node_known_kind(list, 2)
 	    if node == 0 { oren_panic("list_push: untracked ptr"); return 0 }
 	    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_push: wrong kind"); return 0 }
 	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_push: bad magic"); return 0 }
@@ -789,11 +767,7 @@ fn oren_list_get(list, idx) {
     if _list_assume_list_enabled() != true {
         // Safety: do not dereference arbitrary large integers as pointers.
         // `x[i]` is defined for lists and maps; reject other values deterministically.
-        var node = _list_find_node(list)
-        if node == 0 {
-            native_alloc_index_rebuild_live()
-            node = _list_find_node(list)
-        }
+        var node = _list_find_node_resilient(list)
         if node == 0 {
             _list_get_bad_emit(1, list, idx, node, 0)
             _list_trace_dump(list)
@@ -808,7 +782,7 @@ fn oren_list_get(list, idx) {
                 return oren_map_get(list, idx)
             }
             native_alloc_index_rebuild_live()
-            node = _list_find_node(list)
+            node = _list_find_node_resilient(list)
             if node != 0 {
                 kind = ptr_get(iadd(node, 16))
                 if kind == 3 {
@@ -863,7 +837,7 @@ fn oren_list_set(list, idx, value) {
 	    var count = 0
         var is_list_int = 0
         if _list_assume_list_enabled() != true {
-	        var node = _list_find_node(list)
+	        var node = _list_find_node_resilient(list)
 	        if node == 0 { oren_panic("list_set on non-list"); return nil }
 	        var kind = ptr_get(iadd(node, 16))
 	        if kind == list_int_kind() {

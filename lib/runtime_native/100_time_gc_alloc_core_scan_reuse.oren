@@ -189,11 +189,17 @@ fn native_gc_scan_stack() {
     var cur_tid = sys_gettid()
     var THREAD_NODE_FLAG_OS_THREAD = 1
     var THREAD_NODE_FLAG_STW_PARKED = 2
+    var THREAD_NODE_FLAG_DEAD = 4
+    if g_runtime_single_threaded == 0 { acquire_lock() }
     var cur = global_get_threads()
     
     while cur != 0 {
         var top = ptr_get(cur)
         var flags = ptr_get(iadd(cur, 48))
+        if (flags & THREAD_NODE_FLAG_DEAD) != 0 {
+            cur = ptr_get(iadd(cur, 16))
+            continue
+        }
         // Atomic read (best-effort) for saved_sp visibility.
         var saved_ptr = iadd(cur, 8)
         var saved = 0
@@ -328,6 +334,7 @@ fn native_gc_scan_stack() {
         
         cur = ptr_get(iadd(cur, 16))
     }
+    if g_runtime_single_threaded == 0 { release_lock() }
     return 0
 }
 

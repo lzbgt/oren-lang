@@ -123,8 +123,7 @@ fn _green_trace_entry_args(fn_obj, args_list) {
               " small=" + oren_int_to_string(small))
         return 0
     }
-    var node = native_alloc_index_get(args_list)
-    if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+    var node = _green_args_list_node(args_list, 1)
     var kind = 0
     if node != 0 { kind = ptr_get(iadd(node, 16)) }
     var magic = 0

@@ -481,7 +481,8 @@ test-native-quick-gc-stress-stage2: oren_stage2
 
 # Capsule smoke (stage2): build+run a minimal pure-compute capsule fixture.
 test-native-capsule-smoke-stage2: oren_stage2 rtobj-seed astbin-seed
-		@./scripts/run_native_capsule_smoke.sh "./$(OREN_STAGE2_BIN)"
+		@OREN_NATIVE_BUILD_TIMEOUT_SECS=60 OREN_NATIVE_RUN_TIMEOUT_SECS=60 \
+			./scripts/run_native_capsule_smoke.sh "./$(OREN_STAGE2_BIN)"
 
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
 verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2

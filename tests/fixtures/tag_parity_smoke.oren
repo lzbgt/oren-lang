@@ -5,6 +5,7 @@ fn emit(label, v) {
 }
 
 fn id(x) { return x }
+fn id2(x) { return x }
 
 fn assert_tag_eq(label, got, want) {
     if got == want { return 0 }
@@ -196,6 +197,38 @@ fn main() {
         print("tag_parity: str_int_ne expected true")
         exit(23)
     }
+    if nil == nil {
+        // ok
+    } else {
+        print("tag_parity: nil_eq expected true")
+        exit(29)
+    }
+    if nil != nil {
+        print("tag_parity: nil_ne expected false")
+        exit(30)
+    }
+    if nil == "" {
+        print("tag_parity: nil_string_eq expected false")
+        exit(31)
+    }
+    if false == 0 {
+        print("tag_parity: false_zero_eq expected false")
+        exit(32)
+    }
+    if false != 0 {
+        // ok
+    } else {
+        print("tag_parity: false_zero_ne expected true")
+        exit(33)
+    }
+    if true != true {
+        print("tag_parity: true_eq expected true")
+        exit(34)
+    }
+    if false != false {
+        print("tag_parity: false_eq expected true")
+        exit(35)
+    }
     var la = []
     var lb = []
     var lc = la
@@ -217,6 +250,28 @@ fn main() {
     if lia != lic {
         print("tag_parity: list_int_alias_eq expected true")
         exit(28)
+    }
+    var ma = {"x": 1}
+    var mb = {"x": 1}
+    var mc = ma
+    if ma == mb {
+        print("tag_parity: map_eq expected false")
+        exit(36)
+    }
+    if ma != mc {
+        print("tag_parity: map_alias_eq expected true")
+        exit(37)
+    }
+    var fa = id
+    var fb = id2
+    var fc = fa
+    if fa == fb {
+        print("tag_parity: func_eq expected false")
+        exit(38)
+    }
+    if fa != fc {
+        print("tag_parity: func_alias_eq expected true")
+        exit(39)
     }
     if true == 1 {
         print("tag_parity: bool_int_eq expected false")

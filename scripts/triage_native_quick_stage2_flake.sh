@@ -49,6 +49,7 @@ while [[ "$run" -le "$runs" ]]; do
   current_inner_src="build/logs/${compiler_base}_native_quick_integration.log"
   current_err_log="build/logs/${compiler_base}_native_quick_stage2_flake_${ts}_run${run}_interrupt.log"
   echo "== run ${run}/${runs} ==" >&2
+  echo "log: ${log}" >&2
   set +e
   : >"$log"
   {
@@ -85,6 +86,7 @@ while [[ "$run" -le "$runs" ]]; do
     fi
     exit "$rc"
   fi
+  echo "run ${run}/${runs} OK; see ${log}" >&2
   run=$((run + 1))
 done
 

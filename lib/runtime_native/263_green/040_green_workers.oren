@@ -262,20 +262,22 @@ fn oren_green_start_workers(n) {
 	                var runq_buf = _green_alloc_struct((runq_mask + 1) * 8)
 	                if runq_buf == 0 { exit(935) }
                 var j = 0
-                while j <= runq_mask {
-                    ptr_set(runq_buf + j * 8, 0)
-                    j = j + 1
-                }
-                _green_p_set_runq_buf(p, runq_buf)
-                _green_p_set_runq_head(p, 0)
-                _green_p_set_runq_tail(p, 0)
-                _green_p_set_runq_mask(p, runq_mask)
-                _green_p_set_sleep_head(p, 0)
+	                while j <= runq_mask {
+	                    ptr_set(runq_buf + j * 8, 0)
+	                    j = j + 1
+	                }
+	                _green_retag_struct(runq_buf, (runq_mask + 1) * 8)
+	                _green_p_set_runq_buf(p, runq_buf)
+	                _green_p_set_runq_head(p, 0)
+	                _green_p_set_runq_tail(p, 0)
+	                _green_p_set_runq_mask(p, runq_mask)
+	                _green_p_set_sleep_head(p, 0)
 	                _green_p_set_sleep_tail(p, 0)
 	                ptr_set(p + green_p_off_id(), id)
 	                _green_p_set_next(p, 0)
 	                _green_p_set_owner_tid(p, 0)
 	                _green_p_set_idle_next(p, 0)
+	                _green_retag_struct(p, green_p_bytes())
 	                _green_idle_p_push_locked(s, p)
 	                _green_p_set_next(tail, p)
 	                tail = p
@@ -504,20 +506,22 @@ fn _green_ensure_p_count_locked(s, want_count) {
             ptr_set(runq_buf + j * 8, 0)
             j = j + 1
         }
+        _green_retag_struct(runq_buf, (runq_mask + 1) * 8)
         _green_p_set_runq_buf(p, runq_buf)
         _green_p_set_runq_head(p, 0)
         _green_p_set_runq_tail(p, 0)
         _green_p_set_runq_mask(p, runq_mask)
         _green_p_set_sleep_head(p, 0)
 	        _green_p_set_sleep_tail(p, 0)
-	        ptr_set(p + green_p_off_id(), id)
-	        _green_p_set_next(p, 0)
-	        _green_p_set_owner_tid(p, 0)
-	        _green_p_set_idle_next(p, 0)
-	        _green_idle_p_push_locked(s, p)
-	        _green_p_set_next(tail, p)
-	        tail = p
-	        id = id + 1
+        ptr_set(p + green_p_off_id(), id)
+        _green_p_set_next(p, 0)
+        _green_p_set_owner_tid(p, 0)
+        _green_p_set_idle_next(p, 0)
+        _green_retag_struct(p, green_p_bytes())
+        _green_idle_p_push_locked(s, p)
+        _green_p_set_next(tail, p)
+        tail = p
+        id = id + 1
 	    }
     _green_state_set_p_count(s, want_count)
     return 0
@@ -846,6 +850,7 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_args_stamp_cap(), 0)
     ptr_set(g + green_g_off_args_stamp_buf(), 0)
     ptr_set(g + green_g_off_args_stamp_magic(), 0)
+    _green_retag_struct(g, green_g_bytes())
     var guard_on = _green_trace_spawn_alloc_guard_enabled()
     var stamp_on = _green_trace_args_stamp_enabled()
     var ring_on = _green_spawn_ring_enabled()

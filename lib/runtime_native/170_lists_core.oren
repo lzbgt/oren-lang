@@ -28,7 +28,9 @@ fn oren_new_list(cap) {
     var total = 32 + _list_bytes_for_cap(cap)
     _list_hdr_req_trace_emit(2, cap, total, 1)
     _list_new_cap_emit(2, cap, total, 1)
-    var header = malloc_k(total, 2)
+    // Allocate as raw first, then retype after the header is fully initialized.
+    // Otherwise forced GC can observe partially initialized bytes as a live LIST header.
+    var header = malloc_k(total, 0)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
     var site = _alloc_site_list_header()
@@ -49,11 +51,8 @@ fn oren_new_list(cap) {
     ptr_set(iadd(header, 8), cap)     // capacity
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    oren_track_alloc(header, total, 2)
     _list_ctor_trace_emit("post_init", header, 2, total, cap, native_alloc_index_get(header))
-    if native_alloc_index_get(header) == 0 {
-        if rec_node == 0 { rec_node = native_alloc_index_recover_ptr(header) }
-        if rec_node == 0 { oren_track_alloc_new(header, total, 2) }
-    }
     _list_ctor_trace_emit("post_track", header, 2, total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, 2, total, site, 1)
     _list_trace_emit(1, header, 2) // new_list
@@ -67,7 +66,9 @@ fn oren_new_list_int(cap) {
     var total = 32 + _list_bytes_for_cap(cap)
     _list_hdr_req_trace_emit(list_int_kind(), cap, total, 1)
     _list_new_cap_emit(list_int_kind(), cap, total, 1)
-    var header = malloc_k(total, list_int_kind())
+    // Allocate as raw first, then retype after the header is fully initialized.
+    // Otherwise forced GC can observe partially initialized bytes as a live LIST_INT header.
+    var header = malloc_k(total, 0)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
     var site = _alloc_site_list_int_header()
@@ -88,11 +89,8 @@ fn oren_new_list_int(cap) {
     ptr_set(iadd(header, 8), cap)     // capacity
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    oren_track_alloc(header, total, list_int_kind())
     _list_ctor_trace_emit("post_init", header, list_int_kind(), total, cap, native_alloc_index_get(header))
-    if native_alloc_index_get(header) == 0 {
-        if rec2 == 0 { rec2 = native_alloc_index_recover_ptr(header) }
-        if rec2 == 0 { oren_track_alloc_new(header, total, list_int_kind()) }
-    }
     _list_ctor_trace_emit("post_track", header, list_int_kind(), total, cap, native_alloc_index_get(header))
     trace_list_alloc_emit(header, list_int_kind(), total, site, 1)
     _list_trace_emit(2, header, list_int_kind()) // new_list_int
@@ -211,6 +209,21 @@ fn _list_find_node(list) {
     var node = oren_find_node(list)
     if node != 0 { return node }
     return native_arena_find_node_nolock(list)
+}
+
+fn _list_find_node_resilient(list) {
+    var node = _list_find_node(list)
+    if node != 0 { return node }
+    native_alloc_index_rebuild_live()
+    node = _list_find_node(list)
+    if node != 0 { return node }
+    return native_alloc_index_recover_ptr(list)
+}
+
+fn _list_find_node_known_kind(list, want_kind) {
+    if list == 0 { return 0 }
+    if list < 4096 { return 0 }
+    return _list_find_node_resilient(list)
 }
 
 fn _list_trace_enabled() {

@@ -556,8 +556,7 @@ fn _green_trace_runq_event(label, g) {
         fn_obj = ptr_get(g + green_g_off_fn_obj())
         args_list = ptr_get(g + green_g_off_args_list())
         if args_list >= 4096 {
-            args_node = native_alloc_index_get(args_list)
-            if args_node == 0 { args_node = native_alloc_index_recover_ptr(args_list) }
+            args_node = _green_args_list_node(args_list, 1)
             if args_node != 0 { args_kind = ptr_get(iadd(args_node, 16)) }
         }
     }
@@ -962,8 +961,7 @@ fn _green_args_guard_core(label, g) {
         oren_panic("green runq guard: small args_list")
         return 0
     }
-    var node = native_alloc_index_get(args_list)
-    if node == 0 { node = native_alloc_index_recover_ptr(args_list) }
+    var node = _green_args_list_node(args_list, 1)
     if node == 0 {
         var magic = ptr_get(g + green_g_off_magic())
         var state = ptr_get(g + green_g_off_state())
@@ -1094,9 +1092,13 @@ fn _green_alloc_struct(size) {
     // Green-task runtime needs a small GC-visible struct allocation hook, but we cannot
     // depend on `oren_alloc_struct` ordering (defined later in 120_first_class_fn.oren).
     //
-    // Match the behavior of `oren_alloc_struct`: allocate via the compiler's special-cased
-    // malloc and then tag the node kind as STRUCT so GC can scan fields conservatively.
-    var ptr = malloc(size)
+    // Allocate raw first and let callers publish kind=STRUCT only after all pointer fields
+    // are initialized. Otherwise forced GC can conservatively follow garbage pointers.
+    return malloc(size)
+}
+
+fn _green_retag_struct(ptr, size) {
+    if ptr == 0 { return 0 }
     var node = native_gc_find_node_nolock(ptr)
     if node == 0 {
         native_alloc_index_rebuild_live()
@@ -1194,6 +1196,7 @@ fn _green_init_if_needed() {
         ptr_set(runq_buf + i * 8, 0)
         i = i + 1
     }
+    _green_retag_struct(runq_buf, (runq_mask + 1) * 8)
     _green_p_set_runq_buf(p0, runq_buf)
     _green_p_set_runq_head(p0, 0)
     _green_p_set_runq_tail(p0, 0)
@@ -1204,6 +1207,7 @@ fn _green_init_if_needed() {
     _green_p_set_next(p0, 0)
     _green_p_set_owner_tid(p0, 0)
     _green_p_set_idle_next(p0, 0)
+    _green_retag_struct(p0, green_p_bytes())
 
     _green_state_set_p0(s, p0)
     _green_state_set_p_count(s, 1)
@@ -1214,6 +1218,7 @@ fn _green_init_if_needed() {
     _green_state_set_idle_p_tail(s, 0)
     _green_state_set_word_wait_head(s, 0)
     _green_idle_p_push_locked(s, p0)
+    _green_retag_struct(s, green_s_bytes())
     _green_set_state(s)
     native_gc_register_root_tag(s, 5)
 

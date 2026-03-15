@@ -450,7 +450,9 @@ fn oren_is_map(v) {
     // We still keep an `entries_ptr` indirection so growth can switch to an out-of-line buffer.
     var total = 56
     if cap > 0 { total = total + cap * 24 }
-    var header = malloc_k(total, 3)
+    // Allocate as raw first, then retype after the map header is initialized.
+    // This prevents forced GC from classifying uninitialized bytes as a live MAP.
+    var header = malloc_k(total, 0)
     if header == 0 { exit(1) }
     if header == -1 { exit(1) }
 
@@ -473,10 +475,7 @@ fn oren_is_map(v) {
     ptr_set(iadd(header, 32), 0)      // dirty_sort
     ptr_set(iadd(header, 40), 0)      // hash_ptr
     ptr_set(iadd(header, 48), 0)      // hash_cap
-    if native_alloc_index_get(header) == 0 {
-        var rec = native_alloc_index_recover_ptr(header)
-        if rec == 0 { oren_track_alloc_new(header, total, 3) }
-    }
+    oren_track_alloc(header, total, 3)
     if oren_getenv("OREN_TRACE_MAP_CHECK") != 0 {
         var hit = native_alloc_index_get(header)
         if hit == 0 {
@@ -608,7 +607,7 @@ fn oren_iter_next_entry(m, idx, out_pair) {
     if idx < 0 { return 0 }
     if out_pair == 0 { oren_panic("iter_next_entry expects out_pair list") }
     // out_pair must be a list with capacity >= 2.
-    var node = oren_find_node(out_pair)
+    var node = _list_find_node_known_kind(out_pair, 2)
     if node == 0 { oren_panic("iter_next_entry expects out_pair list") }
     if ptr_get(iadd(node, 16)) != 2 { oren_panic("iter_next_entry expects out_pair list") }
     if ptr_get(out_pair + 24) != list_magic() { oren_panic("iter_next_entry expects out_pair list") }

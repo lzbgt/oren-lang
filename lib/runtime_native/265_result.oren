@@ -11,6 +11,12 @@ fn oren_set_result(v) {
     var prev = global_get_result_value()
     if prev != 0 {
         var prev_node = oren_find_node(prev)
+        if prev_node == 0 { prev_node = native_alloc_index_recover_ptr(prev) }
+        if prev_node == 0 {
+            native_alloc_index_rebuild_live()
+            prev_node = oren_find_node(prev)
+            if prev_node == 0 { prev_node = native_alloc_index_recover_ptr(prev) }
+        }
         if prev_node != 0 {
             if ptr_get(iadd(prev_node, 8)) != 0 {
                 native_gc_unregister_root(prev)
@@ -20,6 +26,12 @@ fn oren_set_result(v) {
     global_set_result_value(v)
     if v != 0 {
         var node = oren_find_node(v)
+        if node == 0 { node = native_alloc_index_recover_ptr(v) }
+        if node == 0 {
+            native_alloc_index_rebuild_live()
+            node = oren_find_node(v)
+            if node == 0 { node = native_alloc_index_recover_ptr(v) }
+        }
         if node != 0 {
             if ptr_get(iadd(node, 8)) != 0 {
                 native_gc_register_root_tag(v, 6)

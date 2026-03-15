@@ -330,6 +330,23 @@ fn test_core() {
     var r2 = oren_buf_load_i32(b, 2)
     if oren_is_err(r2) { fail(3202) }
     assert_eq(r2, 30, 3203)
+    var b_node = oren_find_node(ptr_get(b + 16))
+    if b_node == 0 { fail(3205) }
+    // Regression guard: typed-buffer heap payloads are raw tracked storage, not LIST_INT.
+    if ptr_get(iadd(b_node, 16)) == list_int_kind() { fail(3206) }
+    // Force a collection after additional list_int churn so GC must keep the buffer alive
+    // without ever classifying the payload as a list_int header.
+    var buf_keep = [b]
+    var churn = []
+    var ci = 0
+    while ci < 128 {
+        var li2 = oren_new_list_int(0)
+        oren_list_int_push(li2, ci)
+        oren_list_push(churn, li2)
+        ci = ci + 1
+    }
+    oren_gc_collect()
+    assert_eq(oren_buf_load_i32(oren_list_get(buf_keep, 0), 2), 30, 3207)
     var view = [b, 2, 3] // 30,40,50
     var s2 = 0
     for x2 in view { s2 = s2 + x2 }

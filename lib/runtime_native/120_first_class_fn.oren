@@ -19,17 +19,18 @@ fn _trace_strcmp_enabled() {
 fn oren_func(code_ptr, env_ptr) {
     if code_ptr == 0 { return 0 }
     // IMPORTANT (native runtime model):
-    // Function objects must be tracked allocations with kind=6 so:
+    // Function objects must end up tracked with kind=6 so:
     // - `oren_is_func` can classify them cheaply via `oren_find_node`
     // - GC can traverse the closure environment pointer at +8
     //
-    // Do not rely on "malloc then patch kind" because some runtime paths intentionally keep
-    // small raw allocations untracked (for cstr0 pools, argv/envp, etc).
-    var obj = malloc_k(16, 6)
+    // But the object must not be published as kind=6 until the two header fields are valid,
+    // or forced GC can follow an uninitialized env pointer.
+    var obj = malloc_k(16, 0)
     if obj == 0 { exit(320) }
     if obj == -1 { exit(320) }
     ptr_set(obj, code_ptr)
     ptr_set(iadd(obj, 8), env_ptr)
+    oren_track_alloc(obj, 16, 6)
     return obj
 }
 
@@ -275,13 +276,12 @@ fn __oren_win_spawn_thread_entry(arg_ptr) {
 
 // Centralized struct allocation hook (uses the compiler's special-cased malloc).
 fn oren_alloc_struct(size) {
-    var ptr = malloc(size)
-    // Update kind to 4 (STRUCT)
-    var node = oren_find_node(ptr)
-    if node != 0 {
-        ptr_set(iadd(node, 16), 4)
-    }
-    return ptr
+    return malloc(size)
+}
+
+fn oren_retag_struct(ptr, size) {
+    if ptr == 0 { return 0 }
+    return oren_track_alloc(ptr, size, 4)
 }
 
 fn oren_free_struct(ptr) {
