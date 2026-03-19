@@ -565,10 +565,10 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
             push_u32_le(ctx["code"], insn_add_imm(24, 24, 32))
             emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
 
+            push_u32_le(ctx["code"], insn_add_reg(25, 25, 27))
+            push_u32_le(ctx["code"], insn_add_reg(26, 26, 28))
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 27))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
 
             push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
 
@@ -599,8 +599,13 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
             push_u32_le(ctx["code"], insn_add_imm(24, 24, 16))
             emit_str_reg_sp_any(ctx, 24, buf_slot2u)
 
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+            if single_read_list {
+                push_u32_le(ctx["code"], insn_add_reg(25, 25, 26))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            } else {
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+            }
 
             pi2 = pi2 + 1
         }

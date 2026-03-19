@@ -1054,20 +1054,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      built successfully but the native `array_sum_int` benchmark binary crashed during execution,
      so the shared read-heavy path should not move list data cursors out of the established stack
      slots without a stronger GC-rooting argument.
-   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 2.18× C,
-     `dot_product_int` 2.67× C, `multi_list_push_int` 2.19× C. One-shot list<int> results are
-     now close enough together that they are no longer a reliable way to rank the remaining
+   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 2.16× C,
+     `dot_product_int` 2.57× C, `multi_list_push_int` 2.35× C. One-shot list<int> results are
+     now best used as a smoke view; they are no longer precise enough to rank the remaining
      steady-state blocker on their own.
    - New: the exact two-list single-pair arm64 `list<int>` dot shape keeps both data cursors in
      callee-saved regs across iterations/safepoints, and the exact single-list `list<int>` get-sum
-     plus single-pair dot shapes now also unroll by 4 on the hot path. That moved the current
-     steady rerun from the earlier ~3.38× / ~3.90× baseline to ~2.87× / ~3.17× for
-     `array_sum_int` / `dot_product_int` on Apple M2 Pro (2026-03-20).
+     shape now also pairwise-reduces its 4-wide and 2-wide hot bodies to shorten the running-sum
+     dependency chain. That moved the current steady rerun to ~2.43× for `array_sum_int`, while
+     the unchanged exact-pair dot path measured ~3.09× on the same rerun (Apple M2 Pro, 2026-03-20).
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so tracker updates can distinguish stable reruns from one-off outliers.
    - New focused steady-state runner (2026-03-20, `make perf-gate-list-int-steady`, `reps=100`):
-     `array_sum_int` steady-state native/C is ~2.87× and `dot_product_int` steady-state native/C
-     is ~3.17×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
+     `array_sum_int` steady-state native/C is ~2.43× and `dot_product_int` steady-state native/C
+     is ~3.09×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
      not one-time fill/setup cost.
    - Trace (2026-03-20): a narrower follow-up that hoisted `n` into X21 only for the unique
      arm64 read-only `list<int>` fast loops was also not a shared win. On the steady runner it
@@ -2083,10 +2083,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
-   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 2.18× C,
-     `dot_product_int` 2.67× C, `multi_list_push_int` 2.19× C.
-   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~2.87× C,
-     `dot_product_int` ~3.17× C.
+   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 2.16× C,
+     `dot_product_int` 2.57× C, `multi_list_push_int` 2.35× C.
+   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~2.43× C,
+     `dot_product_int` ~3.09× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Gate: `dot_product_int` native <= 2x C.
 
