@@ -16,3 +16,4 @@ build/
 /avm
 /avm.exe
 *.oren.c
+/benchmarks/results/

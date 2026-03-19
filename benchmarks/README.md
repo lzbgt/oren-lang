@@ -42,7 +42,7 @@ native vs C by default):
 make perf-gate-native
 ```
 
-Update the snapshot from existing result files:
+Update the snapshot from existing local result files:
 
 ```bash
 make benchmarks-update
@@ -97,10 +97,10 @@ Optional knobs:
 - Example: `OREN_BENCH_ENV_OREN_C=OREN_TRACE_LIST_LOCKS=1` to print lock gating state once at first list access.
 - Compiler env example (affects codegen): `OREN_NATIVE_ASSUME_LIST_INDEX=1 python3 benchmarks/run_benchmarks.py` (unsafe; perf-only).
 
-Results are written to:
+Results are written to local build output:
 
-- `benchmarks/results/<program>_<platform>_<timestamp>.md`
-- `benchmarks/results/<program>_<platform>_<timestamp>.json`
+- `build/benchmarks/results/<program>_<platform>_<timestamp>.md`
+- `build/benchmarks/results/<program>_<platform>_<timestamp>.json`
 
 When `OREN_BENCH_TRACE_ALLOC_SITE=1`, result JSON includes an `alloc_site` section
 with per-run counts and median/mean summaries (native-only).
@@ -119,12 +119,15 @@ Update the canonical snapshot table after a batch run:
 python3 benchmarks/update_latest.py --prune
 ```
 
-Repo policy (rolling): keep only the result files referenced by `benchmarks/RESULTS_LATEST.md`
-to avoid long-lived archives. Older files may be pruned after updating the snapshot.
+Repo policy (rolling): benchmark result JSON/markdown are derived artifacts and should not be
+committed. Keep them under `build/benchmarks/results/`, and commit only stable summaries such as
+`benchmarks/RESULTS_LATEST.md` when the project tracker needs a refreshed baseline.
 
 ## Notes
 
 - The Oren sources are compiled with `./oren_stage2` for consistency.
+- The direct runner refreshes `./oren_stage2` first when `./oren` is newer, so local benchmark
+  runs do not silently use a stale self-hosted compiler after compiler edits.
 - Native builds use `--no-debug` to approximate release behavior.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.

@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-RESULTS_DIR = ROOT / "benchmarks" / "results"
+RESULTS_DIR = ROOT / "build" / "benchmarks" / "results"
 LATEST_PATH = ROOT / "benchmarks" / "RESULTS_LATEST.md"
 
 
@@ -71,8 +71,8 @@ def _format_ratio(value, baseline):
 
 def _build_table(items):
     lines = []
-    lines.append("| benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |")
-    lines.append("| --- | --- | --- | --- | --- | --- |")
+    lines.append("| benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) |")
+    lines.append("| --- | --- | --- | --- | --- |")
     for item in items:
         results = item["results"]
         c = results.get("c", {})
@@ -89,13 +89,12 @@ def _build_table(items):
             ratio = _format_ratio(median, c_median)
             return f"{median:.6f} ({ratio})"
         lines.append(
-            "| {program} | {c_median:.6f} | {oren_c} | {oren_native} | {oren_obc} | `{rel}` |".format(
+            "| {program} | {c_median:.6f} | {oren_c} | {oren_native} | {oren_obc} |".format(
                 program=item["program"],
                 c_median=c_median,
                 oren_c=fmt_variant("oren_c"),
                 oren_native=fmt_variant("oren_native"),
                 oren_obc=fmt_variant("oren_obc"),
-                rel=f"benchmarks/results/{item['path'].name.replace('.json', '.md')}",
             )
         )
     return lines

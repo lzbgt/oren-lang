@@ -595,10 +595,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.33× C, `dot_product` 2.57× C.
    - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - loop_sum: C 0.067220s, native 0.239672s (3.56× C)
-       (`benchmarks/results/loop_sum_darwin_arm64_20260320_002722.md`).
-     - dot_product: C 0.004948s, native 0.013147s (2.66× C)
-       (`benchmarks/results/dot_product_darwin_arm64_20260320_002725.md`).
+     - loop_sum: C 0.069202s, native 0.074757s (1.08× C).
+     - dot_product: C 0.005626s, native 0.014134s (2.51× C).
    - New run (arm64, 2026-03-05, runs=3, warmups=1):
      - loop_sum: C 0.067194s, native 0.225078s (3.35× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
      - dot_product: C 0.005185s, native 0.013571s (2.62× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
@@ -747,10 +745,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
    - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
    - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - alloc_churn: C 0.003124s, native 0.021369s (6.84× C)
-       (`benchmarks/results/alloc_churn_darwin_arm64_20260320_002726.md`).
-     - alloc_drop: C 0.002893s, native 0.005263s (1.82× C)
-       (`benchmarks/results/alloc_drop_darwin_arm64_20260320_002728.md`).
+     - alloc_churn: C 0.003124s, native 0.021369s (6.84× C).
+     - alloc_drop: C 0.002893s, native 0.005263s (1.82× C).
    - New run (arm64, 2026-03-04, runs=5, warmups=1; log: `build/logs/bench_alloc_churn_drop_20260304_235146.log`):
      - alloc_churn: C 0.002886s, native 0.015997s (5.54× C).
      - alloc_drop: C 0.002986s, native 0.004703s (1.58× C).
@@ -1018,9 +1014,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
       (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
    - New: loop list reuse brings alloc_churn to ~6.62× C (arm64, 2026-02-26),
       within the 8× gate; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`
-     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_161846.md`).
+     (see `benchmarks/RESULTS_LATEST.md` for the retained summary; local result artifacts live under `build/benchmarks/results/`).
     - New: loop list reuse keeps alloc_drop at ~1.28× C (arm64, 2026-02-26),
-      within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_161849.md`).
+      within the 5× gate (see `benchmarks/RESULTS_LATEST.md`; local result artifacts live under `build/benchmarks/results/`).
     - New: reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
       to guard against incorrect reuse when lists escape (2026-02-26).
     - Fix: loop list reuse now skips unsafe list uses (escape/alias), enabling default-on reuse while
@@ -1429,10 +1425,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Update (2026-03-04): alloc_churn regression resolved by splitting loop-invariant list_int temps into
      an outer `if` and fast-path `while` so `fast_list_int_push_while` can match again.
    - Refresh (2026-03-20): `make perf-gate-native` now records the focused W5 gate sweep directly.
-     Latest arm64 run stays within gate: alloc_churn 6.94× C and alloc_drop 1.90× C
-     (`benchmarks/results/alloc_churn_darwin_arm64_20260320_001212.md`,
-     `benchmarks/results/alloc_drop_darwin_arm64_20260320_001214.md`,
-     `build/logs/perf-gate-native-20260320_001208.log`).
+     Latest arm64 run stays within gate: alloc_churn 6.45× C and alloc_drop 1.63× C
+     (summary: `benchmarks/RESULTS_LATEST.md`; log: `build/logs/perf-gate-native-20260320_011023.log`).
    - Fix (2026-03-04): list_int safe-int dataflow now preserves local temps across nested blocks;
      alloc_churn compile trace shows list_push call sites include `v`/`v2` in safe keys
      (log: `build/logs/bench_build_oren_native_alloc_churn_20260304_232251.log`).
@@ -1448,11 +1442,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 
 2) **Perf parity W5: native hot loops** (L, W5)
    - Execute item 1 in the performance tracker (loop_sum + dot_product).
-   - Refresh (2026-03-20): `make perf-gate-native` measured loop_sum at 3.46× C and dot_product
-     at 2.51× C on arm64, so this gate is still open even after the arm64 fast-loop tick-slot
-     cleanup thread was closed (`benchmarks/results/loop_sum_darwin_arm64_20260320_001208.md`,
-     `benchmarks/results/dot_product_darwin_arm64_20260320_001211.md`,
-     `build/logs/perf-gate-native-20260320_001208.log`).
+   - Refresh (2026-03-20): `make perf-gate-native` now shows loop_sum within gate at 1.08× C,
+     while dot_product remains open at 2.51× C on arm64 (summary: `benchmarks/RESULTS_LATEST.md`;
+     log: `build/logs/perf-gate-native-20260320_011023.log`).
    - Init/steady split instrumentation is now available via `OREN_BENCH_INIT_SPLIT=1` (see `benchmarks/README.md`).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 

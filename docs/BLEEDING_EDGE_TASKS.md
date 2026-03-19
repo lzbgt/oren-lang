@@ -43,12 +43,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-03-20): `alloc_churn` 6.84× C, `alloc_drop` 1.82× C.
+   - Baseline (arm64 native, 2026-03-20): `alloc_churn` 6.45× C, `alloc_drop` 1.63× C.
    - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - alloc_churn: C 0.003124s, native 0.021369s (6.84× C)
-       (`benchmarks/results/alloc_churn_darwin_arm64_20260320_002726.md`).
-     - alloc_drop: C 0.002893s, native 0.005263s (1.82× C)
-       (`benchmarks/results/alloc_drop_darwin_arm64_20260320_002728.md`).
+     - alloc_churn: C 0.003101s, native 0.019992s (6.45× C).
+     - alloc_drop: C 0.003491s, native 0.005689s (1.63× C).
    - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
    - New: latest focused perf-gate snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
@@ -81,9 +79,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
    - New: loop list reuse cuts alloc_churn to ~6.62× C (arm64, 2026-02-26),
      within the 8× gate; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`
-     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_161846.md`).
+     (see `benchmarks/RESULTS_LATEST.md` for the retained summary; local result artifacts live under `build/benchmarks/results/`).
    - New: loop list reuse keeps alloc_drop at ~1.28× C (arm64, 2026-02-26),
-     within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_161849.md`).
+     within the 5× gate (see `benchmarks/RESULTS_LATEST.md`; local result artifacts live under `build/benchmarks/results/`).
    - New: reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
      to catch incorrect reuse when lists escape (2026-02-26).
    - Fix: loop list reuse now skips unsafe list uses (escape/alias), enabling default-on reuse
@@ -1027,16 +1025,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 3) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
    - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - loop_sum: C 0.067220s, native 0.239672s (3.56× C)
-       (`benchmarks/results/loop_sum_darwin_arm64_20260320_002722.md`).
-     - dot_product: C 0.004948s, native 0.013147s (2.66× C)
-       (`benchmarks/results/dot_product_darwin_arm64_20260320_002725.md`).
+     - loop_sum: C 0.069202s, native 0.074757s (1.08× C).
+     - dot_product: C 0.005626s, native 0.014134s (2.51× C).
    - Fix: shared arm64 `UMULH` opcode encoding was wrong; correcting it restores the intended
      reciprocal-mod lowering used by the arm64 fast LCG loop (2026-03-20).
    - New: `benchmarks/loop_sum/loop_sum.oren` now preserves inty CLI args via `oren_trunc_int(...)`,
      so arm64 loop_sum re-enters `fast_lcg_sum_while_no_tick` instead of falling back to `while_generic` (2026-03-20).
-   - Reweight: loop_sum remains above target even on the repaired fast path, so the next hot-loop work
-     should target arithmetic/runtime overhead inside the specialization rather than more opcode/tick-slot cleanup.
+   - Reweight: loop_sum is now within the <=2× gate on arm64; the remaining hot-loop gap is dot_product,
+     so the next work should target list-int load/mul/add overhead rather than more LCG/tick-slot cleanup.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).

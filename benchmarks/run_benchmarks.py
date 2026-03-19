@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / "build" / "logs"
-RESULTS_DIR = ROOT / "benchmarks" / "results"
+RESULTS_DIR = ROOT / "build" / "benchmarks" / "results"
 
 DEFAULT_RUNS = 5
 DEFAULT_WARMUPS = 1
@@ -307,6 +307,33 @@ def _resolve_programs(bench_root, program_raw, programs_raw):
     return programs
 
 
+def _needs_stage2_refresh(oren_bin):
+    if oren_bin is None:
+        return False
+    try:
+        oren_bin = Path(oren_bin)
+    except Exception:
+        return False
+    if oren_bin.name != "oren_stage2" and oren_bin.name != "oren_stage2.exe":
+        return False
+    stage1_bin = _resolve_exe(ROOT / "oren")
+    if not oren_bin.exists():
+        return True
+    if stage1_bin.exists() and stage1_bin.stat().st_mtime > oren_bin.stat().st_mtime:
+        return True
+    return False
+
+
+def _ensure_bench_compiler(oren_bin, env, ts):
+    if not _needs_stage2_refresh(oren_bin):
+        return
+    _run(
+        ["make", "oren_stage2"],
+        env=env,
+        log_path=LOG_DIR / f"bench_bootstrap_oren_stage2_{ts}.log",
+    )
+
+
 def _run_one(program, cfg: BenchConfig):
     bench_dir = ROOT / "benchmarks" / program
     bench_src = bench_dir / f"{program}.oren"
@@ -340,6 +367,7 @@ def _run_one(program, cfg: BenchConfig):
         build_env_base.update(cfg.env_build_all)
         build_env_oren = build_env_base.copy()
         build_env_oren.update(cfg.env_build_oren)
+        _ensure_bench_compiler(oren_bin, build_env_oren, ts)
         if not cfg.skip_c:
             _run(
                 _c_compile_cmd(c_compiler, c_bin, bench_dir / f"{program}.c"),
