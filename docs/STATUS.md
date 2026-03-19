@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-03-19
+**Last updated:** 2026-03-20
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -54,7 +54,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.35×, `dot_product` 2.62×; latest `alloc_churn` 5.54×, `alloc_drop` 1.58× on arm64, 2026-03-05).
+- **Performance parity**: native hot loops remain >2× C (fresh arm64 perf-gate snapshot, 2026-03-20: `loop_sum` 3.56×, `dot_product` 2.66×; `alloc_churn` 6.84×, `alloc_drop` 1.82×).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -89,9 +89,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.35× C, `dot_product` 2.62× C; latest `alloc_churn` 5.54× C, `alloc_drop` 1.58× C (arm64, 2026-03-05).
+   - Baselines (arm64, 2026-03-20 focused perf gate): `loop_sum` 3.56× C, `dot_product` 2.66× C; `alloc_churn` 6.84× C, `alloc_drop` 1.82× C.
    - Priority: hot loops remain above the 2× gate; alloc_drop and alloc_churn are within the 5×/8× gates.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
+   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; the fresh `loop_sum` gap proves the remaining delta is no longer that encoder bug (2026-03-20).
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
@@ -594,12 +595,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.33× C, `dot_product` 2.57× C.
    - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - loop_sum: C 0.068456s, native 0.236628s (3.46× C)
-       (`benchmarks/results/loop_sum_darwin_arm64_20260320_001208.md`,
-       `build/logs/perf-gate-native-20260320_001208.log`).
-     - dot_product: C 0.005691s, native 0.014312s (2.51× C)
-       (`benchmarks/results/dot_product_darwin_arm64_20260320_001211.md`,
-       `build/logs/perf-gate-native-20260320_001208.log`).
+     - loop_sum: C 0.067220s, native 0.239672s (3.56× C)
+       (`benchmarks/results/loop_sum_darwin_arm64_20260320_002722.md`).
+     - dot_product: C 0.004948s, native 0.013147s (2.66× C)
+       (`benchmarks/results/dot_product_darwin_arm64_20260320_002725.md`).
    - New run (arm64, 2026-03-05, runs=3, warmups=1):
      - loop_sum: C 0.067194s, native 0.225078s (3.35× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
      - dot_product: C 0.005185s, native 0.013571s (2.62× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
@@ -614,6 +613,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
       - Native: init 0.001412s, steady 0.225120s
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
    - New: native LCG fast loops use reciprocal-based fastmod when mod constants fit (arm64 + x64).
+   - Fix (2026-03-20): shared arm64 `UMULH` opcode encoding was wrong; correcting it restores the
+     intended reciprocal-mod lowering in arm64 fast LCG loops.
+   - Verification (2026-03-20): `benchmarks/loop_sum/loop_sum.oren` now preserves inty CLI args via
+     `oren_trunc_int(...)`, and `OREN_TRACE_ARM64_LOOP_STACK=1` shows the benchmark re-entering
+     `fast_lcg_sum_while_no_tick` instead of falling back to `while_generic`
+     (`build/logs/codex_loop_sum_after_umulh_fix_build_20260320.log`).
    - Boxed list dot/get-sum regression guard added to native QI (2026-02-19).
    - Fast-loop safepoints now reset GC tick after safepoint to avoid tick spills (arm64 list-sum, x64 LCG sum).
    - Native fast list-dot loops now use per-list cursors (when lists are unique per mul) to avoid per-iter index multiplies.
@@ -734,20 +739,18 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Status: no remaining per-loop arm64 tick-slot cleanup is pending; only a broader backend
      redesign would change `while_generic` / surviving native `For` throttling.
    - Status (2026-03-20): hot-loop perf still misses the 2× gate on arm64 after the tick-slot
-     cleanup work. `dot_product` improved marginally vs the 2026-03-05 run (2.51× vs 2.62× C),
-     but `loop_sum` remains around 3.46× C, so the next perf work here should target generic
-     integer-loop lowering / runtime overhead rather than more tick-slot cleanup.
+     cleanup work. The repaired fast LCG path still leaves `loop_sum` at about 3.56× C and
+     `dot_product` at about 2.66× C, so the next perf work here should target arithmetic/runtime
+     overhead inside the hot loops rather than more opcode or tick-slot cleanup.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
    - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
    - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - alloc_churn: C 0.002851s, native 0.019777s (6.94× C)
-       (`benchmarks/results/alloc_churn_darwin_arm64_20260320_001212.md`,
-       `build/logs/perf-gate-native-20260320_001208.log`).
-     - alloc_drop: C 0.003103s, native 0.005901s (1.90× C)
-       (`benchmarks/results/alloc_drop_darwin_arm64_20260320_001214.md`,
-       `build/logs/perf-gate-native-20260320_001208.log`).
+     - alloc_churn: C 0.003124s, native 0.021369s (6.84× C)
+       (`benchmarks/results/alloc_churn_darwin_arm64_20260320_002726.md`).
+     - alloc_drop: C 0.002893s, native 0.005263s (1.82× C)
+       (`benchmarks/results/alloc_drop_darwin_arm64_20260320_002728.md`).
    - New run (arm64, 2026-03-04, runs=5, warmups=1; log: `build/logs/bench_alloc_churn_drop_20260304_235146.log`):
      - alloc_churn: C 0.002886s, native 0.015997s (5.54× C).
      - alloc_drop: C 0.002986s, native 0.004703s (1.58× C).

@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "timestamp": "20260320_002726",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.3-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "06f441de7ad765f5ee4ace5f1a1d7f5880250ef6",
+    "c_compiler": "cc",
+    "runs": 5,
+    "warmups": 1,
+    "program": "alloc_churn",
+    "output": "199990000",
+    "output_check": true,
+    "save_stdout": false,
+    "skip_build": false,
+    "rss_enabled": false,
+    "skip_obc": true,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {},
+      "oren_obc": {},
+      "build_all": {},
+      "build_oren": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.003123916918411851,
+        0.0032163329888135195,
+        0.0029912078753113747,
+        0.0030973749235272408,
+        0.0033002078998833895
+      ],
+      "median_s": 0.003123916918411851,
+      "mean_s": 0.003145808121189475,
+      "min_s": 0.0029912078753113747,
+      "max_s": 0.0033002078998833895
+    },
+    "oren_native": {
+      "runs": [
+        0.019500166876241565,
+        0.02258712495677173,
+        0.0207630000077188,
+        0.02324258303269744,
+        0.021368749905377626
+      ],
+      "median_s": 0.021368749905377626,
+      "mean_s": 0.021492324955761432,
+      "min_s": 0.019500166876241565,
+      "max_s": 0.02324258303269744
+    }
+  },
+  "env": {
+    "OREN_BENCH_PROGRAMS": "loop_sum,dot_product,alloc_churn,alloc_drop",
+    "OREN_BENCH_RUNS": "5",
+    "OREN_BENCH_SKIP_OBC": "1",
+    "OREN_BENCH_SKIP_OREN_C": "1",
+    "OREN_BENCH_UPDATE_LATEST": "0",
+    "OREN_BENCH_UPDATE_LATEST_PRUNE": "0",
+    "OREN_BENCH_WARMUPS": "1"
+  }
+}
