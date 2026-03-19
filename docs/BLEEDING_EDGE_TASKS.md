@@ -1117,6 +1117,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `tests/native/qi/100_tests_basic.oren` guards it. That narrows future bridge work to
      "build a safe packed view" or "target the 64-bit-slot ABI directly" instead of rediscovering
      the layout experimentally.
+   - New bridge/probe boundary (2026-03-20): the safe `list<int> -> []i32` stdlib packing path now
+     exists and is cross-backend checked, but the default native benchmark profile is still the
+     reduced `core` runtime, not `full`. Hidden packed-bridge benchmarks plus
+     `make perf-probe-list-int-packed-bridge` now isolate that ceiling measurement instead of
+     polluting the canonical `array_sum_int` / `dot_product_int` gates.
+   - Verified (2026-03-20): those hidden packed-bridge benchmarks compile and return the expected
+     `205` / `710` / `6590` / `54380` outputs through the Oren C backend, proving the bridge
+     helpers are portable; the slower full-runtime native probe remains the explicit next step for
+     measuring whether packed buffers plus typed-buffer kernels actually buy us headroom.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should

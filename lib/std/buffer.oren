@@ -59,6 +59,40 @@ fn try_store_u8(buf, idx, v) {
     return oren_buf_store_u8(buf, idx, v)
 }
 
+// Safe copying bridge: pack a `list<int>` into a contiguous `[]i32` typed buffer.
+//
+// This is intentionally explicit and checked:
+// - only accepts actual `list<int>` payloads
+// - rejects elements outside the signed i32 range
+// - copies into a fresh/explicit buffer instead of pretending the current 8-byte slots
+//   are already a packed i32 view
+fn i32_pack_list_int(xs) {
+    var n = oren_list_int_len(xs)
+    if oren_is_err(n) { return _err_invalid("buffer.i32_pack_list_int: expects list<int>") }
+    var out: []i32 = i32_new(n)
+    if oren_is_err(out) { return out }
+    return i32_pack_list_int_into(out, xs)
+}
+
+fn i32_pack_list_int_into(out: []i32, xs) {
+    var n = oren_list_int_len(xs)
+    if oren_is_err(n) { return _err_invalid("buffer.i32_pack_list_int_into: expects list<int>") }
+    var no = len(out)
+    if oren_is_err(no) { return no }
+    if no != n { return _err_invalid("buffer.i32_pack_list_int_into: length mismatch") }
+    var i = 0
+    while i < n {
+        var v = oren_list_int_get(xs, i)
+        if v < -2147483648 || v > 2147483647 {
+            return _err_invalid("buffer.i32_pack_list_int_into: value out of i32 range")
+        }
+        var rc = oren_buf_store_i32(out, i, v)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
+}
+
 // --- generic zero-copy views ---
 
 // View representation (rolling, perf-oriented):

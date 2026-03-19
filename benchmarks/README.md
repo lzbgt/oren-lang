@@ -96,6 +96,27 @@ Unsafe `list<int>` steady-state ceiling probe (baseline vs `OREN_LIST_ASSUME_LIS
 make perf-probe-list-int-unsafe
 ```
 
+Packed-bridge `list<int>` ceiling probe (baseline shared read path vs hidden packed-bridge
+benchmarks built with the full native runtime profile):
+
+```bash
+make perf-probe-list-int-packed-bridge
+```
+
+Hidden packed-bridge correctness smoke:
+
+```bash
+make perf-smoke-list-int-packed-bridge
+```
+
+These packed-bridge benchmarks are intentionally excluded from `OREN_BENCH_PROGRAM=all` via
+`.bench-hidden`. They measure the explicit `list<int> -> []i32` bridge without changing the
+canonical `array_sum_int` / `dot_product_int` gates. This matters because the default native
+benchmark profile is `core` (`lib/runtime_native_core.oren`), which includes only
+`runtime_native/200_typed_buffers_core.oren`; heavier typed-buffer kernels such as
+`oren_buf_dot_i32(...)` are only valid in the full runtime profile used by the dedicated
+packed-bridge probe.
+
 Update the snapshot from existing local result files:
 
 ```bash
@@ -194,6 +215,8 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - The direct runner refreshes `./oren_stage2` first when `./oren` is newer, so local benchmark
   runs do not silently use a stale self-hosted compiler after compiler edits.
 - Native builds use `--no-debug` to approximate release behavior.
+- The default benchmark native profile is the reduced `core` runtime unless you explicitly set
+  `OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full`.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 

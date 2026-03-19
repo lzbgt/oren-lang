@@ -312,6 +312,8 @@ def _discover_programs(bench_root):
     for entry in bench_root.iterdir():
         if not entry.is_dir():
             continue
+        if (entry / ".bench-hidden").exists():
+            continue
         if (entry / f"{entry.name}.oren").exists():
             programs.append(entry.name)
     return sorted(programs)

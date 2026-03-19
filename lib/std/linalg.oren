@@ -23,6 +23,22 @@ fn dot_i32_buf(a: []i32, b: []i32) {
     return dot.dot_i32_buf(a, b)
 }
 
+fn dot_i32_buf_scalar(a: []i32, b: []i32) {
+    return dot.dot_i32_buf_scalar(a, b)
+}
+
+fn reduce_sum_i32_buf(a: []i32) {
+    return dot.reduce_sum_i32_buf(a)
+}
+
+fn dot_i32_list_int_packed(a, b) {
+    return dot.dot_i32_list_int_packed(a, b)
+}
+
+fn reduce_sum_i32_list_int_packed(a) {
+    return dot.reduce_sum_i32_list_int_packed(a)
+}
+
 fn dot_f32_buf(a: []f32, b: []f32) {
     return dot.dot_f32_buf(a, b)
 }

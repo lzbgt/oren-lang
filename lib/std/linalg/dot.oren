@@ -2,6 +2,7 @@
 
 import common "std:linalg/common"
 import list "std:list"
+import buffer "std:buffer"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 fn _vec2_len(a, b, ctx) { return common._vec2_len(a, b, ctx) }
@@ -34,6 +35,47 @@ fn dot_f32(a, b) {
 
 fn dot_i32_buf(a: []i32, b: []i32) {
     return oren_buf_dot_i32(a, b)
+}
+
+fn dot_i32_buf_scalar(a: []i32, b: []i32) {
+    var na = oren_buf_len(a)
+    if oren_is_err(na) { return na }
+    var nb = oren_buf_len(b)
+    if oren_is_err(nb) { return nb }
+    if na != nb { return _err_invalid_arg("dot_i32_buf_scalar: length mismatch") }
+    var sum = 0
+    var i = 0
+    while i < na {
+        sum = sum + oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn reduce_sum_i32_buf(a: []i32) {
+    var n = oren_buf_len(a)
+    if oren_is_err(n) { return n }
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + oren_buf_load_i32(a, i)
+        i = i + 1
+    }
+    return sum
+}
+
+fn dot_i32_list_int_packed(a, b) {
+    var ap: []i32 = buffer.i32_pack_list_int(a)
+    if oren_is_err(ap) { return ap }
+    var bp: []i32 = buffer.i32_pack_list_int(b)
+    if oren_is_err(bp) { return bp }
+    return dot_i32_buf_scalar(ap, bp)
+}
+
+fn reduce_sum_i32_list_int_packed(a) {
+    var ap: []i32 = buffer.i32_pack_list_int(a)
+    if oren_is_err(ap) { return ap }
+    return reduce_sum_i32_buf(ap)
 }
 
 fn dot_f32_buf(a: []f32, b: []f32) {

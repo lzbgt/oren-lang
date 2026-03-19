@@ -179,6 +179,17 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `tests/native/qi/100_tests_basic.oren` now asserts the raw slot contract directly. That gives
      future compiler/SIMD work a test-backed ABI fact instead of relying on emitter disassembly
      alone.
+   - New bridge boundary (2026-03-20): stdlib now exposes a safe `list<int> -> []i32` packing path
+     plus scalar packed dot/sum helpers that work on both C and native core-runtime builds, so
+     the bridge itself no longer depends on the heavier typed-buffer dot kernel surface.
+   - New perf isolation (2026-03-20): default native benchmark builds still use the reduced
+     `core` runtime profile (`lib/runtime_native_core.oren` -> `runtime_native/200_typed_buffers_core.oren`),
+     so heavy typed-buffer kernels such as `oren_buf_dot_i32(...)` are not valid there. Dedicated
+     hidden packed-bridge benchmarks plus `make perf-probe-list-int-packed-bridge` now carry that
+     full-runtime measurement path instead of mutating `array_sum_int` / `dot_product_int`.
+   - Verified (2026-03-20): the hidden packed-bridge benchmarks compile and run through the Oren C
+     backend with the expected `205`, `710`, `6590`, and `54380` outputs, which is enough to catch
+     stdlib bridge portability bugs before paying for the slower full-runtime native probe.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
