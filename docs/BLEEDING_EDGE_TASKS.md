@@ -1041,6 +1041,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `sum += left * right` pairs into `MADD` also regressed on Apple M2 Pro; the focused
      perf gate moved `dot_product` from about 2.51× C to about 2.70× C, so the remaining
      gap is not just the current `MUL` + `ADD` pair count.
+   - Trace (2026-03-20): a second follow-up that replaced the unique unrolled `list<int>`
+     cursor loads with `LDP ... post-index` pair loads also regressed on Apple M2 Pro; the
+     focused perf gate moved `dot_product` from about 2.51× C to about 2.71× C, so the
+     remaining gap is not dominated by the current per-side load/address-update sequence either.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).

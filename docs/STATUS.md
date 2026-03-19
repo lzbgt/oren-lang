@@ -101,6 +101,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `sum += left * right` pairs into `MADD` also regressed on Apple M2 Pro; the focused
      perf gate moved `dot_product` from about 2.51× C to about 2.70× C, so the open gap is
      not explained by the current `MUL` + `ADD` instruction count alone.
+   - Trace (2026-03-20): a second follow-up that replaced the unique unrolled `list<int>`
+     cursor loads with `LDP ... post-index` pair loads also regressed on Apple M2 Pro; the
+     focused perf gate moved `dot_product` from about 2.51× C to about 2.71× C, so the
+     remaining arm64 gap is not dominated by the current per-side load/address-update sequence either.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
