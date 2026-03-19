@@ -1113,12 +1113,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (`build/logs/codex_arm64_generic_loop_tickslot_trace_20260319.log`). A matching
      `for_loop` trace hook now exists in the native arm64 `For` emitter too, so any surviving
      `For` path will report the same loop-stack metadata.
-   - Root cause (2026-03-19): the remaining generic arm64 throttled loops are still
-     intentionally stack-backed because their condition/body/post paths can compile arbitrary code
-     that clobbers caller-saved X9/X10. Removing those last slots requires a broader preservation
-     or generic no-call analysis redesign, not another dedicated loop toggle.
-   - Next: redesign generic arm64 throttled safepoints for `while_generic` and any surviving
-     native `For` path if we want to remove the last stack-backed tick slots.
+   - Root cause (2026-03-19/20): the remaining generic arm64 throttled loops are intentionally
+     stack-backed because their condition/body/post paths can compile arbitrary code that clobbers
+     caller-saved X9/X10.
+   - Constraint (2026-03-20): there is no cheap spare-register alternative on the current backend:
+     X19..X26 are already consumed as the preserved temp set, and X27/X28 are reserved heap
+     globals. Removing those last generic tick slots would require a backend-wide register-policy
+     redesign or a different generic safepoint scheme.
+   - Status: no further per-loop arm64 tick-slot toggles remain in this W5 thread.
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
     - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.

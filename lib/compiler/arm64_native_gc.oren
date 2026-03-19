@@ -132,6 +132,9 @@ fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     // Why the stack slot still exists:
     // - Generic arm64 `while` / `for` loops can compile arbitrary bodies and `post` clauses.
     // - Those paths may emit calls or other subgraphs that legally clobber X9/X10.
+    // - We also do not have a cheap "just use a spare callee-saved reg" escape hatch:
+    //   X19..X26 are already part of the backend's active preserved temp set, and X27/X28 are
+    //   reserved heap globals.
     // - The dedicated fast loops can stay slot-free because their hot bodies are tightly controlled
     //   and re-seed the inline tick registers around any runtime call boundaries they introduce.
     //

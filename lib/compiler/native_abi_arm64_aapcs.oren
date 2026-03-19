@@ -10,6 +10,12 @@ fn arm64_aapcs() {
         // AAPCS64 callee-saved (non-volatile) integer regs preserved by the Oren native backend:
         // X19..X26 (X29=FP, X30=LR are handled by the backend prologue/epilogue as needed).
         //
+        // IMPORTANT:
+        // Generic arm64 loops cannot just "move the GC tick into a spare callee-saved register".
+        // Expression/stmt lowering already uses X19..X26 heavily as persistent temps across helper
+        // calls, so reserving one of them for loop ticks would be a backend-wide register-policy
+        // change rather than a local emitter tweak.
+        //
         // IMPORTANT (arch unification; Tier-1):
         // The arm64 backend reserves X27/X28 as global heap registers (heap_limit/heap_ptr),
         // so they MUST NOT be saved/restored by prologues/epilogues.
