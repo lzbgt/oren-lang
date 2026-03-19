@@ -110,6 +110,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      across the fast read-only list loops also regressed on Apple M2 Pro; the focused perf
      gate moved `dot_product` from about 2.51× C to about 2.84× C, so the remaining gap is
      not explained by the current per-iter loop-bound stack reload either.
+   - Trace (2026-03-20): a follow-up `array_sum_int` experiment that hoisted the single-list
+     `list<int>` cursor into a preserved reg was not safe to keep; the focused `list<int>` gate
+     built successfully but the native `array_sum_int` benchmark binary crashed during execution,
+     so the shared read-heavy path should not move list data cursors out of the established stack
+     slots without a stronger GC-rooting argument.
    - New focused list<int> sweep (arm64, 2026-03-20): `array_sum_int` 2.25× C,
      `dot_product_int` 2.31× C, `multi_list_push_int` 2.10× C. This keeps `dot_product_int`
      in the same rough band as `dot_product`, which is strong evidence that the open hot-loop
