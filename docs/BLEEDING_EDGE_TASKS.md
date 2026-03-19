@@ -1063,9 +1063,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      the earlier 2.84× snapshot to 2.66× on Apple M2 Pro (2026-03-20).
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so tracker updates can distinguish stable reruns from one-off outliers.
-   - New focused read split (2026-03-20): after the arm64 single-pair cursor specialization,
-     `dot_product_int` steady-state native/C is now ~2.97×. The remaining blocker is still the
-     repeated read/mul/accumulate loop itself, not one-time fill/setup cost.
+   - New focused steady-state runner (2026-03-20, `make perf-gate-list-int-steady`, `reps=100`):
+     `array_sum_int` steady-state native/C is ~3.28× and `dot_product_int` steady-state native/C
+     is ~3.74×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
+     not one-time fill/setup cost.
+   - New focused read split (2026-03-20): the split runner now reports both delta-based and
+     long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
+     `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
+     prefer the dedicated steady runner or the split long-per-rep estimate over naive delta subtraction.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
@@ -2063,6 +2068,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
    - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 1.96× C,
      `dot_product_int` 2.66× C, `multi_list_push_int` 2.14× C.
+   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~3.28× C,
+     `dot_product_int` ~3.74× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Gate: `dot_product_int` native <= 2x C.
 

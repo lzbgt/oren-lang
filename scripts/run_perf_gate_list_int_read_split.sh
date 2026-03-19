@@ -88,6 +88,8 @@ for program in short:
     l = json.load(open(long[program], "r", encoding="utf-8"))
     print("")
     print(program)
+    long_per_rep = {}
+    delta_per_rep = {}
     for variant in variants:
         if variant not in s["results"] or variant not in l["results"]:
             continue
@@ -95,8 +97,11 @@ for program in short:
         long_med = l["results"][variant]["median_s"]
         steady = (long_med - short_med) / delta_reps
         setup = short_med - steady * short_reps
+        long_rep = long_med / long_reps
         cov = l["results"][variant].get("cov", 0.0)
-        print(f"  {variant}: short={short_med:.6f}s long={long_med:.6f}s setup≈{setup:.6f}s steady≈{steady:.6f}s cov={cov:.4f}")
+        long_per_rep[variant] = long_rep
+        delta_per_rep[variant] = steady
+        print(f"  {variant}: short={short_med:.6f}s long={long_med:.6f}s setup≈{setup:.6f}s delta≈{steady:.6f}s long/reps≈{long_rep:.6f}s cov={cov:.4f}")
     if "c" in s["results"] and "oren_native" in s["results"] and "c" in l["results"] and "oren_native" in l["results"]:
         c_short = s["results"]["c"]["median_s"]
         n_short = s["results"]["oren_native"]["median_s"]
@@ -104,7 +109,18 @@ for program in short:
         n_long = l["results"]["oren_native"]["median_s"]
         c_steady = (c_long - c_short) / delta_reps
         n_steady = (n_long - n_short) / delta_reps
-        print(f"  native/C steady ratio≈{(n_steady / c_steady):.4f}x")
+        print(f"  native/C delta ratio≈{(n_steady / c_steady):.4f}x")
+        if "c" in long_per_rep and "oren_native" in long_per_rep:
+            print(f"  native/C long-per-rep ratio≈{(long_per_rep['oren_native'] / long_per_rep['c']):.4f}x")
+        if "c" in long_per_rep and "oren_c" in long_per_rep:
+            print(f"  oren_c/C long-per-rep ratio≈{(long_per_rep['oren_c'] / long_per_rep['c']):.4f}x")
+        if "c" in long_per_rep and "oren_native" in long_per_rep:
+            delta_ratio = n_steady / c_steady
+            long_ratio = long_per_rep["oren_native"] / long_per_rep["c"]
+            if long_ratio > 0:
+                drift = abs(delta_ratio - long_ratio) / long_ratio
+                if drift > 0.25:
+                    print(f"  warning: delta-vs-long steady estimate drift={drift:.2%}; prefer long-per-rep for tracker updates")
 PY
 
 echo "list<int> read split benchmark complete; summary: $summary_log"

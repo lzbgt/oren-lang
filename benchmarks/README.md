@@ -52,10 +52,21 @@ make perf-gate-list-int
 ```
 
 Focused `list<int>` read split (`array_sum_int`, `dot_product_int`; estimate one-time fill/setup
-vs steady repeated read-loop cost with `reps=1` and `reps=10`):
+vs steady repeated read-loop cost with `reps=1` and `reps=10`). This is still useful for
+directional debugging, but tracker updates should prefer the dedicated steady-state sweep below
+when the delta-vs-long estimates drift materially:
 
 ```bash
 make perf-gate-list-int-read-split
+```
+
+Focused `list<int>` steady-state sweep (`array_sum_int`, `dot_product_int`; use a high `reps`
+count and report per-rep medians directly so tracker updates do not depend on noisy setup
+subtraction). This is the preferred source for steady-state tracker updates on the shared
+read-heavy `list<int>` path:
+
+```bash
+make perf-gate-list-int-steady
 ```
 
 Update the snapshot from existing local result files:
@@ -84,6 +95,8 @@ Optional knobs:
 - `OREN_BENCH_LIST_INT_SPLIT_N=<n>` (used by `perf-gate-list-int-read-split`; default: 2000000)
 - `OREN_BENCH_LIST_INT_SPLIT_SHORT_REPS=<n>` (used by `perf-gate-list-int-read-split`; default: 1)
 - `OREN_BENCH_LIST_INT_SPLIT_LONG_REPS=<n>` (used by `perf-gate-list-int-read-split`; default: 10)
+- `OREN_BENCH_LIST_INT_STEADY_N=<n>` (used by `perf-gate-list-int-steady`; default: 2000000)
+- `OREN_BENCH_LIST_INT_STEADY_REPS=<n>` (used by `perf-gate-list-int-steady`; default: 100)
 - `OREN_BENCH_CC=<compiler>` (override C compiler; auto-detects `cc/clang/gcc` otherwise)
 - `OREN_BENCH_ENV_ALL=K=V,...` (apply env overrides to all variants)
 - `OREN_BENCH_ENV_C=K=V,...`

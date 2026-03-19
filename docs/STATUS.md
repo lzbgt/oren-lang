@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-03-20: `loop_sum` 1.08×, `dot_product` 2.51×; `alloc_churn` 6.45×, `alloc_drop` 1.63×).
-- **list<int> hot-loop parity**: `dot_product_int` is now the clear remaining blocker in the list<int> family (latest clean focused list<int> rerun, 2026-03-20: `array_sum_int` 1.96×, `dot_product_int` 2.66×, `multi_list_push_int` 2.14× vs C).
+- **list<int> hot-loop parity**: one-shot focused reruns are encouraging (`array_sum_int` 1.96×, `dot_product_int` 2.66×, `multi_list_push_int` 2.14× vs C), but the new steady-state runner shows the shared read-heavy path is still above target (`array_sum_int` ~3.28× steady, `dot_product_int` ~3.74× steady vs C on arm64, 2026-03-20).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -124,10 +124,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      the earlier 2.84× snapshot to 2.66× on Apple M2 Pro (2026-03-20).
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so perf tracker updates can distinguish stable reruns from one-off outliers.
-   - New focused read split (2026-03-20): after the arm64 single-pair cursor specialization,
-     `dot_product_int` steady-state native/C is now ~2.97×. That is still above the 2× gate,
-     but it is much closer than the earlier ~4.48× snapshot and confirms the remaining blocker
-     is the repeated read/mul/accumulate loop itself, not one-time fill/setup cost.
+   - New focused steady-state runner (2026-03-20, `make perf-gate-list-int-steady`, `reps=100`):
+     `array_sum_int` steady-state native/C is ~3.28× and `dot_product_int` steady-state native/C
+     is ~3.74×. That is stronger evidence than the earlier one-shot gate that the remaining
+     blocker is the repeated read path itself, not one-time fill/setup cost.
+   - New focused read split (2026-03-20): the split runner now reports both delta-based and
+     long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
+     `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
+     prefer the dedicated steady runner or, at minimum, the split long-per-rep estimate over the
+     naive delta subtraction.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
@@ -1419,6 +1424,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
    - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 1.96× C,
      `dot_product_int` 2.66× C, `multi_list_push_int` 2.14× C.
+   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~3.28× C,
+     `dot_product_int` ~3.74× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - arm64 native fast list_int dot loops unroll by 2 when lists are unique.

@@ -12,7 +12,7 @@
 .PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
-.PHONY: perf-gate-native perf-gate-list-int
+.PHONY: perf-gate-native perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
@@ -875,7 +875,10 @@ perf-gate-list-int: oren_stage2
 
 # Focused list<int> split sweep: estimate fill/setup vs steady read-loop cost.
 perf-gate-list-int-read-split: oren_stage2
-		@./scripts/run_perf_gate_list_int_read_split.sh
+	@./scripts/run_perf_gate_list_int_read_split.sh
+
+perf-gate-list-int-steady: oren_stage2
+	@./scripts/run_perf_gate_list_int_steady.sh
 
 # Update the latest benchmark snapshot from existing result JSON files.
 benchmarks-update:
