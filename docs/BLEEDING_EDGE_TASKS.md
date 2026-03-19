@@ -43,12 +43,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-03-04): `alloc_churn` 5.54× C, `alloc_drop` 1.58× C.
-   - New run (arm64, 2026-03-04, runs=5, warmups=1; log: `build/logs/bench_alloc_churn_drop_20260304_235146.log`):
-     - alloc_churn: C 0.002886s, native 0.015997s (5.54× C).
-     - alloc_drop: C 0.002986s, native 0.004703s (1.58× C).
+   - Baseline (arm64 native, 2026-03-20): `alloc_churn` 6.94× C, `alloc_drop` 1.90× C.
+   - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`;
+     log: `build/logs/perf-gate-native-20260320_001208.log`):
+     - alloc_churn: C 0.002851s, native 0.019777s (6.94× C).
+     - alloc_drop: C 0.003103s, native 0.005901s (1.90× C).
    - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
-   - New: latest snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
+   - New: latest focused perf-gate snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
    - Trace: list_alloc shows list_int headers sized at 32 bytes (cap=0, arena mode) with no list_buf events even when enabled; investigate reserve/fast-path behavior (2026-02-25).
    - Trace: optimizer inserts `oren_list_int_reserve(xs, 128)` for alloc_churn (`OREN_TRACE_LIST_RESERVE=1`, 2026-02-26).
@@ -88,7 +89,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      while remaining correctness-safe under `test_loop_list_reuse_escape_smoke` (2026-02-26).
    - Fix: loop list reset now requires first-assign dominance in the loop body, avoiding auto-arena
      on use-before-assign patterns (`test_arena_auto_loop_use_before_assign_skip_smoke`, 2026-02-26).
-   - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
+   - Next: keep alloc_churn/alloc_drop within gate while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
 2) **W5 runtime robustness: GC reuse + list header integrity**
@@ -1024,9 +1025,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 3) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
-   - New run (arm64, 2026-03-04, runs=5, warmups=1):
-     - loop_sum: C 0.067194s, native 0.225078s (3.35× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
-     - dot_product: C 0.005185s, native 0.013571s (2.62× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
+   - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
+     - loop_sum: C 0.068456s, native 0.236628s (3.46× C)
+       (`benchmarks/results/loop_sum_darwin_arm64_20260320_001208.md`,
+       `build/logs/perf-gate-native-20260320_001208.log`).
+     - dot_product: C 0.005691s, native 0.014312s (2.51× C)
+       (`benchmarks/results/dot_product_darwin_arm64_20260320_001211.md`,
+       `build/logs/perf-gate-native-20260320_001208.log`).
     - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
@@ -1121,9 +1126,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      globals. Removing those last generic tick slots would require a backend-wide register-policy
      redesign or a different generic safepoint scheme.
    - Status: no further per-loop arm64 tick-slot toggles remain in this W5 thread.
-    - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
-    - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
-    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
+   - Next: shift hot-loop work away from tick-slot cleanup and toward generic integer-loop/runtime overhead; the fresh arm64 perf-gate run still misses the 2× target.
+   - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
+   - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
     - New: `OREN_TRACE_GC_REGISTER_ROOT_NAMES=1` (compile-time env) emits per-root
       `[gc_root_name]` lines; bad-list root_idx=256 mapped to `g_gc_reuse_bad_list_last_ptr`
       (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_083852.log`).

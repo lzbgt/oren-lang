@@ -12,6 +12,7 @@
 .PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
+.PHONY: perf-gate-native
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
@@ -863,6 +864,10 @@ bench-native-compile: oren_stage2
 # Full benchmark sweep + snapshot update (logs to build/logs/benchmarks-all-*.log).
 benchmarks: oren_stage2
 		@./scripts/run_benchmarks_all.sh
+
+# Focused W5 perf gate sweep: just the hot-loop + alloc/GC native-vs-C benchmarks.
+perf-gate-native: oren_stage2
+		@./scripts/run_perf_gate_native.sh
 
 # Update the latest benchmark snapshot from existing result JSON files.
 benchmarks-update:

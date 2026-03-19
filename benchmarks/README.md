@@ -35,6 +35,13 @@ Full sweep (all benchmarks + snapshot update + pruning):
 make benchmarks
 ```
 
+Focused W5 perf gate sweep (just `loop_sum`, `dot_product`, `alloc_churn`, `alloc_drop`;
+native vs C by default):
+
+```bash
+make perf-gate-native
+```
+
 Update the snapshot from existing result files:
 
 ```bash
