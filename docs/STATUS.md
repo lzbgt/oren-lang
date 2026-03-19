@@ -159,6 +159,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      correct under `make perf-smoke-list-int`, but the steady rerun still regressed slightly:
      `dot_product_int` moved from about 3.09× C to about 3.13× C, so reducing the number of
      per-body writes into `x23` alone is not the missing win.
+   - Trace (2026-03-20): a stricter follow-up that reduced the exact 4-wide single-pair arm64
+     `dot_product_int` body all the way down to one final `x23 += batch_sum` update also stayed
+     correct under `make perf-smoke-list-int`, but the steady rerun regressed further:
+     `dot_product_int` moved to about 3.22× C. That makes the current evidence stronger: simply
+     collapsing the exact 4-wide batch into fewer running-sum writes does not solve the blocker.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
