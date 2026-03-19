@@ -663,6 +663,8 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     var mul_count = oren_list_len(muls)
     var unique_lists = false
     if list_count == mul_count * 2 { unique_lists = true }
+    var single_mul_pair = false
+    if unique_lists == true && list_count == 2 && mul_count == 1 { single_mul_pair = true }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     // Fast int-dot loops keep the throttled safepoint tick in registers on the hot path.
@@ -797,6 +799,13 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             emit_str_reg_sp_any(ctx, 23, buf_slot_init)
             li_init = li_init + 1
         }
+        if single_mul_pair {
+            // The common benchmark/tier-1 shape is a single read-only list<int> pair.
+            // Seed dedicated callee-saved cursor regs once so the steady-state dot loop
+            // stops round-tripping both buf pointers through the stack every iteration.
+            emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
+            emit_ldr_reg_sp_any(ctx, 26, list_base_off + 24)
+        }
     }
 
     // Keep i/sum in registers across iterations.
@@ -840,21 +849,36 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             var buf_left2 = list_base_off + li_left2 * 16 + 8
             var buf_right2 = list_base_off + li_right2 * 16 + 8
 
-            // left values (advance cursor by 16)
-            emit_ldr_reg_sp_any(ctx, 24, buf_left2)
-            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-            push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 24, 8))
-            push_u32_le(ctx["code"], insn_add_imm(24, 24, 16))
-            emit_str_reg_sp_any(ctx, 24, buf_left2)
+            if single_mul_pair {
+                // The hot benchmark shape is a single read-only list<int> pair. Keep both
+                // cursors in callee-saved regs across iterations/safepoints to avoid the
+                // per-iter stack reload/store churn on the steady-state dot loop.
+                push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
+                push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 19, 8))
+                push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
 
-            // right values (advance cursor by 16)
-            emit_ldr_reg_sp_any(ctx, 26, buf_right2)
-            push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
-            push_u32_le(ctx["code"], insn_mul(25, 25, 27))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-            push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 26, 8))
-            push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
-            emit_str_reg_sp_any(ctx, 26, buf_right2)
+                push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+                push_u32_le(ctx["code"], insn_mul(25, 25, 27))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 26, 8))
+                push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
+            } else {
+                // left values (advance cursor by 16)
+                emit_ldr_reg_sp_any(ctx, 24, buf_left2)
+                push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+                push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 24, 8))
+                push_u32_le(ctx["code"], insn_add_imm(24, 24, 16))
+                emit_str_reg_sp_any(ctx, 24, buf_left2)
+
+                // right values (advance cursor by 16)
+                emit_ldr_reg_sp_any(ctx, 26, buf_right2)
+                push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+                push_u32_le(ctx["code"], insn_mul(25, 25, 27))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 26, 8))
+                push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
+                emit_str_reg_sp_any(ctx, 26, buf_right2)
+            }
 
             // sum += left1 * right1
             push_u32_le(ctx["code"], insn_mul(28, 28, 27))
@@ -895,17 +919,25 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         var buf_right = list_base_off + li_right * 16 + 8
 
         if unique_lists {
-            // left value (advance cursor)
-            emit_ldr_reg_sp_any(ctx, 24, buf_left)
-            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-            push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
-            emit_str_reg_sp_any(ctx, 24, buf_left)
+            if single_mul_pair {
+                push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
+                push_u32_le(ctx["code"], insn_add_reg(19, 19, 22))
 
-            // right value (advance cursor)
-            emit_ldr_reg_sp_any(ctx, 26, buf_right)
-            push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
-            push_u32_le(ctx["code"], insn_add_reg(26, 26, 22))
-            emit_str_reg_sp_any(ctx, 26, buf_right)
+                push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+                push_u32_le(ctx["code"], insn_add_reg(26, 26, 22))
+            } else {
+                // left value (advance cursor)
+                emit_ldr_reg_sp_any(ctx, 24, buf_left)
+                push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+                push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
+                emit_str_reg_sp_any(ctx, 24, buf_left)
+
+                // right value (advance cursor)
+                emit_ldr_reg_sp_any(ctx, 26, buf_right)
+                push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+                push_u32_le(ctx["code"], insn_add_reg(26, 26, 22))
+                emit_str_reg_sp_any(ctx, 26, buf_right)
+            }
 
             // sum += left * right
             push_u32_le(ctx["code"], insn_mul(25, 25, 27))
