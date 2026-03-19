@@ -434,6 +434,21 @@ fn test_list_set_clear_stress() {
     assert_eq(oren_list_int_len(li), 32, 3306)
     assert_eq(oren_list_int_get(li, 0), 1, 3307)
     assert_eq(oren_list_int_get(li, 31), 32, 3308)
+
+    // Rolling ABI guard: list<int> payload slots are 8-byte unboxed integer values.
+    assert_true(oren_is_list_int(li), 3309)
+    assert_eq(oren_list_int_slot_stride_bytes(), 8, 3310)
+    var data = oren_list_int_data_ptr(li)
+    assert_true(data != 0, 3311)
+    assert_eq(oren_list_int_data_ptr_unchecked(li), data, 3312)
+    assert_eq(oren_list_int_data_ptr_unchecked(nil), 0, 3313)
+    assert_eq(ptr_get(data + 0), 1, 3314)
+    assert_eq(ptr_get(data + 8), 2, 3315)
+    assert_eq(ptr_get(data + 16), 3, 3316)
+
+    oren_list_int_set(li, 1, 44)
+    assert_eq(ptr_get(data + 8), 44, 3317)
+    assert_eq(oren_list_int_get(li, 1), 44, 3318)
     oren_gc_collect()
     return 0
 }

@@ -173,6 +173,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      existing `simd_dot_i32_ptr`/NEON kernel shape assumes packed i32 lanes. That closes off the
      direct "just route list<int> cursors into the i32 SIMD kernel" idea unless we first add a
      safe packed-i32 view or a true 64-bit-slot SIMD lowering.
+   - New native runtime helpers (2026-03-20): `oren_list_int_data_ptr(...)`,
+     `oren_list_int_data_ptr_unchecked(...)`, and `oren_list_int_slot_stride_bytes()` now make the
+     current rolling representation explicit, and the Tier-1 native quick fixture
+     `tests/native/qi/100_tests_basic.oren` now asserts the raw slot contract directly. That gives
+     future compiler/SIMD work a test-backed ABI fact instead of relying on emitter disassembly
+     alone.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
@@ -1475,6 +1481,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
+    - New: native runtime now exposes the current list<int> payload ABI explicitly via
+      `oren_list_int_data_ptr*` + `oren_list_int_slot_stride_bytes()` and guards it inside the
+      Tier-1 native quick fixture, so future bridge work can target a stable checked fact.
     - arm64 native fast list_int dot loops unroll by 2 when lists are unique.
     - arm64 native fast list_int get-sum loops unroll by 2 when lists are unique.
     - x64 native fast list_int dot loops unroll by 2 when lists are unique (multi-mul supported).

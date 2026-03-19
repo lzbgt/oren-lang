@@ -414,6 +414,34 @@ fn oren_list_int_len_unchecked(list) {
     return ptr_get(iadd(list, 0))
 }
 
+// Native runtime representation helpers for list<int> hot paths.
+//
+// Rolling contract:
+// - header layout stays `[count][capacity][buffer_ptr][magic]`
+// - list<int> payload slots are 8-byte unboxed integer values, not packed i32 lanes
+//
+// These helpers make that contract explicit for tests and future native-only fast paths.
+@oren.keep
+fn oren_list_int_slot_stride_bytes() {
+    return 8
+}
+
+@oren.keep
+fn oren_list_int_data_ptr(list) {
+    if list == nil { return 0 }
+    var node = _list_find_node_known_kind(list, list_int_kind())
+    if node == 0 { _list_trace_dump(list); oren_panic("list_int_data_ptr on non-list"); return 0 }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_data_ptr on non-list"); return 0 }
+    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_data_ptr on non-list"); return 0 }
+    return ptr_get(iadd(list, 16))
+}
+
+@oren.keep
+fn oren_list_int_data_ptr_unchecked(list) {
+    if list == nil { return 0 }
+    return ptr_get(iadd(list, 16))
+}
+
 @oren.keep
 fn oren_list_int_clear(list) {
     if list == nil { return nil }

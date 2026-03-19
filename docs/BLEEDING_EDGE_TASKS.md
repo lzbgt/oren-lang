@@ -1111,6 +1111,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      Root cause: current `list<int>` fast loops read 64-bit list slots, while the existing packed-i32
      SIMD dot kernel shape assumes 32-bit lanes. So a future SIMD bridge here needs either a safe
      packed-i32 view or a dedicated 64-bit-slot lowering, not a direct cursor handoff.
+   - New native runtime helpers (2026-03-20): `oren_list_int_data_ptr(...)`,
+     `oren_list_int_data_ptr_unchecked(...)`, and `oren_list_int_slot_stride_bytes()` now expose
+     that 64-bit-slot payload contract directly, and the Tier-1 native quick fixture
+     `tests/native/qi/100_tests_basic.oren` guards it. That narrows future bridge work to
+     "build a safe packed view" or "target the 64-bit-slot ABI directly" instead of rediscovering
+     the layout experimentally.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
@@ -2117,6 +2123,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Constraint (2026-03-20): direct reuse of the packed-i32 SIMD dot kernel is not safe for the
      current `list<int>` fast-loop payload layout because those slots are 64-bit values.
+   - New: native runtime now exposes the current `list<int>` payload ABI explicitly via
+     `oren_list_int_data_ptr*` + `oren_list_int_slot_stride_bytes()` and guards it with a native
+     layout test.
    - Gate: `dot_product_int` native <= 2x C.
 
 8) **AVM unboxed list<int> payload + lowering**
