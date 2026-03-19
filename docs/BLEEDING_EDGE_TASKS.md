@@ -1080,6 +1080,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_NATIVE_ASSUME_LIST_INDEX=1` moved them to ~3.36× / ~4.09×, and combining both landed
      at ~3.32× / ~3.94×. So runtime list validation and compiler-side direct index lowering are
      only partial ceilings, not a shared fix for the steady-state read-heavy path.
+   - Trace (2026-03-20): replacing the new arm64 4-wide exact-shape loads with `ldp ... post-index`
+     pair loads was also not a win. The experimental steady rerun moved `array_sum_int` from about
+     2.87× C to about 2.95× C and `dot_product_int` from about 3.17× C to about 3.33× C, so the
+     remaining shared gap is not mainly the current scalar load-address sequence inside those 4-wide paths.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
