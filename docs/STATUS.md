@@ -97,6 +97,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
      `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the
      dominant remaining cost on that path.
+   - Trace (2026-03-20): a follow-up arm64 `dot_product` experiment that fused the hot
+     `sum += left * right` pairs into `MADD` also regressed on Apple M2 Pro; the focused
+     perf gate moved `dot_product` from about 2.51× C to about 2.70× C, so the open gap is
+     not explained by the current `MUL` + `ADD` instruction count alone.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.

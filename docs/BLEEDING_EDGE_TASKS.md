@@ -1037,6 +1037,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
      `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the
      dominant remaining cost on this path.
+   - Trace (2026-03-20): a follow-up arm64 `dot_product` experiment that fused the hot
+     `sum += left * right` pairs into `MADD` also regressed on Apple M2 Pro; the focused
+     perf gate moved `dot_product` from about 2.51× C to about 2.70× C, so the remaining
+     gap is not just the current `MUL` + `ADD` pair count.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
