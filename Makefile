@@ -873,6 +873,10 @@ perf-gate-native: oren_stage2
 perf-gate-list-int: oren_stage2
 		@./scripts/run_perf_gate_list_int.sh
 
+# Focused list<int> split sweep: estimate fill/setup vs steady read-loop cost.
+perf-gate-list-int-read-split: oren_stage2
+		@./scripts/run_perf_gate_list_int_read_split.sh
+
 # Update the latest benchmark snapshot from existing result JSON files.
 benchmarks-update:
 		@python3 benchmarks/update_latest.py --prune

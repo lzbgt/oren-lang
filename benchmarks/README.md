@@ -51,6 +51,13 @@ C, Oren C, native, and OBC by default):
 make perf-gate-list-int
 ```
 
+Focused `list<int>` read split (`array_sum_int`, `dot_product_int`; estimate one-time fill/setup
+vs steady repeated read-loop cost with `reps=1` and `reps=10`):
+
+```bash
+make perf-gate-list-int-read-split
+```
+
 Update the snapshot from existing local result files:
 
 ```bash
@@ -74,6 +81,9 @@ Optional knobs:
 - `OREN_BENCH_PROGRAMS=name1,name2` (explicit list; overrides `OREN_BENCH_PROGRAM`)
 - `OREN_BENCH_UPDATE_LATEST=1` (update `benchmarks/RESULTS_LATEST.md` after run)
 - `OREN_BENCH_UPDATE_LATEST_PRUNE=1` (with UPDATE_LATEST, prune stale result files)
+- `OREN_BENCH_LIST_INT_SPLIT_N=<n>` (used by `perf-gate-list-int-read-split`; default: 2000000)
+- `OREN_BENCH_LIST_INT_SPLIT_SHORT_REPS=<n>` (used by `perf-gate-list-int-read-split`; default: 1)
+- `OREN_BENCH_LIST_INT_SPLIT_LONG_REPS=<n>` (used by `perf-gate-list-int-read-split`; default: 10)
 - `OREN_BENCH_CC=<compiler>` (override C compiler; auto-detects `cc/clang/gcc` otherwise)
 - `OREN_BENCH_ENV_ALL=K=V,...` (apply env overrides to all variants)
 - `OREN_BENCH_ENV_C=K=V,...`

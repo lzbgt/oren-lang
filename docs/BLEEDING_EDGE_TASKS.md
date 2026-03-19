@@ -1054,12 +1054,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      built successfully but the native `array_sum_int` benchmark binary crashed during execution,
      so the shared read-heavy path should not move list data cursors out of the established stack
      slots without a stronger GC-rooting argument.
-   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 2.03× C,
-     `dot_product_int` 2.53× C, `multi_list_push_int` 2.22× C. This still puts `dot_product_int`
-     in the same rough band as `dot_product`, so the next work should target the shared
-     read-heavy list<int> core path rather than boxed-dot-only lowering.
+   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 1.47× C,
+     `dot_product_int` 2.84× C, `multi_list_push_int` 2.18× C. This now narrows the open
+     list<int> hot-loop gap primarily to `dot_product_int`, not the whole list<int> family.
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so tracker updates can distinguish stable reruns from one-off outliers.
+   - New focused read split (2026-03-20): `array_sum_int` steady-state native/C is ~3.16×,
+     while `dot_product_int` steady-state native/C is ~4.48×. The remaining blocker is the repeated
+     read/mul/accumulate loop itself, not one-time fill/setup cost.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
@@ -2055,8 +2057,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
-   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 2.03× C,
-     `dot_product_int` 2.53× C, `multi_list_push_int` 2.22× C.
+   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 1.47× C,
+     `dot_product_int` 2.84× C, `multi_list_push_int` 2.18× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Gate: `dot_product_int` native <= 2x C.
 
