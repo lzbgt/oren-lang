@@ -97,7 +97,8 @@ make perf-probe-list-int-unsafe
 ```
 
 Packed-bridge `list<int>` ceiling probe (baseline shared read path vs hidden packed-bridge
-benchmarks built with the full native runtime profile):
+benchmarks, with `array_sum_int_packed_bridge` built on the default core native profile and
+`dot_product_int_packed_bridge` built on the full native runtime profile required by the typed-buffer dot kernel):
 
 ```bash
 make perf-probe-list-int-packed-bridge
@@ -107,6 +108,12 @@ Hidden packed-bridge correctness smoke:
 
 ```bash
 make perf-smoke-list-int-packed-bridge
+```
+
+Explicit native prebuild for the hidden packed-bridge benchmarks:
+
+```bash
+make perf-prebuild-list-int-packed-bridge
 ```
 
 These packed-bridge benchmarks are intentionally excluded from `OREN_BENCH_PROGRAM=all` via
@@ -122,10 +129,17 @@ the hidden benchmark sources and scalar-vs-kernel bridge toggles, but it avoids 
 full-runtime native build cost twice before the actual steady-state probe. Opt into a native smoke
 explicitly with `OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND=native`.
 
+When you do opt into native smoke, it now reuses the same split-profile prebuild path as the
+steady probe instead of rebuilding both hidden benchmarks under `full`. That keeps
+`array_sum_int_packed_bridge` on the cheap native `core` profile and reserves the heavy full
+runtime build for `dot_product_int_packed_bridge`.
+
 The packed-bridge steady probe now also warms the hidden packed-bridge artifacts only once and
 reuses them for the scalar-vs-kernel cases (`OREN_BENCH_SKIP_BUILD=1` on those follow-up legs).
-The remaining expensive part is the first full-runtime native build itself, not redundant rebuilds
-inside the probe.
+That warm step is now the same reusable native prebuild exposed by `make perf-prebuild-list-int-packed-bridge`.
+It uses the cheap core native profile for `array_sum_int_packed_bridge` and reserves the heavy
+full-runtime native build for `dot_product_int_packed_bridge`, which is the only hidden benchmark
+that actually needs `oren_buf_dot_i32(...)`.
 
 Update the snapshot from existing local result files:
 

@@ -31,14 +31,7 @@ run_one() {
 }
 
 warm_packed_builds() {
-    env \
-        OREN_BENCH_PROGRAMS="$packed_programs" \
-        OREN_BENCH_SKIP_OREN_C=1 \
-        OREN_BENCH_SKIP_OBC=1 \
-        OREN_BENCH_RUNS=1 \
-        OREN_BENCH_WARMUPS=0 \
-        OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full \
-        python3 benchmarks/run_benchmarks.py >"$warm_log" 2>&1
+    ./scripts/build_perf_artifacts_list_int_packed_bridge.sh >"$warm_log" 2>&1
 }
 
 baseline_summary="$(run_one "$base_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 make perf-gate-list-int-steady)"
