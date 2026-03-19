@@ -614,10 +614,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Int-only list literals now lower to `list<int>` even when non-empty and use unchecked pushes on native/OBC to preserve fast paths (rolling, 2026-02-20).
    - Safe list<int> get/len now rewrite to unchecked header paths (`oren_list_int_get_unchecked`, `oren_list_int_len_unchecked`) on native backends (rolling, 2026-02-24).
    - Arm64 fast list_int get-sum loops now accept `list_int_get_unchecked` calls to preserve the fast path after rewriting (rolling, 2026-02-24).
-   - Arm64 list<int> get-sum + dot fast loops use inline safepoint ticks (register-based). As of
-     2026-03-19, arm64 dot/list<int>-dot no longer reserve a dedicated stack tick slot by default;
-     the old slot can still be restored with `OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT=1` or
-     `OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT=1` for trace comparison.
+   - Arm64 get-sum + dot fast loops use inline safepoint ticks (register-based). As of
+     2026-03-19, arm64 boxed/int get-sum and boxed/int dot no longer reserve a dedicated stack
+     tick slot by default; the old layouts can still be restored for comparison with the
+     `*_KEEP_TICK_SLOT=1` env overrides.
    - Safepoint throttling for list<int> hot loops: arm64 list<int> sum/dot mask=4095; x64 list<int> sum/dot mask=1023.
    - X64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023 to reduce hot-loop overhead (rolling, 2026-02-25).
    - Arm64 list<int> get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
@@ -671,11 +671,25 @@ Weights reflect expected impact on C parity and breadth of affected code.
      unless `OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT=1` or
      `OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT=1` is set. The remaining throttled safepoints stay
      on `tick_off=0`, so the old negative-offset regression remains unobserved on the active path.
+   - Fix (2026-03-19): the same slot-free default now applies to `fast_list_get_sum_while` and
+     `fast_list_int_get_sum_while`. Their old layouts can be restored with
+     `OREN_ARM64_FAST_LIST_GET_SUM_KEEP_TICK_SLOT=1` and
+     `OREN_ARM64_FAST_LIST_INT_GET_SUM_KEEP_TICK_SLOT=1`.
    - Verification (2026-03-19): `benchmarks/dot_product/dot_product.oren` now emits
      `fast_list_int_dot_while_no_tick` by default under `OREN_TRACE_ARM64_LOOP_STACK=1`
      (`build/logs/codex_arm64_dot_tickslot_default_trace_20260319.log`), while
      `OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT=1` restores the old 8-slot layout
      (`build/logs/codex_arm64_dot_tickslot_keep_trace_20260319.log`).
+   - Verification (2026-03-19): `build/tmp/arm64_boxed_getsum_probe.oren` emits
+     `fast_list_get_sum_while_no_tick` by default under `OREN_TRACE_ARM64_LOOP_STACK=1`
+     (`build/logs/codex_arm64_boxed_getsum_tickslot_default_trace_20260319.log`), while
+     `OREN_ARM64_FAST_LIST_GET_SUM_KEEP_TICK_SLOT=1` restores the old 6-slot layout
+     (`build/logs/codex_arm64_boxed_getsum_tickslot_keep_trace_20260319.log`).
+   - Verification (2026-03-19): `benchmarks/array_sum_int/array_sum_int.oren` emits
+     `fast_list_int_get_sum_while_no_tick` by default
+     (`build/logs/codex_arm64_int_getsum_tickslot_default_trace_20260319.log`), and
+     `OREN_ARM64_FAST_LIST_INT_GET_SUM_KEEP_TICK_SLOT=1` restores the old 6-slot layout
+     (`build/logs/codex_arm64_int_getsum_tickslot_keep_trace_20260319.log`).
    - Verification (2026-03-19): `make test` remains green after the default layout change
      (`build/logs/codex_make_test_tickslot_default_20260319.log`).
    - New debug knob: `OREN_TRACE_ARM64_STACK_RESTORE=1` logs stack restore deltas when the
@@ -687,8 +701,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: arm64 GC tick-off trace now includes the last loop stack snapshot (`last_kind`, `last_base`,
      `last_stack`, `last_slots`, `last_bytes`, `last_tick_off`) when tick_off is negative (2026-03-03).
    - TODO: root-cause the arm64 offset regression for the remaining stack-backed throttled loop
-     layouts (`while_generic`, generic `for`, and `fast_list_push_while`). The dedicated dot-loop
-     slot is already removed from the default path.
+     layouts (`while_generic`, generic `for`, `fast_list_push_while`, `fast_list_int_push_while`).
+     The dedicated get-sum/dot loop slots are already removed from the default path.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)

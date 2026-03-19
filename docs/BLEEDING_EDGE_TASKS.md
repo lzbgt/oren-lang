@@ -1076,15 +1076,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace (arm64 stage2 build, 2026-03-03, `make -B stage2` + `OREN_TRACE_ARM64_GC_TICK_OFF=all`):
      many `tick_off=0` entries (all `while_generic`), no negative offsets observed
      (log: `build/logs/arm64_tick_off_stage2_all_forced_20260303_213450.log`).
-   - Fix (2026-03-19): arm64 fast boxed-dot and list<int>-dot loops now use the slot-free layout
-     by default. The old stack tick slot can still be restored with
-     `OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT=1` or
-     `OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT=1` when comparing traces, but the active hot
-     path no longer reserves the extra 8-byte loop slot.
+   - Fix (2026-03-19): arm64 fast boxed/int get-sum and boxed/int dot loops now use the slot-free
+     layout by default. The old stack tick slots can still be restored with the corresponding
+     `*_KEEP_TICK_SLOT=1` env overrides when comparing traces, but the active hot paths no longer
+     reserve the extra loop slot.
    - Verification (2026-03-19): `benchmarks/dot_product/dot_product.oren` now emits
      `fast_list_int_dot_while_no_tick` by default under `OREN_TRACE_ARM64_LOOP_STACK=1`
      (`build/logs/codex_arm64_dot_tickslot_default_trace_20260319.log`), while the keep-slot
      escape hatch restores the old layout (`build/logs/codex_arm64_dot_tickslot_keep_trace_20260319.log`).
+   - Verification (2026-03-19): the same default now holds for both boxed and `list<int>` get-sum
+     loops. `build/tmp/arm64_boxed_getsum_probe.oren` emits `fast_list_get_sum_while_no_tick`
+     by default (`build/logs/codex_arm64_boxed_getsum_tickslot_default_trace_20260319.log`), and
+     `benchmarks/array_sum_int/array_sum_int.oren` emits `fast_list_int_get_sum_while_no_tick`
+     (`build/logs/codex_arm64_int_getsum_tickslot_default_trace_20260319.log`); the corresponding
+     keep-slot overrides restore the older layouts.
    - Verification (2026-03-19): `make test` stays green with the new default
      (`build/logs/codex_make_test_tickslot_default_20260319.log`).
    - New debug knob: `OREN_TRACE_ARM64_STACK_RESTORE=1` logs stack restore deltas when the
@@ -1092,8 +1097,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: arm64 GC tick-off traces now include last stack-restore context (`last_restore_*`)
      when tick_off is negative to correlate stack repairs with offset regressions (2026-03-03).
    - Next: root-cause the remaining arm64 tick-offset regression only for the stack-backed
-     throttled loop layouts (`while_generic`, generic `for`, `fast_list_push_while`). The
-     dedicated dot-loop slot is already removed from the default path.
+     throttled loop layouts (`while_generic`, generic `for`, `fast_list_push_while`,
+     `fast_list_int_push_while`). The dedicated get-sum/dot loop slots are already removed from
+     the default path.
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
     - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
