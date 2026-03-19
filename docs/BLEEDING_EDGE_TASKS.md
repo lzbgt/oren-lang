@@ -1049,6 +1049,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      across the fast read-only list loops also regressed on Apple M2 Pro; the focused perf
      gate moved `dot_product` from about 2.51× C to about 2.84× C, so the remaining gap is
      not explained by the current per-iter loop-bound stack reload either.
+   - New focused list<int> sweep (arm64, 2026-03-20): `array_sum_int` 2.25× C,
+     `dot_product_int` 2.31× C, `multi_list_push_int` 2.10× C. This puts `dot_product_int`
+     in the same rough band as `dot_product`, so the next work should target the shared
+     read-heavy list<int> core path rather than boxed-dot-only lowering.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
@@ -2044,7 +2048,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
-   - Baseline (arm64 native, 2026-02-26): `dot_product_int` 2.55× C.
+   - Baseline (arm64 native, 2026-03-20 focused list<int> sweep): `array_sum_int` 2.25× C,
+     `dot_product_int` 2.31× C, `multi_list_push_int` 2.10× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Gate: `dot_product_int` native <= 2x C.
 

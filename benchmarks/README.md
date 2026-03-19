@@ -42,6 +42,13 @@ native vs C by default):
 make perf-gate-native
 ```
 
+Focused `list<int>` core-path sweep (`array_sum_int`, `dot_product_int`, `multi_list_push_int`;
+C, Oren C, native, and OBC by default):
+
+```bash
+make perf-gate-list-int
+```
+
 Update the snapshot from existing local result files:
 
 ```bash
