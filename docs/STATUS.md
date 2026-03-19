@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-03-20: `loop_sum` 1.08×, `dot_product` 2.51×; `alloc_churn` 6.45×, `alloc_drop` 1.63×).
-- **list<int> hot-loop parity**: one-shot focused reruns are encouraging (`array_sum_int` 1.96×, `dot_product_int` 2.66×, `multi_list_push_int` 2.14× vs C), but the new steady-state runner shows the shared read-heavy path is still above target (`array_sum_int` ~3.28× steady, `dot_product_int` ~3.74× steady vs C on arm64, 2026-03-20).
+- **list<int> hot-loop parity**: one-shot focused reruns now sit around `array_sum_int` 2.18×, `dot_product_int` 2.67×, and `multi_list_push_int` 2.19× vs C, while the new steady-state runner shows the shared read-heavy path is still above target but improved (`array_sum_int` ~2.87× steady, `dot_product_int` ~3.17× steady vs C on arm64, 2026-03-20).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -115,18 +115,20 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      built successfully but the native `array_sum_int` benchmark binary crashed during execution,
      so the shared read-heavy path should not move list data cursors out of the established stack
      slots without a stronger GC-rooting argument.
-   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 1.96× C,
-     `dot_product_int` 2.66× C, `multi_list_push_int` 2.14× C. This now narrows the open
-     list<int> hot-loop gap primarily to `dot_product_int`, not the whole list<int> family.
-   - New: the exact two-list single-pair arm64 `list<int>` dot shape now keeps both data
-     cursors in callee-saved regs across iterations/safepoints instead of round-tripping both
-     buf pointers through stack slots every iteration; that moved the clean focused rerun from
-     the earlier 2.84× snapshot to 2.66× on Apple M2 Pro (2026-03-20).
+   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 2.18× C,
+     `dot_product_int` 2.67× C, `multi_list_push_int` 2.19× C. One-shot list<int> results are
+     now close enough together that they are no longer a reliable way to rank the remaining
+     steady-state blocker on their own.
+   - New: the exact two-list single-pair arm64 `list<int>` dot shape keeps both data cursors in
+     callee-saved regs across iterations/safepoints, and the exact single-list `list<int>` get-sum
+     plus single-pair dot shapes now also unroll by 4 on the hot path. That moved the current
+     steady rerun from the earlier ~3.38× / ~3.90× baseline to ~2.87× / ~3.17× for
+     `array_sum_int` / `dot_product_int` on Apple M2 Pro (2026-03-20).
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so perf tracker updates can distinguish stable reruns from one-off outliers.
    - New focused steady-state runner (2026-03-20, `make perf-gate-list-int-steady`, `reps=100`):
-     `array_sum_int` steady-state native/C is ~3.28× and `dot_product_int` steady-state native/C
-     is ~3.74×. That is stronger evidence than the earlier one-shot gate that the remaining
+     `array_sum_int` steady-state native/C is ~2.87× and `dot_product_int` steady-state native/C
+     is ~3.17×. That is stronger evidence than the earlier one-shot gate that the remaining
      blocker is the repeated read path itself, not one-time fill/setup cost.
    - Trace (2026-03-20): a narrower follow-up that hoisted `n` into X21 only for the unique
      arm64 read-only `list<int>` fast loops was also not a shared win. On the steady runner it
@@ -134,7 +136,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      from about 3.74× C to about 3.95× C, so the loop-bound reload is not the dominant blocker
      on the shared path.
    - New unsafe steady probe (2026-03-20, consolidated rerun via
-     `make perf-probe-list-int-unsafe`): the clean baseline was `array_sum_int` ~3.38× C and
+     `make perf-probe-list-int-unsafe`): the pre-unroll4 clean baseline was `array_sum_int` ~3.38× C and
      `dot_product_int` ~3.90× C. `OREN_LIST_ASSUME_LIST=1` nudged them only to ~3.25× / ~3.88×,
      `OREN_NATIVE_ASSUME_LIST_INDEX=1` moved them to ~3.36× / ~4.09×, and combining both landed
      at ~3.32× / ~3.94×. So runtime list validation and compiler-side direct index lowering are
@@ -1433,10 +1435,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
-   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 1.96× C,
-     `dot_product_int` 2.66× C, `multi_list_push_int` 2.14× C.
-   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~3.28× C,
-     `dot_product_int` ~3.74× C.
+   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 2.18× C,
+     `dot_product_int` 2.67× C, `multi_list_push_int` 2.19× C.
+   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~2.87× C,
+     `dot_product_int` ~3.17× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - arm64 native fast list_int dot loops unroll by 2 when lists are unique.

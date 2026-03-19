@@ -386,6 +386,8 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     var load_count = oren_list_len(loads)
     var unique_lists = false
     if list_count == load_count { unique_lists = true }
+    var single_read_list = false
+    if unique_lists == true && list_count == 1 && load_count == 1 { single_read_list = true }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     var keep_tick_slot = false
@@ -531,7 +533,14 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
     var jpos_fast_single = nil
+    var jpos_fast_quad = nil
     if unroll2 == true {
+        if single_read_list {
+            push_u32_le(ctx["code"], insn_add_imm(24, 20, 3))
+            push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
+            jpos_fast_quad = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // patched: b.ge double/single
+        }
         push_u32_le(ctx["code"], insn_add_imm(24, 20, 1))
         push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
         jpos_fast_single = bytes_len(ctx["code"])
@@ -546,6 +555,34 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     }
 
     if unroll2 == true {
+        if single_read_list {
+            var buf_slot_quad = list_base_off + 8
+            emit_ldr_reg_sp_any(ctx, 24, buf_slot_quad)
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(26, 24, 8))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 24, 16))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 24, 24))
+            push_u32_le(ctx["code"], insn_add_imm(24, 24, 32))
+            emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
+
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 27))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
+
+            push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
+
+            var back_pos4 = bytes_len(ctx["code"])
+            var back_off4 = (loop_cond_pos - back_pos4) / 4
+            push_u32_le(ctx["code"], insn_b(back_off4))
+        }
+
+        var fast_double_pos = bytes_len(ctx["code"])
+        if jpos_fast_quad != nil {
+            var quad_off = (fast_double_pos - jpos_fast_quad) / 4
+            set_u32_le(ctx["code"], jpos_fast_quad, insn_b_cond(quad_off, 10)) // GE
+        }
+
         var pi2 = 0
         while pi2 < oren_list_len(loads) {
             var list_name2 = loads[pi2]
@@ -821,7 +858,14 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
     var jpos_fast_single = nil
+    var jpos_fast_quad = nil
     if unroll2 == true {
+        if single_mul_pair {
+            push_u32_le(ctx["code"], insn_add_imm(24, 20, 3))
+            push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
+            jpos_fast_quad = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // patched: b.ge double/single
+        }
         push_u32_le(ctx["code"], insn_add_imm(24, 20, 1))
         push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
         jpos_fast_single = bytes_len(ctx["code"])
@@ -831,6 +875,40 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
 
     if unroll2 == true {
+        if single_mul_pair {
+            push_u32_le(ctx["code"], insn_ldr_ptr(24, 19))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(25, 19, 8))
+            push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 26, 8))
+            push_u32_le(ctx["code"], insn_mul(24, 24, 27))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+            push_u32_le(ctx["code"], insn_mul(25, 25, 28))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(24, 19, 16))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(25, 19, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 26, 16))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 26, 24))
+            push_u32_le(ctx["code"], insn_mul(24, 24, 27))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+            push_u32_le(ctx["code"], insn_mul(25, 25, 28))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 32))
+            push_u32_le(ctx["code"], insn_add_imm(26, 26, 32))
+            push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
+
+            var back_pos4 = bytes_len(ctx["code"])
+            var back_off4 = (loop_cond_pos - back_pos4) / 4
+            push_u32_le(ctx["code"], insn_b(back_off4))
+        }
+
+        var fast_double_pos = bytes_len(ctx["code"])
+        if jpos_fast_quad != nil {
+            var quad_off = (fast_double_pos - jpos_fast_quad) / 4
+            set_u32_le(ctx["code"], jpos_fast_quad, insn_b_cond(quad_off, 10)) // GE
+        }
+
         var mi2 = 0
         while mi2 < oren_list_len(muls) {
             var mul2 = muls[mi2]
