@@ -22,6 +22,8 @@ Benchmarks:
 ## Latest snapshot
 
 See `benchmarks/RESULTS_LATEST.md` for the latest M2 baseline summary (medians + C-relative ratios).
+The per-run variance now lives in the derived result artifacts under `build/benchmarks/results/`:
+JSON keeps raw timing vectors plus `stdev_s` / `cov`, and markdown includes the same summary.
 
 ## Run
 
@@ -117,6 +119,12 @@ markdown includes an “Init/steady split” section for loop_sum.
 
 Result JSON/markdown include an `env` snapshot of `OREN_*` variables (filtered to
 exclude obvious secret tokens) to aid reproducibility.
+
+Result JSON timing entries now also keep:
+
+- `runs` (raw per-run seconds)
+- `stdev_s` (sample standard deviation)
+- `cov` (coefficient of variation = `stdev / mean`)
 
 Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 

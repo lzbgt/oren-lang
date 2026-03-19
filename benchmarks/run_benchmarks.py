@@ -196,6 +196,30 @@ def _time_cmd(
     return times, rss, out_sample
 
 
+def _stats_summary(values):
+    if not values:
+        return None
+    med = statistics.median(values)
+    mean = statistics.mean(values)
+    min_v = min(values)
+    max_v = max(values)
+    stdev = 0.0
+    cov = 0.0
+    if len(values) >= 2:
+        stdev = statistics.stdev(values)
+        if mean != 0:
+            cov = stdev / mean
+    return {
+        "runs": values,
+        "median_s": med,
+        "mean_s": mean,
+        "min_s": min_v,
+        "max_s": max_v,
+        "stdev_s": stdev,
+        "cov": cov,
+    }
+
+
 def _sysctl_value(key):
     try:
         out = subprocess.check_output(["sysctl", "-n", key], cwd=ROOT).decode("utf-8").strip()
@@ -465,13 +489,7 @@ def _run_one(program, cfg: BenchConfig):
             run_log_path=run_log_path,
             run_log_tee=cfg.run_log_tee,
         )
-        results[name] = {
-            "runs": times,
-            "median_s": statistics.median(times),
-            "mean_s": statistics.mean(times),
-            "min_s": min(times),
-            "max_s": max(times),
-        }
+        results[name] = _stats_summary(times)
         if cfg.rss_enabled and rss:
             rss_results[name] = {
                 "runs": rss,
@@ -684,13 +702,20 @@ def _run_one(program, cfg: BenchConfig):
         lines.append("")
     lines.append("## Results (seconds)")
     lines.append("")
-    lines.append("| variant | median | mean | min | max |")
-    lines.append("| --- | --- | --- | --- | --- |")
+    lines.append("| variant | median | mean | stdev | cov | min | max |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- |")
     for name in variant_order:
         r = results[name]
         lines.append(
-            f"| {name} | {r['median_s']:.6f} | {r['mean_s']:.6f} | {r['min_s']:.6f} | {r['max_s']:.6f} |"
+            f"| {name} | {r['median_s']:.6f} | {r['mean_s']:.6f} | {r['stdev_s']:.6f} | {r['cov']:.4f} | {r['min_s']:.6f} | {r['max_s']:.6f} |"
         )
+    lines.append("")
+    lines.append("## Raw timing vectors (seconds)")
+    lines.append("")
+    for name in variant_order:
+        r = results[name]
+        runs = ", ".join(f"{v:.6f}" for v in r["runs"])
+        lines.append(f"- {name}: [{runs}]")
     if cfg.rss_enabled and rss_results:
         lines.append("")
         lines.append("## RSS (bytes)")
