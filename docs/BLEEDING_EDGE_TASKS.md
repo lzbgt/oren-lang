@@ -1042,13 +1042,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across
       `while_generic` and list<int> fast loops (push/dot), with stack bases matching current stack size.
     - Stage2 trace rebuilds with `OREN_TRACE_ARM64_LOOP_STACK=1` (2026-02-26) completed without GC list-header corruption.
-    - New debug knob: `OREN_ARM64_FAST_LIST_INT_DOT_NO_TICK_SLOT=1` removes the tick slot for `fast_list_int_dot_while` to
+    - Historical debug knob: `OREN_ARM64_FAST_LIST_INT_DOT_NO_TICK_SLOT=1` removed the tick slot for `fast_list_int_dot_while` to
       isolate arm64 tick-offset regressions (trace kind=`fast_list_int_dot_while_no_tick`).
     - Trace (arm64 stage2 compile, 2026-02-26, `OREN_ARM64_FAST_LIST_INT_DOT_NO_TICK_SLOT=1` +
       `OREN_TRACE_ARM64_LOOP_STACK=1`): `fast_list_int_dot_while_no_tick` tick_off=-1, slots=7, bytes=64, stack/base=224.
     - New debug knob: `OREN_TRACE_ARM64_GC_TICK_OFF=1` logs negative tick offsets in arm64 GC throttled safepoints
       (set to `all` to log every tick_off).
-    - New debug knob: `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` removes the tick slot for `fast_list_dot_while`
+    - Historical debug knob: `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` removed the tick slot for `fast_list_dot_while`
       (trace kind=`fast_list_dot_while_no_tick`).
     - Trace (arm64 stage2 compile, 2026-02-26, `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` +
       `OREN_TRACE_ARM64_LOOP_STACK=1`): dot_product still uses list<int> fast loops; no `fast_list_dot_while_no_tick`
@@ -1076,10 +1076,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace (arm64 stage2 build, 2026-03-03, `make -B stage2` + `OREN_TRACE_ARM64_GC_TICK_OFF=all`):
      many `tick_off=0` entries (all `while_generic`), no negative offsets observed
      (log: `build/logs/arm64_tick_off_stage2_all_forced_20260303_213450.log`).
+   - Fix (2026-03-19): arm64 fast boxed-dot and list<int>-dot loops now use the slot-free layout
+     by default. The old stack tick slot can still be restored with
+     `OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT=1` or
+     `OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT=1` when comparing traces, but the active hot
+     path no longer reserves the extra 8-byte loop slot.
+   - Verification (2026-03-19): `benchmarks/dot_product/dot_product.oren` now emits
+     `fast_list_int_dot_while_no_tick` by default under `OREN_TRACE_ARM64_LOOP_STACK=1`
+     (`build/logs/codex_arm64_dot_tickslot_default_trace_20260319.log`), while the keep-slot
+     escape hatch restores the old layout (`build/logs/codex_arm64_dot_tickslot_keep_trace_20260319.log`).
+   - Verification (2026-03-19): `make test` stays green with the new default
+     (`build/logs/codex_make_test_tickslot_default_20260319.log`).
    - New debug knob: `OREN_TRACE_ARM64_STACK_RESTORE=1` logs stack restore deltas when the
      compiler repairs mismatched stack accounting on arm64 loop emission (2026-03-03).
    - New: arm64 GC tick-off traces now include last stack-restore context (`last_restore_*`)
      when tick_off is negative to correlate stack repairs with offset regressions (2026-03-03).
+   - Next: root-cause the remaining arm64 tick-offset regression only for the stack-backed
+     throttled loop layouts (`while_generic`, generic `for`, `fast_list_push_while`). The
+     dedicated dot-loop slot is already removed from the default path.
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
     - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.

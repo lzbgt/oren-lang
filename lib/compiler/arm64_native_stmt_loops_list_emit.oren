@@ -643,8 +643,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     if list_count == mul_count * 2 { unique_lists = true }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
-    var keep_tick_slot = true
-    if oren_env("OREN_ARM64_FAST_LIST_INT_DOT_NO_TICK_SLOT") != nil { keep_tick_slot = false }
+    // Fast int-dot loops keep the throttled safepoint tick in registers on the hot path.
+    // The old dedicated stack tick slot was only kept as a debug escape hatch while we traced
+    // potential arm64 offset regressions. Those traces are now clean, so make the slot-free
+    // layout the default and allow opt-in restoration for comparison.
+    var keep_tick_slot = false
+    if oren_env("OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -960,8 +964,11 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     var mul_count = oren_list_len(muls)
     var unique_lists = false
     if list_count == mul_count * 2 { unique_lists = true }
-    var keep_tick_slot = true
-    if oren_env("OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT") != nil { keep_tick_slot = false }
+    // Boxed dot loops follow the same contract as list<int> dot loops: register tick on the
+    // hot path, no dedicated stack tick slot by default, optional env escape hatch to restore
+    // the old layout while comparing traces.
+    var keep_tick_slot = false
+    if oren_env("OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
