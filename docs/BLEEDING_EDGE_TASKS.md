@@ -1033,6 +1033,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      so arm64 loop_sum re-enters `fast_lcg_sum_while_no_tick` instead of falling back to `while_generic` (2026-03-20).
    - Reweight: loop_sum is now within the <=2× gate on arm64; the remaining hot-loop gap is dot_product,
      so the next work should target list-int load/mul/add overhead rather than more LCG/tick-slot cleanup.
+   - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
+     list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
+     `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the
+     dominant remaining cost on this path.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).

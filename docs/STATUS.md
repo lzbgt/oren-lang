@@ -54,7 +54,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (fresh arm64 perf-gate snapshot, 2026-03-20: `loop_sum` 3.56×, `dot_product` 2.66×; `alloc_churn` 6.84×, `alloc_drop` 1.82×).
+- **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-03-20: `loop_sum` 1.08×, `dot_product` 2.51×; `alloc_churn` 6.45×, `alloc_drop` 1.63×).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -89,10 +89,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines (arm64, 2026-03-20 focused perf gate): `loop_sum` 3.56× C, `dot_product` 2.66× C; `alloc_churn` 6.84× C, `alloc_drop` 1.82× C.
-   - Priority: hot loops remain above the 2× gate; alloc_drop and alloc_churn are within the 5×/8× gates.
+   - Baselines (arm64, 2026-03-20 focused perf gate): `loop_sum` 1.08× C, `dot_product` 2.51× C; `alloc_churn` 6.45× C, `alloc_drop` 1.63× C.
+   - Priority: `dot_product` remains above the 2× gate; alloc_drop and alloc_churn are within the 5×/8× gates, and `loop_sum` is now within gate.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
-   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; the fresh `loop_sum` gap proves the remaining delta is no longer that encoder bug (2026-03-20).
+   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
+   - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
+     list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
+     `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the
+     dominant remaining cost on that path.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
