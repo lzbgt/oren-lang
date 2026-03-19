@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-03-15
+**Last updated:** 2026-03-19
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -830,21 +830,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	    typed-buffer payload regression was added/fixed (`build/logs/codex_test_native_quick_20260307_regressionfix2.log`);
 	    `tests/native/test_gc_stw_os_thread_collect.oren` also passes with the rebuilt stage1 compiler
 	    (`build/logs/codex_test_gc_stw_os_thread_collect_stage1_20260307.log`).
-	  - Remaining blocker (2026-03-07): `make test` currently advances through stage1 native quick
-	    and then stops at `test-native-quick-stage2` with wrapper exit `143`; this is now a stage2
-	    quick-integration build-time verification problem rather than the earlier stage1 runtime panic
-	    (`build/logs/codex_make_test_20260307_prodfix_final.log`).
 	  - Update (2026-03-08): arm64 stage2 rtobj apply no longer stalls on eager runtime
 	    function/fixup materialization. Cached runtime functions are resolved lazily, and runtime
 	    fixups now have a compact cache encoding path plus lazy emitter resolution. Latest traced
 	    stage2 build gets through `[rtobj] apply hit done` and reaches Mach-O fixup application;
 	    runtime prepare dropped from about `+23530ms` to `+16648ms`
 	    (`build/logs/codex_stage2_build_gc_stw_collect_trace10_20260307.log`).
-	  - Remaining blocker (2026-03-08): self-hosted arm64 stage2 still spends excessive time in
-	    Mach-O fixup application after codegen (`[emit] macho arm64: fixup[0] start` in
-	    `build/logs/codex_stage2_build_gc_stw_collect_trace10_20260307.log`), and a forced cold
-	    rtobj seed build remains slow enough that it did not finish within the current turn
-	    (`build/logs/codex_build_rtobj_seed_arm64_20260308.log`).
 	  - Update (2026-03-08): Mach-O fixup application now caches resolved function targets per
 	    build, and rtobj apply migrates legacy `fixups_enc` cache entries into the compact
 	    `runtime_fixups_compact` form in memory. With the rebuilt stage1 compiler, the legacy
@@ -855,10 +846,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	    (`build/logs/codex_stage1_build_gc_stw_collect_nodebug_trace16_20260308.log`).
 	  - Verification (2026-03-08): `make oren_stage2` passes again after the legacy-fixup
 	    migration + target-cache change (`build/logs/codex_make_oren_stage2_20260308_final.log`).
-	  - Current blocker (2026-03-08): `make test` no longer fails in the old stage2 emitter
-	    timeout slot, but it still stops in `test-native-quick` with an illegal-instruction crash
-	    while running the produced binary (`build/logs/oren_native_quick_integration.log` and
-	    `build/logs/codex_make_test_20260308_rtobj_fixup_migrate.log`).
+	  - Resolved (2026-03-15): the old arm64 stage2 quick-integration timeout / local-fixup
+	    blocker is gone. Self-hosted native quick integration reaches `macho.fixups.done`,
+	    `build.native.emit.done`, and the produced quick-integration binary runs successfully
+	    (`build/logs/oren_stage2_native_quick_integration.phases.log`,
+	    `build/logs/oren_stage2_native_quick_integration.log`).
+	  - Resolved (2026-03-19): the clean branch now completes `make test` end-to-end again
+	    (`build/logs/codex_make_test_rerun_20260319.log`), so this tracker item is no longer an
+	    active verification blocker. Keep future work here focused on robustness/perf regressions,
+	    not on the old stage2 emitter or native quick bring-up failures.
 	   - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
 	     exit even without compile-time trace flags, so GC corruptions can be correlated from
 	     standard trace runs.
@@ -1988,12 +1984,12 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     (`build/logs/codex_stage1_qi_green_cache_only_guarded_20260315.log`,
     `build/logs/oren_native_quick_flake_20260315_041515_run3_inner.log`). The last STW trace
     observed `gc_stw_begin owner=4302225408 expected=9` and then only four parked-node lines
-    before timeout, so the current flaky tail is still in stage1 GC/STW + green-cache runtime
-    execution, not in the compiler build path.
+    before timeout, so the failure was in stage1 GC/STW + green-cache runtime execution, not in
+    the compiler build path.
   - Trace (2026-03-15): a traced green-cache-only rerun passed 10/10
     (`build/logs/codex_stage1_qi_green_cache_only_trace_20260315.log`), and a broader
     `OREN_GREEN_POLL_CACHE=1` loop also passed 10/10
-    (`build/logs/codex_stage1_qi_green_cache_flake_20260315.log`), so the remaining issue is a
+    (`build/logs/codex_stage1_qi_green_cache_flake_20260315.log`), establishing the problem as a
     low-frequency race rather than a deterministic stage1 quick failure.
   - Trace (2026-03-15): the new focused GC/STW+netpoll fixture passed 10/10
     (`build/logs/codex_gc_stw_focus_flake_20260315.log`), and the full stage1 green-cache flake
@@ -2022,15 +2018,23 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
   - Trace (2026-03-15): the new join-waiter stress fixture narrowed the failure further.
     `OREN_QI_STRESS_MODE=green` and `OREN_QI_STRESS_MODE=os` both pass cleanly for 4 iterations
     (logs: `build/logs/codex_green_join_waiters_stress_green_seq_20260315.log`,
-    `build/logs/codex_green_join_waiters_stress_os_seq_20260315.log`), but the default alternating
-    `both` mode still segfaults under the green-cache rerun path
+    `build/logs/codex_green_join_waiters_stress_os_seq_20260315.log`), while the original
+    alternating `both` mode crashed inside the second
+    `test_gc_collect_does_not_deadlock_with_green_join_waiter()` call
     (`build/logs/codex_green_join_waiters_stress_flake_20260315.log`).
-  - Trace (2026-03-15): the alternating stress reproducer now shows the crash happens inside the
-    second `test_gc_collect_does_not_deadlock_with_green_join_waiter()` call, after
-    `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()` has already run once.
-    The failing run prints `iter=2/4 before test_gc_collect_does_not_deadlock_with_green_join_waiter`
-    and then segfaults (inner log tail embedded in
-    `build/logs/codex_green_join_waiters_stress_flake_20260315.log`).
+  - Fix (2026-03-15): delayed `STRUCT` publication until after green/select/fn-wrapper
+    initialization and changed GC stack scanning to hold the thread-list lock while skipping dead
+    OS-thread nodes. That removed the observed join-waiter stress segfault and the dead-thread
+    scan hazard.
+  - Verification (2026-03-15): the focused alternating stress harness passes after those fixes
+    (`build/logs/codex_post_skip_dead_threads_green_join_waiters_flake_20260315.log`), backend
+    tag parity passes (`build/logs/codex_verify_backend_parity_tags_after_runtime_fix_20260315.log`),
+    and stage2 capsule smoke passes with the updated timeout
+    (`build/logs/codex_test_native_capsule_smoke_stage2_timeout60_20260315.log`).
+  - Verification (2026-03-19): the clean branch completes `make test` end-to-end
+    (`build/logs/codex_make_test_rerun_20260319.log`), so the earlier stage1 GC/STW + green-cache
+    crash is no longer an active blocker. Keep the focused flake harnesses as guardrails for any
+    future scheduler/GC churn changes.
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,

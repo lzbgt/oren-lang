@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-03-15
+**Last updated:** 2026-03-19
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -1394,11 +1394,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `make test-native-quick-green-join-waiters-stress-flake` stress only the two join-waiter
     tests in-process, with explicit per-step markers and selectable modes:
     `OREN_QI_STRESS_MODE=green|os|both`.
-  - Trace (2026-03-15): that new stress fixture is the best current reproducer. `green`-only
-    and `os`-only both pass for 4 iterations, but the default alternating `both` mode still
-    segfaults in the green-cache rerun path, and it does so in the second
+  - Trace (2026-03-15): that new stress fixture narrowed the failing path precisely.
+    `green`-only and `os`-only both passed for 4 iterations, while the original alternating
+    `both` mode crashed in the second
     `test_gc_collect_does_not_deadlock_with_green_join_waiter()` iteration
     (`build/logs/codex_green_join_waiters_stress_flake_20260315.log`).
+  - Fix (2026-03-15): delayed `STRUCT` publication until after green/select/fn-wrapper
+    initialization and changed GC stack scanning to hold the thread-list lock while skipping dead
+    OS-thread nodes. That removed the alternating join-waiter stress crash and the dead-thread
+    scan hazard that was surfacing in STW traces.
+  - Verification (2026-03-15): the focused alternating stress harness now passes
+    (`build/logs/codex_post_skip_dead_threads_green_join_waiters_flake_20260315.log`), and the
+    related regression gates also pass: backend tag parity
+    (`build/logs/codex_verify_backend_parity_tags_after_runtime_fix_20260315.log`) plus stage2
+    capsule smoke (`build/logs/codex_test_native_capsule_smoke_stage2_timeout60_20260315.log`).
+  - Verification (2026-03-19): the clean branch now completes `make test` end-to-end
+    (`build/logs/codex_make_test_rerun_20260319.log`), so this runtime race is no longer the
+    active blocker. Keep the focused flake harnesses because they remain the shortest path back to
+    this failure mode if future scheduler/GC changes regress it.
   - New: quick flake triage scripts capture the in-flight inner log on SIGTERM/SIGINT
     (writes `*_interrupt.log` alongside the per-run log) for hang forensics.
   - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside
