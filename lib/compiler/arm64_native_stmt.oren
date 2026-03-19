@@ -572,6 +572,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var outer_base_stack = ctx["stack_size"]
         if stmt["init"] != nil { native_compile_stmt(ctx, stmt["init"]) }
 
+        // Keep the generic `for` loop tick on the stack: the condition, body, and post clause
+        // can all compile arbitrary code that clobbers caller-saved X9/X10, so the slot-free
+        // inline-tick scheme used by dedicated fast loops is not safe here.
         // GC tick local for throttling safepoints (u64 at SP+0 when at loop base).
         // Allocate once for the whole loop scope.
         push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -580,6 +583,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         emit_str_reg_sp_any(ctx, 9, 0)
 
         var loop_base_stack = ctx["stack_size"]
+        loopm._arm64_trace_loop_stack(ctx, "for_loop", loop_base_stack, 2, 0, 16)
         var start_pos = bytes_len(ctx["code"])
 
         var prev_loop = ctx["loop_ctx"]

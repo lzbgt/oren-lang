@@ -29,6 +29,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) { return listemit._arm64
 fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_dot_while(ctx, stmt, info) }
 fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_int_push_while(ctx, stmt, info) }
 fn _arm64_emit_fast_list_push_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_push_while(ctx, stmt, info) }
+fn _arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_bytes) { return basem._arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_bytes) }
 
 // Core helpers (mirrors arm64_native_stmt.oren for loop emitters).
 fn bytes_new() { return core.bytes_new() }

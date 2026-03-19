@@ -155,6 +155,8 @@ fn _arm64_emit_truthy_norm_in_x0(ctx, tok) {
 }
 
 fn _arm64_emit_while_generic(ctx, stmt) {
+    // Keep the generic loop tick on the stack: arbitrary loop bodies can compile calls that
+    // clobber caller-saved X9/X10, so the register-only fast-loop scheme is not safe here.
     // GC tick local for throttling safepoints (u64 at SP+0 when at loop base).
     push_u32_le(ctx["code"], insn_sub_sp(16))
     ctx["stack_size"] = ctx["stack_size"] + 16

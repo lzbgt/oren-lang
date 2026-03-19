@@ -712,10 +712,19 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (`build/logs/codex_arm64_boxed_push_tickslot_default_oren_20260319.log`), while
      `OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT=1` restores the old layout
      (`build/logs/codex_arm64_boxed_push_tickslot_keep_oren_20260319.log`).
-   - TODO: root-cause the arm64 offset regression for the remaining stack-backed throttled loop
-     layouts (`while_generic`, generic `for`).
-     The dedicated int/boxed dot, int/boxed get-sum, and int/boxed fast-push
-     loop slots are already removed from the default path.
+   - Verification (2026-03-19): `build/tmp/arm64_generic_loop_probe.oren` still emits
+     `while_generic` with `tick_off=0` under `OREN_TRACE_ARM64_LOOP_STACK=1`
+     (`build/logs/codex_arm64_generic_loop_tickslot_trace_20260319.log`). A matching
+     `for_loop` trace hook now exists in the native arm64 `For` emitter as well, so any
+     surviving `For` path will report the same loop-stack metadata.
+   - Root cause (2026-03-19): the remaining generic arm64 throttled loops are still
+     intentionally stack-backed, not because of an unresolved fast-loop offset bug, but because
+     their condition/body/post paths can compile arbitrary code that clobbers caller-saved X9/X10.
+     Removing the stack slot there requires a broader preservation or generic no-call analysis
+     redesign, not another per-loop slot toggle.
+   - TODO: if we want to remove the last generic arm64 tick slots, redesign generic loop
+     safepoint throttling for `while_generic` and any surviving native `For` path so tick state
+     survives arbitrary condition/body/post codegen.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)

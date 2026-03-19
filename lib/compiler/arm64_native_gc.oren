@@ -129,6 +129,12 @@ fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     // - Caller must ensure a u64 tick slot exists at loop_base_stack (offset 0 when SP==base).
     // - Uses X9/X10 as scratch (caller-saved).
     //
+    // Why the stack slot still exists:
+    // - Generic arm64 `while` / `for` loops can compile arbitrary bodies and `post` clauses.
+    // - Those paths may emit calls or other subgraphs that legally clobber X9/X10.
+    // - The dedicated fast loops can stay slot-free because their hot bodies are tightly controlled
+    //   and re-seed the inline tick registers around any runtime call boundaries they introduce.
+    //
     // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
     var tick_off = ctx["stack_size"] - loop_base_stack
     _arm64_trace_gc_tick_off(ctx, loop_base_stack, tick_off, tick_mask)
