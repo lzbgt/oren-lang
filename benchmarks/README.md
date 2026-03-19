@@ -122,6 +122,11 @@ the hidden benchmark sources and scalar-vs-kernel bridge toggles, but it avoids 
 full-runtime native build cost twice before the actual steady-state probe. Opt into a native smoke
 explicitly with `OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND=native`.
 
+The packed-bridge steady probe now also warms the hidden packed-bridge artifacts only once and
+reuses them for the scalar-vs-kernel cases (`OREN_BENCH_SKIP_BUILD=1` on those follow-up legs).
+The remaining expensive part is the first full-runtime native build itself, not redundant rebuilds
+inside the probe.
+
 Update the snapshot from existing local result files:
 
 ```bash

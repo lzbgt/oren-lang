@@ -1129,6 +1129,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New probe hygiene (2026-03-20): packed-bridge smoke now defaults to Oren C instead of
      full-runtime native so the correctness preflight stays cheap. The heavy native full-runtime
      cost now appears only in the dedicated packed-bridge steady probe, where it belongs.
+   - New probe batching (2026-03-20): that dedicated packed-bridge steady probe now warms the
+     hidden packed benchmarks only once and reuses the artifacts for the scalar-vs-kernel cases.
+     The optimized run already reconfirmed the canonical steady baseline (`array_sum_int` ~2.43× C,
+     `dot_product_int` ~3.11× C) before entering the remaining expensive full-runtime warm leg.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should

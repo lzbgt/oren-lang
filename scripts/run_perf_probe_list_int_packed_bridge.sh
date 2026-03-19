@@ -6,9 +6,11 @@ log_dir="build/logs"
 mkdir -p "$log_dir"
 
 summary_log="$log_dir/perf-probe-list-int-packed-bridge-${ts}.log"
+warm_log="$log_dir/perf-probe-list-int-packed-bridge-warm-${ts}.run.log"
 base_log="$log_dir/perf-probe-list-int-packed-bridge-base-${ts}.run.log"
 packed_scalar_log="$log_dir/perf-probe-list-int-packed-bridge-packed-scalar-${ts}.run.log"
 packed_simd_log="$log_dir/perf-probe-list-int-packed-bridge-packed-simd-${ts}.run.log"
+packed_programs="array_sum_int_packed_bridge,dot_product_int_packed_bridge"
 
 if [[ "${OREN_PERF_SMOKE_LIST_INT:-1}" == "1" ]]; then
     OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND:-oren_c}" \
@@ -28,9 +30,21 @@ run_one() {
     printf '%s\n' "$summary"
 }
 
+warm_packed_builds() {
+    env \
+        OREN_BENCH_PROGRAMS="$packed_programs" \
+        OREN_BENCH_SKIP_OREN_C=1 \
+        OREN_BENCH_SKIP_OBC=1 \
+        OREN_BENCH_RUNS=1 \
+        OREN_BENCH_WARMUPS=0 \
+        OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full \
+        python3 benchmarks/run_benchmarks.py >"$warm_log" 2>&1
+}
+
 baseline_summary="$(run_one "$base_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 make perf-gate-list-int-steady)"
-packed_scalar_summary="$(run_one "$packed_scalar_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS=array_sum_int_packed_bridge,dot_product_int_packed_bridge OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_NO_SIMD=1 make perf-gate-list-int-steady)"
-packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS=array_sum_int_packed_bridge,dot_product_int_packed_bridge OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_ENABLE_SIMD=1 make perf-gate-list-int-steady)"
+warm_packed_builds
+packed_scalar_summary="$(run_one "$packed_scalar_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_NO_SIMD=1 make perf-gate-list-int-steady)"
+packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_ENABLE_SIMD=1 make perf-gate-list-int-steady)"
 
 BASELINE_SUMMARY="$baseline_summary" \
 PACKED_SCALAR_SUMMARY="$packed_scalar_summary" \
@@ -83,6 +97,7 @@ for name, path in cases:
 PY
 
 echo "list<int> packed-bridge steady probe complete; summary: $summary_log"
+echo "warm log: $warm_log"
 echo "base log: $base_log"
 echo "packed-scalar log: $packed_scalar_log"
 echo "packed-simd log: $packed_simd_log"

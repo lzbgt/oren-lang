@@ -193,6 +193,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New probe hygiene (2026-03-20): the packed-bridge smoke/preflight now defaults to Oren C
      rather than full-runtime native. That keeps the correctness preflight fast while preserving
      the dedicated full-runtime native steady probe as the explicit place to measure the packed-buffer ceiling.
+   - New probe batching (2026-03-20): the packed-bridge steady probe now warms the hidden packed
+     benchmarks only once and reuses those artifacts for the scalar-vs-kernel cases. The baseline
+     leg of that optimized run reconfirmed `array_sum_int` ~2.43× C and `dot_product_int` ~3.11× C
+     steady on the canonical path before the hidden full-runtime warm leg took over.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
