@@ -1067,6 +1067,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `array_sum_int` steady-state native/C is ~3.28× and `dot_product_int` steady-state native/C
      is ~3.74×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
      not one-time fill/setup cost.
+   - Trace (2026-03-20): a narrower follow-up that hoisted `n` into X21 only for the unique
+     arm64 read-only `list<int>` fast loops was also not a shared win. On the steady runner it
+     moved `array_sum_int` from about 3.28× C to about 3.21× C, but `dot_product_int` regressed
+     from about 3.74× C to about 3.95× C, so the loop-bound reload is not the dominant blocker
+     on the shared path.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
