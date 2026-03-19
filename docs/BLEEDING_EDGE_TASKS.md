@@ -1072,6 +1072,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      moved `array_sum_int` from about 3.28× C to about 3.21× C, but `dot_product_int` regressed
      from about 3.74× C to about 3.95× C, so the loop-bound reload is not the dominant blocker
      on the shared path.
+   - New unsafe steady probe (2026-03-20, consolidated rerun via
+     `make perf-probe-list-int-unsafe`): the clean baseline was `array_sum_int` ~3.38× C and
+     `dot_product_int` ~3.90× C. `OREN_LIST_ASSUME_LIST=1` nudged them only to ~3.25× / ~3.88×,
+     `OREN_NATIVE_ASSUME_LIST_INDEX=1` moved them to ~3.36× / ~4.09×, and combining both landed
+     at ~3.32× / ~3.94×. So runtime list validation and compiler-side direct index lowering are
+     only partial ceilings, not a shared fix for the steady-state read-heavy path.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should

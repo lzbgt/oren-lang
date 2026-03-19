@@ -12,7 +12,7 @@
 .PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
-.PHONY: perf-gate-native perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady
+.PHONY: perf-gate-native perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
@@ -879,6 +879,9 @@ perf-gate-list-int-read-split: oren_stage2
 
 perf-gate-list-int-steady: oren_stage2
 	@./scripts/run_perf_gate_list_int_steady.sh
+
+perf-probe-list-int-unsafe: oren_stage2
+	@./scripts/run_perf_probe_list_int_unsafe.sh
 
 # Update the latest benchmark snapshot from existing result JSON files.
 benchmarks-update:

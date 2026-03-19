@@ -69,6 +69,13 @@ read-heavy `list<int>` path:
 make perf-gate-list-int-steady
 ```
 
+Unsafe `list<int>` steady-state ceiling probe (baseline vs `OREN_LIST_ASSUME_LIST=1`,
+`OREN_NATIVE_ASSUME_LIST_INDEX=1`, and both combined):
+
+```bash
+make perf-probe-list-int-unsafe
+```
+
 Update the snapshot from existing local result files:
 
 ```bash
