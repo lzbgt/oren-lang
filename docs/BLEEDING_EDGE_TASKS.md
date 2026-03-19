@@ -1069,6 +1069,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `array_sum_int` steady-state native/C is ~2.43× and `dot_product_int` steady-state native/C
      is ~3.09×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
      not one-time fill/setup cost.
+   - New guardrail (2026-03-20): `make perf-smoke-list-int` now builds the native
+     `array_sum_int` / `dot_product_int` benchmark binaries and checks their exact tiny outputs
+     (`205` and `6590`) before heavier timing sweeps.
+   - Trace (2026-03-20): a follow-up arm64 exact-dot experiment that tried to split the
+     single-pair `dot_product_int` accumulation chain across two persistent accumulators was not
+     safe to keep. Even after reworking the register choice, the direct native smoke returned
+     `4621` for `dot_product_int 10 3` instead of the known-good `6590`, so future dot-core work
+     should clear `make perf-smoke-list-int` before trusting any perf-gate result.
    - Trace (2026-03-20): a narrower follow-up that hoisted `n` into X21 only for the unique
      arm64 read-only `list<int>` fast loops was also not a shared win. On the steady runner it
      moved `array_sum_int` from about 3.28× C to about 3.21× C, but `dot_product_int` regressed

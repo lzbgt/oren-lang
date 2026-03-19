@@ -69,6 +69,16 @@ read-heavy `list<int>` path:
 make perf-gate-list-int-steady
 ```
 
+Fast native correctness smoke for the exact `list<int>` hot benchmark binaries:
+
+```bash
+make perf-smoke-list-int
+```
+
+This builds `array_sum_int` and `dot_product_int` through `./oren_stage2` and checks
+their known-good tiny outputs before running the heavier timing sweeps. Use it first
+when changing the exact arm64 `list<int>` hot paths so wrong-code experiments fail fast.
+
 Unsafe `list<int>` steady-state ceiling probe (baseline vs `OREN_LIST_ASSUME_LIST=1`,
 `OREN_NATIVE_ASSUME_LIST_INDEX=1`, and both combined):
 
