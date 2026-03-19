@@ -414,6 +414,8 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
+    // inline safepoint mask (restored after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 4095))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1505,21 +1507,33 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
 
     var base_stack = ctx["stack_size"]
     var list_count = oren_list_len(lists)
+    var keep_tick_slot = false
+    if oren_env("OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var slots = 3 + list_count * 2 // tick + i + n + (list, buf)*N
+    if !keep_tick_slot { slots = 2 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
     emit_sub_sp_any(ctx, total_bytes)
     ctx["stack_size"] = ctx["stack_size"] + total_bytes
 
     var loop_base_stack = ctx["stack_size"]
     var tick_off = 0
-    var i_off = 8
-    var n_off = 16
-    var list_base_off = 24
-    listm._arm64_trace_loop_stack(ctx, "fast_list_push_while", loop_base_stack, slots, tick_off, total_bytes)
+    var slot0 = 8
+    var trace_kind = "fast_list_push_while"
+    if !keep_tick_slot {
+        tick_off = -1
+        slot0 = 0
+        trace_kind = "fast_list_push_while_no_tick"
+    }
+    var i_off = slot0
+    var n_off = slot0 + 8
+    var list_base_off = slot0 + 16
+    listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
-    emit_str_reg_sp_any(ctx, 9, tick_off)
+    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
+    // inline safepoint mask (restored after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 255))
 
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1639,10 +1653,7 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    var prev_kind = ctx["loop_kind"]
-    ctx["loop_kind"] = "fast_list_push_while"
-    gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
-    ctx["loop_kind"] = prev_kind
+    gc.native_emit_gc_safepoint_inline_tick(ctx, 255)
 
     // Keep idx local updated for value expressions.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)

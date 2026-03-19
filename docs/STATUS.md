@@ -707,9 +707,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `build/logs/codex_arm64_int_push_qi_tickslot_default_trace_20260319.log`), while
      `OREN_ARM64_FAST_LIST_INT_PUSH_KEEP_TICK_SLOT=1` restores the old layout
      (`build/logs/codex_arm64_int_push_tickslot_keep_trace_20260319.log`).
+   - Verification (2026-03-19): `oren.oren` now emits
+     `fast_list_push_while_no_tick` by default under `OREN_TRACE_ARM64_LOOP_STACK=1`
+     (`build/logs/codex_arm64_boxed_push_tickslot_default_oren_20260319.log`), while
+     `OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT=1` restores the old layout
+     (`build/logs/codex_arm64_boxed_push_tickslot_keep_oren_20260319.log`).
    - TODO: root-cause the arm64 offset regression for the remaining stack-backed throttled loop
-     layouts (`while_generic`, generic `for`, `fast_list_push_while`).
-     The dedicated int/boxed dot, int/boxed get-sum, and `fast_list_int_push_while`
+     layouts (`while_generic`, generic `for`).
+     The dedicated int/boxed dot, int/boxed get-sum, and int/boxed fast-push
      loop slots are already removed from the default path.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 

@@ -1103,9 +1103,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `build/logs/codex_arm64_int_push_qi_tickslot_default_trace_20260319.log`), while
      `OREN_ARM64_FAST_LIST_INT_PUSH_KEEP_TICK_SLOT=1` restores the older layout
      (`build/logs/codex_arm64_int_push_tickslot_keep_trace_20260319.log`).
+   - Verification (2026-03-19): `oren.oren` now emits
+     `fast_list_push_while_no_tick` by default under `OREN_TRACE_ARM64_LOOP_STACK=1`
+     (`build/logs/codex_arm64_boxed_push_tickslot_default_oren_20260319.log`), while
+     `OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT=1` restores the older layout
+     (`build/logs/codex_arm64_boxed_push_tickslot_keep_oren_20260319.log`).
    - Next: root-cause the remaining arm64 tick-offset regression only for the stack-backed
-     throttled loop layouts (`while_generic`, generic `for`, `fast_list_push_while`).
-     The dedicated int/boxed get-sum, int/boxed dot, and `fast_list_int_push_while`
+     throttled loop layouts (`while_generic`, generic `for`).
+     The dedicated int/boxed get-sum, int/boxed dot, and int/boxed fast-push
      loop slots are already removed from the default path.
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
