@@ -700,9 +700,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
      attribute negative tick offsets to a specific loop emitter (2026-03-03).
    - New: arm64 GC tick-off trace now includes the last loop stack snapshot (`last_kind`, `last_base`,
      `last_stack`, `last_slots`, `last_bytes`, `last_tick_off`) when tick_off is negative (2026-03-03).
+   - Verification (2026-03-19): `benchmarks/dot_product/dot_product.oren` and
+     `benchmarks/array_sum_int/array_sum_int.oren` now emit
+     `fast_list_int_push_while_no_tick` by default under `OREN_TRACE_ARM64_LOOP_STACK=1`
+     (`build/logs/codex_arm64_int_push_tickslot_default_trace_20260319.log` and
+     `build/logs/codex_arm64_int_push_qi_tickslot_default_trace_20260319.log`), while
+     `OREN_ARM64_FAST_LIST_INT_PUSH_KEEP_TICK_SLOT=1` restores the old layout
+     (`build/logs/codex_arm64_int_push_tickslot_keep_trace_20260319.log`).
    - TODO: root-cause the arm64 offset regression for the remaining stack-backed throttled loop
-     layouts (`while_generic`, generic `for`, `fast_list_push_while`, `fast_list_int_push_while`).
-     The dedicated get-sum/dot loop slots are already removed from the default path.
+     layouts (`while_generic`, generic `for`, `fast_list_push_while`).
+     The dedicated int/boxed dot, int/boxed get-sum, and `fast_list_int_push_while`
+     loop slots are already removed from the default path.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
