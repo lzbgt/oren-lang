@@ -75,9 +75,10 @@ Fast native correctness smoke for the exact `list<int>` hot benchmark binaries:
 make perf-smoke-list-int
 ```
 
-This builds `array_sum_int` and `dot_product_int` through `./oren_stage2` and checks
-their known-good tiny outputs before running the heavier timing sweeps. Use it first
-when changing the exact arm64 `list<int>` hot paths so wrong-code experiments fail fast.
+This builds `array_sum_int` and `dot_product_int` through `./oren_stage2` once and checks
+both a tiny scalar-tail case (`205`, `6590`) and a >16-element hot-path case (`710`, `54380`)
+before running the heavier timing sweeps. Use it first when changing the exact arm64 `list<int>`
+hot paths so wrong-code experiments fail fast even when the bug only appears in the wider steady-state body.
 
 This smoke now also runs automatically before:
 - `make perf-gate-list-int`

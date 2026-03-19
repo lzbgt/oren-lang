@@ -1070,9 +1070,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      is ~3.09×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
      not one-time fill/setup cost.
    - New guardrail (2026-03-20): `make perf-smoke-list-int` now builds the native
-     `array_sum_int` / `dot_product_int` benchmark binaries and checks their exact tiny outputs
-     (`205` and `6590`) before heavier timing sweeps. The main `list<int>` perf runners now
-     invoke this smoke by default, with `OREN_PERF_SMOKE_LIST_INT=0` as the explicit opt-out.
+     `array_sum_int` / `dot_product_int` benchmark binaries once and checks both the exact tiny
+     scalar-tail outputs (`205` and `6590`) and the >16-element hot-path outputs (`710` and
+     `54380`) before heavier timing sweeps. The main `list<int>` perf runners now invoke this
+     smoke by default, with `OREN_PERF_SMOKE_LIST_INT=0` as the explicit opt-out.
    - Trace (2026-03-20): a follow-up arm64 exact-dot experiment that tried to split the
      single-pair `dot_product_int` accumulation chain across two persistent accumulators was not
      safe to keep. Even after reworking the register choice, the direct native smoke returned
@@ -1103,6 +1104,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      correct under `make perf-smoke-list-int`, but the steady rerun regressed further:
      `dot_product_int` moved to about 3.22× C. That makes the current evidence stronger: simply
      collapsing the exact 4-wide batch into fewer running-sum writes does not solve the blocker.
+   - Trace (2026-03-20): a later direct NEON chunking experiment for the exact single-pair arm64
+     `dot_product_int` path was also not safe to keep. The emitted vector body itself assembled and
+     passed the tiny `10 3` smoke, but the widened smoke and steady runner exposed deterministic
+     wrong-code (`54380` hot-path smoke failed; full benchmark output halved to `253794000000`).
+     Root cause: current `list<int>` fast loops read 64-bit list slots, while the existing packed-i32
+     SIMD dot kernel shape assumes 32-bit lanes. So a future SIMD bridge here needs either a safe
+     packed-i32 view or a dedicated 64-bit-slot lowering, not a direct cursor handoff.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
@@ -2107,6 +2115,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~2.43× C,
      `dot_product_int` ~3.09× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
+   - Constraint (2026-03-20): direct reuse of the packed-i32 SIMD dot kernel is not safe for the
+     current `list<int>` fast-loop payload layout because those slots are 64-bit values.
    - Gate: `dot_product_int` native <= 2x C.
 
 8) **AVM unboxed list<int> payload + lowering**
