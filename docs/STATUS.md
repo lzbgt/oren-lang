@@ -190,6 +190,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Verified (2026-03-20): the hidden packed-bridge benchmarks compile and run through the Oren C
      backend with the expected `205`, `710`, `6590`, and `54380` outputs, which is enough to catch
      stdlib bridge portability bugs before paying for the slower full-runtime native probe.
+   - New probe hygiene (2026-03-20): the packed-bridge smoke/preflight now defaults to Oren C
+     rather than full-runtime native. That keeps the correctness preflight fast while preserving
+     the dedicated full-runtime native steady probe as the explicit place to measure the packed-buffer ceiling.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should

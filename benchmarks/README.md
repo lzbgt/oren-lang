@@ -117,6 +117,11 @@ benchmark profile is `core` (`lib/runtime_native_core.oren`), which includes onl
 `oren_buf_dot_i32(...)` are only valid in the full runtime profile used by the dedicated
 packed-bridge probe.
 
+The packed-bridge smoke now defaults to the faster Oren C backend. That preflight still exercises
+the hidden benchmark sources and scalar-vs-kernel bridge toggles, but it avoids paying the
+full-runtime native build cost twice before the actual steady-state probe. Opt into a native smoke
+explicitly with `OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND=native`.
+
 Update the snapshot from existing local result files:
 
 ```bash

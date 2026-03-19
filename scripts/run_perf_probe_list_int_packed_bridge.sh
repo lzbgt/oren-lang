@@ -11,7 +11,8 @@ packed_scalar_log="$log_dir/perf-probe-list-int-packed-bridge-packed-scalar-${ts
 packed_simd_log="$log_dir/perf-probe-list-int-packed-bridge-packed-simd-${ts}.run.log"
 
 if [[ "${OREN_PERF_SMOKE_LIST_INT:-1}" == "1" ]]; then
-    ./scripts/run_perf_smoke_list_int_packed_bridge.sh >"$log_dir/perf-probe-list-int-packed-bridge-smoke-${ts}.log" 2>&1
+    OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND:-oren_c}" \
+        ./scripts/run_perf_smoke_list_int_packed_bridge.sh >"$log_dir/perf-probe-list-int-packed-bridge-smoke-${ts}.log" 2>&1
 fi
 
 run_one() {
@@ -27,9 +28,9 @@ run_one() {
     printf '%s\n' "$summary"
 }
 
-baseline_summary="$(run_one "$base_log" env OREN_PERF_SMOKE_LIST_INT=0 make perf-gate-list-int-steady)"
-packed_scalar_summary="$(run_one "$packed_scalar_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_PROGRAMS=array_sum_int_packed_bridge,dot_product_int_packed_bridge OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_NO_SIMD=1 make perf-gate-list-int-steady)"
-packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_PROGRAMS=array_sum_int_packed_bridge,dot_product_int_packed_bridge OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_ENABLE_SIMD=1 make perf-gate-list-int-steady)"
+baseline_summary="$(run_one "$base_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 make perf-gate-list-int-steady)"
+packed_scalar_summary="$(run_one "$packed_scalar_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS=array_sum_int_packed_bridge,dot_product_int_packed_bridge OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_NO_SIMD=1 make perf-gate-list-int-steady)"
+packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS=array_sum_int_packed_bridge,dot_product_int_packed_bridge OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_ENABLE_SIMD=1 make perf-gate-list-int-steady)"
 
 BASELINE_SUMMARY="$baseline_summary" \
 PACKED_SCALAR_SUMMARY="$packed_scalar_summary" \

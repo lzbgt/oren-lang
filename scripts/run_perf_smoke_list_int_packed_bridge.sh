@@ -5,17 +5,23 @@ ts="$(date +%Y%m%d_%H%M%S)"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 log_path="$log_dir/perf-smoke-list-int-packed-bridge-${ts}.log"
+backend="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND:-oren_c}"
+platform="${OREN_BENCH_PLATFORM:-arm64-macos}"
 
 build_native_bin() {
     local program="$1"
     local out_dir="build/benchmarks/${program}"
     local src="benchmarks/${program}/${program}.oren"
-    local bin="${out_dir}/${program}_oren_native"
+    local bin="${out_dir}/${program}_${backend}"
     mkdir -p "$out_dir"
 
     {
-        echo "[build] ${program}"
-        OREN_NATIVE_RUNTIME_PROFILE=full ./oren_stage2 build "$src" --backend native --no-debug -o "$bin"
+        echo "[build] ${program} backend=${backend}"
+        if [[ "$backend" == "native" ]]; then
+            OREN_NATIVE_RUNTIME_PROFILE=full ./oren_stage2 build "$src" --backend native --no-debug -o "$bin"
+        else
+            ./oren_stage2 build "$src" --backend c --platform "$platform" --no-debug -o "$bin"
+        fi
     } >>"$log_path" 2>&1
 }
 
@@ -24,7 +30,7 @@ run_native_check() {
     local expected="$2"
     local env_assignments="$3"
     shift 3
-    local bin="build/benchmarks/${program}/${program}_oren_native"
+    local bin="build/benchmarks/${program}/${program}_${backend}"
 
     echo "[run] ${program} env='${env_assignments}' args='$*'" >>"$log_path"
 

@@ -1126,6 +1126,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `205` / `710` / `6590` / `54380` outputs through the Oren C backend, proving the bridge
      helpers are portable; the slower full-runtime native probe remains the explicit next step for
      measuring whether packed buffers plus typed-buffer kernels actually buy us headroom.
+   - New probe hygiene (2026-03-20): packed-bridge smoke now defaults to Oren C instead of
+     full-runtime native so the correctness preflight stays cheap. The heavy native full-runtime
+     cost now appears only in the dedicated packed-bridge steady probe, where it belongs.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
