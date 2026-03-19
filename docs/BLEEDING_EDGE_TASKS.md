@@ -1093,6 +1093,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      pair loads was also not a win. The experimental steady rerun moved `array_sum_int` from about
      2.87× C to about 2.95× C and `dot_product_int` from about 3.17× C to about 3.33× C, so the
      remaining shared gap is not mainly the current scalar load-address sequence inside those 4-wide paths.
+   - Trace (2026-03-20): a narrower follow-up that locally pairwise-reduced the exact single-pair
+     arm64 `dot_product_int` 4-wide and 2-wide bodies before adding into the running sum stayed
+     correct under `make perf-smoke-list-int`, but the steady rerun still regressed slightly:
+     `dot_product_int` moved from about 3.09× C to about 3.13× C, so reducing the number of
+     per-body writes into `x23` alone is not the missing win.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
