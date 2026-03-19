@@ -105,6 +105,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      cursor loads with `LDP ... post-index` pair loads also regressed on Apple M2 Pro; the
      focused perf gate moved `dot_product` from about 2.51× C to about 2.71× C, so the
      remaining arm64 gap is not dominated by the current per-side load/address-update sequence either.
+   - Trace (2026-03-20): a third follow-up that hoisted invariant `n` into a preserved reg
+     across the fast read-only list loops also regressed on Apple M2 Pro; the focused perf
+     gate moved `dot_product` from about 2.51× C to about 2.84× C, so the remaining gap is
+     not explained by the current per-iter loop-bound stack reload either.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
