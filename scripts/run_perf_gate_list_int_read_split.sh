@@ -16,6 +16,7 @@ warmups="${OREN_BENCH_WARMUPS:-1}"
 n="${OREN_BENCH_LIST_INT_SPLIT_N:-2000000}"
 short_reps="${OREN_BENCH_LIST_INT_SPLIT_SHORT_REPS:-1}"
 long_reps="${OREN_BENCH_LIST_INT_SPLIT_LONG_REPS:-10}"
+smoke="${OREN_PERF_SMOKE_LIST_INT:-1}"
 
 export OREN_BENCH_PROGRAMS="$programs"
 export OREN_BENCH_RUNS="$runs"
@@ -26,6 +27,10 @@ export OREN_BENCH_SKIP_NATIVE="${OREN_BENCH_SKIP_NATIVE:-0}"
 export OREN_BENCH_SKIP_OBC="${OREN_BENCH_SKIP_OBC:-1}"
 export OREN_BENCH_UPDATE_LATEST=0
 export OREN_BENCH_UPDATE_LATEST_PRUNE=0
+
+if [[ "$smoke" == "1" ]]; then
+    ./scripts/run_perf_smoke_list_int.sh >"${summary_log%.log}.smoke.log" 2>&1
+fi
 
 export OREN_BENCH_ARGS="$n $short_reps"
 python3 benchmarks/run_benchmarks.py >"$short_log" 2>&1

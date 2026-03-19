@@ -79,6 +79,15 @@ This builds `array_sum_int` and `dot_product_int` through `./oren_stage2` and ch
 their known-good tiny outputs before running the heavier timing sweeps. Use it first
 when changing the exact arm64 `list<int>` hot paths so wrong-code experiments fail fast.
 
+This smoke now also runs automatically before:
+- `make perf-gate-list-int`
+- `make perf-gate-list-int-read-split`
+- `make perf-gate-list-int-steady`
+- `make perf-probe-list-int-unsafe`
+
+Set `OREN_PERF_SMOKE_LIST_INT=0` only when you intentionally want to skip that preflight
+for local iteration.
+
 Unsafe `list<int>` steady-state ceiling probe (baseline vs `OREN_LIST_ASSUME_LIST=1`,
 `OREN_NATIVE_ASSUME_LIST_INDEX=1`, and both combined):
 

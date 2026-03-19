@@ -1071,7 +1071,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      not one-time fill/setup cost.
    - New guardrail (2026-03-20): `make perf-smoke-list-int` now builds the native
      `array_sum_int` / `dot_product_int` benchmark binaries and checks their exact tiny outputs
-     (`205` and `6590`) before heavier timing sweeps.
+     (`205` and `6590`) before heavier timing sweeps. The main `list<int>` perf runners now
+     invoke this smoke by default, with `OREN_PERF_SMOKE_LIST_INT=0` as the explicit opt-out.
    - Trace (2026-03-20): a follow-up arm64 exact-dot experiment that tried to split the
      single-pair `dot_product_int` accumulation chain across two persistent accumulators was not
      safe to keep. Even after reworking the register choice, the direct native smoke returned

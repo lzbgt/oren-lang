@@ -11,6 +11,10 @@ assume_list_log="$log_dir/perf-probe-list-int-unsafe-assume-list-${ts}.run.log"
 assume_index_log="$log_dir/perf-probe-list-int-unsafe-assume-index-${ts}.run.log"
 both_log="$log_dir/perf-probe-list-int-unsafe-both-${ts}.run.log"
 
+if [[ "${OREN_PERF_SMOKE_LIST_INT:-1}" == "1" ]]; then
+    ./scripts/run_perf_smoke_list_int.sh >"$log_dir/perf-probe-list-int-unsafe-smoke-${ts}.log" 2>&1
+fi
+
 run_one() {
     local run_log="$1"
     shift
@@ -24,10 +28,10 @@ run_one() {
     printf '%s\n' "$summary"
 }
 
-baseline_summary="$(run_one "$base_log" make perf-gate-list-int-steady)"
-assume_list_summary="$(run_one "$assume_list_log" env OREN_BENCH_ENV_OREN_NATIVE=OREN_LIST_ASSUME_LIST=1 make perf-gate-list-int-steady)"
-assume_index_summary="$(run_one "$assume_index_log" env OREN_NATIVE_ASSUME_LIST_INDEX=1 make perf-gate-list-int-steady)"
-both_summary="$(run_one "$both_log" env OREN_NATIVE_ASSUME_LIST_INDEX=1 OREN_BENCH_ENV_OREN_NATIVE=OREN_LIST_ASSUME_LIST=1 make perf-gate-list-int-steady)"
+baseline_summary="$(run_one "$base_log" env OREN_PERF_SMOKE_LIST_INT=0 make perf-gate-list-int-steady)"
+assume_list_summary="$(run_one "$assume_list_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_ENV_OREN_NATIVE=OREN_LIST_ASSUME_LIST=1 make perf-gate-list-int-steady)"
+assume_index_summary="$(run_one "$assume_index_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_NATIVE_ASSUME_LIST_INDEX=1 make perf-gate-list-int-steady)"
+both_summary="$(run_one "$both_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_NATIVE_ASSUME_LIST_INDEX=1 OREN_BENCH_ENV_OREN_NATIVE=OREN_LIST_ASSUME_LIST=1 make perf-gate-list-int-steady)"
 
 BASELINE_SUMMARY="$baseline_summary" \
 ASSUME_LIST_SUMMARY="$assume_list_summary" \
