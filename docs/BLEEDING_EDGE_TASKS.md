@@ -2210,6 +2210,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `try_strided_to_bytes`, `try_strided_to_string`, `try_strided_copy_from_bytes`);
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` now also exposes checked `[]u8` slice/strided ergonomics for typed-buffer
+     callers that want to stay on the stdlib surface
+     (`try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_strided_to_u8_buf`,
+     `try_strided_copy_from_string`); covered by result smoke + native quick integration +
+     dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).

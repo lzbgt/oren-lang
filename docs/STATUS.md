@@ -62,6 +62,11 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Feature set maturity**: essential modern features are still planned (see `docs/LANGUAGE.md`):
   `yield`/stackless coroutines, structured error model, visibility boundaries,
   first-class bytes + typed buffers; dynamic module loading and user-defined methods remain unimplemented.
+- New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
+  for typed-buffer callers that want to stay on the portable stdlib surface:
+  `try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_strided_to_u8_buf`,
+  and `try_strided_copy_from_string`; covered by result smoke + native quick integration +
+  dedicated AVM buffer-view smoke.
 
 Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
 

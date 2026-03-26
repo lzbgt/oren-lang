@@ -314,6 +314,12 @@ fn _u8_view_unpack(load_fn, view, n, ctx) {
     return out
 }
 
+fn _u8_view_to_u8_buf(load_fn, view, n, ctx) {
+    var xs = _u8_view_unpack(load_fn, view, n, ctx)
+    if oren_is_err(xs) { return xs }
+    return try_u8_pack(xs)
+}
+
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
     var xs = bytesm.try_unpack(bytes)
     if oren_is_err(xs) { return xs }
@@ -325,6 +331,12 @@ fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
         i = i + 1
     }
     return view[0]
+}
+
+fn _u8_view_copy_from_string(store_fn, view, n, s, ctx) {
+    var bs = bytesm.try_from_string(s)
+    if oren_is_err(bs) { return bs }
+    return _u8_view_copy_from_bytes(store_fn, view, n, bs, ctx)
 }
 
 // --- generic zero-copy views ---
@@ -522,6 +534,15 @@ fn strided_to_bytes(s) {
     return try_strided_to_bytes(s)
 }
 
+fn try_strided_to_u8_buf(s) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_u8_buf: expects strided") }
+    return _u8_view_to_u8_buf(try_strided_load_u8, s, s[2], "buffer.try_strided_to_u8_buf")
+}
+
+fn strided_to_u8_buf(s) {
+    return try_strided_to_u8_buf(s)
+}
+
 fn try_strided_to_string(s) {
     var bs = try_strided_to_bytes(s)
     if oren_is_err(bs) { return bs }
@@ -539,6 +560,16 @@ fn try_strided_copy_from_bytes(s, bytes) {
 
 fn strided_copy_from_bytes(s, bytes) {
     return try_strided_copy_from_bytes(s, bytes)
+}
+
+fn try_strided_copy_from_string(s, text) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_string: expects strided") }
+    if oren_type_tag(text) != 4 { return oren_err(4, "buffer.try_strided_copy_from_string: s must be string") }
+    return _u8_view_copy_from_string(try_strided_store_u8, s, s[2], text, "buffer.try_strided_copy_from_string")
+}
+
+fn strided_copy_from_string(s, text) {
+    return try_strided_copy_from_string(s, text)
 }
 
 fn strided_load_f32(s, idx) {
@@ -716,6 +747,15 @@ fn slice_to_bytes(s) {
     return try_slice_to_bytes(s)
 }
 
+fn try_slice_to_u8_buf(s) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_u8_buf: expects slice") }
+    return _u8_view_to_u8_buf(try_slice_load_u8, s, s[2], "buffer.try_slice_to_u8_buf")
+}
+
+fn slice_to_u8_buf(s) {
+    return try_slice_to_u8_buf(s)
+}
+
 fn try_slice_to_string(s) {
     var bs = try_slice_to_bytes(s)
     if oren_is_err(bs) { return bs }
@@ -733,6 +773,16 @@ fn try_slice_copy_from_bytes(s, bytes) {
 
 fn slice_copy_from_bytes(s, bytes) {
     return try_slice_copy_from_bytes(s, bytes)
+}
+
+fn try_slice_copy_from_string(s, text) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_string: expects slice") }
+    if oren_type_tag(text) != 4 { return oren_err(4, "buffer.try_slice_copy_from_string: s must be string") }
+    return _u8_view_copy_from_string(try_slice_store_u8, s, s[2], text, "buffer.try_slice_copy_from_string")
+}
+
+fn slice_copy_from_string(s, text) {
+    return try_slice_copy_from_string(s, text)
 }
 
 fn slice_load_f32(s, idx) {
