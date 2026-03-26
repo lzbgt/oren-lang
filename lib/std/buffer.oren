@@ -302,6 +302,31 @@ fn u8_to_bytes(buf: []u8) {
     return try_u8_to_bytes(buf)
 }
 
+fn _u8_view_unpack(load_fn, view, n, ctx) {
+    var out = []
+    var i = 0
+    while i < n {
+        var b = load_fn(view, i)
+        if oren_is_err(b) { return oren_err(4, ctx + ": expected []u8 view") }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+    return out
+}
+
+fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
+    var xs = bytesm.try_unpack(bytes)
+    if oren_is_err(xs) { return xs }
+    if oren_list_len(xs) != n { return _err_invalid(ctx + ": length mismatch") }
+    var i = 0
+    while i < n {
+        var rc = store_fn(view, i, xs[i])
+        if oren_is_err(rc) { return oren_err(4, ctx + ": expected []u8 view") }
+        i = i + 1
+    }
+    return view[0]
+}
+
 // --- generic zero-copy views ---
 
 // View representation (rolling, perf-oriented):
@@ -313,7 +338,10 @@ fn u8_to_bytes(buf: []u8) {
 // We use a fixed-position list instead of a map to avoid hash/key overhead in hot loops.
 // (Still portable across C/native/AVM because lists are core values.)
 
-fn _list_len_or_err(v) { return list.len(v) }
+fn _list_len_or_err(v) {
+    if oren_type_tag(v) != 6 { return _err_invalid("buffer: expects list view") }
+    return list.len(v)
+}
 
 fn _slice_is_list(s) {
     if s == nil || oren_is_err(s) { return false }
@@ -483,6 +511,36 @@ fn try_strided_store_u8(s, idx, v) {
     return strided_store_u8(s, idx, v)
 }
 
+fn try_strided_to_bytes(s) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_bytes: expects strided") }
+    var xs = _u8_view_unpack(try_strided_load_u8, s, s[2], "buffer.try_strided_to_bytes")
+    if oren_is_err(xs) { return xs }
+    return bytesm.try_pack(xs)
+}
+
+fn strided_to_bytes(s) {
+    return try_strided_to_bytes(s)
+}
+
+fn try_strided_to_string(s) {
+    var bs = try_strided_to_bytes(s)
+    if oren_is_err(bs) { return bs }
+    return bytesm.try_to_string(bs)
+}
+
+fn strided_to_string(s) {
+    return try_strided_to_string(s)
+}
+
+fn try_strided_copy_from_bytes(s, bytes) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_bytes: expects strided") }
+    return _u8_view_copy_from_bytes(try_strided_store_u8, s, s[2], bytes, "buffer.try_strided_copy_from_bytes")
+}
+
+fn strided_copy_from_bytes(s, bytes) {
+    return try_strided_copy_from_bytes(s, bytes)
+}
+
 fn strided_load_f32(s, idx) {
     if !_strided_is_list(s) { return _err_invalid("strided_load_f32: expects strided") }
     var n = s[2]
@@ -645,6 +703,36 @@ fn try_slice_store_u8(s, idx, v) {
     if _is_int(v) == false { return oren_err(4, "buffer.try_slice_store_u8: value not int") }
     if v < 0 || v > 255 { return oren_err(4, "buffer.try_slice_store_u8: byte out of range") }
     return slice_store_u8(s, idx, v)
+}
+
+fn try_slice_to_bytes(s) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_bytes: expects slice") }
+    var xs = _u8_view_unpack(try_slice_load_u8, s, s[2], "buffer.try_slice_to_bytes")
+    if oren_is_err(xs) { return xs }
+    return bytesm.try_pack(xs)
+}
+
+fn slice_to_bytes(s) {
+    return try_slice_to_bytes(s)
+}
+
+fn try_slice_to_string(s) {
+    var bs = try_slice_to_bytes(s)
+    if oren_is_err(bs) { return bs }
+    return bytesm.try_to_string(bs)
+}
+
+fn slice_to_string(s) {
+    return try_slice_to_string(s)
+}
+
+fn try_slice_copy_from_bytes(s, bytes) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_bytes: expects slice") }
+    return _u8_view_copy_from_bytes(try_slice_store_u8, s, s[2], bytes, "buffer.try_slice_copy_from_bytes")
+}
+
+fn slice_copy_from_bytes(s, bytes) {
+    return try_slice_copy_from_bytes(s, bytes)
 }
 
 fn slice_load_f32(s, idx) {

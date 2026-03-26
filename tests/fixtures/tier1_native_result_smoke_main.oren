@@ -184,6 +184,22 @@ fn main() {
     if r.is_err(s_sub) || buffer.try_slice_len(s_sub) != 1 { return 192 }
     var s_sub_v = buffer.try_slice_load_i32(s_sub, 0)
     if r.is_err(s_sub_v) || s_sub_v != 9 { return 193 }
+    var u8_view_buf = buffer.try_u8_from_string("ABCDE")
+    if r.is_err(u8_view_buf) { return 210 }
+    var u8_slice = buffer.try_slice_new(u8_view_buf, 1, 3)
+    if r.is_err(u8_slice) { return 211 }
+    var u8_slice_s = buffer.try_slice_to_string(u8_slice)
+    if r.is_err(u8_slice_s) || u8_slice_s != "BCD" { return 212 }
+    var u8_slice_b = buffer.try_slice_to_bytes(u8_slice)
+    if r.is_err(u8_slice_b) || bytes.try_to_string(u8_slice_b) != "BCD" { return 213 }
+    var u8_slice_copy = buffer.try_slice_copy_from_bytes(u8_slice, bytes.try_from_string("xyz"))
+    if r.is_err(u8_slice_copy) || u8_slice_copy != u8_view_buf { return 214 }
+    var u8_view_s = buffer.try_u8_to_string(u8_view_buf)
+    if r.is_err(u8_view_s) || u8_view_s != "AxyzE" { return 215 }
+    var bad_u8_slice_s = buffer.try_slice_to_string("nope")
+    if r.is_err(bad_u8_slice_s) != true { return 216 }
+    var bad_u8_slice_copy = buffer.try_slice_copy_from_bytes(u8_slice, bytes.try_from_string("xy"))
+    if r.is_err(bad_u8_slice_copy) != true { return 217 }
 
     var stride_ok = buffer.try_strided_new(i32b, 0, 2, 1)
     if r.is_err(stride_ok) { return 194 }
@@ -197,6 +213,22 @@ fn main() {
     if r.is_err(stride_v2) || stride_v2 != 11 { return 198 }
     var stride_bad_idx = buffer.try_strided_load_i32(stride_ok, 2)
     if r.is_err(stride_bad_idx) != true { return 199 }
+    var u8_stride_buf = buffer.try_u8_from_string("ABCDE")
+    if r.is_err(u8_stride_buf) { return 218 }
+    var u8_stride = buffer.try_strided_new(u8_stride_buf, 0, 3, 2)
+    if r.is_err(u8_stride) { return 219 }
+    var u8_stride_s = buffer.try_strided_to_string(u8_stride)
+    if r.is_err(u8_stride_s) || u8_stride_s != "ACE" { return 220 }
+    var u8_stride_b = buffer.try_strided_to_bytes(u8_stride)
+    if r.is_err(u8_stride_b) || bytes.try_to_string(u8_stride_b) != "ACE" { return 221 }
+    var u8_stride_copy = buffer.try_strided_copy_from_bytes(u8_stride, bytes.try_from_string("xyz"))
+    if r.is_err(u8_stride_copy) || u8_stride_copy != u8_stride_buf { return 222 }
+    var u8_stride_buf_s = buffer.try_u8_to_string(u8_stride_buf)
+    if r.is_err(u8_stride_buf_s) || u8_stride_buf_s != "xByDz" { return 223 }
+    var bad_u8_stride_s = buffer.try_strided_to_string("nope")
+    if r.is_err(bad_u8_stride_s) != true { return 224 }
+    var bad_u8_stride_copy = buffer.try_strided_copy_from_bytes(u8_stride, bytes.try_from_string("xy"))
+    if r.is_err(bad_u8_stride_copy) != true { return 225 }
 
     var matb = buffer.i32_new(4)
     if r.is_err(matb) { return 200 }

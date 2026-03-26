@@ -3295,7 +3295,9 @@ Rolling status:
   such as `try_slice_new`, `try_slice_load_i32`, `try_strided_new`, and `try_mat_view_new`, plus
   checked conversion helpers such as `try_u8_pack`, `try_u8_unpack`, `try_u8_from_string`,
   `try_u8_to_string`, `try_u8_from_bytes`, `try_u8_from_bytes_slice`, `try_u8_to_bytes`,
-  `try_i32_pack_list_int`, and `try_i32_unpack_list`.
+  `try_i32_pack_list_int`, and `try_i32_unpack_list`, plus checked `[]u8` view bridges such as
+  `try_slice_to_bytes`, `try_slice_to_string`, `try_slice_copy_from_bytes`,
+  `try_strided_to_bytes`, `try_strided_to_string`, and `try_strided_copy_from_bytes`.
 
 ### 6) Variadic ergonomics (without a huge ABI rewrite)
 

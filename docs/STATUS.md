@@ -643,6 +643,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `try_i32_pack_list_int`, `try_i32_pack_list_int_into`, `try_i32_unpack_list`);
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` now also exposes checked `[]u8` zero-copy view bridge helpers
+     (`try_slice_to_bytes`, `try_slice_to_string`, `try_slice_copy_from_bytes`,
+     `try_strided_to_bytes`, `try_strided_to_string`, `try_strided_copy_from_bytes`);
+     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
