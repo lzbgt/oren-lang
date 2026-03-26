@@ -3030,9 +3030,10 @@ Error behavior (portable rule):
   - `if oren_is_err(x) { ... }`
   - Do **not** treat numeric `0/1` as booleans: in Oren, `0` is truthy; only `nil` and `false` are falsey.
 - Stdlib note: `std:bytes` now exposes checked wrappers for the common multi-byte packet helpers too,
-  for example `bytes.try_get_u16_be`, `bytes.try_get_u32_le`, `bytes.try_put_u16_be`,
-  `bytes.try_put_u32_le`, and `bytes.try_set_i32_le`, so application code can stay on the
-  portable structured-error surface instead of calling raw `oren_bytes_*` helpers directly.
+  including signed and 64-bit packet writes such as `bytes.try_get_u16_be`, `bytes.try_get_u32_le`,
+  `bytes.try_put_i16_le`, `bytes.try_put_i32_be`, `bytes.try_put_u64_le`, `bytes.try_put_i64_be`,
+  and `bytes.try_set_i32_le`, so application code can stay on the portable structured-error surface
+  instead of calling raw `oren_bytes_*` helpers directly.
 
 Future direction (syntax sugar; no rewrite required):
 

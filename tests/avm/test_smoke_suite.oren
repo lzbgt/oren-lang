@@ -121,10 +121,20 @@ fn test_std_bytes_smoke() {
     assert_eq(bytesm.try_get_u16_be(buf8, 0), 4660)
     assert_true(!oren_is_err(bytesm.try_put_u32_le(buf8, 2, 16909060)))
     assert_eq(bytesm.try_get_u32_le(buf8, 2), 16909060)
+    assert_true(!oren_is_err(bytesm.try_put_i16_le(buf8, 0, -2)))
+    assert_eq(bytesm.try_get_i16_le(buf8, 0), -2)
+    assert_true(!oren_is_err(bytesm.try_put_i32_be(buf8, 0, -2)))
+    assert_eq(bytesm.try_get_i32_be(buf8, 0), -2)
     assert_eq(bytesm.try_set_i32_le(buf8, 0, -2), -2)
     assert_eq(bytesm.try_get_i32_le(buf8, 0), -2)
     assert_true(oren_is_err(bytesm.try_put_u16_be(buf8, 7, 1)))
+    assert_true(oren_is_err(bytesm.try_put_i32_le(buf8, 5, 1)))
     assert_true(oren_is_err(bytesm.try_set_u16_be(buf8, 0, 70000)))
+    assert_true(!oren_is_err(bytesm.try_put_u64_le(buf8, 0, 72623859790382856)))
+    assert_eq(bytesm.try_get_u64_le(buf8, 0), 72623859790382856)
+    assert_true(!oren_is_err(bytesm.try_put_i64_be(buf8, 0, -2)))
+    assert_eq(bytesm.try_get_i64_be(buf8, 0), -2)
+    assert_true(oren_is_err(bytesm.try_put_u64_be(buf8, 0, -1)))
 }
 
 fn test_std_buffer_smoke() {

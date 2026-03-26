@@ -2183,7 +2183,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
    - New: `std:bytes` structured helpers now cover the common packet-style multi-byte surface too
-     (`try_get_u16/u32/u64_*`, `try_get_i16/i32/i64_*`, `try_put_u16/u32_*`,
+     (`try_get_u16/u32/u64_*`, `try_get_i16/i32/i64_*`, `try_put_u16/i16/u32/i32/u64/i64_*`,
      `try_set_u16/i16/u32/i32/u64/i64_*`) and return `oren_err` on invalid input across
      `list<int>` and `u8_buf`; covered by result smoke + native quick integration + AVM smoke
      (2026-03-26).
