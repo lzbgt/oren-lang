@@ -5,6 +5,7 @@
 
 import bytesm "std:bytes"
 import core "std:buffer/mat_core"
+import raw "std:buffer/raw"
 
 fn _err_invalid(msg) { return core._err_invalid(msg) }
 fn _is_int(v) { return core._is_int(v) }
@@ -18,27 +19,27 @@ fn _mat_validate_i32_or_err(v, ctx) { return core._mat_validate_i32_or_err(v, ct
 fn _mat_validate_i64_or_err(v, ctx) { return core._mat_validate_i64_or_err(v, ctx) }
 fn _mat_validate_passthru_or_err(v, ctx) { return core._mat_validate_passthru_or_err(v, ctx) }
 fn _mat_copy_from_flat_with(m, xs, ctx, validatef, storef) { return core._mat_copy_from_flat_with(m, xs, ctx, validatef, storef) }
-fn _store_i32_buf_direct(buf, idx, v) { return core._store_i32_buf_direct(buf, idx, v) }
-fn _load_i32_buf_direct(buf, idx) { return core._load_i32_buf_direct(buf, idx) }
-fn _store_i64_buf_direct(buf, idx, v) { return core._store_i64_buf_direct(buf, idx, v) }
-fn _load_i64_buf_direct(buf, idx) { return core._load_i64_buf_direct(buf, idx) }
-fn _store_f32_buf_direct(buf, idx, v) { return core._store_f32_buf_direct(buf, idx, v) }
-fn _load_f32_buf_direct(buf, idx) { return core._load_f32_buf_direct(buf, idx) }
-fn _store_f64_buf_direct(buf, idx, v) { return core._store_f64_buf_direct(buf, idx, v) }
-fn _load_f64_buf_direct(buf, idx) { return core._load_f64_buf_direct(buf, idx) }
+fn _store_i32_buf_direct(buf, idx, v) { return raw._store_i32_buf_direct(buf, idx, v) }
+fn _load_i32_buf_direct(buf, idx) { return raw._load_i32_buf_direct(buf, idx) }
+fn _store_i64_buf_direct(buf, idx, v) { return raw._store_i64_buf_direct(buf, idx, v) }
+fn _load_i64_buf_direct(buf, idx) { return raw._load_i64_buf_direct(buf, idx) }
+fn _store_f32_buf_direct(buf, idx, v) { return raw._store_f32_buf_direct(buf, idx, v) }
+fn _load_f32_buf_direct(buf, idx) { return raw._load_f32_buf_direct(buf, idx) }
+fn _store_f64_buf_direct(buf, idx, v) { return raw._store_f64_buf_direct(buf, idx, v) }
+fn _load_f64_buf_direct(buf, idx) { return raw._load_f64_buf_direct(buf, idx) }
 fn _mat_to_typed_buf_with(m, ctx, newf, loadf, storef) { return core._mat_to_typed_buf_with(m, ctx, newf, loadf, storef) }
 fn _mat_copy_from_typed_buf_with(m, src, ctx, want_tag, want_label, loadf, storef) { return core._mat_copy_from_typed_buf_with(m, src, ctx, want_tag, want_label, loadf, storef) }
 fn _mat_is_list(m) { return core._mat_is_list(m) }
-fn u8_new(n) { return core.u8_new(n) }
-fn i32_new(n) { return core.i32_new(n) }
-fn i64_new(n) { return core.i64_new(n) }
-fn f32_new(n) { return core.f32_new(n) }
-fn f64_new(n) { return core.f64_new(n) }
+fn u8_new(n) { return raw.u8_new(n) }
+fn i32_new(n) { return raw.i32_new(n) }
+fn i64_new(n) { return raw.i64_new(n) }
+fn f32_new(n) { return raw.f32_new(n) }
+fn f64_new(n) { return raw.f64_new(n) }
 fn try_slice_store_u8(s, idx, v) { return core.try_slice_store_u8(s, idx, v) }
 fn try_slice_unpack_u8(s) { return core.try_slice_unpack_u8(s) }
 fn try_slice_to_string(s) { return core.try_slice_to_string(s) }
 fn try_slice_copy_from_string(s, text) { return core.try_slice_copy_from_string(s, text) }
-fn try_u8_to_bytes(buf) { return core.try_u8_to_bytes(buf) }
+fn try_u8_to_bytes(buf) { return raw.try_u8_to_bytes(buf) }
 fn try_mat_view_new(buf, off, rows, cols, row_stride) { return core.try_mat_view_new(buf, off, rows, cols, row_stride) }
 fn try_mat_row_slice(m, r) { return core.try_mat_row_slice(m, r) }
 fn try_mat_row_unpack_u8(m, r) { return core.try_mat_row_unpack_u8(m, r) }

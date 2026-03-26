@@ -4,8 +4,8 @@
 // public facade while typed-buffer and slice/strided helpers remain split.
 
 import list "std:list"
-import bytesm "std:bytes"
 import common "std:buffer/common"
+import raw "std:buffer/raw"
 import view "std:buffer/view"
 
 fn _err_invalid(msg) { return common._err_invalid(msg) }
@@ -18,11 +18,11 @@ fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
     return common._buf_len_with_tag_or_err(buf, want_tag, ctx, want_label)
 }
 
-fn u8_new(n) { return oren_u8_buf_new(n) }
-fn i32_new(n) { return oren_i32_buf_new(n) }
-fn i64_new(n) { return oren_i64_buf_new(n) }
-fn f32_new(n) { return oren_f32_buf_new(n) }
-fn f64_new(n) { return oren_f64_buf_new(n) }
+fn u8_new(n) { return raw.u8_new(n) }
+fn i32_new(n) { return raw.i32_new(n) }
+fn i64_new(n) { return raw.i64_new(n) }
+fn f32_new(n) { return raw.f32_new(n) }
+fn f64_new(n) { return raw.f64_new(n) }
 
 fn slice_new(buf, off, n) { return view.slice_new(buf, off, n) }
 fn strided_new(buf, off, n, stride) { return view.strided_new(buf, off, n, stride) }
@@ -73,7 +73,7 @@ fn try_strided_copy_from_f64_buf(s, src) { return view.try_strided_copy_from_f64
 fn try_strided_copy_from_bytes(s, bytes) { return view.try_strided_copy_from_bytes(s, bytes) }
 fn try_strided_copy_from_u8_buf(s, src) { return view.try_strided_copy_from_u8_buf(s, src) }
 fn try_strided_copy_from_string(s, text) { return view.try_strided_copy_from_string(s, text) }
-fn try_u8_to_bytes(buf: []u8) { return bytesm.try_from_u8_buf(buf) }
+fn try_u8_to_bytes(buf: []u8) { return raw.try_u8_to_bytes(buf) }
 
 fn _rows_shape_or_err(rows, ctx) {
     if oren_type_tag(rows) != 6 { return _err_invalid(ctx + ": expects rows list") }
@@ -216,14 +216,14 @@ fn _mat_copy_from_flat_with(m, xs, ctx, validatef, storef) {
     return m[0]
 }
 
-fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
-fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
-fn _store_i64_buf_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
-fn _load_i64_buf_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
-fn _store_f32_buf_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
-fn _load_f32_buf_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
-fn _store_f64_buf_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
-fn _load_f64_buf_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
+fn _store_i32_buf_direct(buf, idx, v) { return raw._store_i32_buf_direct(buf, idx, v) }
+fn _load_i32_buf_direct(buf, idx) { return raw._load_i32_buf_direct(buf, idx) }
+fn _store_i64_buf_direct(buf, idx, v) { return raw._store_i64_buf_direct(buf, idx, v) }
+fn _load_i64_buf_direct(buf, idx) { return raw._load_i64_buf_direct(buf, idx) }
+fn _store_f32_buf_direct(buf, idx, v) { return raw._store_f32_buf_direct(buf, idx, v) }
+fn _load_f32_buf_direct(buf, idx) { return raw._load_f32_buf_direct(buf, idx) }
+fn _store_f64_buf_direct(buf, idx, v) { return raw._store_f64_buf_direct(buf, idx, v) }
+fn _load_f64_buf_direct(buf, idx) { return raw._load_f64_buf_direct(buf, idx) }
 
 fn _mat_to_typed_buf_with(m, ctx, newf, loadf, storef) {
     if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }

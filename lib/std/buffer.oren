@@ -12,6 +12,7 @@
 import list "std:list"
 import bytesm "std:bytes"
 import common "std:buffer/common"
+import raw "std:buffer/raw"
 import view "std:buffer/view"
 import mat "std:buffer/mat"
 
@@ -46,11 +47,11 @@ fn _list_len_like_or_err(xs, ctx) {
 fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
 
 // Constructors (thin wrappers)
-fn u8_new(n) { return oren_u8_buf_new(n) }
-fn i32_new(n) { return oren_i32_buf_new(n) }
-fn i64_new(n) { return oren_i64_buf_new(n) }
-fn f32_new(n) { return oren_f32_buf_new(n) }
-fn f64_new(n) { return oren_f64_buf_new(n) }
+fn u8_new(n) { return raw.u8_new(n) }
+fn i32_new(n) { return raw.i32_new(n) }
+fn i64_new(n) { return raw.i64_new(n) }
+fn f32_new(n) { return raw.f32_new(n) }
+fn f64_new(n) { return raw.f64_new(n) }
 
 fn len(buf) { return oren_buf_len(buf) }
 
@@ -278,9 +279,7 @@ fn u8_from_bytes_slice(bytes, off, n) {
     return try_u8_from_bytes_slice(bytes, off, n)
 }
 
-fn try_u8_to_bytes(buf: []u8) {
-    return bytesm.try_from_u8_buf(buf)
-}
+fn try_u8_to_bytes(buf: []u8) { return raw.try_u8_to_bytes(buf) }
 
 fn u8_to_bytes(buf: []u8) {
     return try_u8_to_bytes(buf)

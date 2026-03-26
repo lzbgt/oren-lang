@@ -6,6 +6,7 @@
 import list "std:list"
 import bytesm "std:bytes"
 import common "std:buffer/common"
+import raw "std:buffer/raw"
 
 fn _err_invalid(msg) { return common._err_invalid(msg) }
 fn _is_int(v) { return common._is_int(v) }
@@ -62,18 +63,18 @@ fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
     return common._buf_len_with_tag_or_err(buf, want_tag, ctx, want_label)
 }
 
-fn _new_i32_buf(n) { return oren_i32_buf_new(n) }
-fn _new_i64_buf(n) { return oren_i64_buf_new(n) }
-fn _new_f32_buf(n) { return oren_f32_buf_new(n) }
-fn _new_f64_buf(n) { return oren_f64_buf_new(n) }
-fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
-fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
-fn _store_i64_buf_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
-fn _load_i64_buf_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
-fn _store_f32_buf_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
-fn _load_f32_buf_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
-fn _store_f64_buf_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
-fn _load_f64_buf_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
+fn _new_i32_buf(n) { return raw.i32_new(n) }
+fn _new_i64_buf(n) { return raw.i64_new(n) }
+fn _new_f32_buf(n) { return raw.f32_new(n) }
+fn _new_f64_buf(n) { return raw.f64_new(n) }
+fn _store_i32_buf_direct(buf, idx, v) { return raw._store_i32_buf_direct(buf, idx, v) }
+fn _load_i32_buf_direct(buf, idx) { return raw._load_i32_buf_direct(buf, idx) }
+fn _store_i64_buf_direct(buf, idx, v) { return raw._store_i64_buf_direct(buf, idx, v) }
+fn _load_i64_buf_direct(buf, idx) { return raw._load_i64_buf_direct(buf, idx) }
+fn _store_f32_buf_direct(buf, idx, v) { return raw._store_f32_buf_direct(buf, idx, v) }
+fn _load_f32_buf_direct(buf, idx) { return raw._load_f32_buf_direct(buf, idx) }
+fn _store_f64_buf_direct(buf, idx, v) { return raw._store_f64_buf_direct(buf, idx, v) }
+fn _load_f64_buf_direct(buf, idx) { return raw._load_f64_buf_direct(buf, idx) }
 
 fn _view_to_typed_buf(load_fn, view, n, ctx, newf, storef) {
     var out = newf(n)

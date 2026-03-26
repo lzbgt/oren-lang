@@ -2325,6 +2325,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      modules and keeps future buffer-surface validation fixes aligned across all three layers;
      covered by dedicated AVM buffer-view smoke, native quick integration, and full `make test`
      (2026-03-27).
+   - Refactor: the duplicated raw typed-buffer constructors, direct typed load/store shims, and
+     `[]u8 -> bytes` bridge shared across the `std:buffer` facade, `view`, matrix core, and dense
+     matrix helpers now live in `lib/std/buffer/raw.oren`, so low-level runtime wrapper changes no
+     longer need to be edited in four places; covered by dedicated AVM buffer-view smoke, native
+     quick integration, and full `make test` (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
      which removes raw truthy-value leakage from `== true` / `!= true` checks; covered by native
      module-result smoke, result smoke, native quick, and full `make test` (2026-03-27).
@@ -2358,7 +2363,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Done: `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`
      and a split matrix layer (`lib/std/buffer/mat.oren`, `lib/std/buffer/mat_core.oren`,
      `lib/std/buffer/mat_dense.oren`) plus shared validation helpers in
-     `lib/std/buffer/common.oren`, with the public facade at 666 lines and each helper module
+     `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
+     `lib/std/buffer/raw.oren`, with the public facade at 666 lines and each helper module
      <2000 lines (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,

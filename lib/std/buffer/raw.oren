@@ -1,0 +1,23 @@
+// std/buffer/raw (rolling)
+//
+// Shared raw typed-buffer constructors and direct typed load/store helpers for
+// the split std:buffer modules.
+
+import bytesm "std:bytes"
+
+fn u8_new(n) { return oren_u8_buf_new(n) }
+fn i32_new(n) { return oren_i32_buf_new(n) }
+fn i64_new(n) { return oren_i64_buf_new(n) }
+fn f32_new(n) { return oren_f32_buf_new(n) }
+fn f64_new(n) { return oren_f64_buf_new(n) }
+
+fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
+fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
+fn _store_i64_buf_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
+fn _load_i64_buf_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
+fn _store_f32_buf_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
+fn _load_f32_buf_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
+fn _store_f64_buf_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
+fn _load_f64_buf_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
+
+fn try_u8_to_bytes(buf: []u8) { return bytesm.try_from_u8_buf(buf) }
