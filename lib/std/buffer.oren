@@ -314,11 +314,15 @@ fn u8_to_bytes(buf: []u8) {
 }
 
 fn _u8_view_unpack(load_fn, view, n, ctx) {
+    return _view_unpack(load_fn, view, n, ctx)
+}
+
+fn _view_unpack(load_fn, view, n, ctx) {
     var out = []
     var i = 0
     while i < n {
         var b = load_fn(view, i)
-        if oren_is_err(b) { return oren_err(4, ctx + ": expected []u8 view") }
+        if oren_is_err(b) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
         oren_list_push(out, b)
         i = i + 1
     }
@@ -332,14 +336,45 @@ fn _u8_view_to_u8_buf(load_fn, view, n, ctx) {
 }
 
 fn _u8_view_copy_from_list(store_fn, view, n, xs, ctx) {
-    if oren_list_len(xs) != n { return _err_invalid(ctx + ": length mismatch") }
+    return _view_copy_from_list(store_fn, view, n, xs, ctx, _validate_u8_or_err)
+}
+
+fn _view_copy_from_list(store_fn, view, n, xs, ctx, validatef) {
+    var nx = _plain_list_len_or_err(xs, ctx)
+    if oren_is_err(nx) { return nx }
+    if nx != n { return _err_invalid(ctx + ": length mismatch") }
     var i = 0
     while i < n {
-        var rc = store_fn(view, i, xs[i])
-        if oren_is_err(rc) { return oren_err(4, ctx + ": expected []u8 view") }
+        var v = validatef(xs[i], ctx)
+        if oren_is_err(v) { return v }
+        var rc = store_fn(view, i, v)
+        if oren_is_err(rc) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
         i = i + 1
     }
     return view[0]
+}
+
+fn _validate_u8_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
+    return v
+}
+
+fn _validate_i32_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    if v < -2147483648 || v > 2147483647 {
+        return _err_invalid(ctx + ": value out of i32 range")
+    }
+    return v
+}
+
+fn _validate_i64_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    return v
+}
+
+fn _validate_passthru_or_err(v, ctx) {
+    return v
 }
 
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
@@ -463,20 +498,15 @@ fn _mat_unpack_flat_with(m, ctx, loadf) {
 }
 
 fn _mat_validate_i32_or_err(v, ctx) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
-    if v < -2147483648 || v > 2147483647 {
-        return _err_invalid(ctx + ": value out of i32 range")
-    }
-    return v
+    return _validate_i32_or_err(v, ctx)
 }
 
 fn _mat_validate_i64_or_err(v, ctx) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
-    return v
+    return _validate_i64_or_err(v, ctx)
 }
 
 fn _mat_validate_passthru_or_err(v, ctx) {
-    return v
+    return _validate_passthru_or_err(v, ctx)
 }
 
 fn _mat_copy_from_flat_with(m, xs, ctx, validatef, storef) {
@@ -651,6 +681,24 @@ fn try_strided_store_i32(s, idx, v) {
     return strided_store_i32(s, idx, v)
 }
 
+fn try_strided_unpack_i32(s) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_i32: expects strided") }
+    return _view_unpack(try_strided_load_i32, s, s[2], "buffer.try_strided_unpack_i32")
+}
+
+fn strided_unpack_i32(s) {
+    return try_strided_unpack_i32(s)
+}
+
+fn try_strided_copy_from_list_i32(s, xs) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_i32: expects strided") }
+    return _view_copy_from_list(try_strided_store_i32, s, s[2], xs, "buffer.try_strided_copy_from_list_i32", _validate_i32_or_err)
+}
+
+fn strided_copy_from_list_i32(s, xs) {
+    return try_strided_copy_from_list_i32(s, xs)
+}
+
 fn strided_load_u8(s, idx) {
     if !_strided_is_list(s) { return _err_invalid("strided_load_u8: expects strided") }
     var n = s[2]
@@ -784,6 +832,24 @@ fn try_strided_store_f32(s, idx, v) {
     return strided_store_f32(s, idx, v)
 }
 
+fn try_strided_unpack_f32(s) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_f32: expects strided") }
+    return _view_unpack(try_strided_load_f32, s, s[2], "buffer.try_strided_unpack_f32")
+}
+
+fn strided_unpack_f32(s) {
+    return try_strided_unpack_f32(s)
+}
+
+fn try_strided_copy_from_list_f32(s, xs) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_f32: expects strided") }
+    return _view_copy_from_list(try_strided_store_f32, s, s[2], xs, "buffer.try_strided_copy_from_list_f32", _validate_passthru_or_err)
+}
+
+fn strided_copy_from_list_f32(s, xs) {
+    return try_strided_copy_from_list_f32(s, xs)
+}
+
 fn strided_load_i64(s, idx) {
     if !_strided_is_list(s) { return _err_invalid("strided_load_i64: expects strided") }
     var n = s[2]
@@ -815,6 +881,24 @@ fn try_strided_store_i64(s, idx, v) {
     if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_store_i64: index out of bounds") }
     if _is_int(v) == false { return oren_err(4, "buffer.try_strided_store_i64: value not int") }
     return strided_store_i64(s, idx, v)
+}
+
+fn try_strided_unpack_i64(s) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_i64: expects strided") }
+    return _view_unpack(try_strided_load_i64, s, s[2], "buffer.try_strided_unpack_i64")
+}
+
+fn strided_unpack_i64(s) {
+    return try_strided_unpack_i64(s)
+}
+
+fn try_strided_copy_from_list_i64(s, xs) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_i64: expects strided") }
+    return _view_copy_from_list(try_strided_store_i64, s, s[2], xs, "buffer.try_strided_copy_from_list_i64", _validate_i64_or_err)
+}
+
+fn strided_copy_from_list_i64(s, xs) {
+    return try_strided_copy_from_list_i64(s, xs)
 }
 
 fn strided_load_f64(s, idx) {
@@ -849,6 +933,24 @@ fn try_strided_store_f64(s, idx, v) {
     return strided_store_f64(s, idx, v)
 }
 
+fn try_strided_unpack_f64(s) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_f64: expects strided") }
+    return _view_unpack(try_strided_load_f64, s, s[2], "buffer.try_strided_unpack_f64")
+}
+
+fn strided_unpack_f64(s) {
+    return try_strided_unpack_f64(s)
+}
+
+fn try_strided_copy_from_list_f64(s, xs) {
+    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_f64: expects strided") }
+    return _view_copy_from_list(try_strided_store_f64, s, s[2], xs, "buffer.try_strided_copy_from_list_f64", _validate_passthru_or_err)
+}
+
+fn strided_copy_from_list_f64(s, xs) {
+    return try_strided_copy_from_list_f64(s, xs)
+}
+
 fn slice_load_i32(s, idx) {
     if !_slice_is_list(s) { return _err_invalid("slice_load_i32: expects slice") }
     var n = s[2]
@@ -880,6 +982,24 @@ fn try_slice_store_i32(s, idx, v) {
     if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_store_i32: index out of bounds") }
     if _is_int(v) == false { return oren_err(4, "buffer.try_slice_store_i32: value not int") }
     return slice_store_i32(s, idx, v)
+}
+
+fn try_slice_unpack_i32(s) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_i32: expects slice") }
+    return _view_unpack(try_slice_load_i32, s, s[2], "buffer.try_slice_unpack_i32")
+}
+
+fn slice_unpack_i32(s) {
+    return try_slice_unpack_i32(s)
+}
+
+fn try_slice_copy_from_list_i32(s, xs) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_i32: expects slice") }
+    return _view_copy_from_list(try_slice_store_i32, s, s[2], xs, "buffer.try_slice_copy_from_list_i32", _validate_i32_or_err)
+}
+
+fn slice_copy_from_list_i32(s, xs) {
+    return try_slice_copy_from_list_i32(s, xs)
 }
 
 fn slice_load_u8(s, idx) {
@@ -1015,6 +1135,24 @@ fn try_slice_store_f32(s, idx, v) {
     return slice_store_f32(s, idx, v)
 }
 
+fn try_slice_unpack_f32(s) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_f32: expects slice") }
+    return _view_unpack(try_slice_load_f32, s, s[2], "buffer.try_slice_unpack_f32")
+}
+
+fn slice_unpack_f32(s) {
+    return try_slice_unpack_f32(s)
+}
+
+fn try_slice_copy_from_list_f32(s, xs) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_f32: expects slice") }
+    return _view_copy_from_list(try_slice_store_f32, s, s[2], xs, "buffer.try_slice_copy_from_list_f32", _validate_passthru_or_err)
+}
+
+fn slice_copy_from_list_f32(s, xs) {
+    return try_slice_copy_from_list_f32(s, xs)
+}
+
 fn slice_load_i64(s, idx) {
     if !_slice_is_list(s) { return _err_invalid("slice_load_i64: expects slice") }
     var n = s[2]
@@ -1048,6 +1186,24 @@ fn try_slice_store_i64(s, idx, v) {
     return slice_store_i64(s, idx, v)
 }
 
+fn try_slice_unpack_i64(s) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_i64: expects slice") }
+    return _view_unpack(try_slice_load_i64, s, s[2], "buffer.try_slice_unpack_i64")
+}
+
+fn slice_unpack_i64(s) {
+    return try_slice_unpack_i64(s)
+}
+
+fn try_slice_copy_from_list_i64(s, xs) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_i64: expects slice") }
+    return _view_copy_from_list(try_slice_store_i64, s, s[2], xs, "buffer.try_slice_copy_from_list_i64", _validate_i64_or_err)
+}
+
+fn slice_copy_from_list_i64(s, xs) {
+    return try_slice_copy_from_list_i64(s, xs)
+}
+
 fn slice_load_f64(s, idx) {
     if !_slice_is_list(s) { return _err_invalid("slice_load_f64: expects slice") }
     var n = s[2]
@@ -1078,6 +1234,24 @@ fn try_slice_store_f64(s, idx, v) {
     if oren_is_err(ok_idx) { return ok_idx }
     if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_store_f64: index out of bounds") }
     return slice_store_f64(s, idx, v)
+}
+
+fn try_slice_unpack_f64(s) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_f64: expects slice") }
+    return _view_unpack(try_slice_load_f64, s, s[2], "buffer.try_slice_unpack_f64")
+}
+
+fn slice_unpack_f64(s) {
+    return try_slice_unpack_f64(s)
+}
+
+fn try_slice_copy_from_list_f64(s, xs) {
+    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_f64: expects slice") }
+    return _view_copy_from_list(try_slice_store_f64, s, s[2], xs, "buffer.try_slice_copy_from_list_f64", _validate_passthru_or_err)
+}
+
+fn slice_copy_from_list_f64(s, xs) {
+    return try_slice_copy_from_list_f64(s, xs)
 }
 
 fn mat_view_new(buf, off, rows, cols, row_stride) {
@@ -1249,6 +1423,86 @@ fn try_mat_row_to_string(m, r) {
     return try_slice_to_string(row)
 }
 
+fn try_mat_row_unpack_i32(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_i32(row)
+}
+
+fn mat_row_unpack_i32(m, r) {
+    return try_mat_row_unpack_i32(m, r)
+}
+
+fn try_mat_row_copy_from_list_i32(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_i32(row, xs)
+}
+
+fn mat_row_copy_from_list_i32(m, r, xs) {
+    return try_mat_row_copy_from_list_i32(m, r, xs)
+}
+
+fn try_mat_row_unpack_i64(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_i64(row)
+}
+
+fn mat_row_unpack_i64(m, r) {
+    return try_mat_row_unpack_i64(m, r)
+}
+
+fn try_mat_row_copy_from_list_i64(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_i64(row, xs)
+}
+
+fn mat_row_copy_from_list_i64(m, r, xs) {
+    return try_mat_row_copy_from_list_i64(m, r, xs)
+}
+
+fn try_mat_row_unpack_f32(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_f32(row)
+}
+
+fn mat_row_unpack_f32(m, r) {
+    return try_mat_row_unpack_f32(m, r)
+}
+
+fn try_mat_row_copy_from_list_f32(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_f32(row, xs)
+}
+
+fn mat_row_copy_from_list_f32(m, r, xs) {
+    return try_mat_row_copy_from_list_f32(m, r, xs)
+}
+
+fn try_mat_row_unpack_f64(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_f64(row)
+}
+
+fn mat_row_unpack_f64(m, r) {
+    return try_mat_row_unpack_f64(m, r)
+}
+
+fn try_mat_row_copy_from_list_f64(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_f64(row, xs)
+}
+
+fn mat_row_copy_from_list_f64(m, r, xs) {
+    return try_mat_row_copy_from_list_f64(m, r, xs)
+}
+
 fn mat_row_copy_from_bytes(m, r, bytes) {
     var row = mat_row_slice(m, r)
     if oren_is_err(row) { return row }
@@ -1331,6 +1585,86 @@ fn try_mat_col_to_string(m, c) {
     var col = try_mat_col_strided(m, c)
     if oren_is_err(col) { return col }
     return try_strided_to_string(col)
+}
+
+fn try_mat_col_unpack_i32(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_i32(col)
+}
+
+fn mat_col_unpack_i32(m, c) {
+    return try_mat_col_unpack_i32(m, c)
+}
+
+fn try_mat_col_copy_from_list_i32(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_i32(col, xs)
+}
+
+fn mat_col_copy_from_list_i32(m, c, xs) {
+    return try_mat_col_copy_from_list_i32(m, c, xs)
+}
+
+fn try_mat_col_unpack_i64(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_i64(col)
+}
+
+fn mat_col_unpack_i64(m, c) {
+    return try_mat_col_unpack_i64(m, c)
+}
+
+fn try_mat_col_copy_from_list_i64(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_i64(col, xs)
+}
+
+fn mat_col_copy_from_list_i64(m, c, xs) {
+    return try_mat_col_copy_from_list_i64(m, c, xs)
+}
+
+fn try_mat_col_unpack_f32(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_f32(col)
+}
+
+fn mat_col_unpack_f32(m, c) {
+    return try_mat_col_unpack_f32(m, c)
+}
+
+fn try_mat_col_copy_from_list_f32(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_f32(col, xs)
+}
+
+fn mat_col_copy_from_list_f32(m, c, xs) {
+    return try_mat_col_copy_from_list_f32(m, c, xs)
+}
+
+fn try_mat_col_unpack_f64(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_f64(col)
+}
+
+fn mat_col_unpack_f64(m, c) {
+    return try_mat_col_unpack_f64(m, c)
+}
+
+fn try_mat_col_copy_from_list_f64(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_f64(col, xs)
+}
+
+fn mat_col_copy_from_list_f64(m, c, xs) {
+    return try_mat_col_copy_from_list_f64(m, c, xs)
 }
 
 fn mat_col_copy_from_bytes(m, c, bytes) {

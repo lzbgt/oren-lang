@@ -163,6 +163,14 @@ green_cache_run_timeout_secs="$run_timeout_secs"
 if [[ -n "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
   green_cache_run_timeout_secs="${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS}"
 fi
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
+  # macOS: under full-suite load, the OREN_GREEN_POLL_CACHE rerun can exceed the
+  # stage1 base-run watchdog even when the binary exits cleanly. Keep extra
+  # headroom here so `make test` fails on real hangs, not on a second-run 143.
+  if [[ "$green_cache_run_timeout_secs" -lt 30 ]]; then
+    green_cache_run_timeout_secs=30
+  fi
+fi
 
 echo "== native quick integration =="
 echo "compiler=$compiler"

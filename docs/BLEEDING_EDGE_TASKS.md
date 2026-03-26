@@ -2285,9 +2285,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      result smoke + native quick integration + dedicated AVM buffer-view smoke, with shared native
      float checks kept at non-error/shape level and exact `f32`/`f64` value proof retained in the
      dedicated AVM smoke (2026-03-27).
+   - New: `std:buffer` now also exposes checked numeric slice/strided list bridges such as
+     `try_slice_unpack_i32`, `try_slice_copy_from_list_i32`, `try_strided_unpack_i64`, and
+     `try_strided_copy_from_list_f64`, plus checked numeric matrix row/column list bridges such as
+     `try_mat_row_unpack_i32`, `try_mat_row_copy_from_list_i64`, `try_mat_col_unpack_f32`, and
+     `try_mat_col_copy_from_list_f64`, so callers can stay on the zero-copy slice/strided/matrix
+     surface for numeric row/column extraction and refill without hand-writing view loops; covered
+     by result smoke + native quick integration + dedicated AVM buffer-view smoke, with exact float
+     value proof kept in AVM and non-error/shape proof kept in shared native fixtures (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
      which removes raw truthy-value leakage from `== true` / `!= true` checks; covered by native
      module-result smoke, result smoke, native quick, and full `make test` (2026-03-27).
+   - Fix: macOS stage1 native-quick verification now gives the `OREN_GREEN_POLL_CACHE` rerun a
+     30s default watchdog even when the base run stays at 20s, which removes a false-red `rc=143`
+     path in full-suite verification where the first run already completed cleanly (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).

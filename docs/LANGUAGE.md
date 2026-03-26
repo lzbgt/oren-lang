@@ -3319,7 +3319,11 @@ Rolling status:
   flatten/copy helpers such as `try_u8_mat_to_bytes`, `try_u8_mat_to_u8_buf`,
   `try_u8_mat_to_string`, `try_u8_mat_copy_from_bytes`, `try_u8_mat_copy_from_u8_buf`,
   `try_u8_mat_copy_from_string`, `try_u8_mat_copy_from_rows`, and
-  `try_u8_mat_copy_from_strings`, and checked `[]u8` view bridges such as
+  `try_u8_mat_copy_from_strings`, plus checked numeric slice/strided list bridges such as
+  `try_slice_unpack_i32`, `try_slice_copy_from_list_i32`, `try_strided_unpack_i64`,
+  `try_strided_copy_from_list_f64`, and checked numeric matrix row/column list bridges such as
+  `try_mat_row_unpack_i32`, `try_mat_row_copy_from_list_f32`, `try_mat_col_unpack_i64`, and
+  `try_mat_col_copy_from_list_f64`, and checked `[]u8` view bridges such as
   `try_slice_unpack_u8`, `try_slice_to_bytes`, `try_slice_to_u8_buf`, `try_slice_to_string`,
   `try_slice_copy_from_bytes`, `try_slice_copy_from_u8_buf`, `try_slice_copy_from_string`,
   `try_strided_unpack_u8`, `try_strided_to_bytes`, `try_strided_to_u8_buf`,

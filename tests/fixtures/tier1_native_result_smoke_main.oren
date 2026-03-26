@@ -325,12 +325,39 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(copied_i32_flat) || copied_i32_flat[0] != 1 || copied_i32_flat[3] != 4 { return 433 }
     if r.is_err(buffer.try_i32_mat_copy_from_flat(packed_i32_mat, [9, 8, 7, 6])) { return 434 }
     if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 9 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 6 { return 435 }
+    var i32_row0_view = buffer.try_mat_row_slice(packed_i32_mat, 0)
+    if r.is_err(i32_row0_view) { return 451 }
+    var i32_row0_list = buffer.try_slice_unpack_i32(i32_row0_view)
+    if r.is_err(i32_row0_list) || i32_row0_list[0] != 9 || i32_row0_list[1] != 8 { return 452 }
+    if r.is_err(buffer.try_slice_copy_from_list_i32(i32_row0_view, [11, 12])) { return 453 }
+    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 11 || buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 12 { return 454 }
+    var i32_col1_view = buffer.try_mat_col_strided(packed_i32_mat, 1)
+    if r.is_err(i32_col1_view) { return 455 }
+    var i32_col1_list = buffer.try_strided_unpack_i32(i32_col1_view)
+    if r.is_err(i32_col1_list) || i32_col1_list[0] != 12 || i32_col1_list[1] != 6 { return 456 }
+    if r.is_err(buffer.try_strided_copy_from_list_i32(i32_col1_view, [21, 22])) { return 457 }
+    if buffer.try_mat_load_i32(packed_i32_mat, 0, 1) != 21 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 22 { return 458 }
+    var i32_row1_list = buffer.try_mat_row_unpack_i32(packed_i32_mat, 1)
+    if r.is_err(i32_row1_list) || i32_row1_list[0] != 7 || i32_row1_list[1] != 22 { return 459 }
+    if r.is_err(buffer.try_mat_row_copy_from_list_i32(packed_i32_mat, 1, [31, 32])) { return 460 }
+    if buffer.try_mat_load_i32(packed_i32_mat, 1, 0) != 31 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 32 { return 461 }
+    var i32_col0_list = buffer.try_mat_col_unpack_i32(packed_i32_mat, 0)
+    if r.is_err(i32_col0_list) || i32_col0_list[0] != 11 || i32_col0_list[1] != 31 { return 462 }
+    if r.is_err(buffer.try_mat_col_copy_from_list_i32(packed_i32_mat, 0, [41, 42])) { return 463 }
+    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 41 || buffer.try_mat_load_i32(packed_i32_mat, 1, 0) != 42 { return 464 }
     if r.is_err(buffer.try_i32_mat_pack_rows([[1], [2, 3]])) != true { return 321 }
     if r.is_err(buffer.try_i32_mat_pack_rows([[2147483648]])) != true { return 322 }
     if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1], [2]])) != true { return 389 }
     if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1, 2], [3, 2147483648]])) != true { return 390 }
     if r.is_err(buffer.try_i32_mat_copy_from_flat(packed_i32_mat, [1, 2, 3])) != true { return 436 }
     if r.is_err(buffer.try_i32_mat_copy_from_flat(packed_i32_mat, [1, 2, 3, 2147483648])) != true { return 437 }
+    if r.is_err(buffer.try_slice_unpack_i32("nope")) != true { return 465 }
+    if r.is_err(buffer.try_slice_copy_from_list_i32(i32_row0_view, [1])) != true { return 466 }
+    if r.is_err(buffer.try_slice_copy_from_list_i32(i32_row0_view, [1, 2147483648])) != true { return 467 }
+    if r.is_err(buffer.try_strided_unpack_i32("nope")) != true { return 468 }
+    if r.is_err(buffer.try_strided_copy_from_list_i32(i32_col1_view, [1])) != true { return 469 }
+    if r.is_err(buffer.try_mat_row_copy_from_list_i32(packed_i32_mat, 0, [1])) != true { return 470 }
+    if r.is_err(buffer.try_mat_col_copy_from_list_i32(packed_i32_mat, 0, [1, 2147483648])) != true { return 471 }
     var packed_u8_mat = buffer.try_u8_mat_pack_rows([[65, 66], [67, 68]])
     if r.is_err(packed_u8_mat) { return 323 }
     var packed_u8_row = buffer.try_mat_row_slice(packed_u8_mat, 1)
@@ -443,11 +470,21 @@ fn smoke_buffer_matrix_numeric() {
     if r.is_err(copied_i64_flat) || copied_i64_flat[0] != 500 || copied_i64_flat[3] != 800 { return 438 }
     if r.is_err(buffer.try_i64_mat_copy_from_flat(packed_i64_mat, [900, 901, 902, 903])) { return 439 }
     if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 900 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 903 { return 440 }
+    var i64_row0 = buffer.try_mat_row_unpack_i64(packed_i64_mat, 0)
+    if r.is_err(i64_row0) || i64_row0[0] != 900 || i64_row0[1] != 901 { return 472 }
+    if r.is_err(buffer.try_mat_row_copy_from_list_i64(packed_i64_mat, 0, [910, 911])) { return 473 }
+    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 910 || buffer.try_mat_load_i64(packed_i64_mat, 0, 1) != 911 { return 474 }
+    var i64_col1 = buffer.try_mat_col_unpack_i64(packed_i64_mat, 1)
+    if r.is_err(i64_col1) || i64_col1[0] != 911 || i64_col1[1] != 903 { return 475 }
+    if r.is_err(buffer.try_mat_col_copy_from_list_i64(packed_i64_mat, 1, [920, 921])) { return 476 }
+    if buffer.try_mat_load_i64(packed_i64_mat, 0, 1) != 920 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 921 { return 477 }
     if r.is_err(buffer.try_mat_store_i64(mat64, 0, 0, "nope")) != true { return 268 }
     if r.is_err(buffer.try_i64_mat_pack_rows([[1], [2, 3]])) != true { return 397 }
     if r.is_err(buffer.try_i64_mat_copy_from_rows(packed_i64_mat, [[1], [2]])) != true { return 398 }
     if r.is_err(buffer.try_i64_mat_copy_from_flat(packed_i64_mat, [1, 2, 3])) != true { return 441 }
     if r.is_err(buffer.try_i64_mat_copy_from_flat(packed_i64_mat, ["nope", 2, 3, 4])) != true { return 442 }
+    if r.is_err(buffer.try_mat_row_copy_from_list_i64(packed_i64_mat, 0, [1])) != true { return 478 }
+    if r.is_err(buffer.try_mat_col_copy_from_list_i64(packed_i64_mat, 1, ["nope", 2])) != true { return 479 }
     if r.is_err(buffer.try_mat_load_i64(mat64, 2, 0)) != true { return 269 }
 
     var packed_f32_mat = buffer.try_f32_mat_pack_rows([[1.5, 2.5], [3.5, 4.5]])
@@ -464,9 +501,18 @@ fn smoke_buffer_matrix_numeric() {
     if r.is_err(copied_f32_flat) || oren_list_len(copied_f32_flat) != 4 { return 443 }
     if r.is_err(buffer.try_f32_mat_copy_from_flat(packed_f32_mat, [9.5, 8.5, 7.5, 6.5])) { return 444 }
     if r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 0, 0)) || r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 1, 1)) { return 445 }
+    var f32_row0 = buffer.try_mat_row_unpack_f32(packed_f32_mat, 0)
+    if r.is_err(f32_row0) || oren_list_len(f32_row0) != 2 { return 480 }
+    if r.is_err(buffer.try_mat_row_copy_from_list_f32(packed_f32_mat, 0, [1.25, 2.25])) { return 481 }
+    if r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 0, 0)) { return 482 }
+    var f32_col1 = buffer.try_mat_col_unpack_f32(packed_f32_mat, 1)
+    if r.is_err(f32_col1) || oren_list_len(f32_col1) != 2 { return 483 }
+    if r.is_err(buffer.try_mat_col_copy_from_list_f32(packed_f32_mat, 1, [3.25, 4.25])) { return 484 }
+    if r.is_err(buffer.try_mat_load_f32(packed_f32_mat, 1, 1)) { return 485 }
     if r.is_err(buffer.try_f32_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 405 }
     if r.is_err(buffer.try_f32_mat_copy_from_rows(packed_f32_mat, [[1.5], [2.5]])) != true { return 406 }
     if r.is_err(buffer.try_f32_mat_copy_from_flat(packed_f32_mat, [1.5, 2.5, 3.5])) != true { return 446 }
+    if r.is_err(buffer.try_mat_row_copy_from_list_f32(packed_f32_mat, 0, [1.0])) != true { return 486 }
 
     var f64m = buffer.f64_new(4)
     if r.is_err(f64m) { return 270 }
@@ -494,10 +540,19 @@ fn smoke_buffer_matrix_numeric() {
     if r.is_err(copied_f64_flat) || oren_list_len(copied_f64_flat) != 4 { return 447 }
     if r.is_err(buffer.try_f64_mat_copy_from_flat(packed_f64_mat, [1.25, 2.25, 3.25, 4.25])) { return 448 }
     if r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 0, 0)) || r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 1, 1)) { return 449 }
+    var f64_row0 = buffer.try_mat_row_unpack_f64(packed_f64_mat, 0)
+    if r.is_err(f64_row0) || oren_list_len(f64_row0) != 2 { return 487 }
+    if r.is_err(buffer.try_mat_row_copy_from_list_f64(packed_f64_mat, 0, [5.25, 6.25])) { return 488 }
+    if r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 0, 0)) { return 489 }
+    var f64_col0 = buffer.try_mat_col_unpack_f64(packed_f64_mat, 0)
+    if r.is_err(f64_col0) || oren_list_len(f64_col0) != 2 { return 490 }
+    if r.is_err(buffer.try_mat_col_copy_from_list_f64(packed_f64_mat, 0, [7.25, 8.25])) { return 491 }
+    if r.is_err(buffer.try_mat_load_f64(packed_f64_mat, 1, 0)) { return 492 }
     if r.is_err(buffer.try_mat_rows("nope")) != true { return 279 }
     if r.is_err(buffer.try_f64_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 413 }
     if r.is_err(buffer.try_f64_mat_copy_from_rows(packed_f64_mat, [[1.5], [2.5]])) != true { return 414 }
     if r.is_err(buffer.try_f64_mat_copy_from_flat(packed_f64_mat, [1.5, 2.5, 3.5])) != true { return 450 }
+    if r.is_err(buffer.try_mat_col_copy_from_list_f64(packed_f64_mat, 0, [1.0])) != true { return 493 }
     if r.is_err(buffer.try_mat_load_f64(matf64, 2, 0)) != true { return 280 }
 
     return 0
