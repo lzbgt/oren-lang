@@ -717,16 +717,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      result smoke + native quick integration + dedicated AVM buffer-view smoke, with exact float
      value proof kept in AVM and non-error/shape proof kept in shared native fixtures
      (2026-03-27).
-   - Refactor: `std:buffer` slice/strided implementation now lives in `lib/std/buffer/view.oren`
-     behind the unchanged public `std:buffer` API, which brings `lib/std/buffer.oren` back under
-     the 2000-line structural threshold without changing the checked view semantics; covered by
-     dedicated AVM buffer-view smoke, native quick integration, and full `make test` (2026-03-27).
+   - Refactor: `std:buffer` is now split into a thin public facade plus
+     `lib/std/buffer/view.oren` for slice/strided helpers and `lib/std/buffer/mat.oren` for the
+     matrix-heavy implementation, which keeps the public module at 586 lines without changing the
+     checked view/matrix API; covered by dedicated AVM buffer-view smoke, native quick integration,
+     and full `make test` (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
      so `== true` / `!= true` checks no longer depend on raw backend truthy values; covered by
      native module-result smoke, result smoke, native quick, and full `make test` (2026-03-27).
    - Fix: macOS stage1 native-quick verification now gives the `OREN_GREEN_POLL_CACHE` rerun a
      30s default watchdog even when the base run stays at 20s, which removes a false-red `rc=143`
      path in full-suite verification where the first run already completed cleanly (2026-03-27).
+   - Fix: `scripts/run_native_quick_integration.sh` now executes the stage1 base run and the
+     green-cache rerun under `set +e` when collecting retry status, so `run_with_timeout_retry(...)`
+     can actually feed the scripted retry paths instead of aborting the harness early under
+     `set -e`; covered by native quick integration and full `make test` (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
@@ -762,8 +767,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        (all <2000 lines, 2026-02-25).
      - `lib/runtime_native/100_time_gc_alloc.oren` core split into scan/reuse, list_hdr, track, roots_gc
        modules (all <2000 lines, 2026-03-03).
-     - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`, keeping the
-       top-level stdlib module <2000 lines while leaving matrix helpers in place (2026-03-27).
+     - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren` and
+       `lib/std/buffer/mat.oren`, keeping the top-level stdlib module at 586 lines and each helper
+       module <2000 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).

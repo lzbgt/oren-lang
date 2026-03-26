@@ -247,8 +247,10 @@ run_green_cache() {
     fi
     local attempt=0
     while true; do
+      set +e
       OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
       local rc=$?
+      set -e
       if [[ "$rc" -eq 0 ]]; then
         break
       fi
@@ -266,7 +268,11 @@ run_base() {
     echo "SKIP: base run disabled (OREN_QI_SKIP_BASE_RUN=1)" >>"$log"
     return 0
   fi
+  set +e
   run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
+  local rc=$?
+  set -e
+  return "$rc"
 }
 
 if [[ "$green_cache_first" == "1" ]]; then
