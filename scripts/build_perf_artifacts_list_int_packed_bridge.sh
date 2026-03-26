@@ -8,10 +8,16 @@ log_path="$log_dir/perf-prebuild-list-int-packed-bridge-${ts}.log"
 
 platform="${OREN_BENCH_PLATFORM:-arm64-macos}"
 compiler="./oren_stage2"
-programs=(
+all_programs=(
     array_sum_int_packed_bridge
     dot_product_int_packed_bridge
 )
+
+if [[ -n "${OREN_PERF_PREBUILD_PROGRAMS:-}" ]]; then
+    IFS=',' read -r -a programs <<<"${OREN_PERF_PREBUILD_PROGRAMS}"
+else
+    programs=("${all_programs[@]}")
+fi
 
 build_program() {
     local program="$1"

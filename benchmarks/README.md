@@ -116,6 +116,12 @@ Explicit native prebuild for the hidden packed-bridge benchmarks:
 make perf-prebuild-list-int-packed-bridge
 ```
 
+Dot-only native prebuild for the one remaining heavy hidden artifact:
+
+```bash
+make perf-prebuild-dot-product-int-packed-bridge
+```
+
 These packed-bridge benchmarks are intentionally excluded from `OREN_BENCH_PROGRAM=all` via
 `.bench-hidden`. They measure the explicit `list<int> -> []i32` bridge without changing the
 canonical `array_sum_int` / `dot_product_int` gates. This matters because the default native
@@ -140,6 +146,10 @@ That warm step is now the same reusable native prebuild exposed by `make perf-pr
 It uses the cheap core native profile for `array_sum_int_packed_bridge` and reserves the heavy
 full-runtime native build for `dot_product_int_packed_bridge`, which is the only hidden benchmark
 that actually needs `oren_buf_dot_i32(...)`.
+
+For local iteration, the prebuild script also accepts `OREN_PERF_PREBUILD_PROGRAMS=name1,name2`.
+The bundled `make perf-prebuild-dot-product-int-packed-bridge` target uses that to warm only the
+full-runtime `dot_product_int_packed_bridge` artifact outside the timed probe path.
 
 Update the snapshot from existing local result files:
 

@@ -206,6 +206,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Follow-through (2026-03-20): native packed-bridge smoke now reuses that same split-profile
      prebuild path instead of force-rebuilding both hidden benchmarks under `full`, so the smoke
      tooling and the steady probe agree on the actual runtime boundary.
+   - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
+     program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the one
+     remaining heavy full-runtime artifact before the timed ceiling probe.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should
