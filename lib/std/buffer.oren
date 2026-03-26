@@ -26,6 +26,14 @@ fn _len_or_err(buf, ctx) {
     return n
 }
 
+fn _check_idx(buf, idx, ctx) {
+    var n = _len_or_err(buf, ctx)
+    if oren_is_err(n) { return n }
+    if _is_int(idx) == false { return oren_err(4, ctx + ": index not int") }
+    if idx < 0 || idx >= n { return oren_err(4, ctx + ": index out of bounds") }
+    return n
+}
+
 // Constructors (thin wrappers)
 fn u8_new(n) { return oren_u8_buf_new(n) }
 fn i32_new(n) { return oren_i32_buf_new(n) }
@@ -50,13 +58,61 @@ fn try_load_u8(buf, idx) {
 }
 
 fn try_store_u8(buf, idx, v) {
-    var n = _len_or_err(buf, "buffer.try_store_u8")
+    var n = _check_idx(buf, idx, "buffer.try_store_u8")
     if oren_is_err(n) { return n }
-    if _is_int(idx) == false { return oren_err(4, "buffer.try_store_u8: index not int") }
     if _is_int(v) == false { return oren_err(4, "buffer.try_store_u8: value not int") }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_store_u8: index out of bounds") }
     if v < 0 || v > 255 { return oren_err(4, "buffer.try_store_u8: byte out of range") }
     return oren_buf_store_u8(buf, idx, v)
+}
+
+fn try_load_i32(buf, idx) {
+    var n = _check_idx(buf, idx, "buffer.try_load_i32")
+    if oren_is_err(n) { return n }
+    return oren_buf_load_i32(buf, idx)
+}
+
+fn try_store_i32(buf, idx, v) {
+    var n = _check_idx(buf, idx, "buffer.try_store_i32")
+    if oren_is_err(n) { return n }
+    if _is_int(v) == false { return oren_err(4, "buffer.try_store_i32: value not int") }
+    return oren_buf_store_i32(buf, idx, v)
+}
+
+fn try_load_i64(buf, idx) {
+    var n = _check_idx(buf, idx, "buffer.try_load_i64")
+    if oren_is_err(n) { return n }
+    return oren_buf_load_i64(buf, idx)
+}
+
+fn try_store_i64(buf, idx, v) {
+    var n = _check_idx(buf, idx, "buffer.try_store_i64")
+    if oren_is_err(n) { return n }
+    if _is_int(v) == false { return oren_err(4, "buffer.try_store_i64: value not int") }
+    return oren_buf_store_i64(buf, idx, v)
+}
+
+fn try_load_f32(buf, idx) {
+    var n = _check_idx(buf, idx, "buffer.try_load_f32")
+    if oren_is_err(n) { return n }
+    return oren_buf_load_f32(buf, idx)
+}
+
+fn try_store_f32(buf, idx, v) {
+    var n = _check_idx(buf, idx, "buffer.try_store_f32")
+    if oren_is_err(n) { return n }
+    return oren_buf_store_f32(buf, idx, v)
+}
+
+fn try_load_f64(buf, idx) {
+    var n = _check_idx(buf, idx, "buffer.try_load_f64")
+    if oren_is_err(n) { return n }
+    return oren_buf_load_f64(buf, idx)
+}
+
+fn try_store_f64(buf, idx, v) {
+    var n = _check_idx(buf, idx, "buffer.try_store_f64")
+    if oren_is_err(n) { return n }
+    return oren_buf_store_f64(buf, idx, v)
 }
 
 // Safe copying bridge: pack a `list<int>` into a contiguous `[]i32` typed buffer.

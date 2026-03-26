@@ -113,28 +113,58 @@ fn main() {
     if r.is_err(ub_bad) != true { return 37 }
     var ub_bad_set = buffer.try_store_u8(ub, 0, 300)
     if r.is_err(ub_bad_set) != true { return 38 }
+    var i32b = buffer.i32_new(2)
+    if r.is_err(i32b) { return 39 }
+    var i32s = buffer.try_store_i32(i32b, 0, -7)
+    if r.is_err(i32s) || i32s != i32b { return 40 }
+    var i32v = buffer.try_load_i32(i32b, 0)
+    if r.is_err(i32v) || i32v != -7 { return 41 }
+    var i32_bad = buffer.try_load_i32(i32b, 2)
+    if r.is_err(i32_bad) != true { return 42 }
+    var i64b = buffer.i64_new(2)
+    if r.is_err(i64b) { return 43 }
+    var i64s = buffer.try_store_i64(i64b, 1, 4294967296)
+    if r.is_err(i64s) || i64s != i64b { return 44 }
+    var i64v = buffer.try_load_i64(i64b, 1)
+    if r.is_err(i64v) || i64v != 4294967296 { return 45 }
+    var f32b = buffer.f32_new(2)
+    if r.is_err(f32b) { return 46 }
+    var f32s = buffer.try_store_f32(f32b, 0, 1.5)
+    if r.is_err(f32s) || f32s != f32b { return 47 }
+    var f32v = buffer.try_load_f32(f32b, 0)
+    if r.is_err(f32v) { return 48 }
+    var f32_bad = buffer.try_load_f32(f32b, 2)
+    if r.is_err(f32_bad) != true { return 49 }
+    var f64b = buffer.f64_new(2)
+    if r.is_err(f64b) { return 50 }
+    var f64s = buffer.try_store_f64(f64b, 1, -0.5)
+    if r.is_err(f64s) || f64s != f64b { return 51 }
+    var f64v = buffer.try_load_f64(f64b, 1)
+    if r.is_err(f64v) { return 52 }
+    var f64_bad = buffer.try_load_f64(f64b, 3)
+    if r.is_err(f64_bad) != true { return 53 }
 
     var buf8 = buffer.u8_new(8)
     var w16 = bytes.try_put_u16_be(buf8, 0, 4660)
-    if r.is_err(w16) { return 39 }
+    if r.is_err(w16) { return 54 }
     var r16 = bytes.try_get_u16_be(buf8, 0)
-    if r.is_err(r16) || r16 != 4660 { return 40 }
+    if r.is_err(r16) || r16 != 4660 { return 55 }
     var w32 = bytes.try_put_u32_le(buf8, 2, 16909060)
-    if r.is_err(w32) { return 41 }
+    if r.is_err(w32) { return 56 }
     var r32 = bytes.try_get_u32_le(buf8, 2)
-    if r.is_err(r32) || r32 != 16909060 { return 42 }
+    if r.is_err(r32) || r32 != 16909060 { return 57 }
     var s32 = bytes.try_set_i32_le(buf8, 0, -2)
-    if r.is_err(s32) || s32 != -2 { return 43 }
+    if r.is_err(s32) || s32 != -2 { return 58 }
     var g32 = bytes.try_get_i32_le(buf8, 0)
-    if r.is_err(g32) || g32 != -2 { return 44 }
+    if r.is_err(g32) || g32 != -2 { return 59 }
     var bad_put = bytes.try_put_u16_be(buf8, 7, 1)
-    if r.is_err(bad_put) != true { return 45 }
+    if r.is_err(bad_put) != true { return 60 }
     var bad_range = bytes.try_set_u16_be(buf8, 0, 70000)
-    if r.is_err(bad_range) != true { return 46 }
+    if r.is_err(bad_range) != true { return 61 }
     var s64 = bytes.try_set_u64_be(buf8, 0, 72623859790382856)
-    if r.is_err(s64) || s64 != 72623859790382856 { return 47 }
+    if r.is_err(s64) || s64 != 72623859790382856 { return 62 }
     var g64 = bytes.try_get_u64_be(buf8, 0)
-    if r.is_err(g64) || g64 != 72623859790382856 { return 48 }
+    if r.is_err(g64) || g64 != 72623859790382856 { return 63 }
 
     return 0
 }

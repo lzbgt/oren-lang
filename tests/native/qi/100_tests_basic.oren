@@ -119,6 +119,27 @@ fn test_std_bytes_smoke() {
     return 0
 }
 
+fn test_std_buffer_smoke() {
+    trace("QI: test_std_buffer_smoke")
+    var i32b = bufferm.i32_new(2)
+    assert_true(oren_is_err(i32b) == false, 7840)
+    assert_eq(bufferm.try_len(i32b), 2, 7841)
+    var i32s = bufferm.try_store_i32(i32b, 0, -7)
+    assert_true(oren_is_err(i32s) == false, 7842)
+    assert_eq(i32s, i32b, 7843)
+    assert_eq(bufferm.try_load_i32(i32b, 0), -7, 7844)
+    assert_true(oren_is_err(bufferm.try_load_i32(i32b, 2)), 7845)
+
+    var i64b = bufferm.i64_new(2)
+    assert_true(oren_is_err(i64b) == false, 7846)
+    var i64s = bufferm.try_store_i64(i64b, 1, 4294967296)
+    assert_true(oren_is_err(i64s) == false, 7847)
+    assert_eq(i64s, i64b, 7848)
+    assert_eq(bufferm.try_load_i64(i64b, 1), 4294967296, 7849)
+
+    return 0
+}
+
 @pack
 struct PV_H {
     v: u8,

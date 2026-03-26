@@ -4,6 +4,7 @@ import ints "../../lib/std/ints.oren"
 import assertm "../../lib/std/assert.oren"
 import strings "../../lib/std/strings.oren"
 import bytesm "../../lib/std/bytes.oren"
+import buffer "std:buffer"
 
 fn fail() {
     // Force a non-zero VM exit by triggering an index error.
@@ -124,6 +125,40 @@ fn test_std_bytes_smoke() {
     assert_eq(bytesm.try_get_i32_le(buf8, 0), -2)
     assert_true(oren_is_err(bytesm.try_put_u16_be(buf8, 7, 1)))
     assert_true(oren_is_err(bytesm.try_set_u16_be(buf8, 0, 70000)))
+}
+
+fn test_std_buffer_smoke() {
+    var i32b = buffer.i32_new(2)
+    assert_true(!oren_is_err(i32b))
+    assert_eq(buffer.try_len(i32b), 2)
+    var i32s = buffer.try_store_i32(i32b, 0, -7)
+    assert_true(!oren_is_err(i32s))
+    assert_eq(i32s, i32b)
+    assert_eq(buffer.try_load_i32(i32b, 0), -7)
+    assert_true(oren_is_err(buffer.try_load_i32(i32b, 2)))
+
+    var i64b = buffer.i64_new(2)
+    assert_true(!oren_is_err(i64b))
+    var i64s = buffer.try_store_i64(i64b, 1, 4294967296)
+    assert_true(!oren_is_err(i64s))
+    assert_eq(i64s, i64b)
+    assert_eq(buffer.try_load_i64(i64b, 1), 4294967296)
+
+    var f32b = buffer.f32_new(2)
+    assert_true(!oren_is_err(f32b))
+    var f32s = buffer.try_store_f32(f32b, 0, 1.5)
+    assert_true(!oren_is_err(f32s))
+    assert_eq(f32s, f32b)
+    assert_eq(buffer.try_load_f32(f32b, 0), 1.5)
+    assert_true(oren_is_err(buffer.try_load_f32(f32b, 2)))
+
+    var f64b = buffer.f64_new(2)
+    assert_true(!oren_is_err(f64b))
+    var f64s = buffer.try_store_f64(f64b, 1, -0.5)
+    assert_true(!oren_is_err(f64s))
+    assert_eq(f64s, f64b)
+    assert_eq(buffer.try_load_f64(f64b, 1), -0.5)
+    assert_true(oren_is_err(buffer.try_load_f64(f64b, 3)))
 }
 
 fn test_std_strings_smoke() {
@@ -1035,6 +1070,7 @@ fn main() {
     test_std_assert_smoke()
     test_assert_stmt()
     test_std_bytes_smoke()
+    test_std_buffer_smoke()
     test_std_strings_smoke()
     test_int_casts()
     test_int_casts_checked()

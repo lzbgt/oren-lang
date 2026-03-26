@@ -3281,6 +3281,12 @@ Planned direction:
 - a first-class `bytes` value type (packed)
 - typed numeric buffers (`f32[]`, `i32[]`) with bulk ops
 
+Rolling status:
+
+- `std:bytes` already exposes checked packet-style helpers over `list<int>` and `u8_buf`.
+- `std:buffer` already exposes checked typed-buffer helpers for `u8`, `i32`, `i64`, `f32`, and `f64`
+  loads/stores via `try_len`, `try_load_*`, and `try_store_*`.
+
 ### 6) Variadic ergonomics (without a huge ABI rewrite)
 
 Motivation:
