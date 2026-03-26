@@ -1018,6 +1018,41 @@ fn try_mat_col_strided(m, c) {
     return mat_col_strided(m, c)
 }
 
+fn mat_subview(m, row_off, col_off, rows, cols) {
+    if !_mat_is_list(m) { return _err_invalid("mat_subview: expects mat view") }
+    if row_off < 0 || col_off < 0 || rows < 0 || cols < 0 {
+        return _err_invalid("mat_subview: negative arg")
+    }
+    if row_off > m[2] || col_off > m[3] { return _err_invalid("mat_subview: offset out of bounds") }
+    if row_off + rows > m[2] || col_off + cols > m[3] { return _err_invalid("mat_subview: subview out of bounds") }
+    return mat_view_new(m[0], m[1] + row_off * m[4] + col_off, rows, cols, m[4])
+}
+
+fn try_mat_subview(m, row_off, col_off, rows, cols) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_subview: expects mat view") }
+    var ok_row_off = _check_nonneg_int(row_off, "buffer.try_mat_subview", "row_off")
+    if oren_is_err(ok_row_off) { return ok_row_off }
+    var ok_col_off = _check_nonneg_int(col_off, "buffer.try_mat_subview", "col_off")
+    if oren_is_err(ok_col_off) { return ok_col_off }
+    var ok_rows = _check_nonneg_int(rows, "buffer.try_mat_subview", "rows")
+    if oren_is_err(ok_rows) { return ok_rows }
+    var ok_cols = _check_nonneg_int(cols, "buffer.try_mat_subview", "cols")
+    if oren_is_err(ok_cols) { return ok_cols }
+    return mat_subview(m, row_off, col_off, rows, cols)
+}
+
+fn mat_diag_strided(m) {
+    if !_mat_is_list(m) { return _err_invalid("mat_diag_strided: expects mat view") }
+    var n = m[2]
+    if m[3] < n { n = m[3] }
+    return strided_new(m[0], m[1], n, m[4] + 1)
+}
+
+fn try_mat_diag_strided(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_diag_strided: expects mat view") }
+    return mat_diag_strided(m)
+}
+
 fn mat_load_f32(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_f32: expects mat view") }
     var rows = m[2]

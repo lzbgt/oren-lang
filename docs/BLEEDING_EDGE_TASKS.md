@@ -2229,6 +2229,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      existing checked `[]u8` view bridges instead of rebuilding row/column index math by hand;
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` matrix views now also expose checked submatrix and diagonal projections via
+     `try_mat_subview` and `try_mat_diag_strided`, so callers can keep composing zero-copy matrix,
+     slice, and strided views without open-coding offset math; covered by result smoke + native
+     quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
