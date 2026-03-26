@@ -144,6 +144,53 @@ fn main() {
     var f64_bad = buffer.try_load_f64(f64b, 3)
     if r.is_err(f64_bad) != true { return 53 }
 
+    var s_ok2 = buffer.try_slice_new(i32b, 0, 2)
+    if r.is_err(s_ok2) { return 186 }
+    var s_bad2 = buffer.try_slice_new(i32b, "x", 1)
+    if r.is_err(s_bad2) != true { return 187 }
+    var sv = buffer.try_slice_load_i32(s_ok2, 0)
+    if r.is_err(sv) || sv != -7 { return 188 }
+    var ss = buffer.try_slice_store_i32(s_ok2, 1, 9)
+    if r.is_err(ss) || ss != i32b { return 189 }
+    var sv2 = buffer.try_slice_load_i32(s_ok2, 1)
+    if r.is_err(sv2) || sv2 != 9 { return 190 }
+    var s_bad_idx = buffer.try_slice_load_i32(s_ok2, 2)
+    if r.is_err(s_bad_idx) != true { return 191 }
+    var s_sub = buffer.try_slice_slice(s_ok2, 1, 1)
+    if r.is_err(s_sub) || buffer.try_slice_len(s_sub) != 1 { return 192 }
+    var s_sub_v = buffer.try_slice_load_i32(s_sub, 0)
+    if r.is_err(s_sub_v) || s_sub_v != 9 { return 193 }
+
+    var stride_ok = buffer.try_strided_new(i32b, 0, 2, 1)
+    if r.is_err(stride_ok) { return 194 }
+    var stride_bad = buffer.try_strided_new(i32b, 0, 2, 0)
+    if r.is_err(stride_bad) != true { return 195 }
+    var stride_v = buffer.try_strided_load_i32(stride_ok, 1)
+    if r.is_err(stride_v) || stride_v != 9 { return 196 }
+    var stride_set = buffer.try_strided_store_i32(stride_ok, 0, 11)
+    if r.is_err(stride_set) || stride_set != i32b { return 197 }
+    var stride_v2 = buffer.try_strided_load_i32(stride_ok, 0)
+    if r.is_err(stride_v2) || stride_v2 != 11 { return 198 }
+    var stride_bad_idx = buffer.try_strided_load_i32(stride_ok, 2)
+    if r.is_err(stride_bad_idx) != true { return 199 }
+
+    var matb = buffer.i32_new(4)
+    if r.is_err(matb) { return 200 }
+    if r.is_err(buffer.try_store_i32(matb, 0, 1)) { return 201 }
+    if r.is_err(buffer.try_store_i32(matb, 1, 2)) { return 202 }
+    if r.is_err(buffer.try_store_i32(matb, 2, 3)) { return 203 }
+    if r.is_err(buffer.try_store_i32(matb, 3, 4)) { return 204 }
+    var mat = buffer.try_mat_view_new(matb, 0, 2, 2, 2)
+    if r.is_err(mat) { return 205 }
+    var mv = buffer.try_mat_load_i32(mat, 1, 0)
+    if r.is_err(mv) || mv != 3 { return 206 }
+    var ms = buffer.try_mat_store_i32(mat, 0, 1, 7)
+    if r.is_err(ms) || ms != matb { return 207 }
+    var mv2 = buffer.try_mat_load_i32(mat, 0, 1)
+    if r.is_err(mv2) || mv2 != 7 { return 208 }
+    var mat_bad = buffer.try_mat_load_i32(mat, 2, 0)
+    if r.is_err(mat_bad) != true { return 209 }
+
     var buf8 = buffer.u8_new(8)
     var w16 = bytes.try_put_u16_be(buf8, 0, 4660)
     if r.is_err(w16) { return 54 }

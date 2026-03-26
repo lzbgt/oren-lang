@@ -1,0 +1,58 @@
+@myorg.tag(name="avm-std-buffer-views-portable")
+
+import buffer "../../lib/std/buffer.oren"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn main() {
+    var i32b = buffer.i32_new(4)
+    assert_true(!oren_is_err(i32b))
+    assert_true(!oren_is_err(buffer.try_store_i32(i32b, 0, 1)))
+    assert_true(!oren_is_err(buffer.try_store_i32(i32b, 1, 2)))
+    assert_true(!oren_is_err(buffer.try_store_i32(i32b, 2, 3)))
+    assert_true(!oren_is_err(buffer.try_store_i32(i32b, 3, 4)))
+
+    var slice = buffer.try_slice_new(i32b, 1, 2)
+    assert_true(!oren_is_err(slice))
+    assert_eq(buffer.try_slice_len(slice), 2)
+    assert_eq(buffer.try_slice_load_i32(slice, 0), 2)
+    assert_true(!oren_is_err(buffer.try_slice_store_i32(slice, 1, 9)))
+    assert_eq(buffer.try_slice_load_i32(slice, 1), 9)
+    assert_true(oren_is_err(buffer.try_slice_new(i32b, "x", 1)))
+    assert_true(oren_is_err(buffer.try_slice_load_i32(slice, 2)))
+
+    var stride = buffer.try_strided_new(i32b, 0, 2, 2)
+    assert_true(!oren_is_err(stride))
+    assert_eq(buffer.try_strided_len(stride), 2)
+    assert_eq(buffer.try_strided_load_i32(stride, 0), 1)
+    assert_eq(buffer.try_strided_load_i32(stride, 1), 9)
+    assert_true(!oren_is_err(buffer.try_strided_store_i32(stride, 1, 11)))
+    assert_eq(buffer.try_strided_load_i32(stride, 1), 11)
+    assert_true(oren_is_err(buffer.try_strided_new(i32b, 0, 2, 0)))
+    assert_true(oren_is_err(buffer.try_strided_load_i32(stride, 2)))
+
+    var mat = buffer.try_mat_view_new(i32b, 0, 2, 2, 2)
+    assert_true(!oren_is_err(mat))
+    assert_eq(buffer.try_mat_load_i32(mat, 0, 1), 2)
+    assert_eq(buffer.try_mat_load_i32(mat, 1, 0), 11)
+    assert_true(!oren_is_err(buffer.try_mat_store_i32(mat, 1, 1, 13)))
+    assert_eq(buffer.try_mat_load_i32(mat, 1, 1), 13)
+    assert_true(oren_is_err(buffer.try_mat_load_i32(mat, 2, 0)))
+
+    print("avm std buffer views portable ok")
+    return 0
+}

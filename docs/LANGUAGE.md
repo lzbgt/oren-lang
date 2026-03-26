@@ -3287,7 +3287,8 @@ Rolling status:
 
 - `std:bytes` already exposes checked packet-style helpers over `list<int>` and `u8_buf`.
 - `std:buffer` already exposes checked typed-buffer helpers for `u8`, `i32`, `i64`, `f32`, and `f64`
-  loads/stores via `try_len`, `try_load_*`, and `try_store_*`.
+  loads/stores via `try_len`, `try_load_*`, and `try_store_*`, plus checked zero-copy view helpers
+  such as `try_slice_new`, `try_slice_load_i32`, `try_strided_new`, and `try_mat_view_new`.
 
 ### 6) Variadic ergonomics (without a huge ABI rewrite)
 

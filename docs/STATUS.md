@@ -629,10 +629,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (2026-03-26).
    - New: `std:bytes` hex helpers (`try_from_hex`/`try_to_hex`) validate inputs and
      return `oren_err` on invalid values; covered by result smoke fixture (2026-03-05).
-   - New: `std:buffer` structured helpers now cover the common typed-buffer surface too
-     (`try_len`, `try_load/try_store_u8`, `try_load/try_store_i32`, `try_load/try_store_i64`,
-     `try_load/try_store_f32`, `try_load/try_store_f64`) and return `oren_err` on invalid input;
-     covered by result smoke + native quick integration + AVM smoke (2026-03-26).
+   - New: `std:buffer` structured helpers now cover the common typed-buffer surface and zero-copy
+     view surface too (`try_len`, `try_load/try_store_u8`, `try_load/try_store_i32`,
+     `try_load/try_store_i64`, `try_load/try_store_f32`, `try_load/try_store_f64`,
+     `try_slice_*`, `try_strided_*`, `try_mat_view_new`, `try_mat_load/store_i32`,
+     `try_mat_load/store_f32`) and return `oren_err` on invalid input; covered by result smoke +
+     native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
