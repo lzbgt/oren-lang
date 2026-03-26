@@ -67,6 +67,10 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   `try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_strided_to_u8_buf`,
   and `try_strided_copy_from_string`; covered by result smoke + native quick integration +
   dedicated AVM buffer-view smoke.
+- New (2026-03-27): `std:buffer` now also exposes the missing symmetric `[]u8` view helpers
+  for unpack/copy-on-buffer paths: `try_slice_unpack_u8`, `try_strided_unpack_u8`,
+  `try_slice_copy_from_u8_buf`, and `try_strided_copy_from_u8_buf`; covered by result smoke +
+  native quick integration + dedicated AVM buffer-view smoke.
 
 Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
 
