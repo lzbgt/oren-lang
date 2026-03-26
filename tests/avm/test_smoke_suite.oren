@@ -135,6 +135,17 @@ fn test_std_bytes_smoke() {
     assert_true(!oren_is_err(bytesm.try_put_i64_be(buf8, 0, -2)))
     assert_eq(bytesm.try_get_i64_be(buf8, 0), -2)
     assert_true(oren_is_err(bytesm.try_put_u64_be(buf8, 0, -1)))
+    assert_eq(bytesm.try_to_string(bytesm.try_from_string("ok")), "ok")
+    assert_eq(bytesm.try_unpack(bytesm.try_pack([1, 2, 3]))[2], 3)
+    assert_true(oren_is_err(bytesm.try_from_string(123)))
+    assert_true(oren_is_err(bytesm.try_pack(123)))
+    assert_true(oren_is_err(bytesm.try_unpack("nope")))
+    var ub2 = oren_u8_buf_new(2)
+    if oren_is_err(ub2) { fail() }
+    assert_true(!oren_is_err(oren_buf_store_u8(ub2, 0, 65)))
+    assert_true(!oren_is_err(oren_buf_store_u8(ub2, 1, 66)))
+    assert_eq(bytesm.try_to_string(ub2), "AB")
+    assert_eq(bytesm.to_string(ub2), "AB")
 }
 
 fn test_std_buffer_smoke() {

@@ -13,6 +13,8 @@
 // - This is a lightweight stdlib helper while built-in `assert`/`test` are still planned.
 // - Pass nil or "" for msg if you want a generic failure line.
 
+import strings "std:strings"
+
 fn _assert_fail(prefix, msg) {
     var out = prefix
     if msg != nil && msg != "" { out = out + msg }
@@ -39,7 +41,7 @@ fn assert_ne(a, b, msg) {
 }
 
 fn assert_streq(a, b, msg) {
-    if strcmp(a, b) == 0 { return 0 }
+    if strings.streq(a, b) { return 0 }
     _assert_fail("assert_streq failed: ", msg)
     return 0
 }

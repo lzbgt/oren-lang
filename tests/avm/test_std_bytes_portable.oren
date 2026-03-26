@@ -1,0 +1,59 @@
+@myorg.tag(name="avm-std-bytes-portable")
+
+import assertm "../../lib/std/assert.oren"
+import bytesm "../../lib/std/bytes.oren"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_bytes_conversions() {
+    var bs = bytesm.try_from_string("ok")
+    assert_true(!oren_is_err(bs))
+    assert_eq(bytesm.try_to_string(bs), "ok")
+
+    var packed = bytesm.try_pack([1, 2, 3])
+    assert_true(!oren_is_err(packed))
+    var unpacked = bytesm.try_unpack(packed)
+    assert_true(!oren_is_err(unpacked))
+    assert_eq(oren_list_len(unpacked), 3)
+    assert_eq(unpacked[0], 1)
+    assert_eq(unpacked[1], 2)
+    assert_eq(unpacked[2], 3)
+
+    assert_true(oren_is_err(bytesm.try_from_string(123)))
+    assert_true(oren_is_err(bytesm.try_pack(123)))
+    assert_true(oren_is_err(bytesm.try_unpack("nope")))
+}
+
+fn test_bytes_u8_buf_to_string() {
+    var ub = oren_u8_buf_new(2)
+    assert_true(!oren_is_err(ub))
+    assert_true(!oren_is_err(oren_buf_store_u8(ub, 0, 65)))
+    assert_true(!oren_is_err(oren_buf_store_u8(ub, 1, 66)))
+    assert_eq(bytesm.try_to_string(ub), "AB")
+    assert_eq(bytesm.to_string(ub), "AB")
+}
+
+fn test_assert_streq_portable() {
+    assertm.assert_streq("ok", "ok", "avm std assert_streq portable")
+}
+
+fn main() {
+    test_bytes_conversions()
+    test_bytes_u8_buf_to_string()
+    test_assert_streq_portable()
+    return 0
+}

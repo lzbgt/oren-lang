@@ -3029,11 +3029,12 @@ Error behavior (portable rule):
 - Use `oren_is_err(v) -> bool` to test for this in a backend-portable way:
   - `if oren_is_err(x) { ... }`
   - Do **not** treat numeric `0/1` as booleans: in Oren, `0` is truthy; only `nil` and `false` are falsey.
-- Stdlib note: `std:bytes` now exposes checked wrappers for the common multi-byte packet helpers too,
-  including signed and 64-bit packet writes such as `bytes.try_get_u16_be`, `bytes.try_get_u32_le`,
+- Stdlib note: `std:bytes` now exposes checked wrappers for the common packet and conversion helpers,
+  including signed and 64-bit writes such as `bytes.try_get_u16_be`, `bytes.try_get_u32_le`,
   `bytes.try_put_i16_le`, `bytes.try_put_i32_be`, `bytes.try_put_u64_le`, `bytes.try_put_i64_be`,
-  and `bytes.try_set_i32_le`, so application code can stay on the portable structured-error surface
-  instead of calling raw `oren_bytes_*` helpers directly.
+  `bytes.try_set_i32_le`, plus conversion helpers such as `bytes.try_from_string`,
+  `bytes.try_to_string`, `bytes.try_pack`, and `bytes.try_unpack`, so application code can stay
+  on the portable structured-error surface instead of calling raw `oren_bytes_*` helpers directly.
 
 Future direction (syntax sugar; no rewrite required):
 

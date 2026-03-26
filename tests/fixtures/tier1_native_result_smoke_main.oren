@@ -185,6 +185,28 @@ fn main() {
     if r.is_err(gi64) || gi64 != -2 { return 72 }
     var bad_put_u64 = bytes.try_put_u64_be(buf8, 0, -1)
     if r.is_err(bad_put_u64) != true { return 73 }
+    var bs = bytes.try_from_string("ok")
+    if r.is_err(bs) { return 74 }
+    var s_ok = bytes.try_to_string(bs)
+    if r.is_err(s_ok) || s_ok != "ok" { return 75 }
+    var packed = bytes.try_pack([1, 2, 3])
+    if r.is_err(packed) { return 76 }
+    var unpacked = bytes.try_unpack(packed)
+    if r.is_err(unpacked) || oren_list_len(unpacked) != 3 || unpacked[2] != 3 { return 77 }
+    var bad_str = bytes.try_from_string(123)
+    if r.is_err(bad_str) != true { return 78 }
+    var bad_pack2 = bytes.try_pack(123)
+    if r.is_err(bad_pack2) != true { return 79 }
+    var bad_unpack2 = bytes.try_unpack("nope")
+    if r.is_err(bad_unpack2) != true { return 80 }
+    var ub3 = buffer.u8_new(2)
+    if r.is_err(ub3) { return 81 }
+    if r.is_err(oren_buf_store_u8(ub3, 0, 65)) { return 82 }
+    if r.is_err(oren_buf_store_u8(ub3, 1, 66)) { return 83 }
+    var us = bytes.try_to_string(ub3)
+    if r.is_err(us) || us != "AB" { return 84 }
+    var us2 = bytes.to_string(ub3)
+    if r.is_err(us2) || us2 != "AB" { return 85 }
 
     return 0
 }
