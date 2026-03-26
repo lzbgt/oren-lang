@@ -298,6 +298,9 @@ fn main() {
     if r.is_err(buffer.try_store_i32(matb, 3, 4)) { return 204 }
     var mat = buffer.try_mat_view_new(matb, 0, 2, 2, 2)
     if r.is_err(mat) { return 205 }
+    if buffer.try_mat_rows(mat) != 2 { return 256 }
+    if buffer.try_mat_cols(mat) != 2 { return 257 }
+    if buffer.try_mat_row_stride(mat) != 2 { return 258 }
     var mv = buffer.try_mat_load_i32(mat, 1, 0)
     if r.is_err(mv) || mv != 3 { return 206 }
     var ms = buffer.try_mat_store_i32(mat, 0, 1, 7)
@@ -306,6 +309,38 @@ fn main() {
     if r.is_err(mv2) || mv2 != 7 { return 208 }
     var mat_bad = buffer.try_mat_load_i32(mat, 2, 0)
     if r.is_err(mat_bad) != true { return 209 }
+
+    var i64m = buffer.i64_new(4)
+    if r.is_err(i64m) { return 259 }
+    if r.is_err(buffer.try_store_i64(i64m, 0, 100)) { return 260 }
+    if r.is_err(buffer.try_store_i64(i64m, 1, 200)) { return 261 }
+    if r.is_err(buffer.try_store_i64(i64m, 2, 300)) { return 262 }
+    if r.is_err(buffer.try_store_i64(i64m, 3, 400)) { return 263 }
+    var mat64 = buffer.try_mat_view_new(i64m, 0, 2, 2, 2)
+    if r.is_err(mat64) { return 264 }
+    var mv64 = buffer.try_mat_load_i64(mat64, 1, 0)
+    if r.is_err(mv64) || mv64 != 300 { return 265 }
+    var ms64 = buffer.try_mat_store_i64(mat64, 0, 1, 777)
+    if r.is_err(ms64) || ms64 != i64m { return 266 }
+    var mv64b = buffer.try_mat_load_i64(mat64, 0, 1)
+    if r.is_err(mv64b) || mv64b != 777 { return 267 }
+    if r.is_err(buffer.try_mat_store_i64(mat64, 0, 0, "nope")) != true { return 268 }
+    if r.is_err(buffer.try_mat_load_i64(mat64, 2, 0)) != true { return 269 }
+
+    var f64m = buffer.f64_new(4)
+    if r.is_err(f64m) { return 270 }
+    if r.is_err(buffer.try_store_f64(f64m, 0, 1.5)) { return 271 }
+    if r.is_err(buffer.try_store_f64(f64m, 1, 2.5)) { return 272 }
+    if r.is_err(buffer.try_store_f64(f64m, 2, 3.5)) { return 273 }
+    if r.is_err(buffer.try_store_f64(f64m, 3, 4.5)) { return 274 }
+    var matf64 = buffer.try_mat_view_new(f64m, 0, 2, 2, 2)
+    if r.is_err(matf64) { return 275 }
+    if r.is_err(buffer.try_mat_load_f64(matf64, 1, 1)) { return 276 }
+    var msf64 = buffer.try_mat_store_f64(matf64, 0, 0, 9.5)
+    if r.is_err(msf64) || msf64 != f64m { return 277 }
+    if r.is_err(buffer.try_mat_load_f64(matf64, 0, 0)) { return 278 }
+    if r.is_err(buffer.try_mat_rows("nope")) != true { return 279 }
+    if r.is_err(buffer.try_mat_load_f64(matf64, 2, 0)) != true { return 280 }
 
     var buf8 = buffer.u8_new(8)
     var w16 = bytes.try_put_u16_be(buf8, 0, 4660)
