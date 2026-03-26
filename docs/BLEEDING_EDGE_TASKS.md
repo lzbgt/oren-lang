@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-03-20
+**Last updated:** 2026-03-27
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -2293,6 +2293,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      surface for numeric row/column extraction and refill without hand-writing view loops; covered
      by result smoke + native quick integration + dedicated AVM buffer-view smoke, with exact float
      value proof kept in AVM and non-error/shape proof kept in shared native fixtures (2026-03-27).
+   - Refactor: `std:buffer` slice/strided implementation now lives in `lib/std/buffer/view.oren`
+     behind the unchanged public `std:buffer` facade, which brings `lib/std/buffer.oren` back under
+     the 2000-line structural threshold without changing the checked view API; covered by dedicated
+     AVM buffer-view smoke, native quick integration, and full `make test` (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
      which removes raw truthy-value leakage from `== true` / `!= true` checks; covered by native
      module-result smoke, result smoke, native quick, and full `make test` (2026-03-27).
@@ -2313,6 +2317,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Done: `lib/compiler/optimizer_loops.oren` split into list/arena modules (<2000 lines each).
    - Done: `lib/compiler/optimizer.oren` split into core/fold/DCE/list-int/list-reserve/TCO modules (<2000 lines each).
    - Done: `lib/runtime_native/100_time_gc_alloc.oren` split into trace/index/core modules (<2000 lines each).
+   - Done: `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`
+     (<2000 lines each, 2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
      `avm_cli_disasm`, `avm_cli_dump`) (<2000 lines each, 2026-02-25).

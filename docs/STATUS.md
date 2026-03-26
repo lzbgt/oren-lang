@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-03-20
+**Last updated:** 2026-03-27
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -717,6 +717,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      result smoke + native quick integration + dedicated AVM buffer-view smoke, with exact float
      value proof kept in AVM and non-error/shape proof kept in shared native fixtures
      (2026-03-27).
+   - Refactor: `std:buffer` slice/strided implementation now lives in `lib/std/buffer/view.oren`
+     behind the unchanged public `std:buffer` API, which brings `lib/std/buffer.oren` back under
+     the 2000-line structural threshold without changing the checked view semantics; covered by
+     dedicated AVM buffer-view smoke, native quick integration, and full `make test` (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
      so `== true` / `!= true` checks no longer depend on raw backend truthy values; covered by
      native module-result smoke, result smoke, native quick, and full `make test` (2026-03-27).
@@ -742,7 +746,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 8) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
-     - None >2000 lines (2026-03-03).
+     - None >2000 lines (2026-03-27).
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
        `lib/compiler/arm64_native_gc.oren` (2026-02-25).
@@ -758,6 +762,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        (all <2000 lines, 2026-02-25).
      - `lib/runtime_native/100_time_gc_alloc.oren` core split into scan/reuse, list_hdr, track, roots_gc
        modules (all <2000 lines, 2026-03-03).
+     - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`, keeping the
+       top-level stdlib module <2000 lines while leaving matrix helpers in place (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).
