@@ -4,9 +4,11 @@
 // can stay focused on shared matrix-view primitives and row/column bridges.
 
 import bytesm "std:bytes"
-import core "std:buffer/mat_core"
 import mshared "std:buffer/mat_shared"
+import core "std:buffer/mat_core"
+import proj "std:buffer/mat_proj"
 import raw "std:buffer/raw"
+import view "std:buffer/view"
 
 fn _err_invalid(msg) { return core._err_invalid(msg) }
 fn _is_int(v) { return core._is_int(v) }
@@ -36,15 +38,15 @@ fn i32_new(n) { return raw.i32_new(n) }
 fn i64_new(n) { return raw.i64_new(n) }
 fn f32_new(n) { return raw.f32_new(n) }
 fn f64_new(n) { return raw.f64_new(n) }
-fn try_slice_store_u8(s, idx, v) { return core.try_slice_store_u8(s, idx, v) }
-fn try_slice_unpack_u8(s) { return core.try_slice_unpack_u8(s) }
-fn try_slice_to_string(s) { return core.try_slice_to_string(s) }
-fn try_slice_copy_from_string(s, text) { return core.try_slice_copy_from_string(s, text) }
+fn try_slice_store_u8(s, idx, v) { return view.try_slice_store_u8(s, idx, v) }
+fn try_slice_unpack_u8(s) { return view.try_slice_unpack_u8(s) }
+fn try_slice_to_string(s) { return view.try_slice_to_string(s) }
+fn try_slice_copy_from_string(s, text) { return view.try_slice_copy_from_string(s, text) }
 fn try_u8_to_bytes(buf) { return raw.try_u8_to_bytes(buf) }
 fn try_mat_view_new(buf, off, rows, cols, row_stride) { return core.try_mat_view_new(buf, off, rows, cols, row_stride) }
-fn try_mat_row_slice(m, r) { return core.try_mat_row_slice(m, r) }
-fn try_mat_row_unpack_u8(m, r) { return core.try_mat_row_unpack_u8(m, r) }
-fn try_mat_row_copy_from_string(m, r, text) { return core.try_mat_row_copy_from_string(m, r, text) }
+fn try_mat_row_slice(m, r) { return proj.try_mat_row_slice(m, r) }
+fn try_mat_row_unpack_u8(m, r) { return proj.try_mat_row_unpack_u8(m, r) }
+fn try_mat_row_copy_from_string(m, r, text) { return proj.try_mat_row_copy_from_string(m, r, text) }
 fn try_mat_load_i32(m, r, c) { return core.try_mat_load_i32(m, r, c) }
 fn try_mat_store_i32(m, r, c, v) { return core.try_mat_store_i32(m, r, c, v) }
 fn try_mat_load_i64(m, r, c) { return core.try_mat_load_i64(m, r, c) }
