@@ -620,8 +620,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      payloads; covered by result smoke fixture (2026-03-05).
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
-   - New: `std:bytes` structured helpers (`try_len`/`try_get_u8`/`try_set_u8`) return
-     `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
+   - New: `std:bytes` structured helpers now cover the common packet-style multi-byte surface too
+     (`try_get_u16/u32/u64_*`, `try_get_i16/i32/i64_*`, `try_put_u16/u32_*`,
+     `try_set_u16/i16/u32/i32/u64/i64_*`) and return `oren_err` on invalid input across
+     `list<int>` and `u8_buf`; covered by result smoke + native quick integration + AVM smoke
+     (2026-03-26).
    - New: `std:bytes` hex helpers (`try_from_hex`/`try_to_hex`) validate inputs and
      return `oren_err` on invalid values; covered by result smoke fixture (2026-03-05).
    - New: `std:buffer` structured helpers (`try_len`/`try_load_u8`/`try_store_u8`) return

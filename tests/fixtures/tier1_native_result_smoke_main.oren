@@ -94,14 +94,47 @@ fn main() {
     var hex = bytes.try_to_hex(b)
     if r.is_err(hex) || hex != "00ff" { return 30 }
 
+    var pkt = bytes.from_hex("12340102030405060708")
+    if r.is_err(pkt) { return 31 }
+    var v16 = bytes.try_get_u16_be(pkt, 0)
+    if r.is_err(v16) || v16 != 4660 { return 32 }
+    var v32 = bytes.try_get_u32_be(pkt, 2)
+    if r.is_err(v32) || v32 != 16909060 { return 33 }
+    var v64 = bytes.try_get_u64_be(pkt, 2)
+    if r.is_err(v64) || v64 != 72623859790382856 { return 34 }
+    var bad_u32 = bytes.try_get_u32_be(pkt, 7)
+    if r.is_err(bad_u32) != true { return 35 }
+
     // std:buffer structured errors
     var ub = buffer.u8_new(3)
     var ub_len = buffer.try_len(ub)
-    if r.is_err(ub_len) || ub_len != 3 { return 31 }
+    if r.is_err(ub_len) || ub_len != 3 { return 36 }
     var ub_bad = buffer.try_load_u8(ub, 3)
-    if r.is_err(ub_bad) != true { return 32 }
+    if r.is_err(ub_bad) != true { return 37 }
     var ub_bad_set = buffer.try_store_u8(ub, 0, 300)
-    if r.is_err(ub_bad_set) != true { return 33 }
+    if r.is_err(ub_bad_set) != true { return 38 }
+
+    var buf8 = buffer.u8_new(8)
+    var w16 = bytes.try_put_u16_be(buf8, 0, 4660)
+    if r.is_err(w16) { return 39 }
+    var r16 = bytes.try_get_u16_be(buf8, 0)
+    if r.is_err(r16) || r16 != 4660 { return 40 }
+    var w32 = bytes.try_put_u32_le(buf8, 2, 16909060)
+    if r.is_err(w32) { return 41 }
+    var r32 = bytes.try_get_u32_le(buf8, 2)
+    if r.is_err(r32) || r32 != 16909060 { return 42 }
+    var s32 = bytes.try_set_i32_le(buf8, 0, -2)
+    if r.is_err(s32) || s32 != -2 { return 43 }
+    var g32 = bytes.try_get_i32_le(buf8, 0)
+    if r.is_err(g32) || g32 != -2 { return 44 }
+    var bad_put = bytes.try_put_u16_be(buf8, 7, 1)
+    if r.is_err(bad_put) != true { return 45 }
+    var bad_range = bytes.try_set_u16_be(buf8, 0, 70000)
+    if r.is_err(bad_range) != true { return 46 }
+    var s64 = bytes.try_set_u64_be(buf8, 0, 72623859790382856)
+    if r.is_err(s64) || s64 != 72623859790382856 { return 47 }
+    var g64 = bytes.try_get_u64_be(buf8, 0)
+    if r.is_err(g64) || g64 != 72623859790382856 { return 48 }
 
     return 0
 }

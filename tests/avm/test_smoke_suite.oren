@@ -106,6 +106,24 @@ fn test_std_bytes_smoke() {
     assert_eq(oren_list_len(xs), 2)
     assert_eq(xs[1], 8)
     assert_eq(bytesm.to_string(bytesm.from_string("ok")), "ok")
+
+    var pkt = bytesm.from_hex("12340102030405060708")
+    if oren_is_err(pkt) { fail() }
+    assert_eq(bytesm.try_get_u16_be(pkt, 0), 4660)
+    assert_eq(bytesm.try_get_u32_be(pkt, 2), 16909060)
+    assert_eq(bytesm.try_get_u64_be(pkt, 2), 72623859790382856)
+    assert_true(oren_is_err(bytesm.try_get_u32_be(pkt, 7)))
+
+    var buf8 = oren_u8_buf_new(8)
+    if oren_is_err(buf8) { fail() }
+    assert_true(!oren_is_err(bytesm.try_put_u16_be(buf8, 0, 4660)))
+    assert_eq(bytesm.try_get_u16_be(buf8, 0), 4660)
+    assert_true(!oren_is_err(bytesm.try_put_u32_le(buf8, 2, 16909060)))
+    assert_eq(bytesm.try_get_u32_le(buf8, 2), 16909060)
+    assert_eq(bytesm.try_set_i32_le(buf8, 0, -2), -2)
+    assert_eq(bytesm.try_get_i32_le(buf8, 0), -2)
+    assert_true(oren_is_err(bytesm.try_put_u16_be(buf8, 7, 1)))
+    assert_true(oren_is_err(bytesm.try_set_u16_be(buf8, 0, 70000)))
 }
 
 fn test_std_strings_smoke() {
