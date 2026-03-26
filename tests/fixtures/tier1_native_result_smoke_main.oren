@@ -457,6 +457,43 @@ fn main() {
     var packed_rows_after = buffer.try_u8_mat_unpack_strings(packed_string_mat)
     if r.is_err(packed_rows_after) { return 361 }
     if packed_rows_after[0] != "P1Z" || packed_rows_after[1] != "Qvw" { return 362 }
+    var flat_mat = buffer.try_u8_mat_pack_strings(["AB", "CD"])
+    if r.is_err(flat_mat) { return 363 }
+    var flat_bytes = buffer.try_u8_mat_to_bytes(flat_mat)
+    if r.is_err(flat_bytes) { return 364 }
+    var flat_bytes_s = bytes.try_to_string(flat_bytes)
+    if r.is_err(flat_bytes_s) || flat_bytes_s != "ABCD" { return 365 }
+    var flat_u8 = buffer.try_u8_mat_to_u8_buf(flat_mat)
+    if r.is_err(flat_u8) { return 366 }
+    var flat_u8_s = buffer.try_u8_to_string(flat_u8)
+    if r.is_err(flat_u8_s) || flat_u8_s != "ABCD" { return 367 }
+    var flat_s = buffer.try_u8_mat_to_string(flat_mat)
+    if r.is_err(flat_s) || flat_s != "ABCD" { return 368 }
+    var flat_list = buffer.try_u8_mat_unpack_u8(flat_mat)
+    if r.is_err(flat_list) { return 369 }
+    if flat_list[0] != 65 || flat_list[3] != 68 { return 370 }
+    if r.is_err(buffer.try_u8_mat_copy_from_string(flat_mat, "WXYZ")) { return 371 }
+    var flat_rows1 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(flat_rows1) || flat_rows1[0] != "WX" || flat_rows1[1] != "YZ" { return 372 }
+    var qrst = bytes.try_from_string("qrst")
+    if r.is_err(qrst) { return 373 }
+    if r.is_err(buffer.try_u8_mat_copy_from_bytes(flat_mat, qrst)) { return 374 }
+    var flat_rows2 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(flat_rows2) || flat_rows2[0] != "qr" || flat_rows2[1] != "st" { return 375 }
+    var lmno = buffer.try_u8_from_string("lmno")
+    if r.is_err(lmno) { return 376 }
+    if r.is_err(buffer.try_u8_mat_copy_from_u8_buf(flat_mat, lmno)) { return 377 }
+    var flat_rows3 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(flat_rows3) || flat_rows3[0] != "lm" || flat_rows3[1] != "no" { return 378 }
+    if r.is_err(buffer.try_u8_mat_copy_from_rows(flat_mat, [[49, 50], [51, 52]])) { return 379 }
+    var flat_s2 = buffer.try_u8_mat_to_string(flat_mat)
+    if r.is_err(flat_s2) || flat_s2 != "1234" { return 380 }
+    if r.is_err(buffer.try_u8_mat_copy_from_strings(flat_mat, ["aa", "bb"])) { return 381 }
+    var flat_rows4 = buffer.try_u8_mat_unpack_strings(flat_mat)
+    if r.is_err(flat_rows4) || flat_rows4[0] != "aa" || flat_rows4[1] != "bb" { return 382 }
+    if r.is_err(buffer.try_u8_mat_copy_from_string(flat_mat, "xyz")) != true { return 383 }
+    if r.is_err(buffer.try_u8_mat_copy_from_rows(flat_mat, [[1], [2]])) != true { return 384 }
+    if r.is_err(buffer.try_u8_mat_copy_from_strings(flat_mat, ["a", "bb"])) != true { return 385 }
     if r.is_err(buffer.try_u8_mat_pack_strings(["A", "BC"])) != true { return 334 }
     if r.is_err(buffer.try_u8_mat_pack_strings([123])) != true { return 335 }
 
