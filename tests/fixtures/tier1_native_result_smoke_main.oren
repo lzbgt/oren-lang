@@ -270,14 +270,38 @@ fn main() {
     if r.is_err(bad_pack2) != true { return 79 }
     var bad_unpack2 = bytes.try_unpack("nope")
     if r.is_err(bad_unpack2) != true { return 80 }
+    var sub = bytes.try_slice(bytes.try_from_string("hello"), 1, 3)
+    if r.is_err(sub) || bytes.try_to_string(sub) != "ell" { return 81 }
+    var bad_slice = bytes.try_slice(sub, -1, 1)
+    if r.is_err(bad_slice) != true { return 82 }
+    var cat = bytes.try_concat(bytes.try_from_string("ab"), bytes.try_from_string("CD"))
+    if r.is_err(cat) || bytes.try_to_string(cat) != "abCD" { return 83 }
+    var bad_cat = bytes.try_concat(123, cat)
+    if r.is_err(bad_cat) != true { return 84 }
+    var dst = bytes.try_from_string("hello")
+    if r.is_err(dst) { return 85 }
+    var copy = bytes.try_copy_into(dst, 1, bytes.try_from_string("XY"), 0, 2)
+    if r.is_err(copy) || copy != dst { return 86 }
+    var dsts = bytes.try_to_string(dst)
+    if r.is_err(dsts) || dsts != "hXYlo" { return 87 }
+    var bad_copy = bytes.try_copy_into(dst, 4, bytes.try_from_string("XY"), 0, 2)
+    if r.is_err(bad_copy) != true { return 88 }
     var ub3 = buffer.u8_new(2)
-    if r.is_err(ub3) { return 81 }
-    if r.is_err(oren_buf_store_u8(ub3, 0, 65)) { return 82 }
-    if r.is_err(oren_buf_store_u8(ub3, 1, 66)) { return 83 }
+    if r.is_err(ub3) { return 89 }
+    if r.is_err(oren_buf_store_u8(ub3, 0, 65)) { return 90 }
+    if r.is_err(oren_buf_store_u8(ub3, 1, 66)) { return 91 }
     var us = bytes.try_to_string(ub3)
-    if r.is_err(us) || us != "AB" { return 84 }
+    if r.is_err(us) || us != "AB" { return 92 }
     var us2 = bytes.to_string(ub3)
-    if r.is_err(us2) || us2 != "AB" { return 85 }
+    if r.is_err(us2) || us2 != "AB" { return 93 }
+    var from_buf = bytes.try_from_u8_buf(ub3)
+    if r.is_err(from_buf) || bytes.try_to_string(from_buf) != "AB" { return 94 }
+    var to_buf = bytes.try_to_u8_buf(bytes.try_from_string("CD"))
+    if r.is_err(to_buf) || buffer.try_u8_to_string(to_buf) != "CD" { return 95 }
+    var bad_from_buf = bytes.try_from_u8_buf("nope")
+    if r.is_err(bad_from_buf) != true { return 96 }
+    var bad_to_buf = bytes.try_to_u8_buf(123)
+    if r.is_err(bad_to_buf) != true { return 97 }
 
     return 0
 }

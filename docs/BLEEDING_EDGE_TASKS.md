@@ -2182,13 +2182,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      payloads; covered by result smoke fixture (2026-03-05).
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
-   - New: `std:bytes` structured helpers now cover the common packet-style multi-byte surface and
-     conversion surface too
+   - New: `std:bytes` structured helpers now cover the common packet-style multi-byte surface,
+     slice/copy surface, and conversion surface too
      (`try_get_u16/u32/u64_*`, `try_get_i16/i32/i64_*`, `try_put_u16/i16/u32/i32/u64/i64_*`,
      `try_set_u16/i16/u32/i32/u64/i64_*`, `try_from_string`, `try_to_string`, `try_pack`,
-     `try_unpack`) and return `oren_err` on invalid input across `list<int>` and `u8_buf`;
-     covered by result smoke + native quick integration + AVM smoke
-     (2026-03-26).
+     `try_unpack`, `try_slice`, `try_concat`, `try_copy_into`, `try_from_u8_buf`,
+     `try_to_u8_buf`) and return `oren_err` on invalid input across `list<int>` and `u8_buf`;
+     covered by result smoke + native quick integration + dedicated AVM bytes smoke
+     (2026-03-27).
    - New: `std:bytes` hex helpers (`try_from_hex`/`try_to_hex`) validate inputs and
      return `oren_err` on invalid values; covered by result smoke fixture (2026-03-05).
    - New: `std:buffer` structured helpers now cover the common typed-buffer surface and zero-copy

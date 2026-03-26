@@ -3029,12 +3029,14 @@ Error behavior (portable rule):
 - Use `oren_is_err(v) -> bool` to test for this in a backend-portable way:
   - `if oren_is_err(x) { ... }`
   - Do **not** treat numeric `0/1` as booleans: in Oren, `0` is truthy; only `nil` and `false` are falsey.
-- Stdlib note: `std:bytes` now exposes checked wrappers for the common packet and conversion helpers,
-  including signed and 64-bit writes such as `bytes.try_get_u16_be`, `bytes.try_get_u32_le`,
-  `bytes.try_put_i16_le`, `bytes.try_put_i32_be`, `bytes.try_put_u64_le`, `bytes.try_put_i64_be`,
-  `bytes.try_set_i32_le`, plus conversion helpers such as `bytes.try_from_string`,
-  `bytes.try_to_string`, `bytes.try_pack`, and `bytes.try_unpack`, so application code can stay
-  on the portable structured-error surface instead of calling raw `oren_bytes_*` helpers directly.
+- Stdlib note: `std:bytes` now exposes checked wrappers for the common packet, slice/copy, and
+  conversion helpers, including signed and 64-bit writes such as `bytes.try_get_u16_be`,
+  `bytes.try_get_u32_le`, `bytes.try_put_i16_le`, `bytes.try_put_i32_be`, `bytes.try_put_u64_le`,
+  `bytes.try_put_i64_be`, `bytes.try_set_i32_le`, plus conversion helpers such as
+  `bytes.try_from_string`, `bytes.try_to_string`, `bytes.try_pack`, `bytes.try_unpack`,
+  `bytes.try_slice`, `bytes.try_concat`, `bytes.try_copy_into`, `bytes.try_from_u8_buf`, and
+  `bytes.try_to_u8_buf`, so application code can stay on the portable structured-error surface
+  instead of calling raw `oren_bytes_*` helpers directly.
 
 Future direction (syntax sugar; no rewrite required):
 
@@ -3285,7 +3287,8 @@ Planned direction:
 
 Rolling status:
 
-- `std:bytes` already exposes checked packet-style helpers over `list<int>` and `u8_buf`.
+- `std:bytes` already exposes checked packet-style helpers over `list<int>` and `u8_buf`, plus
+  checked slice/concat/copy and `[]u8` bridge helpers.
 - `std:buffer` already exposes checked typed-buffer helpers for `u8`, `i32`, `i64`, `f32`, and `f64`
   loads/stores via `try_len`, `try_load_*`, and `try_store_*`, plus checked zero-copy view helpers
   such as `try_slice_new`, `try_slice_load_i32`, `try_strided_new`, and `try_mat_view_new`, plus

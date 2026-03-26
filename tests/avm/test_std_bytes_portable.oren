@@ -1,6 +1,7 @@
 @myorg.tag(name="avm-std-bytes-portable")
 
 import assertm "../../lib/std/assert.oren"
+import bufferm "../../lib/std/buffer.oren"
 import bytesm "../../lib/std/bytes.oren"
 
 fn fail() {
@@ -36,6 +37,22 @@ fn test_bytes_conversions() {
     assert_true(oren_is_err(bytesm.try_from_string(123)))
     assert_true(oren_is_err(bytesm.try_pack(123)))
     assert_true(oren_is_err(bytesm.try_unpack("nope")))
+
+    var sub = bytesm.try_slice(bytesm.try_from_string("hello"), 1, 3)
+    assert_true(!oren_is_err(sub))
+    assert_eq(bytesm.try_to_string(sub), "ell")
+    assert_true(oren_is_err(bytesm.try_slice(bs, -1, 1)))
+
+    var cat = bytesm.try_concat(bytesm.try_from_string("ab"), bytesm.try_from_string("CD"))
+    assert_true(!oren_is_err(cat))
+    assert_eq(bytesm.try_to_string(cat), "abCD")
+    assert_true(oren_is_err(bytesm.try_concat(123, cat)))
+
+    var dst = bytesm.try_from_string("hello")
+    assert_true(!oren_is_err(dst))
+    assert_true(!oren_is_err(bytesm.try_copy_into(dst, 1, bytesm.try_from_string("XY"), 0, 2)))
+    assert_eq(bytesm.try_to_string(dst), "hXYlo")
+    assert_true(oren_is_err(bytesm.try_copy_into(dst, 4, bytesm.try_from_string("XY"), 0, 2)))
 }
 
 fn test_bytes_u8_buf_to_string() {
@@ -45,6 +62,17 @@ fn test_bytes_u8_buf_to_string() {
     assert_true(!oren_is_err(oren_buf_store_u8(ub, 1, 66)))
     assert_eq(bytesm.try_to_string(ub), "AB")
     assert_eq(bytesm.to_string(ub), "AB")
+
+    var from_buf = bytesm.try_from_u8_buf(ub)
+    assert_true(!oren_is_err(from_buf))
+    assert_eq(bytesm.try_to_string(from_buf), "AB")
+
+    var to_buf = bytesm.try_to_u8_buf(bytesm.try_from_string("CD"))
+    assert_true(!oren_is_err(to_buf))
+    assert_eq(bufferm.try_u8_to_string(to_buf), "CD")
+
+    assert_true(oren_is_err(bytesm.try_from_u8_buf("nope")))
+    assert_true(oren_is_err(bytesm.try_to_u8_buf(123)))
 }
 
 fn test_assert_streq_portable() {

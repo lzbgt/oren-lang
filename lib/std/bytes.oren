@@ -16,6 +16,11 @@ fn _is_int(v) {
 }
 
 fn _len_or_err(bytes, ctx) {
+    if oren_type_tag(bytes) == 6 {
+        var n2 = oren_list_len(bytes)
+        if n2 == nil || oren_is_err(n2) { return oren_err(4, ctx + ": bytes must be list<int> or u8_buf") }
+        return n2
+    }
     var n = oren_bytes_len(bytes)
     if n == nil || oren_is_err(n) { return oren_err(4, ctx + ": bytes must be list<int> or u8_buf") }
     return n
@@ -38,6 +43,12 @@ fn _check_unsigned(v, maxv, ctx) {
 fn _check_signed(v, minv, maxv, ctx) {
     if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
     if v < minv || v > maxv { return oren_err(4, ctx + ": value out of range") }
+    return v
+}
+
+fn _check_nonneg_int(v, ctx, label) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": " + label + " not int") }
+    if v < 0 { return oren_err(4, ctx + ": negative " + label) }
     return v
 }
 
@@ -121,6 +132,93 @@ fn try_pack(xs) {
 
 fn try_unpack(bytes) {
     return _bytes_to_int_list(bytes, "bytes.try_unpack")
+}
+
+fn try_slice(bytes, off, n) {
+    var ok_off = _check_nonneg_int(off, "bytes.try_slice", "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_n = _check_nonneg_int(n, "bytes.try_slice", "len")
+    if oren_is_err(ok_n) { return ok_n }
+    var nb = _len_or_err(bytes, "bytes.try_slice")
+    if oren_is_err(nb) { return nb }
+    if off + n > nb { return oren_err(4, "bytes.try_slice: slice out of bounds") }
+    var out = []
+    var i = 0
+    while i < n {
+        var b = oren_bytes_get_u8(bytes, off + i)
+        if oren_is_err(b) { return b }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+    return oren_bytes_pack(out)
+}
+
+fn try_concat(a, b) {
+    var xa = _bytes_to_int_list(a, "bytes.try_concat")
+    if oren_is_err(xa) { return xa }
+    var xb = _bytes_to_int_list(b, "bytes.try_concat")
+    if oren_is_err(xb) { return xb }
+    var i = 0
+    var nb = oren_list_len(xb)
+    while i < nb {
+        oren_list_push(xa, xb[i])
+        i = i + 1
+    }
+    return oren_bytes_pack(xa)
+}
+
+fn try_copy_into(dst, dst_off, src, src_off, n) {
+    var ok_dst_off = _check_nonneg_int(dst_off, "bytes.try_copy_into", "dst_off")
+    if oren_is_err(ok_dst_off) { return ok_dst_off }
+    var ok_src_off = _check_nonneg_int(src_off, "bytes.try_copy_into", "src_off")
+    if oren_is_err(ok_src_off) { return ok_src_off }
+    var ok_n = _check_nonneg_int(n, "bytes.try_copy_into", "len")
+    if oren_is_err(ok_n) { return ok_n }
+    var nd = _len_or_err(dst, "bytes.try_copy_into")
+    if oren_is_err(nd) { return nd }
+    var ns = _len_or_err(src, "bytes.try_copy_into")
+    if oren_is_err(ns) { return ns }
+    if dst_off + n > nd { return oren_err(4, "bytes.try_copy_into: dst range out of bounds") }
+    if src_off + n > ns { return oren_err(4, "bytes.try_copy_into: src range out of bounds") }
+    var i = 0
+    while i < n {
+        var b = oren_bytes_get_u8(src, src_off + i)
+        if oren_is_err(b) { return b }
+        var rc = oren_bytes_set_u8(dst, dst_off + i, b)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return dst
+}
+
+fn try_from_u8_buf(buf) {
+    var n = oren_buf_len(buf)
+    if n == nil || oren_is_err(n) { return oren_err(4, "bytes.try_from_u8_buf: buf must be []u8") }
+    var out = []
+    var i = 0
+    while i < n {
+        var b = oren_buf_load_u8(buf, i)
+        if oren_is_err(b) { return b }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+    return oren_bytes_pack(out)
+}
+
+fn try_to_u8_buf(bytes) {
+    var n = _len_or_err(bytes, "bytes.try_to_u8_buf")
+    if oren_is_err(n) { return n }
+    var out = oren_u8_buf_new(n)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < n {
+        var b = oren_bytes_get_u8(bytes, i)
+        if oren_is_err(b) { return b }
+        var rc = oren_buf_store_u8(out, i, b)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
 }
 
 fn try_get_u16_be(bytes, idx) {
@@ -413,13 +511,23 @@ fn pack(xs) { return oren_bytes_pack(xs) }
 
 fn unpack(bytes) { return _bytes_to_int_list(bytes, "bytes.unpack") }
 
+fn slice(bytes, off, n) { return try_slice(bytes, off, n) }
+
+fn concat(a, b) { return try_concat(a, b) }
+
+fn copy_into(dst, dst_off, src, src_off, n) { return try_copy_into(dst, dst_off, src, src_off, n) }
+
 fn from_string(s) { return oren_bytes_from_string(s) }
+
+fn from_u8_buf(buf) { return try_from_u8_buf(buf) }
 
 fn to_string(bytes) {
     var xs = _bytes_to_int_list(bytes, "bytes.to_string")
     if oren_is_err(xs) { return xs }
     return oren_string_from_bytes(xs)
 }
+
+fn to_u8_buf(bytes) { return try_to_u8_buf(bytes) }
 
 fn get_u8(bytes, idx) { return oren_bytes_get_u8(bytes, idx) }
 
