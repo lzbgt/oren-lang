@@ -107,10 +107,12 @@ esac
 
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
   # macOS: under full-suite load, both the base native-quick run and the
-  # OREN_GREEN_POLL_CACHE rerun can legitimately exceed the older 12s watchdog
-  # even when the binary exits cleanly. Keep enough headroom to catch real
-  # hangs without killing healthy verification runs.
-  run_timeout_secs=20
+  # OREN_GREEN_POLL_CACHE rerun can legitimately exceed the older watchdog
+  # even when the binary exits cleanly. Recent measured healthy base runs
+  # reached ~23s on this host, and a 30s budget still false-red under the
+  # full `make test` path, so keep a proven 60s headroom to catch real hangs
+  # without killing healthy verification runs.
+  run_timeout_secs=60
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   # macOS: under full-suite load, self-hosted native quick builds can transiently exceed

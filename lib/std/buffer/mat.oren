@@ -39,6 +39,19 @@ fn _plain_list_len_or_err(xs, ctx) {
     return n
 }
 
+fn _buf_len_or_err(buf, ctx) {
+    var n = oren_buf_len(buf)
+    if n == nil || oren_is_err(n) { return _err_invalid(ctx + ": expects typed buffer") }
+    return n
+}
+
+fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
+    if oren_type_tag(buf) != want_tag {
+        return _err_invalid(ctx + ": expects " + want_label)
+    }
+    return _buf_len_or_err(buf, ctx)
+}
+
 fn u8_new(n) { return oren_u8_buf_new(n) }
 fn i32_new(n) { return oren_i32_buf_new(n) }
 fn i64_new(n) { return oren_i64_buf_new(n) }
@@ -214,6 +227,60 @@ fn _mat_copy_from_flat_with(m, xs, ctx, validatef, storef) {
             if oren_is_err(vv) { return vv }
             var rc = storef(m, r, c, vv)
             if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
+fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
+fn _store_i64_buf_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
+fn _load_i64_buf_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
+fn _store_f32_buf_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
+fn _load_f32_buf_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
+fn _store_f64_buf_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
+fn _load_f64_buf_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
+
+fn _mat_to_typed_buf_with(m, ctx, newf, loadf, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var total = m[2] * m[3]
+    var out = newf(total)
+    if oren_is_err(out) { return out }
+    var i = 0
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = loadf(m, r, c)
+            if oren_is_err(v) { return v }
+            var rc = storef(out, i, v)
+            if oren_is_err(rc) { return rc }
+            i = i + 1
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+fn _mat_copy_from_typed_buf_with(m, src, ctx, want_tag, want_label, loadf, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nx = _buf_len_with_tag_or_err(src, want_tag, ctx, want_label)
+    if oren_is_err(nx) { return nx }
+    var total = m[2] * m[3]
+    if nx != total { return _err_invalid(ctx + ": element count mismatch") }
+    var i = 0
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = loadf(src, i)
+            if oren_is_err(v) { return v }
+            var rc = storef(m, r, c, v)
+            if oren_is_err(rc) { return rc }
+            i = i + 1
             c = c + 1
         }
         r = r + 1
@@ -881,6 +948,14 @@ fn try_i32_mat_unpack_flat(m) {
     return i32_mat_unpack_flat(m)
 }
 
+fn i32_mat_to_i32_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.i32_mat_to_i32_buf", i32_new, try_mat_load_i32, _store_i32_buf_direct)
+}
+
+fn try_i32_mat_to_i32_buf(m) {
+    return i32_mat_to_i32_buf(m)
+}
+
 fn i32_mat_copy_from_rows(m, rows) {
     var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.i32_mat_copy_from_rows")
     if oren_is_err(shape) { return shape }
@@ -912,6 +987,14 @@ fn i32_mat_copy_from_flat(m, xs) {
 
 fn try_i32_mat_copy_from_flat(m, xs) {
     return i32_mat_copy_from_flat(m, xs)
+}
+
+fn i32_mat_copy_from_i32_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.i32_mat_copy_from_i32_buf", 10, "i32_buf", _load_i32_buf_direct, try_mat_store_i32)
+}
+
+fn try_i32_mat_copy_from_i32_buf(m, src) {
+    return i32_mat_copy_from_i32_buf(m, src)
 }
 
 fn i64_mat_pack_rows(rows) {
@@ -948,6 +1031,14 @@ fn try_i64_mat_unpack_flat(m) {
     return i64_mat_unpack_flat(m)
 }
 
+fn i64_mat_to_i64_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.i64_mat_to_i64_buf", i64_new, try_mat_load_i64, _store_i64_buf_direct)
+}
+
+fn try_i64_mat_to_i64_buf(m) {
+    return i64_mat_to_i64_buf(m)
+}
+
 fn i64_mat_copy_from_rows(m, rows) {
     var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.i64_mat_copy_from_rows")
     if oren_is_err(shape) { return shape }
@@ -976,6 +1067,14 @@ fn i64_mat_copy_from_flat(m, xs) {
 
 fn try_i64_mat_copy_from_flat(m, xs) {
     return i64_mat_copy_from_flat(m, xs)
+}
+
+fn i64_mat_copy_from_i64_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.i64_mat_copy_from_i64_buf", 11, "i64_buf", _load_i64_buf_direct, try_mat_store_i64)
+}
+
+fn try_i64_mat_copy_from_i64_buf(m, src) {
+    return i64_mat_copy_from_i64_buf(m, src)
 }
 
 fn f32_mat_pack_rows(rows) {
@@ -1012,6 +1111,14 @@ fn try_f32_mat_unpack_flat(m) {
     return f32_mat_unpack_flat(m)
 }
 
+fn f32_mat_to_f32_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.f32_mat_to_f32_buf", f32_new, try_mat_load_f32, _store_f32_buf_direct)
+}
+
+fn try_f32_mat_to_f32_buf(m) {
+    return f32_mat_to_f32_buf(m)
+}
+
 fn f32_mat_copy_from_rows(m, rows) {
     var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.f32_mat_copy_from_rows")
     if oren_is_err(shape) { return shape }
@@ -1038,6 +1145,14 @@ fn f32_mat_copy_from_flat(m, xs) {
 
 fn try_f32_mat_copy_from_flat(m, xs) {
     return f32_mat_copy_from_flat(m, xs)
+}
+
+fn f32_mat_copy_from_f32_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.f32_mat_copy_from_f32_buf", 12, "f32_buf", _load_f32_buf_direct, try_mat_store_f32)
+}
+
+fn try_f32_mat_copy_from_f32_buf(m, src) {
+    return f32_mat_copy_from_f32_buf(m, src)
 }
 
 fn f64_mat_pack_rows(rows) {
@@ -1074,6 +1189,14 @@ fn try_f64_mat_unpack_flat(m) {
     return f64_mat_unpack_flat(m)
 }
 
+fn f64_mat_to_f64_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.f64_mat_to_f64_buf", f64_new, try_mat_load_f64, _store_f64_buf_direct)
+}
+
+fn try_f64_mat_to_f64_buf(m) {
+    return f64_mat_to_f64_buf(m)
+}
+
 fn f64_mat_copy_from_rows(m, rows) {
     var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.f64_mat_copy_from_rows")
     if oren_is_err(shape) { return shape }
@@ -1100,6 +1223,14 @@ fn f64_mat_copy_from_flat(m, xs) {
 
 fn try_f64_mat_copy_from_flat(m, xs) {
     return f64_mat_copy_from_flat(m, xs)
+}
+
+fn f64_mat_copy_from_f64_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.f64_mat_copy_from_f64_buf", 13, "f64_buf", _load_f64_buf_direct, try_mat_store_f64)
+}
+
+fn try_f64_mat_copy_from_f64_buf(m, src) {
+    return f64_mat_copy_from_f64_buf(m, src)
 }
 
 fn u8_mat_pack_rows(rows) {

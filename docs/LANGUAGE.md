@@ -3313,7 +3313,11 @@ Rolling status:
   plus checked whole-matrix numeric flatten/refill helpers such as `try_i32_mat_unpack_flat`,
   `try_i32_mat_copy_from_flat`, `try_i64_mat_unpack_flat`, `try_i64_mat_copy_from_flat`,
   `try_f32_mat_unpack_flat`, `try_f32_mat_copy_from_flat`, `try_f64_mat_unpack_flat`, and
-  `try_f64_mat_copy_from_flat`, plus checked matrix-row/column
+  `try_f64_mat_copy_from_flat`, plus checked whole-matrix typed-buffer bridges such as
+  `try_i32_mat_to_i32_buf`, `try_i32_mat_copy_from_i32_buf`, `try_i64_mat_to_i64_buf`,
+  `try_i64_mat_copy_from_i64_buf`, `try_f32_mat_to_f32_buf`, `try_f32_mat_copy_from_f32_buf`,
+  `try_f64_mat_to_f64_buf`, and `try_f64_mat_copy_from_f64_buf` (which reject mismatched typed-buffer
+  kinds instead of attempting raw loads), plus checked matrix-row/column
   `[]u8` bridge helpers such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`,
   `try_mat_col_to_string`, and `try_mat_col_copy_from_string`, plus checked whole-matrix `[]u8`
   flatten/copy helpers such as `try_u8_mat_to_bytes`, `try_u8_mat_to_u8_buf`,

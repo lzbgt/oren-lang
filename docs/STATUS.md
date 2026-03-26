@@ -717,6 +717,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      result smoke + native quick integration + dedicated AVM buffer-view smoke, with exact float
      value proof kept in AVM and non-error/shape proof kept in shared native fixtures
      (2026-03-27).
+   - New: `std:buffer` now also exposes checked whole-matrix numeric typed-buffer bridges such as
+     `try_i32_mat_to_i32_buf`, `try_i32_mat_copy_from_i32_buf`, `try_i64_mat_to_i64_buf`,
+     `try_i64_mat_copy_from_i64_buf`, `try_f32_mat_to_f32_buf`, `try_f32_mat_copy_from_f32_buf`,
+     `try_f64_mat_to_f64_buf`, and `try_f64_mat_copy_from_f64_buf`, so callers can bridge or
+     refill the visible numeric matrix surface without routing through intermediate flat lists. The
+     refill side now rejects mismatched typed-buffer kinds up front instead of depending on raw
+     backend loads; covered by result smoke + native quick integration + dedicated AVM buffer-view
+     smoke, with exact float value proof kept in AVM and non-error/shape proof kept in shared
+     native fixtures (2026-03-27).
    - Refactor: `std:buffer` is now split into a thin public facade plus
      `lib/std/buffer/view.oren` for slice/strided helpers and `lib/std/buffer/mat.oren` for the
      matrix-heavy implementation, which keeps the public module at 586 lines without changing the
@@ -728,6 +737,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Fix: macOS stage1 native-quick verification now gives the `OREN_GREEN_POLL_CACHE` rerun a
      30s default watchdog even when the base run stays at 20s, which removes a false-red `rc=143`
      path in full-suite verification where the first run already completed cleanly (2026-03-27).
+   - Fix: macOS stage1 native-quick verification now also gives the base run a 60s default
+     watchdog instead of 20s after a direct measured healthy base run took `23.15s` on this host
+     and a 30s budget still false-red under the full `make test` path; `60s` is the directly
+     proven budget on this host, removing another false-red `rc=143` path from `make test-native-quick` / `make test`
+     (2026-03-27).
    - Fix: `scripts/run_native_quick_integration.sh` now executes the stage1 base run and the
      green-cache rerun under `set +e` when collecting retry status, so `run_with_timeout_retry(...)`
      can actually feed the scripted retry paths instead of aborting the harness early under
