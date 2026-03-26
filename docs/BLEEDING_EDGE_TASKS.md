@@ -2224,6 +2224,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `try_mat_row_stride`, `try_mat_load/store_i64`, `try_mat_load/store_f64`);
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` matrix views now also project back into the zero-copy slice/strided
+     surface via `try_mat_row_slice` and `try_mat_col_strided`, so matrix callers can reuse the
+     existing checked `[]u8` view bridges instead of rebuilding row/column index math by hand;
+     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).

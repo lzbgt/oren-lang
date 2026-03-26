@@ -301,6 +301,20 @@ fn main() {
     if buffer.try_mat_rows(mat) != 2 { return 256 }
     if buffer.try_mat_cols(mat) != 2 { return 257 }
     if buffer.try_mat_row_stride(mat) != 2 { return 258 }
+    var mat_row = buffer.try_mat_row_slice(mat, 1)
+    if r.is_err(mat_row) { return 281 }
+    if buffer.try_slice_len(mat_row) != 2 { return 282 }
+    var mat_row_v0 = buffer.try_slice_load_i32(mat_row, 0)
+    if r.is_err(mat_row_v0) || mat_row_v0 != 3 { return 283 }
+    var mat_row_v1 = buffer.try_slice_load_i32(mat_row, 1)
+    if r.is_err(mat_row_v1) || mat_row_v1 != 4 { return 284 }
+    var mat_col = buffer.try_mat_col_strided(mat, 1)
+    if r.is_err(mat_col) { return 285 }
+    if buffer.try_strided_len(mat_col) != 2 { return 286 }
+    var mat_col_v0 = buffer.try_strided_load_i32(mat_col, 0)
+    if r.is_err(mat_col_v0) || mat_col_v0 != 2 { return 287 }
+    var mat_col_v1 = buffer.try_strided_load_i32(mat_col, 1)
+    if r.is_err(mat_col_v1) || mat_col_v1 != 4 { return 288 }
     var mv = buffer.try_mat_load_i32(mat, 1, 0)
     if r.is_err(mv) || mv != 3 { return 206 }
     var ms = buffer.try_mat_store_i32(mat, 0, 1, 7)
@@ -309,6 +323,22 @@ fn main() {
     if r.is_err(mv2) || mv2 != 7 { return 208 }
     var mat_bad = buffer.try_mat_load_i32(mat, 2, 0)
     if r.is_err(mat_bad) != true { return 209 }
+    var u8matb = buffer.try_u8_from_string("ABCxDEFy")
+    if r.is_err(u8matb) { return 289 }
+    var u8mat = buffer.try_mat_view_new(u8matb, 0, 2, 3, 4)
+    if r.is_err(u8mat) { return 290 }
+    var u8mat_row = buffer.try_mat_row_slice(u8mat, 1)
+    if r.is_err(u8mat_row) { return 291 }
+    var u8mat_row_s = buffer.try_slice_to_string(u8mat_row)
+    if r.is_err(u8mat_row_s) || u8mat_row_s != "DEF" { return 292 }
+    var u8mat_col = buffer.try_mat_col_strided(u8mat, 1)
+    if r.is_err(u8mat_col) { return 293 }
+    var u8mat_col_s = buffer.try_strided_to_string(u8mat_col)
+    if r.is_err(u8mat_col_s) || u8mat_col_s != "BE" { return 294 }
+    if r.is_err(buffer.try_mat_row_slice(u8mat, 2)) != true { return 295 }
+    if r.is_err(buffer.try_mat_col_strided(u8mat, 3)) != true { return 296 }
+    if r.is_err(buffer.try_mat_row_slice("nope", 0)) != true { return 297 }
+    if r.is_err(buffer.try_mat_col_strided("nope", 0)) != true { return 298 }
 
     var i64m = buffer.i64_new(4)
     if r.is_err(i64m) { return 259 }

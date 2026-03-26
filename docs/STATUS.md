@@ -661,6 +661,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `try_strided_to_bytes`, `try_strided_to_string`, `try_strided_copy_from_bytes`);
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` matrix views now also project back into the zero-copy slice/strided
+     surface via `try_mat_row_slice` and `try_mat_col_strided`, so matrix code can reuse the
+     existing checked `[]u8` slice/strided bridge helpers instead of rebuilding index math by hand;
+     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).

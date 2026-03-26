@@ -990,6 +990,34 @@ fn try_mat_row_stride(m) {
     return m[4]
 }
 
+fn mat_row_slice(m, r) {
+    if !_mat_is_list(m) { return _err_invalid("mat_row_slice: expects mat view") }
+    var rows = m[2]
+    if r < 0 || r >= rows { return _err_invalid("mat_row_slice: row out of bounds") }
+    return slice_new(m[0], m[1] + r * m[4], m[3])
+}
+
+fn try_mat_row_slice(m, r) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_row_slice: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_row_slice", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    return mat_row_slice(m, r)
+}
+
+fn mat_col_strided(m, c) {
+    if !_mat_is_list(m) { return _err_invalid("mat_col_strided: expects mat view") }
+    var cols = m[3]
+    if c < 0 || c >= cols { return _err_invalid("mat_col_strided: col out of bounds") }
+    return strided_new(m[0], m[1] + c, m[2], m[4])
+}
+
+fn try_mat_col_strided(m, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_col_strided: expects mat view") }
+    var ok_c = _check_int(c, "buffer.try_mat_col_strided", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_col_strided(m, c)
+}
+
 fn mat_load_f32(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_f32: expects mat view") }
     var rows = m[2]
