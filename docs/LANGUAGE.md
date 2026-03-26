@@ -3032,6 +3032,9 @@ Error behavior (portable rule):
 - Use `oren_is_err(v) -> bool` to test for this in a backend-portable way:
   - `if oren_is_err(x) { ... }`
   - Do **not** treat numeric `0/1` as booleans: in Oren, `0` is truthy; only `nil` and `false` are falsey.
+- Stdlib note: `std:result.is_err(v)` canonicalizes backend error probes to a real Oren boolean
+  (`true` / `false`), so comparisons such as `result.is_err(x) == true` stay portable across
+  native and AVM.
 - Stdlib note: `std:bytes` now exposes checked wrappers for the common packet, slice/copy, and
   conversion helpers, including signed and 64-bit writes such as `bytes.try_get_u16_be`,
   `bytes.try_get_u32_le`, `bytes.try_put_i16_le`, `bytes.try_put_i32_be`, `bytes.try_put_u64_le`,
@@ -3306,7 +3309,11 @@ Rolling status:
   `try_i64_mat_unpack_rows`, `try_i64_mat_copy_from_rows`, `try_f32_mat_pack_rows`,
   `try_f32_mat_unpack_rows`, `try_f32_mat_copy_from_rows`, `try_f64_mat_pack_rows`,
   `try_f64_mat_unpack_rows`, `try_f64_mat_copy_from_rows`, `try_u8_mat_pack_rows`,
-  `try_u8_mat_unpack_rows`, `try_u8_mat_pack_strings`, and `try_u8_mat_unpack_strings`, plus checked matrix-row/column
+  `try_u8_mat_unpack_rows`, `try_u8_mat_pack_strings`, and `try_u8_mat_unpack_strings`,
+  plus checked whole-matrix numeric flatten/refill helpers such as `try_i32_mat_unpack_flat`,
+  `try_i32_mat_copy_from_flat`, `try_i64_mat_unpack_flat`, `try_i64_mat_copy_from_flat`,
+  `try_f32_mat_unpack_flat`, `try_f32_mat_copy_from_flat`, `try_f64_mat_unpack_flat`, and
+  `try_f64_mat_copy_from_flat`, plus checked matrix-row/column
   `[]u8` bridge helpers such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`,
   `try_mat_col_to_string`, and `try_mat_col_copy_from_string`, plus checked whole-matrix `[]u8`
   flatten/copy helpers such as `try_u8_mat_to_bytes`, `try_u8_mat_to_u8_buf`,

@@ -5,7 +5,8 @@
 // - error: map {"__err": true, "code": int, "msg": string}
 
 fn is_err(v) {
-    return oren_is_err(v)
+    if oren_is_err(v) { return true }
+    return false
 }
 
 fn is_ok(v) {
