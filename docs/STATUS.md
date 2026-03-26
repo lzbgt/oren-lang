@@ -625,8 +625,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (`try_get_u16/u32/u64_*`, `try_get_i16/i32/i64_*`, `try_put_u16/i16/u32/i32/u64/i64_*`,
      `try_set_u16/i16/u32/i32/u64/i64_*`, `try_from_string`, `try_to_string`, `try_pack`,
      `try_unpack`, `try_slice`, `try_concat`, `try_copy_into`, `try_from_u8_buf`,
-     `try_to_u8_buf`) and return `oren_err` on invalid input across `list<int>` and `u8_buf`;
-     covered by result smoke + native quick integration + dedicated AVM bytes smoke
+     `try_to_u8_buf`, `try_to_string_slice`, `try_to_u8_buf_slice`) and return `oren_err`
+     on invalid input across `list<int>` and `u8_buf`; covered by result smoke + native quick
+     integration + dedicated AVM bytes smoke
      (2026-03-27).
    - New: `std:bytes` hex helpers (`try_from_hex`/`try_to_hex`) validate inputs and
      return `oren_err` on invalid values; covered by result smoke fixture (2026-03-05).
@@ -638,9 +639,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` now also exposes checked conversion helpers for the common portable bridge
      cases (`try_u8_pack`, `try_u8_pack_into`, `try_u8_unpack`, `try_u8_from_string`,
-     `try_u8_to_string`, `try_i32_pack_list_int`, `try_i32_pack_list_int_into`,
-     `try_i32_unpack_list`); covered by result smoke + native quick integration + dedicated AVM
-     buffer-view smoke (2026-03-27).
+     `try_u8_to_string`, `try_u8_from_bytes`, `try_u8_from_bytes_slice`, `try_u8_to_bytes`,
+     `try_i32_pack_list_int`, `try_i32_pack_list_int_into`, `try_i32_unpack_list`);
+     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).

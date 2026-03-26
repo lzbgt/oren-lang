@@ -302,6 +302,26 @@ fn main() {
     if r.is_err(bad_from_buf) != true { return 96 }
     var bad_to_buf = bytes.try_to_u8_buf(123)
     if r.is_err(bad_to_buf) != true { return 97 }
+    var str_slice = bytes.try_to_string_slice(bytes.try_from_string("hello"), 1, 3)
+    if r.is_err(str_slice) || str_slice != "ell" { return 98 }
+    var buf_slice = bytes.try_to_u8_buf_slice(bytes.try_from_string("hello"), 1, 3)
+    if r.is_err(buf_slice) || buffer.try_u8_to_string(buf_slice) != "ell" { return 99 }
+    var bad_str_slice = bytes.try_to_string_slice("nope", 0, 1)
+    if r.is_err(bad_str_slice) != true { return 100 }
+    var bad_buf_slice = bytes.try_to_u8_buf_slice("nope", 0, 1)
+    if r.is_err(bad_buf_slice) != true { return 101 }
+    var u8_from_bytes = buffer.try_u8_from_bytes(bytes.try_from_string("EF"))
+    if r.is_err(u8_from_bytes) || buffer.try_u8_to_string(u8_from_bytes) != "EF" { return 102 }
+    var u8_from_bytes_slice = buffer.try_u8_from_bytes_slice(bytes.try_from_string("hello"), 1, 3)
+    if r.is_err(u8_from_bytes_slice) || buffer.try_u8_to_string(u8_from_bytes_slice) != "ell" { return 103 }
+    var u8_to_bytes = buffer.try_u8_to_bytes(ub3)
+    if r.is_err(u8_to_bytes) || bytes.try_to_string(u8_to_bytes) != "AB" { return 104 }
+    var bad_u8_from_bytes = buffer.try_u8_from_bytes("nope")
+    if r.is_err(bad_u8_from_bytes) != true { return 105 }
+    var bad_u8_from_bytes_slice = buffer.try_u8_from_bytes_slice("nope", 0, 1)
+    if r.is_err(bad_u8_from_bytes_slice) != true { return 106 }
+    var bad_u8_to_bytes = buffer.try_u8_to_bytes("nope")
+    if r.is_err(bad_u8_to_bytes) != true { return 107 }
 
     return 0
 }

@@ -3034,9 +3034,10 @@ Error behavior (portable rule):
   `bytes.try_get_u32_le`, `bytes.try_put_i16_le`, `bytes.try_put_i32_be`, `bytes.try_put_u64_le`,
   `bytes.try_put_i64_be`, `bytes.try_set_i32_le`, plus conversion helpers such as
   `bytes.try_from_string`, `bytes.try_to_string`, `bytes.try_pack`, `bytes.try_unpack`,
-  `bytes.try_slice`, `bytes.try_concat`, `bytes.try_copy_into`, `bytes.try_from_u8_buf`, and
-  `bytes.try_to_u8_buf`, so application code can stay on the portable structured-error surface
-  instead of calling raw `oren_bytes_*` helpers directly.
+  `bytes.try_slice`, `bytes.try_concat`, `bytes.try_copy_into`, `bytes.try_from_u8_buf`,
+  `bytes.try_to_u8_buf`, `bytes.try_to_string_slice`, and `bytes.try_to_u8_buf_slice`, so
+  application code can stay on the portable structured-error surface instead of calling raw
+  `oren_bytes_*` helpers directly.
 
 Future direction (syntax sugar; no rewrite required):
 
@@ -3293,7 +3294,8 @@ Rolling status:
   loads/stores via `try_len`, `try_load_*`, and `try_store_*`, plus checked zero-copy view helpers
   such as `try_slice_new`, `try_slice_load_i32`, `try_strided_new`, and `try_mat_view_new`, plus
   checked conversion helpers such as `try_u8_pack`, `try_u8_unpack`, `try_u8_from_string`,
-  `try_u8_to_string`, `try_i32_pack_list_int`, and `try_i32_unpack_list`.
+  `try_u8_to_string`, `try_u8_from_bytes`, `try_u8_from_bytes_slice`, `try_u8_to_bytes`,
+  `try_i32_pack_list_int`, and `try_i32_unpack_list`.
 
 ### 6) Variadic ergonomics (without a huge ABI rewrite)
 

@@ -10,6 +10,7 @@
 //   "views" that rely on passing the right load/store function.
 
 import list "std:list"
+import bytesm "std:bytes"
 
 fn _err_invalid(msg) { return oren_err(4, msg) }
 
@@ -275,6 +276,30 @@ fn try_u8_to_string(buf: []u8) {
 
 fn u8_to_string(buf: []u8) {
     return try_u8_to_string(buf)
+}
+
+fn try_u8_from_bytes(bytes) {
+    return bytesm.try_to_u8_buf(bytes)
+}
+
+fn u8_from_bytes(bytes) {
+    return try_u8_from_bytes(bytes)
+}
+
+fn try_u8_from_bytes_slice(bytes, off, n) {
+    return bytesm.try_to_u8_buf_slice(bytes, off, n)
+}
+
+fn u8_from_bytes_slice(bytes, off, n) {
+    return try_u8_from_bytes_slice(bytes, off, n)
+}
+
+fn try_u8_to_bytes(buf: []u8) {
+    return bytesm.try_from_u8_buf(buf)
+}
+
+fn u8_to_bytes(buf: []u8) {
+    return try_u8_to_bytes(buf)
 }
 
 // --- generic zero-copy views ---

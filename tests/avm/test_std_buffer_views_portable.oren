@@ -1,6 +1,7 @@
 @myorg.tag(name="avm-std-buffer-views-portable")
 
 import buffer "../../lib/std/buffer.oren"
+import bytesm "../../lib/std/bytes.oren"
 
 fn fail() {
     var a = [1]
@@ -43,6 +44,18 @@ fn main() {
     assert_true(oren_is_err(buffer.try_u8_pack([256])))
     assert_true(oren_is_err(buffer.try_u8_pack(123)))
     assert_true(oren_is_err(buffer.try_u8_from_string(123)))
+    var ub_from_bytes = buffer.try_u8_from_bytes(bytesm.try_from_string("EF"))
+    assert_true(!oren_is_err(ub_from_bytes))
+    assert_eq(buffer.try_u8_to_string(ub_from_bytes), "EF")
+    var ub_from_bytes_slice = buffer.try_u8_from_bytes_slice(bytesm.try_from_string("hello"), 1, 3)
+    assert_true(!oren_is_err(ub_from_bytes_slice))
+    assert_eq(buffer.try_u8_to_string(ub_from_bytes_slice), "ell")
+    var ub_to_bytes = buffer.try_u8_to_bytes(ub2)
+    assert_true(!oren_is_err(ub_to_bytes))
+    assert_eq(bytesm.try_to_string(ub_to_bytes), "CD")
+    assert_true(oren_is_err(buffer.try_u8_from_bytes("nope")))
+    assert_true(oren_is_err(buffer.try_u8_from_bytes_slice("nope", 0, 1)))
+    assert_true(oren_is_err(buffer.try_u8_to_bytes("nope")))
 
     var slice = buffer.try_slice_new(i32b, 1, 2)
     assert_true(!oren_is_err(slice))

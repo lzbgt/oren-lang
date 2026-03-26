@@ -221,6 +221,18 @@ fn try_to_u8_buf(bytes) {
     return out
 }
 
+fn try_to_string_slice(bytes, off, n) {
+    var sub = try_slice(bytes, off, n)
+    if oren_is_err(sub) { return sub }
+    return try_to_string(sub)
+}
+
+fn try_to_u8_buf_slice(bytes, off, n) {
+    var sub = try_slice(bytes, off, n)
+    if oren_is_err(sub) { return sub }
+    return try_to_u8_buf(sub)
+}
+
 fn try_get_u16_be(bytes, idx) {
     var ok = _check_span(bytes, idx, 2, "bytes.try_get_u16_be")
     if oren_is_err(ok) { return ok }
@@ -528,6 +540,10 @@ fn to_string(bytes) {
 }
 
 fn to_u8_buf(bytes) { return try_to_u8_buf(bytes) }
+
+fn to_string_slice(bytes, off, n) { return try_to_string_slice(bytes, off, n) }
+
+fn to_u8_buf_slice(bytes, off, n) { return try_to_u8_buf_slice(bytes, off, n) }
 
 fn get_u8(bytes, idx) { return oren_bytes_get_u8(bytes, idx) }
 
