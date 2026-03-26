@@ -375,6 +375,28 @@ fn main() {
     if r.is_err(u8matdiag) { return 310 }
     var u8matdiag_s = buffer.try_strided_to_string(u8matdiag)
     if r.is_err(u8matdiag_s) || u8matdiag_s != "AE" { return 311 }
+    var u8mat_row0_bytes = buffer.try_mat_row_to_bytes(u8mat, 0)
+    if r.is_err(u8mat_row0_bytes) { return 336 }
+    var u8mat_row0_s = bytes.try_to_string(u8mat_row0_bytes)
+    if r.is_err(u8mat_row0_s) || u8mat_row0_s != "ABC" { return 337 }
+    var u8mat_row1_buf = buffer.try_mat_row_to_u8_buf(u8mat, 1)
+    if r.is_err(u8mat_row1_buf) { return 338 }
+    var u8mat_row1_buf_s = buffer.try_u8_to_string(u8mat_row1_buf)
+    if r.is_err(u8mat_row1_buf_s) || u8mat_row1_buf_s != "DEF" { return 339 }
+    var u8mat_row0_list = buffer.try_mat_row_unpack_u8(u8mat, 0)
+    if r.is_err(u8mat_row0_list) { return 340 }
+    if u8mat_row0_list[0] != 65 || u8mat_row0_list[2] != 67 { return 341 }
+    var u8mat_col1_buf = buffer.try_mat_col_to_u8_buf(u8mat, 1)
+    if r.is_err(u8mat_col1_buf) { return 342 }
+    var u8mat_col1_buf_s = buffer.try_u8_to_string(u8mat_col1_buf)
+    if r.is_err(u8mat_col1_buf_s) || u8mat_col1_buf_s != "BE" { return 343 }
+    var u8mat_col1_bytes = buffer.try_mat_col_to_bytes(u8mat, 1)
+    if r.is_err(u8mat_col1_bytes) { return 344 }
+    var u8mat_col1_s = bytes.try_to_string(u8mat_col1_bytes)
+    if r.is_err(u8mat_col1_s) || u8mat_col1_s != "BE" { return 345 }
+    var u8mat_col1_list = buffer.try_mat_col_unpack_u8(u8mat, 1)
+    if r.is_err(u8mat_col1_list) { return 346 }
+    if u8mat_col1_list[0] != 66 || u8mat_col1_list[1] != 69 { return 347 }
     if r.is_err(buffer.try_mat_row_slice(u8mat, 2)) != true { return 295 }
     if r.is_err(buffer.try_mat_col_strided(u8mat, 3)) != true { return 296 }
     if r.is_err(buffer.try_mat_subview(u8mat, 1, 2, 2, 2)) != true { return 312 }
@@ -382,6 +404,8 @@ fn main() {
     if r.is_err(buffer.try_mat_col_strided("nope", 0)) != true { return 298 }
     if r.is_err(buffer.try_mat_subview("nope", 0, 0, 1, 1)) != true { return 313 }
     if r.is_err(buffer.try_mat_diag_strided("nope")) != true { return 314 }
+    if r.is_err(buffer.try_mat_row_to_string("nope", 0)) != true { return 348 }
+    if r.is_err(buffer.try_mat_col_copy_from_string("nope", 0, "ab")) != true { return 349 }
     var packed_i32_mat = buffer.try_i32_mat_pack_rows([[10, 20], [30, 40]])
     if r.is_err(packed_i32_mat) { return 315 }
     if buffer.try_mat_rows(packed_i32_mat) != 2 { return 316 }
@@ -412,6 +436,27 @@ fn main() {
     var unpacked_string_rows = buffer.try_u8_mat_unpack_strings(packed_string_mat)
     if r.is_err(unpacked_string_rows) { return 332 }
     if unpacked_string_rows[0] != "ABC" || unpacked_string_rows[1] != "DEF" { return 333 }
+    if r.is_err(buffer.try_mat_row_copy_from_string(packed_string_mat, 0, "XYZ")) { return 350 }
+    var packed_row_s = buffer.try_mat_row_to_string(packed_string_mat, 0)
+    if r.is_err(packed_row_s) || packed_row_s != "XYZ" { return 351 }
+    if r.is_err(buffer.try_mat_col_copy_from_string(packed_string_mat, 1, "12")) { return 352 }
+    var packed_col_s = buffer.try_mat_col_to_string(packed_string_mat, 1)
+    if r.is_err(packed_col_s) || packed_col_s != "12" { return 353 }
+    var uvw_bytes = bytes.try_from_string("uvw")
+    if r.is_err(uvw_bytes) { return 354 }
+    if r.is_err(buffer.try_mat_row_copy_from_bytes(packed_string_mat, 1, uvw_bytes)) { return 355 }
+    var packed_row1_bytes = buffer.try_mat_row_to_bytes(packed_string_mat, 1)
+    if r.is_err(packed_row1_bytes) { return 356 }
+    var packed_row1_s = bytes.try_to_string(packed_row1_bytes)
+    if r.is_err(packed_row1_s) || packed_row1_s != "uvw" { return 357 }
+    var pq_buf = buffer.try_u8_from_string("PQ")
+    if r.is_err(pq_buf) { return 358 }
+    if r.is_err(buffer.try_mat_col_copy_from_u8_buf(packed_string_mat, 0, pq_buf)) { return 359 }
+    var packed_col0_s = buffer.try_mat_col_to_string(packed_string_mat, 0)
+    if r.is_err(packed_col0_s) || packed_col0_s != "PQ" { return 360 }
+    var packed_rows_after = buffer.try_u8_mat_unpack_strings(packed_string_mat)
+    if r.is_err(packed_rows_after) { return 361 }
+    if packed_rows_after[0] != "P1Z" || packed_rows_after[1] != "Qvw" { return 362 }
     if r.is_err(buffer.try_u8_mat_pack_strings(["A", "BC"])) != true { return 334 }
     if r.is_err(buffer.try_u8_mat_pack_strings([123])) != true { return 335 }
 

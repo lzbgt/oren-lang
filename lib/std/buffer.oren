@@ -1095,6 +1095,174 @@ fn try_mat_diag_strided(m) {
     return mat_diag_strided(m)
 }
 
+fn mat_row_to_bytes(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_bytes(row)
+}
+
+fn try_mat_row_to_bytes(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_bytes(row)
+}
+
+fn mat_row_unpack_u8(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_u8(row)
+}
+
+fn try_mat_row_unpack_u8(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_u8(row)
+}
+
+fn mat_row_to_u8_buf(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_u8_buf(row)
+}
+
+fn try_mat_row_to_u8_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_u8_buf(row)
+}
+
+fn mat_row_to_string(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_string(row)
+}
+
+fn try_mat_row_to_string(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_string(row)
+}
+
+fn mat_row_copy_from_bytes(m, r, bytes) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_bytes(row, bytes)
+}
+
+fn try_mat_row_copy_from_bytes(m, r, bytes) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_bytes(row, bytes)
+}
+
+fn mat_row_copy_from_u8_buf(m, r, src) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_u8_buf(row, src)
+}
+
+fn try_mat_row_copy_from_u8_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_u8_buf(row, src)
+}
+
+fn mat_row_copy_from_string(m, r, text) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_string(row, text)
+}
+
+fn try_mat_row_copy_from_string(m, r, text) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_string(row, text)
+}
+
+fn mat_col_to_bytes(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_bytes(col)
+}
+
+fn try_mat_col_to_bytes(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_bytes(col)
+}
+
+fn mat_col_unpack_u8(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_u8(col)
+}
+
+fn try_mat_col_unpack_u8(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_u8(col)
+}
+
+fn mat_col_to_u8_buf(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_u8_buf(col)
+}
+
+fn try_mat_col_to_u8_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_u8_buf(col)
+}
+
+fn mat_col_to_string(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_string(col)
+}
+
+fn try_mat_col_to_string(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_string(col)
+}
+
+fn mat_col_copy_from_bytes(m, c, bytes) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_bytes(col, bytes)
+}
+
+fn try_mat_col_copy_from_bytes(m, c, bytes) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_bytes(col, bytes)
+}
+
+fn mat_col_copy_from_u8_buf(m, c, src) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_u8_buf(col, src)
+}
+
+fn try_mat_col_copy_from_u8_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_u8_buf(col, src)
+}
+
+fn mat_col_copy_from_string(m, c, text) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_string(col, text)
+}
+
+fn try_mat_col_copy_from_string(m, c, text) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_string(col, text)
+}
+
 fn mat_load_f32(m, r, c) {
     if !_mat_is_list(m) { return _err_invalid("mat_load_f32: expects mat view") }
     var rows = m[2]

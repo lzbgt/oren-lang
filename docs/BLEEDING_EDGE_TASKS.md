@@ -2245,6 +2245,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      callers can enter and leave the zero-copy matrix-view surface without open-coding row-major
      loops; covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` now also exposes direct checked matrix-row/column `[]u8` bridge helpers
+     such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`, `try_mat_col_to_string`,
+     and `try_mat_col_copy_from_string`, so matrix callers can stay on the matrix surface for the
+     common row/column text and byte bridge paths; covered by result smoke + native quick
+     integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
