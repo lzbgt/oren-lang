@@ -2293,6 +2293,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      surface for numeric row/column extraction and refill without hand-writing view loops; covered
      by result smoke + native quick integration + dedicated AVM buffer-view smoke, with exact float
      value proof kept in AVM and non-error/shape proof kept in shared native fixtures (2026-03-27).
+   - New: `std:buffer` now also exposes checked numeric slice/strided typed-buffer bridges such as
+     `try_slice_to_i32_buf`, `try_slice_copy_from_i32_buf`, `try_strided_to_i64_buf`, and
+     `try_strided_copy_from_f64_buf`, plus checked numeric matrix row/column typed-buffer bridges
+     such as `try_mat_row_to_i32_buf`, `try_mat_row_copy_from_i64_buf`, `try_mat_col_to_f32_buf`,
+     and `try_mat_col_copy_from_f64_buf`, so callers can stay on the visible zero-copy
+     slice/strided/matrix surface for numeric row/column bridge and refill work without routing
+     through temporary lists. The matrix row/column helpers reuse the checked slice/strided
+     typed-buffer bridge surface instead of duplicating row/column loops; covered by result smoke +
+     native quick integration + dedicated AVM buffer-view smoke, with exact integer proof and exact
+     AVM float-value proof kept alongside non-error/shape native float proof (2026-03-27).
    - New: `std:buffer` now also exposes checked whole-matrix numeric typed-buffer bridges such as
      `try_i32_mat_to_i32_buf`, `try_i32_mat_copy_from_i32_buf`, `try_i64_mat_to_i64_buf`,
      `try_i64_mat_copy_from_i64_buf`, `try_f32_mat_to_f32_buf`, `try_f32_mat_copy_from_f32_buf`,

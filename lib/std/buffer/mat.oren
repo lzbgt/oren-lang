@@ -66,13 +66,21 @@ fn try_slice_unpack_u8(s) { return view.try_slice_unpack_u8(s) }
 fn try_slice_to_u8_buf(s) { return view.try_slice_to_u8_buf(s) }
 fn try_slice_to_string(s) { return view.try_slice_to_string(s) }
 fn try_slice_unpack_i32(s) { return view.try_slice_unpack_i32(s) }
+fn try_slice_to_i32_buf(s) { return view.try_slice_to_i32_buf(s) }
 fn try_slice_copy_from_list_i32(s, xs) { return view.try_slice_copy_from_list_i32(s, xs) }
+fn try_slice_copy_from_i32_buf(s, src) { return view.try_slice_copy_from_i32_buf(s, src) }
 fn try_slice_unpack_i64(s) { return view.try_slice_unpack_i64(s) }
+fn try_slice_to_i64_buf(s) { return view.try_slice_to_i64_buf(s) }
 fn try_slice_copy_from_list_i64(s, xs) { return view.try_slice_copy_from_list_i64(s, xs) }
+fn try_slice_copy_from_i64_buf(s, src) { return view.try_slice_copy_from_i64_buf(s, src) }
 fn try_slice_unpack_f32(s) { return view.try_slice_unpack_f32(s) }
+fn try_slice_to_f32_buf(s) { return view.try_slice_to_f32_buf(s) }
 fn try_slice_copy_from_list_f32(s, xs) { return view.try_slice_copy_from_list_f32(s, xs) }
+fn try_slice_copy_from_f32_buf(s, src) { return view.try_slice_copy_from_f32_buf(s, src) }
 fn try_slice_unpack_f64(s) { return view.try_slice_unpack_f64(s) }
+fn try_slice_to_f64_buf(s) { return view.try_slice_to_f64_buf(s) }
 fn try_slice_copy_from_list_f64(s, xs) { return view.try_slice_copy_from_list_f64(s, xs) }
+fn try_slice_copy_from_f64_buf(s, src) { return view.try_slice_copy_from_f64_buf(s, src) }
 fn try_slice_copy_from_bytes(s, bytes) { return view.try_slice_copy_from_bytes(s, bytes) }
 fn try_slice_copy_from_u8_buf(s, src) { return view.try_slice_copy_from_u8_buf(s, src) }
 fn try_slice_copy_from_string(s, text) { return view.try_slice_copy_from_string(s, text) }
@@ -81,13 +89,21 @@ fn try_strided_unpack_u8(s) { return view.try_strided_unpack_u8(s) }
 fn try_strided_to_u8_buf(s) { return view.try_strided_to_u8_buf(s) }
 fn try_strided_to_string(s) { return view.try_strided_to_string(s) }
 fn try_strided_unpack_i32(s) { return view.try_strided_unpack_i32(s) }
+fn try_strided_to_i32_buf(s) { return view.try_strided_to_i32_buf(s) }
 fn try_strided_copy_from_list_i32(s, xs) { return view.try_strided_copy_from_list_i32(s, xs) }
+fn try_strided_copy_from_i32_buf(s, src) { return view.try_strided_copy_from_i32_buf(s, src) }
 fn try_strided_unpack_i64(s) { return view.try_strided_unpack_i64(s) }
+fn try_strided_to_i64_buf(s) { return view.try_strided_to_i64_buf(s) }
 fn try_strided_copy_from_list_i64(s, xs) { return view.try_strided_copy_from_list_i64(s, xs) }
+fn try_strided_copy_from_i64_buf(s, src) { return view.try_strided_copy_from_i64_buf(s, src) }
 fn try_strided_unpack_f32(s) { return view.try_strided_unpack_f32(s) }
+fn try_strided_to_f32_buf(s) { return view.try_strided_to_f32_buf(s) }
 fn try_strided_copy_from_list_f32(s, xs) { return view.try_strided_copy_from_list_f32(s, xs) }
+fn try_strided_copy_from_f32_buf(s, src) { return view.try_strided_copy_from_f32_buf(s, src) }
 fn try_strided_unpack_f64(s) { return view.try_strided_unpack_f64(s) }
+fn try_strided_to_f64_buf(s) { return view.try_strided_to_f64_buf(s) }
 fn try_strided_copy_from_list_f64(s, xs) { return view.try_strided_copy_from_list_f64(s, xs) }
+fn try_strided_copy_from_f64_buf(s, src) { return view.try_strided_copy_from_f64_buf(s, src) }
 fn try_strided_copy_from_bytes(s, bytes) { return view.try_strided_copy_from_bytes(s, bytes) }
 fn try_strided_copy_from_u8_buf(s, src) { return view.try_strided_copy_from_u8_buf(s, src) }
 fn try_strided_copy_from_string(s, text) { return view.try_strided_copy_from_string(s, text) }
@@ -484,6 +500,16 @@ fn mat_row_unpack_i32(m, r) {
     return try_mat_row_unpack_i32(m, r)
 }
 
+fn try_mat_row_to_i32_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_i32_buf(row)
+}
+
+fn mat_row_to_i32_buf(m, r) {
+    return try_mat_row_to_i32_buf(m, r)
+}
+
 fn try_mat_row_copy_from_list_i32(m, r, xs) {
     var row = try_mat_row_slice(m, r)
     if oren_is_err(row) { return row }
@@ -492,6 +518,16 @@ fn try_mat_row_copy_from_list_i32(m, r, xs) {
 
 fn mat_row_copy_from_list_i32(m, r, xs) {
     return try_mat_row_copy_from_list_i32(m, r, xs)
+}
+
+fn try_mat_row_copy_from_i32_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_i32_buf(row, src)
+}
+
+fn mat_row_copy_from_i32_buf(m, r, src) {
+    return try_mat_row_copy_from_i32_buf(m, r, src)
 }
 
 fn try_mat_row_unpack_i64(m, r) {
@@ -504,6 +540,16 @@ fn mat_row_unpack_i64(m, r) {
     return try_mat_row_unpack_i64(m, r)
 }
 
+fn try_mat_row_to_i64_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_i64_buf(row)
+}
+
+fn mat_row_to_i64_buf(m, r) {
+    return try_mat_row_to_i64_buf(m, r)
+}
+
 fn try_mat_row_copy_from_list_i64(m, r, xs) {
     var row = try_mat_row_slice(m, r)
     if oren_is_err(row) { return row }
@@ -512,6 +558,16 @@ fn try_mat_row_copy_from_list_i64(m, r, xs) {
 
 fn mat_row_copy_from_list_i64(m, r, xs) {
     return try_mat_row_copy_from_list_i64(m, r, xs)
+}
+
+fn try_mat_row_copy_from_i64_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_i64_buf(row, src)
+}
+
+fn mat_row_copy_from_i64_buf(m, r, src) {
+    return try_mat_row_copy_from_i64_buf(m, r, src)
 }
 
 fn try_mat_row_unpack_f32(m, r) {
@@ -524,6 +580,16 @@ fn mat_row_unpack_f32(m, r) {
     return try_mat_row_unpack_f32(m, r)
 }
 
+fn try_mat_row_to_f32_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_f32_buf(row)
+}
+
+fn mat_row_to_f32_buf(m, r) {
+    return try_mat_row_to_f32_buf(m, r)
+}
+
 fn try_mat_row_copy_from_list_f32(m, r, xs) {
     var row = try_mat_row_slice(m, r)
     if oren_is_err(row) { return row }
@@ -532,6 +598,16 @@ fn try_mat_row_copy_from_list_f32(m, r, xs) {
 
 fn mat_row_copy_from_list_f32(m, r, xs) {
     return try_mat_row_copy_from_list_f32(m, r, xs)
+}
+
+fn try_mat_row_copy_from_f32_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_f32_buf(row, src)
+}
+
+fn mat_row_copy_from_f32_buf(m, r, src) {
+    return try_mat_row_copy_from_f32_buf(m, r, src)
 }
 
 fn try_mat_row_unpack_f64(m, r) {
@@ -544,6 +620,16 @@ fn mat_row_unpack_f64(m, r) {
     return try_mat_row_unpack_f64(m, r)
 }
 
+fn try_mat_row_to_f64_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_f64_buf(row)
+}
+
+fn mat_row_to_f64_buf(m, r) {
+    return try_mat_row_to_f64_buf(m, r)
+}
+
 fn try_mat_row_copy_from_list_f64(m, r, xs) {
     var row = try_mat_row_slice(m, r)
     if oren_is_err(row) { return row }
@@ -552,6 +638,16 @@ fn try_mat_row_copy_from_list_f64(m, r, xs) {
 
 fn mat_row_copy_from_list_f64(m, r, xs) {
     return try_mat_row_copy_from_list_f64(m, r, xs)
+}
+
+fn try_mat_row_copy_from_f64_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_f64_buf(row, src)
+}
+
+fn mat_row_copy_from_f64_buf(m, r, src) {
+    return try_mat_row_copy_from_f64_buf(m, r, src)
 }
 
 fn mat_row_copy_from_bytes(m, r, bytes) {
@@ -648,6 +744,16 @@ fn mat_col_unpack_i32(m, c) {
     return try_mat_col_unpack_i32(m, c)
 }
 
+fn try_mat_col_to_i32_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_i32_buf(col)
+}
+
+fn mat_col_to_i32_buf(m, c) {
+    return try_mat_col_to_i32_buf(m, c)
+}
+
 fn try_mat_col_copy_from_list_i32(m, c, xs) {
     var col = try_mat_col_strided(m, c)
     if oren_is_err(col) { return col }
@@ -656,6 +762,16 @@ fn try_mat_col_copy_from_list_i32(m, c, xs) {
 
 fn mat_col_copy_from_list_i32(m, c, xs) {
     return try_mat_col_copy_from_list_i32(m, c, xs)
+}
+
+fn try_mat_col_copy_from_i32_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_i32_buf(col, src)
+}
+
+fn mat_col_copy_from_i32_buf(m, c, src) {
+    return try_mat_col_copy_from_i32_buf(m, c, src)
 }
 
 fn try_mat_col_unpack_i64(m, c) {
@@ -668,6 +784,16 @@ fn mat_col_unpack_i64(m, c) {
     return try_mat_col_unpack_i64(m, c)
 }
 
+fn try_mat_col_to_i64_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_i64_buf(col)
+}
+
+fn mat_col_to_i64_buf(m, c) {
+    return try_mat_col_to_i64_buf(m, c)
+}
+
 fn try_mat_col_copy_from_list_i64(m, c, xs) {
     var col = try_mat_col_strided(m, c)
     if oren_is_err(col) { return col }
@@ -676,6 +802,16 @@ fn try_mat_col_copy_from_list_i64(m, c, xs) {
 
 fn mat_col_copy_from_list_i64(m, c, xs) {
     return try_mat_col_copy_from_list_i64(m, c, xs)
+}
+
+fn try_mat_col_copy_from_i64_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_i64_buf(col, src)
+}
+
+fn mat_col_copy_from_i64_buf(m, c, src) {
+    return try_mat_col_copy_from_i64_buf(m, c, src)
 }
 
 fn try_mat_col_unpack_f32(m, c) {
@@ -688,6 +824,16 @@ fn mat_col_unpack_f32(m, c) {
     return try_mat_col_unpack_f32(m, c)
 }
 
+fn try_mat_col_to_f32_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_f32_buf(col)
+}
+
+fn mat_col_to_f32_buf(m, c) {
+    return try_mat_col_to_f32_buf(m, c)
+}
+
 fn try_mat_col_copy_from_list_f32(m, c, xs) {
     var col = try_mat_col_strided(m, c)
     if oren_is_err(col) { return col }
@@ -696,6 +842,16 @@ fn try_mat_col_copy_from_list_f32(m, c, xs) {
 
 fn mat_col_copy_from_list_f32(m, c, xs) {
     return try_mat_col_copy_from_list_f32(m, c, xs)
+}
+
+fn try_mat_col_copy_from_f32_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_f32_buf(col, src)
+}
+
+fn mat_col_copy_from_f32_buf(m, c, src) {
+    return try_mat_col_copy_from_f32_buf(m, c, src)
 }
 
 fn try_mat_col_unpack_f64(m, c) {
@@ -708,6 +864,16 @@ fn mat_col_unpack_f64(m, c) {
     return try_mat_col_unpack_f64(m, c)
 }
 
+fn try_mat_col_to_f64_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_f64_buf(col)
+}
+
+fn mat_col_to_f64_buf(m, c) {
+    return try_mat_col_to_f64_buf(m, c)
+}
+
 fn try_mat_col_copy_from_list_f64(m, c, xs) {
     var col = try_mat_col_strided(m, c)
     if oren_is_err(col) { return col }
@@ -716,6 +882,16 @@ fn try_mat_col_copy_from_list_f64(m, c, xs) {
 
 fn mat_col_copy_from_list_f64(m, c, xs) {
     return try_mat_col_copy_from_list_f64(m, c, xs)
+}
+
+fn try_mat_col_copy_from_f64_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_f64_buf(col, src)
+}
+
+fn mat_col_copy_from_f64_buf(m, c, src) {
+    return try_mat_col_copy_from_f64_buf(m, c, src)
 }
 
 fn mat_col_copy_from_bytes(m, c, bytes) {
