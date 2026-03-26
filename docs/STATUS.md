@@ -743,6 +743,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      module at 666 lines and the matrix implementation in focused submodules without changing the
      checked view/matrix API; covered by dedicated AVM buffer-view smoke, native quick integration,
      and full `make test` (2026-03-27).
+   - Refactor: the duplicated integer/error validation helpers shared by the `std:buffer` facade,
+     `view`, and matrix core now live in `lib/std/buffer/common.oren`, which removes copy-pasted
+     `_err_invalid` / `_is_int` / `_check_*` / list-len / typed-buffer-len logic from the split
+     modules and keeps future buffer-surface validation fixes aligned across all three layers;
+     covered by dedicated AVM buffer-view smoke, native quick integration, and full `make test`
+     (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
      so `== true` / `!= true` checks no longer depend on raw backend truthy values; covered by
      native module-result smoke, result smoke, native quick, and full `make test` (2026-03-27).
@@ -795,7 +801,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        modules (all <2000 lines, 2026-03-03).
      - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren` and a
        split matrix layer (`lib/std/buffer/mat.oren`, `lib/std/buffer/mat_core.oren`,
-       `lib/std/buffer/mat_dense.oren`), keeping the top-level stdlib module at 666 lines and each
+       `lib/std/buffer/mat_dense.oren`), with shared validation helpers factored into
+       `lib/std/buffer/common.oren`, keeping the top-level stdlib module at 666 lines and each
        helper module <2000 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and

@@ -1,55 +1,21 @@
-// std/buffer/mat (rolling)
+// std/buffer/mat_core (rolling)
 //
 // Matrix-view implementation lives here so `std:buffer` can stay as the
 // public facade while typed-buffer and slice/strided helpers remain split.
 
 import list "std:list"
 import bytesm "std:bytes"
+import common "std:buffer/common"
 import view "std:buffer/view"
 
-fn _err_invalid(msg) { return oren_err(4, msg) }
-
-fn _is_int(v) {
-    if v == nil { return false }
-    var tag = oren_type_tag(v)
-    if tag == 1 { return true }
-    if tag == 0 || tag == 3 || tag == 4 || tag == 6 || tag == 7 || tag == 8 { return false }
-    if tag >= 9 && tag <= 13 { return false }
-    var s = oren_int_to_string(v)
-    if s == nil { return false }
-    return oren_is_err(s) == false
-}
-
-fn _check_int(v, ctx, label) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": " + label + " not int") }
-    return v
-}
-
-fn _check_nonneg_int(v, ctx, label) {
-    var ok = _check_int(v, ctx, label)
-    if oren_is_err(ok) { return ok }
-    if v < 0 { return oren_err(4, ctx + ": negative " + label) }
-    return v
-}
-
-fn _plain_list_len_or_err(xs, ctx) {
-    if oren_type_tag(xs) != 6 { return _err_invalid(ctx + ": expects list") }
-    var n = list.len(xs)
-    if oren_is_err(n) { return _err_invalid(ctx + ": expects list") }
-    return n
-}
-
-fn _buf_len_or_err(buf, ctx) {
-    var n = oren_buf_len(buf)
-    if n == nil || oren_is_err(n) { return _err_invalid(ctx + ": expects typed buffer") }
-    return n
-}
-
+fn _err_invalid(msg) { return common._err_invalid(msg) }
+fn _is_int(v) { return common._is_int(v) }
+fn _check_int(v, ctx, label) { return common._check_int(v, ctx, label) }
+fn _check_nonneg_int(v, ctx, label) { return common._check_nonneg_int(v, ctx, label) }
+fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
+fn _buf_len_or_err(buf, ctx) { return common._buf_len_or_err(buf, ctx) }
 fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
-    if oren_type_tag(buf) != want_tag {
-        return _err_invalid(ctx + ": expects " + want_label)
-    }
-    return _buf_len_or_err(buf, ctx)
+    return common._buf_len_with_tag_or_err(buf, want_tag, ctx, want_label)
 }
 
 fn u8_new(n) { return oren_u8_buf_new(n) }
