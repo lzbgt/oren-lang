@@ -11,11 +11,11 @@
 import ui_color "std:ui/color"
 
 fn _is_int(v) {
-    // Backends differ in how they signal "wrong type" for intrinsics.
-    // We keep this conservative and non-crashy by using `oren_int_to_string`:
-    // - valid ints should produce a non-nil string
-    // - non-ints commonly produce `nil` (or an err)
     if v == nil { return false }
+    var tag = oren_type_tag(v)
+    if tag == 1 { return true }
+    if tag == 0 || tag == 3 || tag == 4 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 13 { return false }
     var s = oren_int_to_string(v)
     if s == nil { return false }
     return oren_is_err(s) == false
@@ -23,8 +23,12 @@ fn _is_int(v) {
 
 fn _is_string(v) {
     if v == nil { return false }
-    // Compare length: string_len errors on non-string.
+    var tag = oren_type_tag(v)
+    if tag == 4 { return true }
+    if tag == 0 || tag == 1 || tag == 3 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 13 { return false }
     var n = oren_string_len(v)
+    if n == nil { return false }
     return oren_is_err(n) == false
 }
 

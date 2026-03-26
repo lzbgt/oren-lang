@@ -79,6 +79,8 @@ fn test_std_strings_smoke() {
     assert_eq(bs[1], 90, 7805)
     var s2 = strings.from_bytes([66, 67])
     assert_streq(s2, "BC", 7806)
+    assert_true(oren_is_err(strings.try_char_at("hi", "x")), 7807)
+    assert_true(oren_is_err(strings.try_slice("hi", "x", 1)), 7808)
     return 0
 }
 
@@ -144,6 +146,9 @@ fn test_std_bytes_smoke() {
     assert_true(oren_is_err(bytesm.try_copy_into(dst, 1, bytesm.try_from_string("XY"), 0, 2)) == false, 7948)
     assert_streq(bytesm.try_to_string(dst), "hXYlo", 7949)
     assert_true(oren_is_err(bytesm.try_copy_into(dst, 4, bytesm.try_from_string("XY"), 0, 2)), 7950)
+    assert_true(oren_is_err(bytesm.try_get_u8(b, "x")), 7962)
+    assert_true(oren_is_err(bytesm.try_set_u8(b, "x", 1)), 7963)
+    assert_true(oren_is_err(bytesm.try_copy_into(dst, "x", bytesm.try_from_string("XY"), 0, 1)), 7964)
     var ub2 = oren_u8_buf_new(2)
     assert_true(oren_is_err(ub2) == false, 7889)
     assert_true(oren_is_err(oren_buf_store_u8(ub2, 0, 65)) == false, 7890)
@@ -164,6 +169,21 @@ fn test_std_bytes_smoke() {
     assert_streq(bufferm.try_u8_to_string(slice_buf), "ell", 7959)
     assert_true(oren_is_err(bytesm.try_to_string_slice("nope", 0, 1)), 7960)
     assert_true(oren_is_err(bytesm.try_to_u8_buf_slice("nope", 0, 1)), 7961)
+    return 0
+}
+
+fn test_std_list_slice_smoke() {
+    trace("QI: test_std_list_slice_smoke")
+    var xs = [10, 20, 30, 40]
+    var ys = list.slice_copy(xs, 1, 2)
+    assert_true(oren_is_err(ys) == false, 7965)
+    assert_eq(oren_list_len(ys), 2, 7966)
+    assert_eq(ys[0], 20, 7967)
+    assert_true(oren_is_err(list.slice_copy(xs, "x", 1)), 7968)
+    var bad = list.slice_view(xs, "x", 1)
+    var count = 0
+    for _x in bad { count = count + 1 }
+    assert_eq(count, 0, 7969)
     return 0
 }
 
@@ -1016,6 +1036,7 @@ fn test_ui_headless() {
     var h = 3
     var vr = ui_cmds.validate(cmds, w, h, {"strict_bounds": 1})
     assert_true(vr == 0, 311)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, "x", h, {"strict_bounds": 1})), 323)
 
     var img = ui_raster.rasterize(cmds, w, h, {"strict_bounds": 1})
     assert_true(oren_is_err(img) == false, 312)

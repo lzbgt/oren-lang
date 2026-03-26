@@ -621,6 +621,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).
    - New: `std:list` structured helpers (`try_len`/`try_get`/`try_set`/`try_last`) return
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
+   - New: `std:list.slice_copy`, `std:strings`, `std:bytes`, and `std:ui/commands.validate`
+     now share the hardened non-nil int validation path used by `std:buffer`, so wrong-type
+     scalar-like inputs return `oren_err` consistently instead of depending on backend coercion;
+     malformed `std:list.slice_view` arguments still iterate as an empty sequence by contract
+     (2026-03-27).
    - New: `std:buffer` slice helpers return `oren_err` on invalid input; covered by
      result smoke fixture (2026-03-05).
    - New: `std:encoding/base64.decode_bytes` error handling covered by result

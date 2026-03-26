@@ -9,6 +9,7 @@ import base64 "std:encoding/base64"
 import strings "std:strings"
 import bytes "std:bytes"
 import pem "std:crypto/pem"
+import ui_cmds "std:ui/commands"
 
 fn main() {
     // Non-existent file => error
@@ -36,9 +37,17 @@ fn main() {
 
     var oob = list.try_get(xs, 3)
     if r.is_err(oob) != true { return 8 }
+    var bad_idx = list.try_get(xs, "x")
+    if r.is_err(bad_idx) != true { return 901 }
 
     var bad = list.try_set(xs, -1, 0)
     if r.is_err(bad) != true { return 9 }
+    var bad_copy = list.slice_copy(xs, "x", 1)
+    if r.is_err(bad_copy) != true { return 902 }
+    var bad_view = list.slice_view(xs, "x", 1)
+    var bad_view_count = 0
+    for _x in bad_view { bad_view_count = bad_view_count + 1 }
+    if bad_view_count != 0 { return 903 }
 
     var last = list.try_last(xs)
     if r.is_err(last) || last != 2 { return 10 }
@@ -75,8 +84,12 @@ fn main() {
     if r.is_err(bad_len) != true { return 21 }
     var ch = strings.try_char_at("hi", 1)
     if r.is_err(ch) || ch != "i" { return 22 }
+    var bad_char_ty = strings.try_char_at("hi", "x")
+    if r.is_err(bad_char_ty) != true { return 904 }
     var bad_slice = strings.try_slice("hi", 0, 3)
     if r.is_err(bad_slice) != true { return 23 }
+    var bad_slice_ty = strings.try_slice("hi", "x", 1)
+    if r.is_err(bad_slice_ty) != true { return 905 }
 
     // std:bytes structured errors
     var b = bytes.from_hex("00ff")
@@ -87,8 +100,12 @@ fn main() {
     if r.is_err(bv) || bv != 255 { return 26 }
     var bad_b = bytes.try_get_u8(b, 3)
     if r.is_err(bad_b) != true { return 27 }
+    var bad_b_ty = bytes.try_get_u8(b, "x")
+    if r.is_err(bad_b_ty) != true { return 906 }
     var bad_set = bytes.try_set_u8(b, 0, 300)
     if r.is_err(bad_set) != true { return 28 }
+    var bad_set_ty = bytes.try_set_u8(b, "x", 1)
+    if r.is_err(bad_set_ty) != true { return 907 }
     var bad_hex = bytes.try_from_hex("zz")
     if r.is_err(bad_hex) != true { return 29 }
     var hex = bytes.try_to_hex(b)
@@ -469,6 +486,8 @@ fn main() {
     if r.is_err(dsts) || dsts != "hXYlo" { return 87 }
     var bad_copy = bytes.try_copy_into(dst, 4, bytes.try_from_string("XY"), 0, 2)
     if r.is_err(bad_copy) != true { return 88 }
+    var bad_copy_ty = bytes.try_copy_into(dst, "x", bytes.try_from_string("XY"), 0, 1)
+    if r.is_err(bad_copy_ty) != true { return 908 }
     var ub3 = buffer.u8_new(2)
     if r.is_err(ub3) { return 89 }
     if r.is_err(oren_buf_store_u8(ub3, 0, 65)) { return 90 }
@@ -493,6 +512,8 @@ fn main() {
     if r.is_err(bad_str_slice) != true { return 100 }
     var bad_buf_slice = bytes.try_to_u8_buf_slice("nope", 0, 1)
     if r.is_err(bad_buf_slice) != true { return 101 }
+    var ui_bad_fb = ui_cmds.validate([], "x", 1, nil)
+    if r.is_err(ui_bad_fb) != true { return 909 }
     var u8_from_bytes = buffer.try_u8_from_bytes(bytes.try_from_string("EF"))
     if r.is_err(u8_from_bytes) || buffer.try_u8_to_string(u8_from_bytes) != "EF" { return 102 }
     var u8_from_bytes_slice = buffer.try_u8_from_bytes_slice(bytes.try_from_string("hello"), 1, 3)

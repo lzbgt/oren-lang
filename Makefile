@@ -437,7 +437,7 @@ test-native-quick: oren
 # and the default per-step budget in `run_native_quick_integration.sh` is too low when the
 # self-hosted compiler has to pay a cold debug rtobj build.
 test-native-quick-stage2: oren_stage2 rtobj-seed-quick-stage2
-		@OREN_NATIVE_BUILD_TIMEOUT_SECS=120 OREN_NATIVE_RUN_TIMEOUT_SECS=20 \
+		@OREN_NATIVE_BUILD_TIMEOUT_SECS=120 OREN_NATIVE_RUN_TIMEOUT_SECS=30 \
 		  ./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
 
 # Debug flake triage (stage1): run quick integration loop with spawn ring

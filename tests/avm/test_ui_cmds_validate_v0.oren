@@ -40,8 +40,15 @@ fn test_validate_bad_color() {
     assert_true(oren_is_err(r) == true)
 }
 
+fn test_validate_bad_framebuffer_size_type() {
+    var cmds = []
+    var r = ui_cmds.validate(cmds, "wide", 2, {"strict_bounds": true})
+    assert_true(oren_is_err(r) == true)
+}
+
 fn main() {
     test_validate_ok()
     test_validate_bad_color()
+    test_validate_bad_framebuffer_size_type()
     exit(0)
 }

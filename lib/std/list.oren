@@ -13,8 +13,11 @@ fn len(xs) { return oren_list_len(xs) }
 fn is_empty(xs) { return oren_list_len(xs) == 0 }
 
 fn _is_int(v) {
-    // Conservative int check (matches std:ui/commands behavior).
     if v == nil { return false }
+    var tag = oren_type_tag(v)
+    if tag == 1 { return true }
+    if tag == 0 || tag == 3 || tag == 4 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 13 { return false }
     var s = oren_int_to_string(v)
     if s == nil { return false }
     return oren_is_err(s) == false
@@ -62,9 +65,12 @@ fn slice_copy(xs, off, n) {
     if xs == nil { return oren_err(4, "list.slice_copy: xs is nil") }
     if oren_type_tag(off) == 0 { off = 0 }
     if oren_type_tag(n) == 0 { n = 0 }
+    if _is_int(off) == false { return oren_err(4, "list.slice_copy: off not int") }
+    if _is_int(n) == false { return oren_err(4, "list.slice_copy: n not int") }
     if off < 0 { return oren_err(4, "list.slice_copy: off < 0") }
     if n < 0 { return oren_err(4, "list.slice_copy: n < 0") }
     var total = oren_list_len(xs)
+    if total == nil || oren_is_err(total) { return oren_err(4, "list.slice_copy: xs must be list") }
     if off > total { return oren_err(4, "list.slice_copy: off out of bounds") }
     if n > (total - off) { return oren_err(4, "list.slice_copy: range out of bounds") }
 
@@ -88,8 +94,13 @@ fn slice_view(xs, off, n) {
     // Notes:
     // - The marker value **must** be a string literal in native mode so the runtime can use pointer equality safely.
     // - Malformed views iterate as an empty sequence (deterministic, avoids crashes).
+    var total = oren_list_len(xs)
+    if total == nil || oren_is_err(total) { return {"__iter": "list_slice", "base": [], "off": 0, "len": 0} }
     if oren_type_tag(off) == 0 { off = 0 }
     if oren_type_tag(n) == 0 { n = 0 }
+    if _is_int(off) == false || _is_int(n) == false { return {"__iter": "list_slice", "base": xs, "off": 0, "len": 0} }
+    if off < 0 || n < 0 { return {"__iter": "list_slice", "base": xs, "off": 0, "len": 0} }
+    if off > total || n > (total - off) { return {"__iter": "list_slice", "base": xs, "off": 0, "len": 0} }
     return {"__iter": "list_slice", "base": xs, "off": off, "len": n}
 }
 

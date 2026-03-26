@@ -10,6 +10,10 @@ fn len(bytes) { return oren_bytes_len(bytes) }
 
 fn _is_int(v) {
     if v == nil { return false }
+    var tag = oren_type_tag(v)
+    if tag == 1 { return true }
+    if tag == 0 || tag == 3 || tag == 4 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 13 { return false }
     var s = oren_int_to_string(v)
     if s == nil { return false }
     return oren_is_err(s) == false

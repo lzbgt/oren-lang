@@ -1288,6 +1288,9 @@ var tail = list.slice_copy(xs, 1, n - 1)
 - `list.clone(xs)` — **shallow clone** (new list; elements are not deep-copied)
 - `list.slice_copy(xs, off, n)` — copy out a sub-range (returns `Err` on invalid ranges)
 - `list.slice_view(xs, off, n)` — cheap O(1) iterable *view*
+- `list.slice_copy` rejects wrong-type non-nil `off`/`n` with `Err`, while malformed
+  `list.slice_view` arguments still normalize to an empty iterable instead of crashing
+  across native and AVM
 
 #### Slice views (cheap; iterable-only)
 

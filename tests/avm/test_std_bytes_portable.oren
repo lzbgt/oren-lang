@@ -3,6 +3,8 @@
 import assertm "../../lib/std/assert.oren"
 import bufferm "../../lib/std/buffer.oren"
 import bytesm "../../lib/std/bytes.oren"
+import listm "../../lib/std/list.oren"
+import stringsm "../../lib/std/strings.oren"
 
 fn fail() {
     var a = [1]
@@ -53,6 +55,9 @@ fn test_bytes_conversions() {
     assert_true(!oren_is_err(bytesm.try_copy_into(dst, 1, bytesm.try_from_string("XY"), 0, 2)))
     assert_eq(bytesm.try_to_string(dst), "hXYlo")
     assert_true(oren_is_err(bytesm.try_copy_into(dst, 4, bytesm.try_from_string("XY"), 0, 2)))
+    assert_true(oren_is_err(bytesm.try_get_u8(dst, "x")))
+    assert_true(oren_is_err(bytesm.try_set_u8(dst, "x", 1)))
+    assert_true(oren_is_err(bytesm.try_copy_into(dst, "x", bytesm.try_from_string("XY"), 0, 1)))
 }
 
 fn test_bytes_u8_buf_to_string() {
@@ -86,9 +91,20 @@ fn test_assert_streq_portable() {
     assertm.assert_streq("ok", "ok", "avm std assert_streq portable")
 }
 
+fn test_list_and_strings_validation() {
+    assert_true(oren_is_err(stringsm.try_char_at("hi", "x")))
+    assert_true(oren_is_err(stringsm.try_slice("hi", "x", 1)))
+    assert_true(oren_is_err(listm.slice_copy([1, 2], "x", 1)))
+    var bad = listm.slice_view([1, 2], "x", 1)
+    var count = 0
+    for _x in bad { count = count + 1 }
+    assert_eq(count, 0)
+}
+
 fn main() {
     test_bytes_conversions()
     test_bytes_u8_buf_to_string()
     test_assert_streq_portable()
+    test_list_and_strings_validation()
     return 0
 }
