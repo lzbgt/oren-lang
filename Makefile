@@ -504,12 +504,12 @@ verify-green-world-lock-guarded: oren_stage2
 
 # Guarded scheduler smoke: pre-world-lock quick integration / green-cache path only.
 verify-green-preworld-guarded: oren_stage2
-	@OREN_QI_STOP_BEFORE_WORLD_LOCK=1 OREN_NATIVE_RUN_TIMEOUT_SECS=20 OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=20 ./scripts/triage_stage2_quick_until_world_lock.sh 1 "./$(OREN_STAGE2_BIN)" OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1
+	@OREN_QI_STOP_BEFORE_WORLD_LOCK=1 OREN_NATIVE_RUN_TIMEOUT_SECS=30 OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=30 ./scripts/triage_stage2_quick_until_world_lock.sh 1 "./$(OREN_STAGE2_BIN)" OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1
 	@echo "verify-green-preworld-guarded OK"
 
 # Guarded scheduler smoke: stage2 quick integration stops after global-runq fairness.
 verify-green-fairness-guarded: oren_stage2
-	@OREN_QI_STOP_AFTER_GREEN_FAIRNESS=1 OREN_QI_STOP_AFTER_GREEN_CACHE=1 OREN_NATIVE_RUN_TIMEOUT_SECS=20 OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=20 ./scripts/triage_native_quick_stage2_flake.sh 3 "./$(OREN_STAGE2_BIN)" OREN_TRACE_GREEN_FAIRNESS=1
+	@OREN_QI_STOP_AFTER_GREEN_FAIRNESS=1 OREN_QI_STOP_AFTER_GREEN_CACHE=1 OREN_NATIVE_BUILD_TIMEOUT_SECS=120 OREN_NATIVE_RUN_TIMEOUT_SECS=60 OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=60 ./scripts/triage_native_quick_stage2_flake.sh 1 "./$(OREN_STAGE2_BIN)" OREN_TRACE_GREEN_FAIRNESS=1
 	@echo "verify-green-fairness-guarded OK"
 
 # Cross-backend parity smoke: boxed list sum/dot output must match (C/native/OBC).

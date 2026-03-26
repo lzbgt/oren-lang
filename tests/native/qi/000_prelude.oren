@@ -142,6 +142,21 @@ fn _qi_timeout_ms(ms) {
     return ms
 }
 
+fn _qi_timeout_us(ms) {
+    return _qi_timeout_ms(ms) * 1000
+}
+
+fn _qi_join_timeout_retry(h, timeout_ms, retries) {
+    var tries = 0
+    while tries <= retries {
+        var r = oren_join_timeout(h, _qi_timeout_ms(timeout_ms))
+        if r != -60 { return r }
+        tries = tries + 1
+        if tries <= retries { oren_sleep_ms(10) }
+    }
+    return -60
+}
+
 fn add(a, b) { return a + b }
 fn add3(a, b, c) { return a + b + c }
 

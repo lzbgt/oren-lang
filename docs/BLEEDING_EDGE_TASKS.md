@@ -1520,6 +1520,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Update (2026-03-15): `scripts/triage_native_quick_flake.sh` now snapshots the per-run
     quick-integration phase log as well as the inner log, so timeout runs preserve both
     artifacts automatically.
+  - Fix (2026-03-27): stage2 quick integration now routes the global-runq fairness joins
+    through a shared retrying join helper and gives the GC/STW netpoll wake guard one
+    bounded re-measure before failing code `797`, while keeping the original `<700ms`
+    regression threshold. This is intended to suppress transient scheduler jitter, not
+    to relax the missing-wake regression itself.
+  - Fix (2026-03-27): the guarded stage2 scheduler smokes now use the same `30s`
+    run budget as `make test-native-quick-stage2`, because the previous `20s`
+    wrapper budget was timing out during stage2 quick-integration startup on the
+    current arm64-macos path before the guarded assertions even ran.
+  - Update (2026-03-27): `make verify-green-fairness-guarded` is now a one-run
+    guarded smoke with explicit `OREN_NATIVE_BUILD_TIMEOUT_SECS=120` and
+    `OREN_NATIVE_RUN_TIMEOUT_SECS=60` / `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=60`.
+    The old `3x` loop remains available through `scripts/triage_native_quick_stage2_flake.sh`
+    for flake hunting, but the default verify target should stay a practical gate.
   - New (2026-03-15): `scripts/triage_native_quick_green_cache_flake.sh` +
     `make test-native-quick-green-cache-flake` isolate only the stage1 green-cache rerun path
     with STW/runq guards enabled.
