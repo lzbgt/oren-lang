@@ -2197,6 +2197,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `try_slice_*`, `try_strided_*`, `try_mat_view_new`, `try_mat_load/store_i32`,
      `try_mat_load/store_f32`) and return `oren_err` on invalid input; covered by result smoke +
      native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
+   - New: `std:buffer` now also exposes checked conversion helpers for the common portable bridge
+     cases (`try_u8_pack`, `try_u8_pack_into`, `try_u8_unpack`, `try_u8_from_string`,
+     `try_u8_to_string`, `try_i32_pack_list_int`, `try_i32_pack_list_int_into`,
+     `try_i32_unpack_list`); covered by result smoke + native quick integration + dedicated AVM
+     buffer-view smoke (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).

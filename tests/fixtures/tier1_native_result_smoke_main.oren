@@ -127,22 +127,46 @@ fn main() {
     if r.is_err(i64s) || i64s != i64b { return 44 }
     var i64v = buffer.try_load_i64(i64b, 1)
     if r.is_err(i64v) || i64v != 4294967296 { return 45 }
+    var i32_list = buffer.try_i32_unpack_list(i32b)
+    if r.is_err(i32_list) || oren_list_len(i32_list) != 2 || i32_list[0] != -7 || i32_list[1] != 0 { return 46 }
+    var i32_pack_try = buffer.try_i32_pack_list_int([5, 6])
+    if r.is_err(i32_pack_try) { return 47 }
+    var i32_pack_list = buffer.try_i32_unpack_list(i32_pack_try)
+    if r.is_err(i32_pack_list) || oren_list_len(i32_pack_list) != 2 || i32_pack_list[1] != 6 { return 48 }
+    var i32_pack_bad = buffer.try_i32_pack_list_int([2147483648])
+    if r.is_err(i32_pack_bad) != true { return 49 }
+    var u8_from = buffer.try_u8_from_string("AB")
+    if r.is_err(u8_from) { return 50 }
+    var u8_text = buffer.try_u8_to_string(u8_from)
+    if r.is_err(u8_text) || u8_text != "AB" { return 51 }
+    var u8_list = buffer.try_u8_unpack(u8_from)
+    if r.is_err(u8_list) || oren_list_len(u8_list) != 2 || u8_list[0] != 65 || u8_list[1] != 66 { return 52 }
+    var u8_pack = buffer.try_u8_pack([67, 68])
+    if r.is_err(u8_pack) { return 53 }
+    var u8_pack_text = buffer.try_u8_to_string(u8_pack)
+    if r.is_err(u8_pack_text) || u8_pack_text != "CD" { return 54 }
+    var u8_pack_bad = buffer.try_u8_pack([256])
+    if r.is_err(u8_pack_bad) != true { return 55 }
+    var u8_pack_bad_type = buffer.try_u8_pack(123)
+    if r.is_err(u8_pack_bad_type) != true { return 56 }
+    var u8_from_bad = buffer.try_u8_from_string(123)
+    if r.is_err(u8_from_bad) != true { return 57 }
     var f32b = buffer.f32_new(2)
-    if r.is_err(f32b) { return 46 }
+    if r.is_err(f32b) { return 58 }
     var f32s = buffer.try_store_f32(f32b, 0, 1.5)
-    if r.is_err(f32s) || f32s != f32b { return 47 }
+    if r.is_err(f32s) || f32s != f32b { return 59 }
     var f32v = buffer.try_load_f32(f32b, 0)
-    if r.is_err(f32v) { return 48 }
+    if r.is_err(f32v) { return 60 }
     var f32_bad = buffer.try_load_f32(f32b, 2)
-    if r.is_err(f32_bad) != true { return 49 }
+    if r.is_err(f32_bad) != true { return 61 }
     var f64b = buffer.f64_new(2)
-    if r.is_err(f64b) { return 50 }
+    if r.is_err(f64b) { return 62 }
     var f64s = buffer.try_store_f64(f64b, 1, -0.5)
-    if r.is_err(f64s) || f64s != f64b { return 51 }
+    if r.is_err(f64s) || f64s != f64b { return 63 }
     var f64v = buffer.try_load_f64(f64b, 1)
-    if r.is_err(f64v) { return 52 }
+    if r.is_err(f64v) { return 64 }
     var f64_bad = buffer.try_load_f64(f64b, 3)
-    if r.is_err(f64_bad) != true { return 53 }
+    if r.is_err(f64_bad) != true { return 65 }
 
     var s_ok2 = buffer.try_slice_new(i32b, 0, 2)
     if r.is_err(s_ok2) { return 186 }
