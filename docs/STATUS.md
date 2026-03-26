@@ -737,8 +737,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      smoke, with exact float value proof kept in AVM and non-error/shape proof kept in shared
      native fixtures (2026-03-27).
    - Refactor: `std:buffer` is now split into a thin public facade plus
-     `lib/std/buffer/view.oren` for slice/strided helpers and `lib/std/buffer/mat.oren` for the
-     matrix-heavy implementation, which keeps the public module at 586 lines without changing the
+     `lib/std/buffer/view.oren` for slice/strided helpers and a three-part matrix layer:
+     `lib/std/buffer/mat.oren` as the compatibility facade over
+     `lib/std/buffer/mat_core.oren` and `lib/std/buffer/mat_dense.oren`. That keeps the public
+     module at 666 lines and the matrix implementation in focused submodules without changing the
      checked view/matrix API; covered by dedicated AVM buffer-view smoke, native quick integration,
      and full `make test` (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
@@ -791,9 +793,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        (all <2000 lines, 2026-02-25).
      - `lib/runtime_native/100_time_gc_alloc.oren` core split into scan/reuse, list_hdr, track, roots_gc
        modules (all <2000 lines, 2026-03-03).
-     - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren` and
-       `lib/std/buffer/mat.oren`, keeping the top-level stdlib module at 586 lines and each helper
-       module <2000 lines (2026-03-27).
+     - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren` and a
+       split matrix layer (`lib/std/buffer/mat.oren`, `lib/std/buffer/mat_core.oren`,
+       `lib/std/buffer/mat_dense.oren`), keeping the top-level stdlib module at 666 lines and each
+       helper module <2000 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).

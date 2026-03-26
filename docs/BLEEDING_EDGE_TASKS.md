@@ -2313,8 +2313,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      exact float value proof kept in AVM and non-error/shape proof kept in shared native fixtures
      (2026-03-27).
    - Refactor: `std:buffer` is now split into a thin public facade plus
-     `lib/std/buffer/view.oren` for slice/strided helpers and `lib/std/buffer/mat.oren` for the
-     matrix-heavy implementation, which keeps the public module at 586 lines without changing the
+     `lib/std/buffer/view.oren` for slice/strided helpers and a three-part matrix layer:
+     `lib/std/buffer/mat.oren` as the compatibility facade over
+     `lib/std/buffer/mat_core.oren` and `lib/std/buffer/mat_dense.oren`. That keeps the public
+     module at 666 lines and the matrix implementation in focused submodules without changing the
      checked view/matrix API; covered by dedicated AVM buffer-view smoke, native quick integration,
      and full `make test` (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
@@ -2348,8 +2350,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Done: `lib/compiler/optimizer.oren` split into core/fold/DCE/list-int/list-reserve/TCO modules (<2000 lines each).
    - Done: `lib/runtime_native/100_time_gc_alloc.oren` split into trace/index/core modules (<2000 lines each).
    - Done: `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`
-     and `lib/std/buffer/mat.oren` (public facade 586 lines; helper modules <2000 lines,
-     2026-03-27).
+     and a split matrix layer (`lib/std/buffer/mat.oren`, `lib/std/buffer/mat_core.oren`,
+     `lib/std/buffer/mat_dense.oren`) with the public facade at 666 lines and each helper module
+     <2000 lines (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
      `avm_cli_disasm`, `avm_cli_dump`) (<2000 lines each, 2026-02-25).

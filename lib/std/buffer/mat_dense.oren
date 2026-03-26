@@ -1,0 +1,635 @@
+// std/buffer/mat_dense (rolling)
+//
+// Dense whole-matrix conversion/copy helpers are split out so `mat_core`
+// can stay focused on shared matrix-view primitives and row/column bridges.
+
+import bytesm "std:bytes"
+import core "std:buffer/mat_core"
+
+fn _err_invalid(msg) { return core._err_invalid(msg) }
+fn _is_int(v) { return core._is_int(v) }
+fn _rows_shape_or_err(rows, ctx) { return core._rows_shape_or_err(rows, ctx) }
+fn _string_rows_shape_or_err(rows, ctx) { return core._string_rows_shape_or_err(rows, ctx) }
+fn _mat_rows_shape_match_or_err(m, rows, ctx) { return core._mat_rows_shape_match_or_err(m, rows, ctx) }
+fn _mat_string_rows_shape_match_or_err(m, rows, ctx) { return core._mat_string_rows_shape_match_or_err(m, rows, ctx) }
+fn _mat_unpack_rows_with(m, ctx, loadf) { return core._mat_unpack_rows_with(m, ctx, loadf) }
+fn _mat_unpack_flat_with(m, ctx, loadf) { return core._mat_unpack_flat_with(m, ctx, loadf) }
+fn _mat_validate_i32_or_err(v, ctx) { return core._mat_validate_i32_or_err(v, ctx) }
+fn _mat_validate_i64_or_err(v, ctx) { return core._mat_validate_i64_or_err(v, ctx) }
+fn _mat_validate_passthru_or_err(v, ctx) { return core._mat_validate_passthru_or_err(v, ctx) }
+fn _mat_copy_from_flat_with(m, xs, ctx, validatef, storef) { return core._mat_copy_from_flat_with(m, xs, ctx, validatef, storef) }
+fn _store_i32_buf_direct(buf, idx, v) { return core._store_i32_buf_direct(buf, idx, v) }
+fn _load_i32_buf_direct(buf, idx) { return core._load_i32_buf_direct(buf, idx) }
+fn _store_i64_buf_direct(buf, idx, v) { return core._store_i64_buf_direct(buf, idx, v) }
+fn _load_i64_buf_direct(buf, idx) { return core._load_i64_buf_direct(buf, idx) }
+fn _store_f32_buf_direct(buf, idx, v) { return core._store_f32_buf_direct(buf, idx, v) }
+fn _load_f32_buf_direct(buf, idx) { return core._load_f32_buf_direct(buf, idx) }
+fn _store_f64_buf_direct(buf, idx, v) { return core._store_f64_buf_direct(buf, idx, v) }
+fn _load_f64_buf_direct(buf, idx) { return core._load_f64_buf_direct(buf, idx) }
+fn _mat_to_typed_buf_with(m, ctx, newf, loadf, storef) { return core._mat_to_typed_buf_with(m, ctx, newf, loadf, storef) }
+fn _mat_copy_from_typed_buf_with(m, src, ctx, want_tag, want_label, loadf, storef) { return core._mat_copy_from_typed_buf_with(m, src, ctx, want_tag, want_label, loadf, storef) }
+fn _mat_is_list(m) { return core._mat_is_list(m) }
+fn u8_new(n) { return core.u8_new(n) }
+fn i32_new(n) { return core.i32_new(n) }
+fn i64_new(n) { return core.i64_new(n) }
+fn f32_new(n) { return core.f32_new(n) }
+fn f64_new(n) { return core.f64_new(n) }
+fn try_slice_store_u8(s, idx, v) { return core.try_slice_store_u8(s, idx, v) }
+fn try_slice_unpack_u8(s) { return core.try_slice_unpack_u8(s) }
+fn try_slice_to_string(s) { return core.try_slice_to_string(s) }
+fn try_slice_copy_from_string(s, text) { return core.try_slice_copy_from_string(s, text) }
+fn try_u8_to_bytes(buf) { return core.try_u8_to_bytes(buf) }
+fn try_mat_view_new(buf, off, rows, cols, row_stride) { return core.try_mat_view_new(buf, off, rows, cols, row_stride) }
+fn try_mat_row_slice(m, r) { return core.try_mat_row_slice(m, r) }
+fn try_mat_row_unpack_u8(m, r) { return core.try_mat_row_unpack_u8(m, r) }
+fn try_mat_row_copy_from_string(m, r, text) { return core.try_mat_row_copy_from_string(m, r, text) }
+fn try_mat_load_i32(m, r, c) { return core.try_mat_load_i32(m, r, c) }
+fn try_mat_store_i32(m, r, c, v) { return core.try_mat_store_i32(m, r, c, v) }
+fn try_mat_load_i64(m, r, c) { return core.try_mat_load_i64(m, r, c) }
+fn try_mat_store_i64(m, r, c, v) { return core.try_mat_store_i64(m, r, c, v) }
+fn try_mat_load_f32(m, r, c) { return core.try_mat_load_f32(m, r, c) }
+fn try_mat_store_f32(m, r, c, v) { return core.try_mat_store_f32(m, r, c, v) }
+fn try_mat_load_f64(m, r, c) { return core.try_mat_load_f64(m, r, c) }
+fn try_mat_store_f64(m, r, c, v) { return core.try_mat_store_f64(m, r, c, v) }
+
+fn i32_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.i32_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = i32_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        var c = 0
+        while c < ncols {
+            var v = row[c]
+            if _is_int(v) == false { return oren_err(4, "buffer.i32_mat_pack_rows: value not int") }
+            if v < -2147483648 || v > 2147483647 {
+                return _err_invalid("buffer.i32_mat_pack_rows: value out of i32 range")
+            }
+            var rc = try_mat_store_i32(mat, r, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_i32_mat_pack_rows(rows) {
+    return i32_mat_pack_rows(rows)
+}
+
+fn i32_mat_unpack_rows(m) {
+    return _mat_unpack_rows_with(m, "buffer.i32_mat_unpack_rows", try_mat_load_i32)
+}
+
+fn try_i32_mat_unpack_rows(m) {
+    return i32_mat_unpack_rows(m)
+}
+
+fn i32_mat_unpack_flat(m) {
+    return _mat_unpack_flat_with(m, "buffer.i32_mat_unpack_flat", try_mat_load_i32)
+}
+
+fn try_i32_mat_unpack_flat(m) {
+    return i32_mat_unpack_flat(m)
+}
+
+fn i32_mat_to_i32_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.i32_mat_to_i32_buf", i32_new, try_mat_load_i32, _store_i32_buf_direct)
+}
+
+fn try_i32_mat_to_i32_buf(m) {
+    return i32_mat_to_i32_buf(m)
+}
+
+fn i32_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.i32_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var v = rows[r][c]
+            if _is_int(v) == false { return oren_err(4, "buffer.i32_mat_copy_from_rows: value not int") }
+            if v < -2147483648 || v > 2147483647 {
+                return _err_invalid("buffer.i32_mat_copy_from_rows: value out of i32 range")
+            }
+            var rc = try_mat_store_i32(m, r, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_i32_mat_copy_from_rows(m, rows) {
+    return i32_mat_copy_from_rows(m, rows)
+}
+
+fn i32_mat_copy_from_flat(m, xs) {
+    return _mat_copy_from_flat_with(m, xs, "buffer.i32_mat_copy_from_flat", _mat_validate_i32_or_err, try_mat_store_i32)
+}
+
+fn try_i32_mat_copy_from_flat(m, xs) {
+    return i32_mat_copy_from_flat(m, xs)
+}
+
+fn i32_mat_copy_from_i32_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.i32_mat_copy_from_i32_buf", 10, "i32_buf", _load_i32_buf_direct, try_mat_store_i32)
+}
+
+fn try_i32_mat_copy_from_i32_buf(m, src) {
+    return i32_mat_copy_from_i32_buf(m, src)
+}
+
+fn i64_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.i64_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = i64_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var rc = i64_mat_copy_from_rows(mat, rows)
+    if oren_is_err(rc) { return rc }
+    return mat
+}
+
+fn try_i64_mat_pack_rows(rows) {
+    return i64_mat_pack_rows(rows)
+}
+
+fn i64_mat_unpack_rows(m) {
+    return _mat_unpack_rows_with(m, "buffer.i64_mat_unpack_rows", try_mat_load_i64)
+}
+
+fn try_i64_mat_unpack_rows(m) {
+    return i64_mat_unpack_rows(m)
+}
+
+fn i64_mat_unpack_flat(m) {
+    return _mat_unpack_flat_with(m, "buffer.i64_mat_unpack_flat", try_mat_load_i64)
+}
+
+fn try_i64_mat_unpack_flat(m) {
+    return i64_mat_unpack_flat(m)
+}
+
+fn i64_mat_to_i64_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.i64_mat_to_i64_buf", i64_new, try_mat_load_i64, _store_i64_buf_direct)
+}
+
+fn try_i64_mat_to_i64_buf(m) {
+    return i64_mat_to_i64_buf(m)
+}
+
+fn i64_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.i64_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var v = rows[r][c]
+            if _is_int(v) == false { return oren_err(4, "buffer.i64_mat_copy_from_rows: value not int") }
+            var rc = try_mat_store_i64(m, r, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_i64_mat_copy_from_rows(m, rows) {
+    return i64_mat_copy_from_rows(m, rows)
+}
+
+fn i64_mat_copy_from_flat(m, xs) {
+    return _mat_copy_from_flat_with(m, xs, "buffer.i64_mat_copy_from_flat", _mat_validate_i64_or_err, try_mat_store_i64)
+}
+
+fn try_i64_mat_copy_from_flat(m, xs) {
+    return i64_mat_copy_from_flat(m, xs)
+}
+
+fn i64_mat_copy_from_i64_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.i64_mat_copy_from_i64_buf", 11, "i64_buf", _load_i64_buf_direct, try_mat_store_i64)
+}
+
+fn try_i64_mat_copy_from_i64_buf(m, src) {
+    return i64_mat_copy_from_i64_buf(m, src)
+}
+
+fn f32_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.f32_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = f32_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var rc = f32_mat_copy_from_rows(mat, rows)
+    if oren_is_err(rc) { return rc }
+    return mat
+}
+
+fn try_f32_mat_pack_rows(rows) {
+    return f32_mat_pack_rows(rows)
+}
+
+fn f32_mat_unpack_rows(m) {
+    return _mat_unpack_rows_with(m, "buffer.f32_mat_unpack_rows", try_mat_load_f32)
+}
+
+fn try_f32_mat_unpack_rows(m) {
+    return f32_mat_unpack_rows(m)
+}
+
+fn f32_mat_unpack_flat(m) {
+    return _mat_unpack_flat_with(m, "buffer.f32_mat_unpack_flat", try_mat_load_f32)
+}
+
+fn try_f32_mat_unpack_flat(m) {
+    return f32_mat_unpack_flat(m)
+}
+
+fn f32_mat_to_f32_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.f32_mat_to_f32_buf", f32_new, try_mat_load_f32, _store_f32_buf_direct)
+}
+
+fn try_f32_mat_to_f32_buf(m) {
+    return f32_mat_to_f32_buf(m)
+}
+
+fn f32_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.f32_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var rc = try_mat_store_f32(m, r, c, rows[r][c])
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_f32_mat_copy_from_rows(m, rows) {
+    return f32_mat_copy_from_rows(m, rows)
+}
+
+fn f32_mat_copy_from_flat(m, xs) {
+    return _mat_copy_from_flat_with(m, xs, "buffer.f32_mat_copy_from_flat", _mat_validate_passthru_or_err, try_mat_store_f32)
+}
+
+fn try_f32_mat_copy_from_flat(m, xs) {
+    return f32_mat_copy_from_flat(m, xs)
+}
+
+fn f32_mat_copy_from_f32_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.f32_mat_copy_from_f32_buf", 12, "f32_buf", _load_f32_buf_direct, try_mat_store_f32)
+}
+
+fn try_f32_mat_copy_from_f32_buf(m, src) {
+    return f32_mat_copy_from_f32_buf(m, src)
+}
+
+fn f64_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.f64_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = f64_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var rc = f64_mat_copy_from_rows(mat, rows)
+    if oren_is_err(rc) { return rc }
+    return mat
+}
+
+fn try_f64_mat_pack_rows(rows) {
+    return f64_mat_pack_rows(rows)
+}
+
+fn f64_mat_unpack_rows(m) {
+    return _mat_unpack_rows_with(m, "buffer.f64_mat_unpack_rows", try_mat_load_f64)
+}
+
+fn try_f64_mat_unpack_rows(m) {
+    return f64_mat_unpack_rows(m)
+}
+
+fn f64_mat_unpack_flat(m) {
+    return _mat_unpack_flat_with(m, "buffer.f64_mat_unpack_flat", try_mat_load_f64)
+}
+
+fn try_f64_mat_unpack_flat(m) {
+    return f64_mat_unpack_flat(m)
+}
+
+fn f64_mat_to_f64_buf(m) {
+    return _mat_to_typed_buf_with(m, "buffer.f64_mat_to_f64_buf", f64_new, try_mat_load_f64, _store_f64_buf_direct)
+}
+
+fn try_f64_mat_to_f64_buf(m) {
+    return f64_mat_to_f64_buf(m)
+}
+
+fn f64_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.f64_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var rc = try_mat_store_f64(m, r, c, rows[r][c])
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_f64_mat_copy_from_rows(m, rows) {
+    return f64_mat_copy_from_rows(m, rows)
+}
+
+fn f64_mat_copy_from_flat(m, xs) {
+    return _mat_copy_from_flat_with(m, xs, "buffer.f64_mat_copy_from_flat", _mat_validate_passthru_or_err, try_mat_store_f64)
+}
+
+fn try_f64_mat_copy_from_flat(m, xs) {
+    return f64_mat_copy_from_flat(m, xs)
+}
+
+fn f64_mat_copy_from_f64_buf(m, src) {
+    return _mat_copy_from_typed_buf_with(m, src, "buffer.f64_mat_copy_from_f64_buf", 13, "f64_buf", _load_f64_buf_direct, try_mat_store_f64)
+}
+
+fn try_f64_mat_copy_from_f64_buf(m, src) {
+    return f64_mat_copy_from_f64_buf(m, src)
+}
+
+fn u8_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.u8_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = u8_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row_view = try_mat_row_slice(mat, r)
+        if oren_is_err(row_view) { return row_view }
+        var row = rows[r]
+        var c = 0
+        while c < ncols {
+            var v = row[c]
+            if _is_int(v) == false { return oren_err(4, "buffer.u8_mat_pack_rows: value not int") }
+            if v < 0 || v > 255 { return oren_err(4, "buffer.u8_mat_pack_rows: byte out of range") }
+            var rc = try_slice_store_u8(row_view, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_u8_mat_pack_rows(rows) {
+    return u8_mat_pack_rows(rows)
+}
+
+fn u8_mat_unpack_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.u8_mat_unpack_rows: expects mat view") }
+    var nrows = m[2]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var xs = try_slice_unpack_u8(row)
+        if oren_is_err(xs) { return xs }
+        oren_list_push(out, xs)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_u8_mat_unpack_rows(m) {
+    return u8_mat_unpack_rows(m)
+}
+
+fn u8_mat_pack_strings(rows) {
+    var shape = _string_rows_shape_or_err(rows, "buffer.u8_mat_pack_strings")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = u8_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row_view = try_mat_row_slice(mat, r)
+        if oren_is_err(row_view) { return row_view }
+        var rc = try_slice_copy_from_string(row_view, rows[r])
+        if oren_is_err(rc) { return rc }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_u8_mat_pack_strings(rows) {
+    return u8_mat_pack_strings(rows)
+}
+
+fn u8_mat_unpack_strings(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.u8_mat_unpack_strings: expects mat view") }
+    var nrows = m[2]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var s = try_slice_to_string(row)
+        if oren_is_err(s) { return s }
+        oren_list_push(out, s)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_u8_mat_unpack_strings(m) {
+    return u8_mat_unpack_strings(m)
+}
+
+fn u8_mat_unpack_u8(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.u8_mat_unpack_u8: expects mat view") }
+    var out = []
+    var nrows = m[2]
+    var r = 0
+    while r < nrows {
+        var row = try_mat_row_unpack_u8(m, r)
+        if oren_is_err(row) { return row }
+        var ncols = oren_list_len(row)
+        var c = 0
+        while c < ncols {
+            oren_list_push(out, row[c])
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+fn try_u8_mat_unpack_u8(m) {
+    return u8_mat_unpack_u8(m)
+}
+
+fn u8_mat_to_bytes(m) {
+    var xs = u8_mat_unpack_u8(m)
+    if oren_is_err(xs) { return xs }
+    return bytesm.try_pack(xs)
+}
+
+fn try_u8_mat_to_bytes(m) {
+    return u8_mat_to_bytes(m)
+}
+
+fn u8_mat_to_u8_buf(m) {
+    var bytes = u8_mat_to_bytes(m)
+    if oren_is_err(bytes) { return bytes }
+    return bytesm.try_to_u8_buf(bytes)
+}
+
+fn try_u8_mat_to_u8_buf(m) {
+    return u8_mat_to_u8_buf(m)
+}
+
+fn u8_mat_to_string(m) {
+    var bytes = u8_mat_to_bytes(m)
+    if oren_is_err(bytes) { return bytes }
+    return bytesm.try_to_string(bytes)
+}
+
+fn try_u8_mat_to_string(m) {
+    return u8_mat_to_string(m)
+}
+
+fn _u8_mat_copy_flat_list(m, xs, ctx) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    if oren_type_tag(xs) != 6 { return _err_invalid(ctx + ": expects list<int>") }
+    var total = m[2] * m[3]
+    var nx = oren_list_len(xs)
+    if nx == nil || oren_is_err(nx) { return _err_invalid(ctx + ": expects list<int>") }
+    if nx != total { return _err_invalid(ctx + ": byte count mismatch") }
+    var i = 0
+    while i < nx {
+        var v = xs[i]
+        if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+        if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
+        i = i + 1
+    }
+    var r = 0
+    while r < m[2] {
+        var row = try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var c = 0
+        while c < m[3] {
+            var rc = try_slice_store_u8(row, c, xs[r * m[3] + c])
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn u8_mat_copy_from_bytes(m, bytes) {
+    var xs = bytesm.try_unpack(bytes)
+    if oren_is_err(xs) { return xs }
+    return _u8_mat_copy_flat_list(m, xs, "buffer.u8_mat_copy_from_bytes")
+}
+
+fn try_u8_mat_copy_from_bytes(m, bytes) {
+    return u8_mat_copy_from_bytes(m, bytes)
+}
+
+fn u8_mat_copy_from_u8_buf(m, src) {
+    var bytes = try_u8_to_bytes(src)
+    if oren_is_err(bytes) { return bytes }
+    return u8_mat_copy_from_bytes(m, bytes)
+}
+
+fn try_u8_mat_copy_from_u8_buf(m, src) {
+    return u8_mat_copy_from_u8_buf(m, src)
+}
+
+fn u8_mat_copy_from_string(m, text) {
+    var bytes = bytesm.try_from_string(text)
+    if oren_is_err(bytes) { return bytes }
+    return u8_mat_copy_from_bytes(m, bytes)
+}
+
+fn try_u8_mat_copy_from_string(m, text) {
+    return u8_mat_copy_from_string(m, text)
+}
+
+fn u8_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.u8_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var row = try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var c = 0
+        while c < shape[1] {
+            var v = rows[r][c]
+            if _is_int(v) == false { return oren_err(4, "buffer.u8_mat_copy_from_rows: value not int") }
+            if v < 0 || v > 255 { return oren_err(4, "buffer.u8_mat_copy_from_rows: byte out of range") }
+            var rc = try_slice_store_u8(row, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_u8_mat_copy_from_rows(m, rows) {
+    return u8_mat_copy_from_rows(m, rows)
+}
+
+fn u8_mat_copy_from_strings(m, rows) {
+    var shape = _mat_string_rows_shape_match_or_err(m, rows, "buffer.u8_mat_copy_from_strings")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var rc = try_mat_row_copy_from_string(m, r, rows[r])
+        if oren_is_err(rc) { return rc }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_u8_mat_copy_from_strings(m, rows) {
+    return u8_mat_copy_from_strings(m, rows)
+}

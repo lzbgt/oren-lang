@@ -1,0 +1,1077 @@
+// std/buffer/mat (rolling)
+//
+// Matrix-view implementation lives here so `std:buffer` can stay as the
+// public facade while typed-buffer and slice/strided helpers remain split.
+
+import list "std:list"
+import bytesm "std:bytes"
+import view "std:buffer/view"
+
+fn _err_invalid(msg) { return oren_err(4, msg) }
+
+fn _is_int(v) {
+    if v == nil { return false }
+    var tag = oren_type_tag(v)
+    if tag == 1 { return true }
+    if tag == 0 || tag == 3 || tag == 4 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 13 { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == false
+}
+
+fn _check_int(v, ctx, label) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": " + label + " not int") }
+    return v
+}
+
+fn _check_nonneg_int(v, ctx, label) {
+    var ok = _check_int(v, ctx, label)
+    if oren_is_err(ok) { return ok }
+    if v < 0 { return oren_err(4, ctx + ": negative " + label) }
+    return v
+}
+
+fn _plain_list_len_or_err(xs, ctx) {
+    if oren_type_tag(xs) != 6 { return _err_invalid(ctx + ": expects list") }
+    var n = list.len(xs)
+    if oren_is_err(n) { return _err_invalid(ctx + ": expects list") }
+    return n
+}
+
+fn _buf_len_or_err(buf, ctx) {
+    var n = oren_buf_len(buf)
+    if n == nil || oren_is_err(n) { return _err_invalid(ctx + ": expects typed buffer") }
+    return n
+}
+
+fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
+    if oren_type_tag(buf) != want_tag {
+        return _err_invalid(ctx + ": expects " + want_label)
+    }
+    return _buf_len_or_err(buf, ctx)
+}
+
+fn u8_new(n) { return oren_u8_buf_new(n) }
+fn i32_new(n) { return oren_i32_buf_new(n) }
+fn i64_new(n) { return oren_i64_buf_new(n) }
+fn f32_new(n) { return oren_f32_buf_new(n) }
+fn f64_new(n) { return oren_f64_buf_new(n) }
+
+fn slice_new(buf, off, n) { return view.slice_new(buf, off, n) }
+fn strided_new(buf, off, n, stride) { return view.strided_new(buf, off, n, stride) }
+fn try_slice_store_u8(s, idx, v) { return view.try_slice_store_u8(s, idx, v) }
+fn try_slice_to_bytes(s) { return view.try_slice_to_bytes(s) }
+fn try_slice_unpack_u8(s) { return view.try_slice_unpack_u8(s) }
+fn try_slice_to_u8_buf(s) { return view.try_slice_to_u8_buf(s) }
+fn try_slice_to_string(s) { return view.try_slice_to_string(s) }
+fn try_slice_unpack_i32(s) { return view.try_slice_unpack_i32(s) }
+fn try_slice_to_i32_buf(s) { return view.try_slice_to_i32_buf(s) }
+fn try_slice_copy_from_list_i32(s, xs) { return view.try_slice_copy_from_list_i32(s, xs) }
+fn try_slice_copy_from_i32_buf(s, src) { return view.try_slice_copy_from_i32_buf(s, src) }
+fn try_slice_unpack_i64(s) { return view.try_slice_unpack_i64(s) }
+fn try_slice_to_i64_buf(s) { return view.try_slice_to_i64_buf(s) }
+fn try_slice_copy_from_list_i64(s, xs) { return view.try_slice_copy_from_list_i64(s, xs) }
+fn try_slice_copy_from_i64_buf(s, src) { return view.try_slice_copy_from_i64_buf(s, src) }
+fn try_slice_unpack_f32(s) { return view.try_slice_unpack_f32(s) }
+fn try_slice_to_f32_buf(s) { return view.try_slice_to_f32_buf(s) }
+fn try_slice_copy_from_list_f32(s, xs) { return view.try_slice_copy_from_list_f32(s, xs) }
+fn try_slice_copy_from_f32_buf(s, src) { return view.try_slice_copy_from_f32_buf(s, src) }
+fn try_slice_unpack_f64(s) { return view.try_slice_unpack_f64(s) }
+fn try_slice_to_f64_buf(s) { return view.try_slice_to_f64_buf(s) }
+fn try_slice_copy_from_list_f64(s, xs) { return view.try_slice_copy_from_list_f64(s, xs) }
+fn try_slice_copy_from_f64_buf(s, src) { return view.try_slice_copy_from_f64_buf(s, src) }
+fn try_slice_copy_from_bytes(s, bytes) { return view.try_slice_copy_from_bytes(s, bytes) }
+fn try_slice_copy_from_u8_buf(s, src) { return view.try_slice_copy_from_u8_buf(s, src) }
+fn try_slice_copy_from_string(s, text) { return view.try_slice_copy_from_string(s, text) }
+fn try_strided_to_bytes(s) { return view.try_strided_to_bytes(s) }
+fn try_strided_unpack_u8(s) { return view.try_strided_unpack_u8(s) }
+fn try_strided_to_u8_buf(s) { return view.try_strided_to_u8_buf(s) }
+fn try_strided_to_string(s) { return view.try_strided_to_string(s) }
+fn try_strided_unpack_i32(s) { return view.try_strided_unpack_i32(s) }
+fn try_strided_to_i32_buf(s) { return view.try_strided_to_i32_buf(s) }
+fn try_strided_copy_from_list_i32(s, xs) { return view.try_strided_copy_from_list_i32(s, xs) }
+fn try_strided_copy_from_i32_buf(s, src) { return view.try_strided_copy_from_i32_buf(s, src) }
+fn try_strided_unpack_i64(s) { return view.try_strided_unpack_i64(s) }
+fn try_strided_to_i64_buf(s) { return view.try_strided_to_i64_buf(s) }
+fn try_strided_copy_from_list_i64(s, xs) { return view.try_strided_copy_from_list_i64(s, xs) }
+fn try_strided_copy_from_i64_buf(s, src) { return view.try_strided_copy_from_i64_buf(s, src) }
+fn try_strided_unpack_f32(s) { return view.try_strided_unpack_f32(s) }
+fn try_strided_to_f32_buf(s) { return view.try_strided_to_f32_buf(s) }
+fn try_strided_copy_from_list_f32(s, xs) { return view.try_strided_copy_from_list_f32(s, xs) }
+fn try_strided_copy_from_f32_buf(s, src) { return view.try_strided_copy_from_f32_buf(s, src) }
+fn try_strided_unpack_f64(s) { return view.try_strided_unpack_f64(s) }
+fn try_strided_to_f64_buf(s) { return view.try_strided_to_f64_buf(s) }
+fn try_strided_copy_from_list_f64(s, xs) { return view.try_strided_copy_from_list_f64(s, xs) }
+fn try_strided_copy_from_f64_buf(s, src) { return view.try_strided_copy_from_f64_buf(s, src) }
+fn try_strided_copy_from_bytes(s, bytes) { return view.try_strided_copy_from_bytes(s, bytes) }
+fn try_strided_copy_from_u8_buf(s, src) { return view.try_strided_copy_from_u8_buf(s, src) }
+fn try_strided_copy_from_string(s, text) { return view.try_strided_copy_from_string(s, text) }
+fn try_u8_to_bytes(buf: []u8) { return bytesm.try_from_u8_buf(buf) }
+
+fn _rows_shape_or_err(rows, ctx) {
+    if oren_type_tag(rows) != 6 { return _err_invalid(ctx + ": expects rows list") }
+    var nrows = oren_list_len(rows)
+    if nrows == nil || oren_is_err(nrows) { return _err_invalid(ctx + ": expects rows list") }
+    var ncols = 0
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        if oren_type_tag(row) != 6 { return _err_invalid(ctx + ": row must be list") }
+        var row_len = oren_list_len(row)
+        if row_len == nil || oren_is_err(row_len) { return _err_invalid(ctx + ": row must be list") }
+        if r == 0 {
+            ncols = row_len
+        } else if row_len != ncols {
+            return _err_invalid(ctx + ": ragged rows")
+        }
+        r = r + 1
+    }
+    return [nrows, ncols]
+}
+
+fn _string_rows_shape_or_err(rows, ctx) {
+    if oren_type_tag(rows) != 6 { return _err_invalid(ctx + ": expects rows list") }
+    var nrows = oren_list_len(rows)
+    if nrows == nil || oren_is_err(nrows) { return _err_invalid(ctx + ": expects rows list") }
+    var ncols = 0
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        if oren_type_tag(row) != 4 { return oren_err(4, ctx + ": row must be string") }
+        var row_len = oren_string_len(row)
+        if row_len == nil || oren_is_err(row_len) { return oren_err(4, ctx + ": row must be string") }
+        if r == 0 {
+            ncols = row_len
+        } else if row_len != ncols {
+            return _err_invalid(ctx + ": ragged rows")
+        }
+        r = r + 1
+    }
+    return [nrows, ncols]
+}
+
+fn _mat_rows_shape_match_or_err(m, rows, ctx) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var shape = _rows_shape_or_err(rows, ctx)
+    if oren_is_err(shape) { return shape }
+    if shape[0] != m[2] || shape[1] != m[3] {
+        return _err_invalid(ctx + ": shape mismatch")
+    }
+    return shape
+}
+
+fn _mat_string_rows_shape_match_or_err(m, rows, ctx) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var shape = _string_rows_shape_or_err(rows, ctx)
+    if oren_is_err(shape) { return shape }
+    if shape[0] != m[2] || shape[1] != m[3] {
+        return _err_invalid(ctx + ": shape mismatch")
+    }
+    return shape
+}
+
+fn _mat_unpack_rows_with(m, ctx, loadf) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = []
+        var c = 0
+        while c < ncols {
+            var v = loadf(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(row, v)
+            c = c + 1
+        }
+        oren_list_push(out, row)
+        r = r + 1
+    }
+    return out
+}
+
+fn _mat_unpack_flat_with(m, ctx, loadf) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var c = 0
+        while c < ncols {
+            var v = loadf(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(out, v)
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+fn _mat_validate_i32_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    if v < -2147483648 || v > 2147483647 {
+        return _err_invalid(ctx + ": value out of i32 range")
+    }
+    return v
+}
+
+fn _mat_validate_i64_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    return v
+}
+
+fn _mat_validate_passthru_or_err(v, ctx) {
+    return v
+}
+
+fn _mat_copy_from_flat_with(m, xs, ctx, validatef, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nx = _plain_list_len_or_err(xs, ctx)
+    if oren_is_err(nx) { return nx }
+    var total = m[2] * m[3]
+    if nx != total { return _err_invalid(ctx + ": element count mismatch") }
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = xs[r * m[3] + c]
+            var vv = validatef(v, ctx)
+            if oren_is_err(vv) { return vv }
+            var rc = storef(m, r, c, vv)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
+fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
+fn _store_i64_buf_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
+fn _load_i64_buf_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
+fn _store_f32_buf_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
+fn _load_f32_buf_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
+fn _store_f64_buf_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
+fn _load_f64_buf_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
+
+fn _mat_to_typed_buf_with(m, ctx, newf, loadf, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var total = m[2] * m[3]
+    var out = newf(total)
+    if oren_is_err(out) { return out }
+    var i = 0
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = loadf(m, r, c)
+            if oren_is_err(v) { return v }
+            var rc = storef(out, i, v)
+            if oren_is_err(rc) { return rc }
+            i = i + 1
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+fn _mat_copy_from_typed_buf_with(m, src, ctx, want_tag, want_label, loadf, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nx = _buf_len_with_tag_or_err(src, want_tag, ctx, want_label)
+    if oren_is_err(nx) { return nx }
+    var total = m[2] * m[3]
+    if nx != total { return _err_invalid(ctx + ": element count mismatch") }
+    var i = 0
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = loadf(src, i)
+            if oren_is_err(v) { return v }
+            var rc = storef(m, r, c, v)
+            if oren_is_err(rc) { return rc }
+            i = i + 1
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+// --- generic zero-copy views ---
+//
+// Slice/strided implementation lives under `std:buffer/view` so this public
+// module can stay focused on typed buffers + matrix helpers.
+
+fn _list_len_or_err(v) {
+    if oren_type_tag(v) != 6 { return _err_invalid("buffer: expects list view") }
+    return list.len(v)
+}
+
+fn _mat_is_list(m) {
+    if m == nil || oren_is_err(m) { return false }
+    var ln = _list_len_or_err(m)
+    if oren_is_err(ln) { return false }
+    return ln == 5
+}
+
+fn mat_view_new(buf, off, rows, cols, row_stride) {
+    if off < 0 || rows < 0 || cols < 0 || row_stride < 0 {
+        return _err_invalid("mat_view_new: negative arg")
+    }
+    if row_stride < cols {
+        return _err_invalid("mat_view_new: stride < cols")
+    }
+    // Bounds: last element index = off + (rows-1)*row_stride + (cols-1)
+    var bl = oren_buf_len(buf)
+    if oren_is_err(bl) { return bl }
+    if rows == 0 || cols == 0 { return [buf, off, rows, cols, row_stride] }
+    var last = off + (rows - 1) * row_stride + (cols - 1)
+    if last < 0 || last >= bl { return _err_invalid("mat_view_new: out of bounds") }
+    return [buf, off, rows, cols, row_stride]
+}
+
+fn try_mat_view_new(buf, off, rows, cols, row_stride) {
+    var ok_off = _check_nonneg_int(off, "buffer.try_mat_view_new", "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_rows = _check_nonneg_int(rows, "buffer.try_mat_view_new", "rows")
+    if oren_is_err(ok_rows) { return ok_rows }
+    var ok_cols = _check_nonneg_int(cols, "buffer.try_mat_view_new", "cols")
+    if oren_is_err(ok_cols) { return ok_cols }
+    var ok_stride = _check_nonneg_int(row_stride, "buffer.try_mat_view_new", "row_stride")
+    if oren_is_err(ok_stride) { return ok_stride }
+    return mat_view_new(buf, off, rows, cols, row_stride)
+}
+
+fn mat_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("mat_rows: expects mat view") }
+    return m[2]
+}
+
+fn try_mat_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_rows: expects mat view") }
+    return m[2]
+}
+
+fn mat_cols(m) {
+    if !_mat_is_list(m) { return _err_invalid("mat_cols: expects mat view") }
+    return m[3]
+}
+
+fn try_mat_cols(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_cols: expects mat view") }
+    return m[3]
+}
+
+fn mat_row_stride(m) {
+    if !_mat_is_list(m) { return _err_invalid("mat_row_stride: expects mat view") }
+    return m[4]
+}
+
+fn try_mat_row_stride(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_row_stride: expects mat view") }
+    return m[4]
+}
+
+fn mat_row_slice(m, r) {
+    if !_mat_is_list(m) { return _err_invalid("mat_row_slice: expects mat view") }
+    var rows = m[2]
+    if r < 0 || r >= rows { return _err_invalid("mat_row_slice: row out of bounds") }
+    return slice_new(m[0], m[1] + r * m[4], m[3])
+}
+
+fn try_mat_row_slice(m, r) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_row_slice: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_row_slice", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    return mat_row_slice(m, r)
+}
+
+fn mat_col_strided(m, c) {
+    if !_mat_is_list(m) { return _err_invalid("mat_col_strided: expects mat view") }
+    var cols = m[3]
+    if c < 0 || c >= cols { return _err_invalid("mat_col_strided: col out of bounds") }
+    return strided_new(m[0], m[1] + c, m[2], m[4])
+}
+
+fn try_mat_col_strided(m, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_col_strided: expects mat view") }
+    var ok_c = _check_int(c, "buffer.try_mat_col_strided", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_col_strided(m, c)
+}
+
+fn mat_subview(m, row_off, col_off, rows, cols) {
+    if !_mat_is_list(m) { return _err_invalid("mat_subview: expects mat view") }
+    if row_off < 0 || col_off < 0 || rows < 0 || cols < 0 {
+        return _err_invalid("mat_subview: negative arg")
+    }
+    if row_off > m[2] || col_off > m[3] { return _err_invalid("mat_subview: offset out of bounds") }
+    if row_off + rows > m[2] || col_off + cols > m[3] { return _err_invalid("mat_subview: subview out of bounds") }
+    return mat_view_new(m[0], m[1] + row_off * m[4] + col_off, rows, cols, m[4])
+}
+
+fn try_mat_subview(m, row_off, col_off, rows, cols) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_subview: expects mat view") }
+    var ok_row_off = _check_nonneg_int(row_off, "buffer.try_mat_subview", "row_off")
+    if oren_is_err(ok_row_off) { return ok_row_off }
+    var ok_col_off = _check_nonneg_int(col_off, "buffer.try_mat_subview", "col_off")
+    if oren_is_err(ok_col_off) { return ok_col_off }
+    var ok_rows = _check_nonneg_int(rows, "buffer.try_mat_subview", "rows")
+    if oren_is_err(ok_rows) { return ok_rows }
+    var ok_cols = _check_nonneg_int(cols, "buffer.try_mat_subview", "cols")
+    if oren_is_err(ok_cols) { return ok_cols }
+    return mat_subview(m, row_off, col_off, rows, cols)
+}
+
+fn mat_diag_strided(m) {
+    if !_mat_is_list(m) { return _err_invalid("mat_diag_strided: expects mat view") }
+    var n = m[2]
+    if m[3] < n { n = m[3] }
+    return strided_new(m[0], m[1], n, m[4] + 1)
+}
+
+fn try_mat_diag_strided(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_diag_strided: expects mat view") }
+    return mat_diag_strided(m)
+}
+
+fn mat_row_to_bytes(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_bytes(row)
+}
+
+fn try_mat_row_to_bytes(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_bytes(row)
+}
+
+fn mat_row_unpack_u8(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_u8(row)
+}
+
+fn try_mat_row_unpack_u8(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_u8(row)
+}
+
+fn mat_row_to_u8_buf(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_u8_buf(row)
+}
+
+fn try_mat_row_to_u8_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_u8_buf(row)
+}
+
+fn mat_row_to_string(m, r) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_string(row)
+}
+
+fn try_mat_row_to_string(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_string(row)
+}
+
+fn try_mat_row_unpack_i32(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_i32(row)
+}
+
+fn mat_row_unpack_i32(m, r) {
+    return try_mat_row_unpack_i32(m, r)
+}
+
+fn try_mat_row_to_i32_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_i32_buf(row)
+}
+
+fn mat_row_to_i32_buf(m, r) {
+    return try_mat_row_to_i32_buf(m, r)
+}
+
+fn try_mat_row_copy_from_list_i32(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_i32(row, xs)
+}
+
+fn mat_row_copy_from_list_i32(m, r, xs) {
+    return try_mat_row_copy_from_list_i32(m, r, xs)
+}
+
+fn try_mat_row_copy_from_i32_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_i32_buf(row, src)
+}
+
+fn mat_row_copy_from_i32_buf(m, r, src) {
+    return try_mat_row_copy_from_i32_buf(m, r, src)
+}
+
+fn try_mat_row_unpack_i64(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_i64(row)
+}
+
+fn mat_row_unpack_i64(m, r) {
+    return try_mat_row_unpack_i64(m, r)
+}
+
+fn try_mat_row_to_i64_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_i64_buf(row)
+}
+
+fn mat_row_to_i64_buf(m, r) {
+    return try_mat_row_to_i64_buf(m, r)
+}
+
+fn try_mat_row_copy_from_list_i64(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_i64(row, xs)
+}
+
+fn mat_row_copy_from_list_i64(m, r, xs) {
+    return try_mat_row_copy_from_list_i64(m, r, xs)
+}
+
+fn try_mat_row_copy_from_i64_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_i64_buf(row, src)
+}
+
+fn mat_row_copy_from_i64_buf(m, r, src) {
+    return try_mat_row_copy_from_i64_buf(m, r, src)
+}
+
+fn try_mat_row_unpack_f32(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_f32(row)
+}
+
+fn mat_row_unpack_f32(m, r) {
+    return try_mat_row_unpack_f32(m, r)
+}
+
+fn try_mat_row_to_f32_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_f32_buf(row)
+}
+
+fn mat_row_to_f32_buf(m, r) {
+    return try_mat_row_to_f32_buf(m, r)
+}
+
+fn try_mat_row_copy_from_list_f32(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_f32(row, xs)
+}
+
+fn mat_row_copy_from_list_f32(m, r, xs) {
+    return try_mat_row_copy_from_list_f32(m, r, xs)
+}
+
+fn try_mat_row_copy_from_f32_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_f32_buf(row, src)
+}
+
+fn mat_row_copy_from_f32_buf(m, r, src) {
+    return try_mat_row_copy_from_f32_buf(m, r, src)
+}
+
+fn try_mat_row_unpack_f64(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_unpack_f64(row)
+}
+
+fn mat_row_unpack_f64(m, r) {
+    return try_mat_row_unpack_f64(m, r)
+}
+
+fn try_mat_row_to_f64_buf(m, r) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_to_f64_buf(row)
+}
+
+fn mat_row_to_f64_buf(m, r) {
+    return try_mat_row_to_f64_buf(m, r)
+}
+
+fn try_mat_row_copy_from_list_f64(m, r, xs) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_list_f64(row, xs)
+}
+
+fn mat_row_copy_from_list_f64(m, r, xs) {
+    return try_mat_row_copy_from_list_f64(m, r, xs)
+}
+
+fn try_mat_row_copy_from_f64_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_f64_buf(row, src)
+}
+
+fn mat_row_copy_from_f64_buf(m, r, src) {
+    return try_mat_row_copy_from_f64_buf(m, r, src)
+}
+
+fn mat_row_copy_from_bytes(m, r, bytes) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_bytes(row, bytes)
+}
+
+fn try_mat_row_copy_from_bytes(m, r, bytes) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_bytes(row, bytes)
+}
+
+fn mat_row_copy_from_u8_buf(m, r, src) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_u8_buf(row, src)
+}
+
+fn try_mat_row_copy_from_u8_buf(m, r, src) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_u8_buf(row, src)
+}
+
+fn mat_row_copy_from_string(m, r, text) {
+    var row = mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_string(row, text)
+}
+
+fn try_mat_row_copy_from_string(m, r, text) {
+    var row = try_mat_row_slice(m, r)
+    if oren_is_err(row) { return row }
+    return try_slice_copy_from_string(row, text)
+}
+
+fn mat_col_to_bytes(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_bytes(col)
+}
+
+fn try_mat_col_to_bytes(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_bytes(col)
+}
+
+fn mat_col_unpack_u8(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_u8(col)
+}
+
+fn try_mat_col_unpack_u8(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_u8(col)
+}
+
+fn mat_col_to_u8_buf(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_u8_buf(col)
+}
+
+fn try_mat_col_to_u8_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_u8_buf(col)
+}
+
+fn mat_col_to_string(m, c) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_string(col)
+}
+
+fn try_mat_col_to_string(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_string(col)
+}
+
+fn try_mat_col_unpack_i32(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_i32(col)
+}
+
+fn mat_col_unpack_i32(m, c) {
+    return try_mat_col_unpack_i32(m, c)
+}
+
+fn try_mat_col_to_i32_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_i32_buf(col)
+}
+
+fn mat_col_to_i32_buf(m, c) {
+    return try_mat_col_to_i32_buf(m, c)
+}
+
+fn try_mat_col_copy_from_list_i32(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_i32(col, xs)
+}
+
+fn mat_col_copy_from_list_i32(m, c, xs) {
+    return try_mat_col_copy_from_list_i32(m, c, xs)
+}
+
+fn try_mat_col_copy_from_i32_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_i32_buf(col, src)
+}
+
+fn mat_col_copy_from_i32_buf(m, c, src) {
+    return try_mat_col_copy_from_i32_buf(m, c, src)
+}
+
+fn try_mat_col_unpack_i64(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_i64(col)
+}
+
+fn mat_col_unpack_i64(m, c) {
+    return try_mat_col_unpack_i64(m, c)
+}
+
+fn try_mat_col_to_i64_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_i64_buf(col)
+}
+
+fn mat_col_to_i64_buf(m, c) {
+    return try_mat_col_to_i64_buf(m, c)
+}
+
+fn try_mat_col_copy_from_list_i64(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_i64(col, xs)
+}
+
+fn mat_col_copy_from_list_i64(m, c, xs) {
+    return try_mat_col_copy_from_list_i64(m, c, xs)
+}
+
+fn try_mat_col_copy_from_i64_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_i64_buf(col, src)
+}
+
+fn mat_col_copy_from_i64_buf(m, c, src) {
+    return try_mat_col_copy_from_i64_buf(m, c, src)
+}
+
+fn try_mat_col_unpack_f32(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_f32(col)
+}
+
+fn mat_col_unpack_f32(m, c) {
+    return try_mat_col_unpack_f32(m, c)
+}
+
+fn try_mat_col_to_f32_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_f32_buf(col)
+}
+
+fn mat_col_to_f32_buf(m, c) {
+    return try_mat_col_to_f32_buf(m, c)
+}
+
+fn try_mat_col_copy_from_list_f32(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_f32(col, xs)
+}
+
+fn mat_col_copy_from_list_f32(m, c, xs) {
+    return try_mat_col_copy_from_list_f32(m, c, xs)
+}
+
+fn try_mat_col_copy_from_f32_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_f32_buf(col, src)
+}
+
+fn mat_col_copy_from_f32_buf(m, c, src) {
+    return try_mat_col_copy_from_f32_buf(m, c, src)
+}
+
+fn try_mat_col_unpack_f64(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_unpack_f64(col)
+}
+
+fn mat_col_unpack_f64(m, c) {
+    return try_mat_col_unpack_f64(m, c)
+}
+
+fn try_mat_col_to_f64_buf(m, c) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_to_f64_buf(col)
+}
+
+fn mat_col_to_f64_buf(m, c) {
+    return try_mat_col_to_f64_buf(m, c)
+}
+
+fn try_mat_col_copy_from_list_f64(m, c, xs) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_list_f64(col, xs)
+}
+
+fn mat_col_copy_from_list_f64(m, c, xs) {
+    return try_mat_col_copy_from_list_f64(m, c, xs)
+}
+
+fn try_mat_col_copy_from_f64_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_f64_buf(col, src)
+}
+
+fn mat_col_copy_from_f64_buf(m, c, src) {
+    return try_mat_col_copy_from_f64_buf(m, c, src)
+}
+
+fn mat_col_copy_from_bytes(m, c, bytes) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_bytes(col, bytes)
+}
+
+fn try_mat_col_copy_from_bytes(m, c, bytes) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_bytes(col, bytes)
+}
+
+fn mat_col_copy_from_u8_buf(m, c, src) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_u8_buf(col, src)
+}
+
+fn try_mat_col_copy_from_u8_buf(m, c, src) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_u8_buf(col, src)
+}
+
+fn mat_col_copy_from_string(m, c, text) {
+    var col = mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_string(col, text)
+}
+
+fn try_mat_col_copy_from_string(m, c, text) {
+    var col = try_mat_col_strided(m, c)
+    if oren_is_err(col) { return col }
+    return try_strided_copy_from_string(col, text)
+}
+
+fn mat_load_f32(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("mat_load_f32: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_load_f32: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_load_f32(m[0], idx)
+}
+
+fn try_mat_load_f32(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_f32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_load_f32", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_load_f32", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_load_f32(m, r, c)
+}
+
+fn mat_store_f32(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("mat_store_f32: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_store_f32: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_store_f32(m[0], idx, v)
+}
+
+fn try_mat_store_f32(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_f32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_store_f32", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_store_f32", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_store_f32(m, r, c, v)
+}
+
+fn mat_load_i32(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("mat_load_i32: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_load_i32: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_load_i32(m[0], idx)
+}
+
+fn try_mat_load_i32(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_i32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_load_i32", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_load_i32", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_load_i32(m, r, c)
+}
+
+fn mat_store_i32(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("mat_store_i32: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_store_i32: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_store_i32(m[0], idx, v)
+}
+
+fn try_mat_store_i32(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_i32: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_store_i32", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_store_i32", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    if _is_int(v) == false { return oren_err(4, "buffer.try_mat_store_i32: value not int") }
+    return mat_store_i32(m, r, c, v)
+}
+
+fn mat_load_i64(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("mat_load_i64: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_load_i64: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_load_i64(m[0], idx)
+}
+
+fn mat_store_i64(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("mat_store_i64: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_store_i64: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_store_i64(m[0], idx, v)
+}
+
+fn try_mat_load_i64(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_i64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_load_i64", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_load_i64", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_load_i64(m, r, c)
+}
+
+fn try_mat_store_i64(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_i64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_store_i64", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_store_i64", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    if _is_int(v) == false { return oren_err(4, "buffer.try_mat_store_i64: value not int") }
+    return mat_store_i64(m, r, c, v)
+}
+
+fn mat_load_f64(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("mat_load_f64: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_load_f64: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_load_f64(m[0], idx)
+}
+
+fn mat_store_f64(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("mat_store_f64: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_store_f64: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_store_f64(m[0], idx, v)
+}
+
+fn try_mat_load_f64(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_f64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_load_f64", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_load_f64", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_load_f64(m, r, c)
+}
+
+fn try_mat_store_f64(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_f64: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_store_f64", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_store_f64", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_store_f64(m, r, c, v)
+}
