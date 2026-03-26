@@ -1486,6 +1486,222 @@ fn try_i32_mat_unpack_rows(m) {
     return i32_mat_unpack_rows(m)
 }
 
+fn i32_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.i32_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var v = rows[r][c]
+            if _is_int(v) == false { return oren_err(4, "buffer.i32_mat_copy_from_rows: value not int") }
+            if v < -2147483648 || v > 2147483647 {
+                return _err_invalid("buffer.i32_mat_copy_from_rows: value out of i32 range")
+            }
+            var rc = try_mat_store_i32(m, r, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_i32_mat_copy_from_rows(m, rows) {
+    return i32_mat_copy_from_rows(m, rows)
+}
+
+fn i64_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.i64_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = i64_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var rc = i64_mat_copy_from_rows(mat, rows)
+    if oren_is_err(rc) { return rc }
+    return mat
+}
+
+fn try_i64_mat_pack_rows(rows) {
+    return i64_mat_pack_rows(rows)
+}
+
+fn i64_mat_unpack_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.i64_mat_unpack_rows: expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = []
+        var c = 0
+        while c < ncols {
+            var v = try_mat_load_i64(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(row, v)
+            c = c + 1
+        }
+        oren_list_push(out, row)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_i64_mat_unpack_rows(m) {
+    return i64_mat_unpack_rows(m)
+}
+
+fn i64_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.i64_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var v = rows[r][c]
+            if _is_int(v) == false { return oren_err(4, "buffer.i64_mat_copy_from_rows: value not int") }
+            var rc = try_mat_store_i64(m, r, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_i64_mat_copy_from_rows(m, rows) {
+    return i64_mat_copy_from_rows(m, rows)
+}
+
+fn f32_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.f32_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = f32_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var rc = f32_mat_copy_from_rows(mat, rows)
+    if oren_is_err(rc) { return rc }
+    return mat
+}
+
+fn try_f32_mat_pack_rows(rows) {
+    return f32_mat_pack_rows(rows)
+}
+
+fn f32_mat_unpack_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.f32_mat_unpack_rows: expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = []
+        var c = 0
+        while c < ncols {
+            var v = try_mat_load_f32(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(row, v)
+            c = c + 1
+        }
+        oren_list_push(out, row)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_f32_mat_unpack_rows(m) {
+    return f32_mat_unpack_rows(m)
+}
+
+fn f32_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.f32_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var rc = try_mat_store_f32(m, r, c, rows[r][c])
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_f32_mat_copy_from_rows(m, rows) {
+    return f32_mat_copy_from_rows(m, rows)
+}
+
+fn f64_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.f64_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = f64_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var rc = f64_mat_copy_from_rows(mat, rows)
+    if oren_is_err(rc) { return rc }
+    return mat
+}
+
+fn try_f64_mat_pack_rows(rows) {
+    return f64_mat_pack_rows(rows)
+}
+
+fn f64_mat_unpack_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.f64_mat_unpack_rows: expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = []
+        var c = 0
+        while c < ncols {
+            var v = try_mat_load_f64(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(row, v)
+            c = c + 1
+        }
+        oren_list_push(out, row)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_f64_mat_unpack_rows(m) {
+    return f64_mat_unpack_rows(m)
+}
+
+fn f64_mat_copy_from_rows(m, rows) {
+    var shape = _mat_rows_shape_match_or_err(m, rows, "buffer.f64_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var c = 0
+        while c < shape[1] {
+            var rc = try_mat_store_f64(m, r, c, rows[r][c])
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_f64_mat_copy_from_rows(m, rows) {
+    return f64_mat_copy_from_rows(m, rows)
+}
+
 fn u8_mat_pack_rows(rows) {
     var shape = _rows_shape_or_err(rows, "buffer.u8_mat_pack_rows")
     if oren_is_err(shape) { return shape }

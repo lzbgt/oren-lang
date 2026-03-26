@@ -415,8 +415,14 @@ fn main() {
     var unpacked_i32_rows = buffer.try_i32_mat_unpack_rows(packed_i32_mat)
     if r.is_err(unpacked_i32_rows) { return 319 }
     if unpacked_i32_rows[0][1] != 20 || unpacked_i32_rows[1][0] != 30 { return 320 }
+    if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1, 2], [3, 4]])) { return 386 }
+    var copied_i32_rows = buffer.try_i32_mat_unpack_rows(packed_i32_mat)
+    if r.is_err(copied_i32_rows) { return 387 }
+    if copied_i32_rows[0][0] != 1 || copied_i32_rows[1][1] != 4 { return 388 }
     if r.is_err(buffer.try_i32_mat_pack_rows([[1], [2, 3]])) != true { return 321 }
     if r.is_err(buffer.try_i32_mat_pack_rows([[2147483648]])) != true { return 322 }
+    if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1], [2]])) != true { return 389 }
+    if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1, 2], [3, 2147483648]])) != true { return 390 }
     var packed_u8_mat = buffer.try_u8_mat_pack_rows([[65, 66], [67, 68]])
     if r.is_err(packed_u8_mat) { return 323 }
     var packed_u8_row = buffer.try_mat_row_slice(packed_u8_mat, 1)
@@ -511,8 +517,33 @@ fn main() {
     if r.is_err(ms64) || ms64 != i64m { return 266 }
     var mv64b = buffer.try_mat_load_i64(mat64, 0, 1)
     if r.is_err(mv64b) || mv64b != 777 { return 267 }
+    var packed_i64_mat = buffer.try_i64_mat_pack_rows([[100, 200], [300, 400]])
+    if r.is_err(packed_i64_mat) { return 391 }
+    var unpacked_i64_rows = buffer.try_i64_mat_unpack_rows(packed_i64_mat)
+    if r.is_err(unpacked_i64_rows) { return 392 }
+    if unpacked_i64_rows[0][1] != 200 || unpacked_i64_rows[1][0] != 300 { return 393 }
+    if r.is_err(buffer.try_i64_mat_copy_from_rows(packed_i64_mat, [[500, 600], [700, 800]])) { return 394 }
+    var copied_i64a = buffer.try_mat_load_i64(packed_i64_mat, 0, 1)
+    if r.is_err(copied_i64a) || copied_i64a != 600 { return 395 }
+    var copied_i64b = buffer.try_mat_load_i64(packed_i64_mat, 1, 0)
+    if r.is_err(copied_i64b) || copied_i64b != 700 { return 396 }
     if r.is_err(buffer.try_mat_store_i64(mat64, 0, 0, "nope")) != true { return 268 }
+    if r.is_err(buffer.try_i64_mat_pack_rows([[1], [2, 3]])) != true { return 397 }
+    if r.is_err(buffer.try_i64_mat_copy_from_rows(packed_i64_mat, [[1], [2]])) != true { return 398 }
     if r.is_err(buffer.try_mat_load_i64(mat64, 2, 0)) != true { return 269 }
+
+    var packed_f32_mat = buffer.try_f32_mat_pack_rows([[1.5, 2.5], [3.5, 4.5]])
+    if r.is_err(packed_f32_mat) { return 399 }
+    var unpacked_f32_rows = buffer.try_f32_mat_unpack_rows(packed_f32_mat)
+    if r.is_err(unpacked_f32_rows) { return 400 }
+    if oren_list_len(unpacked_f32_rows) != 2 || oren_list_len(unpacked_f32_rows[0]) != 2 || oren_list_len(unpacked_f32_rows[1]) != 2 { return 401 }
+    if r.is_err(buffer.try_f32_mat_copy_from_rows(packed_f32_mat, [[5.5, 6.5], [7.5, 8.5]])) { return 402 }
+    var copied_f32a = buffer.try_mat_load_f32(packed_f32_mat, 0, 1)
+    if r.is_err(copied_f32a) { return 403 }
+    var copied_f32b = buffer.try_mat_load_f32(packed_f32_mat, 1, 0)
+    if r.is_err(copied_f32b) { return 404 }
+    if r.is_err(buffer.try_f32_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 405 }
+    if r.is_err(buffer.try_f32_mat_copy_from_rows(packed_f32_mat, [[1.5], [2.5]])) != true { return 406 }
 
     var f64m = buffer.f64_new(4)
     if r.is_err(f64m) { return 270 }
@@ -526,7 +557,19 @@ fn main() {
     var msf64 = buffer.try_mat_store_f64(matf64, 0, 0, 9.5)
     if r.is_err(msf64) || msf64 != f64m { return 277 }
     if r.is_err(buffer.try_mat_load_f64(matf64, 0, 0)) { return 278 }
+    var packed_f64_mat = buffer.try_f64_mat_pack_rows([[1.5, 2.5], [3.5, 4.5]])
+    if r.is_err(packed_f64_mat) { return 407 }
+    var unpacked_f64_rows = buffer.try_f64_mat_unpack_rows(packed_f64_mat)
+    if r.is_err(unpacked_f64_rows) { return 408 }
+    if oren_list_len(unpacked_f64_rows) != 2 || oren_list_len(unpacked_f64_rows[0]) != 2 || oren_list_len(unpacked_f64_rows[1]) != 2 { return 409 }
+    if r.is_err(buffer.try_f64_mat_copy_from_rows(packed_f64_mat, [[9.5, 8.5], [7.5, 6.5]])) { return 410 }
+    var copied_f64a = buffer.try_mat_load_f64(packed_f64_mat, 0, 0)
+    if r.is_err(copied_f64a) { return 411 }
+    var copied_f64b = buffer.try_mat_load_f64(packed_f64_mat, 1, 1)
+    if r.is_err(copied_f64b) { return 412 }
     if r.is_err(buffer.try_mat_rows("nope")) != true { return 279 }
+    if r.is_err(buffer.try_f64_mat_pack_rows([[1.5], [2.5, 3.5]])) != true { return 413 }
+    if r.is_err(buffer.try_f64_mat_copy_from_rows(packed_f64_mat, [[1.5], [2.5]])) != true { return 414 }
     if r.is_err(buffer.try_mat_load_f64(matf64, 2, 0)) != true { return 280 }
 
     var buf8 = buffer.u8_new(8)

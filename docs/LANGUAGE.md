@@ -3302,8 +3302,11 @@ Rolling status:
   checked conversion helpers such as `try_u8_pack`, `try_u8_unpack`, `try_u8_from_string`,
   `try_u8_to_string`, `try_u8_from_bytes`, `try_u8_from_bytes_slice`, `try_u8_to_bytes`,
   `try_i32_pack_list_int`, `try_i32_unpack_list`, `try_i32_mat_pack_rows`,
-  `try_i32_mat_unpack_rows`, `try_u8_mat_pack_rows`, `try_u8_mat_unpack_rows`,
-  `try_u8_mat_pack_strings`, and `try_u8_mat_unpack_strings`, plus checked matrix-row/column
+  `try_i32_mat_unpack_rows`, `try_i32_mat_copy_from_rows`, `try_i64_mat_pack_rows`,
+  `try_i64_mat_unpack_rows`, `try_i64_mat_copy_from_rows`, `try_f32_mat_pack_rows`,
+  `try_f32_mat_unpack_rows`, `try_f32_mat_copy_from_rows`, `try_f64_mat_pack_rows`,
+  `try_f64_mat_unpack_rows`, `try_f64_mat_copy_from_rows`, `try_u8_mat_pack_rows`,
+  `try_u8_mat_unpack_rows`, `try_u8_mat_pack_strings`, and `try_u8_mat_unpack_strings`, plus checked matrix-row/column
   `[]u8` bridge helpers such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`,
   `try_mat_col_to_string`, and `try_mat_col_copy_from_string`, plus checked whole-matrix `[]u8`
   flatten/copy helpers such as `try_u8_mat_to_bytes`, `try_u8_mat_to_u8_buf`,

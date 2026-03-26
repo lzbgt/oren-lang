@@ -2256,6 +2256,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `try_u8_mat_copy_from_strings`, so matrix callers can bridge or refill the entire visible
      matrix without open-coding row loops; covered by result smoke + native quick integration +
      dedicated AVM buffer-view smoke (2026-03-27).
+   - New: `std:buffer` now also exposes checked numeric matrix row-major conversion/refill helpers
+     such as `try_i32_mat_copy_from_rows`, `try_i64_mat_pack_rows`, `try_i64_mat_unpack_rows`,
+     `try_i64_mat_copy_from_rows`, `try_f32_mat_pack_rows`, `try_f32_mat_unpack_rows`,
+     `try_f32_mat_copy_from_rows`, `try_f64_mat_pack_rows`, `try_f64_mat_unpack_rows`, and
+     `try_f64_mat_copy_from_rows`, so callers can enter, leave, and refill the visible numeric
+     matrix surface without open-coding row loops; covered by result smoke + native quick
+     integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
