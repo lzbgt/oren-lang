@@ -1,0 +1,186 @@
+// std/buffer/mat_shared (rolling)
+//
+// Shared matrix-shape and dense row-major helper functions used by both
+// `mat_core` and `mat_dense`.
+
+import common "std:buffer/common"
+
+fn _err_invalid(msg) { return common._err_invalid(msg) }
+fn _is_int(v) { return common._is_int(v) }
+fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
+fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
+    return common._buf_len_with_tag_or_err(buf, want_tag, ctx, want_label)
+}
+fn _mat_is_list(m) { return common._mat_is_list(m) }
+fn _mat_validate_i32_or_err(v, ctx) { return common._validate_i32_or_err(v, ctx) }
+fn _mat_validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
+fn _mat_validate_passthru_or_err(v, ctx) { return common._validate_passthru_or_err(v, ctx) }
+
+fn _rows_shape_or_err(rows, ctx) {
+    if oren_type_tag(rows) != 6 { return _err_invalid(ctx + ": expects rows list") }
+    var nrows = oren_list_len(rows)
+    if nrows == nil || oren_is_err(nrows) { return _err_invalid(ctx + ": expects rows list") }
+    var ncols = 0
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        if oren_type_tag(row) != 6 { return _err_invalid(ctx + ": row must be list") }
+        var row_len = oren_list_len(row)
+        if row_len == nil || oren_is_err(row_len) { return _err_invalid(ctx + ": row must be list") }
+        if r == 0 {
+            ncols = row_len
+        } else if row_len != ncols {
+            return _err_invalid(ctx + ": ragged rows")
+        }
+        r = r + 1
+    }
+    return [nrows, ncols]
+}
+
+fn _string_rows_shape_or_err(rows, ctx) {
+    if oren_type_tag(rows) != 6 { return _err_invalid(ctx + ": expects rows list") }
+    var nrows = oren_list_len(rows)
+    if nrows == nil || oren_is_err(nrows) { return _err_invalid(ctx + ": expects rows list") }
+    var ncols = 0
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        if oren_type_tag(row) != 4 { return oren_err(4, ctx + ": row must be string") }
+        var row_len = oren_string_len(row)
+        if row_len == nil || oren_is_err(row_len) { return oren_err(4, ctx + ": row must be string") }
+        if r == 0 {
+            ncols = row_len
+        } else if row_len != ncols {
+            return _err_invalid(ctx + ": ragged rows")
+        }
+        r = r + 1
+    }
+    return [nrows, ncols]
+}
+
+fn _mat_rows_shape_match_or_err(m, rows, ctx) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var shape = _rows_shape_or_err(rows, ctx)
+    if oren_is_err(shape) { return shape }
+    if shape[0] != m[2] || shape[1] != m[3] {
+        return _err_invalid(ctx + ": shape mismatch")
+    }
+    return shape
+}
+
+fn _mat_string_rows_shape_match_or_err(m, rows, ctx) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var shape = _string_rows_shape_or_err(rows, ctx)
+    if oren_is_err(shape) { return shape }
+    if shape[0] != m[2] || shape[1] != m[3] {
+        return _err_invalid(ctx + ": shape mismatch")
+    }
+    return shape
+}
+
+fn _mat_unpack_rows_with(m, ctx, loadf) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = []
+        var c = 0
+        while c < ncols {
+            var v = loadf(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(row, v)
+            c = c + 1
+        }
+        oren_list_push(out, row)
+        r = r + 1
+    }
+    return out
+}
+
+fn _mat_unpack_flat_with(m, ctx, loadf) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var c = 0
+        while c < ncols {
+            var v = loadf(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(out, v)
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+fn _mat_copy_from_flat_with(m, xs, ctx, validatef, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nx = _plain_list_len_or_err(xs, ctx)
+    if oren_is_err(nx) { return nx }
+    var total = m[2] * m[3]
+    if nx != total { return _err_invalid(ctx + ": element count mismatch") }
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = xs[r * m[3] + c]
+            var vv = validatef(v, ctx)
+            if oren_is_err(vv) { return vv }
+            var rc = storef(m, r, c, vv)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn _mat_to_typed_buf_with(m, ctx, newf, loadf, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var total = m[2] * m[3]
+    var out = newf(total)
+    if oren_is_err(out) { return out }
+    var i = 0
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = loadf(m, r, c)
+            if oren_is_err(v) { return v }
+            var rc = storef(out, i, v)
+            if oren_is_err(rc) { return rc }
+            i = i + 1
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+fn _mat_copy_from_typed_buf_with(m, src, ctx, want_tag, want_label, loadf, storef) {
+    if !_mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var nx = _buf_len_with_tag_or_err(src, want_tag, ctx, want_label)
+    if oren_is_err(nx) { return nx }
+    var total = m[2] * m[3]
+    if nx != total { return _err_invalid(ctx + ": element count mismatch") }
+    var i = 0
+    var r = 0
+    while r < m[2] {
+        var c = 0
+        while c < m[3] {
+            var v = loadf(src, i)
+            if oren_is_err(v) { return v }
+            var rc = storef(m, r, c, v)
+            if oren_is_err(rc) { return rc }
+            i = i + 1
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}

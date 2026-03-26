@@ -167,12 +167,13 @@ if [[ -n "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
   # macOS: under full-suite load, the OREN_GREEN_POLL_CACHE rerun can exceed the
-  # stage1 base-run watchdog even when the binary exits cleanly. Recent full
-  # `make test` runs on this host still produced a green-cache 143 with a 60s
-  # budget after the binary had already emitted the last visible debug lines,
-  # so keep a wider default here to catch real hangs without false-red exits.
-  if [[ "$green_cache_run_timeout_secs" -lt 120 ]]; then
-    green_cache_run_timeout_secs=120
+  # stage1 base-run watchdog even when the binary exits cleanly. A 120s budget
+  # still false-red on this host after the rerun had already emitted its last
+  # visible debug lines, while a direct rerun with 180s completed cleanly, so
+  # keep that proven wider default here to catch real hangs without false-red
+  # exits during `make test-native-quick` / `make test`.
+  if [[ "$green_cache_run_timeout_secs" -lt 180 ]]; then
+    green_cache_run_timeout_secs=180
   fi
 fi
 

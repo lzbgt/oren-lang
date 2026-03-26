@@ -3,7 +3,6 @@
 // Slice/strided implementation lives here so `std:buffer` can stay as the
 // public facade while matrix helpers remain in the top-level module.
 
-import list "std:list"
 import bytesm "std:bytes"
 import common "std:buffer/common"
 import raw "std:buffer/raw"
@@ -14,6 +13,11 @@ fn _check_int(v, ctx, label) { return common._check_int(v, ctx, label) }
 fn _check_nonneg_int(v, ctx, label) { return common._check_nonneg_int(v, ctx, label) }
 fn _check_positive_int(v, ctx, label) { return common._check_positive_int(v, ctx, label) }
 fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
+fn _slice_is_list(s) { return common._slice_is_list(s) }
+fn _strided_is_list(s) { return common._strided_is_list(s) }
+fn _validate_i32_or_err(v, ctx) { return common._validate_i32_or_err(v, ctx) }
+fn _validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
+fn _validate_passthru_or_err(v, ctx) { return common._validate_passthru_or_err(v, ctx) }
 
 fn _u8_buf_unpack(src, ctx) {
     var n = oren_buf_len(src)
@@ -130,23 +134,6 @@ fn _validate_u8_or_err(v, ctx) {
     return v
 }
 
-fn _validate_i32_or_err(v, ctx) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
-    if v < -2147483648 || v > 2147483647 {
-        return _err_invalid(ctx + ": value out of i32 range")
-    }
-    return v
-}
-
-fn _validate_i64_or_err(v, ctx) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
-    return v
-}
-
-fn _validate_passthru_or_err(v, ctx) {
-    return v
-}
-
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
     var xs = bytesm.try_unpack(bytes)
     if oren_is_err(xs) { return xs }
@@ -163,25 +150,6 @@ fn _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx) {
     var xs = _u8_buf_unpack(src, ctx)
     if oren_is_err(xs) { return xs }
     return _u8_view_copy_from_list(store_fn, view, n, xs, ctx)
-}
-
-fn _list_len_or_err(v) {
-    if oren_type_tag(v) != 6 { return _err_invalid("buffer: expects list view") }
-    return list.len(v)
-}
-
-fn _slice_is_list(s) {
-    if s == nil || oren_is_err(s) { return false }
-    var ln = _list_len_or_err(s)
-    if oren_is_err(ln) { return false }
-    return ln == 3
-}
-
-fn _strided_is_list(s) {
-    if s == nil || oren_is_err(s) { return false }
-    var ln = _list_len_or_err(s)
-    if oren_is_err(ln) { return false }
-    return ln == 4
 }
 
 fn slice_new(buf, off, n) {

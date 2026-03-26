@@ -740,7 +740,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `lib/std/buffer/view.oren` for slice/strided helpers and a three-part matrix layer:
      `lib/std/buffer/mat.oren` as the compatibility facade over
      `lib/std/buffer/mat_core.oren` and `lib/std/buffer/mat_dense.oren`. That keeps the public
-     module at 666 lines and the matrix implementation in focused submodules without changing the
+     module at 636 lines and the matrix implementation in focused submodules without changing the
      checked view/matrix API; covered by dedicated AVM buffer-view smoke, native quick integration,
      and full `make test` (2026-03-27).
    - Refactor: the duplicated integer/error validation helpers shared by the `std:buffer` facade,
@@ -749,11 +749,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      modules and keeps future buffer-surface validation fixes aligned across all three layers;
      covered by dedicated AVM buffer-view smoke, native quick integration, and full `make test`
      (2026-03-27).
+   - Refactor: the split `std:buffer` modules now also share list-view shape predicates
+     (`_slice_is_list` / `_strided_is_list` / `_mat_is_list`) and numeric validators through
+     `lib/std/buffer/common.oren`, which removes another copy-pasted helper family from `view` and
+     the matrix layer; covered by dedicated AVM buffer-view smoke, native quick integration, and
+     full `make test` (2026-03-27).
    - Refactor: the duplicated raw typed-buffer constructors, direct typed load/store shims, and
      `[]u8 -> bytes` bridge shared across the `std:buffer` facade, `view`, matrix core, and dense
      matrix helpers now live in `lib/std/buffer/raw.oren`, so low-level runtime wrapper changes no
      longer need to be edited in four places; covered by dedicated AVM buffer-view smoke, native
      quick integration, and full `make test` (2026-03-27).
+   - Refactor: the dense matrix helpers no longer depend on `mat_core` internals for shape,
+     row-major flatten, or typed-buffer bridge plumbing. Those shared helpers now live in
+     `lib/std/buffer/mat_shared.oren`, which makes the matrix layer a cleaner facade/core/shared/dense
+     split without changing the checked public API; covered by dedicated AVM buffer-view smoke,
+     native quick integration, and full `make test` (2026-03-27).
    - Fix: `std:result.is_err(v)` now canonicalizes backend probes to a real Oren boolean on native,
      so `== true` / `!= true` checks no longer depend on raw backend truthy values; covered by
      native module-result smoke, result smoke, native quick, and full `make test` (2026-03-27).
@@ -769,6 +779,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      green-cache rerun under `set +e` when collecting retry status, so `run_with_timeout_retry(...)`
      can actually feed the scripted retry paths instead of aborting the harness early under
      `set -e`; covered by native quick integration and full `make test` (2026-03-27).
+   - Fix: macOS stage1 native-quick verification now also keeps the default green-cache rerun
+     watchdog at `180s` instead of `120s`. A direct `120s` run still false-red with `rc=143`
+     after the rerun had already emitted its last visible debug lines, while `180s` completed
+     cleanly on this host; covered by native quick integration and full `make test` (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
@@ -806,10 +820,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        modules (all <2000 lines, 2026-03-03).
      - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren` and a
        split matrix layer (`lib/std/buffer/mat.oren`, `lib/std/buffer/mat_core.oren`,
-       `lib/std/buffer/mat_dense.oren`), with shared validation helpers factored into
-       `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers factored into
-       `lib/std/buffer/raw.oren`, keeping the top-level stdlib module at 666 lines and each helper
-       module <2000 lines (2026-03-27).
+       `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_dense.oren`), with shared validation
+       and list-view predicates factored into `lib/std/buffer/common.oren` and shared raw
+       typed-buffer wrappers factored into `lib/std/buffer/raw.oren`, keeping the top-level stdlib
+       module at 636 lines and each helper module <2000 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).

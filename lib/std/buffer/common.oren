@@ -43,6 +43,51 @@ fn _plain_list_len_or_err(xs, ctx) {
     return n
 }
 
+fn _list_view_len_or_err(v) {
+    if oren_type_tag(v) != 6 { return _err_invalid("buffer: expects list view") }
+    var n = list.len(v)
+    if oren_is_err(n) { return _err_invalid("buffer: expects list view") }
+    return n
+}
+
+fn _slice_is_list(s) {
+    if s == nil || oren_is_err(s) { return false }
+    var ln = _list_view_len_or_err(s)
+    if oren_is_err(ln) { return false }
+    return ln == 3
+}
+
+fn _strided_is_list(s) {
+    if s == nil || oren_is_err(s) { return false }
+    var ln = _list_view_len_or_err(s)
+    if oren_is_err(ln) { return false }
+    return ln == 4
+}
+
+fn _mat_is_list(m) {
+    if m == nil || oren_is_err(m) { return false }
+    var ln = _list_view_len_or_err(m)
+    if oren_is_err(ln) { return false }
+    return ln == 5
+}
+
+fn _validate_i32_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    if v < -2147483648 || v > 2147483647 {
+        return _err_invalid(ctx + ": value out of i32 range")
+    }
+    return v
+}
+
+fn _validate_i64_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    return v
+}
+
+fn _validate_passthru_or_err(v, ctx) {
+    return v
+}
+
 fn _buf_len_or_err(buf, ctx) {
     var n = oren_buf_len(buf)
     if n == nil || oren_is_err(n) { return _err_invalid(ctx + ": expects typed buffer") }
