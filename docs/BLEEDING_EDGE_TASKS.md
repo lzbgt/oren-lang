@@ -2239,6 +2239,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      slice, and strided views without open-coding offset math; covered by result smoke + native
      quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` now also exposes checked compact row-major matrix conversion helpers
+     `try_i32_mat_pack_rows`, `try_i32_mat_unpack_rows`, `try_u8_mat_pack_rows`,
+     `try_u8_mat_unpack_rows`, `try_u8_mat_pack_strings`, and `try_u8_mat_unpack_strings`, so
+     callers can enter and leave the zero-copy matrix-view surface without open-coding row-major
+     loops; covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).

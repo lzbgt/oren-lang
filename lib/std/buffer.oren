@@ -353,6 +353,48 @@ fn _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx) {
     return _u8_view_copy_from_list(store_fn, view, n, xs, ctx)
 }
 
+fn _rows_shape_or_err(rows, ctx) {
+    if oren_type_tag(rows) != 6 { return _err_invalid(ctx + ": expects rows list") }
+    var nrows = oren_list_len(rows)
+    if nrows == nil || oren_is_err(nrows) { return _err_invalid(ctx + ": expects rows list") }
+    var ncols = 0
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        if oren_type_tag(row) != 6 { return _err_invalid(ctx + ": row must be list") }
+        var row_len = oren_list_len(row)
+        if row_len == nil || oren_is_err(row_len) { return _err_invalid(ctx + ": row must be list") }
+        if r == 0 {
+            ncols = row_len
+        } else if row_len != ncols {
+            return _err_invalid(ctx + ": ragged rows")
+        }
+        r = r + 1
+    }
+    return [nrows, ncols]
+}
+
+fn _string_rows_shape_or_err(rows, ctx) {
+    if oren_type_tag(rows) != 6 { return _err_invalid(ctx + ": expects rows list") }
+    var nrows = oren_list_len(rows)
+    if nrows == nil || oren_is_err(nrows) { return _err_invalid(ctx + ": expects rows list") }
+    var ncols = 0
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        if oren_type_tag(row) != 4 { return oren_err(4, ctx + ": row must be string") }
+        var row_len = oren_string_len(row)
+        if row_len == nil || oren_is_err(row_len) { return oren_err(4, ctx + ": row must be string") }
+        if r == 0 {
+            ncols = row_len
+        } else if row_len != ncols {
+            return _err_invalid(ctx + ": ragged rows")
+        }
+        r = r + 1
+    }
+    return [nrows, ncols]
+}
+
 // --- generic zero-copy views ---
 
 // View representation (rolling, perf-oriented):
@@ -1197,4 +1239,157 @@ fn try_mat_store_f64(m, r, c, v) {
     var ok_c = _check_int(c, "buffer.try_mat_store_f64", "col")
     if oren_is_err(ok_c) { return ok_c }
     return mat_store_f64(m, r, c, v)
+}
+
+fn i32_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.i32_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = i32_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row = rows[r]
+        var c = 0
+        while c < ncols {
+            var v = row[c]
+            if _is_int(v) == false { return oren_err(4, "buffer.i32_mat_pack_rows: value not int") }
+            if v < -2147483648 || v > 2147483647 {
+                return _err_invalid("buffer.i32_mat_pack_rows: value out of i32 range")
+            }
+            var rc = try_mat_store_i32(mat, r, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_i32_mat_pack_rows(rows) {
+    return i32_mat_pack_rows(rows)
+}
+
+fn i32_mat_unpack_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.i32_mat_unpack_rows: expects mat view") }
+    var nrows = m[2]
+    var ncols = m[3]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = []
+        var c = 0
+        while c < ncols {
+            var v = try_mat_load_i32(m, r, c)
+            if oren_is_err(v) { return v }
+            oren_list_push(row, v)
+            c = c + 1
+        }
+        oren_list_push(out, row)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_i32_mat_unpack_rows(m) {
+    return i32_mat_unpack_rows(m)
+}
+
+fn u8_mat_pack_rows(rows) {
+    var shape = _rows_shape_or_err(rows, "buffer.u8_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = u8_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row_view = try_mat_row_slice(mat, r)
+        if oren_is_err(row_view) { return row_view }
+        var row = rows[r]
+        var c = 0
+        while c < ncols {
+            var v = row[c]
+            if _is_int(v) == false { return oren_err(4, "buffer.u8_mat_pack_rows: value not int") }
+            if v < 0 || v > 255 { return oren_err(4, "buffer.u8_mat_pack_rows: byte out of range") }
+            var rc = try_slice_store_u8(row_view, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_u8_mat_pack_rows(rows) {
+    return u8_mat_pack_rows(rows)
+}
+
+fn u8_mat_unpack_rows(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.u8_mat_unpack_rows: expects mat view") }
+    var nrows = m[2]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var xs = try_slice_unpack_u8(row)
+        if oren_is_err(xs) { return xs }
+        oren_list_push(out, xs)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_u8_mat_unpack_rows(m) {
+    return u8_mat_unpack_rows(m)
+}
+
+fn u8_mat_pack_strings(rows) {
+    var shape = _string_rows_shape_or_err(rows, "buffer.u8_mat_pack_strings")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = u8_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row_view = try_mat_row_slice(mat, r)
+        if oren_is_err(row_view) { return row_view }
+        var rc = try_slice_copy_from_string(row_view, rows[r])
+        if oren_is_err(rc) { return rc }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_u8_mat_pack_strings(rows) {
+    return u8_mat_pack_strings(rows)
+}
+
+fn u8_mat_unpack_strings(m) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.u8_mat_unpack_strings: expects mat view") }
+    var nrows = m[2]
+    var out = []
+    var r = 0
+    while r < nrows {
+        var row = try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var s = try_slice_to_string(row)
+        if oren_is_err(s) { return s }
+        oren_list_push(out, s)
+        r = r + 1
+    }
+    return out
+}
+
+fn try_u8_mat_unpack_strings(m) {
+    return u8_mat_unpack_strings(m)
 }

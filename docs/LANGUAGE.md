@@ -3301,12 +3301,14 @@ Rolling status:
   `try_mat_load/store_i64`, `try_mat_load/store_f32`, and `try_mat_load/store_f64`, plus
   checked conversion helpers such as `try_u8_pack`, `try_u8_unpack`, `try_u8_from_string`,
   `try_u8_to_string`, `try_u8_from_bytes`, `try_u8_from_bytes_slice`, `try_u8_to_bytes`,
-  `try_i32_pack_list_int`, and `try_i32_unpack_list`, plus checked `[]u8` view bridges such as
-  `try_slice_unpack_u8`, `try_slice_to_bytes`, `try_slice_to_u8_buf`, `try_slice_to_string`,
-  `try_slice_copy_from_bytes`, `try_slice_copy_from_u8_buf`, `try_slice_copy_from_string`,
-  `try_strided_unpack_u8`, `try_strided_to_bytes`, `try_strided_to_u8_buf`,
-  `try_strided_to_string`, `try_strided_copy_from_bytes`, `try_strided_copy_from_u8_buf`,
-  and `try_strided_copy_from_string`.
+  `try_i32_pack_list_int`, `try_i32_unpack_list`, `try_i32_mat_pack_rows`,
+  `try_i32_mat_unpack_rows`, `try_u8_mat_pack_rows`, `try_u8_mat_unpack_rows`,
+  `try_u8_mat_pack_strings`, and `try_u8_mat_unpack_strings`, plus checked `[]u8` view bridges
+  such as `try_slice_unpack_u8`, `try_slice_to_bytes`, `try_slice_to_u8_buf`,
+  `try_slice_to_string`, `try_slice_copy_from_bytes`, `try_slice_copy_from_u8_buf`,
+  `try_slice_copy_from_string`, `try_strided_unpack_u8`, `try_strided_to_bytes`,
+  `try_strided_to_u8_buf`, `try_strided_to_string`, `try_strided_copy_from_bytes`,
+  `try_strided_copy_from_u8_buf`, and `try_strided_copy_from_string`.
 
 ### 6) Variadic ergonomics (without a huge ABI rewrite)
 
