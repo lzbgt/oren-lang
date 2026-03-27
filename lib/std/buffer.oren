@@ -204,6 +204,78 @@ fn i32_unpack_list(buf: []i32) {
     return try_i32_unpack_list(buf)
 }
 
+fn i64_pack_list_int(xs) {
+    return _pack_list_like_with(xs, "buffer.i64_pack_list_int", i64_new, i64_pack_list_int_into)
+}
+
+fn i64_pack_list_int_into(out: []i64, xs) {
+    return _pack_list_like_into_with(out, xs, "buffer.i64_pack_list_int_into", _store_i64_direct, _validate_i64_or_err)
+}
+
+fn try_i64_pack_list_int(xs) {
+    return i64_pack_list_int(xs)
+}
+
+fn try_i64_pack_list_int_into(out: []i64, xs) {
+    return i64_pack_list_int_into(out, xs)
+}
+
+fn try_i64_unpack_list(buf: []i64) {
+    return _unpack_list_like_with(buf, "buffer.try_i64_unpack_list", _load_i64_direct)
+}
+
+fn i64_unpack_list(buf: []i64) {
+    return try_i64_unpack_list(buf)
+}
+
+fn f32_pack_list(xs) {
+    return _pack_list_like_with(xs, "buffer.f32_pack_list", f32_new, f32_pack_list_into)
+}
+
+fn f32_pack_list_into(out: []f32, xs) {
+    return _pack_list_like_into_with(out, xs, "buffer.f32_pack_list_into", _store_f32_direct, _validate_passthru_or_err)
+}
+
+fn try_f32_pack_list(xs) {
+    return f32_pack_list(xs)
+}
+
+fn try_f32_pack_list_into(out: []f32, xs) {
+    return f32_pack_list_into(out, xs)
+}
+
+fn try_f32_unpack_list(buf: []f32) {
+    return _unpack_list_like_with(buf, "buffer.try_f32_unpack_list", _load_f32_direct)
+}
+
+fn f32_unpack_list(buf: []f32) {
+    return try_f32_unpack_list(buf)
+}
+
+fn f64_pack_list(xs) {
+    return _pack_list_like_with(xs, "buffer.f64_pack_list", f64_new, f64_pack_list_into)
+}
+
+fn f64_pack_list_into(out: []f64, xs) {
+    return _pack_list_like_into_with(out, xs, "buffer.f64_pack_list_into", _store_f64_direct, _validate_passthru_or_err)
+}
+
+fn try_f64_pack_list(xs) {
+    return f64_pack_list(xs)
+}
+
+fn try_f64_pack_list_into(out: []f64, xs) {
+    return f64_pack_list_into(out, xs)
+}
+
+fn try_f64_unpack_list(buf: []f64) {
+    return _unpack_list_like_with(buf, "buffer.try_f64_unpack_list", _load_f64_direct)
+}
+
+fn f64_unpack_list(buf: []f64) {
+    return try_f64_unpack_list(buf)
+}
+
 fn try_u8_pack(xs) {
     return _pack_list_like_with(xs, "buffer.try_u8_pack", u8_new, try_u8_pack_into)
 }

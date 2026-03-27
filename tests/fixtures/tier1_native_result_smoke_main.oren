@@ -168,6 +168,36 @@ fn smoke_buffer_core() {
     if r.is_err(i32_pack_list) || oren_list_len(i32_pack_list) != 2 || i32_pack_list[1] != 6 { return 48 }
     var i32_pack_bad = buffer.try_i32_pack_list_int([2147483648])
     if r.is_err(i32_pack_bad) != true { return 49 }
+    var i64_pack_try = buffer.try_i64_pack_list_int([8, 9, 4294967296])
+    if r.is_err(i64_pack_try) { return 673 }
+    var i64_pack_list = buffer.try_i64_unpack_list(i64_pack_try)
+    if r.is_err(i64_pack_list) || oren_list_len(i64_pack_list) != 3 || i64_pack_list[2] != 4294967296 { return 674 }
+    var i64_into = buffer.i64_new(2)
+    if r.is_err(i64_into) { return 675 }
+    if r.is_err(buffer.try_i64_pack_list_int_into(i64_into, [10, 11])) { return 676 }
+    var i64_into_list = buffer.try_i64_unpack_list(i64_into)
+    if r.is_err(i64_into_list) || i64_into_list[1] != 11 { return 677 }
+    if r.is_err(buffer.try_i64_pack_list_int_into(i64_into, [1])) != true { return 678 }
+    var f32_pack_try = buffer.try_f32_pack_list([1.5, 2.5, 3.5])
+    if r.is_err(f32_pack_try) { return 679 }
+    var f32_pack_list = buffer.try_f32_unpack_list(f32_pack_try)
+    if r.is_err(f32_pack_list) || oren_list_len(f32_pack_list) != 3 { return 680 }
+    var f32_into = buffer.f32_new(2)
+    if r.is_err(f32_into) { return 681 }
+    if r.is_err(buffer.try_f32_pack_list_into(f32_into, [4.5, 5.5])) { return 682 }
+    var f32_into_list = buffer.try_f32_unpack_list(f32_into)
+    if r.is_err(f32_into_list) || oren_list_len(f32_into_list) != 2 { return 683 }
+    if r.is_err(buffer.try_f32_pack_list_into(f32_into, [1.0])) != true { return 684 }
+    var f64_pack_try = buffer.try_f64_pack_list([6.25, 7.25])
+    if r.is_err(f64_pack_try) { return 685 }
+    var f64_pack_list = buffer.try_f64_unpack_list(f64_pack_try)
+    if r.is_err(f64_pack_list) || oren_list_len(f64_pack_list) != 2 { return 686 }
+    var f64_into = buffer.f64_new(2)
+    if r.is_err(f64_into) { return 687 }
+    if r.is_err(buffer.try_f64_pack_list_into(f64_into, [8.25, 9.25])) { return 688 }
+    var f64_into_list = buffer.try_f64_unpack_list(f64_into)
+    if r.is_err(f64_into_list) || oren_list_len(f64_into_list) != 2 { return 689 }
+    if r.is_err(buffer.try_f64_pack_list_into(f64_into, [1.0])) != true { return 690 }
     var u8_from = buffer.try_u8_from_string("AB")
     if r.is_err(u8_from) { return 50 }
     var u8_text = buffer.try_u8_to_string(u8_from)

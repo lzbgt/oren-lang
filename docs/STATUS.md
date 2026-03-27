@@ -661,6 +661,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `try_i32_pack_list_int`, `try_i32_pack_list_int_into`, `try_i32_unpack_list`);
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` now also exposes contiguous raw typed-buffer list bridges for `i64`, `f32`,
+     and `f64` via helpers such as `try_i64_pack_list_int`, `try_i64_unpack_list`,
+     `try_f32_pack_list`, `try_f32_unpack_list`, `try_f64_pack_list`, and
+     `try_f64_unpack_list`, so callers can enter and leave non-`u8` typed buffers without
+     open-coding allocation + per-element store loops; covered by result smoke + native quick
+     integration + dedicated AVM buffer-view smoke, with exact float value proof kept in AVM and
+     shared native fixtures checking non-error/shape only (2026-03-27).
    - New: `std:buffer` now also exposes checked `[]u8` zero-copy view bridge helpers
      (`try_slice_to_bytes`, `try_slice_to_string`, `try_slice_copy_from_bytes`,
      `try_strided_to_bytes`, `try_strided_to_string`, `try_strided_copy_from_bytes`);

@@ -3305,7 +3305,9 @@ Rolling status:
   `try_mat_load/store_f64`, plus
   checked conversion helpers such as `try_u8_pack`, `try_u8_unpack`, `try_u8_from_string`,
   `try_u8_to_string`, `try_u8_from_bytes`, `try_u8_from_bytes_slice`, `try_u8_to_bytes`,
-  `try_i32_pack_list_int`, `try_i32_unpack_list`, `try_i32_mat_pack_rows`,
+  `try_i32_pack_list_int`, `try_i32_unpack_list`, `try_i64_pack_list_int`,
+  `try_i64_unpack_list`, `try_f32_pack_list`, `try_f32_unpack_list`,
+  `try_f64_pack_list`, `try_f64_unpack_list`, `try_i32_mat_pack_rows`,
   `try_i32_mat_unpack_rows`, `try_i32_mat_copy_from_rows`, `try_i64_mat_pack_rows`,
   `try_i64_mat_unpack_rows`, `try_i64_mat_copy_from_rows`, `try_f32_mat_pack_rows`,
   `try_f32_mat_unpack_rows`, `try_f32_mat_copy_from_rows`, `try_f64_mat_pack_rows`,
