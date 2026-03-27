@@ -1,5 +1,6 @@
 // Compiler build pipeline (split via compile-time includes for maintainability).
 //
 // @include "040_build_pipeline/000_prelude.oren"
+// @include "040_build_pipeline/005_helpers.oren"
 // @include "040_build_pipeline/010_main.oren"
 // @include "040_build_pipeline/090_selftest.oren"

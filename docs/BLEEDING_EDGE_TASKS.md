@@ -2474,6 +2474,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
      `lib/std/buffer/raw.oren`, with the public facade at 697 lines and each helper module <2000
      lines (2026-03-27).
+   - Done: `lib/compiler/compiler/040_build_pipeline/010_main.oren` split into a helper include
+     (`lib/compiler/compiler/040_build_pipeline/005_helpers.oren`) plus the main command-dispatch
+     unit, leaving the main file at 1957 lines while keeping the compile-time include order and
+     behavior unchanged (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
      `avm_cli_disasm`, `avm_cli_dump`) (<2000 lines each, 2026-02-25).
@@ -2485,7 +2489,6 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Next targets (>=2000 lines, 2026-03-05 scan):
      - `lib/runtime_native/263_green/010_green_core.oren` (~2371 lines).
      - `pkg/transpiler/transpiler.go` (~2269 lines).
-     - `lib/compiler/compiler/040_build_pipeline/010_main.oren` (~2200 lines).
 
 11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.

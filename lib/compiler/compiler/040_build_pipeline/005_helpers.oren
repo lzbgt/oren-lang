@@ -1,0 +1,284 @@
+fn _string_index_of_char(s, ch) {
+    if s == nil { return -1 }
+    var i = 0
+    var sl = oren_string_len(s)
+    while i < sl {
+        if oren_string_char_at_unchecked(s, i) == ch { return i }
+        i = i + 1
+    }
+    return -1
+}
+
+fn _string_strip_trailing_cr(s) {
+    if s == nil { return s }
+    var sl = oren_string_len(s)
+    if sl <= 0 { return s }
+    if oren_string_char_at_unchecked(s, sl - 1) != "\r" { return s }
+    return oren_string_slice(s, 0, sl - 1)
+}
+
+fn _string_trim_ws(s) {
+    if s == nil { return s }
+    var sl = oren_string_len(s)
+    var i = 0
+    var j = sl - 1
+    while i < sl {
+        var c = oren_string_char_at_unchecked(s, i)
+        if c == " " || c == "\t" || c == "\n" || c == "\r" { i = i + 1 }
+        else { break }
+    }
+    while j >= i {
+        var c2 = oren_string_char_at_unchecked(s, j)
+        if c2 == " " || c2 == "\t" || c2 == "\n" || c2 == "\r" { j = j - 1 }
+        else { break }
+    }
+    if j < i { return "" }
+    return oren_string_slice(s, i, j + 1)
+}
+
+fn _string_strip_wrapping_quotes(s) {
+    if s == nil { return s }
+    var sl = oren_string_len(s)
+    if sl < 2 { return s }
+    if oren_string_char_at_unchecked(s, 0) != "\"" { return s }
+    if oren_string_char_at_unchecked(s, sl - 1) != "\"" { return s }
+    return oren_string_slice(s, 1, sl - 1)
+}
+
+fn _parse_kv_lines(s) {
+    var out = {}
+    if s == nil { return out }
+    var sl = oren_string_len(s)
+    var start = 0
+    var i = 0
+    while i <= sl {
+        var end_line = false
+        if i >= sl { end_line = true }
+        else if oren_string_char_at_unchecked(s, i) == "\n" { end_line = true }
+        if end_line {
+            var line = _string_strip_trailing_cr(oren_string_slice(s, start, i))
+            if line != nil && line != "" {
+                var eq = _string_index_of_char(line, "=")
+                if eq >= 0 {
+                    var key = oren_string_slice(line, 0, eq)
+                    var val = oren_string_slice(line, eq + 1, oren_string_len(line))
+                    if key != "" { out[key] = val }
+                }
+            }
+            start = i + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _cmd_quote_path_host(path) {
+    if host_is_windows() { return cmd_quote(_path_to_windows_sep(path)) }
+    return shell_quote(path)
+}
+
+fn _build_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _build_phase_log_append(path, phase, detail, t0) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var now = oren_time_now_ns()
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(now)
+    if t0 != nil && t0 > 0 {
+        line = line + " total_ms=" + oren_int_to_string((now - t0) / 1000000)
+    }
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
+fn _run_test_artifact(backend, out_path) {
+    if backend == "bytecode" {
+        var avm_path = "./avm"
+        if host_is_windows() { avm_path = "./avm.exe" }
+        if oren_exists(avm_path) != true {
+            print("== ensure: avm ==")
+            var mk = oren_system("make avm")
+            if mk != 0 {
+                print("avm build failed")
+                oren_exit(1)
+            }
+        }
+        var cmd_obc = ""
+        if host_is_windows() {
+            cmd_obc = "cmd.exe /d /c " + _cmd_quote_path_host(avm_path) + " " + _cmd_quote_path_host(out_path)
+        } else {
+            cmd_obc = _cmd_quote_path_host(avm_path) + " " + _cmd_quote_path_host(out_path)
+        }
+        var rc_obc = normalize_rc(oren_system(cmd_obc))
+        if rc_obc != 0 {
+            print("Test run failed (avm) rc=" + oren_int_to_string(rc_obc))
+            oren_exit(rc_obc)
+        }
+        return nil
+    }
+    var cmd_bin = ""
+    if host_is_windows() {
+        cmd_bin = "cmd.exe /d /c " + _cmd_quote_path_host(out_path)
+    } else {
+        cmd_bin = _cmd_quote_path_host(out_path)
+    }
+    var rc = normalize_rc(oren_system(cmd_bin))
+    if rc != 0 {
+        print("Test run failed rc=" + oren_int_to_string(rc))
+        oren_exit(rc)
+    }
+    return nil
+}
+
+fn _run_cmd_capture_stdout(cmd_line, out_path) {
+    if cmd_line == nil || cmd_line == "" { return 1 }
+    if out_path == nil || out_path == "" { return 1 }
+    if host_is_windows() {
+        ensure_dir("build/tmp")
+        var t = oren_time_now_ns()
+        var script = "build/tmp/oren_cmd_capture_" + oren_int_to_string(t) + ".cmd"
+        var sp = _path_to_windows_sep(script)
+        var out_win = _path_to_windows_sep(out_path)
+        var parts = []
+        oren_list_push(parts, "@echo off\r\n")
+        oren_list_push(parts, "setlocal\r\n")
+        oren_list_push(parts, cmd_line + " > " + cmd_quote(out_win) + "\r\n")
+        oren_list_push(parts, "exit /b %errorlevel%\r\n")
+        var ws = oren_write_file(sp, oren_string_join(parts))
+        if oren_is_err(ws) { return 1 }
+        var rc = oren_system("cmd.exe /d /c " + cmd_quote(sp))
+        // Best-effort cleanup.
+        oren_unlink(sp)
+        return rc
+    }
+    return oren_system(cmd_line + " > " + shell_quote(out_path) + " 2>/dev/null")
+}
+
+fn _run_cmd_capture_trim(cmd_line, out_path) {
+    if cmd_line == nil || cmd_line == "" { return nil }
+    if out_path == nil || out_path == "" { return nil }
+    var rc = _run_cmd_capture_stdout(cmd_line, out_path)
+    if rc != 0 { return nil }
+    var s = oren_read_file(out_path)
+    if oren_is_err(s) { return nil }
+    return _string_trim_ws(s)
+}
+
+fn _python_embed_probe_info() {
+    ensure_dir("build/tmp")
+    var script_path = "build/tmp/_oren_python_embed_probe.py"
+    var out_path = "build/tmp/_oren_python_embed_probe.txt"
+    var script = "import sys, sysconfig\n" +
+        "def get(k):\n" +
+        "    v = sysconfig.get_config_var(k)\n" +
+        "    return v if v is not None else ''\n" +
+        "print('include=' + (sysconfig.get_path('include') or ''))\n" +
+        "print('plat_include=' + (sysconfig.get_path('platinclude') or ''))\n" +
+        "print('libdir=' + get('LIBDIR'))\n" +
+        "print('libpl=' + get('LIBPL'))\n" +
+        "print('ldlibrary=' + get('LDLIBRARY'))\n" +
+        "print('library=' + get('LIBRARY'))\n" +
+        "print('base_prefix=' + getattr(sys, 'base_prefix', ''))\n" +
+        "print('prefix=' + getattr(sys, 'prefix', ''))\n" +
+        "print('version=' + (sysconfig.get_python_version() or ''))\n"
+    var ws = oren_write_file(script_path, script)
+    if oren_is_err(ws) { return nil }
+
+    var candidates = []
+    var env_py = oren_env("OREN_PYTHON")
+    if env_py != nil && env_py != "" {
+        oren_list_push(candidates, env_py)
+    } else {
+        oren_list_push(candidates, "python3")
+        oren_list_push(candidates, "python")
+        oren_list_push(candidates, "py -3")
+    }
+    var i = 0
+    while i < oren_list_len(candidates) {
+        var c0 = candidates[i]
+        var c_strip = _string_strip_wrapping_quotes(c0)
+        var cmd = nil
+        if file_exists(c_strip) {
+            var exe = c_strip
+            if host_is_windows() { exe = _path_to_windows_sep(exe) }
+            if host_is_windows() { cmd = cmd_quote(exe) + " " + _cmd_quote_path_host(script_path) }
+            else { cmd = shell_quote(exe) + " " + _cmd_quote_path_host(script_path) }
+        } else {
+            cmd = c0 + " " + _cmd_quote_path_host(script_path)
+        }
+        var rc = _run_cmd_capture_stdout(cmd, out_path)
+        if rc == 0 {
+            var s = oren_read_file(out_path)
+            if !oren_is_err(s) {
+                var info = _parse_kv_lines(s)
+                if info != nil && info["include"] != nil && info["include"] != "" {
+                    oren_unlink(script_path)
+                    oren_unlink(out_path)
+                    return info
+                }
+            }
+        }
+        i = i + 1
+    }
+    oren_unlink(script_path)
+    oren_unlink(out_path)
+    return nil
+}
+
+fn _msvc_python_embed_flags() {
+    var info = _python_embed_probe_info()
+    if info == nil { return nil }
+    var flags = ["/DOREN_ENABLE_PYTHON"]
+    var inc = info["include"]
+    if inc != nil && inc != "" { oren_list_push(flags, "/I" + inc) }
+    var pinc = info["plat_include"]
+    if pinc != nil && pinc != "" && pinc != inc { oren_list_push(flags, "/I" + pinc) }
+    var libname = info["ldlibrary"]
+    if libname == nil || libname == "" { libname = info["library"] }
+    if libname == nil || libname == "" {
+        var ver = info["version"]
+        if ver != nil && ver != "" {
+            var digits = ""
+            var vi = 0
+            while vi < oren_string_len(ver) {
+                var ch = oren_string_char_at_unchecked(ver, vi)
+                if ch >= "0" && ch <= "9" { digits = digits + ch }
+                vi = vi + 1
+            }
+            if oren_string_len(digits) >= 2 {
+                libname = "python" + digits + ".lib"
+            }
+        }
+    }
+    if libname == nil || libname == "" { return nil }
+    var libdirs = []
+    var libpl = info["libpl"]
+    var libdir = info["libdir"]
+    if libpl != nil && libpl != "" { oren_list_push(libdirs, libpl) }
+    if libdir != nil && libdir != "" && libdir != libpl { oren_list_push(libdirs, libdir) }
+    var prefix = info["prefix"]
+    if prefix != nil && prefix != "" { oren_list_push(libdirs, prefix + "/libs") }
+    var base_prefix = info["base_prefix"]
+    if base_prefix != nil && base_prefix != "" && base_prefix != prefix {
+        oren_list_push(libdirs, base_prefix + "/libs")
+    }
+    if oren_list_len(libdirs) == 0 { return nil }
+    oren_list_push(flags, "/link")
+    var j = 0
+    while j < oren_list_len(libdirs) {
+        var d = libdirs[j]
+        if d != nil && d != "" {
+            if host_is_windows() { d = _path_to_windows_sep(d) }
+            oren_list_push(flags, "/LIBPATH:" + d)
+        }
+        j = j + 1
+    }
+    oren_list_push(flags, libname)
+    return flags
+}

@@ -894,8 +894,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
 
 8) **W3 - Structural/SOLID debt**
-   - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
-     - None >2000 lines (2026-03-27).
+   - Large source files remain a maintainability risk; current tracked >2000-line targets after the
+     latest compiler split are:
+     - `lib/runtime_native/263_green/010_green_core.oren` (~2376 lines, 2026-03-27 scan).
+     - `pkg/transpiler/transpiler.go` (~2269 lines, 2026-03-27 scan).
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
        `lib/compiler/arm64_native_gc.oren` (2026-02-25).
@@ -916,8 +918,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`,
        `lib/std/buffer/mat_u8.oren`), with shared validation and list-view predicates factored
        into `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers factored into
-     `lib/std/buffer/raw.oren`, keeping the top-level stdlib module at 697 lines and each
-     helper module <2000 lines (2026-03-27).
+       `lib/std/buffer/raw.oren`, keeping the top-level stdlib module at 697 lines and each
+       helper module <2000 lines (2026-03-27).
+     - `lib/compiler/compiler/040_build_pipeline/010_main.oren` split into
+       `lib/compiler/compiler/040_build_pipeline/005_helpers.oren` plus a 1957-line main command
+       dispatcher, keeping the compile-time include order unchanged while dropping the tracked main
+       file below the 2000-line threshold (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).
@@ -2612,9 +2618,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 5) **Allow non-macOS hosts for partial targets** (S, W2)
 6) **Package manager / signed module workflow** (M, W2)
 7) **Refactor oversized native emitters (>2000 lines)** (M, W2)
-8) **Refactor `lib/runtime_native/100_time_gc_alloc.oren` (>2000 lines)** (M, W2)
-9) **Refactor `lib/compiler/optimizer.oren` (>2000 lines)** (M, W2)
-10) **Refactor `lib/compiler/compiler/040_build_pipeline/010_main.oren` (>2000 lines)** (M, W2)
+8) **Refactor `lib/runtime_native/263_green/010_green_core.oren` (>2000 lines)** (M, W2)
+9) **Refactor `pkg/transpiler/transpiler.go` (>2000 lines)** (M, W2)
 
 ---
 
