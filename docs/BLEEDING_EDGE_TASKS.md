@@ -1181,6 +1181,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      dramatically better than the packed bridge, which makes “lower directly against the 64-bit
      slot ABI” the right optimization direction, but it is still too slow to treat the runtime
      helper call itself as the end state.
+   - Verification (2026-03-28): the canonical benchmark loops already lower directly against that
+     64-bit-slot ABI on both native backends. New gate:
+     `make verify-native-list-int-fast-lowering`. It compiles
+     `benchmarks/array_sum_int/array_sum_int.oren` and `benchmarks/dot_product_int/dot_product_int.oren`
+     with `OREN_TRACE_ARM64_LOOP_STACK=1` on the local arm64 backend and with
+     `OREN_TRACE_X64_LIST_FAST=1` on x64-linux, then asserts the arm64 trace still reports
+     `fast_list_int_get_sum_while(_no_tick)?` / `fast_list_int_dot_while(_no_tick)?` and the x64
+     compiler still emits `[x64_list_fast] ... kind=fast_list_int_{get_sum,dot}_while`. That makes
+     the remaining task concrete: improve or broaden the existing direct-slot compiler fast loops,
+     not the runtime helper boundary.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.

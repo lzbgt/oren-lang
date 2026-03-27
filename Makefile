@@ -12,7 +12,7 @@
 .PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
-.PHONY: perf-gate-native perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-slot-direct perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct
+.PHONY: perf-gate-native perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-slot-direct perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct verify-native-list-int-fast-lowering
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
@@ -923,6 +923,9 @@ verify-native-core-packed-bridge: oren_stage2
 
 verify-native-slot-direct: oren_stage2
 	@./scripts/run_perf_smoke_list_int_slot_direct.sh
+
+verify-native-list-int-fast-lowering: oren_stage2
+	@./scripts/verify_native_list_int_fast_lowering.sh
 
 # Update the latest benchmark snapshot from existing result JSON files.
 benchmarks-update:

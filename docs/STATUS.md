@@ -264,6 +264,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      ~21.03× C. That is enough to prioritize “compiler lowering directly against the 64-bit-slot
      ABI” over any more packed-bridge work, but it also shows that a plain runtime helper call is
      not itself the final target.
+   - Verification (2026-03-28): the canonical benchmark shapes are already using that direct-slot
+     compiler lowering path today. A new dedicated gate (`make verify-native-list-int-fast-lowering`)
+     now proves `benchmarks/array_sum_int/array_sum_int.oren` still emits
+     `fast_list_int_get_sum_while(_no_tick)?` on the local arm64 backend and
+     `benchmarks/dot_product_int/dot_product_int.oren` still emits
+     `fast_list_int_dot_while(_no_tick)?`; the same gate also traces the matching x64-linux lowering
+     via compile-time `[x64_list_fast] ... kind=fast_list_int_{get_sum,dot}_while` lines. That
+     closes the ambiguity from the direct-slot helper probe: the remaining work is to widen or
+     improve the existing compiler fast loops, not to introduce a first direct-slot lowering path.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.
