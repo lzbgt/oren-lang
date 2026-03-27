@@ -1,0 +1,256 @@
+// std/buffer/mat_u8 (rolling)
+//
+// Dense []u8/string whole-matrix conversion/copy helpers are split out so the
+// matrix layer can keep byte/text behavior separate from numeric helpers.
+
+import bytesm "std:bytes"
+import mshared "std:buffer/mat_shared"
+import core "std:buffer/mat_core"
+import proj "std:buffer/mat_proj"
+import raw "std:buffer/raw"
+import view "std:buffer/view"
+
+fn _err_invalid(msg) { return core._err_invalid(msg) }
+fn _is_int(v) { return core._is_int(v) }
+
+fn _u8_validate_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
+    return v
+}
+
+fn _mat_unpack_projected_rows(m, ctx, rowf) {
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    var out = []
+    var nrows = m[2]
+    var r = 0
+    while r < nrows {
+        var row = rowf(m, r)
+        if oren_is_err(row) { return row }
+        oren_list_push(out, row)
+        r = r + 1
+    }
+    return out
+}
+
+fn u8_mat_pack_rows(rows) {
+    var shape = mshared._rows_shape_or_err(rows, "buffer.u8_mat_pack_rows")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = raw.u8_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = core.try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row_view = proj.try_mat_row_slice(mat, r)
+        if oren_is_err(row_view) { return row_view }
+        var row = rows[r]
+        var c = 0
+        while c < ncols {
+            var v = _u8_validate_or_err(row[c], "buffer.u8_mat_pack_rows")
+            if oren_is_err(v) { return v }
+            var rc = view.try_slice_store_u8(row_view, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_u8_mat_pack_rows(rows) {
+    return u8_mat_pack_rows(rows)
+}
+
+fn u8_mat_unpack_rows(m) {
+    return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_rows", proj.try_mat_row_unpack_u8)
+}
+
+fn try_u8_mat_unpack_rows(m) {
+    return u8_mat_unpack_rows(m)
+}
+
+fn u8_mat_pack_strings(rows) {
+    var shape = mshared._string_rows_shape_or_err(rows, "buffer.u8_mat_pack_strings")
+    if oren_is_err(shape) { return shape }
+    var nrows = shape[0]
+    var ncols = shape[1]
+    var out = raw.u8_new(nrows * ncols)
+    if oren_is_err(out) { return out }
+    var mat = core.try_mat_view_new(out, 0, nrows, ncols, ncols)
+    if oren_is_err(mat) { return mat }
+    var r = 0
+    while r < nrows {
+        var row_view = proj.try_mat_row_slice(mat, r)
+        if oren_is_err(row_view) { return row_view }
+        var rc = view.try_slice_copy_from_string(row_view, rows[r])
+        if oren_is_err(rc) { return rc }
+        r = r + 1
+    }
+    return mat
+}
+
+fn try_u8_mat_pack_strings(rows) {
+    return u8_mat_pack_strings(rows)
+}
+
+fn u8_mat_unpack_strings(m) {
+    return _mat_unpack_projected_rows(m, "buffer.u8_mat_unpack_strings", proj.try_mat_row_to_string)
+}
+
+fn try_u8_mat_unpack_strings(m) {
+    return u8_mat_unpack_strings(m)
+}
+
+fn u8_mat_unpack_u8(m) {
+    if !mshared._mat_is_list(m) { return _err_invalid("buffer.u8_mat_unpack_u8: expects mat view") }
+    var out = []
+    var nrows = m[2]
+    var r = 0
+    while r < nrows {
+        var row = proj.try_mat_row_unpack_u8(m, r)
+        if oren_is_err(row) { return row }
+        var ncols = oren_list_len(row)
+        var c = 0
+        while c < ncols {
+            oren_list_push(out, row[c])
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return out
+}
+
+fn try_u8_mat_unpack_u8(m) {
+    return u8_mat_unpack_u8(m)
+}
+
+fn u8_mat_to_bytes(m) {
+    var xs = u8_mat_unpack_u8(m)
+    if oren_is_err(xs) { return xs }
+    return bytesm.try_pack(xs)
+}
+
+fn try_u8_mat_to_bytes(m) {
+    return u8_mat_to_bytes(m)
+}
+
+fn u8_mat_to_u8_buf(m) {
+    var bytes = u8_mat_to_bytes(m)
+    if oren_is_err(bytes) { return bytes }
+    return bytesm.try_to_u8_buf(bytes)
+}
+
+fn try_u8_mat_to_u8_buf(m) {
+    return u8_mat_to_u8_buf(m)
+}
+
+fn u8_mat_to_string(m) {
+    var bytes = u8_mat_to_bytes(m)
+    if oren_is_err(bytes) { return bytes }
+    return bytesm.try_to_string(bytes)
+}
+
+fn try_u8_mat_to_string(m) {
+    return u8_mat_to_string(m)
+}
+
+fn _u8_mat_copy_flat_list(m, xs, ctx) {
+    if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
+    if oren_type_tag(xs) != 6 { return _err_invalid(ctx + ": expects list<int>") }
+    var total = m[2] * m[3]
+    var nx = oren_list_len(xs)
+    if nx == nil || oren_is_err(nx) { return _err_invalid(ctx + ": expects list<int>") }
+    if nx != total { return _err_invalid(ctx + ": byte count mismatch") }
+    var i = 0
+    while i < nx {
+        var v = _u8_validate_or_err(xs[i], ctx)
+        if oren_is_err(v) { return v }
+        i = i + 1
+    }
+    var r = 0
+    while r < m[2] {
+        var row = proj.try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var c = 0
+        while c < m[3] {
+            var rc = view.try_slice_store_u8(row, c, xs[r * m[3] + c])
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn u8_mat_copy_from_bytes(m, bytes) {
+    var xs = bytesm.try_unpack(bytes)
+    if oren_is_err(xs) { return xs }
+    return _u8_mat_copy_flat_list(m, xs, "buffer.u8_mat_copy_from_bytes")
+}
+
+fn try_u8_mat_copy_from_bytes(m, bytes) {
+    return u8_mat_copy_from_bytes(m, bytes)
+}
+
+fn u8_mat_copy_from_u8_buf(m, src) {
+    var bytes = raw.try_u8_to_bytes(src)
+    if oren_is_err(bytes) { return bytes }
+    return u8_mat_copy_from_bytes(m, bytes)
+}
+
+fn try_u8_mat_copy_from_u8_buf(m, src) {
+    return u8_mat_copy_from_u8_buf(m, src)
+}
+
+fn u8_mat_copy_from_string(m, text) {
+    var bytes = bytesm.try_from_string(text)
+    if oren_is_err(bytes) { return bytes }
+    return u8_mat_copy_from_bytes(m, bytes)
+}
+
+fn try_u8_mat_copy_from_string(m, text) {
+    return u8_mat_copy_from_string(m, text)
+}
+
+fn u8_mat_copy_from_rows(m, rows) {
+    var shape = mshared._mat_rows_shape_match_or_err(m, rows, "buffer.u8_mat_copy_from_rows")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var row = proj.try_mat_row_slice(m, r)
+        if oren_is_err(row) { return row }
+        var c = 0
+        while c < shape[1] {
+            var v = _u8_validate_or_err(rows[r][c], "buffer.u8_mat_copy_from_rows")
+            if oren_is_err(v) { return v }
+            var rc = view.try_slice_store_u8(row, c, v)
+            if oren_is_err(rc) { return rc }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_u8_mat_copy_from_rows(m, rows) {
+    return u8_mat_copy_from_rows(m, rows)
+}
+
+fn u8_mat_copy_from_strings(m, rows) {
+    var shape = mshared._mat_string_rows_shape_match_or_err(m, rows, "buffer.u8_mat_copy_from_strings")
+    if oren_is_err(shape) { return shape }
+    var r = 0
+    while r < shape[0] {
+        var rc = proj.try_mat_row_copy_from_string(m, r, rows[r])
+        if oren_is_err(rc) { return rc }
+        r = r + 1
+    }
+    return m[0]
+}
+
+fn try_u8_mat_copy_from_strings(m, rows) {
+    return u8_mat_copy_from_strings(m, rows)
+}

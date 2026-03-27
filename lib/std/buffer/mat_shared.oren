@@ -1,7 +1,7 @@
 // std/buffer/mat_shared (rolling)
 //
 // Shared matrix-shape and dense row-major helper functions used by both
-// `mat_core` and `mat_dense`.
+// `mat_core` and the split dense helper modules.
 
 import common "std:buffer/common"
 

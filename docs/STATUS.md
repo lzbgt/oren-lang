@@ -753,11 +753,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
   - Refactor: `std:buffer` is now split into a thin public facade plus
     `lib/std/buffer/view.oren` for slice/strided helpers and a direct matrix implementation split
     across `lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
-    `lib/std/buffer/mat_shared.oren`, and `lib/std/buffer/mat_dense.oren`. The public facade in
-    `lib/std/buffer.oren` now imports those matrix modules directly instead of routing through an
-    internal `mat.oren` compatibility layer, which removes another pure pass-through module without
-    changing the checked view/matrix API; covered by dedicated AVM buffer-view smoke, native quick
-    integration, and full `make test` (2026-03-27).
+    `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`, and
+    `lib/std/buffer/mat_u8.oren`. The public facade in `lib/std/buffer.oren` now imports those
+    matrix modules directly instead of routing through either an internal `mat.oren`
+    compatibility layer or a mixed numeric/byte dense helper module, which keeps the checked
+    matrix API unchanged while making the internal module boundary match the real behavior split;
+    covered by dedicated AVM buffer-view smoke, native quick integration, and full `make test`
+    (2026-03-27).
    - Refactor: the duplicated integer/error validation helpers shared by the `std:buffer` facade,
      `view`, and matrix core now live in `lib/std/buffer/common.oren`, which removes copy-pasted
      `_err_invalid` / `_is_int` / `_check_*` / list-len / typed-buffer-len logic from the split
@@ -836,10 +838,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        modules (all <2000 lines, 2026-03-03).
      - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren` and a
        direct matrix layer (`lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
-       `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_dense.oren`), with shared validation
-       and list-view predicates factored into `lib/std/buffer/common.oren` and shared raw
-       typed-buffer wrappers factored into `lib/std/buffer/raw.oren`, keeping the top-level stdlib
-       module at 638 lines and each helper module <2000 lines (2026-03-27).
+       `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`,
+       `lib/std/buffer/mat_u8.oren`), with shared validation and list-view predicates factored
+       into `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers factored into
+       `lib/std/buffer/raw.oren`, keeping the top-level stdlib module at 684 lines and each
+       helper module <2000 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).

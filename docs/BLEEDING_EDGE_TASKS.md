@@ -2329,11 +2329,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Refactor: `std:buffer` is now split into a thin public facade plus
      `lib/std/buffer/view.oren` for slice/strided helpers and a direct matrix implementation split
      across `lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
-     `lib/std/buffer/mat_shared.oren`, and `lib/std/buffer/mat_dense.oren`. The public facade in
-     `lib/std/buffer.oren` now imports those matrix modules directly instead of routing through an
-     internal `mat.oren` compatibility layer, which removes another pure pass-through module
-     without changing the checked view/matrix API; covered by dedicated AVM buffer-view smoke,
-     native quick integration, and full `make test` (2026-03-27).
+     `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`, and
+     `lib/std/buffer/mat_u8.oren`. The public facade in `lib/std/buffer.oren` now imports those
+     matrix modules directly instead of routing through either an internal `mat.oren`
+     compatibility layer or a mixed numeric/byte dense helper module, which keeps the checked
+     matrix API unchanged while making the internal module boundary match the real behavior split;
+     covered by dedicated AVM buffer-view smoke, native quick integration, and full `make test`
+     (2026-03-27).
    - Refactor: the duplicated integer/error validation helpers shared by the `std:buffer` facade,
      `view`, and matrix core now live in `lib/std/buffer/common.oren`, which removes copy-pasted
      `_err_invalid` / `_is_int` / `_check_*` / list-len / typed-buffer-len logic from the split
@@ -2392,9 +2394,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Done: `lib/runtime_native/100_time_gc_alloc.oren` split into trace/index/core modules (<2000 lines each).
    - Done: `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`
      and a direct matrix layer (`lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
-     `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_dense.oren`) plus shared validation /
-     view-shape helpers in `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
-     `lib/std/buffer/raw.oren`, with the public facade at 638 lines and each helper module <2000
+     `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`,
+     `lib/std/buffer/mat_u8.oren`) plus shared validation / view-shape helpers in
+     `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
+     `lib/std/buffer/raw.oren`, with the public facade at 684 lines and each helper module <2000
      lines (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
