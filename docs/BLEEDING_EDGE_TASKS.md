@@ -2498,6 +2498,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
+   - New (2026-03-27): `make verify-optimizer-list-reserve-branchy` builds
+     `tests/fixtures/list_reserve_branchy_control_flow_smoke.oren` with
+     `OREN_TRACE_LIST_RESERVE=1`, asserts the boxed and `list<int>` reserve/unchecked-push trace
+     lines, and runs the fixture. `verify-native-quick` now includes that optimizer smoke so
+     branch-heavy list loops stay covered in the default `make test` path.
    - Fix: `scripts/run_native_capsule_smoke.sh` now uses the native build cache by default and
      `test-native-capsule-smoke-stage2` raises the stage2 build watchdog to 180s, avoiding a
      timeout-style false red where the harness spent minutes in a deliberate `--no-cache` cold

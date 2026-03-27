@@ -485,8 +485,12 @@ test-native-capsule-smoke-stage2: oren_stage2 rtobj-seed astbin-seed
 		@OREN_NATIVE_BUILD_TIMEOUT_SECS=180 OREN_NATIVE_RUN_TIMEOUT_SECS=60 \
 			./scripts/run_native_capsule_smoke.sh "./$(OREN_STAGE2_BIN)"
 
+# Optimizer smoke: branchy if/switch list pushes must still get reserve + unchecked rewrites.
+verify-optimizer-list-reserve-branchy: oren_stage2
+		@./scripts/verify_optimizer_list_reserve_branchy.sh
+
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
-verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2
+verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-optimizer-list-reserve-branchy
 	@echo "verify-native-quick OK"
 
 # Convenience: native quick verify plus SIMD determinism guard.

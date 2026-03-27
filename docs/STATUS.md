@@ -1760,6 +1760,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
 3) **W4 - List reserve + unchecked push** (M)
    - Baseline (arm64 native, 2026-02-26): `array_sum` 2.12× C, `multi_list_push_int` 3.36× C.
    - Extend bounds propagation for reserve/unchecked push.
+   - New (2026-03-27): the list-reserve collector/rewrite pass now traverses branchy `If` and
+     `Switch` control flow at both statement and expression level, so loop-local list pushes inside
+     branches still get pre-loop `*_reserve` insertion and `*_push_unchecked` rewrites.
+   - New (2026-03-27): `make verify-optimizer-list-reserve-branchy` builds
+     `tests/fixtures/list_reserve_branchy_control_flow_smoke.oren` with
+     `OREN_TRACE_LIST_RESERVE=1`, verifies the boxed and `list<int>` reserve/unchecked trace lines,
+     and runs the fixture; `make test` now covers that gate via `verify-native-quick`.
    - Treat `oren_new_list(0)` as list-literal for reserve insertion (loop bound -> reserve).
    - Reserve insertion now descends into nested loops with outer list literals and adds list literal length to the reserve amount when known.
    - Native array literal lowering now calls `oren_new_list(n)` (pre-reserve capacity).

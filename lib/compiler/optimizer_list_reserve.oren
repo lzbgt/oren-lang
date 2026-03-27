@@ -44,6 +44,20 @@ fn _opt_collect_list_pushes_expr(expr, out) {
         if expr["alt"] != nil { _opt_collect_list_pushes_stmt(expr["alt"], out) }
         return nil
     }
+    if t == "Switch" {
+        _opt_collect_list_pushes_expr(expr["cond"], out)
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_collect_list_pushes_stmt(c["body"], out) }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil { _opt_collect_list_pushes_stmt(expr["default"], out) }
+        return nil
+    }
     if t == "Array" {
         var els = expr["elements"]
         var i2 = 0
@@ -111,6 +125,20 @@ fn _opt_collect_list_int_pushes_expr(expr, out) {
         if expr["alt"] != nil { _opt_collect_list_int_pushes_stmt(expr["alt"], out) }
         return nil
     }
+    if t == "Switch" {
+        _opt_collect_list_int_pushes_expr(expr["cond"], out)
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_collect_list_int_pushes_stmt(c["body"], out) }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil { _opt_collect_list_int_pushes_stmt(expr["default"], out) }
+        return nil
+    }
     if t == "Array" {
         var els = expr["elements"]
         var i2 = 0
@@ -164,6 +192,26 @@ fn _opt_collect_list_pushes_stmt(stmt, out) {
         _opt_collect_list_pushes_stmt(stmt["body"], out)
         return nil
     }
+    if t == "If" {
+        _opt_collect_list_pushes_expr(stmt["cond"], out)
+        _opt_collect_list_pushes_stmt(stmt["consq"], out)
+        if stmt["alt"] != nil { _opt_collect_list_pushes_stmt(stmt["alt"], out) }
+        return nil
+    }
+    if t == "Switch" {
+        _opt_collect_list_pushes_expr(stmt["cond"], out)
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_collect_list_pushes_stmt(c["body"], out) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_collect_list_pushes_stmt(stmt["default"], out) }
+        return nil
+    }
     if t == "ExprStmt" { return _opt_collect_list_pushes_expr(stmt["expr"], out) }
     if t == "Assign" { return _opt_collect_list_pushes_expr(stmt["value"], out) }
     if t == "Var" { return _opt_collect_list_pushes_expr(stmt["value"], out) }
@@ -200,6 +248,26 @@ fn _opt_collect_list_int_pushes_stmt(stmt, out) {
         _opt_collect_list_int_pushes_expr(stmt["cond"], out)
         _opt_collect_list_int_pushes_expr(stmt["post"], out)
         _opt_collect_list_int_pushes_stmt(stmt["body"], out)
+        return nil
+    }
+    if t == "If" {
+        _opt_collect_list_int_pushes_expr(stmt["cond"], out)
+        _opt_collect_list_int_pushes_stmt(stmt["consq"], out)
+        if stmt["alt"] != nil { _opt_collect_list_int_pushes_stmt(stmt["alt"], out) }
+        return nil
+    }
+    if t == "Switch" {
+        _opt_collect_list_int_pushes_expr(stmt["cond"], out)
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_collect_list_int_pushes_stmt(c["body"], out) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_collect_list_int_pushes_stmt(stmt["default"], out) }
         return nil
     }
     if t == "ExprStmt" { return _opt_collect_list_int_pushes_expr(stmt["expr"], out) }
@@ -262,6 +330,20 @@ fn _opt_rewrite_list_pushes_expr(expr, list_names) {
         if _opt_rewrite_list_pushes_expr(expr["cond"], list_names) { changed = true }
         if _opt_rewrite_list_pushes_stmt(expr["consq"], list_names) { changed = true }
         if expr["alt"] != nil && _opt_rewrite_list_pushes_stmt(expr["alt"], list_names) { changed = true }
+        return changed
+    }
+    if t == "Switch" {
+        if _opt_rewrite_list_pushes_expr(expr["cond"], list_names) { changed = true }
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil && _opt_rewrite_list_pushes_stmt(c["body"], list_names) { changed = true }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil && _opt_rewrite_list_pushes_stmt(expr["default"], list_names) { changed = true }
         return changed
     }
     if t == "Array" {
@@ -334,6 +416,20 @@ fn _opt_rewrite_list_pushes_stmt(stmt, list_names) {
         if stmt["alt"] != nil && _opt_rewrite_list_pushes_stmt(stmt["alt"], list_names) { changed = true }
         return changed
     }
+    if t == "Switch" {
+        if _opt_rewrite_list_pushes_expr(stmt["cond"], list_names) { changed = true }
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil && _opt_rewrite_list_pushes_stmt(c["body"], list_names) { changed = true }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil && _opt_rewrite_list_pushes_stmt(stmt["default"], list_names) { changed = true }
+        return changed
+    }
     if t == "Function" { return false }
     return false
 }
@@ -388,6 +484,20 @@ fn _opt_rewrite_list_int_pushes_expr(expr, list_names, safe_ints) {
         if _opt_rewrite_list_int_pushes_expr(expr["cond"], list_names, safe_ints) { changed = true }
         if _opt_rewrite_list_int_pushes_stmt(expr["consq"], list_names, safe_ints) { changed = true }
         if expr["alt"] != nil && _opt_rewrite_list_int_pushes_stmt(expr["alt"], list_names, safe_ints) { changed = true }
+        return changed
+    }
+    if t == "Switch" {
+        if _opt_rewrite_list_int_pushes_expr(expr["cond"], list_names, safe_ints) { changed = true }
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil && _opt_rewrite_list_int_pushes_stmt(c["body"], list_names, safe_ints) { changed = true }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil && _opt_rewrite_list_int_pushes_stmt(expr["default"], list_names, safe_ints) { changed = true }
         return changed
     }
     if t == "Array" {
@@ -458,6 +568,20 @@ fn _opt_rewrite_list_int_pushes_stmt(stmt, list_names, safe_ints) {
         if _opt_rewrite_list_int_pushes_expr(stmt["cond"], list_names, safe_ints) { changed = true }
         if _opt_rewrite_list_int_pushes_stmt(stmt["consq"], list_names, safe_ints) { changed = true }
         if stmt["alt"] != nil && _opt_rewrite_list_int_pushes_stmt(stmt["alt"], list_names, safe_ints) { changed = true }
+        return changed
+    }
+    if t == "Switch" {
+        if _opt_rewrite_list_int_pushes_expr(stmt["cond"], list_names, safe_ints) { changed = true }
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil && _opt_rewrite_list_int_pushes_stmt(c["body"], list_names, safe_ints) { changed = true }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil && _opt_rewrite_list_int_pushes_stmt(stmt["default"], list_names, safe_ints) { changed = true }
         return changed
     }
     if t == "Function" { return false }

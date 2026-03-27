@@ -1,0 +1,52 @@
+fn assert_eq(actual, expected, code) {
+    if actual != expected { exit(code) }
+}
+
+fn boxed_if() {
+    var xs = []
+    var n = 4
+    var i = 0
+    while i < n {
+        if i < 2 {
+            oren_list_push(xs, i)
+        } else {
+            oren_list_push(xs, i + 10)
+        }
+        i = i + 1
+    }
+    return xs
+}
+
+fn ints_switch() {
+    var ys = oren_new_list_int(0)
+    var n = 4
+    var i = 0
+    while i < n {
+        switch i {
+            case 0, 1 { oren_list_int_push(ys, i) }
+            default { oren_list_int_push(ys, i + 20) }
+        }
+        i = i + 1
+    }
+    return ys
+}
+
+fn main() {
+    var xs = boxed_if()
+    assert_eq(oren_list_len(xs), 4, 41)
+    assert_eq(oren_list_get(xs, 0), 0, 42)
+    assert_eq(oren_list_get(xs, 1), 1, 43)
+    assert_eq(oren_list_get(xs, 2), 12, 44)
+    assert_eq(oren_list_get(xs, 3), 13, 45)
+
+    var ys = ints_switch()
+    assert_eq(oren_list_int_len(ys), 4, 51)
+    assert_eq(oren_list_int_get(ys, 0), 0, 52)
+    assert_eq(oren_list_int_get(ys, 1), 1, 53)
+    assert_eq(oren_list_int_get(ys, 2), 22, 54)
+    assert_eq(oren_list_int_get(ys, 3), 23, 55)
+
+    print("ok: list reserve branchy control flow")
+}
+
+main()
