@@ -1191,6 +1191,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      compiler still emits `[x64_list_fast] ... kind=fast_list_int_{get_sum,dot}_while`. That makes
      the remaining task concrete: improve or broaden the existing direct-slot compiler fast loops,
      not the runtime helper boundary.
+   - New matcher parity widen (2026-03-28): arm64/x64 direct-loop matchers now also accept the
+     commuted equivalents `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum`, including the boxed
+     list fast-loop siblings. `make verify-native-list-int-fast-lowering` now compiles
+     `tests/fixtures/list_int_fast_lowering_commuted.oren` and asserts those commuted `list<int>`
+     loops still emit the same direct-slot fast traces on both backends; native QI now also checks
+     boxed-list and `list<int>` commuted-loop correctness during `make test`.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.

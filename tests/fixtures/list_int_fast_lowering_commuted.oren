@@ -1,0 +1,30 @@
+import list "std:list"
+
+fn main() {
+    var n = 256
+    var a = list.int_new(n)
+    var b = list.int_new(n)
+    var i = 0
+    while i < n {
+        list.int_push(a, (i * 3 + 1) % 1000)
+        list.int_push(b, (i * 5 + 7) % 1000)
+        i = i + 1
+    }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        sum = a[i] + sum
+        i = i + 1
+    }
+
+    var dot = 0
+    i = 0
+    while i < n {
+        dot = a[i] * b[i] + dot
+        i = i + 1
+    }
+
+    print(sum + dot)
+    return 0
+}

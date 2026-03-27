@@ -1539,6 +1539,22 @@ fn test_list_set_clear_stress() {
     assert_eq(oren_list_int_get(li, 1), 44, 3318)
     assert_eq(oren_list_int_reduce_sum_slots_unchecked(li), 570, 3325)
     assert_eq(oren_list_int_dot_slots_unchecked(li, li), 13372, 3326)
+
+    var sum_commuted = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        sum_commuted = oren_list_int_get(li, i) + sum_commuted
+        i = i + 1
+    }
+    assert_eq(sum_commuted, 570, 3327)
+
+    var dot_commuted = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        dot_commuted = oren_list_int_get(li, i) * oren_list_int_get(li, i) + dot_commuted
+        i = i + 1
+    }
+    assert_eq(dot_commuted, 13372, 3328)
     oren_gc_collect()
     return 0
 }
@@ -1605,6 +1621,30 @@ fn test_boxed_list_dot_sum() {
         print("QI: boxed list dot mismatch got=" + oren_int_to_string(dot) +
             " expected=" + oren_int_to_string(expected_dot))
         fail(781)
+    }
+
+    var sum_commuted = 0
+    i = 0
+    while i < n {
+        sum_commuted = xs[i] + sum_commuted
+        i = i + 1
+    }
+    if sum_commuted != expected_sum {
+        print("QI: boxed list commuted sum mismatch got=" + oren_int_to_string(sum_commuted) +
+            " expected=" + oren_int_to_string(expected_sum))
+        fail(782)
+    }
+
+    var dot_commuted = 0
+    i = 0
+    while i < n {
+        dot_commuted = xs[i] * ys[i] + dot_commuted
+        i = i + 1
+    }
+    if dot_commuted != expected_dot {
+        print("QI: boxed list commuted dot mismatch got=" + oren_int_to_string(dot_commuted) +
+            " expected=" + oren_int_to_string(expected_dot))
+        fail(783)
     }
     return 0
 }

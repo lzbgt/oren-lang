@@ -316,20 +316,22 @@ fn _arm64_is_list_get_call(ctx, exp, idx_name) {
 }
 
 fn _arm64_is_sum_add_list_int_get(ctx, stmt, idx_name) {
-    if stmt == nil || stmt["type"] != "Assign" { return nil }
-    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
-    var sum_name = stmt["name"]["value"]
-    var v = stmt["value"]
-    if v == nil || v["type"] != "Infix" { return nil }
-    if v["op"] != "+" { return nil }
-    var left = _arm64_is_ident(v["left"])
-    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
-    var list_name = _arm64_is_list_int_get_call(ctx, v["right"], idx_name)
+    var add_info = _arm64_match_sum_add_other_expr(stmt)
+    if add_info == nil { return nil }
+    var list_name = _arm64_is_list_int_get_call(ctx, add_info["other"], idx_name)
     if list_name == nil { return nil }
-    return {"sum": sum_name, "list": list_name}
+    return {"sum": add_info["sum"], "list": list_name}
 }
 
 fn _arm64_is_sum_add_list_get(ctx, stmt, idx_name) {
+    var add_info = _arm64_match_sum_add_other_expr(stmt)
+    if add_info == nil { return nil }
+    var list_name = _arm64_is_list_get_call(ctx, add_info["other"], idx_name)
+    if list_name == nil { return nil }
+    return {"sum": add_info["sum"], "list": list_name}
+}
+
+fn _arm64_match_sum_add_other_expr(stmt) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
     if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
     var sum_name = stmt["name"]["value"]
@@ -337,10 +339,14 @@ fn _arm64_is_sum_add_list_get(ctx, stmt, idx_name) {
     if v == nil || v["type"] != "Infix" { return nil }
     if v["op"] != "+" { return nil }
     var left = _arm64_is_ident(v["left"])
-    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
-    var list_name = _arm64_is_list_get_call(ctx, v["right"], idx_name)
-    if list_name == nil { return nil }
-    return {"sum": sum_name, "list": list_name}
+    if left != nil && _arm64_str_eq_bytes(left, sum_name) == true {
+        return {"sum": sum_name, "other": v["right"]}
+    }
+    var right = _arm64_is_ident(v["right"])
+    if right != nil && _arm64_str_eq_bytes(right, sum_name) == true {
+        return {"sum": sum_name, "other": v["left"]}
+    }
+    return nil
 }
 
 fn _arm64_is_list_int_mul_get(ctx, exp, idx_name) {
@@ -362,31 +368,19 @@ fn _arm64_is_list_mul_get(ctx, exp, idx_name) {
 }
 
 fn _arm64_is_sum_add_list_int_mul_get(ctx, stmt, idx_name) {
-    if stmt == nil || stmt["type"] != "Assign" { return nil }
-    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
-    var sum_name = stmt["name"]["value"]
-    var v = stmt["value"]
-    if v == nil || v["type"] != "Infix" { return nil }
-    if v["op"] != "+" { return nil }
-    var left = _arm64_is_ident(v["left"])
-    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
-    var mul_info = _arm64_is_list_int_mul_get(ctx, v["right"], idx_name)
+    var add_info = _arm64_match_sum_add_other_expr(stmt)
+    if add_info == nil { return nil }
+    var mul_info = _arm64_is_list_int_mul_get(ctx, add_info["other"], idx_name)
     if mul_info == nil { return nil }
-    return {"sum": sum_name, "left": mul_info["left"], "right": mul_info["right"]}
+    return {"sum": add_info["sum"], "left": mul_info["left"], "right": mul_info["right"]}
 }
 
 fn _arm64_is_sum_add_list_mul_get(ctx, stmt, idx_name) {
-    if stmt == nil || stmt["type"] != "Assign" { return nil }
-    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
-    var sum_name = stmt["name"]["value"]
-    var v = stmt["value"]
-    if v == nil || v["type"] != "Infix" { return nil }
-    if v["op"] != "+" { return nil }
-    var left = _arm64_is_ident(v["left"])
-    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
-    var mul_info = _arm64_is_list_mul_get(ctx, v["right"], idx_name)
+    var add_info = _arm64_match_sum_add_other_expr(stmt)
+    if add_info == nil { return nil }
+    var mul_info = _arm64_is_list_mul_get(ctx, add_info["other"], idx_name)
     if mul_info == nil { return nil }
-    return {"sum": sum_name, "left": mul_info["left"], "right": mul_info["right"]}
+    return {"sum": add_info["sum"], "left": mul_info["left"], "right": mul_info["right"]}
 }
 
 fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
@@ -684,6 +678,5 @@ fn _arm64_match_fast_list_get_sum_while(ctx, stmt) {
     if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] == true { sum_inty = true }
     return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
 }
-
 
 

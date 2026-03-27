@@ -273,6 +273,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      via compile-time `[x64_list_fast] ... kind=fast_list_int_{get_sum,dot}_while` lines. That
      closes the ambiguity from the direct-slot helper probe: the remaining work is to widen or
      improve the existing compiler fast loops, not to introduce a first direct-slot lowering path.
+   - New parity widen (2026-03-28): arm64/x64 fast-loop matchers now also accept the equivalent
+     commuted reductions `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum` for both `list<int>`
+     and boxed-list direct-loop lowerings. The same `make verify-native-list-int-fast-lowering`
+     gate now compiles `tests/fixtures/list_int_fast_lowering_commuted.oren` and asserts those
+     commuted `list<int>` loops still emit the native direct-slot get-sum and dot fast traces on
+     both backends, while native QI coverage now checks boxed and `list<int>` commuted loops for
+     correctness under `make test`.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.

@@ -219,20 +219,22 @@ fn _x64_is_list_get_call(ctx, exp, idx_name) {
 }
 
 fn _x64_is_sum_add_list_int_get(ctx, op, idx_name) {
-    if op == nil || op["op"] != "assign_i32" { return nil }
-    var sum_name = op["name"]
-    if sum_name == nil { return nil }
-    var v = op["expr"]
-    if v == nil || v["type"] != "Infix" { return nil }
-    if v["op"] != "+" { return nil }
-    var left = _x64_is_ident(v["left"])
-    if left == nil || _x64_str_eq_bytes(left, sum_name) != true { return nil }
-    var list_name = _x64_is_list_int_get_call(ctx, v["right"], idx_name)
+    var add_info = _x64_match_sum_add_other_expr(op)
+    if add_info == nil { return nil }
+    var list_name = _x64_is_list_int_get_call(ctx, add_info["other"], idx_name)
     if list_name == nil { return nil }
-    return {"sum": sum_name, "list": list_name}
+    return {"sum": add_info["sum"], "list": list_name}
 }
 
 fn _x64_is_sum_add_list_get(ctx, op, idx_name) {
+    var add_info = _x64_match_sum_add_other_expr(op)
+    if add_info == nil { return nil }
+    var list_name = _x64_is_list_get_call(ctx, add_info["other"], idx_name)
+    if list_name == nil { return nil }
+    return {"sum": add_info["sum"], "list": list_name}
+}
+
+fn _x64_match_sum_add_other_expr(op) {
     if op == nil || op["op"] != "assign_i32" { return nil }
     var sum_name = op["name"]
     if sum_name == nil { return nil }
@@ -240,10 +242,14 @@ fn _x64_is_sum_add_list_get(ctx, op, idx_name) {
     if v == nil || v["type"] != "Infix" { return nil }
     if v["op"] != "+" { return nil }
     var left = _x64_is_ident(v["left"])
-    if left == nil || _x64_str_eq_bytes(left, sum_name) != true { return nil }
-    var list_name = _x64_is_list_get_call(ctx, v["right"], idx_name)
-    if list_name == nil { return nil }
-    return {"sum": sum_name, "list": list_name}
+    if left != nil && _x64_str_eq_bytes(left, sum_name) == true {
+        return {"sum": sum_name, "other": v["right"]}
+    }
+    var right = _x64_is_ident(v["right"])
+    if right != nil && _x64_str_eq_bytes(right, sum_name) == true {
+        return {"sum": sum_name, "other": v["left"]}
+    }
+    return nil
 }
 
 fn _x64_is_list_int_mul_get(ctx, exp, idx_name) {
@@ -265,31 +271,19 @@ fn _x64_is_list_mul_get(ctx, exp, idx_name) {
 }
 
 fn _x64_is_sum_add_list_int_mul_get(ctx, op, idx_name) {
-    if op == nil || op["op"] != "assign_i32" { return nil }
-    var sum_name = op["name"]
-    if sum_name == nil { return nil }
-    var v = op["expr"]
-    if v == nil || v["type"] != "Infix" { return nil }
-    if v["op"] != "+" { return nil }
-    var left = _x64_is_ident(v["left"])
-    if left == nil || _x64_str_eq_bytes(left, sum_name) != true { return nil }
-    var mul_info = _x64_is_list_int_mul_get(ctx, v["right"], idx_name)
+    var add_info = _x64_match_sum_add_other_expr(op)
+    if add_info == nil { return nil }
+    var mul_info = _x64_is_list_int_mul_get(ctx, add_info["other"], idx_name)
     if mul_info == nil { return nil }
-    return {"sum": sum_name, "left": mul_info["left"], "right": mul_info["right"]}
+    return {"sum": add_info["sum"], "left": mul_info["left"], "right": mul_info["right"]}
 }
 
 fn _x64_is_sum_add_list_mul_get(ctx, op, idx_name) {
-    if op == nil || op["op"] != "assign_i32" { return nil }
-    var sum_name = op["name"]
-    if sum_name == nil { return nil }
-    var v = op["expr"]
-    if v == nil || v["type"] != "Infix" { return nil }
-    if v["op"] != "+" { return nil }
-    var left = _x64_is_ident(v["left"])
-    if left == nil || _x64_str_eq_bytes(left, sum_name) != true { return nil }
-    var mul_info = _x64_is_list_mul_get(ctx, v["right"], idx_name)
+    var add_info = _x64_match_sum_add_other_expr(op)
+    if add_info == nil { return nil }
+    var mul_info = _x64_is_list_mul_get(ctx, add_info["other"], idx_name)
     if mul_info == nil { return nil }
-    return {"sum": sum_name, "left": mul_info["left"], "right": mul_info["right"]}
+    return {"sum": add_info["sum"], "left": mul_info["left"], "right": mul_info["right"]}
 }
 
 fn _x64_parse_int_lit_expr(expr) {

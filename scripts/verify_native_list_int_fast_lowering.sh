@@ -9,6 +9,36 @@ log_dir="build/logs"
 tmp_dir="build/tmp/list_int_fast_lowering"
 mkdir -p "$log_dir" "$tmp_dir"
 log_path="$log_dir/verify_native_list_int_fast_lowering_${ts}.log"
+build_seq=0
+last_build_log=""
+
+run_build() {
+  local label="$1"
+  local src="$2"
+  local out="$3"
+  shift 3
+  build_seq=$((build_seq + 1))
+  last_build_log="${tmp_dir}/trace_${build_seq}.log"
+
+  {
+    echo "== ${label} =="
+    echo "src=${src}"
+    echo "out=${out}"
+    "$@"
+  } >"$last_build_log" 2>&1
+  cat "$last_build_log" >>"$log_path"
+}
+
+check_expect() {
+  local label="$1"
+  local expect="$2"
+
+  if ! grep -Eq "$expect" "$last_build_log"; then
+    echo "verify_native_list_int_fast_lowering: missing expected trace for ${label}" | tee -a "$log_path" >&2
+    echo "expected regex: ${expect}" | tee -a "$log_path" >&2
+    exit 1
+  fi
+}
 
 build_and_check() {
   local label="$1"
@@ -17,18 +47,8 @@ build_and_check() {
   local expect="$4"
   shift 4
 
-  {
-    echo "== ${label} =="
-    echo "src=${src}"
-    echo "out=${out}"
-    "$@"
-  } >>"$log_path" 2>&1
-
-  if ! grep -Eq "$expect" "$log_path"; then
-    echo "verify_native_list_int_fast_lowering: missing expected trace for ${label}" | tee -a "$log_path" >&2
-    echo "expected regex: ${expect}" | tee -a "$log_path" >&2
-    exit 1
-  fi
+  run_build "$label" "$src" "$out" "$@"
+  check_expect "$label" "$expect"
 }
 
 build_and_check \
@@ -58,5 +78,21 @@ build_and_check \
   "${tmp_dir}/dot_product_int_x64_linux" \
   '\[x64_list_fast\].*kind=fast_list_int_dot_while' \
   env OREN_TRACE_X64_LIST_FAST=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build benchmarks/dot_product_int/dot_product_int.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/dot_product_int_x64_linux"
+
+run_build \
+  "arm64 commuted list<int> fast lowerings" \
+  "tests/fixtures/list_int_fast_lowering_commuted.oren" \
+  "${tmp_dir}/list_int_fast_lowering_commuted_arm64" \
+  env OREN_TRACE_ARM64_LOOP_STACK=1 ./oren_stage2 build tests/fixtures/list_int_fast_lowering_commuted.oren --backend native --no-debug --no-cache -o "${tmp_dir}/list_int_fast_lowering_commuted_arm64"
+check_expect "arm64 commuted list<int> get-sum lowering" 'fast_list_int_get_sum_while(_no_tick)?'
+check_expect "arm64 commuted list<int> dot lowering" 'fast_list_int_dot_while(_no_tick)?'
+
+run_build \
+  "x64 commuted list<int> fast lowerings" \
+  "tests/fixtures/list_int_fast_lowering_commuted.oren" \
+  "${tmp_dir}/list_int_fast_lowering_commuted_x64_linux" \
+  env OREN_TRACE_X64_LIST_FAST=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build tests/fixtures/list_int_fast_lowering_commuted.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/list_int_fast_lowering_commuted_x64_linux"
+check_expect "x64 commuted list<int> get-sum lowering" '\[x64_list_fast\].*kind=fast_list_int_get_sum_while'
+check_expect "x64 commuted list<int> dot lowering" '\[x64_list_fast\].*kind=fast_list_int_dot_while'
 
 echo "native list<int> fast-lowering verify complete; log: $log_path"
