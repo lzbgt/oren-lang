@@ -442,6 +442,78 @@ fn oren_list_int_data_ptr_unchecked(list) {
     return ptr_get(iadd(list, 16))
 }
 
+fn _list_int_reduce_sum_slots_ptr(data, n) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + ptr_get(data)
+        data = data + 8
+        i = i + 1
+    }
+    return sum
+}
+
+fn _list_int_dot_slots_ptr(pa, pb, n) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + ptr_get(pa) * ptr_get(pb)
+        pa = pa + 8
+        pb = pb + 8
+        i = i + 1
+    }
+    return sum
+}
+
+// Native-only 64-bit-slot helpers for future direct list<int> lowering/probes.
+//
+// Rolling contract:
+// - list<int> payload slots are raw 8-byte integer words (not typed-buffer LE bytes)
+// - these helpers intentionally operate on that slot ABI directly
+@oren.keep
+fn oren_list_int_reduce_sum_slots(list) {
+    if list == nil { return 0 }
+    return _list_int_reduce_sum_slots_ptr(oren_list_int_data_ptr(list), oren_list_int_len_unchecked(list))
+}
+
+@oren.keep
+fn oren_list_int_reduce_sum_slots_unchecked(list) {
+    if list == nil { return 0 }
+    return _list_int_reduce_sum_slots_ptr(oren_list_int_data_ptr_unchecked(list), oren_list_int_len_unchecked(list))
+}
+
+@oren.keep
+fn oren_list_int_dot_slots(a, b) {
+    if a == nil || b == nil {
+        if a == nil && b == nil { return 0 }
+        oren_panic("list_int_dot_slots: length mismatch")
+        return 0
+    }
+    var na = oren_list_int_len_unchecked(a)
+    var nb = oren_list_int_len_unchecked(b)
+    if na != nb {
+        oren_panic("list_int_dot_slots: length mismatch")
+        return 0
+    }
+    return _list_int_dot_slots_ptr(oren_list_int_data_ptr(a), oren_list_int_data_ptr(b), na)
+}
+
+@oren.keep
+fn oren_list_int_dot_slots_unchecked(a, b) {
+    if a == nil || b == nil {
+        if a == nil && b == nil { return 0 }
+        oren_panic("list_int_dot_slots_unchecked: length mismatch")
+        return 0
+    }
+    var na = oren_list_int_len_unchecked(a)
+    var nb = oren_list_int_len_unchecked(b)
+    if na != nb {
+        oren_panic("list_int_dot_slots_unchecked: length mismatch")
+        return 0
+    }
+    return _list_int_dot_slots_ptr(oren_list_int_data_ptr_unchecked(a), oren_list_int_data_ptr_unchecked(b), na)
+}
+
 @oren.keep
 fn oren_list_int_clear(list) {
     if list == nil { return nil }

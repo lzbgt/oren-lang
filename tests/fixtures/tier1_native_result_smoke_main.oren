@@ -279,6 +279,23 @@ fn smoke_buffer_core() {
     return 0
 }
 
+fn smoke_list_int_slot_ops() {
+    var xs = list.int_new(4)
+    if oren_is_err(xs) { return 16791 }
+    list.int_push(xs, 1)
+    list.int_push(xs, 2)
+    list.int_push(xs, 3)
+    list.int_push(xs, 4)
+    if oren_list_int_slot_stride_bytes() != 8 { return 16792 }
+    if oren_list_int_reduce_sum_slots(xs) != 10 { return 16793 }
+    if oren_list_int_reduce_sum_slots_unchecked(xs) != 10 { return 16794 }
+    if oren_list_int_dot_slots(xs, xs) != 30 { return 16795 }
+    if oren_list_int_dot_slots_unchecked(xs, xs) != 30 { return 16796 }
+    if oren_list_int_reduce_sum_slots(nil) != 0 { return 16797 }
+    if oren_list_int_dot_slots(nil, nil) != 0 { return 16798 }
+    return 0
+}
+
 fn smoke_buffer_matrix_u8() {
     var matb = buffer.i32_new(4)
     if r.is_err(matb) { return 200 }
@@ -1178,6 +1195,8 @@ fn main() {
     if r.is_err(bad_u32) != true { return 35 }
 
     var rc = smoke_buffer_core()
+    if rc != 0 { return rc }
+    rc = smoke_list_int_slot_ops()
     if rc != 0 { return rc }
     rc = smoke_buffer_matrix_u8()
     if rc != 0 { return rc }

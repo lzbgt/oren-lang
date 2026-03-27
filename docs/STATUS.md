@@ -252,6 +252,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `dot_product_int_packed_bridge` ~15382× C scalar / ~2779× C SIMD. That closes the
      “maybe the typed-buffer fallback loops are the main blocker” hypothesis and pushes the next
      work toward bridge materialization removal or a direct 64-bit-slot lowering.
+   - New direct-slot probe boundary (2026-03-27): native runtime now exposes
+     `oren_list_int_reduce_sum_slots(_unchecked)` and `oren_list_int_dot_slots(_unchecked)`, and
+     hidden native-only benchmarks/probes now measure that exact raw 64-bit-slot ABI separately
+     from both the canonical compiler lowering and the packed bridge.
+   - Direct-slot probe result (2026-03-27, shortened steady sample: `n=100000`, `reps=5`,
+     `runs=2`, `warmups=0`): the direct-slot runtime helper path is much better than the packed
+     bridge but still materially worse than the canonical lowering. Baseline measured
+     `array_sum_int` ~1.35× C and `dot_product_int` ~1.41× C, while the hidden direct-slot helper
+     benchmarks measured `array_sum_int_slot_direct` ~13.74× C and `dot_product_int_slot_direct`
+     ~21.03× C. That is enough to prioritize “compiler lowering directly against the 64-bit-slot
+     ABI” over any more packed-bridge work, but it also shows that a plain runtime helper call is
+     not itself the final target.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.
@@ -1831,6 +1843,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
       bridge remained ~1177× / ~2779× C on the SIMD leg and ~1438× / ~15382× C on the scalar leg.
       The remaining blocker is therefore bridge/materialization cost, not the current `i32`
       typed-buffer inner-loop fallback.
+    - Follow-up (2026-03-27): the new hidden direct-slot probe measured
+      `array_sum_int_slot_direct` ~13.74× C and `dot_product_int_slot_direct` ~21.03× C on the same
+      shortened steady sample. That is vastly better than the packed bridge and proves the raw
+      64-bit-slot ABI is the right direction, but it is still far from the current compiler fast
+      loops. The next material work is direct compiler lowering, not shipping a runtime-helper call
+      as the hot path.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
     - New: native runtime now exposes the current list<int> payload ABI explicitly via

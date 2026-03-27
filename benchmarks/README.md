@@ -103,10 +103,23 @@ benchmarks, with both hidden programs now built on the default core native profi
 make perf-probe-list-int-packed-bridge
 ```
 
+Direct-slot `list<int>` ceiling probe (baseline shared read path vs hidden native-only
+benchmarks that operate directly on the explicit 64-bit payload ABI):
+
+```bash
+make perf-probe-list-int-slot-direct
+```
+
 Hidden packed-bridge correctness smoke:
 
 ```bash
 make perf-smoke-list-int-packed-bridge
+```
+
+Hidden direct-slot correctness smoke:
+
+```bash
+make perf-smoke-list-int-slot-direct
 ```
 
 Explicit native prebuild for the hidden packed-bridge benchmarks:
@@ -115,10 +128,22 @@ Explicit native prebuild for the hidden packed-bridge benchmarks:
 make perf-prebuild-list-int-packed-bridge
 ```
 
+Explicit native prebuild for the hidden direct-slot benchmarks:
+
+```bash
+make perf-prebuild-list-int-slot-direct
+```
+
 Dot-only native prebuild for the hidden dot artifact:
 
 ```bash
 make perf-prebuild-dot-product-int-packed-bridge
+```
+
+Dot-only native prebuild for the hidden direct-slot dot artifact:
+
+```bash
+make perf-prebuild-dot-product-int-slot-direct
 ```
 
 These packed-bridge benchmarks are intentionally excluded from `OREN_BENCH_PROGRAM=all` via
@@ -128,6 +153,11 @@ benchmark profile is `core` (`lib/runtime_native_core.oren`), which includes onl
 `runtime_native/200_typed_buffers_core.oren`. That core surface now includes the minimal `i32`
 dot family needed by the packed bridge, while heavier typed-buffer kernels remain on the full
 runtime profile.
+
+The direct-slot benchmarks are also hidden. They bypass the packed bridge entirely and call
+native-only runtime helpers that operate on the explicit `list<int>` 64-bit slot ABI
+(`oren_list_int_*_slots_unchecked`). That gives a ceiling measurement for “lower directly against
+the current raw payload contract” without touching the canonical loop lowerings yet.
 
 The packed-bridge smoke now defaults to the faster Oren C backend. That preflight still exercises
 the hidden benchmark sources and scalar-vs-kernel bridge toggles, but it avoids paying the
@@ -152,6 +182,12 @@ There is also a dedicated native regression gate for this path:
 
 ```bash
 make verify-native-core-packed-bridge
+```
+
+And a dedicated native regression gate for the direct-slot path:
+
+```bash
+make verify-native-slot-direct
 ```
 
 Update the snapshot from existing local result files:

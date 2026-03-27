@@ -1527,10 +1527,18 @@ fn test_list_set_clear_stress() {
     assert_eq(ptr_get(data + 0), 1, 3314)
     assert_eq(ptr_get(data + 8), 2, 3315)
     assert_eq(ptr_get(data + 16), 3, 3316)
+    assert_eq(oren_list_int_reduce_sum_slots(li), 528, 3319)
+    assert_eq(oren_list_int_reduce_sum_slots_unchecked(li), 528, 3320)
+    assert_eq(oren_list_int_dot_slots(li, li), 11440, 3321)
+    assert_eq(oren_list_int_dot_slots_unchecked(li, li), 11440, 3322)
+    assert_eq(oren_list_int_reduce_sum_slots(nil), 0, 3323)
+    assert_eq(oren_list_int_dot_slots(nil, nil), 0, 3324)
 
     oren_list_int_set(li, 1, 44)
     assert_eq(ptr_get(data + 8), 44, 3317)
     assert_eq(oren_list_int_get(li, 1), 44, 3318)
+    assert_eq(oren_list_int_reduce_sum_slots_unchecked(li), 570, 3325)
+    assert_eq(oren_list_int_dot_slots_unchecked(li, li), 13372, 3326)
     oren_gc_collect()
     return 0
 }
