@@ -10,6 +10,67 @@
 // - arm64 native may still lower `simd_dot_i32_ptr` / `simd_dot_i32_4_ptr` as intrinsics.
 // - x64/native and other paths keep the scalar fallback from `005_simd_scalar_fallback.oren`.
 
+fn _buf_dot_i32_ptr_scalar(pa, pb, n) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_ptr_get_i32_le(pa) * oren_ptr_get_i32_le(pb))
+        pa = pa + 4
+        pb = pb + 4
+        i = i + 1
+    }
+    return sum
+}
+
+fn _buf_dot_i32_ptr_strided_scalar(pa, pa_step, pb, pb_step, n) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + (oren_ptr_get_i32_le(pa) * oren_ptr_get_i32_le(pb))
+        pa = pa + pa_step
+        pb = pb + pb_step
+        i = i + 1
+    }
+    return sum
+}
+
+fn _buf_dot_i32_4_ptr_scalar(outp, pa, pb0, pb1, pb2, pb3, n) {
+    var s0 = 0
+    var s1 = 0
+    var s2 = 0
+    var s3 = 0
+    var i = 0
+    while i < n {
+        var av = oren_ptr_get_i32_le(pa)
+        s0 = s0 + av * oren_ptr_get_i32_le(pb0)
+        s1 = s1 + av * oren_ptr_get_i32_le(pb1)
+        s2 = s2 + av * oren_ptr_get_i32_le(pb2)
+        s3 = s3 + av * oren_ptr_get_i32_le(pb3)
+        pa = pa + 4
+        pb0 = pb0 + 4
+        pb1 = pb1 + 4
+        pb2 = pb2 + 4
+        pb3 = pb3 + 4
+        i = i + 1
+    }
+    oren_ptr_set_i64_le(outp + 0, s0)
+    oren_ptr_set_i64_le(outp + 8, s1)
+    oren_ptr_set_i64_le(outp + 16, s2)
+    oren_ptr_set_i64_le(outp + 24, s3)
+    return 0
+}
+
+fn _buf_reduce_sum_i32_ptr_scalar(pa, n) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        sum = sum + oren_ptr_get_i32_le(pa)
+        pa = pa + 4
+        i = i + 1
+    }
+    return sum
+}
+
 fn oren_buf_dot_i32(a, b) {
     var ea = native_buf_check(a, BUF_TAG_I32, 4)
     if oren_is_err(ea) { return ea }
@@ -17,20 +78,13 @@ fn oren_buf_dot_i32(a, b) {
     if oren_is_err(eb) { return eb }
     var n = ptr_get(a + 0)
     if n != ptr_get(b + 0) { return oren_err(4, "buf_dot_i32: length mismatch") }
+    var pa = native_buf_data_ptr(a)
+    var pb = native_buf_data_ptr(b)
 
     if native_simd_enabled() != 0 && n >= 4 {
-        var pa = native_buf_data_ptr(a)
-        var pb = native_buf_data_ptr(b)
         return simd_dot_i32_ptr(pa, pb, n)
     }
-
-    var sum = 0
-    var i = 0
-    while i < n {
-        sum = sum + (oren_buf_load_i32(a, i) * oren_buf_load_i32(b, i))
-        i = i + 1
-    }
-    return sum
+    return _buf_dot_i32_ptr_scalar(pa, pb, n)
 }
 
 fn oren_buf_dot_i32_slice(a, a_off, b, b_off, n) {
@@ -43,20 +97,13 @@ fn oren_buf_dot_i32_slice(a, a_off, b, b_off, n) {
     var nb = ptr_get(b + 0)
     if a_off > na || b_off > nb { return oren_err(4, "buf_dot_i32_slice: offset out of bounds") }
     if a_off + n > na || b_off + n > nb { return oren_err(4, "buf_dot_i32_slice: range out of bounds") }
+    var pa = native_buf_data_ptr(a) + a_off * 4
+    var pb = native_buf_data_ptr(b) + b_off * 4
 
     if native_simd_enabled() != 0 && n >= 4 {
-        var pa = native_buf_data_ptr(a) + a_off * 4
-        var pb = native_buf_data_ptr(b) + b_off * 4
         return simd_dot_i32_ptr(pa, pb, n)
     }
-
-    var sum = 0
-    var i = 0
-    while i < n {
-        sum = sum + (oren_buf_load_i32(a, a_off + i) * oren_buf_load_i32(b, b_off + i))
-        i = i + 1
-    }
-    return sum
+    return _buf_dot_i32_ptr_scalar(pa, pb, n)
 }
 
 fn oren_buf_dot_i32_strided(a, a_off, a_stride, b, b_off, b_stride, n) {
@@ -75,22 +122,18 @@ fn oren_buf_dot_i32_strided(a, a_off, a_stride, b, b_off, b_stride, n) {
         if alast < 0 || alast >= na { return oren_err(4, "buf_dot_i32_strided: a range out of bounds") }
         if blast < 0 || blast >= nb { return oren_err(4, "buf_dot_i32_strided: b range out of bounds") }
     }
-
-    var sum = 0
-    var i = 0
-    while i < n {
-        sum = sum + (oren_buf_load_i32(a, a_off + i * a_stride) * oren_buf_load_i32(b, b_off + i * b_stride))
-        i = i + 1
-    }
-    return sum
+    var pa = native_buf_data_ptr(a) + a_off * 4
+    var pb = native_buf_data_ptr(b) + b_off * 4
+    return _buf_dot_i32_ptr_strided_scalar(pa, a_stride * 4, pb, b_stride * 4, n)
 }
 
 fn oren_buf_dot_i32_into(out, a, b) {
     var eo = native_buf_check(out, BUF_TAG_I64, 8)
     if oren_is_err(eo) { return eo }
+    if ptr_get(out + 0) < 1 { return oren_err(4, "buf_dot_i32_into: out range out of bounds") }
     var sum = oren_buf_dot_i32(a, b)
     if oren_is_err(sum) { return sum }
-    oren_buf_store_i64(out, 0, sum)
+    oren_ptr_set_i64_le(native_buf_data_ptr(out), sum)
     return out
 }
 
@@ -123,23 +166,30 @@ fn oren_buf_dot_i32_4_slice_into(out, out_off, a, a_off, b, b0_off, b1_off, b2_o
         simd_dot_i32_4_ptr(outp, pa, pb0, pb1, pb2, pb3, n)
         return out
     }
+    _buf_dot_i32_4_ptr_scalar(
+        native_buf_data_ptr(out) + out_off * 8,
+        native_buf_data_ptr(a) + a_off * 4,
+        native_buf_data_ptr(b) + b0_off * 4,
+        native_buf_data_ptr(b) + b1_off * 4,
+        native_buf_data_ptr(b) + b2_off * 4,
+        native_buf_data_ptr(b) + b3_off * 4,
+        n
+    )
+    return out
+}
 
-    var s0 = 0
-    var s1 = 0
-    var s2 = 0
-    var s3 = 0
-    var i = 0
-    while i < n {
-        var av = oren_buf_load_i32(a, a_off + i)
-        s0 = s0 + av * oren_buf_load_i32(b, b0_off + i)
-        s1 = s1 + av * oren_buf_load_i32(b, b1_off + i)
-        s2 = s2 + av * oren_buf_load_i32(b, b2_off + i)
-        s3 = s3 + av * oren_buf_load_i32(b, b3_off + i)
-        i = i + 1
-    }
-    oren_buf_store_i64(out, out_off + 0, s0)
-    oren_buf_store_i64(out, out_off + 1, s1)
-    oren_buf_store_i64(out, out_off + 2, s2)
-    oren_buf_store_i64(out, out_off + 3, s3)
+fn oren_buf_reduce_sum_i32(buf) {
+    var err = native_buf_check(buf, BUF_TAG_I32, 4)
+    if oren_is_err(err) { return err }
+    return _buf_reduce_sum_i32_ptr_scalar(native_buf_data_ptr(buf), ptr_get(buf + 0))
+}
+
+fn oren_buf_reduce_sum_i32_into(out, buf) {
+    var eo = native_buf_check(out, BUF_TAG_I64, 8)
+    if oren_is_err(eo) { return eo }
+    if ptr_get(out + 0) < 1 { return oren_err(4, "buf_reduce_sum_i32_into: out range out of bounds") }
+    var sum = oren_buf_reduce_sum_i32(buf)
+    if oren_is_err(sum) { return sum }
+    oren_ptr_set_i64_le(native_buf_data_ptr(out), sum)
     return out
 }

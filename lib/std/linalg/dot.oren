@@ -53,15 +53,7 @@ fn dot_i32_buf_scalar(a: []i32, b: []i32) {
 }
 
 fn reduce_sum_i32_buf(a: []i32) {
-    var n = oren_buf_len(a)
-    if oren_is_err(n) { return n }
-    var sum = 0
-    var i = 0
-    while i < n {
-        sum = sum + oren_buf_load_i32(a, i)
-        i = i + 1
-    }
-    return sum
+    return oren_buf_reduce_sum_i32(a)
 }
 
 fn dot_i32_list_int_packed(a, b) {

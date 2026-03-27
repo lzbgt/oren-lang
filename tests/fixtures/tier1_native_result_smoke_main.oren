@@ -218,6 +218,7 @@ fn smoke_buffer_core() {
     var i64_into_list = buffer.try_i64_unpack_list(i64_into)
     if r.is_err(i64_into_list) || i64_into_list[1] != 11 { return 677 }
     if r.is_err(buffer.try_i64_pack_list_int_into(i64_into, [1])) != true { return 678 }
+    if r.is_err(buffer.try_i32_pack_list_int_into(i64_into, [10, 11])) != true { return 16790 }
     var f32_pack_try = buffer.try_f32_pack_list([1.5, 2.5, 3.5])
     if r.is_err(f32_pack_try) { return 679 }
     var f32_pack_list = buffer.try_f32_unpack_list(f32_pack_try)

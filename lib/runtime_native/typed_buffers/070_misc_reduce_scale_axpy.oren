@@ -270,21 +270,15 @@ fn oren_buf_reduce_sum_f32_into(out, buf) {
 fn oren_buf_reduce_sum_i32(buf) {
     var err = native_buf_check(buf, BUF_TAG_I32, 4)
     if oren_is_err(err) { return err }
-    var n = ptr_get(buf + 0)
-    var sum = 0
-    var i = 0
-    while i < n {
-        sum = sum + oren_buf_load_i32(buf, i)
-        i = i + 1
-    }
-    return sum
+    return _buf_reduce_sum_i32_ptr_scalar(native_buf_data_ptr(buf), ptr_get(buf + 0))
 }
 
 fn oren_buf_reduce_sum_i32_into(out, buf) {
     var eo = native_buf_check(out, BUF_TAG_I64, 8)
     if oren_is_err(eo) { return eo }
+    if ptr_get(out + 0) < 1 { return oren_err(4, "buf_reduce_sum_i32_into: out range out of bounds") }
     var sum = oren_buf_reduce_sum_i32(buf)
     if oren_is_err(sum) { return sum }
-    oren_buf_store_i64(out, 0, sum)
+    oren_ptr_set_i64_le(native_buf_data_ptr(out), sum)
     return out
 }

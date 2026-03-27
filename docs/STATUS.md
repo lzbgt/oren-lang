@@ -231,6 +231,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Follow-through (2026-03-27): native packed-bridge smoke and the dedicated
      `make verify-native-core-packed-bridge` gate now reuse that same core-runtime prebuild path,
      so the smoke tooling and the steady probe agree on the actual runtime boundary.
+   - Fix (2026-03-27): native `i32` typed-buffer scalar dot/reduce fallbacks now pay the
+     `native_buf_check(...)` cost once per call, then walk payload pointers directly via
+     `oren_ptr_get_i32_le(...)` / `oren_ptr_set_i64_le(...)`. `std:linalg.reduce_sum_i32_buf(...)`
+     now routes through that runtime reduce kernel instead of open-coding repeated
+     `oren_buf_load_i32(...)` calls. A first shortened rerun on the same host improved the
+     canonical steady baseline to `array_sum_int` ~1.35× C and `dot_product_int` ~1.36× C.
    - Probe result (2026-03-27, shortened steady sample: `n=100000`, `reps=5`, `runs=2`,
      `warmups=0`): the packed-bridge variants are still dramatically worse than the canonical
      loops. Baseline measured `array_sum_int` ~1.45× C and `dot_product_int` ~1.38× C, while the
@@ -238,6 +244,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `dot_product_int_packed_bridge` ~14975× C scalar / ~3043× C SIMD. Even allowing for the short
      sample, that is directionally decisive: compiler-lowering ordinary `list<int>` dot loops into
      the current packed bridge is not justified yet.
+   - Follow-up probe result (2026-03-27, same shortened steady sample after the pointer-loop
+     runtime fix): the packed bridge is still dominated by bridge/materialization cost, not the
+     inner typed-buffer kernel. Baseline measured `array_sum_int` ~1.35× C and `dot_product_int`
+     ~1.36× C, while the packed-bridge legs still measured
+     `array_sum_int_packed_bridge` ~1438× C scalar / ~1177× C SIMD and
+     `dot_product_int_packed_bridge` ~15382× C scalar / ~2779× C SIMD. That closes the
+     “maybe the typed-buffer fallback loops are the main blocker” hypothesis and pushes the next
+     work toward bridge materialization removal or a direct 64-bit-slot lowering.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.
@@ -1812,6 +1826,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Priority update (2026-03-27): do not lower general `list<int>` dot/sum loops into the
       current packed-bridge path until the bridge cost is fixed; the shortened steady probe still
       showed it orders of magnitude slower than the baseline loops.
+    - Follow-up (2026-03-27): a native runtime pointer-loop fix improved the canonical shortened
+      steady baseline to `array_sum_int` ~1.35× C and `dot_product_int` ~1.36× C, but the packed
+      bridge remained ~1177× / ~2779× C on the SIMD leg and ~1438× / ~15382× C on the scalar leg.
+      The remaining blocker is therefore bridge/materialization cost, not the current `i32`
+      typed-buffer inner-loop fallback.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
     - New: native runtime now exposes the current list<int> payload ABI explicitly via
