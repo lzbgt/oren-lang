@@ -36,9 +36,9 @@ fn _check_idx(buf, idx, ctx) {
     return n
 }
 
-fn _check_int(v, ctx, label) { return common._check_int(v, ctx, label) }
-fn _check_nonneg_int(v, ctx, label) { return common._check_nonneg_int(v, ctx, label) }
-fn _check_positive_int(v, ctx, label) { return common._check_positive_int(v, ctx, label) }
+fn _validate_i32_or_err(v, ctx) { return common._validate_i32_or_err(v, ctx) }
+fn _validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
+fn _validate_passthru_or_err(v, ctx) { return common._validate_passthru_or_err(v, ctx) }
 
 fn _list_len_like_or_err(xs, ctx) {
     if oren_type_tag(xs) != 6 { return _err_invalid(ctx + ": expects list<int>") }
@@ -47,7 +47,80 @@ fn _list_len_like_or_err(xs, ctx) {
     return n
 }
 
-fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
+fn _validate_u8_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
+    return v
+}
+
+fn _validate_int_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    return v
+}
+
+fn _load_u8_direct(buf, idx) { return oren_buf_load_u8(buf, idx) }
+fn _store_u8_direct(buf, idx, v) { return oren_buf_store_u8(buf, idx, v) }
+fn _load_i32_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
+fn _store_i32_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
+fn _load_i64_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
+fn _store_i64_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
+fn _load_f32_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
+fn _store_f32_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
+fn _load_f64_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
+fn _store_f64_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
+
+fn _try_load_with(buf, idx, ctx, loadf) {
+    var n = _check_idx(buf, idx, ctx)
+    if oren_is_err(n) { return n }
+    return loadf(buf, idx)
+}
+
+fn _try_store_with(buf, idx, v, ctx, validatef, storef) {
+    var n = _check_idx(buf, idx, ctx)
+    if oren_is_err(n) { return n }
+    var ok_v = validatef(v, ctx)
+    if oren_is_err(ok_v) { return ok_v }
+    return storef(buf, idx, ok_v)
+}
+
+fn _unpack_list_like_with(buf, ctx, loadf) {
+    var n = _len_or_err(buf, ctx)
+    if oren_is_err(n) { return n }
+    var out = []
+    var i = 0
+    while i < n {
+        var v = loadf(buf, i)
+        if oren_is_err(v) { return v }
+        oren_list_push(out, v)
+        i = i + 1
+    }
+    return out
+}
+
+fn _pack_list_like_into_with(out, xs, ctx, storef, validatef) {
+    var n = _list_len_like_or_err(xs, ctx)
+    if oren_is_err(n) { return n }
+    var no = _len_or_err(out, ctx)
+    if oren_is_err(no) { return no }
+    if no != n { return _err_invalid(ctx + ": length mismatch") }
+    var i = 0
+    while i < n {
+        var v = validatef(xs[i], ctx)
+        if oren_is_err(v) { return v }
+        var rc = storef(out, i, v)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
+}
+
+fn _pack_list_like_with(xs, ctx, newf, pack_intof) {
+    var n = _list_len_like_or_err(xs, ctx)
+    if oren_is_err(n) { return n }
+    var out = newf(n)
+    if oren_is_err(out) { return out }
+    return pack_intof(out, xs)
+}
 
 // Constructors (thin wrappers)
 fn u8_new(n) { return raw.u8_new(n) }
@@ -65,69 +138,43 @@ fn try_len(buf) {
 }
 
 fn try_load_u8(buf, idx) {
-    var n = _len_or_err(buf, "buffer.try_load_u8")
-    if oren_is_err(n) { return n }
-    if _is_int(idx) == false { return oren_err(4, "buffer.try_load_u8: index not int") }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_load_u8: index out of bounds") }
-    return oren_buf_load_u8(buf, idx)
+    return _try_load_with(buf, idx, "buffer.try_load_u8", _load_u8_direct)
 }
 
 fn try_store_u8(buf, idx, v) {
-    var n = _check_idx(buf, idx, "buffer.try_store_u8")
-    if oren_is_err(n) { return n }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_store_u8: value not int") }
-    if v < 0 || v > 255 { return oren_err(4, "buffer.try_store_u8: byte out of range") }
-    return oren_buf_store_u8(buf, idx, v)
+    return _try_store_with(buf, idx, v, "buffer.try_store_u8", _validate_u8_or_err, _store_u8_direct)
 }
 
 fn try_load_i32(buf, idx) {
-    var n = _check_idx(buf, idx, "buffer.try_load_i32")
-    if oren_is_err(n) { return n }
-    return oren_buf_load_i32(buf, idx)
+    return _try_load_with(buf, idx, "buffer.try_load_i32", _load_i32_direct)
 }
 
 fn try_store_i32(buf, idx, v) {
-    var n = _check_idx(buf, idx, "buffer.try_store_i32")
-    if oren_is_err(n) { return n }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_store_i32: value not int") }
-    return oren_buf_store_i32(buf, idx, v)
+    return _try_store_with(buf, idx, v, "buffer.try_store_i32", _validate_int_or_err, _store_i32_direct)
 }
 
 fn try_load_i64(buf, idx) {
-    var n = _check_idx(buf, idx, "buffer.try_load_i64")
-    if oren_is_err(n) { return n }
-    return oren_buf_load_i64(buf, idx)
+    return _try_load_with(buf, idx, "buffer.try_load_i64", _load_i64_direct)
 }
 
 fn try_store_i64(buf, idx, v) {
-    var n = _check_idx(buf, idx, "buffer.try_store_i64")
-    if oren_is_err(n) { return n }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_store_i64: value not int") }
-    return oren_buf_store_i64(buf, idx, v)
+    return _try_store_with(buf, idx, v, "buffer.try_store_i64", _validate_i64_or_err, _store_i64_direct)
 }
 
 fn try_load_f32(buf, idx) {
-    var n = _check_idx(buf, idx, "buffer.try_load_f32")
-    if oren_is_err(n) { return n }
-    return oren_buf_load_f32(buf, idx)
+    return _try_load_with(buf, idx, "buffer.try_load_f32", _load_f32_direct)
 }
 
 fn try_store_f32(buf, idx, v) {
-    var n = _check_idx(buf, idx, "buffer.try_store_f32")
-    if oren_is_err(n) { return n }
-    return oren_buf_store_f32(buf, idx, v)
+    return _try_store_with(buf, idx, v, "buffer.try_store_f32", _validate_passthru_or_err, _store_f32_direct)
 }
 
 fn try_load_f64(buf, idx) {
-    var n = _check_idx(buf, idx, "buffer.try_load_f64")
-    if oren_is_err(n) { return n }
-    return oren_buf_load_f64(buf, idx)
+    return _try_load_with(buf, idx, "buffer.try_load_f64", _load_f64_direct)
 }
 
 fn try_store_f64(buf, idx, v) {
-    var n = _check_idx(buf, idx, "buffer.try_store_f64")
-    if oren_is_err(n) { return n }
-    return oren_buf_store_f64(buf, idx, v)
+    return _try_store_with(buf, idx, v, "buffer.try_store_f64", _validate_passthru_or_err, _store_f64_direct)
 }
 
 // Safe copying bridge: pack a `list<int>` into a contiguous `[]i32` typed buffer.
@@ -138,33 +185,11 @@ fn try_store_f64(buf, idx, v) {
 // - copies into a fresh/explicit buffer instead of pretending the current 8-byte slots
 //   are already a packed i32 view
 fn i32_pack_list_int(xs) {
-    var n = _list_len_like_or_err(xs, "buffer.i32_pack_list_int")
-    if oren_is_err(n) { return n }
-    var out: []i32 = i32_new(n)
-    if oren_is_err(out) { return out }
-    return i32_pack_list_int_into(out, xs)
+    return _pack_list_like_with(xs, "buffer.i32_pack_list_int", i32_new, i32_pack_list_int_into)
 }
 
 fn i32_pack_list_int_into(out: []i32, xs) {
-    var n = _list_len_like_or_err(xs, "buffer.i32_pack_list_int_into")
-    if oren_is_err(n) { return n }
-    var no = len(out)
-    if oren_is_err(no) { return no }
-    if no != n { return _err_invalid("buffer.i32_pack_list_int_into: length mismatch") }
-    var i = 0
-    while i < n {
-        var v = xs[i]
-        if _is_int(v) == false {
-            return _err_invalid("buffer.i32_pack_list_int_into: value not int")
-        }
-        if v < -2147483648 || v > 2147483647 {
-            return _err_invalid("buffer.i32_pack_list_int_into: value out of i32 range")
-        }
-        var rc = oren_buf_store_i32(out, i, v)
-        if oren_is_err(rc) { return rc }
-        i = i + 1
-    }
-    return out
+    return _pack_list_like_into_with(out, xs, "buffer.i32_pack_list_int_into", _store_i32_direct, _validate_i32_or_err)
 }
 
 fn try_i32_pack_list_int(xs) {
@@ -176,17 +201,7 @@ fn try_i32_pack_list_int_into(out: []i32, xs) {
 }
 
 fn try_i32_unpack_list(buf: []i32) {
-    var n = _len_or_err(buf, "buffer.try_i32_unpack_list")
-    if oren_is_err(n) { return n }
-    var out = []
-    var i = 0
-    while i < n {
-        var v = oren_buf_load_i32(buf, i)
-        if oren_is_err(v) { return v }
-        oren_list_push(out, v)
-        i = i + 1
-    }
-    return out
+    return _unpack_list_like_with(buf, "buffer.try_i32_unpack_list", _load_i32_direct)
 }
 
 fn i32_unpack_list(buf: []i32) {
@@ -194,29 +209,11 @@ fn i32_unpack_list(buf: []i32) {
 }
 
 fn try_u8_pack(xs) {
-    var n = _list_len_like_or_err(xs, "buffer.try_u8_pack")
-    if oren_is_err(n) { return n }
-    var out: []u8 = u8_new(n)
-    if oren_is_err(out) { return out }
-    return try_u8_pack_into(out, xs)
+    return _pack_list_like_with(xs, "buffer.try_u8_pack", u8_new, try_u8_pack_into)
 }
 
 fn try_u8_pack_into(out: []u8, xs) {
-    var n = _list_len_like_or_err(xs, "buffer.try_u8_pack_into")
-    if oren_is_err(n) { return n }
-    var no = _len_or_err(out, "buffer.try_u8_pack_into")
-    if oren_is_err(no) { return no }
-    if no != n { return _err_invalid("buffer.try_u8_pack_into: length mismatch") }
-    var i = 0
-    while i < n {
-        var v = xs[i]
-        if _is_int(v) == false { return oren_err(4, "buffer.try_u8_pack_into: value not int") }
-        if v < 0 || v > 255 { return oren_err(4, "buffer.try_u8_pack_into: byte out of range") }
-        var rc = oren_buf_store_u8(out, i, v)
-        if oren_is_err(rc) { return rc }
-        i = i + 1
-    }
-    return out
+    return _pack_list_like_into_with(out, xs, "buffer.try_u8_pack_into", _store_u8_direct, _validate_u8_or_err)
 }
 
 fn u8_pack(xs) {
@@ -228,17 +225,7 @@ fn u8_pack_into(out: []u8, xs) {
 }
 
 fn try_u8_unpack(buf: []u8) {
-    var n = _len_or_err(buf, "buffer.try_u8_unpack")
-    if oren_is_err(n) { return n }
-    var out = []
-    var i = 0
-    while i < n {
-        var v = oren_buf_load_u8(buf, i)
-        if oren_is_err(v) { return v }
-        oren_list_push(out, v)
-        i = i + 1
-    }
-    return out
+    return _unpack_list_like_with(buf, "buffer.try_u8_unpack", _load_u8_direct)
 }
 
 fn u8_unpack(buf: []u8) {
