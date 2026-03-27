@@ -3314,7 +3314,8 @@ Rolling status:
   plus checked whole-matrix numeric flatten/refill helpers such as `try_i32_mat_unpack_flat`,
   `try_i32_mat_copy_from_flat`, `try_i64_mat_unpack_flat`, `try_i64_mat_copy_from_flat`,
   `try_f32_mat_unpack_flat`, `try_f32_mat_copy_from_flat`, `try_f64_mat_unpack_flat`, and
-  `try_f64_mat_copy_from_flat`, plus checked whole-matrix typed-buffer bridges such as
+  `try_f64_mat_copy_from_flat`, plus checked whole-matrix `[]u8` flatten/refill helpers such as
+  `try_u8_mat_unpack_flat` and `try_u8_mat_copy_from_flat`, plus checked whole-matrix typed-buffer bridges such as
   `try_i32_mat_to_i32_buf`, `try_i32_mat_copy_from_i32_buf`, `try_i64_mat_to_i64_buf`,
   `try_i64_mat_copy_from_i64_buf`, `try_f32_mat_to_f32_buf`, `try_f32_mat_copy_from_f32_buf`,
   `try_f64_mat_to_f64_buf`, and `try_f64_mat_copy_from_f64_buf` (which reject mismatched typed-buffer
@@ -3324,7 +3325,7 @@ Rolling status:
   `try_mat_diag_copy_from_string`, plus checked whole-matrix `[]u8` flatten/copy helpers such as
   `try_u8_mat_to_bytes`, `try_u8_mat_to_u8_buf`,
   `try_u8_mat_to_string`, `try_u8_mat_copy_from_bytes`, `try_u8_mat_copy_from_u8_buf`,
-  `try_u8_mat_copy_from_string`, `try_u8_mat_copy_from_rows`, and
+  `try_u8_mat_copy_from_string`, `try_u8_mat_copy_from_flat`, `try_u8_mat_copy_from_rows`, and
   `try_u8_mat_copy_from_strings`, plus checked numeric slice/strided list bridges such as
   `try_slice_unpack_i32`, `try_slice_copy_from_list_i32`, `try_strided_unpack_i64`, and
   `try_strided_copy_from_list_f64`, checked numeric slice/strided typed-buffer bridges such as

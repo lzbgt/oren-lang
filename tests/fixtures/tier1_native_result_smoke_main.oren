@@ -519,6 +519,9 @@ fn smoke_buffer_matrix_u8() {
     var flat_list = buffer.try_u8_mat_unpack_u8(flat_mat)
     if r.is_err(flat_list) { return 369 }
     if flat_list[0] != 65 || flat_list[3] != 68 { return 370 }
+    var flat_list2 = buffer.try_u8_mat_unpack_flat(flat_mat)
+    if r.is_err(flat_list2) { return 667 }
+    if flat_list2[0] != 65 || flat_list2[3] != 68 { return 668 }
     if r.is_err(buffer.try_u8_mat_copy_from_string(flat_mat, "WXYZ")) { return 371 }
     var flat_rows1 = buffer.try_u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows1) || flat_rows1[0] != "WX" || flat_rows1[1] != "YZ" { return 372 }
@@ -532,6 +535,9 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(buffer.try_u8_mat_copy_from_u8_buf(flat_mat, lmno)) { return 377 }
     var flat_rows3 = buffer.try_u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows3) || flat_rows3[0] != "lm" || flat_rows3[1] != "no" { return 378 }
+    if r.is_err(buffer.try_u8_mat_copy_from_flat(flat_mat, [81, 82, 83, 84])) { return 669 }
+    var flat_s_q = buffer.try_u8_mat_to_string(flat_mat)
+    if r.is_err(flat_s_q) || flat_s_q != "QRST" { return 670 }
     if r.is_err(buffer.try_u8_mat_copy_from_rows(flat_mat, [[49, 50], [51, 52]])) { return 379 }
     var flat_s2 = buffer.try_u8_mat_to_string(flat_mat)
     if r.is_err(flat_s2) || flat_s2 != "1234" { return 380 }
@@ -539,6 +545,8 @@ fn smoke_buffer_matrix_u8() {
     var flat_rows4 = buffer.try_u8_mat_unpack_strings(flat_mat)
     if r.is_err(flat_rows4) || flat_rows4[0] != "aa" || flat_rows4[1] != "bb" { return 382 }
     if r.is_err(buffer.try_u8_mat_copy_from_string(flat_mat, "xyz")) != true { return 383 }
+    if r.is_err(buffer.try_u8_mat_copy_from_flat(flat_mat, [1, 2, 3])) != true { return 671 }
+    if r.is_err(buffer.try_u8_mat_copy_from_flat(flat_mat, [1, 2, 3, 256])) != true { return 672 }
     if r.is_err(buffer.try_u8_mat_copy_from_rows(flat_mat, [[1], [2]])) != true { return 384 }
     if r.is_err(buffer.try_u8_mat_copy_from_strings(flat_mat, ["a", "bb"])) != true { return 385 }
     if r.is_err(buffer.try_u8_mat_pack_strings(["A", "BC"])) != true { return 334 }

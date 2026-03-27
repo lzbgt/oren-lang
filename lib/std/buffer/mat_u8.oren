@@ -121,6 +121,14 @@ fn try_u8_mat_unpack_u8(m) {
     return u8_mat_unpack_u8(m)
 }
 
+fn u8_mat_unpack_flat(m) {
+    return u8_mat_unpack_u8(m)
+}
+
+fn try_u8_mat_unpack_flat(m) {
+    return u8_mat_unpack_flat(m)
+}
+
 fn u8_mat_to_bytes(m) {
     var xs = u8_mat_unpack_u8(m)
     if oren_is_err(xs) { return xs }
@@ -207,6 +215,14 @@ fn u8_mat_copy_from_string(m, text) {
 
 fn try_u8_mat_copy_from_string(m, text) {
     return u8_mat_copy_from_string(m, text)
+}
+
+fn u8_mat_copy_from_flat(m, xs) {
+    return _u8_mat_copy_flat_list(m, xs, "buffer.u8_mat_copy_from_flat")
+}
+
+fn try_u8_mat_copy_from_flat(m, xs) {
+    return u8_mat_copy_from_flat(m, xs)
 }
 
 fn u8_mat_copy_from_rows(m, rows) {

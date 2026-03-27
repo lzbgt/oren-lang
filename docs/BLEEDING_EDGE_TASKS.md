@@ -2280,6 +2280,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `try_u8_mat_copy_from_strings`, so matrix callers can bridge or refill the entire visible
      matrix without open-coding row loops; covered by result smoke + native quick integration +
      dedicated AVM buffer-view smoke (2026-03-27).
+   - New: `std:buffer` now also exposes symmetric checked whole-matrix `[]u8` flat-list helpers
+     `try_u8_mat_unpack_flat` and `try_u8_mat_copy_from_flat`, so callers can use the same
+     `*_mat_unpack_flat` / `*_mat_copy_from_flat` row-major pattern across `u8`, `i32`, `i64`,
+     `f32`, and `f64` matrix views instead of special-casing byte matrices; covered by result
+     smoke + native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` now also exposes checked numeric matrix row-major conversion/refill helpers
      such as `try_i32_mat_copy_from_rows`, `try_i64_mat_pack_rows`, `try_i64_mat_unpack_rows`,
      `try_i64_mat_copy_from_rows`, `try_f32_mat_pack_rows`, `try_f32_mat_unpack_rows`,
@@ -2397,6 +2402,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      watchdog at `360s` instead of `240s`. A direct `240s` run still false-red with `rc=143`
      after the rerun had already emitted its last visible debug lines, while `360s` completed
      cleanly on this host; covered by native quick integration and full `make test` (2026-03-27).
+   - Fix: macOS self-hosted stage2 native-quick verification now keeps the default
+     `OREN_GREEN_POLL_CACHE` rerun watchdog at `720s` instead of reusing the stage1 `360s`
+     budget. On this host the stage2 rerun still false-red at `360s` after emitting its last
+     visible `41` / `42` debug lines, and the built-in `720s` retry completed cleanly; covered
+     by stage2 native quick integration and full `make test` (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
