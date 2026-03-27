@@ -2231,6 +2231,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      open-coding allocation + per-element store loops; covered by result smoke + native quick
      integration + dedicated AVM buffer-view smoke, with exact float value proof kept in AVM and
      shared native fixtures checking non-error/shape only (2026-03-27).
+   - New: `std:buffer` now also exposes checked whole-buffer refill helpers for raw typed buffers,
+     including `try_u8_copy_from_u8_buf`, `try_u8_copy_from_bytes`, `try_u8_copy_from_string`,
+     `try_i32_copy_from_i32_buf`, `try_i64_copy_from_i64_buf`, `try_f32_copy_from_f32_buf`, and
+     `try_f64_copy_from_f64_buf`, so callers can refill existing typed buffers without allocating a
+     fresh bridge buffer or open-coding per-element loops; covered by result smoke + native quick
+     integration + dedicated AVM buffer-view smoke, with exact float value proof kept in AVM and
+     shared native fixtures checking non-error/shape only (2026-03-27).
    - New: `std:buffer` now also exposes checked `[]u8` zero-copy view bridge helpers
      (`try_slice_to_bytes`, `try_slice_to_string`, `try_slice_copy_from_bytes`,
      `try_strided_to_bytes`, `try_strided_to_string`, `try_strided_copy_from_bytes`);
@@ -2433,7 +2440,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`,
      `lib/std/buffer/mat_u8.oren`) plus shared validation / view-shape helpers in
      `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
-     `lib/std/buffer/raw.oren`, with the public facade at 684 lines and each helper module <2000
+     `lib/std/buffer/raw.oren`, with the public facade at 827 lines and each helper module <2000
      lines (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,

@@ -924,6 +924,54 @@ fn smoke_bytes_tail_and_bridge() {
     if r.is_err(u8_from_bytes_slice) || buffer.try_u8_to_string(u8_from_bytes_slice) != "ell" { return 103 }
     var u8_to_bytes = buffer.try_u8_to_bytes(ub3)
     if r.is_err(u8_to_bytes) || bytes.try_to_string(u8_to_bytes) != "AB" { return 104 }
+    var i32_copy_src = buffer.try_i32_pack_list_int([12, 13])
+    if r.is_err(i32_copy_src) { return 1101 }
+    var i32_copy_dst = buffer.i32_new(2)
+    if r.is_err(i32_copy_dst) { return 1102 }
+    if r.is_err(buffer.try_i32_copy_from_i32_buf(i32_copy_dst, i32_copy_src)) { return 1103 }
+    var i32_copy_list = buffer.try_i32_unpack_list(i32_copy_dst)
+    if r.is_err(i32_copy_list) || i32_copy_list[0] != 12 || i32_copy_list[1] != 13 { return 1104 }
+    if r.is_err(buffer.try_i32_copy_from_i32_buf(i32_copy_dst, buffer.i32_new(3))) != true { return 1105 }
+    if r.is_err(buffer.try_i32_copy_from_i32_buf(i32_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1106 }
+    var i64_copy_src = buffer.try_i64_pack_list_int([14, 15])
+    if r.is_err(i64_copy_src) { return 1107 }
+    var i64_copy_dst = buffer.i64_new(2)
+    if r.is_err(i64_copy_dst) { return 1108 }
+    if r.is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, i64_copy_src)) { return 1109 }
+    var i64_copy_list = buffer.try_i64_unpack_list(i64_copy_dst)
+    if r.is_err(i64_copy_list) || i64_copy_list[0] != 14 || i64_copy_list[1] != 15 { return 1110 }
+    if r.is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, buffer.i64_new(3))) != true { return 1111 }
+    if r.is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1112 }
+    var f32_copy_src = buffer.try_f32_pack_list([6.5, 7.5])
+    if r.is_err(f32_copy_src) { return 1113 }
+    var f32_copy_dst = buffer.f32_new(2)
+    if r.is_err(f32_copy_dst) { return 1114 }
+    if r.is_err(buffer.try_f32_copy_from_f32_buf(f32_copy_dst, f32_copy_src)) { return 1115 }
+    var f32_copy_list = buffer.try_f32_unpack_list(f32_copy_dst)
+    if r.is_err(f32_copy_list) || oren_list_len(f32_copy_list) != 2 { return 1116 }
+    if r.is_err(buffer.try_f32_copy_from_f32_buf(f32_copy_dst, buffer.f32_new(3))) != true { return 1117 }
+    if r.is_err(buffer.try_f32_copy_from_f32_buf(f32_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1118 }
+    var f64_copy_src = buffer.try_f64_pack_list([10.25, 11.25])
+    if r.is_err(f64_copy_src) { return 1119 }
+    var f64_copy_dst = buffer.f64_new(2)
+    if r.is_err(f64_copy_dst) { return 1120 }
+    if r.is_err(buffer.try_f64_copy_from_f64_buf(f64_copy_dst, f64_copy_src)) { return 1121 }
+    var f64_copy_list = buffer.try_f64_unpack_list(f64_copy_dst)
+    if r.is_err(f64_copy_list) || oren_list_len(f64_copy_list) != 2 { return 1122 }
+    if r.is_err(buffer.try_f64_copy_from_f64_buf(f64_copy_dst, buffer.f64_new(3))) != true { return 1123 }
+    if r.is_err(buffer.try_f64_copy_from_f64_buf(f64_copy_dst, buffer.try_u8_from_string("AB"))) != true { return 1124 }
+    var u8_copy_dst = buffer.u8_new(2)
+    if r.is_err(u8_copy_dst) { return 1125 }
+    if r.is_err(buffer.try_u8_copy_from_u8_buf(u8_copy_dst, ub3)) { return 1126 }
+    if buffer.try_u8_to_string(u8_copy_dst) != "AB" { return 1127 }
+    if r.is_err(buffer.try_u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("EF"))) { return 1128 }
+    if buffer.try_u8_to_string(u8_copy_dst) != "EF" { return 1129 }
+    if r.is_err(buffer.try_u8_copy_from_string(u8_copy_dst, "GH")) { return 1130 }
+    if buffer.try_u8_to_string(u8_copy_dst) != "GH" { return 1131 }
+    if r.is_err(buffer.try_u8_copy_from_u8_buf(u8_copy_dst, buffer.u8_new(3))) != true { return 1132 }
+    if r.is_err(buffer.try_u8_copy_from_u8_buf(u8_copy_dst, i32_copy_src)) != true { return 1133 }
+    if r.is_err(buffer.try_u8_copy_from_bytes(u8_copy_dst, bytes.try_from_string("XYZ"))) != true { return 1134 }
+    if r.is_err(buffer.try_u8_copy_from_string(u8_copy_dst, "JKL")) != true { return 1135 }
     var bad_u8_from_bytes = buffer.try_u8_from_bytes("nope")
     if r.is_err(bad_u8_from_bytes) != true { return 105 }
     var bad_u8_from_bytes_slice = buffer.try_u8_from_bytes_slice("nope", 0, 1)
