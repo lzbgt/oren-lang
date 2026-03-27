@@ -8,5 +8,8 @@
 // Full typed buffer surface is in: `lib/runtime_native/200_typed_buffers.oren`
 
 // @include "typed_buffers/000_core.oren"
+// Minimal i32 dot helpers keep the packed `list<int>` bridge on the default core profile.
+// @include "typed_buffers/005_simd_scalar_fallback.oren"
 // @include "typed_buffers/010_alloc_load_store.oren"
 // @include "typed_buffers/020_fill_sysio.oren"
+// @include "typed_buffers/025_i32_dot_core.oren"

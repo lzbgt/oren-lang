@@ -97,8 +97,7 @@ make perf-probe-list-int-unsafe
 ```
 
 Packed-bridge `list<int>` ceiling probe (baseline shared read path vs hidden packed-bridge
-benchmarks, with `array_sum_int_packed_bridge` built on the default core native profile and
-`dot_product_int_packed_bridge` built on the full native runtime profile required by the typed-buffer dot kernel):
+benchmarks, with both hidden programs now built on the default core native profile):
 
 ```bash
 make perf-probe-list-int-packed-bridge
@@ -116,7 +115,7 @@ Explicit native prebuild for the hidden packed-bridge benchmarks:
 make perf-prebuild-list-int-packed-bridge
 ```
 
-Dot-only native prebuild for the one remaining heavy hidden artifact:
+Dot-only native prebuild for the hidden dot artifact:
 
 ```bash
 make perf-prebuild-dot-product-int-packed-bridge
@@ -126,30 +125,32 @@ These packed-bridge benchmarks are intentionally excluded from `OREN_BENCH_PROGR
 `.bench-hidden`. They measure the explicit `list<int> -> []i32` bridge without changing the
 canonical `array_sum_int` / `dot_product_int` gates. This matters because the default native
 benchmark profile is `core` (`lib/runtime_native_core.oren`), which includes only
-`runtime_native/200_typed_buffers_core.oren`; heavier typed-buffer kernels such as
-`oren_buf_dot_i32(...)` are only valid in the full runtime profile used by the dedicated
-packed-bridge probe.
+`runtime_native/200_typed_buffers_core.oren`. That core surface now includes the minimal `i32`
+dot family needed by the packed bridge, while heavier typed-buffer kernels remain on the full
+runtime profile.
 
 The packed-bridge smoke now defaults to the faster Oren C backend. That preflight still exercises
 the hidden benchmark sources and scalar-vs-kernel bridge toggles, but it avoids paying the
 full-runtime native build cost twice before the actual steady-state probe. Opt into a native smoke
 explicitly with `OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND=native`.
 
-When you do opt into native smoke, it now reuses the same split-profile prebuild path as the
-steady probe instead of rebuilding both hidden benchmarks under `full`. That keeps
-`array_sum_int_packed_bridge` on the cheap native `core` profile and reserves the heavy full
-runtime build for `dot_product_int_packed_bridge`.
+When you do opt into native smoke, it reuses the same core-runtime prebuild path as the
+steady probe instead of forcing a separate full-runtime rebuild.
 
 The packed-bridge steady probe now also warms the hidden packed-bridge artifacts only once and
 reuses them for the scalar-vs-kernel cases (`OREN_BENCH_SKIP_BUILD=1` on those follow-up legs).
 That warm step is now the same reusable native prebuild exposed by `make perf-prebuild-list-int-packed-bridge`.
-It uses the cheap core native profile for `array_sum_int_packed_bridge` and reserves the heavy
-full-runtime native build for `dot_product_int_packed_bridge`, which is the only hidden benchmark
-that actually needs `oren_buf_dot_i32(...)`.
+It keeps both hidden packed-bridge artifacts on the cheap core native profile.
 
 For local iteration, the prebuild script also accepts `OREN_PERF_PREBUILD_PROGRAMS=name1,name2`.
 The bundled `make perf-prebuild-dot-product-int-packed-bridge` target uses that to warm only the
-full-runtime `dot_product_int_packed_bridge` artifact outside the timed probe path.
+`dot_product_int_packed_bridge` artifact outside the timed probe path.
+
+There is also a dedicated native regression gate for this path:
+
+```bash
+make verify-native-core-packed-bridge
+```
 
 Update the snapshot from existing local result files:
 

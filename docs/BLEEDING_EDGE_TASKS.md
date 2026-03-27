@@ -1122,29 +1122,34 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      reduced `core` runtime, not `full`. Hidden packed-bridge benchmarks plus
      `make perf-probe-list-int-packed-bridge` now isolate that ceiling measurement instead of
      polluting the canonical `array_sum_int` / `dot_product_int` gates.
+   - Fix (2026-03-27): the native core runtime now carries the minimal `i32` typed-buffer dot
+     family needed by the packed bridge, so both hidden packed-bridge benchmarks build on the
+     default core profile and `std:linalg.dot_i32_list_int_packed(...)` no longer has to stay on a
+     scalar fallback.
    - Verified (2026-03-20): those hidden packed-bridge benchmarks compile and return the expected
      `205` / `710` / `6590` / `54380` outputs through the Oren C backend, proving the bridge
-     helpers are portable; the slower full-runtime native probe remains the explicit next step for
+     helpers are portable; the slower native steady probe remains the explicit next step for
      measuring whether packed buffers plus typed-buffer kernels actually buy us headroom.
+   - Fix (2026-03-27): native `oren_list_len` intrinsics on arm64/x64 now accept `LIST_INT`
+     headers as well as boxed `LIST` headers, matching the runtime contract and unblocking rebuilt
+     core-runtime packed-bridge binaries.
    - New probe hygiene (2026-03-20): packed-bridge smoke now defaults to Oren C instead of
-     full-runtime native so the correctness preflight stays cheap. The heavy native full-runtime
-     cost now appears only in the dedicated packed-bridge steady probe, where it belongs.
+     native so the correctness preflight stays cheap. The heavier native cost now appears only in
+     the dedicated packed-bridge steady probe, where it belongs.
    - New probe batching (2026-03-20): that dedicated packed-bridge steady probe now warms the
      hidden packed benchmarks only once and reuses the artifacts for the scalar-vs-kernel cases.
      The optimized run already reconfirmed the canonical steady baseline (`array_sum_int` ~2.43× C,
      `dot_product_int` ~3.11× C) before entering the remaining expensive full-runtime warm leg.
    - New probe prebuild step (2026-03-20): the hidden packed-bridge warm leg is now exposed as a
      reusable prebuild target so we can precompile the packed benchmarks once and then measure the
-     packed scalar vs packed kernel ceiling without conflating it with first-build cost. That
-     prebuild now matches the real runtime split: `array_sum_int_packed_bridge` stays on the cheap
-     native `core` profile, while only `dot_product_int_packed_bridge` uses the full runtime
-     profile required by the typed-buffer dot kernel.
-   - Follow-through (2026-03-20): native packed-bridge smoke now reuses that same split-profile
-     prebuild path instead of force-rebuilding both hidden benchmarks under `full`, keeping the
-     smoke and steady-probe tooling aligned on the real runtime boundary.
+     packed scalar vs packed kernel ceiling without conflating it with first-build cost. Both
+     hidden packed-bridge artifacts now stay on the cheap native `core` profile.
+   - Follow-through (2026-03-27): native packed-bridge smoke and
+     `make verify-native-core-packed-bridge` now reuse that same core-runtime prebuild path,
+     keeping the smoke and steady-probe tooling aligned on the real runtime boundary.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
-     program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the one
-     remaining heavy full-runtime artifact before the timed ceiling probe.
+     program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
+     artifact before the timed ceiling probe.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should

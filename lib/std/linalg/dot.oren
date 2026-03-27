@@ -69,7 +69,7 @@ fn dot_i32_list_int_packed(a, b) {
     if oren_is_err(ap) { return ap }
     var bp: []i32 = buffer.i32_pack_list_int(b)
     if oren_is_err(bp) { return bp }
-    return dot_i32_buf_scalar(ap, bp)
+    return dot_i32_buf(ap, bp)
 }
 
 fn reduce_sum_i32_list_int_packed(a) {

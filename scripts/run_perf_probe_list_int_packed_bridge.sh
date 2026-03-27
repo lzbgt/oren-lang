@@ -36,8 +36,8 @@ warm_packed_builds() {
 
 baseline_summary="$(run_one "$base_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 make perf-gate-list-int-steady)"
 warm_packed_builds
-packed_scalar_summary="$(run_one "$packed_scalar_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_NO_SIMD=1 make perf-gate-list-int-steady)"
-packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full OREN_BENCH_ENV_OREN_NATIVE=OREN_ENABLE_SIMD=1 make perf-gate-list-int-steady)"
+packed_scalar_summary="$(run_one "$packed_scalar_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_ENV_OREN_NATIVE=OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_NO_SIMD=1 make perf-gate-list-int-steady)"
+packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_ENV_OREN_NATIVE=OREN_ENABLE_SIMD=1 make perf-gate-list-int-steady)"
 
 BASELINE_SUMMARY="$baseline_summary" \
 PACKED_SCALAR_SUMMARY="$packed_scalar_summary" \

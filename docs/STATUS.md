@@ -196,17 +196,24 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New bridge boundary (2026-03-20): stdlib now exposes a safe `list<int> -> []i32` packing path
      plus scalar packed dot/sum helpers that work on both C and native core-runtime builds, so
      the bridge itself no longer depends on the heavier typed-buffer dot kernel surface.
+   - Fix (2026-03-27): the native core runtime now carries the minimal `i32` typed-buffer dot
+     family (`oren_buf_dot_i32*` / `oren_buf_dot_i32_into`) needed by the packed bridge, and
+     `std:linalg.dot_i32_list_int_packed(...)` now routes through that kernel path instead of the
+     scalar fallback.
    - New perf isolation (2026-03-20): default native benchmark builds still use the reduced
      `core` runtime profile (`lib/runtime_native_core.oren` -> `runtime_native/200_typed_buffers_core.oren`),
-     so heavy typed-buffer kernels such as `oren_buf_dot_i32(...)` are not valid there. Dedicated
-     hidden packed-bridge benchmarks plus `make perf-probe-list-int-packed-bridge` now carry that
-     full-runtime measurement path instead of mutating `array_sum_int` / `dot_product_int`.
+     and the packed-bridge path now stays on that default profile. Heavier typed-buffer kernels
+     still remain outside `core`, but the hidden packed-bridge benchmarks no longer need a
+     full-runtime override just to reach `oren_buf_dot_i32(...)`.
    - Verified (2026-03-20): the hidden packed-bridge benchmarks compile and run through the Oren C
      backend with the expected `205`, `710`, `6590`, and `54380` outputs, which is enough to catch
      stdlib bridge portability bugs before paying for the slower full-runtime native probe.
+   - Fix (2026-03-27): native `oren_list_len` intrinsics on arm64/x64 now accept tracked
+     `LIST_INT` headers in addition to boxed `LIST` headers, matching the runtime contract and
+     unblocking rebuilt native packed-bridge binaries on the core profile.
    - New probe hygiene (2026-03-20): the packed-bridge smoke/preflight now defaults to Oren C
      rather than full-runtime native. That keeps the correctness preflight fast while preserving
-     the dedicated full-runtime native steady probe as the explicit place to measure the packed-buffer ceiling.
+     the dedicated native steady probe as the explicit place to measure the packed-buffer ceiling.
    - New probe batching (2026-03-20): the packed-bridge steady probe now warms the hidden packed
      benchmarks only once and reuses those artifacts for the scalar-vs-kernel cases. The baseline
      leg of that optimized run reconfirmed `array_sum_int` ~2.43× C and `dot_product_int` ~3.11× C
@@ -214,15 +221,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New probe prebuild step (2026-03-20): the hidden packed-bridge warm leg now lives behind an
      explicit reusable script/target (`scripts/build_perf_artifacts_list_int_packed_bridge.sh`,
      `make perf-prebuild-list-int-packed-bridge`) so future probe runs can distinguish true
-     packed-path timings from first-compile cost. That prebuild now matches the real runtime split:
-     `array_sum_int_packed_bridge` builds on the cheap native `core` profile, while only
-     `dot_product_int_packed_bridge` uses `OREN_NATIVE_RUNTIME_PROFILE=full`.
-   - Follow-through (2026-03-20): native packed-bridge smoke now reuses that same split-profile
-     prebuild path instead of force-rebuilding both hidden benchmarks under `full`, so the smoke
-     tooling and the steady probe agree on the actual runtime boundary.
+     packed-path timings from first-compile cost. Both hidden packed-bridge artifacts now build on
+     the cheap native `core` profile.
+   - Follow-through (2026-03-27): native packed-bridge smoke and the dedicated
+     `make verify-native-core-packed-bridge` gate now reuse that same core-runtime prebuild path,
+     so the smoke tooling and the steady probe agree on the actual runtime boundary.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
-     program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the one
-     remaining heavy full-runtime artifact before the timed ceiling probe.
+     program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
+     artifact before the timed ceiling probe.
    - New focused read split (2026-03-20): the split runner now reports both delta-based and
      long-run-per-rep estimates and warns when they drift materially. On the latest rerun,
      `array_sum_int` delta-vs-long drifted by about 30%, so steady-state tracker updates should

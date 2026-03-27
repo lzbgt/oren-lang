@@ -28,7 +28,7 @@ build_program() {
             ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
             ;;
         dot_product_int_packed_bridge)
-            OREN_NATIVE_RUNTIME_PROFILE=full ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
+            ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
             ;;
         *)
             echo "unknown packed-bridge program: $program" >&2
@@ -64,7 +64,7 @@ for program in "${programs[@]}"; do
                     echo "[build] ${program} (native core runtime)"
                     ;;
                 dot_product_int_packed_bridge)
-                    echo "[build] ${program} (native full runtime)"
+                    echo "[build] ${program} (native core runtime)"
                     ;;
             esac
             build_program "$program" "$src" "$out"
