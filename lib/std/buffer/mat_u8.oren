@@ -4,6 +4,7 @@
 // matrix layer can keep byte/text behavior separate from numeric helpers.
 
 import bytesm "std:bytes"
+import common "std:buffer/common"
 import mshared "std:buffer/mat_shared"
 import core "std:buffer/mat_core"
 import proj "std:buffer/mat_proj"
@@ -12,6 +13,7 @@ import view "std:buffer/view"
 
 fn _err_invalid(msg) { return core._err_invalid(msg) }
 fn _u8_validate_or_err(v, ctx) { return mshared._mat_validate_u8_or_err(v, ctx) }
+fn _string_slice_or_err(s, off, n, ctx) { return common._string_slice_or_err(s, off, n, ctx) }
 
 fn _mat_unpack_projected_rows(m, ctx, rowf) {
     if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }
@@ -225,6 +227,16 @@ fn u8_mat_copy_from_string(m, text) {
 
 fn try_u8_mat_copy_from_string(m, text) {
     return u8_mat_copy_from_string(m, text)
+}
+
+fn u8_mat_copy_from_string_slice(m, text, off, n) {
+    var sub = _string_slice_or_err(text, off, n, "buffer.u8_mat_copy_from_string_slice")
+    if oren_is_err(sub) { return sub }
+    return u8_mat_copy_from_string(m, sub)
+}
+
+fn try_u8_mat_copy_from_string_slice(m, text, off, n) {
+    return u8_mat_copy_from_string_slice(m, text, off, n)
 }
 
 fn u8_mat_copy_from_flat(m, xs) {

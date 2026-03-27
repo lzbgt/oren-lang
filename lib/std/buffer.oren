@@ -206,6 +206,14 @@ fn u8_from_string(s) {
     return raw.u8_from_string(s)
 }
 
+fn try_u8_from_string_slice(s, off, n) {
+    return raw.try_u8_from_string_slice(s, off, n)
+}
+
+fn u8_from_string_slice(s, off, n) {
+    return raw.u8_from_string_slice(s, off, n)
+}
+
 fn try_u8_to_string(buf: []u8) {
     return raw.try_u8_to_string(buf)
 }
@@ -266,6 +274,14 @@ fn try_u8_copy_from_string(out: []u8, s) {
 
 fn u8_copy_from_string(out: []u8, s) {
     return raw.u8_copy_from_string(out, s)
+}
+
+fn try_u8_copy_from_string_slice(out: []u8, s, off, n) {
+    return raw.try_u8_copy_from_string_slice(out, s, off, n)
+}
+
+fn u8_copy_from_string_slice(out: []u8, s, off, n) {
+    return raw.u8_copy_from_string_slice(out, s, off, n)
 }
 
 fn try_i32_copy_from_i32_buf(out: []i32, src) {
@@ -342,6 +358,8 @@ fn try_strided_copy_from_u8_buf(s, src) { return view.try_strided_copy_from_u8_b
 fn strided_copy_from_u8_buf(s, src) { return view.strided_copy_from_u8_buf(s, src) }
 fn try_strided_copy_from_string(s, text) { return view.try_strided_copy_from_string(s, text) }
 fn strided_copy_from_string(s, text) { return view.strided_copy_from_string(s, text) }
+fn try_strided_copy_from_string_slice(s, text, off, n) { return view.try_strided_copy_from_string_slice(s, text, off, n) }
+fn strided_copy_from_string_slice(s, text, off, n) { return view.strided_copy_from_string_slice(s, text, off, n) }
 fn strided_load_f32(s, idx) { return view.strided_load_f32(s, idx) }
 fn try_strided_load_f32(s, idx) { return view.try_strided_load_f32(s, idx) }
 fn strided_store_f32(s, idx, v) { return view.strided_store_f32(s, idx, v) }
@@ -410,6 +428,8 @@ fn try_slice_copy_from_u8_buf(s, src) { return view.try_slice_copy_from_u8_buf(s
 fn slice_copy_from_u8_buf(s, src) { return view.slice_copy_from_u8_buf(s, src) }
 fn try_slice_copy_from_string(s, text) { return view.try_slice_copy_from_string(s, text) }
 fn slice_copy_from_string(s, text) { return view.slice_copy_from_string(s, text) }
+fn try_slice_copy_from_string_slice(s, text, off, n) { return view.try_slice_copy_from_string_slice(s, text, off, n) }
+fn slice_copy_from_string_slice(s, text, off, n) { return view.slice_copy_from_string_slice(s, text, off, n) }
 fn slice_load_f32(s, idx) { return view.slice_load_f32(s, idx) }
 fn try_slice_load_f32(s, idx) { return view.try_slice_load_f32(s, idx) }
 fn slice_store_f32(s, idx, v) { return view.slice_store_f32(s, idx, v) }
@@ -511,6 +531,8 @@ fn mat_diag_copy_from_u8_buf(m, src) { return proj.mat_diag_copy_from_u8_buf(m, 
 fn try_mat_diag_copy_from_u8_buf(m, src) { return proj.try_mat_diag_copy_from_u8_buf(m, src) }
 fn mat_diag_copy_from_string(m, text) { return proj.mat_diag_copy_from_string(m, text) }
 fn try_mat_diag_copy_from_string(m, text) { return proj.try_mat_diag_copy_from_string(m, text) }
+fn mat_diag_copy_from_string_slice(m, text, off, n) { return proj.mat_diag_copy_from_string_slice(m, text, off, n) }
+fn try_mat_diag_copy_from_string_slice(m, text, off, n) { return proj.try_mat_diag_copy_from_string_slice(m, text, off, n) }
 fn mat_row_to_bytes(m, r) { return proj.mat_row_to_bytes(m, r) }
 fn try_mat_row_to_bytes(m, r) { return proj.try_mat_row_to_bytes(m, r) }
 fn mat_row_unpack_u8(m, r) { return proj.mat_row_unpack_u8(m, r) }
@@ -559,6 +581,8 @@ fn mat_row_copy_from_u8_buf(m, r, src) { return proj.mat_row_copy_from_u8_buf(m,
 fn try_mat_row_copy_from_u8_buf(m, r, src) { return proj.try_mat_row_copy_from_u8_buf(m, r, src) }
 fn mat_row_copy_from_string(m, r, text) { return proj.mat_row_copy_from_string(m, r, text) }
 fn try_mat_row_copy_from_string(m, r, text) { return proj.try_mat_row_copy_from_string(m, r, text) }
+fn mat_row_copy_from_string_slice(m, r, text, off, n) { return proj.mat_row_copy_from_string_slice(m, r, text, off, n) }
+fn try_mat_row_copy_from_string_slice(m, r, text, off, n) { return proj.try_mat_row_copy_from_string_slice(m, r, text, off, n) }
 fn mat_col_to_bytes(m, c) { return proj.mat_col_to_bytes(m, c) }
 fn try_mat_col_to_bytes(m, c) { return proj.try_mat_col_to_bytes(m, c) }
 fn mat_col_unpack_u8(m, c) { return proj.mat_col_unpack_u8(m, c) }
@@ -607,6 +631,8 @@ fn mat_col_copy_from_u8_buf(m, c, src) { return proj.mat_col_copy_from_u8_buf(m,
 fn try_mat_col_copy_from_u8_buf(m, c, src) { return proj.try_mat_col_copy_from_u8_buf(m, c, src) }
 fn mat_col_copy_from_string(m, c, text) { return proj.mat_col_copy_from_string(m, c, text) }
 fn try_mat_col_copy_from_string(m, c, text) { return proj.try_mat_col_copy_from_string(m, c, text) }
+fn mat_col_copy_from_string_slice(m, c, text, off, n) { return proj.mat_col_copy_from_string_slice(m, c, text, off, n) }
+fn try_mat_col_copy_from_string_slice(m, c, text, off, n) { return proj.try_mat_col_copy_from_string_slice(m, c, text, off, n) }
 fn mat_load_f32(m, r, c) { return core.mat_load_f32(m, r, c) }
 fn try_mat_load_f32(m, r, c) { return core.try_mat_load_f32(m, r, c) }
 fn mat_store_f32(m, r, c, v) { return core.mat_store_f32(m, r, c, v) }
@@ -709,6 +735,8 @@ fn u8_mat_copy_from_u8_buf(m, src) { return mu8.u8_mat_copy_from_u8_buf(m, src) 
 fn try_u8_mat_copy_from_u8_buf(m, src) { return mu8.try_u8_mat_copy_from_u8_buf(m, src) }
 fn u8_mat_copy_from_string(m, text) { return mu8.u8_mat_copy_from_string(m, text) }
 fn try_u8_mat_copy_from_string(m, text) { return mu8.try_u8_mat_copy_from_string(m, text) }
+fn u8_mat_copy_from_string_slice(m, text, off, n) { return mu8.u8_mat_copy_from_string_slice(m, text, off, n) }
+fn try_u8_mat_copy_from_string_slice(m, text, off, n) { return mu8.try_u8_mat_copy_from_string_slice(m, text, off, n) }
 fn u8_mat_copy_from_flat(m, xs) { return mu8.u8_mat_copy_from_flat(m, xs) }
 fn try_u8_mat_copy_from_flat(m, xs) { return mu8.try_u8_mat_copy_from_flat(m, xs) }
 fn u8_mat_copy_from_rows(m, rows) { return mu8.u8_mat_copy_from_rows(m, rows) }

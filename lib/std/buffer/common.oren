@@ -3,6 +3,7 @@
 // Shared validation helpers for the split std:buffer facade/view/matrix modules.
 
 import list "std:list"
+import stringsm "std:strings"
 
 fn _err_invalid(msg) { return oren_err(4, msg) }
 
@@ -34,6 +35,15 @@ fn _check_positive_int(v, ctx, label) {
     if oren_is_err(ok) { return ok }
     if v <= 0 { return oren_err(4, ctx + ": " + label + " must be > 0") }
     return v
+}
+
+fn _string_slice_or_err(s, off, n, ctx) {
+    if oren_type_tag(s) != 4 { return oren_err(4, ctx + ": s must be string") }
+    var ok_off = _check_nonneg_int(off, ctx, "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_n = _check_nonneg_int(n, ctx, "len")
+    if oren_is_err(ok_n) { return ok_n }
+    return stringsm.try_slice(s, off, off + n)
 }
 
 fn _plain_list_len_or_err(xs, ctx) {

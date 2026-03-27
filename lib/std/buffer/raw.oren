@@ -9,6 +9,7 @@ import common "std:buffer/common"
 
 fn _err_invalid(msg) { return common._err_invalid(msg) }
 fn _is_int(v) { return common._is_int(v) }
+fn _string_slice_or_err(s, off, n, ctx) { return common._string_slice_or_err(s, off, n, ctx) }
 
 fn u8_new(n) { return oren_u8_buf_new(n) }
 fn i32_new(n) { return oren_i32_buf_new(n) }
@@ -331,6 +332,16 @@ fn u8_from_bytes(bytes) {
     return try_u8_from_bytes(bytes)
 }
 
+fn try_u8_from_string_slice(s, off, n) {
+    var sub = _string_slice_or_err(s, off, n, "buffer.try_u8_from_string_slice")
+    if oren_is_err(sub) { return sub }
+    return try_u8_from_string(sub)
+}
+
+fn u8_from_string_slice(s, off, n) {
+    return try_u8_from_string_slice(s, off, n)
+}
+
 fn try_u8_from_bytes_slice(bytes, off, n) {
     return bytesm.try_to_u8_buf_slice(bytes, off, n)
 }
@@ -382,6 +393,16 @@ fn try_u8_copy_from_string(out: []u8, s) {
 
 fn u8_copy_from_string(out: []u8, s) {
     return try_u8_copy_from_string(out, s)
+}
+
+fn try_u8_copy_from_string_slice(out: []u8, s, off, n) {
+    var sub = _string_slice_or_err(s, off, n, "buffer.try_u8_copy_from_string_slice")
+    if oren_is_err(sub) { return sub }
+    return try_u8_copy_from_string(out, sub)
+}
+
+fn u8_copy_from_string_slice(out: []u8, s, off, n) {
+    return try_u8_copy_from_string_slice(out, s, off, n)
 }
 
 fn try_i32_copy_from_i32_buf(out: []i32, src) {

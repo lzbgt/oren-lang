@@ -11,6 +11,7 @@ fn _err_invalid(msg) { return common._err_invalid(msg) }
 fn _is_int(v) { return common._is_int(v) }
 fn _check_int(v, ctx, label) { return common._check_int(v, ctx, label) }
 fn _check_nonneg_int(v, ctx, label) { return common._check_nonneg_int(v, ctx, label) }
+fn _string_slice_or_err(s, off, n, ctx) { return common._string_slice_or_err(s, off, n, ctx) }
 fn _check_positive_int(v, ctx, label) { return common._check_positive_int(v, ctx, label) }
 fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
 fn _slice_is_list(s) { return common._slice_is_list(s) }
@@ -150,6 +151,12 @@ fn _u8_view_copy_from_string(store_fn, view, n, s, ctx) {
     var bs = bytesm.try_from_string(s)
     if oren_is_err(bs) { return bs }
     return _u8_view_copy_from_bytes(store_fn, view, n, bs, ctx)
+}
+
+fn _u8_view_copy_from_string_slice(store_fn, view, n, s, off, count, ctx) {
+    var sub = _string_slice_or_err(s, off, count, ctx)
+    if oren_is_err(sub) { return sub }
+    return _u8_view_copy_from_string(store_fn, view, n, sub, ctx)
 }
 
 fn _u8_view_copy_from_u8_buf(store_fn, view, n, src, ctx) {
@@ -348,6 +355,11 @@ fn _try_u8_view_copy_from_string(try_storef, is_viewf, kind_label, s, text, ctx)
     return _u8_view_copy_from_string(try_storef, s, s[2], text, ctx)
 }
 
+fn _try_u8_view_copy_from_string_slice(try_storef, is_viewf, kind_label, s, text, off, count, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _u8_view_copy_from_string_slice(try_storef, s, s[2], text, off, count, ctx)
+}
+
 fn strided_load_i32(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i32, s, idx, "strided_load_i32") }
 fn try_strided_load_i32(s, idx) { return _try_view_load(strided_load_i32, _strided_is_list, "strided", s, idx, "buffer.try_strided_load_i32") }
 fn strided_store_i32(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i32, s, idx, v, "strided_store_i32") }
@@ -381,6 +393,8 @@ fn try_strided_copy_from_u8_buf(s, src) { return _try_u8_view_copy_from_u8_buf(t
 fn strided_copy_from_u8_buf(s, src) { return try_strided_copy_from_u8_buf(s, src) }
 fn try_strided_copy_from_string(s, text) { return _try_u8_view_copy_from_string(try_strided_store_u8, _strided_is_list, "strided", s, text, "buffer.try_strided_copy_from_string") }
 fn strided_copy_from_string(s, text) { return try_strided_copy_from_string(s, text) }
+fn try_strided_copy_from_string_slice(s, text, off, n) { return _try_u8_view_copy_from_string_slice(try_strided_store_u8, _strided_is_list, "strided", s, text, off, n, "buffer.try_strided_copy_from_string_slice") }
+fn strided_copy_from_string_slice(s, text, off, n) { return try_strided_copy_from_string_slice(s, text, off, n) }
 
 fn strided_load_f32(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_f32, s, idx, "strided_load_f32") }
 fn try_strided_load_f32(s, idx) { return _try_view_load(strided_load_f32, _strided_is_list, "strided", s, idx, "buffer.try_strided_load_f32") }
@@ -454,6 +468,8 @@ fn try_slice_copy_from_u8_buf(s, src) { return _try_u8_view_copy_from_u8_buf(try
 fn slice_copy_from_u8_buf(s, src) { return try_slice_copy_from_u8_buf(s, src) }
 fn try_slice_copy_from_string(s, text) { return _try_u8_view_copy_from_string(try_slice_store_u8, _slice_is_list, "slice", s, text, "buffer.try_slice_copy_from_string") }
 fn slice_copy_from_string(s, text) { return try_slice_copy_from_string(s, text) }
+fn try_slice_copy_from_string_slice(s, text, off, n) { return _try_u8_view_copy_from_string_slice(try_slice_store_u8, _slice_is_list, "slice", s, text, off, n, "buffer.try_slice_copy_from_string_slice") }
+fn slice_copy_from_string_slice(s, text, off, n) { return try_slice_copy_from_string_slice(s, text, off, n) }
 
 fn slice_load_f32(s, idx) { return _view_load_with(_slice_is_list, "slice", _slice_pos, _buf_load_f32, s, idx, "slice_load_f32") }
 fn try_slice_load_f32(s, idx) { return _try_view_load(slice_load_f32, _slice_is_list, "slice", s, idx, "buffer.try_slice_load_f32") }

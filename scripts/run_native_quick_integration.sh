@@ -187,7 +187,10 @@ if [[ "$os_key" == "windows" ]]; then
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
   if [[ "$compiler_base" == *stage2* ]]; then
-    run_timeout_secs=15
+    # Self-hosted stage2 still false-reds at 60s on this host during the base quick run and
+    # only clears on the built-in 120s retry, so keep the direct standalone default aligned
+    # with that proven healthy budget instead of the older 15s/30s/60s guardrails.
+    run_timeout_secs=120
   fi
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then

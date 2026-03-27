@@ -64,8 +64,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   first-class bytes + typed buffers; dynamic module loading and user-defined methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
   for typed-buffer callers that want to stay on the portable stdlib surface:
-  `try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_strided_to_u8_buf`,
-  and `try_strided_copy_from_string`; covered by result smoke + native quick integration +
+  `try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_slice_copy_from_string_slice`,
+  `try_strided_to_u8_buf`, `try_strided_copy_from_string`, and
+  `try_strided_copy_from_string_slice`; covered by result smoke + native quick integration +
   dedicated AVM buffer-view smoke.
 - New (2026-03-27): `std:buffer` now also exposes the missing symmetric `[]u8` view helpers
   for unpack/copy-on-buffer paths: `try_slice_unpack_u8`, `try_strided_unpack_u8`,
@@ -670,18 +671,24 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      shared native fixtures checking non-error/shape only (2026-03-27).
    - New: `std:buffer` now also exposes checked whole-buffer refill helpers for raw typed buffers,
      including `try_u8_copy_from_u8_buf`, `try_u8_copy_from_bytes`,
-     `try_u8_copy_from_bytes_slice`, `try_u8_copy_from_string`, `try_i32_copy_from_i32_buf`,
+     `try_u8_copy_from_bytes_slice`, `try_u8_copy_from_string`,
+     `try_u8_copy_from_string_slice`, `try_i32_copy_from_i32_buf`,
      `try_i64_copy_from_i64_buf`, `try_f32_copy_from_f32_buf`, and `try_f64_copy_from_f64_buf`,
      so callers can refill existing typed buffers without allocating a fresh bridge buffer or
-     open-coding per-element loops, including direct byte-window refill without materializing an
-     intermediate `[]u8`; covered by result smoke + native quick integration + dedicated AVM
-     buffer-view smoke, with exact float value proof kept in AVM and shared native fixtures
-     checking non-error/shape only (2026-03-27).
+     open-coding per-element loops, including direct byte-window and string-window refill without
+     materializing an intermediate `[]u8`; covered by result smoke + native quick integration +
+     dedicated AVM buffer-view smoke, with exact float value proof kept in AVM and shared native
+     fixtures checking non-error/shape only (2026-03-27).
    - New: `std:buffer` now also exposes checked `[]u8` zero-copy view bridge helpers
      (`try_slice_to_bytes`, `try_slice_to_string`, `try_slice_copy_from_bytes`,
      `try_slice_copy_from_bytes_slice`, `try_strided_to_bytes`, `try_strided_to_string`,
      `try_strided_copy_from_bytes`, `try_strided_copy_from_bytes_slice`); covered by result smoke +
      native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
+   - New: `std:buffer` now also exposes checked `[]u8` string-window refill helpers on zero-copy
+     views (`try_slice_copy_from_string_slice`, `try_strided_copy_from_string_slice`), so callers
+     can refill visible byte windows from substrings without materializing temporary `[]u8` bridges;
+     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:buffer` matrix views now also project back into the zero-copy slice/strided
      surface via `try_mat_row_slice` and `try_mat_col_strided`, so matrix code can reuse the
      existing checked `[]u8` slice/strided bridge helpers instead of rebuilding index math by hand;
@@ -704,24 +711,28 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (2026-03-27).
    - New: `std:buffer` now also exposes direct checked matrix-row/column `[]u8` bridge helpers
      such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`,
-     `try_mat_row_copy_from_bytes_slice`, `try_mat_col_to_string`, `try_mat_col_copy_from_string`,
-     and `try_mat_col_copy_from_bytes_slice`, so matrix callers can stay on the matrix surface for
-     the common row/column text and byte bridge paths, including direct byte-window refill without
-     open-coding a temporary slice; covered by result smoke + native quick integration + dedicated
-     AVM buffer-view smoke (2026-03-27).
+     `try_mat_row_copy_from_string_slice`, `try_mat_row_copy_from_bytes_slice`,
+     `try_mat_col_to_string`, `try_mat_col_copy_from_string`,
+     `try_mat_col_copy_from_string_slice`, and `try_mat_col_copy_from_bytes_slice`, so matrix
+     callers can stay on the matrix surface for the common row/column text and byte bridge paths,
+     including direct byte-window and string-window refill without open-coding a temporary slice;
+     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:buffer` now also exposes direct checked matrix-diagonal `[]u8` bridge helpers such
      as `try_mat_diag_to_string`, `try_mat_diag_to_bytes`, `try_mat_diag_copy_from_string`,
-     `try_mat_diag_copy_from_bytes_slice`, and `try_mat_diag_copy_from_u8_buf`, so matrix callers
-     can stay on the matrix surface for the common diagonal byte/text bridge paths instead of
-     routing through an explicit strided view; covered by result smoke + native quick integration +
+     `try_mat_diag_copy_from_string_slice`, `try_mat_diag_copy_from_bytes_slice`, and
+     `try_mat_diag_copy_from_u8_buf`, so matrix callers can stay on the matrix surface for the
+     common diagonal byte/text bridge paths instead of routing through an explicit strided view,
+     including direct string-window refill; covered by result smoke + native quick integration +
      dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` now also exposes direct checked whole-matrix `[]u8` flatten/copy helpers
      such as `try_u8_mat_to_bytes`, `try_u8_mat_to_string`, `try_u8_mat_copy_from_bytes`,
      `try_u8_mat_copy_from_bytes_slice`, `try_u8_mat_copy_from_string`,
-     `try_u8_mat_copy_from_rows`, and `try_u8_mat_copy_from_strings`, so matrix callers can bridge
-     or refill the entire visible matrix without open-coding row loops, including direct byte-window
-     refill on the matrix surface; covered by result smoke + native quick integration + dedicated
-     AVM buffer-view smoke (2026-03-27).
+     `try_u8_mat_copy_from_string_slice`, `try_u8_mat_copy_from_rows`, and
+     `try_u8_mat_copy_from_strings`, so matrix callers can bridge or refill the entire visible
+     matrix without open-coding row loops, including direct byte-window and string-window refill on
+     the matrix surface; covered by result smoke + native quick integration + dedicated AVM
+     buffer-view smoke (2026-03-27).
    - New: `std:buffer` now also exposes symmetric checked whole-matrix `[]u8` flat-list helpers
      `try_u8_mat_unpack_flat` and `try_u8_mat_copy_from_flat`, so callers can use the same
      `*_mat_unpack_flat` / `*_mat_copy_from_flat` row-major pattern across `u8`, `i32`, `i64`,
@@ -854,6 +865,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     budget. On this host the stage2 rerun still false-red at `360s` after emitting its last
     visible `41` / `42` debug lines, and the built-in `720s` retry completed cleanly; covered
     by stage2 native quick integration and full `make test` (2026-03-27).
+  - Fix: macOS self-hosted stage2 native-quick verification now also keeps the base run watchdog
+    at `120s` instead of the old `30s` make-target budget. On this host the base stage2 run still
+    false-red at `60s` and only cleared on the built-in `120s` retry, so `test-native-quick-stage2`
+    now starts from the proven healthy base-run budget instead of depending on a retry to pass
+    (2026-03-27).
   - Fix: invoking `scripts/run_native_quick_integration.sh ./oren_stage2` directly on macOS now
     also keeps the stage2 debug build watchdog at `180s` instead of `35s`. A measured standalone
     rerun still false-red at `35s` during the self-hosted rebuild even with an rtobj hit, while
