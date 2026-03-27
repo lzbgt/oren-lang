@@ -898,9 +898,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
 
 8) **W3 - Structural/SOLID debt**
-   - Large source files remain a maintainability risk; current tracked >2000-line targets after the
-     latest compiler split are:
-     - `pkg/transpiler/transpiler.go` (~2269 lines, 2026-03-27 scan).
+   - Large source files remain a maintainability risk, but the rolling tracked >2000-line source
+     file list is now empty after the latest runtime/compiler/transpiler splits (2026-03-27 scan).
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
        `lib/compiler/arm64_native_gc.oren` (2026-02-25).
@@ -931,6 +930,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        (`lib/runtime_native/263_green/005_green_state.oren`) plus a 1928-line queue/scheduler core,
        keeping the green-module include order intact while moving offsets, globals, and tiny
        scheduler-state accessors out of the hot scheduler implementation (2026-03-27).
+     - `pkg/transpiler/transpiler.go` split into the core emitter plus
+       `pkg/transpiler/transpiler_lambda.go`, moving lambda collection/free-var analysis/emission
+       into a focused companion file and leaving the main transpiler at 1836 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).
@@ -2625,7 +2627,7 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 5) **Allow non-macOS hosts for partial targets** (S, W2)
 6) **Package manager / signed module workflow** (M, W2)
 7) **Refactor oversized native emitters (>2000 lines)** (M, W2)
-8) **Refactor `pkg/transpiler/transpiler.go` (>2000 lines)** (M, W2)
+8) **Keep large-file scans empty after the current refactor pass** (M, W2)
 
 ---
 

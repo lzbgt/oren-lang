@@ -2490,8 +2490,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Done: `lib/compiler/x64_native_program/060_emit_ops.oren` split into focused emit modules
      (`055_emit_ops_locals`, `056_emit_ops_match`, `057_emit_ops_while_emit`)
      (<2000 lines each, 2026-02-25).
-   - Next targets (>=2000 lines, 2026-03-05 scan):
-     - `pkg/transpiler/transpiler.go` (~2269 lines).
+   - Done: `pkg/transpiler/transpiler.go` split into the core emitter plus
+     `pkg/transpiler/transpiler_lambda.go`, moving lambda collection/free-var analysis/emission into
+     a focused companion file and leaving the main transpiler at 1836 lines (2026-03-27).
+   - Current tracked source scan (>=2000 lines, 2026-03-27): no remaining repo-tracked source files
+     above the rolling 2000-line threshold.
 
 11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
