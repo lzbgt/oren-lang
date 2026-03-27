@@ -134,6 +134,11 @@ fn _validate_u8_or_err(v, ctx) {
     return v
 }
 
+fn _validate_int_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    return v
+}
+
 fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
     var xs = bytesm.try_unpack(bytes)
     if oren_is_err(xs) { return xs }
@@ -230,752 +235,249 @@ fn try_strided_len(s) {
     return s[2]
 }
 
-fn strided_load_i32(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("strided_load_i32: expects strided") }
+fn _slice_pos(s, idx) { return s[1] + idx }
+fn _strided_pos(s, idx) { return s[1] + idx * s[3] }
+fn _buf_load_i32(buf, idx) { return oren_buf_load_i32(buf, idx) }
+fn _buf_store_i32(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
+fn _buf_load_u8(buf, idx) { return oren_buf_load_u8(buf, idx) }
+fn _buf_store_u8(buf, idx, v) { return oren_buf_store_u8(buf, idx, v) }
+fn _buf_load_f32(buf, idx) { return oren_buf_load_f32(buf, idx) }
+fn _buf_store_f32(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
+fn _buf_load_i64(buf, idx) { return oren_buf_load_i64(buf, idx) }
+fn _buf_store_i64(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
+fn _buf_load_f64(buf, idx) { return oren_buf_load_f64(buf, idx) }
+fn _buf_store_f64(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
+
+fn _view_load_with(is_viewf, kind_label, posf, loadf, s, idx, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
     var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_load_i32: index out of bounds") }
-    return oren_buf_load_i32(s[0], s[1] + idx * s[3])
+    if idx < 0 || idx >= n { return _err_invalid(ctx + ": index out of bounds") }
+    return loadf(s[0], posf(s, idx))
 }
 
-fn try_strided_load_i32(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_load_i32: expects strided") }
+fn _view_store_with(is_viewf, kind_label, posf, storef, s, idx, v, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
     var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_load_i32", "index")
+    if idx < 0 || idx >= n { return _err_invalid(ctx + ": index out of bounds") }
+    return storef(s[0], posf(s, idx), v)
+}
+
+fn _try_view_load(directf, is_viewf, kind_label, s, idx, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    var n = s[2]
+    var ok_idx = _check_int(idx, ctx, "index")
     if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_load_i32: index out of bounds") }
-    return strided_load_i32(s, idx)
+    if idx < 0 || idx >= n { return oren_err(4, ctx + ": index out of bounds") }
+    return directf(s, idx)
 }
 
-fn strided_store_i32(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("strided_store_i32: expects strided") }
+fn _try_view_store(directf, validatef, is_viewf, kind_label, s, idx, v, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
     var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_store_i32: index out of bounds") }
-    return oren_buf_store_i32(s[0], s[1] + idx * s[3], v)
-}
-
-fn try_strided_store_i32(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_store_i32: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_store_i32", "index")
+    var ok_idx = _check_int(idx, ctx, "index")
     if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_store_i32: index out of bounds") }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_strided_store_i32: value not int") }
-    return strided_store_i32(s, idx, v)
+    if idx < 0 || idx >= n { return oren_err(4, ctx + ": index out of bounds") }
+    var ok_v = validatef(v, ctx)
+    if oren_is_err(ok_v) { return ok_v }
+    return directf(s, idx, ok_v)
 }
 
-fn try_strided_unpack_i32(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_i32: expects strided") }
-    return _view_unpack(try_strided_load_i32, s, s[2], "buffer.try_strided_unpack_i32")
+fn _try_view_unpack(try_loadf, is_viewf, kind_label, s, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _view_unpack(try_loadf, s, s[2], ctx)
 }
 
-fn strided_unpack_i32(s) {
-    return try_strided_unpack_i32(s)
+fn _try_u8_view_unpack(try_loadf, is_viewf, kind_label, s, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _u8_view_unpack(try_loadf, s, s[2], ctx)
 }
 
-fn try_strided_to_i32_buf(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_i32_buf: expects strided") }
-    return _view_to_typed_buf(try_strided_load_i32, s, s[2], "buffer.try_strided_to_i32_buf", _new_i32_buf, _store_i32_buf_direct)
+fn _try_view_to_typed_buf(try_loadf, is_viewf, kind_label, s, ctx, newf, storef) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _view_to_typed_buf(try_loadf, s, s[2], ctx, newf, storef)
 }
 
-fn strided_to_i32_buf(s) {
-    return try_strided_to_i32_buf(s)
+fn _try_u8_view_to_u8_buf(try_loadf, is_viewf, kind_label, s, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _u8_view_to_u8_buf(try_loadf, s, s[2], ctx)
 }
 
-fn try_strided_copy_from_list_i32(s, xs) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_i32: expects strided") }
-    return _view_copy_from_list(try_strided_store_i32, s, s[2], xs, "buffer.try_strided_copy_from_list_i32", _validate_i32_or_err)
+fn _try_view_copy_from_list(try_storef, validatef, is_viewf, kind_label, s, xs, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _view_copy_from_list(try_storef, s, s[2], xs, ctx, validatef)
 }
 
-fn strided_copy_from_list_i32(s, xs) {
-    return try_strided_copy_from_list_i32(s, xs)
+fn _try_view_copy_from_typed_buf(try_storef, is_viewf, kind_label, s, src, ctx, want_tag, want_label, loadf) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _view_copy_from_typed_buf(try_storef, s, s[2], src, ctx, want_tag, want_label, loadf)
 }
 
-fn try_strided_copy_from_i32_buf(s, src) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_i32_buf: expects strided") }
-    return _view_copy_from_typed_buf(try_strided_store_i32, s, s[2], src, "buffer.try_strided_copy_from_i32_buf", 10, "i32_buf", _load_i32_buf_direct)
-}
-
-fn strided_copy_from_i32_buf(s, src) {
-    return try_strided_copy_from_i32_buf(s, src)
-}
-
-fn strided_load_u8(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("strided_load_u8: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_load_u8: index out of bounds") }
-    return oren_buf_load_u8(s[0], s[1] + idx * s[3])
-}
-
-fn try_strided_load_u8(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_load_u8: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_load_u8", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_load_u8: index out of bounds") }
-    return strided_load_u8(s, idx)
-}
-
-fn strided_store_u8(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("strided_store_u8: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_store_u8: index out of bounds") }
-    return oren_buf_store_u8(s[0], s[1] + idx * s[3], v)
-}
-
-fn try_strided_store_u8(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_store_u8: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_store_u8", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_store_u8: index out of bounds") }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_strided_store_u8: value not int") }
-    if v < 0 || v > 255 { return oren_err(4, "buffer.try_strided_store_u8: byte out of range") }
-    return strided_store_u8(s, idx, v)
-}
-
-fn try_strided_to_bytes(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_bytes: expects strided") }
-    var xs = _u8_view_unpack(try_strided_load_u8, s, s[2], "buffer.try_strided_to_bytes")
+fn _try_u8_view_to_bytes(try_loadf, is_viewf, kind_label, s, ctx) {
+    var xs = _try_u8_view_unpack(try_loadf, is_viewf, kind_label, s, ctx)
     if oren_is_err(xs) { return xs }
     return bytesm.try_pack(xs)
 }
 
-fn strided_to_bytes(s) {
-    return try_strided_to_bytes(s)
-}
-
-fn try_strided_unpack_u8(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_u8: expects strided") }
-    return _u8_view_unpack(try_strided_load_u8, s, s[2], "buffer.try_strided_unpack_u8")
-}
-
-fn strided_unpack_u8(s) {
-    return try_strided_unpack_u8(s)
-}
-
-fn try_strided_to_u8_buf(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_u8_buf: expects strided") }
-    return _u8_view_to_u8_buf(try_strided_load_u8, s, s[2], "buffer.try_strided_to_u8_buf")
-}
-
-fn strided_to_u8_buf(s) {
-    return try_strided_to_u8_buf(s)
-}
-
-fn try_strided_to_string(s) {
-    var bs = try_strided_to_bytes(s)
+fn _try_u8_view_to_string(to_bytesf, s) {
+    var bs = to_bytesf(s)
     if oren_is_err(bs) { return bs }
     return bytesm.try_to_string(bs)
 }
 
-fn strided_to_string(s) {
-    return try_strided_to_string(s)
-}
-
-fn try_strided_copy_from_bytes(s, bytes) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_bytes: expects strided") }
-    return _u8_view_copy_from_bytes(try_strided_store_u8, s, s[2], bytes, "buffer.try_strided_copy_from_bytes")
-}
-
-fn strided_copy_from_bytes(s, bytes) {
-    return try_strided_copy_from_bytes(s, bytes)
-}
-
-fn try_strided_copy_from_u8_buf(s, src) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_u8_buf: expects strided") }
-    return _u8_view_copy_from_u8_buf(try_strided_store_u8, s, s[2], src, "buffer.try_strided_copy_from_u8_buf")
-}
-
-fn strided_copy_from_u8_buf(s, src) {
-    return try_strided_copy_from_u8_buf(s, src)
-}
-
-fn try_strided_copy_from_string(s, text) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_string: expects strided") }
-    if oren_type_tag(text) != 4 { return oren_err(4, "buffer.try_strided_copy_from_string: s must be string") }
-    return _u8_view_copy_from_string(try_strided_store_u8, s, s[2], text, "buffer.try_strided_copy_from_string")
-}
-
-fn strided_copy_from_string(s, text) {
-    return try_strided_copy_from_string(s, text)
-}
-
-fn strided_load_f32(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("strided_load_f32: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_load_f32: index out of bounds") }
-    return oren_buf_load_f32(s[0], s[1] + idx * s[3])
-}
-
-fn try_strided_load_f32(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_load_f32: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_load_f32", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_load_f32: index out of bounds") }
-    return strided_load_f32(s, idx)
-}
-
-fn strided_store_f32(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("strided_store_f32: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_store_f32: index out of bounds") }
-    return oren_buf_store_f32(s[0], s[1] + idx * s[3], v)
-}
-
-fn try_strided_store_f32(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_store_f32: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_store_f32", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_store_f32: index out of bounds") }
-    return strided_store_f32(s, idx, v)
-}
-
-fn try_strided_unpack_f32(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_f32: expects strided") }
-    return _view_unpack(try_strided_load_f32, s, s[2], "buffer.try_strided_unpack_f32")
-}
-
-fn strided_unpack_f32(s) {
-    return try_strided_unpack_f32(s)
-}
-
-fn try_strided_to_f32_buf(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_f32_buf: expects strided") }
-    return _view_to_typed_buf(try_strided_load_f32, s, s[2], "buffer.try_strided_to_f32_buf", _new_f32_buf, _store_f32_buf_direct)
-}
-
-fn strided_to_f32_buf(s) {
-    return try_strided_to_f32_buf(s)
-}
-
-fn try_strided_copy_from_list_f32(s, xs) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_f32: expects strided") }
-    return _view_copy_from_list(try_strided_store_f32, s, s[2], xs, "buffer.try_strided_copy_from_list_f32", _validate_passthru_or_err)
-}
-
-fn strided_copy_from_list_f32(s, xs) {
-    return try_strided_copy_from_list_f32(s, xs)
-}
-
-fn try_strided_copy_from_f32_buf(s, src) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_f32_buf: expects strided") }
-    return _view_copy_from_typed_buf(try_strided_store_f32, s, s[2], src, "buffer.try_strided_copy_from_f32_buf", 12, "f32_buf", _load_f32_buf_direct)
-}
-
-fn strided_copy_from_f32_buf(s, src) {
-    return try_strided_copy_from_f32_buf(s, src)
-}
-
-fn strided_load_i64(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("strided_load_i64: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_load_i64: index out of bounds") }
-    return oren_buf_load_i64(s[0], s[1] + idx * s[3])
-}
-
-fn try_strided_load_i64(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_load_i64: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_load_i64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_load_i64: index out of bounds") }
-    return strided_load_i64(s, idx)
-}
-
-fn strided_store_i64(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("strided_store_i64: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_store_i64: index out of bounds") }
-    return oren_buf_store_i64(s[0], s[1] + idx * s[3], v)
-}
-
-fn try_strided_store_i64(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_store_i64: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_store_i64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_store_i64: index out of bounds") }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_strided_store_i64: value not int") }
-    return strided_store_i64(s, idx, v)
-}
-
-fn try_strided_unpack_i64(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_i64: expects strided") }
-    return _view_unpack(try_strided_load_i64, s, s[2], "buffer.try_strided_unpack_i64")
-}
-
-fn strided_unpack_i64(s) {
-    return try_strided_unpack_i64(s)
-}
-
-fn try_strided_to_i64_buf(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_i64_buf: expects strided") }
-    return _view_to_typed_buf(try_strided_load_i64, s, s[2], "buffer.try_strided_to_i64_buf", _new_i64_buf, _store_i64_buf_direct)
-}
-
-fn strided_to_i64_buf(s) {
-    return try_strided_to_i64_buf(s)
-}
-
-fn try_strided_copy_from_list_i64(s, xs) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_i64: expects strided") }
-    return _view_copy_from_list(try_strided_store_i64, s, s[2], xs, "buffer.try_strided_copy_from_list_i64", _validate_i64_or_err)
-}
-
-fn strided_copy_from_list_i64(s, xs) {
-    return try_strided_copy_from_list_i64(s, xs)
-}
-
-fn try_strided_copy_from_i64_buf(s, src) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_i64_buf: expects strided") }
-    return _view_copy_from_typed_buf(try_strided_store_i64, s, s[2], src, "buffer.try_strided_copy_from_i64_buf", 11, "i64_buf", _load_i64_buf_direct)
-}
-
-fn strided_copy_from_i64_buf(s, src) {
-    return try_strided_copy_from_i64_buf(s, src)
-}
-
-fn strided_load_f64(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("strided_load_f64: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_load_f64: index out of bounds") }
-    return oren_buf_load_f64(s[0], s[1] + idx * s[3])
-}
-
-fn try_strided_load_f64(s, idx) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_load_f64: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_load_f64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_load_f64: index out of bounds") }
-    return strided_load_f64(s, idx)
-}
-
-fn strided_store_f64(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("strided_store_f64: expects strided") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("strided_store_f64: index out of bounds") }
-    return oren_buf_store_f64(s[0], s[1] + idx * s[3], v)
-}
-
-fn try_strided_store_f64(s, idx, v) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_store_f64: expects strided") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_strided_store_f64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_strided_store_f64: index out of bounds") }
-    return strided_store_f64(s, idx, v)
-}
-
-fn try_strided_unpack_f64(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_unpack_f64: expects strided") }
-    return _view_unpack(try_strided_load_f64, s, s[2], "buffer.try_strided_unpack_f64")
-}
-
-fn strided_unpack_f64(s) {
-    return try_strided_unpack_f64(s)
-}
-
-fn try_strided_to_f64_buf(s) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_to_f64_buf: expects strided") }
-    return _view_to_typed_buf(try_strided_load_f64, s, s[2], "buffer.try_strided_to_f64_buf", _new_f64_buf, _store_f64_buf_direct)
-}
-
-fn strided_to_f64_buf(s) {
-    return try_strided_to_f64_buf(s)
-}
-
-fn try_strided_copy_from_list_f64(s, xs) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_list_f64: expects strided") }
-    return _view_copy_from_list(try_strided_store_f64, s, s[2], xs, "buffer.try_strided_copy_from_list_f64", _validate_passthru_or_err)
-}
-
-fn strided_copy_from_list_f64(s, xs) {
-    return try_strided_copy_from_list_f64(s, xs)
-}
-
-fn try_strided_copy_from_f64_buf(s, src) {
-    if !_strided_is_list(s) { return _err_invalid("buffer.try_strided_copy_from_f64_buf: expects strided") }
-    return _view_copy_from_typed_buf(try_strided_store_f64, s, s[2], src, "buffer.try_strided_copy_from_f64_buf", 13, "f64_buf", _load_f64_buf_direct)
-}
-
-fn strided_copy_from_f64_buf(s, src) {
-    return try_strided_copy_from_f64_buf(s, src)
-}
-
-fn slice_load_i32(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("slice_load_i32: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_load_i32: index out of bounds") }
-    return oren_buf_load_i32(s[0], s[1] + idx)
-}
-
-fn try_slice_load_i32(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_load_i32: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_load_i32", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_load_i32: index out of bounds") }
-    return slice_load_i32(s, idx)
-}
-
-fn slice_store_i32(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("slice_store_i32: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_store_i32: index out of bounds") }
-    return oren_buf_store_i32(s[0], s[1] + idx, v)
-}
-
-fn try_slice_store_i32(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_store_i32: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_store_i32", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_store_i32: index out of bounds") }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_slice_store_i32: value not int") }
-    return slice_store_i32(s, idx, v)
-}
-
-fn try_slice_unpack_i32(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_i32: expects slice") }
-    return _view_unpack(try_slice_load_i32, s, s[2], "buffer.try_slice_unpack_i32")
-}
-
-fn slice_unpack_i32(s) {
-    return try_slice_unpack_i32(s)
-}
-
-fn try_slice_to_i32_buf(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_i32_buf: expects slice") }
-    return _view_to_typed_buf(try_slice_load_i32, s, s[2], "buffer.try_slice_to_i32_buf", _new_i32_buf, _store_i32_buf_direct)
-}
-
-fn slice_to_i32_buf(s) {
-    return try_slice_to_i32_buf(s)
-}
-
-fn try_slice_copy_from_list_i32(s, xs) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_i32: expects slice") }
-    return _view_copy_from_list(try_slice_store_i32, s, s[2], xs, "buffer.try_slice_copy_from_list_i32", _validate_i32_or_err)
-}
-
-fn slice_copy_from_list_i32(s, xs) {
-    return try_slice_copy_from_list_i32(s, xs)
-}
-
-fn try_slice_copy_from_i32_buf(s, src) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_i32_buf: expects slice") }
-    return _view_copy_from_typed_buf(try_slice_store_i32, s, s[2], src, "buffer.try_slice_copy_from_i32_buf", 10, "i32_buf", _load_i32_buf_direct)
-}
-
-fn slice_copy_from_i32_buf(s, src) {
-    return try_slice_copy_from_i32_buf(s, src)
-}
-
-fn slice_load_u8(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("slice_load_u8: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_load_u8: index out of bounds") }
-    return oren_buf_load_u8(s[0], s[1] + idx)
-}
-
-fn try_slice_load_u8(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_load_u8: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_load_u8", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_load_u8: index out of bounds") }
-    return slice_load_u8(s, idx)
-}
-
-fn slice_store_u8(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("slice_store_u8: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_store_u8: index out of bounds") }
-    return oren_buf_store_u8(s[0], s[1] + idx, v)
-}
-
-fn try_slice_store_u8(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_store_u8: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_store_u8", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_store_u8: index out of bounds") }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_slice_store_u8: value not int") }
-    if v < 0 || v > 255 { return oren_err(4, "buffer.try_slice_store_u8: byte out of range") }
-    return slice_store_u8(s, idx, v)
-}
-
-fn try_slice_to_bytes(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_bytes: expects slice") }
-    var xs = _u8_view_unpack(try_slice_load_u8, s, s[2], "buffer.try_slice_to_bytes")
-    if oren_is_err(xs) { return xs }
-    return bytesm.try_pack(xs)
-}
-
-fn slice_to_bytes(s) {
-    return try_slice_to_bytes(s)
-}
-
-fn try_slice_unpack_u8(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_u8: expects slice") }
-    return _u8_view_unpack(try_slice_load_u8, s, s[2], "buffer.try_slice_unpack_u8")
-}
-
-fn slice_unpack_u8(s) {
-    return try_slice_unpack_u8(s)
-}
-
-fn try_slice_to_u8_buf(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_u8_buf: expects slice") }
-    return _u8_view_to_u8_buf(try_slice_load_u8, s, s[2], "buffer.try_slice_to_u8_buf")
-}
-
-fn slice_to_u8_buf(s) {
-    return try_slice_to_u8_buf(s)
-}
-
-fn try_slice_to_string(s) {
-    var bs = try_slice_to_bytes(s)
-    if oren_is_err(bs) { return bs }
-    return bytesm.try_to_string(bs)
-}
-
-fn slice_to_string(s) {
-    return try_slice_to_string(s)
-}
-
-fn try_slice_copy_from_bytes(s, bytes) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_bytes: expects slice") }
-    return _u8_view_copy_from_bytes(try_slice_store_u8, s, s[2], bytes, "buffer.try_slice_copy_from_bytes")
-}
-
-fn slice_copy_from_bytes(s, bytes) {
-    return try_slice_copy_from_bytes(s, bytes)
-}
-
-fn try_slice_copy_from_u8_buf(s, src) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_u8_buf: expects slice") }
-    return _u8_view_copy_from_u8_buf(try_slice_store_u8, s, s[2], src, "buffer.try_slice_copy_from_u8_buf")
-}
-
-fn slice_copy_from_u8_buf(s, src) {
-    return try_slice_copy_from_u8_buf(s, src)
-}
-
-fn try_slice_copy_from_string(s, text) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_string: expects slice") }
-    if oren_type_tag(text) != 4 { return oren_err(4, "buffer.try_slice_copy_from_string: s must be string") }
-    return _u8_view_copy_from_string(try_slice_store_u8, s, s[2], text, "buffer.try_slice_copy_from_string")
-}
-
-fn slice_copy_from_string(s, text) {
-    return try_slice_copy_from_string(s, text)
-}
-
-fn slice_load_f32(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("slice_load_f32: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_load_f32: index out of bounds") }
-    return oren_buf_load_f32(s[0], s[1] + idx)
-}
-
-fn try_slice_load_f32(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_load_f32: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_load_f32", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_load_f32: index out of bounds") }
-    return slice_load_f32(s, idx)
-}
-
-fn slice_store_f32(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("slice_store_f32: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_store_f32: index out of bounds") }
-    return oren_buf_store_f32(s[0], s[1] + idx, v)
-}
-
-fn try_slice_store_f32(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_store_f32: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_store_f32", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_store_f32: index out of bounds") }
-    return slice_store_f32(s, idx, v)
-}
-
-fn try_slice_unpack_f32(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_f32: expects slice") }
-    return _view_unpack(try_slice_load_f32, s, s[2], "buffer.try_slice_unpack_f32")
-}
-
-fn slice_unpack_f32(s) {
-    return try_slice_unpack_f32(s)
-}
-
-fn try_slice_to_f32_buf(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_f32_buf: expects slice") }
-    return _view_to_typed_buf(try_slice_load_f32, s, s[2], "buffer.try_slice_to_f32_buf", _new_f32_buf, _store_f32_buf_direct)
-}
-
-fn slice_to_f32_buf(s) {
-    return try_slice_to_f32_buf(s)
-}
-
-fn try_slice_copy_from_list_f32(s, xs) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_f32: expects slice") }
-    return _view_copy_from_list(try_slice_store_f32, s, s[2], xs, "buffer.try_slice_copy_from_list_f32", _validate_passthru_or_err)
-}
-
-fn slice_copy_from_list_f32(s, xs) {
-    return try_slice_copy_from_list_f32(s, xs)
-}
-
-fn try_slice_copy_from_f32_buf(s, src) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_f32_buf: expects slice") }
-    return _view_copy_from_typed_buf(try_slice_store_f32, s, s[2], src, "buffer.try_slice_copy_from_f32_buf", 12, "f32_buf", _load_f32_buf_direct)
-}
-
-fn slice_copy_from_f32_buf(s, src) {
-    return try_slice_copy_from_f32_buf(s, src)
-}
-
-fn slice_load_i64(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("slice_load_i64: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_load_i64: index out of bounds") }
-    return oren_buf_load_i64(s[0], s[1] + idx)
-}
-
-fn try_slice_load_i64(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_load_i64: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_load_i64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_load_i64: index out of bounds") }
-    return slice_load_i64(s, idx)
-}
-
-fn slice_store_i64(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("slice_store_i64: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_store_i64: index out of bounds") }
-    return oren_buf_store_i64(s[0], s[1] + idx, v)
-}
-
-fn try_slice_store_i64(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_store_i64: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_store_i64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_store_i64: index out of bounds") }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_slice_store_i64: value not int") }
-    return slice_store_i64(s, idx, v)
-}
-
-fn try_slice_unpack_i64(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_i64: expects slice") }
-    return _view_unpack(try_slice_load_i64, s, s[2], "buffer.try_slice_unpack_i64")
-}
-
-fn slice_unpack_i64(s) {
-    return try_slice_unpack_i64(s)
-}
-
-fn try_slice_to_i64_buf(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_i64_buf: expects slice") }
-    return _view_to_typed_buf(try_slice_load_i64, s, s[2], "buffer.try_slice_to_i64_buf", _new_i64_buf, _store_i64_buf_direct)
-}
-
-fn slice_to_i64_buf(s) {
-    return try_slice_to_i64_buf(s)
-}
-
-fn try_slice_copy_from_list_i64(s, xs) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_i64: expects slice") }
-    return _view_copy_from_list(try_slice_store_i64, s, s[2], xs, "buffer.try_slice_copy_from_list_i64", _validate_i64_or_err)
-}
-
-fn slice_copy_from_list_i64(s, xs) {
-    return try_slice_copy_from_list_i64(s, xs)
-}
-
-fn try_slice_copy_from_i64_buf(s, src) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_i64_buf: expects slice") }
-    return _view_copy_from_typed_buf(try_slice_store_i64, s, s[2], src, "buffer.try_slice_copy_from_i64_buf", 11, "i64_buf", _load_i64_buf_direct)
-}
-
-fn slice_copy_from_i64_buf(s, src) {
-    return try_slice_copy_from_i64_buf(s, src)
-}
-
-fn slice_load_f64(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("slice_load_f64: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_load_f64: index out of bounds") }
-    return oren_buf_load_f64(s[0], s[1] + idx)
-}
-
-fn try_slice_load_f64(s, idx) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_load_f64: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_load_f64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_load_f64: index out of bounds") }
-    return slice_load_f64(s, idx)
-}
-
-fn slice_store_f64(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("slice_store_f64: expects slice") }
-    var n = s[2]
-    if idx < 0 || idx >= n { return _err_invalid("slice_store_f64: index out of bounds") }
-    return oren_buf_store_f64(s[0], s[1] + idx, v)
-}
-
-fn try_slice_store_f64(s, idx, v) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_store_f64: expects slice") }
-    var n = s[2]
-    var ok_idx = _check_int(idx, "buffer.try_slice_store_f64", "index")
-    if oren_is_err(ok_idx) { return ok_idx }
-    if idx < 0 || idx >= n { return oren_err(4, "buffer.try_slice_store_f64: index out of bounds") }
-    return slice_store_f64(s, idx, v)
-}
-
-fn try_slice_unpack_f64(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_unpack_f64: expects slice") }
-    return _view_unpack(try_slice_load_f64, s, s[2], "buffer.try_slice_unpack_f64")
-}
-
-fn slice_unpack_f64(s) {
-    return try_slice_unpack_f64(s)
-}
-
-fn try_slice_to_f64_buf(s) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_to_f64_buf: expects slice") }
-    return _view_to_typed_buf(try_slice_load_f64, s, s[2], "buffer.try_slice_to_f64_buf", _new_f64_buf, _store_f64_buf_direct)
-}
-
-fn slice_to_f64_buf(s) {
-    return try_slice_to_f64_buf(s)
-}
-
-fn try_slice_copy_from_list_f64(s, xs) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_list_f64: expects slice") }
-    return _view_copy_from_list(try_slice_store_f64, s, s[2], xs, "buffer.try_slice_copy_from_list_f64", _validate_passthru_or_err)
-}
-
-fn slice_copy_from_list_f64(s, xs) {
-    return try_slice_copy_from_list_f64(s, xs)
-}
-
-fn try_slice_copy_from_f64_buf(s, src) {
-    if !_slice_is_list(s) { return _err_invalid("buffer.try_slice_copy_from_f64_buf: expects slice") }
-    return _view_copy_from_typed_buf(try_slice_store_f64, s, s[2], src, "buffer.try_slice_copy_from_f64_buf", 13, "f64_buf", _load_f64_buf_direct)
-}
-
-fn slice_copy_from_f64_buf(s, src) {
-    return try_slice_copy_from_f64_buf(s, src)
-}
+fn _try_u8_view_copy_from_bytes(try_storef, is_viewf, kind_label, s, bytes, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _u8_view_copy_from_bytes(try_storef, s, s[2], bytes, ctx)
+}
+
+fn _try_u8_view_copy_from_u8_buf(try_storef, is_viewf, kind_label, s, src, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    return _u8_view_copy_from_u8_buf(try_storef, s, s[2], src, ctx)
+}
+
+fn _try_u8_view_copy_from_string(try_storef, is_viewf, kind_label, s, text, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    if oren_type_tag(text) != 4 { return oren_err(4, ctx + ": s must be string") }
+    return _u8_view_copy_from_string(try_storef, s, s[2], text, ctx)
+}
+
+fn strided_load_i32(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i32, s, idx, "strided_load_i32") }
+fn try_strided_load_i32(s, idx) { return _try_view_load(strided_load_i32, _strided_is_list, "strided", s, idx, "buffer.try_strided_load_i32") }
+fn strided_store_i32(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i32, s, idx, v, "strided_store_i32") }
+fn try_strided_store_i32(s, idx, v) { return _try_view_store(strided_store_i32, _validate_int_or_err, _strided_is_list, "strided", s, idx, v, "buffer.try_strided_store_i32") }
+fn try_strided_unpack_i32(s) { return _try_view_unpack(try_strided_load_i32, _strided_is_list, "strided", s, "buffer.try_strided_unpack_i32") }
+fn strided_unpack_i32(s) { return try_strided_unpack_i32(s) }
+fn try_strided_to_i32_buf(s) { return _try_view_to_typed_buf(try_strided_load_i32, _strided_is_list, "strided", s, "buffer.try_strided_to_i32_buf", _new_i32_buf, _store_i32_buf_direct) }
+fn strided_to_i32_buf(s) { return try_strided_to_i32_buf(s) }
+fn try_strided_copy_from_list_i32(s, xs) { return _try_view_copy_from_list(try_strided_store_i32, _validate_i32_or_err, _strided_is_list, "strided", s, xs, "buffer.try_strided_copy_from_list_i32") }
+fn strided_copy_from_list_i32(s, xs) { return try_strided_copy_from_list_i32(s, xs) }
+fn try_strided_copy_from_i32_buf(s, src) { return _try_view_copy_from_typed_buf(try_strided_store_i32, _strided_is_list, "strided", s, src, "buffer.try_strided_copy_from_i32_buf", 10, "i32_buf", _load_i32_buf_direct) }
+fn strided_copy_from_i32_buf(s, src) { return try_strided_copy_from_i32_buf(s, src) }
+
+fn strided_load_u8(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_u8, s, idx, "strided_load_u8") }
+fn try_strided_load_u8(s, idx) { return _try_view_load(strided_load_u8, _strided_is_list, "strided", s, idx, "buffer.try_strided_load_u8") }
+fn strided_store_u8(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_u8, s, idx, v, "strided_store_u8") }
+fn try_strided_store_u8(s, idx, v) { return _try_view_store(strided_store_u8, _validate_u8_or_err, _strided_is_list, "strided", s, idx, v, "buffer.try_strided_store_u8") }
+fn try_strided_to_bytes(s) { return _try_u8_view_to_bytes(try_strided_load_u8, _strided_is_list, "strided", s, "buffer.try_strided_to_bytes") }
+fn strided_to_bytes(s) { return try_strided_to_bytes(s) }
+fn try_strided_unpack_u8(s) { return _try_u8_view_unpack(try_strided_load_u8, _strided_is_list, "strided", s, "buffer.try_strided_unpack_u8") }
+fn strided_unpack_u8(s) { return try_strided_unpack_u8(s) }
+fn try_strided_to_u8_buf(s) { return _try_u8_view_to_u8_buf(try_strided_load_u8, _strided_is_list, "strided", s, "buffer.try_strided_to_u8_buf") }
+fn strided_to_u8_buf(s) { return try_strided_to_u8_buf(s) }
+fn try_strided_to_string(s) { return _try_u8_view_to_string(try_strided_to_bytes, s) }
+fn strided_to_string(s) { return try_strided_to_string(s) }
+fn try_strided_copy_from_bytes(s, bytes) { return _try_u8_view_copy_from_bytes(try_strided_store_u8, _strided_is_list, "strided", s, bytes, "buffer.try_strided_copy_from_bytes") }
+fn strided_copy_from_bytes(s, bytes) { return try_strided_copy_from_bytes(s, bytes) }
+fn try_strided_copy_from_u8_buf(s, src) { return _try_u8_view_copy_from_u8_buf(try_strided_store_u8, _strided_is_list, "strided", s, src, "buffer.try_strided_copy_from_u8_buf") }
+fn strided_copy_from_u8_buf(s, src) { return try_strided_copy_from_u8_buf(s, src) }
+fn try_strided_copy_from_string(s, text) { return _try_u8_view_copy_from_string(try_strided_store_u8, _strided_is_list, "strided", s, text, "buffer.try_strided_copy_from_string") }
+fn strided_copy_from_string(s, text) { return try_strided_copy_from_string(s, text) }
+
+fn strided_load_f32(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_f32, s, idx, "strided_load_f32") }
+fn try_strided_load_f32(s, idx) { return _try_view_load(strided_load_f32, _strided_is_list, "strided", s, idx, "buffer.try_strided_load_f32") }
+fn strided_store_f32(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_f32, s, idx, v, "strided_store_f32") }
+fn try_strided_store_f32(s, idx, v) { return _try_view_store(strided_store_f32, _validate_passthru_or_err, _strided_is_list, "strided", s, idx, v, "buffer.try_strided_store_f32") }
+fn try_strided_unpack_f32(s) { return _try_view_unpack(try_strided_load_f32, _strided_is_list, "strided", s, "buffer.try_strided_unpack_f32") }
+fn strided_unpack_f32(s) { return try_strided_unpack_f32(s) }
+fn try_strided_to_f32_buf(s) { return _try_view_to_typed_buf(try_strided_load_f32, _strided_is_list, "strided", s, "buffer.try_strided_to_f32_buf", _new_f32_buf, _store_f32_buf_direct) }
+fn strided_to_f32_buf(s) { return try_strided_to_f32_buf(s) }
+fn try_strided_copy_from_list_f32(s, xs) { return _try_view_copy_from_list(try_strided_store_f32, _validate_passthru_or_err, _strided_is_list, "strided", s, xs, "buffer.try_strided_copy_from_list_f32") }
+fn strided_copy_from_list_f32(s, xs) { return try_strided_copy_from_list_f32(s, xs) }
+fn try_strided_copy_from_f32_buf(s, src) { return _try_view_copy_from_typed_buf(try_strided_store_f32, _strided_is_list, "strided", s, src, "buffer.try_strided_copy_from_f32_buf", 12, "f32_buf", _load_f32_buf_direct) }
+fn strided_copy_from_f32_buf(s, src) { return try_strided_copy_from_f32_buf(s, src) }
+
+fn strided_load_i64(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_i64, s, idx, "strided_load_i64") }
+fn try_strided_load_i64(s, idx) { return _try_view_load(strided_load_i64, _strided_is_list, "strided", s, idx, "buffer.try_strided_load_i64") }
+fn strided_store_i64(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_i64, s, idx, v, "strided_store_i64") }
+fn try_strided_store_i64(s, idx, v) { return _try_view_store(strided_store_i64, _validate_int_or_err, _strided_is_list, "strided", s, idx, v, "buffer.try_strided_store_i64") }
+fn try_strided_unpack_i64(s) { return _try_view_unpack(try_strided_load_i64, _strided_is_list, "strided", s, "buffer.try_strided_unpack_i64") }
+fn strided_unpack_i64(s) { return try_strided_unpack_i64(s) }
+fn try_strided_to_i64_buf(s) { return _try_view_to_typed_buf(try_strided_load_i64, _strided_is_list, "strided", s, "buffer.try_strided_to_i64_buf", _new_i64_buf, _store_i64_buf_direct) }
+fn strided_to_i64_buf(s) { return try_strided_to_i64_buf(s) }
+fn try_strided_copy_from_list_i64(s, xs) { return _try_view_copy_from_list(try_strided_store_i64, _validate_i64_or_err, _strided_is_list, "strided", s, xs, "buffer.try_strided_copy_from_list_i64") }
+fn strided_copy_from_list_i64(s, xs) { return try_strided_copy_from_list_i64(s, xs) }
+fn try_strided_copy_from_i64_buf(s, src) { return _try_view_copy_from_typed_buf(try_strided_store_i64, _strided_is_list, "strided", s, src, "buffer.try_strided_copy_from_i64_buf", 11, "i64_buf", _load_i64_buf_direct) }
+fn strided_copy_from_i64_buf(s, src) { return try_strided_copy_from_i64_buf(s, src) }
+
+fn strided_load_f64(s, idx) { return _view_load_with(_strided_is_list, "strided", _strided_pos, _buf_load_f64, s, idx, "strided_load_f64") }
+fn try_strided_load_f64(s, idx) { return _try_view_load(strided_load_f64, _strided_is_list, "strided", s, idx, "buffer.try_strided_load_f64") }
+fn strided_store_f64(s, idx, v) { return _view_store_with(_strided_is_list, "strided", _strided_pos, _buf_store_f64, s, idx, v, "strided_store_f64") }
+fn try_strided_store_f64(s, idx, v) { return _try_view_store(strided_store_f64, _validate_passthru_or_err, _strided_is_list, "strided", s, idx, v, "buffer.try_strided_store_f64") }
+fn try_strided_unpack_f64(s) { return _try_view_unpack(try_strided_load_f64, _strided_is_list, "strided", s, "buffer.try_strided_unpack_f64") }
+fn strided_unpack_f64(s) { return try_strided_unpack_f64(s) }
+fn try_strided_to_f64_buf(s) { return _try_view_to_typed_buf(try_strided_load_f64, _strided_is_list, "strided", s, "buffer.try_strided_to_f64_buf", _new_f64_buf, _store_f64_buf_direct) }
+fn strided_to_f64_buf(s) { return try_strided_to_f64_buf(s) }
+fn try_strided_copy_from_list_f64(s, xs) { return _try_view_copy_from_list(try_strided_store_f64, _validate_passthru_or_err, _strided_is_list, "strided", s, xs, "buffer.try_strided_copy_from_list_f64") }
+fn strided_copy_from_list_f64(s, xs) { return try_strided_copy_from_list_f64(s, xs) }
+fn try_strided_copy_from_f64_buf(s, src) { return _try_view_copy_from_typed_buf(try_strided_store_f64, _strided_is_list, "strided", s, src, "buffer.try_strided_copy_from_f64_buf", 13, "f64_buf", _load_f64_buf_direct) }
+fn strided_copy_from_f64_buf(s, src) { return try_strided_copy_from_f64_buf(s, src) }
+
+fn slice_load_i32(s, idx) { return _view_load_with(_slice_is_list, "slice", _slice_pos, _buf_load_i32, s, idx, "slice_load_i32") }
+fn try_slice_load_i32(s, idx) { return _try_view_load(slice_load_i32, _slice_is_list, "slice", s, idx, "buffer.try_slice_load_i32") }
+fn slice_store_i32(s, idx, v) { return _view_store_with(_slice_is_list, "slice", _slice_pos, _buf_store_i32, s, idx, v, "slice_store_i32") }
+fn try_slice_store_i32(s, idx, v) { return _try_view_store(slice_store_i32, _validate_int_or_err, _slice_is_list, "slice", s, idx, v, "buffer.try_slice_store_i32") }
+fn try_slice_unpack_i32(s) { return _try_view_unpack(try_slice_load_i32, _slice_is_list, "slice", s, "buffer.try_slice_unpack_i32") }
+fn slice_unpack_i32(s) { return try_slice_unpack_i32(s) }
+fn try_slice_to_i32_buf(s) { return _try_view_to_typed_buf(try_slice_load_i32, _slice_is_list, "slice", s, "buffer.try_slice_to_i32_buf", _new_i32_buf, _store_i32_buf_direct) }
+fn slice_to_i32_buf(s) { return try_slice_to_i32_buf(s) }
+fn try_slice_copy_from_list_i32(s, xs) { return _try_view_copy_from_list(try_slice_store_i32, _validate_i32_or_err, _slice_is_list, "slice", s, xs, "buffer.try_slice_copy_from_list_i32") }
+fn slice_copy_from_list_i32(s, xs) { return try_slice_copy_from_list_i32(s, xs) }
+fn try_slice_copy_from_i32_buf(s, src) { return _try_view_copy_from_typed_buf(try_slice_store_i32, _slice_is_list, "slice", s, src, "buffer.try_slice_copy_from_i32_buf", 10, "i32_buf", _load_i32_buf_direct) }
+fn slice_copy_from_i32_buf(s, src) { return try_slice_copy_from_i32_buf(s, src) }
+
+fn slice_load_u8(s, idx) { return _view_load_with(_slice_is_list, "slice", _slice_pos, _buf_load_u8, s, idx, "slice_load_u8") }
+fn try_slice_load_u8(s, idx) { return _try_view_load(slice_load_u8, _slice_is_list, "slice", s, idx, "buffer.try_slice_load_u8") }
+fn slice_store_u8(s, idx, v) { return _view_store_with(_slice_is_list, "slice", _slice_pos, _buf_store_u8, s, idx, v, "slice_store_u8") }
+fn try_slice_store_u8(s, idx, v) { return _try_view_store(slice_store_u8, _validate_u8_or_err, _slice_is_list, "slice", s, idx, v, "buffer.try_slice_store_u8") }
+fn try_slice_to_bytes(s) { return _try_u8_view_to_bytes(try_slice_load_u8, _slice_is_list, "slice", s, "buffer.try_slice_to_bytes") }
+fn slice_to_bytes(s) { return try_slice_to_bytes(s) }
+fn try_slice_unpack_u8(s) { return _try_u8_view_unpack(try_slice_load_u8, _slice_is_list, "slice", s, "buffer.try_slice_unpack_u8") }
+fn slice_unpack_u8(s) { return try_slice_unpack_u8(s) }
+fn try_slice_to_u8_buf(s) { return _try_u8_view_to_u8_buf(try_slice_load_u8, _slice_is_list, "slice", s, "buffer.try_slice_to_u8_buf") }
+fn slice_to_u8_buf(s) { return try_slice_to_u8_buf(s) }
+fn try_slice_to_string(s) { return _try_u8_view_to_string(try_slice_to_bytes, s) }
+fn slice_to_string(s) { return try_slice_to_string(s) }
+fn try_slice_copy_from_bytes(s, bytes) { return _try_u8_view_copy_from_bytes(try_slice_store_u8, _slice_is_list, "slice", s, bytes, "buffer.try_slice_copy_from_bytes") }
+fn slice_copy_from_bytes(s, bytes) { return try_slice_copy_from_bytes(s, bytes) }
+fn try_slice_copy_from_u8_buf(s, src) { return _try_u8_view_copy_from_u8_buf(try_slice_store_u8, _slice_is_list, "slice", s, src, "buffer.try_slice_copy_from_u8_buf") }
+fn slice_copy_from_u8_buf(s, src) { return try_slice_copy_from_u8_buf(s, src) }
+fn try_slice_copy_from_string(s, text) { return _try_u8_view_copy_from_string(try_slice_store_u8, _slice_is_list, "slice", s, text, "buffer.try_slice_copy_from_string") }
+fn slice_copy_from_string(s, text) { return try_slice_copy_from_string(s, text) }
+
+fn slice_load_f32(s, idx) { return _view_load_with(_slice_is_list, "slice", _slice_pos, _buf_load_f32, s, idx, "slice_load_f32") }
+fn try_slice_load_f32(s, idx) { return _try_view_load(slice_load_f32, _slice_is_list, "slice", s, idx, "buffer.try_slice_load_f32") }
+fn slice_store_f32(s, idx, v) { return _view_store_with(_slice_is_list, "slice", _slice_pos, _buf_store_f32, s, idx, v, "slice_store_f32") }
+fn try_slice_store_f32(s, idx, v) { return _try_view_store(slice_store_f32, _validate_passthru_or_err, _slice_is_list, "slice", s, idx, v, "buffer.try_slice_store_f32") }
+fn try_slice_unpack_f32(s) { return _try_view_unpack(try_slice_load_f32, _slice_is_list, "slice", s, "buffer.try_slice_unpack_f32") }
+fn slice_unpack_f32(s) { return try_slice_unpack_f32(s) }
+fn try_slice_to_f32_buf(s) { return _try_view_to_typed_buf(try_slice_load_f32, _slice_is_list, "slice", s, "buffer.try_slice_to_f32_buf", _new_f32_buf, _store_f32_buf_direct) }
+fn slice_to_f32_buf(s) { return try_slice_to_f32_buf(s) }
+fn try_slice_copy_from_list_f32(s, xs) { return _try_view_copy_from_list(try_slice_store_f32, _validate_passthru_or_err, _slice_is_list, "slice", s, xs, "buffer.try_slice_copy_from_list_f32") }
+fn slice_copy_from_list_f32(s, xs) { return try_slice_copy_from_list_f32(s, xs) }
+fn try_slice_copy_from_f32_buf(s, src) { return _try_view_copy_from_typed_buf(try_slice_store_f32, _slice_is_list, "slice", s, src, "buffer.try_slice_copy_from_f32_buf", 12, "f32_buf", _load_f32_buf_direct) }
+fn slice_copy_from_f32_buf(s, src) { return try_slice_copy_from_f32_buf(s, src) }
+
+fn slice_load_i64(s, idx) { return _view_load_with(_slice_is_list, "slice", _slice_pos, _buf_load_i64, s, idx, "slice_load_i64") }
+fn try_slice_load_i64(s, idx) { return _try_view_load(slice_load_i64, _slice_is_list, "slice", s, idx, "buffer.try_slice_load_i64") }
+fn slice_store_i64(s, idx, v) { return _view_store_with(_slice_is_list, "slice", _slice_pos, _buf_store_i64, s, idx, v, "slice_store_i64") }
+fn try_slice_store_i64(s, idx, v) { return _try_view_store(slice_store_i64, _validate_int_or_err, _slice_is_list, "slice", s, idx, v, "buffer.try_slice_store_i64") }
+fn try_slice_unpack_i64(s) { return _try_view_unpack(try_slice_load_i64, _slice_is_list, "slice", s, "buffer.try_slice_unpack_i64") }
+fn slice_unpack_i64(s) { return try_slice_unpack_i64(s) }
+fn try_slice_to_i64_buf(s) { return _try_view_to_typed_buf(try_slice_load_i64, _slice_is_list, "slice", s, "buffer.try_slice_to_i64_buf", _new_i64_buf, _store_i64_buf_direct) }
+fn slice_to_i64_buf(s) { return try_slice_to_i64_buf(s) }
+fn try_slice_copy_from_list_i64(s, xs) { return _try_view_copy_from_list(try_slice_store_i64, _validate_i64_or_err, _slice_is_list, "slice", s, xs, "buffer.try_slice_copy_from_list_i64") }
+fn slice_copy_from_list_i64(s, xs) { return try_slice_copy_from_list_i64(s, xs) }
+fn try_slice_copy_from_i64_buf(s, src) { return _try_view_copy_from_typed_buf(try_slice_store_i64, _slice_is_list, "slice", s, src, "buffer.try_slice_copy_from_i64_buf", 11, "i64_buf", _load_i64_buf_direct) }
+fn slice_copy_from_i64_buf(s, src) { return try_slice_copy_from_i64_buf(s, src) }
+
+fn slice_load_f64(s, idx) { return _view_load_with(_slice_is_list, "slice", _slice_pos, _buf_load_f64, s, idx, "slice_load_f64") }
+fn try_slice_load_f64(s, idx) { return _try_view_load(slice_load_f64, _slice_is_list, "slice", s, idx, "buffer.try_slice_load_f64") }
+fn slice_store_f64(s, idx, v) { return _view_store_with(_slice_is_list, "slice", _slice_pos, _buf_store_f64, s, idx, v, "slice_store_f64") }
+fn try_slice_store_f64(s, idx, v) { return _try_view_store(slice_store_f64, _validate_passthru_or_err, _slice_is_list, "slice", s, idx, v, "buffer.try_slice_store_f64") }
+fn try_slice_unpack_f64(s) { return _try_view_unpack(try_slice_load_f64, _slice_is_list, "slice", s, "buffer.try_slice_unpack_f64") }
+fn slice_unpack_f64(s) { return try_slice_unpack_f64(s) }
+fn try_slice_to_f64_buf(s) { return _try_view_to_typed_buf(try_slice_load_f64, _slice_is_list, "slice", s, "buffer.try_slice_to_f64_buf", _new_f64_buf, _store_f64_buf_direct) }
+fn slice_to_f64_buf(s) { return try_slice_to_f64_buf(s) }
+fn try_slice_copy_from_list_f64(s, xs) { return _try_view_copy_from_list(try_slice_store_f64, _validate_passthru_or_err, _slice_is_list, "slice", s, xs, "buffer.try_slice_copy_from_list_f64") }
+fn slice_copy_from_list_f64(s, xs) { return try_slice_copy_from_list_f64(s, xs) }
+fn try_slice_copy_from_f64_buf(s, src) { return _try_view_copy_from_typed_buf(try_slice_store_f64, _slice_is_list, "slice", s, src, "buffer.try_slice_copy_from_f64_buf", 13, "f64_buf", _load_f64_buf_direct) }
+fn slice_copy_from_f64_buf(s, src) { return try_slice_copy_from_f64_buf(s, src) }

@@ -6,6 +6,7 @@ test_src="${OREN_QI_SRC:-tests/native/test_quick_integration_native.oren}"
 test_label="${OREN_QI_LABEL:-native_quick_integration}"
 
 timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
+python3_bin="$(command -v python3 2>/dev/null || echo "")"
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
 build_timeout_secs=10
 run_timeout_secs=5
@@ -46,6 +47,43 @@ run_with_timeout() {
   if [[ "${uname_s:-}" == "Darwin" ]]; then
     if [[ -z "$secs" || "$secs" == "0" ]]; then
       "$@"
+      return $?
+    fi
+
+    if [[ -n "$python3_bin" ]]; then
+      "$python3_bin" - "$secs" "$timeout_kill_secs" "$@" <<'PY'
+import subprocess
+import sys
+
+secs = float(sys.argv[1])
+kill_secs = float(sys.argv[2])
+cmd = sys.argv[3:]
+
+def norm_rc(rc):
+    if rc < 0:
+        return 128 + (-rc)
+    return rc
+
+p = subprocess.Popen(cmd)
+try:
+    rc = p.wait(timeout=secs)
+    raise SystemExit(norm_rc(rc))
+except subprocess.TimeoutExpired:
+    try:
+        p.terminate()
+    except ProcessLookupError:
+        raise SystemExit(143)
+    try:
+        rc = p.wait(timeout=kill_secs)
+        raise SystemExit(norm_rc(rc))
+    except subprocess.TimeoutExpired:
+        try:
+            p.kill()
+        except ProcessLookupError:
+            raise SystemExit(143)
+        rc = p.wait()
+        raise SystemExit(norm_rc(rc))
+PY
       return $?
     fi
 
@@ -282,19 +320,36 @@ run_base() {
   return "$rc"
 }
 
+phase_rc=0
 if [[ "$green_cache_first" == "1" ]]; then
+  set +e
   run_green_cache
-  if [[ "$stop_after_green_cache" == "1" ]]; then
-    exit 0
+  phase_rc=$?
+  set -e
+  if [[ "$phase_rc" -eq 0 && "$stop_after_green_cache" != "1" ]]; then
+    set +e
+    run_base
+    phase_rc=$?
+    set -e
   fi
-  run_base
 else
+  set +e
   run_base
-  run_green_cache
+  phase_rc=$?
+  set -e
+  if [[ "$phase_rc" -eq 0 ]]; then
+    set +e
+    run_green_cache
+    phase_rc=$?
+    set -e
+  fi
 fi
 
 tail -n 5 "$log"
 
+if [[ "$phase_rc" -ne 0 ]]; then
+  exit "$phase_rc"
+fi
 if [[ "$stop_after_green_cache" == "1" ]]; then
   exit 0
 fi

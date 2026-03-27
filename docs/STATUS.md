@@ -797,6 +797,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      green-cache rerun under `set +e` when collecting retry status, so `run_with_timeout_retry(...)`
      can actually feed the scripted retry paths instead of aborting the harness early under
      `set -e`; covered by native quick integration and full `make test` (2026-03-27).
+   - Fix: `scripts/run_native_quick_integration.sh` now also captures the top-level
+     `run_base` / `run_green_cache` phase status under `set +e` before tailing the inner log,
+     so a timeout-style nonzero no longer aborts the harness at the phase call site before the
+     intended tail/exit handling runs; covered by native quick integration and full `make test`
+     (2026-03-27).
+   - Fix: on macOS, `scripts/run_native_quick_integration.sh` now prefers a Python
+     `subprocess.wait(timeout=...)` watchdog over the older bash sleeper/`kill` watcher, which
+     removes the late `rc=143` false-red path where the inner stage2 log had already completed
+     successfully but the outer make target was still terminated by a racing watchdog
+     (2026-03-27).
   - Fix: macOS stage1 native-quick verification now also keeps the default green-cache rerun
     watchdog at `360s` instead of `240s`. A direct `240s` run still false-red with `rc=143`
     after the rerun had already emitted its last visible debug lines, while `360s` completed
