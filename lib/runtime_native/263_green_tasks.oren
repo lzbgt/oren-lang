@@ -3,6 +3,7 @@
 // This file is intentionally split into smaller modules to keep iteration fast
 // and reviews focused. Include order remains semantically significant.
 //
+// @include "263_green/005_green_state.oren"
 // @include "263_green/010_green_core.oren"
 // @include "263_green/020_green_poll.oren"
 // @include "263_green/030_green_entry.oren"

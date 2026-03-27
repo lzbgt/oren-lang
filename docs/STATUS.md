@@ -889,6 +889,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 6) **W3 - Tooling/ABI stability**
    - ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
    - AVM build/parity gate integrity is tracked as a W4 blocker when broken (select case parsing + helper exports; 2026-02-25).
+   - `scripts/run_native_capsule_smoke.sh` now defaults to cached builds and
+     `test-native-capsule-smoke-stage2` uses a 180s build watchdog, which avoids a measured
+     timeout-style false red where stage2 spent minutes in a deliberate cold compile before the
+     capsule runtime smoke even ran on this host (2026-03-27).
 
 7) **W3 - Docs fidelity + regression gates**
    - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
@@ -896,7 +900,6 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 8) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk; current tracked >2000-line targets after the
      latest compiler split are:
-     - `lib/runtime_native/263_green/010_green_core.oren` (~2376 lines, 2026-03-27 scan).
      - `pkg/transpiler/transpiler.go` (~2269 lines, 2026-03-27 scan).
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
@@ -924,6 +927,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        `lib/compiler/compiler/040_build_pipeline/005_helpers.oren` plus a 1957-line main command
        dispatcher, keeping the compile-time include order unchanged while dropping the tracked main
        file below the 2000-line threshold (2026-03-27).
+     - `lib/runtime_native/263_green/010_green_core.oren` split into a shared state/layout prelude
+       (`lib/runtime_native/263_green/005_green_state.oren`) plus a 1928-line queue/scheduler core,
+       keeping the green-module include order intact while moving offsets, globals, and tiny
+       scheduler-state accessors out of the hot scheduler implementation (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).
@@ -2618,8 +2625,7 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 5) **Allow non-macOS hosts for partial targets** (S, W2)
 6) **Package manager / signed module workflow** (M, W2)
 7) **Refactor oversized native emitters (>2000 lines)** (M, W2)
-8) **Refactor `lib/runtime_native/263_green/010_green_core.oren` (>2000 lines)** (M, W2)
-9) **Refactor `pkg/transpiler/transpiler.go` (>2000 lines)** (M, W2)
+8) **Refactor `pkg/transpiler/transpiler.go` (>2000 lines)** (M, W2)
 
 ---
 

@@ -8,6 +8,7 @@ timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
 build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS:-5}"
+cache_mode="${OREN_NATIVE_CAPSULE_SMOKE_CACHE:-1}"
 
 run_with_timeout() {
   local secs="$1"
@@ -86,12 +87,20 @@ echo "log=$log" | tee -a "$log"
 rm -f "$out" 2>/dev/null || true
 
 # NOTE:
-# - Keep this smoke fast (bounded) by using `--no-debug` (smaller binaries) and `--no-cache`
-#   (forces real compilation even if the build cache is warm).
+# - Keep this smoke fast (bounded) by using `--no-debug` (smaller binaries).
+# - Use the compiler build cache by default. For stage2 verification on this host, forcing
+#   `--no-cache` can turn a minimal capsule smoke into a multi-minute cold compile that trips
+#   watchdogs before the actual runtime path is exercised.
+# - Set `OREN_NATIVE_CAPSULE_SMOKE_CACHE=0` to force a cold build when compile-path timing is
+#   the thing under investigation.
 # - Do not force-disable runtime bundle caches here: doing so turns this into an "rtobj miss"
 #   benchmark and can legitimately take >10s on modern hosts.
+cache_arg=""
+if [[ "$cache_mode" == "0" ]]; then
+  cache_arg="--no-cache"
+fi
 run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
-  --backend native --platform "$platform" --capsule --no-debug --no-cache -o "$out" >>"$log" 2>&1
+  --backend native --platform "$platform" --capsule --no-debug $cache_arg -o "$out" >>"$log" 2>&1
 
 run_with_timeout "$run_timeout_secs" "$out" >>"$log" 2>&1
 

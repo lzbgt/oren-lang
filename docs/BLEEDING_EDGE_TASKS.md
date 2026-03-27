@@ -2478,6 +2478,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (`lib/compiler/compiler/040_build_pipeline/005_helpers.oren`) plus the main command-dispatch
      unit, leaving the main file at 1957 lines while keeping the compile-time include order and
      behavior unchanged (2026-03-27).
+   - Done: `lib/runtime_native/263_green/010_green_core.oren` split into a shared state/layout
+     prelude (`lib/runtime_native/263_green/005_green_state.oren`) plus a 1928-line queue and
+     scheduler core, which keeps the green-task include order intact while moving offsets, globals,
+     and tiny state accessors out of the hot scheduler implementation (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
      `avm_cli_disasm`, `avm_cli_dump`) (<2000 lines each, 2026-02-25).
@@ -2487,11 +2491,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (`055_emit_ops_locals`, `056_emit_ops_match`, `057_emit_ops_while_emit`)
      (<2000 lines each, 2026-02-25).
    - Next targets (>=2000 lines, 2026-03-05 scan):
-     - `lib/runtime_native/263_green/010_green_core.oren` (~2371 lines).
      - `pkg/transpiler/transpiler.go` (~2269 lines).
 
 11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
+   - Fix: `scripts/run_native_capsule_smoke.sh` now uses the native build cache by default and
+     `test-native-capsule-smoke-stage2` raises the stage2 build watchdog to 180s, avoiding a
+     timeout-style false red where the harness spent minutes in a deliberate `--no-cache` cold
+     compile before reaching the actual capsule runtime smoke on this host (2026-03-27).
    - Done: enable `--python` embedding flags for stage0 MSVC builds (bootstrap/windows parity).
    - Fix AVM build breaks that block `make verify-backend-parity-tags` (select case parsing + helper visibility + headers).
    - Investigate repeated `/v1/tools` polling failures from `index-*.js`
