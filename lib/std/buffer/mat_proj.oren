@@ -99,6 +99,18 @@ fn _proj1_copy(m, key, src, projectf, opf) {
     return opf(v, src)
 }
 
+fn _copy_diag_from_bytes_slice(v, slice_spec) {
+    return view.try_strided_copy_from_bytes_slice(v, slice_spec[0], slice_spec[1], slice_spec[2])
+}
+
+fn _copy_row_from_bytes_slice(v, slice_spec) {
+    return view.try_slice_copy_from_bytes_slice(v, slice_spec[0], slice_spec[1], slice_spec[2])
+}
+
+fn _copy_col_from_bytes_slice(v, slice_spec) {
+    return view.try_strided_copy_from_bytes_slice(v, slice_spec[0], slice_spec[1], slice_spec[2])
+}
+
 fn mat_diag_to_bytes(m) { return _proj0(m, mat_diag_strided, view.try_strided_to_bytes) }
 fn try_mat_diag_to_bytes(m) { return _proj0(m, try_mat_diag_strided, view.try_strided_to_bytes) }
 fn mat_diag_unpack_u8(m) { return _proj0(m, mat_diag_strided, view.try_strided_unpack_u8) }
@@ -141,6 +153,8 @@ fn try_mat_diag_copy_from_f64_buf(m, src) { return _proj0_copy(m, src, try_mat_d
 fn mat_diag_copy_from_f64_buf(m, src) { return _proj0_copy(m, src, try_mat_diag_strided, view.try_strided_copy_from_f64_buf) }
 fn mat_diag_copy_from_bytes(m, bytes) { return _proj0_copy(m, bytes, mat_diag_strided, view.try_strided_copy_from_bytes) }
 fn try_mat_diag_copy_from_bytes(m, bytes) { return _proj0_copy(m, bytes, try_mat_diag_strided, view.try_strided_copy_from_bytes) }
+fn mat_diag_copy_from_bytes_slice(m, bytes, off, n) { return _proj0_copy(m, [bytes, off, n], mat_diag_strided, _copy_diag_from_bytes_slice) }
+fn try_mat_diag_copy_from_bytes_slice(m, bytes, off, n) { return _proj0_copy(m, [bytes, off, n], try_mat_diag_strided, _copy_diag_from_bytes_slice) }
 fn mat_diag_copy_from_u8_buf(m, src) { return _proj0_copy(m, src, mat_diag_strided, view.try_strided_copy_from_u8_buf) }
 fn try_mat_diag_copy_from_u8_buf(m, src) { return _proj0_copy(m, src, try_mat_diag_strided, view.try_strided_copy_from_u8_buf) }
 fn mat_diag_copy_from_string(m, text) { return _proj0_copy(m, text, mat_diag_strided, view.try_strided_copy_from_string) }
@@ -188,6 +202,8 @@ fn try_mat_row_copy_from_f64_buf(m, r, src) { return _proj1_copy(m, r, src, try_
 fn mat_row_copy_from_f64_buf(m, r, src) { return _proj1_copy(m, r, src, try_mat_row_slice, view.try_slice_copy_from_f64_buf) }
 fn mat_row_copy_from_bytes(m, r, bytes) { return _proj1_copy(m, r, bytes, mat_row_slice, view.try_slice_copy_from_bytes) }
 fn try_mat_row_copy_from_bytes(m, r, bytes) { return _proj1_copy(m, r, bytes, try_mat_row_slice, view.try_slice_copy_from_bytes) }
+fn mat_row_copy_from_bytes_slice(m, r, bytes, off, n) { return _proj1_copy(m, r, [bytes, off, n], mat_row_slice, _copy_row_from_bytes_slice) }
+fn try_mat_row_copy_from_bytes_slice(m, r, bytes, off, n) { return _proj1_copy(m, r, [bytes, off, n], try_mat_row_slice, _copy_row_from_bytes_slice) }
 fn mat_row_copy_from_u8_buf(m, r, src) { return _proj1_copy(m, r, src, mat_row_slice, view.try_slice_copy_from_u8_buf) }
 fn try_mat_row_copy_from_u8_buf(m, r, src) { return _proj1_copy(m, r, src, try_mat_row_slice, view.try_slice_copy_from_u8_buf) }
 fn mat_row_copy_from_string(m, r, text) { return _proj1_copy(m, r, text, mat_row_slice, view.try_slice_copy_from_string) }
@@ -235,6 +251,8 @@ fn try_mat_col_copy_from_f64_buf(m, c, src) { return _proj1_copy(m, c, src, try_
 fn mat_col_copy_from_f64_buf(m, c, src) { return _proj1_copy(m, c, src, try_mat_col_strided, view.try_strided_copy_from_f64_buf) }
 fn mat_col_copy_from_bytes(m, c, bytes) { return _proj1_copy(m, c, bytes, mat_col_strided, view.try_strided_copy_from_bytes) }
 fn try_mat_col_copy_from_bytes(m, c, bytes) { return _proj1_copy(m, c, bytes, try_mat_col_strided, view.try_strided_copy_from_bytes) }
+fn mat_col_copy_from_bytes_slice(m, c, bytes, off, n) { return _proj1_copy(m, c, [bytes, off, n], mat_col_strided, _copy_col_from_bytes_slice) }
+fn try_mat_col_copy_from_bytes_slice(m, c, bytes, off, n) { return _proj1_copy(m, c, [bytes, off, n], try_mat_col_strided, _copy_col_from_bytes_slice) }
 fn mat_col_copy_from_u8_buf(m, c, src) { return _proj1_copy(m, c, src, mat_col_strided, view.try_strided_copy_from_u8_buf) }
 fn try_mat_col_copy_from_u8_buf(m, c, src) { return _proj1_copy(m, c, src, try_mat_col_strided, view.try_strided_copy_from_u8_buf) }
 fn mat_col_copy_from_string(m, c, text) { return _proj1_copy(m, c, text, mat_col_strided, view.try_strided_copy_from_string) }

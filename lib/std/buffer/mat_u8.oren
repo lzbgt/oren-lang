@@ -197,6 +197,16 @@ fn try_u8_mat_copy_from_bytes(m, bytes) {
     return u8_mat_copy_from_bytes(m, bytes)
 }
 
+fn u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
+    var bs = bytesm.try_slice(bytes, off, n)
+    if oren_is_err(bs) { return bs }
+    return u8_mat_copy_from_bytes(m, bs)
+}
+
+fn try_u8_mat_copy_from_bytes_slice(m, bytes, off, n) {
+    return u8_mat_copy_from_bytes_slice(m, bytes, off, n)
+}
+
 fn u8_mat_copy_from_u8_buf(m, src) {
     var bytes = raw.try_u8_to_bytes(src)
     if oren_is_err(bytes) { return bytes }

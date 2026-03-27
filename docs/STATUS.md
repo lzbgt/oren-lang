@@ -669,17 +669,19 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      integration + dedicated AVM buffer-view smoke, with exact float value proof kept in AVM and
      shared native fixtures checking non-error/shape only (2026-03-27).
    - New: `std:buffer` now also exposes checked whole-buffer refill helpers for raw typed buffers,
-     including `try_u8_copy_from_u8_buf`, `try_u8_copy_from_bytes`, `try_u8_copy_from_string`,
-     `try_i32_copy_from_i32_buf`, `try_i64_copy_from_i64_buf`, `try_f32_copy_from_f32_buf`, and
-     `try_f64_copy_from_f64_buf`, so callers can refill existing typed buffers without allocating a
-     fresh bridge buffer or open-coding per-element loops; covered by result smoke + native quick
-     integration + dedicated AVM buffer-view smoke, with exact float value proof kept in AVM and
-     shared native fixtures checking non-error/shape only (2026-03-27).
+     including `try_u8_copy_from_u8_buf`, `try_u8_copy_from_bytes`,
+     `try_u8_copy_from_bytes_slice`, `try_u8_copy_from_string`, `try_i32_copy_from_i32_buf`,
+     `try_i64_copy_from_i64_buf`, `try_f32_copy_from_f32_buf`, and `try_f64_copy_from_f64_buf`,
+     so callers can refill existing typed buffers without allocating a fresh bridge buffer or
+     open-coding per-element loops, including direct byte-window refill without materializing an
+     intermediate `[]u8`; covered by result smoke + native quick integration + dedicated AVM
+     buffer-view smoke, with exact float value proof kept in AVM and shared native fixtures
+     checking non-error/shape only (2026-03-27).
    - New: `std:buffer` now also exposes checked `[]u8` zero-copy view bridge helpers
      (`try_slice_to_bytes`, `try_slice_to_string`, `try_slice_copy_from_bytes`,
-     `try_strided_to_bytes`, `try_strided_to_string`, `try_strided_copy_from_bytes`);
-     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
-     (2026-03-27).
+     `try_slice_copy_from_bytes_slice`, `try_strided_to_bytes`, `try_strided_to_string`,
+     `try_strided_copy_from_bytes`, `try_strided_copy_from_bytes_slice`); covered by result smoke +
+     native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` matrix views now also project back into the zero-copy slice/strided
      surface via `try_mat_row_slice` and `try_mat_col_strided`, so matrix code can reuse the
      existing checked `[]u8` slice/strided bridge helpers instead of rebuilding index math by hand;
@@ -701,22 +703,25 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      loops; covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
    - New: `std:buffer` now also exposes direct checked matrix-row/column `[]u8` bridge helpers
-     such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`, `try_mat_col_to_string`,
-     and `try_mat_col_copy_from_string`, so matrix callers can stay on the matrix surface for the
-     common row/column text and byte bridge paths; covered by result smoke + native quick
-     integration + dedicated AVM buffer-view smoke (2026-03-27).
+     such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`,
+     `try_mat_row_copy_from_bytes_slice`, `try_mat_col_to_string`, `try_mat_col_copy_from_string`,
+     and `try_mat_col_copy_from_bytes_slice`, so matrix callers can stay on the matrix surface for
+     the common row/column text and byte bridge paths, including direct byte-window refill without
+     open-coding a temporary slice; covered by result smoke + native quick integration + dedicated
+     AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` now also exposes direct checked matrix-diagonal `[]u8` bridge helpers such
-     as `try_mat_diag_to_string`, `try_mat_diag_to_bytes`, `try_mat_diag_copy_from_string`, and
-     `try_mat_diag_copy_from_u8_buf`, so matrix callers can stay on the matrix surface for the
-     common diagonal byte/text bridge paths instead of routing through an explicit strided view;
-     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
-     (2026-03-27).
+     as `try_mat_diag_to_string`, `try_mat_diag_to_bytes`, `try_mat_diag_copy_from_string`,
+     `try_mat_diag_copy_from_bytes_slice`, and `try_mat_diag_copy_from_u8_buf`, so matrix callers
+     can stay on the matrix surface for the common diagonal byte/text bridge paths instead of
+     routing through an explicit strided view; covered by result smoke + native quick integration +
+     dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` now also exposes direct checked whole-matrix `[]u8` flatten/copy helpers
      such as `try_u8_mat_to_bytes`, `try_u8_mat_to_string`, `try_u8_mat_copy_from_bytes`,
-     `try_u8_mat_copy_from_string`, `try_u8_mat_copy_from_rows`, and
-     `try_u8_mat_copy_from_strings`, so matrix callers can bridge or refill the entire visible
-     matrix without open-coding row loops; covered by result smoke + native quick integration +
-     dedicated AVM buffer-view smoke (2026-03-27).
+     `try_u8_mat_copy_from_bytes_slice`, `try_u8_mat_copy_from_string`,
+     `try_u8_mat_copy_from_rows`, and `try_u8_mat_copy_from_strings`, so matrix callers can bridge
+     or refill the entire visible matrix without open-coding row loops, including direct byte-window
+     refill on the matrix surface; covered by result smoke + native quick integration + dedicated
+     AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` now also exposes symmetric checked whole-matrix `[]u8` flat-list helpers
      `try_u8_mat_unpack_flat` and `try_u8_mat_copy_from_flat`, so callers can use the same
      `*_mat_unpack_flat` / `*_mat_copy_from_flat` row-major pattern across `u8`, `i32`, `i64`,

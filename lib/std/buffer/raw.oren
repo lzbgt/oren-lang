@@ -363,6 +363,16 @@ fn u8_copy_from_bytes(out: []u8, bytes) {
     return try_u8_copy_from_bytes(out, bytes)
 }
 
+fn try_u8_copy_from_bytes_slice(out: []u8, bytes, off, n) {
+    var src = bytesm.try_to_u8_buf_slice(bytes, off, n)
+    if oren_is_err(src) { return src }
+    return try_u8_copy_from_u8_buf(out, src)
+}
+
+fn u8_copy_from_bytes_slice(out: []u8, bytes, off, n) {
+    return try_u8_copy_from_bytes_slice(out, bytes, off, n)
+}
+
 fn try_u8_copy_from_string(out: []u8, s) {
     if oren_type_tag(s) != 4 { return oren_err(4, "buffer.try_u8_copy_from_string: s must be string") }
     var bs = bytesm.try_from_string(s)

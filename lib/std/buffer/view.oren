@@ -140,6 +140,12 @@ fn _u8_view_copy_from_bytes(store_fn, view, n, bytes, ctx) {
     return _u8_view_copy_from_list(store_fn, view, n, xs, ctx)
 }
 
+fn _u8_view_copy_from_bytes_slice(store_fn, view, n, bytes, off, count, ctx) {
+    var bs = bytesm.try_slice(bytes, off, count)
+    if oren_is_err(bs) { return bs }
+    return _u8_view_copy_from_bytes(store_fn, view, n, bs, ctx)
+}
+
 fn _u8_view_copy_from_string(store_fn, view, n, s, ctx) {
     var bs = bytesm.try_from_string(s)
     if oren_is_err(bs) { return bs }
@@ -324,6 +330,13 @@ fn _try_u8_view_copy_from_bytes(try_storef, is_viewf, kind_label, s, bytes, ctx)
     return _u8_view_copy_from_bytes(try_storef, s, s[2], bytes, ctx)
 }
 
+fn _try_u8_view_copy_from_bytes_slice(try_storef, is_viewf, kind_label, s, bytes, off, count, ctx) {
+    if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
+    if !_is_int(off) { return oren_err(4, ctx + ": off must be int") }
+    if !_is_int(count) { return oren_err(4, ctx + ": n must be int") }
+    return _u8_view_copy_from_bytes_slice(try_storef, s, s[2], bytes, off, count, ctx)
+}
+
 fn _try_u8_view_copy_from_u8_buf(try_storef, is_viewf, kind_label, s, src, ctx) {
     if !is_viewf(s) { return _err_invalid(ctx + ": expects " + kind_label) }
     return _u8_view_copy_from_u8_buf(try_storef, s, s[2], src, ctx)
@@ -362,6 +375,8 @@ fn try_strided_to_string(s) { return _try_u8_view_to_string(try_strided_to_bytes
 fn strided_to_string(s) { return try_strided_to_string(s) }
 fn try_strided_copy_from_bytes(s, bytes) { return _try_u8_view_copy_from_bytes(try_strided_store_u8, _strided_is_list, "strided", s, bytes, "buffer.try_strided_copy_from_bytes") }
 fn strided_copy_from_bytes(s, bytes) { return try_strided_copy_from_bytes(s, bytes) }
+fn try_strided_copy_from_bytes_slice(s, bytes, off, n) { return _try_u8_view_copy_from_bytes_slice(try_strided_store_u8, _strided_is_list, "strided", s, bytes, off, n, "buffer.try_strided_copy_from_bytes_slice") }
+fn strided_copy_from_bytes_slice(s, bytes, off, n) { return try_strided_copy_from_bytes_slice(s, bytes, off, n) }
 fn try_strided_copy_from_u8_buf(s, src) { return _try_u8_view_copy_from_u8_buf(try_strided_store_u8, _strided_is_list, "strided", s, src, "buffer.try_strided_copy_from_u8_buf") }
 fn strided_copy_from_u8_buf(s, src) { return try_strided_copy_from_u8_buf(s, src) }
 fn try_strided_copy_from_string(s, text) { return _try_u8_view_copy_from_string(try_strided_store_u8, _strided_is_list, "strided", s, text, "buffer.try_strided_copy_from_string") }
@@ -433,6 +448,8 @@ fn try_slice_to_string(s) { return _try_u8_view_to_string(try_slice_to_bytes, s)
 fn slice_to_string(s) { return try_slice_to_string(s) }
 fn try_slice_copy_from_bytes(s, bytes) { return _try_u8_view_copy_from_bytes(try_slice_store_u8, _slice_is_list, "slice", s, bytes, "buffer.try_slice_copy_from_bytes") }
 fn slice_copy_from_bytes(s, bytes) { return try_slice_copy_from_bytes(s, bytes) }
+fn try_slice_copy_from_bytes_slice(s, bytes, off, n) { return _try_u8_view_copy_from_bytes_slice(try_slice_store_u8, _slice_is_list, "slice", s, bytes, off, n, "buffer.try_slice_copy_from_bytes_slice") }
+fn slice_copy_from_bytes_slice(s, bytes, off, n) { return try_slice_copy_from_bytes_slice(s, bytes, off, n) }
 fn try_slice_copy_from_u8_buf(s, src) { return _try_u8_view_copy_from_u8_buf(try_slice_store_u8, _slice_is_list, "slice", s, src, "buffer.try_slice_copy_from_u8_buf") }
 fn slice_copy_from_u8_buf(s, src) { return try_slice_copy_from_u8_buf(s, src) }
 fn try_slice_copy_from_string(s, text) { return _try_u8_view_copy_from_string(try_slice_store_u8, _slice_is_list, "slice", s, text, "buffer.try_slice_copy_from_string") }
