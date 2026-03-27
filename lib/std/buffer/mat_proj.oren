@@ -75,6 +75,250 @@ fn try_mat_diag_strided(m) {
     return mat_diag_strided(m)
 }
 
+fn mat_diag_to_bytes(m) {
+    var diag = mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_bytes(diag)
+}
+
+fn try_mat_diag_to_bytes(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_bytes(diag)
+}
+
+fn mat_diag_unpack_u8(m) {
+    var diag = mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_unpack_u8(diag)
+}
+
+fn try_mat_diag_unpack_u8(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_unpack_u8(diag)
+}
+
+fn mat_diag_to_u8_buf(m) {
+    var diag = mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_u8_buf(diag)
+}
+
+fn try_mat_diag_to_u8_buf(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_u8_buf(diag)
+}
+
+fn mat_diag_to_string(m) {
+    var diag = mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_string(diag)
+}
+
+fn try_mat_diag_to_string(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_string(diag)
+}
+
+fn try_mat_diag_unpack_i32(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_unpack_i32(diag)
+}
+
+fn mat_diag_unpack_i32(m) {
+    return try_mat_diag_unpack_i32(m)
+}
+
+fn try_mat_diag_to_i32_buf(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_i32_buf(diag)
+}
+
+fn mat_diag_to_i32_buf(m) {
+    return try_mat_diag_to_i32_buf(m)
+}
+
+fn try_mat_diag_copy_from_list_i32(m, xs) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_list_i32(diag, xs)
+}
+
+fn mat_diag_copy_from_list_i32(m, xs) {
+    return try_mat_diag_copy_from_list_i32(m, xs)
+}
+
+fn try_mat_diag_copy_from_i32_buf(m, src) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_i32_buf(diag, src)
+}
+
+fn mat_diag_copy_from_i32_buf(m, src) {
+    return try_mat_diag_copy_from_i32_buf(m, src)
+}
+
+fn try_mat_diag_unpack_i64(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_unpack_i64(diag)
+}
+
+fn mat_diag_unpack_i64(m) {
+    return try_mat_diag_unpack_i64(m)
+}
+
+fn try_mat_diag_to_i64_buf(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_i64_buf(diag)
+}
+
+fn mat_diag_to_i64_buf(m) {
+    return try_mat_diag_to_i64_buf(m)
+}
+
+fn try_mat_diag_copy_from_list_i64(m, xs) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_list_i64(diag, xs)
+}
+
+fn mat_diag_copy_from_list_i64(m, xs) {
+    return try_mat_diag_copy_from_list_i64(m, xs)
+}
+
+fn try_mat_diag_copy_from_i64_buf(m, src) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_i64_buf(diag, src)
+}
+
+fn mat_diag_copy_from_i64_buf(m, src) {
+    return try_mat_diag_copy_from_i64_buf(m, src)
+}
+
+fn try_mat_diag_unpack_f32(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_unpack_f32(diag)
+}
+
+fn mat_diag_unpack_f32(m) {
+    return try_mat_diag_unpack_f32(m)
+}
+
+fn try_mat_diag_to_f32_buf(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_f32_buf(diag)
+}
+
+fn mat_diag_to_f32_buf(m) {
+    return try_mat_diag_to_f32_buf(m)
+}
+
+fn try_mat_diag_copy_from_list_f32(m, xs) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_list_f32(diag, xs)
+}
+
+fn mat_diag_copy_from_list_f32(m, xs) {
+    return try_mat_diag_copy_from_list_f32(m, xs)
+}
+
+fn try_mat_diag_copy_from_f32_buf(m, src) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_f32_buf(diag, src)
+}
+
+fn mat_diag_copy_from_f32_buf(m, src) {
+    return try_mat_diag_copy_from_f32_buf(m, src)
+}
+
+fn try_mat_diag_unpack_f64(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_unpack_f64(diag)
+}
+
+fn mat_diag_unpack_f64(m) {
+    return try_mat_diag_unpack_f64(m)
+}
+
+fn try_mat_diag_to_f64_buf(m) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_to_f64_buf(diag)
+}
+
+fn mat_diag_to_f64_buf(m) {
+    return try_mat_diag_to_f64_buf(m)
+}
+
+fn try_mat_diag_copy_from_list_f64(m, xs) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_list_f64(diag, xs)
+}
+
+fn mat_diag_copy_from_list_f64(m, xs) {
+    return try_mat_diag_copy_from_list_f64(m, xs)
+}
+
+fn try_mat_diag_copy_from_f64_buf(m, src) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_f64_buf(diag, src)
+}
+
+fn mat_diag_copy_from_f64_buf(m, src) {
+    return try_mat_diag_copy_from_f64_buf(m, src)
+}
+
+fn mat_diag_copy_from_bytes(m, bytes) {
+    var diag = mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_bytes(diag, bytes)
+}
+
+fn try_mat_diag_copy_from_bytes(m, bytes) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_bytes(diag, bytes)
+}
+
+fn mat_diag_copy_from_u8_buf(m, src) {
+    var diag = mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_u8_buf(diag, src)
+}
+
+fn try_mat_diag_copy_from_u8_buf(m, src) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_u8_buf(diag, src)
+}
+
+fn mat_diag_copy_from_string(m, text) {
+    var diag = mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_string(diag, text)
+}
+
+fn try_mat_diag_copy_from_string(m, text) {
+    var diag = try_mat_diag_strided(m)
+    if oren_is_err(diag) { return diag }
+    return view.try_strided_copy_from_string(diag, text)
+}
+
 fn mat_row_to_bytes(m, r) {
     var row = mat_row_slice(m, r)
     if oren_is_err(row) { return row }

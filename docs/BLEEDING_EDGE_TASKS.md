@@ -2264,6 +2264,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      and `try_mat_col_copy_from_string`, so matrix callers can stay on the matrix surface for the
      common row/column text and byte bridge paths; covered by result smoke + native quick
      integration + dedicated AVM buffer-view smoke (2026-03-27).
+   - New: `std:buffer` now also exposes direct checked matrix-diagonal `[]u8` bridge helpers such
+     as `try_mat_diag_to_string`, `try_mat_diag_to_bytes`, `try_mat_diag_copy_from_string`, and
+     `try_mat_diag_copy_from_u8_buf`, so matrix callers can stay on the matrix surface for the
+     common diagonal byte/text bridge paths instead of routing through an explicit strided view;
+     covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
+     (2026-03-27).
    - New: `std:buffer` now also exposes direct checked whole-matrix `[]u8` flatten/copy helpers
      such as `try_u8_mat_to_bytes`, `try_u8_mat_to_string`, `try_u8_mat_copy_from_bytes`,
      `try_u8_mat_copy_from_string`, `try_u8_mat_copy_from_rows`, and
@@ -2303,6 +2309,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      typed-buffer bridge surface instead of duplicating row/column loops; covered by result smoke +
      native quick integration + dedicated AVM buffer-view smoke, with exact integer proof and exact
      AVM float-value proof kept alongside non-error/shape native float proof (2026-03-27).
+   - New: `std:buffer` now also exposes checked numeric matrix-diagonal list and typed-buffer
+     bridges such as `try_mat_diag_unpack_i32`, `try_mat_diag_copy_from_list_i64`,
+     `try_mat_diag_to_f32_buf`, and `try_mat_diag_copy_from_f64_buf`, so callers can bridge or
+     refill diagonal projections directly on the matrix surface instead of routing through an
+     explicit temporary strided view. The diagonal helpers reuse the same checked strided bridge
+     surface as rows and columns; covered by result smoke + native quick integration + dedicated AVM
+     buffer-view smoke, with exact integer proof and exact AVM float-value proof kept alongside
+     non-error/shape native float proof (2026-03-27).
    - New: `std:buffer` now also exposes checked whole-matrix numeric typed-buffer bridges such as
      `try_i32_mat_to_i32_buf`, `try_i32_mat_copy_from_i32_buf`, `try_i64_mat_to_i64_buf`,
      `try_i64_mat_copy_from_i64_buf`, `try_f32_mat_to_f32_buf`, `try_f32_mat_copy_from_f32_buf`,

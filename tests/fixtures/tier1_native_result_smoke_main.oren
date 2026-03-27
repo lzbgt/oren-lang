@@ -299,6 +299,33 @@ fn smoke_buffer_matrix_u8() {
     var u8mat_col1_list = buffer.try_mat_col_unpack_u8(u8mat, 1)
     if r.is_err(u8mat_col1_list) { return 346 }
     if u8mat_col1_list[0] != 66 || u8mat_col1_list[1] != 69 { return 347 }
+    var diag_string_mat = buffer.try_u8_mat_pack_strings(["AB", "CD"])
+    if r.is_err(diag_string_mat) { return 610 }
+    var diag_string_s = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(diag_string_s) || diag_string_s != "AD" { return 611 }
+    var diag_string_bytes = buffer.try_mat_diag_to_bytes(diag_string_mat)
+    if r.is_err(diag_string_bytes) { return 612 }
+    var diag_string_bytes_s = bytes.try_to_string(diag_string_bytes)
+    if r.is_err(diag_string_bytes_s) || diag_string_bytes_s != "AD" { return 613 }
+    var diag_string_buf = buffer.try_mat_diag_to_u8_buf(diag_string_mat)
+    if r.is_err(diag_string_buf) { return 614 }
+    var diag_string_buf_s = buffer.try_u8_to_string(diag_string_buf)
+    if r.is_err(diag_string_buf_s) || diag_string_buf_s != "AD" { return 615 }
+    var diag_string_list = buffer.try_mat_diag_unpack_u8(diag_string_mat)
+    if r.is_err(diag_string_list) || diag_string_list[0] != 65 || diag_string_list[1] != 68 { return 616 }
+    if r.is_err(buffer.try_mat_diag_copy_from_string(diag_string_mat, "xy")) { return 617 }
+    var diag_after_string = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(diag_after_string) || diag_after_string != "xy" { return 618 }
+    var diag_string_bytes_src = bytes.try_from_string("pq")
+    if r.is_err(diag_string_bytes_src) { return 619 }
+    if r.is_err(buffer.try_mat_diag_copy_from_bytes(diag_string_mat, diag_string_bytes_src)) { return 620 }
+    var diag_after_bytes = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(diag_after_bytes) || diag_after_bytes != "pq" { return 621 }
+    var diag_string_buf_src = buffer.try_u8_from_string("rs")
+    if r.is_err(diag_string_buf_src) { return 622 }
+    if r.is_err(buffer.try_mat_diag_copy_from_u8_buf(diag_string_mat, diag_string_buf_src)) { return 623 }
+    var diag_after_buf = buffer.try_mat_diag_to_string(diag_string_mat)
+    if r.is_err(diag_after_buf) || diag_after_buf != "rs" { return 624 }
     if r.is_err(buffer.try_mat_row_slice(u8mat, 2)) != true { return 295 }
     if r.is_err(buffer.try_mat_col_strided(u8mat, 3)) != true { return 296 }
     if r.is_err(buffer.try_mat_subview(u8mat, 1, 2, 2, 2)) != true { return 312 }
@@ -306,6 +333,7 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(buffer.try_mat_col_strided("nope", 0)) != true { return 298 }
     if r.is_err(buffer.try_mat_subview("nope", 0, 0, 1, 1)) != true { return 313 }
     if r.is_err(buffer.try_mat_diag_strided("nope")) != true { return 314 }
+    if r.is_err(buffer.try_mat_diag_to_string("nope")) != true { return 625 }
     if r.is_err(buffer.try_mat_row_to_string("nope", 0)) != true { return 348 }
     if r.is_err(buffer.try_mat_col_copy_from_string("nope", 0, "ab")) != true { return 349 }
     var packed_i32_mat = buffer.try_i32_mat_pack_rows([[10, 20], [30, 40]])
@@ -384,6 +412,18 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(i32_col0_list) || i32_col0_list[0] != 63 || i32_col0_list[1] != 31 { return 462 }
     if r.is_err(buffer.try_mat_col_copy_from_list_i32(packed_i32_mat, 0, [41, 42])) { return 463 }
     if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 41 || buffer.try_mat_load_i32(packed_i32_mat, 1, 0) != 42 { return 464 }
+    var i32_diag_list = buffer.try_mat_diag_unpack_i32(packed_i32_mat)
+    if r.is_err(i32_diag_list) || i32_diag_list[0] != 41 || i32_diag_list[1] != 32 { return 626 }
+    var i32_diag_buf = buffer.try_mat_diag_to_i32_buf(packed_i32_mat)
+    if r.is_err(i32_diag_buf) || buffer.try_len(i32_diag_buf) != 2 { return 627 }
+    if buffer.try_load_i32(i32_diag_buf, 0) != 41 || buffer.try_load_i32(i32_diag_buf, 1) != 32 { return 628 }
+    if r.is_err(buffer.try_mat_diag_copy_from_list_i32(packed_i32_mat, [81, 82])) { return 629 }
+    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 81 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 82 { return 630 }
+    var src_i32_diag_buf = buffer.i32_new(2)
+    if r.is_err(src_i32_diag_buf) { return 631 }
+    if r.is_err(buffer.try_store_i32(src_i32_diag_buf, 0, 83)) || r.is_err(buffer.try_store_i32(src_i32_diag_buf, 1, 84)) { return 632 }
+    if r.is_err(buffer.try_mat_diag_copy_from_i32_buf(packed_i32_mat, src_i32_diag_buf)) { return 633 }
+    if buffer.try_mat_load_i32(packed_i32_mat, 0, 0) != 83 || buffer.try_mat_load_i32(packed_i32_mat, 1, 1) != 84 { return 634 }
     if r.is_err(buffer.try_i32_mat_pack_rows([[1], [2, 3]])) != true { return 321 }
     if r.is_err(buffer.try_i32_mat_pack_rows([[2147483648]])) != true { return 322 }
     if r.is_err(buffer.try_i32_mat_copy_from_rows(packed_i32_mat, [[1], [2]])) != true { return 389 }
@@ -410,6 +450,9 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(buffer.try_mat_col_to_i32_buf("nope", 0)) != true { return 564 }
     if r.is_err(buffer.try_mat_col_copy_from_i32_buf(packed_i32_mat, 0, buffer.try_u8_from_string("AB"))) != true { return 565 }
     if r.is_err(buffer.try_mat_col_copy_from_list_i32(packed_i32_mat, 0, [1, 2147483648])) != true { return 471 }
+    if r.is_err(buffer.try_mat_diag_to_i32_buf("nope")) != true { return 635 }
+    if r.is_err(buffer.try_mat_diag_copy_from_i32_buf(packed_i32_mat, buffer.i32_new(1))) != true { return 636 }
+    if r.is_err(buffer.try_mat_diag_copy_from_list_i32(packed_i32_mat, [1])) != true { return 637 }
     var packed_u8_mat = buffer.try_u8_mat_pack_rows([[65, 66], [67, 68]])
     if r.is_err(packed_u8_mat) { return 323 }
     var packed_u8_row = buffer.try_mat_row_slice(packed_u8_mat, 1)
@@ -561,6 +604,18 @@ fn smoke_buffer_matrix_numeric() {
     if r.is_err(i64_col1_mat_buf) || buffer.try_load_i64(i64_col1_mat_buf, 0) != 1201 || buffer.try_load_i64(i64_col1_mat_buf, 1) != 1202 { return 579 }
     if r.is_err(buffer.try_mat_col_copy_from_list_i64(packed_i64_mat, 1, [920, 921])) { return 476 }
     if buffer.try_mat_load_i64(packed_i64_mat, 0, 1) != 920 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 921 { return 477 }
+    var i64_diag = buffer.try_mat_diag_unpack_i64(packed_i64_mat)
+    if r.is_err(i64_diag) || i64_diag[0] != 910 || i64_diag[1] != 921 { return 638 }
+    var i64_diag_buf = buffer.try_mat_diag_to_i64_buf(packed_i64_mat)
+    if r.is_err(i64_diag_buf) || buffer.try_len(i64_diag_buf) != 2 { return 639 }
+    if buffer.try_load_i64(i64_diag_buf, 0) != 910 || buffer.try_load_i64(i64_diag_buf, 1) != 921 { return 640 }
+    if r.is_err(buffer.try_mat_diag_copy_from_list_i64(packed_i64_mat, [930, 931])) { return 641 }
+    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 930 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 931 { return 642 }
+    var src_i64_diag_buf = buffer.i64_new(2)
+    if r.is_err(src_i64_diag_buf) { return 643 }
+    if r.is_err(buffer.try_store_i64(src_i64_diag_buf, 0, 932)) || r.is_err(buffer.try_store_i64(src_i64_diag_buf, 1, 933)) { return 644 }
+    if r.is_err(buffer.try_mat_diag_copy_from_i64_buf(packed_i64_mat, src_i64_diag_buf)) { return 645 }
+    if buffer.try_mat_load_i64(packed_i64_mat, 0, 0) != 932 || buffer.try_mat_load_i64(packed_i64_mat, 1, 1) != 933 { return 646 }
     if r.is_err(buffer.try_mat_store_i64(mat64, 0, 0, "nope")) != true { return 268 }
     if r.is_err(buffer.try_i64_mat_pack_rows([[1], [2, 3]])) != true { return 397 }
     if r.is_err(buffer.try_i64_mat_copy_from_rows(packed_i64_mat, [[1], [2]])) != true { return 398 }

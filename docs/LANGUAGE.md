@@ -3319,8 +3319,9 @@ Rolling status:
   `try_f64_mat_to_f64_buf`, and `try_f64_mat_copy_from_f64_buf` (which reject mismatched typed-buffer
   kinds instead of attempting raw loads), plus checked matrix-row/column
   `[]u8` bridge helpers such as `try_mat_row_to_string`, `try_mat_row_copy_from_string`,
-  `try_mat_col_to_string`, and `try_mat_col_copy_from_string`, plus checked whole-matrix `[]u8`
-  flatten/copy helpers such as `try_u8_mat_to_bytes`, `try_u8_mat_to_u8_buf`,
+  `try_mat_col_to_string`, `try_mat_col_copy_from_string`, `try_mat_diag_to_string`, and
+  `try_mat_diag_copy_from_string`, plus checked whole-matrix `[]u8` flatten/copy helpers such as
+  `try_u8_mat_to_bytes`, `try_u8_mat_to_u8_buf`,
   `try_u8_mat_to_string`, `try_u8_mat_copy_from_bytes`, `try_u8_mat_copy_from_u8_buf`,
   `try_u8_mat_copy_from_string`, `try_u8_mat_copy_from_rows`, and
   `try_u8_mat_copy_from_strings`, plus checked numeric slice/strided list bridges such as
@@ -3328,11 +3329,13 @@ Rolling status:
   `try_strided_copy_from_list_f64`, checked numeric slice/strided typed-buffer bridges such as
   `try_slice_to_i32_buf`, `try_slice_copy_from_i32_buf`, `try_strided_to_i64_buf`, and
   `try_strided_copy_from_f64_buf`, checked numeric matrix row/column list bridges such as
-  `try_mat_row_unpack_i32`, `try_mat_row_copy_from_list_f32`, `try_mat_col_unpack_i64`, and
-  `try_mat_col_copy_from_list_f64`, and checked numeric matrix row/column typed-buffer bridges such
-  as `try_mat_row_to_i32_buf`, `try_mat_row_copy_from_i64_buf`, `try_mat_col_to_f32_buf`, and
-  `try_mat_col_copy_from_f64_buf`, which reuse the checked slice/strided bridge surface instead of
-  rebuilding row/column loops, plus checked `[]u8` view bridges such as
+  `try_mat_row_unpack_i32`, `try_mat_row_copy_from_list_f32`, `try_mat_col_unpack_i64`,
+  `try_mat_col_copy_from_list_f64`, `try_mat_diag_unpack_i32`, and
+  `try_mat_diag_copy_from_list_f64`, and checked numeric matrix row/column/diagonal typed-buffer
+  bridges such as `try_mat_row_to_i32_buf`, `try_mat_row_copy_from_i64_buf`,
+  `try_mat_col_to_f32_buf`, `try_mat_col_copy_from_f64_buf`, `try_mat_diag_to_i32_buf`, and
+  `try_mat_diag_copy_from_f64_buf`, which reuse the checked slice/strided bridge surface instead of
+  rebuilding row/column/diagonal loops, plus checked `[]u8` view bridges such as
   `try_slice_unpack_u8`, `try_slice_to_bytes`, `try_slice_to_u8_buf`, `try_slice_to_string`,
   `try_slice_copy_from_bytes`, `try_slice_copy_from_u8_buf`, `try_slice_copy_from_string`,
   `try_strided_unpack_u8`, `try_strided_to_bytes`, `try_strided_to_u8_buf`,
