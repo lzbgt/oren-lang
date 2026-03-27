@@ -1,0 +1,30 @@
+fn byte_sum(bytes) {
+    var total = 0
+    for b in bytes { total = total + b }
+    return total
+}
+
+fn main() {
+    var b = oren_bytes_from_hex("00ff1020")
+    if oren_is_err(b) { print("err: from_hex"); oren_exit(1) }
+    var n = oren_bytes_len(b)
+    if oren_is_err(n) { print("err: len"); oren_exit(1) }
+    var hx0 = oren_bytes_to_hex(b)
+    if oren_is_err(hx0) { print("err: to_hex0"); oren_exit(1) }
+
+    var xs = oren_bytes_unpack(b)
+    if oren_is_err(xs) { print("err: unpack"); oren_exit(1) }
+    xs[2] = 171
+
+    var packed = oren_bytes_pack(xs)
+    if oren_is_err(packed) { print("err: pack"); oren_exit(1) }
+    var hx1 = oren_bytes_to_hex(packed)
+    if oren_is_err(hx1) { print("err: to_hex1"); oren_exit(1) }
+
+    print("len=" + oren_int_to_string(n))
+    print("hex=" + hx0 + "->" + hx1)
+    print("sum=" + oren_int_to_string(byte_sum(packed)))
+    print("ok: bytes parity")
+}
+
+main()

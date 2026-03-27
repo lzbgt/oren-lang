@@ -139,8 +139,10 @@ steady probe instead of forcing a separate full-runtime rebuild.
 
 The packed-bridge steady probe now also warms the hidden packed-bridge artifacts only once and
 reuses them for the scalar-vs-kernel cases (`OREN_BENCH_SKIP_BUILD=1` on those follow-up legs).
-That warm step is now the same reusable native prebuild exposed by `make perf-prebuild-list-int-packed-bridge`.
-It keeps both hidden packed-bridge artifacts on the cheap core native profile.
+That warm step is now the same reusable C+native prebuild exposed by
+`make perf-prebuild-list-int-packed-bridge`. It keeps both hidden packed-bridge artifacts on the
+cheap core native profile while also prebuilding the matching benchmark C binaries that the later
+native/C ratio legs require.
 
 For local iteration, the prebuild script also accepts `OREN_PERF_PREBUILD_PROGRAMS=name1,name2`.
 The bundled `make perf-prebuild-dot-product-int-packed-bridge` target uses that to warm only the

@@ -211,6 +211,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Fix (2026-03-27): native `oren_list_len` intrinsics on arm64/x64 now accept tracked
      `LIST_INT` headers in addition to boxed `LIST` headers, matching the runtime contract and
      unblocking rebuilt native packed-bridge binaries on the core profile.
+   - Fix (2026-03-27): the C backend runtime now implements the missing portable bytes helpers
+     `oren_bytes_len`, `oren_bytes_from_hex`, `oren_bytes_to_hex`, and `oren_bytes_pack`. That
+     closes the stdlib/runtime ABI gap that previously made Oren C packed-bridge preflight builds
+     fail at compile time.
    - New probe hygiene (2026-03-20): the packed-bridge smoke/preflight now defaults to Oren C
      rather than full-runtime native. That keeps the correctness preflight fast while preserving
      the dedicated native steady probe as the explicit place to measure the packed-buffer ceiling.
@@ -222,10 +226,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      explicit reusable script/target (`scripts/build_perf_artifacts_list_int_packed_bridge.sh`,
      `make perf-prebuild-list-int-packed-bridge`) so future probe runs can distinguish true
      packed-path timings from first-compile cost. Both hidden packed-bridge artifacts now build on
-     the cheap native `core` profile.
+     the cheap native `core` profile, and the warm step now also prebuilds the matching C
+     binaries so the packed scalar/SIMD probe legs can safely run with `OREN_BENCH_SKIP_BUILD=1`.
    - Follow-through (2026-03-27): native packed-bridge smoke and the dedicated
      `make verify-native-core-packed-bridge` gate now reuse that same core-runtime prebuild path,
      so the smoke tooling and the steady probe agree on the actual runtime boundary.
+   - Probe result (2026-03-27, shortened steady sample: `n=100000`, `reps=5`, `runs=2`,
+     `warmups=0`): the packed-bridge variants are still dramatically worse than the canonical
+     loops. Baseline measured `array_sum_int` ~1.45× C and `dot_product_int` ~1.38× C, while the
+     packed-bridge legs measured `array_sum_int_packed_bridge` ~1351× C scalar / ~1599× C SIMD and
+     `dot_product_int_packed_bridge` ~14975× C scalar / ~3043× C SIMD. Even allowing for the short
+     sample, that is directionally decisive: compiler-lowering ordinary `list<int>` dot loops into
+     the current packed bridge is not justified yet.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.
@@ -311,7 +323,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
   - New: `scripts/triage_native_quick_flake_debug.sh` + `make test-native-quick-flake-debug`
     provide the same guardrail triage for stage1 native quick integration (2026-03-04).
   - New: `make verify-backend-parity` runs all cross-backend parity smokes in one shot
-    (boxed list, list<int>, tags, arith panics, index panics) (2026-03-04).
+    (boxed list, list<int>, bytes, tags, arith panics, index panics) (2026-03-27).
   - New: `scripts/verify_backend_parity_*.sh` accepts `OREN_BACKEND_PARITY_TRACE_ENV`
     to forward trace env vars into build/run steps for deeper corruption diagnosis
     (2026-03-04).
@@ -1797,6 +1809,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `dot_product_int` ~3.09× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
+    - Priority update (2026-03-27): do not lower general `list<int>` dot/sum loops into the
+      current packed-bridge path until the bridge cost is fixed; the shortened steady probe still
+      showed it orders of magnitude slower than the baseline loops.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
     - New: native runtime now exposes the current list<int> payload ABI explicitly via

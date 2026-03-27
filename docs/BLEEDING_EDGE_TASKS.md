@@ -1133,6 +1133,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Fix (2026-03-27): native `oren_list_len` intrinsics on arm64/x64 now accept `LIST_INT`
      headers as well as boxed `LIST` headers, matching the runtime contract and unblocking rebuilt
      core-runtime packed-bridge binaries.
+   - Fix (2026-03-27): the C backend runtime now implements the missing portable bytes helpers
+     `oren_bytes_len`, `oren_bytes_from_hex`, `oren_bytes_to_hex`, and `oren_bytes_pack`, which
+     restores Oren C packed-bridge preflight builds and closes a broader stdlib/runtime ABI gap.
    - New probe hygiene (2026-03-20): packed-bridge smoke now defaults to Oren C instead of
      native so the correctness preflight stays cheap. The heavier native cost now appears only in
      the dedicated packed-bridge steady probe, where it belongs.
@@ -1143,10 +1146,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New probe prebuild step (2026-03-20): the hidden packed-bridge warm leg is now exposed as a
      reusable prebuild target so we can precompile the packed benchmarks once and then measure the
      packed scalar vs packed kernel ceiling without conflating it with first-build cost. Both
-     hidden packed-bridge artifacts now stay on the cheap native `core` profile.
+     hidden packed-bridge artifacts now stay on the cheap native `core` profile, and that warm step
+     now also prebuilds the matching C binaries so the later `OREN_BENCH_SKIP_BUILD=1` probe legs
+     do not fail on missing artifacts.
    - Follow-through (2026-03-27): native packed-bridge smoke and
      `make verify-native-core-packed-bridge` now reuse that same core-runtime prebuild path,
      keeping the smoke and steady-probe tooling aligned on the real runtime boundary.
+   - Probe result (2026-03-27, shortened steady sample: `n=100000`, `reps=5`, `runs=2`,
+     `warmups=0`): the current packed bridge is decisively not ready for compiler lowering.
+     Baseline measured `array_sum_int` ~1.45× C and `dot_product_int` ~1.38× C, while the packed
+     bridge measured `array_sum_int_packed_bridge` ~1351× C scalar / ~1599× C SIMD and
+     `dot_product_int_packed_bridge` ~14975× C scalar / ~3043× C SIMD. The next work item is to
+     fix bridge materialization/runtime cost or pursue a direct 64-bit-slot lowering instead.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.
@@ -1294,6 +1305,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 5) **Cross-backend parity gates**
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
+   - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
+     `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).
    - Index panic parity covers negative list index assignment + list get out-of-bounds + non-container index get + unsupported map key get/set.
    - Gate: parity scripts + `make test` remain green.
@@ -2168,6 +2181,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~2.43× C,
      `dot_product_int` ~3.09× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
+   - Priority update (2026-03-27): do not lower general `list<int>` hot loops into the current
+     packed-bridge path yet; even the shortened steady probe still shows it orders of magnitude
+     slower than the canonical loops.
    - Constraint (2026-03-20): direct reuse of the packed-i32 SIMD dot kernel is not safe for the
      current `list<int>` fast-loop payload layout because those slots are 64-bit values.
    - New: native runtime now exposes the current `list<int>` payload ABI explicitly via

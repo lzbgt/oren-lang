@@ -758,8 +758,12 @@ OrenValue oren_read_bytes(OrenValue path);
 	// On error returns the structured error map (same convention as other `oren_*` helpers).
 	OrenValue oren_file_stat_size_mtime_ns(OrenValue path);
 	OrenValue oren_bytes_from_string(OrenValue s);
+OrenValue oren_bytes_len(OrenValue bytes);
 // Build a string from list<int 0..255> (inverse of bytes_from_string).
 OrenValue oren_string_from_bytes(OrenValue bytes);
+OrenValue oren_bytes_from_hex(OrenValue s);
+OrenValue oren_bytes_to_hex(OrenValue bytes);
+OrenValue oren_bytes_pack(OrenValue xs);
 // Convert bytes (list<int> or u8_buf) to list<int 0..255>.
 OrenValue oren_bytes_unpack(OrenValue bytes);
 

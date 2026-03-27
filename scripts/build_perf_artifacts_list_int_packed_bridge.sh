@@ -8,6 +8,12 @@ log_path="$log_dir/perf-prebuild-list-int-packed-bridge-${ts}.log"
 
 platform="${OREN_BENCH_PLATFORM:-arm64-macos}"
 compiler="./oren_stage2"
+bench_cc="${OREN_BENCH_CC:-${CC:-cc}}"
+uname_s="$(uname -s)"
+exe_ext=""
+if [[ "$uname_s" == MINGW* || "$uname_s" == MSYS* || "$uname_s" == CYGWIN* || "${OS:-}" == "Windows_NT" ]]; then
+    exe_ext=".exe"
+fi
 all_programs=(
     array_sum_int_packed_bridge
     dot_product_int_packed_bridge
@@ -23,11 +29,23 @@ build_program() {
     local program="$1"
     local src="$2"
     local out="$3"
+    local c_src="$4"
+    local c_out="$5"
     case "$program" in
         array_sum_int_packed_bridge)
+            if [[ "${bench_cc##*/}" == "cl" || "${bench_cc##*/}" == "cl.exe" ]]; then
+                "$bench_cc" /nologo /O2 "$c_src" "/Fe:$c_out"
+            else
+                "$bench_cc" -O2 -o "$c_out" "$c_src"
+            fi
             ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
             ;;
         dot_product_int_packed_bridge)
+            if [[ "${bench_cc##*/}" == "cl" || "${bench_cc##*/}" == "cl.exe" ]]; then
+                "$bench_cc" /nologo /O2 "$c_src" "/Fe:$c_out"
+            else
+                "$bench_cc" -O2 -o "$c_out" "$c_src"
+            fi
             ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
             ;;
         *)
@@ -38,15 +56,20 @@ build_program() {
 }
 
 needs_rebuild() {
-    local out="$1"
+    local native_out="$1"
     local src="$2"
-    if [[ ! -x "$out" ]]; then
+    local c_out="$3"
+    local c_src="$4"
+    if [[ ! -x "$native_out" || ! -x "$c_out" ]]; then
         return 0
     fi
     if [[ "${OREN_PERF_PREBUILD_FORCE:-0}" == "1" ]]; then
         return 0
     fi
-    if [[ "$src" -nt "$out" || "$compiler" -nt "$out" ]]; then
+    if [[ "$src" -nt "$native_out" || "$compiler" -nt "$native_out" ]]; then
+        return 0
+    fi
+    if [[ "$c_src" -nt "$c_out" ]]; then
         return 0
     fi
     return 1
@@ -54,24 +77,26 @@ needs_rebuild() {
 
 for program in "${programs[@]}"; do
     src="benchmarks/${program}/${program}.oren"
+    c_src="benchmarks/${program}/${program}.c"
     out_dir="build/benchmarks/${program}"
     out="${out_dir}/${program}_oren_native"
+    c_out="${out_dir}/${program}_c${exe_ext}"
     mkdir -p "$out_dir"
-    if needs_rebuild "$out" "$src"; then
+    if needs_rebuild "$out" "$src" "$c_out" "$c_src"; then
         {
             case "$program" in
                 array_sum_int_packed_bridge)
-                    echo "[build] ${program} (native core runtime)"
+                    echo "[build] ${program} (C + native core runtime)"
                     ;;
                 dot_product_int_packed_bridge)
-                    echo "[build] ${program} (native core runtime)"
+                    echo "[build] ${program} (C + native core runtime)"
                     ;;
             esac
-            build_program "$program" "$src" "$out"
+            build_program "$program" "$src" "$out" "$c_src" "$c_out"
         } >>"$log_path" 2>&1
     else
         echo "[cached] ${program}" >>"$log_path"
     fi
 done
 
-echo "packed-bridge native prebuild complete; log: $log_path"
+echo "packed-bridge C+native prebuild complete; log: $log_path"

@@ -17,4 +17,5 @@
 #include "runtime/030_ops_compare.inc"
 #include "runtime/040_lists_maps.inc"
 #include "runtime/041_err_helpers.inc"
+#include "runtime/045_bytes_helpers.inc"
 #include "runtime/050_io_misc.inc"
