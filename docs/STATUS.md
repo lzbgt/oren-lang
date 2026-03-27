@@ -800,10 +800,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      the matrix layer; covered by dedicated AVM buffer-view smoke, native quick integration, and
      full `make test` (2026-03-27).
    - Refactor: the duplicated raw typed-buffer constructors, direct typed load/store shims, and
-     `[]u8 -> bytes` bridge shared across the `std:buffer` facade, `view`, matrix core, and dense
-     matrix helpers now live in `lib/std/buffer/raw.oren`, so low-level runtime wrapper changes no
-     longer need to be edited in four places; covered by dedicated AVM buffer-view smoke, native
-     quick integration, and full `make test` (2026-03-27).
+     `[]u8 -> bytes` bridge shared across the split `std:buffer` modules now live in
+     `lib/std/buffer/raw.oren`, so low-level runtime wrapper changes no longer need to be edited in
+     multiple places; covered by dedicated AVM buffer-view smoke, native quick integration, and
+     full `make test` (2026-03-27).
+   - Refactor: the checked raw/list/string bridge surface that used to live at the top of
+     `lib/std/buffer.oren` now also lives in `lib/std/buffer/raw.oren`, leaving
+     `lib/std/buffer.oren` as a thinner 697-line public facade over `raw`, `view`, and the split
+     matrix modules while keeping the public checked API unchanged; covered by dedicated AVM
+     buffer-view smoke, native quick integration, and full `make test` (2026-03-27).
    - Refactor: the dense matrix helpers no longer depend on `mat_core` internals for shape,
      row-major flatten, or typed-buffer bridge plumbing. Those shared helpers now live in
      `lib/std/buffer/mat_shared.oren`, which makes the matrix layer a cleaner facade/core/shared/dense
@@ -844,6 +849,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     budget. On this host the stage2 rerun still false-red at `360s` after emitting its last
     visible `41` / `42` debug lines, and the built-in `720s` retry completed cleanly; covered
     by stage2 native quick integration and full `make test` (2026-03-27).
+  - Fix: invoking `scripts/run_native_quick_integration.sh ./oren_stage2` directly on macOS now
+    also keeps the stage2 debug build watchdog at `180s` instead of `35s`. A measured standalone
+    rerun still false-red at `35s` during the self-hosted rebuild even with an rtobj hit, while
+    the same path already completed cleanly under the `180s` full-suite budget; covered by a
+    standalone stage2 stop-after-green quick-integration run plus the normal AVM/status gates
+    (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
@@ -884,8 +895,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`,
        `lib/std/buffer/mat_u8.oren`), with shared validation and list-view predicates factored
        into `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers factored into
-      `lib/std/buffer/raw.oren`, keeping the top-level stdlib module at 827 lines and each
-       helper module <2000 lines (2026-03-27).
+     `lib/std/buffer/raw.oren`, keeping the top-level stdlib module at 697 lines and each
+     helper module <2000 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).

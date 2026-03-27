@@ -2376,10 +2376,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      the matrix layer; covered by dedicated AVM buffer-view smoke, native quick integration, and
      full `make test` (2026-03-27).
    - Refactor: the duplicated raw typed-buffer constructors, direct typed load/store shims, and
-     `[]u8 -> bytes` bridge shared across the `std:buffer` facade, `view`, matrix core, and dense
-     matrix helpers now live in `lib/std/buffer/raw.oren`, so low-level runtime wrapper changes no
-     longer need to be edited in four places; covered by dedicated AVM buffer-view smoke, native
-     quick integration, and full `make test` (2026-03-27).
+     `[]u8 -> bytes` bridge shared across the split `std:buffer` modules now live in
+     `lib/std/buffer/raw.oren`, so low-level runtime wrapper changes no longer need to be edited in
+     multiple places; covered by dedicated AVM buffer-view smoke, native quick integration, and
+     full `make test` (2026-03-27).
+   - Refactor: the checked raw/list/string bridge surface that used to live at the top of
+     `lib/std/buffer.oren` now also lives in `lib/std/buffer/raw.oren`, leaving
+     `lib/std/buffer.oren` as a thinner 697-line public facade over `raw`, `view`, and the split
+     matrix modules while keeping the public checked API unchanged; covered by dedicated AVM
+     buffer-view smoke, native quick integration, and full `make test` (2026-03-27).
    - Refactor: the dense matrix helpers no longer depend on `mat_core` internals for shape,
      row-major flatten, or typed-buffer bridge plumbing. Those shared helpers now live in
      `lib/std/buffer/mat_shared.oren`, which makes the matrix layer a cleaner facade/core/shared/dense
@@ -2421,6 +2426,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      budget. On this host the stage2 rerun still false-red at `360s` after emitting its last
      visible `41` / `42` debug lines, and the built-in `720s` retry completed cleanly; covered
      by stage2 native quick integration and full `make test` (2026-03-27).
+   - Fix: invoking `scripts/run_native_quick_integration.sh ./oren_stage2` directly on macOS now
+     also keeps the stage2 debug build watchdog at `180s` instead of `35s`. A measured standalone
+     rerun still false-red at `35s` during the self-hosted rebuild even with an rtobj hit, while
+     the same path already completed cleanly under the `180s` full-suite budget; covered by a
+     standalone stage2 stop-after-green quick-integration run plus the normal AVM/status gates
+     (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
      dedicated AVM bytes/assert smoke coverage (2026-03-26).
@@ -2440,7 +2451,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_numeric.oren`,
      `lib/std/buffer/mat_u8.oren`) plus shared validation / view-shape helpers in
      `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
-     `lib/std/buffer/raw.oren`, with the public facade at 827 lines and each helper module <2000
+     `lib/std/buffer/raw.oren`, with the public facade at 697 lines and each helper module <2000
      lines (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
