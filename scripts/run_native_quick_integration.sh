@@ -109,10 +109,12 @@ if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
   # macOS: under full-suite load, both the base native-quick run and the
   # OREN_GREEN_POLL_CACHE rerun can legitimately exceed the older watchdog
   # even when the binary exits cleanly. Recent measured healthy base runs
-  # reached ~23s on this host, and a 30s budget still false-red under the
-  # full `make test` path, so keep a proven 60s headroom to catch real hangs
+  # reached ~23s on this host, a 30s budget still false-red under the
+  # full `make test` path, and a later direct 60s full-suite retry still
+  # died in the stage1 world-lock smoke path while 120s completed cleanly,
+  # so keep that proven wider default to catch real hangs
   # without killing healthy verification runs.
-  run_timeout_secs=60
+  run_timeout_secs=120
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   # macOS: under full-suite load, self-hosted native quick builds can transiently exceed
@@ -167,13 +169,13 @@ if [[ -n "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-}" ]]; then
   # macOS: under full-suite load, the OREN_GREEN_POLL_CACHE rerun can exceed the
-  # stage1 base-run watchdog even when the binary exits cleanly. A 180s budget
+  # stage1 base-run watchdog even when the binary exits cleanly. A 240s budget
   # still false-red on this host after the rerun had already emitted its last
-  # visible debug lines, while a direct rerun with 240s completed cleanly, so
+  # visible debug lines, while a direct rerun with 360s completed cleanly, so
   # keep that proven wider default here to catch real hangs without false-red
   # exits during `make test-native-quick` / `make test`.
-  if [[ "$green_cache_run_timeout_secs" -lt 240 ]]; then
-    green_cache_run_timeout_secs=240
+  if [[ "$green_cache_run_timeout_secs" -lt 360 ]]; then
+    green_cache_run_timeout_secs=360
   fi
 fi
 

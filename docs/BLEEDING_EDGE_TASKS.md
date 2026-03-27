@@ -2313,12 +2313,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      exact float value proof kept in AVM and non-error/shape proof kept in shared native fixtures
      (2026-03-27).
    - Refactor: `std:buffer` is now split into a thin public facade plus
-     `lib/std/buffer/view.oren` for slice/strided helpers and a four-part matrix layer:
-     `lib/std/buffer/mat.oren` as the compatibility facade over
-     `lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`, and
-     `lib/std/buffer/mat_dense.oren`. That keeps the public module at 636 lines and the matrix
-     implementation in focused submodules without changing the checked view/matrix API; covered by
-     dedicated AVM buffer-view smoke, native quick integration, and full `make test` (2026-03-27).
+     `lib/std/buffer/view.oren` for slice/strided helpers and a direct matrix implementation split
+     across `lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
+     `lib/std/buffer/mat_shared.oren`, and `lib/std/buffer/mat_dense.oren`. The public facade in
+     `lib/std/buffer.oren` now imports those matrix modules directly instead of routing through an
+     internal `mat.oren` compatibility layer, which removes another pure pass-through module
+     without changing the checked view/matrix API; covered by dedicated AVM buffer-view smoke,
+     native quick integration, and full `make test` (2026-03-27).
    - Refactor: the duplicated integer/error validation helpers shared by the `std:buffer` facade,
      `view`, and matrix core now live in `lib/std/buffer/common.oren`, which removes copy-pasted
      `_err_invalid` / `_is_int` / `_check_*` / list-len / typed-buffer-len logic from the split
@@ -2346,19 +2347,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Fix: macOS stage1 native-quick verification now gives the `OREN_GREEN_POLL_CACHE` rerun a
      30s default watchdog even when the base run stays at 20s, which removes a false-red `rc=143`
      path in full-suite verification where the first run already completed cleanly (2026-03-27).
-   - Fix: macOS stage1 native-quick verification now also gives the base run a 60s default
-     watchdog instead of 20s after a direct measured healthy base run took `23.15s` on this host
-     and a 30s budget still false-red under the full `make test` path; `60s` is the directly
-     proven budget on this host, removing another false-red `rc=143` path from `make test-native-quick` / `make test`
-     (2026-03-27).
+   - Fix: macOS stage1 native-quick verification now also gives the base run a 120s default
+     watchdog instead of 60s. Earlier direct measurements already showed healthy base runs near
+     `23.15s`, and after the later `240s` green-cache widening the full-suite stage1 path could
+     still false-red at `60s` in `green_two_workers_world_lock_smoke`; a direct full-suite retry
+     with `OREN_NATIVE_RUN_TIMEOUT_SECS=120` completed cleanly on this host, removing that remaining
+     `rc=143` path from `make test` (2026-03-27).
    - Fix: `scripts/run_native_quick_integration.sh` now runs the stage1 base path and
      `OREN_GREEN_POLL_CACHE` rerun under `set +e` while harvesting retry status, so the scripted
      retry path actually executes instead of letting `set -e` abort the harness on the first
      timeout-style nonzero return; covered by native quick integration and full `make test`
      (2026-03-27).
    - Fix: macOS stage1 native-quick verification now also keeps the default green-cache rerun
-     watchdog at `240s` instead of `180s`. A direct `180s` run still false-red with `rc=143`
-     after the rerun had already emitted its last visible debug lines, while `240s` completed
+     watchdog at `360s` instead of `240s`. A direct `240s` run still false-red with `rc=143`
+     after the rerun had already emitted its last visible debug lines, while `360s` completed
      cleanly on this host; covered by native quick integration and full `make test` (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
@@ -2375,11 +2377,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Done: `lib/compiler/optimizer.oren` split into core/fold/DCE/list-int/list-reserve/TCO modules (<2000 lines each).
    - Done: `lib/runtime_native/100_time_gc_alloc.oren` split into trace/index/core modules (<2000 lines each).
    - Done: `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`
-     and a split matrix layer (`lib/std/buffer/mat.oren`, `lib/std/buffer/mat_core.oren`,
-     `lib/std/buffer/mat_proj.oren`, `lib/std/buffer/mat_shared.oren`,
-     `lib/std/buffer/mat_dense.oren`) plus shared validation / view-shape helpers in
-     `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
-     `lib/std/buffer/raw.oren`, with the public facade at 636 lines and each helper module <2000
+     and a direct matrix layer (`lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
+     `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_dense.oren`) plus shared validation /
+     view-shape helpers in `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers in
+     `lib/std/buffer/raw.oren`, with the public facade at 638 lines and each helper module <2000
      lines (2026-03-27).
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,

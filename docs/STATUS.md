@@ -737,12 +737,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      smoke, with exact float value proof kept in AVM and non-error/shape proof kept in shared
      native fixtures (2026-03-27).
   - Refactor: `std:buffer` is now split into a thin public facade plus
-    `lib/std/buffer/view.oren` for slice/strided helpers and a four-part matrix layer:
-    `lib/std/buffer/mat.oren` as the compatibility facade over
-    `lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`, and
-    `lib/std/buffer/mat_dense.oren`. That keeps the public module at 636 lines and the matrix
-    implementation in focused submodules without changing the checked view/matrix API; covered by
-    dedicated AVM buffer-view smoke, native quick integration, and full `make test` (2026-03-27).
+    `lib/std/buffer/view.oren` for slice/strided helpers and a direct matrix implementation split
+    across `lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
+    `lib/std/buffer/mat_shared.oren`, and `lib/std/buffer/mat_dense.oren`. The public facade in
+    `lib/std/buffer.oren` now imports those matrix modules directly instead of routing through an
+    internal `mat.oren` compatibility layer, which removes another pure pass-through module without
+    changing the checked view/matrix API; covered by dedicated AVM buffer-view smoke, native quick
+    integration, and full `make test` (2026-03-27).
    - Refactor: the duplicated integer/error validation helpers shared by the `std:buffer` facade,
      `view`, and matrix core now live in `lib/std/buffer/common.oren`, which removes copy-pasted
      `_err_invalid` / `_is_int` / `_check_*` / list-len / typed-buffer-len logic from the split
@@ -770,18 +771,19 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Fix: macOS stage1 native-quick verification now gives the `OREN_GREEN_POLL_CACHE` rerun a
      30s default watchdog even when the base run stays at 20s, which removes a false-red `rc=143`
      path in full-suite verification where the first run already completed cleanly (2026-03-27).
-   - Fix: macOS stage1 native-quick verification now also gives the base run a 60s default
-     watchdog instead of 20s after a direct measured healthy base run took `23.15s` on this host
-     and a 30s budget still false-red under the full `make test` path; `60s` is the directly
-     proven budget on this host, removing another false-red `rc=143` path from `make test-native-quick` / `make test`
-     (2026-03-27).
+   - Fix: macOS stage1 native-quick verification now also gives the base run a 120s default
+     watchdog instead of 60s. Earlier direct measurements already showed healthy base runs near
+     `23.15s`, and after the later `240s` green-cache widening the full-suite stage1 path could
+     still false-red at `60s` in `green_two_workers_world_lock_smoke`; a direct full-suite retry
+     with `OREN_NATIVE_RUN_TIMEOUT_SECS=120` completed cleanly on this host, removing that remaining
+     `rc=143` path from `make test` (2026-03-27).
    - Fix: `scripts/run_native_quick_integration.sh` now executes the stage1 base run and the
      green-cache rerun under `set +e` when collecting retry status, so `run_with_timeout_retry(...)`
      can actually feed the scripted retry paths instead of aborting the harness early under
      `set -e`; covered by native quick integration and full `make test` (2026-03-27).
   - Fix: macOS stage1 native-quick verification now also keeps the default green-cache rerun
-    watchdog at `240s` instead of `180s`. A direct `180s` run still false-red with `rc=143`
-    after the rerun had already emitted its last visible debug lines, while `240s` completed
+    watchdog at `360s` instead of `240s`. A direct `240s` run still false-red with `rc=143`
+    after the rerun had already emitted its last visible debug lines, while `360s` completed
     cleanly on this host; covered by native quick integration and full `make test` (2026-03-27).
    - New: `std:assert.assert_streq` now uses portable stdlib string equality instead of raw
      `strcmp`, removing that direct bytecode codegen dependency; verified by native quick plus
@@ -819,12 +821,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      - `lib/runtime_native/100_time_gc_alloc.oren` core split into scan/reuse, list_hdr, track, roots_gc
        modules (all <2000 lines, 2026-03-03).
      - `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren` and a
-       split matrix layer (`lib/std/buffer/mat.oren`, `lib/std/buffer/mat_core.oren`,
-       `lib/std/buffer/mat_proj.oren`, `lib/std/buffer/mat_shared.oren`,
-       `lib/std/buffer/mat_dense.oren`), with shared validation and list-view predicates factored
-       into `lib/std/buffer/common.oren` and shared raw typed-buffer wrappers factored into
-       `lib/std/buffer/raw.oren`, keeping the top-level stdlib module at 636 lines and each helper
-       module <2000 lines (2026-03-27).
+       direct matrix layer (`lib/std/buffer/mat_core.oren`, `lib/std/buffer/mat_proj.oren`,
+       `lib/std/buffer/mat_shared.oren`, `lib/std/buffer/mat_dense.oren`), with shared validation
+       and list-view predicates factored into `lib/std/buffer/common.oren` and shared raw
+       typed-buffer wrappers factored into `lib/std/buffer/raw.oren`, keeping the top-level stdlib
+       module at 638 lines and each helper module <2000 lines (2026-03-27).
      - `lib/runtime_native/170_lists.oren` split into core + api modules (all <2000 lines, 2026-03-03).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).
