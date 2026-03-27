@@ -10,6 +10,8 @@ fn _is_int(v) { return common._is_int(v) }
 fn _check_int(v, ctx, label) { return common._check_int(v, ctx, label) }
 fn _check_nonneg_int(v, ctx, label) { return common._check_nonneg_int(v, ctx, label) }
 fn _mat_is_list(m) { return common._mat_is_list(m) }
+fn _validate_u8_or_err(v, ctx) { return common._validate_u8_or_err(v, ctx) }
+fn _validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
 
 fn mat_view_new(buf, off, rows, cols, row_stride) {
     if off < 0 || rows < 0 || cols < 0 || row_stride < 0 {
@@ -67,6 +69,44 @@ fn mat_row_stride(m) {
 fn try_mat_row_stride(m) {
     if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_row_stride: expects mat view") }
     return m[4]
+}
+
+fn mat_load_u8(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("mat_load_u8: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_load_u8: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_load_u8(m[0], idx)
+}
+
+fn try_mat_load_u8(m, r, c) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_load_u8: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_load_u8", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_load_u8", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    return mat_load_u8(m, r, c)
+}
+
+fn mat_store_u8(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("mat_store_u8: expects mat view") }
+    var rows = m[2]
+    var cols = m[3]
+    if r < 0 || c < 0 || r >= rows || c >= cols { return _err_invalid("mat_store_u8: index out of bounds") }
+    var idx = m[1] + r * m[4] + c
+    return oren_buf_store_u8(m[0], idx, v)
+}
+
+fn try_mat_store_u8(m, r, c, v) {
+    if !_mat_is_list(m) { return _err_invalid("buffer.try_mat_store_u8: expects mat view") }
+    var ok_r = _check_int(r, "buffer.try_mat_store_u8", "row")
+    if oren_is_err(ok_r) { return ok_r }
+    var ok_c = _check_int(c, "buffer.try_mat_store_u8", "col")
+    if oren_is_err(ok_c) { return ok_c }
+    var ok_v = _validate_u8_or_err(v, "buffer.try_mat_store_u8")
+    if oren_is_err(ok_v) { return ok_v }
+    return mat_store_u8(m, r, c, ok_v)
 }
 
 fn mat_load_f32(m, r, c) {
@@ -175,8 +215,9 @@ fn try_mat_store_i64(m, r, c, v) {
     if oren_is_err(ok_r) { return ok_r }
     var ok_c = _check_int(c, "buffer.try_mat_store_i64", "col")
     if oren_is_err(ok_c) { return ok_c }
-    if _is_int(v) == false { return oren_err(4, "buffer.try_mat_store_i64: value not int") }
-    return mat_store_i64(m, r, c, v)
+    var ok_v = _validate_i64_or_err(v, "buffer.try_mat_store_i64")
+    if oren_is_err(ok_v) { return ok_v }
+    return mat_store_i64(m, r, c, ok_v)
 }
 
 fn mat_load_f64(m, r, c) {

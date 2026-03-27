@@ -47,11 +47,7 @@ fn _list_len_like_or_err(xs, ctx) {
     return n
 }
 
-fn _validate_u8_or_err(v, ctx) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
-    if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
-    return v
-}
+fn _validate_u8_or_err(v, ctx) { return common._validate_u8_or_err(v, ctx) }
 
 fn _validate_int_or_err(v, ctx) {
     if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
@@ -576,6 +572,10 @@ fn mat_load_f32(m, r, c) { return core.mat_load_f32(m, r, c) }
 fn try_mat_load_f32(m, r, c) { return core.try_mat_load_f32(m, r, c) }
 fn mat_store_f32(m, r, c, v) { return core.mat_store_f32(m, r, c, v) }
 fn try_mat_store_f32(m, r, c, v) { return core.try_mat_store_f32(m, r, c, v) }
+fn mat_load_u8(m, r, c) { return core.mat_load_u8(m, r, c) }
+fn try_mat_load_u8(m, r, c) { return core.try_mat_load_u8(m, r, c) }
+fn mat_store_u8(m, r, c, v) { return core.mat_store_u8(m, r, c, v) }
+fn try_mat_store_u8(m, r, c, v) { return core.try_mat_store_u8(m, r, c, v) }
 fn mat_load_i32(m, r, c) { return core.mat_load_i32(m, r, c) }
 fn try_mat_load_i32(m, r, c) { return core.try_mat_load_i32(m, r, c) }
 fn mat_store_i32(m, r, c, v) { return core.mat_store_i32(m, r, c, v) }

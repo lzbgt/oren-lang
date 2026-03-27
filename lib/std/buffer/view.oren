@@ -15,6 +15,7 @@ fn _check_positive_int(v, ctx, label) { return common._check_positive_int(v, ctx
 fn _plain_list_len_or_err(xs, ctx) { return common._plain_list_len_or_err(xs, ctx) }
 fn _slice_is_list(s) { return common._slice_is_list(s) }
 fn _strided_is_list(s) { return common._strided_is_list(s) }
+fn _validate_u8_or_err(v, ctx) { return common._validate_u8_or_err(v, ctx) }
 fn _validate_i32_or_err(v, ctx) { return common._validate_i32_or_err(v, ctx) }
 fn _validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
 fn _validate_passthru_or_err(v, ctx) { return common._validate_passthru_or_err(v, ctx) }
@@ -126,12 +127,6 @@ fn _view_copy_from_list(store_fn, view, n, xs, ctx, validatef) {
         i = i + 1
     }
     return view[0]
-}
-
-fn _validate_u8_or_err(v, ctx) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
-    if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
-    return v
 }
 
 fn _validate_int_or_err(v, ctx) {

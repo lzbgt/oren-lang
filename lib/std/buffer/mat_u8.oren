@@ -11,13 +11,7 @@ import raw "std:buffer/raw"
 import view "std:buffer/view"
 
 fn _err_invalid(msg) { return core._err_invalid(msg) }
-fn _is_int(v) { return core._is_int(v) }
-
-fn _u8_validate_or_err(v, ctx) {
-    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
-    if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
-    return v
-}
+fn _u8_validate_or_err(v, ctx) { return mshared._mat_validate_u8_or_err(v, ctx) }
 
 fn _mat_unpack_projected_rows(m, ctx, rowf) {
     if !mshared._mat_is_list(m) { return _err_invalid(ctx + ": expects mat view") }

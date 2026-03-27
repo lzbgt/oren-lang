@@ -671,6 +671,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      existing checked `[]u8` slice/strided bridge helpers instead of rebuilding index math by hand;
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` matrix views now also expose checked `u8` cell accessors
+     (`try_mat_load_u8`, `try_mat_store_u8`), so callers can keep direct byte-cell reads/writes on
+     the matrix surface instead of routing through row or slice views for scalar access; covered by
+     result smoke + native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` matrix views now also expose checked submatrix and diagonal projections via
      `try_mat_subview` and `try_mat_diag_strided`, so callers can keep composing zero-copy matrix,
      slice, and strided views without open-coding offset math; covered by result smoke + native
@@ -766,6 +770,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      modules and keeps future buffer-surface validation fixes aligned across all three layers;
      covered by dedicated AVM buffer-view smoke, native quick integration, and full `make test`
      (2026-03-27).
+   - Refactor: the shared byte-range validator for `std:buffer` now also lives in
+     `lib/std/buffer/common.oren`, so `view`, matrix core, and `u8` matrix helpers all reject
+     out-of-range writes through the same checked path instead of carrying separate copies of the
+     `0..255` validation logic; covered by dedicated AVM buffer-view smoke, native quick
+     integration, and full `make test` (2026-03-27).
    - Refactor: the split `std:buffer` modules now also share list-view shape predicates
      (`_slice_is_list` / `_strided_is_list` / `_mat_is_list`) and numeric validators through
      `lib/std/buffer/common.oren`, which removes another copy-pasted helper family from `view` and

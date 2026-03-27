@@ -79,6 +79,12 @@ fn _validate_i32_or_err(v, ctx) {
     return v
 }
 
+fn _validate_u8_or_err(v, ctx) {
+    if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
+    if v < 0 || v > 255 { return oren_err(4, ctx + ": byte out of range") }
+    return v
+}
+
 fn _validate_i64_or_err(v, ctx) {
     if _is_int(v) == false { return oren_err(4, ctx + ": value not int") }
     return v

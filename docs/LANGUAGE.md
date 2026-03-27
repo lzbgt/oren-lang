@@ -3300,8 +3300,9 @@ Rolling status:
   loads/stores via `try_len`, `try_load_*`, and `try_store_*`, plus checked zero-copy view helpers
   such as `try_slice_new`, `try_slice_load_i32`, `try_strided_new`, `try_mat_view_new`,
   `try_mat_rows`, `try_mat_cols`, `try_mat_row_stride`, `try_mat_row_slice`,
-  `try_mat_col_strided`, `try_mat_subview`, `try_mat_diag_strided`, `try_mat_load/store_i32`,
-  `try_mat_load/store_i64`, `try_mat_load/store_f32`, and `try_mat_load/store_f64`, plus
+  `try_mat_col_strided`, `try_mat_subview`, `try_mat_diag_strided`, `try_mat_load/store_u8`,
+  `try_mat_load/store_i32`, `try_mat_load/store_i64`, `try_mat_load/store_f32`, and
+  `try_mat_load/store_f64`, plus
   checked conversion helpers such as `try_u8_pack`, `try_u8_unpack`, `try_u8_from_string`,
   `try_u8_to_string`, `try_u8_from_bytes`, `try_u8_from_bytes_slice`, `try_u8_to_bytes`,
   `try_i32_pack_list_int`, `try_i32_unpack_list`, `try_i32_mat_pack_rows`,

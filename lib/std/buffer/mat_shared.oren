@@ -13,6 +13,7 @@ fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
 }
 fn _mat_is_list(m) { return common._mat_is_list(m) }
 fn _mat_validate_i32_or_err(v, ctx) { return common._validate_i32_or_err(v, ctx) }
+fn _mat_validate_u8_or_err(v, ctx) { return common._validate_u8_or_err(v, ctx) }
 fn _mat_validate_i64_or_err(v, ctx) { return common._validate_i64_or_err(v, ctx) }
 fn _mat_validate_passthru_or_err(v, ctx) { return common._validate_passthru_or_err(v, ctx) }
 

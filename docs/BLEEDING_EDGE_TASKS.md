@@ -2243,6 +2243,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `try_mat_row_stride`, `try_mat_load/store_i64`, `try_mat_load/store_f64`);
      covered by result smoke + native quick integration + dedicated AVM buffer-view smoke
      (2026-03-27).
+   - New: `std:buffer` matrix views now also expose checked `u8` cell accessors
+     (`try_mat_load_u8`, `try_mat_store_u8`), so callers can keep direct byte-cell reads/writes on
+     the matrix surface instead of routing through row or slice views for scalar access; covered by
+     result smoke + native quick integration + dedicated AVM buffer-view smoke (2026-03-27).
    - New: `std:buffer` matrix views now also project back into the zero-copy slice/strided
      surface via `try_mat_row_slice` and `try_mat_col_strided`, so matrix callers can reuse the
      existing checked `[]u8` view bridges instead of rebuilding row/column index math by hand;
@@ -2342,6 +2346,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      modules and keeps future buffer-surface validation fixes aligned across all three layers;
      covered by dedicated AVM buffer-view smoke, native quick integration, and full `make test`
      (2026-03-27).
+   - Refactor: the shared byte-range validator for `std:buffer` now also lives in
+     `lib/std/buffer/common.oren`, so `view`, matrix core, and `u8` matrix helpers all reject
+     out-of-range writes through the same checked path instead of carrying separate copies of the
+     `0..255` validation logic; covered by dedicated AVM buffer-view smoke, native quick
+     integration, and full `make test` (2026-03-27).
    - Refactor: the split `std:buffer` modules now also share list-view shape predicates
      (`_slice_is_list` / `_strided_is_list` / `_mat_is_list`) and numeric validators through
      `lib/std/buffer/common.oren`, which removes another copy-pasted helper family from `view` and

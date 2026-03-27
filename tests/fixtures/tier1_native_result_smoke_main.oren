@@ -326,6 +326,17 @@ fn smoke_buffer_matrix_u8() {
     if r.is_err(buffer.try_mat_diag_copy_from_u8_buf(diag_string_mat, diag_string_buf_src)) { return 623 }
     var diag_after_buf = buffer.try_mat_diag_to_string(diag_string_mat)
     if r.is_err(diag_after_buf) || diag_after_buf != "rs" { return 624 }
+    var mat_u8_cells = buffer.try_u8_mat_pack_strings(["ABC", "DEF"])
+    if r.is_err(mat_u8_cells) { return 660 }
+    var mat_u8_cell = buffer.try_mat_load_u8(mat_u8_cells, 0, 1)
+    if r.is_err(mat_u8_cell) || mat_u8_cell != 66 { return 661 }
+    if r.is_err(buffer.try_mat_store_u8(mat_u8_cells, 1, 2, 90)) { return 662 }
+    var mat_u8_after = buffer.try_mat_load_u8(mat_u8_cells, 1, 2)
+    if r.is_err(mat_u8_after) || mat_u8_after != 90 { return 663 }
+    var mat_u8_row_after = buffer.try_mat_row_to_string(mat_u8_cells, 1)
+    if r.is_err(mat_u8_row_after) || mat_u8_row_after != "DEZ" { return 664 }
+    if r.is_err(buffer.try_mat_store_u8(mat_u8_cells, 0, 0, 256)) != true { return 665 }
+    if r.is_err(buffer.try_mat_load_u8(mat_u8_cells, 2, 0)) != true { return 666 }
     if r.is_err(buffer.try_mat_row_slice(u8mat, 2)) != true { return 295 }
     if r.is_err(buffer.try_mat_col_strided(u8mat, 3)) != true { return 296 }
     if r.is_err(buffer.try_mat_subview(u8mat, 1, 2, 2, 2)) != true { return 312 }
