@@ -1813,3 +1813,18 @@ fn insn_mov_r32_m64_disp(dst_reg, base_reg, disp) {
     if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }
+
+// --- DEC instruction ---
+
+fn insn_dec_r64(reg) {
+    // dec r/m64 => REX.W FF /1
+    // modrm: 11 reg=001 rm=(reg&7)
+    if reg < 0 || reg > 15 { return nil }
+    var out = _insn_pool_get()
+    var rex = 72 // 0x48 (REX.W)
+    if reg >= 8 { rex = rex + 1 } // REX.B
+    bytes_push(out, rex)
+    bytes_push(out, 255) // 0xFF
+    bytes_push(out, 200 + int_mod(reg, 8)) // 0xC8 | rm (0xC0 | (1<<3) | rm)
+    return out
+}

@@ -60,7 +60,7 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_shr_r64_imm8(9, 1))  // r9 >>= 1
 
     // If vector count == 0, skip vector loop
-    bytes_extend(ctx["code"], insn_cmp_imm32(9, 0))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
     var jmp_vec_end = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_jcc_rel32("e", 0)) // placeholder
 
@@ -84,7 +84,7 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
 
     // Decrement counter and loop
     bytes_extend(ctx["code"], insn_dec_r64(9))
-    bytes_extend(ctx["code"], insn_cmp_imm32(9, 0))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
     bytes_extend(ctx["code"], insn_jcc_rel32("ne", 0))
     // Patch backward jump
     var vec_loop_jmp_loc = bytes_len(ctx["code"]) - 4
@@ -106,7 +106,7 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
     // Handle remaining scalar elements (n & 1)
     _emit_mov_r64_mrbp(ctx, 8, 0 - tmp_n) // reload n
     bytes_extend(ctx["code"], insn_and_r64_imm32(8, 1)) // n & 1
-    bytes_extend(ctx["code"], insn_cmp_imm32(8, 0))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
     var jmp_scalar_end = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_jcc_rel32("e", 0))
 
@@ -121,20 +121,6 @@ fn _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_add_r64_r64(2, 8))       // rdx += offset
 
     // Load and multiply scalar values (sign-extended)
-    // Use MOVSXD to load 32-bit value and sign-extend to 64-bit
-    if _is_i8(0 - tmp_a) {
-        bytes_extend(ctx["code"], insn_movsxd_r64_mrbp_disp8(3, 0 - tmp_a))
-    } else {
-        bytes_extend(ctx["code"], insn_movsxd_r64_mrbp_disp32(3, 0 - tmp_a))
-    }
-    // Oops - need to load from [rcx], not from stack. Fix: use register indirect via scratch
-    // Actually, we already set up rcx/rdx to point to the last elements
-    // Let's load directly from [rcx] and [rdx] using a different approach
-    // For now, emit simpler code: mov eax, [rcx]; movsxd r8, eax pattern
-    // But we don't have that instruction form. Instead, use:
-    //   movsxd r11, [rcx] - we need insn_movsxd_r64_m32_disp
-    
-    // Simpler approach: use existing primitives
     // mov r11d, [rcx] (32-bit load) then movsxd r11, r11d
     bytes_extend(ctx["code"], insn_mov_r32_m64_disp(11, 1, 0)) // r11d = [rcx] (32-bit)
     bytes_extend(ctx["code"], insn_movsxd_r64_r32(3, 11))      // r3 = sign-extend(r11d)

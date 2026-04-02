@@ -294,4 +294,14 @@ fn _emit_addr_rbp_minus_off_x64(ctx, dst_reg, off) {
     return nil
 }
 
+// SSE2 packed integer operations (for SIMD)
+fn insn_pxor_xmm_xmm(dst, src) { return core.insn_pxor_xmm_xmm(dst, src) }
+fn insn_paddq_xmm_xmm(dst, src) { return core.insn_paddq_xmm_xmm(dst, src) }
+fn insn_pmuludq_xmm_xmm(dst, src) { return core.insn_pmuludq_xmm_xmm(dst, src) }
+fn insn_pshufd_xmm_xmm_imm(dst, src, imm8) { return core.insn_pshufd_xmm_xmm_imm(dst, src, imm8) }
+fn insn_movdqa_xmm_m128_disp(xmm_dst, base_reg, disp) { return core.insn_movdqa_xmm_m128_disp(xmm_dst, base_reg, disp) }
+fn insn_movdqa_m128_xmm_disp(base_reg, disp, xmm_src) { return core.insn_movdqa_m128_xmm_disp(base_reg, disp, xmm_src) }
+fn insn_mov_r32_m64_disp(dst_reg, base_reg, disp) { return core.insn_mov_r32_m64_disp(dst_reg, base_reg, disp) }
+fn insn_dec_r64(reg) { return core.insn_dec_r64(reg) }
+
 fn _is_i32(n) { return n >= -2147483648 && n <= 2147483647 }
