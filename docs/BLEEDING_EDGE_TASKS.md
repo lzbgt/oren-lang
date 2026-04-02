@@ -1197,6 +1197,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `tests/fixtures/list_int_fast_lowering_commuted.oren` and asserts those commuted `list<int>`
      loops still emit the same direct-slot fast traces on both backends; native QI now also checks
      boxed-list and `list<int>` commuted-loop correctness during `make test`.
+   - New temp-normalized widen (2026-03-28): those same arm64/x64 direct-loop matchers now also
+     accept one-temp normalized forms like `var x = xs[i]; sum = x + sum` and
+     `var p = a[i] * b[i]; sum = p + sum`, including the boxed-list fast-loop siblings.
+     `make verify-native-list-int-fast-lowering` now also compiles
+     `tests/fixtures/list_int_fast_lowering_temp.oren` and asserts those temp-normalized
+     `list<int>` loops still emit the direct-slot fast traces on both backends; native QI also
+     checks temp-normalized boxed and `list<int>` loops during `make test`.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.

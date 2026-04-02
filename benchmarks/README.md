@@ -190,10 +190,12 @@ And a dedicated native regression gate for the direct-slot path:
 make verify-native-slot-direct
 ```
 
-And a compile-time guard that proves both the canonical `array_sum_int` / `dot_product_int`
-benchmark loops and the commuted-equivalent `sum = xs[i] + sum` /
-`sum = a[i] * b[i] + sum` forms still lower through the intended native direct-slot fast
-loops on both the local arm64 target and the x64-linux backend:
+And a compile-time guard that proves the canonical `array_sum_int` / `dot_product_int`
+benchmark loops, the commuted-equivalent `sum = xs[i] + sum` /
+`sum = a[i] * b[i] + sum` forms, and the one-temp normalized
+`var x = xs[i]; sum = x + sum` / `var p = a[i] * b[i]; sum = p + sum` forms still lower
+through the intended native direct-slot fast loops on both the local arm64 target and the
+x64-linux backend:
 
 ```bash
 make verify-native-list-int-fast-lowering

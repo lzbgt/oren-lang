@@ -434,10 +434,10 @@ test-native-quick: oren
 # Fast native smoke (stage2): use stage2 compiler to build+run the same test.
 #
 # Warm the rtobj seed first: this path builds the quick-integration fixture with `--debug`,
-# and the default per-step budget in `run_native_quick_integration.sh` is too low when the
-# self-hosted compiler has to pay a cold debug rtobj build.
+# and the older 180s stage2 build budget now false-reds on healthy self-hosted debug rebuilds
+# during the local BL resolve phase, so keep the target aligned with the wider proven headroom.
 test-native-quick-stage2: oren_stage2 rtobj-seed-quick-stage2
-		@OREN_NATIVE_BUILD_TIMEOUT_SECS=180 OREN_NATIVE_RUN_TIMEOUT_SECS=120 \
+		@OREN_NATIVE_BUILD_TIMEOUT_SECS=240 OREN_NATIVE_RUN_TIMEOUT_SECS=120 \
 		  ./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
 
 # Debug flake triage (stage1): run quick integration loop with spawn ring

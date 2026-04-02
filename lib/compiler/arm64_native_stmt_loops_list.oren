@@ -383,6 +383,89 @@ fn _arm64_is_sum_add_list_mul_get(ctx, stmt, idx_name) {
     return {"sum": add_info["sum"], "left": mul_info["left"], "right": mul_info["right"]}
 }
 
+fn _arm64_match_sum_add_temp_pair_stmt(sum_stmt, temp_name) {
+    if temp_name == nil { return nil }
+    var add_info = _arm64_match_sum_add_other_expr(sum_stmt)
+    if add_info == nil { return nil }
+    var other_name = _arm64_is_ident(add_info["other"])
+    if other_name == nil || _arm64_str_eq_bytes(other_name, temp_name) != true { return nil }
+    return {"sum": add_info["sum"]}
+}
+
+fn _arm64_match_temp_stmt(stmt, idx_name) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st != "Assign" && st != "Var" { return nil }
+    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
+    var temp_name = stmt["name"]["value"]
+    if temp_name == nil || _arm64_str_eq_bytes(temp_name, idx_name) == true { return nil }
+    return {"name": temp_name, "value": stmt["value"]}
+}
+
+fn _arm64_match_sum_add_list_int_get_step(ctx, stmts, i, idx_name) {
+    var stmt = stmts[i]
+    var direct = _arm64_is_sum_add_list_int_get(ctx, stmt, idx_name)
+    if direct != nil { return {"next_i": i + 1, "sum_stmt": stmt, "info": direct} }
+    if i + 1 >= oren_list_len(stmts) { return nil }
+    var temp = _arm64_match_temp_stmt(stmt, idx_name)
+    if temp == nil { return nil }
+    var temp_name = temp["name"]
+    var list_name = _arm64_is_list_int_get_call(ctx, temp["value"], idx_name)
+    if list_name == nil { return nil }
+    var sum_info = _arm64_match_sum_add_temp_pair_stmt(stmts[i + 1], temp_name)
+    if sum_info == nil { return nil }
+    if _arm64_str_eq_bytes(temp_name, sum_info["sum"]) == true { return nil }
+    return {"next_i": i + 2, "sum_stmt": stmts[i + 1], "sum_expr_inty_ok": true, "info": {"sum": sum_info["sum"], "list": list_name}}
+}
+
+fn _arm64_match_sum_add_list_get_step(ctx, stmts, i, idx_name) {
+    var stmt = stmts[i]
+    var direct = _arm64_is_sum_add_list_get(ctx, stmt, idx_name)
+    if direct != nil { return {"next_i": i + 1, "sum_stmt": stmt, "info": direct} }
+    if i + 1 >= oren_list_len(stmts) { return nil }
+    var temp = _arm64_match_temp_stmt(stmt, idx_name)
+    if temp == nil { return nil }
+    var temp_name = temp["name"]
+    var list_name = _arm64_is_list_get_call(ctx, temp["value"], idx_name)
+    if list_name == nil { return nil }
+    var sum_info = _arm64_match_sum_add_temp_pair_stmt(stmts[i + 1], temp_name)
+    if sum_info == nil { return nil }
+    if _arm64_str_eq_bytes(temp_name, sum_info["sum"]) == true { return nil }
+    return {"next_i": i + 2, "sum_stmt": stmts[i + 1], "info": {"sum": sum_info["sum"], "list": list_name}}
+}
+
+fn _arm64_match_sum_add_list_int_mul_get_step(ctx, stmts, i, idx_name) {
+    var stmt = stmts[i]
+    var direct = _arm64_is_sum_add_list_int_mul_get(ctx, stmt, idx_name)
+    if direct != nil { return {"next_i": i + 1, "sum_stmt": stmt, "info": direct} }
+    if i + 1 >= oren_list_len(stmts) { return nil }
+    var temp = _arm64_match_temp_stmt(stmt, idx_name)
+    if temp == nil { return nil }
+    var temp_name = temp["name"]
+    var mul_info = _arm64_is_list_int_mul_get(ctx, temp["value"], idx_name)
+    if mul_info == nil { return nil }
+    var sum_info = _arm64_match_sum_add_temp_pair_stmt(stmts[i + 1], temp_name)
+    if sum_info == nil { return nil }
+    if _arm64_str_eq_bytes(temp_name, sum_info["sum"]) == true { return nil }
+    return {"next_i": i + 2, "sum_stmt": stmts[i + 1], "sum_expr_inty_ok": true, "info": {"sum": sum_info["sum"], "left": mul_info["left"], "right": mul_info["right"]}}
+}
+
+fn _arm64_match_sum_add_list_mul_get_step(ctx, stmts, i, idx_name) {
+    var stmt = stmts[i]
+    var direct = _arm64_is_sum_add_list_mul_get(ctx, stmt, idx_name)
+    if direct != nil { return {"next_i": i + 1, "sum_stmt": stmt, "info": direct} }
+    if i + 1 >= oren_list_len(stmts) { return nil }
+    var temp = _arm64_match_temp_stmt(stmt, idx_name)
+    if temp == nil { return nil }
+    var temp_name = temp["name"]
+    var mul_info = _arm64_is_list_mul_get(ctx, temp["value"], idx_name)
+    if mul_info == nil { return nil }
+    var sum_info = _arm64_match_sum_add_temp_pair_stmt(stmts[i + 1], temp_name)
+    if sum_info == nil { return nil }
+    if _arm64_str_eq_bytes(temp_name, sum_info["sum"]) == true { return nil }
+    return {"next_i": i + 2, "sum_stmt": stmts[i + 1], "info": {"sum": sum_info["sum"], "left": mul_info["left"], "right": mul_info["right"]}}
+}
+
 fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
     if stmt == nil || stmt["type"] != "While" { return nil }
     var cond = stmt["cond"]
@@ -523,14 +606,15 @@ fn _arm64_match_fast_list_int_dot_while(ctx, stmt) {
     var muls = []
     var i = 0
     while i < n - 1 {
-        var st = stmts[i]
-        var info = _arm64_is_sum_add_list_int_mul_get(ctx, st, idx_name)
-        if info == nil { return nil }
+        var step = _arm64_match_sum_add_list_int_mul_get_step(ctx, stmts, i, idx_name)
+        if step == nil { return nil }
+        var info = step["info"]
+        var sum_stmt = step["sum_stmt"]
         if sum_name == nil { sum_name = info["sum"] }
         else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
         if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
         if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
-        if exprm.native_expr_is_inty(ctx, st["value"]) != true { return nil }
+        if step["sum_expr_inty_ok"] != true && exprm.native_expr_is_inty(ctx, sum_stmt["value"]) != true { return nil }
         var left_list = info["left"]
         var right_list = info["right"]
         if _arm64_local_fp_off(ctx, left_list) == nil { return nil }
@@ -538,7 +622,7 @@ fn _arm64_match_fast_list_int_dot_while(ctx, stmt) {
         if _arm64_list_contains(lists, left_list) == false { oren_list_push(lists, left_list) }
         if _arm64_list_contains(lists, right_list) == false { oren_list_push(lists, right_list) }
         oren_list_push(muls, {"left": left_list, "right": right_list})
-        i = i + 1
+        i = step["next_i"]
     }
     if sum_name == nil { return nil }
     if oren_list_len(muls) == 0 { return nil }
@@ -570,9 +654,9 @@ fn _arm64_match_fast_list_dot_while(ctx, stmt) {
     var muls = []
     var i = 0
     while i < n - 1 {
-        var st = stmts[i]
-        var info = _arm64_is_sum_add_list_mul_get(ctx, st, idx_name)
-        if info == nil { return nil }
+        var step = _arm64_match_sum_add_list_mul_get_step(ctx, stmts, i, idx_name)
+        if step == nil { return nil }
+        var info = step["info"]
         if sum_name == nil { sum_name = info["sum"] }
         else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
         if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
@@ -584,7 +668,7 @@ fn _arm64_match_fast_list_dot_while(ctx, stmt) {
         if _arm64_list_contains(lists, left_list) == false { oren_list_push(lists, left_list) }
         if _arm64_list_contains(lists, right_list) == false { oren_list_push(lists, right_list) }
         oren_list_push(muls, {"left": left_list, "right": right_list})
-        i = i + 1
+        i = step["next_i"]
     }
     if sum_name == nil { return nil }
     if oren_list_len(muls) == 0 { return nil }
@@ -616,19 +700,20 @@ fn _arm64_match_fast_list_int_get_sum_while(ctx, stmt) {
     var loads = []
     var i = 0
     while i < n - 1 {
-        var st = stmts[i]
-        var info = _arm64_is_sum_add_list_int_get(ctx, st, idx_name)
-        if info == nil { return nil }
+        var step = _arm64_match_sum_add_list_int_get_step(ctx, stmts, i, idx_name)
+        if step == nil { return nil }
+        var info = step["info"]
+        var sum_stmt = step["sum_stmt"]
         if sum_name == nil { sum_name = info["sum"] }
         else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
         if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
         if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
-        if exprm.native_expr_is_inty(ctx, st["value"]) != true { return nil }
+        if step["sum_expr_inty_ok"] != true && exprm.native_expr_is_inty(ctx, sum_stmt["value"]) != true { return nil }
         var list_name = info["list"]
         if _arm64_local_fp_off(ctx, list_name) == nil { return nil }
         if _arm64_list_contains(lists, list_name) == false { oren_list_push(lists, list_name) }
         oren_list_push(loads, list_name)
-        i = i + 1
+        i = step["next_i"]
     }
     if sum_name == nil { return nil }
     if oren_list_len(loads) == 0 { return nil }
@@ -660,9 +745,9 @@ fn _arm64_match_fast_list_get_sum_while(ctx, stmt) {
     var loads = []
     var i = 0
     while i < n - 1 {
-        var st = stmts[i]
-        var info = _arm64_is_sum_add_list_get(ctx, st, idx_name)
-        if info == nil { return nil }
+        var step = _arm64_match_sum_add_list_get_step(ctx, stmts, i, idx_name)
+        if step == nil { return nil }
+        var info = step["info"]
         if sum_name == nil { sum_name = info["sum"] }
         else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
         if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
@@ -670,7 +755,7 @@ fn _arm64_match_fast_list_get_sum_while(ctx, stmt) {
         if _arm64_local_fp_off(ctx, list_name) == nil { return nil }
         if _arm64_list_contains(lists, list_name) == false { oren_list_push(lists, list_name) }
         oren_list_push(loads, list_name)
-        i = i + 1
+        i = step["next_i"]
     }
     if sum_name == nil { return nil }
     if oren_list_len(loads) == 0 { return nil }
@@ -678,5 +763,3 @@ fn _arm64_match_fast_list_get_sum_while(ctx, stmt) {
     if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] == true { sum_inty = true }
     return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
 }
-
-

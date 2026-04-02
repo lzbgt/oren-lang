@@ -95,4 +95,20 @@ run_build \
 check_expect "x64 commuted list<int> get-sum lowering" '\[x64_list_fast\].*kind=fast_list_int_get_sum_while'
 check_expect "x64 commuted list<int> dot lowering" '\[x64_list_fast\].*kind=fast_list_int_dot_while'
 
+run_build \
+  "arm64 temp-normalized list<int> fast lowerings" \
+  "tests/fixtures/list_int_fast_lowering_temp.oren" \
+  "${tmp_dir}/list_int_fast_lowering_temp_arm64" \
+  env OREN_TRACE_ARM64_LOOP_STACK=1 ./oren_stage2 build tests/fixtures/list_int_fast_lowering_temp.oren --backend native --no-debug --no-cache -o "${tmp_dir}/list_int_fast_lowering_temp_arm64"
+check_expect "arm64 temp-normalized list<int> get-sum lowering" 'fast_list_int_get_sum_while(_no_tick)?'
+check_expect "arm64 temp-normalized list<int> dot lowering" 'fast_list_int_dot_while(_no_tick)?'
+
+run_build \
+  "x64 temp-normalized list<int> fast lowerings" \
+  "tests/fixtures/list_int_fast_lowering_temp.oren" \
+  "${tmp_dir}/list_int_fast_lowering_temp_x64_linux" \
+  env OREN_TRACE_X64_LIST_FAST=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build tests/fixtures/list_int_fast_lowering_temp.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/list_int_fast_lowering_temp_x64_linux"
+check_expect "x64 temp-normalized list<int> get-sum lowering" '\[x64_list_fast\].*kind=fast_list_int_get_sum_while'
+check_expect "x64 temp-normalized list<int> dot lowering" '\[x64_list_fast\].*kind=fast_list_int_dot_while'
+
 echo "native list<int> fast-lowering verify complete; log: $log_path"

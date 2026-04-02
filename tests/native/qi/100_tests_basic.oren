@@ -1555,6 +1555,24 @@ fn test_list_set_clear_stress() {
         i = i + 1
     }
     assert_eq(dot_commuted, 13372, 3328)
+
+    var sum_temp = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        var x = oren_list_int_get(li, i)
+        sum_temp = x + sum_temp
+        i = i + 1
+    }
+    assert_eq(sum_temp, 570, 3329)
+
+    var dot_temp = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        var p = oren_list_int_get(li, i) * oren_list_int_get(li, i)
+        dot_temp = p + dot_temp
+        i = i + 1
+    }
+    assert_eq(dot_temp, 13372, 3330)
     oren_gc_collect()
     return 0
 }
@@ -1645,6 +1663,32 @@ fn test_boxed_list_dot_sum() {
         print("QI: boxed list commuted dot mismatch got=" + oren_int_to_string(dot_commuted) +
             " expected=" + oren_int_to_string(expected_dot))
         fail(783)
+    }
+
+    var sum_temp = 0
+    i = 0
+    while i < n {
+        var x = xs[i]
+        sum_temp = x + sum_temp
+        i = i + 1
+    }
+    if sum_temp != expected_sum {
+        print("QI: boxed list temp sum mismatch got=" + oren_int_to_string(sum_temp) +
+            " expected=" + oren_int_to_string(expected_sum))
+        fail(784)
+    }
+
+    var dot_temp = 0
+    i = 0
+    while i < n {
+        var p = xs[i] * ys[i]
+        dot_temp = p + dot_temp
+        i = i + 1
+    }
+    if dot_temp != expected_dot {
+        print("QI: boxed list temp dot mismatch got=" + oren_int_to_string(dot_temp) +
+            " expected=" + oren_int_to_string(expected_dot))
+        fail(785)
     }
     return 0
 }

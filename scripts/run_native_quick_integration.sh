@@ -196,11 +196,10 @@ fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   if [[ "$compiler_base" == *stage2* ]]; then
     # Direct standalone `./oren_stage2` quick-integration rebuilds on this host can still exceed
-    # the older 35s watchdog even with an rtobj hit. A measured standalone rerun timed out at 35s
-    # during the self-hosted debug rebuild, while the same path is already healthy under the
-    # 180s budget used by full-suite verification, so keep the stage2 standalone default aligned
-    # with that proven build headroom.
-    build_timeout_secs=180
+    # the older 35s watchdog even with an rtobj hit. After the 2026-03-28 fast-loop matcher widen,
+    # a measured healthy debug rebuild was already ~171s deep before finishing local BL resolve and
+    # false-reded at the prior 180s guard, so keep a modestly wider stage2 standalone budget here.
+    build_timeout_secs=240
   fi
 fi
 out="build/tmp/${compiler_base}_${test_label}${exe_ext}"

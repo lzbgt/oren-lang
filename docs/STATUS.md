@@ -280,6 +280,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      commuted `list<int>` loops still emit the native direct-slot get-sum and dot fast traces on
      both backends, while native QI coverage now checks boxed and `list<int>` commuted loops for
      correctness under `make test`.
+   - New temp-normalized widen (2026-03-28): the same arm64/x64 matchers now also accept one-temp
+     normalized reductions such as `var x = xs[i]; sum = x + sum` and
+     `var p = a[i] * b[i]; sum = p + sum`, again for both `list<int>` and boxed-list direct-loop
+     siblings. `make verify-native-list-int-fast-lowering` now compiles
+     `tests/fixtures/list_int_fast_lowering_temp.oren` and asserts those temp-normalized
+     `list<int>` loops still emit the direct-slot fast traces on both backends; native QI now also
+     checks temp-normalized boxed and `list<int>` loops during `make test`.
    - New warm-path control (2026-03-20): the packed-bridge prebuild now accepts an explicit
      program list, and `make perf-prebuild-dot-product-int-packed-bridge` warms only the hidden dot
      artifact before the timed ceiling probe.
