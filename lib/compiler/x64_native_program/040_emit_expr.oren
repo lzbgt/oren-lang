@@ -1063,6 +1063,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	        }
 	        if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return nil }
 	        if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return nil }
+	        if nm == "simd_dot_i32_ptr" { _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals); return nil }
 	        if nm == "native_call1" {
 	            if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: native_call1 expects 2 args"); return nil }
 	            if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: native_call1 does not support spread"); return nil }
