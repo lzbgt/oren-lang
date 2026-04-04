@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-ts="$(date +%Y%m%d_%H%M%S)"
+ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp/list_int_fast_lowering"
 mkdir -p "$log_dir" "$tmp_dir"

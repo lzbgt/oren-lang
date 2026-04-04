@@ -190,6 +190,18 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - `benchmarks/run_benchmarks.py`
     now all use collision-resistant timestamps, so adjacent probe variants do not overwrite
     each other’s gate logs or benchmark result artifacts
+  - follow-up cleanup in the same measurement theme (2026-04-04):
+    - `scripts/build_perf_artifacts_list_int_packed_bridge.sh`
+    - `scripts/build_perf_artifacts_list_int_slot_direct.sh`
+    - `scripts/run_perf_probe_list_int_packed_bridge.sh`
+    - `scripts/run_perf_probe_list_int_slot_direct.sh`
+    - `scripts/run_perf_probe_list_int_unsafe.sh`
+    - `scripts/run_perf_smoke_list_int.sh`
+    - `scripts/run_perf_smoke_list_int_packed_bridge.sh`
+    - `scripts/run_perf_smoke_list_int_slot_direct.sh`
+    - `scripts/verify_native_list_int_fast_lowering.sh`
+    now also suffix log timestamps with `$$`, so the whole active list-int perf/probe/smoke surface
+    is collision-safe under back-to-back runs
   - verified with:
     - `env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 make perf-probe-arm64-fast-dot-single-pair-cursor-regs`
     - `make test`

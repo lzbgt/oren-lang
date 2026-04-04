@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ts="$(date +%Y%m%d_%H%M%S)"
+ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 log_path="$log_dir/perf-prebuild-list-int-slot-direct-${ts}.log"

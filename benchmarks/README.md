@@ -355,8 +355,9 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-probe-arm64-fast-dot-single-pair-cursor-regs`. The shipped default keeps the
   single-pair cursor-reg path enabled, and the probe compares that default against
   `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0`.
-- Native/list<int> perf-gate scripts and benchmark result artifacts now use collision-resistant
-  timestamps, so back-to-back probe variants do not overwrite each other’s logs or result files.
+- Native/list<int> perf-gate, probe, smoke, prebuild, and benchmark result artifacts now use
+  collision-resistant timestamps, so back-to-back variants do not overwrite each other’s logs or
+  result files.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 
