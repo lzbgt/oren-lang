@@ -1293,6 +1293,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      canonical `array_sum` ~2.0808x C / `dot_product` ~2.7616x C and steady `array_sum`
 			      ~2.2422x C / `dot_product` ~2.9915x C. This is worth keeping, but the canonical
 			      arm64 dot blocker is still open.
+			    - New arm64 dual-accum probe + variance guard (2026-04-04):
+			      `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped single-pair
+			      cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`. The arm64
+			      dot probe scripts also now warn when the canonical one-program gate is too noisy
+			      (`cov >= 0.10`) to support a strong conclusion. Current clean rerun regressed both
+			      surfaces: steady default ~2.8895x C vs enabled ~3.0684x C, canonical gate default
+			      ~2.6129x C vs enabled ~2.7629x C. Keep the dual-accum path disabled.
 			    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

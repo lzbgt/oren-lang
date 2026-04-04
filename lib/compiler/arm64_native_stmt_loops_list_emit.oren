@@ -721,6 +721,13 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     if v_single_pair_cursor_regs != nil && (v_single_pair_cursor_regs == "0" || v_single_pair_cursor_regs == "false") {
         single_pair_cursor_regs = false
     }
+    var dual_accum = false
+    var v_dual_accum = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM")
+    if v_dual_accum == "1" || v_dual_accum == "true" {
+        dual_accum = true
+    } else if v_dual_accum != nil && (v_dual_accum == "0" || v_dual_accum == "false") {
+        dual_accum = false
+    }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     var v_unroll2 = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2")
@@ -869,6 +876,11 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             // current host reruns are still too close to justify removing it outright.
             emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
             emit_ldr_reg_sp_any(ctx, 26, list_base_off + 24)
+            if dual_accum {
+                // Split the reduction across two independent accumulators to shorten the
+                // dependency chain in the single-pair hot path.
+                push_u32_le(ctx["code"], insn_movz(17, 0))
+            }
         }
     }
 
@@ -921,7 +933,11 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             push_u32_le(ctx["code"], insn_mul(24, 24, 27))
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
             push_u32_le(ctx["code"], insn_mul(25, 25, 28))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            if dual_accum {
+                push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
+            } else {
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            }
 
             push_u32_le(ctx["code"], insn_ldr_ptr_off(24, 19, 16))
             push_u32_le(ctx["code"], insn_ldr_ptr_off(25, 19, 24))
@@ -930,7 +946,11 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             push_u32_le(ctx["code"], insn_mul(24, 24, 27))
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
             push_u32_le(ctx["code"], insn_mul(25, 25, 28))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            if dual_accum {
+                push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
+            } else {
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            }
 
             push_u32_le(ctx["code"], insn_add_imm(19, 19, 32))
             push_u32_le(ctx["code"], insn_add_imm(26, 26, 32))
@@ -995,7 +1015,11 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
             // sum += left1 * right1
             push_u32_le(ctx["code"], insn_mul(28, 28, 27))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
+            if single_mul_pair && single_pair_cursor_regs && dual_accum {
+                push_u32_le(ctx["code"], insn_add_reg(17, 17, 28))
+            } else {
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
+            }
 
             mi2 = mi2 + 1
         }
@@ -1086,6 +1110,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
 
     // Update idx/sum locals after loop exit.
+    if single_mul_pair && single_pair_cursor_regs && dual_accum {
+        push_u32_le(ctx["code"], insn_add_reg(23, 23, 17))
+    }
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
     emit_str_reg_fp_any(ctx, 23, sum_fp_off)
 

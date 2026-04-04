@@ -254,6 +254,28 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
         - `dot_product` ~2.7616x C
   - conclusion: this cleanup is worth keeping because it is low-risk and directionally positive,
     but it does not close the canonical arm64 `dot_product <= 2x C` blocker
+- Follow-up arm64 dot dual-accum probe + variance guard (2026-04-04):
+  - added a source-free probe for the single-pair cursor-reg dot specialization:
+    - `make perf-probe-arm64-fast-dot-dual-accum`
+    - `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`
+  - kept the shipped default conservative:
+    - dual-accum path disabled by default
+  - hardened the arm64 dot probe family while landing it:
+    - `scripts/run_perf_probe_arm64_fast_dot_single_pair_cursor_regs.sh`
+    - `scripts/run_perf_probe_arm64_fast_dot_unroll2.sh`
+    - `scripts/run_perf_probe_arm64_fast_dot_dual_accum.sh`
+    now parse benchmark `cov` and print a warning when the canonical one-program gate is too noisy
+    (`cov >= 0.10`) to support a strong comparison
+  - verified with:
+    - `env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 make perf-probe-arm64-fast-dot-dual-accum`
+    - `make test`
+  - final clean rerun from `build/logs/perf-probe-arm64-fast-dot-dual-accum-20260404_221723_55004.log`:
+    - steady default: `dot_product` ~2.8895x C
+    - steady enabled: `dot_product` ~3.0684x C
+    - canonical gate default: `dot_product` ~2.6129x C
+    - canonical gate enabled: `dot_product` ~2.7629x C
+  - conclusion: on the current host, dual accumulators make the single-pair arm64 dot path worse on
+    both tracker surfaces, so keep the path disabled and keep the probe for future reruns
 
 ## Production-level reality after this pass
 

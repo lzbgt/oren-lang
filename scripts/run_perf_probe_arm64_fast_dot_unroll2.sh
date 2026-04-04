@@ -72,7 +72,7 @@ import re
 
 steady_log_re = re.compile(r"summary: (build/logs/perf-gate-native-steady-[^ ]+\.log)")
 steady_re = re.compile(r"native/C steady ratio≈([0-9.]+)x")
-md_row_re = re.compile(r"\| (c|oren_native) \| ([0-9.]+) \|")
+md_row_re = re.compile(r"\| (c|oren_native) \| ([0-9.]+) \| ([0-9.]+) \| ([0-9.]+) \|")
 gate_log_re = re.compile(r"log: (build/logs/perf-gate-native-[^ ]+\.log)")
 gate_md_re = re.compile(r"(?:^|/)(build/benchmarks/results/dot_product_[^ ]+\.md)$")
 
@@ -114,6 +114,8 @@ def parse_gate(path):
         return None, None
     c = None
     native = None
+    c_cov = None
+    native_cov = None
     with open(md_path, "r", encoding="utf-8") as f:
         for raw in f:
             m = md_row_re.match(raw.rstrip("\n"))
@@ -121,11 +123,13 @@ def parse_gate(path):
                 continue
             if m.group(1) == "c":
                 c = float(m.group(2))
+                c_cov = float(m.group(4))
             elif m.group(1) == "oren_native":
                 native = float(m.group(2))
+                native_cov = float(m.group(4))
     if c is None or native is None:
-        return md_path, None
-    return md_path, native / c
+        return md_path, None, c_cov, native_cov
+    return md_path, native / c, c_cov, native_cov
 
 cases = [
     ("steady default", os.environ["STEADY_DEFAULT_LOG"], "steady"),
@@ -143,11 +147,13 @@ for label, path, kind in cases:
         if ratio is not None:
             print(f"  dot_product: native/C steady ratio≈{ratio:.4f}x")
     else:
-        md_path, ratio = parse_gate(path)
+        md_path, ratio, c_cov, native_cov = parse_gate(path)
         if md_path is not None:
             print(f"  results: {md_path}")
         if ratio is not None:
             print(f"  dot_product: native/C median ratio={ratio:.4f}x")
+        if c_cov is not None and native_cov is not None and (c_cov >= 0.10 or native_cov >= 0.10):
+            print(f"  warning: high gate variance (c cov={c_cov:.4f}, native cov={native_cov:.4f})")
     print("")
 PY
 

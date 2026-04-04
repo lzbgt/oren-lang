@@ -360,6 +360,13 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   unroll-by-2 path enabled, and the probe compares that default against
   `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0`. The emitter also accepts explicit `0/1`
   (`false/true`) overrides so future reruns can force either side without source edits.
+- For the arm64 single-pair `fast_list_int_dot_while` dual-accumulator recheck, use
+  `make perf-probe-arm64-fast-dot-dual-accum`. The shipped default keeps the dual-accumulator
+  path disabled, and the probe compares that default against
+  `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.
+- The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
+  variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
+  like trustworthy wins.
 - Native/list<int> perf-gate, probe, smoke, prebuild, and benchmark result artifacts now use
   collision-resistant timestamps, so back-to-back variants do not overwrite each other’s logs or
   result files.

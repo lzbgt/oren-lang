@@ -1189,9 +1189,20 @@ Weights reflect expected impact on C parity and breadth of affected code.
          ~2.2422x C, `dot_product` ~2.9915x C
        - canonical gate (`build/benchmarks/results/array_sum_darwin_arm64_20260404_220447_355740.md`,
          `build/benchmarks/results/dot_product_darwin_arm64_20260404_220447_627069.md`):
-         `array_sum` ~2.0808x C, `dot_product` ~2.7616x C
+       `array_sum` ~2.0808x C, `dot_product` ~2.7616x C
      - Conclusion: keep the cleanup because it is low-risk and directionally positive, but the
        canonical arm64 `dot_product` blocker remains above the `<=2x C` gate.
+   - New arm64 dual-accum probe + variance guard (2026-04-04):
+     - `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped
+       single-pair cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.
+     - The arm64 dot probe scripts (`cursor-reg`, `unroll2`, `dual-accum`) now parse benchmark
+       `cov` and print a warning when the canonical one-program gate is too noisy (`cov >= 0.10`)
+       to support a strong perf conclusion.
+     - Final clean rerun (`build/logs/perf-probe-arm64-fast-dot-dual-accum-20260404_221723_55004.log`):
+       steady default ~2.8895x C vs enabled ~3.0684x C, canonical gate default ~2.6129x C vs
+       enabled ~2.7629x C.
+     - Conclusion: keep the dual-accum path disabled by default on the current host; it regresses
+       both tracker surfaces in the clean rerun.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
@@ -2012,6 +2023,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
 		      `array_sum` ~2.0808x C / `dot_product` ~2.7616x C on the canonical gate and
 		      `array_sum` ~2.2422x C / `dot_product` ~2.9915x C on the steady runner, but the
 		      blocker still remains above the `<=2x C` gate.
+		    - Arm64 dot dual-accum probe (`make perf-probe-arm64-fast-dot-dual-accum`, 2026-04-04):
+		      clean rerun regressed both surfaces (steady default ~2.8895x C vs enabled ~3.0684x C;
+		      gate default ~2.6129x C vs enabled ~2.7629x C), so the dual-accum path stays disabled.
 		    - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)
