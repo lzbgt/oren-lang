@@ -451,28 +451,33 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - For the arm64 exact-path `madd` recheck, use
   `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
   the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial
-  arm64 dot acceptance bundle. Use it when revisiting the previously unsafe exact-path `madd`
-  branch so disasm wins, steady-state wins, exact-binary repro, and optional `make test` all land
-  in one comparable artifact instead of being reassembled from ad-hoc commands. The current host
-  still treats this as an unsafe experiment: the enabled path shrinks canonical dot disasm to 63
-  instructions and improves the focused ratios, but the exact native debug repro still exits `139`.
+  arm64 dot acceptance bundle. Use it when revisiting the default-off exact-path `madd` branch so
+  disasm, steady-state ratios, canonical gate, and exact-binary repro all land in one comparable
+  artifact instead of being reassembled from ad-hoc commands. After the April 5 exact-double tail
+  guard, the current host now treats the enabled path as correctness-clean, but still not as a
+  shipped optimization: the latest rerun lands at `steady_dot_product ~2.9446x`,
+  `gate_dot_product ~2.7220x`, `disasm_dot_product_insns: 77`, and `debug_exit_code: 0` versus the
+  shipped baseline at `~3.1670x`, `~2.7194x`, `70`, and `0`
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
 - For the arm64 exact-path `madd` subcase split, use
   `make perf-probe-arm64-fast-dot-madd-exact-subpaths`. This keeps the shipped baseline on one side
   and compares isolated `quad`, `double`, and `scalar` exact-`madd` substitutions on the other by
   forcing `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0` and enabling exactly one of:
   `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1`,
   `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1`, or
-  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1`. The current host localizes the unsafe
-  exact-path branch to the 2-wide `double` leg: `quad` and `scalar` stay correctness-clean but do
-  not beat the shipped baseline on the acceptance metrics, while `double` still dies in the
-  canonical native smoke before `dot_product 10 3` finishes.
+  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1`. After the April 5 terminal-tail guard, all
+  three subpaths are correctness-clean on the current host, but none beats the shipped baseline on
+  the full acceptance bundle. The latest rerun shows `quad` at `steady_dot_product ~2.9752x`,
+  `gate_dot_product ~2.4771x`, disasm `66`; `double` at `~3.0132x`, `~2.6670x`, disasm `82`; and
+  `scalar` at `~2.9798x`, `~2.4631x`, disasm `69`, versus baseline `~2.9142x`, `~2.6790x`,
+  disasm `70` (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260405_013631_40642.log`).
 - For the arm64 exact-double tail-shape sweep, use
   `make perf-probe-arm64-fast-dot-madd-exact-double-sweep`. It builds the exact-double-only native
   `dot_product` benchmark once and then sweeps `n=1..N` (default `24`) at a fixed `reps` (default
-  `1`). The current host shows a sharper failure shape than “double leg always bad”:
-  the exact-double binary fails for `n ≡ 2 (mod 4)` in the sampled range (`10, 14, 18, 22`) and
-  stays green for the neighboring `n ≡ 3 (mod 4)` cases. That points the bug at the direct
-  fast-loop exit after a terminal 2-wide chunk, not at every use of the double leg.
+  `1`). The current host now uses this as the correctness confirmation for the exact-double tail
+  guard: the latest rerun is green for every sampled `n=1..24`, including the formerly unsafe
+  `n ≡ 2 (mod 4)` cases such as `10`, `14`, `18`, and `22`
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_013604_40047.log`).
 - For the exact-double control-flow snippet itself, use
   `make perf-probe-arm64-fast-dot-double-exit-snippet`. It rebuilds both the shipped baseline and
   the exact-double-only variant with `--disasm`, then extracts just the 2-wide block from the

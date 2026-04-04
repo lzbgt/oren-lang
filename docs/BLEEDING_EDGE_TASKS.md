@@ -1416,25 +1416,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      `build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`.
 						      After the smoke cache-policy fix, the enabled canonical smoke now fails directly
 						      too instead of passing via a stale cached baseline binary.
+						    - Exact-double tail guard follow-up (arm64, 2026-04-05): the 2-wide exact-`madd`
+						      branch now falls back to the original `mul/add` body when the chunk is terminal.
+						      The updated sweep is fully green for `n=1..24`, including the formerly unsafe
+						      `n ≡ 2 (mod 4)` tail cases `10`, `14`, `18`, and `22`
+						      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_013604_40047.log`).
 						    - Subpath rerun (arm64, 2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-subpaths`
-						      now splits that exact-path branch into isolated `quad`, `double`, and `scalar`
-						      substitutions with `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0` and one of
-						      `..._QUAD=1`, `..._DOUBLE=1`, or `..._SCALAR=1`. The current host localizes the
-						      unsafe `139` to the 2-wide `double` leg: `quad` stayed correctness-clean but
-						      regressed to `steady_dot_product ~3.0644x`, `gate_dot_product ~2.5552x`,
-						      disasm `66` instructions; `scalar` also stayed correctness-clean but regressed
-						      to `steady_dot_product ~3.1487x`, `gate_dot_product ~2.4786x`, disasm `69`
-						      instructions; and `double` failed immediately in the canonical smoke at native
-						      `dot_product 10 3`
-						      (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log`,
-						      `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`).
-						    - Tail-shape sweep (arm64, 2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-double-sweep`
-						      now builds the exact-double-only benchmark once and sweeps `n=1..24` at fixed
-						      `reps`. The sampled failures are only the `n ≡ 2 (mod 4)` tail cases
-						      (`10, 14, 18, 22`) while the neighboring `n ≡ 3 (mod 4)` cases stay green
-						      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
-						      That narrows the remaining exact-double wrong-code hazard to the direct fast-loop
-						      exit after a terminal 2-wide chunk.
+						      now shows `quad`, `double`, and `scalar` all correctness-clean after that guard,
+						      but still not as shipped wins. Latest rerun:
+						      baseline `steady_dot_product ~2.9142x`, `gate_dot_product ~2.6790x`, disasm `70`;
+						      `quad` `~2.9752x`, `~2.4771x`, disasm `66`;
+						      `double` `~3.0132x`, `~2.6670x`, disasm `82`;
+						      `scalar` `~2.9798x`, `~2.4631x`, disasm `69`
+						      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260405_013631_40642.log`).
+						    - Exact-path rerun (arm64, 2026-04-05): the whole default-off exact-`madd` branch
+						      is also correctness-clean again after the double-tail fix, but still not a
+						      default-worthy optimization: baseline
+						      `steady_dot_product ~3.1670x`, `gate_dot_product ~2.7194x`, disasm `70`
+						      versus enabled `~2.9446x`, `~2.7220x`, disasm `77`
+						      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

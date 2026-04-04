@@ -412,19 +412,24 @@ This repo is still not factually "all planned features implemented" or "producti
 - Follow-up probe batch (2026-04-05): there is now also
   `make perf-probe-arm64-fast-dot-madd-exact-subpaths`, which forces the global exact-path knob
   off and re-enables only one of the `quad`, `double`, or `scalar` `madd` substitutions at a time.
-  The current host narrows the unsafe April 5 exact-path failure to the 2-wide `double` leg:
-  `quad` and `scalar` both stayed correctness-clean but regressed the acceptance metrics, while
-  `double` still failed immediately in the canonical smoke at native `dot_product 10 3`
-  (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log` and
-  `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`).
-- Another follow-up probe on April 5 tightened that again: the new
-  `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` runner builds the exact-double-only
-  native benchmark once and sweeps `n=1..24`. On the current host the failures are not “any use of
-  the double leg”; they are specifically the `n ≡ 2 (mod 4)` tail cases (`10, 14, 18, 22`) while
-  the neighboring `n ≡ 3 (mod 4)` cases stay green
-  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
-  That points the remaining hazard at the direct fast-loop exit after a terminal 2-wide exact-`madd`
-  chunk.
+  After the exact-double tail guard landed, the current host now shows all three subpaths as
+  correctness-clean, but still not as default-worthy wins. Latest rerun:
+  baseline `steady_dot_product ~2.9142x`, `gate_dot_product ~2.6790x`, disasm `70`;
+  `quad` `~2.9752x`, `~2.4771x`, disasm `66`;
+  `double` `~3.0132x`, `~2.6670x`, disasm `82`;
+  `scalar` `~2.9798x`, `~2.4631x`, disasm `69`
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260405_013631_40642.log`).
+- Another follow-up probe on April 5 tightened the exact-double story further: the updated
+  `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` runner is now green for every sampled
+  `n=1..24`, including the formerly unsafe `n ≡ 2 (mod 4)` tail cases `10`, `14`, `18`, and `22`
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_013604_40047.log`).
+  That confirms the remaining terminal exact-double case is now falling back safely.
+- With that guard in place, the whole default-off exact-path branch is also correctness-clean again:
+  `make perf-probe-arm64-fast-dot-madd-exact` no longer fails the exact native repro, but it still
+  does not beat the shipped default overall. Latest rerun:
+  baseline `steady_dot_product ~3.1670x`, `gate_dot_product ~2.7194x`, disasm `70` versus enabled
+  `~2.9446x`, `~2.7220x`, disasm `77`
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
 - To make the next code change cheaper to audit, there is now also
   `make perf-probe-arm64-fast-dot-double-exit-snippet`, which rebuilds the baseline and
   exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the

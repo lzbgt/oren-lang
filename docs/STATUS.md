@@ -1335,26 +1335,26 @@ Weights reflect expected impact on C parity and breadth of affected code.
      at `63` instructions (`build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`).
      After the smoke cache-policy fix, the enabled canonical smoke also reproduces the failure
      directly instead of passing via a stale cached binary.
-   - Subpath rerun (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-subpaths` now isolates
-     the exact-path branch into default-off `quad`, `double`, and `scalar` substitutions via
-     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_{QUAD,DOUBLE,SCALAR}=1` with the global exact knob
-     forced off. On this host the unsafe branch is specifically the 2-wide `double` leg:
-     `quad` stayed correctness-clean but regressed the acceptance view to
-     `steady_dot_product ~3.0644x`, `gate_dot_product ~2.5552x`, disasm `66` instructions;
-     `scalar` also stayed correctness-clean but regressed to
-     `steady_dot_product ~3.1487x`, `gate_dot_product ~2.4786x`, disasm `69` instructions; and
-     `double` failed immediately in the canonical smoke at native `dot_product 10 3`
-     (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log`,
-     `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`). That narrows
-     the April 5 exact-path `139` to the 2-wide body instead of the quad or scalar substitutions.
-   - Tail-shape sweep (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` now
-     builds the exact-double-only benchmark once and sweeps `n=1..24` at fixed `reps`. The failure
-     pattern is narrower again than “double body always unsafe”: in the sampled range the binary
-     fails only for `n ≡ 2 (mod 4)` (`10, 14, 18, 22`) and stays green for the neighboring
-     `n ≡ 3 (mod 4)` cases (`11, 15, 19, 23`)
-     (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
-     That points the remaining wrong-code hazard at the direct fast-loop exit after a terminal
-     2-wide exact-`madd` chunk, not at every execution of the 2-wide body.
+   - Exact-double tail guard follow-up (2026-04-05): the arm64 2-wide exact-`madd` branch now has a
+     targeted terminal-tail fallback in `fast_list_int_dot_while*`, so the formerly unsafe direct
+     exit after a terminal 2-wide chunk drops back to the original `mul/add` body instead of taking
+     the exact-`madd` path. The updated exact-double sweep is now green for every sampled `n=1..24`,
+     including the previously failing `n ≡ 2 (mod 4)` cases `10`, `14`, `18`, and `22`
+     (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_013604_40047.log`).
+   - Subpath rerun (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-subpaths` now shows all
+     three isolated exact-`madd` subpaths as correctness-clean on this host after that guard, but
+     still not as shipped wins. The latest rerun lands at baseline
+     `steady_dot_product ~2.9142x`, `gate_dot_product ~2.6790x`, disasm `70`; `quad`
+     `~2.9752x`, `~2.4771x`, disasm `66`; `double` `~3.0132x`, `~2.6670x`, disasm `82`; and
+     `scalar` `~2.9798x`, `~2.4631x`, disasm `69`
+     (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260405_013631_40642.log`).
+     The exact-double branch is fixed for correctness, but it is still a clear performance loss.
+   - Exact-path rerun (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact` is now also
+     correctness-clean after the exact-double tail guard. The enabled whole-path branch no longer
+     crashes the exact native repro (`debug_exit_code: 0`), but it still does not justify a default
+     flip: latest rerun is baseline `steady_dot_product ~3.1670x`, `gate_dot_product ~2.7194x`,
+     disasm `70` versus enabled `~2.9446x`, `~2.7220x`, disasm `77`
+     (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
    - Disasm extraction follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-double-exit-snippet`
      now rebuilds the baseline and exact-double variants with traced `--disasm` and extracts the
      compact 2-wide block from the canonical `fast_list_int_dot_while_no_tick` window into one

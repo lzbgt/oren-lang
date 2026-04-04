@@ -1015,6 +1015,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             set_u32_le(ctx["code"], jpos_fast_quad, insn_b_cond(quad_off, 10)) // GE
         }
 
+        var exact_double_terminal_guard_pos = nil
+        var exact_double_after_pos = nil
+
         var mi2 = 0
         while mi2 < oren_list_len(muls) {
             var mul2 = muls[mi2]
@@ -1034,6 +1037,16 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             var buf_right2 = list_base_off + li_right2 * 16 + 8
 
             if single_mul_pair && single_pair_cursor_regs {
+                if madd_exact_double && !dual_accum && exact_double_terminal_guard_pos == nil {
+                    // The exact-double madd variant is only correctness-clean on the current host
+                    // when the 2-wide chunk is followed by the scalar tail (remainder==3). If this
+                    // double chunk is terminal (remainder==2), fall back to the baseline mul/add
+                    // body until the direct-exit hazard is fully understood.
+                    push_u32_le(ctx["code"], insn_add_imm(24, 20, 2))
+                    push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
+                    exact_double_terminal_guard_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // patched: b.ge fallback mul/add double path
+                }
                 push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
                 push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 19, 8))
                 push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
@@ -1080,6 +1093,32 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
 
             mi2 = mi2 + 1
+        }
+
+        if exact_double_terminal_guard_pos != nil {
+            exact_double_after_pos = bytes_len(ctx["code"])
+            var exact_double_after_jump = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // patched: b after fallback
+
+            var exact_double_fallback_pos = bytes_len(ctx["code"])
+            var exact_double_fallback_off = (exact_double_fallback_pos - exact_double_terminal_guard_pos) / 4
+            set_u32_le(ctx["code"], exact_double_terminal_guard_pos, insn_b_cond(exact_double_fallback_off, 10)) // GE
+
+            // Terminal exact-double chunk falls back to the original mul/add sequence.
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 19, 8))
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
+            push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+            push_u32_le(ctx["code"], insn_mul(25, 25, 27))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 26, 8))
+            push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
+            push_u32_le(ctx["code"], insn_mul(28, 28, 27))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
+
+            exact_double_after_pos = bytes_len(ctx["code"])
+            var exact_double_after_off = (exact_double_after_pos - exact_double_after_jump) / 4
+            set_u32_le(ctx["code"], exact_double_after_jump, insn_b(exact_double_after_off))
         }
 
         // i += 2
