@@ -1286,6 +1286,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      decisive: steady default ~2.9806x C vs disabled ~2.8893x C, while the canonical gate
 			      read default ~2.1919x C vs disabled ~2.7147x C. Keep the shipped default for now and
 			      use the probe for future reruns.
+			    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
+			      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
+			      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`
+			      recompute in the non-unique int-dot body. Serial reruns on the kept tree improved to
+			      canonical `array_sum` ~2.0808x C / `dot_product` ~2.7616x C and steady `array_sum`
+			      ~2.2422x C / `dot_product` ~2.9915x C. This is worth keeping, but the canonical
+			      arm64 dot blocker is still open.
 			    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

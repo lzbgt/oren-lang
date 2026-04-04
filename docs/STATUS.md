@@ -1180,6 +1180,18 @@ Weights reflect expected impact on C parity and breadth of affected code.
        disabled ~2.7147x C.
      - Conclusion: the current host signal is mixed rather than decisively better in one direction.
        Keep the shipped unroll-by-2 default for now and reuse the probe for future reruns.
+   - Modest arm64 unique-list loop-body cleanup (2026-04-04):
+     - kept `n` hot in a register for unique-list `fast_list_int_get_sum_while` and
+       `fast_list_int_dot_while`, switched scalar unique-list cursor bumps from register-add to
+       immediate-add, and removed the duplicate `i * 8` recompute from the non-unique int-dot body.
+     - Serial reruns on the kept tree:
+       - steady (`build/logs/perf-gate-native-steady-20260404_220430_32496.log`): `array_sum`
+         ~2.2422x C, `dot_product` ~2.9915x C
+       - canonical gate (`build/benchmarks/results/array_sum_darwin_arm64_20260404_220447_355740.md`,
+         `build/benchmarks/results/dot_product_darwin_arm64_20260404_220447_627069.md`):
+         `array_sum` ~2.0808x C, `dot_product` ~2.7616x C
+     - Conclusion: keep the cleanup because it is low-risk and directionally positive, but the
+       canonical arm64 `dot_product` blocker remains above the `<=2x C` gate.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
@@ -1994,6 +2006,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
 		      current kept-state serial rerun is mixed (steady default ~2.9806x C vs disabled
 		      ~2.8893x C; gate default ~2.1919x C vs disabled ~2.7147x C). Default remains enabled
 		      until the signal is stronger.
+		    - Arm64 unique-list loop-body cleanup (`2026-04-04`): kept `n` hot on the unique-list
+		      get-sum/dot paths, switched scalar unique-list cursor bumps to immediate adds, and
+		      removed duplicate non-unique dot offset recomputes. Current serial reruns improved to
+		      `array_sum` ~2.0808x C / `dot_product` ~2.7616x C on the canonical gate and
+		      `array_sum` ~2.2422x C / `dot_product` ~2.9915x C on the steady runner, but the
+		      blocker still remains above the `<=2x C` gate.
 		    - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)

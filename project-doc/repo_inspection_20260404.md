@@ -232,6 +232,28 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - canonical gate disabled: `dot_product` ~2.7147x C
   - conclusion: current host signal is mixed rather than decisively better in one direction, so
     the shipped unroll-by-2 default stays enabled for now; use the new probe for future reruns
+- Follow-up arm64 unique-list loop-body cleanup (2026-04-04):
+  - tightened the arm64 int list hot loops without changing semantics:
+    - keep `n` hot in a register on the unique-list `fast_list_int_get_sum_while` path
+    - keep `n` hot in a register on the unique-list `fast_list_int_dot_while` path
+    - use immediate `+8` cursor bumps on the scalar unique-list int get-sum/dot paths
+    - remove the duplicate `i * 8` recompute from the non-unique int-dot body
+  - verified with:
+    - `make perf-smoke-native-fast-loops`
+    - `env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 OREN_BENCH_PROGRAMS=array_sum,dot_product make perf-gate-native-steady`
+    - `env OREN_BENCH_PROGRAMS=array_sum,dot_product make perf-gate-native`
+    - `make test`
+  - serial kept-state reruns:
+    - steady summary `build/logs/perf-gate-native-steady-20260404_220430_32496.log`
+      - `array_sum` ~2.2422x C
+      - `dot_product` ~2.9915x C
+    - canonical gate:
+      - `build/benchmarks/results/array_sum_darwin_arm64_20260404_220447_355740.md`
+        - `array_sum` ~2.0808x C
+      - `build/benchmarks/results/dot_product_darwin_arm64_20260404_220447_627069.md`
+        - `dot_product` ~2.7616x C
+  - conclusion: this cleanup is worth keeping because it is low-risk and directionally positive,
+    but it does not close the canonical arm64 `dot_product <= 2x C` blocker
 
 ## Production-level reality after this pass
 

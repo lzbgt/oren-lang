@@ -231,10 +231,17 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, sum_off)
     emit_load_i64_imm(ctx, 22, 8)
+    if unique_lists {
+        // Unique-list fast paths do not need X21 as a scratch register in the loop body,
+        // so keep the loop-invariant upper bound hot instead of reloading it from the stack.
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
 
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    emit_ldr_reg_sp_any(ctx, 21, n_off)
+    if unique_lists != true {
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
@@ -265,7 +272,7 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         if unique_lists {
             emit_ldr_reg_sp_any(ctx, 24, buf_slot2)
             push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-            push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
+            push_u32_le(ctx["code"], insn_add_imm(24, 24, 8))
             emit_str_reg_sp_any(ctx, 24, buf_slot2)
         } else {
             // addr = buf + i*8 ; load value
@@ -869,10 +876,17 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, sum_off)
     emit_load_i64_imm(ctx, 22, 8)
+    if unique_lists {
+        // Unique-list fast paths do not need X21 as a scratch register in the loop body,
+        // so keep the loop-invariant upper bound hot instead of reloading it from the stack.
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
 
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    emit_ldr_reg_sp_any(ctx, 21, n_off)
+    if unique_lists != true {
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
@@ -893,6 +907,10 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     }
 
     gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+    if unique_lists != true {
+        // Shared addr offset for the non-unique slow-fast path.
+        push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+    }
 
     if unroll2 == true {
         if single_mul_pair && single_pair_cursor_regs {
@@ -1016,21 +1034,21 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         if unique_lists {
             if single_mul_pair && single_pair_cursor_regs {
                 push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
-                push_u32_le(ctx["code"], insn_add_reg(19, 19, 22))
+                push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
 
                 push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
-                push_u32_le(ctx["code"], insn_add_reg(26, 26, 22))
+                push_u32_le(ctx["code"], insn_add_imm(26, 26, 8))
             } else {
                 // left value (advance cursor)
                 emit_ldr_reg_sp_any(ctx, 24, buf_left)
                 push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-                push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
+                push_u32_le(ctx["code"], insn_add_imm(24, 24, 8))
                 emit_str_reg_sp_any(ctx, 24, buf_left)
 
                 // right value (advance cursor)
                 emit_ldr_reg_sp_any(ctx, 26, buf_right)
                 push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
-                push_u32_le(ctx["code"], insn_add_reg(26, 26, 22))
+                push_u32_le(ctx["code"], insn_add_imm(26, 26, 8))
                 emit_str_reg_sp_any(ctx, 26, buf_right)
             }
 
@@ -1040,18 +1058,16 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         } else {
             // left value
             emit_ldr_reg_sp_any(ctx, 21, buf_left)
-            push_u32_le(ctx["code"], insn_mul(24, 20, 22))
-            push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
-            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+            push_u32_le(ctx["code"], insn_add_reg(25, 21, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 25))
 
             // right value
             emit_ldr_reg_sp_any(ctx, 26, buf_right)
-            push_u32_le(ctx["code"], insn_mul(24, 20, 22))
-            push_u32_le(ctx["code"], insn_add_reg(24, 26, 24))
-            push_u32_le(ctx["code"], insn_ldr_ptr(24, 24))
+            push_u32_le(ctx["code"], insn_add_reg(27, 26, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr(27, 27))
 
             // sum += left * right
-            push_u32_le(ctx["code"], insn_mul(25, 25, 24))
+            push_u32_le(ctx["code"], insn_mul(25, 25, 27))
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
         }
 
