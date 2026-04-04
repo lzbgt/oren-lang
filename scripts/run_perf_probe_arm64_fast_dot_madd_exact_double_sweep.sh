@@ -10,15 +10,28 @@ summary_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-double-sweep-${ts}.lo
 build_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-double-sweep-${ts}.build.log"
 cases_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-double-sweep-${ts}.cases.tsv"
 out_bin="$tmp_dir/perf_probe_arm64_fast_dot_madd_exact_double_sweep_${ts}"
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
+if [[ -n "$build_env_raw" ]]; then
+    read -r -a build_env_parts <<<"$build_env_raw"
+fi
 
 max_n="${OREN_ARM64_FAST_DOT_MADD_EXACT_DOUBLE_SWEEP_MAX_N:-24}"
 reps="${OREN_ARM64_FAST_DOT_MADD_EXACT_DOUBLE_SWEEP_REPS:-1}"
 
-env \
-    OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0 \
-    OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1 \
-    ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
-        --backend native --no-debug --no-cache -o "$out_bin" >"$build_log" 2>&1
+if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+    env "${build_env_parts[@]}" \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0 \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1 \
+        ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
+            --backend native --no-debug --no-cache -o "$out_bin" >"$build_log" 2>&1
+else
+    env \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0 \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1 \
+        ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
+            --backend native --no-debug --no-cache -o "$out_bin" >"$build_log" 2>&1
+fi
 
 : >"$cases_log"
 
@@ -57,6 +70,7 @@ PY
 CASES_LOG="$cases_log" \
 OUT_BIN="$out_bin" \
 BUILD_LOG="$build_log" \
+BUILD_ENV="$build_env_raw" \
 MAX_N="$max_n" \
 REPS="$reps" \
 python3 - <<'PY' >"$summary_log"
@@ -76,6 +90,8 @@ print("arm64 fast-dot exact madd double sweep")
 print("")
 print(f"binary: {os.environ['OUT_BIN']}")
 print(f"build_log: {os.environ['BUILD_LOG']}")
+if os.environ["BUILD_ENV"]:
+    print(f"build_env: {os.environ['BUILD_ENV']}")
 print(f"max_n: {os.environ['MAX_N']}")
 print(f"reps: {os.environ['REPS']}")
 print(f"pass_ns: {pass_ns}")

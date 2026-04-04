@@ -440,6 +440,10 @@ This repo is still not factually "all planned features implemented" or "producti
   `66`, and improves the canonical gate from `~2.6657x` to `~2.5338x` C, but it regresses the
   steady runner from `~2.9768x` to `~3.0524x` C
   (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
+  The same build-env contract now also reaches the direct-build exact-double helpers:
+  `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
+  `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
+  `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
 - To make the next code change cheaper to audit, there is now also
   `make perf-probe-arm64-fast-dot-double-exit-snippet`, which rebuilds the baseline and
   exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the

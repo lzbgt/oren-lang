@@ -1367,6 +1367,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      improved the canonical gate from `~2.6657x` to `~2.5338x` C, but regressed the steady runner
      from `~2.9768x` to `~3.0524x` C
      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
+     The same build-env contract now also reaches the direct-build exact-double helpers:
+     `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
+     `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
+     `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
    - Disasm extraction follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-double-exit-snippet`
      now rebuilds the baseline and exact-double variants with traced `--disasm` and extracts the
      compact 2-wide block from the canonical `fast_list_int_dot_while_no_tick` window into one

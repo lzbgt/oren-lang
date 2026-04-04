@@ -9,23 +9,47 @@ mkdir -p "$log_dir" "$tmp_dir"
 baseline_disasm_log="$log_dir/perf-probe-arm64-fast-dot-double-exit-snippet-baseline-${ts}.disasm.log"
 double_disasm_log="$log_dir/perf-probe-arm64-fast-dot-double-exit-snippet-double-${ts}.disasm.log"
 summary_log="$log_dir/perf-probe-arm64-fast-dot-double-exit-snippet-${ts}.log"
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
+if [[ -n "$build_env_raw" ]]; then
+    read -r -a build_env_parts <<<"$build_env_raw"
+fi
 
-env OREN_TRACE_ARM64_LOOP_RANGES=1 \
-    ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
-    --backend native --no-debug --no-cache --disasm \
-    -o "$tmp_dir/perf_probe_arm64_fast_dot_double_exit_snippet_baseline_${ts}" \
-    >"$baseline_disasm_log" 2>&1
+if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+    env OREN_TRACE_ARM64_LOOP_RANGES=1 "${build_env_parts[@]}" \
+        ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
+        --backend native --no-debug --no-cache --disasm \
+        -o "$tmp_dir/perf_probe_arm64_fast_dot_double_exit_snippet_baseline_${ts}" \
+        >"$baseline_disasm_log" 2>&1
+else
+    env OREN_TRACE_ARM64_LOOP_RANGES=1 \
+        ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
+        --backend native --no-debug --no-cache --disasm \
+        -o "$tmp_dir/perf_probe_arm64_fast_dot_double_exit_snippet_baseline_${ts}" \
+        >"$baseline_disasm_log" 2>&1
+fi
 
-env OREN_TRACE_ARM64_LOOP_RANGES=1 \
-    OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0 \
-    OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1 \
-    ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
-    --backend native --no-debug --no-cache --disasm \
-    -o "$tmp_dir/perf_probe_arm64_fast_dot_double_exit_snippet_double_${ts}" \
-    >"$double_disasm_log" 2>&1
+if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+    env OREN_TRACE_ARM64_LOOP_RANGES=1 "${build_env_parts[@]}" \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0 \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1 \
+        ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
+        --backend native --no-debug --no-cache --disasm \
+        -o "$tmp_dir/perf_probe_arm64_fast_dot_double_exit_snippet_double_${ts}" \
+        >"$double_disasm_log" 2>&1
+else
+    env OREN_TRACE_ARM64_LOOP_RANGES=1 \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0 \
+        OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1 \
+        ./oren_stage2 build benchmarks/dot_product/dot_product.oren \
+        --backend native --no-debug --no-cache --disasm \
+        -o "$tmp_dir/perf_probe_arm64_fast_dot_double_exit_snippet_double_${ts}" \
+        >"$double_disasm_log" 2>&1
+fi
 
 BASELINE_DISASM_LOG="$baseline_disasm_log" \
 DOUBLE_DISASM_LOG="$double_disasm_log" \
+BUILD_ENV="$build_env_raw" \
 python3 - <<'PY' >"$summary_log"
 import os
 from pathlib import Path
@@ -79,6 +103,9 @@ def emit_case(label, path):
 
 print("arm64 fast-dot double-exit snippet")
 print("")
+if os.environ["BUILD_ENV"]:
+    print(f"build_env: {os.environ['BUILD_ENV']}")
+    print("")
 emit_case("baseline", os.environ["BASELINE_DISASM_LOG"])
 emit_case("exact_double", os.environ["DOUBLE_DISASM_LOG"])
 PY

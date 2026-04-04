@@ -503,6 +503,10 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   smoke, disasm, steady/gate, and exact native debug legs, and records the active `build_env` in
   the acceptance summary. That closes the old mismatch where environment-gated compiler probes only
   affected part of one “acceptance” run.
+- The direct-build exact-double helpers now follow the same rule:
+  `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
+  `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
+  `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 
