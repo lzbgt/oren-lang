@@ -1059,9 +1059,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     confirms the generic benchmark sources already rewrite into the intended `list<int>` shape
 		     (`xs`, `a`, and `b` all show `list_int rewrite init` events), while the explicit
 		     `list.int_*` sources start as `oren_new_list_int` candidates and therefore need no rewrite.
+		   - New scalar-ceiling probe + env-parse fix (2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
+		     now forwards comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, and
+		     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` now compares exact Oren native `dot_product`
+		     against both vectorized and de-vectorized host-C builds. Latest artifact
+		     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`) measured:
+		     - scalar/vector C ratio `~2.8153×`
+		     - Oren/scalar ratio `~1.0517×`
+		     - Oren/vector ratio `~2.9609×`
 		   - Reweight accordingly: generic-list specialization is not the dominant remaining blocker for
-		     canonical `dot_product`; the next work should go back to steady-state hot-path/codegen costs
-		     relative to the host C/NEON baseline.
+		     canonical `dot_product`, and neither is another round of scalar micro-tuning. The remaining
+		     large gap is now factually the missing NEON/vector path relative to the host C baseline.
 	   - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
 	     list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
 	     `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the

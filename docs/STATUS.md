@@ -144,6 +144,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      specialization is missing.” After the corrected probe and trace, the remaining gap is back in
      the steady-state hot path and the C-side vectorized baseline, not in a silent boxed-list
      fallback for the generic benchmarks.
+   - New scalar-ceiling probe + env-parse fix (2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
+     now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, and the new
+     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` times the exact Oren native `dot_product`
+     benchmark binary against both vectorized and de-vectorized host-C builds of the same source.
+     Latest scalar-ceiling artifact
+     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`) shows:
+     - vectorized C per-rep `~0.000264s`
+     - scalar C per-rep `~0.000743s`
+     - Oren native per-rep `~0.000781s`
+     - scalar/vector ratio `~2.8153×`
+     - Oren/scalar ratio `~1.0517×`
+     - Oren/vector ratio `~2.9609×`
+     This materially sharpens the next-step choice: the current Oren scalar loop is already within
+     about 5% of scalar C on this host, so the remaining large `dot_product` gap is overwhelmingly
+     the missing NEON/vector path.
    - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved

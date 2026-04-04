@@ -88,11 +88,40 @@ make perf-probe-arm64-dot-vs-c-loop-compare
 This reuses the traced arm64 hot-loop disasm probe, compiles the C benchmark to assembly, and
 extracts the Oren dot window plus the host C vector loop, mid loop, and scalar tail into one
 summary. The latest artifact,
-`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_022928_14265.log`, shows the kept Oren
+`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_030630_69117.log`, shows the kept Oren
 path as a 70-instruction scalar loop, while the host C reference uses a 57-instruction NEON vector
 loop (`ldp q*`, `smlal.2d`, `smlal2.2d`), a 22-instruction vector mid loop, and a 6-instruction
 scalar `smaddl` tail. That is the right current baseline when judging future arm64 dot work: the
 remaining gap is versus a vectorized C loop, not just a better scalar schedule.
+
+The probe also now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, so multi-var build
+env overrides reach the traced Oren build instead of being collapsed into one invalid token.
+
+To quantify how much of the remaining gap is still scalar-codegen debt versus the missing NEON path,
+use:
+
+```bash
+make perf-probe-arm64-dot-vs-c-scalar-ceiling
+```
+
+This builds [dot_product.c](/Users/zongbaolu/work/compiler-mini/benchmarks/dot_product/dot_product.c)
+twice with the host `cc`: once with default `-O2`, and once with vectorization disabled
+(`-O2 -fno-vectorize -fno-slp-vectorize` on the current clang host). It then times both C binaries
+against the exact Oren native benchmark binary on the same `n/reps` workload.
+
+The latest artifact, `build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`,
+shows:
+
+- vectorized C per-rep: `~0.000264s`
+- scalar C per-rep: `~0.000743s`
+- Oren native per-rep: `~0.000781s`
+- scalar/vector ratio: `~2.8153x`
+- Oren/scalar ratio: `~1.0517x`
+- Oren/vector ratio: `~2.9609x`
+
+That is the current arm64 ceiling fact: the kept Oren scalar loop is already within about 5% of
+scalar C on this host, so the remaining large gap to the default C baseline is overwhelmingly the
+missing NEON/vector path rather than another round of scalar cleanup.
 
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 

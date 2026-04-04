@@ -116,6 +116,22 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     The generic sources are already being rewritten into the intended `list<int>` form, and the
     aligned steady/read-split probes put generic and explicit `list.int_*` near parity. The next
     work should move back to the steady-state hot path versus the C/NEON baseline.
+- Scalar-ceiling follow-up (2026-04-05):
+  - fixed a helper bug in `make perf-probe-arm64-dot-vs-c-loop-compare` so comma-separated
+    `OREN_BENCH_ENV_BUILD_OREN` values now reach the traced Oren build correctly
+  - added `make perf-probe-arm64-dot-vs-c-scalar-ceiling` to time the exact Oren native
+    `dot_product` benchmark binary against both vectorized and de-vectorized host-C builds of the
+    same source
+  - latest artifact: `build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`
+    - vectorized C per-rep: `~0.000264s`
+    - scalar C per-rep: `~0.000743s`
+    - Oren native per-rep: `~0.000781s`
+    - scalar/vector ratio: `~2.8153×`
+    - Oren/scalar ratio: `~1.0517×`
+    - Oren/vector ratio: `~2.9609×`
+  - conclusion: the remaining arm64 `dot_product` gap is overwhelmingly the missing NEON/vector
+    path. Oren is already within about 5% of scalar C on the same host/source/workload, so more
+    scalar micro-tuning is unlikely to buy another ~3×.
 - Follow-up helper ceiling probe (2026-04-05):
   - closed the remaining helper-path tooling mismatch:
     - `build_perf_artifacts_list_int_packed_bridge.sh`
