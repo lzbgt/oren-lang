@@ -1,5 +1,6 @@
 // Split from lib/runtime_native/200_typed_buffers.oren (194-354)
 fn oren_i32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_I32) }
+fn oren_i32_buf_new_uninit(len) { return native_buf_new_uninit(len, 4, BUF_TAG_I32) }
 fn oren_i64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_I64) }
 fn oren_f32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_F32) }
 fn oren_f64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_F64) }

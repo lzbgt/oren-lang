@@ -58,9 +58,15 @@ fn oren_buf_fill_i32(buf, v) {
     var err = native_buf_check(buf, BUF_TAG_I32, 4)
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
+    var data = native_buf_data_ptr(buf)
+    var u = v & 4294967295
     var i = 0
     while i < n {
-        oren_buf_store_i32(buf, i, v)
+        var off = i * 4
+        ptr_set_byte(data + off + 0, u & 255)
+        ptr_set_byte(data + off + 1, (u >> 8) & 255)
+        ptr_set_byte(data + off + 2, (u >> 16) & 255)
+        ptr_set_byte(data + off + 3, (u >> 24) & 255)
         i = i + 1
     }
     return buf
@@ -70,9 +76,18 @@ fn oren_buf_fill_i64(buf, v) {
     var err = native_buf_check(buf, BUF_TAG_I64, 8)
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
+    var data = native_buf_data_ptr(buf)
     var i = 0
     while i < n {
-        oren_buf_store_i64(buf, i, v)
+        var off = i * 8
+        ptr_set_byte(data + off + 0, v & 255)
+        ptr_set_byte(data + off + 1, (v >> 8) & 255)
+        ptr_set_byte(data + off + 2, (v >> 16) & 255)
+        ptr_set_byte(data + off + 3, (v >> 24) & 255)
+        ptr_set_byte(data + off + 4, (v >> 32) & 255)
+        ptr_set_byte(data + off + 5, (v >> 40) & 255)
+        ptr_set_byte(data + off + 6, (v >> 48) & 255)
+        ptr_set_byte(data + off + 7, (v >> 56) & 255)
         i = i + 1
     }
     return buf
@@ -82,9 +97,15 @@ fn oren_buf_fill_f32(buf, v: f64) {
     var err = native_buf_check(buf, BUF_TAG_F32, 4)
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
+    var data = native_buf_data_ptr(buf)
+    var bits = oren_f32_to_u32_bits(v)
     var i = 0
     while i < n {
-        oren_buf_store_f32(buf, i, v)
+        var off = i * 4
+        ptr_set_byte(data + off + 0, bits & 255)
+        ptr_set_byte(data + off + 1, (bits >> 8) & 255)
+        ptr_set_byte(data + off + 2, (bits >> 16) & 255)
+        ptr_set_byte(data + off + 3, (bits >> 24) & 255)
         i = i + 1
     }
     return buf
@@ -94,9 +115,18 @@ fn oren_buf_fill_f64(buf, v: f64) {
     var err = native_buf_check(buf, BUF_TAG_F64, 8)
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
+    var data = native_buf_data_ptr(buf)
     var i = 0
     while i < n {
-        oren_buf_store_f64(buf, i, v)
+        var off = i * 8
+        ptr_set_byte(data + off + 0, v & 255)
+        ptr_set_byte(data + off + 1, (v >> 8) & 255)
+        ptr_set_byte(data + off + 2, (v >> 16) & 255)
+        ptr_set_byte(data + off + 3, (v >> 24) & 255)
+        ptr_set_byte(data + off + 4, (v >> 32) & 255)
+        ptr_set_byte(data + off + 5, (v >> 40) & 255)
+        ptr_set_byte(data + off + 6, (v >> 48) & 255)
+        ptr_set_byte(data + off + 7, (v >> 56) & 255)
         i = i + 1
     }
     return buf

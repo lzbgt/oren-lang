@@ -1302,15 +1302,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     alloc+fill path itself. The next viable work is to attack checked `oren_buf_store_i32(...)`
 		     setup or expose a bulk/unchecked fill surface, not to keep tuning the SIMD dot core.
 		   - Fill-shape follow-up (2026-04-05): `make perf-probe-list-int-i32-buf-unchecked-fill`
-		     compares checked fill, helper-based unchecked fill, and a pointer-hoisted direct byte loop for
-		     the same hidden `[]i32` setup benchmark. Latest artifact
-		     (`build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`,
+		     compares checked fill, helper-based unchecked fill, pointer-hoisted fill, and
+		     pointer-hoisted fill after `oren_i32_buf_new_uninit` for the same hidden `[]i32` setup
+		     benchmark. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_044149_1286.log`,
 		     `runs=3 warmups=0 n=200000`) shows:
-		     - checked fill: `~0.395913s`
-		     - unchecked helper fill: `~0.376940s` (`~1.0503×`)
-		     - pointer-hoisted fill: `~0.356737s` (`~1.1098×`)
-		     Reweight again: a per-call unchecked wrapper is not enough. The next high-leverage change has
-		     to be a bulk/pointer-aware fill path that hoists the raw payload pointer out of the loop.
+		     - checked fill: `~0.376955s`
+		     - unchecked helper fill: `~0.367594s` (`~1.0255×`)
+		     - pointer-hoisted fill: `~0.344940s` (`~1.0928×`)
+		     - pointer-hoisted + uninitialized fill: `~0.207338s` (`~1.8181×`)
+		     Reweight again: a per-call unchecked wrapper is not enough. The next high-leverage change must
+		     combine pointer-aware fill with a proven-safe uninitialized allocation path for buffers that
+		     are fully overwritten before exposure.
+		   - Native bulk-fill fix (2026-04-05): `oren_buf_fill_i32/i64/f32/f64` now hoist the payload
+		     pointer and write bytes directly after a single upfront `native_buf_check`, instead of calling
+		     the checked element-store helper on every iteration.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

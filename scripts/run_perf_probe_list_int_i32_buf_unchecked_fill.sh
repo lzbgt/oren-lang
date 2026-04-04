@@ -31,18 +31,22 @@ mapfile -d '' -t build_env_parts < <(join_build_env "$build_env_raw")
 fill_checked_bin="$tmp_dir/fill_i32_buf_checked"
 fill_unchecked_bin="$tmp_dir/fill_i32_buf_unchecked"
 fill_ptr_bin="$tmp_dir/fill_i32_buf_ptr"
+fill_ptr_uninit_bin="$tmp_dir/fill_i32_buf_ptr_uninit"
 
 build_checked_cmd=(./oren_stage2 build benchmarks/fill_i32_buf/fill_i32_buf.oren --backend native --no-debug --no-cache -o "$fill_checked_bin")
 build_unchecked_cmd=(./oren_stage2 build benchmarks/fill_i32_buf_unchecked/fill_i32_buf_unchecked.oren --backend native --no-debug --no-cache -o "$fill_unchecked_bin")
 build_ptr_cmd=(./oren_stage2 build benchmarks/fill_i32_buf_ptr/fill_i32_buf_ptr.oren --backend native --no-debug --no-cache -o "$fill_ptr_bin")
+build_ptr_uninit_cmd=(./oren_stage2 build benchmarks/fill_i32_buf_ptr_uninit/fill_i32_buf_ptr_uninit.oren --backend native --no-debug --no-cache -o "$fill_ptr_uninit_bin")
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then
     env "${build_env_parts[@]}" "${build_checked_cmd[@]}" >"$tmp_dir/fill_i32_buf_checked.build.log" 2>&1
     env "${build_env_parts[@]}" "${build_unchecked_cmd[@]}" >"$tmp_dir/fill_i32_buf_unchecked.build.log" 2>&1
     env "${build_env_parts[@]}" "${build_ptr_cmd[@]}" >"$tmp_dir/fill_i32_buf_ptr.build.log" 2>&1
+    env "${build_env_parts[@]}" "${build_ptr_uninit_cmd[@]}" >"$tmp_dir/fill_i32_buf_ptr_uninit.build.log" 2>&1
 else
     "${build_checked_cmd[@]}" >"$tmp_dir/fill_i32_buf_checked.build.log" 2>&1
     "${build_unchecked_cmd[@]}" >"$tmp_dir/fill_i32_buf_unchecked.build.log" 2>&1
     "${build_ptr_cmd[@]}" >"$tmp_dir/fill_i32_buf_ptr.build.log" 2>&1
+    "${build_ptr_uninit_cmd[@]}" >"$tmp_dir/fill_i32_buf_ptr_uninit.build.log" 2>&1
 fi
 
 RUNS="$runs" \
@@ -51,6 +55,7 @@ N="$n" \
 FILL_CHECKED_BIN="$fill_checked_bin" \
 FILL_UNCHECKED_BIN="$fill_unchecked_bin" \
 FILL_PTR_BIN="$fill_ptr_bin" \
+FILL_PTR_UNINIT_BIN="$fill_ptr_uninit_bin" \
 BUILD_ENV="$build_env_raw" \
 python3 - <<'PY' >"$summary_log"
 import os
@@ -90,6 +95,7 @@ def time_cmd(path):
 checked = time_cmd(os.environ["FILL_CHECKED_BIN"])
 unchecked = time_cmd(os.environ["FILL_UNCHECKED_BIN"])
 ptr = time_cmd(os.environ["FILL_PTR_BIN"])
+ptr_uninit = time_cmd(os.environ["FILL_PTR_UNINIT_BIN"])
 
 print("list<int> i32-buf unchecked fill probe")
 print("")
@@ -111,12 +117,22 @@ print("ptr_fill:")
 print(f"  stdout: {ptr['stdout']}")
 print(f"  median: {ptr['median_s']:.6f}s cov={ptr['cov']:.4f}")
 print("")
+print("ptr_fill_uninit:")
+print(f"  stdout: {ptr_uninit['stdout']}")
+print(f"  median: {ptr_uninit['median_s']:.6f}s cov={ptr_uninit['cov']:.4f}")
+print("")
 print(f"unchecked/checked ratio: {(unchecked['median_s'] / checked['median_s']):.4f}x")
 if unchecked["median_s"] < checked["median_s"]:
     print(f"speedup: {(checked['median_s'] / unchecked['median_s']):.4f}x")
 print(f"ptr/checked ratio: {(ptr['median_s'] / checked['median_s']):.4f}x")
 if ptr["median_s"] < checked["median_s"]:
     print(f"ptr speedup: {(checked['median_s'] / ptr['median_s']):.4f}x")
+print(f"ptr_uninit/checked ratio: {(ptr_uninit['median_s'] / checked['median_s']):.4f}x")
+if ptr_uninit["median_s"] < checked["median_s"]:
+    print(f"ptr_uninit speedup: {(checked['median_s'] / ptr_uninit['median_s']):.4f}x")
+print(f"ptr_uninit/ptr ratio: {(ptr_uninit['median_s'] / ptr['median_s']):.4f}x")
+if ptr_uninit["median_s"] < ptr["median_s"]:
+    print(f"uninit over ptr speedup: {(ptr['median_s'] / ptr_uninit['median_s']):.4f}x")
 PY
 
 echo "list<int> i32-buf unchecked fill probe complete; summary: $summary_log"

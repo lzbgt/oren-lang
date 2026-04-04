@@ -223,17 +223,24 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - `benchmarks/fill_i32_buf_unchecked/fill_i32_buf_unchecked.oren`
   - added hidden pointer-hoisted fill benchmark:
     - `benchmarks/fill_i32_buf_ptr/fill_i32_buf_ptr.oren`
+  - added hidden pointer-hoisted + uninitialized fill benchmark:
+    - `benchmarks/fill_i32_buf_ptr_uninit/fill_i32_buf_ptr_uninit.oren`
   - added `make perf-probe-list-int-i32-buf-unchecked-fill`
-  - latest artifact: `build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`
+  - latest artifact: `build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_044149_1286.log`
     (`runs=3 warmups=0 n=200000`)
-    - checked fill: ~0.395913s
-    - unchecked helper fill: ~0.376940s
-    - pointer-hoisted fill: ~0.356737s
-    - unchecked helper speedup: ~1.0503x
-    - pointer-hoisted speedup: ~1.1098x
-  - corrected conclusion: removing only the per-call checked helper is a small win. The next real
-    typed-buffer setup improvement needs a bulk or pointer-aware fill path that hoists the raw data
-    pointer out of the inner loop.
+    - checked fill: ~0.376955s
+    - unchecked helper fill: ~0.367594s
+    - pointer-hoisted fill: ~0.344940s
+    - pointer-hoisted + uninitialized fill: ~0.207338s
+    - unchecked helper speedup: ~1.0255x
+    - pointer-hoisted speedup: ~1.0928x
+    - pointer-hoisted + uninitialized speedup: ~1.8181x
+  - corrected conclusion: removing only the per-call checked helper is a small win, pointer hoisting
+    is better, and skipping the eager zero-fill before a proven full overwrite is the first large
+    reduction on the typed-buffer setup path
+  - production follow-up kept in the same batch: native `oren_buf_fill_i32/i64/f32/f64` now hoist
+    `native_buf_data_ptr(buf)` and write bytes directly instead of re-entering the checked
+    element-store helper on every iteration
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

@@ -551,18 +551,22 @@ This builds three hidden Oren fill-only benchmarks:
 - checked [fill_i32_buf.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf/fill_i32_buf.oren)
 - helper-based unchecked [fill_i32_buf_unchecked.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf_unchecked/fill_i32_buf_unchecked.oren)
 - pointer-hoisted [fill_i32_buf_ptr.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf_ptr/fill_i32_buf_ptr.oren)
+- pointer-hoisted + uninitialized [fill_i32_buf_ptr_uninit.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf_ptr_uninit/fill_i32_buf_ptr_uninit.oren)
 
-The latest artifact, `build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`,
+The latest artifact, `build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_044149_1286.log`,
 was run with `runs=3`, `warmups=0`, `n=200000` and came back as:
 
-- checked fill: `~0.395913s`
-- unchecked helper fill: `~0.376940s` (`~1.0503x` speedup)
-- pointer-hoisted fill: `~0.356737s` (`~1.1098x` speedup)
+- checked fill: `~0.376955s`
+- unchecked helper fill: `~0.367594s` (`~1.0255x` speedup)
+- pointer-hoisted fill: `~0.344940s` (`~1.0928x` speedup)
+- pointer-hoisted + uninitialized fill: `~0.207338s` (`~1.8181x` speedup)
 
 That narrows the next implementation target further. Removing the per-call check alone is only a
-modest win; the larger gain appears only when the fill loop hoists the raw payload pointer and stops
-calling a helper on every element. The next serious optimization needs a bulk or pointer-aware fill
-surface, not just another unchecked per-element wrapper.
+modest win, and hoisting the raw payload pointer helps more, but the first genuinely large reduction
+appears only when the caller can skip the `native_buf_new` zero-fill and then overwrite every lane
+through the hoisted pointer loop. The next serious optimization needs a bulk/pointer-aware fill
+surface plus an uninitialized-allocation path that is only used when full initialization is proven
+before exposure.
 
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:

@@ -451,15 +451,22 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     post-fill runtime-call boundary.
 		   - Fill-shape follow-up (2026-04-05): new
 		     `make perf-probe-list-int-i32-buf-unchecked-fill` compares three hidden Oren fill-only
-		     variants: checked store, helper-based unchecked store, and a pointer-hoisted direct byte loop.
-		     Latest artifact (`build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`,
+		     variants plus a fourth uninitialized-allocation case: checked store, helper-based unchecked
+		     store, pointer-hoisted direct byte loop, and pointer-hoisted direct byte loop after
+		     `oren_i32_buf_new_uninit`. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_044149_1286.log`,
 		     `runs=3 warmups=0 n=200000`) shows:
-		     - checked fill: `~0.395913s`
-		     - unchecked helper fill: `~0.376940s` (`~1.0503×` speedup)
-		     - pointer-hoisted fill: `~0.356737s` (`~1.1098×` speedup)
-		     So the next production lever is now narrower still: skipping the per-call checked helper buys
-		     only a small improvement. The bigger remaining win needs a bulk/pointer-aware fill shape that
-		     hoists the raw payload pointer out of the inner loop.
+		     - checked fill: `~0.376955s`
+		     - unchecked helper fill: `~0.367594s` (`~1.0255×`)
+		     - pointer-hoisted fill: `~0.344940s` (`~1.0928×`)
+		     - pointer-hoisted + uninitialized fill: `~0.207338s` (`~1.8181×`)
+		     That changes the next lever again: helper elision alone is small, pointer hoisting is real,
+		     but skipping the eager zero-fill before a proven full overwrite is the first large win.
+		   - Native bulk-fill fix (2026-04-05): `oren_buf_fill_i32/i64/f32/f64` in
+		     [020_fill_sysio.oren](/Users/zongbaolu/work/compiler-mini/lib/runtime_native/typed_buffers/020_fill_sysio.oren)
+		     no longer call the checked element-store helper on every lane after validating the buffer once.
+		     They now hoist the payload pointer and write bytes directly, bringing the native runtime
+		     implementation in line with the already-better AVM bulk-fill shape.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper
