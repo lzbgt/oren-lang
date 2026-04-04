@@ -438,6 +438,57 @@ short/long split isolating repeated reads, the packed-bridge path is still hundr
 than the canonical direct lowering. The blocker is not just first-build or one-time pack setup
 cost, so near-term parity work should not go back through the current bridge shape.
 
+To answer the narrower question “does the packed SIMD path become viable if we really amortize the
+pack step?”, use:
+
+```bash
+make perf-probe-list-int-packed-bridge-simd-reuse
+```
+
+This keeps only the canonical `dot_product_int` baseline and the packed-SIMD bridge path, but raises
+the default long run to `10` reps so the result is less setup-dominated than the earlier mixed
+read-split probe. The latest artifact,
+`build/logs/perf-probe-list-int-packed-bridge-simd-reuse-20260405_033734_11943.log`, was run with
+`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=0`, `n=20000`,
+`short_reps=1`, `long_reps=10` and came back as:
+
+- baseline canonical `dot_product_int`: `~0.000331s` native long-per-rep
+- packed-SIMD `dot_product_int_packed_bridge`: `~0.266698s` native long-per-rep
+- packed-SIMD / baseline long-per-rep: `~805.7341x`
+
+So even after a much stronger reuse-oriented split, the packed-SIMD bridge is still nowhere near the
+canonical fast loop. That makes the previous packed-bridge conclusion stronger, not weaker: a safe
+packed-i32 view alone is not enough if it still feeds the current bridge/kernel stack.
+
+To isolate the current `[]i32` dot kernel itself from any list packing step, use:
+
+```bash
+make perf-probe-list-int-i32-buf-dot-ceiling
+```
+
+This builds a hidden [dot_product_i32_buf.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/dot_product_i32_buf/dot_product_i32_buf.oren)
+benchmark that allocates/fills typed `[]i32` buffers directly, then compares:
+
+- packed-i32 C with default `-O2`
+- packed-i32 C with vectorization disabled
+- Oren native `dot_product_i32_buf` with `OREN_NO_SIMD=1`
+- Oren native `dot_product_i32_buf` with `OREN_ENABLE_SIMD=1`
+- shipped Oren native `dot_product_int`
+
+The latest artifact,
+`build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_034619_23636.log`, shows:
+
+- packed-i32 C vector: `~0.000139s` per rep
+- packed-i32 C scalar: `~0.000129s` per rep
+- Oren `dot_product_i32_buf` scalar: `~0.011772s` per rep
+- Oren `dot_product_i32_buf` SIMD: `~0.002035s` per rep
+- shipped Oren canonical `dot_product_int`: `~0.000189s` per rep
+
+That is the current typed-buffer kernel fact: enabling SIMD helps the Oren `[]i32` dot path by about
+`5.8x`, but the kept SIMD kernel is still `~14.6x` slower than packed-i32 C and about `10.7x`
+slower than the shipped canonical `list<int>` fast loop. So the next parity path is not just “build
+a zero-copy packed view”; the current `[]i32` dot kernel stack itself is still far from competitive.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

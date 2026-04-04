@@ -1261,6 +1261,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     amortized: baseline `~1.3378× C` long-per-rep, packed-SIMD `~549.8375× C`, packed-scalar
 		     `~1037.5886× C`. Treat that as a closed branch: the current bridge shape is not merely paying
 		     first-build or one-time pack cost, so do not route near-term parity work back through it.
+		   - Packed-SIMD reuse follow-up (2026-04-05): new
+		     `make perf-probe-list-int-packed-bridge-simd-reuse` keeps only the canonical baseline and the
+		     packed-SIMD bridge path, but raises the long run to `10` reps so reuse dominates the setup
+		     more clearly. Latest artifact
+		     (`build/logs/perf-probe-list-int-packed-bridge-simd-reuse-20260405_033734_11943.log`,
+		     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3 warmups=0 n=20000`) still comes back
+		     as baseline `~0.000331s` native long-per-rep vs packed-SIMD `~0.266698s`, so the packed-SIMD
+		     reuse case is still ~805.7341× slower than the shipped canonical loop.
+		   - Hidden `[]i32` dot ceiling (2026-04-05): new hidden benchmark
+		     `benchmarks/dot_product_i32_buf/dot_product_i32_buf.oren` plus
+		     `make perf-probe-list-int-i32-buf-dot-ceiling` isolate the current typed-buffer dot kernel
+		     from any list-packing step. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_034619_23636.log`,
+		     `runs=3 warmups=0 n=20000 reps=20`) shows Oren `dot_product_i32_buf` scalar
+		     `~0.011772s`/rep and SIMD `~0.002035s`/rep, while packed-i32 C stays around
+		     `~0.000129s`–`~0.000139s`/rep and the shipped canonical `dot_product_int` stays at
+		     `~0.000189s`/rep. Reweight again: even a zero-copy packed-i32 view would still feed a kernel
+		     that is currently ~14.6× slower than packed-i32 C and ~10.7× slower than the shipped
+		     canonical loop.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

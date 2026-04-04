@@ -395,11 +395,40 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=2 warmups=0 n=20000 short_reps=1
 	     long_reps=2`) still comes back catastrophically behind the shipped path:
 	     - baseline canonical `dot_product_int`: ~1.3378× C long-per-rep
-	     - packed scalar `dot_product_int_packed_bridge`: ~1037.5886× C long-per-rep, ~3360.3659× C delta
-	     - packed SIMD `dot_product_int_packed_bridge`: ~549.8375× C long-per-rep, ~126.8281× C delta
-	     That closes the bridge attribution branch: even after warmup and with repeated-read cost
-	     isolated, the current packed bridge remains hundreds of times slower than the direct lowering,
-	     so it is not a near-term parity route.
+		     - packed scalar `dot_product_int_packed_bridge`: ~1037.5886× C long-per-rep, ~3360.3659× C delta
+		     - packed SIMD `dot_product_int_packed_bridge`: ~549.8375× C long-per-rep, ~126.8281× C delta
+		     That closes the bridge attribution branch: even after warmup and with repeated-read cost
+		     isolated, the current packed bridge remains hundreds of times slower than the direct lowering,
+		     so it is not a near-term parity route.
+		   - Packed-SIMD reuse follow-up (2026-04-05): the new
+		     `make perf-probe-list-int-packed-bridge-simd-reuse` surface removes the scalar leg and uses
+		     a more reuse-oriented split (`short_reps=1`, `long_reps=10`) to answer the narrower question
+		     “does the packed-SIMD bridge become viable once the pack cost is really amortized?” Latest
+		     artifact (`build/logs/perf-probe-list-int-packed-bridge-simd-reuse-20260405_033734_11943.log`,
+		     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3 warmups=0 n=20000`) still says no:
+		     - baseline canonical `dot_product_int`: ~0.000331s native long-per-rep
+		     - packed-SIMD `dot_product_int_packed_bridge`: ~0.266698s native long-per-rep
+		     - packed-SIMD / baseline long-per-rep: ~805.7341×
+		     So the packed bridge is not just losing on one-time pack setup; even the strongly-amortized
+		     reuse case is still catastrophically behind.
+		   - Hidden typed-buffer ceiling (2026-04-05): the new hidden benchmark
+		     `benchmarks/dot_product_i32_buf/dot_product_i32_buf.oren` plus the probe
+		     `make perf-probe-list-int-i32-buf-dot-ceiling` isolate the current `[]i32` dot kernel from
+		     any `list<int>` packing step. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_034619_23636.log`,
+		     `runs=3 warmups=0 n=20000 reps=20`) shows:
+		     - packed-i32 C vector: ~0.000139s per rep
+		     - packed-i32 C scalar: ~0.000129s per rep
+		     - Oren `dot_product_i32_buf` scalar: ~0.011772s per rep
+		     - Oren `dot_product_i32_buf` SIMD: ~0.002035s per rep
+		     - shipped Oren canonical `dot_product_int`: ~0.000189s per rep
+		     Ratio view:
+		     - Oren `dot_product_i32_buf` scalar / packed-scalar C: ~91.5351×
+		     - Oren `dot_product_i32_buf` SIMD / packed-vector C: ~14.6072×
+		     - canonical `dot_product_int` / Oren `dot_product_i32_buf` SIMD: ~0.0931×
+		     This closes another tempting branch: a safe packed-i32 view alone is not enough because the
+		     current typed-buffer dot kernel stack is itself still far slower than both packed-i32 C and
+		     the shipped canonical `list<int>` fast loop.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

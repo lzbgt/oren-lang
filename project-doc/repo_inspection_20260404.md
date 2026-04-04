@@ -174,6 +174,27 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion: the current 64-bit slot ABI itself largely erases the host compiler’s
     auto-vectorization gain; packed-i32 C stays ~2.87× faster than slot64 C, and the shipped Oren
     canonical loop is already within ~5% of that slot64 host-C ceiling
+- Packed-SIMD reuse follow-up (2026-04-05):
+  - added `make perf-probe-list-int-packed-bridge-simd-reuse`
+  - latest artifact: `build/logs/perf-probe-list-int-packed-bridge-simd-reuse-20260405_033734_11943.log`
+    (`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3 warmups=0 n=20000 short_reps=1 long_reps=10`)
+    - baseline canonical `dot_product_int`: ~0.000331s native long-per-rep
+    - packed-SIMD `dot_product_int_packed_bridge`: ~0.266698s native long-per-rep
+  - conclusion: even the strongly amortized packed-SIMD reuse case is still ~805.7× slower than the
+    shipped canonical loop; the packed bridge is not a viable near-term parity path
+- Hidden `[]i32` dot ceiling follow-up (2026-04-05):
+  - added hidden benchmark `benchmarks/dot_product_i32_buf/dot_product_i32_buf.oren`
+  - added `make perf-probe-list-int-i32-buf-dot-ceiling`
+  - latest artifact: `build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_034619_23636.log`
+    (`runs=3 warmups=0 n=20000 reps=20`)
+    - packed-i32 C vector: ~0.000139s per rep
+    - packed-i32 C scalar: ~0.000129s per rep
+    - Oren `dot_product_i32_buf` scalar: ~0.011772s per rep
+    - Oren `dot_product_i32_buf` SIMD: ~0.002035s per rep
+    - shipped Oren canonical `dot_product_int`: ~0.000189s per rep
+  - conclusion: the current typed-buffer dot kernel stack is itself still far too slow; even with
+    SIMD enabled it remains ~14.6× slower than packed-i32 C and ~10.7× slower than the shipped
+    canonical list<int> fast loop
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:
