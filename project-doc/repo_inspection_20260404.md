@@ -85,6 +85,17 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion from the refreshed numbers:
     - the formal remaining perf blocker is still canonical arm64 `dot_product` above the <=2× gate
     - the focused `dot_product_int` steady tracker is better than the older ~3.09× reading, but it still points at the same read-heavy dot loop as the next high-leverage target
+- Follow-up canonical lowering guard pass (2026-04-04):
+  - verified directly that the canonical W5 benchmark sources already auto-specialize onto the fast
+    `list<int>` path on the local arm64 and x64 backends:
+    - `benchmarks/array_sum/array_sum.oren`
+    - `benchmarks/dot_product/dot_product.oren`
+  - extended `make verify-native-list-int-fast-lowering` so those canonical benchmark shapes are now
+    covered by the automated lowering guard, not just the explicit `array_sum_int` /
+    `dot_product_int` benchmark variants
+  - this removes a lingering ambiguity in the perf tracker: if canonical `dot_product` remains slow,
+    it is because the existing fast `list<int>` dot loop still needs work, not because the benchmark
+    silently fell off the intended lowering path
 
 ## Production-level reality after this pass
 

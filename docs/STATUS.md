@@ -289,6 +289,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      via compile-time `[x64_list_fast] ... kind=fast_list_int_{get_sum,dot}_while` lines. That
      closes the ambiguity from the direct-slot helper probe: the remaining work is to widen or
      improve the existing compiler fast loops, not to introduce a first direct-slot lowering path.
+   - Follow-up (2026-04-04): `make verify-native-list-int-fast-lowering` now also compiles the
+     canonical W5 perf-gate benchmarks `benchmarks/array_sum/array_sum.oren` and
+     `benchmarks/dot_product/dot_product.oren`, proving the auto-specialized benchmark path still
+     stays on the fast `list<int>` lowering on both native backends.
    - New parity widen (2026-03-28): arm64/x64 fast-loop matchers now also accept the equivalent
      commuted reductions `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum` for both `list<int>`
      and boxed-list direct-loop lowerings. The same `make verify-native-list-int-fast-lowering`

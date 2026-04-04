@@ -1206,6 +1206,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      compiler still emits `[x64_list_fast] ... kind=fast_list_int_{get_sum,dot}_while`. That makes
      the remaining task concrete: improve or broaden the existing direct-slot compiler fast loops,
      not the runtime helper boundary.
+   - Follow-up (2026-04-04): the same gate now also compiles the canonical W5 perf-gate benchmarks
+     `benchmarks/array_sum/array_sum.oren` and `benchmarks/dot_product/dot_product.oren`, so the
+     auto-specialized benchmark shapes are guarded alongside the explicit `array_sum_int` /
+     `dot_product_int` probes instead of relying on manual trace spot-checks.
    - New matcher parity widen (2026-03-28): arm64/x64 direct-loop matchers now also accept the
      commuted equivalents `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum`, including the boxed
      list fast-loop siblings. `make verify-native-list-int-fast-lowering` now compiles
