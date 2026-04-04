@@ -1149,6 +1149,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
      reruns came back worse, not better: steady `array_sum` ~2.33x C / `dot_product` ~3.15x C and
      canonical gate `array_sum` ~2.18x C / `dot_product` ~2.61x C, so the pair-load fusion was
      reverted and is not the current high-probability path to the <=2x target.
+   - Trace (2026-04-04): a broader arm64 `madd` substitution in fast dot emitters was not
+     correctness-safe on the current codegen shape. `make perf-smoke-native-fast-loops` rebuilt
+     cleanly, `array_sum` still returned the expected `205` / `710`, but native `dot_product 10 3`
+     crashed before producing `6590` (log: `build/logs/perf-smoke-native-fast-loops-20260404_223646_87957.log`).
+     The substitution was reverted immediately; treat `madd` as an audit-first experiment, not a
+     drop-in instruction-count reduction.
    - New canonical steady tick-mask probe (2026-04-04):
      - `make perf-probe-arm64-fast-loop-tick-masks-steady` reruns the arm64 `16383` / `65535`
        safepoint-mask sweep on top of `make perf-gate-native-steady`, so it measures the true

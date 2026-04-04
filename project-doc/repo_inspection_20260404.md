@@ -317,6 +317,15 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
         - `dot_product` ~2.6135x C
     - conclusion: this pair-load/cursor-fusion idea regressed the current host versus the last kept
       baseline, so it was reverted and should not be treated as the next likely win
+  - follow-up arm64 emitter experiment (2026-04-04): replaced the hot `mul` + `add` accumulation
+    pairs in fast dot loops with a new `madd` helper
+    - verification failed at the correctness smoke before perf measurement:
+      - `build/logs/perf-smoke-native-fast-loops-20260404_223646_87957.log`
+      - `array_sum` still returned `205` / `710`, but native `dot_product 10 3` crashed before
+        producing `6590`
+    - conclusion: the current `madd` substitution was not safe to keep; it was reverted
+      immediately, and future multiply-accumulate work should start from a lower-risk isolated path
+      or a disassembly-level audit instead of broad emitter replacement
 
 ## Production-level reality after this pass
 

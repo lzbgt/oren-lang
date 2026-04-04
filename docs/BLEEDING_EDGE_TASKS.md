@@ -1317,6 +1317,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      instead of helping: steady `array_sum` ~2.33x / `dot_product` ~3.15x and canonical
 				      gate `array_sum` ~2.18x / `dot_product` ~2.61x. Reverted; do not treat pair-load
 				      cursor fusion as the next likely dot-core win on this host.
+				    - Trace (arm64, 2026-04-04): replacing the hot fast-dot `mul` + `add` pairs with a
+				      shared `madd` helper was not correctness-safe. `make perf-smoke-native-fast-loops`
+				      still passed `array_sum`, but native `dot_product 10 3` crashed before producing
+				      `6590` (log: `build/logs/perf-smoke-native-fast-loops-20260404_223646_87957.log`).
+				      Reverted immediately; future multiply-accumulate work needs a narrower audited path.
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across
