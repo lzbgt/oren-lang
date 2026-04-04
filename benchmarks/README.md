@@ -317,6 +317,30 @@ And a dedicated native regression gate for the direct-slot path:
 make verify-native-slot-direct
 ```
 
+For one ranked view of the current `list<int>` `dot_product` alternatives, use:
+
+```bash
+make perf-probe-list-int-dot-ceiling
+```
+
+This runs a deliberately small fast-profile steady comparison across the canonical `list<int>` fast
+loop, the unchecked direct-slot helper path, and the packed-bridge scalar/SIMD paths. The default
+profile is `runs=2`, `warmups=0`, `n=20000`, `reps=2`; override it with
+`OREN_LIST_INT_DOT_CEILING_{RUNS,WARMUPS,N,REPS}` when you want a different scale.
+
+The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260405_024559_38593.log`,
+shows the current ranking on this host:
+
+- baseline canonical `dot_product_int`: `~1.2137x C`
+- direct-slot helper `dot_product_int_slot_direct`: `~1.5149x C`
+- packed bridge SIMD `dot_product_int_packed_bridge`: `~565.8124x C`
+- packed bridge scalar `dot_product_int_packed_bridge`: `~1382.0339x C`
+
+That is the current ceiling fact to use when choosing the next implementation move: the canonical
+compiler fast loop still beats the helper/bridge alternatives decisively, so further hot-loop work
+should stay on the direct lowering / representation side instead of detouring back through packing
+or runtime helper boundaries.
+
 And a compile-time guard that proves the canonical `array_sum_int` / `dot_product_int`
 benchmark loops, the commuted-equivalent `sum = xs[i] + sum` /
 `sum = a[i] * b[i] + sum` forms, and the one-temp normalized
@@ -525,6 +549,11 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
   `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
   `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
+- The list<int> helper prebuild/smoke surfaces now follow the same rule as well:
+  `build_perf_artifacts_list_int_{packed_bridge,slot_direct}.sh`,
+  `make perf-smoke-list-int-packed-bridge`, and `make perf-smoke-list-int-slot-direct` all honor
+  `OREN_BENCH_ENV_BUILD_OREN`, and the hidden steady helper probes now record `build_env` in their
+  summaries. That closes the last mixed-baseline gap in the helper-path perf tooling.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 

@@ -42,6 +42,7 @@ packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0
 BASELINE_SUMMARY="$baseline_summary" \
 PACKED_SCALAR_SUMMARY="$packed_scalar_summary" \
 PACKED_SIMD_SUMMARY="$packed_simd_summary" \
+BUILD_ENV="${OREN_BENCH_ENV_BUILD_OREN:-}" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
@@ -79,6 +80,9 @@ program_sets = {
 }
 print("list<int> packed-bridge steady probe summary")
 print("")
+if os.environ["BUILD_ENV"]:
+    print(f"build_env: {os.environ['BUILD_ENV']}")
+    print("")
 for name, path in cases:
     print(f"{name}: {path}")
     data = parse_summary(path)

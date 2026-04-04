@@ -38,6 +38,7 @@ slot_summary="$(run_one "$slot_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SK
 
 BASELINE_SUMMARY="$baseline_summary" \
 SLOT_SUMMARY="$slot_summary" \
+BUILD_ENV="${OREN_BENCH_ENV_BUILD_OREN:-}" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
@@ -69,6 +70,9 @@ cases = [
 
 print("list<int> direct-slot steady probe summary")
 print("")
+if os.environ["BUILD_ENV"]:
+    print(f"build_env: {os.environ['BUILD_ENV']}")
+    print("")
 for name, path, programs in cases:
     print(f"{name}: {path}")
     data = parse_summary(path)

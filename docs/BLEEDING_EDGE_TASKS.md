@@ -1188,15 +1188,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      native call site for `oren_list_int_reduce_sum_slots_unchecked` and
      `oren_list_int_dot_slots_unchecked` instead of routing those probes through the old generic
      helper body. The forced steady rerun
-     (`build/logs/perf-probe-list-int-slot-direct-20260404_200234.log`) moved the hidden
-     direct-slot path to `array_sum_int_slot_direct` ~15.1069× C and
-     `dot_product_int_slot_direct` ~5.1760× C, while the same sweep measured the canonical
-     baseline at `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That materially
-     reduces the dot-path gap and confirms the call-site lowering matters, but the helper-backed
-     probe still trails the canonical fast loops by too much to become the default lowering.
-   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
-     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
-     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
+	     (`build/logs/perf-probe-list-int-slot-direct-20260404_200234.log`) moved the hidden
+	     direct-slot path to `array_sum_int_slot_direct` ~15.1069× C and
+	     `dot_product_int_slot_direct` ~5.1760× C, while the same sweep measured the canonical
+	     baseline at `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That materially
+	     reduces the dot-path gap and confirms the call-site lowering matters, but the helper-backed
+	     probe still trails the canonical fast loops by too much to become the default lowering.
+	   - Ceiling probe + helper env fix (2026-04-05): the list<int> helper prebuild/smoke surfaces now
+	     honor `OREN_BENCH_ENV_BUILD_OREN` consistently, and the hidden helper probes record `build_env`
+	     in their summaries. New ranking surface: `make perf-probe-list-int-dot-ceiling`. Latest fast
+	     profile artifact (`build/logs/perf-probe-list-int-dot-ceiling-20260405_024559_38593.log`,
+	     `runs=2 warmups=0 n=20000 reps=2`, `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`) ranks
+	     `dot_product_int` paths as canonical `~1.2137× C`, direct-slot `~1.5149× C`, packed-SIMD
+	     `~565.8124× C`, packed-scalar `~1382.0339× C`. Reweight accordingly: the canonical fast loop
+	     still dominates the helper/bridge alternatives, so future parity work should stay on direct
+	     lowering / representation changes rather than going back through packed-bridge routing.
+	   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
+	     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
+	     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
      deterministic panic text for one-nil and length-mismatch
      `oren_list_int_dot_slots_unchecked(...)` calls.
    - Verification (2026-03-28): the canonical benchmark loops already lower directly against that

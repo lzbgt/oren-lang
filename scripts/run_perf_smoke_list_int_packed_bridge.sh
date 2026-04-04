@@ -8,6 +8,11 @@ log_path="$log_dir/perf-smoke-list-int-packed-bridge-${ts}.log"
 backend="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_BACKEND:-oren_c}"
 platform="${OREN_BENCH_PLATFORM:-arm64-macos}"
 native_prebuilt=0
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
+if [[ -n "$build_env_raw" ]]; then
+    read -r -a build_env_parts <<<"$build_env_raw"
+fi
 
 bin_path() {
     local program="$1"
@@ -28,13 +33,20 @@ build_native_bin() {
 
     {
         echo "[build] ${program} backend=${backend}"
+        if [[ -n "$build_env_raw" ]]; then
+            echo "[build_env] ${build_env_raw}"
+        fi
         if [[ "$backend" == "native" ]]; then
             if [[ "$native_prebuilt" == "0" ]]; then
                 ./scripts/build_perf_artifacts_list_int_packed_bridge.sh
                 native_prebuilt=1
             fi
         else
-            ./oren_stage2 build "$src" --backend c --platform "$platform" --no-debug -o "$bin"
+            if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+                env "${build_env_parts[@]}" ./oren_stage2 build "$src" --backend c --platform "$platform" --no-debug -o "$bin"
+            else
+                ./oren_stage2 build "$src" --backend c --platform "$platform" --no-debug -o "$bin"
+            fi
         fi
     } >>"$log_path" 2>&1
 }

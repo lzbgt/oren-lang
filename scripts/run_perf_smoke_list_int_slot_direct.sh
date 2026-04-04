@@ -8,6 +8,11 @@ mkdir -p "$log_dir"
 mkdir -p "$tmp_dir"
 log_path="$log_dir/perf-smoke-list-int-slot-direct-${ts}.log"
 contract_bin="${tmp_dir}/list_int_slot_direct_contracts_native"
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
+if [[ -n "$build_env_raw" ]]; then
+    read -r -a build_env_parts <<<"$build_env_raw"
+fi
 
 bin_path() {
     local program="$1"
@@ -18,7 +23,12 @@ bin_path() {
     echo "[build] slot-direct benchmarks backend=native"
     ./scripts/build_perf_artifacts_list_int_slot_direct.sh
     echo "[build] slot-direct contract fixture backend=native"
-    ./oren_stage2 build tests/fixtures/list_int_slot_direct_contracts.oren --backend native --no-debug --no-cache -o "$contract_bin"
+    if [[ -n "$build_env_raw" ]]; then
+        echo "[build_env] ${build_env_raw}"
+        env "${build_env_parts[@]}" ./oren_stage2 build tests/fixtures/list_int_slot_direct_contracts.oren --backend native --no-debug --no-cache -o "$contract_bin"
+    else
+        ./oren_stage2 build tests/fixtures/list_int_slot_direct_contracts.oren --backend native --no-debug --no-cache -o "$contract_bin"
+    fi
 } >>"$log_path" 2>&1
 
 run_native_check() {

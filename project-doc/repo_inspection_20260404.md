@@ -96,6 +96,25 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - this removes a lingering ambiguity in the perf tracker: if canonical `dot_product` remains slow,
     it is because the existing fast `list<int>` dot loop still needs work, not because the benchmark
     silently fell off the intended lowering path
+- Follow-up helper ceiling probe (2026-04-05):
+  - closed the remaining helper-path tooling mismatch:
+    - `build_perf_artifacts_list_int_packed_bridge.sh`
+    - `build_perf_artifacts_list_int_slot_direct.sh`
+    - `make perf-smoke-list-int-packed-bridge`
+    - `make perf-smoke-list-int-slot-direct`
+    all now honor `OREN_BENCH_ENV_BUILD_OREN`, and the hidden packed-bridge / slot-direct steady
+    probe summaries now record the active `build_env`
+  - added `make perf-probe-list-int-dot-ceiling` as one fast ranking surface for the current
+    `list<int>` dot alternatives
+  - latest artifact: `build/logs/perf-probe-list-int-dot-ceiling-20260405_024559_38593.log`
+    (`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=2 warmups=0 n=20000 reps=2`)
+    - canonical `dot_product_int`: ~1.2137× C
+    - direct-slot helper `dot_product_int_slot_direct`: ~1.5149× C
+    - packed-bridge SIMD `dot_product_int_packed_bridge`: ~565.8124× C
+    - packed-bridge scalar `dot_product_int_packed_bridge`: ~1382.0339× C
+  - conclusion: the current helper/bridge detours are not close to the shipped fast loop, so the
+    next productive parity work should stay on compiler fast-loop lowering and/or representation
+    changes, not on repackaging list data through the existing packed bridge
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

@@ -14,6 +14,11 @@ exe_ext=""
 if [[ "$uname_s" == MINGW* || "$uname_s" == MSYS* || "$uname_s" == CYGWIN* || "${OS:-}" == "Windows_NT" ]]; then
     exe_ext=".exe"
 fi
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
+if [[ -n "$build_env_raw" ]]; then
+    read -r -a build_env_parts <<<"$build_env_raw"
+fi
 all_programs=(
     array_sum_int_packed_bridge
     dot_product_int_packed_bridge
@@ -38,7 +43,11 @@ build_program() {
             else
                 "$bench_cc" -O2 -o "$c_out" "$c_src"
             fi
-            ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
+            if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+                env "${build_env_parts[@]}" ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
+            else
+                ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
+            fi
             ;;
         dot_product_int_packed_bridge)
             if [[ "${bench_cc##*/}" == "cl" || "${bench_cc##*/}" == "cl.exe" ]]; then
@@ -46,7 +55,11 @@ build_program() {
             else
                 "$bench_cc" -O2 -o "$c_out" "$c_src"
             fi
-            ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
+            if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+                env "${build_env_parts[@]}" ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
+            else
+                ./oren_stage2 build "$src" --backend native --no-debug -o "$out"
+            fi
             ;;
         *)
             echo "unknown packed-bridge program: $program" >&2
@@ -64,6 +77,9 @@ needs_rebuild() {
         return 0
     fi
     if [[ "${OREN_PERF_PREBUILD_FORCE:-0}" == "1" ]]; then
+        return 0
+    fi
+    if [[ -n "$build_env_raw" ]]; then
         return 0
     fi
     if [[ "$src" -nt "$native_out" || "$compiler" -nt "$native_out" ]]; then
@@ -92,6 +108,9 @@ for program in "${programs[@]}"; do
                     echo "[build] ${program} (C + native core runtime)"
                     ;;
             esac
+            if [[ -n "$build_env_raw" ]]; then
+                echo "[build_env] ${build_env_raw}"
+            fi
             build_program "$program" "$src" "$out" "$c_src" "$c_out"
         } >>"$log_path" 2>&1
     else
