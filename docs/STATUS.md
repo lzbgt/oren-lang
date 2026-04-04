@@ -1203,6 +1203,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
        enabled ~2.7629x C.
      - Conclusion: keep the dual-accum path disabled by default on the current host; it regresses
        both tracker surfaces in the clean rerun.
+   - Native gate summary hygiene (2026-04-04):
+     - `make perf-gate-native` now emits a lightweight summary log next to the raw benchmark log.
+     - The summary prints per-program medians/ratios and warns when the canonical one-program gate
+       is too noisy (`cov >= 0.10`) to support a strong perf conclusion.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

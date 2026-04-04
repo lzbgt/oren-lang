@@ -1300,6 +1300,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      (`cov >= 0.10`) to support a strong conclusion. Current clean rerun regressed both
 			      surfaces: steady default ~2.8895x C vs enabled ~3.0684x C, canonical gate default
 			      ~2.6129x C vs enabled ~2.7629x C. Keep the dual-accum path disabled.
+			    - Native gate summary hygiene (2026-04-04):
+			      `make perf-gate-native` now emits a lightweight summary log and prints the same
+			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate
+			      outliers are less likely to be misread as real wins.
 			    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

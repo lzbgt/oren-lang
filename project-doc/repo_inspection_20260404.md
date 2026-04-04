@@ -276,6 +276,18 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - canonical gate enabled: `dot_product` ~2.7629x C
   - conclusion: on the current host, dual accumulators make the single-pair arm64 dot path worse on
     both tracker surfaces, so keep the path disabled and keep the probe for future reruns
+- Follow-up native gate summary hygiene (2026-04-04):
+  - the more general issue exposed by the arm64 dot experiments was that `make perf-gate-native`
+    still emitted only the raw benchmark log, while the narrower steady/probe flows already
+    surfaced variance explicitly
+  - fixed by teaching `scripts/run_perf_gate_native.sh` to emit a lightweight summary log beside
+    the raw log:
+    - `build/logs/perf-gate-native-*.summary.log`
+  - the summary now prints per-program medians/ratios and warns when a one-program gate is too
+    noisy to support a strong conclusion:
+    - warning threshold: `cov >= 0.10`
+  - this reduces the chance that future arm64 dot work overfits a single noisy canonical-gate
+    outlier before the steady runner agrees
 
 ## Production-level reality after this pass
 
