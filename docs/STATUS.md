@@ -1229,6 +1229,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Conclusion: on the current host the canonical gate is stable enough to confirm the blocker:
        arm64 `dot_product` is still materially above the `<=2x C` target even when the gate itself
        stops warning.
+   - Tooling fix (2026-04-04): stage1/stage2 builds now take a repo-local compiler build lock
+     (`build/locks/compiler-build.lock`), so concurrent `make perf-*` invocations do not race on
+     `oren` / `oren_stage2` and macOS codesign.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

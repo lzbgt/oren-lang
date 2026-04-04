@@ -305,6 +305,14 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - `dot_product`: median ~2.5153x C, range ~2.3889x..~2.6432x, warnings 0/3
   - conclusion: on this host the canonical gate is stable enough to confirm the blocker itself;
     arm64 `dot_product` remains clearly above the `<=2x C` target even when the gate stops warning
+  - follow-up tooling fix (2026-04-04): concurrent `make perf-*` verification could rebuild
+    `oren` / `oren_stage2` at the same time and trip a false macOS codesign
+    `No such file or directory` failure
+  - fix landed in the shared build path:
+    - new helper `scripts/with_build_lock.sh`
+    - stage1/stage2 Makefile recipes now queue on `build/locks/compiler-build.lock`
+  - practical outcome: the perf targets still run independently after the compiler is ready, but
+    the shared compiler rebuild is now serialized across parallel make invocations
   - follow-up arm64 emitter experiment (2026-04-04): replaced the single-pair unrolled cursor-reg
     body with post-index pair loads (`ldp ..., [cursor], #16`) so the hot path could fuse adjacent
     loads with cursor bumps

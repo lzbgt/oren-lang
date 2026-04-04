@@ -66,6 +66,7 @@ OREN_STAGE2_BIN := oren_stage2$(EXE_EXT)
 OREDOC_BIN := oredoc$(EXE_EXT)
 ORENSIGN_BIN := orensign$(EXE_EXT)
 AVM_BIN := avm$(EXE_EXT)
+COMPILER_BUILD_LOCK := ./scripts/with_build_lock.sh build/locks/compiler-build.lock
 OREN_RUNTIME_ROBUSTNESS_RUNS ?= 1
 OREN_RUNTIME_ROBUSTNESS_COMPILER ?= ./$(OREN_STAGE2_BIN)
 OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS ?=
@@ -303,6 +304,9 @@ endif
 
 $(OREN_BIN): $(BOOTSTRAP_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 1 (Oren)..."
+	@$(COMPILER_BUILD_LOCK) $(MAKE) --no-print-directory __oren_build_unlocked
+
+__oren_build_unlocked:
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
 		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./$(BOOTSTRAP_BIN) build $(OREN_SRC) $(BOOTSTRAP_TARGET_ARG) $(BOOTSTRAP_CC_ARG) -o "$(OREN_BIN)" $(CODESIGN_ARG) $(GC_ARG); \
 	else \
@@ -341,6 +345,9 @@ endif
 
 $(OREN_STAGE2_BIN): $(OREN_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 				@echo "Building Stage 2 (Self-Hosted)..."
+				@$(COMPILER_BUILD_LOCK) $(MAKE) --no-print-directory __oren_stage2_build_unlocked
+
+__oren_stage2_build_unlocked:
 			@if [ "$(UNAME_S)" = "Darwin" ]; then \
 						arch=$$(uname -m); \
 							if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
@@ -355,7 +362,7 @@ $(OREN_STAGE2_BIN): $(OREN_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 								else \
 									OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug $(STAGE2_CC_ARG) -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
 								fi; \
-							fi
+								fi
 
 # Aliases
 bootstrap: oren_bootstrap

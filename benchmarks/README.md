@@ -57,6 +57,10 @@ make perf-probe-native-gate-stability
 This reruns `make perf-gate-native` a few times (`OREN_NATIVE_GATE_STABILITY_SWEEPS`, default `3`)
 and summarizes the ratio range plus how often each program triggered the high-variance warning.
 
+The shared stage1/stage2 compiler rebuild now runs behind a repo-local build lock
+(`build/locks/compiler-build.lock`), so parallel `make perf-*` invocations queue on compiler
+rebuilds instead of racing on `oren` / `oren_stage2` and macOS codesign.
+
 Focused native read split (`array_sum`, `dot_product`; estimate one-time fill/setup vs steady
 repeated read-loop cost with `reps=1` and `reps=10`). Use this to determine whether a canonical
 hot-loop regression is dominated by the fill/push half or by the steady read loop itself:
