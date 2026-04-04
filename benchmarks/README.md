@@ -475,19 +475,41 @@ benchmark that allocates/fills typed `[]i32` buffers directly, then compares:
 - Oren native `dot_product_i32_buf` with `OREN_ENABLE_SIMD=1`
 - shipped Oren native `dot_product_int`
 
-The latest artifact,
-`build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_034619_23636.log`, shows:
+The hidden benchmark now perturbs lane `0` across `reps` and accumulates every repetition result so
+the repeated dot work cannot be trivially hoisted. The latest full-process artifact,
+`build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_040717_51202.log`, shows:
 
-- packed-i32 C vector: `~0.000139s` per rep
-- packed-i32 C scalar: `~0.000129s` per rep
-- Oren `dot_product_i32_buf` scalar: `~0.011772s` per rep
-- Oren `dot_product_i32_buf` SIMD: `~0.002035s` per rep
-- shipped Oren canonical `dot_product_int`: `~0.000189s` per rep
+- packed-i32 C vector: `~0.000145s` per rep
+- packed-i32 C scalar: `~0.000126s` per rep
+- Oren `dot_product_i32_buf` scalar: `~0.011786s` per rep
+- Oren `dot_product_i32_buf` SIMD: `~0.002043s` per rep
+- shipped Oren canonical `dot_product_int`: `~0.000169s` per rep
 
-That is the current typed-buffer kernel fact: enabling SIMD helps the Oren `[]i32` dot path by about
-`5.8x`, but the kept SIMD kernel is still `~14.6x` slower than packed-i32 C and about `10.7x`
-slower than the shipped canonical `list<int>` fast loop. So the next parity path is not just “build
-a zero-copy packed view”; the current `[]i32` dot kernel stack itself is still far from competitive.
+That full-process view is still setup-mixed. The probe now prints an explicit warning when packed C
+vector/scalar stay too close and points at the stronger reuse surface below instead of treating this
+as a clean repeated-kernel ratio.
+
+For repeated-kernel attribution on the fast typed-buffer path, use:
+
+```bash
+make perf-probe-list-int-i32-buf-simd-reuse
+```
+
+This keeps only the guarded packed-i32 C vector binary and the guarded Oren `dot_product_i32_buf`
+SIMD binary, then raises the long run high enough that the repeated dot work finally dominates for
+the C side. The latest artifact,
+`build/logs/perf-probe-list-int-i32-buf-simd-reuse-20260405_040936_54584.log`, was run with
+`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=0`, `n=200000`,
+`short_reps=1`, `long_reps=1000` and came back as:
+
+- packed-i32 C vector: `setup≈0.002528s`, `delta≈0.000018s`, `long/reps≈0.000020s`
+- Oren `dot_product_i32_buf` SIMD: `setup≈0.374950s`, `delta≈0.000024s`, `long/reps≈0.000399s`
+- repeated-kernel ratio (`delta`): `~1.3562x`
+- whole-process long-per-rep ratio: `~19.7021x`
+
+That is the corrected interpretation: the repeated `[]i32` SIMD dot kernel is much closer to
+packed-i32 C than the old setup-mixed probe implied, but the typed-buffer path still pays a very
+large fixed setup cost before the repeated kernel even starts.
 
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:

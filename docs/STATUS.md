@@ -411,24 +411,29 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - packed-SIMD / baseline long-per-rep: ~805.7341×
 		     So the packed bridge is not just losing on one-time pack setup; even the strongly-amortized
 		     reuse case is still catastrophically behind.
-		   - Hidden typed-buffer ceiling (2026-04-05): the new hidden benchmark
-		     `benchmarks/dot_product_i32_buf/dot_product_i32_buf.oren` plus the probe
-		     `make perf-probe-list-int-i32-buf-dot-ceiling` isolate the current `[]i32` dot kernel from
-		     any `list<int>` packing step. Latest artifact
-		     (`build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_034619_23636.log`,
-		     `runs=3 warmups=0 n=20000 reps=20`) shows:
-		     - packed-i32 C vector: ~0.000139s per rep
-		     - packed-i32 C scalar: ~0.000129s per rep
-		     - Oren `dot_product_i32_buf` scalar: ~0.011772s per rep
-		     - Oren `dot_product_i32_buf` SIMD: ~0.002035s per rep
-		     - shipped Oren canonical `dot_product_int`: ~0.000189s per rep
-		     Ratio view:
-		     - Oren `dot_product_i32_buf` scalar / packed-scalar C: ~91.5351×
-		     - Oren `dot_product_i32_buf` SIMD / packed-vector C: ~14.6072×
-		     - canonical `dot_product_int` / Oren `dot_product_i32_buf` SIMD: ~0.0931×
-		     This closes another tempting branch: a safe packed-i32 view alone is not enough because the
-		     current typed-buffer dot kernel stack is itself still far slower than both packed-i32 C and
-		     the shipped canonical `list<int>` fast loop.
+		   - Guarded typed-buffer ceiling + reuse fix (2026-04-05): the hidden
+		     `benchmarks/dot_product_i32_buf/dot_product_i32_buf.{oren,c}` benchmark now perturbs lane `0`
+		     across `reps` and accumulates every repetition result so the repeated dot work cannot be
+		     hoisted. The rerun full-process ceiling (`make perf-probe-list-int-i32-buf-dot-ceiling`,
+		     latest artifact `build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_040717_51202.log`)
+		     still looks wide on whole-process per-rep numbers:
+		     - packed-i32 C vector: ~0.000145s/rep
+		     - Oren `dot_product_i32_buf` SIMD: ~0.002043s/rep
+		     - Oren `dot_product_i32_buf` scalar: ~0.011786s/rep
+		     but the probe now explicitly warns that this surface is setup-mixed.
+		   - Focused SIMD reuse probe (2026-04-05): new
+		     `make perf-probe-list-int-i32-buf-simd-reuse` keeps only the guarded packed-i32 C vector path
+		     and the guarded Oren `dot_product_i32_buf` SIMD path, then raises the long run to
+		     `short_reps=1`, `long_reps=1000` so repeated work dominates the C side. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-simd-reuse-20260405_040936_54584.log`,
+		     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3 warmups=0 n=200000`) shows:
+		     - packed-i32 C vector: `setup≈0.002528s`, `delta≈0.000018s`
+		     - Oren `dot_product_i32_buf` SIMD: `setup≈0.374950s`, `delta≈0.000024s`
+		     - repeated-kernel delta ratio: ~1.3562×
+		     - whole-process long-per-rep ratio: ~19.7021×
+		     This is the corrected attribution: the repeated `[]i32` SIMD kernel is only modestly behind
+		     packed-i32 C, while the large observed wall-time gap is dominated by fixed setup / runtime
+		     boundary cost on the typed-buffer path.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

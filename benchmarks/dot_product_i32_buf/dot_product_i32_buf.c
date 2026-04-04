@@ -30,13 +30,18 @@ int main(int argc, char **argv) {
         a[i] = (i * 3 + 1) % 1000;
         b[i] = (i * 7 + 2) % 1000;
     }
+    int base0 = a[0];
     long long sum = 0;
     for (uint64_t rep = 0; rep < reps; rep++) {
-        sum = 0;
+        int delta = (int)(sum & 1LL);
+        a[0] = base0 + delta;
+        long long cur = 0;
         for (uint64_t i = 0; i < n; i++) {
-            sum += (long long)a[i] * (long long)b[i];
+            cur += (long long)a[i] * (long long)b[i];
         }
+        sum += cur + (long long)rep;
     }
+    a[0] = base0;
     printf("%lld\n", sum);
     free(a);
     free(b);

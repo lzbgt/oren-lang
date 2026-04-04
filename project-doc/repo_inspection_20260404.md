@@ -182,19 +182,26 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - packed-SIMD `dot_product_int_packed_bridge`: ~0.266698s native long-per-rep
   - conclusion: even the strongly amortized packed-SIMD reuse case is still ~805.7× slower than the
     shipped canonical loop; the packed bridge is not a viable near-term parity path
-- Hidden `[]i32` dot ceiling follow-up (2026-04-05):
-  - added hidden benchmark `benchmarks/dot_product_i32_buf/dot_product_i32_buf.oren`
-  - added `make perf-probe-list-int-i32-buf-dot-ceiling`
-  - latest artifact: `build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_034619_23636.log`
+- Guarded `[]i32` dot benchmark + focused reuse follow-up (2026-04-05):
+  - updated hidden benchmark pair `benchmarks/dot_product_i32_buf/dot_product_i32_buf.{oren,c}` so
+    lane `0` is perturbed across `reps` and every repetition result is accumulated, preventing the
+    repeated dot from being trivially hoisted
+  - reran `make perf-probe-list-int-i32-buf-dot-ceiling`
+  - latest full-process artifact: `build/logs/perf-probe-list-int-i32-buf-dot-ceiling-20260405_040717_51202.log`
     (`runs=3 warmups=0 n=20000 reps=20`)
-    - packed-i32 C vector: ~0.000139s per rep
-    - packed-i32 C scalar: ~0.000129s per rep
-    - Oren `dot_product_i32_buf` scalar: ~0.011772s per rep
-    - Oren `dot_product_i32_buf` SIMD: ~0.002035s per rep
-    - shipped Oren canonical `dot_product_int`: ~0.000189s per rep
-  - conclusion: the current typed-buffer dot kernel stack is itself still far too slow; even with
-    SIMD enabled it remains ~14.6× slower than packed-i32 C and ~10.7× slower than the shipped
-    canonical list<int> fast loop
+    - packed-i32 C vector: ~0.000145s per rep
+    - Oren `dot_product_i32_buf` SIMD: ~0.002043s per rep
+    - warning emitted: probe is setup-mixed
+  - added `make perf-probe-list-int-i32-buf-simd-reuse`
+  - latest focused artifact: `build/logs/perf-probe-list-int-i32-buf-simd-reuse-20260405_040936_54584.log`
+    (`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3 warmups=0 n=200000 short_reps=1 long_reps=1000`)
+    - packed-i32 C vector: `setup≈0.002528s`, `delta≈0.000018s`
+    - Oren `dot_product_i32_buf` SIMD: `setup≈0.374950s`, `delta≈0.000024s`
+    - repeated-kernel delta ratio: ~1.3562x
+    - whole-process long-per-rep ratio: ~19.7021x
+  - corrected conclusion: the repeated SIMD kernel is much closer to packed-i32 C than the previous
+    full-process ceiling implied; the dominant remaining cost is fixed typed-buffer setup / runtime
+    boundary overhead, not a SIMD dot core that is still ~14x behind
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

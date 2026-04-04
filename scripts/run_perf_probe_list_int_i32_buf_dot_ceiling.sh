@@ -228,6 +228,11 @@ print(f"oren_i32_buf_simd/oren_i32_buf_scalar per_rep ratio: {(oren_i32_buf_simd
 print(f"oren_native_canonical/oren_i32_buf_simd per_rep ratio: {(oren_canonical['per_rep_s'] / oren_i32_buf_simd['per_rep_s']):.4f}x")
 print(f"oren_native_canonical/c_packed_vector per_rep ratio: {(oren_canonical['per_rep_s'] / packed_vector['per_rep_s']):.4f}x")
 print("")
+packed_c_drift = abs(packed_vector['per_rep_s'] - packed_scalar['per_rep_s']) / packed_scalar['per_rep_s']
+if packed_c_drift < 0.20:
+    print(f"warning: packed-i32 C vector/scalar per-rep drift={packed_c_drift:.2%}; this full-process probe is setup-mixed")
+    print("warning: use make perf-probe-list-int-i32-buf-read-split for repeated-kernel attribution")
+    print("")
 print(f"packed_vector_loop_label: {vector_label}")
 print(f"packed_vector_loop_insns: {vector_total}")
 print(f"packed_vector_loop_counts: {fmt_counts(vector_counts)}")

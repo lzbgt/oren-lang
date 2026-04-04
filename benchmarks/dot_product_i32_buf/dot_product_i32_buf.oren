@@ -38,16 +38,21 @@ fn main() {
         i = i + 1
     }
 
+    var base0 = oren_buf_load_i32(a, 0)
     var sum = 0
     var rep = 0
     while rep < reps {
-        sum = linalg.dot_i32_buf(a, b)
-        if oren_is_err(sum) {
+        var delta = sum & 1
+        oren_buf_store_i32(a, 0, base0 + delta)
+        var cur = linalg.dot_i32_buf(a, b)
+        if oren_is_err(cur) {
             print("dot_product_i32_buf dot failed")
             return 1
         }
+        sum = sum + cur + rep
         rep = rep + 1
     }
+    oren_buf_store_i32(a, 0, base0)
 
     print(sum)
     return 0
