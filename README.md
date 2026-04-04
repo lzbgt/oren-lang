@@ -17,6 +17,7 @@ compiler‑in‑AVM for sandboxed compilation.
 make bootstrap   # stage0 Go compiler
 make            # stage1 self-hosted compiler
 make test       # fast native smoke
+make test-selfhost  # heavier stage2/capsule/optimizer self-host bundle
 make readiness-report  # quick readiness snapshot (build/reports)
 make readiness-report-json  # readiness snapshot + JSON summary
 make readiness-report-index  # append JSONL summary for automation
@@ -68,6 +69,7 @@ expected in the output; treat a non-zero exit status as failure.
 ./oretest
 ./oretest --selfhost
 ./oretest --full
+make test-selfhost
 ./oretest --native-all --fixture-jobs 8
 ```
 

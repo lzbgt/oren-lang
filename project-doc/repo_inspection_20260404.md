@@ -41,6 +41,10 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - the restored wrapper now defaults to `make test-native-quick`
   - stage2/capsule/optimizer moved behind explicit `--selfhost`
   - `--full` now includes that selfhost bundle plus the wider optional suites
+- Follow-up adjustment after checking the top-level Makefile target:
+  - `make test` had drifted to `verify-native-quick`, which made the documented fast path take about 333s on this host
+  - `make test` now maps back to the fast stage1 quick smoke (`test-native-quick`)
+  - `make test-selfhost` now names the heavier stage2/capsule/optimizer bundle explicitly
 - Updated [README.md](/Users/zongbaolu/work/compiler-mini/README.md) and [docs/README.md](/Users/zongbaolu/work/compiler-mini/docs/README.md) so the quick-start docs match the actual repo entrypoints.
 
 ## Production-level reality after this pass
