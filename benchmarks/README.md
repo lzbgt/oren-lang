@@ -539,6 +539,31 @@ That closes the next attribution layer too: the large fixed cost on the typed-bu
 overwhelmingly the `buffer.i32_new` + checked per-element fill loop itself, not the repeated SIMD
 dot kernel and not a large hidden post-fill runtime-call boundary.
 
+To separate “skip the checked store helper” from “hoist the raw data pointer and write directly in
+the fill loop”, use:
+
+```bash
+make perf-probe-list-int-i32-buf-unchecked-fill
+```
+
+This builds three hidden Oren fill-only benchmarks:
+
+- checked [fill_i32_buf.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf/fill_i32_buf.oren)
+- helper-based unchecked [fill_i32_buf_unchecked.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf_unchecked/fill_i32_buf_unchecked.oren)
+- pointer-hoisted [fill_i32_buf_ptr.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf_ptr/fill_i32_buf_ptr.oren)
+
+The latest artifact, `build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`,
+was run with `runs=3`, `warmups=0`, `n=200000` and came back as:
+
+- checked fill: `~0.395913s`
+- unchecked helper fill: `~0.376940s` (`~1.0503x` speedup)
+- pointer-hoisted fill: `~0.356737s` (`~1.1098x` speedup)
+
+That narrows the next implementation target further. Removing the per-call check alone is only a
+modest win; the larger gain appears only when the fill loop hoists the raw payload pointer and stops
+calling a helper on every element. The next serious optimization needs a bulk or pointer-aware fill
+surface, not just another unchecked per-element wrapper.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

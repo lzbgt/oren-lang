@@ -449,6 +449,17 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     That is the current narrow fact: nearly all remaining fixed cost on the typed-buffer path is
 		     the `buffer.i32_new` + checked `oren_buf_store_i32(...)` fill phase itself, not a large hidden
 		     post-fill runtime-call boundary.
+		   - Fill-shape follow-up (2026-04-05): new
+		     `make perf-probe-list-int-i32-buf-unchecked-fill` compares three hidden Oren fill-only
+		     variants: checked store, helper-based unchecked store, and a pointer-hoisted direct byte loop.
+		     Latest artifact (`build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`,
+		     `runs=3 warmups=0 n=200000`) shows:
+		     - checked fill: `~0.395913s`
+		     - unchecked helper fill: `~0.376940s` (`~1.0503×` speedup)
+		     - pointer-hoisted fill: `~0.356737s` (`~1.1098×` speedup)
+		     So the next production lever is now narrower still: skipping the per-call checked helper buys
+		     only a small improvement. The bigger remaining win needs a bulk/pointer-aware fill shape that
+		     hoists the raw payload pointer out of the inner loop.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

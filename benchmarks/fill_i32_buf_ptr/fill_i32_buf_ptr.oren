@@ -1,0 +1,55 @@
+import buffer "std:buffer"
+
+fn _parse_u64(s) {
+    if s == nil { return 0 }
+    var bs = oren_bytes_from_string(s)
+    if bs == nil || oren_list_len(bs) == 0 { return 0 }
+    var i = 0
+    var out = 0
+    while i < oren_list_len(bs) {
+        var c = bs[i]
+        if c < 48 || c > 57 { return 0 }
+        out = out * 10 + (c - 48)
+        i = i + 1
+    }
+    return out
+}
+
+fn _store_i32_ptr(ptr, idx, v) {
+    var off = idx * 4
+    var u = v & 4294967295
+    ptr_set_byte(ptr + off + 0, u & 255)
+    ptr_set_byte(ptr + off + 1, (u >> 8) & 255)
+    ptr_set_byte(ptr + off + 2, (u >> 16) & 255)
+    ptr_set_byte(ptr + off + 3, (u >> 24) & 255)
+}
+
+fn main() {
+    var args = oren_args()
+    var n = 2000000
+    if oren_list_len(args) >= 2 {
+        var v = oren_trunc_int(_parse_u64(args[1]))
+        if v >= 0 { n = v }
+    }
+
+    var a: []i32 = buffer.i32_new(n)
+    var b: []i32 = buffer.i32_new(n)
+    var ap = oren_buf_data_ptr_unchecked(a)
+    var bp = oren_buf_data_ptr_unchecked(b)
+    var i = 0
+    while i < n {
+        _store_i32_ptr(ap, i, (i * 3 + 1) % 1000)
+        _store_i32_ptr(bp, i, (i * 7 + 2) % 1000)
+        i = i + 1
+    }
+
+    if n == 0 {
+        print(0)
+        return 0
+    }
+
+    var last = n - 1
+    var checksum = oren_buf_load_i32(a, 0) + oren_buf_load_i32(b, 0) + oren_buf_load_i32(a, last) + oren_buf_load_i32(b, last)
+    print(checksum)
+    return 0
+}

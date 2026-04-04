@@ -1301,6 +1301,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     That closes another ambiguity: the fixed typed-buffer cost is now almost entirely the
 		     alloc+fill path itself. The next viable work is to attack checked `oren_buf_store_i32(...)`
 		     setup or expose a bulk/unchecked fill surface, not to keep tuning the SIMD dot core.
+		   - Fill-shape follow-up (2026-04-05): `make perf-probe-list-int-i32-buf-unchecked-fill`
+		     compares checked fill, helper-based unchecked fill, and a pointer-hoisted direct byte loop for
+		     the same hidden `[]i32` setup benchmark. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`,
+		     `runs=3 warmups=0 n=200000`) shows:
+		     - checked fill: `~0.395913s`
+		     - unchecked helper fill: `~0.376940s` (`~1.0503×`)
+		     - pointer-hoisted fill: `~0.356737s` (`~1.1098×`)
+		     Reweight again: a per-call unchecked wrapper is not enough. The next high-leverage change has
+		     to be a bulk/pointer-aware fill path that hoists the raw payload pointer out of the loop.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

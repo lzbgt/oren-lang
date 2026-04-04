@@ -53,6 +53,16 @@ fn _load_u8_direct(buf, idx) { return oren_buf_load_u8(buf, idx) }
 fn _store_u8_direct(buf, idx, v) { return oren_buf_store_u8(buf, idx, v) }
 fn _load_i32_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
 fn _store_i32_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
+fn _store_i32_unchecked_direct(buf, idx, v) {
+    var data = oren_buf_data_ptr_unchecked(buf)
+    var off = idx * 4
+    var u = v & 4294967295
+    ptr_set_byte(data + off + 0, u & 255)
+    ptr_set_byte(data + off + 1, (u >> 8) & 255)
+    ptr_set_byte(data + off + 2, (u >> 16) & 255)
+    ptr_set_byte(data + off + 3, (u >> 24) & 255)
+    return buf
+}
 fn _load_i64_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
 fn _store_i64_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
 fn _load_f32_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
@@ -61,6 +71,7 @@ fn _load_f64_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
 fn _store_f64_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
 
 fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
+fn _store_i32_buf_unchecked_direct(buf, idx, v) { return _store_i32_unchecked_direct(buf, idx, v) }
 fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
 fn _store_i64_buf_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
 fn _load_i64_buf_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
@@ -120,6 +131,22 @@ fn _pack_list_like_with(xs, ctx, newf, pack_intof) {
     var out = newf(n)
     if oren_is_err(out) { return out }
     return pack_intof(out, xs)
+}
+
+fn _pack_list_like_new_buf_with(xs, ctx, newf, storef, validatef) {
+    var n = _list_len_like_or_err(xs, ctx)
+    if oren_is_err(n) { return n }
+    var out = newf(n)
+    if oren_is_err(out) { return out }
+    var i = 0
+    while i < n {
+        var v = validatef(xs[i], ctx)
+        if oren_is_err(v) { return v }
+        var rc = storef(out, i, v)
+        if oren_is_err(rc) { return rc }
+        i = i + 1
+    }
+    return out
 }
 
 fn _copy_from_typed_buf_with(out, src, ctx, want_label, loadf, storef) {

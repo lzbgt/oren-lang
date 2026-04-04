@@ -218,6 +218,22 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - corrected conclusion: the fixed typed-buffer wall-time gap is now almost entirely the
     allocation + checked per-element fill phase. The repeated SIMD kernel is not the main blocker,
     and neither is a large hidden post-fill runtime-call boundary.
+- Fill-shape follow-up (2026-04-05):
+  - added hidden helper-based unchecked fill benchmark:
+    - `benchmarks/fill_i32_buf_unchecked/fill_i32_buf_unchecked.oren`
+  - added hidden pointer-hoisted fill benchmark:
+    - `benchmarks/fill_i32_buf_ptr/fill_i32_buf_ptr.oren`
+  - added `make perf-probe-list-int-i32-buf-unchecked-fill`
+  - latest artifact: `build/logs/perf-probe-list-int-i32-buf-unchecked-fill-20260405_043357_89208.log`
+    (`runs=3 warmups=0 n=200000`)
+    - checked fill: ~0.395913s
+    - unchecked helper fill: ~0.376940s
+    - pointer-hoisted fill: ~0.356737s
+    - unchecked helper speedup: ~1.0503x
+    - pointer-hoisted speedup: ~1.1098x
+  - corrected conclusion: removing only the per-call checked helper is a small win. The next real
+    typed-buffer setup improvement needs a bulk or pointer-aware fill path that hoists the raw data
+    pointer out of the inner loop.
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:
