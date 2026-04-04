@@ -72,6 +72,19 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - [tests/fixtures/tier1_native_result_smoke_main.oren](/Users/zongbaolu/work/compiler-mini/tests/fixtures/tier1_native_result_smoke_main.oren)
     - [tests/native/qi/100_tests_basic.oren](/Users/zongbaolu/work/compiler-mini/tests/native/qi/100_tests_basic.oren)
   - this closes the main correctness blind spot left by the earlier call-site intrinsic change: the new native lowering path now has explicit edge-contract coverage, not just benchmark-output coverage
+- Follow-up perf snapshot refresh (2026-04-04):
+  - reran the canonical perf gates directly instead of relying on stale tracker text:
+    - `make perf-gate-native`
+    - `make perf-gate-list-int`
+    - `make perf-gate-list-int-steady`
+  - refreshed the benchmark snapshot and tracker docs to the measured April results:
+    - canonical hot-loop gate: `loop_sum` 1.09× C, `dot_product` 2.82× C
+    - allocation gate: `alloc_churn` 5.42× C, `alloc_drop` 1.76× C
+    - focused one-shot `list<int>` gate: `array_sum_int` 2.07× C, `dot_product_int` 2.59× C, `multi_list_push_int` 2.24× C
+    - focused steady `list<int>` gate: `array_sum_int` ~2.43× C, `dot_product_int` ~2.78× C
+  - conclusion from the refreshed numbers:
+    - the formal remaining perf blocker is still canonical arm64 `dot_product` above the <=2× gate
+    - the focused `dot_product_int` steady tracker is better than the older ~3.09× reading, but it still points at the same read-heavy dot loop as the next high-leverage target
 
 ## Production-level reality after this pass
 
@@ -88,4 +101,4 @@ This repo is still not factually "all planned features implemented" or "producti
 - Keep `./oretest` as the standard local gate and extend it only when the underlying `make` targets are stable enough to compose.
 - Continue treating `docs/STATUS.md` as the production-readiness source of truth instead of overstating maturity in user-facing docs.
 - If the goal is "production level" in the stricter sense, the next work should target one W4/W5 blocker from `docs/STATUS.md` and close it with code + fixtures + readiness updates, not broad marketing/documentation changes.
-- After the native hot-loop follow-up above, the next high-leverage item is narrower than before: reduce the remaining canonical `dot_product_int` gap toward the existing <=2x gate without routing general `list<int>` loops through the helper probe path.
+- After the native hot-loop and perf-refresh follow-ups above, the next high-leverage item is narrower than before: reduce the remaining canonical arm64 `dot_product` gap toward the existing <=2x gate, while continuing to use the focused `dot_product_int` steady runner as the more local diagnostic view and without routing general `list<int>` loops through the helper probe path.

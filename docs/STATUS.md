@@ -54,8 +54,8 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-03-20: `loop_sum` 1.08×, `dot_product` 2.51×; `alloc_churn` 6.45×, `alloc_drop` 1.63×).
-- **list<int> hot-loop parity**: one-shot focused reruns still sit around `array_sum_int` 2.16×, `dot_product_int` 2.57×, and `multi_list_push_int` 2.35× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.31× steady, `dot_product_int` ~3.00× steady vs C on arm64, 2026-04-04). The newer unchecked direct-slot probe improved materially as well (`array_sum_int_slot_direct` ~15.11×, `dot_product_int_slot_direct` ~5.18× vs C on the same 2026-04-04 sweep), but that helper-backed path is still slower than the canonical fast loops.
+- **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-04-04: `loop_sum` 1.09×, `dot_product` 2.82×; `alloc_churn` 5.42×, `alloc_drop` 1.76×).
+- **list<int> hot-loop parity**: the latest focused one-shot rerun now sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The newer unchecked direct-slot probe improved materially as well (`array_sum_int_slot_direct` ~15.11×, `dot_product_int_slot_direct` ~5.18× vs C on the same 2026-04-04 sweep), but that helper-backed path is still slower than the canonical fast loops.
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -104,7 +104,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines (arm64, 2026-03-20 focused perf gate): `loop_sum` 1.08× C, `dot_product` 2.51× C; `alloc_churn` 6.45× C, `alloc_drop` 1.63× C.
+   - Baselines (arm64, 2026-04-04 focused perf gate): `loop_sum` 1.09× C, `dot_product` 2.82× C; `alloc_churn` 5.42× C, `alloc_drop` 1.76× C.
    - Priority: `dot_product` remains above the 2× gate; alloc_drop and alloc_churn are within the 5×/8× gates, and `loop_sum` is now within gate.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
    - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
@@ -129,20 +129,20 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      built successfully but the native `array_sum_int` benchmark binary crashed during execution,
      so the shared read-heavy path should not move list data cursors out of the established stack
      slots without a stronger GC-rooting argument.
-   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 2.16× C,
-     `dot_product_int` 2.57× C, `multi_list_push_int` 2.35× C. One-shot list<int> results are
+   - Latest focused list<int> clean rerun (arm64, 2026-04-04): `array_sum_int` 2.07× C,
+     `dot_product_int` 2.59× C, `multi_list_push_int` 2.24× C. One-shot list<int> results are
      now best used as a smoke view; they are no longer precise enough to rank the remaining
      steady-state blocker on their own.
    - New: the exact two-list single-pair arm64 `list<int>` dot shape keeps both data cursors in
      callee-saved regs across iterations/safepoints, and the exact single-list `list<int>` get-sum
      shape now also pairwise-reduces its 4-wide and 2-wide hot bodies to shorten the running-sum
-     dependency chain. That moved the current steady rerun to ~2.43× for `array_sum_int`, while
-     the unchanged exact-pair dot path measured ~3.09× on the same rerun (Apple M2 Pro, 2026-03-20).
+     dependency chain. On the latest steady rerun that leaves `array_sum_int` at ~2.43× while the
+     unchanged exact-pair dot path now measures ~2.78× on the same rerun (Apple M2 Pro, 2026-04-04).
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so perf tracker updates can distinguish stable reruns from one-off outliers.
-   - New focused steady-state runner (2026-03-20, `make perf-gate-list-int-steady`, `reps=100`):
+   - New focused steady-state runner (2026-04-04, `make perf-gate-list-int-steady`, `reps=100`):
      `array_sum_int` steady-state native/C is ~2.43× and `dot_product_int` steady-state native/C
-     is ~3.09×. That is stronger evidence than the earlier one-shot gate that the remaining
+     is ~2.78×. That is stronger evidence than the earlier one-shot gate that the remaining
      blocker is the repeated read path itself, not one-time fill/setup cost.
    - New guardrail (2026-03-20): `make perf-smoke-list-int` now builds the native
      `array_sum_int` / `dot_product_int` benchmark binaries once and checks both the exact tiny
@@ -219,9 +219,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      rather than full-runtime native. That keeps the correctness preflight fast while preserving
      the dedicated native steady probe as the explicit place to measure the packed-buffer ceiling.
    - New probe batching (2026-03-20): the packed-bridge steady probe now warms the hidden packed
-     benchmarks only once and reuses those artifacts for the scalar-vs-kernel cases. The baseline
-     leg of that optimized run reconfirmed `array_sum_int` ~2.43× C and `dot_product_int` ~3.11× C
-     steady on the canonical path before the hidden full-runtime warm leg took over.
+     benchmarks only once and reuses those artifacts for the scalar-vs-kernel cases. The current
+     canonical steady rerun on 2026-04-04 reconfirmed `array_sum_int` ~2.43× C and
+     `dot_product_int` ~2.78× C before the hidden full-runtime warm leg took over.
    - New probe prebuild step (2026-03-20): the hidden packed-bridge warm leg now lives behind an
      explicit reusable script/target (`scripts/build_perf_artifacts_list_int_packed_bridge.sh`,
      `make perf-prebuild-list-int-packed-bridge`) so future probe runs can distinguish true
@@ -1073,9 +1073,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.33× C, `dot_product` 2.57× C.
-   - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - loop_sum: C 0.069202s, native 0.074757s (1.08× C).
-     - dot_product: C 0.005626s, native 0.014134s (2.51× C).
+   - New run (arm64, 2026-04-04, runs=5, warmups=1; via `make perf-gate-native`):
+     - loop_sum: C 0.069604s, native 0.075902s (1.09× C).
+     - dot_product: C 0.005108s, native 0.014420s (2.82× C).
    - New run (arm64, 2026-03-05, runs=3, warmups=1):
      - loop_sum: C 0.067194s, native 0.225078s (3.35× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
      - dot_product: C 0.005185s, native 0.013571s (2.62× C) (log: `build/logs/bench_run_perf_gate_20260305_021914.log`).
@@ -1215,17 +1215,18 @@ Weights reflect expected impact on C parity and breadth of affected code.
      register-policy redesign or a different generic safepoint scheme.
    - Status: no remaining per-loop arm64 tick-slot cleanup is pending; only a broader backend
      redesign would change `while_generic` / surviving native `For` throttling.
-   - Status (2026-03-20): hot-loop perf still misses the 2× gate on arm64 after the tick-slot
-     cleanup work. The repaired fast LCG path still leaves `loop_sum` at about 3.56× C and
-     `dot_product` at about 2.66× C, so the next perf work here should target arithmetic/runtime
-     overhead inside the hot loops rather than more opcode or tick-slot cleanup.
+   - Status (2026-04-04): hot-loop perf still misses the 2× gate on arm64, but the shape of the
+     blocker is narrower than the earlier tick-slot era. The repaired fast LCG path now keeps
+     `loop_sum` at about 1.09× C while `dot_product` still measures about 2.82× C, so the next perf
+     work should target arithmetic/runtime overhead inside the canonical dot-product loop rather than
+     more opcode or tick-slot cleanup.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
    - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
-   - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - alloc_churn: C 0.003124s, native 0.021369s (6.84× C).
-     - alloc_drop: C 0.002893s, native 0.005263s (1.82× C).
+   - New run (arm64, 2026-04-04, runs=5, warmups=1; via `make perf-gate-native`):
+     - alloc_churn: C 0.003716s, native 0.020157s (5.42× C).
+     - alloc_drop: C 0.003441s, native 0.006068s (1.76× C).
    - New run (arm64, 2026-03-04, runs=5, warmups=1; log: `build/logs/bench_alloc_churn_drop_20260304_235146.log`):
      - alloc_churn: C 0.002886s, native 0.015997s (5.54× C).
      - alloc_drop: C 0.002986s, native 0.004703s (1.58× C).
@@ -1868,10 +1869,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
-   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 2.16× C,
-     `dot_product_int` 2.57× C, `multi_list_push_int` 2.35× C.
-   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~2.43× C,
-     `dot_product_int` ~3.09× C.
+   - Baseline (arm64 native, 2026-04-04 latest clean focused list<int> rerun): `array_sum_int` 2.07× C,
+     `dot_product_int` 2.59× C, `multi_list_push_int` 2.24× C.
+   - Steady-state baseline (arm64 native, 2026-04-04, `reps=100`): `array_sum_int` ~2.43× C,
+     `dot_product_int` ~2.78× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - Priority update (2026-03-27): do not lower general `list<int>` dot/sum loops into the
@@ -1945,9 +1946,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
    - Update (2026-03-04): alloc_churn regression resolved by splitting loop-invariant list_int temps into
      an outer `if` and fast-path `while` so `fast_list_int_push_while` can match again.
-   - Refresh (2026-03-20): `make perf-gate-native` now records the focused W5 gate sweep directly.
-     Latest arm64 run stays within gate: alloc_churn 6.45× C and alloc_drop 1.63× C
-     (summary: `benchmarks/RESULTS_LATEST.md`; log: `build/logs/perf-gate-native-20260320_011023.log`).
+   - Refresh (2026-04-04): `make perf-gate-native` now records the focused W5 gate sweep directly.
+     Latest arm64 run stays within gate: alloc_churn 5.42× C and alloc_drop 1.76× C
+     (summary: `benchmarks/RESULTS_LATEST.md`; log: `build/logs/perf-gate-native-20260404_202225.log`).
    - Fix (2026-03-04): list_int safe-int dataflow now preserves local temps across nested blocks;
      alloc_churn compile trace shows list_push call sites include `v`/`v2` in safe keys
      (log: `build/logs/bench_build_oren_native_alloc_churn_20260304_232251.log`).
@@ -1963,9 +1964,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 
 2) **Perf parity W5: native hot loops** (L, W5)
    - Execute item 1 in the performance tracker (loop_sum + dot_product).
-   - Refresh (2026-03-20): `make perf-gate-native` now shows loop_sum within gate at 1.08× C,
-     while dot_product remains open at 2.51× C on arm64 (summary: `benchmarks/RESULTS_LATEST.md`;
-     log: `build/logs/perf-gate-native-20260320_011023.log`).
+   - Refresh (2026-04-04): `make perf-gate-native` now shows loop_sum within gate at 1.09× C,
+     while dot_product remains open at 2.82× C on arm64 (summary: `benchmarks/RESULTS_LATEST.md`;
+     log: `build/logs/perf-gate-native-20260404_202225.log`).
    - Init/steady split instrumentation is now available via `OREN_BENCH_INIT_SPLIT=1` (see `benchmarks/README.md`).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 

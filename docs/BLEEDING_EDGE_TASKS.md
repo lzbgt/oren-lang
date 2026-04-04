@@ -43,10 +43,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-03-20): `alloc_churn` 6.45× C, `alloc_drop` 1.63× C.
-   - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - alloc_churn: C 0.003101s, native 0.019992s (6.45× C).
-     - alloc_drop: C 0.003491s, native 0.005689s (1.63× C).
+   - Baseline (arm64 native, 2026-04-04): `alloc_churn` 5.42× C, `alloc_drop` 1.76× C.
+   - New run (arm64, 2026-04-04, runs=5, warmups=1; via `make perf-gate-native`):
+     - alloc_churn: C 0.003716s, native 0.020157s (5.42× C).
+     - alloc_drop: C 0.003441s, native 0.006068s (1.76× C).
    - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
    - New: latest focused perf-gate snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
@@ -1024,9 +1024,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 3) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
-   - New run (arm64, 2026-03-20, runs=5, warmups=1; via `make perf-gate-native`):
-     - loop_sum: C 0.069202s, native 0.074757s (1.08× C).
-     - dot_product: C 0.005626s, native 0.014134s (2.51× C).
+   - New run (arm64, 2026-04-04, runs=5, warmups=1; via `make perf-gate-native`):
+     - loop_sum: C 0.069604s, native 0.075902s (1.09× C).
+     - dot_product: C 0.005108s, native 0.014420s (2.82× C).
    - Fix: shared arm64 `UMULH` opcode encoding was wrong; correcting it restores the intended
      reciprocal-mod lowering used by the arm64 fast LCG loop (2026-03-20).
    - New: `benchmarks/loop_sum/loop_sum.oren` now preserves inty CLI args via `oren_trunc_int(...)`,
@@ -1054,20 +1054,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      built successfully but the native `array_sum_int` benchmark binary crashed during execution,
      so the shared read-heavy path should not move list data cursors out of the established stack
      slots without a stronger GC-rooting argument.
-   - Latest focused list<int> clean rerun (arm64, 2026-03-20): `array_sum_int` 2.16× C,
-     `dot_product_int` 2.57× C, `multi_list_push_int` 2.35× C. One-shot list<int> results are
+   - Latest focused list<int> clean rerun (arm64, 2026-04-04): `array_sum_int` 2.07× C,
+     `dot_product_int` 2.59× C, `multi_list_push_int` 2.24× C. One-shot list<int> results are
      now best used as a smoke view; they are no longer precise enough to rank the remaining
      steady-state blocker on their own.
    - New: the exact two-list single-pair arm64 `list<int>` dot shape keeps both data cursors in
      callee-saved regs across iterations/safepoints, and the exact single-list `list<int>` get-sum
      shape now also pairwise-reduces its 4-wide and 2-wide hot bodies to shorten the running-sum
      dependency chain. That moved the current steady rerun to ~2.43× for `array_sum_int`, while
-     the unchanged exact-pair dot path measured ~3.09× on the same rerun (Apple M2 Pro, 2026-03-20).
+     the unchanged exact-pair dot path now measures ~2.78× on the same rerun (Apple M2 Pro, 2026-04-04).
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so tracker updates can distinguish stable reruns from one-off outliers.
-   - New focused steady-state runner (2026-03-20, `make perf-gate-list-int-steady`, `reps=100`):
+   - New focused steady-state runner (2026-04-04, `make perf-gate-list-int-steady`, `reps=100`):
      `array_sum_int` steady-state native/C is ~2.43× and `dot_product_int` steady-state native/C
-     is ~3.09×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
+     is ~2.78×. The remaining blocker is still the repeated read/mul/accumulate loop itself,
      not one-time fill/setup cost.
    - New guardrail (2026-03-20): `make perf-smoke-list-int` now builds the native
      `array_sum_int` / `dot_product_int` benchmark binaries once and checks both the exact tiny
@@ -1142,7 +1142,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New probe batching (2026-03-20): that dedicated packed-bridge steady probe now warms the
      hidden packed benchmarks only once and reuses the artifacts for the scalar-vs-kernel cases.
      The optimized run already reconfirmed the canonical steady baseline (`array_sum_int` ~2.43× C,
-     `dot_product_int` ~3.11× C) before entering the remaining expensive full-runtime warm leg.
+     `dot_product_int` ~2.78× C) before entering the remaining expensive full-runtime warm leg.
    - New probe prebuild step (2026-03-20): the hidden packed-bridge warm leg is now exposed as a
      reusable prebuild target so we can precompile the packed benchmarks once and then measure the
      packed scalar vs packed kernel ceiling without conflating it with first-build cost. Both
@@ -2237,10 +2237,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
-   - Baseline (arm64 native, 2026-03-20 latest clean focused list<int> rerun): `array_sum_int` 2.16× C,
-     `dot_product_int` 2.57× C, `multi_list_push_int` 2.35× C.
-   - Steady-state baseline (arm64 native, 2026-03-20, `reps=100`): `array_sum_int` ~2.43× C,
-     `dot_product_int` ~3.09× C.
+   - Baseline (arm64 native, 2026-04-04 latest clean focused list<int> rerun): `array_sum_int` 2.07× C,
+     `dot_product_int` 2.59× C, `multi_list_push_int` 2.24× C.
+   - Steady-state baseline (arm64 native, 2026-04-04, `reps=100`): `array_sum_int` ~2.43× C,
+     `dot_product_int` ~2.78× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Priority update (2026-03-27): do not lower general `list<int>` hot loops into the current
      packed-bridge path yet; even the shortened steady probe still shows it orders of magnitude
