@@ -879,9 +879,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             // current host reruns are still too close to justify removing it outright.
             emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
             emit_ldr_reg_sp_any(ctx, 26, list_base_off + 24)
-            // At inline safepoints only the two preserved cursor pairs can hide heap pointers
-            // from the conservative stack scan. The scalar loop state stays live in registers
-            // via the ABI, so we do not need to spill the full x19-x28 set on this exact path.
+            // At inline safepoints only the preserved cursor regs can hide heap pointers from
+            // the conservative stack scan on this exact path. Current host reruns still prefer
+            // keeping both cursor pairs visible here over the narrower one-pair spill variant.
             safepoint_spill_pairs = [[19, 20], [25, 26]]
             if dual_accum {
                 // Split the reduction across two independent accumulators to shorten the

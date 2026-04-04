@@ -377,3 +377,14 @@ This repo is still not factually "all planned features implemented" or "producti
   `array_sum` and 70 for `dot_product` (with dot safepoint `stp/ldp` dropping from 10/10 to 4/4),
   while the kept reruns improved to steady `array_sum` / `dot_product` ~`2.4144x` / `2.7706x` C
   and canonical gate `array_sum` / `dot_product` ~`1.8926x` / `2.5264x` C.
+- I tried one narrower follow-up on top of that keep: spill only the two exact cursor regs
+  (`[x19,x26]`) at the single-pair dot inline safepoint instead of the kept two-pair set. That
+  stayed correctness-clean in the smoke, but `build/logs/perf-gate-native-steady-20260404_233707_97722.log`
+  regressed to `array_sum` / `dot_product` ~`2.4331x` / `3.0449x` C, so the one-pair variant was
+  reverted immediately.
+- The April 4 build-lock fix also needed a follow-up after the perf thread got cleaner: the
+  original 300-second default wait was still short enough for a queued `make test` to false-fail
+  behind a legitimate stage2 holder (`build/logs/turn_verify_make_test_gc_single_pair_20260404.log`).
+  The lock now defaults to `OREN_BUILD_LOCK_WAIT_SECS=1800`, treats `0` as wait-forever, and records
+  holder start time / age in `build/locks/compiler-build.lock/meta` so future queue stalls are easier
+  to diagnose from logs alone.

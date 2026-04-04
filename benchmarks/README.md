@@ -88,6 +88,11 @@ per-rep medians directly so tracker updates do not depend on noisy setup subtrac
 make perf-gate-native-steady
 ```
 
+Shared compiler rebuilds behind the perf targets are serialized with the repo-local build lock at
+`build/locks/compiler-build.lock`. If you intentionally want a shorter or longer queue timeout, set
+`OREN_BUILD_LOCK_WAIT_SECS` (`0` means wait forever); the lock metadata now records holder start
+time and age for easier diagnosis when a queued perf run waits behind a long stage2 build.
+
 Focused `list<int>` core-path sweep (`array_sum_int`, `dot_product_int`, `multi_list_push_int`;
 C, Oren C, native, and OBC by default):
 

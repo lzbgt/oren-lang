@@ -1325,6 +1325,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      compiler build lock (`build/locks/compiler-build.lock`), so parallel `make perf-*`
 					      verification no longer races on `oren` / `oren_stage2` and trips false macOS
 					      codesign failures.
+					    - Tooling follow-up (2026-04-04): the shared compiler build lock now defaults to a
+					      longer wait (`OREN_BUILD_LOCK_WAIT_SECS=1800`, `0` = wait forever) and records
+					      holder start time / age in the lock metadata, after a queued `make test` false-red
+					      timed out behind a legitimate stage2 rebuild at the old 300-second default.
 					    - Tooling fix (2026-04-04): arm64 fast list loops now expose an opt-in
 					      `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and
 					      `make perf-probe-arm64-native-hot-loop-disasm` captures just the canonical
@@ -1346,6 +1350,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      still passed `array_sum`, but native `dot_product 10 3` crashed before producing
 					      `6590` (log: `build/logs/perf-smoke-native-fast-loops-20260404_223646_87957.log`).
 					      Reverted immediately; future multiply-accumulate work needs a narrower audited path.
+					    - Trace (arm64, 2026-04-04): narrowing the exact single-pair fast-dot inline-safepoint
+					      spill set from two cursor pairs to one `[x19,x26]` pair also regressed the focused
+					      steady rerun. `build/logs/perf-gate-native-steady-20260404_233707_97722.log` moved
+					      `array_sum` / `dot_product` to ~2.4331x / ~3.0449x C, so the one-pair variant was
+					      reverted and the kept two-pair spill set remains the better baseline.
 					    - Tooling (arm64, 2026-04-04): `make perf-probe-arm64-native-hot-loop-disasm`
 					      now emits instruction counts and a mnemonic histogram for the traced canonical
 					      `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows, so static

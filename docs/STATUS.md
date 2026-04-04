@@ -1233,6 +1233,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Conclusion: keep the reduced-spill path. The arm64 `dot_product` blocker is still open, but
        this is the first April 4 loop-body change that improved both the steady and canonical views
        without hurting correctness.
+     - Follow-up trace (2026-04-04): narrowing the exact single-pair dot inline-safepoint spill
+       set one step further to a single `[x19,x26]` pair did not hold up on the focused steady
+       rerun. `build/logs/perf-gate-native-steady-20260404_233707_97722.log` moved `array_sum` /
+       `dot_product` to ~2.4331x / ~3.0449x C, so the one-pair variant was reverted and the
+       two-pair `[x19,x20]` + `[x25,x26]` kept-state remains the better current host baseline.
    - New arm64 dual-accum probe + variance guard (2026-04-04):
      - `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped
        single-pair cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.
@@ -1262,6 +1267,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Tooling fix (2026-04-04): stage1/stage2 builds now take a repo-local compiler build lock
      (`build/locks/compiler-build.lock`), so concurrent `make perf-*` invocations do not race on
      `oren` / `oren_stage2` and macOS codesign.
+   - Tooling follow-up (2026-04-04): the same build lock now waits longer by default
+     (`OREN_BUILD_LOCK_WAIT_SECS=1800`, `0` = wait forever) and records holder start time / age in
+     `build/locks/compiler-build.lock/meta`, so queued `make test` / `make perf-*` runs stop
+     false-failing behind a legitimate long stage2 build.
    - Tooling fix (2026-04-04): arm64 fast list loops now expose an opt-in
      `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and `make perf-probe-arm64-native-hot-loop-disasm`
      builds canonical `array_sum` / `dot_product` with `--disasm` and extracts the traced fast-loop
