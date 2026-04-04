@@ -17,6 +17,7 @@ gate_log="$log_dir/perf-probe-arm64-dot-acceptance-${ts}.gate.log"
 debug_log="$log_dir/perf-probe-arm64-dot-acceptance-${ts}.debug.log"
 test_log="$log_dir/perf-probe-arm64-dot-acceptance-${ts}.test.log"
 summary_log="$log_dir/perf-probe-arm64-dot-acceptance-${ts}.summary.log"
+build_env="${OREN_BENCH_ENV_BUILD_OREN:-}"
 
 current_step="init"
 summary_emitted=0
@@ -32,6 +33,7 @@ emit_summary() {
     TEST_WRAPPER_LOG="$test_log" \
     PROGRAMS="$programs" \
     RUN_TEST="$run_test" \
+    BUILD_ENV="$build_env" \
     EXIT_STATUS="$exit_status" \
     FAILED_STEP="$failed_step" \
     python3 - <<'PY' >"$summary_log"
@@ -75,6 +77,7 @@ debug_wrapper = os.environ["DEBUG_WRAPPER_LOG"]
 test_wrapper = os.environ["TEST_WRAPPER_LOG"]
 programs = os.environ["PROGRAMS"]
 run_test = os.environ["RUN_TEST"]
+build_env = os.environ["BUILD_ENV"]
 exit_status = os.environ["EXIT_STATUS"]
 failed_step = os.environ["FAILED_STEP"]
 
@@ -115,6 +118,8 @@ print("arm64 dot acceptance summary")
 print("")
 print(f"programs: {programs}")
 print(f"run_make_test: {run_test}")
+if build_env:
+    print(f"build_env: {build_env}")
 print(f"exit_status: {exit_status}")
 print(f"failed_step: {failed_step}")
 print("")

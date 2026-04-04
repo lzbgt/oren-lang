@@ -1435,6 +1435,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      `steady_dot_product ~3.1670x`, `gate_dot_product ~2.7194x`, disasm `70`
 						      versus enabled `~2.9446x`, `~2.7220x`, disasm `77`
 						      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
+						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
+						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
+						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the
+						      active `build_env`. On that corrected surface, the new
+						      `make perf-probe-arm64-fast-dot-cursor-end-bounds` wrapper keeps
+						      `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1` as a default-off experiment:
+						      it stays correctness-clean and shrinks canonical dot disasm from `70` to `66`,
+						      while improving the canonical gate from `~2.6657x` to `~2.5338x` C but
+						      regressing the steady runner from `~2.9768x` to `~3.0524x` C
+						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

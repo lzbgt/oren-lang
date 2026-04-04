@@ -430,6 +430,16 @@ This repo is still not factually "all planned features implemented" or "producti
   baseline `steady_dot_product ~3.1670x`, `gate_dot_product ~2.7194x`, disasm `70` versus enabled
   `~2.9446x`, `~2.7220x`, disasm `77`
   (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
+- Another April 5 follow-up fixed a tooling mismatch in the arm64 acceptance surface itself:
+  `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke, traced disasm, and exact native debug, not just
+  the gate runners, and the acceptance summary records the active `build_env`. On that corrected
+  surface, the new `make perf-probe-arm64-fast-dot-cursor-end-bounds` wrapper compares the shipped
+  baseline against `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, which swaps the unique
+  single-pair dot path to cursor/end comparisons and cursor-only increments. The current host keeps
+  it as a default-off probe: it is correctness-clean, shrinks canonical dot disasm from `70` to
+  `66`, and improves the canonical gate from `~2.6657x` to `~2.5338x` C, but it regresses the
+  steady runner from `~2.9768x` to `~3.0524x` C
+  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
 - To make the next code change cheaper to audit, there is now also
   `make perf-probe-arm64-fast-dot-double-exit-snippet`, which rebuilds the baseline and
   exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the

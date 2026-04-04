@@ -484,12 +484,25 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   canonical `fast_list_int_dot_while_no_tick` window into one compact artifact. Use it before
   changing the exit-after-double path so the baseline `mul/add` block and the exact-double `madd`
   block are compared from the same traced loop window instead of hand-grepping full disassembly logs.
+- For the arm64 cursor-end-bounds control-flow probe, use
+  `make perf-probe-arm64-fast-dot-cursor-end-bounds`. It compares the shipped baseline against
+  `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, which switches the unique single-pair dot
+  path to cursor/end comparisons and cursor-only increments while leaving the shipped baseline
+  unchanged by default. The current host keeps this mode as a default-off experiment: it stayed
+  correctness-clean, shrank canonical dot disasm from `70` to `66` instructions, and improved the
+  canonical gate from `~2.6657x` to `~2.5338x` C, but it regressed the steady runner from
+  `~2.9768x` to `~3.0524x` C
+  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.
 - Native/list<int> perf-gate, probe, smoke, prebuild, and benchmark result artifacts now use
   collision-resistant timestamps, so back-to-back variants do not overwrite each other’s logs or
   result files.
+- The arm64 dot acceptance surface now applies `OREN_BENCH_ENV_BUILD_OREN` consistently to the
+  smoke, disasm, steady/gate, and exact native debug legs, and records the active `build_env` in
+  the acceptance summary. That closes the old mismatch where environment-gated compiler probes only
+  affected part of one “acceptance” run.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 

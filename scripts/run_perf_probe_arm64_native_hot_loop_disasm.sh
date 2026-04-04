@@ -9,6 +9,11 @@ mkdir -p "$log_dir" "$tmp_dir"
 summary_log="$log_dir/perf-probe-arm64-native-hot-loop-disasm-${ts}.log"
 array_log="$tmp_dir/array_sum.build.log"
 dot_log="$tmp_dir/dot_product.build.log"
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
+if [[ -n "$build_env_raw" ]]; then
+    read -r -a build_env_parts <<<"$build_env_raw"
+fi
 
 build_one() {
     local program="$1"
@@ -16,8 +21,13 @@ build_one() {
     local out="$tmp_dir/${program}_native"
     # The summary depends on compile-time `[arm64_loop_range]` prints. Force a real rebuild so a
     # native cache hit cannot skip lowering and leave the script with only disassembly text.
-    env OREN_TRACE_ARM64_LOOP_RANGES=1 \
-        ./oren_stage2 build "$src" --backend native --no-debug --no-cache --disasm -o "$out"
+    if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+        env OREN_TRACE_ARM64_LOOP_RANGES=1 "${build_env_parts[@]}" \
+            ./oren_stage2 build "$src" --backend native --no-debug --no-cache --disasm -o "$out"
+    else
+        env OREN_TRACE_ARM64_LOOP_RANGES=1 \
+            ./oren_stage2 build "$src" --backend native --no-debug --no-cache --disasm -o "$out"
+    fi
 }
 
 build_one array_sum >"$array_log" 2>&1

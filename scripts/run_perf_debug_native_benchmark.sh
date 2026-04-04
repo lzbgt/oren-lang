@@ -24,6 +24,11 @@ build_log="$log_dir/perf-debug-native-benchmark-${program_base}-${ts}.build.log"
 run_log="$log_dir/perf-debug-native-benchmark-${program_base}-${ts}.run.log"
 summary_log="$log_dir/perf-debug-native-benchmark-${program_base}-${ts}.log"
 out_bin="$tmp_dir/${program_base}_oren_native_debug"
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
+if [[ -n "$build_env_raw" ]]; then
+    read -r -a build_env_parts <<<"$build_env_raw"
+fi
 
 read -r -a run_args <<<"$run_args_raw"
 
@@ -32,9 +37,16 @@ read -r -a run_args <<<"$run_args_raw"
     echo "[build] program=$program"
     echo "[build] output=$out_bin"
     echo "[build] args=${run_args[*]}"
+    if [[ -n "$build_env_raw" ]]; then
+        echo "[build_env] $build_env_raw"
+    fi
 } >"$build_log"
 
-"$compiler" build "$program" --backend native --no-debug --no-cache "${platform_arg[@]}" -o "$out_bin" >>"$build_log" 2>&1
+if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+    env "${build_env_parts[@]}" "$compiler" build "$program" --backend native --no-debug --no-cache "${platform_arg[@]}" -o "$out_bin" >>"$build_log" 2>&1
+else
+    "$compiler" build "$program" --backend native --no-debug --no-cache "${platform_arg[@]}" -o "$out_bin" >>"$build_log" 2>&1
+fi
 
 {
     echo "[run] $out_bin ${run_args[*]}"
