@@ -447,6 +447,17 @@ This repo is still not factually "all planned features implemented" or "producti
   exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the
   canonical `fast_list_int_dot_while_no_tick` window. That replaces another round of full-log
   grepping with one focused artifact for the exit-after-double path.
+- Another follow-up compare probe (2026-04-05) now makes the baseline target itself less hand-wavy:
+  `make perf-probe-arm64-dot-vs-c-loop-compare` pairs the traced Oren `fast_list_int_dot_while*`
+  window with the host `cc -O2 -S` lowering of `benchmarks/dot_product/dot_product.c`.
+  - latest artifact: `build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_022928_14265.log`
+  - kept Oren path: 70-instruction scalar loop
+  - host C path: 57-instruction NEON vector loop (`ldp q*`, `smlal.2d`, `smlal2.2d`),
+    22-instruction vector mid loop, 6-instruction scalar `smaddl` tail
+  - conclusion: the remaining arm64 `dot_product` gap is not just “our scalar loop is still a bit
+    too long”; the host C reference is already vectorized on this machine, so further scalar
+    cleanups should be treated as partial moves unless they change the execution model more
+    fundamentally
 - That rerun also exposed a smoke-tooling hole: the canonical and `list<int>` native smoke scripts
   were rebuilding benchmark binaries without `--no-cache`, so compiler-env experiments could pass
   against a stale cached baseline artifact while the exact no-cache debug repro crashed. Those two

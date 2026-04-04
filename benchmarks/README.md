@@ -77,6 +77,23 @@ dot-core changes can compare static loop shape without diffing whole-binary disa
 The probe now exits non-zero if either traced loop window is missing, so cache-hit or lowering drift
 cannot silently degrade the summary into a best-effort note.
 
+For a focused comparison between the shipped arm64 native `dot_product` loop and the host C
+compiler's `-O2` lowering of [benchmarks/dot_product/dot_product.c](/Users/zongbaolu/work/compiler-mini/benchmarks/dot_product/dot_product.c),
+use:
+
+```bash
+make perf-probe-arm64-dot-vs-c-loop-compare
+```
+
+This reuses the traced arm64 hot-loop disasm probe, compiles the C benchmark to assembly, and
+extracts the Oren dot window plus the host C vector loop, mid loop, and scalar tail into one
+summary. The latest artifact,
+`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_022928_14265.log`, shows the kept Oren
+path as a 70-instruction scalar loop, while the host C reference uses a 57-instruction NEON vector
+loop (`ldp q*`, `smlal.2d`, `smlal2.2d`), a 22-instruction vector mid loop, and a 6-instruction
+scalar `smaddl` tail. That is the right current baseline when judging future arm64 dot work: the
+remaining gap is versus a vectorized C loop, not just a better scalar schedule.
+
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 
 ```bash

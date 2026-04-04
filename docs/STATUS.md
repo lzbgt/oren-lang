@@ -1373,6 +1373,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
      compact 2-wide block from the canonical `fast_list_int_dot_while_no_tick` window into one
      artifact. That keeps the next fix focused on the exact `mul/add` vs `madd/madd` exit block
      instead of hand-scanning full native disassembly logs.
+   - C-vs-Oren loop compare probe (2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare` now
+     pairs the traced Oren `dot_product` hot-loop window with the host `cc -O2 -S` lowering of
+     `benchmarks/dot_product/dot_product.c`. The latest artifact
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_022928_14265.log`) shows the kept
+     Oren path as a 70-instruction scalar loop, while the host C reference is already a NEON vector
+     loop plus vector mid loop plus scalar `smaddl` tail (`57` + `22` + `6` instructions). That
+     materially raises the bar for the remaining blocker: on this host, arm64 `dot_product`
+     underperformance is against a vectorized C baseline, not just against a tighter scalar loop.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

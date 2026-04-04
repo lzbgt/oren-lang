@@ -1444,7 +1444,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      steady (`~2.8383x -> ~3.0797x`), so the cursor-end probes and knob were removed
 						      from the live surface after recording the evidence
 						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
-				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
+						    - New compare probe (arm64, 2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
+						      now compares the shipped traced Oren `dot_product` loop directly against the host
+						      `cc -O2 -S` lowering of `benchmarks/dot_product/dot_product.c`. The latest
+						      artifact (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_022928_14265.log`)
+						      shows Oren still shipping a 70-instruction scalar loop, while host C is already
+						      using a NEON vector loop plus vector mid loop plus scalar `smaddl` tail
+						      (`57` + `22` + `6` instructions). Reweight future arm64 dot work accordingly:
+						      scalar loop cleanups alone are unlikely to close the full remaining gap.
+					    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across
       `while_generic` and list<int> fast loops (push/dot), with stack bases matching current stack size.
