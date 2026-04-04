@@ -153,6 +153,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      the traced machine-code window and a mnemonic histogram for the canonical `array_sum` /
      `dot_product` arm64 fast loops, so static load/mul/add/branch deltas can be compared
      directly before shipping another dot-core experiment.
+   - Tooling follow-up (2026-04-05): that same disasm probe now forces `--no-cache` when it asks
+     for `OREN_TRACE_ARM64_LOOP_RANGES=1`. Without that, a native cache hit could skip lowering,
+     drop the compile-time `[arm64_loop_range]` lines, and leave the summary with only the raw
+     `--disasm` output.
    - New focused steady-state runner (2026-04-04, `make perf-gate-list-int-steady`, `reps=100`):
      `array_sum_int` steady-state native/C is ~2.43× and `dot_product_int` steady-state native/C
      is ~2.78×. That is stronger evidence than the earlier one-shot gate that the remaining
@@ -1238,6 +1242,18 @@ Weights reflect expected impact on C parity and breadth of affected code.
        rerun. `build/logs/perf-gate-native-steady-20260404_233707_97722.log` moved `array_sum` /
        `dot_product` to ~2.4331x / ~3.0449x C, so the one-pair variant was reverted and the
        two-pair `[x19,x20]` + `[x25,x26]` kept-state remains the better current host baseline.
+     - Follow-up exact-register spill probe (2026-04-05): replacing the kept two-pair spill set
+       with exact single-register spills (`[x19]`, `[x26]`) did clear the exact benchmark smoke
+       and exact-binary repro:
+       - `build/logs/perf-smoke-native-fast-loops-20260405_002352_77964.log`
+       - `build/logs/perf-debug-native-benchmark-dot_product-20260405_002400_78334.log`
+       But it still regressed both perf trackers:
+       - steady (`build/logs/perf-gate-native-steady-20260405_002356_78070.log`):
+         `array_sum` ~2.4180x C, `dot_product` ~3.0259x C
+       - canonical gate (`build/logs/perf-gate-native-20260405_002400_78191.summary.log`):
+         `array_sum` ~2.0537x C, `dot_product` ~2.5850x C
+       Conclusion: keep the earlier two-pair spill baseline; the exact single-register spill path
+       is not the next production candidate on this host.
    - New arm64 dual-accum probe + variance guard (2026-04-04):
      - `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped
        single-pair cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.

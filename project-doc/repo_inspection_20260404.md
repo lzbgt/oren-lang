@@ -317,6 +317,9 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and a new probe target
     `make perf-probe-arm64-native-hot-loop-disasm` builds canonical `array_sum` / `dot_product`
     with `--disasm` and extracts the traced fast-loop windows into a compact summary log
+  - follow-up tooling fix (2026-04-05): that disasm probe now also forces `--no-cache`, because
+    the summary depends on compile-time `[arm64_loop_range]` prints and native cache hits can
+    otherwise leave the script with only raw disassembly text
   - follow-up arm64 emitter experiment (2026-04-04): replaced the single-pair unrolled cursor-reg
     body with post-index pair loads (`ldp ..., [cursor], #16`) so the hot path could fuse adjacent
     loads with cursor bumps
@@ -395,6 +398,15 @@ This repo is still not factually "all planned features implemented" or "producti
   stayed correctness-clean in the smoke, but `build/logs/perf-gate-native-steady-20260404_233707_97722.log`
   regressed to `array_sum` / `dot_product` ~`2.4331x` / `3.0449x` C, so the one-pair variant was
   reverted immediately.
+- I also tried a more exact April 5 follow-up after that: keep the same logical cursor-only idea,
+  but spill those registers as exact single-register stack entries (`[x19]`, `[x26]`) instead of
+  forcing them through pair-shaped spill helpers. That remained correctness-clean on the exact
+  benchmark smoke and direct native repro
+  (`build/logs/perf-smoke-native-fast-loops-20260405_002352_77964.log`,
+  `build/logs/perf-debug-native-benchmark-dot_product-20260405_002400_78334.log`), but it still
+  regressed both tracker surfaces to steady `array_sum` / `dot_product` ~`2.4180x` / `3.0259x` C
+  and canonical gate ~`2.0537x` / `2.5850x` C. That variant was reverted too; the current best
+  kept baseline is still the earlier two-pair spill reduction.
 - The April 4 build-lock fix also needed a follow-up after the perf thread got cleaner: the
   original 300-second default wait was still short enough for a queued `make test` to false-fail
   behind a legitimate stage2 holder (`build/logs/turn_verify_make_test_gc_single_pair_20260404.log`).

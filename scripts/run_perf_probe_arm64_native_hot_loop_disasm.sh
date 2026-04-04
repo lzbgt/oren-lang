@@ -14,8 +14,10 @@ build_one() {
     local program="$1"
     local src="benchmarks/${program}/${program}.oren"
     local out="$tmp_dir/${program}_native"
+    # The summary depends on compile-time `[arm64_loop_range]` prints. Force a real rebuild so a
+    # native cache hit cannot skip lowering and leave the script with only disassembly text.
     env OREN_TRACE_ARM64_LOOP_RANGES=1 \
-        ./oren_stage2 build "$src" --backend native --no-debug --disasm -o "$out"
+        ./oren_stage2 build "$src" --backend native --no-debug --no-cache --disasm -o "$out"
 }
 
 build_one array_sum >"$array_log" 2>&1

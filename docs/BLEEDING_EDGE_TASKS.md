@@ -1302,6 +1302,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      instructions for `array_sum` and 70 for `dot_product` (`stp/ldp` in dot fell from
 				      10/10 to 4/4). Keep this; it improves both perf surfaces without changing the generic
 				      safepoint contract.
+				    - Follow-up exact-register spill probe (2026-04-05):
+				      tried narrowing that kept two-pair dot safepoint set one step further to exact
+				      single-register spills (`[x19]`, `[x26]`). The exact benchmark smoke and exact-binary
+				      repro stayed green, but the real perf signal regressed:
+				      `build/logs/perf-gate-native-steady-20260405_002356_78070.log` moved to
+				      `array_sum` / `dot_product` ~2.4180x / ~3.0259x C and
+				      `build/logs/perf-gate-native-20260405_002400_78191.summary.log` moved to
+				      ~2.0537x / ~2.5850x C. Reverted; keep the earlier two-pair spill baseline.
 				    - New arm64 dual-accum probe + variance guard (2026-04-04):
 				      `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped single-pair
 				      cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`. The arm64
@@ -1359,6 +1367,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      now emits instruction counts and a mnemonic histogram for the traced canonical
 					      `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows, so static
 					      loop-shape changes can be compared directly before another perf rerun.
+					    - Tooling follow-up (arm64, 2026-04-05): that disasm probe now forces `--no-cache`
+					      when `OREN_TRACE_ARM64_LOOP_RANGES=1` is enabled, because native cache hits can skip
+					      lowering and otherwise drop the compile-time `[arm64_loop_range]` lines the summary
+					      depends on.
 					    - Tooling follow-up (2026-04-05): `make perf-debug-native-benchmark` now provides
 					      a reusable exact-binary repro runner for native benchmarks. It records the exact
 					      built binary path, args, exit code, build log, and run log, and on non-zero exit
