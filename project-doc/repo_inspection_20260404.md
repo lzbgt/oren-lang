@@ -385,6 +385,11 @@ This repo is still not factually "all planned features implemented" or "producti
   was still not safe: `build/logs/perf-smoke-native-fast-loops-20260405_000124_44574.log` died at
   native `dot_product 10 3` before producing `6590`. I reverted it immediately. The April 5 fact
   is that a nicer-looking disassembly is still not enough unless the exact benchmark smoke clears.
+- To keep the next unsafe arm64 dot experiment from falling back to hand-reconstructed repro steps
+  again, I also added `make perf-debug-native-benchmark`, a reusable exact-binary repro runner for
+  native benchmarks. It records the exact built binary path, args, exit code, build log, and run log
+  in one summary artifact, and on non-zero exit it prints the manual `lldb -- <binary> <args...>`
+  command to use next.
 - I tried one narrower follow-up on top of that keep: spill only the two exact cursor regs
   (`[x19,x26]`) at the single-pair dot inline safepoint instead of the kept two-pair set. That
   stayed correctness-clean in the smoke, but `build/logs/perf-gate-native-steady-20260404_233707_97722.log`

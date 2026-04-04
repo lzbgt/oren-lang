@@ -1275,6 +1275,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and `make perf-probe-arm64-native-hot-loop-disasm`
      builds canonical `array_sum` / `dot_product` with `--disasm` and extracts the traced fast-loop
      windows into a compact artifact for machine-code review.
+   - Tooling follow-up (2026-04-05): `make perf-debug-native-benchmark` now builds a chosen native
+     benchmark binary, runs the exact binary directly, and records the binary path, args, exit code,
+     build log, and run log in one summary artifact. On non-zero exit it also prints the exact
+     manual `lldb -- <binary> <args...>` command to use for follow-up crash triage, so unsafe arm64
+     dot experiments can be reproduced from one canonical artifact instead of reassembling the build
+     command by hand.
    - Trace (2026-04-05): a narrower exact-path `madd` follow-up only touched the single-pair
      cursor-reg `fast_list_int_dot_while*` body. The traced canonical dot window shrank from 70
      instructions / `mul=7 add=13` to 63 instructions / `madd=7 add=13`

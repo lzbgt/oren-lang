@@ -146,6 +146,24 @@ Canonical native hot-loop correctness smoke:
 make perf-smoke-native-fast-loops
 ```
 
+Exact native benchmark repro/debug runner (uses the same native benchmark build path;
+defaults to `benchmarks/dot_product/dot_product.oren` with args `10 3`):
+
+```bash
+make perf-debug-native-benchmark
+```
+
+Useful overrides:
+
+- `OREN_BENCH_DEBUG_PROGRAM=benchmarks/array_sum/array_sum.oren`
+- `OREN_BENCH_DEBUG_ARGS="20 3"`
+- `OREN_BENCH_DEBUG_COMPILER=./oren_stage2`
+- `OREN_BENCH_DEBUG_PLATFORM=arm64-macos`
+
+The runner builds the chosen benchmark, executes the exact native binary directly, and writes a
+summary log with the binary path, args, exit code, build log, and run log. On non-zero exit it also
+prints the exact manual `lldb -- <binary> <args...>` command to use for follow-up crash triage.
+
 Unsafe `list<int>` steady-state ceiling probe (baseline vs `OREN_LIST_ASSUME_LIST=1`,
 `OREN_NATIVE_ASSUME_LIST_INDEX=1`, and both combined):
 

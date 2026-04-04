@@ -1359,6 +1359,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      now emits instruction counts and a mnemonic histogram for the traced canonical
 					      `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows, so static
 					      loop-shape changes can be compared directly before another perf rerun.
+					    - Tooling follow-up (2026-04-05): `make perf-debug-native-benchmark` now provides
+					      a reusable exact-binary repro runner for native benchmarks. It records the exact
+					      built binary path, args, exit code, build log, and run log, and on non-zero exit
+					      it prints the manual `lldb -- <binary> <args...>` command to use next, so unsafe
+					      arm64 dot experiments stop depending on hand-reconstructed repro steps.
 					    - Trace (arm64, 2026-04-05): an exact-path `madd` follow-up only replaced the
 					      single-pair cursor-reg `fast_list_int_dot_while*` multiply/add pairs. The traced
 					      canonical dot window did shrink from 70 to 63 instructions
