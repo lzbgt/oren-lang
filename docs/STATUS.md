@@ -1212,6 +1212,27 @@ Weights reflect expected impact on C parity and breadth of affected code.
        `array_sum` ~2.0808x C, `dot_product` ~2.7616x C
      - Conclusion: keep the cleanup because it is low-risk and directionally positive, but the
        canonical arm64 `dot_product` blocker remains above the `<=2x C` gate.
+   - Targeted arm64 fast-loop safepoint spill reduction (2026-04-04):
+     - kept the generic/native-expression safepoint wrapper unchanged, but taught the exact
+       `list<int>` hot loops to spill only the callee-saved pairs that can actually hide live
+       heap pointers from the conservative stack scan:
+       - `fast_list_int_get_sum_while*`: no extra spill pairs at the inline safepoint
+       - `fast_list_int_dot_while*` single-pair cursor-reg path: spill only `[x19,x20]` and
+         `[x25,x26]` instead of the full x19-x28 set
+     - Verified with:
+       - `build/logs/perf-smoke-native-fast-loops-20260404_233153_87311.log`
+       - `build/logs/perf-probe-arm64-native-hot-loop-disasm-20260404_232947_83762.log`
+       - `build/logs/perf-gate-native-steady-20260404_232818_80682.log`
+       - `build/logs/perf-gate-native-20260404_233209_88078.summary.log`
+     - New kept-state reruns:
+       - steady: `array_sum` ~2.4144x C, `dot_product` ~2.7706x C
+       - canonical gate: `array_sum` ~1.8926x C, `dot_product` ~2.5264x C
+       - traced hot-loop windows:
+         - `array_sum`: 52 instructions (down from 72), no inline-safepoint `stp/ldp` spill block
+         - `dot_product`: 70 instructions (down from 82), `stp=4` / `ldp=4` instead of `10` / `10`
+     - Conclusion: keep the reduced-spill path. The arm64 `dot_product` blocker is still open, but
+       this is the first April 4 loop-body change that improved both the steady and canonical views
+       without hurting correctness.
    - New arm64 dual-accum probe + variance guard (2026-04-04):
      - `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped
        single-pair cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.

@@ -1286,16 +1286,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      decisive: steady default ~2.9806x C vs disabled ~2.8893x C, while the canonical gate
 			      read default ~2.1919x C vs disabled ~2.7147x C. Keep the shipped default for now and
 			      use the probe for future reruns.
-			    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
-			      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
-			      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`
-			      recompute in the non-unique int-dot body. Serial reruns on the kept tree improved to
-			      canonical `array_sum` ~2.0808x C / `dot_product` ~2.7616x C and steady `array_sum`
-			      ~2.2422x C / `dot_product` ~2.9915x C. This is worth keeping, but the canonical
-			      arm64 dot blocker is still open.
-			    - New arm64 dual-accum probe + variance guard (2026-04-04):
-			      `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped single-pair
-			      cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`. The arm64
+				    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
+				      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
+				      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`
+				      recompute in the non-unique int-dot body. Serial reruns on the kept tree improved to
+				      canonical `array_sum` ~2.0808x C / `dot_product` ~2.7616x C and steady `array_sum`
+				      ~2.2422x C / `dot_product` ~2.9915x C. This is worth keeping, but the canonical
+				      arm64 dot blocker is still open.
+				    - Targeted arm64 fast-loop safepoint spill reduction (2026-04-04):
+				      kept the generic safepoint spill wrapper untouched, but reduced the exact
+				      `list<int>` hot-loop inline-safepoint spills to the pairs that can actually hide
+				      live heap pointers from conservative stack scans. On the kept reruns this moved
+				      steady `array_sum` / `dot_product` to ~2.4144x / ~2.7706x C and the canonical gate
+				      to ~1.8926x / ~2.5264x C, while shrinking the traced hot-loop windows to 52
+				      instructions for `array_sum` and 70 for `dot_product` (`stp/ldp` in dot fell from
+				      10/10 to 4/4). Keep this; it improves both perf surfaces without changing the generic
+				      safepoint contract.
+				    - New arm64 dual-accum probe + variance guard (2026-04-04):
+				      `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped single-pair
+				      cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`. The arm64
 			      dot probe scripts also now warn when the canonical one-program gate is too noisy
 			      (`cov >= 0.10`) to support a strong conclusion. Current clean rerun regressed both
 			      surfaces: steady default ~2.8895x C vs enabled ~3.0684x C, canonical gate default

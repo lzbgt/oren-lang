@@ -371,3 +371,9 @@ This repo is still not factually "all planned features implemented" or "producti
   offset `ldp` pair loads. That reduced the traced dot window from 328 bytes to 304 bytes, but
   the focused steady rerun still regressed to about `3.10x C`, so the static load count alone is
   not the dominant blocker and that path should stay reverted.
+- The next arm64 dot follow-up did produce a keep: the inline safepoint path was spilling far more
+  callee-saved regs than the exact hot loops needed for GC visibility. Narrowing the exact
+  `list<int>` fast-loop spill set cut the traced canonical windows to 52 instructions for
+  `array_sum` and 70 for `dot_product` (with dot safepoint `stp/ldp` dropping from 10/10 to 4/4),
+  while the kept reruns improved to steady `array_sum` / `dot_product` ~`2.4144x` / `2.7706x` C
+  and canonical gate `array_sum` / `dot_product` ~`1.8926x` / `2.5264x` C.

@@ -557,7 +557,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+    gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [])
 
     if unique_lists != true {
         // idx_offset = i * 8 (reuse for all list loads)
@@ -631,7 +631,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+        gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [])
     }
 
     var pi = 0
@@ -745,6 +745,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK", 4095)
+    var safepoint_spill_pairs = []
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -878,6 +879,10 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             // current host reruns are still too close to justify removing it outright.
             emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
             emit_ldr_reg_sp_any(ctx, 26, list_base_off + 24)
+            // At inline safepoints only the two preserved cursor pairs can hide heap pointers
+            // from the conservative stack scan. The scalar loop state stays live in registers
+            // via the ABI, so we do not need to spill the full x19-x28 set on this exact path.
+            safepoint_spill_pairs = [[19, 20], [25, 26]]
             if dual_accum {
                 // Split the reduction across two independent accumulators to shorten the
                 // dependency chain in the single-pair hot path.
@@ -920,7 +925,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+    gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, safepoint_spill_pairs)
     if unique_lists != true {
         // Shared addr offset for the non-unique slow-fast path.
         push_u32_le(ctx["code"], insn_mul(24, 20, 22))
@@ -1037,7 +1042,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+        gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, safepoint_spill_pairs)
     }
     var mi = 0
     while mi < oren_list_len(muls) {
