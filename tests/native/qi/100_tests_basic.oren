@@ -1533,6 +1533,8 @@ fn test_list_set_clear_stress() {
     assert_eq(oren_list_int_dot_slots_unchecked(li, li), 11440, 3322)
     assert_eq(oren_list_int_reduce_sum_slots(nil), 0, 3323)
     assert_eq(oren_list_int_dot_slots(nil, nil), 0, 3324)
+    assert_eq(oren_list_int_reduce_sum_slots_unchecked(nil), 0, 3330)
+    assert_eq(oren_list_int_dot_slots_unchecked(nil, nil), 0, 3331)
 
     oren_list_int_set(li, 1, 44)
     assert_eq(ptr_get(data + 8), 44, 3317)

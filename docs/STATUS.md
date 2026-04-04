@@ -274,6 +274,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That is a decisive improvement
      for the dot-shaped raw-slot path, but it also confirms that these unchecked helper-backed
      probes still should not replace the canonical list<int> fast loops as the default hot path.
+   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
+     benchmark numerics. The slot-direct smoke also builds
+     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper
+     contracts directly: `reduce_sum_slots_unchecked(nil) == 0`, `dot_slots_unchecked(nil, nil) == 0`,
+     and deterministic panic text (`list_int_dot_slots_unchecked: length mismatch`) for one-nil and
+     unequal-length dot calls.
    - Verification (2026-03-28): the canonical benchmark shapes are already using that direct-slot
      compiler lowering path today. A new dedicated gate (`make verify-native-list-int-fast-lowering`)
      now proves `benchmarks/array_sum_int/array_sum_int.oren` still emits
@@ -1892,6 +1898,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
       `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That makes the direct-slot dot
       path much less pathological, but the canonical fast loops are still materially better, so the
       open gate remains native `dot_product_int` <= 2x C rather than “ship the helper probe path”.
+    - Guardrail (2026-04-04): the slot-direct verify target now also exercises the unchecked helper
+      edge contract directly through `tests/fixtures/list_int_slot_direct_contracts.oren`, covering
+      nil-zero behavior and deterministic mismatch panics in addition to the existing benchmark smoke.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
     - New: native runtime now exposes the current list<int> payload ABI explicitly via

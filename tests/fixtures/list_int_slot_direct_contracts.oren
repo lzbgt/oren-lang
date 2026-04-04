@@ -1,0 +1,51 @@
+import list "std:list"
+
+fn _make_list(vals) {
+    var xs = list.int_new(oren_list_len(vals))
+    if oren_is_err(xs) { return xs }
+    var i = 0
+    while i < oren_list_len(vals) {
+        list.int_push(xs, vals[i])
+        i = i + 1
+    }
+    return xs
+}
+
+fn main() {
+    var args = oren_args()
+    var mode = ""
+    if oren_list_len(args) >= 2 {
+        mode = args[1]
+    }
+
+    var xs = _make_list([1, 2, 3, 4])
+    if oren_is_err(xs) { return 10 }
+    var ys = _make_list([5, 6, 7, 8])
+    if oren_is_err(ys) { return 11 }
+
+    if mode == "MODE_DOT_LEFT_NIL" {
+        print(oren_int_to_string(oren_list_int_dot_slots_unchecked(nil, ys)))
+        return 91
+    }
+    if mode == "MODE_DOT_RIGHT_NIL" {
+        print(oren_int_to_string(oren_list_int_dot_slots_unchecked(xs, nil)))
+        return 92
+    }
+    if mode == "MODE_DOT_LEN_MISMATCH" {
+        var short = _make_list([5, 6, 7])
+        if oren_is_err(short) { return 12 }
+        print(oren_int_to_string(oren_list_int_dot_slots_unchecked(xs, short)))
+        return 93
+    }
+
+    if oren_list_int_reduce_sum_slots(nil) != 0 { return 20 }
+    if oren_list_int_reduce_sum_slots_unchecked(nil) != 0 { return 21 }
+    if oren_list_int_dot_slots(nil, nil) != 0 { return 22 }
+    if oren_list_int_dot_slots_unchecked(nil, nil) != 0 { return 23 }
+    if oren_list_int_reduce_sum_slots(xs) != 10 { return 24 }
+    if oren_list_int_reduce_sum_slots_unchecked(xs) != 10 { return 25 }
+    if oren_list_int_dot_slots(xs, ys) != 70 { return 26 }
+    if oren_list_int_dot_slots_unchecked(xs, ys) != 70 { return 27 }
+    print("ok: list_int_slot_direct_contracts")
+    return 0
+}

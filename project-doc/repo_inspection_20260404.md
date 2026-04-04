@@ -62,6 +62,16 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - canonical steady baseline on the same sweep: `array_sum_int` ~2.3090× C, `dot_product_int` ~2.9950× C
     - hidden direct-slot probe after the new call-site intrinsics: `array_sum_int_slot_direct` ~15.1069× C, `dot_product_int_slot_direct` ~5.1760× C
   - conclusion: the new call-site lowering materially reduced the pathological dot-product direct-slot gap, but the unchecked helper-backed probe still trails the canonical fast loops and should remain a probe/targeted intrinsic surface rather than the default general lowering
+- Follow-up slot-direct contract pass (2026-04-04):
+  - extended the existing slot-direct verify surface instead of adding a disconnected one-off check
+  - `make verify-native-slot-direct` now also builds `tests/fixtures/list_int_slot_direct_contracts.oren`
+    and checks:
+    - unchecked nil behavior stays zero-returning for reduce-sum and `(nil, nil)` dot
+    - unchecked dot mismatch cases still panic with `list_int_dot_slots_unchecked: length mismatch`
+  - also promoted the same unchecked-nil assertions into:
+    - [tests/fixtures/tier1_native_result_smoke_main.oren](/Users/zongbaolu/work/compiler-mini/tests/fixtures/tier1_native_result_smoke_main.oren)
+    - [tests/native/qi/100_tests_basic.oren](/Users/zongbaolu/work/compiler-mini/tests/native/qi/100_tests_basic.oren)
+  - this closes the main correctness blind spot left by the earlier call-site intrinsic change: the new native lowering path now has explicit edge-contract coverage, not just benchmark-output coverage
 
 ## Production-level reality after this pass
 

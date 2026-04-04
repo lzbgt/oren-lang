@@ -1191,6 +1191,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      baseline at `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That materially
      reduces the dot-path gap and confirms the call-site lowering matters, but the helper-backed
      probe still trails the canonical fast loops by too much to become the default lowering.
+   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
+     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
+     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
+     deterministic panic text for one-nil and length-mismatch
+     `oren_list_int_dot_slots_unchecked(...)` calls.
    - Verification (2026-03-28): the canonical benchmark loops already lower directly against that
      64-bit-slot ABI on both native backends. New gate:
      `make verify-native-list-int-fast-lowering`. It compiles
@@ -2260,6 +2265,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      it still does not beat the canonical fast loops (`array_sum_int` ~2.3090× C,
      `dot_product_int` ~2.9950× C on the same sweep), so the remaining work stays on parity of the
      canonical path rather than shipping the helper probe path.
+   - Guardrail (2026-04-04): slot-direct verification now includes direct unchecked-helper contract
+     coverage via `tests/fixtures/list_int_slot_direct_contracts.oren`, so future arm64/x64 tuning
+     cannot silently change nil or mismatch behavior while still passing the benchmark-output smoke.
    - Constraint (2026-03-20): direct reuse of the packed-i32 SIMD dot kernel is not safe for the
      current `list<int>` fast-loop payload layout because those slots are 64-bit values.
    - New: native runtime now exposes the current `list<int>` payload ABI explicitly via

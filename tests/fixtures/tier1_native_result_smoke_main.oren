@@ -293,6 +293,8 @@ fn smoke_list_int_slot_ops() {
     if oren_list_int_dot_slots_unchecked(xs, xs) != 30 { return 16796 }
     if oren_list_int_reduce_sum_slots(nil) != 0 { return 16797 }
     if oren_list_int_dot_slots(nil, nil) != 0 { return 16798 }
+    if oren_list_int_reduce_sum_slots_unchecked(nil) != 0 { return 16799 }
+    if oren_list_int_dot_slots_unchecked(nil, nil) != 0 { return 16800 }
     return 0
 }
 
