@@ -409,6 +409,11 @@ This repo is still not factually "all planned features implemented" or "producti
   exact native repro with `debug_exit_code: 139`, even though the partial acceptance summary
   (`build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`) shows better
   focused metrics and the smaller 63-instruction canonical dot window.
+- That rerun also exposed a smoke-tooling hole: the canonical and `list<int>` native smoke scripts
+  were rebuilding benchmark binaries without `--no-cache`, so compiler-env experiments could pass
+  against a stale cached baseline artifact while the exact no-cache debug repro crashed. Those two
+  active smoke surfaces now rebuild with `--no-cache`, so environment-toggled compiler experiments
+  stop reading as correctness-clean just because the smoke never recompiled the binary.
 - Follow-up tooling batch (2026-04-05): there is now also a serial acceptance bundle for the arm64
   canonical dot-core thread: `make perf-probe-arm64-dot-acceptance`. It runs the exact benchmark
   smoke, the traced hot-loop disasm probe, the steady native gate, the canonical native gate, the

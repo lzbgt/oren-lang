@@ -15,7 +15,7 @@ build_native_bin() {
 
     {
         echo "[build] ${program}"
-        ./oren_stage2 build "$src" --backend native --no-debug -o "$bin"
+        ./oren_stage2 build "$src" --backend native --no-debug --no-cache -o "$bin"
     } >>"$log_path" 2>&1
 }
 

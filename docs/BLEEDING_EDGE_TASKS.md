@@ -1393,6 +1393,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      artifacts instead of collapsing into a bare non-zero exit. That keeps the
 						      exact-path `madd` branch reproducible without reintroducing a long-lived hand
 						      edit before the exact smoke/debug gates agree.
+						    - Tooling fix (2026-04-05): `make perf-smoke-native-fast-loops` and
+						      `make perf-smoke-list-int` now rebuild native benchmark binaries with
+						      `--no-cache`, because compiler-env experiments were otherwise able to certify
+						      stale cached baseline artifacts as a false green smoke.
 						    - Trace (arm64, 2026-04-05): an exact-path `madd` follow-up only replaced the
 						      single-pair cursor-reg `fast_list_int_dot_while*` multiply/add pairs. The traced
 						      canonical dot window did shrink from 70 to 63 instructions
@@ -1410,6 +1414,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      exact native debug repro still failed at `perf-debug-native-benchmark` with
 						      `exit_code: 139` in
 						      `build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`.
+						      After the smoke cache-policy fix, the enabled canonical smoke now fails directly
+						      too instead of passing via a stale cached baseline binary.
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

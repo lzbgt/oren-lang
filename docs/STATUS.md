@@ -1313,6 +1313,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      failure (`exit_status`, `failed_step`, and any completed artifacts), so unsafe dot experiments
      stop losing their evidence at the first non-zero exit. This keeps the exact-path `madd` branch
      reproducible without turning another unsafe hand edit into a persistent source diff.
+   - Tooling fix (2026-04-05): `make perf-smoke-native-fast-loops` and `make perf-smoke-list-int`
+     now rebuild their native benchmark binaries with `--no-cache`. That closes a correctness hole
+     where compiler-env experiments could otherwise reuse a stale cached baseline artifact and
+     report a false green smoke.
    - Trace (2026-04-05): a narrower exact-path `madd` follow-up only touched the single-pair
      cursor-reg `fast_list_int_dot_while*` body. The traced canonical dot window shrank from 70
      instructions / `mul=7 add=13` to 63 instructions / `madd=7 add=13`
@@ -1329,6 +1333,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      though the partial acceptance summary shows better focused numbers:
      `steady_dot_product ~2.7940x`, `gate_dot_product ~2.5953x`, and traced canonical dot disasm
      at `63` instructions (`build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`).
+     After the smoke cache-policy fix, the enabled canonical smoke also reproduces the failure
+     directly instead of passing via a stale cached binary.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

@@ -154,6 +154,8 @@ This builds `array_sum_int` and `dot_product_int` through `./oren_stage2` once a
 both a tiny scalar-tail case (`205`, `6590`) and a >16-element hot-path case (`710`, `54380`)
 before running the heavier timing sweeps. Use it first when changing the exact arm64 `list<int>`
 hot paths so wrong-code experiments fail fast even when the bug only appears in the wider steady-state body.
+Like the canonical native smoke, it now rebuilds with `--no-cache` so compiler-env experiments
+cannot silently pass against an older cached native benchmark binary.
 
 This smoke now also runs automatically before:
 - `make perf-gate-native-read-split`
@@ -171,6 +173,10 @@ Canonical native hot-loop correctness smoke:
 ```bash
 make perf-smoke-native-fast-loops
 ```
+
+This smoke now rebuilds its native benchmark binaries with `--no-cache`. That is intentional:
+compiler-env experiments like `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` must certify the exact
+current build, not a stale cached baseline artifact.
 
 Exact native benchmark repro/debug runner (uses the same native benchmark build path;
 defaults to `benchmarks/dot_product/dot_product.oren` with args `10 3`):
