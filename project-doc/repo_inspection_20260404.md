@@ -213,6 +213,25 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion: on the current host the signal is too close and too noisy to justify a shipped
     default flip. Keep the cursor-reg path enabled for now, but use the new probe instead of
     ad-hoc source edits when rerunning this question
+- Follow-up arm64 dot unroll-by-2 probe (2026-04-04):
+  - promoted the current-source arm64 `fast_list_int_dot_while` unroll-by-2 recheck into a
+    reusable target:
+    - `make perf-probe-arm64-fast-dot-unroll2`
+  - kept the shipped unique-list unroll-by-2 path enabled by default, but made the comparison
+    source-free via:
+    - `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0`
+  - widened the knob so future reruns can force either side without source edits:
+    - `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1`
+    - `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=true`
+  - verified with:
+    - `env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 make perf-probe-arm64-fast-dot-unroll2`
+  - final kept-state rerun from `build/logs/perf-probe-arm64-fast-dot-unroll2-20260404_215653_19700.log`:
+    - steady default: `dot_product` ~2.9806x C
+    - steady disabled: `dot_product` ~2.8893x C
+    - canonical gate default: `dot_product` ~2.1919x C
+    - canonical gate disabled: `dot_product` ~2.7147x C
+  - conclusion: current host signal is mixed rather than decisively better in one direction, so
+    the shipped unroll-by-2 default stays enabled for now; use the new probe for future reruns
 
 ## Production-level reality after this pass
 

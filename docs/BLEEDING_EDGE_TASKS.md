@@ -1278,6 +1278,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      kept-state serial rerun stayed inconclusive: steady default ~3.1205x C vs disabled
 			      ~3.1322x C, while the canonical gate read default ~2.6041x C vs disabled ~2.5322x C.
 			      Keep the shipped default for now and use the probe for future reruns.
+			    - New arm64 unroll-by-2 probe (2026-04-04):
+			      `make perf-probe-arm64-fast-dot-unroll2` now compares the shipped unique-list
+			      unroll-by-2 path against `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0` without source
+			      edits. The emitter also accepts explicit `...=1` / `true` so future reruns can force
+			      either side of the comparison. Current kept-state rerun is mixed rather than
+			      decisive: steady default ~2.9806x C vs disabled ~2.8893x C, while the canonical gate
+			      read default ~2.1919x C vs disabled ~2.7147x C. Keep the shipped default for now and
+			      use the probe for future reruns.
 			    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

@@ -1169,6 +1169,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Conclusion: the current host signal is too close and too noisy to justify a shipped default
        flip. Keep the cursor-reg path enabled by default, but use the new probe for future reruns
        instead of ad-hoc source edits.
+   - New arm64 unroll-by-2 probe (2026-04-04):
+     - `make perf-probe-arm64-fast-dot-unroll2` now compares the shipped
+       `fast_list_int_dot_while` unique-list unroll-by-2 path against
+       `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0` without source edits.
+     - The emitter also accepts explicit `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1` / `true`, so
+       future reruns can force either side of the comparison without patching code.
+     - Final kept-state rerun (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260404_215653_19700.log`):
+       steady default ~2.9806x C vs disabled ~2.8893x C, canonical gate default ~2.1919x C vs
+       disabled ~2.7147x C.
+     - Conclusion: the current host signal is mixed rather than decisively better in one direction.
+       Keep the shipped unroll-by-2 default for now and reuse the probe for future reruns.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
@@ -1975,11 +1986,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	      2026-04-04): corrected same-smoke rerun baseline `dot_product` ~3.0142x C, `16383`
 	      ~3.0924x C, `65535` ~3.1914x C. On the repeated-read-loop runner, higher masks regress;
 	      default remains `4095`.
-	    - Arm64 single-pair cursor-reg probe (`make perf-probe-arm64-fast-dot-single-pair-cursor-regs`,
-	      2026-04-04): current kept-state serial rerun stayed inconclusive
-	      (steady default ~3.1205x C vs disabled ~3.1322x C; gate default ~2.6041x C vs disabled
-	      ~2.5322x C). Default remains enabled until the signal is stronger.
-	    - Gate: native `dot_product_int` <= 2x C.
+		    - Arm64 single-pair cursor-reg probe (`make perf-probe-arm64-fast-dot-single-pair-cursor-regs`,
+		      2026-04-04): current kept-state serial rerun stayed inconclusive
+		      (steady default ~3.1205x C vs disabled ~3.1322x C; gate default ~2.6041x C vs disabled
+		      ~2.5322x C). Default remains enabled until the signal is stronger.
+		    - Arm64 dot unroll-by-2 probe (`make perf-probe-arm64-fast-dot-unroll2`, 2026-04-04):
+		      current kept-state serial rerun is mixed (steady default ~2.9806x C vs disabled
+		      ~2.8893x C; gate default ~2.1919x C vs disabled ~2.7147x C). Default remains enabled
+		      until the signal is stronger.
+		    - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)
    - Baseline (OBC, 2026-02-20): `alloc_churn` 61.78× C, `alloc_drop` 2.59× C.

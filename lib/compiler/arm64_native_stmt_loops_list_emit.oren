@@ -716,6 +716,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
+    var v_unroll2 = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2")
+    if v_unroll2 == "1" || v_unroll2 == "true" {
+        unroll2 = true
+    } else if v_unroll2 != nil && (v_unroll2 == "0" || v_unroll2 == "false") {
+        unroll2 = false
+    }
     // Fast int-dot loops keep the throttled safepoint tick in registers on the hot path.
     // The old dedicated stack tick slot was only kept as a debug escape hatch while we traced
     // potential arm64 offset regressions. Those traces are now clean, so make the slot-free
@@ -851,9 +857,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         }
         if single_mul_pair && single_pair_cursor_regs {
             // The common benchmark/tier-1 shape is a single read-only list<int> pair.
-            // Keep both cursors in preserved regs on the active path, but make the choice
+            // Keep both cursors in preserved regs on the active path, but keep the choice
             // probeable via OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0 because
-            // current host reruns are still noisy and not yet strong enough to remove it.
+            // current host reruns are still too close to justify removing it outright.
             emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
             emit_ldr_reg_sp_any(ctx, 26, list_base_off + 24)
         }

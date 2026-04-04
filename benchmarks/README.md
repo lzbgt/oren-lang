@@ -355,6 +355,11 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-probe-arm64-fast-dot-single-pair-cursor-regs`. The shipped default keeps the
   single-pair cursor-reg path enabled, and the probe compares that default against
   `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0`.
+- For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
+  `make perf-probe-arm64-fast-dot-unroll2`. The shipped default keeps the unique-list
+  unroll-by-2 path enabled, and the probe compares that default against
+  `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0`. The emitter also accepts explicit `0/1`
+  (`false/true`) overrides so future reruns can force either side without source edits.
 - Native/list<int> perf-gate, probe, smoke, prebuild, and benchmark result artifacts now use
   collision-resistant timestamps, so back-to-back variants do not overwrite each other’s logs or
   result files.
