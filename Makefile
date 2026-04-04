@@ -12,7 +12,7 @@
 .PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
-.PHONY: perf-gate-native perf-gate-native-read-split perf-gate-native-steady perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-packed-bridge-read-split perf-probe-list-int-slot-direct perf-probe-list-int-dot-ceiling perf-probe-list-int-specialization-gap perf-probe-list-int-specialization-read-split perf-probe-list-int-specialization-trace perf-probe-arm64-fast-loop-tick-masks perf-probe-arm64-fast-loop-tick-masks-steady perf-probe-arm64-fast-dot-single-pair-cursor-regs perf-probe-arm64-fast-dot-unroll2 perf-probe-arm64-fast-dot-dual-accum perf-probe-arm64-fast-dot-madd-exact perf-probe-arm64-fast-dot-madd-exact-subpaths perf-probe-arm64-fast-dot-madd-exact-double-sweep perf-probe-arm64-fast-dot-double-exit-snippet perf-probe-arm64-dot-vs-c-loop-compare perf-probe-arm64-dot-vs-c-scalar-ceiling perf-probe-arm64-native-hot-loop-disasm perf-probe-arm64-dot-acceptance perf-probe-native-gate-stability perf-smoke-native-fast-loops perf-debug-native-benchmark perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct verify-native-list-int-fast-lowering
+.PHONY: perf-gate-native perf-gate-native-read-split perf-gate-native-steady perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-packed-bridge-read-split perf-probe-list-int-slot-direct perf-probe-list-int-slot-abi-ceiling perf-probe-list-int-dot-ceiling perf-probe-list-int-specialization-gap perf-probe-list-int-specialization-read-split perf-probe-list-int-specialization-trace perf-probe-arm64-fast-loop-tick-masks perf-probe-arm64-fast-loop-tick-masks-steady perf-probe-arm64-fast-dot-single-pair-cursor-regs perf-probe-arm64-fast-dot-unroll2 perf-probe-arm64-fast-dot-dual-accum perf-probe-arm64-fast-dot-madd-exact perf-probe-arm64-fast-dot-madd-exact-subpaths perf-probe-arm64-fast-dot-madd-exact-double-sweep perf-probe-arm64-fast-dot-double-exit-snippet perf-probe-arm64-dot-vs-c-loop-compare perf-probe-arm64-dot-vs-c-scalar-ceiling perf-probe-arm64-native-hot-loop-disasm perf-probe-arm64-dot-acceptance perf-probe-native-gate-stability perf-smoke-native-fast-loops perf-debug-native-benchmark perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct verify-native-list-int-fast-lowering
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
@@ -914,6 +914,9 @@ perf-probe-list-int-packed-bridge-read-split: oren_stage2
 
 perf-probe-list-int-slot-direct: oren_stage2
 	@./scripts/run_perf_probe_list_int_slot_direct.sh
+
+perf-probe-list-int-slot-abi-ceiling: oren_stage2
+	@./scripts/run_perf_probe_list_int_slot_abi_ceiling.sh
 
 perf-probe-list-int-dot-ceiling: oren_stage2
 	@./scripts/run_perf_probe_list_int_dot_ceiling.sh

@@ -1237,6 +1237,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `~565.8124× C`, packed-scalar `~1382.0339× C`. Reweight accordingly: the canonical fast loop
 		     still dominates the helper/bridge alternatives, so future parity work should stay on direct
 		     lowering / representation changes rather than going back through packed-bridge routing.
+		   - Slot-ABI ceiling probe (2026-04-05): new `make perf-probe-list-int-slot-abi-ceiling`
+		     measures packed-i32 C, slot64 C, the shipped Oren canonical benchmark, and the Oren
+		     slot-direct helper under one workload. Latest artifact
+		     (`build/logs/perf-probe-list-int-slot-abi-ceiling-20260405_033149_3497.log`,
+		     `runs=5 warmups=1 n=2000000 reps=100`) shows:
+		     - packed-i32 C vector: ~0.000252s per rep
+		     - packed-i32 C scalar: ~0.000731s per rep
+		     - slot64 C “vector”: ~0.000725s per rep
+		     - slot64 C scalar: ~0.000741s per rep
+		     - Oren native canonical: ~0.000762s per rep
+		     - Oren native slot-direct helper: ~0.003228s per rep
+		     The decisive ratios are `slot64-vector / packed-vector ~2.8712×` and
+		     `Oren canonical / slot64-vector ~1.0514×`. The extracted slot64 `-O2` loop is still only a
+		     paired-scalar `ldp` + `madd` shape, not a packed NEON loop, so plain “vectorize the current
+		     64-bit slot ABI” is not enough to close the baseline gap by itself.
 		   - Read-split follow-up (2026-04-05): new `make perf-probe-list-int-packed-bridge-read-split`
 		     warms the hidden packed-bridge artifacts once and then compares canonical `dot_product_int`
 		     against packed scalar / SIMD on the same short/long split runner. Latest artifact

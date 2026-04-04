@@ -123,6 +123,45 @@ That is the current arm64 ceiling fact: the kept Oren scalar loop is already wit
 scalar C on this host, so the remaining large gap to the default C baseline is overwhelmingly the
 missing NEON/vector path rather than another round of scalar cleanup.
 
+To measure how much of that remaining gap comes from the current `list<int>` 64-bit slot ABI itself,
+use:
+
+```bash
+make perf-probe-list-int-slot-abi-ceiling
+```
+
+This builds and times six binaries on the same `n/reps` workload:
+
+- packed-i32 C with default `-O2`
+- packed-i32 C with vectorization disabled
+- 64-bit-slot C (`int64_t[]`, same value stream) with default `-O2`
+- 64-bit-slot C with vectorization disabled
+- the shipped Oren native `dot_product_int` benchmark
+- the native-only Oren `dot_product_int_slot_direct` benchmark
+
+The latest artifact, `build/logs/perf-probe-list-int-slot-abi-ceiling-20260405_033149_3497.log`,
+shows:
+
+- packed-i32 C vector: `~0.000252s` per rep
+- packed-i32 C scalar: `~0.000731s` per rep
+- slot64 C “vector”: `~0.000725s` per rep
+- slot64 C scalar: `~0.000741s` per rep
+- Oren native canonical: `~0.000762s` per rep
+- Oren native slot-direct helper: `~0.003228s` per rep
+
+The ratio view is the important part:
+
+- slot64-vector / packed-vector: `~2.8712x`
+- slot64-scalar / packed-scalar: `~1.0135x`
+- Oren canonical / slot64-vector: `~1.0514x`
+- Oren slot-direct helper / slot64-vector: `~4.4514x`
+
+And the assembly snippet matters too: the host compiler does not generate a NEON packed-lane loop
+for the slot64 source. Its best `-O2` slot64 loop is still a paired-scalar `ldp` + `madd` shape,
+not the packed `smlal/smlal2` loop seen in the packed-i32 benchmark. That is the current ceiling
+fact to use for next-step planning: the 64-bit slot ABI itself largely erases the auto-vectorization
+gain, and the shipped Oren canonical loop is already within about 5% of that slot64 host-C ceiling.
+
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 
 ```bash

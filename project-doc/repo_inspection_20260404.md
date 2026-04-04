@@ -161,6 +161,19 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion: even after an explicit warm step and a short/long split that isolates repeated
     reads, the current packed bridge remains hundreds of times slower than the direct lowering; it
     is not just paying a one-time setup penalty
+- Slot-ABI ceiling follow-up (2026-04-05):
+  - added `make perf-probe-list-int-slot-abi-ceiling`
+  - latest artifact: `build/logs/perf-probe-list-int-slot-abi-ceiling-20260405_033149_3497.log`
+    (`runs=5 warmups=1 n=2000000 reps=100`)
+    - packed-i32 C vector: ~0.000252s per rep
+    - packed-i32 C scalar: ~0.000731s per rep
+    - slot64 C “vector”: ~0.000725s per rep
+    - slot64 C scalar: ~0.000741s per rep
+    - Oren native canonical: ~0.000762s per rep
+    - Oren native slot-direct helper: ~0.003228s per rep
+  - conclusion: the current 64-bit slot ABI itself largely erases the host compiler’s
+    auto-vectorization gain; packed-i32 C stays ~2.87× faster than slot64 C, and the shipped Oren
+    canonical loop is already within ~5% of that slot64 host-C ceiling
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:
