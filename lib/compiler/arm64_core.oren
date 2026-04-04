@@ -604,6 +604,14 @@ fn insn_add_reg(rd, rn, rm) {
     return 2332033024 + (rm * 65536) + (rn * 32) + rd
 }
 
+fn insn_madd(rd, rn, rm, ra) {
+    // MADD Xd, Xn, Xm, Xa
+    // Verified via clang:
+    //   madd x23, x24, x27, x23 => 0x9B1B5F17
+    //   madd x17, x25, x28, x17 => 0x9B1C4731
+    return 2600468480 + (rm * 65536) + (ra * 1024) + (rn * 32) + rd
+}
+
 fn insn_and_reg(rd, rn, rm) {
     // AND Xd, Xn, Xm
     // Verified via clang:

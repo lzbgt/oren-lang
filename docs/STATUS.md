@@ -1306,6 +1306,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
      manual `lldb -- <binary> <args...>` command to use for follow-up crash triage, so unsafe arm64
      dot experiments can be reproduced from one canonical artifact instead of reassembling the build
      command by hand.
+   - Tooling follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact` now compares the
+     shipped arm64 dot baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` using the full
+     serial acceptance bundle (`smoke`, traced disasm, steady gate, canonical gate, exact-binary
+     repro, optional `make test`). The acceptance harness now also emits a partial summary on
+     failure (`exit_status`, `failed_step`, and any completed artifacts), so unsafe dot experiments
+     stop losing their evidence at the first non-zero exit. This keeps the exact-path `madd` branch
+     reproducible without turning another unsafe hand edit into a persistent source diff.
    - Trace (2026-04-05): a narrower exact-path `madd` follow-up only touched the single-pair
      cursor-reg `fast_list_int_dot_while*` body. The traced canonical dot window shrank from 70
      instructions / `mul=7 add=13` to 63 instructions / `madd=7 add=13`
@@ -1316,6 +1323,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (`build/logs/perf-smoke-native-fast-loops-20260405_000124_44574.log`). Reverted immediately;
      future multiply-accumulate work needs a narrower audited correctness argument than “same math,
      fewer instructions”.
+   - Probe rerun (2026-04-05): the new `make perf-probe-arm64-fast-dot-madd-exact` wrapper now
+     confirms the same story without a hand edit. On this host the enabled exact-path branch still
+     fails in the exact native repro at `perf-debug-native-benchmark` with `exit_code: 139`, even
+     though the partial acceptance summary shows better focused numbers:
+     `steady_dot_product ~2.7940x`, `gate_dot_product ~2.5953x`, and traced canonical dot disasm
+     at `63` instructions (`build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`).
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

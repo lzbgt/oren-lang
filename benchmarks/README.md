@@ -94,8 +94,10 @@ This runs, in order:
 
 The acceptance summary records the wrapper logs, the underlying summary artifacts, the current
 steady/canonical ratios, the disasm instruction counts, and the exact-binary debug status in one
-place. Set `OREN_ARM64_DOT_ACCEPT_RUN_TEST=0` only when you intentionally want to skip the final
-`make test` leg during local iteration.
+place. If any leg fails, it still emits a partial summary with `exit_status`, `failed_step`, and
+whatever artifacts completed before the failure, so unsafe arm64 experiments stop failing as a
+black box. Set `OREN_ARM64_DOT_ACCEPT_RUN_TEST=0` only when you intentionally want to skip the
+final `make test` leg during local iteration.
 
 Focused native read split (`array_sum`, `dot_product`; estimate one-time fill/setup vs steady
 repeated read-loop cost with `reps=1` and `reps=10`). Use this to determine whether a canonical
@@ -440,6 +442,14 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-probe-arm64-fast-dot-dual-accum`. The shipped default keeps the dual-accumulator
   path disabled, and the probe compares that default against
   `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.
+- For the arm64 exact-path `madd` recheck, use
+  `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
+  the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial
+  arm64 dot acceptance bundle. Use it when revisiting the previously unsafe exact-path `madd`
+  branch so disasm wins, steady-state wins, exact-binary repro, and optional `make test` all land
+  in one comparable artifact instead of being reassembled from ad-hoc commands. The current host
+  still treats this as an unsafe experiment: the enabled path shrinks canonical dot disasm to 63
+  instructions and improves the focused ratios, but the exact native debug repro still exits `139`.
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.

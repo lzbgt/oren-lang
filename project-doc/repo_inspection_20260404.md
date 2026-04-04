@@ -396,6 +396,19 @@ This repo is still not factually "all planned features implemented" or "producti
   native benchmarks. It records the exact built binary path, args, exit code, build log, and run log
   in one summary artifact, and on non-zero exit it prints the manual `lldb -- <binary> <args...>`
   command to use next.
+- Follow-up tooling batch (2026-04-05): there is now also a dedicated
+  `make perf-probe-arm64-fast-dot-madd-exact` wrapper. It compares the shipped arm64 dot baseline
+  against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` using the same serial acceptance bundle
+  (`smoke`, traced disasm, steady gate, canonical gate, exact-binary repro, optional `make test`),
+  so future exact-path `madd` reruns no longer need a hand-applied source diff just to get a full
+  verdict artifact. The acceptance harness now also emits a partial summary on failure, which means
+  the exact-path branch can preserve the `failed_step` and completed metrics even when the exact
+  native repro dies mid-bundle.
+- The first shipped rerun of that wrapper on April 5 keeps the same factual verdict as the earlier
+  hand-edited experiment. Enabling `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` still dies in the
+  exact native repro with `debug_exit_code: 139`, even though the partial acceptance summary
+  (`build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`) shows better
+  focused metrics and the smaller 63-instruction canonical dot window.
 - Follow-up tooling batch (2026-04-05): there is now also a serial acceptance bundle for the arm64
   canonical dot-core thread: `make perf-probe-arm64-dot-acceptance`. It runs the exact benchmark
   smoke, the traced hot-loop disasm probe, the steady native gate, the canonical native gate, the

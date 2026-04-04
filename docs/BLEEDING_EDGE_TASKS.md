@@ -1380,21 +1380,36 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      repro, and `make test` by default. The summary artifact captures the wrapper logs
 					      plus the extracted ratios/instruction counts so future dot experiments have one
 					      comparable acceptance record instead of a hand-collected command list.
-					    - Tooling follow-up (2026-04-05): `make perf-debug-native-benchmark` now provides
-					      a reusable exact-binary repro runner for native benchmarks. It records the exact
-					      built binary path, args, exit code, build log, and run log, and on non-zero exit
-					      it prints the manual `lldb -- <binary> <args...>` command to use next, so unsafe
-					      arm64 dot experiments stop depending on hand-reconstructed repro steps.
-					    - Trace (arm64, 2026-04-05): an exact-path `madd` follow-up only replaced the
-					      single-pair cursor-reg `fast_list_int_dot_while*` multiply/add pairs. The traced
-					      canonical dot window did shrink from 70 to 63 instructions
-					      (`build/logs/perf-probe-arm64-native-hot-loop-disasm-20260404_235545_32513.log`)
+						    - Tooling follow-up (2026-04-05): `make perf-debug-native-benchmark` now provides
+						      a reusable exact-binary repro runner for native benchmarks. It records the exact
+						      built binary path, args, exit code, build log, and run log, and on non-zero exit
+						      it prints the manual `lldb -- <binary> <args...>` command to use next, so unsafe
+						      arm64 dot experiments stop depending on hand-reconstructed repro steps.
+						    - Tooling follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact`
+						      now compares the shipped baseline against
+						      `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial arm64 dot
+						      acceptance bundle. The acceptance harness also emits a partial summary on
+						      failure now, so unsafe branches still preserve `failed_step` plus any finished
+						      artifacts instead of collapsing into a bare non-zero exit. That keeps the
+						      exact-path `madd` branch reproducible without reintroducing a long-lived hand
+						      edit before the exact smoke/debug gates agree.
+						    - Trace (arm64, 2026-04-05): an exact-path `madd` follow-up only replaced the
+						      single-pair cursor-reg `fast_list_int_dot_while*` multiply/add pairs. The traced
+						      canonical dot window did shrink from 70 to 63 instructions
+						      (`build/logs/perf-probe-arm64-native-hot-loop-disasm-20260404_235545_32513.log`)
 					      and the focused steady rerun improved to `dot_product` ~2.5627x C
 					      (`build/logs/perf-gate-native-steady-20260404_235745_37067.log`), but the exact
 					      native smoke still crashed at `dot_product 10 3`
 					      (`build/logs/perf-smoke-native-fast-loops-20260405_000124_44574.log`). Reverted;
 					      do not treat “same arithmetic with `madd`” as correctness-preserving on this
 					      path without a tighter audit.
+						    - Probe rerun (arm64, 2026-04-05): the shipped `make perf-probe-arm64-fast-dot-madd-exact`
+						      wrapper reached the same conclusion without source edits. The enabled exact-path
+						      branch improved the focused acceptance metrics (`steady_dot_product ~2.7940x`,
+						      `gate_dot_product ~2.5953x`, canonical dot disasm `63` instructions), but the
+						      exact native debug repro still failed at `perf-debug-native-benchmark` with
+						      `exit_code: 139` in
+						      `build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`.
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

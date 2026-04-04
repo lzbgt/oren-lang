@@ -34,6 +34,7 @@ fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
+fn insn_madd(rd, rn, rm, ra) { return core.insn_madd(rd, rn, rm, ra) }
 fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
 fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
@@ -730,6 +731,13 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     } else if v_dual_accum != nil && (v_dual_accum == "0" || v_dual_accum == "false") {
         dual_accum = false
     }
+    var madd_exact = false
+    var v_madd_exact = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT")
+    if v_madd_exact == "1" || v_madd_exact == "true" {
+        madd_exact = true
+    } else if v_madd_exact != nil && (v_madd_exact == "0" || v_madd_exact == "false") {
+        madd_exact = false
+    }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     var v_unroll2 = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2")
@@ -937,12 +945,18 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             push_u32_le(ctx["code"], insn_ldr_ptr_off(25, 19, 8))
             push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
             push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 26, 8))
-            push_u32_le(ctx["code"], insn_mul(24, 24, 27))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
-            push_u32_le(ctx["code"], insn_mul(25, 25, 28))
             if dual_accum {
+                push_u32_le(ctx["code"], insn_mul(24, 24, 27))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+                push_u32_le(ctx["code"], insn_mul(25, 25, 28))
                 push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
+            } else if madd_exact {
+                push_u32_le(ctx["code"], insn_madd(23, 24, 27, 23))
+                push_u32_le(ctx["code"], insn_madd(23, 25, 28, 23))
             } else {
+                push_u32_le(ctx["code"], insn_mul(24, 24, 27))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+                push_u32_le(ctx["code"], insn_mul(25, 25, 28))
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
             }
 
@@ -950,12 +964,18 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             push_u32_le(ctx["code"], insn_ldr_ptr_off(25, 19, 24))
             push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 26, 16))
             push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 26, 24))
-            push_u32_le(ctx["code"], insn_mul(24, 24, 27))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
-            push_u32_le(ctx["code"], insn_mul(25, 25, 28))
             if dual_accum {
+                push_u32_le(ctx["code"], insn_mul(24, 24, 27))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+                push_u32_le(ctx["code"], insn_mul(25, 25, 28))
                 push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
+            } else if madd_exact {
+                push_u32_le(ctx["code"], insn_madd(23, 24, 27, 23))
+                push_u32_le(ctx["code"], insn_madd(23, 25, 28, 23))
             } else {
+                push_u32_le(ctx["code"], insn_mul(24, 24, 27))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+                push_u32_le(ctx["code"], insn_mul(25, 25, 28))
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
             }
 
@@ -998,8 +1018,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
 
                 push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
-                push_u32_le(ctx["code"], insn_mul(25, 25, 27))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                if madd_exact && !dual_accum {
+                    push_u32_le(ctx["code"], insn_madd(23, 25, 27, 23))
+                } else {
+                    push_u32_le(ctx["code"], insn_mul(25, 25, 27))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                }
                 push_u32_le(ctx["code"], insn_ldr_ptr_off(27, 26, 8))
                 push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
             } else {
@@ -1021,11 +1045,17 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
 
             // sum += left1 * right1
-            push_u32_le(ctx["code"], insn_mul(28, 28, 27))
+            if single_mul_pair && single_pair_cursor_regs && madd_exact && !dual_accum {
+                push_u32_le(ctx["code"], insn_madd(23, 28, 27, 23))
+            } else {
+                push_u32_le(ctx["code"], insn_mul(28, 28, 27))
+            }
             if single_mul_pair && single_pair_cursor_regs && dual_accum {
                 push_u32_le(ctx["code"], insn_add_reg(17, 17, 28))
-            } else {
+            } else if !(single_mul_pair && single_pair_cursor_regs && madd_exact && !dual_accum) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
+            } else {
+                // exact-path madd already accumulated into X23
             }
 
             mi2 = mi2 + 1
@@ -1084,8 +1114,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
 
             // sum += left * right
-            push_u32_le(ctx["code"], insn_mul(25, 25, 27))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            if single_mul_pair && single_pair_cursor_regs && madd_exact && !dual_accum {
+                push_u32_le(ctx["code"], insn_madd(23, 25, 27, 23))
+            } else {
+                push_u32_le(ctx["code"], insn_mul(25, 25, 27))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+            }
         } else {
             // left value
             emit_ldr_reg_sp_any(ctx, 21, buf_left)
