@@ -1355,6 +1355,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
      That points the remaining wrong-code hazard at the direct fast-loop exit after a terminal
      2-wide exact-`madd` chunk, not at every execution of the 2-wide body.
+   - Disasm extraction follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-double-exit-snippet`
+     now rebuilds the baseline and exact-double variants with traced `--disasm` and extracts the
+     compact 2-wide block from the canonical `fast_list_int_dot_while_no_tick` window into one
+     artifact. That keeps the next fix focused on the exact `mul/add` vs `madd/madd` exit block
+     instead of hand-scanning full native disassembly logs.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

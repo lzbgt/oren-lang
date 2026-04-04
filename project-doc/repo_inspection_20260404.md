@@ -425,6 +425,11 @@ This repo is still not factually "all planned features implemented" or "producti
   (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
   That points the remaining hazard at the direct fast-loop exit after a terminal 2-wide exact-`madd`
   chunk.
+- To make the next code change cheaper to audit, there is now also
+  `make perf-probe-arm64-fast-dot-double-exit-snippet`, which rebuilds the baseline and
+  exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the
+  canonical `fast_list_int_dot_while_no_tick` window. That replaces another round of full-log
+  grepping with one focused artifact for the exit-after-double path.
 - That rerun also exposed a smoke-tooling hole: the canonical and `list<int>` native smoke scripts
   were rebuilding benchmark binaries without `--no-cache`, so compiler-env experiments could pass
   against a stale cached baseline artifact while the exact no-cache debug repro crashed. Those two

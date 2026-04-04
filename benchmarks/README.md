@@ -473,6 +473,12 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   the exact-double binary fails for `n ≡ 2 (mod 4)` in the sampled range (`10, 14, 18, 22`) and
   stays green for the neighboring `n ≡ 3 (mod 4)` cases. That points the bug at the direct
   fast-loop exit after a terminal 2-wide chunk, not at every use of the double leg.
+- For the exact-double control-flow snippet itself, use
+  `make perf-probe-arm64-fast-dot-double-exit-snippet`. It rebuilds both the shipped baseline and
+  the exact-double-only variant with `--disasm`, then extracts just the 2-wide block from the
+  canonical `fast_list_int_dot_while_no_tick` window into one compact artifact. Use it before
+  changing the exit-after-double path so the baseline `mul/add` block and the exact-double `madd`
+  block are compared from the same traced loop window instead of hand-grepping full disassembly logs.
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.
