@@ -1451,6 +1451,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      of the loop, a shorter cursor/end-based control head, and no `add x20`
 						      increments inside the quad/double/single bodies
 						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
+						      The read-split surface now records `build_env`, and the new
+						      `make perf-probe-arm64-fast-dot-cursor-end-read-split` wrapper uses that to
+						      compare setup-vs-steady behavior for the same cursor-end knob. Latest rerun is
+						      more decisive: cursor-end regresses both `dot_product` `long/reps`
+						      (`~2.6003x -> ~2.6651x`) and delta-based steady (`~2.8383x -> ~3.0797x`), so
+						      the current host evidence points at the repeated cursor-end loop itself, not
+						      only setup noise
+						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

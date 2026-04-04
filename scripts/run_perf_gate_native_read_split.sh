@@ -17,6 +17,7 @@ n="${OREN_BENCH_NATIVE_SPLIT_N:-2000000}"
 short_reps="${OREN_BENCH_NATIVE_SPLIT_SHORT_REPS:-1}"
 long_reps="${OREN_BENCH_NATIVE_SPLIT_LONG_REPS:-10}"
 smoke="${OREN_PERF_SMOKE_NATIVE_FAST_LOOPS:-1}"
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 
 export OREN_BENCH_PROGRAMS="$programs"
 export OREN_BENCH_RUNS="$runs"
@@ -95,6 +96,9 @@ long = load_paths(os.environ["LONG_PATHS"])
 variants = ["c", "oren_c", "oren_native"]
 
 print(f"native read split summary: short_reps={short_reps} long_reps={long_reps}")
+build_env = os.environ.get("OREN_BENCH_ENV_BUILD_OREN", "")
+if build_env:
+    print(f"build_env: {build_env}")
 for program in short:
     s = json.load(open(short[program], "r", encoding="utf-8"))
     l = json.load(open(long[program], "r", encoding="utf-8"))

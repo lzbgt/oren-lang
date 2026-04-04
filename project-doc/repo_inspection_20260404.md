@@ -452,6 +452,15 @@ This repo is still not factually "all planned features implemented" or "producti
   old index-based loop-top control block with cursor/end comparisons, and removes the `add x20`
   index bumps from the quad/double/single bodies
   (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
+- Another follow-up made the read-split surface line up with those cursor-end probes:
+  `run_perf_gate_native_read_split.sh` now records `build_env` when present, and the new
+  `make perf-probe-arm64-fast-dot-cursor-end-read-split` wrapper compares baseline vs
+  `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1` through the same setup/steady decomposition.
+  On the current host that rerun is more decisive than the earlier gate hint: cursor-end regresses
+  both `dot_product` `native/C long-per-rep` (`~2.6003x -> ~2.6651x`) and `native/C delta`
+  (`~2.8383x -> ~3.0797x`), which points away from a setup-only explanation and toward the repeated
+  cursor-end loop itself being slower despite the smaller disassembly window
+  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
 - To make the next code change cheaper to audit, there is now also
   `make perf-probe-arm64-fast-dot-double-exit-snippet`, which rebuilds the baseline and
   exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the

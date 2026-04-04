@@ -1378,6 +1378,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `sub/mul/add/sub` setup before the loop, simplifies the loop-top control block, and removes the
      `add x20, #0x4/#0x2/#0x1` index bumps from the quad/double/single bodies
      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
+     The native read-split surface now also records `build_env` when set, and the new
+     `make perf-probe-arm64-fast-dot-cursor-end-read-split` wrapper compares baseline vs
+     `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1` through that setup/steady decomposition.
+     The latest rerun is harsher than the earlier canonical-gate hint: cursor-end regresses both
+     `dot_product` `native/C long-per-rep` (`~2.6003x -> ~2.6651x`) and `native/C delta`
+     (`~2.8383x -> ~3.0797x`), so the current host evidence now points away from a setup-only
+     regression and toward the cursor-end repeated loop itself being worse despite the smaller hot
+     window
+     (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
    - Disasm extraction follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-double-exit-snippet`
      now rebuilds the baseline and exact-double variants with traced `--disasm` and extracts the
      compact 2-wide block from the canonical `fast_list_int_dot_while_no_tick` window into one

@@ -107,6 +107,9 @@ hot-loop regression is dominated by the fill/push half or by the steady read loo
 make perf-gate-native-read-split
 ```
 
+When `OREN_BENCH_ENV_BUILD_OREN` is set, this summary now records `build_env:` so probe data from
+environment-gated compiler variants does not look like baseline output.
+
 Focused native steady-state sweep (`array_sum`, `dot_product`; use a high `reps` count and report
 per-rep medians directly so tracker updates do not depend on noisy setup subtraction):
 
@@ -502,6 +505,16 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   control head from index-based `cmp/add/cmp/add/cmp` to cursor/end-based `cmp/cmp/add/cmp`, and
   removes the `add x20, #0x4/#0x2/#0x1` index bumps from the hot bodies
   (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
+- For the cursor-end setup-versus-steady breakdown, use
+  `make perf-probe-arm64-fast-dot-cursor-end-read-split`. It compares the shipped baseline against
+  `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1` through the native read-split runner and emits
+  one summary with `short`, `long`, `setup≈`, `delta≈`, and `long/reps≈` for `dot_product`, with the
+  active `build_env` recorded in each leg. This is the right probe when the canonical gate improves
+  but the steady runner regresses, because it tells you whether the mixed result is in the repeated
+  read loop or in benchmark setup. On the latest rerun it points away from a setup-only explanation:
+  cursor-end regresses both `native/C long-per-rep` (`~2.6003x -> ~2.6651x`) and `native/C delta`
+  (`~2.8383x -> ~3.0797x`) for `dot_product`
+  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.
