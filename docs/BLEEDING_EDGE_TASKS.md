@@ -1029,10 +1029,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      - dot_product: C 0.005108s, native 0.014420s (2.82× C).
    - Fix: shared arm64 `UMULH` opcode encoding was wrong; correcting it restores the intended
      reciprocal-mod lowering used by the arm64 fast LCG loop (2026-03-20).
-   - New: `benchmarks/loop_sum/loop_sum.oren` now preserves inty CLI args via `oren_trunc_int(...)`,
-     so arm64 loop_sum re-enters `fast_lcg_sum_while_no_tick` instead of falling back to `while_generic` (2026-03-20).
-   - Reweight: loop_sum is now within the <=2× gate on arm64; the remaining hot-loop gap is dot_product,
-     so the next work should target list-int load/mul/add overhead rather than more LCG/tick-slot cleanup.
+	   - New: `benchmarks/loop_sum/loop_sum.oren` now preserves inty CLI args via `oren_trunc_int(...)`,
+	     so arm64 loop_sum re-enters `fast_lcg_sum_while_no_tick` instead of falling back to `while_generic` (2026-03-20).
+	   - New focused canonical split runner (2026-04-04): `array_sum` / `dot_product` now accept
+	     optional `n` + `reps` CLI args, and `make perf-gate-native-read-split` measures the same
+	     split workload across C/native variants.
+	   - Reweight: loop_sum is now within the <=2× gate on arm64; the remaining hot-loop gap is dot_product,
+	     so the next work should target list-int load/mul/add overhead rather than more LCG/tick-slot cleanup.
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
      `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the
@@ -1246,10 +1249,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	      `OREN_ARM64_FAST_LIST_{GET_SUM,DOT,PUSH}_TICK_MASK`,
 	      `OREN_ARM64_FAST_LIST_INT_{GET_SUM,DOT,PUSH}_TICK_MASK`, and
 	      `OREN_ARM64_FAST_LCG_SUM_TICK_MASK` (decimal `0..65535`, invalid input falls back).
-	    - Probe (2026-04-04, canonical `array_sum`/`dot_product`, arm64):
-	      baseline `dot_product` ~2.9293x C, `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=16383`
-	      effectively unchanged, `65535` ~2.8584x C. Keep the default `4095`.
-	    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
+		    - Probe (2026-04-04, canonical `array_sum`/`dot_product`, arm64):
+		      baseline `dot_product` ~2.9293x C, `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=16383`
+		      effectively unchanged, `65535` ~2.8584x C. Keep the default `4095`.
+		    - Split (2026-04-04, canonical `array_sum`/`dot_product`, reps=1 vs 10):
+		      `array_sum` steady long-per-rep is already much closer (~1.44x C native), while
+		      `dot_product` still sits around ~2.59x C long-per-rep / ~2.48x C delta estimate.
+		      So the next work stays on the steady dot core, not the fill/setup half.
+		    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across
       `while_generic` and list<int> fast loops (push/dot), with stack bases matching current stack size.

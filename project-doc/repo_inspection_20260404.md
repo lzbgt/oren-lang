@@ -118,6 +118,27 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion: keep the shipped arm64 `list<int>` dot tick mask at `4095` for now; the new tuning
     surface is useful for measurement, but the observed win is too small to treat as a settled
     production default change yet
+- Follow-up canonical native split pass (2026-04-04):
+  - aligned the benchmark surfaces first instead of trusting a mixed-workload split:
+    - `benchmarks/array_sum/array_sum.oren`
+    - `benchmarks/dot_product/dot_product.oren`
+    - `benchmarks/array_sum/array_sum.c`
+    - `benchmarks/dot_product/dot_product.c`
+    now all accept the same optional `n` + `reps` CLI args
+  - added a dedicated runner:
+    - `make perf-gate-native-read-split`
+  - this runner reuses the existing canonical benchmark sources and reports `reps=1` vs `reps=10`
+    so the split compares the same workload across C/native rather than a repeated native loop
+    against a fixed C baseline
+  - verified with:
+    - `make perf-gate-native-read-split`
+    - `make test`
+  - measured result from `build/logs/perf-gate-native-read-split-20260404_210513.log`:
+    - `array_sum`: native/C long-per-rep ~1.4403x, delta estimate ~0.9590x
+    - `dot_product`: native/C long-per-rep ~2.5894x, delta estimate ~2.4758x
+  - conclusion: the remaining canonical `dot_product` blocker is still in the steady read/multiply
+    loop body, not in the one-time list fill/setup half; `array_sum` steady read is already much
+    closer to parity
 
 ## Production-level reality after this pass
 
@@ -137,3 +158,5 @@ This repo is still not factually "all planned features implemented" or "producti
 - After the native hot-loop and perf-refresh follow-ups above, the next high-leverage item is narrower than before: reduce the remaining canonical arm64 `dot_product` gap toward the existing <=2x gate, while continuing to use the focused `dot_product_int` steady runner as the more local diagnostic view and without routing general `list<int>` loops through the helper probe path.
 - The new arm64 tick-mask probe can stay as the first sanity check for future dot-loop work, but the
   April 4 data says safepoint cadence alone is not enough to close the remaining canonical gap.
+- The new canonical split runner now makes the next optimization target clearer too: for arm64
+  `dot_product`, attack the steady dot core first and treat fill/setup work as secondary.

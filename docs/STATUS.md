@@ -107,6 +107,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Baselines (arm64, 2026-04-04 focused perf gate): `loop_sum` 1.09× C, `dot_product` 2.82× C; `alloc_churn` 5.42× C, `alloc_drop` 1.76× C.
    - Priority: `dot_product` remains above the 2× gate; alloc_drop and alloc_churn are within the 5×/8× gates, and `loop_sum` is now within gate.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
+   - New focused canonical split runner (2026-04-04): `array_sum` / `dot_product` now accept the
+     same optional `n` + `reps` CLI args as `loop_sum` / the `list<int>` benches, and
+     `make perf-gate-native-read-split` measures the same workload across C/native instead of a
+     fixed-shape C baseline against a repeated native loop.
    - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
@@ -1127,6 +1131,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=16383` was effectively neutral (`dot_product`
      ~2.93x C vs baseline ~2.93x), and `65535` was only a marginal improvement (`~2.86x C`);
      keep the shipped default at `4095` until a stronger win is demonstrated.
+   - Split (2026-04-04, canonical `array_sum`/`dot_product`, reps=1 vs 10):
+     - `array_sum`: native/C long-per-rep ~1.44x, delta estimate ~0.96x
+     - `dot_product`: native/C long-per-rep ~2.59x, delta estimate ~2.48x
+     - Conclusion: canonical `dot_product` is still blocked by the steady read/multiply body
+       rather than the one-time fill/setup half; `array_sum` steady read is already much closer.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

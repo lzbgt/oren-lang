@@ -12,7 +12,7 @@
 .PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
-.PHONY: perf-gate-native perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-slot-direct perf-probe-arm64-fast-loop-tick-masks perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct verify-native-list-int-fast-lowering
+.PHONY: perf-gate-native perf-gate-native-read-split perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-slot-direct perf-probe-arm64-fast-loop-tick-masks perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct verify-native-list-int-fast-lowering
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
@@ -876,6 +876,10 @@ benchmarks: oren_stage2
 # Focused W5 perf gate sweep: just the hot-loop + alloc/GC native-vs-C benchmarks.
 perf-gate-native: oren_stage2
 		@./scripts/run_perf_gate_native.sh
+
+# Focused native read split: estimate fill/setup vs repeated read-loop cost for array_sum/dot_product.
+perf-gate-native-read-split: oren_stage2
+		@./scripts/run_perf_gate_native_read_split.sh
 
 # Focused list<int> perf gate sweep: shared list<int> hot loops across C/Oren C/native/OBC.
 perf-gate-list-int: oren_stage2
