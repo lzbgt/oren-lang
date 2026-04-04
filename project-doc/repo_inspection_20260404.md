@@ -139,6 +139,24 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion: the remaining canonical `dot_product` blocker is still in the steady read/multiply
     loop body, not in the one-time list fill/setup half; `array_sum` steady read is already much
     closer to parity
+- Follow-up canonical native smoke + steady pass (2026-04-04):
+  - added a direct native correctness gate for the same canonical benchmark binaries:
+    - `make perf-smoke-native-fast-loops`
+  - added a dedicated direct steady-state runner:
+    - `make perf-gate-native-steady`
+  - while verifying that batch, found and fixed a real tooling bug in the newly added probe/smoke
+    scripts: second-resolution timestamps could collide when multiple runs started in the same
+    second, so the new scripts now suffix log names with `$$`
+  - verified with:
+    - `make perf-smoke-native-fast-loops`
+    - `make perf-gate-native-steady`
+    - `make test`
+  - measured result from `build/logs/perf-gate-native-steady-20260404_211102_35559.log`:
+    - `array_sum`: native/C steady ~2.3967x
+    - `dot_product`: native/C steady ~3.1027x
+  - conclusion: the earlier split runner was useful to localize the problem to the steady body, but
+    the new steady runner is the right tracker surface. On the canonical arm64 path, `dot_product`
+    is still materially above target even after fill/setup noise is removed
 
 ## Production-level reality after this pass
 
@@ -160,3 +178,6 @@ This repo is still not factually "all planned features implemented" or "producti
   April 4 data says safepoint cadence alone is not enough to close the remaining canonical gap.
 - The new canonical split runner now makes the next optimization target clearer too: for arm64
   `dot_product`, attack the steady dot core first and treat fill/setup work as secondary.
+- The new canonical native smoke should be the first correctness check before any further arm64
+  dot-core experiment, because it exercises the exact benchmark binaries rather than only the
+  generalized list-int lowering guard.

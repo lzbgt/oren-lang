@@ -1136,6 +1136,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `dot_product`: native/C long-per-rep ~2.59x, delta estimate ~2.48x
      - Conclusion: canonical `dot_product` is still blocked by the steady read/multiply body
        rather than the one-time fill/setup half; `array_sum` steady read is already much closer.
+   - New canonical native smoke + steady runner (2026-04-04):
+     - `make perf-smoke-native-fast-loops` now builds and runs the exact native `array_sum` /
+       `dot_product` benchmark binaries on both the tiny (`205`, `6590`) and >16-element (`710`,
+       `54380`) cases so future dot-core work has a direct correctness tripwire.
+     - `make perf-gate-native-steady` now measures repeated read-loop medians directly.
+     - First steady rerun (arm64, `reps=100`): `array_sum` ~2.40x C, `dot_product` ~3.10x C.
+     - Tracker implication: use the new steady runner, not the split long-per-rep estimate, when
+       deciding whether canonical hot-loop work is landing.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

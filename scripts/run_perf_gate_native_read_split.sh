@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ts="$(date +%Y%m%d_%H%M%S)"
+ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 short_log="$log_dir/perf-gate-native-read-split-short-${ts}.log"
@@ -29,7 +29,7 @@ export OREN_BENCH_UPDATE_LATEST=0
 export OREN_BENCH_UPDATE_LATEST_PRUNE=0
 
 if [[ "$smoke" == "1" ]]; then
-    make verify-native-list-int-fast-lowering >"${summary_log%.log}.smoke.log" 2>&1
+    ./scripts/run_perf_smoke_native_fast_loops.sh >"${summary_log%.log}.smoke.log" 2>&1
 fi
 
 export OREN_BENCH_ARGS="$n $short_reps"

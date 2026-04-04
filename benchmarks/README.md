@@ -52,6 +52,13 @@ hot-loop regression is dominated by the fill/push half or by the steady read loo
 make perf-gate-native-read-split
 ```
 
+Focused native steady-state sweep (`array_sum`, `dot_product`; use a high `reps` count and report
+per-rep medians directly so tracker updates do not depend on noisy setup subtraction):
+
+```bash
+make perf-gate-native-steady
+```
+
 Focused `list<int>` core-path sweep (`array_sum_int`, `dot_product_int`, `multi_list_push_int`;
 C, Oren C, native, and OBC by default):
 
@@ -89,14 +96,21 @@ before running the heavier timing sweeps. Use it first when changing the exact a
 hot paths so wrong-code experiments fail fast even when the bug only appears in the wider steady-state body.
 
 This smoke now also runs automatically before:
-- `make perf-gate-list-int`
 - `make perf-gate-native-read-split`
+- `make perf-gate-native-steady`
+- `make perf-gate-list-int`
 - `make perf-gate-list-int-read-split`
 - `make perf-gate-list-int-steady`
 - `make perf-probe-list-int-unsafe`
 
 Set `OREN_PERF_SMOKE_LIST_INT=0` only when you intentionally want to skip that preflight
 for local iteration.
+
+Canonical native hot-loop correctness smoke:
+
+```bash
+make perf-smoke-native-fast-loops
+```
 
 Unsafe `list<int>` steady-state ceiling probe (baseline vs `OREN_LIST_ASSUME_LIST=1`,
 `OREN_NATIVE_ASSUME_LIST_INDEX=1`, and both combined):
@@ -239,6 +253,8 @@ Optional knobs:
 - `OREN_BENCH_NATIVE_SPLIT_N=<n>` (used by `perf-gate-native-read-split`; default: 2000000)
 - `OREN_BENCH_NATIVE_SPLIT_SHORT_REPS=<n>` (used by `perf-gate-native-read-split`; default: 1)
 - `OREN_BENCH_NATIVE_SPLIT_LONG_REPS=<n>` (used by `perf-gate-native-read-split`; default: 10)
+- `OREN_BENCH_NATIVE_STEADY_N=<n>` (used by `perf-gate-native-steady`; default: 2000000)
+- `OREN_BENCH_NATIVE_STEADY_REPS=<n>` (used by `perf-gate-native-steady`; default: 100)
 - `OREN_BENCH_LIST_INT_STEADY_N=<n>` (used by `perf-gate-list-int-steady`; default: 2000000)
 - `OREN_BENCH_LIST_INT_STEADY_REPS=<n>` (used by `perf-gate-list-int-steady`; default: 100)
 - `OREN_BENCH_CC=<compiler>` (override C compiler; auto-detects `cc/clang/gcc` otherwise)
@@ -267,7 +283,7 @@ Optional knobs:
 - `OREN_BENCH_SKIP_C=1` (skip the pure C baseline build+run)
 - `OREN_BENCH_SKIP_OREN_C=1` (skip the Oren C-backend build+run; useful if no C compiler is installed)
 - `OREN_BENCH_SKIP_NATIVE=1` (skip native backend build+run)
-- `OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0|1` (used by `perf-gate-native-read-split`; default: 1; runs `make verify-native-list-int-fast-lowering` first)
+- `OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0|1` (used by `perf-gate-native-read-split` and `perf-gate-native-steady`; default: 1; runs `make perf-smoke-native-fast-loops` first)
 - Arm64 fast-loop compiler tick masks can be overridden at build time via
   `OREN_BENCH_ENV_BUILD_OREN=...` with decimal `0..65535` values. Current knobs:
   `OREN_ARM64_FAST_LIST_GET_SUM_TICK_MASK`,

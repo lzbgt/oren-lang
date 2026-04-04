@@ -1256,6 +1256,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		      `array_sum` steady long-per-rep is already much closer (~1.44x C native), while
 		      `dot_product` still sits around ~2.59x C long-per-rep / ~2.48x C delta estimate.
 		      So the next work stays on the steady dot core, not the fill/setup half.
+		    - New canonical native smoke + steady runner (2026-04-04):
+		      `make perf-smoke-native-fast-loops` now trips on the direct benchmark binaries, and
+		      `make perf-gate-native-steady` measured `array_sum` ~2.40x C and `dot_product`
+		      ~3.10x C at `reps=100`. Prefer that steady runner over the split estimate when
+		      reweighting hot-loop work.
 		    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

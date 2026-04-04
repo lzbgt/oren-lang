@@ -12,7 +12,7 @@
 .PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
-.PHONY: perf-gate-native perf-gate-native-read-split perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-slot-direct perf-probe-arm64-fast-loop-tick-masks perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct verify-native-list-int-fast-lowering
+.PHONY: perf-gate-native perf-gate-native-read-split perf-gate-native-steady perf-gate-list-int perf-gate-list-int-read-split perf-gate-list-int-steady perf-probe-list-int-unsafe perf-probe-list-int-packed-bridge perf-probe-list-int-slot-direct perf-probe-arm64-fast-loop-tick-masks perf-smoke-native-fast-loops perf-smoke-list-int perf-smoke-list-int-packed-bridge perf-smoke-list-int-slot-direct perf-prebuild-list-int-packed-bridge perf-prebuild-dot-product-int-packed-bridge perf-prebuild-list-int-slot-direct perf-prebuild-dot-product-int-slot-direct verify-native-core-packed-bridge verify-native-slot-direct verify-native-list-int-fast-lowering
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
@@ -881,6 +881,10 @@ perf-gate-native: oren_stage2
 perf-gate-native-read-split: oren_stage2
 		@./scripts/run_perf_gate_native_read_split.sh
 
+# Focused native steady-state sweep: repeated read-loop medians for array_sum/dot_product.
+perf-gate-native-steady: oren_stage2
+		@./scripts/run_perf_gate_native_steady.sh
+
 # Focused list<int> perf gate sweep: shared list<int> hot loops across C/Oren C/native/OBC.
 perf-gate-list-int: oren_stage2
 		@./scripts/run_perf_gate_list_int.sh
@@ -903,6 +907,9 @@ perf-probe-list-int-slot-direct: oren_stage2
 
 perf-probe-arm64-fast-loop-tick-masks: oren_stage2
 	@./scripts/run_perf_probe_arm64_fast_loop_tick_masks.sh
+
+perf-smoke-native-fast-loops: oren_stage2
+		@./scripts/run_perf_smoke_native_fast_loops.sh
 
 perf-smoke-list-int: oren_stage2
 	@./scripts/run_perf_smoke_list_int.sh
