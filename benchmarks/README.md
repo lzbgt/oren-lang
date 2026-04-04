@@ -345,6 +345,12 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - For the canonical arm64 hot-loop safepoint sweep, use
   `make perf-probe-arm64-fast-loop-tick-masks` and optionally narrow it with
   `OREN_ARM64_FAST_LOOP_TICK_PROGRAMS=dot_product`.
+- For the canonical arm64 steady-state safepoint sweep, use
+  `make perf-probe-arm64-fast-loop-tick-masks-steady` and optionally narrow it with
+  `OREN_ARM64_FAST_LOOP_TICK_STEADY_PROGRAMS=dot_product`. This reuses
+  `perf-gate-native-steady`, runs one shared smoke preflight, and then measures all mask variants
+  without extra preflight noise so it answers the actual repeated-read-loop question rather than
+  the earlier one-shot gate.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 

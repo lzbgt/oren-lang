@@ -157,6 +157,25 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion: the earlier split runner was useful to localize the problem to the steady body, but
     the new steady runner is the right tracker surface. On the canonical arm64 path, `dot_product`
     is still materially above target even after fill/setup noise is removed
+- Follow-up canonical steady tick-mask probe (2026-04-04):
+  - promoted the manual steady-state safepoint-mask check into a reusable target:
+    - `make perf-probe-arm64-fast-loop-tick-masks-steady`
+  - this reuses `make perf-gate-native-steady`, so it measures the same repeated-read-loop surface
+    now used by the tracker rather than the earlier single-rep gate
+  - while verifying the first draft, found and fixed a real comparison bug in the new script:
+    baseline inherited the smoke preflight while the masked runs forced
+    `OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0`; the landed version now runs one shared preflight and
+    then measures all three cases with the same no-smoke setting
+  - verified with:
+    - `make perf-probe-arm64-fast-loop-tick-masks-steady`
+    - `make test`
+  - measured result from `build/logs/perf-probe-arm64-fast-loop-tick-masks-steady-20260404_211810_49064.log`:
+    - baseline: `dot_product` ~3.0142x C
+    - `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=16383`: slight regression (`dot_product` ~3.0924x C)
+    - `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=65535`: larger regression (`dot_product` ~3.1914x C)
+  - conclusion: on the canonical steady runner, increasing the arm64 dot safepoint mask does not
+    help and in this corrected same-policy rerun it regresses; keep the shipped
+    `fast_list_int_dot_while` tick mask at `4095` and keep pushing on the loop body itself
 
 ## Production-level reality after this pass
 

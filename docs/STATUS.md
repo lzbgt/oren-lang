@@ -1144,6 +1144,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - First steady rerun (arm64, `reps=100`): `array_sum` ~2.40x C, `dot_product` ~3.10x C.
      - Tracker implication: use the new steady runner, not the split long-per-rep estimate, when
        deciding whether canonical hot-loop work is landing.
+   - New canonical steady tick-mask probe (2026-04-04):
+     - `make perf-probe-arm64-fast-loop-tick-masks-steady` reruns the arm64 `16383` / `65535`
+       safepoint-mask sweep on top of `make perf-gate-native-steady`, so it measures the true
+       repeated-read-loop surface instead of the earlier one-shot gate.
+     - The probe now runs one shared smoke preflight and forces the measured baseline/mask cases to
+       the same `OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0` policy; the initial mixed-smoke draft was not
+       a fair comparison and was corrected before landing.
+     - First corrected steady rerun (`dot_product`, default `n=2000000`, `reps=100`): baseline
+       ~3.0142x C, `16383` ~3.0924x C, `65535` ~3.1914x C.
+     - Conclusion: on the canonical steady runner, higher dot safepoint masks regress or stay flat;
+       keep the default arm64 `fast_list_int_dot_while` tick mask at `4095`.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
@@ -1942,11 +1953,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - arm64 native fast list_int get-sum loops unroll by 2 when lists are unique.
     - x64 native fast list_int dot loops unroll by 2 when lists are unique (multi-mul supported).
     - x64 native fast list_int get-sum loops unroll by 2 when lists are unique.
-    - Read-only list_int sum/dot loops now use higher safepoint masks on native (arm64=4095, x64=1023).
-    - Arm64 canonical hot-loop tick-mask probe (`make perf-probe-arm64-fast-loop-tick-masks`,
-      2026-04-04): baseline `dot_product` ~2.9293x C, `16383` unchanged, `65535` ~2.8584x C.
-      Useful tuning surface added; default remains `4095`.
-    - Gate: native `dot_product_int` <= 2x C.
+	    - Read-only list_int sum/dot loops now use higher safepoint masks on native (arm64=4095, x64=1023).
+	    - Arm64 canonical hot-loop tick-mask probe (`make perf-probe-arm64-fast-loop-tick-masks`,
+	      2026-04-04): baseline `dot_product` ~2.9293x C, `16383` unchanged, `65535` ~2.8584x C.
+	      Useful tuning surface added; default remains `4095`.
+	    - Arm64 canonical steady tick-mask probe (`make perf-probe-arm64-fast-loop-tick-masks-steady`,
+	      2026-04-04): corrected same-smoke rerun baseline `dot_product` ~3.0142x C, `16383`
+	      ~3.0924x C, `65535` ~3.1914x C. On the repeated-read-loop runner, higher masks regress;
+	      default remains `4095`.
+	    - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)
    - Baseline (OBC, 2026-02-20): `alloc_churn` 61.78× C, `alloc_drop` 2.59× C.
