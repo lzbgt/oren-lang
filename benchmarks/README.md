@@ -48,6 +48,15 @@ This emits both the raw benchmark log and a lightweight summary log under
 `build/logs/perf-gate-native-*.summary.log`. The summary now warns when the one-program gate is too
 noisy (`cov >= 0.10`) to support a strong perf conclusion.
 
+For a small distribution of canonical-gate results instead of one run, use:
+
+```bash
+make perf-probe-native-gate-stability
+```
+
+This reruns `make perf-gate-native` a few times (`OREN_NATIVE_GATE_STABILITY_SWEEPS`, default `3`)
+and summarizes the ratio range plus how often each program triggered the high-variance warning.
+
 Focused native read split (`array_sum`, `dot_product`; estimate one-time fill/setup vs steady
 repeated read-loop cost with `reps=1` and `reps=10`). Use this to determine whether a canonical
 hot-loop regression is dominated by the fill/push half or by the steady read loop itself:

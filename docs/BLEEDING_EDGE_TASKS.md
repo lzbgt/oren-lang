@@ -1304,6 +1304,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate
 			      outliers are less likely to be misread as real wins.
+			    - Native gate stability probe (2026-04-04):
+			      `make perf-probe-native-gate-stability` now reruns the canonical native gate a few
+			      times and summarizes the ratio range plus warning frequency per program, so future
+			      arm64 dot work can compare against a small gate distribution instead of one run. The
+			      first rerun (`sweeps=3`, `array_sum,dot_product`) came back clean enough to use:
+			      `array_sum` median ~1.9955x C (range ~1.9603x..~2.0259x, warnings 0/3),
+			      `dot_product` median ~2.5153x C (range ~2.3889x..~2.6432x, warnings 0/3). That
+			      confirms the arm64 dot blocker without relying on a single noisy gate sample.
 			    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

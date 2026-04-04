@@ -288,6 +288,23 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - warning threshold: `cov >= 0.10`
   - this reduces the chance that future arm64 dot work overfits a single noisy canonical-gate
     outlier before the steady runner agrees
+- Follow-up native gate stability probe (2026-04-04):
+  - the next measurement gap after the summary warning was repeatability: one clean warning still
+    does not tell you how often the canonical gate stays noisy or how wide the ratio spread is
+  - added a reusable runner:
+    - `make perf-probe-native-gate-stability`
+  - it reruns `make perf-gate-native` a few times (default `OREN_NATIVE_GATE_STABILITY_SWEEPS=3`)
+    and summarizes:
+    - ratio median/min/max per program
+    - warning frequency per program
+  - this gives the arm64 dot thread a small gate-distribution view without having to hand-run the
+    canonical gate several times and diff logs manually
+  - first rerun from `build/logs/perf-probe-native-gate-stability-20260404_222343_66111.log`
+    (`sweeps=3`, programs=`array_sum,dot_product`) was clean enough to trust:
+    - `array_sum`: median ~1.9955x C, range ~1.9603x..~2.0259x, warnings 0/3
+    - `dot_product`: median ~2.5153x C, range ~2.3889x..~2.6432x, warnings 0/3
+  - conclusion: on this host the canonical gate is stable enough to confirm the blocker itself;
+    arm64 `dot_product` remains clearly above the `<=2x C` target even when the gate stops warning
 
 ## Production-level reality after this pass
 

@@ -1207,6 +1207,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `make perf-gate-native` now emits a lightweight summary log next to the raw benchmark log.
      - The summary prints per-program medians/ratios and warns when the canonical one-program gate
        is too noisy (`cov >= 0.10`) to support a strong perf conclusion.
+   - Native gate stability probe (2026-04-04):
+     - `make perf-probe-native-gate-stability` reruns the canonical native gate a few times and
+       summarizes the ratio range plus warning frequency per program, so future arm64 dot work can
+       compare against a small distribution instead of one noisy gate run.
+     - First rerun (`build/logs/perf-probe-native-gate-stability-20260404_222343_66111.log`,
+       `sweeps=3`, programs=`array_sum,dot_product`) came back clean enough to use: `array_sum`
+       median ~1.9955x C (range ~1.9603x..~2.0259x, warnings 0/3), `dot_product` median ~2.5153x
+       C (range ~2.3889x..~2.6432x, warnings 0/3).
+     - Conclusion: on the current host the canonical gate is stable enough to confirm the blocker:
+       arm64 `dot_product` is still materially above the `<=2x C` target even when the gate itself
+       stops warning.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
