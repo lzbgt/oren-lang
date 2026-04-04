@@ -487,34 +487,13 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   canonical `fast_list_int_dot_while_no_tick` window into one compact artifact. Use it before
   changing the exit-after-double path so the baseline `mul/add` block and the exact-double `madd`
   block are compared from the same traced loop window instead of hand-grepping full disassembly logs.
-- For the arm64 cursor-end-bounds control-flow probe, use
-  `make perf-probe-arm64-fast-dot-cursor-end-bounds`. It compares the shipped baseline against
-  `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, which switches the unique single-pair dot
-  path to cursor/end comparisons and cursor-only increments while leaving the shipped baseline
-  unchanged by default. The current host keeps this mode as a default-off experiment: it stayed
-  correctness-clean, shrank canonical dot disasm from `70` to `66` instructions, and improved the
-  canonical gate from `~2.6657x` to `~2.5338x` C, but it regressed the steady runner from
-  `~2.9768x` to `~3.0524x` C
-  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
-- For the compact cursor-end disasm delta itself, use
-  `make perf-probe-arm64-fast-dot-cursor-end-snippet`. It reruns the traced hot-loop disasm probe
-  for the shipped baseline and for `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, then emits a
-  compact artifact with the dot-path setup block, loop-top control block, quad/double/single bodies,
-  and exit tail. The latest rerun confirms the exact structural tradeoff in one place: the enabled
-  variant adds a four-instruction setup (`sub/mul/add/sub`) before the loop, simplifies the loop-top
-  control head from index-based `cmp/add/cmp/add/cmp` to cursor/end-based `cmp/cmp/add/cmp`, and
-  removes the `add x20, #0x4/#0x2/#0x1` index bumps from the hot bodies
-  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
-- For the cursor-end setup-versus-steady breakdown, use
-  `make perf-probe-arm64-fast-dot-cursor-end-read-split`. It compares the shipped baseline against
-  `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1` through the native read-split runner and emits
-  one summary with `short`, `long`, `setup≈`, `delta≈`, and `long/reps≈` for `dot_product`, with the
-  active `build_env` recorded in each leg. This is the right probe when the canonical gate improves
-  but the steady runner regresses, because it tells you whether the mixed result is in the repeated
-  read loop or in benchmark setup. On the latest rerun it points away from a setup-only explanation:
-  cursor-end regresses both `native/C long-per-rep` (`~2.6003x -> ~2.6651x`) and `native/C delta`
-  (`~2.8383x -> ~3.0797x`) for `dot_product`
-  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
+- The arm64 cursor-end-bounds dot experiment has been retired. The measured host signal was
+  consistent enough to reject it: while the temporary lowering shrank canonical dot disassembly from
+  `70` to `66` instructions, the later read-split rerun still regressed repeated-loop `dot_product`
+  on both `native/C long-per-rep` (`~2.6003x -> ~2.6651x`) and `native/C delta`
+  (`~2.8383x -> ~3.0797x`) (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
+  The dedicated cursor-end probe scripts were removed after that verdict to keep the live perf
+  surface focused on still-viable arm64 dot branches.
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.

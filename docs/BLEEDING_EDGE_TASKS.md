@@ -1438,26 +1438,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
 						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
 						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the
-						      active `build_env`. On that corrected surface, the new
-						      `make perf-probe-arm64-fast-dot-cursor-end-bounds` wrapper keeps
-						      `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1` as a default-off experiment:
-						      it stays correctness-clean and shrinks canonical dot disasm from `70` to `66`,
-						      while improving the canonical gate from `~2.6657x` to `~2.5338x` C but
-						      regressing the steady runner from `~2.9768x` to `~3.0524x` C
-						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
-						      The new `make perf-probe-arm64-fast-dot-cursor-end-snippet` companion now emits
-						      the compact enabled loop window as setup/control/body blocks, confirming the
-						      exact tradeoff in one artifact: a four-instruction `sub/mul/add/sub` setup ahead
-						      of the loop, a shorter cursor/end-based control head, and no `add x20`
-						      increments inside the quad/double/single bodies
-						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
-						      The read-split surface now records `build_env`, and the new
-						      `make perf-probe-arm64-fast-dot-cursor-end-read-split` wrapper uses that to
-						      compare setup-vs-steady behavior for the same cursor-end knob. Latest rerun is
-						      more decisive: cursor-end regresses both `dot_product` `long/reps`
-						      (`~2.6003x -> ~2.6651x`) and delta-based steady (`~2.8383x -> ~3.0797x`), so
-						      the current host evidence points at the repeated cursor-end loop itself, not
-						      only setup noise
+						      active `build_env`. Keep that harness improvement. Retire the specific
+						      cursor-end lowering branch: the later read-split rerun regressed repeated-loop
+						      `dot_product` on both `long/reps` (`~2.6003x -> ~2.6651x`) and delta-based
+						      steady (`~2.8383x -> ~3.0797x`), so the cursor-end probes and knob were removed
+						      from the live surface after recording the evidence
 						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.

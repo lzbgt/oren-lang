@@ -432,35 +432,16 @@ This repo is still not factually "all planned features implemented" or "producti
   (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
 - Another April 5 follow-up fixed a tooling mismatch in the arm64 acceptance surface itself:
   `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke, traced disasm, and exact native debug, not just
-  the gate runners, and the acceptance summary records the active `build_env`. On that corrected
-  surface, the new `make perf-probe-arm64-fast-dot-cursor-end-bounds` wrapper compares the shipped
-  baseline against `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, which swaps the unique
-  single-pair dot path to cursor/end comparisons and cursor-only increments. The current host keeps
-  it as a default-off probe: it is correctness-clean, shrinks canonical dot disasm from `70` to
-  `66`, and improves the canonical gate from `~2.6657x` to `~2.5338x` C, but it regresses the
-  steady runner from `~2.9768x` to `~3.0524x` C
-  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
+  the gate runners, and the acceptance summary records the active `build_env`. That harness fix
+  stays, but the specific cursor-end lowering branch has now been retired. The later read-split
+  rerun regressed repeated-loop `dot_product` on both `native/C long-per-rep`
+  (`~2.6003x -> ~2.6651x`) and `native/C delta` (`~2.8383x -> ~3.0797x`), so the cursor-end knob
+  and its dedicated probe scripts were removed from the live perf surface after recording the final
+  evidence (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
   The same build-env contract now also reaches the direct-build exact-double helpers:
   `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
   `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
   `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
-- To make that mixed cursor-end verdict easier to reason about, there is now also
-  `make perf-probe-arm64-fast-dot-cursor-end-snippet`. It reuses the traced hot-loop disasm probe
-  for the shipped baseline and for `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, then emits
-  just the compact dot-path setup/control/body/exit blocks. The current rerun shows the enabled
-  shape clearly: it adds a four-instruction `sub/mul/add/sub` setup before the loop, replaces the
-  old index-based loop-top control block with cursor/end comparisons, and removes the `add x20`
-  index bumps from the quad/double/single bodies
-  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
-- Another follow-up made the read-split surface line up with those cursor-end probes:
-  `run_perf_gate_native_read_split.sh` now records `build_env` when present, and the new
-  `make perf-probe-arm64-fast-dot-cursor-end-read-split` wrapper compares baseline vs
-  `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1` through the same setup/steady decomposition.
-  On the current host that rerun is more decisive than the earlier gate hint: cursor-end regresses
-  both `dot_product` `native/C long-per-rep` (`~2.6003x -> ~2.6651x`) and `native/C delta`
-  (`~2.8383x -> ~3.0797x`), which points away from a setup-only explanation and toward the repeated
-  cursor-end loop itself being slower despite the smaller disassembly window
-  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
 - To make the next code change cheaper to audit, there is now also
   `make perf-probe-arm64-fast-dot-double-exit-snippet`, which rebuilds the baseline and
   exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the

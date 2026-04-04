@@ -775,15 +775,6 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK", 4095)
-    var cursor_end_bounds = false
-    var v_cursor_end_bounds = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS")
-    if unique_lists == true && single_mul_pair && single_pair_cursor_regs && !madd_exact_quad && !madd_exact_double && !madd_exact_scalar {
-        if v_cursor_end_bounds == "1" || v_cursor_end_bounds == "true" {
-            cursor_end_bounds = true
-        } else if v_cursor_end_bounds != nil && (v_cursor_end_bounds == "0" || v_cursor_end_bounds == "false") {
-            cursor_end_bounds = false
-        }
-    }
     var safepoint_spill_pairs = []
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
@@ -939,21 +930,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         // so keep the loop-invariant upper bound hot instead of reloading it from the stack.
         emit_ldr_reg_sp_any(ctx, 21, n_off)
     }
-    if cursor_end_bounds {
-        // Probeable cursor-end bounds for the unique single-pair dot path. This keeps the shipped
-        // baseline index-driven control flow available, but lets us test whether pointer/end
-        // comparisons plus cursor-only increments cut enough hot-loop overhead to matter.
-        push_u32_le(ctx["code"], insn_sub_reg(24, 21, 20))
-        push_u32_le(ctx["code"], insn_mul(24, 24, 22))
-        push_u32_le(ctx["code"], insn_add_reg(20, 19, 24))
-        push_u32_le(ctx["code"], insn_sub_imm(21, 20, 24))
-    }
-
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    if cursor_end_bounds {
-        push_u32_le(ctx["code"], insn_cmp_reg(19, 20))
-    } else if unique_lists != true {
+    if unique_lists != true {
         emit_ldr_reg_sp_any(ctx, 21, n_off)
         push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     } else {
@@ -965,23 +944,14 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     var jpos_fast_single = nil
     var jpos_fast_quad = nil
     if unroll2 == true {
-        if cursor_end_bounds {
-            push_u32_le(ctx["code"], insn_cmp_reg(19, 21))
-            jpos_fast_quad = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) // patched: b.ge double/single
-        } else if single_mul_pair && single_pair_cursor_regs {
+        if single_mul_pair && single_pair_cursor_regs {
             push_u32_le(ctx["code"], insn_add_imm(24, 20, 3))
             push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
             jpos_fast_quad = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) // patched: b.ge double/single
         }
-        if cursor_end_bounds {
-            push_u32_le(ctx["code"], insn_add_imm(24, 19, 8))
-            push_u32_le(ctx["code"], insn_cmp_reg(24, 20))
-        } else {
-            push_u32_le(ctx["code"], insn_add_imm(24, 20, 1))
-            push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
-        }
+        push_u32_le(ctx["code"], insn_add_imm(24, 20, 1))
+        push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
         jpos_fast_single = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
@@ -1034,9 +1004,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
             push_u32_le(ctx["code"], insn_add_imm(19, 19, 32))
             push_u32_le(ctx["code"], insn_add_imm(26, 26, 32))
-            if !cursor_end_bounds {
-                push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
-            }
+            push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
 
             var back_pos4 = bytes_len(ctx["code"])
             var back_off4 = (loop_cond_pos - back_pos4) / 4
@@ -1156,9 +1124,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         }
 
         // i += 2
-        if !cursor_end_bounds {
-            push_u32_le(ctx["code"], insn_add_imm(20, 20, 2))
-        }
+        push_u32_le(ctx["code"], insn_add_imm(20, 20, 2))
 
         var back_pos2 = bytes_len(ctx["code"])
         var back_off2 = (loop_cond_pos - back_pos2) / 4
@@ -1236,9 +1202,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     }
 
     // i++
-    if !cursor_end_bounds {
-        push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
-    }
+    push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
 
     var back_pos = bytes_len(ctx["code"])
     var back_off = (loop_cond_pos - back_pos) / 4
@@ -1252,9 +1216,6 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     // Update idx/sum locals after loop exit.
     if single_mul_pair && single_pair_cursor_regs && dual_accum {
         push_u32_le(ctx["code"], insn_add_reg(23, 23, 17))
-    }
-    if cursor_end_bounds {
-        emit_ldr_reg_sp_any(ctx, 20, n_off)
     }
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
     emit_str_reg_fp_any(ctx, 23, sum_fp_off)
