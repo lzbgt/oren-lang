@@ -1322,16 +1322,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` machine-code windows
 					      from `--disasm` output instead of forcing future dot-core work to sift whole-binary
 					      dumps by hand.
-				    - Trace (arm64, 2026-04-04): replacing the single-pair unrolled cursor-reg body with
-				      post-index pair loads (`ldp ..., [cursor], #16`) regressed the serial reruns
-				      instead of helping: steady `array_sum` ~2.33x / `dot_product` ~3.15x and canonical
-				      gate `array_sum` ~2.18x / `dot_product` ~2.61x. Reverted; do not treat pair-load
-				      cursor fusion as the next likely dot-core win on this host.
-				    - Trace (arm64, 2026-04-04): replacing the hot fast-dot `mul` + `add` pairs with a
-				      shared `madd` helper was not correctness-safe. `make perf-smoke-native-fast-loops`
-				      still passed `array_sum`, but native `dot_product 10 3` crashed before producing
-				      `6590` (log: `build/logs/perf-smoke-native-fast-loops-20260404_223646_87957.log`).
-				      Reverted immediately; future multiply-accumulate work needs a narrower audited path.
+					    - Trace (arm64, 2026-04-04): replacing the single-pair unrolled cursor-reg body with
+					      post-index pair loads (`ldp ..., [cursor], #16`) regressed the serial reruns
+					      instead of helping: steady `array_sum` ~2.33x / `dot_product` ~3.15x and canonical
+					      gate `array_sum` ~2.18x / `dot_product` ~2.61x. Reverted; do not treat pair-load
+					      cursor fusion as the next likely dot-core win on this host.
+					    - Trace (arm64, 2026-04-04): a narrower follow-up that kept cursor bumps separate and
+					      only swapped the exact single-pair hot-path scalar load groups for plain offset
+					      `ldp` pair loads also regressed. The focused steady rerun moved canonical
+					      `dot_product` to ~3.10x C (`build/logs/perf-gate-native-steady-20260404_231609_56304.log`),
+					      so non-writeback pair loads are not the next likely win either.
+					    - Trace (arm64, 2026-04-04): replacing the hot fast-dot `mul` + `add` pairs with a
+					      shared `madd` helper was not correctness-safe. `make perf-smoke-native-fast-loops`
+					      still passed `array_sum`, but native `dot_product 10 3` crashed before producing
+					      `6590` (log: `build/logs/perf-smoke-native-fast-loops-20260404_223646_87957.log`).
+					      Reverted immediately; future multiply-accumulate work needs a narrower audited path.
+					    - Tooling (arm64, 2026-04-04): `make perf-probe-arm64-native-hot-loop-disasm`
+					      now emits instruction counts and a mnemonic histogram for the traced canonical
+					      `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows, so static
+					      loop-shape changes can be compared directly before another perf rerun.
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

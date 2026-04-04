@@ -65,6 +65,26 @@ def collect_snippet(lines, base_addr, start_off, end_off, pad_bytes=32):
             keep.append(line)
     return start_abs, end_abs, keep
 
+def collect_range_mnemonics(lines, base_addr, start_off, end_off):
+    start_abs = base_addr + start_off
+    end_abs = base_addr + end_off
+    counts = {}
+    total = 0
+    for line in lines:
+        m = addr_re.match(line)
+        if not m:
+            continue
+        addr = int(m.group(1), 16)
+        if not (start_abs <= addr < end_abs):
+            continue
+        parts = line.split(None, 2)
+        if len(parts) < 2:
+            continue
+        mnemonic = parts[1]
+        total += 1
+        counts[mnemonic] = counts.get(mnemonic, 0) + 1
+    return total, counts
+
 def emit_block(label, path, prefix):
     lines = load_lines(path)
     base = first_text_addr(lines)
@@ -81,10 +101,23 @@ def emit_block(label, path, prefix):
         return
     kind, start_off, end_off, nbytes = found
     start_abs, end_abs, snippet = collect_snippet(lines, base, start_off, end_off)
+    total_insns, counts = collect_range_mnemonics(lines, base, start_off, end_off)
     print(f"  kind: {kind}")
     print(f"  text_base: 0x{base:016x}")
     print(f"  range_off: {start_off}..{end_off} ({nbytes} bytes)")
     print(f"  range_abs: 0x{start_abs:016x}..0x{end_abs:016x}")
+    print(f"  instruction_count: {total_insns}")
+    interesting = ["ldr", "ldp", "str", "stp", "mul", "add", "cmp", "b", "bl"]
+    parts = []
+    for mnemonic in interesting:
+        if mnemonic in counts:
+            parts.append(f"{mnemonic}={counts[mnemonic]}")
+    for mnemonic in sorted(counts):
+        if mnemonic in interesting:
+            continue
+        parts.append(f"{mnemonic}={counts[mnemonic]}")
+    if parts:
+        print(f"  mnemonic_counts: {' '.join(parts)}")
     print("  snippet:")
     if not snippet:
         print("    <no instructions captured>")

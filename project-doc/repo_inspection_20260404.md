@@ -362,3 +362,12 @@ This repo is still not factually "all planned features implemented" or "producti
 - The new canonical native smoke should be the first correctness check before any further arm64
   dot-core experiment, because it exercises the exact benchmark binaries rather than only the
   generalized list-int lowering guard.
+- The new arm64 hot-loop disasm probe is now more useful than the first draft: it captures the
+  exact traced `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows and emits
+  per-window instruction counts plus mnemonic histograms, which is enough to compare static loop
+  shape before trusting another focused rerun.
+- I tried one narrower follow-up after the earlier failed post-index pair-load experiment: keep
+  cursor updates separate, but replace the single-pair hot-path scalar load groups with plain
+  offset `ldp` pair loads. That reduced the traced dot window from 328 bytes to 304 bytes, but
+  the focused steady rerun still regressed to about `3.10x C`, so the static load count alone is
+  not the dominant blocker and that path should stay reverted.

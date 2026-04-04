@@ -124,6 +124,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      cursor loads with `LDP ... post-index` pair loads also regressed on Apple M2 Pro; the
      focused perf gate moved `dot_product` from about 2.51× C to about 2.71× C, so the
      remaining arm64 gap is not dominated by the current per-side load/address-update sequence either.
+   - Trace (2026-04-04): a narrower follow-up that kept cursor updates separate and only
+     replaced the exact single-pair arm64 `dot_product` scalar load groups with plain
+     offset `LDP` pair loads also failed to help. The focused steady rerun moved `dot_product`
+     from the last kept ~2.99× C state to ~3.10× C (`build/logs/perf-gate-native-steady-20260404_231609_56304.log`),
+     so even non-writeback pair loads are not the next likely win on this host.
    - Trace (2026-03-20): a third follow-up that hoisted invariant `n` into a preserved reg
      across the fast read-only list loops also regressed on Apple M2 Pro; the focused perf
      gate moved `dot_product` from about 2.51× C to about 2.84× C, so the remaining gap is
@@ -144,6 +149,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      unchanged exact-pair dot path now measures ~2.78× on the same rerun (Apple M2 Pro, 2026-04-04).
    - Tooling: benchmark result artifacts now retain raw timing vectors plus `stdev_s` / `cov`,
      so perf tracker updates can distinguish stable reruns from one-off outliers.
+   - Tooling (2026-04-04): `make perf-probe-arm64-native-hot-loop-disasm` now reports both
+     the traced machine-code window and a mnemonic histogram for the canonical `array_sum` /
+     `dot_product` arm64 fast loops, so static load/mul/add/branch deltas can be compared
+     directly before shipping another dot-core experiment.
    - New focused steady-state runner (2026-04-04, `make perf-gate-list-int-steady`, `reps=100`):
      `array_sum_int` steady-state native/C is ~2.43× and `dot_product_int` steady-state native/C
      is ~2.78×. That is stronger evidence than the earlier one-shot gate that the remaining

@@ -69,7 +69,9 @@ make perf-probe-arm64-native-hot-loop-disasm
 
 This builds `array_sum` and `dot_product` with `--disasm` plus `OREN_TRACE_ARM64_LOOP_RANGES=1`,
 then extracts just the traced `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows
-into a compact summary log.
+into a compact summary log. The summary also reports instruction counts plus a mnemonic histogram
+for the traced hot-loop window, so future arm64 dot-core changes can compare static loop shape
+without diffing whole-binary disassembly by hand.
 
 Focused native read split (`array_sum`, `dot_product`; estimate one-time fill/setup vs steady
 repeated read-loop cost with `reps=1` and `reps=10`). Use this to determine whether a canonical
