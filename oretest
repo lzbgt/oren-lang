@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: ./oretest [options]
+
+Fast repo-local verification entrypoint for Oren.
+
+Default:
+  ./oretest
+    Runs the stage1 native quick smoke (`make test-native-quick`).
+
+Optional suites:
+  --full          Run quick + selfhost + forced-GC quick + backend parity + AVM + readiness pipeline.
+  --quick         Run only the default stage1 native quick smoke.
+  --selfhost      Run the stage2/capsule/optimizer self-host bundle.
+  --stage2        Run `make test-native-quick-stage2`.
+  --capsule       Run `make test-native-capsule-smoke-stage2`.
+  --optimizer     Run `make verify-optimizer-list-reserve-branchy`.
+  --native-all    Run `make test-native-all` (uses `--fixture-jobs` / `NATIVE_TEST_JOBS`).
+  --avm           Run `make test-avm`.
+  --parity        Run `make verify-backend-parity`.
+  --docs          Run `make verify-readiness-pipeline`.
+  --gc            Run `make verify-native-quick-gc`.
+  --runtime       Run `make verify-runtime-robustness`.
+
+Parallelism knobs:
+  --jobs N          Default fallback for both knobs below.
+  --native-jobs N   Export `OREN_PARSE_JOBS=N` for native/self-hosted compiler builds.
+  --fixture-jobs N  Export `NATIVE_TEST_JOBS=N` for `make test-native-all`.
+
+Environment equivalents:
+  OREN_TEST_JOBS
+  OREN_TEST_NATIVE_JOBS
+  OREN_TEST_FIXTURE_JOBS
+
+Examples:
+  ./oretest
+  ./oretest --selfhost
+  ./oretest --full
+  ./oretest --native-all --fixture-jobs 8
+  ./oretest --gc --parity --native-jobs 6
+EOF
+}
+
+is_uint() {
+  [[ "${1:-}" =~ ^[0-9]+$ ]] && [[ "${1:-0}" -ge 1 ]]
+}
+
+explicit_suite=0
+run_quick=1
+run_selfhost=0
+run_stage2=0
+run_capsule=0
+run_optimizer=0
+run_gc=0
+run_native_all=0
+run_avm=0
+run_parity=0
+run_docs=0
+run_runtime=0
+
+jobs="${OREN_TEST_JOBS:-}"
+native_jobs="${OREN_TEST_NATIVE_JOBS:-}"
+fixture_jobs="${OREN_TEST_FIXTURE_JOBS:-}"
+full_from_env="${OREN_TEST_FULL:-0}"
+
+mark_explicit_suite() {
+  if [[ "$explicit_suite" == "0" ]]; then
+    run_quick=0
+    explicit_suite=1
+  fi
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --full)
+      explicit_suite=1
+      run_quick=1
+      run_gc=1
+      run_parity=1
+      run_avm=1
+      run_docs=1
+      ;;
+    --quick)
+      mark_explicit_suite
+      run_quick=1
+      ;;
+    --selfhost)
+      mark_explicit_suite
+      run_selfhost=1
+      ;;
+    --stage2)
+      mark_explicit_suite
+      run_stage2=1
+      ;;
+    --capsule)
+      mark_explicit_suite
+      run_capsule=1
+      ;;
+    --optimizer)
+      mark_explicit_suite
+      run_optimizer=1
+      ;;
+    --native-all)
+      mark_explicit_suite
+      run_native_all=1
+      ;;
+    --avm)
+      mark_explicit_suite
+      run_avm=1
+      ;;
+    --parity)
+      mark_explicit_suite
+      run_parity=1
+      ;;
+    --docs)
+      mark_explicit_suite
+      run_docs=1
+      ;;
+    --gc)
+      mark_explicit_suite
+      run_gc=1
+      ;;
+    --runtime)
+      mark_explicit_suite
+      run_runtime=1
+      ;;
+    --jobs)
+      shift
+      jobs="${1:-}"
+      ;;
+    --native-jobs)
+      shift
+      native_jobs="${1:-}"
+      ;;
+    --fixture-jobs)
+      shift
+      fixture_jobs="${1:-}"
+      ;;
+    *)
+      echo "unknown option: $1" >&2
+      echo >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+if [[ "$full_from_env" == "1" && "$explicit_suite" == "0" ]]; then
+  explicit_suite=1
+  run_quick=1
+  run_selfhost=1
+  run_gc=1
+  run_parity=1
+  run_avm=1
+  run_docs=1
+fi
+
+if [[ -n "$jobs" ]] && ! is_uint "$jobs"; then
+  echo "--jobs must be an integer >= 1" >&2
+  exit 2
+fi
+if [[ -n "$native_jobs" ]] && ! is_uint "$native_jobs"; then
+  echo "--native-jobs must be an integer >= 1" >&2
+  exit 2
+fi
+if [[ -n "$fixture_jobs" ]] && ! is_uint "$fixture_jobs"; then
+  echo "--fixture-jobs must be an integer >= 1" >&2
+  exit 2
+fi
+
+if [[ -n "$jobs" ]]; then
+  if [[ -z "$native_jobs" ]]; then
+    native_jobs="$jobs"
+  fi
+  if [[ -z "$fixture_jobs" ]]; then
+    fixture_jobs="$jobs"
+  fi
+fi
+
+run_make() {
+  local label="$1"
+  shift
+  local target="$1"
+  shift
+
+  local -a env_args=()
+  if [[ -n "$native_jobs" ]]; then
+    env_args+=("OREN_PARSE_JOBS=$native_jobs")
+  fi
+  if [[ "$target" == "test-native-all" && -n "$fixture_jobs" ]]; then
+    env_args+=("NATIVE_TEST_JOBS=$fixture_jobs")
+  fi
+
+  echo "== $label =="
+  if [[ ${#env_args[@]} -gt 0 ]]; then
+    env "${env_args[@]}" make "$target" "$@"
+  else
+    make "$target" "$@"
+  fi
+}
+
+if [[ "$run_quick" == "1" ]]; then
+  run_make "quick" test-native-quick
+fi
+if [[ "$run_selfhost" == "1" ]]; then
+  run_make "stage2" test-native-quick-stage2
+  run_make "capsule" test-native-capsule-smoke-stage2
+  run_make "optimizer" verify-optimizer-list-reserve-branchy
+fi
+if [[ "$run_stage2" == "1" ]]; then
+  run_make "stage2" test-native-quick-stage2
+fi
+if [[ "$run_capsule" == "1" ]]; then
+  run_make "capsule" test-native-capsule-smoke-stage2
+fi
+if [[ "$run_optimizer" == "1" ]]; then
+  run_make "optimizer" verify-optimizer-list-reserve-branchy
+fi
+if [[ "$run_gc" == "1" ]]; then
+  run_make "quick-gc" verify-native-quick-gc
+fi
+if [[ "$run_parity" == "1" ]]; then
+  run_make "backend-parity" verify-backend-parity
+fi
+if [[ "$run_avm" == "1" ]]; then
+  run_make "avm" test-avm
+fi
+if [[ "$run_docs" == "1" ]]; then
+  run_make "readiness-pipeline" verify-readiness-pipeline
+fi
+if [[ "$run_native_all" == "1" ]]; then
+  run_make "native-all" test-native-all
+fi
+if [[ "$run_runtime" == "1" ]]; then
+  run_make "runtime-robustness" verify-runtime-robustness
+fi

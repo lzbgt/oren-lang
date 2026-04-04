@@ -12,6 +12,8 @@ compiler‑in‑AVM for sandboxed compilation.
 ## Quick start
 
 ```bash
+./oretest       # repo-local fast verification entrypoint
+./oretest --selfhost  # stage2/capsule/optimizer self-host bundle
 make bootstrap   # stage0 Go compiler
 make            # stage1 self-hosted compiler
 make test       # fast native smoke
@@ -59,6 +61,15 @@ Pipeline example:
 
 Note: `make test` intentionally runs negative fixtures, so parse/typecheck errors are
 expected in the output; treat a non-zero exit status as failure.
+
+`./oretest` is the recommended local wrapper for the common verification flows:
+
+```bash
+./oretest
+./oretest --selfhost
+./oretest --full
+./oretest --native-all --fixture-jobs 8
+```
 
 Build and run a hello binary:
 

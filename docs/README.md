@@ -29,6 +29,8 @@ Tier‑1 intent targets (rolling): `arm64-macos`, `arm64-linux`, `x64-linux`, `x
 Build + test:
 
 ```bash
+./oretest       # repo-local fast verification entrypoint
+./oretest --selfhost  # stage2/capsule/optimizer self-host bundle
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler
 make test       # fast native smoke
@@ -111,6 +113,16 @@ make verify-status-markdown  # smoke for status markdown renderer
 # - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
 # - OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS, OREN_RUNTIME_ROBUSTNESS_C_RUNS
 # - OREN_RUNTIME_ROBUSTNESS_C_FIXTURES, OREN_RUNTIME_ROBUSTNESS_TRACE_ENV
+```
+
+`./oretest` is the repo-local entrypoint for common verification bundles:
+
+```bash
+./oretest
+./oretest --selfhost
+./oretest --full
+./oretest --gc --parity --native-jobs 6
+./oretest --native-all --fixture-jobs 8
 ```
 
 Readiness report profiles:
