@@ -348,10 +348,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That is a decisive improvement
      for the dot-shaped raw-slot path, but it also confirms that these unchecked helper-backed
      probes still should not replace the canonical list<int> fast loops as the default hot path.
-   - Ceiling probe + helper env fix (2026-04-05): the list<int> helper prebuild/smoke surfaces now
-     honor `OREN_BENCH_ENV_BUILD_OREN` consistently, including the slot-direct contract fixture and
-     the packed-bridge native prebuilds. The helper probe summaries now also record `build_env`, and
-     there is a new fast ranking surface, `make perf-probe-list-int-dot-ceiling`, for the current
+	   - Ceiling probe + helper env fix (2026-04-05): the list<int> helper prebuild/smoke surfaces now
+	     honor `OREN_BENCH_ENV_BUILD_OREN` consistently, including the slot-direct contract fixture and
+	     the packed-bridge native prebuilds. The helper probe summaries now also record `build_env`, and
+	     there is a new fast ranking surface, `make perf-probe-list-int-dot-ceiling`, for the current
      `dot_product_int` alternatives. Latest artifact
      (`build/logs/perf-probe-list-int-dot-ceiling-20260405_024559_38593.log`, explicit
      `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, fast profile `runs=2 warmups=0 n=20000 reps=2`)
@@ -359,13 +359,29 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      - canonical `dot_product_int`: ~1.2137× C
      - direct-slot helper `dot_product_int_slot_direct`: ~1.5149× C
      - packed-bridge SIMD `dot_product_int_packed_bridge`: ~565.8124× C
-     - packed-bridge scalar `dot_product_int_packed_bridge`: ~1382.0339× C
-     This materially strengthens the next-step constraint: current helper/bridge detours are not
-     competitive with the canonical fast loop, so further work should stay on the direct lowering /
-     representation side instead of revisiting packed-bridge routing as a near-term parity path.
-   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
-     benchmark numerics. The slot-direct smoke also builds
-     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper
+	     - packed-bridge scalar `dot_product_int_packed_bridge`: ~1382.0339× C
+	     This materially strengthens the next-step constraint: current helper/bridge detours are not
+	     competitive with the canonical fast loop, so further work should stay on the direct lowering /
+	     representation side instead of revisiting packed-bridge routing as a near-term parity path.
+	   - Read-split follow-up (2026-04-05): the new `make perf-probe-list-int-packed-bridge-read-split`
+	     surface answers the remaining setup-vs-steady attribution question for the current bridge.
+	     This same batch also closes the remaining comma-separated `OREN_BENCH_ENV_BUILD_OREN`
+	     forwarding gap on the packed-bridge / slot-direct prebuild and smoke helpers, so multi-key
+	     build env overrides now reach those surfaces consistently too. The probe warms the hidden
+	     packed-bridge artifacts once, then compares canonical `dot_product_int` against the packed
+	     scalar / SIMD variants with the same short/long read-split runner. Latest
+	     artifact (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_032402_91481.log`,
+	     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=2 warmups=0 n=20000 short_reps=1
+	     long_reps=2`) still comes back catastrophically behind the shipped path:
+	     - baseline canonical `dot_product_int`: ~1.3378× C long-per-rep
+	     - packed scalar `dot_product_int_packed_bridge`: ~1037.5886× C long-per-rep, ~3360.3659× C delta
+	     - packed SIMD `dot_product_int_packed_bridge`: ~549.8375× C long-per-rep, ~126.8281× C delta
+	     That closes the bridge attribution branch: even after warmup and with repeated-read cost
+	     isolated, the current packed bridge remains hundreds of times slower than the direct lowering,
+	     so it is not a near-term parity route.
+	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
+	     benchmark numerics. The slot-direct smoke also builds
+	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper
      contracts directly: `reduce_sum_slots_unchecked(nil) == 0`, `dot_slots_unchecked(nil, nil) == 0`,
      and deterministic panic text (`list_int_dot_slots_unchecked: length mismatch`) for one-nil and
      unequal-length dot calls.

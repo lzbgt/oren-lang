@@ -144,13 +144,23 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     `list<int>` dot alternatives
   - latest artifact: `build/logs/perf-probe-list-int-dot-ceiling-20260405_024559_38593.log`
     (`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=2 warmups=0 n=20000 reps=2`)
-    - canonical `dot_product_int`: ~1.2137× C
-    - direct-slot helper `dot_product_int_slot_direct`: ~1.5149× C
-    - packed-bridge SIMD `dot_product_int_packed_bridge`: ~565.8124× C
-    - packed-bridge scalar `dot_product_int_packed_bridge`: ~1382.0339× C
+	- canonical `dot_product_int`: ~1.2137× C
+	- direct-slot helper `dot_product_int_slot_direct`: ~1.5149× C
+	- packed-bridge SIMD `dot_product_int_packed_bridge`: ~565.8124× C
+	- packed-bridge scalar `dot_product_int_packed_bridge`: ~1382.0339× C
   - conclusion: the current helper/bridge detours are not close to the shipped fast loop, so the
     next productive parity work should stay on compiler fast-loop lowering and/or representation
     changes, not on repackaging list data through the existing packed bridge
+- Packed-bridge read-split attribution follow-up (2026-04-05):
+  - added `make perf-probe-list-int-packed-bridge-read-split`
+  - latest artifact: `build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_032402_91481.log`
+    (`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`)
+    - baseline canonical `dot_product_int`: ~1.3378× C long-per-rep
+    - packed-bridge SIMD `dot_product_int_packed_bridge`: ~549.8375× C long-per-rep
+    - packed-bridge scalar `dot_product_int_packed_bridge`: ~1037.5886× C long-per-rep
+  - conclusion: even after an explicit warm step and a short/long split that isolates repeated
+    reads, the current packed bridge remains hundreds of times slower than the direct lowering; it
+    is not just paying a one-time setup penalty
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

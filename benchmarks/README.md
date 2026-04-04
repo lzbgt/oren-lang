@@ -370,6 +370,35 @@ compiler fast loop still beats the helper/bridge alternatives decisively, so fur
 should stay on the direct lowering / representation side instead of detouring back through packing
 or runtime helper boundaries.
 
+For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
+
+```bash
+make perf-probe-list-int-packed-bridge-read-split
+```
+
+This runs the canonical `dot_product_int` path and the hidden packed-bridge scalar/SIMD variants
+through the same short/long read-split runner after an explicit packed-bridge warm step. The
+default profile is intentionally small enough to stay usable in normal turns:
+`runs=2`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=2`; override it with
+`OREN_LIST_INT_PACKED_BRIDGE_SPLIT_{RUNS,WARMUPS,N,SHORT_REPS,LONG_REPS}` when you want a
+different scale. The underlying packed-bridge / slot-direct prebuild and smoke helpers now also
+forward comma-separated `OREN_BENCH_ENV_BUILD_OREN` values correctly, so this probe can be combined
+with multi-key compiler/runtime build env overrides without silently dropping them.
+
+The latest artifact, `build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_032402_91481.log`,
+was run with `build_env: OREN_NATIVE_RUNTIME_PROFILE=core` and came back as:
+
+- baseline canonical `dot_product_int`: `~1.3378x C` long-per-rep
+- packed bridge scalar `dot_product_int_packed_bridge`: `~1037.5886x C` long-per-rep,
+  `~3360.3659x C` delta
+- packed bridge SIMD `dot_product_int_packed_bridge`: `~549.8375x C` long-per-rep,
+  `~126.8281x C` delta
+
+That closes the main attribution question for the existing bridge: even after warmup and with the
+short/long split isolating repeated reads, the packed-bridge path is still hundreds of times slower
+than the canonical direct lowering. The blocker is not just first-build or one-time pack setup
+cost, so near-term parity work should not go back through the current bridge shape.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 
