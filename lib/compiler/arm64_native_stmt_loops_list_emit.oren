@@ -738,6 +738,27 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     } else if v_madd_exact != nil && (v_madd_exact == "0" || v_madd_exact == "false") {
         madd_exact = false
     }
+    var madd_exact_quad = madd_exact
+    var v_madd_exact_quad = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD")
+    if v_madd_exact_quad == "1" || v_madd_exact_quad == "true" {
+        madd_exact_quad = true
+    } else if v_madd_exact_quad != nil && (v_madd_exact_quad == "0" || v_madd_exact_quad == "false") {
+        madd_exact_quad = false
+    }
+    var madd_exact_double = madd_exact
+    var v_madd_exact_double = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE")
+    if v_madd_exact_double == "1" || v_madd_exact_double == "true" {
+        madd_exact_double = true
+    } else if v_madd_exact_double != nil && (v_madd_exact_double == "0" || v_madd_exact_double == "false") {
+        madd_exact_double = false
+    }
+    var madd_exact_scalar = madd_exact
+    var v_madd_exact_scalar = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR")
+    if v_madd_exact_scalar == "1" || v_madd_exact_scalar == "true" {
+        madd_exact_scalar = true
+    } else if v_madd_exact_scalar != nil && (v_madd_exact_scalar == "0" || v_madd_exact_scalar == "false") {
+        madd_exact_scalar = false
+    }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     var v_unroll2 = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2")
@@ -950,7 +971,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
                 push_u32_le(ctx["code"], insn_mul(25, 25, 28))
                 push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
-            } else if madd_exact {
+            } else if madd_exact_quad {
                 push_u32_le(ctx["code"], insn_madd(23, 24, 27, 23))
                 push_u32_le(ctx["code"], insn_madd(23, 25, 28, 23))
             } else {
@@ -969,7 +990,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
                 push_u32_le(ctx["code"], insn_mul(25, 25, 28))
                 push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
-            } else if madd_exact {
+            } else if madd_exact_quad {
                 push_u32_le(ctx["code"], insn_madd(23, 24, 27, 23))
                 push_u32_le(ctx["code"], insn_madd(23, 25, 28, 23))
             } else {
@@ -1018,7 +1039,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
 
                 push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
-                if madd_exact && !dual_accum {
+                if madd_exact_double && !dual_accum {
                     push_u32_le(ctx["code"], insn_madd(23, 25, 27, 23))
                 } else {
                     push_u32_le(ctx["code"], insn_mul(25, 25, 27))
@@ -1045,14 +1066,14 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
 
             // sum += left1 * right1
-            if single_mul_pair && single_pair_cursor_regs && madd_exact && !dual_accum {
+            if single_mul_pair && single_pair_cursor_regs && madd_exact_double && !dual_accum {
                 push_u32_le(ctx["code"], insn_madd(23, 28, 27, 23))
             } else {
                 push_u32_le(ctx["code"], insn_mul(28, 28, 27))
             }
             if single_mul_pair && single_pair_cursor_regs && dual_accum {
                 push_u32_le(ctx["code"], insn_add_reg(17, 17, 28))
-            } else if !(single_mul_pair && single_pair_cursor_regs && madd_exact && !dual_accum) {
+            } else if !(single_mul_pair && single_pair_cursor_regs && madd_exact_double && !dual_accum) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
             } else {
                 // exact-path madd already accumulated into X23
@@ -1114,7 +1135,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
 
             // sum += left * right
-            if single_mul_pair && single_pair_cursor_regs && madd_exact && !dual_accum {
+            if single_mul_pair && single_pair_cursor_regs && madd_exact_scalar && !dual_accum {
                 push_u32_le(ctx["code"], insn_madd(23, 25, 27, 23))
             } else {
                 push_u32_le(ctx["code"], insn_mul(25, 25, 27))

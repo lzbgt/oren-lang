@@ -1416,6 +1416,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      `build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`.
 						      After the smoke cache-policy fix, the enabled canonical smoke now fails directly
 						      too instead of passing via a stale cached baseline binary.
+						    - Subpath rerun (arm64, 2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-subpaths`
+						      now splits that exact-path branch into isolated `quad`, `double`, and `scalar`
+						      substitutions with `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0` and one of
+						      `..._QUAD=1`, `..._DOUBLE=1`, or `..._SCALAR=1`. The current host localizes the
+						      unsafe `139` to the 2-wide `double` leg: `quad` stayed correctness-clean but
+						      regressed to `steady_dot_product ~3.0644x`, `gate_dot_product ~2.5552x`,
+						      disasm `66` instructions; `scalar` also stayed correctness-clean but regressed
+						      to `steady_dot_product ~3.1487x`, `gate_dot_product ~2.4786x`, disasm `69`
+						      instructions; and `double` failed immediately in the canonical smoke at native
+						      `dot_product 10 3`
+						      (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log`,
+						      `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`).
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

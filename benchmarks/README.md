@@ -456,6 +456,16 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   in one comparable artifact instead of being reassembled from ad-hoc commands. The current host
   still treats this as an unsafe experiment: the enabled path shrinks canonical dot disasm to 63
   instructions and improves the focused ratios, but the exact native debug repro still exits `139`.
+- For the arm64 exact-path `madd` subcase split, use
+  `make perf-probe-arm64-fast-dot-madd-exact-subpaths`. This keeps the shipped baseline on one side
+  and compares isolated `quad`, `double`, and `scalar` exact-`madd` substitutions on the other by
+  forcing `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0` and enabling exactly one of:
+  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1`,
+  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1`, or
+  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1`. The current host localizes the unsafe
+  exact-path branch to the 2-wide `double` leg: `quad` and `scalar` stay correctness-clean but do
+  not beat the shipped baseline on the acceptance metrics, while `double` still dies in the
+  canonical native smoke before `dot_product 10 3` finishes.
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.

@@ -409,6 +409,14 @@ This repo is still not factually "all planned features implemented" or "producti
   exact native repro with `debug_exit_code: 139`, even though the partial acceptance summary
   (`build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`) shows better
   focused metrics and the smaller 63-instruction canonical dot window.
+- Follow-up probe batch (2026-04-05): there is now also
+  `make perf-probe-arm64-fast-dot-madd-exact-subpaths`, which forces the global exact-path knob
+  off and re-enables only one of the `quad`, `double`, or `scalar` `madd` substitutions at a time.
+  The current host narrows the unsafe April 5 exact-path failure to the 2-wide `double` leg:
+  `quad` and `scalar` both stayed correctness-clean but regressed the acceptance metrics, while
+  `double` still failed immediately in the canonical smoke at native `dot_product 10 3`
+  (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log` and
+  `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`).
 - That rerun also exposed a smoke-tooling hole: the canonical and `list<int>` native smoke scripts
   were rebuilding benchmark binaries without `--no-cache`, so compiler-env experiments could pass
   against a stale cached baseline artifact while the exact no-cache debug repro crashed. Those two

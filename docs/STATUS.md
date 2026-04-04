@@ -1335,6 +1335,18 @@ Weights reflect expected impact on C parity and breadth of affected code.
      at `63` instructions (`build/logs/perf-probe-arm64-dot-acceptance-20260405_005354_27728.summary.log`).
      After the smoke cache-policy fix, the enabled canonical smoke also reproduces the failure
      directly instead of passing via a stale cached binary.
+   - Subpath rerun (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-subpaths` now isolates
+     the exact-path branch into default-off `quad`, `double`, and `scalar` substitutions via
+     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_{QUAD,DOUBLE,SCALAR}=1` with the global exact knob
+     forced off. On this host the unsafe branch is specifically the 2-wide `double` leg:
+     `quad` stayed correctness-clean but regressed the acceptance view to
+     `steady_dot_product ~3.0644x`, `gate_dot_product ~2.5552x`, disasm `66` instructions;
+     `scalar` also stayed correctness-clean but regressed to
+     `steady_dot_product ~3.1487x`, `gate_dot_product ~2.4786x`, disasm `69` instructions; and
+     `double` failed immediately in the canonical smoke at native `dot_product 10 3`
+     (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log`,
+     `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`). That narrows
+     the April 5 exact-path `139` to the 2-wide body instead of the quad or scalar substitutions.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
