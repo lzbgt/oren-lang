@@ -24,6 +24,7 @@ var NATIVE_COMPILE_EXPR = nil
 var NATIVE_COMPILE_STMT = nil
 
 var ARM64_TRACE_LOOP_STACK = -1
+var ARM64_TRACE_LOOP_RANGES = -1
 var ARM64_TRACE_STACK_RESTORE = -1
 
 fn _arm64_trace_loop_stack_enabled() {
@@ -35,6 +36,18 @@ fn _arm64_trace_loop_stack_enabled() {
         return false
     }
     ARM64_TRACE_LOOP_STACK = 1
+    return true
+}
+
+fn _arm64_trace_loop_ranges_enabled() {
+    if ARM64_TRACE_LOOP_RANGES == 1 { return true }
+    if ARM64_TRACE_LOOP_RANGES == 0 { return false }
+    var v = oren_env("OREN_TRACE_ARM64_LOOP_RANGES")
+    if v == nil || v == "" {
+        ARM64_TRACE_LOOP_RANGES = 0
+        return false
+    }
+    ARM64_TRACE_LOOP_RANGES = 1
     return true
 }
 
@@ -69,6 +82,24 @@ fn _arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_by
         " slots=" + oren_int_to_string(slots) +
         " bytes=" + oren_int_to_string(total_bytes) +
         " tick_off=" + oren_int_to_string(tick_off)
+    print(msg)
+    return nil
+}
+
+fn _arm64_trace_loop_range(ctx, kind, start_pos, end_pos) {
+    if ctx == nil || kind == nil { return nil }
+    if end_pos < start_pos { return nil }
+    ctx["last_loop_range"] = {
+        "kind": kind,
+        "start": start_pos,
+        "end": end_pos,
+        "bytes": end_pos - start_pos
+    }
+    if !_arm64_trace_loop_ranges_enabled() { return nil }
+    var msg = "[arm64_loop_range] kind=" + kind +
+        " start=" + oren_int_to_string(start_pos) +
+        " end=" + oren_int_to_string(end_pos) +
+        " bytes=" + oren_int_to_string(end_pos - start_pos)
     print(msg)
     return nil
 }

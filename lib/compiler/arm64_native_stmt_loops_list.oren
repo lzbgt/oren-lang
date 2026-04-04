@@ -69,6 +69,10 @@ fn _arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_by
     return basem._arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_bytes)
 }
 
+fn _arm64_trace_loop_range(ctx, kind, start_pos, end_pos) {
+    return basem._arm64_trace_loop_range(ctx, kind, start_pos, end_pos)
+}
+
 
 
 fn _arm64_str_eq_bytes(a, b) {

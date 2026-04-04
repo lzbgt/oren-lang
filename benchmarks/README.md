@@ -61,6 +61,16 @@ The shared stage1/stage2 compiler rebuild now runs behind a repo-local build loc
 (`build/locks/compiler-build.lock`), so parallel `make perf-*` invocations queue on compiler
 rebuilds instead of racing on `oren` / `oren_stage2` and macOS codesign.
 
+For a focused machine-code view of the canonical arm64 hot loops, use:
+
+```bash
+make perf-probe-arm64-native-hot-loop-disasm
+```
+
+This builds `array_sum` and `dot_product` with `--disasm` plus `OREN_TRACE_ARM64_LOOP_RANGES=1`,
+then extracts just the traced `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows
+into a compact summary log.
+
 Focused native read split (`array_sum`, `dot_product`; estimate one-time fill/setup vs steady
 repeated read-loop cost with `reps=1` and `reps=10`). Use this to determine whether a canonical
 hot-loop regression is dominated by the fill/push half or by the steady read loop itself:

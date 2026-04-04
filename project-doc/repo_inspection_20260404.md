@@ -313,6 +313,10 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - stage1/stage2 Makefile recipes now queue on `build/locks/compiler-build.lock`
   - practical outcome: the perf targets still run independently after the compiler is ready, but
     the shared compiler rebuild is now serialized across parallel make invocations
+  - follow-up tooling fix (2026-04-04): arm64 fast list loops now expose an opt-in
+    `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and a new probe target
+    `make perf-probe-arm64-native-hot-loop-disasm` builds canonical `array_sum` / `dot_product`
+    with `--disasm` and extracts the traced fast-loop windows into a compact summary log
   - follow-up arm64 emitter experiment (2026-04-04): replaced the single-pair unrolled cursor-reg
     body with post-index pair loads (`ldp ..., [cursor], #16`) so the hot path could fuse adjacent
     loads with cursor bumps

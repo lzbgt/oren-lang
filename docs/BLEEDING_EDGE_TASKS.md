@@ -1316,6 +1316,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      compiler build lock (`build/locks/compiler-build.lock`), so parallel `make perf-*`
 					      verification no longer races on `oren` / `oren_stage2` and trips false macOS
 					      codesign failures.
+					    - Tooling fix (2026-04-04): arm64 fast list loops now expose an opt-in
+					      `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and
+					      `make perf-probe-arm64-native-hot-loop-disasm` captures just the canonical
+					      `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` machine-code windows
+					      from `--disasm` output instead of forcing future dot-core work to sift whole-binary
+					      dumps by hand.
 				    - Trace (arm64, 2026-04-04): replacing the single-pair unrolled cursor-reg body with
 				      post-index pair loads (`ldp ..., [cursor], #16`) regressed the serial reruns
 				      instead of helping: steady `array_sum` ~2.33x / `dot_product` ~3.15x and canonical

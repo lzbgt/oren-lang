@@ -347,6 +347,7 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_b(back_off))
 
     var fast_end_pos = bytes_len(ctx["code"])
+    listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
     var end_off = (fast_end_pos - jpos_fast_end) / 4
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
 
@@ -667,6 +668,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_b(back_off))
 
     var fast_end_pos = bytes_len(ctx["code"])
+    listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
     var end_off = (fast_end_pos - jpos_fast_end) / 4
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
 
@@ -1106,6 +1108,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_b(back_off))
 
     var fast_end_pos = bytes_len(ctx["code"])
+    listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
     var end_off = (fast_end_pos - jpos_fast_end) / 4
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
 

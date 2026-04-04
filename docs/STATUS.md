@@ -1232,6 +1232,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Tooling fix (2026-04-04): stage1/stage2 builds now take a repo-local compiler build lock
      (`build/locks/compiler-build.lock`), so concurrent `make perf-*` invocations do not race on
      `oren` / `oren_stage2` and macOS codesign.
+   - Tooling fix (2026-04-04): arm64 fast list loops now expose an opt-in
+     `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and `make perf-probe-arm64-native-hot-loop-disasm`
+     builds canonical `array_sum` / `dot_product` with `--disasm` and extracts the traced fast-loop
+     windows into a compact artifact for machine-code review.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
