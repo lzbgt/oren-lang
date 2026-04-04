@@ -885,6 +885,158 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 return true
             }
 
+            if fn_name == "oren_list_int_reduce_sum_slots_unchecked" {
+                var args_sum_u = expr["args"]
+                if args_sum_u == nil || oren_list_len(args_sum_u) != 1 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_int_reduce_sum_slots_unchecked expects 1 argument")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                native_compile_expr(ctx, args_sum_u[0]) // list -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = list
+                push_u32_le(ctx["code"], insn_cmp_reg(19, 31))
+                var br_sum_non_nil = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var br_sum_done = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                var sum_non_nil_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_sum_non_nil, insn_b_cond((sum_non_nil_pos - br_sum_non_nil) / 4, 1)) // NE
+
+                emit_load_ptr_from_base_plus(ctx, 21, 19, 0)  // X21 = n
+                emit_load_ptr_from_base_plus(ctx, 19, 19, 16) // X19 = ptr
+                push_u32_le(ctx["code"], insn_movz(20, 0)) // X20 = i
+                push_u32_le(ctx["code"], insn_movz(22, 0)) // X22 = sum
+                push_u32_le(ctx["code"], insn_movz(9, 0))
+                push_u32_le(ctx["code"], insn_movz(10, 1023))
+
+                var sum_loop_cond = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+                var jpos_sum_end = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+                push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+                push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+                var jpos_sum_skip_gc = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_gc_safepoint_call_expr(ctx)
+                push_u32_le(ctx["code"], insn_movz(9, 0))
+                push_u32_le(ctx["code"], insn_movz(10, 1023))
+                var sum_after_gc = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], jpos_sum_skip_gc, insn_b_cond((sum_after_gc - jpos_sum_skip_gc) / 4, 1)) // NE
+                push_u32_le(ctx["code"], insn_ldr_ptr(24, 19))
+                push_u32_le(ctx["code"], insn_add_reg(22, 22, 24))
+                push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+                push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+                var sum_back_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], insn_b((sum_loop_cond - sum_back_pos) / 4))
+
+                var sum_end_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], jpos_sum_end, insn_b_cond((sum_end_pos - jpos_sum_end) / 4, 10)) // GE
+                push_u32_le(ctx["code"], insn_mov_reg(0, 22))
+
+                var sum_done_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_sum_done, insn_b((sum_done_pos - br_sum_done) / 4))
+                return true
+            }
+
+            if fn_name == "oren_list_int_dot_slots_unchecked" {
+                var args_dot_u = expr["args"]
+                if args_dot_u == nil || oren_list_len(args_dot_u) != 2 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_int_dot_slots_unchecked expects 2 arguments")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                native_compile_expr(ctx, args_dot_u[0]) // a -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                native_compile_expr(ctx, args_dot_u[1]) // b -> X0
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                push_u32_le(ctx["code"], insn_mov_reg(19, 1)) // X19 = a
+                push_u32_le(ctx["code"], insn_mov_reg(20, 0)) // X20 = b
+
+                push_u32_le(ctx["code"], insn_cmp_reg(19, 31))
+                var br_dot_a_non_nil = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_cmp_reg(20, 31))
+                var br_dot_both_nil = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_dot_slots_unchecked: length mismatch")
+
+                var dot_both_nil_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_dot_both_nil, insn_b_cond((dot_both_nil_pos - br_dot_both_nil) / 4, 0)) // EQ
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var br_dot_done = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                var dot_a_non_nil_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_dot_a_non_nil, insn_b_cond((dot_a_non_nil_pos - br_dot_a_non_nil) / 4, 1)) // NE
+                push_u32_le(ctx["code"], insn_cmp_reg(20, 31))
+                var br_dot_b_non_nil = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_dot_slots_unchecked: length mismatch")
+                var dot_b_non_nil_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_dot_b_non_nil, insn_b_cond((dot_b_non_nil_pos - br_dot_b_non_nil) / 4, 1)) // NE
+
+                emit_load_ptr_from_base_plus(ctx, 21, 19, 0) // X21 = na
+                emit_load_ptr_from_base_plus(ctx, 22, 20, 0) // X22 = nb
+                push_u32_le(ctx["code"], insn_cmp_reg(21, 22))
+                var br_dot_lengths_ok = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_dot_slots_unchecked: length mismatch")
+                var dot_lengths_ok_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_dot_lengths_ok, insn_b_cond((dot_lengths_ok_pos - br_dot_lengths_ok) / 4, 0)) // EQ
+
+                emit_load_ptr_from_base_plus(ctx, 19, 19, 16) // X19 = pa
+                emit_load_ptr_from_base_plus(ctx, 20, 20, 16) // X20 = pb
+                push_u32_le(ctx["code"], insn_movz(23, 0)) // X23 = sum
+                push_u32_le(ctx["code"], insn_movz(24, 0)) // X24 = i
+                push_u32_le(ctx["code"], insn_movz(9, 0))
+                push_u32_le(ctx["code"], insn_movz(10, 1023))
+
+                var dot_loop_cond = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
+                var jpos_dot_end = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+                push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+                push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+                var jpos_dot_skip_gc = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_gc_safepoint_call_expr(ctx)
+                push_u32_le(ctx["code"], insn_movz(9, 0))
+                push_u32_le(ctx["code"], insn_movz(10, 1023))
+                var dot_after_gc = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], jpos_dot_skip_gc, insn_b_cond((dot_after_gc - jpos_dot_skip_gc) / 4, 1)) // NE
+                push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
+                push_u32_le(ctx["code"], insn_ldr_ptr(26, 20))
+                push_u32_le(ctx["code"], insn_mul(25, 25, 26))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+                push_u32_le(ctx["code"], insn_add_imm(20, 20, 8))
+                push_u32_le(ctx["code"], insn_add_imm(24, 24, 1))
+                var dot_back_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], insn_b((dot_loop_cond - dot_back_pos) / 4))
+
+                var dot_end_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], jpos_dot_end, insn_b_cond((dot_end_pos - jpos_dot_end) / 4, 10)) // GE
+                push_u32_le(ctx["code"], insn_mov_reg(0, 23))
+
+                var dot_done_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_dot_done, insn_b((dot_done_pos - br_dot_done) / 4))
+                return true
+            }
+
             if fn_name == "oren_call_obj_list" {
                 // Intrinsic: indirect call through a native function object.
                 // Signature: oren_call_obj_list(fn_obj, args_list) -> value

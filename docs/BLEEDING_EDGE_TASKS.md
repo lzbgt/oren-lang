@@ -1181,6 +1181,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      dramatically better than the packed bridge, which makes “lower directly against the 64-bit
      slot ABI” the right optimization direction, but it is still too slow to treat the runtime
      helper call itself as the end state.
+   - Follow-up (2026-04-04): arm64 and x64 now inline the unchecked raw-slot helper calls at the
+     native call site for `oren_list_int_reduce_sum_slots_unchecked` and
+     `oren_list_int_dot_slots_unchecked` instead of routing those probes through the old generic
+     helper body. The forced steady rerun
+     (`build/logs/perf-probe-list-int-slot-direct-20260404_200234.log`) moved the hidden
+     direct-slot path to `array_sum_int_slot_direct` ~15.1069× C and
+     `dot_product_int_slot_direct` ~5.1760× C, while the same sweep measured the canonical
+     baseline at `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That materially
+     reduces the dot-path gap and confirms the call-site lowering matters, but the helper-backed
+     probe still trails the canonical fast loops by too much to become the default lowering.
    - Verification (2026-03-28): the canonical benchmark loops already lower directly against that
      64-bit-slot ABI on both native backends. New gate:
      `make verify-native-list-int-fast-lowering`. It compiles
@@ -2241,6 +2251,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      vastly better than the packed bridge and confirms the raw slot ABI path is materially real,
      but it still leaves a large gap to the canonical fast loops. The next concrete task is direct
      compiler lowering to that ABI, not another round of runtime-helper or packed-bridge tuning.
+   - Follow-up (2026-04-04): the unchecked raw-slot probe now has that narrower direct-lowering
+     step on both native backends. `oren_list_int_reduce_sum_slots_unchecked` and
+     `oren_list_int_dot_slots_unchecked` inline at the call site, and the fresh forced steady rerun
+     (`build/logs/perf-probe-list-int-slot-direct-20260404_200234.log`) improved the hidden
+     direct-slot results to `array_sum_int_slot_direct` ~15.1069× C and
+     `dot_product_int_slot_direct` ~5.1760× C. That is much less pathological for the dot path, but
+     it still does not beat the canonical fast loops (`array_sum_int` ~2.3090× C,
+     `dot_product_int` ~2.9950× C on the same sweep), so the remaining work stays on parity of the
+     canonical path rather than shipping the helper probe path.
    - Constraint (2026-03-20): direct reuse of the packed-i32 SIMD dot kernel is not safe for the
      current `list<int>` fast-loop payload layout because those slots are 64-bit values.
    - New: native runtime now exposes the current `list<int>` payload ABI explicitly via

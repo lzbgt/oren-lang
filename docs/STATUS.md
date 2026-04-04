@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-03-20: `loop_sum` 1.08×, `dot_product` 2.51×; `alloc_churn` 6.45×, `alloc_drop` 1.63×).
-- **list<int> hot-loop parity**: one-shot focused reruns now sit around `array_sum_int` 2.16×, `dot_product_int` 2.57×, and `multi_list_push_int` 2.35× vs C, while the steady-state runner shows the shared read-heavy path is still above target but improved (`array_sum_int` ~2.43× steady, `dot_product_int` ~3.09× steady vs C on arm64, 2026-03-20).
+- **list<int> hot-loop parity**: one-shot focused reruns still sit around `array_sum_int` 2.16×, `dot_product_int` 2.57×, and `multi_list_push_int` 2.35× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.31× steady, `dot_product_int` ~3.00× steady vs C on arm64, 2026-04-04). The newer unchecked direct-slot probe improved materially as well (`array_sum_int_slot_direct` ~15.11×, `dot_product_int_slot_direct` ~5.18× vs C on the same 2026-04-04 sweep), but that helper-backed path is still slower than the canonical fast loops.
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -264,6 +264,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      ~21.03× C. That is enough to prioritize “compiler lowering directly against the 64-bit-slot
      ABI” over any more packed-bridge work, but it also shows that a plain runtime helper call is
      not itself the final target.
+   - Follow-up (2026-04-04): native backends now inline the unchecked raw-slot helper calls at the
+     call site instead of routing those probes through a generic runtime helper body. x64 routes
+     `oren_list_int_reduce_sum_slots_unchecked` / `oren_list_int_dot_slots_unchecked` through new
+     dedicated intrinsics, and arm64 lowers the same symbols directly inside native call lowering.
+     The forced steady rerun (`build/logs/perf-probe-list-int-slot-direct-20260404_200234.log`)
+     moved the hidden direct-slot path to `array_sum_int_slot_direct` ~15.1069× C and
+     `dot_product_int_slot_direct` ~5.1760× C, while the canonical baseline on the same sweep was
+     `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That is a decisive improvement
+     for the dot-shaped raw-slot path, but it also confirms that these unchecked helper-backed
+     probes still should not replace the canonical list<int> fast loops as the default hot path.
    - Verification (2026-03-28): the canonical benchmark shapes are already using that direct-slot
      compiler lowering path today. A new dedicated gate (`make verify-native-list-int-fast-lowering`)
      now proves `benchmarks/array_sum_int/array_sum_int.oren` still emits
@@ -1872,6 +1882,16 @@ Weights reflect expected impact on C parity and breadth of affected code.
       64-bit-slot ABI is the right direction, but it is still far from the current compiler fast
       loops. The next material work is direct compiler lowering, not shipping a runtime-helper call
       as the hot path.
+    - Follow-up (2026-04-04): that next step now exists for the unchecked raw-slot probe surface.
+      arm64 and x64 both inline `oren_list_int_reduce_sum_slots_unchecked` /
+      `oren_list_int_dot_slots_unchecked` at native call sites instead of paying the old generic
+      helper-path cost. A forced steady rerun
+      (`build/logs/perf-probe-list-int-slot-direct-20260404_200234.log`) moved the hidden
+      direct-slot benchmarks to `array_sum_int_slot_direct` ~15.1069× C and
+      `dot_product_int_slot_direct` ~5.1760× C, versus a same-run canonical baseline of
+      `array_sum_int` ~2.3090× C and `dot_product_int` ~2.9950× C. That makes the direct-slot dot
+      path much less pathological, but the canonical fast loops are still materially better, so the
+      open gate remains native `dot_product_int` <= 2x C rather than “ship the helper probe path”.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
     - New: native runtime now exposes the current list<int> payload ABI explicitly via

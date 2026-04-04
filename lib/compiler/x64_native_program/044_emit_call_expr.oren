@@ -552,6 +552,14 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         _emit_list_int_set_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }
+    if nm == "oren_list_int_reduce_sum_slots_unchecked" {
+        _emit_list_int_reduce_sum_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
+    if nm == "oren_list_int_dot_slots_unchecked" {
+        _emit_list_int_dot_slots_unchecked_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
 
     if nm == "oren_call_obj_list" {
         if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return nil }
