@@ -1237,10 +1237,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - New: native LCG fast loops use reciprocal fastmod when mod constants fit (arm64 + x64).
     - New: dot_product native at 2.57× C (arm64 macOS, 2026-02-26).
     - New: arm64 list<int> get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
-    - New: arm64 boxed list get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
-    - Fix: arm64 boxed fast list dot loop now initializes X10 tick mask before inline safepoint ticks (2026-02-26).
-    - New: LCG fast loop safepoint mask raised to 4095 on arm64 + x64 (2026-02-26).
-    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
+	    - New: arm64 boxed list get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
+	    - Fix: arm64 boxed fast list dot loop now initializes X10 tick mask before inline safepoint ticks (2026-02-26).
+	    - Fix (2026-04-04): arm64 fast `list<int>` push loops now initialize X10 before inline
+	      safepoint ticks.
+	    - New: LCG fast loop safepoint mask raised to 4095 on arm64 + x64 (2026-02-26).
+	    - New: arm64 fast-loop throttling masks are now compiler-env tunable per emitter via
+	      `OREN_ARM64_FAST_LIST_{GET_SUM,DOT,PUSH}_TICK_MASK`,
+	      `OREN_ARM64_FAST_LIST_INT_{GET_SUM,DOT,PUSH}_TICK_MASK`, and
+	      `OREN_ARM64_FAST_LCG_SUM_TICK_MASK` (decimal `0..65535`, invalid input falls back).
+	    - Probe (2026-04-04, canonical `array_sum`/`dot_product`, arm64):
+	      baseline `dot_product` ~2.9293x C, `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=16383`
+	      effectively unchanged, `65535` ~2.8584x C. Keep the default `4095`.
+	    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across
       `while_generic` and list<int> fast loops (push/dot), with stack bases matching current stack size.

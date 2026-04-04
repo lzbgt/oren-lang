@@ -1112,11 +1112,21 @@ Weights reflect expected impact on C parity and breadth of affected code.
      tick slot by default; the old layouts can still be restored for comparison with the
      `*_KEEP_TICK_SLOT=1` env overrides.
    - Safepoint throttling for list<int> hot loops: arm64 list<int> sum/dot mask=4095; x64 list<int> sum/dot mask=1023.
+   - Arm64 fast-loop throttling masks are now compiler-env tunable per emitter via
+     `OREN_ARM64_FAST_LIST_{GET_SUM,DOT,PUSH}_TICK_MASK`,
+     `OREN_ARM64_FAST_LIST_INT_{GET_SUM,DOT,PUSH}_TICK_MASK`, and
+     `OREN_ARM64_FAST_LCG_SUM_TICK_MASK` (decimal `0..65535`, invalid input falls back).
    - X64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023 to reduce hot-loop overhead (rolling, 2026-02-25).
    - Arm64 list<int> get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
    - Arm64 boxed list get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
    - Fix: arm64 boxed fast list dot loop now initializes X10 tick mask before inline safepoint ticks (2026-02-26).
+   - Fix (2026-04-04): arm64 fast `list<int>` push loops now initialize X10 before inline
+     safepoint ticks, so the register-only throttled path no longer depends on stale caller state.
    - LCG fast loop safepoint mask now 4095 on arm64 + x64 (rolling, 2026-02-26).
+   - Probe (2026-04-04, canonical `array_sum`/`dot_product` on arm64):
+     `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=16383` was effectively neutral (`dot_product`
+     ~2.93x C vs baseline ~2.93x), and `65535` was only a marginal improvement (`~2.86x C`);
+     keep the shipped default at `4095` until a stronger win is demonstrated.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
@@ -1916,6 +1926,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - x64 native fast list_int dot loops unroll by 2 when lists are unique (multi-mul supported).
     - x64 native fast list_int get-sum loops unroll by 2 when lists are unique.
     - Read-only list_int sum/dot loops now use higher safepoint masks on native (arm64=4095, x64=1023).
+    - Arm64 canonical hot-loop tick-mask probe (`make perf-probe-arm64-fast-loop-tick-masks`,
+      2026-04-04): baseline `dot_product` ~2.9293x C, `16383` unchanged, `65535` ~2.8584x C.
+      Useful tuning surface added; default remains `4095`.
     - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)

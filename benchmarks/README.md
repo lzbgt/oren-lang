@@ -255,11 +255,21 @@ Optional knobs:
 - `OREN_BENCH_SKIP_C=1` (skip the pure C baseline build+run)
 - `OREN_BENCH_SKIP_OREN_C=1` (skip the Oren C-backend build+run; useful if no C compiler is installed)
 - `OREN_BENCH_SKIP_NATIVE=1` (skip native backend build+run)
+- Arm64 fast-loop compiler tick masks can be overridden at build time via
+  `OREN_BENCH_ENV_BUILD_OREN=...` with decimal `0..65535` values. Current knobs:
+  `OREN_ARM64_FAST_LIST_GET_SUM_TICK_MASK`,
+  `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK`,
+  `OREN_ARM64_FAST_LIST_DOT_TICK_MASK`,
+  `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK`,
+  `OREN_ARM64_FAST_LIST_PUSH_TICK_MASK`,
+  `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK`,
+  `OREN_ARM64_FAST_LCG_SUM_TICK_MASK`.
 - Example: `OREN_BENCH_ENV_OREN_NATIVE=OREN_LIST_ASSUME_LIST=1` to probe list-validation overhead (unsafe; perf-only).
 - Example: `OREN_BENCH_ENV_OREN_C=OREN_LIST_SKIP_LOCKS=1` to skip list/map locks in the C backend (unsafe; perf-only).
 - Example: `OREN_BENCH_ENV_OREN_C=OREN_LIST_FORCE_LOCKS=1` to force list/map locks in the C backend (useful for safety baselines).
 - Example: `OREN_BENCH_ENV_OREN_C=OREN_TRACE_LIST_LOCKS=1` to print lock gating state once at first list access.
 - Compiler env example (affects codegen): `OREN_NATIVE_ASSUME_LIST_INDEX=1 python3 benchmarks/run_benchmarks.py` (unsafe; perf-only).
+- Compiler env example (arm64 tick-mask probe): `OREN_BENCH_ENV_BUILD_OREN=OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=65535 make perf-gate-native`.
 
 Results are written to local build output:
 
@@ -301,6 +311,9 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - Native builds use `--no-debug` to approximate release behavior.
 - The default benchmark native profile is the reduced `core` runtime unless you explicitly set
   `OREN_BENCH_ENV_BUILD_OREN=OREN_NATIVE_RUNTIME_PROFILE=full`.
+- For the canonical arm64 hot-loop safepoint sweep, use
+  `make perf-probe-arm64-fast-loop-tick-masks` and optionally narrow it with
+  `OREN_ARM64_FAST_LOOP_TICK_PROGRAMS=dot_product`.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 

@@ -90,6 +90,7 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     if list_count == load_count { unique_lists = true }
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_GET_SUM_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_GET_SUM_TICK_MASK", 255)
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -111,10 +112,10 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var list_base_off = slot0 + 24
     listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
-    // init tick=0 and safepoint mask=255 (keep tick in X9; spill only on safepoint)
+    // init tick=0 and safepoint mask (keep tick in X9; spill only on safepoint)
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    push_u32_le(ctx["code"], insn_movz(10, 255))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -246,7 +247,7 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
     gc.native_emit_gc_safepoint_call(ctx)
     push_u32_le(ctx["code"], insn_movz(9, 0)) // reset tick after safepoint
-    push_u32_le(ctx["code"], insn_movz(10, 255))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
     var tick_skip_pos = bytes_len(ctx["code"])
     var tick_skip_off = (tick_skip_pos - jpos_tick_skip) / 4
     set_u32_le(ctx["code"], jpos_tick_skip, insn_b_cond(tick_skip_off, 1)) // NE
@@ -392,6 +393,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     if unique_lists == true { unroll2 = true }
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK", 4095)
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -417,7 +419,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
     // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, 4095))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -547,7 +549,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
     if unique_lists != true {
         // idx_offset = i * 8 (reuse for all list loads)
@@ -621,7 +623,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
+        gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
     }
 
     var pi = 0
@@ -715,6 +717,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     // layout the default and allow opt-in restoration for comparison.
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK", 4095)
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -740,7 +743,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
     // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, 4095))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -877,7 +880,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
     if unroll2 == true {
         if single_mul_pair {
@@ -981,7 +984,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
+        gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
     }
     var mi = 0
     while mi < oren_list_len(muls) {
@@ -1106,6 +1109,7 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     // the old layout while comparing traces.
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_DOT_TICK_MASK", 4095)
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -1131,7 +1135,7 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
     // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, 4095))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1246,7 +1250,7 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
     var mi = 0
     while mi < oren_list_len(muls) {
@@ -1361,6 +1365,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var list_count = oren_list_len(lists)
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_INT_PUSH_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK", 4095)
     var slots = 3 + list_count * 2 // tick + i + n + (list, buf)*N
     if !keep_tick_slot { slots = 2 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -1384,6 +1389,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1513,7 +1519,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
     // Keep idx local updated for value expressions.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
@@ -1624,6 +1630,7 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     var list_count = oren_list_len(lists)
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_PUSH_TICK_MASK", 255)
     var slots = 3 + list_count * 2 // tick + i + n + (list, buf)*N
     if !keep_tick_slot { slots = 2 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -1648,7 +1655,7 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
     // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, 255))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1768,7 +1775,7 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, 255)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
     // Keep idx local updated for value expressions.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)

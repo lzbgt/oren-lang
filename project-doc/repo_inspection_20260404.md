@@ -96,6 +96,28 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - this removes a lingering ambiguity in the perf tracker: if canonical `dot_product` remains slow,
     it is because the existing fast `list<int>` dot loop still needs work, not because the benchmark
     silently fell off the intended lowering path
+- Follow-up arm64 tick-mask tuning pass (2026-04-04):
+  - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
+    emitters can be tuned without source edits:
+    - `OREN_ARM64_FAST_LIST_{GET_SUM,DOT,PUSH}_TICK_MASK`
+    - `OREN_ARM64_FAST_LIST_INT_{GET_SUM,DOT,PUSH}_TICK_MASK`
+    - `OREN_ARM64_FAST_LCG_SUM_TICK_MASK`
+  - those overrides accept decimal `0..65535`; invalid input falls back to the emitter default
+  - fixed a real emitter inconsistency found during that pass: arm64 `fast_list_int_push_while`
+    previously called the inline safepoint helper without initializing X10 on loop entry
+  - added a reproducible probe target:
+    - `make perf-probe-arm64-fast-loop-tick-masks`
+  - verified the code path with:
+    - `./scripts/verify_native_list_int_fast_lowering.sh`
+    - `make test`
+    - `make perf-probe-arm64-fast-loop-tick-masks`
+  - measured result from `build/logs/perf-probe-arm64-fast-loop-tick-masks-20260404_205632.log`:
+    - baseline: `array_sum` ~2.2145x C, `dot_product` ~2.9293x C
+    - `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=16383`: effectively unchanged (`array_sum` ~2.2145x C, `dot_product` ~2.9293x C)
+    - `OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK=65535`: modest directional improvement (`array_sum` ~2.0713x C, `dot_product` ~2.8584x C)
+  - conclusion: keep the shipped arm64 `list<int>` dot tick mask at `4095` for now; the new tuning
+    surface is useful for measurement, but the observed win is too small to treat as a settled
+    production default change yet
 
 ## Production-level reality after this pass
 
@@ -113,3 +135,5 @@ This repo is still not factually "all planned features implemented" or "producti
 - Continue treating `docs/STATUS.md` as the production-readiness source of truth instead of overstating maturity in user-facing docs.
 - If the goal is "production level" in the stricter sense, the next work should target one W4/W5 blocker from `docs/STATUS.md` and close it with code + fixtures + readiness updates, not broad marketing/documentation changes.
 - After the native hot-loop and perf-refresh follow-ups above, the next high-leverage item is narrower than before: reduce the remaining canonical arm64 `dot_product` gap toward the existing <=2x gate, while continuing to use the focused `dot_product_int` steady runner as the more local diagnostic view and without routing general `list<int>` loops through the helper probe path.
+- The new arm64 tick-mask probe can stay as the first sanity check for future dot-loop work, but the
+  April 4 data says safepoint cadence alone is not enough to close the remaining canonical gap.

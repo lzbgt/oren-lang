@@ -466,6 +466,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     // Keep the old dedicated stack tick slot only as an opt-in comparison/debug escape hatch.
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LCG_SUM_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LCG_SUM_TICK_MASK", 4095)
     var slots = 6 // tick + i + n + x + sum + mod
     if !keep_tick_slot { slots = 5 }
     var total_bytes = align_up(slots * 8, 16)
@@ -492,7 +493,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
     // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, 4095))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/x/sum/mod locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -592,7 +593,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     gc.native_emit_gc_safepoint_call(ctx)
     emit_ldr_reg_sp_any(ctx, 2, i_off)
     push_u32_le(ctx["code"], insn_movz(9, 0)) // reset tick after safepoint
-    push_u32_le(ctx["code"], insn_movz(10, 4095))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
     var tick_skip_pos_slow = bytes_len(ctx["code"])
     var tick_skip_off_slow = (tick_skip_pos_slow - jpos_tick_skip_slow) / 4
     set_u32_le(ctx["code"], jpos_tick_skip_slow, insn_b_cond(tick_skip_off_slow, 1)) // NE
@@ -749,7 +750,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var jpos_slow_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
     // reload i/x/sum/mod after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)

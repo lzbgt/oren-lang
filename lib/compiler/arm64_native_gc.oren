@@ -98,6 +98,45 @@ fn _arm64_trace_gc_tick_off(ctx, loop_base_stack, tick_off, tick_mask) {
     return nil
 }
 
+fn _arm64_parse_tick_mask_decimal(v, default_mask) {
+    if v == nil || v == "" { return default_mask }
+    var n = oren_string_len(v)
+    if n <= 0 { return default_mask }
+    var i = 0
+    var j = n
+    while i < j {
+        var c0 = oren_string_byte_at_unchecked(v, i) & 255
+        if c0 == 32 || c0 == 9 || c0 == 10 || c0 == 13 {
+            i = i + 1
+            continue
+        }
+        break
+    }
+    while j > i {
+        var c1 = oren_string_byte_at_unchecked(v, j - 1) & 255
+        if c1 == 32 || c1 == 9 || c1 == 10 || c1 == 13 {
+            j = j - 1
+            continue
+        }
+        break
+    }
+    if i >= j { return default_mask }
+    var acc = 0
+    while i < j {
+        var c = oren_string_byte_at_unchecked(v, i) & 255
+        if c < 48 || c > 57 { return default_mask }
+        acc = acc * 10 + (c - 48)
+        if acc > 65535 { return default_mask }
+        i = i + 1
+    }
+    return acc
+}
+
+fn native_arm64_fast_loop_tick_mask(env_name, default_mask) {
+    if env_name == nil || env_name == "" { return default_mask }
+    return _arm64_parse_tick_mask_decimal(oren_env(env_name), default_mask)
+}
+
 fn native_emit_gc_safepoint_call(ctx) {
     // Spill callee-saved regs so conservative GC sees register-held pointers.
     push_u32_le(ctx["code"], insn_stp_pair_pre(19, 20, 31, -16))
