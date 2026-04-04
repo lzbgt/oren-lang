@@ -1268,6 +1268,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      baseline ~3.0142x C, `16383` ~3.0924x C, `65535` ~3.1914x C. That strengthens the
 			      earlier readout: higher dot tick masks do not help the canonical steady-state path,
 			      so keep the default `4095` and work the loop body itself.
+			    - New arm64 single-pair cursor-reg probe (2026-04-04):
+			      `make perf-probe-arm64-fast-dot-single-pair-cursor-regs` now compares the shipped
+			      single-pair cursor-reg path against
+			      `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0` without source edits.
+			      While landing that probe, the native/list<int> gate scripts and
+			      `benchmarks/run_benchmarks.py` were fixed to use collision-resistant timestamps, so
+			      adjacent probe variants no longer overwrite each other’s logs/results. Current
+			      kept-state serial rerun stayed inconclusive: steady default ~3.1205x C vs disabled
+			      ~3.1322x C, while the canonical gate read default ~2.6041x C vs disabled ~2.5322x C.
+			      Keep the shipped default for now and use the probe for future reruns.
 			    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

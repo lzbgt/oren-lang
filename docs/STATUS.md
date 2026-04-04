@@ -1155,6 +1155,20 @@ Weights reflect expected impact on C parity and breadth of affected code.
        ~3.0142x C, `16383` ~3.0924x C, `65535` ~3.1914x C.
      - Conclusion: on the canonical steady runner, higher dot safepoint masks regress or stay flat;
        keep the default arm64 `fast_list_int_dot_while` tick mask at `4095`.
+   - New arm64 single-pair cursor-reg probe (2026-04-04):
+     - `make perf-probe-arm64-fast-dot-single-pair-cursor-regs` now compares the shipped
+       `fast_list_int_dot_while` single-pair cursor-reg path against
+       `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0` without source edits.
+     - While landing that probe, fixed a real measurement bug: `run_perf_gate_native.sh`,
+       `run_perf_gate_list_int.sh`, `run_perf_gate_list_int_read_split.sh`,
+       `run_perf_gate_list_int_steady.sh`, and `benchmarks/run_benchmarks.py` all now use
+       collision-resistant timestamps so adjacent probe variants do not overwrite logs/results.
+     - Current kept-state serial rerun (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260404_214038_91205.log`):
+       steady default ~3.1205x C vs disabled ~3.1322x C, canonical gate default ~2.6041x C vs
+       disabled ~2.5322x C.
+     - Conclusion: the current host signal is too close and too noisy to justify a shipped default
+       flip. Keep the cursor-reg path enabled by default, but use the new probe for future reruns
+       instead of ad-hoc source edits.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
@@ -1961,6 +1975,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	      2026-04-04): corrected same-smoke rerun baseline `dot_product` ~3.0142x C, `16383`
 	      ~3.0924x C, `65535` ~3.1914x C. On the repeated-read-loop runner, higher masks regress;
 	      default remains `4095`.
+	    - Arm64 single-pair cursor-reg probe (`make perf-probe-arm64-fast-dot-single-pair-cursor-regs`,
+	      2026-04-04): current kept-state serial rerun stayed inconclusive
+	      (steady default ~3.1205x C vs disabled ~3.1322x C; gate default ~2.6041x C vs disabled
+	      ~2.5322x C). Default remains enabled until the signal is stronger.
 	    - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)

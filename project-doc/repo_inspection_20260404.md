@@ -176,6 +176,31 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - conclusion: on the canonical steady runner, increasing the arm64 dot safepoint mask does not
     help and in this corrected same-policy rerun it regresses; keep the shipped
     `fast_list_int_dot_while` tick mask at `4095` and keep pushing on the loop body itself
+- Follow-up arm64 single-pair cursor-reg probe + benchmark timestamp fix (2026-04-04):
+  - promoted the current-source recheck of the `fast_list_int_dot_while` single-pair cursor-reg
+    path into a reusable target:
+    - `make perf-probe-arm64-fast-dot-single-pair-cursor-regs`
+  - kept the shipped cursor-reg path enabled by default, but made it probeable without source edits:
+    - `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0`
+  - while landing that probe, fixed a real tooling issue found by the first back-to-back runs:
+    - `scripts/run_perf_gate_native.sh`
+    - `scripts/run_perf_gate_list_int.sh`
+    - `scripts/run_perf_gate_list_int_read_split.sh`
+    - `scripts/run_perf_gate_list_int_steady.sh`
+    - `benchmarks/run_benchmarks.py`
+    now all use collision-resistant timestamps, so adjacent probe variants do not overwrite
+    each other’s gate logs or benchmark result artifacts
+  - verified with:
+    - `env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 make perf-probe-arm64-fast-dot-single-pair-cursor-regs`
+    - `make test`
+  - measured kept-state serial result from `build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260404_214038_91205.log`:
+    - steady default: `dot_product` ~3.1205x C
+    - steady disabled: `dot_product` ~3.1322x C
+    - canonical gate default: `dot_product` ~2.6041x C
+    - canonical gate disabled: `dot_product` ~2.5322x C
+  - conclusion: on the current host the signal is too close and too noisy to justify a shipped
+    default flip. Keep the cursor-reg path enabled for now, but use the new probe instead of
+    ad-hoc source edits when rerunning this question
 
 ## Production-level reality after this pass
 

@@ -372,7 +372,7 @@ def _run_one(program, cfg: BenchConfig):
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
     c_bin = build_dir / f"{program}_c"
     oren_c_bin = build_dir / f"{program}_oren_c"

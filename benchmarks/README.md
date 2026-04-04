@@ -351,6 +351,12 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `perf-gate-native-steady`, runs one shared smoke preflight, and then measures all mask variants
   without extra preflight noise so it answers the actual repeated-read-loop question rather than
   the earlier one-shot gate.
+- For the arm64 single-pair `fast_list_int_dot_while` cursor-reg recheck, use
+  `make perf-probe-arm64-fast-dot-single-pair-cursor-regs`. The shipped default keeps the
+  single-pair cursor-reg path enabled, and the probe compares that default against
+  `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0`.
+- Native/list<int> perf-gate scripts and benchmark result artifacts now use collision-resistant
+  timestamps, so back-to-back probe variants do not overwrite each other’s logs or result files.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 
