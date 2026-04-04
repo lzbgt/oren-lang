@@ -1371,6 +1371,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      when `OREN_TRACE_ARM64_LOOP_RANGES=1` is enabled, because native cache hits can skip
 					      lowering and otherwise drop the compile-time `[arm64_loop_range]` lines the summary
 					      depends on.
+					    - Tooling follow-up (arm64, 2026-04-05): the same disasm probe now exits non-zero
+					      when either traced canonical loop window is missing, so cache/lowering drift stops
+					      being a soft note and becomes a real failure.
+					    - Tooling follow-up (arm64, 2026-04-05): `make perf-probe-arm64-dot-acceptance`
+					      now runs the serial arm64 dot-core acceptance bundle in one place:
+					      benchmark smoke, hot-loop disasm, steady gate, canonical gate, exact-binary native
+					      repro, and `make test` by default. The summary artifact captures the wrapper logs
+					      plus the extracted ratios/instruction counts so future dot experiments have one
+					      comparable acceptance record instead of a hand-collected command list.
 					    - Tooling follow-up (2026-04-05): `make perf-debug-native-benchmark` now provides
 					      a reusable exact-binary repro runner for native benchmarks. It records the exact
 					      built binary path, args, exit code, build log, and run log, and on non-zero exit

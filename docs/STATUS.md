@@ -157,6 +157,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      for `OREN_TRACE_ARM64_LOOP_RANGES=1`. Without that, a native cache hit could skip lowering,
      drop the compile-time `[arm64_loop_range]` lines, and leave the summary with only the raw
      `--disasm` output.
+   - Tooling follow-up (2026-04-05): the disasm probe now also exits non-zero when either traced
+     canonical window is missing, so the arm64 hot-loop summary cannot silently degrade into a
+     cache-hit or missed-lowering note.
+   - Tooling follow-up (2026-04-05): `make perf-probe-arm64-dot-acceptance` now packages the
+     current arm64 dot-core shipping workflow into one serial run: exact benchmark smoke, traced
+     hot-loop disasm, steady gate, canonical gate, exact-binary native repro, and `make test`.
+     The summary log records both wrapper logs and the extracted current ratios/instruction counts,
+     so future arm64 dot experiments can compare against one artifact instead of reconstructing the
+     sequence by hand.
    - New focused steady-state runner (2026-04-04, `make perf-gate-list-int-steady`, `reps=100`):
      `array_sum_int` steady-state native/C is ~2.43× and `dot_product_int` steady-state native/C
      is ~2.78×. That is stronger evidence than the earlier one-shot gate that the remaining

@@ -320,6 +320,9 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - follow-up tooling fix (2026-04-05): that disasm probe now also forces `--no-cache`, because
     the summary depends on compile-time `[arm64_loop_range]` prints and native cache hits can
     otherwise leave the script with only raw disassembly text
+  - follow-up tooling fix (2026-04-05): the disasm probe now exits non-zero when the traced
+    canonical loop windows are missing, so the arm64 summary cannot silently degrade into a
+    cache-hit/missed-lowering artifact
   - follow-up arm64 emitter experiment (2026-04-04): replaced the single-pair unrolled cursor-reg
     body with post-index pair loads (`ldp ..., [cursor], #16`) so the hot path could fuse adjacent
     loads with cursor bumps
@@ -393,6 +396,11 @@ This repo is still not factually "all planned features implemented" or "producti
   native benchmarks. It records the exact built binary path, args, exit code, build log, and run log
   in one summary artifact, and on non-zero exit it prints the manual `lldb -- <binary> <args...>`
   command to use next.
+- Follow-up tooling batch (2026-04-05): there is now also a serial acceptance bundle for the arm64
+  canonical dot-core thread: `make perf-probe-arm64-dot-acceptance`. It runs the exact benchmark
+  smoke, the traced hot-loop disasm probe, the steady native gate, the canonical native gate, the
+  exact-binary native repro, and `make test` in one sequence, then emits a single summary artifact
+  with the wrapper logs plus the extracted current ratios and instruction counts.
 - I tried one narrower follow-up on top of that keep: spill only the two exact cursor regs
   (`[x19,x26]`) at the single-pair dot inline safepoint instead of the kept two-pair set. That
   stayed correctness-clean in the smoke, but `build/logs/perf-gate-native-steady-20260404_233707_97722.log`

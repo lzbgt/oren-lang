@@ -74,6 +74,28 @@ This builds `array_sum` and `dot_product` with `--disasm`, `--no-cache`, and
 can otherwise skip lowering and leave only the raw disassembly text. The summary also reports
 instruction counts plus a mnemonic histogram for the traced hot-loop window, so future arm64
 dot-core changes can compare static loop shape without diffing whole-binary disassembly by hand.
+The probe now exits non-zero if either traced loop window is missing, so cache-hit or lowering drift
+cannot silently degrade the summary into a best-effort note.
+
+For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
+
+```bash
+make perf-probe-arm64-dot-acceptance
+```
+
+This runs, in order:
+
+- `make perf-smoke-native-fast-loops`
+- `make perf-probe-arm64-native-hot-loop-disasm`
+- `env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 OREN_BENCH_PROGRAMS=array_sum,dot_product make perf-gate-native-steady`
+- `env OREN_BENCH_PROGRAMS=array_sum,dot_product make perf-gate-native`
+- `make perf-debug-native-benchmark`
+- `make test` by default
+
+The acceptance summary records the wrapper logs, the underlying summary artifacts, the current
+steady/canonical ratios, the disasm instruction counts, and the exact-binary debug status in one
+place. Set `OREN_ARM64_DOT_ACCEPT_RUN_TEST=0` only when you intentionally want to skip the final
+`make test` leg during local iteration.
 
 Focused native read split (`array_sum`, `dot_product`; estimate one-time fill/setup vs steady
 repeated read-loop cost with `reps=1` and `reps=10`). Use this to determine whether a canonical

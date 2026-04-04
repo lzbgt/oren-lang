@@ -26,6 +26,7 @@ build_one dot_product >"$dot_log" 2>&1
 ARRAY_LOG="$array_log" DOT_LOG="$dot_log" python3 - <<'PY' >"$summary_log"
 import os
 import re
+import sys
 
 range_re = re.compile(r"\[arm64_loop_range\] kind=([^\s]+) start=(\d+) end=(\d+) bytes=(\d+)")
 addr_re = re.compile(r"^([0-9a-fA-F]{16})\b")
@@ -95,12 +96,12 @@ def emit_block(label, path, prefix):
     if base is None:
         print("  error: no disassembly addresses found")
         print("")
-        return
+        return False
     found = find_range(lines, prefix)
     if found is None:
         print(f"  error: no arm64 loop range found for {prefix}")
         print("")
-        return
+        return False
     kind, start_off, end_off, nbytes = found
     start_abs, end_abs, snippet = collect_snippet(lines, base, start_off, end_off)
     total_insns, counts = collect_range_mnemonics(lines, base, start_off, end_off)
@@ -127,11 +128,15 @@ def emit_block(label, path, prefix):
         for line in snippet:
             print(f"    {line}")
     print("")
+    return True
 
 print("arm64 native hot-loop disasm summary")
 print("")
-emit_block("array_sum", os.environ["ARRAY_LOG"], "fast_list_int_get_sum_while")
-emit_block("dot_product", os.environ["DOT_LOG"], "fast_list_int_dot_while")
+ok = True
+ok = emit_block("array_sum", os.environ["ARRAY_LOG"], "fast_list_int_get_sum_while") and ok
+ok = emit_block("dot_product", os.environ["DOT_LOG"], "fast_list_int_dot_while") and ok
+if not ok:
+    sys.exit(1)
 PY
 
 echo "arm64 native hot-loop disasm probe complete; summary: $summary_log"
