@@ -1359,6 +1359,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      now emits instruction counts and a mnemonic histogram for the traced canonical
 					      `fast_list_int_get_sum_while*` / `fast_list_int_dot_while*` windows, so static
 					      loop-shape changes can be compared directly before another perf rerun.
+					    - Trace (arm64, 2026-04-05): an exact-path `madd` follow-up only replaced the
+					      single-pair cursor-reg `fast_list_int_dot_while*` multiply/add pairs. The traced
+					      canonical dot window did shrink from 70 to 63 instructions
+					      (`build/logs/perf-probe-arm64-native-hot-loop-disasm-20260404_235545_32513.log`)
+					      and the focused steady rerun improved to `dot_product` ~2.5627x C
+					      (`build/logs/perf-gate-native-steady-20260404_235745_37067.log`), but the exact
+					      native smoke still crashed at `dot_product 10 3`
+					      (`build/logs/perf-smoke-native-fast-loops-20260405_000124_44574.log`). Reverted;
+					      do not treat “same arithmetic with `madd`” as correctness-preserving on this
+					      path without a tighter audit.
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

@@ -1275,6 +1275,16 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `OREN_TRACE_ARM64_LOOP_RANGES=1` trace, and `make perf-probe-arm64-native-hot-loop-disasm`
      builds canonical `array_sum` / `dot_product` with `--disasm` and extracts the traced fast-loop
      windows into a compact artifact for machine-code review.
+   - Trace (2026-04-05): a narrower exact-path `madd` follow-up only touched the single-pair
+     cursor-reg `fast_list_int_dot_while*` body. The traced canonical dot window shrank from 70
+     instructions / `mul=7 add=13` to 63 instructions / `madd=7 add=13`
+     (`build/logs/perf-probe-arm64-native-hot-loop-disasm-20260404_235545_32513.log`), and the
+     focused steady rerun improved to `dot_product` ~2.5627x C
+     (`build/logs/perf-gate-native-steady-20260404_235745_37067.log`), but the exact benchmark
+     smoke still crashed at native `dot_product 10 3` before producing `6590`
+     (`build/logs/perf-smoke-native-fast-loops-20260405_000124_44574.log`). Reverted immediately;
+     future multiply-accumulate work needs a narrower audited correctness argument than “same math,
+     fewer instructions”.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

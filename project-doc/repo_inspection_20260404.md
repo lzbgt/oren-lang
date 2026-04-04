@@ -377,6 +377,14 @@ This repo is still not factually "all planned features implemented" or "producti
   `array_sum` and 70 for `dot_product` (with dot safepoint `stp/ldp` dropping from 10/10 to 4/4),
   while the kept reruns improved to steady `array_sum` / `dot_product` ~`2.4144x` / `2.7706x` C
   and canonical gate `array_sum` / `dot_product` ~`1.8926x` / `2.5264x` C.
+- I also tried a narrower exact-path multiply/accumulate follow-up after that keep: replace only
+  the single-pair cursor-reg `fast_list_int_dot_while*` `mul`+`add` pairs with verified `madd`
+  encodings. The traced canonical dot window shrank again, from 70 instructions to 63, and the
+  focused steady rerun improved to `dot_product` ~`2.5627x C`
+  (`build/logs/perf-gate-native-steady-20260404_235745_37067.log`), but the exact benchmark smoke
+  was still not safe: `build/logs/perf-smoke-native-fast-loops-20260405_000124_44574.log` died at
+  native `dot_product 10 3` before producing `6590`. I reverted it immediately. The April 5 fact
+  is that a nicer-looking disassembly is still not enough unless the exact benchmark smoke clears.
 - I tried one narrower follow-up on top of that keep: spill only the two exact cursor regs
   (`[x19,x26]`) at the single-pair dot inline safepoint instead of the kept two-pair set. That
   stayed correctness-clean in the smoke, but `build/logs/perf-gate-native-steady-20260404_233707_97722.log`
