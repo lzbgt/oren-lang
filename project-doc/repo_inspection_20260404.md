@@ -96,6 +96,18 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - this removes a lingering ambiguity in the perf tracker: if canonical `dot_product` remains slow,
     it is because the existing fast `list<int>` dot loop still needs work, not because the benchmark
     silently fell off the intended lowering path
+- Follow-up specialization-gap probe (2026-04-05):
+  - added `make perf-probe-list-int-specialization-gap` to compare the canonical generic-list
+    benchmarks (`array_sum`, `dot_product`) against the explicit `list.int_*` variants
+    (`array_sum_int`, `dot_product_int`) through the same steady runner and the same
+    `n/reps/runs/warmups`
+  - latest artifact: `build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log`
+    (`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`, `reps=10`)
+    - `array_sum`: generic `~2.3611× C`, specialized `~1.5082× C`, gap `~1.5655×`
+    - `dot_product`: generic `~3.1115× C`, specialized `~1.4488× C`, gap `~2.1476×`
+  - conclusion: the current canonical `dot_product` blocker is not just “the kept fast list<int>
+    dot loop is still too slow”. On this host, the generic-list benchmark shape is itself still
+    materially slower than the explicit `list.int_*` version under the same core-profile steady run.
 - Follow-up helper ceiling probe (2026-04-05):
   - closed the remaining helper-path tooling mismatch:
     - `build_perf_artifacts_list_int_packed_bridge.sh`

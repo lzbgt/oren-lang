@@ -341,6 +341,28 @@ compiler fast loop still beats the helper/bridge alternatives decisively, so fur
 should stay on the direct lowering / representation side instead of detouring back through packing
 or runtime helper boundaries.
 
+For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
+versus the explicit `list.int_*` path, use:
+
+```bash
+make perf-probe-list-int-specialization-gap
+```
+
+This runs the canonical generic-list benchmarks (`array_sum`, `dot_product`) and the explicit
+`list.int_*` benchmarks (`array_sum_int`, `dot_product_int`) through the same steady runner with the
+same `n/reps/runs/warmups`, then prints the generic-vs-specialized gap directly. The latest
+artifact, `build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log`, was run
+with `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`, `reps=10`
+and came back as:
+
+- `array_sum`: generic `~2.3611x C` vs specialized `~1.5082x C` (`generic_vs_specialized ~1.5655x`)
+- `dot_product`: generic `~3.1115x C` vs specialized `~1.4488x C` (`generic_vs_specialized ~2.1476x`)
+
+That is the current attribution fact: on this host, the canonical generic-list benchmarks are still
+materially slower than the explicit `list.int_*` versions even when both use the same steady-runner
+shape and core runtime profile. The remaining canonical `dot_product` blocker is therefore not just
+the kept fast-loop body itself.
+
 And a compile-time guard that proves the canonical `array_sum_int` / `dot_product_int`
 benchmark loops, the commuted-equivalent `sum = xs[i] + sum` /
 `sum = a[i] * b[i] + sum` forms, and the one-temp normalized
