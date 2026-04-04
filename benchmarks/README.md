@@ -350,18 +350,58 @@ make perf-probe-list-int-specialization-gap
 
 This runs the canonical generic-list benchmarks (`array_sum`, `dot_product`) and the explicit
 `list.int_*` benchmarks (`array_sum_int`, `dot_product_int`) through the same steady runner with the
-same `n/reps/runs/warmups`, then prints the generic-vs-specialized gap directly. The latest
-artifact, `build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log`, was run
-with `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`, `reps=10`
-and came back as:
+same `n/reps/runs/warmups`, then prints the generic-vs-specialized gap directly. The probe now
+passes the correct steady-runner knobs to each side: the generic side uses
+`OREN_BENCH_NATIVE_STEADY_{N,REPS}` and the specialized side uses
+`OREN_BENCH_LIST_INT_STEADY_{N,REPS}`. The earlier artifact
+`build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log` is superseded because
+it accidentally passed the `list<int>` knobs into the generic runner. The latest corrected artifact,
+`build/logs/perf-probe-list-int-specialization-gap-20260405_025957_59475.log`, was run with
+`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`, `reps=10` and came
+back as:
 
-- `array_sum`: generic `~2.3611x C` vs specialized `~1.5082x C` (`generic_vs_specialized ~1.5655x`)
-- `dot_product`: generic `~3.1115x C` vs specialized `~1.4488x C` (`generic_vs_specialized ~2.1476x`)
+- `array_sum`: generic `~1.3419x C` vs specialized `~1.4064x C` (`generic_vs_specialized ~0.9541x`)
+- `dot_product`: generic `~1.5169x C` vs specialized `~1.4803x C` (`generic_vs_specialized ~1.0247x`)
 
-That is the current attribution fact: on this host, the canonical generic-list benchmarks are still
-materially slower than the explicit `list.int_*` versions even when both use the same steady-runner
-shape and core runtime profile. The remaining canonical `dot_product` blocker is therefore not just
-the kept fast-loop body itself.
+That is the current steady-state attribution fact: once the workloads are aligned correctly, the
+canonical generic-list benchmarks are already near parity with the explicit `list.int_*` variants on
+this host. The earlier large gap was a probe bug, not a compiler/runtime fact.
+
+For the same comparison with fill/setup and repeated-loop costs separated, use:
+
+```bash
+make perf-probe-list-int-specialization-read-split
+```
+
+The latest artifact, `build/logs/perf-probe-list-int-specialization-read-split-20260405_030027_60451.log`,
+shows that the reliable long-per-rep view is also near parity under the same
+`build_env: OREN_NATIVE_RUNTIME_PROFILE=core` profile:
+
+- `array_sum`: generic `~1.5652x C`, specialized `~1.4639x C` (`generic_vs_specialized_long_per_rep ~1.0692x`)
+- `dot_product`: generic `~1.5241x C`, specialized `~1.5157x C` (`generic_vs_specialized_long_per_rep ~1.0055x`)
+
+That artifact also reports the short-vs-long delta estimate, but on this host the specialized
+`list<int>` short runs are dominated by setup noise and print the same warning as the underlying
+read-split gate: prefer `long_per_rep` over `delta` for tracker updates.
+
+And to confirm that the generic benchmarks still compile through the intended `list<int>` rewrite
+path instead of silently falling back to boxed-list behavior, use:
+
+```bash
+make perf-probe-list-int-specialization-trace
+```
+
+The latest trace artifact, `build/logs/perf-probe-list-int-specialization-trace-20260405_025957_59477.log`,
+shows:
+
+- generic `array_sum`: `list_int rewrite init name=xs`
+- generic `dot_product`: `list_int rewrite init name=a` and `name=b`
+- explicit `array_sum_int` / `dot_product_int`: start as `oren_new_list_int` candidates and therefore
+  do not need rewrite-init events
+
+So the current canonical `dot_product` blocker should no longer be framed as “generic-list
+specialization is missing.” The remaining gap is back in the steady-state hot path and the C-side
+NEON/vector advantage, not in a silent boxed-list fallback.
 
 And a compile-time guard that proves the canonical `array_sum_int` / `dot_product_int`
 benchmark loops, the commuted-equivalent `sum = xs[i] + sum` /

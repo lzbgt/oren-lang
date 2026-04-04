@@ -38,7 +38,7 @@ if [[ "$smoke" == "1" ]]; then
     ./scripts/run_perf_smoke_list_int.sh >"$list_int_smoke_log" 2>&1
 fi
 
-generic_summary="$(run_one "$generic_log" env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 OREN_BENCH_PROGRAMS="$generic_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_LIST_INT_STEADY_N="$n" OREN_BENCH_LIST_INT_STEADY_REPS="$reps" make perf-gate-native-steady)"
+generic_summary="$(run_one "$generic_log" env OREN_PERF_SMOKE_NATIVE_FAST_LOOPS=0 OREN_BENCH_PROGRAMS="$generic_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_NATIVE_STEADY_N="$n" OREN_BENCH_NATIVE_STEADY_REPS="$reps" make perf-gate-native-steady)"
 specialized_summary="$(run_one "$specialized_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_PROGRAMS="$specialized_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_LIST_INT_STEADY_N="$n" OREN_BENCH_LIST_INT_STEADY_REPS="$reps" make perf-gate-list-int-steady)"
 
 GENERIC_SUMMARY="$generic_summary" \

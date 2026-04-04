@@ -111,19 +111,39 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      same optional `n` + `reps` CLI args as `loop_sum` / the `list<int>` benches, and
      `make perf-gate-native-read-split` measures the same workload across C/native instead of a
      fixed-shape C baseline against a repeated native loop.
-   - Specialization-gap probe (2026-04-05): `make perf-probe-list-int-specialization-gap` now runs
-     the canonical generic-list benchmarks (`array_sum`, `dot_product`) and the explicit
-     `list.int_*` benchmarks (`array_sum_int`, `dot_product_int`) through the same steady runner,
-     with the same `n/reps/runs/warmups`, and records the generic-vs-specialized gap directly.
-     Latest artifact (`build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log`,
+   - Fix + rerun (2026-04-05): `make perf-probe-list-int-specialization-gap` now passes the correct
+     steady-runner knobs to each side (`OREN_BENCH_NATIVE_STEADY_*` for generic,
+     `OREN_BENCH_LIST_INT_STEADY_*` for specialized). The earlier artifact
+     `build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log` overstated the
+     gap because it accidentally sent the `list<int>` knobs to the generic runner too.
+     Corrected artifact (`build/logs/perf-probe-list-int-specialization-gap-20260405_025957_59475.log`,
      `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`, `reps=10`)
-     came back as:
-     - `array_sum`: generic `~2.3611× C`, specialized `~1.5082× C`, gap `~1.5655×`
-     - `dot_product`: generic `~3.1115× C`, specialized `~1.4488× C`, gap `~2.1476×`
-     This materially changes the attribution of the remaining canonical blocker: the kept
-     specialized `list<int>` fast loop is already much closer to C than the generic benchmark shape,
-     so future work should not treat all of canonical `dot_product`'s remaining gap as loop-body
-     debt alone.
+     now comes back as:
+     - `array_sum`: generic `~1.3419× C`, specialized `~1.4064× C`, gap `~0.9541×`
+     - `dot_product`: generic `~1.5169× C`, specialized `~1.4803× C`, gap `~1.0247×`
+   - New specialization read-split probe (2026-04-05): `make perf-probe-list-int-specialization-read-split`
+     compares the same generic/specialized pairs through `perf-gate-native-read-split` and
+     `perf-gate-list-int-read-split` with aligned `n/short_reps/long_reps`. Latest artifact
+     (`build/logs/perf-probe-list-int-specialization-read-split-20260405_030027_60451.log`,
+     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`,
+     `short_reps=1`, `long_reps=10`) shows the reliable `long_per_rep` view is still near parity:
+     - `array_sum`: generic `~1.5652× C`, specialized `~1.4639× C`, gap `~1.0692×`
+     - `dot_product`: generic `~1.5241× C`, specialized `~1.5157× C`, gap `~1.0055×`
+     The same artifact reports delta estimates too, but the specialized side prints large
+     delta-vs-long drift warnings, so `long_per_rep` is the tracker-worthy measure here.
+   - New specialization trace probe (2026-04-05): `make perf-probe-list-int-specialization-trace`
+     builds the generic and explicit `list.int_*` benchmarks with
+     `OREN_TRACE_LIST_INT=1 OREN_TRACE_LIST_RESERVE=1` and confirms the canonical generic sources
+     still rewrite into the intended `list<int>` path. Latest artifact
+     (`build/logs/perf-probe-list-int-specialization-trace-20260405_025957_59477.log`) shows:
+     - generic `array_sum`: `list_int rewrite init name=xs`
+     - generic `dot_product`: `list_int rewrite init name=a` and `name=b`
+     - explicit `array_sum_int` / `dot_product_int`: already start as `oren_new_list_int`
+       candidates, so they do not need rewrite-init events
+   - Reweight: the current canonical `dot_product` blocker is no longer “generic-list
+     specialization is missing.” After the corrected probe and trace, the remaining gap is back in
+     the steady-state hot path and the C-side vectorized baseline, not in a silent boxed-list
+     fallback for the generic benchmarks.
    - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved

@@ -1037,18 +1037,31 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		   - Reweight: loop_sum is now within the <=2× gate on arm64; the remaining canonical gap is still
 		     centered on `dot_product`, but the new attribution is narrower than “the kept list<int> fast loop
 		     body is the whole problem”.
-		   - Specialization-gap probe (2026-04-05): `make perf-probe-list-int-specialization-gap` now runs
-		     canonical generic-list (`array_sum`, `dot_product`) and explicit `list.int_*`
-		     (`array_sum_int`, `dot_product_int`) benchmarks through the same steady runner and reports the
-		     generic-vs-specialized gap directly. Latest artifact
-		     (`build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log`,
-		     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`, `reps=10`)
-		     measured:
-		     - `array_sum`: generic `~2.3611× C` vs specialized `~1.5082× C` (`~1.5655×` gap)
-		     - `dot_product`: generic `~3.1115× C` vs specialized `~1.4488× C` (`~2.1476×` gap)
-		     Reweight accordingly: the current canonical `dot_product` blocker is not explained by the kept
-		     direct-slot fast loop body alone; generic-list construction/specialization effects are still a
-		     major part of the remaining gap.
+		   - Fix + rerun (2026-04-05): `make perf-probe-list-int-specialization-gap` now sends the right
+		     steady-runner knobs to each side (`OREN_BENCH_NATIVE_STEADY_*` for generic,
+		     `OREN_BENCH_LIST_INT_STEADY_*` for specialized). The earlier artifact
+		     `build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log` is superseded:
+		     it overstated the gap because the generic side accidentally ignored the intended `n/reps`.
+		     Corrected artifact (`build/logs/perf-probe-list-int-specialization-gap-20260405_025957_59475.log`,
+		     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`,
+		     `reps=10`) measured:
+		     - `array_sum`: generic `~1.3419× C` vs specialized `~1.4064× C` (`~0.9541×` gap)
+		     - `dot_product`: generic `~1.5169× C` vs specialized `~1.4803× C` (`~1.0247×` gap)
+		   - New specialization read-split probe (2026-04-05): `make perf-probe-list-int-specialization-read-split`
+		     now separates setup-heavy short runs from repeated-loop long runs across the same
+		     generic/specialized benchmark pairs. Latest artifact
+		     (`build/logs/perf-probe-list-int-specialization-read-split-20260405_030027_60451.log`)
+		     shows the reliable `long_per_rep` view stays near parity:
+		     - `array_sum`: generic `~1.5652× C`, specialized `~1.4639× C` (`~1.0692×` gap)
+		     - `dot_product`: generic `~1.5241× C`, specialized `~1.5157× C` (`~1.0055×` gap)
+		     The delta estimate is too noisy to drive tracker updates here; use the long-per-rep view.
+		   - New specialization trace probe (2026-04-05): `make perf-probe-list-int-specialization-trace`
+		     confirms the generic benchmark sources already rewrite into the intended `list<int>` shape
+		     (`xs`, `a`, and `b` all show `list_int rewrite init` events), while the explicit
+		     `list.int_*` sources start as `oren_new_list_int` candidates and therefore need no rewrite.
+		   - Reweight accordingly: generic-list specialization is not the dominant remaining blocker for
+		     canonical `dot_product`; the next work should go back to steady-state hot-path/codegen costs
+		     relative to the host C/NEON baseline.
 	   - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
 	     list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
 	     `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the

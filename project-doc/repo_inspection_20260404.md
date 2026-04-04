@@ -96,18 +96,26 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - this removes a lingering ambiguity in the perf tracker: if canonical `dot_product` remains slow,
     it is because the existing fast `list<int>` dot loop still needs work, not because the benchmark
     silently fell off the intended lowering path
-- Follow-up specialization-gap probe (2026-04-05):
-  - added `make perf-probe-list-int-specialization-gap` to compare the canonical generic-list
-    benchmarks (`array_sum`, `dot_product`) against the explicit `list.int_*` variants
-    (`array_sum_int`, `dot_product_int`) through the same steady runner and the same
-    `n/reps/runs/warmups`
-  - latest artifact: `build/logs/perf-probe-list-int-specialization-gap-20260405_025217_48504.log`
+- Specialization-gap probe correction + follow-ups (2026-04-05):
+  - fixed `make perf-probe-list-int-specialization-gap` so the generic side uses
+    `OREN_BENCH_NATIVE_STEADY_*` instead of mistakenly reusing the `list<int>` steady vars
+  - corrected steady artifact: `build/logs/perf-probe-list-int-specialization-gap-20260405_025957_59475.log`
     (`build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=3`, `warmups=1`, `n=200000`, `reps=10`)
-    - `array_sum`: generic `~2.3611× C`, specialized `~1.5082× C`, gap `~1.5655×`
-    - `dot_product`: generic `~3.1115× C`, specialized `~1.4488× C`, gap `~2.1476×`
-  - conclusion: the current canonical `dot_product` blocker is not just “the kept fast list<int>
-    dot loop is still too slow”. On this host, the generic-list benchmark shape is itself still
-    materially slower than the explicit `list.int_*` version under the same core-profile steady run.
+    - `array_sum`: generic `~1.3419× C`, specialized `~1.4064× C`, gap `~0.9541×`
+    - `dot_product`: generic `~1.5169× C`, specialized `~1.4803× C`, gap `~1.0247×`
+  - new read-split artifact: `build/logs/perf-probe-list-int-specialization-read-split-20260405_030027_60451.log`
+    - reliable `long_per_rep` view stays near parity:
+      - `array_sum`: generic `~1.5652× C`, specialized `~1.4639× C`, gap `~1.0692×`
+      - `dot_product`: generic `~1.5241× C`, specialized `~1.5157× C`, gap `~1.0055×`
+    - the delta estimate is noisy on the specialized side and already warns to prefer `long_per_rep`
+  - new trace artifact: `build/logs/perf-probe-list-int-specialization-trace-20260405_025957_59477.log`
+    - generic `array_sum`: `list_int rewrite init name=xs`
+    - generic `dot_product`: `list_int rewrite init name=a` and `name=b`
+    - explicit `array_sum_int` / `dot_product_int`: already begin as `oren_new_list_int` candidates
+  - conclusion: the old “generic benchmark shape is the main blocker” attribution was a probe bug.
+    The generic sources are already being rewritten into the intended `list<int>` form, and the
+    aligned steady/read-split probes put generic and explicit `list.int_*` near parity. The next
+    work should move back to the steady-state hot path versus the C/NEON baseline.
 - Follow-up helper ceiling probe (2026-04-05):
   - closed the remaining helper-path tooling mismatch:
     - `build_perf_artifacts_list_int_packed_bridge.sh`
