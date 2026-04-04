@@ -305,6 +305,18 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - `dot_product`: median ~2.5153x C, range ~2.3889x..~2.6432x, warnings 0/3
   - conclusion: on this host the canonical gate is stable enough to confirm the blocker itself;
     arm64 `dot_product` remains clearly above the `<=2x C` target even when the gate stops warning
+  - follow-up arm64 emitter experiment (2026-04-04): replaced the single-pair unrolled cursor-reg
+    body with post-index pair loads (`ldp ..., [cursor], #16`) so the hot path could fuse adjacent
+    loads with cursor bumps
+    - serial reruns after reverting the parallel build race:
+      - `build/logs/perf-gate-native-steady-20260404_222957_76222.log`
+        - `array_sum` ~2.3254x C
+        - `dot_product` ~3.1510x C
+      - `build/logs/perf-gate-native-20260404_223004_76548.summary.log`
+        - `array_sum` ~2.1785x C
+        - `dot_product` ~2.6135x C
+    - conclusion: this pair-load/cursor-fusion idea regressed the current host versus the last kept
+      baseline, so it was reverted and should not be treated as the next likely win
 
 ## Production-level reality after this pass
 

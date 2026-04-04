@@ -1144,6 +1144,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - First steady rerun (arm64, `reps=100`): `array_sum` ~2.40x C, `dot_product` ~3.10x C.
      - Tracker implication: use the new steady runner, not the split long-per-rep estimate, when
        deciding whether canonical hot-loop work is landing.
+   - Trace (2026-04-04): a follow-up arm64 single-pair unrolled-dot experiment swapped the hot
+     scalar loads plus cursor adds for post-index pair loads (`ldp ..., [cursor], #16`). Serial
+     reruns came back worse, not better: steady `array_sum` ~2.33x C / `dot_product` ~3.15x C and
+     canonical gate `array_sum` ~2.18x C / `dot_product` ~2.61x C, so the pair-load fusion was
+     reverted and is not the current high-probability path to the <=2x target.
    - New canonical steady tick-mask probe (2026-04-04):
      - `make perf-probe-arm64-fast-loop-tick-masks-steady` reruns the arm64 `16383` / `65535`
        safepoint-mask sweep on top of `make perf-gate-native-steady`, so it measures the true
