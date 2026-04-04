@@ -434,6 +434,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     This is the corrected attribution: the repeated `[]i32` SIMD kernel is only modestly behind
 		     packed-i32 C, while the large observed wall-time gap is dominated by fixed setup / runtime
 		     boundary cost on the typed-buffer path.
+		   - Setup-breakdown follow-up (2026-04-05): new
+		     `make perf-probe-list-int-i32-buf-setup-breakdown` adds a hidden
+		     `benchmarks/fill_i32_buf/fill_i32_buf.{oren,c}` pair and compares fill-only setup against the
+		     guarded SIMD reuse surface. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-setup-breakdown-20260405_042115_69806.log`,
+		     `runs=3 warmups=0 n=200000 short_reps=1 long_reps=1000`) shows:
+		     - fill-only C: `~0.002515s`
+		     - fill-only Oren `[]i32`: `~0.372046s`
+		     - packed-i32 C vector setup: `~0.002991s`
+		     - Oren `dot_product_i32_buf` SIMD setup: `~0.375121s`
+		     - Oren fill share of Oren SIMD setup: `~99.18%`
+		     - Oren residual setup beyond fill: `~0.003075s`
+		     That is the current narrow fact: nearly all remaining fixed cost on the typed-buffer path is
+		     the `buffer.i32_new` + checked `oren_buf_store_i32(...)` fill phase itself, not a large hidden
+		     post-fill runtime-call boundary.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

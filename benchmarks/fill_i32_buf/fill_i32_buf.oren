@@ -1,0 +1,44 @@
+import buffer "std:buffer"
+
+fn _parse_u64(s) {
+    if s == nil { return 0 }
+    var bs = oren_bytes_from_string(s)
+    if bs == nil || oren_list_len(bs) == 0 { return 0 }
+    var i = 0
+    var out = 0
+    while i < oren_list_len(bs) {
+        var c = bs[i]
+        if c < 48 || c > 57 { return 0 }
+        out = out * 10 + (c - 48)
+        i = i + 1
+    }
+    return out
+}
+
+fn main() {
+    var args = oren_args()
+    var n = 2000000
+    if oren_list_len(args) >= 2 {
+        var v = oren_trunc_int(_parse_u64(args[1]))
+        if v >= 0 { n = v }
+    }
+
+    var a: []i32 = buffer.i32_new(n)
+    var b: []i32 = buffer.i32_new(n)
+    var i = 0
+    while i < n {
+        oren_buf_store_i32(a, i, (i * 3 + 1) % 1000)
+        oren_buf_store_i32(b, i, (i * 7 + 2) % 1000)
+        i = i + 1
+    }
+
+    if n == 0 {
+        print(0)
+        return 0
+    }
+
+    var last = n - 1
+    var checksum = oren_buf_load_i32(a, 0) + oren_buf_load_i32(b, 0) + oren_buf_load_i32(a, last) + oren_buf_load_i32(b, last)
+    print(checksum)
+    return 0
+}

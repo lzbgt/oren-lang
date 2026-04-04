@@ -511,6 +511,34 @@ That is the corrected interpretation: the repeated `[]i32` SIMD dot kernel is mu
 packed-i32 C than the old setup-mixed probe implied, but the typed-buffer path still pays a very
 large fixed setup cost before the repeated kernel even starts.
 
+To break that fixed setup cost into `alloc+fill` versus everything else, use:
+
+```bash
+make perf-probe-list-int-i32-buf-setup-breakdown
+```
+
+This adds a hidden [fill_i32_buf.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_i32_buf/fill_i32_buf.oren)
+benchmark and matching C twin, then compares:
+
+- fill-only C (`malloc` + fill)
+- fill-only Oren `[]i32` (`buffer.i32_new` + `oren_buf_store_i32`)
+- the existing guarded packed-i32 C vector dot setup from the reuse probe
+- the existing guarded Oren `dot_product_i32_buf` SIMD setup from the reuse probe
+
+The latest artifact, `build/logs/perf-probe-list-int-i32-buf-setup-breakdown-20260405_042115_69806.log`,
+was run with `runs=3`, `warmups=0`, `n=200000`, `short_reps=1`, `long_reps=1000` and came back as:
+
+- fill-only C: `~0.002515s`
+- fill-only Oren `[]i32`: `~0.372046s`
+- packed-i32 C vector setup: `~0.002991s`
+- Oren `dot_product_i32_buf` SIMD setup: `~0.375121s`
+- Oren fill share of Oren SIMD setup: `~99.18%`
+- Oren residual setup beyond fill: `~0.003075s`
+
+That closes the next attribution layer too: the large fixed cost on the typed-buffer path is now
+overwhelmingly the `buffer.i32_new` + checked per-element fill loop itself, not the repeated SIMD
+dot kernel and not a large hidden post-fill runtime-call boundary.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

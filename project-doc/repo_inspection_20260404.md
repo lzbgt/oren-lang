@@ -202,6 +202,22 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - corrected conclusion: the repeated SIMD kernel is much closer to packed-i32 C than the previous
     full-process ceiling implied; the dominant remaining cost is fixed typed-buffer setup / runtime
     boundary overhead, not a SIMD dot core that is still ~14x behind
+- Typed-buffer setup breakdown follow-up (2026-04-05):
+  - added hidden fill-only benchmark pair:
+    - `benchmarks/fill_i32_buf/fill_i32_buf.oren`
+    - `benchmarks/fill_i32_buf/fill_i32_buf.c`
+  - added `make perf-probe-list-int-i32-buf-setup-breakdown`
+  - latest artifact: `build/logs/perf-probe-list-int-i32-buf-setup-breakdown-20260405_042115_69806.log`
+    (`runs=3 warmups=0 n=200000 short_reps=1 long_reps=1000`)
+    - fill-only C: ~0.002515s
+    - fill-only Oren `[]i32`: ~0.372046s
+    - packed-i32 C vector setup: ~0.002991s
+    - Oren `dot_product_i32_buf` SIMD setup: ~0.375121s
+    - Oren fill share of Oren SIMD setup: ~99.18%
+    - Oren residual setup beyond fill: ~0.003075s
+  - corrected conclusion: the fixed typed-buffer wall-time gap is now almost entirely the
+    allocation + checked per-element fill phase. The repeated SIMD kernel is not the main blocker,
+    and neither is a large hidden post-fill runtime-call boundary.
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

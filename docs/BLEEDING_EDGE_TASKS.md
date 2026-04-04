@@ -1288,6 +1288,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     Reweight again: the repeated SIMD kernel is no longer the main unexplained gap. The remaining
 		     typed-buffer problem is now dominated by fixed setup/runtime-boundary cost, not a SIMD core
 		     that is still an order of magnitude behind packed C.
+		   - Setup-breakdown follow-up (2026-04-05): `make perf-probe-list-int-i32-buf-setup-breakdown`
+		     adds a hidden fill-only `[]i32` benchmark pair and compares that setup directly against the
+		     guarded SIMD reuse setup. Latest artifact
+		     (`build/logs/perf-probe-list-int-i32-buf-setup-breakdown-20260405_042115_69806.log`,
+		     `runs=3 warmups=0 n=200000 short_reps=1 long_reps=1000`) shows:
+		     - fill-only C: `~0.002515s`
+		     - fill-only Oren `[]i32`: `~0.372046s`
+		     - packed-i32 C vector setup: `~0.002991s`
+		     - Oren `dot_product_i32_buf` SIMD setup: `~0.375121s`
+		     - Oren fill share of Oren SIMD setup: `~99.18%`
+		     That closes another ambiguity: the fixed typed-buffer cost is now almost entirely the
+		     alloc+fill path itself. The next viable work is to attack checked `oren_buf_store_i32(...)`
+		     setup or expose a bulk/unchecked fill surface, not to keep tuning the SIMD dot core.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
