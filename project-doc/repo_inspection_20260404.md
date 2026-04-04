@@ -444,6 +444,14 @@ This repo is still not factually "all planned features implemented" or "producti
   `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
   `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
   `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
+- To make that mixed cursor-end verdict easier to reason about, there is now also
+  `make perf-probe-arm64-fast-dot-cursor-end-snippet`. It reuses the traced hot-loop disasm probe
+  for the shipped baseline and for `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, then emits
+  just the compact dot-path setup/control/body/exit blocks. The current rerun shows the enabled
+  shape clearly: it adds a four-instruction `sub/mul/add/sub` setup before the loop, replaces the
+  old index-based loop-top control block with cursor/end comparisons, and removes the `add x20`
+  index bumps from the quad/double/single bodies
+  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
 - To make the next code change cheaper to audit, there is now also
   `make perf-probe-arm64-fast-dot-double-exit-snippet`, which rebuilds the baseline and
   exact-double variants with traced `--disasm` and extracts only the 2-wide hot block from the

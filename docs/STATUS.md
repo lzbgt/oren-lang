@@ -1371,6 +1371,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
      `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
      `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
+     There is now also a dedicated cursor-end snippet probe,
+     `make perf-probe-arm64-fast-dot-cursor-end-snippet`, so the next dot-path iteration can diff
+     the compact enabled loop window instead of hand-scanning full disassembly logs. The latest rerun
+     confirms the exact structural tradeoff: the enabled variant adds a four-instruction
+     `sub/mul/add/sub` setup before the loop, simplifies the loop-top control block, and removes the
+     `add x20, #0x4/#0x2/#0x1` index bumps from the quad/double/single bodies
+     (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
    - Disasm extraction follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-double-exit-snippet`
      now rebuilds the baseline and exact-double variants with traced `--disasm` and extracts the
      compact 2-wide block from the canonical `fast_list_int_dot_while_no_tick` window into one

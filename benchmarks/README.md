@@ -493,6 +493,15 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   canonical gate from `~2.6657x` to `~2.5338x` C, but it regressed the steady runner from
   `~2.9768x` to `~3.0524x` C
   (`build/logs/perf-probe-arm64-fast-dot-cursor-end-bounds-20260405_015542_66706.log`).
+- For the compact cursor-end disasm delta itself, use
+  `make perf-probe-arm64-fast-dot-cursor-end-snippet`. It reruns the traced hot-loop disasm probe
+  for the shipped baseline and for `OREN_ARM64_FAST_LIST_INT_DOT_CURSOR_END_BOUNDS=1`, then emits a
+  compact artifact with the dot-path setup block, loop-top control block, quad/double/single bodies,
+  and exit tail. The latest rerun confirms the exact structural tradeoff in one place: the enabled
+  variant adds a four-instruction setup (`sub/mul/add/sub`) before the loop, simplifies the loop-top
+  control head from index-based `cmp/add/cmp/add/cmp` to cursor/end-based `cmp/cmp/add/cmp`, and
+  removes the `add x20, #0x4/#0x2/#0x1` index bumps from the hot bodies
+  (`build/logs/perf-probe-arm64-fast-dot-cursor-end-snippet-20260405_020854_84676.log`).
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.
