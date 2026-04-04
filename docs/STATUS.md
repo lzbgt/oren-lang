@@ -1347,6 +1347,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log`,
      `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`). That narrows
      the April 5 exact-path `139` to the 2-wide body instead of the quad or scalar substitutions.
+   - Tail-shape sweep (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` now
+     builds the exact-double-only benchmark once and sweeps `n=1..24` at fixed `reps`. The failure
+     pattern is narrower again than “double body always unsafe”: in the sampled range the binary
+     fails only for `n ≡ 2 (mod 4)` (`10, 14, 18, 22`) and stays green for the neighboring
+     `n ≡ 3 (mod 4)` cases (`11, 15, 19, 23`)
+     (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
+     That points the remaining wrong-code hazard at the direct fast-loop exit after a terminal
+     2-wide exact-`madd` chunk, not at every execution of the 2-wide body.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

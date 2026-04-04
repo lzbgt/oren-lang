@@ -1428,6 +1428,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      `dot_product 10 3`
 						      (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log`,
 						      `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`).
+						    - Tail-shape sweep (arm64, 2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-double-sweep`
+						      now builds the exact-double-only benchmark once and sweeps `n=1..24` at fixed
+						      `reps`. The sampled failures are only the `n ≡ 2 (mod 4)` tail cases
+						      (`10, 14, 18, 22`) while the neighboring `n ≡ 3 (mod 4)` cases stay green
+						      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
+						      That narrows the remaining exact-double wrong-code hazard to the direct fast-loop
+						      exit after a terminal 2-wide chunk.
 				    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across

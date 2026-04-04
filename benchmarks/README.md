@@ -466,6 +466,13 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   exact-path branch to the 2-wide `double` leg: `quad` and `scalar` stay correctness-clean but do
   not beat the shipped baseline on the acceptance metrics, while `double` still dies in the
   canonical native smoke before `dot_product 10 3` finishes.
+- For the arm64 exact-double tail-shape sweep, use
+  `make perf-probe-arm64-fast-dot-madd-exact-double-sweep`. It builds the exact-double-only native
+  `dot_product` benchmark once and then sweeps `n=1..N` (default `24`) at a fixed `reps` (default
+  `1`). The current host shows a sharper failure shape than “double leg always bad”:
+  the exact-double binary fails for `n ≡ 2 (mod 4)` in the sampled range (`10, 14, 18, 22`) and
+  stays green for the neighboring `n ≡ 3 (mod 4)` cases. That points the bug at the direct
+  fast-loop exit after a terminal 2-wide chunk, not at every use of the double leg.
 - The arm64 dot probe scripts now print a warning when the canonical one-program gate has high
   variance (`cov >= 0.10`) on either the C or native side, so obvious noisy outliers stop reading
   like trustworthy wins.

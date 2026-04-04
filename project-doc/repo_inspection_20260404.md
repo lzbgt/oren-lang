@@ -417,6 +417,14 @@ This repo is still not factually "all planned features implemented" or "producti
   `double` still failed immediately in the canonical smoke at native `dot_product 10 3`
   (`build/logs/perf-smoke-native-fast-loops-20260405_011118_99628.log` and
   `build/logs/perf-probe-arm64-dot-acceptance-20260405_011118_99609.summary.log`).
+- Another follow-up probe on April 5 tightened that again: the new
+  `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` runner builds the exact-double-only
+  native benchmark once and sweeps `n=1..24`. On the current host the failures are not “any use of
+  the double leg”; they are specifically the `n ≡ 2 (mod 4)` tail cases (`10, 14, 18, 22`) while
+  the neighboring `n ≡ 3 (mod 4)` cases stay green
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_012036_13919.log`).
+  That points the remaining hazard at the direct fast-loop exit after a terminal 2-wide exact-`madd`
+  chunk.
 - That rerun also exposed a smoke-tooling hole: the canonical and `list<int>` native smoke scripts
   were rebuilding benchmark binaries without `--no-cache`, so compiler-env experiments could pass
   against a stale cached baseline artifact while the exact no-cache debug repro crashed. Those two
