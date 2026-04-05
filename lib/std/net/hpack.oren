@@ -374,7 +374,7 @@ fn _huff_decode_bytes(ptr0, off, slen) {
     // - {"ok":1,"b":u8_buf}
     // - {"ok":0,"err":string}
     _huff_init()
-    if slen <= 0 { return {"ok": 1, "b": oren_u8_buf_new(0)} }
+    if slen <= 0 { return {"ok": 1, "b": oren_u8_buf_new_uninit(0)} }
 
     var out = [] // list<u8>
     var node = 0
@@ -420,7 +420,7 @@ fn _huff_decode_bytes(ptr0, off, slen) {
         if _HUFF_EOS_PREFIX_NODE[bits_since_leaf] != node { return {"ok": 0, "err": "hpack.huffman: invalid padding"} }
     }
 
-    var b2 = oren_u8_buf_new(oren_list_len(out))
+    var b2 = oren_u8_buf_new_uninit(oren_list_len(out))
     if oren_is_err(b2) { return {"ok": 0, "err": "hpack.huffman: alloc failed"} }
     var dst = native_buf_data_ptr(b2)
     if dst == 0 && oren_list_len(out) > 0 { return {"ok": 0, "err": "hpack.huffman: bytes ptr nil"} }

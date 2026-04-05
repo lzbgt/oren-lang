@@ -1366,6 +1366,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     overwrites every slot before any successful return. Reweight again: stop spending turns on
 		     obvious zero-fill cleanup inside the already-covered fresh numeric/linalg family and move to a
 		     newly measured bottleneck or another surface with equally strong overwrite proof.
+		   - Shared byte-serializer cleanup (2026-04-05): finish the same proof-backed rewrite on the
+		     remaining obvious fresh-`[]u8` serializers in shared stdlib code. `http2.settings_payload_from_list`,
+		     `http2_client._u8_concat2`, `http2_client._read_frame`, `http2_client._send_headers_fragmented`,
+		     `hpack._huff_decode_bytes` output materialization, and `ppm.encode_rgba` now allocate through
+		     `oren_u8_buf_new_uninit(...)` because their local loops or syscall fill paths deterministically
+		     write every byte before any successful return. Reweight again: stop spending turns on obvious
+		     fresh-byte overwrite cleanups in already-covered serializer families and move to either a
+		     measured bottleneck or a new family with the same overwrite proof.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

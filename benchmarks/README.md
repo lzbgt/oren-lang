@@ -640,6 +640,20 @@ Their internal fully-overwritten scratch and pack/transpose buffers (`bp`, `bt`,
 perf claim; the fact-backed point is that the earlier overwrite-proof fast path is now applied
 consistently to the adjacent linalg fresh-output family instead of stopping at conversion helpers.
 
+That same proof now covers a few remaining shared byte serialization helpers that also allocated a
+fresh `[]u8` and then deterministically filled every byte before any successful return:
+
+- `http2.settings_payload_from_list`
+- `http2_client._u8_concat2`
+- `http2_client._read_frame`
+- `http2_client._send_headers_fragmented`
+- `hpack._huff_decode_bytes` final output buffer
+- `ppm.encode_rgba`
+
+This is again a scope/safety cleanup rather than a new kept performance claim. The adjacent runtime
+coverage now includes a focused module assertion for the HTTP/2 SETTINGS payload encoder/decoder, so
+the new allocation path is exercised by more than compile-only fixtures.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

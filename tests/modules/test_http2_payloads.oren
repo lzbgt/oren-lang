@@ -1,0 +1,39 @@
+import h2 "../../lib/std/net/http2.oren"
+
+fn fail(code, msg) {
+    print("module http2_payloads FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_eq(a, b, code, msg) {
+    if a == b { return 0 }
+    fail(code, msg)
+}
+
+var payload = h2.settings_payload_from_list([
+    [1, 4096],
+    [2, 0],
+])
+
+if oren_is_err(payload) { fail(10, "settings_payload_from_list returned err") }
+assert_eq(oren_buf_len(payload), 12, 11, "payload len")
+assert_eq(oren_buf_load_u8(payload, 0), 0, 12, "id0 hi")
+assert_eq(oren_buf_load_u8(payload, 1), 1, 13, "id0 lo")
+assert_eq(oren_buf_load_u8(payload, 2), 0, 14, "val0 b0")
+assert_eq(oren_buf_load_u8(payload, 3), 0, 15, "val0 b1")
+assert_eq(oren_buf_load_u8(payload, 4), 16, 16, "val0 b2")
+assert_eq(oren_buf_load_u8(payload, 5), 0, 17, "val0 b3")
+assert_eq(oren_buf_load_u8(payload, 6), 0, 18, "id1 hi")
+assert_eq(oren_buf_load_u8(payload, 7), 2, 19, "id1 lo")
+assert_eq(oren_buf_load_u8(payload, 8), 0, 20, "val1 b0")
+assert_eq(oren_buf_load_u8(payload, 9), 0, 21, "val1 b1")
+assert_eq(oren_buf_load_u8(payload, 10), 0, 22, "val1 b2")
+assert_eq(oren_buf_load_u8(payload, 11), 0, 23, "val1 b3")
+
+var parsed = h2.parse_settings_payload(payload)
+assert_eq(parsed["ok"], 1, 24, "parse_settings_payload ok")
+assert_eq(oren_map_get_int(parsed["settings"], 1), 4096, 25, "setting 1")
+assert_eq(oren_map_get_int(parsed["settings"], 2), 0, 26, "setting 2")
+
+print("module http2_payloads OK")
+exit(0)

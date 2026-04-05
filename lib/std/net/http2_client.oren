@@ -73,12 +73,12 @@ fn _write_all_bytes(conn, b, timeout_ms) {
 }
 
 fn _u8_concat2(a, b) {
-    if a == nil { a = oren_u8_buf_new(0) }
-    if b == nil { b = oren_u8_buf_new(0) }
+    if a == nil { a = oren_u8_buf_new_uninit(0) }
+    if b == nil { b = oren_u8_buf_new_uninit(0) }
     var na = oren_buf_len(a)
     var nb = oren_buf_len(b)
     if oren_is_err(na) || oren_is_err(nb) { return oren_err(4, "http2_client: concat: bad buf") }
-    var out = oren_u8_buf_new(na + nb)
+    var out = oren_u8_buf_new_uninit(na + nb)
     if oren_is_err(out) { return out }
     var p = native_buf_data_ptr(out)
     if p == 0 && (na + nb) > 0 { return oren_err(4, "http2_client: concat: nil ptr") }
@@ -112,7 +112,7 @@ fn _read_frame(conn, timeout_ms) {
     free(hdr)
     if fh["ok"] != 1 { return _err("http2_client._read_frame: bad header") }
     var length = fh["len"]
-    var payload = oren_u8_buf_new(length)
+    var payload = oren_u8_buf_new_uninit(length)
     if oren_is_err(payload) { return _err("http2_client._read_frame: oom payload") }
     if length > 0 {
         var p = native_buf_data_ptr(payload)
@@ -162,7 +162,7 @@ fn _read_header_block(conn, first_fr, timeout_ms) {
 }
 
 fn _send_headers_fragmented(conn, stream_id, headers_flags, header_block, split_at, timeout_ms) {
-    if header_block == nil { header_block = oren_u8_buf_new(0) }
+    if header_block == nil { header_block = oren_u8_buf_new_uninit(0) }
     var n = oren_buf_len(header_block)
     if oren_is_err(n) { return 0 - 22 }
     if split_at < 0 { split_at = 0 }
@@ -171,8 +171,8 @@ fn _send_headers_fragmented(conn, stream_id, headers_flags, header_block, split_
     }
     var p = native_buf_data_ptr(header_block)
     if p == 0 { return 0 - 22 }
-    var b0 = oren_u8_buf_new(split_at)
-    var b1 = oren_u8_buf_new(n - split_at)
+    var b0 = oren_u8_buf_new_uninit(split_at)
+    var b1 = oren_u8_buf_new_uninit(n - split_at)
     if oren_is_err(b0) || oren_is_err(b1) { return 0 - 12 }
     var p0 = native_buf_data_ptr(b0)
     var p1 = native_buf_data_ptr(b1)

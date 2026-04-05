@@ -522,6 +522,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `tmp16`) now use the same rule when the local fill path or runtime `*_slice_into` helper
 		     deterministically writes every slot before exposure. This is again a scope/safety cleanup, not
 		     a new kept benchmark claim.
+		   - Shared serializer follow-up (2026-04-05): finish the same rule on a few remaining shared
+		     fresh-`[]u8` serializers that also fully overwrite every output byte before any successful
+		     return. `http2.settings_payload_from_list`, `http2_client._u8_concat2`,
+		     `http2_client._read_frame`, `http2_client._send_headers_fragmented`,
+		     `hpack._huff_decode_bytes` final output materialization, and `ppm.encode_rgba` now allocate
+		     through `oren_u8_buf_new_uninit(...)`. Added focused module coverage for the HTTP/2 SETTINGS
+		     payload encode/decode round-trip so this path is no longer covered only indirectly.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

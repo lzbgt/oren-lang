@@ -295,6 +295,14 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
 		      `*_slice_into` helpers fully overwrite every slot before any successful return
 		    - kept this as a scope/safety completion only; no separate linalg perf artifact was added in
 		      the same batch
+		  - adjacent shared serializer cleanup:
+		    - extended the same proof-backed `oren_u8_buf_new_uninit(...)` rule to remaining fresh-byte
+		      serializers whose local loops or syscall fills deterministically overwrite every byte before
+		      return: `http2.settings_payload_from_list`, `http2_client._u8_concat2`,
+		      `http2_client._read_frame`, `http2_client._send_headers_fragmented`,
+		      `hpack._huff_decode_bytes` output materialization, and `ppm.encode_rgba`
+		    - added a focused module test for the HTTP/2 SETTINGS payload encode/decode round-trip so that
+		      this path is exercised directly instead of only through compile-only net fixtures
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

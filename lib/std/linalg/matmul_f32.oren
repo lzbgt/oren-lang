@@ -446,7 +446,7 @@ fn matmul_f32_mat_view(a, b) {
     if bn != n { return _err_invalid_arg("matmul_f32_mat_view: dim mismatch") }
     if m < 0 || n < 0 || p < 0 { return _err_invalid_arg("matmul_f32_mat_view: negative dims") }
 
-    var out: []f32 = buffer.f32_new(m * p)
+    var out: []f32 = buffer.f32_new_uninit(m * p)
     if oren_is_err(out) { return out }
 
     var i = 0
