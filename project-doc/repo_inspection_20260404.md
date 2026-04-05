@@ -313,6 +313,15 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
 		      `u8_buf -> oren_write_bytes(...)` handoff
 		    - added a focused module test for the PPM write/read round-trip so the direct
 		      `u8_buf -> write_bytes` path is exercised explicitly
+		  - compiler byte-path follow-up:
+		    - removed the adjacent compiler-side bounce back into legacy `oren_read_bytes(...)`
+		      payloads for artifact reads that already had generic-bytes support
+		    - `lib/compiler/obc_link.oren` now reads `.obc` bundles via `oren_read_u8_buf(...)` and
+		      parses `.obc` / `OBX` payloads through `oren_bytes_len(...)`,
+		      `oren_bytes_get_u8(...)`, and `oren_string_from_bytes_slice(...)`
+		    - the deterministic metadata hashing legs in
+		      `lib/compiler/compiler/040_build_pipeline/010_main.oren` now also hash `u8_buf`
+		      reads directly and use byte-generic length accounting in the manifest path
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

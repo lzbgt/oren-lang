@@ -538,6 +538,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `ppm.write_rgba_ppm` now passes the encoded `u8_buf` directly to `oren_write_bytes(...)`
 		     because the shared runtimes already accept `u8_buf` there. Added focused module coverage for
 		     the PPM write/read round-trip.
+		   - Compiler byte-path follow-up (2026-04-05): the adjacent compiler artifact readers now stay
+		     on the same generic-bytes / `u8_buf` surface instead of forcing legacy `oren_read_bytes(...)`
+		     lists first. `lib/compiler/obc_link.oren` now parses `.obc` / `OBX` payloads through
+		     `oren_bytes_len(...)`, `oren_bytes_get_u8(...)`, and `oren_string_from_bytes_slice(...)`
+		     and reads bundle files via `oren_read_u8_buf(...)`; the deterministic metadata hashing legs
+		     in `lib/compiler/compiler/040_build_pipeline/010_main.oren` now also hash `oren_read_u8_buf`
+		     results directly and use `_bytes_len_any(...)` for manifest size accounting.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

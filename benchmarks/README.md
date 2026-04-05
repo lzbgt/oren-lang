@@ -670,6 +670,15 @@ that common byte helpers now compose directly through `oren_string_from_bytes_sl
 `oren_u8_buf_from_bytes_slice(...)`, unchecked direct `u8` writes, and direct `u8_buf ->
 oren_write_bytes(...)` handoff instead of re-materializing temporary byte lists first.
 
+The next adjacent compiler-side byte-path cleanup is now also done: OBC file reads and deterministic
+metadata hashing in the build pipeline no longer force `oren_read_bytes(...)` list payloads first.
+`lib/compiler/obc_link.oren` now parses `.obc` / `OBX` payloads through the generic
+`oren_bytes_len(...)`, `oren_bytes_get_u8(...)`, and `oren_string_from_bytes_slice(...)` surface and
+reads the file via `oren_read_u8_buf(...)`, while the two metadata hashing legs in
+`lib/compiler/compiler/040_build_pipeline/010_main.oren` now hash `u8_buf` reads directly. That
+keeps the compiler on one byte representation end-to-end for these artifact paths instead of
+reboxing into legacy byte lists.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

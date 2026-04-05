@@ -657,7 +657,7 @@ fn compiler_main() {
         }
         print("Wrote metadata: " + out_meta)
         if deterministic || emit_manifest {
-            var bs = oren_read_bytes(out_meta)
+            var bs = oren_read_u8_buf(out_meta)
             if oren_is_err(bs) {
                 var emsgH = "Failed to read artifact for hashing: " + out_meta
                 var msgH = oren_err_msg(bs)
@@ -1517,7 +1517,7 @@ fn compiler_main() {
             }
             print("Wrote metadata: " + meta_path)
             if deterministic || emit_manifest {
-                var bsM = oren_read_bytes(meta_path)
+                var bsM = oren_read_u8_buf(meta_path)
                 if oren_is_err(bsM) {
                     var emsgHM = "Failed to read artifact for hashing: " + meta_path
                     var msgHM = oren_err_msg(bsM)
@@ -1530,7 +1530,7 @@ fn compiler_main() {
                 if deterministic { _emit_artifact_hash("meta", meta_path, bsM) }
                 if emit_manifest {
                     var h = _sha256_hex(bsM)
-                    _write_artifact_manifest("meta", meta_path, h, target, arch, deterministic, oren_list_len(bsM))
+                    _write_artifact_manifest("meta", meta_path, h, target, arch, deterministic, _bytes_len_any(bsM))
                 }
             }
         }

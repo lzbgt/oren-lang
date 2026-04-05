@@ -32,7 +32,14 @@ import codegen_bytecode "codegen_bytecode.oren"
 // - A partially linked `.obc` intended to be later linked should include relocs
 //   (via `allow_undef` in the bytecode compiler).
 
-fn _u8_at(bs, pos) { return bs[pos] & 255 }
+fn _bytes_len(bs) {
+    if bs == nil { return 0 }
+    var n = oren_bytes_len(bs)
+    if !oren_is_err(n) { return n }
+    return oren_list_len(bs)
+}
+
+fn _u8_at(bs, pos) { return oren_bytes_get_u8(bs, pos) & 255 }
 
 fn _u16_le_at(bs, pos) {
     var b0 = _u8_at(bs, pos + 0)
@@ -85,10 +92,11 @@ fn _push_u64_le(out, v) {
 fn _bytes_starts_with(bs, prefix_str) {
     if bs == nil { return false }
     var p = oren_bytes_from_string(prefix_str)
-    if oren_list_len(bs) < oren_list_len(p) { return false }
+    var pn = _bytes_len(p)
+    if _bytes_len(bs) < pn { return false }
     var i = 0
-    while i < oren_list_len(p) {
-        if _u8_at(bs, i) != (p[i] & 255) { return false }
+    while i < pn {
+        if _u8_at(bs, i) != (oren_bytes_get_u8(p, i) & 255) { return false }
         i = i + 1
     }
     return true
@@ -97,13 +105,7 @@ fn _bytes_starts_with(bs, prefix_str) {
 fn _decode_string_u16(bs, pos) {
     var len = _u16_le_at(bs, pos)
     var start = pos + 2
-    var out = []
-    var i = 0
-    while i < len {
-        oren_list_push(out, _u8_at(bs, start + i))
-        i = i + 1
-    }
-    return {"value": oren_string_from_bytes(out), "next": start + len}
+    return {"value": oren_string_from_bytes_slice(bs, start, len), "next": start + len}
 }
 
 fn _encode_string_u16(out, s) {
@@ -175,7 +177,7 @@ fn obx_encode(module_name, exports, relocs) {
 
 fn obx_decode(obx_bytes) {
     if !_bytes_starts_with(obx_bytes, "OREN_OBX\n1\n") { return nil }
-    var pos = oren_list_len(oren_bytes_from_string("OREN_OBX\n1\n"))
+    var pos = _bytes_len(oren_bytes_from_string("OREN_OBX\n1\n"))
 
     var m = _decode_string_u16(obx_bytes, pos)
     var module_name = m["value"]
@@ -319,7 +321,7 @@ fn obc_write_file(out_path, obc) {
 }
 
 fn obc_parse_bytes(bs) {
-    if bs == nil || oren_list_len(bs) < 4 { return {"error": "obc too short"} }
+    if bs == nil || _bytes_len(bs) < 4 { return {"error": "obc too short"} }
     if _u8_at(bs, 0) != 205 || _u8_at(bs, 1) != 14 { return {"error": "bad obc magic"} }
 
     var pos = 2
@@ -330,7 +332,7 @@ fn obc_parse_bytes(bs) {
 
     var i = 0
     while i < n_consts {
-        if pos >= oren_list_len(bs) { return {"error": "truncated constants"} }
+        if pos >= _bytes_len(bs) { return {"error": "truncated constants"} }
         var tag = _u8_at(bs, pos)
         pos = pos + 1
         if tag == 0 {
@@ -354,14 +356,9 @@ fn obc_parse_bytes(bs) {
                         if tag == 4 {
                             var sl = _u16_le_at(bs, pos)
                             pos = pos + 2
-                            var sb = []
-                            var j = 0
-                            while j < sl {
-                                oren_list_push(sb, _u8_at(bs, pos + j))
-                                j = j + 1
-                            }
+                            var sval = oren_string_from_bytes_slice(bs, pos, sl)
                             pos = pos + sl
-                            oren_list_push(consts, {"type": "String", "value": oren_string_from_bytes(sb)})
+                            oren_list_push(consts, {"type": "String", "value": sval})
                         } else {
                             if tag == 8 {
                                 var bl = _u32_le_at(bs, pos)
@@ -389,7 +386,7 @@ fn obc_parse_bytes(bs) {
     }
 
     var code = []
-    while pos < oren_list_len(bs) {
+    while pos < _bytes_len(bs) {
         oren_list_push(code, _u8_at(bs, pos))
         pos = pos + 1
     }
@@ -399,7 +396,7 @@ fn obc_parse_bytes(bs) {
 }
 
 fn obc_read_file(path) {
-    var bs = oren_read_bytes(path)
+    var bs = oren_read_u8_buf(path)
     if oren_is_err(bs) { return {"error": "read failed: " + path, "err": bs} }
     return obc_parse_bytes(bs)
 }

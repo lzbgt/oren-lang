@@ -1382,6 +1382,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     direct `u8` writes, and `ppm.write_rgba_ppm` now writes the encoded `u8_buf` directly via
 		     `oren_write_bytes(...)`. Reweight again: stop spending turns on obvious shared byte-helper
 		     bridging and move to a newly measured runtime bottleneck instead.
+		   - Compiler byte-path follow-up (2026-04-05): remove the adjacent compiler bounce back into
+		     legacy byte lists where the shared generic-bytes surface is already available.
+		     `lib/compiler/obc_link.oren` now reads `.obc` bundles via `oren_read_u8_buf(...)` and parses
+		     them through `oren_bytes_len(...)`, `oren_bytes_get_u8(...)`, and
+		     `oren_string_from_bytes_slice(...)`; the deterministic metadata hashing legs in
+		     `lib/compiler/compiler/040_build_pipeline/010_main.oren` now also hash `u8_buf` reads
+		     directly. Reweight again: the obvious compiler-side `read_bytes -> list<int>` bridge on
+		     artifact reads is closed, so next byte-path work should be driven by a measured hotspot.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
