@@ -104,7 +104,7 @@ fn decode_bytes(s) {
     if s == nil { return oren_err(4, "base64.decode_bytes: string is nil") }
 
     var clean = _b64_count_clean_chars(s)
-    if clean == 0 { return oren_u8_buf_new(0) }
+    if clean == 0 { return oren_u8_buf_new_uninit(0) }
     if (clean % 4) != 0 { return oren_err(4, "base64.decode_bytes: invalid length (not multiple of 4)") }
 
     // Compute output length from padding (look at last 2 non-ws chars).
@@ -126,7 +126,7 @@ fn decode_bytes(s) {
     var out_len = groups * 3 - pad
     if out_len < 0 { out_len = 0 }
 
-    var out = oren_u8_buf_new(out_len)
+    var out = oren_u8_buf_new_uninit(out_len)
     if oren_is_err(out) { return out }
     var outp = native_buf_data_ptr(out)
     if outp == 0 && out_len != 0 { return oren_err(8, "base64.decode_bytes: alloc failed") }

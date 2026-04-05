@@ -722,7 +722,7 @@ OrenValue oren_read_u8_buf(OrenValue path) {
     }
     uint32_t size = (uint32_t)size_long;
 
-    OrenValue out = oren_u8_buf_new(oren_int((long long)size));
+    OrenValue out = oren_u8_buf_new_uninit(oren_int((long long)size));
     if (oren_is_err(out).as.bool_val) {
         fclose(f);
         return out;

@@ -281,6 +281,11 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
 	      bytes-to-buffer copies through the shared `oren_u8_buf_from_bytes_slice(...)` primitive
 	    - added conservative C-runtime `oren_u8_buf_new_uninit` coverage so the same shared stdlib
 	      code stays link-safe on `oren_c` while native gets the uninitialized-allocation win
+	  - adjacent byte-constructor cleanup:
+	    - extended the same full-overwrite allocation rule to the adjacent shared/runtime byte
+	      constructors that also deterministically overwrite every output lane before return:
+	      `bytes.from_hex`, `bytes.pack`, `base64.decode_bytes`, and both C/native `read_u8_buf`
+	    - kept this as a scope/safety cleanup only; no separate perf artifact was added for this pass
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

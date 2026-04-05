@@ -43,7 +43,7 @@ OrenValue oren_bytes_from_hex(OrenValue s) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_from_hex: string too large"));
     }
 
-    OrenValue outv = oren_u8_buf_new(oren_int((long long)(n / 2u)));
+    OrenValue outv = oren_u8_buf_new_uninit(oren_int((long long)(n / 2u)));
     if (oren_is_err(outv).as.bool_val) return outv;
     if (outv.type != OREN_TYPE_U8_BUF || !outv.as.buf_val || outv.as.buf_val->elem_size != 1u) {
         return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("bytes_from_hex: invalid buffer"));
@@ -114,7 +114,7 @@ OrenValue oren_bytes_pack(OrenValue xs) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_pack: invalid list"));
     }
 
-    OrenValue outv = oren_u8_buf_new(oren_int((long long)list->count));
+    OrenValue outv = oren_u8_buf_new_uninit(oren_int((long long)list->count));
     if (oren_is_err(outv).as.bool_val) return outv;
     if (outv.type != OREN_TYPE_U8_BUF || !outv.as.buf_val || outv.as.buf_val->elem_size != 1u) {
         return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("bytes_pack: invalid buffer"));

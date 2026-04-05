@@ -507,6 +507,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `oren_u8_buf_from_bytes_slice(...)` primitive for bytes-to-buffer copies. The C runtime now
 		     exports a conservative `oren_u8_buf_new_uninit` shim so the same shared stdlib code remains
 		     backend-safe on `oren_c`.
+		   - Shared byte-constructor follow-up (2026-04-05): finish the same rule on the adjacent
+		     shared/runtime byte constructors that also fully overwrite fresh `[]u8` before any
+		     successful return. `bytes.from_hex`, `bytes.pack`, `base64.decode_bytes`, native
+		     `oren_bytes_from_hex`, native `oren_bytes_pack`, and both C/native `read_u8_buf` allocation
+		     paths now also use `oren_u8_buf_new_uninit(...)` instead of zero-allocating first. This is
+		     intentionally a scope/safety cleanup, not a new measured perf claim.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

@@ -612,6 +612,18 @@ safety, not a new benchmark number. The same native/C backend split still applie
 the eager zero-fill through `oren_u8_buf_new_uninit(...)`, while `oren_c` keeps a conservative shim
 that zero-allocates and preserves correctness.
 
+The same rule now also covers the adjacent shared byte-constructor surfaces that allocate a fresh
+`[]u8` and deterministically overwrite it before returning:
+
+- `bytes.from_hex`
+- `bytes.pack`
+- `base64.decode_bytes`
+- `read_u8_buf`
+
+Again, this is a scope/safety update rather than a new kept benchmark claim. The important point is
+that the shared/runtime byte constructors no longer stand out as the one remaining `u8` family that
+still paid eager zero-fill before a proven full overwrite.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

@@ -1352,6 +1352,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     proves every lane was written. Reweight again: the next work should move to other
 		     full-overwrite conversion surfaces or measured bottlenecks, not back to the already-covered
 		     fresh numeric/byte export family.
+		   - Shared byte-constructor cleanup (2026-04-05): finish the same proof on the remaining shared
+		     `[]u8` constructors that still zero-allocated before immediately overwriting every lane.
+		     `bytes.from_hex`, `bytes.pack`, `base64.decode_bytes`, and the C/native `read_u8_buf` paths
+		     now also use `oren_u8_buf_new_uninit(...)`. Reweight again: stop spending turns on obvious
+		     zero-fill cleanup inside the already-covered byte constructor family and move to either a new
+		     measured bottleneck or another surface with the same full-overwrite proof.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

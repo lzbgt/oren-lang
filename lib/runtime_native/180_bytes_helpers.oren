@@ -124,8 +124,10 @@ fn oren_bytes_from_hex(s) {
     var n_is_odd = n & 1
     if n_is_odd != 0 { return oren_err(4, "bytes_from_hex: odd length") }
     var outn = n / 2
-    var out = oren_u8_buf_new(outn)
+    var out = oren_u8_buf_new_uninit(outn)
     if oren_is_err(out) { return out }
+    var outp = native_buf_data_ptr(out)
+    if outp == 0 && outn != 0 { return oren_err(8, "bytes_from_hex: alloc failed") }
     var i = 0
     while i < outn {
         var c0 = ptr_get_byte(s + i * 2 + 0)
@@ -133,7 +135,7 @@ fn oren_bytes_from_hex(s) {
         var hi = bytes_hex_nibble(c0)
         var lo = bytes_hex_nibble(c1)
         if hi < 0 || lo < 0 { return oren_err(4, "bytes_from_hex: invalid hex digit") }
-        oren_buf_store_u8(out, i, (hi << 4) | lo)
+        ptr_set_byte(outp + i, ((hi << 4) | lo) & 255)
         i = i + 1
     }
     return out
@@ -190,13 +192,15 @@ fn oren_bytes_pack(xs) {
     if xs == 0 { return oren_err(4, "bytes_pack: list is nil") }
     if native_bytes_is_list(xs) != true { return oren_err(4, "bytes_pack expects list<int 0..255>") }
     var n = ptr_get(xs)
-    var out = oren_u8_buf_new(n)
+    var out = oren_u8_buf_new_uninit(n)
     if oren_is_err(out) { return out }
+    var outp = native_buf_data_ptr(out)
+    if outp == 0 && n != 0 { return oren_err(8, "bytes_pack: alloc failed") }
     var i = 0
     while i < n {
         var v = oren_list_get(xs, i)
         if v < 0 || v > 255 { return oren_err(4, "bytes_pack: byte out of range") }
-        oren_buf_store_u8(out, i, v)
+        ptr_set_byte(outp + i, v & 255)
         i = i + 1
     }
     return out
