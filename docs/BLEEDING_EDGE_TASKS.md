@@ -1390,6 +1390,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `lib/compiler/compiler/040_build_pipeline/010_main.oren` now also hash `u8_buf` reads
 		     directly. Reweight again: the obvious compiler-side `read_bytes -> list<int>` bridge on
 		     artifact reads is closed, so next byte-path work should be driven by a measured hotspot.
+		   - AVM `.obc` harness follow-up (2026-04-05): remove the adjacent AVM test/harness bounce
+		     through legacy byte lists where the child-program API already expects BYTES. The multiverse,
+		     map-key, and compiler-in-AVM fixtures now read `.obc` via `oren_read_u8_buf(...)`
+		     directly, and the local AVM VFS fixture builders now append generic bytes via
+		     `oren_bytes_len(...)` / `oren_bytes_get_u8(...)` instead of assuming `list<int>` bodies.
+		     Reweight again: the obvious `.obc` reader bridge in the AVM harness layer is closed; keep
+		     the remaining `read_bytes` surfaces only where they are the API under test.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

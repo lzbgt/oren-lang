@@ -679,6 +679,13 @@ reads the file via `oren_read_u8_buf(...)`, while the two metadata hashing legs 
 keeps the compiler on one byte representation end-to-end for these artifact paths instead of
 reboxing into legacy byte lists.
 
+The adjacent AVM harness/test `.obc` path is now aligned too. The multiverse/map-key/compiler-in-AVM
+fixtures that immediately fed `.obc` files into `oren_avm_run_obc_bytes(...)` or VirtualFS fixtures
+now read them via `oren_read_u8_buf(...)` directly, and the local AVM VFS fixture builders in the
+same tests now append generic bytes through `oren_bytes_len(...)` / `oren_bytes_get_u8(...)` instead
+of assuming `list<int>` bodies. The intentional `read_bytes` roundtrip tests stay unchanged; only the
+stale `.obc` bridge paths moved.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

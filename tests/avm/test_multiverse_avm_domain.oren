@@ -4,7 +4,7 @@ fn main() {
     //
     // Makefile builds the child .obc at:
     //   build/multiverse_child.obc
-    var child_obc = oren_read_bytes("build/multiverse_child.obc")
+    var child_obc = oren_read_u8_buf("build/multiverse_child.obc")
 
     // Child must be able to use CORE (domain 0), TIME (2), RNG (3).
     var allowed = (1 << 0) + (1 << 2) + (1 << 3)

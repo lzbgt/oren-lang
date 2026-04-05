@@ -322,6 +322,13 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
 		    - the deterministic metadata hashing legs in
 		      `lib/compiler/compiler/040_build_pipeline/010_main.oren` now also hash `u8_buf`
 		      reads directly and use byte-generic length accounting in the manifest path
+		  - AVM `.obc` harness follow-up:
+		    - removed the adjacent test/harness bridge where `.obc` payloads were still read as
+		      `oren_read_bytes(...)` lists and immediately repacked before `oren_avm_run_obc_bytes(...)`
+		    - the multiverse/map-key/compiler-in-AVM fixtures now read `.obc` via
+		      `oren_read_u8_buf(...)` directly
+		    - the local AVM VirtualFS fixture builders in those tests now append generic bytes through
+		      `oren_bytes_len(...)` / `oren_bytes_get_u8(...)` instead of assuming `list<int>` bodies
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

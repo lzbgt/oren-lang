@@ -6,11 +6,8 @@ fn main() {
     oren_write_file("x", "ok")
 
     // Grandchild obc is injected into this universe's VirtualFS as "g.obc".
-    // NOTE: `oren_read_bytes` returns LIST<int> (legacy ABI); pack to BYTES for avm.run_obc_bytes.
-    var obc_list = oren_read_bytes("g.obc")
-    if oren_is_err(obc_list) { oren_exit(10) }
-    var obc = oren_bytes_pack(obc_list)
-    if oren_is_err(obc) { oren_exit(11) }
+    var obc = oren_read_u8_buf("g.obc")
+    if oren_is_err(obc) { oren_exit(10) }
 
     // Allow CORE + FS + EXIT (grandchild uses FS + exit).
     var allowed = (1 << 0) + (1 << 1) + (1 << 6)

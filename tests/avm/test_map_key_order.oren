@@ -6,8 +6,8 @@ fn fail() {
 }
 
 fn main() {
-    var obc1 = oren_read_bytes("build/map_order_child_ab.obc")
-    var obc2 = oren_read_bytes("build/map_order_child_cba.obc")
+    var obc1 = oren_read_u8_buf("build/map_order_child_ab.obc")
+    var obc2 = oren_read_u8_buf("build/map_order_child_cba.obc")
 
     var allowed = (1 << 0) + (1 << 2) + (1 << 3)
 
@@ -37,4 +37,3 @@ fn main() {
 }
 
 main()
-

@@ -545,6 +545,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     and reads bundle files via `oren_read_u8_buf(...)`; the deterministic metadata hashing legs
 		     in `lib/compiler/compiler/040_build_pipeline/010_main.oren` now also hash `oren_read_u8_buf`
 		     results directly and use `_bytes_len_any(...)` for manifest size accounting.
+		   - AVM `.obc` byte-path follow-up (2026-04-05): the adjacent AVM test/harness readers that
+		     immediately feed `.obc` payloads into `oren_avm_run_obc_bytes(...)` or VirtualFS fixtures
+		     no longer bounce through `oren_read_bytes(...) -> oren_bytes_pack(...)`. The multiverse,
+		     map-key, and compiler-in-AVM fixtures now read `.obc` via `oren_read_u8_buf(...)`
+		     directly, and their local VFS fixture builders now append generic bytes via
+		     `oren_bytes_len(...)` / `oren_bytes_get_u8(...)` instead of assuming `list<int>` bodies.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

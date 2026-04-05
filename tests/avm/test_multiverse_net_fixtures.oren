@@ -4,7 +4,7 @@ fn main() {
     //
     // Makefile builds the child .obc at:
     //   build/multiverse_child_net.obc
-    var child_obc = oren_read_bytes("build/multiverse_child_net.obc")
+    var child_obc = oren_read_u8_buf("build/multiverse_child_net.obc")
 
     // Child must be able to use CORE (domain 0) and NET (domain 4).
     var allowed = (1 << 0) + (1 << 4)
@@ -25,4 +25,3 @@ fn main() {
 }
 
 main()
-

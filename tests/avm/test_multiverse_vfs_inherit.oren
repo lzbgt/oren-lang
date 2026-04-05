@@ -9,16 +9,16 @@ fn push_u32_le(out, v) {
     oren_list_push(out, b3)
 }
 
-fn append_list(out, xs) {
-    var n = oren_list_len(xs)
+fn append_bytes(out, xs) {
+    var n = oren_bytes_len(xs)
     var i = 0
     while i < n {
-        oren_list_push(out, xs[i])
+        oren_list_push(out, oren_bytes_get_u8(xs, i))
         i = i + 1
     }
 }
 
-fn build_vfs_fixtures_one_file(path, body_bytes_list) {
+fn build_vfs_fixtures_one_file(path, body_bytes) {
     // AVMVFS01 format:
     //   magic[8]="AVMVFS01"
     //   u32 count
@@ -39,12 +39,12 @@ fn build_vfs_fixtures_one_file(path, body_bytes_list) {
 
     push_u32_le(out, 1)
 
-    var path_bytes = oren_bytes_from_string(path) // LIST<int>
-    push_u32_le(out, oren_list_len(path_bytes))
-    append_list(out, path_bytes)
+    var path_bytes = oren_bytes_from_string(path)
+    push_u32_le(out, oren_bytes_len(path_bytes))
+    append_bytes(out, path_bytes)
 
-    push_u32_le(out, oren_list_len(body_bytes_list))
-    append_list(out, body_bytes_list)
+    push_u32_le(out, oren_bytes_len(body_bytes))
+    append_bytes(out, body_bytes)
 
     return oren_bytes_pack(out)
 }
@@ -55,12 +55,11 @@ fn main() {
     // 2) FS allow-prefix enrollment is hierarchical: nested universes inherit parent FS restrictions.
 
     // Load fixture obcs from host FS (allowed by runner prefix "build/").
-    var child1_obc_list = oren_read_bytes("build/multiverse_child_vfs_inherit.obc")
-    var child1_obc = oren_bytes_pack(child1_obc_list)
+    var child1_obc = oren_read_u8_buf("build/multiverse_child_vfs_inherit.obc")
 
-    var gc_obc_list = oren_read_bytes("build/multiverse_grandchild_read_x.obc")
+    var gc_obc = oren_read_u8_buf("build/multiverse_grandchild_read_x.obc")
     // Inject grandchild obc into the child universe's VirtualFS under path "g.obc".
-    var vfs_fx = build_vfs_fixtures_one_file("g.obc", gc_obc_list)
+    var vfs_fx = build_vfs_fixtures_one_file("g.obc", gc_obc)
 
     // Allow CORE + FS + EXIT + AVM (nested universe).
     var allowed_child = (1 << 0) + (1 << 1) + (1 << 6) + (1 << 8)
@@ -77,8 +76,7 @@ fn main() {
 
     // Now validate FS allow-prefix inheritance: child runs with host FS backend and must not
     // widen access beyond the parent's --fs-allow-prefixes setting (runner uses build/).
-    var child2_obc_list = oren_read_bytes("build/multiverse_child_host_fs_prefix_probe.obc")
-    var child2_obc = oren_bytes_pack(child2_obc_list)
+    var child2_obc = oren_read_u8_buf("build/multiverse_child_host_fs_prefix_probe.obc")
     var cfg2 = {
         "deterministic": true,
         "gas_limit": 1000000,
