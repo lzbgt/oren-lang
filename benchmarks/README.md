@@ -568,6 +568,23 @@ through the hoisted pointer loop. The next serious optimization needs a bulk/poi
 surface plus an uninitialized-allocation path that is only used when full initialization is proven
 before exposure.
 
+That measured lever is now kept in the shared `i32` conversion surface. The latest
+`make perf-probe-list-int-dot-ceiling` artifact,
+`build/logs/perf-probe-list-int-dot-ceiling-20260405_223926_17836.log`, shows the
+real workload effect after switching fresh `i32` list/slice/strided/matrix exports to
+`oren_i32_buf_new_uninit(...)` plus unchecked direct stores on success-only full-overwrite paths:
+
+- baseline `dot_product_int`: `~1.4238x C`
+- `dot_product_int_slot_direct`: `~0.9826x C`
+- baseline `array_sum_int`: `~1.3214x C`
+- `array_sum_int_slot_direct`: `~0.7955x C`
+
+That is the first production-path result that reaches near-parity with the host C baseline on this
+fast profile. The same change does not rescue the packed bridge: the paired
+`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log`
+still reports `dot_product_int_packed_bridge` at `~542.7074x C` SIMD and `~1062.1370x C`
+scalar on long-per-rep, so the packed bridge remains closed as a serious candidate.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

@@ -70,10 +70,12 @@ fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
 }
 
 fn _new_i32_buf(n) { return raw.i32_new(n) }
+fn _new_i32_buf_uninit(n) { return raw.i32_new_uninit(n) }
 fn _new_i64_buf(n) { return raw.i64_new(n) }
 fn _new_f32_buf(n) { return raw.f32_new(n) }
 fn _new_f64_buf(n) { return raw.f64_new(n) }
 fn _store_i32_buf_direct(buf, idx, v) { return raw._store_i32_buf_direct(buf, idx, v) }
+fn _store_i32_buf_unchecked_direct(buf, idx, v) { return raw._store_i32_buf_unchecked_direct(buf, idx, v) }
 fn _load_i32_buf_direct(buf, idx) { return raw._load_i32_buf_direct(buf, idx) }
 fn _store_i64_buf_direct(buf, idx, v) { return raw._store_i64_buf_direct(buf, idx, v) }
 fn _load_i64_buf_direct(buf, idx) { return raw._load_i64_buf_direct(buf, idx) }
@@ -366,7 +368,8 @@ fn strided_store_i32(s, idx, v) { return _view_store_with(_strided_is_list, "str
 fn try_strided_store_i32(s, idx, v) { return _try_view_store(strided_store_i32, _validate_int_or_err, _strided_is_list, "strided", s, idx, v, "buffer.try_strided_store_i32") }
 fn try_strided_unpack_i32(s) { return _try_view_unpack(try_strided_load_i32, _strided_is_list, "strided", s, "buffer.try_strided_unpack_i32") }
 fn strided_unpack_i32(s) { return try_strided_unpack_i32(s) }
-fn try_strided_to_i32_buf(s) { return _try_view_to_typed_buf(try_strided_load_i32, _strided_is_list, "strided", s, "buffer.try_strided_to_i32_buf", _new_i32_buf, _store_i32_buf_direct) }
+// Safe: fresh output buffer is fully written before any successful return.
+fn try_strided_to_i32_buf(s) { return _try_view_to_typed_buf(try_strided_load_i32, _strided_is_list, "strided", s, "buffer.try_strided_to_i32_buf", _new_i32_buf_uninit, _store_i32_buf_unchecked_direct) }
 fn strided_to_i32_buf(s) { return try_strided_to_i32_buf(s) }
 fn try_strided_copy_from_list_i32(s, xs) { return _try_view_copy_from_list(try_strided_store_i32, _validate_i32_or_err, _strided_is_list, "strided", s, xs, "buffer.try_strided_copy_from_list_i32") }
 fn strided_copy_from_list_i32(s, xs) { return try_strided_copy_from_list_i32(s, xs) }
@@ -441,7 +444,8 @@ fn slice_store_i32(s, idx, v) { return _view_store_with(_slice_is_list, "slice",
 fn try_slice_store_i32(s, idx, v) { return _try_view_store(slice_store_i32, _validate_int_or_err, _slice_is_list, "slice", s, idx, v, "buffer.try_slice_store_i32") }
 fn try_slice_unpack_i32(s) { return _try_view_unpack(try_slice_load_i32, _slice_is_list, "slice", s, "buffer.try_slice_unpack_i32") }
 fn slice_unpack_i32(s) { return try_slice_unpack_i32(s) }
-fn try_slice_to_i32_buf(s) { return _try_view_to_typed_buf(try_slice_load_i32, _slice_is_list, "slice", s, "buffer.try_slice_to_i32_buf", _new_i32_buf, _store_i32_buf_direct) }
+// Safe: fresh output buffer is fully written before any successful return.
+fn try_slice_to_i32_buf(s) { return _try_view_to_typed_buf(try_slice_load_i32, _slice_is_list, "slice", s, "buffer.try_slice_to_i32_buf", _new_i32_buf_uninit, _store_i32_buf_unchecked_direct) }
 fn slice_to_i32_buf(s) { return try_slice_to_i32_buf(s) }
 fn try_slice_copy_from_list_i32(s, xs) { return _try_view_copy_from_list(try_slice_store_i32, _validate_i32_or_err, _slice_is_list, "slice", s, xs, "buffer.try_slice_copy_from_list_i32") }
 fn slice_copy_from_list_i32(s, xs) { return try_slice_copy_from_list_i32(s, xs) }

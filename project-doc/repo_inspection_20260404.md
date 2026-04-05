@@ -241,6 +241,29 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
   - production follow-up kept in the same batch: native `oren_buf_fill_i32/i64/f32/f64` now hoist
     `native_buf_data_ptr(buf)` and write bytes directly instead of re-entering the checked
     element-store helper on every iteration
+  - follow-up production use (2026-04-05):
+    - shared fresh-`i32` conversion surfaces now use the same measured lever where safety is provable:
+      `buffer.i32_pack_list_int`, `buffer.try_slice_to_i32_buf`,
+      `buffer.try_strided_to_i32_buf`, `buffer.i32_mat_pack_rows`, and
+      `buffer.i32_mat_to_i32_buf` now allocate via `oren_i32_buf_new_uninit(...)` and fill via
+      unchecked direct stores only when the fresh buffer is fully overwritten before successful return
+    - the C backend now exports a conservative `oren_i32_buf_new_uninit` shim so these shared stdlib
+      paths remain link-safe even though only the native backend gets the uninitialized-allocation win
+  - latest direct-path ranking artifact:
+    - `build/logs/perf-probe-list-int-dot-ceiling-20260405_223926_17836.log`
+    - baseline `dot_product_int`: ~1.4238x C
+    - `dot_product_int_slot_direct`: ~0.9826x C
+    - baseline `array_sum_int`: ~1.3214x C
+    - `array_sum_int_slot_direct`: ~0.7955x C
+    - conclusion: the measured full-overwrite fast path materially improves the direct `i32`
+      conversion surface and reaches near-parity or better than the host C baseline on this fast
+      ranking profile
+  - paired packed-bridge read-split artifact remains decisively negative:
+    - `build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log`
+    - baseline `dot_product_int`: ~1.5762x C long-per-rep
+    - packed bridge SIMD: ~542.7074x C long-per-rep
+    - packed bridge scalar: ~1062.1370x C long-per-rep
+    - conclusion: keep the direct-path fast surface; the packed bridge is still closed
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

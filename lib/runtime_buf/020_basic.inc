@@ -1,4 +1,7 @@
 OrenValue oren_i32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_I32_BUF); }
+// C backend compatibility shim: shared stdlib fast paths may request an internal
+// uninitialized i32 buffer, but the C runtime keeps the conservative zeroed allocation.
+OrenValue oren_i32_buf_new_uninit(OrenValue len) { return oren_i32_buf_new(len); }
 OrenValue oren_i64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_I64_BUF); }
 OrenValue oren_f32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_F32_BUF); }
 OrenValue oren_f64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_F64_BUF); }

@@ -52,7 +52,8 @@ fn _mat_copy_from_rows_with(m, rows, ctx, validatef, storef) {
 }
 
 fn i32_mat_pack_rows(rows) {
-    return _mat_pack_rows_with(rows, "buffer.i32_mat_pack_rows", mshared._rows_shape_or_err, raw.i32_new, mshared._mat_validate_i32_or_err, core.try_mat_store_i32)
+    // Safe: rows pack writes every element of the fresh buffer before successful return.
+    return _mat_pack_rows_with(rows, "buffer.i32_mat_pack_rows", mshared._rows_shape_or_err, raw.i32_new_uninit, mshared._mat_validate_i32_or_err, core.try_mat_store_i32)
 }
 
 fn try_i32_mat_pack_rows(rows) {
@@ -76,7 +77,8 @@ fn try_i32_mat_unpack_flat(m) {
 }
 
 fn i32_mat_to_i32_buf(m) {
-    return mshared._mat_to_typed_buf_with(m, "buffer.i32_mat_to_i32_buf", raw.i32_new, core.try_mat_load_i32, raw._store_i32_buf_direct)
+    // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
+    return mshared._mat_to_typed_buf_with(m, "buffer.i32_mat_to_i32_buf", raw.i32_new_uninit, core.try_mat_load_i32, raw._store_i32_buf_unchecked_direct)
 }
 
 fn try_i32_mat_to_i32_buf(m) {

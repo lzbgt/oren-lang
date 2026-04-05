@@ -467,6 +467,27 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     no longer call the checked element-store helper on every lane after validating the buffer once.
 		     They now hoist the payload pointer and write bytes directly, bringing the native runtime
 		     implementation in line with the already-better AVM bulk-fill shape.
+		   - Shared i32 conversion fast-path (2026-04-05): after the fill-shape probes established that
+		     `native_buf_new` zero-fill was the first large fixed cost, the shared `std:buffer`
+		     fresh-`i32` export surfaces now use `oren_i32_buf_new_uninit(...)` plus unchecked direct
+		     stores only on success-only full-overwrite paths:
+		     `buffer.i32_pack_list_int`, `buffer.try_slice_to_i32_buf`,
+		     `buffer.try_strided_to_i32_buf`, `buffer.i32_mat_pack_rows`, and
+		     `buffer.i32_mat_to_i32_buf`. The C runtime exports a conservative
+		     `oren_i32_buf_new_uninit` shim that still zero-allocates so the same stdlib code remains
+		     link-safe on `oren_c`.
+		   - Real workload result (2026-04-05): the latest
+		     [perf-probe-list-int-dot-ceiling-20260405_223926_17836.log](/Users/zongbaolu/work/compiler-mini/build/logs/perf-probe-list-int-dot-ceiling-20260405_223926_17836.log)
+		     shows the kept fast path is no longer just a micro-benchmark win:
+		     - baseline `dot_product_int`: `~1.4238x C`
+		     - `dot_product_int_slot_direct`: `~0.9826x C`
+		     - baseline `array_sum_int`: `~1.3214x C`
+		     - `array_sum_int_slot_direct`: `~0.7955x C`
+		     The paired read-split artifact
+		     [perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log](/Users/zongbaolu/work/compiler-mini/build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log)
+		     still leaves the packed bridge hopelessly non-competitive (`~542.7074x C` SIMD,
+		     `~1062.1370x C` scalar on long-per-rep), so the improvement is real but correctly scoped
+		     to direct `i32` conversion surfaces.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

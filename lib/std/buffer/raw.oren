@@ -13,6 +13,8 @@ fn _string_slice_or_err(s, off, n, ctx) { return common._string_slice_or_err(s, 
 
 fn u8_new(n) { return oren_u8_buf_new(n) }
 fn i32_new(n) { return oren_i32_buf_new(n) }
+// Internal fast-path for fresh buffers that will be fully initialized before return.
+fn i32_new_uninit(n) { return oren_i32_buf_new_uninit(n) }
 fn i64_new(n) { return oren_i64_buf_new(n) }
 fn f32_new(n) { return oren_f32_buf_new(n) }
 fn f64_new(n) { return oren_f64_buf_new(n) }
@@ -211,7 +213,8 @@ fn try_store_f64(buf, idx, v) {
 }
 
 fn i32_pack_list_int(xs) {
-    return _pack_list_like_with(xs, "buffer.i32_pack_list_int", i32_new, i32_pack_list_int_into)
+    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
+    return _pack_list_like_new_buf_with(xs, "buffer.i32_pack_list_int", i32_new_uninit, _store_i32_buf_unchecked_direct, _validate_i32_or_err)
 }
 
 fn i32_pack_list_int_into(out: []i32, xs) {

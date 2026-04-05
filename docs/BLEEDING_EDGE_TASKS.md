@@ -1317,6 +1317,27 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		   - Native bulk-fill fix (2026-04-05): `oren_buf_fill_i32/i64/f32/f64` now hoist the payload
 		     pointer and write bytes directly after a single upfront `native_buf_check`, instead of calling
 		     the checked element-store helper on every iteration.
+		   - Shared i32 conversion fast-path (2026-04-05): the first production use of the measured
+		     `uninit + unchecked full overwrite` lever is now kept in the shared stdlib, not just hidden
+		     benchmarks. Fresh `i32` export surfaces that prove full overwrite on success now allocate via
+		     `oren_i32_buf_new_uninit(...)` and fill with unchecked direct stores:
+		     `buffer.i32_pack_list_int`, `buffer.try_slice_to_i32_buf`,
+		     `buffer.try_strided_to_i32_buf`, `buffer.i32_mat_pack_rows`, and
+		     `buffer.i32_mat_to_i32_buf`. The C backend now also exports a conservative
+		     `oren_i32_buf_new_uninit` shim so shared stdlib code remains backend-safe.
+		   - Real workload follow-up (2026-04-05): the kept change materially improves the direct
+		     conversion path on the ranking probe. Latest artifact
+		     (`build/logs/perf-probe-list-int-dot-ceiling-20260405_223926_17836.log`) shows:
+		     - baseline `dot_product_int`: `~1.4238x C`
+		     - `dot_product_int_slot_direct`: `~0.9826x C`
+		     - baseline `array_sum_int`: `~1.3214x C`
+		     - `array_sum_int_slot_direct`: `~0.7955x C`
+		     Reweight again: the direct `i32` conversion path is now good enough to beat or match the
+		     host C baseline on this fast profile, while the packed bridge still stays catastrophically
+		     bad. The paired read-split artifact
+		     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log`)
+		     still reports `dot_product_int_packed_bridge` at `~542.7074× C` SIMD and `~1062.1370× C`
+		     scalar on long-per-rep.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
