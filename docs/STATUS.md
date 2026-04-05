@@ -488,6 +488,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     still leaves the packed bridge hopelessly non-competitive (`~542.7074x C` SIMD,
 		     `~1062.1370x C` scalar on long-per-rep), so the improvement is real but correctly scoped
 		     to direct `i32` conversion surfaces.
+		   - Family follow-up (2026-04-05): the same proven-safe rule now covers the other fresh numeric
+		     typed-buffer export paths too, not just `i32`. Shared stdlib pack/slice/strided/matrix
+		     exports for `i64`, `f32`, and `f64` now also use `*_buf_new_uninit(...)` plus unchecked
+		     direct stores on success-only full-overwrite paths. The C runtime exports conservative
+		     `oren_i64_buf_new_uninit`, `oren_f32_buf_new_uninit`, and `oren_f64_buf_new_uninit` shims
+		     that still zero-allocate, keeping the shared stdlib link-safe on `oren_c` while native gets
+		     the uninitialized-allocation win.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

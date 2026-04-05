@@ -1338,6 +1338,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log`)
 		     still reports `dot_product_int_packed_bridge` at `~542.7074× C` SIMD and `~1062.1370× C`
 		     scalar on long-per-rep.
+		   - Family expansion (2026-04-05): the same full-overwrite proof now covers the rest of the
+		     fresh numeric typed-buffer exports. Shared stdlib `i64`/`f32`/`f64`
+		     pack/slice/strided/matrix-export paths now also use `*_buf_new_uninit(...)` and unchecked
+		     direct stores on success-only full-write paths. Keep the next work focused on surfaces with
+		     similarly strong overwrite proofs; do not spread this to partial-write or externally visible
+		     buffers without a comparable safety argument.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

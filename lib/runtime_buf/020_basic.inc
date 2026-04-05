@@ -3,8 +3,11 @@ OrenValue oren_i32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_I3
 // uninitialized i32 buffer, but the C runtime keeps the conservative zeroed allocation.
 OrenValue oren_i32_buf_new_uninit(OrenValue len) { return oren_i32_buf_new(len); }
 OrenValue oren_i64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_I64_BUF); }
+OrenValue oren_i64_buf_new_uninit(OrenValue len) { return oren_i64_buf_new(len); }
 OrenValue oren_f32_buf_new(OrenValue len) { return buf_new(4u, len, OREN_TYPE_F32_BUF); }
+OrenValue oren_f32_buf_new_uninit(OrenValue len) { return oren_f32_buf_new(len); }
 OrenValue oren_f64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_F64_BUF); }
+OrenValue oren_f64_buf_new_uninit(OrenValue len) { return oren_f64_buf_new(len); }
 OrenValue oren_u8_buf_new(OrenValue len) { return buf_new(1u, len, OREN_TYPE_U8_BUF); }
 
 OrenValue oren_buf_len(OrenValue buf) {

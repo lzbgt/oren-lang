@@ -546,8 +546,11 @@ OrenValue oren_u8_buf_new(OrenValue len);
 OrenValue oren_i32_buf_new(OrenValue len);
 OrenValue oren_i32_buf_new_uninit(OrenValue len);
 OrenValue oren_i64_buf_new(OrenValue len);
+OrenValue oren_i64_buf_new_uninit(OrenValue len);
 OrenValue oren_f32_buf_new(OrenValue len);
+OrenValue oren_f32_buf_new_uninit(OrenValue len);
 OrenValue oren_f64_buf_new(OrenValue len);
+OrenValue oren_f64_buf_new_uninit(OrenValue len);
 
 OrenValue oren_buf_len(OrenValue buf);
 // Diagnostic helper: return true if the buffer payload is tracked as RAW bytes.

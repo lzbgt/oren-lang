@@ -16,8 +16,11 @@ fn i32_new(n) { return oren_i32_buf_new(n) }
 // Internal fast-path for fresh buffers that will be fully initialized before return.
 fn i32_new_uninit(n) { return oren_i32_buf_new_uninit(n) }
 fn i64_new(n) { return oren_i64_buf_new(n) }
+fn i64_new_uninit(n) { return oren_i64_buf_new_uninit(n) }
 fn f32_new(n) { return oren_f32_buf_new(n) }
+fn f32_new_uninit(n) { return oren_f32_buf_new_uninit(n) }
 fn f64_new(n) { return oren_f64_buf_new(n) }
+fn f64_new_uninit(n) { return oren_f64_buf_new_uninit(n) }
 
 fn _len_or_err(buf, ctx) {
     var n = oren_buf_len(buf)
@@ -71,15 +74,51 @@ fn _load_f32_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
 fn _store_f32_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
 fn _load_f64_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
 fn _store_f64_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
+fn _store_i64_unchecked_direct(buf, idx, v) {
+    var data = oren_buf_data_ptr_unchecked(buf)
+    var off = idx * 8
+    var i = 0
+    while i < 8 {
+        ptr_set_byte(data + off + i, (v >> (i * 8)) & 255)
+        i = i + 1
+    }
+    return buf
+}
+fn _store_f32_unchecked_direct(buf, idx, v: f64) {
+    var data = oren_buf_data_ptr_unchecked(buf)
+    var off = idx * 4
+    var bits = oren_f32_to_u32_bits(v)
+    ptr_set_byte(data + off + 0, bits & 255)
+    ptr_set_byte(data + off + 1, (bits >> 8) & 255)
+    ptr_set_byte(data + off + 2, (bits >> 16) & 255)
+    ptr_set_byte(data + off + 3, (bits >> 24) & 255)
+    return buf
+}
+fn _store_f64_unchecked_direct(buf, idx, v: f64) {
+    var data = oren_buf_data_ptr_unchecked(buf)
+    var off = idx * 8
+    ptr_set_byte(data + off + 0, v & 255)
+    ptr_set_byte(data + off + 1, (v >> 8) & 255)
+    ptr_set_byte(data + off + 2, (v >> 16) & 255)
+    ptr_set_byte(data + off + 3, (v >> 24) & 255)
+    ptr_set_byte(data + off + 4, (v >> 32) & 255)
+    ptr_set_byte(data + off + 5, (v >> 40) & 255)
+    ptr_set_byte(data + off + 6, (v >> 48) & 255)
+    ptr_set_byte(data + off + 7, (v >> 56) & 255)
+    return buf
+}
 
 fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
 fn _store_i32_buf_unchecked_direct(buf, idx, v) { return _store_i32_unchecked_direct(buf, idx, v) }
 fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
 fn _store_i64_buf_direct(buf, idx, v) { return oren_buf_store_i64(buf, idx, v) }
+fn _store_i64_buf_unchecked_direct(buf, idx, v) { return _store_i64_unchecked_direct(buf, idx, v) }
 fn _load_i64_buf_direct(buf, idx) { return oren_buf_load_i64(buf, idx) }
 fn _store_f32_buf_direct(buf, idx, v) { return oren_buf_store_f32(buf, idx, v) }
+fn _store_f32_buf_unchecked_direct(buf, idx, v) { return _store_f32_unchecked_direct(buf, idx, v) }
 fn _load_f32_buf_direct(buf, idx) { return oren_buf_load_f32(buf, idx) }
 fn _store_f64_buf_direct(buf, idx, v) { return oren_buf_store_f64(buf, idx, v) }
+fn _store_f64_buf_unchecked_direct(buf, idx, v) { return _store_f64_unchecked_direct(buf, idx, v) }
 fn _load_f64_buf_direct(buf, idx) { return oren_buf_load_f64(buf, idx) }
 
 fn _try_load_with(buf, idx, ctx, loadf) {
@@ -238,7 +277,8 @@ fn i32_unpack_list(buf: []i32) {
 }
 
 fn i64_pack_list_int(xs) {
-    return _pack_list_like_with(xs, "buffer.i64_pack_list_int", i64_new, i64_pack_list_int_into)
+    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
+    return _pack_list_like_new_buf_with(xs, "buffer.i64_pack_list_int", i64_new_uninit, _store_i64_buf_unchecked_direct, _validate_i64_or_err)
 }
 
 fn i64_pack_list_int_into(out: []i64, xs) {
@@ -262,7 +302,8 @@ fn i64_unpack_list(buf: []i64) {
 }
 
 fn f32_pack_list(xs) {
-    return _pack_list_like_with(xs, "buffer.f32_pack_list", f32_new, f32_pack_list_into)
+    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
+    return _pack_list_like_new_buf_with(xs, "buffer.f32_pack_list", f32_new_uninit, _store_f32_buf_unchecked_direct, _validate_passthru_or_err)
 }
 
 fn f32_pack_list_into(out: []f32, xs) {
@@ -286,7 +327,8 @@ fn f32_unpack_list(buf: []f32) {
 }
 
 fn f64_pack_list(xs) {
-    return _pack_list_like_with(xs, "buffer.f64_pack_list", f64_new, f64_pack_list_into)
+    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
+    return _pack_list_like_new_buf_with(xs, "buffer.f64_pack_list", f64_new_uninit, _store_f64_buf_unchecked_direct, _validate_passthru_or_err)
 }
 
 fn f64_pack_list_into(out: []f64, xs) {

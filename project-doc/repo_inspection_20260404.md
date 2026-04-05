@@ -264,6 +264,15 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - packed bridge SIMD: ~542.7074x C long-per-rep
     - packed bridge scalar: ~1062.1370x C long-per-rep
     - conclusion: keep the direct-path fast surface; the packed bridge is still closed
+  - same-batch family expansion:
+    - extended the same success-only full-overwrite fast path from `i32` to the analogous fresh
+      numeric typed-buffer export surfaces for `i64`, `f32`, and `f64`
+    - updated shared stdlib pack/slice/strided/matrix-export helpers to use
+      `*_buf_new_uninit(...)` plus unchecked direct stores only where every lane is written before
+      successful return
+    - added conservative C-runtime shims for `oren_i64_buf_new_uninit`,
+      `oren_f32_buf_new_uninit`, and `oren_f64_buf_new_uninit` so shared stdlib code remains
+      backend-safe even though only native gets the uninitialized-allocation win
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

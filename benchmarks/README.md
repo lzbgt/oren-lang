@@ -585,6 +585,13 @@ fast profile. The same change does not rescue the packed bridge: the paired
 still reports `dot_product_int_packed_bridge` at `~542.7074x C` SIMD and `~1062.1370x C`
 scalar on long-per-rep, so the packed bridge remains closed as a serious candidate.
 
+That full-overwrite fast path is now applied consistently across the rest of the fresh numeric typed
+buffer export family as well: `i64_pack_list_int`, `f32_pack_list`, `f64_pack_list`,
+slice/strided-to-`i64`/`f32`/`f64` buffer exports, and the corresponding whole-matrix pack/export
+helpers now use the same `*_new_uninit + unchecked direct store` rule on success-only full-write
+paths. The C runtime exports conservative `*_buf_new_uninit` shims for those element types too, so
+the shared stdlib remains backend-safe even though only native gets the uninitialized-allocation win.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 
