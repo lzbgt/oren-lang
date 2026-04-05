@@ -52,7 +52,7 @@ fn axpy_f32_buf(alpha, x: []f32, y: []f32) {
     var ny = buffer.len(y)
     if oren_is_err(ny) { return ny }
     if n != ny { return _err_invalid_arg("axpy_f32_buf: length mismatch") }
-    var out: []f32 = buffer.f32_new(n)
+    var out: []f32 = buffer.f32_new_uninit(n)
     if oren_is_err(out) { return out }
     return oren_buf_axpy_f32_into(out, alpha, x, y)
 }
@@ -67,7 +67,7 @@ fn axpy_i32_buf(alpha, x: []i32, y: []i32) {
     var ny = buffer.len(y)
     if oren_is_err(ny) { return ny }
     if n != ny { return _err_invalid_arg("axpy_i32_buf: length mismatch") }
-    var out: []i32 = buffer.i32_new(n)
+    var out: []i32 = buffer.i32_new_uninit(n)
     if oren_is_err(out) { return out }
     return oren_buf_axpy_i32_into(out, alpha, x, y)
 }

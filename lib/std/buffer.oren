@@ -18,10 +18,15 @@ import mu8 "std:buffer/mat_u8"
 
 // Constructors (thin wrappers)
 fn u8_new(n) { return raw.u8_new(n) }
+fn u8_new_uninit(n) { return raw.u8_new_uninit(n) }
 fn i32_new(n) { return raw.i32_new(n) }
+fn i32_new_uninit(n) { return raw.i32_new_uninit(n) }
 fn i64_new(n) { return raw.i64_new(n) }
+fn i64_new_uninit(n) { return raw.i64_new_uninit(n) }
 fn f32_new(n) { return raw.f32_new(n) }
+fn f32_new_uninit(n) { return raw.f32_new_uninit(n) }
 fn f64_new(n) { return raw.f64_new(n) }
+fn f64_new_uninit(n) { return raw.f64_new_uninit(n) }
 
 fn len(buf) { return oren_buf_len(buf) }
 

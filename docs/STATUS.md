@@ -513,6 +513,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `oren_bytes_from_hex`, native `oren_bytes_pack`, and both C/native `read_u8_buf` allocation
 		     paths now also use `oren_u8_buf_new_uninit(...)` instead of zero-allocating first. This is
 		     intentionally a scope/safety cleanup, not a new measured perf claim.
+		   - Fresh linalg output follow-up (2026-04-05): extend the same full-overwrite rule into the
+		     adjacent typed-buffer linear algebra constructors instead of leaving the matmul/axpy family on
+		     the old zero-allocating path. `axpy_i32_buf`, `axpy_f32_buf`, `matmul_i32_buf`,
+		     `matmul_i32_buf_wide`, `matmul_f32_buf`, and `matmul_f64_buf` now allocate fresh output
+		     buffers via `*_buf_new_uninit(...)` where the paired `*_into` kernel overwrites every lane on
+		     successful return. Their pack/transpose and microkernel scratch buffers (`bp`, `bt`, `tmp4`,
+		     `tmp16`) now use the same rule when the local fill path or runtime `*_slice_into` helper
+		     deterministically writes every slot before exposure. This is again a scope/safety cleanup, not
+		     a new kept benchmark claim.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

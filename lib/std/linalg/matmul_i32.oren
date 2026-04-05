@@ -16,7 +16,7 @@ fn matmul_i32_buf(a: []i32, b: []i32, m, n, p) {
     if na != m * n { return _err_invalid_arg("matmul_i32_buf: A length mismatch") }
     if nb != n * p { return _err_invalid_arg("matmul_i32_buf: B length mismatch") }
 
-    var out: []i32 = buffer.i32_new(m * p)
+    var out: []i32 = buffer.i32_new_uninit(m * p)
     if oren_is_err(out) { return out }
 
     var rc = matmul_i32_buf_into(out, a, b, m, n, p)
@@ -56,7 +56,7 @@ fn _matmul_i32_buf_kernel(out: []i32, a: []i32, b: []i32, m, n, p) {
     var bt: []i32 = nil
     var bp: []i32 = nil
     if use_packed {
-        bp = buffer.i32_new(tiles_j * tiles_k * JB * KB)
+        bp = buffer.i32_new_uninit(tiles_j * tiles_k * JB * KB)
         if oren_is_err(bp) { return bp }
         var bj0 = 0
         while bj0 < tiles_j {
@@ -85,7 +85,7 @@ fn _matmul_i32_buf_kernel(out: []i32, a: []i32, b: []i32, m, n, p) {
         }
     } else {
         // Transpose B to enable contiguous slice dot kernels.
-        bt = buffer.i32_new(n * p)
+        bt = buffer.i32_new_uninit(n * p)
         if oren_is_err(bt) { return bt }
         var k0 = 0
         while k0 < n {
@@ -102,13 +102,13 @@ fn _matmul_i32_buf_kernel(out: []i32, a: []i32, b: []i32, m, n, p) {
 
     // Reusable scratch for the 1x4 dot microkernel.
     // Allocate once (instead of per-row) to avoid O(m) allocations in HPC workloads.
-    var tmp4: []i64 = buffer.i64_new(4)
+    var tmp4: []i64 = buffer.i64_new_uninit(4)
     if oren_is_err(tmp4) { return tmp4 }
 
     // Reusable scratch for the 4x4 GEMM microkernel (used by packed and non-packed paths).
     var tmp16: []i64 = nil
     if m >= 4 && p >= 4 {
-        tmp16 = buffer.i64_new(16)
+        tmp16 = buffer.i64_new_uninit(16)
         if oren_is_err(tmp16) { return tmp16 }
     }
 
@@ -452,7 +452,7 @@ fn matmul_i32_buf_wide(a: []i32, b: []i32, m, n, p) {
     if na != m * n { return _err_invalid_arg("matmul_i32_buf_wide: A length mismatch") }
     if nb != n * p { return _err_invalid_arg("matmul_i32_buf_wide: B length mismatch") }
 
-    var out: []i64 = buffer.i64_new(m * p)
+    var out: []i64 = buffer.i64_new_uninit(m * p)
     if oren_is_err(out) { return out }
 
     var rc = matmul_i32_buf_wide_into(out, a, b, m, n, p)
@@ -489,7 +489,7 @@ fn _matmul_i32_buf_wide_kernel(out: []i64, a: []i32, b: []i32, m, n, p) {
     var bt: []i32 = nil
     var bp: []i32 = nil
     if use_packed {
-        bp = buffer.i32_new(tiles_j * tiles_k * JB * KB)
+        bp = buffer.i32_new_uninit(tiles_j * tiles_k * JB * KB)
         if oren_is_err(bp) { return bp }
         var bj0 = 0
         while bj0 < tiles_j {
@@ -517,7 +517,7 @@ fn _matmul_i32_buf_wide_kernel(out: []i64, a: []i32, b: []i32, m, n, p) {
             bj0 = bj0 + 1
         }
     } else {
-        bt = buffer.i32_new(n * p)
+        bt = buffer.i32_new_uninit(n * p)
         if oren_is_err(bt) { return bt }
         var k0 = 0
         while k0 < n {
@@ -533,13 +533,13 @@ fn _matmul_i32_buf_wide_kernel(out: []i64, a: []i32, b: []i32, m, n, p) {
     }
 
     // Reusable scratch for the 1x4 dot microkernel.
-    var tmp4: []i64 = buffer.i64_new(4)
+    var tmp4: []i64 = buffer.i64_new_uninit(4)
     if oren_is_err(tmp4) { return tmp4 }
 
     // Reusable scratch for the 4x4 GEMM microkernel (used by packed and non-packed paths).
     var tmp16: []i64 = nil
     if m >= 4 && p >= 4 {
-        tmp16 = buffer.i64_new(16)
+        tmp16 = buffer.i64_new_uninit(16)
         if oren_is_err(tmp16) { return tmp16 }
     }
 

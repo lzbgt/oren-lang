@@ -1358,6 +1358,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     now also use `oren_u8_buf_new_uninit(...)`. Reweight again: stop spending turns on obvious
 		     zero-fill cleanup inside the already-covered byte constructor family and move to either a new
 		     measured bottleneck or another surface with the same full-overwrite proof.
+		   - Adjacent linalg family cleanup (2026-04-05): finish the same proof-backed rewrite on the
+		     fresh-output typed-buffer linear algebra family. `axpy_i32_buf`, `axpy_f32_buf`,
+		     `matmul_i32_buf`, `matmul_i32_buf_wide`, `matmul_f32_buf`, and `matmul_f64_buf` now allocate
+		     fresh output via `*_buf_new_uninit(...)`, and their internal pack/transpose and scratch
+		     buffers now do the same where the code or paired runtime `*_slice_into` helper fully
+		     overwrites every slot before any successful return. Reweight again: stop spending turns on
+		     obvious zero-fill cleanup inside the already-covered fresh numeric/linalg family and move to a
+		     newly measured bottleneck or another surface with equally strong overwrite proof.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

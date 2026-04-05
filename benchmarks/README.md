@@ -624,6 +624,22 @@ Again, this is a scope/safety update rather than a new kept benchmark claim. The
 that the shared/runtime byte constructors no longer stand out as the one remaining `u8` family that
 still paid eager zero-fill before a proven full overwrite.
 
+The same proof now covers the fresh-output typed-buffer linear algebra kernels too. Shared
+`std:linalg` constructors that allocate a fresh numeric buffer and then fully overwrite it through a
+checked `*_into` kernel or an explicit pack/transpose loop now also use `*_new_uninit(...)`:
+
+- `axpy_i32_buf`
+- `axpy_f32_buf`
+- `matmul_i32_buf`
+- `matmul_i32_buf_wide`
+- `matmul_f32_buf`
+- `matmul_f64_buf`
+
+Their internal fully-overwritten scratch and pack/transpose buffers (`bp`, `bt`, `tmp4`, and
+`tmp16`) now follow the same rule too. This is intentionally a scope/safety cleanup, not a new kept
+perf claim; the fact-backed point is that the earlier overwrite-proof fast path is now applied
+consistently to the adjacent linalg fresh-output family instead of stopping at conversion helpers.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

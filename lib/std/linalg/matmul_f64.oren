@@ -14,7 +14,7 @@ fn matmul_f64_buf(a: []f64, b: []f64, m, n, p) {
     if na != m * n { return _err_invalid_arg("matmul_f64_buf: A length mismatch") }
     if nb != n * p { return _err_invalid_arg("matmul_f64_buf: B length mismatch") }
 
-    var out: []f64 = buffer.f64_new(m * p)
+    var out: []f64 = buffer.f64_new_uninit(m * p)
     if oren_is_err(out) { return out }
 
     var rc = matmul_f64_buf_into(out, a, b, m, n, p)
@@ -42,7 +42,7 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
     // output as a sum of deterministic dot slices (increasing-k blocks).
     //
     // Bt is p x n, indexed Bt[j*n + k] = B[k*p + j].
-    var bt: []f64 = buffer.f64_new(n * p)
+    var bt: []f64 = buffer.f64_new_uninit(n * p)
     if oren_is_err(bt) { return bt }
     var k0 = 0
     while k0 < n {
@@ -64,7 +64,7 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
 
     var bp: []f64 = nil
     if use_packed {
-        bp = buffer.f64_new(tiles_j * tiles_k * JB * KB)
+        bp = buffer.f64_new_uninit(tiles_j * tiles_k * JB * KB)
         if oren_is_err(bp) { return bp }
         var bj = 0
         while bj < tiles_j {
@@ -94,13 +94,13 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
     }
 
     // Reusable scratch for the 1x4 dot microkernel (avoid 4 passes over A in tight loops).
-    var tmp4: []f64 = buffer.f64_new(4)
+    var tmp4: []f64 = buffer.f64_new_uninit(4)
     if oren_is_err(tmp4) { return tmp4 }
 
     // Reusable scratch for the 4x4 GEMM microkernel (reduces boundary overhead for 4-row blocks).
     var tmp16: []f64 = nil
     if m >= 4 && p >= 4 {
-        tmp16 = buffer.f64_new(16)
+        tmp16 = buffer.f64_new_uninit(16)
         if oren_is_err(tmp16) { return tmp16 }
     }
 
