@@ -495,6 +495,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `oren_i64_buf_new_uninit`, `oren_f32_buf_new_uninit`, and `oren_f64_buf_new_uninit` shims
 		     that still zero-allocate, keeping the shared stdlib link-safe on `oren_c` while native gets
 		     the uninitialized-allocation win.
+		   - `u8` export follow-up (2026-04-05): the same full-overwrite proof now covers fresh `[]u8`
+		     export surfaces as well. Shared stdlib `buffer.try_u8_pack`,
+		     `buffer.try_u8_from_string`, `buffer.try_u8_from_string_slice`,
+		     `buffer.try_slice_to_u8_buf`, `buffer.try_strided_to_u8_buf`,
+		     `buffer.try_u8_mat_pack_rows`, `buffer.try_u8_mat_pack_strings`,
+		     `buffer.try_u8_mat_to_u8_buf`, `bytes.try_to_u8_buf`, and
+		     `bytes.try_to_u8_buf_slice` now route through `oren_u8_buf_new_uninit(...)` plus direct
+		     unchecked writes only on success-only full-write paths. This also removes the old
+		     intermediate-list hop from slice/strided-to-`[]u8` export and reuses the shared
+		     `oren_u8_buf_from_bytes_slice(...)` primitive for bytes-to-buffer copies. The C runtime now
+		     exports a conservative `oren_u8_buf_new_uninit` shim so the same shared stdlib code remains
+		     backend-safe on `oren_c`.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

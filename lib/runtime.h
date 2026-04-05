@@ -543,6 +543,7 @@ OrenValue oren_trunc_int(OrenValue v);
 
 // --- typed numeric buffers (C backend) ---
 OrenValue oren_u8_buf_new(OrenValue len);
+OrenValue oren_u8_buf_new_uninit(OrenValue len);
 OrenValue oren_i32_buf_new(OrenValue len);
 OrenValue oren_i32_buf_new_uninit(OrenValue len);
 OrenValue oren_i64_buf_new(OrenValue len);

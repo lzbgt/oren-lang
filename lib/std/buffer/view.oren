@@ -52,14 +52,14 @@ fn _view_unpack(load_fn, view, n, ctx) {
 }
 
 fn _u8_view_to_u8_buf(load_fn, view, n, ctx) {
-    var xs = _u8_view_unpack(load_fn, view, n, ctx)
-    if oren_is_err(xs) { return xs }
-    var out: []u8 = oren_u8_buf_new(n)
+    var out: []u8 = raw.u8_new_uninit(n)
     if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
     var i = 0
     while i < n {
-        var rc = oren_buf_store_u8(out, i, xs[i])
-        if oren_is_err(rc) { return rc }
+        var b = load_fn(view, i)
+        if oren_is_err(b) { return oren_err(4, ctx + ": expected numeric/[]u8 view") }
+        ptr_set_byte(data + i, b & 255)
         i = i + 1
     }
     return out

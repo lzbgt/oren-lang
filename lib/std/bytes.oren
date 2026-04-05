@@ -212,17 +212,7 @@ fn try_from_u8_buf(buf) {
 fn try_to_u8_buf(bytes) {
     var n = _len_or_err(bytes, "bytes.try_to_u8_buf")
     if oren_is_err(n) { return n }
-    var out = oren_u8_buf_new(n)
-    if oren_is_err(out) { return out }
-    var i = 0
-    while i < n {
-        var b = oren_bytes_get_u8(bytes, i)
-        if oren_is_err(b) { return b }
-        var rc = oren_buf_store_u8(out, i, b)
-        if oren_is_err(rc) { return rc }
-        i = i + 1
-    }
-    return out
+    return oren_u8_buf_from_bytes_slice(bytes, 0, n)
 }
 
 fn try_to_string_slice(bytes, off, n) {
@@ -232,9 +222,11 @@ fn try_to_string_slice(bytes, off, n) {
 }
 
 fn try_to_u8_buf_slice(bytes, off, n) {
-    var sub = try_slice(bytes, off, n)
-    if oren_is_err(sub) { return sub }
-    return try_to_u8_buf(sub)
+    var ok_off = _check_nonneg_int(off, "bytes.try_to_u8_buf_slice", "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_n = _check_nonneg_int(n, "bytes.try_to_u8_buf_slice", "len")
+    if oren_is_err(ok_n) { return ok_n }
+    return oren_u8_buf_from_bytes_slice(bytes, off, n)
 }
 
 fn try_get_u16_be(bytes, idx) {

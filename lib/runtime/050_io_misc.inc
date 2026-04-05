@@ -936,7 +936,7 @@ OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: out of bounds"));
     }
 
-    OrenValue outv = oren_u8_buf_new(oren_int((long long)n0));
+    OrenValue outv = oren_u8_buf_new_uninit(oren_int((long long)n0));
     if (oren_is_err(outv).as.bool_val) {
         return outv;
     }

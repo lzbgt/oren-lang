@@ -34,26 +34,25 @@ fn u8_mat_pack_rows(rows) {
     if oren_is_err(shape) { return shape }
     var nrows = shape[0]
     var ncols = shape[1]
-    var out = raw.u8_new(nrows * ncols)
+    // Safe: rows pack writes every element of the fresh buffer before successful return.
+    var out = raw.u8_new_uninit(nrows * ncols)
     if oren_is_err(out) { return out }
-    var mat = core.try_mat_view_new(out, 0, nrows, ncols, ncols)
-    if oren_is_err(mat) { return mat }
+    var i = 0
     var r = 0
     while r < nrows {
-        var row_view = proj.try_mat_row_slice(mat, r)
-        if oren_is_err(row_view) { return row_view }
         var row = rows[r]
         var c = 0
         while c < ncols {
             var v = _u8_validate_or_err(row[c], "buffer.u8_mat_pack_rows")
             if oren_is_err(v) { return v }
-            var rc = view.try_slice_store_u8(row_view, c, v)
+            var rc = raw._store_u8_buf_unchecked_direct(out, i, v)
             if oren_is_err(rc) { return rc }
+            i = i + 1
             c = c + 1
         }
         r = r + 1
     }
-    return mat
+    return core.try_mat_view_new(out, 0, nrows, ncols, ncols)
 }
 
 fn try_u8_mat_pack_rows(rows) {
@@ -73,19 +72,23 @@ fn u8_mat_pack_strings(rows) {
     if oren_is_err(shape) { return shape }
     var nrows = shape[0]
     var ncols = shape[1]
-    var out = raw.u8_new(nrows * ncols)
+    // Safe: string rows pack writes every element of the fresh buffer before successful return.
+    var out = raw.u8_new_uninit(nrows * ncols)
     if oren_is_err(out) { return out }
-    var mat = core.try_mat_view_new(out, 0, nrows, ncols, ncols)
-    if oren_is_err(mat) { return mat }
+    var i = 0
     var r = 0
     while r < nrows {
-        var row_view = proj.try_mat_row_slice(mat, r)
-        if oren_is_err(row_view) { return row_view }
-        var rc = view.try_slice_copy_from_string(row_view, rows[r])
-        if oren_is_err(rc) { return rc }
+        var row = rows[r]
+        var c = 0
+        while c < ncols {
+            var rc = raw._store_u8_buf_unchecked_direct(out, i, oren_string_byte_at_unchecked(row, c) & 255)
+            if oren_is_err(rc) { return rc }
+            i = i + 1
+            c = c + 1
+        }
         r = r + 1
     }
-    return mat
+    return core.try_mat_view_new(out, 0, nrows, ncols, ncols)
 }
 
 fn try_u8_mat_pack_strings(rows) {
@@ -142,9 +145,8 @@ fn try_u8_mat_to_bytes(m) {
 }
 
 fn u8_mat_to_u8_buf(m) {
-    var bytes = u8_mat_to_bytes(m)
-    if oren_is_err(bytes) { return bytes }
-    return bytesm.try_to_u8_buf(bytes)
+    // Safe: whole-matrix export overwrites every lane of the fresh buffer before return.
+    return mshared._mat_to_typed_buf_with(m, "buffer.u8_mat_to_u8_buf", raw.u8_new_uninit, core.try_mat_load_u8, raw._store_u8_buf_unchecked_direct)
 }
 
 fn try_u8_mat_to_u8_buf(m) {

@@ -592,6 +592,26 @@ helpers now use the same `*_new_uninit + unchecked direct store` rule on success
 paths. The C runtime exports conservative `*_buf_new_uninit` shims for those element types too, so
 the shared stdlib remains backend-safe even though only native gets the uninitialized-allocation win.
 
+That same proof now covers the fresh `u8` export family too. Shared `std:buffer`/`std:bytes`
+surfaces that allocate a fresh `[]u8` and fully overwrite it before any successful return now use the
+same conservative rule:
+
+- `buffer.try_u8_pack`
+- `buffer.try_u8_from_string`
+- `buffer.try_u8_from_string_slice`
+- `buffer.try_slice_to_u8_buf`
+- `buffer.try_strided_to_u8_buf`
+- `buffer.try_u8_mat_pack_rows`
+- `buffer.try_u8_mat_pack_strings`
+- `buffer.try_u8_mat_to_u8_buf`
+- `bytes.try_to_u8_buf`
+- `bytes.try_to_u8_buf_slice`
+
+There is no separate kept `u8` performance artifact yet; the fact-backed claim here is scope and
+safety, not a new benchmark number. The same native/C backend split still applies: native can skip
+the eager zero-fill through `oren_u8_buf_new_uninit(...)`, while `oren_c` keeps a conservative shim
+that zero-allocates and preserves correctness.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

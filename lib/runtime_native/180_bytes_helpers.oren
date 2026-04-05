@@ -84,7 +84,7 @@ fn oren_u8_buf_from_bytes_slice(bytes, start, len) {
     if oren_is_err(total) { return oren_err(4, "u8_buf_from_bytes_slice expects list<int> or u8_buf") }
     if start > total || start + len > total { return oren_err(4, "u8_buf_from_bytes_slice: out of bounds") }
 
-    var out = oren_u8_buf_new(len)
+    var out = oren_u8_buf_new_uninit(len)
     if oren_is_err(out) { return out }
     if len == 0 { return out }
 

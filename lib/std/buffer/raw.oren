@@ -12,6 +12,8 @@ fn _is_int(v) { return common._is_int(v) }
 fn _string_slice_or_err(s, off, n, ctx) { return common._string_slice_or_err(s, off, n, ctx) }
 
 fn u8_new(n) { return oren_u8_buf_new(n) }
+// Internal fast-path for fresh buffers that will be fully initialized before return.
+fn u8_new_uninit(n) { return oren_u8_buf_new_uninit(n) }
 fn i32_new(n) { return oren_i32_buf_new(n) }
 // Internal fast-path for fresh buffers that will be fully initialized before return.
 fn i32_new_uninit(n) { return oren_i32_buf_new_uninit(n) }
@@ -56,6 +58,11 @@ fn _validate_int_or_err(v, ctx) {
 
 fn _load_u8_direct(buf, idx) { return oren_buf_load_u8(buf, idx) }
 fn _store_u8_direct(buf, idx, v) { return oren_buf_store_u8(buf, idx, v) }
+fn _store_u8_unchecked_direct(buf, idx, v) {
+    var data = oren_buf_data_ptr_unchecked(buf)
+    ptr_set_byte(data + idx, v)
+    return buf
+}
 fn _load_i32_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
 fn _store_i32_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
 fn _store_i32_unchecked_direct(buf, idx, v) {
@@ -108,6 +115,9 @@ fn _store_f64_unchecked_direct(buf, idx, v: f64) {
     return buf
 }
 
+fn _store_u8_buf_direct(buf, idx, v) { return oren_buf_store_u8(buf, idx, v) }
+fn _store_u8_buf_unchecked_direct(buf, idx, v) { return _store_u8_unchecked_direct(buf, idx, v) }
+fn _load_u8_buf_direct(buf, idx) { return oren_buf_load_u8(buf, idx) }
 fn _store_i32_buf_direct(buf, idx, v) { return oren_buf_store_i32(buf, idx, v) }
 fn _store_i32_buf_unchecked_direct(buf, idx, v) { return _store_i32_unchecked_direct(buf, idx, v) }
 fn _load_i32_buf_direct(buf, idx) { return oren_buf_load_i32(buf, idx) }
@@ -352,7 +362,8 @@ fn f64_unpack_list(buf: []f64) {
 }
 
 fn try_u8_pack(xs) {
-    return _pack_list_like_with(xs, "buffer.try_u8_pack", u8_new, try_u8_pack_into)
+    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
+    return _pack_list_like_new_buf_with(xs, "buffer.try_u8_pack", u8_new_uninit, _store_u8_buf_unchecked_direct, _validate_u8_or_err)
 }
 
 fn try_u8_pack_into(out: []u8, xs) {
@@ -377,9 +388,17 @@ fn u8_unpack(buf: []u8) {
 
 fn try_u8_from_string(s) {
     if oren_type_tag(s) != 4 { return oren_err(4, "buffer.try_u8_from_string: s must be string") }
-    var xs = oren_bytes_from_string(s)
-    if oren_is_err(xs) { return xs }
-    return try_u8_pack(xs)
+    var n = oren_string_len(s)
+    if oren_is_err(n) { return n }
+    var out: []u8 = u8_new_uninit(n)
+    if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
+    var i = 0
+    while i < n {
+        ptr_set_byte(data + i, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    return out
 }
 
 fn u8_from_string(s) {
@@ -405,9 +424,22 @@ fn u8_from_bytes(bytes) {
 }
 
 fn try_u8_from_string_slice(s, off, n) {
-    var sub = _string_slice_or_err(s, off, n, "buffer.try_u8_from_string_slice")
-    if oren_is_err(sub) { return sub }
-    return try_u8_from_string(sub)
+    if oren_type_tag(s) != 4 { return oren_err(4, "buffer.try_u8_from_string_slice: s must be string") }
+    if _is_int(off) == false { return oren_err(4, "buffer.try_u8_from_string_slice: off must be int") }
+    if _is_int(n) == false { return oren_err(4, "buffer.try_u8_from_string_slice: n must be int") }
+    if off < 0 || n < 0 { return oren_err(4, "buffer.try_u8_from_string_slice: negative off/len") }
+    var total = oren_string_len(s)
+    if oren_is_err(total) { return total }
+    if off + n > total { return oren_err(4, "buffer.try_u8_from_string_slice: slice out of bounds") }
+    var out: []u8 = u8_new_uninit(n)
+    if oren_is_err(out) { return out }
+    var data = oren_buf_data_ptr_unchecked(out)
+    var i = 0
+    while i < n {
+        ptr_set_byte(data + i, oren_string_byte_at_unchecked(s, off + i) & 255)
+        i = i + 1
+    }
+    return out
 }
 
 fn u8_from_string_slice(s, off, n) {

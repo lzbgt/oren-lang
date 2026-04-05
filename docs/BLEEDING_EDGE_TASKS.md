@@ -1344,6 +1344,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     direct stores on success-only full-write paths. Keep the next work focused on surfaces with
 		     similarly strong overwrite proofs; do not spread this to partial-write or externally visible
 		     buffers without a comparable safety argument.
+		   - `u8` family expansion (2026-04-05): finish the same rule on the byte-oriented fresh export
+		     paths instead of leaving one more partial cleanup pass behind. Shared stdlib
+		     `buffer.try_u8_pack`, string-to-`[]u8`, slice/strided-to-`[]u8`, `u8` matrix row/string
+		     pack/export, and `bytes.try_to_u8_buf[_slice]` now use the same
+		     `oren_u8_buf_new_uninit(...) + unchecked direct write` rule only where successful return
+		     proves every lane was written. Reweight again: the next work should move to other
+		     full-overwrite conversion surfaces or measured bottlenecks, not back to the already-covered
+		     fresh numeric/byte export family.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

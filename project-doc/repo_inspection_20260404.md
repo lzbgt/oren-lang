@@ -264,15 +264,23 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
     - packed bridge SIMD: ~542.7074x C long-per-rep
     - packed bridge scalar: ~1062.1370x C long-per-rep
     - conclusion: keep the direct-path fast surface; the packed bridge is still closed
-  - same-batch family expansion:
-    - extended the same success-only full-overwrite fast path from `i32` to the analogous fresh
-      numeric typed-buffer export surfaces for `i64`, `f32`, and `f64`
-    - updated shared stdlib pack/slice/strided/matrix-export helpers to use
-      `*_buf_new_uninit(...)` plus unchecked direct stores only where every lane is written before
-      successful return
-    - added conservative C-runtime shims for `oren_i64_buf_new_uninit`,
-      `oren_f32_buf_new_uninit`, and `oren_f64_buf_new_uninit` so shared stdlib code remains
-      backend-safe even though only native gets the uninitialized-allocation win
+	  - same-batch family expansion:
+	    - extended the same success-only full-overwrite fast path from `i32` to the analogous fresh
+	      numeric typed-buffer export surfaces for `i64`, `f32`, and `f64`
+	    - updated shared stdlib pack/slice/strided/matrix-export helpers to use
+	      `*_buf_new_uninit(...)` plus unchecked direct stores only where every lane is written before
+	      successful return
+	    - added conservative C-runtime shims for `oren_i64_buf_new_uninit`,
+	      `oren_f32_buf_new_uninit`, and `oren_f64_buf_new_uninit` so shared stdlib code remains
+	      backend-safe even though only native gets the uninitialized-allocation win
+	  - same-rule `u8` follow-up:
+	    - extended the same success-only full-overwrite fast path to the fresh `[]u8` export family in
+	      shared stdlib: `buffer.try_u8_pack`, string-to-`[]u8`, slice/strided-to-`[]u8`, `u8` matrix
+	      row/string pack/export, and `bytes.try_to_u8_buf[_slice]`
+	    - removed the extra intermediate-list path from slice/strided-to-`[]u8` export and routed
+	      bytes-to-buffer copies through the shared `oren_u8_buf_from_bytes_slice(...)` primitive
+	    - added conservative C-runtime `oren_u8_buf_new_uninit` coverage so the same shared stdlib
+	      code stays link-safe on `oren_c` while native gets the uninitialized-allocation win
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

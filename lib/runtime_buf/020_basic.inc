@@ -9,6 +9,7 @@ OrenValue oren_f32_buf_new_uninit(OrenValue len) { return oren_f32_buf_new(len);
 OrenValue oren_f64_buf_new(OrenValue len) { return buf_new(8u, len, OREN_TYPE_F64_BUF); }
 OrenValue oren_f64_buf_new_uninit(OrenValue len) { return oren_f64_buf_new(len); }
 OrenValue oren_u8_buf_new(OrenValue len) { return buf_new(1u, len, OREN_TYPE_U8_BUF); }
+OrenValue oren_u8_buf_new_uninit(OrenValue len) { return oren_u8_buf_new(len); }
 
 OrenValue oren_buf_len(OrenValue buf) {
     if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
