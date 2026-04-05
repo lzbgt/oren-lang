@@ -529,6 +529,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `hpack._huff_decode_bytes` final output materialization, and `ppm.encode_rgba` now allocate
 		     through `oren_u8_buf_new_uninit(...)`. Added focused module coverage for the HTTP/2 SETTINGS
 		     payload encode/decode round-trip so this path is no longer covered only indirectly.
+		   - Shared byte-helper follow-up (2026-04-05): after the constructor/allocation cleanup, remove
+		     the remaining obvious list-materialization hops in portable helper code. `bytes.try_to_string`,
+		     `bytes.try_slice`, `bytes.try_concat`, `bytes.try_from_u8_buf`, and
+		     `bytes.try_to_string_slice` now use the shared direct bridges
+		     `oren_string_from_bytes_slice(...)` / `oren_u8_buf_from_bytes_slice(...)` and unchecked
+		     direct `u8` writes instead of round-tripping through temporary `list<int>` values. Likewise,
+		     `ppm.write_rgba_ppm` now passes the encoded `u8_buf` directly to `oren_write_bytes(...)`
+		     because the shared runtimes already accept `u8_buf` there. Added focused module coverage for
+		     the PPM write/read round-trip.
 	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
 	     benchmark numerics. The slot-direct smoke also builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper

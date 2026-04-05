@@ -303,6 +303,16 @@ Inspected the repo structure, top-level docs, Makefile verification targets, and
 		      `hpack._huff_decode_bytes` output materialization, and `ppm.encode_rgba`
 		    - added a focused module test for the HTTP/2 SETTINGS payload encode/decode round-trip so that
 		      this path is exercised directly instead of only through compile-only net fixtures
+		  - shared byte-helper boundary cleanup:
+		    - removed several remaining portable helper hops through temporary `list<int>` materialization
+		      where the shared runtime already exposed direct bridges:
+		      `bytes.try_to_string`, `bytes.try_slice`, `bytes.try_concat`, `bytes.try_from_u8_buf`,
+		      `bytes.try_to_string_slice`, and `ppm.write_rgba_ppm`
+		    - those paths now compose directly through `oren_string_from_bytes_slice(...)`,
+		      `oren_u8_buf_from_bytes_slice(...)`, unchecked direct `u8` writes, and direct
+		      `u8_buf -> oren_write_bytes(...)` handoff
+		    - added a focused module test for the PPM write/read round-trip so the direct
+		      `u8_buf -> write_bytes` path is exercised explicitly
 - Follow-up arm64 tick-mask tuning pass (2026-04-04):
   - added compiler-env tick-mask parsing in the shared arm64 GC helper so the native fast-loop
     emitters can be tuned without source edits:

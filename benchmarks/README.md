@@ -654,6 +654,22 @@ This is again a scope/safety cleanup rather than a new kept performance claim. T
 coverage now includes a focused module assertion for the HTTP/2 SETTINGS payload encoder/decoder, so
 the new allocation path is exercised by more than compile-only fixtures.
 
+The next shared-byte cleanup after constructor/allocation work is helper-boundary removal. A few
+portable `std:bytes` and `std:ui` helpers no longer bounce through intermediate `list<int>`
+materialization when the shared runtime already exposes direct byte-slice/string bridges:
+
+- `bytes.try_to_string`
+- `bytes.try_slice`
+- `bytes.try_concat`
+- `bytes.try_from_u8_buf`
+- `bytes.try_to_string_slice`
+- `ppm.write_rgba_ppm`
+
+This is also a scope/safety update rather than a new kept benchmark claim. The important point is
+that common byte helpers now compose directly through `oren_string_from_bytes_slice(...)`,
+`oren_u8_buf_from_bytes_slice(...)`, unchecked direct `u8` writes, and direct `u8_buf ->
+oren_write_bytes(...)` handoff instead of re-materializing temporary byte lists first.
+
 For a direct attribution read on how much of the remaining gap is still “generic benchmark shape”
 versus the explicit `list.int_*` path, use:
 

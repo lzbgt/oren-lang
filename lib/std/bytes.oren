@@ -6,6 +6,8 @@
 // - `oren_*` is the kernel ABI namespace (reserved, stable, non-idiomatic).
 // - This module exposes a portable stdlib surface for byte operations.
 
+import raw "std:buffer/raw"
+
 fn len(bytes) { return oren_bytes_len(bytes) }
 
 fn _is_int(v) {
@@ -125,9 +127,9 @@ fn try_to_hex(bytes) {
 }
 
 fn try_to_string(bytes) {
-    var xs = _bytes_to_int_list(bytes, "bytes.try_to_string")
-    if oren_is_err(xs) { return xs }
-    return oren_string_from_bytes(xs)
+    var n = _len_or_err(bytes, "bytes.try_to_string")
+    if oren_is_err(n) { return n }
+    return oren_string_from_bytes_slice(bytes, 0, n)
 }
 
 fn try_pack(xs) {
@@ -146,29 +148,31 @@ fn try_slice(bytes, off, n) {
     var nb = _len_or_err(bytes, "bytes.try_slice")
     if oren_is_err(nb) { return nb }
     if off + n > nb { return oren_err(4, "bytes.try_slice: slice out of bounds") }
-    var out = []
-    var i = 0
-    while i < n {
-        var b = oren_bytes_get_u8(bytes, off + i)
-        if oren_is_err(b) { return b }
-        oren_list_push(out, b)
-        i = i + 1
-    }
-    return oren_bytes_pack(out)
+    return oren_u8_buf_from_bytes_slice(bytes, off, n)
 }
 
 fn try_concat(a, b) {
-    var xa = _bytes_to_int_list(a, "bytes.try_concat")
-    if oren_is_err(xa) { return xa }
-    var xb = _bytes_to_int_list(b, "bytes.try_concat")
-    if oren_is_err(xb) { return xb }
+    var na = _len_or_err(a, "bytes.try_concat")
+    if oren_is_err(na) { return na }
+    var nb = _len_or_err(b, "bytes.try_concat")
+    if oren_is_err(nb) { return nb }
+    var out = raw.u8_new_uninit(na + nb)
+    if oren_is_err(out) { return out }
     var i = 0
-    var nb = oren_list_len(xb)
-    while i < nb {
-        oren_list_push(xa, xb[i])
+    while i < na {
+        var av = oren_bytes_get_u8(a, i)
+        if oren_is_err(av) { return av }
+        raw._store_u8_buf_unchecked_direct(out, i, av)
         i = i + 1
     }
-    return oren_bytes_pack(xa)
+    var j = 0
+    while j < nb {
+        var bv = oren_bytes_get_u8(b, j)
+        if oren_is_err(bv) { return bv }
+        raw._store_u8_buf_unchecked_direct(out, na + j, bv)
+        j = j + 1
+    }
+    return out
 }
 
 fn try_copy_into(dst, dst_off, src, src_off, n) {
@@ -198,15 +202,7 @@ fn try_copy_into(dst, dst_off, src, src_off, n) {
 fn try_from_u8_buf(buf) {
     var n = oren_buf_len(buf)
     if n == nil || oren_is_err(n) { return oren_err(4, "bytes.try_from_u8_buf: buf must be []u8") }
-    var out = []
-    var i = 0
-    while i < n {
-        var b = oren_buf_load_u8(buf, i)
-        if oren_is_err(b) { return b }
-        oren_list_push(out, b)
-        i = i + 1
-    }
-    return oren_bytes_pack(out)
+    return oren_u8_buf_from_bytes_slice(buf, 0, n)
 }
 
 fn try_to_u8_buf(bytes) {
@@ -216,9 +212,11 @@ fn try_to_u8_buf(bytes) {
 }
 
 fn try_to_string_slice(bytes, off, n) {
-    var sub = try_slice(bytes, off, n)
-    if oren_is_err(sub) { return sub }
-    return try_to_string(sub)
+    var ok_off = _check_nonneg_int(off, "bytes.try_to_string_slice", "off")
+    if oren_is_err(ok_off) { return ok_off }
+    var ok_n = _check_nonneg_int(n, "bytes.try_to_string_slice", "len")
+    if oren_is_err(ok_n) { return ok_n }
+    return oren_string_from_bytes_slice(bytes, off, n)
 }
 
 fn try_to_u8_buf_slice(bytes, off, n) {

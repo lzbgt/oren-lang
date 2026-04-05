@@ -1374,6 +1374,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     write every byte before any successful return. Reweight again: stop spending turns on obvious
 		     fresh-byte overwrite cleanups in already-covered serializer families and move to either a
 		     measured bottleneck or a new family with the same overwrite proof.
+		   - Shared byte-helper boundary cleanup (2026-04-05): after the fresh-byte allocation work,
+		     remove the remaining portable helper hops through temporary `list<int>` materialization.
+		     `bytes.try_to_string`, `bytes.try_slice`, `bytes.try_concat`, `bytes.try_from_u8_buf`, and
+		     `bytes.try_to_string_slice` now use the shared direct bridges
+		     `oren_string_from_bytes_slice(...)` / `oren_u8_buf_from_bytes_slice(...)` plus unchecked
+		     direct `u8` writes, and `ppm.write_rgba_ppm` now writes the encoded `u8_buf` directly via
+		     `oren_write_bytes(...)`. Reweight again: stop spending turns on obvious shared byte-helper
+		     bridging and move to a newly measured runtime bottleneck instead.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

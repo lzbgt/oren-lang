@@ -79,12 +79,9 @@ fn encode_rgba(rgba, w, h) {
 }
 
 fn write_rgba_ppm(path, rgba, w, h) {
-    // Portable write helper:
-    // - `oren_write_bytes` is list-based in AVM but accepts u8_buf in native runtime.
-    // - To behave consistently, we always write using list<int> form.
+    // `oren_write_bytes` accepts both list<int> and u8_buf on the shared C/native runtimes,
+    // so the encoded buffer can be written directly without unpacking back through a list.
     var b = encode_rgba(rgba, w, h)
     if oren_is_err(b) { return b }
-    var xs = oren_bytes_unpack(b)
-    if oren_is_err(xs) { return xs }
-    return oren_write_bytes(path, xs)
+    return oren_write_bytes(path, b)
 }
