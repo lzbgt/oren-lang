@@ -23,6 +23,8 @@ build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 all_programs=(
     array_sum_int_slot_direct
     dot_product_int_slot_direct
+    array_sum_int_slot_public
+    dot_product_int_slot_public
 )
 
 if [[ -n "${OREN_PERF_PREBUILD_PROGRAMS:-}" ]]; then
@@ -81,7 +83,7 @@ for program in "${programs[@]}"; do
     mkdir -p "$out_dir"
     if needs_rebuild "$out" "$src" "$c_out" "$c_src"; then
         {
-            echo "[build] ${program} (C + native direct-slot runtime)"
+            echo "[build] ${program} (C + native slot-surface runtime)"
             if [[ -n "$build_env_raw" ]]; then
                 echo "[build_env] ${build_env_raw}"
             fi
@@ -92,4 +94,4 @@ for program in "${programs[@]}"; do
     fi
 done
 
-echo "slot-direct C+native prebuild complete; log: $log_path"
+echo "slot-surface C+native prebuild complete; log: $log_path"

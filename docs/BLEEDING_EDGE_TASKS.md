@@ -1298,9 +1298,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				     `dot_product_int` `~1.2169× C`, direct-slot helper `~1.1182× C`, packed-SIMD
 				     `~4.9387× C`, packed-scalar `~17.0948× C`. The bridge is no longer catastrophically bad,
 				     but it still trails the shipped whole-operation path.
-				   - Direct-slot read-split follow-up (2026-04-08): new
-				     `make perf-probe-list-int-slot-direct-read-split` now warms the hidden direct-slot
-				     artifacts once and reruns canonical `array_sum_int` / `dot_product_int` against the
+					   - Direct-slot read-split follow-up (2026-04-08): new
+					     `make perf-probe-list-int-slot-direct-read-split` now warms the hidden direct-slot
+					     artifacts once and reruns canonical `array_sum_int` / `dot_product_int` against the
 				     unchecked helper path on the same short/long harness. Latest no-smoke artifact
 				     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`,
 				     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) keeps the helper ahead on
@@ -1311,13 +1311,30 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				     - direct-slot `dot_product_int_slot_direct`: `~1.1637× C` long-per-rep
 					     - delta note: the same rerun produced unstable split deltas (canonical
 					       `dot_product_int` `~-0.0273× C`, direct-slot `~7.6465× C`), so tracker updates should
-					       prefer long-per-rep on this surface.
-					     Reweight accordingly: the packed bridge still stays closed as the next parity lever, and
-					     the higher-value next task looked like pulling more of the direct-slot path into the
-					     shipped canonical lowering.
-					   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
-					     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
-					     whole-operation path. The sequential no-smoke rerun with
+						       prefer long-per-rep on this surface.
+						     Reweight accordingly: the packed bridge still stays closed as the next parity lever, and
+						     the higher-value next task looked like pulling more of the direct-slot path into the
+						     shipped canonical lowering.
+					   - Public slot-surface read-split follow-up (2026-04-09): new
+					     `make perf-probe-list-int-slot-surface-read-split` now warms the same slot-surface
+					     artifacts and reruns canonical `array_sum_int` / `dot_product_int` against both the
+					     hidden helper ceiling and the new public `std:linalg` slot wrappers. Latest no-smoke
+					     artifact (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`,
+					     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) comes back as:
+					     - canonical `array_sum_int`: `~1.3454× C` long-per-rep
+					     - direct-slot `array_sum_int_slot_direct`: `~1.0479× C` long-per-rep
+					     - public-slot `array_sum_int_slot_public`: `~1.2686× C` long-per-rep
+					     - canonical `dot_product_int`: `~1.4701× C` long-per-rep
+					     - direct-slot `dot_product_int_slot_direct`: `~1.1698× C` long-per-rep
+					     - public-slot `dot_product_int_slot_public`: `~1.2188× C` long-per-rep
+					     - delta note: the split deltas still fluctuate enough that tracker updates should keep
+					       using `long_per_rep` on this surface too.
+					     Reweight again: the public wrapper already preserves much of the helper win, especially
+					     on `dot_product_int`, so the next direct-slot task should target wrapper/boundary overhead
+					     or more direct lowering against the public surface rather than another packed-bridge pass.
+						   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
+						     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
+						     whole-operation path. The sequential no-smoke rerun with
 					     `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER=1`
 					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`,
 					     `runs=4 warmups=0 n=20000 short_reps=1 long_reps=4`) versus the disabled baseline
@@ -1509,13 +1526,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
      deterministic panic text for one-nil and length-mismatch
      `oren_list_int_dot_slots_unchecked(...)` calls.
-		   - Shared stdlib follow-up (2026-04-09): the same direct-slot runtime surface is no longer
-		     benchmark-only. `std:linalg` now exposes
-		     `reduce_sum_i64_list_int_slots(...)` / `dot_i64_list_int_slots(...)`, which fast-path through
-		     `oren_is_list_int(...)` plus the direct-slot helpers on C/native/AVM and fall back to a
-		     portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int` now exercises that
-		     public surface via `tests/fixtures/list_int_dot_sum_smoke.oren` instead of only checking the
-		     low-level helper contracts in isolation.
+			   - Shared stdlib follow-up (2026-04-09): the same direct-slot runtime surface is no longer
+			     benchmark-only. `std:linalg` now exposes
+			     `reduce_sum_i64_list_int_slots(...)` / `dot_i64_list_int_slots(...)`, which fast-path through
+			     `oren_is_list_int(...)` plus the direct-slot helpers on C/native/AVM and fall back to a
+			     portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int`
+			     now exercises that public surface via `tests/fixtures/list_int_dot_sum_smoke.oren`
+			     instead of only checking the low-level helper contracts in isolation.
+			   - Native smoke widen (2026-04-09): `make verify-native-slot-direct` now inherits widened
+			     slot-surface smoke too, so it validates the hidden helper-entry benchmarks, the hidden
+			     public-slot benchmarks `array_sum_int_slot_public` / `dot_product_int_slot_public`, and the
+			     unchecked helper panic contracts in one native gate.
 		   - Verifier watchdog follow-up (2026-04-09): the backend parity scripts now default
 		     `OREN_BACKEND_PARITY_BUILD_TIMEOUT_SECS=120` instead of `20`, matching the repo-wide build
 		     watchdog so local parity runs do not false-time out while queued behind the shared

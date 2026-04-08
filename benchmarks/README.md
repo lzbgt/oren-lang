@@ -326,17 +326,26 @@ Hidden direct-slot correctness smoke:
 make perf-smoke-list-int-slot-direct
 ```
 
+That smoke now validates both hidden helper-entry benchmarks
+(`array_sum_int_slot_direct` / `dot_product_int_slot_direct`) and the hidden public-stdlib
+slot-surface benchmarks (`array_sum_int_slot_public` / `dot_product_int_slot_public`), plus the
+unchecked helper edge-contract fixture.
+
 Explicit native prebuild for the hidden packed-bridge benchmarks:
 
 ```bash
 make perf-prebuild-list-int-packed-bridge
 ```
 
-Explicit native prebuild for the hidden direct-slot benchmarks:
+Explicit native prebuild for the slot-surface benchmarks:
 
 ```bash
 make perf-prebuild-list-int-slot-direct
 ```
+
+That warm step now builds the hidden helper-entry benchmarks and the hidden public-stdlib
+slot-surface benchmarks together, so later helper-vs-public comparisons reuse the same native/C
+artifact set.
 
 Dot-only native prebuild for the hidden dot artifact:
 
@@ -400,6 +409,10 @@ And a dedicated native regression gate for the direct-slot path:
 ```bash
 make verify-native-slot-direct
 ```
+
+That verifier now inherits the widened slot-surface smoke, so it also checks the public
+`array_sum_int_slot_public` / `dot_product_int_slot_public` numerics alongside the hidden helper
+benchmarks and unchecked-helper panic contracts.
 
 For one ranked view of the current `list<int>` `dot_product` alternatives, use:
 
@@ -468,6 +481,36 @@ whole-operation canonical cost:
 Those helper knobs are therefore opt-in only. Also: do not run enabled-vs-disabled comparisons for
 this target in parallel. `make perf-probe-list-int-slot-direct-read-split` shares benchmark build
 artifacts, so causal A/B runs need to be serialized.
+
+For the same short/long split surface, but comparing the public `std:linalg` slot wrappers against
+both the shipped canonical loops and the hidden direct-slot helper ceiling, use:
+
+```bash
+make perf-probe-list-int-slot-surface-read-split
+```
+
+This warms the slot-surface artifacts once and then reruns canonical `array_sum_int` /
+`dot_product_int` against both `*_slot_direct` and `*_slot_public` on the same read-split harness.
+The default profile matches the helper-only split probe:
+`runs=2`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=2`; override it with
+`OREN_LIST_INT_SLOT_SURFACE_SPLIT_{RUNS,WARMUPS,N,SHORT_REPS,LONG_REPS}` when needed.
+
+The latest no-smoke artifact, `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`,
+comes back as:
+
+- canonical `array_sum_int`: `~1.3454x C` long-per-rep
+- direct-slot `array_sum_int_slot_direct`: `~1.0479x C` long-per-rep
+- public-slot `array_sum_int_slot_public`: `~1.2686x C` long-per-rep
+- canonical `dot_product_int`: `~1.4701x C` long-per-rep
+- direct-slot `dot_product_int_slot_direct`: `~1.1698x C` long-per-rep
+- public-slot `dot_product_int_slot_public`: `~1.2188x C` long-per-rep
+
+The split deltas on this surface are still unstable, so use the `long_per_rep` side for tracker
+updates. That is the new decision-quality result: the public `std:linalg` slot wrappers already
+recover much of the hidden helper win on whole-operation cost, especially on `dot_product_int`,
+while the raw helper still leads. Reweight again: if the public slot surface is the intended hot
+path, the next move is wrapper/boundary-overhead reduction or more direct lowering against that
+surface, not more packed-bridge tuning.
 
 For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
 

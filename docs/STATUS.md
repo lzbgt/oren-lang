@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-04-04: `loop_sum` 1.09×, `dot_product` 2.82×; `alloc_churn` 5.42×, `alloc_drop` 1.76×).
-- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. The later reuse-work read-split rerun still leaves the best explicit packed path materially behind (`~4.4566× C` pack-once SIMD long-per-rep; `~7.2240× C` reuse-work long-per-rep; `~7.3906× C` fresh-pack SIMD long-per-rep vs canonical `~1.2915× C`), so the remaining blocker is repeated bridge materialization/copy itself, not just fresh allocation or the packed dot kernel. The new direct-slot read-split rerun (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`) also confirms the hidden helper can beat the shipped whole-operation path on the same split (`array_sum_int_slot_direct` `~1.0383× C` vs canonical `~1.3410× C`; `dot_product_int_slot_direct` `~1.1637× C` vs canonical `~1.2680× C`), while the delta side is still too noisy to rank. The 2026-04-09 shared slot-direct follow-up promoted that ceiling into a public cross-backend stdlib surface: `linalg.reduce_sum_i64_list_int_slots(...)` / `linalg.dot_i64_list_int_slots(...)` now fast-path through backend-native all-int list detection and direct-slot helpers on C/native/AVM, while falling back to a portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int` now exercises that public surface in addition to the raw helper contracts. But the same day's exact whole-list helper follow-up showed that directly wiring the canonical lowering through the unchecked helper is not a production win: the enabled shortcut regressed the same whole-operation split from `~1.1896× C` to `~1.3445× C` for `array_sum_int` and from `~1.3166× C` to `~1.4160× C` for `dot_product_int`, so `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER` is now opt-in only. Reweight accordingly: keep packed-bridge tuning closed, but do not ship the exact whole-list helper shortcut either until a future surface proves a real win.
+- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. The later reuse-work read-split rerun still leaves the best explicit packed path materially behind (`~4.4566× C` pack-once SIMD long-per-rep; `~7.2240× C` reuse-work long-per-rep; `~7.3906× C` fresh-pack SIMD long-per-rep vs canonical `~1.2915× C`), so the remaining blocker is repeated bridge materialization/copy itself, not just fresh allocation or the packed dot kernel. The new direct-slot read-split rerun (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`) also confirms the hidden helper can beat the shipped whole-operation path on the same split (`array_sum_int_slot_direct` `~1.0383× C` vs canonical `~1.3410× C`; `dot_product_int_slot_direct` `~1.1637× C` vs canonical `~1.2680× C`), while the delta side is still too noisy to rank. The 2026-04-09 shared slot-direct follow-up promoted that ceiling into a public cross-backend stdlib surface: `linalg.reduce_sum_i64_list_int_slots(...)` / `linalg.dot_i64_list_int_slots(...)` now fast-path through backend-native all-int list detection and direct-slot helpers on C/native/AVM, while falling back to a portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int` now exercises that public surface in addition to the raw helper contracts. A same-day slot-surface read-split rerun (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`) then showed that public surface already recovers much of the helper win on whole-operation cost (`array_sum_int_slot_public` `~1.2686× C`, `dot_product_int_slot_public` `~1.2188× C`) while still trailing the raw helper (`~1.0479× C`, `~1.1698× C`), so the residual direct-slot gap now looks like wrapper/boundary overhead rather than a missing packed bridge or missing public API. But the same day's exact whole-list helper follow-up showed that directly wiring the canonical lowering through the unchecked helper is not a production win: the enabled shortcut regressed the same whole-operation split from `~1.1896× C` to `~1.3445× C` for `array_sum_int` and from `~1.3166× C` to `~1.4160× C` for `dot_product_int`, so `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER` is now opt-in only. Reweight accordingly: keep packed-bridge tuning closed, do not ship the exact whole-list helper shortcut, and focus future parity work on reducing wrapper/boundary overhead or pulling more of the direct-slot path into the public/canonical lowering without paying the helper-call penalty.
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -455,6 +455,24 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     Reweight again: the hidden direct-slot helper is now a credible whole-operation ceiling on
 		     the same split, which makes canonical/direct-slot convergence the higher-leverage next task
 		     than any more packed-bridge tuning.
+		   - Public slot-surface read-split follow-up (2026-04-09): new
+		     `make perf-probe-list-int-slot-surface-read-split` warms the same slot-surface artifacts and
+		     compares canonical `array_sum_int` / `dot_product_int` against both the hidden helper ceiling
+		     and the public `std:linalg` slot wrappers on the same short/long harness. Latest no-smoke
+		     rerun (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`,
+		     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) comes back as:
+		     - canonical `array_sum_int`: `~1.3454× C` long-per-rep
+		     - direct-slot `array_sum_int_slot_direct`: `~1.0479× C` long-per-rep
+		     - public-slot `array_sum_int_slot_public`: `~1.2686× C` long-per-rep
+		     - canonical `dot_product_int`: `~1.4701× C` long-per-rep
+		     - direct-slot `dot_product_int_slot_direct`: `~1.1698× C` long-per-rep
+		     - public-slot `dot_product_int_slot_public`: `~1.2188× C` long-per-rep
+		     - delta note: this surface also stayed noisy on split deltas, so use the `long_per_rep`
+		       side for tracker decisions.
+		     Reweight again: the public slot surface already keeps much of the hidden helper win,
+		     especially on `dot_product_int`, so the next direct-slot follow-up is wrapper/boundary
+		     overhead reduction or more direct lowering against the public surface, not more packed-bridge
+		     work.
 		   - Exact whole-list helper follow-up (2026-04-09): routing the canonical exact whole-list
 		     `array_sum_int` / `dot_product_int` shapes through `oren_list_int_reduce_sum_slots_unchecked`
 		     / `oren_list_int_dot_slots_unchecked` stayed correctness-clean and preserved the existing
@@ -677,12 +695,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     map-key, and compiler-in-AVM fixtures now read `.obc` via `oren_read_u8_buf(...)`
 		     directly, and their local VFS fixture builders now append generic bytes via
 		     `oren_bytes_len(...)` / `oren_bytes_get_u8(...)` instead of assuming `list<int>` bodies.
-	   - Verification follow-up (2026-04-04): `make verify-native-slot-direct` now checks more than the
-	     benchmark numerics. The slot-direct smoke also builds
-	     `tests/fixtures/list_int_slot_direct_contracts.oren` and asserts the unchecked helper
-     contracts directly: `reduce_sum_slots_unchecked(nil) == 0`, `dot_slots_unchecked(nil, nil) == 0`,
-     and deterministic panic text (`list_int_dot_slots_unchecked: length mismatch`) for one-nil and
-     unequal-length dot calls.
+	   - Verification follow-up (2026-04-04, widened 2026-04-09): `make verify-native-slot-direct`
+	     now checks more than the benchmark numerics. The slot-direct smoke builds
+	     `tests/fixtures/list_int_slot_direct_contracts.oren`, validates the hidden helper-entry
+	     benchmarks, and now also validates the hidden public-slot benchmarks
+	     `array_sum_int_slot_public` / `dot_product_int_slot_public`. It still asserts the unchecked
+	     helper contracts directly: `reduce_sum_slots_unchecked(nil) == 0`,
+	     `dot_slots_unchecked(nil, nil) == 0`, and deterministic panic text
+	     (`list_int_dot_slots_unchecked: length mismatch`) for one-nil and unequal-length dot calls.
    - Verification (2026-03-28): the canonical benchmark shapes are already using that direct-slot
      compiler lowering path today. A new dedicated gate (`make verify-native-list-int-fast-lowering`)
      now proves `benchmarks/array_sum_int/array_sum_int.oren` still emits

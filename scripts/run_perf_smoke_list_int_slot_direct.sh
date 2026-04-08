@@ -21,7 +21,7 @@ bin_path() {
 }
 
 {
-    echo "[build] slot-direct benchmarks backend=native"
+    echo "[build] slot-surface benchmarks backend=native"
     ./scripts/build_perf_artifacts_list_int_slot_direct.sh
     echo "[build] slot-direct contract fixture backend=native"
     if [[ -n "$build_env_raw" ]]; then
@@ -87,9 +87,13 @@ run_native_check array_sum_int_slot_direct 205 10 3
 run_native_check array_sum_int_slot_direct 710 20 3
 run_native_check dot_product_int_slot_direct 6590 10 3
 run_native_check dot_product_int_slot_direct 54380 20 3
+run_native_check array_sum_int_slot_public 205 10 3
+run_native_check array_sum_int_slot_public 710 20 3
+run_native_check dot_product_int_slot_public 6590 10 3
+run_native_check dot_product_int_slot_public 54380 20 3
 run_contract_ok
 run_contract_abort MODE_DOT_LEFT_NIL 'list_int_dot_slots_unchecked: length mismatch'
 run_contract_abort MODE_DOT_RIGHT_NIL 'list_int_dot_slots_unchecked: length mismatch'
 run_contract_abort MODE_DOT_LEN_MISMATCH 'list_int_dot_slots_unchecked: length mismatch'
 
-echo "slot-direct list<int> perf smoke complete; log: $log_path"
+echo "slot-surface list<int> perf smoke complete; log: $log_path"

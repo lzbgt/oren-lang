@@ -10,6 +10,7 @@ import strings "std:strings"
 import bytes "std:bytes"
 import pem "std:crypto/pem"
 import ui_cmds "std:ui/commands"
+import linalg "std:linalg"
 
 fn smoke_buffer_slice_views(i32b) {
     var s_ok2 = buffer.try_slice_new(i32b, 0, 2)
@@ -281,6 +282,7 @@ fn smoke_buffer_core() {
 
 fn smoke_list_int_slot_ops() {
     var xs = list.int_new(4)
+    var lit = [4, 5, 6, 7]
     if oren_is_err(xs) { return 16791 }
     list.int_push(xs, 1)
     list.int_push(xs, 2)
@@ -295,6 +297,10 @@ fn smoke_list_int_slot_ops() {
     if oren_list_int_dot_slots(nil, nil) != 0 { return 16798 }
     if oren_list_int_reduce_sum_slots_unchecked(nil) != 0 { return 16799 }
     if oren_list_int_dot_slots_unchecked(nil, nil) != 0 { return 16800 }
+    if linalg.reduce_sum_i64_list_int_slots(xs) != 10 { return 16801 }
+    if linalg.dot_i64_list_int_slots(xs, xs) != 30 { return 16802 }
+    if linalg.reduce_sum_i64_list_int_slots(lit) != 22 { return 16803 }
+    if linalg.dot_i64_list_int_slots(lit, [1, 2, 3, 4]) != 60 { return 16804 }
     return 0
 }
 

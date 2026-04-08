@@ -535,6 +535,28 @@ Shared slot-direct stdlib follow-up (2026-04-09):
   - all backend parity scripts now default `OREN_BACKEND_PARITY_BUILD_TIMEOUT_SECS=120` instead of
     `20`, aligning them with the repo-wide build watchdog and avoiding false `124` exits when a
     parity run queues behind the shared compiler-build lock or a cold stage2 rebuild
+- Measured slot-surface follow-up:
+  - the helper smoke/prebuild surface now also covers hidden public-slot benchmarks
+    `array_sum_int_slot_public` / `dot_product_int_slot_public`
+  - `make verify-native-slot-direct` inherits that widened native smoke, so the public surface is
+    covered alongside the raw helper contracts
+  - added `make perf-probe-list-int-slot-surface-read-split` to compare the shipped canonical
+    loops, the hidden helper ceiling, and the new public `std:linalg` slot wrappers on the same
+    short/long harness
+  - latest no-smoke artifact:
+    `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`
+  - whole-operation long-per-rep summary:
+    - `array_sum_int`: canonical `~1.3454× C`, hidden helper `~1.0479× C`, public wrapper
+      `~1.2686× C`
+    - `dot_product_int`: canonical `~1.4701× C`, hidden helper `~1.1698× C`, public wrapper
+      `~1.2188× C`
+  - interpretation:
+    - the public slot wrapper is materially better than the shipped canonical path on both
+      benchmarks
+    - it still trails the raw helper ceiling, but only narrowly on `dot_product_int`
+    - split deltas are still noisy here, so tracker updates should keep using `long_per_rep`
+    - the next direct-slot follow-up should be wrapper/boundary-overhead reduction or more direct
+      lowering against the public slot surface, not more packed-bridge work
 
 Started but not carried to completion in this pass:
 
