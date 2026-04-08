@@ -1,6 +1,6 @@
 # Start Here: Oren Docs (Canonical)
 
-**Last updated:** 2026-03-14
+**Last updated:** 2026-04-09
 
 This file is the single **entry point** for the Oren docs. It merges the former root README
 orientation with the docs index so you can start in one place and branch out only when needed.
@@ -37,12 +37,14 @@ make test       # fast native smoke
 make test-selfhost  # heavier stage2/capsule/optimizer self-host bundle
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-native-quick-base-guarded  # stage1 base quick path, strict no-retry
-make verify-native-quick-green-local-ptr-guarded  # focused stage1 green-cache local-ptr blended guard, strict no-retry
+make verify-native-quick-green-local-ptr-guarded  # focused stage1 green-cache local-ptr split guard, fairness skipped, strict no-retry
 make test-native-quick-green-cache-flake  # stage1 green-cache triage, strict no-retry
-make test-native-quick-green-local-ptr-flake  # focused stage1 green-cache local-ptr blended triage
+make test-native-quick-green-local-ptr-flake  # focused stage1 green-cache local-ptr blended mixed-mode triage
 make test-native-quick-green-local-ptr-plain-flake  # focused stage1 green-cache local-ptr plain-only triage
 make test-native-quick-green-local-ptr-workers-flake  # focused stage1 green-cache local-ptr worker-only triage
-make test-native-quick-green-local-ptr-split-flake  # focused stage1 green-cache local-ptr plain+workers split triage
+make test-native-quick-green-local-ptr-split-flake  # focused stage1 green-cache local-ptr plain+workers split triage/guard surface
+make test-native-quick-green-fairness-flake  # focused stage1 green-cache fairness triage
+make test-native-quick-green-fairness-modes-flake  # split stage1 fairness triage (topology/full vs mixed vs leaf spawn shapes)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage1 base + local-ptr + pre-world-lock + stage2 + C-backend builds)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make readiness-report  # generates build/reports/readiness_report_*.md

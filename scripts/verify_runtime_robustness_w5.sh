@@ -77,8 +77,10 @@ if [[ "$base_runs" =~ ^[0-9]+$ ]] && [[ "$base_runs" -gt 0 ]]; then
 fi
 
 if [[ "$local_ptr_runs" =~ ^[0-9]+$ ]] && [[ "$local_ptr_runs" -gt 0 ]]; then
-  echo "== stage1/green-cache local-ptr focus (runs=$local_ptr_runs) ==" | tee -a "$log"
-  ./scripts/triage_native_quick_green_local_ptr_flake.sh "$local_ptr_runs" "$compiler" \
+  echo "== stage1/green-cache local-ptr split focus (plain_runs=$local_ptr_plain_runs, workers_runs=$local_ptr_workers_runs) ==" | tee -a "$log"
+  OREN_QI_LOCAL_PTR_PLAIN_RUNS="$local_ptr_plain_runs" \
+  OREN_QI_LOCAL_PTR_WORKERS_RUNS="$local_ptr_workers_runs" \
+  ./scripts/verify_native_quick_green_local_ptr_modes.sh "$local_ptr_runs" "$compiler" \
     "${trace_env_arr[@]}" "$@" \
     >>"$log" 2>&1
 fi

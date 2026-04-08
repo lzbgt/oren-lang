@@ -2306,6 +2306,38 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/oren_native_quick_flake_20260409_065015_run3_err.log`). Keep the stable bundled
     guard on the earlier blended local-ptr wrapper for now, and use the split plain/workers
     surfaces as the next root-cause entrypoint.
+  - Narrow + verify (2026-04-09): add the dedicated fairness isolator
+    `tests/native/test_quick_integration_green_fairness_focus.oren` plus
+    `scripts/triage_native_quick_green_fairness_flake.sh` and the matrix wrapper
+    `scripts/verify_native_quick_green_fairness_modes.sh`
+    (`make test-native-quick-green-fairness-flake`,
+    `make test-native-quick-green-fairness-modes-flake`). The shared test body now exposes
+    `test_green_global_runq_fairness_counts(hog_count, short_count)` so the mixed fairness path
+    can be isolated without duplicating the scheduler test.
+  - Measured (2026-04-09): the new fairness matrix already supersedes the local-ptr split as the
+    best current-tree reproducer. `full + topology` passed 3/3, but `full` without topology
+    failed on run 1/3 with `rc=138`
+    (`build/logs/verify_native_quick_green_fairness_modes_20260409.log`,
+    `build/logs/oren_native_quick_flake_20260409_071639_run1_err.log`). The leaf cases
+    `short_only` and `hogs_only` both passed 3/3
+    (`build/logs/triage_native_quick_green_fairness_short_only_notopology_20260409.log`,
+    `build/logs/triage_native_quick_green_fairness_hogs_only_notopology_20260409.log`).
+    So the current stage1 corruption no longer points at topology contamination or a single spawn
+    shape by itself; it points at the mixed hog+short fairness interaction.
+  - Rewire + verify (2026-04-09): the focused local-ptr fixture now accepts
+    `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` / `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS`, and the strict
+    local-ptr wrappers default fairness off plus `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=720`.
+    This keeps local-ptr coverage from inheriting the separate mixed fairness crash or the earlier
+    360s timeout-style false red.
+  - Measured (2026-04-09): once fairness was removed from the local-ptr path, the blended
+    `both`-mode local-ptr slice still reproduced a current-tree crash (`rc=139` on run 3/3 in
+    `build/logs/oren_native_quick_flake_20260409_072245_run3_err.log`), but the serial split
+    plain/workers surface passed with the widened timeout
+    (`build/logs/make_test_native_quick_green_local_ptr_split_after_timeout_widen_20260409.log`,
+    `build/logs/verify_native_quick_green_local_ptr_modes_20260409_072744.log`).
+    Keep the mixed `both` path as the triage reproducer, and use the split surface for
+    `make verify-native-quick-green-local-ptr-guarded` plus the bundled
+    `make verify-runtime-robustness` gate.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

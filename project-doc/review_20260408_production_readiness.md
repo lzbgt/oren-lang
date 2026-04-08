@@ -246,6 +246,34 @@ Further refinement on 2026-04-09:
 - because the split surface is already acting as a high-signal triage reproducer, the stable
   bundled guard targets continue to use the earlier blended local-ptr wrapper for now; the next
   runtime-robustness root-cause pass should start from the new split plain/workers scripts
+- added the dedicated fairness isolator `tests/native/test_quick_integration_green_fairness_focus.oren`,
+  the strict wrapper `scripts/triage_native_quick_green_fairness_flake.sh`, and the matrix runner
+  `scripts/verify_native_quick_green_fairness_modes.sh`
+  (`make test-native-quick-green-fairness-flake`,
+  `make test-native-quick-green-fairness-modes-flake`)
+- fact from the new matrix on current `master`: the runtime crash is narrower than the earlier
+  local-ptr story implied. `full + topology` passed 3/3, but `full` without topology failed
+  immediately on run 1/3 with `rc=138`
+  (`build/logs/verify_native_quick_green_fairness_modes_20260409.log`,
+  `build/logs/oren_native_quick_flake_20260409_071639_run1_err.log`)
+- the leaf fairness bodies `short_only` and `hogs_only` both passed 3/3
+  (`build/logs/triage_native_quick_green_fairness_short_only_notopology_20260409.log`,
+  `build/logs/triage_native_quick_green_fairness_hogs_only_notopology_20260409.log`)
+- that means topology contamination is not required, and neither spawn shape fails by itself on
+  this tree; the active root-cause surface is the mixed hog+short fairness interaction
+- the local-ptr fixture now has explicit `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` /
+  `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS` knobs, and the strict local-ptr wrappers now default
+  fairness off plus `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=720`
+- after fairness extraction, the mixed `both` local-ptr slice still reproduced a current-tree
+  failure (`rc=139` on run 3/3 in
+  `build/logs/oren_native_quick_flake_20260409_072245_run3_err.log`), while the serial split
+  plain/workers surface passed with the widened timeout
+  (`build/logs/make_test_native_quick_green_local_ptr_split_after_timeout_widen_20260409.log`,
+  `build/logs/verify_native_quick_green_local_ptr_modes_20260409_072744.log`)
+- because of that, the guard surface is now intentionally split: the blended
+  `make test-native-quick-green-local-ptr-flake` remains a mixed-mode triage entrypoint, while
+  `make verify-native-quick-green-local-ptr-guarded` and the local-ptr section of
+  `make verify-runtime-robustness` use the stable split plain/workers path
 
 Verification for this follow-up:
 

@@ -3614,10 +3614,44 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      `plain` half on run 3/3 while still inside the `test_green_global_runq_fairness()` prelude
      (`build/logs/verify_native_quick_green_local_ptr_modes_20260409_065008.log`,
      `build/logs/oren_native_quick_flake_20260409_065015_run3_err.log`). Because that new split
-     surface already acts as a high-signal reproducer, the stable bundled targets
-     `make verify-native-quick-green-local-ptr-guarded` and `make verify-runtime-robustness` stay
-     on the earlier blended local-ptr guard for now, while the split plain/workers scripts remain
-     the active triage entrypoints for the next root-cause pass.
+     surface already acts as a high-signal reproducer, the stable bundled targets initially stayed
+     on the earlier blended local-ptr guard while the split plain/workers scripts remained the
+     active triage entrypoints for the next root-cause pass.
+   - Narrow + verify (2026-04-09): the repo now has a dedicated fairness isolator at
+     `tests/native/test_quick_integration_green_fairness_focus.oren`, plus
+     `scripts/triage_native_quick_green_fairness_flake.sh` and the serial matrix wrapper
+     `scripts/verify_native_quick_green_fairness_modes.sh`
+     (`make test-native-quick-green-fairness-flake`,
+     `make test-native-quick-green-fairness-modes-flake`). The fairness body is now
+     parameterized through `test_green_global_runq_fairness_counts(hog_count, short_count)`,
+     so stage1 triage can isolate mixed hog+short fairness from leaf spawn shapes without
+     duplicating the core test logic.
+   - Measured (2026-04-09): on current `master`, the new fairness matrix is a better root-cause
+     surface than the earlier local-ptr split wrapper. `full + topology` passed 3/3, but
+     `full` **without** topology failed immediately on run 1/3 with `rc=138`
+     (`build/logs/verify_native_quick_green_fairness_modes_20260409.log`,
+     `build/logs/oren_native_quick_flake_20260409_071639_run1_err.log`).
+     The leaf cases `short_only` and `hogs_only` both passed 3/3
+     (`build/logs/triage_native_quick_green_fairness_short_only_notopology_20260409.log`,
+     `build/logs/triage_native_quick_green_fairness_hogs_only_notopology_20260409.log`).
+     Reweight the active stage1 runtime suspicion accordingly: topology is not required, and
+     neither spawn shape fails by itself on the current tree; the mixed fairness interaction is
+     now the highest-signal reproducer.
+   - Rewire + verify (2026-04-09): the focused local-ptr fixture now accepts
+     `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` and `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS`, and the
+     strict local-ptr wrappers default `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS=0` plus a wider
+     `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=720`. That separates the new fairness reproducer
+     from the local-ptr family instead of letting the earlier fairness crash poison local-ptr
+     coverage.
+   - Measured (2026-04-09): after fairness was extracted, the blended `both` local-ptr surface
+     still reproduced a current-tree crash: `rc=139` on run 3/3 in
+     `build/logs/oren_native_quick_flake_20260409_072245_run3_err.log`. The split plain/workers
+     surface then passed cleanly with the widened green-cache budget
+     (`build/logs/make_test_native_quick_green_local_ptr_split_after_timeout_widen_20260409.log`,
+     `build/logs/verify_native_quick_green_local_ptr_modes_20260409_072744.log`).
+     The guard policy is now explicit: `make test-native-quick-green-local-ptr-flake` remains the
+     mixed-mode triage entrypoint, while `make verify-native-quick-green-local-ptr-guarded` and
+     the bundled `make verify-runtime-robustness` use the stable split plain/workers surface.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`

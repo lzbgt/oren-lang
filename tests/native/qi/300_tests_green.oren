@@ -180,12 +180,10 @@ fn test_green_topology_rejects_after_workers() {
     return 0
 }
 
-fn test_green_global_runq_fairness() {
-    trace("QI: test_green_global_runq_fairness")
+fn _qi_green_global_runq_fairness_impl(hog_count, short_count, fairness_trace) {
     // Green tasks are the default `spawn` path on macOS/Linux today.
     // Windows uses CreateThread for `spawn`, so skip this test there.
     if g_target_os == 3 { return 0 }
-    var fairness_trace = _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS")
 
     // Ensure background worker mode is active.
     var rc = oren_green_start_workers(1)
@@ -200,23 +198,23 @@ fn test_green_global_runq_fairness() {
     // Spawn perpetual hog tasks. They will quickly migrate to the worker's local runq (P) and keep it non-empty.
     var hogs = []
     var i = 0
-    while i < 8 {
+    while i < hog_count {
         var h = spawn worker_green_hog_until_stop(meta)
         oren_list_push(hogs, h)
         i = i + 1
     }
-    if fairness_trace { print("fairness: hogs=8 spawned") }
+    if fairness_trace { print("fairness: hogs=" + oren_int_to_string(hog_count) + " spawned") }
 
     // Spawn short tasks from the main thread (outside green context). These are injected via the global runq.
     // Without fairness, these can starve indefinitely if the local runq is never empty.
     var hs = []
     i = 0
-    while i < 40 {
+    while i < short_count {
         var h2 = spawn worker_green_ret_one()
         oren_list_push(hs, h2)
         i = i + 1
     }
-    if fairness_trace { print("fairness: short_tasks=40 spawned") }
+    if fairness_trace { print("fairness: short_tasks=" + oren_int_to_string(short_count) + " spawned") }
 
     i = 0
     while i < oren_list_len(hs) {
@@ -241,6 +239,16 @@ fn test_green_global_runq_fairness() {
     if fairness_trace { print("fairness: hog joins complete") }
     sys_munmap(meta, 4096)
     return 0
+}
+
+fn test_green_global_runq_fairness_counts(hog_count, short_count) {
+    trace("QI: test_green_global_runq_fairness_counts hogs=" + oren_int_to_string(hog_count) + " shorts=" + oren_int_to_string(short_count))
+    return _qi_green_global_runq_fairness_impl(hog_count, short_count, _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS"))
+}
+
+fn test_green_global_runq_fairness() {
+    trace("QI: test_green_global_runq_fairness")
+    return _qi_green_global_runq_fairness_impl(8, 40, _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS"))
 }
 
 fn test_green_ctx_switch_alloc_integrity() {

@@ -26,15 +26,31 @@ fn _qi_local_ptr_focus_mode() {
     return "both"
 }
 
+fn _qi_local_ptr_focus_include_topology() {
+    var v = oren_env("OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY")
+    if v == nil || v == "" { return 1 }
+    return _qi_env_truthy("OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY")
+}
+
+fn _qi_local_ptr_focus_include_fairness() {
+    var v = oren_env("OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS")
+    if v == nil || v == "" { return 1 }
+    return _qi_env_truthy("OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS")
+}
+
 fn _qi_local_ptr_focus_step(msg) {
     trace("QI: green local ptr focus " + msg)
 }
 
 fn _qi_local_ptr_focus_prelude() {
-    _qi_local_ptr_focus_step("prelude test_green_topology_rejects_after_workers")
-    test_green_topology_rejects_after_workers()
-    _qi_local_ptr_focus_step("prelude test_green_global_runq_fairness")
-    test_green_global_runq_fairness()
+    if _qi_local_ptr_focus_include_topology() {
+        _qi_local_ptr_focus_step("prelude test_green_topology_rejects_after_workers")
+        test_green_topology_rejects_after_workers()
+    }
+    if _qi_local_ptr_focus_include_fairness() {
+        _qi_local_ptr_focus_step("prelude test_green_global_runq_fairness")
+        test_green_global_runq_fairness()
+    }
 }
 
 fn main() {
