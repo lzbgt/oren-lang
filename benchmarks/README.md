@@ -232,6 +232,15 @@ read-heavy `list<int>` path:
 make perf-gate-list-int-steady
 ```
 
+Arm64-only acceptance bundle for the explicit `list<int>` hot benchmarks. This mirrors the generic
+`array_sum` / `dot_product` acceptance tool, but packages the exact `array_sum_int` /
+`dot_product_int` smoke, traced disasm, steady gate, whole-operation gate, and exact-binary debug
+rerun into one comparable artifact:
+
+```bash
+make perf-probe-arm64-list-int-acceptance
+```
+
 Fast native correctness smoke for the exact `list<int>` hot benchmark binaries:
 
 ```bash
@@ -987,9 +996,19 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` on `OREN_ARM64_DOT_ACCEPT_PROGRAMS=dot_product`.
   Current host rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
   default `steady_dot_product ~2.9876x`, `gate_dot_product ~2.8425x`, disasm `70`; enabled
-  `steady_dot_product ~3.0230x`, `gate_dot_product ~2.6354x`, disasm `23`. Conclusion: keep the
-  dot prefix-zero branch disabled by default too. The instruction-count drop is real, but it still
-  loses on the shipped canonical gate.
+  `steady_dot_product ~3.0230x`, `gate_dot_product ~2.6354x`, disasm `23`. That result is mixed:
+  the generic gate improves, but the preferred generic steady runner regresses slightly, so keep the
+  branch default-off.
+- To judge the same experiment on the explicit `list<int>` surface instead of the generic
+  auto-specialized benchmark, use `make perf-probe-arm64-fast-dot-prefix-zero-list-int`. This keeps
+  the shipped baseline on one side and compares it against
+  `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` through the new
+  `make perf-probe-arm64-list-int-acceptance` bundle. Current host rerun
+  (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`): default
+  `steady_dot_product_int ~2.8374x`, `gate_dot_product_int ~2.4214x`, disasm `70`; enabled
+  `steady_dot_product_int ~2.6026x`, `gate_dot_product_int ~2.3097x`, disasm `23`. That means the
+  salvaged dot prefix-zero subpath is now a real win on explicit `list<int>` `dot_product_int`, but
+  it should still stay default-off until the generic/source-shape gap is understood.
 - For the arm64 exact-path `madd` recheck, use
   `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
   the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial

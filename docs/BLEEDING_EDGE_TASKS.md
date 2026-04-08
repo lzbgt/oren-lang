@@ -1593,14 +1593,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      `steady_array_sum ~7.1203x C`, `gate_array_sum ~2.3250x C`). The arm64 dot prefix-zero
 				      subpath now mirrors the proven direct-slot register plan after validation, so
 				      `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` is smoke-clean again
-				      (`build/logs/perf-smoke-native-fast-loops-20260409_003456_90383.log`). Use the new
-				      serialized dot-only probe `make perf-probe-arm64-fast-dot-prefix-zero` when revisiting
-				      just the dot leg. Current rerun
-				      (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
-				      default `steady_dot_product ~2.9876x C`, `gate_dot_product ~2.8425x C`, disasm `70`;
-				      enabled `steady_dot_product ~3.0230x C`, `gate_dot_product ~2.6354x C`, disasm `23`.
-				      Keep the family default-off: the dot leg no longer crashes, but it still loses on the
-				      shipped canonical gate, and the get-sum leg already regresses.
+					      (`build/logs/perf-smoke-native-fast-loops-20260409_003456_90383.log`). Use
+					      `make perf-probe-arm64-fast-dot-prefix-zero` for the generic auto-specialized
+					      `dot_product` surface and `make perf-probe-arm64-fast-dot-prefix-zero-list-int` for the
+					      explicit `dot_product_int` surface. Current generic rerun
+					      (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
+					      default `steady_dot_product ~2.9876x C`, `gate_dot_product ~2.8425x C`, disasm `70`;
+					      enabled `steady_dot_product ~3.0230x C`, `gate_dot_product ~2.6354x C`, disasm `23`.
+					      Current explicit `list<int>` rerun
+					      (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`):
+					      default `steady_dot_product_int ~2.8374x C`, `gate_dot_product_int ~2.4214x C`,
+					      disasm `70`; enabled `steady_dot_product_int ~2.6026x C`,
+					      `gate_dot_product_int ~2.3097x C`, disasm `23`.
+					      Keep the family default-off for now: the get-sum leg still regresses, while the dot
+					      leg is now a real win on explicit `list<int>` but only a mixed result on generic
+					      auto-specialized `dot_product`.
 					    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
 						      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
 						      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`

@@ -318,9 +318,23 @@ Prefix-zero containment follow-up:
     - `steady_dot_product ~3.0230x C`
     - `gate_dot_product ~2.6354x C`
     - `disasm_dot_product_insns: 23`
-- Conclusion: keep both prefix-zero branches disabled by default. The dot-only experiment no longer
-  crashes and is much shorter in disassembly, but it still regresses the shipped canonical gate,
-  while the get-sum leg is already a clear negative result.
+- There is now a matching explicit `list<int>` acceptance/probe surface:
+  - `make perf-probe-arm64-list-int-acceptance`
+  - `make perf-probe-arm64-fast-dot-prefix-zero-list-int`
+- Current explicit `list<int>` rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`):
+  - shipped default:
+    - `steady_dot_product_int ~2.8374x C`
+    - `gate_dot_product_int ~2.4214x C`
+    - `disasm_dot_product_int_insns: 70`
+  - enabled dot prefix-zero experiment:
+    - `steady_dot_product_int ~2.6026x C`
+    - `gate_dot_product_int ~2.3097x C`
+    - `disasm_dot_product_int_insns: 23`
+- Corrected conclusion: keep both prefix-zero branches disabled by default for now. The get-sum leg
+  is still a clear negative result. The dot-only experiment no longer crashes, and it is now
+  measurably better on the explicit `list<int>` benchmark surface; however, the generic
+  auto-specialized `dot_product` surface is still mixed because its steady runner regresses slightly
+  even though its canonical gate improves.
 - Verification for the current salvage pass:
   - `env OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1' make perf-smoke-native-fast-loops`
     - wrapper log: `build/logs/make_perf_smoke_native_fast_loops_dot_prefix_zero_only_fix1_clean_20260409.log`
@@ -328,6 +342,9 @@ Prefix-zero containment follow-up:
   - `make perf-probe-arm64-fast-dot-prefix-zero`
     - wrapper log: `build/logs/make_perf_probe_arm64_fast_dot_prefix_zero_20260409.log`
     - summary: `build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`
+  - `make perf-probe-arm64-fast-dot-prefix-zero-list-int`
+    - wrapper log: `build/logs/make_perf_probe_arm64_fast_dot_prefix_zero_list_int_20260409.log`
+    - summary: `build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`
 
 Shared `list<int> -> []i32` bridge follow-up:
 
