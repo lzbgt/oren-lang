@@ -80,9 +80,13 @@ build_native_bin dot_product_int_packed_bridge
 
 run_native_check array_sum_int_packed_bridge 205 "" 10 3
 run_native_check array_sum_int_packed_bridge 710 "" 20 3
+run_native_check array_sum_int_packed_bridge 205 "OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1" 10 3
+run_native_check array_sum_int_packed_bridge 710 "OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1" 20 3
 run_native_check dot_product_int_packed_bridge 6590 "" 10 3
 run_native_check dot_product_int_packed_bridge 54380 "" 20 3
 run_native_check dot_product_int_packed_bridge 6590 "OREN_BENCH_PACKED_BRIDGE_SCALAR=1" 10 3
 run_native_check dot_product_int_packed_bridge 54380 "OREN_BENCH_PACKED_BRIDGE_SCALAR=1" 20 3
+run_native_check dot_product_int_packed_bridge 6590 "OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1" 10 3
+run_native_check dot_product_int_packed_bridge 54380 "OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1" 20 3
 
 echo "packed-bridge list<int> perf smoke complete; log: $log_path"

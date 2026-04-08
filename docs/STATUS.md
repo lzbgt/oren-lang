@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-04-04: `loop_sum` 1.09×, `dot_product` 2.82×; `alloc_churn` 5.42×, `alloc_drop` 1.76×).
-- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. But the paired read-split still leaves the whole packed-SIMD bridge at `~4.1480× C` long-per-rep while its repeated-work delta is only `~0.4993× C`, so the remaining blocker is bridge setup/materialization rather than the packed dot kernel itself.
+- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. The later reuse-work read-split rerun still leaves the best explicit packed path materially behind (`~4.4566× C` pack-once SIMD long-per-rep; `~7.2240× C` reuse-work long-per-rep; `~7.3906× C` fresh-pack SIMD long-per-rep vs canonical `~1.2915× C`), so the remaining blocker is repeated bridge materialization/copy itself, not just fresh allocation or the packed dot kernel.
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -427,6 +427,26 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     So the repeated packed-SIMD kernel is no longer the blocker. The remaining gap is the
 		     one-shot `list<int> -> []i32` bridge setup/materialization cost, which now becomes the next
 		     concrete parity target.
+		   - Explicit reuse-work follow-up (2026-04-08): shared `std:linalg` now exposes
+		     `dot_i32_list_int_packed_reuse(...)` and `reduce_sum_i32_list_int_packed_reuse(...)`, which
+		     repack into caller-provided `[]i32` work buffers via `buffer.i32_pack_list_int_into(...)`
+		     instead of allocating fresh packed buffers inside every call. Hidden packed-bridge
+		     benchmarks now honor `OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1`, and packed-bridge smoke covers
+		     that mode on both `array_sum` and `dot_product`.
+		   - Reuse-work read-split rerun (2026-04-08): latest
+		     `make perf-probe-list-int-packed-bridge-read-split`
+		     artifact (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_234329_17881.log`,
+		     no-smoke rerun, `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) ranks the current
+		     packed variants as:
+		     - canonical baseline `dot_product_int`: ~1.2915× C long-per-rep, ~1.3011× C delta
+		     - fresh-pack SIMD (`OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_ENABLE_SIMD=1`): ~7.3906× C
+		       long-per-rep
+		     - reuse-work SIMD (`OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1,OREN_ENABLE_SIMD=1`): ~7.2240× C
+		       long-per-rep
+		     - pack-once SIMD (`OREN_ENABLE_SIMD=1`): ~4.4566× C long-per-rep, ~1.5405× C delta
+		     The reuse-work leg only trims a small slice of the fresh-pack cost and still loses badly to
+		     the existing pack-once bridge. Reweight again: destination-buffer reuse alone is not the
+		     parity lever; the remaining cost is the repeated `list<int> -> []i32` materialization/copy.
 		   - Packed-SIMD reuse follow-up (2026-04-05): the new
 		     `make perf-probe-list-int-packed-bridge-simd-reuse` surface removes the scalar leg and uses
 		     a more reuse-oriented split (`short_reps=1`, `long_reps=10`) to answer the narrower question
@@ -530,6 +550,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     long-per-rep, but its repeated-work delta is already `~0.4993x C`. Reweight accordingly:
 		     the kernel side is good enough to stop tuning for now; the next work item is bridge
 		     setup/materialization elimination or reuse.
+		   - Reuse-work follow-up (2026-04-08): shared `std:linalg` now also exposes explicit
+		     caller-managed workspace reuse for the same bridge:
+		     `dot_i32_list_int_packed_reuse(...)` and
+		     `reduce_sum_i32_list_int_packed_reuse(...)`. The latest rerun,
+		     [perf-probe-list-int-packed-bridge-read-split-20260408_234329_17881.log](/Users/zongbaolu/work/compiler-mini/build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_234329_17881.log),
+		     shows why that is useful but not sufficient: fresh-pack SIMD is `~7.3906x C`
+		     long-per-rep, reuse-work SIMD is only slightly better at `~7.2240x C`, and the existing
+		     pack-once SIMD path still leads the bridge family at `~4.4566x C`. That closes the next
+		     branch more tightly: fresh allocation is not the dominant remaining cost anymore; repeated
+		     bridge materialization/copy is.
 		   - Family follow-up (2026-04-05): the same proven-safe rule now covers the other fresh numeric
 		     typed-buffer export paths too, not just `i32`. Shared stdlib pack/slice/strided/matrix
 		     exports for `i64`, `f32`, and `f64` now also use `*_buf_new_uninit(...)` plus unchecked

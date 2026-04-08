@@ -1281,6 +1281,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     long-per-rep while its repeated-work delta is already `~0.4993× C`. Reweight the next work
 			     accordingly: stop tuning the packed dot kernel itself and focus on bridge
 			     setup/materialization elimination or reuse.
+			   - Explicit reuse-work follow-up (2026-04-08): shared `std:linalg` now exposes
+			     `dot_i32_list_int_packed_reuse(...)` and `reduce_sum_i32_list_int_packed_reuse(...)`, which
+			     repack into caller-provided `[]i32` work buffers instead of allocating fresh packed buffers
+			     inside every call. Hidden packed-bridge smoke now covers `OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1`
+			     for both `array_sum` and `dot_product`.
+			   - Reuse-work read-split rerun (2026-04-08): latest
+			     `make perf-probe-list-int-packed-bridge-read-split`
+			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_234329_17881.log`,
+			     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) reweights the bridge again:
+			     - canonical `dot_product_int`: `~1.2915× C` long-per-rep
+			     - fresh-pack SIMD: `~7.3906× C` long-per-rep
+			     - reuse-work SIMD: `~7.2240× C` long-per-rep
+			     - pack-once SIMD: `~4.4566× C` long-per-rep
+			     So caller-managed destination-buffer reuse trims only a small slice of the fresh-pack cost
+			     and still loses badly to the existing pack-once bridge. Keep the next work aimed at
+			     eliminating or hoisting the repeated `list<int> -> []i32` materialization itself.
 		   - Packed-SIMD reuse follow-up (2026-04-05): new
 		     `make perf-probe-list-int-packed-bridge-simd-reuse` keeps only the canonical baseline and the
 		     packed-SIMD bridge path, but raises the long run to `10` reps so reuse dominates the setup
@@ -1368,6 +1384,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     shows the remaining packed-SIMD gap is now setup-dominated (`~4.1480× C` long-per-rep,
 			     `~0.4993× C` repeated-work delta), so the next bridge work should target one-shot export
 			     cost rather than the inner packed dot kernel.
+			   - Reuse-work follow-up (2026-04-08): caller-managed work buffers are now exposed directly in
+			     shared `std:linalg`, but the rerun
+			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_234329_17881.log`)
+			     shows they are not the final answer. `dot_i32_list_int_packed_reuse(...)` only moves the
+			     packed-SIMD long-per-rep result from `~7.3906× C` to `~7.2240× C`, while the existing
+			     pack-once bridge still sits at `~4.4566× C`. Reweight accordingly: fresh allocation reuse is
+			     a useful API, but not the missing parity lever.
 		   - Family expansion (2026-04-05): the same full-overwrite proof now covers the rest of the
 		     fresh numeric typed-buffer exports. Shared stdlib `i64`/`f32`/`f64`
 		     pack/slice/strided/matrix-export paths now also use `*_buf_new_uninit(...)` and unchecked

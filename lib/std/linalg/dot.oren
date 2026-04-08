@@ -64,10 +64,26 @@ fn dot_i32_list_int_packed(a, b) {
     return dot_i32_buf(ap, bp)
 }
 
+// Explicit workspace-reuse surface for callers that want to amortize bridge setup
+// without pretending the current list<int> slot ABI is already a packed []i32 view.
+fn dot_i32_list_int_packed_reuse(packed_a: []i32, packed_b: []i32, a, b) {
+    var ap = buffer.i32_pack_list_int_into(packed_a, a)
+    if oren_is_err(ap) { return ap }
+    var bp = buffer.i32_pack_list_int_into(packed_b, b)
+    if oren_is_err(bp) { return bp }
+    return dot_i32_buf(packed_a, packed_b)
+}
+
 fn reduce_sum_i32_list_int_packed(a) {
     var ap: []i32 = buffer.i32_pack_list_int(a)
     if oren_is_err(ap) { return ap }
     return reduce_sum_i32_buf(ap)
+}
+
+fn reduce_sum_i32_list_int_packed_reuse(packed_a: []i32, a) {
+    var ap = buffer.i32_pack_list_int_into(packed_a, a)
+    if oren_is_err(ap) { return ap }
+    return reduce_sum_i32_buf(packed_a)
 }
 
 fn dot_f32_buf(a: []f32, b: []f32) {

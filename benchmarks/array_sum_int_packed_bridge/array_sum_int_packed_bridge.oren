@@ -17,6 +17,14 @@ fn _parse_u64(s) {
     return out
 }
 
+fn _env_truthy(key) {
+    var v = oren_env(key)
+    if v == nil { return false }
+    if v == "" { return false }
+    if v == "0" { return false }
+    return true
+}
+
 fn main() {
     var args = oren_args()
     var n = 2000000
@@ -37,17 +45,30 @@ fn main() {
         i = i + 1
     }
 
-    var packed_xs: []i32 = buffer.i32_pack_list_int(xs)
-    if oren_is_err(packed_xs) {
-        print("array_sum_int_packed_bridge pack failed")
-        return 1
-    }
-
     var sum = 0
-    var rep = 0
-    while rep < reps {
-        sum = linalg.reduce_sum_i32_buf(packed_xs)
-        rep = rep + 1
+    var reuse_work = _env_truthy("OREN_BENCH_PACKED_BRIDGE_REUSE_WORK")
+    if reuse_work {
+        var packed_xs_work: []i32 = buffer.i32_new_uninit(n)
+        if oren_is_err(packed_xs_work) {
+            print("array_sum_int_packed_bridge alloc failed")
+            return 1
+        }
+        var repw = 0
+        while repw < reps {
+            sum = linalg.reduce_sum_i32_list_int_packed_reuse(packed_xs_work, xs)
+            repw = repw + 1
+        }
+    } else {
+        var packed_xs: []i32 = buffer.i32_pack_list_int(xs)
+        if oren_is_err(packed_xs) {
+            print("array_sum_int_packed_bridge pack failed")
+            return 1
+        }
+        var rep = 0
+        while rep < reps {
+            sum = linalg.reduce_sum_i32_buf(packed_xs)
+            rep = rep + 1
+        }
     }
 
     print(sum)

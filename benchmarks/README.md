@@ -439,6 +439,25 @@ below C on the `delta` metric. The remaining gap is the one-shot `list<int> -> [
 materialization/setup cost, so future bridge work should target export elimination, reuse, or
 prepacking rather than more inner-kernel tuning.
 
+The current shared stdlib also exposes explicit caller-managed workspace reuse:
+
+- `linalg.dot_i32_list_int_packed_reuse(packed_a, packed_b, a, b)`
+- `linalg.reduce_sum_i32_list_int_packed_reuse(packed_a, a)`
+
+Those repack into caller-provided `[]i32` work buffers via `buffer.i32_pack_list_int_into(...)`
+instead of allocating fresh packed buffers inside every call. The latest read-split rerun,
+`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_234329_17881.log`, shows why
+that is useful but not sufficient:
+
+- baseline canonical `dot_product_int`: `~1.2915x C` long-per-rep
+- fresh-pack SIMD (`OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_ENABLE_SIMD=1`): `~7.3906x C`
+- reuse-work SIMD (`OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1,OREN_ENABLE_SIMD=1`): `~7.2240x C`
+- pack-once SIMD (`OREN_ENABLE_SIMD=1`): `~4.4566x C`
+
+So destination-buffer reuse trims only a small slice of the fresh-pack cost and still loses badly
+to the existing pack-once bridge. The next bridge move should therefore target eliminating or
+hoisting the repeated materialization/copy itself, not just reusing the output buffer.
+
 To answer the narrower question “does the packed SIMD path become viable if we really amortize the
 pack step?”, use:
 

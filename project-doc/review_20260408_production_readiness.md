@@ -372,6 +372,41 @@ Conclusion:
 - the next high-leverage parity move is therefore not more packed dot-kernel tuning; it is
   eliminating, hoisting, caching, or otherwise reusing the `list<int> -> []i32` export work
 
+Explicit packed-workspace reuse follow-up:
+
+- I then tested the most conservative version of that next idea: do not invent an implicit cache,
+  because the runtime still has no list-mutation epoch suitable for safe hidden reuse. Instead,
+  expose a caller-managed workspace surface in shared stdlib and measure it directly.
+- Fix in this pass:
+  - added `linalg.dot_i32_list_int_packed_reuse(...)`
+  - added `linalg.reduce_sum_i32_list_int_packed_reuse(...)`
+  - both functions repack into caller-provided `[]i32` work buffers via
+    `buffer.i32_pack_list_int_into(...)`
+  - hidden packed-bridge benchmarks now support `OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1`
+  - packed-bridge smoke now checks that reuse-work mode still returns the expected `205` / `710` /
+    `6590` / `54380`
+  - shared module tests now cover the new reuse entrypoints
+
+Measured result:
+
+- `make perf-probe-list-int-packed-bridge-read-split`
+  - no-smoke rerun: `build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_234329_17881.log`
+  - current long-per-rep ranking:
+    - canonical `dot_product_int`: `~1.2915x C`
+    - fresh-pack SIMD (`OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_ENABLE_SIMD=1`): `~7.3906x C`
+    - reuse-work SIMD (`OREN_BENCH_PACKED_BRIDGE_REUSE_WORK=1,OREN_ENABLE_SIMD=1`): `~7.2240x C`
+    - pack-once SIMD (`OREN_ENABLE_SIMD=1`): `~4.4566x C`
+
+Conclusion:
+
+- explicit destination-buffer reuse is a valid shared API and it is correctness-clean
+- but it only trims a small slice of the fresh-pack cost on the current probe
+- therefore fresh allocation is not the dominant remaining bridge cost anymore
+- the real remaining blocker is the repeated `list<int> -> []i32` materialization/copy itself
+- that means the next parity move should not be “more workspace reuse”; it should be either
+  hoisting/prepacking the bridge across repeated operations or eliminating the bridge entirely for
+  the hot path
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`

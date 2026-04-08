@@ -35,8 +35,16 @@ fn dot_i32_list_int_packed(a, b) {
     return dot.dot_i32_list_int_packed(a, b)
 }
 
+fn dot_i32_list_int_packed_reuse(packed_a: []i32, packed_b: []i32, a, b) {
+    return dot.dot_i32_list_int_packed_reuse(packed_a, packed_b, a, b)
+}
+
 fn reduce_sum_i32_list_int_packed(a) {
     return dot.reduce_sum_i32_list_int_packed(a)
+}
+
+fn reduce_sum_i32_list_int_packed_reuse(packed_a: []i32, a) {
+    return dot.reduce_sum_i32_list_int_packed_reuse(packed_a, a)
 }
 
 fn dot_f32_buf(a: []f32, b: []f32) {
