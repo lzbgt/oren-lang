@@ -16,9 +16,14 @@ if [[ ! -x "$compiler" ]]; then
   exit 2
 fi
 
+preworld_runs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS:-1}"
 stage2_runs="${OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS:-1}"
 c_runs="${OREN_RUNTIME_ROBUSTNESS_C_RUNS:-$runs}"
 fixtures="${OREN_RUNTIME_ROBUSTNESS_C_FIXTURES:-tests/native/fixtures/arith_div0.oren,tests/native/fixtures/arith_div_overflow.oren,tests/native/fixtures/index_set_negative.oren}"
+preworld_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS:-240}"
+preworld_run_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS:-30}"
+preworld_green_cache_run_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS:-30}"
+stage2_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_STAGE2_BUILD_TIMEOUT_SECS:-240}"
 
 # Optional runtime tracing knobs (forwarded to child scripts).
 # Example: OREN_RUNTIME_ROBUSTNESS_TRACE_ENV='OREN_TRACE_LIST_HDR_RING=1 OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1'
@@ -39,6 +44,7 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 {
   echo "ts=$ts"
   echo "runs=$runs"
+  echo "preworld_runs=$preworld_runs"
   echo "stage2_runs=$stage2_runs"
   echo "c_runs=$c_runs"
   echo "compiler=$compiler"
@@ -46,16 +52,34 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "uname=$uname_out"
   echo "git_rev=$git_rev"
   echo "fixtures=$fixtures"
+  echo "preworld_build_timeout_secs=$preworld_build_timeout_secs"
+  echo "preworld_run_timeout_secs=$preworld_run_timeout_secs"
+  echo "preworld_green_cache_run_timeout_secs=$preworld_green_cache_run_timeout_secs"
+  echo "stage2_build_timeout_secs=$stage2_build_timeout_secs"
   echo "trace_env=$trace_env"
 } >"$log"
 
 IFS=',' read -r -a fixture_arr <<< "$fixtures"
 
+if [[ "$preworld_runs" =~ ^[0-9]+$ ]] && [[ "$preworld_runs" -gt 0 ]]; then
+  echo "== stage1/pre-world-lock guarded green-cache quick integration (runs=$preworld_runs) ==" | tee -a "$log"
+  OREN_QI_STOP_BEFORE_WORLD_LOCK=1 \
+  OREN_NATIVE_BUILD_TIMEOUT_SECS="$preworld_build_timeout_secs" \
+  OREN_NATIVE_RUN_TIMEOUT_SECS="$preworld_run_timeout_secs" \
+  OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS="$preworld_green_cache_run_timeout_secs" \
+    ./scripts/triage_stage2_quick_until_world_lock.sh "$preworld_runs" "$compiler" \
+      OREN_TRACE_GREEN_RUNQ_GUARD=1 \
+      OREN_TRACE_GREEN_ARGS_STAMP=1 \
+      "${trace_env_arr[@]}" "$@" \
+      >>"$log" 2>&1
+fi
+
 if [[ "$stage2_runs" =~ ^[0-9]+$ ]] && [[ "$stage2_runs" -gt 0 ]]; then
   echo "== stage2 native quick integration (runs=$stage2_runs) ==" | tee -a "$log"
-  ./scripts/triage_native_quick_stage2_flake_debug.sh "$stage2_runs" "$compiler" \
-    "${trace_env_arr[@]}" "$@" \
-    >>"$log" 2>&1
+  OREN_NATIVE_BUILD_TIMEOUT_SECS="$stage2_build_timeout_secs" \
+    ./scripts/triage_native_quick_stage2_flake_debug.sh "$stage2_runs" "$compiler" \
+      "${trace_env_arr[@]}" "$@" \
+      >>"$log" 2>&1
 fi
 
 if [[ "$c_runs" =~ ^[0-9]+$ ]] && [[ "$c_runs" -gt 0 ]]; then

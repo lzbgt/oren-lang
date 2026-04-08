@@ -2056,6 +2056,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     regular OS-thread nodes with `flags=1`, `saved=0`, and transient `backup_saved` /
     512 KiB stack metadata that then park on the next wait. Keep using this path until the
     original timeout reproduces again.
+  - Verified (2026-04-08): current `master` passed the dedicated stage1 green-cache flake
+    harness 5/5 (`build/logs/triage_green_cache_current_20260408.log`).
+  - Fix + verify (2026-04-08): `scripts/verify_runtime_robustness_w5.sh` now includes the
+    guarded pre-world-lock green-cache path by default, `scripts/triage_stage2_quick_until_world_lock.sh`
+    now preserves the actual build failure exit code in its logs, and the guarded stage2 build
+    budgets are aligned to the same proven `240s` headroom used by `test-native-quick-stage2`.
+    Verified with `build/logs/make_verify_green_preworld_guarded_20260408.log`,
+    `build/logs/make_verify_runtime_robustness_20260408.log`, and
+    `build/logs/runtime_robustness_w5_20260408_212845.log`.
   - Trace (2026-03-15): in the successful green-cache reruns, the first larger collector waits
     occur at `test_gc_collect_does_not_deadlock_with_green_join_waiter()` (`expected=3`) and
     `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()` (`expected=4`), so the next

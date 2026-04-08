@@ -3,7 +3,9 @@ set -euo pipefail
 
 RUN_TIMEOUT_SECS="${OREN_NATIVE_RUN_TIMEOUT_SECS:-60}"
 CACHE_TIMEOUT_SECS="${OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS:-60}"
-BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-60}"
+# Keep stage2 debug quick-integration flake builds aligned with the proven stage2
+# quick-integration build headroom on current arm64-macOS hosts.
+BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-240}"
 
 runs="${1:-3}"
 compiler="${2:-./oren_stage2}"

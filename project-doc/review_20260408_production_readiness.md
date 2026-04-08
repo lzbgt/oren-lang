@@ -152,6 +152,9 @@ Successful:
 - `go test ./cmd/orensign`
 - `go test ./...`
 - `make test`
+- `./scripts/triage_native_quick_green_cache_flake.sh 5 ./oren`
+  - passed 5/5
+  - log: `build/logs/triage_green_cache_current_20260408.log`
 - `go build -o build/tmp/oren_bootstrap_review ./cmd/oren`
 - `build/tmp/oren_bootstrap_review run`
   - verified exit `2`
@@ -167,6 +170,58 @@ Successful:
   - `build/logs/go_test_cmd_orensign_20260408.log`
   - `build/logs/go_test_all_cli_batch_20260408.log`
   - `build/logs/make_test_cli_batch_20260408.log`
+
+## Runtime robustness follow-up (2026-04-08)
+
+The repo docs still carried March-era stage1 green-cache flake notes, so this pass also
+rechecked the current runtime robustness surface instead of assuming those flakes still
+represented the present baseline.
+
+Facts from current verification:
+
+- the dedicated stage1 green-cache flake harness now passes 5/5 on current `master`
+- the default quick-integration green-cache pass also remains clean on current `master`
+- the important remaining gap was not a currently reproduced crash, but that the main
+  W5 runtime robustness verifier did **not** include the guarded pre-world-lock
+  green-cache path that the tracker still called out
+- the first attempt to add that path exposed two verifier-side false-reds instead of a
+  runtime crash:
+  - `scripts/triage_stage2_quick_until_world_lock.sh` logged failed builds as `rc=0`
+    because it captured `$?` from `if ! cmd; then ...`
+  - the guarded pre-world-lock and stage2 quick-integration verifier paths were using
+    undersized stage2 build budgets relative to current self-hosted debug compile cost
+- direct measurement on current `master` showed
+  `./oren_stage2 build tests/native/test_quick_integration_native.oren --backend native --platform arm64-macos --debug ...`
+  taking about `2:24.28`, so the `240s` budget already used by `test-native-quick-stage2`
+  is the right baseline for these guarded stage2 verifier paths on this host
+
+Fix in this pass:
+
+- `scripts/verify_runtime_robustness_w5.sh` now runs the guarded pre-world-lock
+  green-cache quick-integration path by default
+- `scripts/triage_stage2_quick_until_world_lock.sh` now preserves the actual build exit
+  code in failure logs instead of collapsing build failures to `rc=0`
+- `scripts/triage_native_quick_stage2_flake_debug.sh` now defaults to the same `240s`
+  stage2 debug build headroom already proven by `test-native-quick-stage2`
+- `make verify-runtime-robustness` now forwards dedicated env knobs for:
+  - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS`
+  - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS`
+  - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS`
+  - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS`
+  - `OREN_RUNTIME_ROBUSTNESS_STAGE2_BUILD_TIMEOUT_SECS`
+
+Verification for this follow-up:
+
+- `make verify-green-preworld-guarded`
+  - log: `build/logs/make_verify_green_preworld_guarded_20260408.log`
+- `make verify-runtime-robustness`
+  - log: `build/logs/make_verify_runtime_robustness_20260408.log`
+  - detailed bundle log: `build/logs/runtime_robustness_w5_20260408_212845.log`
+- `make test`
+  - log: `build/logs/make_test_runtime_gate_20260408.log`
+
+That change upgrades stage1 green-cache runtime robustness from a side-target / manual
+triage path into part of the main W5 verification bundle.
 
 Started but not carried to completion in this pass:
 

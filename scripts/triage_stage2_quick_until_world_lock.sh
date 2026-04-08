@@ -91,9 +91,10 @@ run_smoke_step() {
   local run_secs="$5"
   local tail_lines="${6:-5}"
   rm -f "$step_log" "$out" 2>/dev/null || true
-  if ! run_with_timeout "$build_timeout_secs" "$compiler" build "$src" \
-    --backend native --platform "$platform" --debug -o "$out" >"$step_log" 2>&1; then
-    local rc=$?
+  local rc=0
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$src" \
+    --backend native --platform "$platform" --debug -o "$out" >"$step_log" 2>&1 || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
     echo "== ${label} ==" >>"$log"
     echo "FAIL: build rc=${rc}" >>"$log"
     tail -n 120 "$step_log" >>"$log" 2>/dev/null || true
@@ -220,9 +221,10 @@ while [[ "$run" -le "$runs" ]]; do
   qi_out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
   qi_log="build/logs/${compiler_base}_native_quick_integration.log"
   rm -f "$qi_log" "$qi_out" 2>/dev/null || true
-  if ! run_with_timeout "$build_timeout_secs" "$compiler" build "$qi_src" \
-    --backend native --platform "$platform" --debug -o "$qi_out" >"$qi_log" 2>&1; then
-    rc=$?
+  rc=0
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$qi_src" \
+    --backend native --platform "$platform" --debug -o "$qi_out" >"$qi_log" 2>&1 || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
     echo "== native quick integration ==" >>"$log"
     echo "FAIL: build rc=${rc}" >>"$log"
     tail -n 120 "$qi_log" >>"$log" 2>/dev/null || true

@@ -3228,6 +3228,17 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      markers from `test_green_global_runq_fairness`.
    - Verified (2026-03-07): the guarded standalone gate passed cleanly; `make test` also
      remained green after the retrack/world-lock fixes.
+   - Verified (2026-04-08): current `master` still passes the focused stage1 green-cache
+     flake repro (`./scripts/triage_native_quick_green_cache_flake.sh 5 ./oren`,
+     log: `build/logs/triage_green_cache_current_20260408.log`).
+   - Fix + verify (2026-04-08): the runtime robustness W5 verifier now includes the guarded
+     pre-world-lock green-cache path by default, `scripts/triage_stage2_quick_until_world_lock.sh`
+     now reports the real build exit code instead of collapsing failures to `rc=0`, and both the
+     pre-world-lock/stage2 guarded stage2 build budgets are aligned to the proven `240s` headroom
+     already used by `test-native-quick-stage2`. Verified with:
+     `build/logs/make_verify_green_preworld_guarded_20260408.log`,
+     `build/logs/make_verify_runtime_robustness_20260408.log`, and
+     `build/logs/runtime_robustness_w5_20260408_212845.log`.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
