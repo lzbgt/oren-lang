@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-04-04: `loop_sum` 1.09×, `dot_product` 2.82×; `alloc_churn` 5.42×, `alloc_drop` 1.76×).
-- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. The later reuse-work read-split rerun still leaves the best explicit packed path materially behind (`~4.4566× C` pack-once SIMD long-per-rep; `~7.2240× C` reuse-work long-per-rep; `~7.3906× C` fresh-pack SIMD long-per-rep vs canonical `~1.2915× C`), so the remaining blocker is repeated bridge materialization/copy itself, not just fresh allocation or the packed dot kernel.
+- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. The later reuse-work read-split rerun still leaves the best explicit packed path materially behind (`~4.4566× C` pack-once SIMD long-per-rep; `~7.2240× C` reuse-work long-per-rep; `~7.3906× C` fresh-pack SIMD long-per-rep vs canonical `~1.2915× C`), so the remaining blocker is repeated bridge materialization/copy itself, not just fresh allocation or the packed dot kernel. The new direct-slot read-split rerun (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`) also confirms the hidden helper now beats the shipped whole-operation path on the same split (`array_sum_int_slot_direct` `~1.0383× C` vs canonical `~1.3410× C`; `dot_product_int_slot_direct` `~1.1637× C` vs canonical `~1.2680× C`), while the delta side is still too noisy to rank. Reweight accordingly: the next parity move should converge the canonical lowering toward the direct-slot path, not spend more effort on packed-bridge tuning.
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -417,6 +417,22 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - packed-bridge scalar `dot_product_int_packed_bridge`: ~17.0948× C
 		     That is a major bridge improvement over the earlier hundreds-of-times results, but it still
 		     leaves the explicit packed route behind the shipped canonical path on whole-operation cost.
+		   - Direct-slot read-split follow-up (2026-04-08): new
+		     `make perf-probe-list-int-slot-direct-read-split` warms the hidden direct-slot artifacts once
+		     and compares canonical `array_sum_int` / `dot_product_int` against the unchecked helper path
+		     on the same short/long harness. Latest no-smoke rerun
+		     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`,
+		     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) comes back as:
+		     - canonical `array_sum_int`: ~1.3410× C long-per-rep
+		     - direct-slot `array_sum_int_slot_direct`: ~1.0383× C long-per-rep
+		     - canonical `dot_product_int`: ~1.2680× C long-per-rep
+		     - direct-slot `dot_product_int_slot_direct`: ~1.1637× C long-per-rep
+		     - delta note: the same rerun produced unstable split deltas (`dot_product_int`
+		       `~‑0.0273× C` canonical vs `~7.6465× C` direct-slot), so use the long-per-rep side for
+		       tracker decisions.
+		     Reweight again: the hidden direct-slot helper is now a credible whole-operation ceiling on
+		     the same split, which makes canonical/direct-slot convergence the higher-leverage next task
+		     than any more packed-bridge tuning.
 		   - Read-split rerun (2026-04-08): the paired
 		     `make perf-probe-list-int-packed-bridge-read-split` artifact
 		     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`,

@@ -407,6 +407,37 @@ Conclusion:
   hoisting/prepacking the bridge across repeated operations or eliminating the bridge entirely for
   the hot path
 
+Direct-slot read-split follow-up:
+
+- After the bridge/reuse work, the tracker still mixed steady-only helper numbers with read-split
+  bridge numbers. That was no longer good enough to choose the next implementation move.
+- Fix in this pass:
+  - added `make perf-probe-list-int-slot-direct-read-split`
+  - it warms the hidden direct-slot artifacts once and reruns canonical `array_sum_int` /
+    `dot_product_int` against `array_sum_int_slot_direct` / `dot_product_int_slot_direct` on the
+    same short/long read-split harness
+  - the summary now calls out when the delta metric is unstable and should not drive tracker updates
+
+Measured result:
+
+- no-smoke rerun: `build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`
+- current long-per-rep ranking on that split:
+  - canonical `array_sum_int`: `~1.3410x C`
+  - direct-slot `array_sum_int_slot_direct`: `~1.0383x C`
+  - canonical `dot_product_int`: `~1.2680x C`
+  - direct-slot `dot_product_int_slot_direct`: `~1.1637x C`
+- the same rerun produced unstable delta-side evidence on `dot_product_int`
+  (`canonical ~-0.0273x C`, `direct-slot ~7.6465x C`), so `long_per_rep` is the reliable number on
+  this surface
+
+Conclusion:
+
+- the hidden direct-slot helper is now a better whole-operation ceiling than the shipped canonical
+  loop on the same read-split workload
+- the packed bridge remains the wrong place to spend the next turn
+- the next highest-leverage implementation task is now clearer: move more of the canonical lowering
+  toward the direct-slot path, while preserving the existing correctness/lowering guards
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`

@@ -1266,16 +1266,33 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     shared Oren element loop. The native implementation now hoists source/destination cursors
 			     and emits direct byte stores; the same batch added `_into` coverage to modules/native
 			     QI/AVM tests.
-			   - New ceiling rerun (2026-04-08): latest
-			     `make perf-probe-list-int-dot-ceiling`
-			     (`build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`,
-			     `runs=2 warmups=0 n=20000 reps=2`) now ranks the same shapes as canonical
-			     `dot_product_int` `~1.2169× C`, direct-slot helper `~1.1182× C`, packed-SIMD
-			     `~4.9387× C`, packed-scalar `~17.0948× C`. The bridge is no longer catastrophically bad,
-			     but it still trails the shipped whole-operation path.
-			   - Read-split rerun (2026-04-08): latest
-			     `make perf-probe-list-int-packed-bridge-read-split`
-			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`)
+				   - New ceiling rerun (2026-04-08): latest
+				     `make perf-probe-list-int-dot-ceiling`
+				     (`build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`,
+				     `runs=2 warmups=0 n=20000 reps=2`) now ranks the same shapes as canonical
+				     `dot_product_int` `~1.2169× C`, direct-slot helper `~1.1182× C`, packed-SIMD
+				     `~4.9387× C`, packed-scalar `~17.0948× C`. The bridge is no longer catastrophically bad,
+				     but it still trails the shipped whole-operation path.
+				   - Direct-slot read-split follow-up (2026-04-08): new
+				     `make perf-probe-list-int-slot-direct-read-split` now warms the hidden direct-slot
+				     artifacts once and reruns canonical `array_sum_int` / `dot_product_int` against the
+				     unchecked helper path on the same short/long harness. Latest no-smoke artifact
+				     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`,
+				     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) keeps the helper ahead on
+				     whole-operation cost:
+				     - canonical `array_sum_int`: `~1.3410× C` long-per-rep
+				     - direct-slot `array_sum_int_slot_direct`: `~1.0383× C` long-per-rep
+				     - canonical `dot_product_int`: `~1.2680× C` long-per-rep
+				     - direct-slot `dot_product_int_slot_direct`: `~1.1637× C` long-per-rep
+				     - delta note: the same rerun produced unstable split deltas (canonical
+				       `dot_product_int` `~-0.0273× C`, direct-slot `~7.6465× C`), so tracker updates should
+				       prefer long-per-rep on this surface.
+				     Reweight accordingly: the packed bridge still stays closed as the next parity lever, and
+				     the higher-value next task is to pull more of the direct-slot path into the shipped
+				     canonical lowering.
+				   - Read-split rerun (2026-04-08): latest
+				     `make perf-probe-list-int-packed-bridge-read-split`
+				     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`)
 			     changes the attribution: baseline canonical `dot_product_int` is `~1.3778× C`
 			     long-per-rep, packed-scalar is `~13.5584× C`, and packed-SIMD is `~4.1480× C`
 			     long-per-rep while its repeated-work delta is already `~0.4993× C`. Reweight the next work

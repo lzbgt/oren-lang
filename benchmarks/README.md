@@ -410,6 +410,33 @@ shared `buffer.i32_pack_list_int(_into)` path moved onto dedicated native/C/AVM 
 Treat that as a bridge improvement, not a parity win: the next hot-loop move should target bridge
 setup/materialization cost rather than more packed-kernel tuning.
 
+For the same short/long split surface, but comparing canonical against the hidden direct-slot helper
+instead of the packed bridge, use:
+
+```bash
+make perf-probe-list-int-slot-direct-read-split
+```
+
+This warms the hidden direct-slot artifacts once and then reruns canonical `array_sum_int` /
+`dot_product_int` against `array_sum_int_slot_direct` / `dot_product_int_slot_direct` on the same
+small read-split harness. The default profile matches the packed-bridge split probe:
+`runs=2`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=2`; override it with
+`OREN_LIST_INT_SLOT_DIRECT_SPLIT_{RUNS,WARMUPS,N,SHORT_REPS,LONG_REPS}` if needed.
+
+The latest no-smoke artifact, `build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`,
+comes back as:
+
+- canonical `array_sum_int`: `~1.3410x C` long-per-rep
+- direct-slot `array_sum_int_slot_direct`: `~1.0383x C` long-per-rep
+- canonical `dot_product_int`: `~1.2680x C` long-per-rep
+- direct-slot `dot_product_int_slot_direct`: `~1.1637x C` long-per-rep
+
+The same rerun also produced unstable split deltas on `dot_product_int` (canonical `~-0.0273x C`,
+direct-slot `~7.6465x C`), so use the `long_per_rep` side for tracker updates. That is the current
+decision-quality result: the hidden direct-slot helper is now a better whole-operation ceiling than
+the shipped canonical loop on this split, which makes canonical/direct-slot convergence the higher
+value next step than more packed-bridge tuning.
+
 For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
 
 ```bash
