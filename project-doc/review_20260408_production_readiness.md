@@ -284,6 +284,44 @@ Perf tooling hardening follow-up:
   - `make test`
     - log: `build/logs/make_test_perf_env_parser_20260408.log`
 
+Prefix-zero containment follow-up:
+
+- I tested another arm64 statement-level loop-body idea: a compile-time-zero fast path for the
+  canonical `list<int>` `array_sum` / `dot_product` while-loops.
+- The first implementation was not correctness-safe: with the fast path active, native benchmark
+  smoke still produced the expected `array_sum` outputs (`205`, `710`), but `dot_product 10 3`
+  crashed before returning `6590`.
+- I kept the experiment only as an explicit opt-in compiler knob:
+  - `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1`
+  - `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`
+- There is now a dedicated failure-aware probe:
+  - `make perf-probe-arm64-fast-loop-prefix-zero`
+  - Unlike the pair-post probe, it records wrapper and acceptance exit status per leg and only
+    returns non-zero when the shipped default is broken.
+- Current rerun (`build/logs/perf-probe-arm64-fast-loop-prefix-zero-20260408_224002_36344.log`):
+  - shipped default:
+    - `steady_array_sum ~2.1470x C`
+    - `steady_dot_product ~2.9221x C`
+    - `gate_array_sum ~1.9392x C`
+    - `gate_dot_product ~2.7083x C`
+    - disasm instruction counts: `52` / `70`
+    - `debug_exit_code: 0`
+  - enabled prefix-zero experiment:
+    - `wrapper_exit_code: 2`
+    - `exit_status: 2`
+    - `failed_step: perf-smoke-native-fast-loops`
+- Underlying failure log: `build/logs/perf-smoke-native-fast-loops-20260408_224013_36955.log`
+  confirms the crash happens on native `dot_product 10 3` after `array_sum` already passed.
+- Verification for the containment pass:
+  - `make perf-smoke-native-fast-loops`
+    - wrapper log: `build/logs/perf_smoke_native_fast_loops_prefix_zero_default_20260408.log`
+    - smoke summary: `build/logs/perf-smoke-native-fast-loops-20260408_223942_35777.log`
+  - `make perf-probe-arm64-fast-loop-prefix-zero`
+    - wrapper log: `build/logs/make_perf_probe_arm64_fast_loop_prefix_zero_20260408_safe.log`
+    - summary: `build/logs/perf-probe-arm64-fast-loop-prefix-zero-20260408_224002_36344.log`
+  - `make test`
+    - log: `build/logs/make_test_prefix_zero_containment_20260408.log`
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`

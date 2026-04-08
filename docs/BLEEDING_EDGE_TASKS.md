@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-03-27
+**Last updated:** 2026-04-08
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -1501,9 +1501,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      enabled `~2.3932x C`, `~3.1297x C`, `~2.1181x C`, `~2.6913x C`, disasm `47` / `60`.
 				      Keep the pair-post branch default-off; instruction-count wins alone still lose on the
 				      measured hot-loop gates.
+				    - New arm64 fast-loop prefix-zero probe + containment (2026-04-08):
+				      the statement-level prefix-zero list<int> fast paths now stay explicit opt-in only via
+				      `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1` and
+				      `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`; the shipped default no longer routes
+				      through this experiment.
+				      `make perf-probe-arm64-fast-loop-prefix-zero` compares the shipped baseline against the
+				      enabled experiment and records wrapper/acceptance exit status per leg while only
+				      failing the target when the shipped default breaks. Current rerun
+				      (`build/logs/perf-probe-arm64-fast-loop-prefix-zero-20260408_224002_36344.log`):
+				      default `steady_array_sum ~2.1470x C`, `steady_dot_product ~2.9221x C`,
+				      `gate_array_sum ~1.9392x C`, `gate_dot_product ~2.7083x C`, disasm `52` / `70`,
+				      `debug_exit_code: 0`; enabled leg failed at `perf-smoke-native-fast-loops`
+				      (`wrapper_exit_code: 2`, `exit_status: 2`), and the underlying smoke log
+				      `build/logs/perf-smoke-native-fast-loops-20260408_224013_36955.log` shows
+				      `dot_product 10 3` crashing after `array_sum` already passed. Keep the prefix-zero
+				      branch default-off until it is correctness-clean.
 					    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
-					      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
-					      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`
+						      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
+						      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`
 				      recompute in the non-unique int-dot body. Serial reruns on the kept tree improved to
 				      canonical `array_sum` ~2.0808x C / `dot_product` ~2.7616x C and steady `array_sum`
 				      ~2.2422x C / `dot_product` ~2.9915x C. This is worth keeping, but the canonical

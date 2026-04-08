@@ -71,6 +71,297 @@ fn _arm64_str_eq_bytes(a, b) { return listm._arm64_str_eq_bytes(a, b) }
 fn _arm64_emit_while_generic(ctx, stmt) { return listm._arm64_emit_while_generic(ctx, stmt) }
 fn _arm64_restore_stack_to(ctx, base_stack) { return listm._arm64_restore_stack_to(ctx, base_stack) }
 
+fn _arm64_local_int_const(ctx, name) {
+    if ctx == nil || name == nil { return nil }
+    return exprm.native_expr_int_const(ctx, {"type": "Identifier", "token": nil, "value": name})
+}
+
+// Prefix-zero statement fast paths stay opt-in until the full acceptance bundle is clean.
+fn _arm64_env_enabled_default_false(name) {
+    var v = oren_env(name)
+    if v == "1" || v == "true" { return true }
+    return false
+}
+
+fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
+    if ctx == nil || stmt == nil || info == nil { return false }
+
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var sum_name = info["sum"]
+    var lists = info["lists"]
+    var loads = info["loads"]
+    if oren_list_len(lists) != 1 || oren_list_len(loads) != 1 { return false }
+    if _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO") != true { return false }
+    if _arm64_local_int_const(ctx, idx_name) != 0 { return false }
+    if _arm64_local_int_const(ctx, sum_name) != 0 { return false }
+
+    var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
+    var n_fp_off = _arm64_local_fp_off(ctx, n_name)
+    var sum_fp_off = _arm64_local_fp_off(ctx, sum_name)
+    var list_fp_off = _arm64_local_fp_off(ctx, lists[0])
+    if idx_fp_off == nil || n_fp_off == nil || sum_fp_off == nil || list_fp_off == nil {
+        return false
+    }
+
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK", 4095)
+    var trace_kind = "fast_list_int_get_sum_while_no_tick"
+    listm._arm64_trace_loop_stack(ctx, trace_kind, ctx["stack_size"], 0, -1, 0)
+
+    push_u32_le(ctx["code"], insn_movz(20, 0)) // X20 = i
+    push_u32_le(ctx["code"], insn_movz(22, 0)) // X22 = sum
+    emit_ldr_reg_fp_any(ctx, 21, n_fp_off)     // X21 = n
+    emit_load_i64_imm(ctx, 26, 1)
+    push_u32_le(ctx["code"], insn_cmp_reg(21, 26))
+    var jpos_done_small_n = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.lt end
+
+    var slow_jumps = []
+
+    emit_ldr_reg_fp_any(ctx, 19, list_fp_off) // X19 = list
+    push_u32_le(ctx["code"], insn_cmp_reg(19, 31))
+    var jpos_list_nil = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
+
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+    var bl_find = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_node_nil = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_node_nil, "cond": 0}) // EQ
+
+    emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+    emit_load_i64_imm(ctx, 2, 8)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+    var jpos_kind_bad = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_kind_bad, "cond": 1}) // NE
+
+    emit_load_ptr_from_base_plus(ctx, 1, 19, 24)
+    emit_load_i64_imm(ctx, 2, 1279870019)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+    var jpos_magic_bad = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
+
+    emit_load_ptr_from_base_plus(ctx, 1, 19, 0)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 21))
+    var jpos_count_small = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_count_small, "cond": 11}) // LT
+
+    emit_load_ptr_from_base_plus(ctx, 19, 19, 16) // X19 = ptr
+    push_u32_le(ctx["code"], insn_movz(9, 0))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+
+    var loop_cond_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    var jpos_fast_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ge end
+
+    gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [[19, 20], [21, 22]])
+    push_u32_le(ctx["code"], insn_ldr_ptr(24, 19))
+    push_u32_le(ctx["code"], insn_add_reg(22, 22, 24))
+    push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+    push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+    var back_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], insn_b((loop_cond_pos - back_pos) / 4))
+
+    var fast_end_pos = bytes_len(ctx["code"])
+    listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
+    set_u32_le(ctx["code"], jpos_done_small_n, insn_b_cond((fast_end_pos - jpos_done_small_n) / 4, 11)) // LT
+    set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond((fast_end_pos - jpos_fast_end) / 4, 10)) // GE
+
+    emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+    emit_str_reg_fp_any(ctx, 22, sum_fp_off)
+
+    var jpos_skip_slow = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b end
+
+    var slow_pos = bytes_len(ctx["code"])
+    var si = 0
+    while si < oren_list_len(slow_jumps) {
+        var sj = slow_jumps[si]
+        var soff = (slow_pos - sj["pos"]) / 4
+        set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
+        si = si + 1
+    }
+    _arm64_emit_while_generic(ctx, stmt)
+
+    var end_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], jpos_skip_slow, insn_b((end_pos - jpos_skip_slow) / 4))
+    return true
+}
+
+fn _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) {
+    if ctx == nil || stmt == nil || info == nil { return false }
+
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var sum_name = info["sum"]
+    var lists = info["lists"]
+    var muls = info["muls"]
+    if oren_list_len(lists) != 2 || oren_list_len(muls) != 1 { return false }
+    if _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO") != true { return false }
+    if _arm64_local_int_const(ctx, idx_name) != 0 { return false }
+    if _arm64_local_int_const(ctx, sum_name) != 0 { return false }
+
+    var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
+    var n_fp_off = _arm64_local_fp_off(ctx, n_name)
+    var sum_fp_off = _arm64_local_fp_off(ctx, sum_name)
+    if idx_fp_off == nil || n_fp_off == nil || sum_fp_off == nil { return false }
+
+    var pair = muls[0]
+    var left_name = pair["left"]
+    var right_name = pair["right"]
+    var left_fp_off = _arm64_local_fp_off(ctx, left_name)
+    var right_fp_off = _arm64_local_fp_off(ctx, right_name)
+    if left_fp_off == nil || right_fp_off == nil { return false }
+
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK", 4095)
+    var trace_kind = "fast_list_int_dot_while_no_tick"
+    listm._arm64_trace_loop_stack(ctx, trace_kind, ctx["stack_size"], 0, -1, 0)
+
+    push_u32_le(ctx["code"], insn_movz(24, 0)) // X24 = sum
+    push_u32_le(ctx["code"], insn_movz(25, 0)) // X25 = i
+    emit_ldr_reg_fp_any(ctx, 21, n_fp_off)     // X21 = n
+    emit_load_i64_imm(ctx, 26, 1)
+    push_u32_le(ctx["code"], insn_cmp_reg(21, 26))
+    var jpos_done_small_n = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.lt end
+
+    var slow_jumps = []
+
+    emit_ldr_reg_fp_any(ctx, 19, left_fp_off) // X19 = a
+    push_u32_le(ctx["code"], insn_cmp_reg(19, 31))
+    var jpos_left_nil = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_left_nil, "cond": 0}) // EQ
+
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+    var bl_find_left = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_left, "name": "oren_find_node"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_left)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_left_node_nil = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_left_node_nil, "cond": 0}) // EQ
+
+    emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+    emit_load_i64_imm(ctx, 2, 8)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+    var jpos_left_kind_bad = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_left_kind_bad, "cond": 1}) // NE
+
+    emit_load_ptr_from_base_plus(ctx, 1, 19, 24)
+    emit_load_i64_imm(ctx, 2, 1279870019)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+    var jpos_left_magic_bad = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_left_magic_bad, "cond": 1}) // NE
+
+    emit_load_ptr_from_base_plus(ctx, 1, 19, 0)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 21))
+    var jpos_left_count_small = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_left_count_small, "cond": 11}) // LT
+
+    emit_load_ptr_from_base_plus(ctx, 22, 19, 16) // X22 = pa
+
+    emit_ldr_reg_fp_any(ctx, 20, right_fp_off) // X20 = b
+    push_u32_le(ctx["code"], insn_cmp_reg(20, 31))
+    var jpos_right_nil = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_right_nil, "cond": 0}) // EQ
+
+    push_u32_le(ctx["code"], insn_mov_reg(0, 20))
+    var bl_find_right = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_right, "name": "oren_find_node"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_right)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_right_node_nil = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_right_node_nil, "cond": 0}) // EQ
+
+    emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+    emit_load_i64_imm(ctx, 2, 8)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+    var jpos_right_kind_bad = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_right_kind_bad, "cond": 1}) // NE
+
+    emit_load_ptr_from_base_plus(ctx, 1, 20, 24)
+    emit_load_i64_imm(ctx, 2, 1279870019)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+    var jpos_right_magic_bad = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_right_magic_bad, "cond": 1}) // NE
+
+    emit_load_ptr_from_base_plus(ctx, 1, 20, 0)
+    push_u32_le(ctx["code"], insn_cmp_reg(1, 21))
+    var jpos_right_count_small = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_right_count_small, "cond": 11}) // LT
+
+    emit_load_ptr_from_base_plus(ctx, 23, 20, 16) // X23 = pb
+    push_u32_le(ctx["code"], insn_movz(9, 0))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+
+    var loop_cond_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], insn_cmp_reg(25, 21))
+    var jpos_fast_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ge end
+
+    gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [[19, 20], [21, 22], [23, 24], [25, 26]])
+    push_u32_le(ctx["code"], insn_ldr_ptr(27, 22))
+    push_u32_le(ctx["code"], insn_ldr_ptr(28, 23))
+    push_u32_le(ctx["code"], insn_mul(27, 27, 28))
+    push_u32_le(ctx["code"], insn_add_reg(24, 24, 27))
+    push_u32_le(ctx["code"], insn_add_imm(22, 22, 8))
+    push_u32_le(ctx["code"], insn_add_imm(23, 23, 8))
+    push_u32_le(ctx["code"], insn_add_imm(25, 25, 1))
+    var back_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], insn_b((loop_cond_pos - back_pos) / 4))
+
+    var fast_end_pos = bytes_len(ctx["code"])
+    listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
+    set_u32_le(ctx["code"], jpos_done_small_n, insn_b_cond((fast_end_pos - jpos_done_small_n) / 4, 11)) // LT
+    set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond((fast_end_pos - jpos_fast_end) / 4, 10)) // GE
+
+    emit_str_reg_fp_any(ctx, 25, idx_fp_off)
+    emit_str_reg_fp_any(ctx, 24, sum_fp_off)
+
+    var jpos_skip_slow = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b end
+
+    var slow_pos = bytes_len(ctx["code"])
+    var si = 0
+    while si < oren_list_len(slow_jumps) {
+        var sj = slow_jumps[si]
+        var soff = (slow_pos - sj["pos"]) / 4
+        set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
+        si = si + 1
+    }
+    _arm64_emit_while_generic(ctx, stmt)
+
+    var end_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], jpos_skip_slow, insn_b((end_pos - jpos_skip_slow) / 4))
+    return true
+}
+
 fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     if ctx == nil || stmt == nil || info == nil { return nil }
 
@@ -381,6 +672,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
 
 fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     if ctx == nil || stmt == nil || info == nil { return nil }
+
+    if _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) == true { return nil }
 
     var idx_name = info["idx"]
     var n_name = info["n"]
@@ -719,6 +1012,8 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
 
 fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     if ctx == nil || stmt == nil || info == nil { return nil }
+
+    if _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) == true { return nil }
 
     var idx_name = info["idx"]
     var n_name = info["n"]
