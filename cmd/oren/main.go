@@ -23,7 +23,7 @@ func Start(in io.Reader, out io.Writer) {
 	env := eval.NewEnvironment()
 
 	for {
-		fmt.Printf(PROMPT)
+		fmt.Fprint(out, PROMPT)
 		scanned := scanner.Scan()
 		if !scanned {
 			return
@@ -58,6 +58,29 @@ func printParserErrors(out io.Writer, errors []string) {
 func isMSVCCompiler(cc string) bool {
 	ccBase := strings.ToLower(filepath.Base(cc))
 	return ccBase == "cl" || ccBase == "cl.exe" || ccBase == "clang-cl" || ccBase == "clang-cl.exe"
+}
+
+func defaultCCForHost(goos string) string {
+	if cc := os.Getenv("CC"); cc != "" {
+		return cc
+	}
+	if goos == "windows" {
+		return "cl.exe"
+	}
+	return "cc"
+}
+
+func defaultTargetForHost(goos string) string {
+	switch goos {
+	case "darwin":
+		return "macos"
+	case "linux":
+		return "linux"
+	case "windows":
+		return "windows"
+	default:
+		return "macos"
+	}
 }
 
 func cmdQuote(s string) string {
@@ -341,320 +364,336 @@ func findMSVCDevCmd() (msvcDevCmd, error) {
 	return msvcDevCmdFromInstallPath(installPath)
 }
 
-func main() {
-	prog := filepath.Base(os.Args[0])
-	// If args are provided, we should run file or build.
-	// For now, let's just default to REPL if no args.
-	if len(os.Args) == 1 {
-		fmt.Printf("Hello! This is the Oren programming language!\n")
-		fmt.Printf("Feel free to type in commands\n")
-		Start(os.Stdin, os.Stdout)
-	} else {
-		// Simple file runner
-		if os.Args[1] == "run" {
-			// Read file
-			src, err := transpiler.ExpandIncludes(os.Args[2])
-			if err != nil {
-				panic(err)
+type buildOptions struct {
+	filename      string
+	cc            string
+	codesignID    string
+	noGC          bool
+	notarize      bool
+	notaryProfile string
+	enablePython  bool
+	emitC         bool
+	target        string
+	outFilename   string
+}
+
+func parseBuildOptions(hostGOOS, filename string, args []string) (buildOptions, int, string) {
+	cfg := buildOptions{
+		filename:      filename,
+		cc:            defaultCCForHost(hostGOOS),
+		codesignID:    os.Getenv("OREN_CODESIGN_ID"),
+		noGC:          os.Getenv("OREN_NO_GC") != "",
+		notaryProfile: os.Getenv("OREN_NOTARY_PROFILE"),
+		target:        defaultTargetForHost(hostGOOS),
+		outFilename:   strings.TrimSuffix(filename, ".oren"),
+	}
+
+	for i := 0; i < len(args); {
+		switch args[i] {
+		case "--emit-c":
+			cfg.emitC = true
+			i++
+		case "--python":
+			cfg.enablePython = true
+			i++
+		case "--target":
+			if i+1 >= len(args) {
+				return buildOptions{}, 2, "Missing value for --target"
 			}
-			l := lexer.New(src)
-			p := parser.New(l)
-			program := p.ParseProgram()
-			if len(p.Errors()) != 0 {
-				printParserErrors(os.Stderr, p.Errors())
-				os.Exit(1)
+			cfg.target = args[i+1]
+			i += 2
+		case "--cc":
+			if i+1 >= len(args) {
+				return buildOptions{}, 2, "Missing value for --cc"
 			}
-			env := eval.NewEnvironment()
-			eval.Eval(program, env)
-		} else if os.Args[1] == "build" {
-			if len(os.Args) < 3 {
-				fmt.Printf("Usage: %s build <file.oren>\n", prog)
-				os.Exit(1)
+			cfg.cc = args[i+1]
+			i += 2
+		case "--codesign":
+			if i+1 >= len(args) {
+				return buildOptions{}, 2, "Missing value for --codesign"
 			}
-			filename := os.Args[2]
-
-				cc := os.Getenv("CC")
-				if cc == "" {
-					// Rolling Tier‑1 policy: on Windows hosts, prefer MSVC `cl.exe` by default so
-					// stage0 bootstrap works from a plain shell (auto-configured via vswhere + VsDevCmd/vcvars).
-					if runtime.GOOS == "windows" {
-						cc = "cl.exe"
-					} else {
-						cc = "cc"
-					}
-				}
-			codesignID := os.Getenv("OREN_CODESIGN_ID")
-			noGC := os.Getenv("OREN_NO_GC") != ""
-			notarize := false
-			notaryProfile := os.Getenv("OREN_NOTARY_PROFILE")
-			enablePython := false
-			emitC := false
-			target := "macos"
-			outFilename := strings.TrimSuffix(filename, ".oren")
-
-			i := 3
-			for i < len(os.Args) {
-				switch os.Args[i] {
-				case "--emit-c":
-					emitC = true
-					i++
-				case "--python":
-					enablePython = true
-					i++
-				case "--target":
-					if i+1 >= len(os.Args) {
-						fmt.Printf("Missing value for --target\n")
-						os.Exit(1)
-					}
-					target = os.Args[i+1]
-					i += 2
-				case "--cc":
-					if i+1 >= len(os.Args) {
-						fmt.Printf("Missing value for --cc\n")
-						os.Exit(1)
-					}
-					cc = os.Args[i+1]
-					i += 2
-				case "--codesign":
-					if i+1 >= len(os.Args) {
-						fmt.Printf("Missing value for --codesign\n")
-						os.Exit(1)
-					}
-					codesignID = os.Args[i+1]
-					i += 2
-				case "--notarize":
-					notarize = true
-					i++
-				case "--notary-profile":
-					if i+1 >= len(os.Args) {
-						fmt.Printf("Missing value for --notary-profile\n")
-						os.Exit(1)
-					}
-					notaryProfile = os.Args[i+1]
-					i += 2
-				case "--no-gc":
-					noGC = true
-					i++
-				case "-o":
-					if i+1 >= len(os.Args) {
-						fmt.Printf("Missing value for -o\n")
-						os.Exit(1)
-					}
-					outFilename = os.Args[i+1]
-					i += 2
-				default:
-					fmt.Printf("Unknown arg: %s\n", os.Args[i])
-					os.Exit(1)
-				}
+			cfg.codesignID = args[i+1]
+			i += 2
+		case "--notarize":
+			cfg.notarize = true
+			i++
+		case "--notary-profile":
+			if i+1 >= len(args) {
+				return buildOptions{}, 2, "Missing value for --notary-profile"
 			}
-
-			if runtime.GOOS == "darwin" && target == "macos" && os.Getenv("OREN_SKIP_CODESIGN") == "1" {
-				fmt.Printf("OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS\n")
-				os.Exit(2)
+			cfg.notaryProfile = args[i+1]
+			i += 2
+		case "--no-gc":
+			cfg.noGC = true
+			i++
+		case "-o":
+			if i+1 >= len(args) {
+				return buildOptions{}, 2, "Missing value for -o"
 			}
-			if runtime.GOOS == "darwin" && target == "macos" && codesignID == "" {
-				// Default to ad-hoc signing so the output is runnable without a certificate.
-				codesignID = "-"
-			}
-			if notarize && target == "macos" && (codesignID == "" || codesignID == "-") {
-				fmt.Printf("Notarization requested but codesign is disabled (set --codesign or OREN_CODESIGN_ID)\n")
-				os.Exit(1)
-			}
-
-			src, err := transpiler.ExpandIncludes(filename)
-			if err != nil {
-				panic(err)
-			}
-			l := lexer.New(src)
-			p := parser.New(l)
-			program := p.ParseProgram()
-			if len(p.Errors()) != 0 {
-				printParserErrors(os.Stderr, p.Errors())
-				os.Exit(1)
-			}
-
-			t := transpiler.NewWithBaseDir(filepath.Dir(filename))
-			cCode, err := t.Transpile(program)
-			if err != nil {
-				fmt.Printf("Transpilation error: %v\n", err)
-				os.Exit(1)
-			}
-
-			// Write to temporary C file
-			cFilename := filename + ".c"
-			err = os.WriteFile(cFilename, []byte(cCode), 0644)
-			if err != nil {
-				panic(err)
-			}
-
-			if emitC {
-				fmt.Printf("Wrote %s\n", cFilename)
-				return
-			}
-
-			isMSVC := isMSVCCompiler(cc)
-
-			var args []string
-				if isMSVC {
-					// MSVC `cl` does compile+link in one step by default.
-					// Keep this minimal and deterministic: stage0 is a bootstrap path.
-					args = []string{"/nologo", "/std:c11", "/Fe:" + outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "/Ilib"}
-					if noGC {
-						args = append(args, "/DOREN_NO_GC")
-					}
-					if enablePython {
-						pyFlags, err := pythonEmbedFlagsMSVC()
-						if err != nil {
-							fmt.Printf("ERROR: --python MSVC setup failed: %v\n", err)
-							os.Exit(2)
-						}
-						args = append(args, pyFlags...)
-					}
-				} else {
-				args = []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
-				if noGC {
-					args = append(args, "-DOREN_NO_GC")
-				}
-
-				if enablePython {
-					args = append(args, "-DOREN_ENABLE_PYTHON")
-
-					pyCFlagsCmd := exec.Command("python3-config", "--cflags")
-					pyCFlagsOut, err := pyCFlagsCmd.Output()
-					if err != nil {
-						panic(err)
-					}
-					pyLdFlagsCmd := exec.Command("python3-config", "--embed", "--ldflags")
-					pyLdFlagsOut, err := pyLdFlagsCmd.Output()
-					if err != nil {
-						panic(err)
-					}
-
-					cFlags := strings.Fields(string(pyCFlagsOut))
-					ldFlags := strings.Fields(string(pyLdFlagsOut))
-					args = append(args, cFlags...)
-					args = append(args, ldFlags...)
-				}
-			}
-
-			var cmd *exec.Cmd
-			if isMSVC && runtime.GOOS == "windows" {
-				// `cl.exe` is typically not in PATH unless you're in a VS Developer Prompt.
-				// In rolling mode, `make oren` on Windows should be able to find VS2022 and run `cl`.
-				devCmd, err := findMSVCDevCmd()
-				if err != nil {
-					fmt.Printf("ERROR: MSVC toolchain setup failed: %v\n", err)
-					os.Exit(2)
-				}
-
-				// IMPORTANT: avoid embedding quotes in the `cmd.exe /c "<...>"` argument itself.
-				// Go's Windows process spawning escapes embedded quotes with backslashes, and cmd.exe
-				// does not treat `\"` as a quoting mechanism. Use a temporary `.cmd` file instead.
-				wd, err := os.Getwd()
-				if err != nil {
-					fmt.Printf("ERROR: cannot get cwd for MSVC bootstrap: %v\n", err)
-					os.Exit(2)
-				}
-				f, err := os.CreateTemp(wd, "oren_msvc_build_*.cmd")
-				if err != nil {
-					fmt.Printf("ERROR: cannot create MSVC bootstrap script: %v\n", err)
-					os.Exit(2)
-				}
-				scriptPath := f.Name()
-				scriptName := filepath.Base(scriptPath)
-				defer os.Remove(scriptPath)
-
-				var b strings.Builder
-				b.WriteString("@echo off\r\n")
-				b.WriteString("call ")
-				b.WriteString(cmdQuote(devCmd.path))
-				for _, a := range devCmd.args {
-					b.WriteString(" ")
-					b.WriteString(cmdQuote(a))
-				}
-				b.WriteString("\r\n")
-				b.WriteString("if errorlevel 1 exit /b %errorlevel%\r\n")
-				b.WriteString(cmdQuote(cc))
-				for _, a := range args {
-					b.WriteString(" ")
-					b.WriteString(cmdQuote(a))
-				}
-				b.WriteString("\r\n")
-				b.WriteString("exit /b %errorlevel%\r\n")
-
-				if _, err := f.WriteString(b.String()); err != nil {
-					_ = f.Close()
-					fmt.Printf("ERROR: cannot write MSVC bootstrap script: %v\n", err)
-					os.Exit(2)
-				}
-				if err := f.Close(); err != nil {
-					fmt.Printf("ERROR: cannot close MSVC bootstrap script: %v\n", err)
-					os.Exit(2)
-				}
-
-				cmd = exec.Command("cmd.exe", "/d", "/c", scriptName)
-				cmd.Dir = wd
-			} else {
-				cmd = exec.Command(cc, args...)
-			}
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err = cmd.Run()
-			if err != nil {
-				fmt.Printf("Compilation failed: %v\n", err)
-				os.Exit(1)
-			}
-
-			if runtime.GOOS == "darwin" && target == "macos" && codesignID != "" {
-				cs := exec.Command("codesign", "-s", codesignID, "--force", outFilename)
-				cs.Stdout = os.Stdout
-				cs.Stderr = os.Stderr
-				if err := cs.Run(); err != nil {
-					fmt.Printf("codesign failed with %q (%v), retrying ad-hoc...\n", codesignID, err)
-					ad := exec.Command("codesign", "-s", "-", "--force", outFilename)
-					ad.Stdout = os.Stdout
-					ad.Stderr = os.Stderr
-					if err2 := ad.Run(); err2 != nil {
-						fmt.Printf("codesign fallback failed: %v\n", err2)
-						os.Exit(1)
-					}
-				}
-			}
-
-			if target == "macos" && notarize {
-				var args []string
-				if notaryProfile != "" {
-					args = []string{"notarytool", "submit", outFilename, "--keychain-profile", notaryProfile, "--wait"}
-				} else {
-					appleID := os.Getenv("APPLE_ID")
-					applePass := os.Getenv("APPLE_ID_PASS")
-					teamID := os.Getenv("APPLE_TEAM_ID")
-					if appleID == "" || applePass == "" || teamID == "" {
-						fmt.Printf("Notarization requested but APPLE_ID/APPLE_ID_PASS/APPLE_TEAM_ID or --notary-profile not set\n")
-						os.Exit(1)
-					}
-					args = []string{"notarytool", "submit", outFilename, "--apple-id", appleID, "--password", applePass, "--team-id", teamID, "--wait"}
-				}
-				nt := exec.Command(args[0], args[1:]...)
-				nt.Stdout = os.Stdout
-				nt.Stderr = os.Stderr
-				if err := nt.Run(); err != nil {
-					fmt.Printf("notarization failed: %v\n", err)
-					os.Exit(1)
-				}
-				staple := exec.Command("stapler", "staple", outFilename)
-				staple.Stdout = os.Stdout
-				staple.Stderr = os.Stderr
-				if err := staple.Run(); err != nil {
-					fmt.Printf("staple failed: %v\n", err)
-					os.Exit(1)
-				}
-			}
-
-			fmt.Printf("Build successful: %s\n", outFilename)
-
-		} else {
-			fmt.Printf("Unknown command. Use '%s run <file>', '%s build <file>' or just run '%s' for REPL.\n", prog, prog, prog)
+			cfg.outFilename = args[i+1]
+			i += 2
+		default:
+			return buildOptions{}, 2, fmt.Sprintf("Unknown arg: %s", args[i])
 		}
 	}
+
+	return cfg, 0, ""
+}
+
+func runCommand(prog string, args []string, in io.Reader, out, errOut io.Writer) int {
+	// If args are provided, run file or build; otherwise default to the REPL.
+	if len(args) == 0 {
+		fmt.Fprintln(out, "Hello! This is the Oren programming language!")
+		fmt.Fprintln(out, "Feel free to type in commands")
+		Start(in, out)
+		return 0
+	}
+
+	switch args[0] {
+	case "run":
+		if len(args) < 2 {
+			fmt.Fprintf(errOut, "Usage: %s run <file.oren>\n", prog)
+			return 2
+		}
+		src, err := transpiler.ExpandIncludes(args[1])
+		if err != nil {
+			fmt.Fprintf(errOut, "ERROR: cannot read %s: %v\n", args[1], err)
+			return 1
+		}
+		l := lexer.New(src)
+		p := parser.New(l)
+		program := p.ParseProgram()
+		if len(p.Errors()) != 0 {
+			printParserErrors(errOut, p.Errors())
+			return 1
+		}
+		env := eval.NewEnvironment()
+		eval.Eval(program, env)
+		return 0
+	case "build":
+		if len(args) < 2 {
+			fmt.Fprintf(errOut, "Usage: %s build <file.oren>\n", prog)
+			return 2
+		}
+		cfg, rc, msg := parseBuildOptions(runtime.GOOS, args[1], args[2:])
+		if rc != 0 {
+			fmt.Fprintln(errOut, msg)
+			return rc
+		}
+
+		if runtime.GOOS == "darwin" && cfg.target == "macos" && os.Getenv("OREN_SKIP_CODESIGN") == "1" {
+			fmt.Fprintln(errOut, "OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS")
+			return 2
+		}
+		if runtime.GOOS == "darwin" && cfg.target == "macos" && cfg.codesignID == "" {
+			// Default to ad-hoc signing so the output is runnable without a certificate.
+			cfg.codesignID = "-"
+		}
+		if cfg.notarize && cfg.target == "macos" && (cfg.codesignID == "" || cfg.codesignID == "-") {
+			fmt.Fprintln(errOut, "Notarization requested but codesign is disabled (set --codesign or OREN_CODESIGN_ID)")
+			return 1
+		}
+
+		src, err := transpiler.ExpandIncludes(cfg.filename)
+		if err != nil {
+			fmt.Fprintf(errOut, "ERROR: cannot read %s: %v\n", cfg.filename, err)
+			return 1
+		}
+		l := lexer.New(src)
+		p := parser.New(l)
+		program := p.ParseProgram()
+		if len(p.Errors()) != 0 {
+			printParserErrors(errOut, p.Errors())
+			return 1
+		}
+
+		t := transpiler.NewWithBaseDir(filepath.Dir(cfg.filename))
+		cCode, err := t.Transpile(program)
+		if err != nil {
+			fmt.Fprintf(errOut, "Transpilation error: %v\n", err)
+			return 1
+		}
+
+		// Write to temporary C file next to the source so downstream debug flows can inspect it.
+		cFilename := cfg.filename + ".c"
+		if err := os.WriteFile(cFilename, []byte(cCode), 0644); err != nil {
+			fmt.Fprintf(errOut, "ERROR: cannot write %s: %v\n", cFilename, err)
+			return 1
+		}
+
+		if cfg.emitC {
+			fmt.Fprintf(out, "Wrote %s\n", cFilename)
+			return 0
+		}
+
+		isMSVC := isMSVCCompiler(cfg.cc)
+
+		var ccArgs []string
+		if isMSVC {
+			// MSVC `cl` does compile+link in one step by default.
+			// Keep this minimal and deterministic: stage0 is a bootstrap path.
+			ccArgs = []string{"/nologo", "/std:c11", "/Fe:" + cfg.outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "/Ilib"}
+			if cfg.noGC {
+				ccArgs = append(ccArgs, "/DOREN_NO_GC")
+			}
+			if cfg.enablePython {
+				pyFlags, err := pythonEmbedFlagsMSVC()
+				if err != nil {
+					fmt.Fprintf(errOut, "ERROR: --python MSVC setup failed: %v\n", err)
+					return 2
+				}
+				ccArgs = append(ccArgs, pyFlags...)
+			}
+		} else {
+			ccArgs = []string{"-o", cfg.outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
+			if cfg.noGC {
+				ccArgs = append(ccArgs, "-DOREN_NO_GC")
+			}
+
+			if cfg.enablePython {
+				ccArgs = append(ccArgs, "-DOREN_ENABLE_PYTHON")
+
+				pyCFlagsCmd := exec.Command("python3-config", "--cflags")
+				pyCFlagsOut, err := pyCFlagsCmd.Output()
+				if err != nil {
+					fmt.Fprintf(errOut, "ERROR: python3-config --cflags failed: %v\n", err)
+					return 2
+				}
+				pyLdFlagsCmd := exec.Command("python3-config", "--embed", "--ldflags")
+				pyLdFlagsOut, err := pyLdFlagsCmd.Output()
+				if err != nil {
+					fmt.Fprintf(errOut, "ERROR: python3-config --embed --ldflags failed: %v\n", err)
+					return 2
+				}
+
+				cFlags := strings.Fields(string(pyCFlagsOut))
+				ldFlags := strings.Fields(string(pyLdFlagsOut))
+				ccArgs = append(ccArgs, cFlags...)
+				ccArgs = append(ccArgs, ldFlags...)
+			}
+		}
+
+		var cmd *exec.Cmd
+		if isMSVC && runtime.GOOS == "windows" {
+			// `cl.exe` is typically not in PATH unless you're in a VS Developer Prompt.
+			// In rolling mode, `make oren` on Windows should be able to find VS2022 and run `cl`.
+			devCmd, err := findMSVCDevCmd()
+			if err != nil {
+				fmt.Fprintf(errOut, "ERROR: MSVC toolchain setup failed: %v\n", err)
+				return 2
+			}
+
+			// IMPORTANT: avoid embedding quotes in the `cmd.exe /c "<...>"` argument itself.
+			// Go's Windows process spawning escapes embedded quotes with backslashes, and cmd.exe
+			// does not treat `\"` as a quoting mechanism. Use a temporary `.cmd` file instead.
+			wd, err := os.Getwd()
+			if err != nil {
+				fmt.Fprintf(errOut, "ERROR: cannot get cwd for MSVC bootstrap: %v\n", err)
+				return 2
+			}
+			f, err := os.CreateTemp(wd, "oren_msvc_build_*.cmd")
+			if err != nil {
+				fmt.Fprintf(errOut, "ERROR: cannot create MSVC bootstrap script: %v\n", err)
+				return 2
+			}
+			scriptPath := f.Name()
+			scriptName := filepath.Base(scriptPath)
+			defer os.Remove(scriptPath)
+
+			var b strings.Builder
+			b.WriteString("@echo off\r\n")
+			b.WriteString("call ")
+			b.WriteString(cmdQuote(devCmd.path))
+			for _, a := range devCmd.args {
+				b.WriteString(" ")
+				b.WriteString(cmdQuote(a))
+			}
+			b.WriteString("\r\n")
+			b.WriteString("if errorlevel 1 exit /b %errorlevel%\r\n")
+			b.WriteString(cmdQuote(cfg.cc))
+			for _, a := range ccArgs {
+				b.WriteString(" ")
+				b.WriteString(cmdQuote(a))
+			}
+			b.WriteString("\r\n")
+			b.WriteString("exit /b %errorlevel%\r\n")
+
+			if _, err := f.WriteString(b.String()); err != nil {
+				_ = f.Close()
+				fmt.Fprintf(errOut, "ERROR: cannot write MSVC bootstrap script: %v\n", err)
+				return 2
+			}
+			if err := f.Close(); err != nil {
+				fmt.Fprintf(errOut, "ERROR: cannot close MSVC bootstrap script: %v\n", err)
+				return 2
+			}
+			cmd = exec.Command("cmd.exe", "/d", "/c", scriptName)
+			cmd.Dir = wd
+		} else {
+			cmd = exec.Command(cfg.cc, ccArgs...)
+		}
+		cmd.Stdout = out
+		cmd.Stderr = errOut
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(errOut, "Compilation failed: %v\n", err)
+			return 1
+		}
+
+		if runtime.GOOS == "darwin" && cfg.target == "macos" && cfg.codesignID != "" {
+			cs := exec.Command("codesign", "-s", cfg.codesignID, "--force", cfg.outFilename)
+			cs.Stdout = out
+			cs.Stderr = errOut
+			if err := cs.Run(); err != nil {
+				fmt.Fprintf(errOut, "codesign failed with %q (%v), retrying ad-hoc...\n", cfg.codesignID, err)
+				ad := exec.Command("codesign", "-s", "-", "--force", cfg.outFilename)
+				ad.Stdout = out
+				ad.Stderr = errOut
+				if err2 := ad.Run(); err2 != nil {
+					fmt.Fprintf(errOut, "codesign fallback failed: %v\n", err2)
+					return 1
+				}
+			}
+		}
+
+		if cfg.target == "macos" && cfg.notarize {
+			var notarizeArgs []string
+			if cfg.notaryProfile != "" {
+				notarizeArgs = []string{"notarytool", "submit", cfg.outFilename, "--keychain-profile", cfg.notaryProfile, "--wait"}
+			} else {
+				appleID := os.Getenv("APPLE_ID")
+				applePass := os.Getenv("APPLE_ID_PASS")
+				teamID := os.Getenv("APPLE_TEAM_ID")
+				if appleID == "" || applePass == "" || teamID == "" {
+					fmt.Fprintln(errOut, "Notarization requested but APPLE_ID/APPLE_ID_PASS/APPLE_TEAM_ID or --notary-profile not set")
+					return 1
+				}
+				notarizeArgs = []string{"notarytool", "submit", cfg.outFilename, "--apple-id", appleID, "--password", applePass, "--team-id", teamID, "--wait"}
+			}
+			nt := exec.Command(notarizeArgs[0], notarizeArgs[1:]...)
+			nt.Stdout = out
+			nt.Stderr = errOut
+			if err := nt.Run(); err != nil {
+				fmt.Fprintf(errOut, "notarization failed: %v\n", err)
+				return 1
+			}
+			staple := exec.Command("stapler", "staple", cfg.outFilename)
+			staple.Stdout = out
+			staple.Stderr = errOut
+			if err := staple.Run(); err != nil {
+				fmt.Fprintf(errOut, "staple failed: %v\n", err)
+				return 1
+			}
+		}
+
+		fmt.Fprintf(out, "Build successful: %s\n", cfg.outFilename)
+		return 0
+	default:
+		fmt.Fprintf(errOut, "Unknown command. Use '%s run <file>', '%s build <file>' or just run '%s' for REPL.\n", prog, prog, prog)
+		return 2
+	}
+}
+
+func main() {
+	prog := filepath.Base(os.Args[0])
+	os.Exit(runCommand(prog, os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
