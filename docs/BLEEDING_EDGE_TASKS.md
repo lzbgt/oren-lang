@@ -2254,6 +2254,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_base_only_direct_20260409.log`,
     `build/logs/oren_native_quick_base_only.log`, and
     `build/logs/make_verify_native_quick_base_guarded_20260409.log`.
+  - Fix + verify (2026-04-09): `scripts/verify_runtime_robustness_w5.sh` now includes that
+    base-only stage1 reproducer by default before the guarded pre-world-lock green-cache, stage2
+    quick-integration, and C-backend loops. `make verify-runtime-robustness` now forwards
+    `OREN_RUNTIME_ROBUSTNESS_BASE_RUNS`, so the main W5 runtime gate finally covers both active
+    stage1 quick-integration guard surfaces instead of leaving the base-only timeout/retry path as
+    a side target. The latest full `make test` also reached `native quick integration follow-on OK`
+    without reproducing the older base-run timeout retry. Verified with
+    `build/logs/make_verify_runtime_robustness_base_bundle_20260409.log`,
+    `build/logs/runtime_robustness_w5_20260409_054902.log`,
+    `build/logs/make_test_runtime_base_bundle_20260409.log`,
+    `build/logs/oren_native_quick_base_only.log`, and
+    `build/logs/oren_native_quick_integration.log`.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

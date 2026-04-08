@@ -256,6 +256,11 @@ Additional runtime follow-up later on 2026-04-09:
   the existing flake harness with `OREN_QI_TRACE=1`, giving a cheap per-test-progress reproducer
   for the remaining stage1 base-run timeout/retry path
 - `make verify-native-quick-base-guarded` is now the dedicated 3-pass gate for that surface
+- `scripts/verify_runtime_robustness_w5.sh` now also runs that base-only stage1 surface by
+  default, so the main W5 runtime-robustness bundle finally covers both active stage1 quick
+  guard paths instead of leaving the base-only timeout/retry path as a side target
+- the latest full `make test` on that tree reached `native quick integration follow-on OK`
+  without reproducing the older stage1 base-run timeout retry
 
 Verification for this follow-up:
 
@@ -264,6 +269,13 @@ Verification for this follow-up:
 - focused 3-pass base-only gate:
   - `build/logs/make_verify_native_quick_base_guarded_20260409.log`
   - inner traced run log: `build/logs/oren_native_quick_base_only.log`
+- bundled W5 runtime-robustness gate:
+  - `build/logs/make_verify_runtime_robustness_base_bundle_20260409.log`
+  - detailed bundle log: `build/logs/runtime_robustness_w5_20260409_054902.log`
+- full-suite verification on the same tree:
+  - `build/logs/make_test_runtime_base_bundle_20260409.log`
+  - inner quick logs: `build/logs/oren_native_quick_base_only.log`,
+    `build/logs/oren_native_quick_integration.log`
 
 ## W5 perf follow-up in this pass
 

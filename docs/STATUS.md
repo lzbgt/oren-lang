@@ -972,10 +972,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
     `OREN_TRACE_ARITH_SRC=...`) with list header ring guardrails to reproduce
     list_int header corruption (2026-03-04).
   - New: `scripts/verify_runtime_robustness_w5.sh` + `make verify-runtime-robustness`
-    run the W5 runtime-robustness smoke (stage2 quick integration + C-backend build
-    fixtures) with guardrail traces; optional `OREN_RUNTIME_ROBUSTNESS_TRACE_ENV` forwards
-    trace env vars into child scripts for faster production-readiness triage. Make target
-    knobs: `OREN_RUNTIME_ROBUSTNESS_RUNS`, `OREN_RUNTIME_ROBUSTNESS_COMPILER`,
+    run the W5 runtime-robustness smoke (stage1 quick-integration guards + stage2 quick
+    integration + C-backend build fixtures) with guardrail traces; optional
+    `OREN_RUNTIME_ROBUSTNESS_TRACE_ENV` forwards trace env vars into child scripts for faster
+    production-readiness triage. Make target knobs: `OREN_RUNTIME_ROBUSTNESS_RUNS`,
+    `OREN_RUNTIME_ROBUSTNESS_COMPILER`, `OREN_RUNTIME_ROBUSTNESS_BASE_RUNS`,
     `OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS`, `OREN_RUNTIME_ROBUSTNESS_C_RUNS`,
     `OREN_RUNTIME_ROBUSTNESS_C_FIXTURES`, and `OREN_RUNTIME_ROBUSTNESS_TRACE_ENV` (2026-03-04).
   - New: `scripts/triage_native_quick_flake.sh` supports auto re-run with guardrails via
@@ -3562,6 +3563,18 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      `build/logs/native_quick_base_only_direct_20260409.log`,
      `build/logs/oren_native_quick_base_only.log`, and
      `build/logs/make_verify_native_quick_base_guarded_20260409.log` (3/3 passes).
+   - Fix + verify (2026-04-09): `scripts/verify_runtime_robustness_w5.sh` now includes that
+     base-only stage1 quick-integration reproducer by default before the guarded pre-world-lock,
+     stage2, and C-backend paths. `make verify-runtime-robustness` now forwards
+     `OREN_RUNTIME_ROBUSTNESS_BASE_RUNS`, and the latest bundled verifier passed on current
+     `master` with both the base-only and pre-world-lock stage1 gates exercised. The latest full
+     `make test` also reached `native quick integration follow-on OK` without re-hitting the older
+     base-run timeout/retry path. Verified with
+     `build/logs/make_verify_runtime_robustness_base_bundle_20260409.log`,
+     `build/logs/runtime_robustness_w5_20260409_054902.log`,
+     `build/logs/make_test_runtime_base_bundle_20260409.log`,
+     `build/logs/oren_native_quick_base_only.log`, and
+     `build/logs/oren_native_quick_integration.log`.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
