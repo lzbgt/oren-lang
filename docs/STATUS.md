@@ -3604,6 +3604,20 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      plus the runq/entry-args guards by default, so the remaining local-ptr suspicion can be
      chased without the noise of the full quick-integration fixture. `make verify-runtime-robustness`
      now includes this focused stage1 guard surface via `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`.
+   - Refine + verify (2026-04-09): that focused local-ptr surface is now also available as split
+     `plain` vs `workers` triage via
+     `scripts/triage_native_quick_green_local_ptr_plain_flake.sh`,
+     `scripts/triage_native_quick_green_local_ptr_workers_flake.sh`, and the serial wrapper
+     `scripts/verify_native_quick_green_local_ptr_modes.sh`
+     (`make test-native-quick-green-local-ptr-split-flake`). On current `master`, that stricter
+     split surface is **not** stable enough for the bundled guard: it reproduced `rc=138` in the
+     `plain` half on run 3/3 while still inside the `test_green_global_runq_fairness()` prelude
+     (`build/logs/verify_native_quick_green_local_ptr_modes_20260409_065008.log`,
+     `build/logs/oren_native_quick_flake_20260409_065015_run3_err.log`). Because that new split
+     surface already acts as a high-signal reproducer, the stable bundled targets
+     `make verify-native-quick-green-local-ptr-guarded` and `make verify-runtime-robustness` stay
+     on the earlier blended local-ptr guard for now, while the split plain/workers scripts remain
+     the active triage entrypoints for the next root-cause pass.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`

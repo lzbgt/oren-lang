@@ -2294,6 +2294,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     the focused surface through `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`, so the remaining
     stage1 green-cache/local-ptr suspicion no longer depends on the full quick-integration fixture
     for coverage.
+  - Refine + verify (2026-04-09): split that focused local-ptr surface into `plain` vs `workers`
+    mode triage. New wrappers:
+    `scripts/triage_native_quick_green_local_ptr_plain_flake.sh` and
+    `scripts/triage_native_quick_green_local_ptr_workers_flake.sh`, plus the serial wrapper
+    `scripts/verify_native_quick_green_local_ptr_modes.sh`
+    (`make test-native-quick-green-local-ptr-split-flake`). On current `master`, that stricter
+    split surface is already a reproducer: it hit `rc=138` in the `plain` half on run 3/3 while
+    still in the `test_green_global_runq_fairness()` prelude
+    (`build/logs/verify_native_quick_green_local_ptr_modes_20260409_065008.log`,
+    `build/logs/oren_native_quick_flake_20260409_065015_run3_err.log`). Keep the stable bundled
+    guard on the earlier blended local-ptr wrapper for now, and use the split plain/workers
+    surfaces as the next root-cause entrypoint.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

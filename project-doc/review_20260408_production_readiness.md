@@ -230,6 +230,23 @@ Additional runtime-robustness follow-up on 2026-04-09:
 - `scripts/verify_runtime_robustness_w5.sh` now includes this focused stage1 guard surface by
   default via `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`
 
+Further refinement on 2026-04-09:
+
+- split the focused local-ptr surface into explicit `plain` and `workers` halves via
+  `scripts/triage_native_quick_green_local_ptr_plain_flake.sh` and
+  `scripts/triage_native_quick_green_local_ptr_workers_flake.sh`
+- added `scripts/verify_native_quick_green_local_ptr_modes.sh`, which runs those two halves
+  sequentially with strict no-retry semantics; the operator entrypoint is
+  `make test-native-quick-green-local-ptr-split-flake`
+- that stricter split surface already reproduced a current-tree failure:
+  `rc=138` in the `plain` half on run 3/3 while still in the
+  `test_green_global_runq_fairness()` prelude
+  (`build/logs/verify_native_quick_green_local_ptr_modes_20260409_065008.log`,
+  `build/logs/oren_native_quick_flake_20260409_065015_run3_err.log`)
+- because the split surface is already acting as a high-signal triage reproducer, the stable
+  bundled guard targets continue to use the earlier blended local-ptr wrapper for now; the next
+  runtime-robustness root-cause pass should start from the new split plain/workers scripts
+
 Verification for this follow-up:
 
 - `make verify-green-preworld-guarded`
