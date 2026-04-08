@@ -1120,7 +1120,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     } else if v_madd_exact_double != nil && (v_madd_exact_double == "0" || v_madd_exact_double == "false") {
         madd_exact_double = false
     }
-    var madd_exact_scalar = madd_exact
+    // The scalar exact-madd substitution is the only current host subpath that holds up on both
+    // generic and explicit dot surfaces, so ship it by default while keeping the env escape hatch.
+    var madd_exact_scalar = true
     var v_madd_exact_scalar = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR")
     if v_madd_exact_scalar == "1" || v_madd_exact_scalar == "true" {
         madd_exact_scalar = true

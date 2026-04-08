@@ -548,3 +548,24 @@ production-like:
 
 That improves bring-up reliability, scripting safety, and operator UX, but it does not
 erase the broader compiler/runtime maturity gaps that the project still documents as open.
+
+## 2026-04-09 update
+
+Additional production-readiness work after the CLI pass tightened the arm64 dot-kernel evidence and
+landed one measured compiler-default improvement:
+
+- new probe wrappers now preserve raw native medians/covariance for the arm64 exact-`madd` family,
+  and explicit `dot_product_int` wrappers exist alongside the generic `dot_product` surface
+- the full opt-in branch `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` is still mixed and stays
+  non-default
+- the scalar-only exact-`madd` subpath is now shipped by default in the arm64 single-pair scalar
+  path, because the promoted-tree rerun on generic `dot_product` regressed when disabled
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_021122_35896.log`:
+  `+0.92%` steady, `+1.75%` gate when forcing `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0`)
+- the explicit `dot_product_int` surface still shows some whole-operation noise, but disabling the
+  shipped scalar subpath consistently hurts steady materially (`+10.28%`, `+8.60%`) across two
+  reruns, so the promotion is still directionally supported
+
+This narrows one hot-loop gap without over-claiming broad arm64 parity. The broader production
+blocker remains sustained native `dot_product` parity against vectorized C, not operator/tooling
+reliability.

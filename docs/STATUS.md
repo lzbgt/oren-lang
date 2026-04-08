@@ -1741,13 +1741,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
      manual `lldb -- <binary> <args...>` command to use for follow-up crash triage, so unsafe arm64
      dot experiments can be reproduced from one canonical artifact instead of reassembling the build
      command by hand.
-   - Tooling follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact` now compares the
-     shipped arm64 dot baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` using the full
-     serial acceptance bundle (`smoke`, traced disasm, steady gate, canonical gate, exact-binary
-     repro, optional `make test`). The acceptance harness now also emits a partial summary on
-     failure (`exit_status`, `failed_step`, and any completed artifacts), so unsafe dot experiments
-     stop losing their evidence at the first non-zero exit. This keeps the exact-path `madd` branch
-     reproducible without turning another unsafe hand edit into a persistent source diff.
+   - Tooling follow-up (2026-04-05, updated 2026-04-09): `make perf-probe-arm64-fast-dot-madd-exact`
+     still compares the shipped arm64 dot baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1`
+     through the full serial acceptance bundle, but the wrapper now also preserves raw steady/gate
+     native medians and covariance from the acceptance summary instead of only ratio lines. The same
+     batch added the explicit `list<int>` counterpart `make perf-probe-arm64-fast-dot-madd-exact-list-int`,
+     so generic `dot_product` and explicit `dot_product_int` can be judged separately before another
+     default flip.
    - Tooling fix (2026-04-05): `make perf-smoke-native-fast-loops` and `make perf-smoke-list-int`
      now rebuild their native benchmark binaries with `--no-cache`. That closes a correctness hole
      where compiler-env experiments could otherwise reuse a stale cached baseline artifact and
@@ -1776,20 +1776,31 @@ Weights reflect expected impact on C parity and breadth of affected code.
      the exact-`madd` path. The updated exact-double sweep is now green for every sampled `n=1..24`,
      including the previously failing `n ≡ 2 (mod 4)` cases `10`, `14`, `18`, and `22`
      (`build/logs/perf-probe-arm64-fast-dot-madd-exact-double-sweep-20260405_013604_40047.log`).
-   - Subpath rerun (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact-subpaths` now shows all
-     three isolated exact-`madd` subpaths as correctness-clean on this host after that guard, but
-     still not as shipped wins. The latest rerun lands at baseline
-     `steady_dot_product ~2.9142x`, `gate_dot_product ~2.6790x`, disasm `70`; `quad`
-     `~2.9752x`, `~2.4771x`, disasm `66`; `double` `~3.0132x`, `~2.6670x`, disasm `82`; and
-     `scalar` `~2.9798x`, `~2.4631x`, disasm `69`
-     (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260405_013631_40642.log`).
-     The exact-double branch is fixed for correctness, but it is still a clear performance loss.
-   - Exact-path rerun (2026-04-05): `make perf-probe-arm64-fast-dot-madd-exact` is now also
-     correctness-clean after the exact-double tail guard. The enabled whole-path branch no longer
-     crashes the exact native repro (`debug_exit_code: 0`), but it still does not justify a default
-     flip: latest rerun is baseline `steady_dot_product ~3.1670x`, `gate_dot_product ~2.7194x`,
-     disasm `70` versus enabled `~2.9446x`, `~2.7220x`, disasm `77`
-     (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
+   - Raw-metric recheck + explicit-surface split (2026-04-09): the exact-`madd` family is no longer
+     tracked via ratio lines alone. Focused reruns now show the whole branch is still mixed even
+     though it is correctness-clean:
+     - generic whole-branch rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260409_020451_23581.log`):
+       enabled `steady=0.082496s` vs baseline `0.079999s` (`+3.12%`), but gate
+       `0.014211s` vs `0.014653s` (`-3.02%`)
+     - explicit whole-branch rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-20260409_020520_24931.log`):
+       enabled `steady=0.078774s` vs baseline `0.078684s` (`+0.11%`), gate
+       `0.014076s` vs `0.014510s` (`-2.99%`)
+     Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` opt-in only.
+   - Shipped scalar exact-`madd` subpath (2026-04-09): the new subpath wrappers now compare the
+     shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` plus isolated
+     `quad` / `double` branches with scalar forced back off. That exposed the only promotable piece
+     of the exact family: scalar-only `madd`.
+     - generic shipped-scalar rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_021122_35896.log`):
+       baseline native `steady=0.078018s`, `gate=0.013796s`, disasm `69`; disabling scalar regresses
+       both to `0.078738s` / `0.014037s`
+       (`+0.92%`, `+1.75%`)
+     - explicit shipped-scalar reruns
+       (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021210_38053.log`,
+       `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`):
+       disabling scalar consistently hurts steady (`+10.28%`, `+8.60%`) while the whole-operation
+       gate stays mixed/noisy (`-4.04%`, `-0.21%`) with one high-variance baseline sample.
+     - Conclusion: ship only the scalar exact-`madd` substitution by default, keep the whole exact
+       branch opt-in, and keep `quad` / `double` as non-default experiments.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance

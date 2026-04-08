@@ -5,16 +5,16 @@ ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 
-summary_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-subpaths-${ts}.log"
-manifest_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-subpaths-${ts}.cases.tsv"
+summary_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-${ts}.log"
+manifest_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-${ts}.cases.tsv"
 
-programs="${OREN_ARM64_FAST_DOT_MADD_EXACT_SUBPATH_PROGRAMS:-dot_product}"
-run_test="${OREN_ARM64_FAST_DOT_MADD_EXACT_SUBPATH_RUN_TEST:-0}"
+programs="${OREN_ARM64_FAST_DOT_MADD_EXACT_LIST_INT_SUBPATH_PROGRAMS:-dot_product_int}"
+run_test="${OREN_ARM64_FAST_DOT_MADD_EXACT_LIST_INT_SUBPATH_RUN_TEST:-0}"
 
 run_case() {
     local label="$1"
     local env_desc="$2"
-    local run_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-subpaths-${label}-${ts}.run.log"
+    local run_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-${label}-${ts}.run.log"
     local status=0
     local build_env=""
     shift 2
@@ -24,10 +24,10 @@ run_case() {
     fi
     set +e
     env \
-        OREN_ARM64_DOT_ACCEPT_PROGRAMS="$programs" \
-        OREN_ARM64_DOT_ACCEPT_RUN_TEST="$run_test" \
+        OREN_ARM64_LIST_INT_ACCEPT_PROGRAMS="$programs" \
+        OREN_ARM64_LIST_INT_ACCEPT_RUN_TEST="$run_test" \
         OREN_BENCH_ENV_BUILD_OREN="$build_env" \
-        make perf-probe-arm64-dot-acceptance >"$run_log" 2>&1
+        make perf-probe-arm64-list-int-acceptance >"$run_log" 2>&1
     status=$?
     set -e
     printf '%s\t%s\t%s\t%s\n' "$label" "$run_log" "$status" "$env_desc" >>"$manifest_log"
@@ -54,13 +54,8 @@ python3 - <<'PY' >"$summary_log"
 import os
 import re
 
-summary_re = re.compile(r"summary: (build/logs/perf-probe-arm64-dot-acceptance-[^ ]+\.summary\.log)")
+summary_re = re.compile(r"summary: (build/logs/perf-probe-arm64-list-int-acceptance-[^ ]+\.summary\.log)")
 metric_re = re.compile(r"^([a-z0-9_]+): (.+)$")
-
-
-def read_lines(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return [line.rstrip("\n") for line in f]
 
 
 def parse_acceptance(run_log):
@@ -81,28 +76,28 @@ def parse_acceptance(run_log):
                     if key in {
                         "exit_status",
                         "failed_step",
-                        "steady_array_sum",
-                        "steady_dot_product",
-                        "steady_array_sum_c_median_s",
-                        "steady_array_sum_c_cov",
-                        "steady_array_sum_native_median_s",
-                        "steady_array_sum_native_cov",
-                        "steady_dot_product_c_median_s",
-                        "steady_dot_product_c_cov",
-                        "steady_dot_product_native_median_s",
-                        "steady_dot_product_native_cov",
-                        "gate_array_sum",
-                        "gate_dot_product",
-                        "gate_array_sum_c_median_s",
-                        "gate_array_sum_c_cov",
-                        "gate_array_sum_native_median_s",
-                        "gate_array_sum_native_cov",
-                        "gate_dot_product_c_median_s",
-                        "gate_dot_product_c_cov",
-                        "gate_dot_product_native_median_s",
-                        "gate_dot_product_native_cov",
-                        "disasm_array_sum_insns",
-                        "disasm_dot_product_insns",
+                        "steady_array_sum_int",
+                        "steady_dot_product_int",
+                        "steady_array_sum_int_c_median_s",
+                        "steady_array_sum_int_c_cov",
+                        "steady_array_sum_int_native_median_s",
+                        "steady_array_sum_int_native_cov",
+                        "steady_dot_product_int_c_median_s",
+                        "steady_dot_product_int_c_cov",
+                        "steady_dot_product_int_native_median_s",
+                        "steady_dot_product_int_native_cov",
+                        "gate_array_sum_int",
+                        "gate_dot_product_int",
+                        "gate_array_sum_int_c_median_s",
+                        "gate_array_sum_int_c_cov",
+                        "gate_array_sum_int_native_median_s",
+                        "gate_array_sum_int_native_cov",
+                        "gate_dot_product_int_c_median_s",
+                        "gate_dot_product_int_c_cov",
+                        "gate_dot_product_int_native_median_s",
+                        "gate_dot_product_int_native_cov",
+                        "disasm_array_sum_int_insns",
+                        "disasm_dot_product_int_insns",
                         "debug_status",
                         "debug_exit_code",
                     }:
@@ -120,7 +115,7 @@ def parse_float_metric(metrics, key):
         return None
 
 
-print("arm64 fast-dot exact madd subpath probe summary")
+print("arm64 fast-dot exact madd list<int> subpath probe summary")
 print("")
 print(f"programs: {os.environ['PROGRAMS']}")
 print(f"run_make_test: {os.environ['RUN_TEST']}")
@@ -148,17 +143,17 @@ for label, run_log, status, env_desc in rows:
     for key in [
         "exit_status",
         "failed_step",
-        "steady_dot_product",
-        "steady_dot_product_c_median_s",
-        "steady_dot_product_c_cov",
-        "steady_dot_product_native_median_s",
-        "steady_dot_product_native_cov",
-        "gate_dot_product",
-        "gate_dot_product_c_median_s",
-        "gate_dot_product_c_cov",
-        "gate_dot_product_native_median_s",
-        "gate_dot_product_native_cov",
-        "disasm_dot_product_insns",
+        "steady_dot_product_int",
+        "steady_dot_product_int_c_median_s",
+        "steady_dot_product_int_c_cov",
+        "steady_dot_product_int_native_median_s",
+        "steady_dot_product_int_native_cov",
+        "gate_dot_product_int",
+        "gate_dot_product_int_c_median_s",
+        "gate_dot_product_int_c_cov",
+        "gate_dot_product_int_native_median_s",
+        "gate_dot_product_int_native_cov",
+        "disasm_dot_product_int_insns",
         "debug_status",
         "debug_exit_code",
     ]:
@@ -172,8 +167,8 @@ for label, metrics in case_metrics.items():
     if label == "baseline":
         continue
     for metric_key, out_key in [
-        ("steady_dot_product_native_median_s", f"{label}_steady_dot_product_native_median_delta_pct"),
-        ("gate_dot_product_native_median_s", f"{label}_gate_dot_product_native_median_delta_pct"),
+        ("steady_dot_product_int_native_median_s", f"{label}_steady_dot_product_int_native_median_delta_pct"),
+        ("gate_dot_product_int_native_median_s", f"{label}_gate_dot_product_int_native_median_delta_pct"),
     ]:
         base = parse_float_metric(baseline, metric_key)
         candidate = parse_float_metric(metrics, metric_key)
@@ -181,5 +176,5 @@ for label, metrics in case_metrics.items():
             print(f"{out_key}: {((candidate / base) - 1.0) * 100.0:+.2f}%")
 PY
 
-echo "arm64 fast-dot exact madd subpath probe complete; summary: $summary_log"
+echo "arm64 fast-dot exact madd list<int> subpath probe complete; summary: $summary_log"
 echo "case manifest: $manifest_log"

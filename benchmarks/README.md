@@ -1044,28 +1044,44 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   and should stay default-off. The newer specialization wrapper above still shows the
   generic/explicit gap itself stays small, so this is not a broad source-shape story anymore.
 - For the arm64 exact-path `madd` recheck, use
-  `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
-  the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial
-  arm64 dot acceptance bundle. Use it when revisiting the default-off exact-path `madd` branch so
-  disasm, steady-state ratios, canonical gate, and exact-binary repro all land in one comparable
-  artifact instead of being reassembled from ad-hoc commands. After the April 5 exact-double tail
-  guard, the current host now treats the enabled path as correctness-clean, but still not as a
-  shipped optimization: the latest rerun lands at `steady_dot_product ~2.9446x`,
-  `gate_dot_product ~2.7220x`, `disasm_dot_product_insns: 77`, and `debug_exit_code: 0` versus the
-  shipped baseline at `~3.1670x`, `~2.7194x`, `70`, and `0`
-  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260405_013731_43460.log`).
+  `make perf-probe-arm64-fast-dot-madd-exact`. This still compares the shipped baseline against the
+  full opt-in branch `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1`, but the wrapper now also preserves
+  raw steady/gate native medians and covariance from the acceptance summary instead of only ratio
+  lines. That matters because the full exact branch is still mixed on the current host even though
+  it is correctness-clean after the exact-double tail guard. Latest focused `dot_product` rerun
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-20260409_020451_23581.log`): baseline native
+  `steady=0.079999s`, `gate=0.014653s`, disasm `70`; enabled
+  `steady=0.082496s`, `gate=0.014211s`, disasm `77`, so the direct native deltas are
+  `steady_dot_product_native_median_delta_pct: +3.12%` and
+  `gate_dot_product_native_median_delta_pct: -3.02%`. Keep the whole exact branch opt-in only.
+- To judge that same full exact branch on the explicit `list<int>` surface instead of the generic
+  auto-specialized benchmark, use `make perf-probe-arm64-fast-dot-madd-exact-list-int`. The current
+  `dot_product_int` rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-20260409_020520_24931.log`)
+  is still not a strong default-flip result by itself: enabled native
+  `steady=0.078774s` vs baseline `0.078684s` (`+0.11%`), but gate improves modestly
+  `0.014076s` vs `0.014510s` (`-2.99%`).
 - For the arm64 exact-path `madd` subcase split, use
-  `make perf-probe-arm64-fast-dot-madd-exact-subpaths`. This keeps the shipped baseline on one side
-  and compares isolated `quad`, `double`, and `scalar` exact-`madd` substitutions on the other by
-  forcing `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=0` and enabling exactly one of:
-  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1`,
-  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1`, or
-  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1`. After the April 5 terminal-tail guard, all
-  three subpaths are correctness-clean on the current host, but none beats the shipped baseline on
-  the full acceptance bundle. The latest rerun shows `quad` at `steady_dot_product ~2.9752x`,
-  `gate_dot_product ~2.4771x`, disasm `66`; `double` at `~3.0132x`, `~2.6670x`, disasm `82`; and
-  `scalar` at `~2.9798x`, `~2.4631x`, disasm `69`, versus baseline `~2.9142x`, `~2.6790x`,
-  disasm `70` (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260405_013631_40642.log`).
+  `make perf-probe-arm64-fast-dot-madd-exact-subpaths`. Since April 9, the shipped default already
+  includes the scalar-only exact-`madd` substitution on the single-pair scalar path, so the probe
+  now compares that shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0`
+  plus isolated `quad` / `double` candidates with scalar forced back off. Current kept generic-dot
+  rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_021122_35896.log`):
+  baseline native `steady=0.078018s`, `gate=0.013796s`, disasm `69`; disabling scalar regresses both
+  raw native medians to `0.078738s` / `0.014037s`
+  (`scalar_disabled_steady_dot_product_native_median_delta_pct: +0.92%`,
+  `scalar_disabled_gate_dot_product_native_median_delta_pct: +1.75%`). `quad` stays mixed
+  (`-1.52%` steady, `+0.51%` gate) and `double` regresses both (`+1.17%`, `+2.87%`). That is why
+  only scalar exact-`madd` is now shipped by default.
+- For the same shipped-scalar baseline vs `SCALAR=0` / `quad` / `double` split on the explicit
+  `dot_product_int` surface, use `make perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths`.
+  Current reruns
+  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021210_38053.log`,
+  `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`)
+  agree on the important part: disabling scalar hurts native steady materially
+  (`+10.28%`, `+8.60%`). The gate side is smaller and noisier (`-4.04%`, `-0.21%` with one high-COV
+  baseline run), so treat the explicit whole-operation signal as mixed but bounded rather than as a
+  reason to undo the shipped scalar default. Use `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0`
+  when you need to recheck the pre-promotion behavior exactly.
 - For the arm64 exact-double tail-shape sweep, use
   `make perf-probe-arm64-fast-dot-madd-exact-double-sweep`. It builds the exact-double-only native
   `dot_product` benchmark once and then sweeps `n=1..N` (default `24`) at a fixed `reps` (default

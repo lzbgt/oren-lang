@@ -5,13 +5,13 @@ ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 
-summary_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-${ts}.log"
-default_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-default-${ts}.run.log"
-enabled_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-enabled-${ts}.run.log"
+summary_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-list-int-${ts}.log"
+default_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-list-int-default-${ts}.run.log"
+enabled_log="$log_dir/perf-probe-arm64-fast-dot-madd-exact-list-int-enabled-${ts}.run.log"
 
-programs="${OREN_ARM64_FAST_DOT_MADD_EXACT_PROGRAMS:-dot_product}"
-run_test="${OREN_ARM64_FAST_DOT_MADD_EXACT_RUN_TEST:-0}"
-enable_env="${OREN_ARM64_FAST_DOT_MADD_EXACT_ENABLE_ENV:-OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1}"
+programs="${OREN_ARM64_FAST_DOT_MADD_EXACT_LIST_INT_PROGRAMS:-dot_product_int}"
+run_test="${OREN_ARM64_FAST_DOT_MADD_EXACT_LIST_INT_RUN_TEST:-0}"
+enable_env="${OREN_ARM64_FAST_DOT_MADD_EXACT_LIST_INT_ENABLE_ENV:-OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1}"
 
 run_capture() {
     local run_log="$1"
@@ -26,16 +26,16 @@ run_capture() {
 }
 
 default_rc="$(run_capture "$default_log" env \
-    OREN_ARM64_DOT_ACCEPT_PROGRAMS="$programs" \
-    OREN_ARM64_DOT_ACCEPT_RUN_TEST="$run_test" \
+    OREN_ARM64_LIST_INT_ACCEPT_PROGRAMS="$programs" \
+    OREN_ARM64_LIST_INT_ACCEPT_RUN_TEST="$run_test" \
     OREN_BENCH_ENV_BUILD_OREN= \
-    make perf-probe-arm64-dot-acceptance)"
+    make perf-probe-arm64-list-int-acceptance)"
 
 enabled_rc="$(run_capture "$enabled_log" env \
-    OREN_ARM64_DOT_ACCEPT_PROGRAMS="$programs" \
-    OREN_ARM64_DOT_ACCEPT_RUN_TEST="$run_test" \
+    OREN_ARM64_LIST_INT_ACCEPT_PROGRAMS="$programs" \
+    OREN_ARM64_LIST_INT_ACCEPT_RUN_TEST="$run_test" \
     OREN_BENCH_ENV_BUILD_OREN="$enable_env" \
-    make perf-probe-arm64-dot-acceptance)"
+    make perf-probe-arm64-list-int-acceptance)"
 
 DEFAULT_LOG="$default_log" \
 DEFAULT_RC="$default_rc" \
@@ -48,7 +48,7 @@ python3 - <<'PY' >"$summary_log"
 import os
 import re
 
-summary_re = re.compile(r"summary: (build/logs/perf-probe-arm64-dot-acceptance-[^ ]+\.summary\.log)")
+summary_re = re.compile(r"summary: (build/logs/perf-probe-arm64-list-int-acceptance-[^ ]+\.summary\.log)")
 metric_re = re.compile(r"^([a-z0-9_]+): (.+)$")
 
 
@@ -70,28 +70,28 @@ def parse_acceptance(run_log):
                     if key in {
                         "exit_status",
                         "failed_step",
-                        "steady_array_sum",
-                        "steady_dot_product",
-                        "steady_array_sum_c_median_s",
-                        "steady_array_sum_c_cov",
-                        "steady_array_sum_native_median_s",
-                        "steady_array_sum_native_cov",
-                        "steady_dot_product_c_median_s",
-                        "steady_dot_product_c_cov",
-                        "steady_dot_product_native_median_s",
-                        "steady_dot_product_native_cov",
-                        "gate_array_sum",
-                        "gate_dot_product",
-                        "gate_array_sum_c_median_s",
-                        "gate_array_sum_c_cov",
-                        "gate_array_sum_native_median_s",
-                        "gate_array_sum_native_cov",
-                        "gate_dot_product_c_median_s",
-                        "gate_dot_product_c_cov",
-                        "gate_dot_product_native_median_s",
-                        "gate_dot_product_native_cov",
-                        "disasm_array_sum_insns",
-                        "disasm_dot_product_insns",
+                        "steady_array_sum_int",
+                        "steady_dot_product_int",
+                        "steady_array_sum_int_c_median_s",
+                        "steady_array_sum_int_c_cov",
+                        "steady_array_sum_int_native_median_s",
+                        "steady_array_sum_int_native_cov",
+                        "steady_dot_product_int_c_median_s",
+                        "steady_dot_product_int_c_cov",
+                        "steady_dot_product_int_native_median_s",
+                        "steady_dot_product_int_native_cov",
+                        "gate_array_sum_int",
+                        "gate_dot_product_int",
+                        "gate_array_sum_int_c_median_s",
+                        "gate_array_sum_int_c_cov",
+                        "gate_array_sum_int_native_median_s",
+                        "gate_array_sum_int_native_cov",
+                        "gate_dot_product_int_c_median_s",
+                        "gate_dot_product_int_c_cov",
+                        "gate_dot_product_int_native_median_s",
+                        "gate_dot_product_int_native_cov",
+                        "disasm_array_sum_int_insns",
+                        "disasm_dot_product_int_insns",
                         "debug_status",
                         "debug_exit_code",
                     }:
@@ -114,7 +114,7 @@ cases = [
     ("enabled", os.environ["ENABLED_LOG"], os.environ["ENABLED_RC"]),
 ]
 
-print("arm64 fast dot exact madd probe summary")
+print("arm64 fast dot exact madd list<int> probe summary")
 print("")
 print(f"programs: {os.environ['PROGRAMS']}")
 print(f"run_make_test: {os.environ['RUN_TEST']}")
@@ -134,17 +134,17 @@ for label, run_log, wrapper_rc in cases:
     for key in [
         "exit_status",
         "failed_step",
-        "steady_dot_product",
-        "steady_dot_product_c_median_s",
-        "steady_dot_product_c_cov",
-        "steady_dot_product_native_median_s",
-        "steady_dot_product_native_cov",
-        "gate_dot_product",
-        "gate_dot_product_c_median_s",
-        "gate_dot_product_c_cov",
-        "gate_dot_product_native_median_s",
-        "gate_dot_product_native_cov",
-        "disasm_dot_product_insns",
+        "steady_dot_product_int",
+        "steady_dot_product_int_c_median_s",
+        "steady_dot_product_int_c_cov",
+        "steady_dot_product_int_native_median_s",
+        "steady_dot_product_int_native_cov",
+        "gate_dot_product_int",
+        "gate_dot_product_int_c_median_s",
+        "gate_dot_product_int_c_cov",
+        "gate_dot_product_int_native_median_s",
+        "gate_dot_product_int_native_cov",
+        "disasm_dot_product_int_insns",
         "debug_status",
         "debug_exit_code",
     ]:
@@ -156,8 +156,8 @@ for label, run_log, wrapper_rc in cases:
 default_metrics = case_metrics.get("default", {})
 enabled_metrics = case_metrics.get("enabled", {})
 for label, key in [
-    ("steady_dot_product_native_median_delta_pct", "steady_dot_product_native_median_s"),
-    ("gate_dot_product_native_median_delta_pct", "gate_dot_product_native_median_s"),
+    ("steady_dot_product_int_native_median_delta_pct", "steady_dot_product_int_native_median_s"),
+    ("gate_dot_product_int_native_median_delta_pct", "gate_dot_product_int_native_median_s"),
 ]:
     base = parse_float_metric(default_metrics, key)
     enabled = parse_float_metric(enabled_metrics, key)
@@ -165,7 +165,7 @@ for label, key in [
         print(f"{label}: {((enabled / base) - 1.0) * 100.0:+.2f}%")
 PY
 
-echo "arm64 fast-dot exact madd probe complete; summary: $summary_log"
+echo "arm64 fast-dot exact madd list<int> probe complete; summary: $summary_log"
 echo "default acceptance log: $default_log"
 echo "enabled acceptance log: $enabled_log"
 if [[ "$default_rc" != "0" ]]; then
@@ -173,5 +173,5 @@ if [[ "$default_rc" != "0" ]]; then
     exit "$default_rc"
 fi
 if [[ "$enabled_rc" != "0" ]]; then
-    echo "enabled fast-dot exact madd experiment failed (exit=$enabled_rc); see summary for details"
+    echo "enabled fast-dot exact madd list<int> experiment failed (exit=$enabled_rc); see summary for details"
 fi
