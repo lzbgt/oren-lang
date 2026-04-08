@@ -9,6 +9,7 @@ summary_log="$log_dir/perf-probe-list-int-dot-ceiling-${ts}.log"
 base_log="$log_dir/perf-probe-list-int-dot-ceiling-base-${ts}.run.log"
 slot_warm_log="$log_dir/perf-probe-list-int-dot-ceiling-slot-warm-${ts}.run.log"
 slot_log="$log_dir/perf-probe-list-int-dot-ceiling-slot-${ts}.run.log"
+slot_public_log="$log_dir/perf-probe-list-int-dot-ceiling-slot-public-${ts}.run.log"
 packed_warm_log="$log_dir/perf-probe-list-int-dot-ceiling-packed-warm-${ts}.run.log"
 packed_scalar_log="$log_dir/perf-probe-list-int-dot-ceiling-packed-scalar-${ts}.run.log"
 packed_simd_log="$log_dir/perf-probe-list-int-dot-ceiling-packed-simd-${ts}.run.log"
@@ -19,6 +20,7 @@ packed_smoke_log="$log_dir/perf-probe-list-int-dot-ceiling-packed-smoke-${ts}.lo
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 baseline_programs="${OREN_LIST_INT_DOT_CEILING_BASELINE_PROGRAMS:-array_sum_int,dot_product_int}"
 slot_programs="array_sum_int_slot_direct,dot_product_int_slot_direct"
+slot_public_programs="array_sum_int_slot_public,dot_product_int_slot_public"
 packed_programs="array_sum_int_packed_bridge,dot_product_int_packed_bridge"
 smoke="${OREN_PERF_SMOKE_LIST_INT:-1}"
 runs="${OREN_LIST_INT_DOT_CEILING_RUNS:-2}"
@@ -49,12 +51,14 @@ fi
 baseline_summary="$(run_one "$base_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$baseline_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_LIST_INT_STEADY_N="$n" OREN_BENCH_LIST_INT_STEADY_REPS="$reps" make perf-gate-list-int-steady)"
 ./scripts/build_perf_artifacts_list_int_slot_direct.sh >"$slot_warm_log" 2>&1
 slot_summary="$(run_one "$slot_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$slot_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_LIST_INT_STEADY_N="$n" OREN_BENCH_LIST_INT_STEADY_REPS="$reps" make perf-gate-list-int-steady)"
+slot_public_summary="$(run_one "$slot_public_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$slot_public_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_LIST_INT_STEADY_N="$n" OREN_BENCH_LIST_INT_STEADY_REPS="$reps" make perf-gate-list-int-steady)"
 ./scripts/build_perf_artifacts_list_int_packed_bridge.sh >"$packed_warm_log" 2>&1
 packed_scalar_summary="$(run_one "$packed_scalar_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_LIST_INT_STEADY_N="$n" OREN_BENCH_LIST_INT_STEADY_REPS="$reps" OREN_BENCH_ENV_OREN_NATIVE=OREN_BENCH_PACKED_BRIDGE_SCALAR=1,OREN_NO_SIMD=1 make perf-gate-list-int-steady)"
 packed_simd_summary="$(run_one "$packed_simd_log" env OREN_PERF_SMOKE_LIST_INT=0 OREN_BENCH_SKIP_BUILD=1 OREN_BENCH_SKIP_OREN_C=1 OREN_BENCH_PROGRAMS="$packed_programs" OREN_BENCH_RUNS="$runs" OREN_BENCH_WARMUPS="$warmups" OREN_BENCH_LIST_INT_STEADY_N="$n" OREN_BENCH_LIST_INT_STEADY_REPS="$reps" OREN_BENCH_ENV_OREN_NATIVE=OREN_ENABLE_SIMD=1 make perf-gate-list-int-steady)"
 
 BASELINE_SUMMARY="$baseline_summary" \
 SLOT_SUMMARY="$slot_summary" \
+SLOT_PUBLIC_SUMMARY="$slot_public_summary" \
 PACKED_SCALAR_SUMMARY="$packed_scalar_summary" \
 PACKED_SIMD_SUMMARY="$packed_simd_summary" \
 BUILD_ENV="$build_env_raw" \
@@ -95,6 +99,7 @@ def parse_summary(path):
 cases = [
     ("baseline", os.environ["BASELINE_SUMMARY"], ["array_sum_int", "dot_product_int"]),
     ("slot_direct", os.environ["SLOT_SUMMARY"], ["array_sum_int_slot_direct", "dot_product_int_slot_direct"]),
+    ("slot_public", os.environ["SLOT_PUBLIC_SUMMARY"], ["array_sum_int_slot_public", "dot_product_int_slot_public"]),
     ("packed_scalar", os.environ["PACKED_SCALAR_SUMMARY"], ["array_sum_int_packed_bridge", "dot_product_int_packed_bridge"]),
     ("packed_simd", os.environ["PACKED_SIMD_SUMMARY"], ["array_sum_int_packed_bridge", "dot_product_int_packed_bridge"]),
 ]
@@ -102,6 +107,7 @@ cases = [
 dot_keys = {
     "baseline": "dot_product_int",
     "slot_direct": "dot_product_int_slot_direct",
+    "slot_public": "dot_product_int_slot_public",
     "packed_scalar": "dot_product_int_packed_bridge",
     "packed_simd": "dot_product_int_packed_bridge",
 }
@@ -109,6 +115,7 @@ dot_keys = {
 array_keys = {
     "baseline": "array_sum_int",
     "slot_direct": "array_sum_int_slot_direct",
+    "slot_public": "array_sum_int_slot_public",
     "packed_scalar": "array_sum_int_packed_bridge",
     "packed_simd": "array_sum_int_packed_bridge",
 }
@@ -152,7 +159,7 @@ for name, path, programs in cases:
     print("")
 
 ranking = []
-for name in ["baseline", "slot_direct", "packed_scalar", "packed_simd"]:
+for name in ["baseline", "slot_direct", "slot_public", "packed_scalar", "packed_simd"]:
     ratio = parsed[name].get(dot_keys[name])
     if ratio is not None:
         ranking.append((ratio, name))
@@ -167,6 +174,7 @@ echo "list<int> dot-path ceiling probe complete; summary: $summary_log"
 echo "base log: $base_log"
 echo "slot warm log: $slot_warm_log"
 echo "slot log: $slot_log"
+echo "slot public log: $slot_public_log"
 echo "packed warm log: $packed_warm_log"
 echo "packed scalar log: $packed_scalar_log"
 echo "packed simd log: $packed_simd_log"

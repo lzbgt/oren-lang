@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-04-04: `loop_sum` 1.09×, `dot_product` 2.82×; `alloc_churn` 5.42×, `alloc_drop` 1.76×).
-- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. The later reuse-work read-split rerun still leaves the best explicit packed path materially behind (`~4.4566× C` pack-once SIMD long-per-rep; `~7.2240× C` reuse-work long-per-rep; `~7.3906× C` fresh-pack SIMD long-per-rep vs canonical `~1.2915× C`), so the remaining blocker is repeated bridge materialization/copy itself, not just fresh allocation or the packed dot kernel. The new direct-slot read-split rerun (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`) also confirms the hidden helper can beat the shipped whole-operation path on the same split (`array_sum_int_slot_direct` `~1.0383× C` vs canonical `~1.3410× C`; `dot_product_int_slot_direct` `~1.1637× C` vs canonical `~1.2680× C`), while the delta side is still too noisy to rank. The 2026-04-09 shared slot-direct follow-up promoted that ceiling into a public cross-backend stdlib surface: `linalg.reduce_sum_i64_list_int_slots(...)` / `linalg.dot_i64_list_int_slots(...)` now fast-path through backend-native all-int list detection and direct-slot helpers on C/native/AVM, while falling back to a portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int` now exercises that public surface in addition to the raw helper contracts. A same-day slot-surface read-split rerun (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`) then showed that public surface already recovers much of the helper win on whole-operation cost (`array_sum_int_slot_public` `~1.2686× C`, `dot_product_int_slot_public` `~1.2188× C`) while still trailing the raw helper (`~1.0479× C`, `~1.1698× C`), so the residual direct-slot gap now looks like wrapper/boundary overhead rather than a missing packed bridge or missing public API. But the same day's exact whole-list helper follow-up showed that directly wiring the canonical lowering through the unchecked helper is not a production win: the enabled shortcut regressed the same whole-operation split from `~1.1896× C` to `~1.3445× C` for `array_sum_int` and from `~1.3166× C` to `~1.4160× C` for `dot_product_int`, so `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER` is now opt-in only. Reweight accordingly: keep packed-bridge tuning closed, do not ship the exact whole-list helper shortcut, and focus future parity work on reducing wrapper/boundary overhead or pulling more of the direct-slot path into the public/canonical lowering without paying the helper-call penalty.
+- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. The later reuse-work read-split rerun still leaves the best explicit packed path materially behind (`~4.4566× C` pack-once SIMD long-per-rep; `~7.2240× C` reuse-work long-per-rep; `~7.3906× C` fresh-pack SIMD long-per-rep vs canonical `~1.2915× C`), so the remaining blocker is repeated bridge materialization/copy itself, not just fresh allocation or the packed dot kernel. The new direct-slot read-split rerun (`build/logs/perf-probe-list-int-slot-direct-read-split-20260408_235243_30345.log`) also confirms the hidden helper can beat the shipped whole-operation path on the same split (`array_sum_int_slot_direct` `~1.0383× C` vs canonical `~1.3410× C`; `dot_product_int_slot_direct` `~1.1637× C` vs canonical `~1.2680× C`), while the delta side is still too noisy to rank. The 2026-04-09 shared slot-direct follow-up promoted that ceiling into a public cross-backend stdlib surface: `linalg.reduce_sum_i64_list_int_slots(...)` / `linalg.dot_i64_list_int_slots(...)` now fast-path through backend-native all-int list detection and direct-slot helpers on C/native/AVM, while falling back to a portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int` now exercises that public surface in addition to the raw helper contracts. A later same-day fast-path collapse in `std:linalg` removed the extra generic-length front-load and the extra module boundary on the all-int fast path; the latest steady `make perf-probe-list-int-dot-ceiling` artifact (`build/logs/perf-probe-list-int-dot-ceiling-20260409_050407_19366.log`) now ranks canonical `dot_product_int` at `~1.3657× C`, the hidden direct-slot helper at `~1.0803× C`, and the public-slot `std:linalg` surface at `~1.1062× C`. On the same run, `array_sum_int` came back as canonical `~1.3992× C`, hidden helper `~0.9836× C`, and public-slot `~1.2014× C`. The public slot surface is now clearly viable for hot paths and nearly tied with the helper ceiling on steady `dot_product_int`, while the packed bridge stays far behind (`~4.5817× C` SIMD / `~16.7468× C` scalar). But same-day slot-surface read-split reruns still disagreed on public-vs-helper ordering, so use the steady ceiling probe for ranking and treat read-split as a sanity check only. The exact whole-list helper follow-up still showed that directly wiring the canonical lowering through the unchecked helper is not a production win: the enabled shortcut regressed the same whole-operation split from `~1.1896× C` to `~1.3445× C` for `array_sum_int` and from `~1.3166× C` to `~1.4160× C` for `dot_product_int`, so `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER` is now opt-in only. Reweight accordingly: keep packed-bridge tuning closed, do not ship the exact whole-list helper shortcut, and focus future parity work on the remaining public-wrapper / helper gap or more direct lowering against that public/canonical surface without paying the helper-call penalty.
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -458,21 +458,38 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		   - Public slot-surface read-split follow-up (2026-04-09): new
 		     `make perf-probe-list-int-slot-surface-read-split` warms the same slot-surface artifacts and
 		     compares canonical `array_sum_int` / `dot_product_int` against both the hidden helper ceiling
-		     and the public `std:linalg` slot wrappers on the same short/long harness. Latest no-smoke
-		     rerun (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`,
-		     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) comes back as:
-		     - canonical `array_sum_int`: `~1.3454× C` long-per-rep
-		     - direct-slot `array_sum_int_slot_direct`: `~1.0479× C` long-per-rep
-		     - public-slot `array_sum_int_slot_public`: `~1.2686× C` long-per-rep
-		     - canonical `dot_product_int`: `~1.4701× C` long-per-rep
-		     - direct-slot `dot_product_int_slot_direct`: `~1.1698× C` long-per-rep
-		     - public-slot `dot_product_int_slot_public`: `~1.2188× C` long-per-rep
-		     - delta note: this surface also stayed noisy on split deltas, so use the `long_per_rep`
-		       side for tracker decisions.
-		     Reweight again: the public slot surface already keeps much of the hidden helper win,
-		     especially on `dot_product_int`, so the next direct-slot follow-up is wrapper/boundary
-		     overhead reduction or more direct lowering against the public surface, not more packed-bridge
-		     work.
+		     and the public `std:linalg` slot wrappers on the same short/long harness. That surface is
+		     still too noisy to use as the primary public-vs-helper ranking signal: the smoke-on rerun
+		     (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_050248_17126.log`) and the
+		     later no-smoke rerun (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_051528_36514.log`,
+		     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) disagree on public-vs-helper ordering.
+		     Latest no-smoke long-per-rep numbers came back as:
+		     - canonical `array_sum_int`: `~1.2464× C`
+		     - direct-slot `array_sum_int_slot_direct`: `~1.0077× C`
+		     - public-slot `array_sum_int_slot_public`: `~1.1301× C`
+		     - canonical `dot_product_int`: `~1.2771× C`
+		     - direct-slot `dot_product_int_slot_direct`: `~1.0642× C`
+		     - public-slot `dot_product_int_slot_public`: `~1.2439× C`
+		     - delta note: this surface still produces unstable split deltas and contradictory
+		       public-vs-helper winners across reruns.
+		     Reweight again: keep this split probe as a sanity check that the public surface stays in the
+		     right ballpark, but use the steady dot-ceiling probe for public-slot ranking.
+		   - Public slot fast-path collapse (2026-04-09): the public `std:linalg` slot wrappers now
+		     check `oren_is_list_int(...)` before the generic scalar fallback and the top-level
+		     `std:linalg` facade now jumps straight to the raw helper on proven `list<int>` inputs while
+		     preserving typed length-mismatch semantics as errors via `list.int_len(...)`. The latest
+		     steady `make perf-probe-list-int-dot-ceiling` artifact
+		     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_050407_19366.log`, `runs=2 warmups=0
+		     n=20000 reps=2`) now ranks:
+		     - canonical `dot_product_int`: `~1.3657× C`
+		     - direct-slot `dot_product_int_slot_direct`: `~1.0803× C`
+		     - public-slot `dot_product_int_slot_public`: `~1.1062× C`
+		     - canonical `array_sum_int`: `~1.3992× C`
+		     - direct-slot `array_sum_int_slot_direct`: `~0.9836× C`
+		     - public-slot `array_sum_int_slot_public`: `~1.2014× C`
+		     Reweight again: the public slot surface is now nearly tied with the hidden helper ceiling on
+		     steady `dot_product_int`, so the remaining gap is narrow and specific. The next direct-slot
+		     work should target that residual public-wrapper / helper gap, not packed-bridge tuning.
 		   - Exact whole-list helper follow-up (2026-04-09): routing the canonical exact whole-list
 		     `array_sum_int` / `dot_product_int` shapes through `oren_list_int_reduce_sum_slots_unchecked`
 		     / `oren_list_int_dot_slots_unchecked` stayed correctness-clean and preserved the existing

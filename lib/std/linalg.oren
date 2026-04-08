@@ -10,6 +10,7 @@ import ml "std:linalg/matmul_list"
 import mf32 "std:linalg/matmul_f32"
 import mf64 "std:linalg/matmul_f64"
 import mi32 "std:linalg/matmul_i32"
+import list "std:list"
 
 fn dot_f64(a, b) {
     return dot.dot_f64(a, b)
@@ -32,10 +33,19 @@ fn reduce_sum_i32_buf(a: []i32) {
 }
 
 fn reduce_sum_i64_list_int_slots(a) {
+    if oren_is_list_int(a) == true { return oren_list_int_reduce_sum_slots_unchecked(a) }
     return dot.reduce_sum_i64_list_int_slots(a)
 }
 
 fn dot_i64_list_int_slots(a, b) {
+    if oren_is_list_int(a) == true && oren_is_list_int(b) == true {
+        var na = list.int_len(a)
+        var nb = list.int_len(b)
+        if na != nb {
+            return common._err_invalid_arg("dot_i64_list_int_slots: length mismatch (" + oren_int_to_string(na) + " != " + oren_int_to_string(nb) + ")")
+        }
+        return oren_list_int_dot_slots_unchecked(a, b)
+    }
     return dot.dot_i64_list_int_slots(a, b)
 }
 

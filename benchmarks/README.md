@@ -425,19 +425,22 @@ loop, the unchecked direct-slot helper path, and the packed-bridge scalar/SIMD p
 profile is `runs=2`, `warmups=0`, `n=20000`, `reps=2`; override it with
 `OREN_LIST_INT_DOT_CEILING_{RUNS,WARMUPS,N,REPS}` when you want a different scale.
 
-The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`,
-shows the current ranking on this host:
+The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260409_050407_19366.log`,
+now includes the public `std:linalg` slot surface in the same steady ranking:
 
-- baseline canonical `dot_product_int`: `~1.2169x C`
-- direct-slot helper `dot_product_int_slot_direct`: `~1.1182x C`
-- packed bridge SIMD `dot_product_int_packed_bridge`: `~4.9387x C`
-- packed bridge scalar `dot_product_int_packed_bridge`: `~17.0948x C`
+- baseline canonical `dot_product_int`: `~1.3657x C`
+- direct-slot helper `dot_product_int_slot_direct`: `~1.0803x C`
+- public-slot `dot_product_int_slot_public`: `~1.1062x C`
+- packed bridge SIMD `dot_product_int_packed_bridge`: `~4.5817x C`
+- packed bridge scalar `dot_product_int_packed_bridge`: `~16.7468x C`
 
-That is the current ceiling fact to use when choosing the next implementation move: the canonical
-compiler fast loop still beats the explicit packed bridge on whole-operation cost, even after the
-shared `buffer.i32_pack_list_int(_into)` path moved onto dedicated native/C/AVM runtime helpers.
-Treat that as a bridge improvement, not a parity win: the next hot-loop move should target bridge
-setup/materialization cost rather than more packed-kernel tuning.
+On the same run, `array_sum_int` came back as canonical `~1.3992x C`, hidden direct-slot helper
+`~0.9836x C`, and public-slot `~1.2014x C`. That is the current ceiling fact to use when choosing
+the next implementation move: the public `std:linalg` slot surface is now close to the raw helper
+ceiling on steady `dot_product_int`, materially better than the shipped canonical path, and still
+far ahead of the packed bridge. Reweight again: packed-bridge tuning stays closed, and the next
+direct-slot move should target the remaining public-wrapper / helper gap rather than re-litigating
+whether the public surface belongs on hot paths.
 
 For the same short/long split surface, but comparing canonical against the hidden direct-slot helper
 instead of the packed bridge, use:
@@ -495,22 +498,21 @@ The default profile matches the helper-only split probe:
 `runs=2`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=2`; override it with
 `OREN_LIST_INT_SLOT_SURFACE_SPLIT_{RUNS,WARMUPS,N,SHORT_REPS,LONG_REPS}` when needed.
 
-The latest no-smoke artifact, `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`,
+The latest no-smoke artifact, `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_051528_36514.log`,
 comes back as:
 
-- canonical `array_sum_int`: `~1.3454x C` long-per-rep
-- direct-slot `array_sum_int_slot_direct`: `~1.0479x C` long-per-rep
-- public-slot `array_sum_int_slot_public`: `~1.2686x C` long-per-rep
-- canonical `dot_product_int`: `~1.4701x C` long-per-rep
-- direct-slot `dot_product_int_slot_direct`: `~1.1698x C` long-per-rep
-- public-slot `dot_product_int_slot_public`: `~1.2188x C` long-per-rep
+- canonical `array_sum_int`: `~1.2464x C` long-per-rep
+- direct-slot `array_sum_int_slot_direct`: `~1.0077x C` long-per-rep
+- public-slot `array_sum_int_slot_public`: `~1.1301x C` long-per-rep
+- canonical `dot_product_int`: `~1.2771x C` long-per-rep
+- direct-slot `dot_product_int_slot_direct`: `~1.0642x C` long-per-rep
+- public-slot `dot_product_int_slot_public`: `~1.2439x C` long-per-rep
 
-The split deltas on this surface are still unstable, so use the `long_per_rep` side for tracker
-updates. That is the new decision-quality result: the public `std:linalg` slot wrappers already
-recover much of the hidden helper win on whole-operation cost, especially on `dot_product_int`,
-while the raw helper still leads. Reweight again: if the public slot surface is the intended hot
-path, the next move is wrapper/boundary-overhead reduction or more direct lowering against that
-surface, not more packed-bridge tuning.
+This surface is still noisy enough that you should not use it alone to rank public-slot vs
+hidden-helper ordering. A smoke-on rerun earlier the same day (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_050248_17126.log`)
+actually flipped the `dot_product_int` public/helper ordering. Treat the split probe as a sanity
+check that the public surface stays in the same ballpark, but use the steady
+`make perf-probe-list-int-dot-ceiling` ranking above for the current decision-quality ordering.
 
 For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
 

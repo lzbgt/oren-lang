@@ -11,7 +11,7 @@ baseline_log="$log_dir/perf-probe-list-int-packed-bridge-simd-reuse-base-${ts}.r
 packed_simd_log="$log_dir/perf-probe-list-int-packed-bridge-simd-reuse-packed-simd-${ts}.run.log"
 
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
-smoke="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_SIMD_REUSE:-1}"
+smoke="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_SIMD_REUSE:-${OREN_PERF_SMOKE_LIST_INT:-1}}"
 runs="${OREN_LIST_INT_PACKED_BRIDGE_SIMD_REUSE_RUNS:-3}"
 warmups="${OREN_LIST_INT_PACKED_BRIDGE_SIMD_REUSE_WARMUPS:-0}"
 n="${OREN_LIST_INT_PACKED_BRIDGE_SIMD_REUSE_N:-20000}"

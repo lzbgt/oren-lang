@@ -66,6 +66,9 @@ fn main() {
     if linalg.dot_i64_list_int_slots(lit, [4, 5, 6, 7]) != 60 { exit(6) }
     if oren_is_err(linalg.dot_i64_list_int_slots([1, 2], [1])) != true { exit(7) }
     if oren_is_err(linalg.reduce_sum_i64_list_int_slots([1, "x"])) != true { exit(8) }
+    var short = list.int_new(1)
+    list.int_push(short, 1)
+    if oren_is_err(linalg.dot_i64_list_int_slots(xs, short)) != true { exit(9) }
 
     print("sum=" + oren_int_to_string(sum))
     print("dot=" + oren_int_to_string(dot))

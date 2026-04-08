@@ -557,6 +557,43 @@ Shared slot-direct stdlib follow-up (2026-04-09):
     - split deltas are still noisy here, so tracker updates should keep using `long_per_rep`
     - the next direct-slot follow-up should be wrapper/boundary-overhead reduction or more direct
       lowering against the public slot surface, not more packed-bridge work
+- Public-slot fast-path collapse follow-up:
+  - the first public wrapper pass still paid extra high-level overhead even when the input was
+    already a proven `list<int>`:
+    - `dot.reduce_sum_i64_list_int_slots(...)` front-loaded `list.len(...)` before checking
+      `oren_is_list_int(...)`
+    - `dot.dot_i64_list_int_slots(...)` front-loaded generic `_vec2_len(...)`
+    - `std:linalg.reduce_sum_i64_list_int_slots(...)` / `dot_i64_list_int_slots(...)` also bounced
+      through an extra module wrapper before reaching the raw helper
+  - fix in this pass:
+    - `std:linalg/dot` now checks `oren_is_list_int(...)` first and only does the generic scalar
+      fallback work when the fast path does not apply
+    - the top-level `std:linalg` facade now jumps straight to the raw helper on proven `list<int>`
+      inputs, while preserving typed length-mismatch semantics as errors via `list.int_len(...)`
+    - tests now explicitly cover typed-list mismatch on the public slot surface
+  - new steady ranking surface:
+    - `make perf-probe-list-int-dot-ceiling` now includes the public-slot benchmarks
+      `array_sum_int_slot_public` / `dot_product_int_slot_public`
+    - latest artifact:
+      `build/logs/perf-probe-list-int-dot-ceiling-20260409_050407_19366.log`
+    - ranking on that run:
+      - `dot_product_int`: canonical `~1.3657× C`, hidden helper `~1.0803× C`, public slot
+        `~1.1062× C`
+      - `array_sum_int`: canonical `~1.3992× C`, hidden helper `~0.9836× C`, public slot
+        `~1.2014× C`
+  - read-split caution:
+    - the smoke-on rerun
+      `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_050248_17126.log`
+      and the no-smoke rerun
+      `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_051528_36514.log`
+      disagree on public-vs-helper ordering, so the split surface is still too noisy to use as the
+      primary ranking signal
+    - use the steady ceiling probe above for the current public-slot ordering, and keep the
+      read-split probe as a sanity/regression check only
+- Probe UX follow-up:
+  - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
+    fallback instead of requiring only per-script smoke env vars, which removes a real measurement
+    consistency footgun during no-smoke reruns
 
 Started but not carried to completion in this pass:
 

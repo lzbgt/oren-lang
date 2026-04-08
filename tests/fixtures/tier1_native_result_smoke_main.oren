@@ -288,6 +288,9 @@ fn smoke_list_int_slot_ops() {
     list.int_push(xs, 2)
     list.int_push(xs, 3)
     list.int_push(xs, 4)
+    var short = list.int_new(1)
+    if oren_is_err(short) { return 16790 }
+    list.int_push(short, 1)
     if oren_list_int_slot_stride_bytes() != 8 { return 16792 }
     if oren_list_int_reduce_sum_slots(xs) != 10 { return 16793 }
     if oren_list_int_reduce_sum_slots_unchecked(xs) != 10 { return 16794 }
@@ -301,6 +304,7 @@ fn smoke_list_int_slot_ops() {
     if linalg.dot_i64_list_int_slots(xs, xs) != 30 { return 16802 }
     if linalg.reduce_sum_i64_list_int_slots(lit) != 22 { return 16803 }
     if linalg.dot_i64_list_int_slots(lit, [1, 2, 3, 4]) != 60 { return 16804 }
+    if oren_is_err(linalg.dot_i64_list_int_slots(xs, short)) != true { return 16805 }
     return 0
 }
 

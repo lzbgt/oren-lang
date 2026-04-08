@@ -97,18 +97,23 @@ fn _dot_i64_list_scalar(a, b, n, ctx) {
 // - fast path: backend-native list<int> slot ABI when the input is already an all-int list
 // - fallback: scalar list walk to keep semantics portable for generic list inputs
 fn reduce_sum_i64_list_int_slots(a) {
+    if oren_is_list_int(a) == true { return oren_list_int_reduce_sum_slots_unchecked(a) }
     var n = list.len(a)
     if oren_is_err(n) { return _err_invalid_arg("reduce_sum_i64_list_int_slots: expects list<int>") }
-    if oren_is_list_int(a) == true { return oren_list_int_reduce_sum_slots_unchecked(a) }
     return _reduce_sum_i64_list_scalar(a, n, "reduce_sum_i64_list_int_slots")
 }
 
 fn dot_i64_list_int_slots(a, b) {
-    var n = _vec2_len(a, b, "dot_i64_list_int_slots")
-    if oren_is_err(n) { return n }
     if oren_is_list_int(a) == true && oren_is_list_int(b) == true {
+        var na = list.int_len(a)
+        var nb = list.int_len(b)
+        if na != nb {
+            return _err_invalid_arg("dot_i64_list_int_slots: length mismatch (" + oren_int_to_string(na) + " != " + oren_int_to_string(nb) + ")")
+        }
         return oren_list_int_dot_slots_unchecked(a, b)
     }
+    var n = _vec2_len(a, b, "dot_i64_list_int_slots")
+    if oren_is_err(n) { return n }
     return _dot_i64_list_scalar(a, b, n, "dot_i64_list_int_slots")
 }
 

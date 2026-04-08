@@ -1318,20 +1318,36 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					   - Public slot-surface read-split follow-up (2026-04-09): new
 					     `make perf-probe-list-int-slot-surface-read-split` now warms the same slot-surface
 					     artifacts and reruns canonical `array_sum_int` / `dot_product_int` against both the
-					     hidden helper ceiling and the new public `std:linalg` slot wrappers. Latest no-smoke
-					     artifact (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_044605_90580.log`,
-					     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) comes back as:
-					     - canonical `array_sum_int`: `~1.3454× C` long-per-rep
-					     - direct-slot `array_sum_int_slot_direct`: `~1.0479× C` long-per-rep
-					     - public-slot `array_sum_int_slot_public`: `~1.2686× C` long-per-rep
-					     - canonical `dot_product_int`: `~1.4701× C` long-per-rep
-					     - direct-slot `dot_product_int_slot_direct`: `~1.1698× C` long-per-rep
-					     - public-slot `dot_product_int_slot_public`: `~1.2188× C` long-per-rep
-					     - delta note: the split deltas still fluctuate enough that tracker updates should keep
-					       using `long_per_rep` on this surface too.
-					     Reweight again: the public wrapper already preserves much of the helper win, especially
-					     on `dot_product_int`, so the next direct-slot task should target wrapper/boundary overhead
-					     or more direct lowering against the public surface rather than another packed-bridge pass.
+					     hidden helper ceiling and the new public `std:linalg` slot wrappers. That split surface
+					     still is not stable enough to rank public-vs-helper ordering by itself: the smoke-on
+					     rerun (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_050248_17126.log`)
+					     and the later no-smoke rerun
+					     (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_051528_36514.log`,
+					     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) disagree on the public/helper winner.
+					     Latest no-smoke long-per-rep numbers came back as:
+					     - canonical `array_sum_int`: `~1.2464× C`
+					     - direct-slot `array_sum_int_slot_direct`: `~1.0077× C`
+					     - public-slot `array_sum_int_slot_public`: `~1.1301× C`
+					     - canonical `dot_product_int`: `~1.2771× C`
+					     - direct-slot `dot_product_int_slot_direct`: `~1.0642× C`
+					     - public-slot `dot_product_int_slot_public`: `~1.2439× C`
+					     Reweight again: keep this split probe as a regression/sanity check only; use the steady
+					     dot-ceiling probe below for public-slot ranking.
+					   - Public slot fast-path collapse (2026-04-09): the public `std:linalg` slot wrappers now
+					     skip the extra generic length front-load on proven `list<int>` inputs, and the top-level
+					     `std:linalg` facade now jumps directly to the raw helper on that fast path while
+					     preserving typed length-mismatch semantics as errors via `list.int_len(...)`. Latest
+					     steady `make perf-probe-list-int-dot-ceiling`
+					     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_050407_19366.log`,
+					     `runs=2 warmups=0 n=20000 reps=2`) now ranks:
+					     - canonical `dot_product_int`: `~1.3657× C`
+					     - direct-slot `dot_product_int_slot_direct`: `~1.0803× C`
+					     - public-slot `dot_product_int_slot_public`: `~1.1062× C`
+					     - canonical `array_sum_int`: `~1.3992× C`
+					     - direct-slot `array_sum_int_slot_direct`: `~0.9836× C`
+					     - public-slot `array_sum_int_slot_public`: `~1.2014× C`
+					     Reweight again: the public slot surface is now close enough to the raw helper ceiling
+					     that the remaining work is a narrow wrapper/helper gap, not a missing public hot path.
 						   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
 						     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
 						     whole-operation path. The sequential no-smoke rerun with
@@ -1526,17 +1542,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
      deterministic panic text for one-nil and length-mismatch
      `oren_list_int_dot_slots_unchecked(...)` calls.
-			   - Shared stdlib follow-up (2026-04-09): the same direct-slot runtime surface is no longer
-			     benchmark-only. `std:linalg` now exposes
-			     `reduce_sum_i64_list_int_slots(...)` / `dot_i64_list_int_slots(...)`, which fast-path through
-			     `oren_is_list_int(...)` plus the direct-slot helpers on C/native/AVM and fall back to a
-			     portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int`
-			     now exercises that public surface via `tests/fixtures/list_int_dot_sum_smoke.oren`
-			     instead of only checking the low-level helper contracts in isolation.
-			   - Native smoke widen (2026-04-09): `make verify-native-slot-direct` now inherits widened
-			     slot-surface smoke too, so it validates the hidden helper-entry benchmarks, the hidden
-			     public-slot benchmarks `array_sum_int_slot_public` / `dot_product_int_slot_public`, and the
-			     unchecked helper panic contracts in one native gate.
+				   - Shared stdlib follow-up (2026-04-09): the same direct-slot runtime surface is no longer
+				     benchmark-only. `std:linalg` now exposes
+				     `reduce_sum_i64_list_int_slots(...)` / `dot_i64_list_int_slots(...)`, which fast-path through
+				     `oren_is_list_int(...)` plus the direct-slot helpers on C/native/AVM and fall back to a
+				     portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int`
+				     now exercises that public surface via `tests/fixtures/list_int_dot_sum_smoke.oren`
+				     instead of only checking the low-level helper contracts in isolation.
+				   - Typed-mismatch semantics guard (2026-04-09): the same public-slot surface now has
+				     explicit typed-list mismatch checks in `tests/fixtures/list_int_dot_sum_smoke.oren`,
+				     `tests/fixtures/tier1_native_result_smoke_main.oren`, and
+				     `tests/modules/test_linalg.oren`, so the fast path keeps returning error values instead
+				     of accidentally inheriting unchecked-helper panic semantics.
+				   - Native smoke widen (2026-04-09): `make verify-native-slot-direct` now inherits widened
+				     slot-surface smoke too, so it validates the hidden helper-entry benchmarks, the hidden
+				     public-slot benchmarks `array_sum_int_slot_public` / `dot_product_int_slot_public`, and the
+				     unchecked helper panic contracts in one native gate.
 		   - Verifier watchdog follow-up (2026-04-09): the backend parity scripts now default
 		     `OREN_BACKEND_PARITY_BUILD_TIMEOUT_SECS=120` instead of `20`, matching the repo-wide build
 		     watchdog so local parity runs do not false-time out while queued behind the shared

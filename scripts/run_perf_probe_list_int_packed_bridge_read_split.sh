@@ -14,7 +14,7 @@ packed_reuse_work_log="$log_dir/perf-probe-list-int-packed-bridge-read-split-pac
 packed_simd_log="$log_dir/perf-probe-list-int-packed-bridge-read-split-packed-simd-${ts}.run.log"
 
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
-smoke="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_READ_SPLIT:-1}"
+smoke="${OREN_PERF_SMOKE_LIST_INT_PACKED_BRIDGE_READ_SPLIT:-${OREN_PERF_SMOKE_LIST_INT:-1}}"
 runs="${OREN_LIST_INT_PACKED_BRIDGE_SPLIT_RUNS:-2}"
 warmups="${OREN_LIST_INT_PACKED_BRIDGE_SPLIT_WARMUPS:-0}"
 n="${OREN_LIST_INT_PACKED_BRIDGE_SPLIT_N:-20000}"
