@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
@@ -16,12 +18,8 @@ if [[ "$uname_s" == MINGW* || "$uname_s" == MSYS* || "$uname_s" == CYGWIN* || "$
 fi
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
-if [[ -n "$build_env_raw" ]]; then
-    old_ifs="$IFS"
-    IFS=','
-    read -r -a build_env_parts <<<"$build_env_raw"
-    IFS="$old_ifs"
-fi
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 all_programs=(
     array_sum_int_packed_bridge
     dot_product_int_packed_bridge

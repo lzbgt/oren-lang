@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp/perf-probe-arm64-native-hot-loop-disasm-${ts}"
@@ -11,12 +13,8 @@ array_log="$tmp_dir/array_sum.build.log"
 dot_log="$tmp_dir/dot_product.build.log"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
-if [[ -n "$build_env_raw" ]]; then
-    old_ifs="$IFS"
-    IFS=','
-    read -r -a build_env_parts <<<"$build_env_raw"
-    IFS="$old_ifs"
-fi
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 build_one() {
     local program="$1"

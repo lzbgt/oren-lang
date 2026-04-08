@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp/perf-probe-list-int-i32-buf-unchecked-fill-${ts}"
@@ -12,21 +14,10 @@ runs="${OREN_LIST_INT_I32_BUF_UNCHECKED_FILL_RUNS:-3}"
 warmups="${OREN_LIST_INT_I32_BUF_UNCHECKED_FILL_WARMUPS:-0}"
 n="${OREN_LIST_INT_I32_BUF_UNCHECKED_FILL_N:-200000}"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
 
-join_build_env() {
-    local out=()
-    local raw="$1"
-    if [[ -z "$raw" ]]; then
-        return 0
-    fi
-    local old_ifs="$IFS"
-    IFS=','
-    read -r -a out <<<"$raw"
-    IFS="$old_ifs"
-    printf '%s\0' "${out[@]}"
-}
-
-mapfile -d '' -t build_env_parts < <(join_build_env "$build_env_raw")
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 fill_checked_bin="$tmp_dir/fill_i32_buf_checked"
 fill_unchecked_bin="$tmp_dir/fill_i32_buf_unchecked"

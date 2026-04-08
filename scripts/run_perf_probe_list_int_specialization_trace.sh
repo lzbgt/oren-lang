@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp/perf-probe-list-int-specialization-trace-${ts}"
@@ -8,36 +10,25 @@ mkdir -p "$log_dir" "$tmp_dir"
 
 summary_log="$log_dir/perf-probe-list-int-specialization-trace-${ts}.log"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
 generic_programs="${OREN_LIST_INT_SPECIALIZATION_GENERIC_PROGRAMS:-array_sum,dot_product}"
 specialized_programs="${OREN_LIST_INT_SPECIALIZATION_SPECIALIZED_PROGRAMS:-array_sum_int,dot_product_int}"
-
-join_build_env() {
-    local out=""
-    local raw="$1"
-    if [[ -z "$raw" ]]; then
-        printf '%s' ""
-        return 0
-    fi
-    local old_ifs="$IFS"
-    IFS=',' read -r -a parts <<< "$raw"
-    IFS="$old_ifs"
-    local item
-    for item in "${parts[@]}"; do
-        if [[ -n "$item" ]]; then
-            out+=" ${item}"
-        fi
-    done
-    printf '%s' "$out"
-}
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 build_program() {
     local program="$1"
     local trace_log="$tmp_dir/${program}.build.log"
     local out_bin="$tmp_dir/${program}.native"
-    local build_env_prefix
-    build_env_prefix="$(join_build_env "$build_env_raw")"
-    # shellcheck disable=SC2086
-    eval "env OREN_TRACE_LIST_INT=1 OREN_TRACE_LIST_RESERVE=1${build_env_prefix} ./oren_stage2 build benchmarks/${program}/${program}.oren --backend native --no-debug --no-cache -o \"$out_bin\"" >"$trace_log" 2>&1
+    if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+        env OREN_TRACE_LIST_INT=1 OREN_TRACE_LIST_RESERVE=1 "${build_env_parts[@]}" \
+            ./oren_stage2 build benchmarks/${program}/${program}.oren --backend native --no-debug --no-cache -o "$out_bin" \
+            >"$trace_log" 2>&1
+    else
+        env OREN_TRACE_LIST_INT=1 OREN_TRACE_LIST_RESERVE=1 \
+            ./oren_stage2 build benchmarks/${program}/${program}.oren --backend native --no-debug --no-cache -o "$out_bin" \
+            >"$trace_log" 2>&1
+    fi
     printf '%s\n' "$trace_log"
 }
 

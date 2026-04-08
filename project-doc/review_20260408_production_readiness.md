@@ -266,6 +266,24 @@ Conclusion:
 - the new probe means future arm64 loop work can reuse this exact comparison without
   reopening source diffs or re-learning the comma-splitting failure mode
 
+Perf tooling hardening follow-up:
+
+- the remaining perf/build helper scripts that still hand-parsed
+  `OREN_BENCH_ENV_BUILD_OREN` now share one parser in
+  `scripts/perf_build_env_lib.sh`
+- the last local `join_build_env` / `eval` wrapper path was removed, so
+  comma-separated multi-var build envs now reach the direct-build helper probes through
+  the same array-safe code path as the smoke/disasm runners
+- targeted verification for this cleanup:
+  - `make perf-probe-arm64-fast-loop-pair-post`
+    - wrapper log: `build/logs/perf_probe_pair_post_env_helper_20260408.log`
+    - summary: `build/logs/perf-probe-arm64-fast-loop-pair-post-20260408_221017_88781.log`
+  - `make perf-probe-arm64-dot-vs-c-scalar-ceiling`
+    - wrapper log: `build/logs/perf_probe_dot_scalar_ceiling_env_helper_20260408.log`
+    - summary: `build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260408_221100_90602.log`
+  - `make test`
+    - log: `build/logs/make_test_perf_env_parser_20260408.log`
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp"
@@ -10,12 +12,8 @@ log_path="$log_dir/perf-smoke-list-int-slot-direct-${ts}.log"
 contract_bin="${tmp_dir}/list_int_slot_direct_contracts_native"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
-if [[ -n "$build_env_raw" ]]; then
-    old_ifs="$IFS"
-    IFS=','
-    read -r -a build_env_parts <<<"$build_env_raw"
-    IFS="$old_ifs"
-fi
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 bin_path() {
     local program="$1"

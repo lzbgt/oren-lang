@@ -973,6 +973,10 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-smoke-list-int-packed-bridge`, and `make perf-smoke-list-int-slot-direct` all honor
   `OREN_BENCH_ENV_BUILD_OREN`, and the hidden steady helper probes now record `build_env` in their
   summaries. That closes the last mixed-baseline gap in the helper-path perf tooling.
+- The remaining direct-build perf probes now share the same parser too. Their
+  `OREN_BENCH_ENV_BUILD_OREN` handling is centralized in `scripts/perf_build_env_lib.sh`, so
+  comma-separated multi-var build envs no longer depend on per-script `join_build_env` /
+  `eval` wrappers.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 

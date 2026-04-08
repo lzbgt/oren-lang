@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp"
@@ -11,12 +13,8 @@ double_disasm_log="$log_dir/perf-probe-arm64-fast-dot-double-exit-snippet-double
 summary_log="$log_dir/perf-probe-arm64-fast-dot-double-exit-snippet-${ts}.log"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
-if [[ -n "$build_env_raw" ]]; then
-    old_ifs="$IFS"
-    IFS=','
-    read -r -a build_env_parts <<<"$build_env_raw"
-    IFS="$old_ifs"
-fi
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then
     env OREN_TRACE_ARM64_LOOP_RANGES=1 "${build_env_parts[@]}" \

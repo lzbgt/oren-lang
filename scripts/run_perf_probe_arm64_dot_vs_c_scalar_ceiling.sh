@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp/perf-probe-arm64-dot-vs-c-scalar-ceiling-${ts}"
@@ -19,6 +21,7 @@ warmups="${OREN_ARM64_DOT_CEILING_WARMUPS:-1}"
 n="${OREN_ARM64_DOT_CEILING_N:-2000000}"
 reps="${OREN_ARM64_DOT_CEILING_REPS:-100}"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
 
 bench_cc="${OREN_BENCH_CC:-cc}"
 cc_base="$(basename "$bench_cc")"
@@ -37,20 +40,8 @@ run_capture() {
     "$@" >"$run_log" 2>&1
 }
 
-join_build_env() {
-    local out=()
-    local raw="$1"
-    if [[ -z "$raw" ]]; then
-        return 0
-    fi
-    local old_ifs="$IFS"
-    IFS=','
-    read -r -a out <<<"$raw"
-    IFS="$old_ifs"
-    printf '%s\0' "${out[@]}"
-}
-
-mapfile -d '' -t build_env_parts < <(join_build_env "$build_env_raw")
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 build_native_cmd=(./oren_stage2 build benchmarks/dot_product/dot_product.oren --backend native --no-debug --no-cache -o "$native_bin")
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then

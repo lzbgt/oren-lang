@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 tmp_dir="build/tmp/perf-probe-list-int-i32-buf-simd-reuse-${ts}"
@@ -14,22 +16,11 @@ n="${OREN_LIST_INT_I32_BUF_SIMD_REUSE_N:-200000}"
 short_reps="${OREN_LIST_INT_I32_BUF_SIMD_REUSE_SHORT_REPS:-1}"
 long_reps="${OREN_LIST_INT_I32_BUF_SIMD_REUSE_LONG_REPS:-1000}"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+build_env_parts=()
 bench_cc="${OREN_BENCH_CC:-cc}"
 
-join_build_env() {
-    local out=()
-    local raw="$1"
-    if [[ -z "$raw" ]]; then
-        return 0
-    fi
-    local old_ifs="$IFS"
-    IFS=','
-    read -r -a out <<<"$raw"
-    IFS="$old_ifs"
-    printf '%s\0' "${out[@]}"
-}
-
-mapfile -d '' -t build_env_parts < <(join_build_env "$build_env_raw")
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 packed_vector_bin="$tmp_dir/dot_product_c_vector"
 oren_i32_buf_bin="$tmp_dir/dot_product_i32_buf_oren_native"
