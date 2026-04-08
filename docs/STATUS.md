@@ -1823,9 +1823,33 @@ Weights reflect expected impact on C parity and breadth of affected code.
        (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): shipped
        defaults stay at `21` instructions with `madd_count=0`; forcing `SCALAR=1` moves the same
        loops to `20` instructions with `madd_count=1`.
+     - Read-split decomposition follow-up (2026-04-09): the new wrappers
+       `make perf-probe-arm64-fast-dot-scalar-core-read-split` and
+       `make perf-probe-arm64-fast-dot-scalar-core-read-split-list-int`
+       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-20260409_035000_5744.log`,
+       `build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-20260409_035009_6305.log`)
+       show the current setup/repeated-work tradeoff directly:
+       - generic `dot_product`: `CURSOR=0,SCALAR=1` improves every reported native component on
+         this rerun (`short -3.49%`, `setup -3.27%`, `delta -5.72%`, `long_per_rep -4.47%`)
+       - explicit `dot_product_int`: `SCALAR=1` improves short/setup (`-3.28%`, `-3.95%`) and is
+         nearly flat on repeated `long_per_rep` (`-0.11%`), but still worsens the `delta`
+         estimate (`+4.22%`); `CURSOR=0,SCALAR=1` improves short/setup more but regresses repeated
+         `long_per_rep` (`+2.74%`)
+       Use these read-split probes as decomposition tools, not as shipped-default verdicts by
+       themselves.
+     - Order-balanced gate-stability tie-breaker (2026-04-09): the new
+       `make perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int` wrapper rotates the
+       four scalar-core cases across four whole-operation sweeps so each case occupies each run
+       position once. Latest artifact
+       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-20260409_035611_14589.log`)
+       keeps the explicit whole-operation verdict mixed:
+       - `SCALAR=1` wins absolute native gate median in `3/4` sweeps and by median `-1.31%`, but
+         loses normalized `native/C` in `3/4` sweeps with median `+5.74%`
+       - `CURSOR=0,SCALAR=1` is flatter on absolute native median (median `-0.52%`) but still
+         loses normalized `native/C` (median `+2.32%`)
      - Conclusion: keep the scalar-tail `madd` choice opt-in on the shipped baseline, keep cursor
-       regs on by default, and judge future arm64 dot core changes with the new matrix probes rather
-       than the older scalar-only promotion story.
+       regs on by default, and judge future arm64 dot core changes with the matrix + read-split +
+       order-balanced gate-stability probes rather than the older scalar-only promotion story.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance

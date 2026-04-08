@@ -569,9 +569,28 @@ landed one measured compiler-default improvement:
     whole-operation gate (`0.015208s -> 0.016123s`, `+6.02%`)
   - `CURSOR=0` and `CURSOR=0,SCALAR=1` stay similarly mixed once the explicit gate surface is
     included
+- the new read-split decomposition wrappers now explain that mixed explicit result instead of
+  leaving it as a black box:
+  - generic rerun (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-20260409_035000_5744.log`):
+    `CURSOR=0,SCALAR=1` improves every reported native component on this rerun
+    (`short -3.49%`, `setup -3.27%`, `delta -5.72%`, `long_per_rep -4.47%`)
+  - explicit rerun (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-20260409_035009_6305.log`):
+    `SCALAR=1` improves short/setup (`-3.28%`, `-3.95%`) and is almost flat on repeated
+    `long_per_rep` (`-0.11%`), but still worsens the `delta` estimate (`+4.22%`)
+- the focused tie-breaker is now explicit whole-operation gate stability, not one more ad hoc rerun:
+  - new wrapper:
+    `make perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int`
+  - latest order-balanced artifact:
+    `build/logs/perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-20260409_035611_14589.log`
+  - it rotates the four scalar-core cases across four sweeps so each case occupies each run
+    position once
+  - current result: `SCALAR=1` wins absolute native gate median in `3/4` sweeps and by median
+    `-1.31%`, but loses normalized `native/C` in `3/4` sweeps with median `+5.74%`
+  - `CURSOR=0,SCALAR=1` is flatter on absolute native median (median `-0.52%`) but still loses
+    normalized `native/C` (median `+2.32%`)
 - reweight: keep scalar exact-`madd` opt-in on the shipped baseline for now, and keep cursor regs
   default-on until a future arm64 dot core change improves both generic and explicit whole-operation
-  surfaces together
+  surfaces together on the matrix, read-split, and stability surfaces
 - the shipped scalar default now has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default` and the integrated
   `make verify-native-list-int-fast-lowering` path both confirm the live arm64 default still emits

@@ -1116,6 +1116,34 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   Reweight: keep the shipped scalar exact-`madd` path opt-in for now, keep cursor regs on by
   default, and use the matrix wrappers for future core-path A/Bs instead of the older subpath-only
   story.
+- For the same shipped baseline, the new read-split decomposition wrappers make the setup vs
+  repeated-work tradeoff explicit:
+  `make perf-probe-arm64-fast-dot-scalar-core-read-split` for generic `dot_product` and
+  `make perf-probe-arm64-fast-dot-scalar-core-read-split-list-int` for explicit `dot_product_int`.
+  Current artifacts
+  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-20260409_035000_5744.log`,
+  `build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-20260409_035009_6305.log`)
+  say:
+  - generic `dot_product`: `CURSOR=0,SCALAR=1` is the best all-around decomposition on this rerun
+    (`short -3.49%`, `setup -3.27%`, `delta -5.72%`, `long_per_rep -4.47%`)
+  - explicit `dot_product_int`: `SCALAR=1` improves one-shot setup (`short -3.28%`,
+    `setup -3.95%`) and stays almost flat on repeated `long_per_rep` (`-0.11%`), but still hurts
+    the `delta` estimate (`+4.22%`); the combined cursor+scalar case improves short/setup more but
+    worsens `long_per_rep` (`+2.74%`)
+  Treat those read-split logs as decomposition tools, not as shipped-default verdicts by
+  themselves.
+- When the explicit whole-operation sign is small, use the order-balanced tie-breaker:
+  `make perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int`. It runs four whole-operation
+  gate sweeps in rotating case order so each scalar-core variant occupies each run position once.
+  Latest artifact
+  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-20260409_035611_14589.log`)
+  keeps the explicit shipped verdict mixed:
+  - `SCALAR=1` wins absolute native gate median in `3/4` sweeps and by median `-1.31%`, but loses
+    normalized `native/C` in `3/4` sweeps with median `+5.74%`
+  - `CURSOR=0,SCALAR=1` is flatter on absolute native median (median `-0.52%`) but still loses
+    normalized `native/C` (median `+2.32%`)
+  Reweight: keep scalar exact-`madd` opt-in and keep cursor regs default-on until a candidate wins
+  both the decomposition and the whole-operation stability surface together.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the
