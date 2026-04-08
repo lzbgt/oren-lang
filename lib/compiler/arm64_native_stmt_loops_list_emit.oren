@@ -1119,9 +1119,10 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     } else if v_madd_exact_double != nil && (v_madd_exact_double == "0" || v_madd_exact_double == "false") {
         madd_exact_double = false
     }
-    // The scalar exact-madd substitution is the only current host subpath that holds up on both
-    // generic and explicit dot surfaces, so ship it by default while keeping the env escape hatch.
-    var madd_exact_scalar = true
+    // On the post-unroll2 baseline, the scalar exact-madd tail is no longer a clear default-on win.
+    // Keep it as an explicit opt-in until the current scalar-core matrix turns into a durable across-
+    // surface improvement instead of a steady-vs-gate trade-off.
+    var madd_exact_scalar = false
     var v_madd_exact_scalar = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR")
     if v_madd_exact_scalar == "1" || v_madd_exact_scalar == "true" {
         madd_exact_scalar = true

@@ -698,13 +698,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      stays on the fast `list<int>` lowering on both native backends.
    - Structural guard widen (2026-04-09): the same
      `make verify-native-list-int-fast-lowering` gate now also runs
-     `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar exact-`madd`
-     subpath is pinned by a deterministic disasm A/B instead of only by probe notes. Latest log
-     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_031151_36795.log`): generic
-     `dot_product` and explicit `dot_product_int` now stay at `instruction_count=20`,
-     `madd_count=1` on the shipped post-unroll2 baseline, while forcing
-     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` moves both to
-     `instruction_count=21`, `madd_count=0`.
+     `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar-tail choice is
+     pinned by a deterministic disasm A/B instead of only by probe notes. Latest log
+     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): generic
+     `dot_product` and explicit `dot_product_int` now stay at `instruction_count=21`,
+     `madd_count=0` on the shipped post-unroll2 baseline, while forcing
+     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` moves both to
+     `instruction_count=20`, `madd_count=1`.
    - New parity widen (2026-03-28): arm64/x64 fast-loop matchers now also accept the equivalent
      commuted reductions `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum` for both `list<int>`
      and boxed-list direct-loop lowerings. The same `make verify-native-list-int-fast-lowering`
@@ -1803,28 +1803,29 @@ Weights reflect expected impact on C parity and breadth of affected code.
        enabled `steady=0.078774s` vs baseline `0.078684s` (`+0.11%`), gate
        `0.014076s` vs `0.014510s` (`-2.99%`)
      Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` opt-in only.
-   - Shipped scalar exact-`madd` subpath after the unroll2 default flip (2026-04-09): the exact
-     subpath wrappers still compare the shipped baseline against `SCALAR=0` plus isolated `quad` /
-     `double`, but they now do so on the new 20-instruction scalar baseline instead of the older
-     69-instruction unrolled loop.
-     - generic rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_031413_41277.log`):
-       baseline native `steady=0.153122s`, `gate=0.015751s`, disasm `20`; forcing `SCALAR=0`
-       improved both raw medians to `0.150737s` / `0.014817s` (`-1.56%`, `-5.93%`). The `quad` /
-       `double` rows in that same artifact also improve raw medians, but they are no longer a direct
-       shipped-baseline signal because unroll2 is now default-off.
-     - explicit rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_031505_43502.log`):
-       forcing `SCALAR=0` stays mixed on the new baseline: steady worsens
-       (`0.140619s -> 0.144013s`, `+2.41%`) while gate improves
-       (`0.015298s -> 0.014376s`, `-6.03%`).
+   - Shipped scalar exact-`madd` subpath after the unroll2 default flip (2026-04-09): the older
+     exact subpath wrappers still exist for branch-local debugging, but the new scalar-core matrix
+     wrappers are now the right shipped-baseline decision surface on the post-unroll2 tree.
+     - Current scalar-core matrix probes
+       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260409_033716_83363.log`,
+       `build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-list-int-20260409_033758_85506.log`)
+       are the right shipped-baseline read now:
+       - generic `dot_product`: `SCALAR=1` improves both raw native medians
+         (`0.147226s -> 0.140442s`, `-4.61%`; `0.016850s -> 0.016093s`, `-4.49%`)
+       - explicit `dot_product_int`: `SCALAR=1` still improves steady materially
+         (`0.150822s -> 0.137406s`, `-8.90%`) but regresses whole-operation gate
+         (`0.015208s -> 0.016123s`, `+6.02%`)
+       - `CURSOR=0` and `CURSOR=0,SCALAR=1` stay similarly mixed once the explicit gate is included
      - New structural guard (updated 2026-04-09): `make verify-native-arm64-dot-madd-scalar-default`
-       now locks the shipped scalar subpath to the live post-unroll2 disasm shape on both generic
-       and explicit surfaces, and `make verify-native-list-int-fast-lowering` runs it automatically.
-       Latest log (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_031151_36795.log`):
-       shipped defaults stay at `20` instructions with `madd_count=1`; forcing `SCALAR=0` moves the
-       same loops to `21` instructions with `madd_count=0`.
-     - Conclusion: keep the scalar-tail `madd` choice as the current shipped baseline, but the old
-       "scalar-only is the one clearly promotable exact piece" claim is no longer current after the
-       unroll2 default moved off.
+       now locks the shipped default-off scalar tail to the live post-unroll2 disasm shape on both
+       generic and explicit surfaces, and `make verify-native-list-int-fast-lowering` runs it
+       automatically. Latest log
+       (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): shipped
+       defaults stay at `21` instructions with `madd_count=0`; forcing `SCALAR=1` moves the same
+       loops to `20` instructions with `madd_count=1`.
+     - Conclusion: keep the scalar-tail `madd` choice opt-in on the shipped baseline, keep cursor
+       regs on by default, and judge future arm64 dot core changes with the new matrix probes rather
+       than the older scalar-only promotion story.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance

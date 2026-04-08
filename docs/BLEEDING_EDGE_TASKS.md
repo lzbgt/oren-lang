@@ -1523,14 +1523,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     `benchmarks/array_sum/array_sum.oren` and `benchmarks/dot_product/dot_product.oren`, so the
 	     auto-specialized benchmark shapes are guarded alongside the explicit `array_sum_int` /
 	     `dot_product_int` probes instead of relying on manual trace spot-checks.
-	   - Structural guard widen (2026-04-09): `make verify-native-list-int-fast-lowering` now also
-	     runs `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar
-	     exact-`madd` tail is guarded by a deterministic disasm A/B. Latest log
-	     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): generic
-	     `dot_product` and explicit `dot_product_int` stay at `instruction_count=69`, `madd_count=1`
-	     on the shipped default, while forcing
-	     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` moves both back to
-	     `instruction_count=70`, `madd_count=0`.
+		   - Structural guard widen (2026-04-09): `make verify-native-list-int-fast-lowering` now also
+		     runs `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar-tail
+		     choice is guarded by a deterministic disasm A/B. Latest log
+		     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): generic
+		     `dot_product` and explicit `dot_product_int` stay at `instruction_count=21`, `madd_count=0`
+		     on the shipped default, while forcing
+		     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` moves both to
+		     `instruction_count=20`, `madd_count=1`.
    - New matcher parity widen (2026-03-28): arm64/x64 direct-loop matchers now also accept the
      commuted equivalents `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum`, including the boxed
      list fast-loop siblings. `make verify-native-list-int-fast-lowering` now compiles
@@ -1802,25 +1802,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 							        enabled steady/gate native deltas `+3.12%` / `-3.02%`
 							      - explicit rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-20260409_020520_24931.log`):
 							        enabled steady/gate native deltas `+0.11%` / `-2.99%`
-							    - Shipped scalar subpath (arm64, 2026-04-09): the new subpath wrappers now compare
-							      the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0`
-							      plus isolated `quad` / `double` cases with scalar forced back off. That exposed the
-							      only promotable exact-`madd` piece:
-							      - generic rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_021122_35896.log`):
-							        disabling scalar regresses both raw native medians (`+0.92%` steady,
-							        `+1.75%` gate)
-								      - explicit reruns
-								        (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021210_38053.log`,
-								        `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`):
-								        disabling scalar consistently hurts steady (`+10.28%`, `+8.60%`), while the
-								        gate stays mixed/noisy (`-4.04%`, `-0.21%`)
+								    - Shipped scalar-core matrix (arm64, 2026-04-09): the new wrappers
+								      `make perf-probe-arm64-fast-dot-scalar-core-matrix` and
+								      `make perf-probe-arm64-fast-dot-scalar-core-matrix-list-int`
+								      compare the shipped default-off baseline against `CURSOR=0`,
+								      `SCALAR=1`, and `CURSOR=0,SCALAR=1`:
+								      - generic rerun (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260409_033716_83363.log`):
+								        `SCALAR=1` improves both raw native medians (`-4.61%` steady, `-4.49%` gate),
+								        and the combined cursor+scalar case improves them further (`-7.12%`, `-9.15%`)
+								      - explicit rerun (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-list-int-20260409_033758_85506.log`):
+								        `SCALAR=1` improves steady materially (`-8.90%`) but regresses whole-operation
+								        gate (`+6.02%`); the other non-baseline cases stay similarly mixed
 								      - deterministic guard (arm64, 2026-04-09):
 								        `make verify-native-arm64-dot-madd-scalar-default` now pins the shipped
-								        scalar path to `69` instructions / `madd_count=1` on both generic and
-								        explicit surfaces, with `SCALAR=0` returning both to `70` / `0`
-								        (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`)
-								      Reweight: keep scalar exact-`madd` shipped by default, keep the whole exact branch
-								      opt-in, and leave `quad` / `double` as non-default experiments.
+								        default-off path to `21` instructions / `madd_count=0` on both generic and
+								        explicit surfaces, with `SCALAR=1` moving both to `20` / `1`
+								        (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`)
+								      Reweight: keep scalar exact-`madd` opt-in, keep cursor regs default-on, keep the
+								      whole exact branch opt-in, and use the matrix wrappers for future core A/B work.
 						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
 						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
 						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the

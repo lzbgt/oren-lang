@@ -10,9 +10,9 @@ mkdir -p "$log_dir"
 
 log_path="$log_dir/verify_arm64_dot_madd_scalar_default_${ts}.log"
 generic_default_run_log="$log_dir/verify_arm64_dot_madd_scalar_default_generic_default_${ts}.run.log"
-generic_scalar_disabled_run_log="$log_dir/verify_arm64_dot_madd_scalar_default_generic_scalar_disabled_${ts}.run.log"
+generic_scalar_enabled_run_log="$log_dir/verify_arm64_dot_madd_scalar_default_generic_scalar_enabled_${ts}.run.log"
 list_int_default_run_log="$log_dir/verify_arm64_dot_madd_scalar_default_list_int_default_${ts}.run.log"
-list_int_scalar_disabled_run_log="$log_dir/verify_arm64_dot_madd_scalar_default_list_int_scalar_disabled_${ts}.run.log"
+list_int_scalar_enabled_run_log="$log_dir/verify_arm64_dot_madd_scalar_default_list_int_scalar_enabled_${ts}.run.log"
 
 run_capture() {
   local run_log="$1"
@@ -35,27 +35,27 @@ PY
 }
 
 run_capture "$generic_default_run_log" make perf-probe-arm64-native-hot-loop-disasm
-run_capture "$generic_scalar_disabled_run_log" env \
-  OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0' \
+run_capture "$generic_scalar_enabled_run_log" env \
+  OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1' \
   make perf-probe-arm64-native-hot-loop-disasm
 run_capture "$list_int_default_run_log" make perf-probe-arm64-list-int-hot-loop-disasm
-run_capture "$list_int_scalar_disabled_run_log" env \
-  OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0' \
+run_capture "$list_int_scalar_enabled_run_log" env \
+  OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1' \
   make perf-probe-arm64-list-int-hot-loop-disasm
 
 generic_default_summary="$(extract_summary_path "$generic_default_run_log")"
-generic_scalar_disabled_summary="$(extract_summary_path "$generic_scalar_disabled_run_log")"
+generic_scalar_enabled_summary="$(extract_summary_path "$generic_scalar_enabled_run_log")"
 list_int_default_summary="$(extract_summary_path "$list_int_default_run_log")"
-list_int_scalar_disabled_summary="$(extract_summary_path "$list_int_scalar_disabled_run_log")"
+list_int_scalar_enabled_summary="$(extract_summary_path "$list_int_scalar_enabled_run_log")"
 
 GENERIC_DEFAULT_RUN_LOG="$generic_default_run_log" \
 GENERIC_DEFAULT_SUMMARY="$generic_default_summary" \
-GENERIC_SCALAR_DISABLED_RUN_LOG="$generic_scalar_disabled_run_log" \
-GENERIC_SCALAR_DISABLED_SUMMARY="$generic_scalar_disabled_summary" \
+GENERIC_SCALAR_ENABLED_RUN_LOG="$generic_scalar_enabled_run_log" \
+GENERIC_SCALAR_ENABLED_SUMMARY="$generic_scalar_enabled_summary" \
 LIST_INT_DEFAULT_RUN_LOG="$list_int_default_run_log" \
 LIST_INT_DEFAULT_SUMMARY="$list_int_default_summary" \
-LIST_INT_SCALAR_DISABLED_RUN_LOG="$list_int_scalar_disabled_run_log" \
-LIST_INT_SCALAR_DISABLED_SUMMARY="$list_int_scalar_disabled_summary" \
+LIST_INT_SCALAR_ENABLED_RUN_LOG="$list_int_scalar_enabled_run_log" \
+LIST_INT_SCALAR_ENABLED_SUMMARY="$list_int_scalar_enabled_summary" \
 python3 - <<'PY' >"$log_path"
 import os
 import re
@@ -81,32 +81,32 @@ cases = [
         os.environ["GENERIC_DEFAULT_RUN_LOG"],
         os.environ["GENERIC_DEFAULT_SUMMARY"],
         "dot_product",
-        1,
+        0,
     ),
     (
-        "generic_scalar_disabled",
-        os.environ["GENERIC_SCALAR_DISABLED_RUN_LOG"],
-        os.environ["GENERIC_SCALAR_DISABLED_SUMMARY"],
+        "generic_scalar_enabled",
+        os.environ["GENERIC_SCALAR_ENABLED_RUN_LOG"],
+        os.environ["GENERIC_SCALAR_ENABLED_SUMMARY"],
         "dot_product",
-        0,
+        1,
     ),
     (
         "list_int_default",
         os.environ["LIST_INT_DEFAULT_RUN_LOG"],
         os.environ["LIST_INT_DEFAULT_SUMMARY"],
         "dot_product_int",
-        1,
+        0,
     ),
     (
-        "list_int_scalar_disabled",
-        os.environ["LIST_INT_SCALAR_DISABLED_RUN_LOG"],
-        os.environ["LIST_INT_SCALAR_DISABLED_SUMMARY"],
+        "list_int_scalar_enabled",
+        os.environ["LIST_INT_SCALAR_ENABLED_RUN_LOG"],
+        os.environ["LIST_INT_SCALAR_ENABLED_SUMMARY"],
         "dot_product_int",
-        0,
+        1,
     ),
 ]
 
-print("verify arm64 dot madd scalar default")
+print("verify arm64 dot madd scalar default-off baseline")
 print("")
 failures = []
 case_results = {}
@@ -124,16 +124,16 @@ for label, run_log, summary_path, symbol, expect_madd in cases:
         failures.append(f"{label}: expected madd_count={expect_madd}, got {madd_count}")
     print("")
 
-for baseline_label, disabled_label in [
-    ("generic_default", "generic_scalar_disabled"),
-    ("list_int_default", "list_int_scalar_disabled"),
+for baseline_label, enabled_label in [
+    ("generic_default", "generic_scalar_enabled"),
+    ("list_int_default", "list_int_scalar_enabled"),
 ]:
     baseline_insns, _ = case_results[baseline_label]
-    disabled_insns, _ = case_results[disabled_label]
-    if disabled_insns != baseline_insns + 1:
+    enabled_insns, _ = case_results[enabled_label]
+    if enabled_insns != baseline_insns - 1:
         failures.append(
-            f"{disabled_label}: expected instruction_count={baseline_insns + 1} "
-            f"(baseline + 1), got {disabled_insns}"
+            f"{enabled_label}: expected instruction_count={baseline_insns - 1} "
+            f"(baseline - 1), got {enabled_insns}"
         )
 
 if failures:

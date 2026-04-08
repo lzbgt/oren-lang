@@ -1101,15 +1101,30 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   but improves gate (`0.015298s -> 0.014376s`, `-6.03%`). The `quad` row again improves both raw
   medians, but it is still riding the non-unrolled baseline and should not be read as a direct
   promotion candidate until the opt-in unroll2 family is reconsidered as a whole.
-- The shipped scalar exact-`madd` default now also has a deterministic structural guard:
+- The current shipped arm64 scalar-core decision is better judged by the post-flip matrix wrappers:
+  `make perf-probe-arm64-fast-dot-scalar-core-matrix` for generic `dot_product` and
+  `make perf-probe-arm64-fast-dot-scalar-core-matrix-list-int` for explicit `dot_product_int`.
+  On the current default-off baseline
+  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260409_033716_83363.log`,
+  `build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-list-int-20260409_033758_85506.log`):
+  - generic `dot_product`: `SCALAR=1` improves both raw native medians
+    (`0.147226s -> 0.140442s`, `-4.61%`; `0.016850s -> 0.016093s`, `-4.49%`), and
+    `CURSOR=0,SCALAR=1` improves them further (`-7.12%`, `-9.15%`)
+  - explicit `dot_product_int`: every non-baseline candidate still worsens whole-operation gate
+    native median even when steady improves; `SCALAR=1` is the clearest example
+    (`0.150822s -> 0.137406s`, `-8.90%` steady, but `0.015208s -> 0.016123s`, `+6.02%` gate)
+  Reweight: keep the shipped scalar exact-`madd` path opt-in for now, keep cursor regs on by
+  default, and use the matrix wrappers for future core-path A/Bs instead of the older subpath-only
+  story.
+- The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the
-  live arm64 shipped baseline still emits one scalar-tail `madd` on both generic `dot_product` and
-  explicit `dot_product_int`, while `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` forces the
-  pre-promotion `mul/add` tail back in. Latest verify log
-  (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_031151_36795.log`): generic and
-  explicit shipped defaults both stay at `instruction_count=20`, `madd_count=1`; forcing
-  `SCALAR=0` moves both to `instruction_count=21`, `madd_count=0`.
+  live arm64 shipped baseline now emits the non-`madd` scalar tail on both generic `dot_product`
+  and explicit `dot_product_int`, while `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` reenables
+  the 20-insn `madd` variant. Latest verify log
+  (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): generic and
+  explicit shipped defaults both stay at `instruction_count=21`, `madd_count=0`; forcing
+  `SCALAR=1` moves both to `instruction_count=20`, `madd_count=1`.
 - The arm64 dot acceptance summaries now emit explicit
   `warning_gate_{dot_product,dot_product_int}_high_variance` keys when the whole-operation gate COV
   crosses the `0.10` tripwire, and the exact-`madd` wrapper summaries preserve those warning keys in
