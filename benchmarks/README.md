@@ -985,14 +985,33 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   without extra preflight noise so it answers the actual repeated-read-loop question rather than
   the earlier one-shot gate.
 - For the arm64 single-pair `fast_list_int_dot_while` cursor-reg recheck, use
-  `make perf-probe-arm64-fast-dot-single-pair-cursor-regs`. The shipped default keeps the
-  single-pair cursor-reg path enabled, and the probe compares that default against
+  `make perf-probe-arm64-fast-dot-single-pair-cursor-regs` for generic `dot_product` and
+  `make perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int` for explicit
+  `dot_product_int`. The shipped default still keeps the cursor-reg scalar path enabled, and both
+  wrappers preserve raw native medians/covariance while comparing that baseline against
   `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0`.
+- Current post-unroll2-default reruns keep the cursor-reg decision mixed instead of stale:
+  generic rerun (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`)
+  moved to native `steady=0.139631s` vs disabled `0.138138s` (`-1.07%`), but gate stayed
+  effectively flat/slightly worse when disabled (`0.014736s` vs `0.014739s`, `+0.02%`); explicit
+  rerun (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
+  favored disabling on both raw medians (`0.146614s -> 0.139638s`, `0.015100s -> 0.014574s`).
+  Keep cursor-reg enabled for now because the generic shipped baseline is still at least gate-flat
+  and this path carries the live scalar-tail `madd`; it needs a focused follow-up on the new
+  baseline rather than another stale April 4 verdict.
 - For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
-  `make perf-probe-arm64-fast-dot-unroll2`. The shipped default keeps the unique-list
-  unroll-by-2 path enabled, and the probe compares that default against
-  `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0`. The emitter also accepts explicit `0/1`
-  (`false/true`) overrides so future reruns can force either side without source edits.
+  `make perf-probe-arm64-fast-dot-unroll2` for generic `dot_product` and
+  `make perf-probe-arm64-fast-dot-unroll2-list-int` for explicit `dot_product_int`. The shipped
+  default now keeps unroll2 off and the wrappers compare that live baseline against
+  `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1`.
+- Current post-flip reruns justify that shipped change directly:
+  generic rerun (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`) kept
+  the new 20-instruction scalar loop at native `steady=0.140160s`, `gate=0.014280s`; re-enabling
+  unroll2 moved those to `0.143718s` (`+2.54%`) and `0.015197s` (`+6.42%`) while growing the
+  traced loop back to `69` instructions. Explicit rerun
+  (`build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`) showed the
+  same direction: `0.136499s -> 0.144068s` steady (`+5.55%`) and `0.014523s -> 0.014546s` gate
+  (`+0.16%`). That is why unroll2 is no longer shipped by default.
 - For the arm64 single-pair `fast_list_int_dot_while` dual-accumulator recheck, use
   `make perf-probe-arm64-fast-dot-dual-accum` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-dual-accum-list-int` for explicit `dot_product_int`.
@@ -1067,36 +1086,30 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `steady=0.078774s` vs baseline `0.078684s` (`+0.11%`), but gate improves modestly
   `0.014076s` vs `0.014510s` (`-2.99%`).
 - For the arm64 exact-path `madd` subcase split, use
-  `make perf-probe-arm64-fast-dot-madd-exact-subpaths`. Since April 9, the shipped default already
-  includes the scalar-only exact-`madd` substitution on the single-pair scalar path, so the probe
-  now compares that shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0`
-  plus isolated `quad` / `double` candidates with scalar forced back off. Current kept generic-dot
-  rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_021122_35896.log`):
-  baseline native `steady=0.078018s`, `gate=0.013796s`, disasm `69`; disabling scalar regresses both
-  raw native medians to `0.078738s` / `0.014037s`
-  (`scalar_disabled_steady_dot_product_native_median_delta_pct: +0.92%`,
-  `scalar_disabled_gate_dot_product_native_median_delta_pct: +1.75%`). `quad` stays mixed
-  (`-1.52%` steady, `+0.51%` gate) and `double` regresses both (`+1.17%`, `+2.87%`). That is why
-  only scalar exact-`madd` is now shipped by default.
-- For the same shipped-scalar baseline vs `SCALAR=0` / `quad` / `double` split on the explicit
-  `dot_product_int` surface, use `make perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths`.
-  Current reruns
-  (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021210_38053.log`,
-  `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`)
-  agree on the important part: disabling scalar hurts native steady materially
-  (`+10.28%`, `+8.60%`). The gate side is smaller and noisier (`-4.04%`, `-0.21%` with one high-COV
-  baseline run), so treat the explicit whole-operation signal as mixed but bounded rather than as a
-  reason to undo the shipped scalar default. Use `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0`
-  when you need to recheck the pre-promotion behavior exactly.
+  `make perf-probe-arm64-fast-dot-madd-exact-subpaths` for generic `dot_product` and
+  `make perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths` for explicit `dot_product_int`.
+  After the shipped unroll2 default moved off, these subpath probes now hang off the 20-insn scalar
+  baseline rather than the older 69-insn unrolled loop.
+- Current generic rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_031413_41277.log`)
+  says the old "scalar-only is the one promotable piece" story is no longer current on this new
+  baseline: forcing `SCALAR=0` improved both raw native medians (`0.153122s -> 0.150737s`,
+  `0.015751s -> 0.014817s`). The `quad` / `double` rows in that artifact also improve raw medians,
+  but with unroll2 now default-off they collapse onto the same 21-instruction non-unrolled family
+  and are not a meaningful shipping signal by themselves.
+- Current explicit rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_031505_43502.log`)
+  stays mixed in the same way: `SCALAR=0` regresses steady (`0.140619s -> 0.144013s`, `+2.41%`)
+  but improves gate (`0.015298s -> 0.014376s`, `-6.03%`). The `quad` row again improves both raw
+  medians, but it is still riding the non-unrolled baseline and should not be read as a direct
+  promotion candidate until the opt-in unroll2 family is reconsidered as a whole.
 - The shipped scalar exact-`madd` default now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the
   live arm64 shipped baseline still emits one scalar-tail `madd` on both generic `dot_product` and
   explicit `dot_product_int`, while `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` forces the
   pre-promotion `mul/add` tail back in. Latest verify log
-  (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): generic and
-  explicit shipped defaults both stay at `instruction_count=69`, `madd_count=1`; forcing
-  `SCALAR=0` moves both back to `instruction_count=70`, `madd_count=0`.
+  (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_031151_36795.log`): generic and
+  explicit shipped defaults both stay at `instruction_count=20`, `madd_count=1`; forcing
+  `SCALAR=0` moves both to `instruction_count=21`, `madd_count=0`.
 - The arm64 dot acceptance summaries now emit explicit
   `warning_gate_{dot_product,dot_product_int}_high_variance` keys when the whole-operation gate COV
   crosses the `0.10` tripwire, and the exact-`madd` wrapper summaries preserve those warning keys in

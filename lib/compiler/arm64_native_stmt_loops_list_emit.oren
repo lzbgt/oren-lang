@@ -710,7 +710,6 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         whole_list_helper = true
     }
     var unroll2 = false
-    if unique_lists == true { unroll2 = true }
     var pair_post = false
     var v_pair_post = oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST")
     if v_pair_post == "1" || v_pair_post == "true" {
@@ -1129,8 +1128,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     } else if v_madd_exact_scalar != nil && (v_madd_exact_scalar == "0" || v_madd_exact_scalar == "false") {
         madd_exact_scalar = false
     }
+    // The old unique-list default-on unroll2 path now loses on both generic and explicit raw
+    // medians on the current host. Keep it as an explicit opt-in experiment instead of shipping it.
     var unroll2 = false
-    if unique_lists == true { unroll2 = true }
     var pair_post = false
     var v_pair_post = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST")
     if v_pair_post == "1" || v_pair_post == "true" {

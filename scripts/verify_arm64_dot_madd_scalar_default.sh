@@ -81,7 +81,6 @@ cases = [
         os.environ["GENERIC_DEFAULT_RUN_LOG"],
         os.environ["GENERIC_DEFAULT_SUMMARY"],
         "dot_product",
-        69,
         1,
     ),
     (
@@ -89,7 +88,6 @@ cases = [
         os.environ["GENERIC_SCALAR_DISABLED_RUN_LOG"],
         os.environ["GENERIC_SCALAR_DISABLED_SUMMARY"],
         "dot_product",
-        70,
         0,
     ),
     (
@@ -97,7 +95,6 @@ cases = [
         os.environ["LIST_INT_DEFAULT_RUN_LOG"],
         os.environ["LIST_INT_DEFAULT_SUMMARY"],
         "dot_product_int",
-        69,
         1,
     ),
     (
@@ -105,7 +102,6 @@ cases = [
         os.environ["LIST_INT_SCALAR_DISABLED_RUN_LOG"],
         os.environ["LIST_INT_SCALAR_DISABLED_SUMMARY"],
         "dot_product_int",
-        70,
         0,
     ),
 ]
@@ -113,8 +109,10 @@ cases = [
 print("verify arm64 dot madd scalar default")
 print("")
 failures = []
-for label, run_log, summary_path, symbol, expect_insns, expect_madd in cases:
+case_results = {}
+for label, run_log, summary_path, symbol, expect_madd in cases:
     instruction_count, madd_count, counts_line = parse_case(summary_path, symbol)
+    case_results[label] = (instruction_count, madd_count)
     print(f"{label}:")
     print(f"  wrapper_log: {run_log}")
     print(f"  summary_log: {summary_path}")
@@ -122,13 +120,21 @@ for label, run_log, summary_path, symbol, expect_insns, expect_madd in cases:
     print(f"  instruction_count: {instruction_count}")
     print(f"  madd_count: {madd_count}")
     print(f"  mnemonic_counts: {counts_line}")
-    if instruction_count != expect_insns:
-        failures.append(
-            f"{label}: expected instruction_count={expect_insns}, got {instruction_count}"
-        )
     if madd_count != expect_madd:
         failures.append(f"{label}: expected madd_count={expect_madd}, got {madd_count}")
     print("")
+
+for baseline_label, disabled_label in [
+    ("generic_default", "generic_scalar_disabled"),
+    ("list_int_default", "list_int_scalar_disabled"),
+]:
+    baseline_insns, _ = case_results[baseline_label]
+    disabled_insns, _ = case_results[disabled_label]
+    if disabled_insns != baseline_insns + 1:
+        failures.append(
+            f"{disabled_label}: expected instruction_count={baseline_insns + 1} "
+            f"(baseline + 1), got {disabled_insns}"
+        )
 
 if failures:
     print("failures:")

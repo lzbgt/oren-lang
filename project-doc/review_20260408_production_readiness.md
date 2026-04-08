@@ -589,6 +589,22 @@ landed one measured compiler-default improvement:
     but the enabled gate sample warned as high variance
   - conclusion: the old April 4 repo note claiming dual-accum "regresses both surfaces" is stale,
     but the current evidence still does not justify promoting the path into the shipped default
+- the arm64 unroll2 and cursor-reg surfaces were then reweighted on the actual post-CLI/current-tree
+  baseline instead of the stale April 4 one:
+  - generic and explicit wrappers now exist for both
+    `make perf-probe-arm64-fast-dot-unroll2{,-list-int}` and
+    `make perf-probe-arm64-fast-dot-single-pair-cursor-regs{,-list-int}`
+  - the shipped arm64 dot baseline now keeps unroll2 off by default; real post-flip reruns
+    (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`,
+    `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`) kept that
+    20-instruction scalar loop ahead of `UNROLL2=1` on both raw medians
+  - the scalar-tail `madd` structural guard was updated accordingly; latest verify log
+    (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_031151_36795.log`) now proves the
+    shipped baseline at `20` instructions with `madd_count=1`, while `SCALAR=0` moves the same
+    loops to `21` instructions with `madd_count=0`
+  - the shipped cursor-reg choice is now mixed on that new baseline rather than conclusively good or
+    bad: generic is essentially flat while explicit `dot_product_int` favors disabling. That is now
+    the correct next subpath to revisit, not the already-retired April 4 wording.
 
 This narrows one hot-loop gap without over-claiming broad arm64 parity. The broader production
 blocker remains sustained native `dot_product` parity against vectorized C, not operator/tooling

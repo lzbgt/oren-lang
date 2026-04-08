@@ -1682,6 +1682,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      0.015338s` gate with a high-variance warning). Keep the dual-accum path disabled by
 				      default; the old April 4 "regresses both surfaces" note is stale on the current
 				      tree.
+				    - Arm64 dot unroll2 default-off refresh (2026-04-09): generic and explicit wrappers now
+				      exist, and the shipped default is off. Real post-flip reruns
+				      (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`,
+				      `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`)
+				      kept the new 20-instruction scalar baseline ahead of `UNROLL2=1` on both raw
+				      medians. Keep unroll2 disabled by default.
+				    - Arm64 cursor-reg refresh on the new baseline (2026-04-09): generic and explicit
+				      wrappers now exist. Post-unroll2 reruns
+				      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`,
+				      `build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
+				      are mixed overall, so keep cursor-reg enabled for now and revisit it separately from
+				      the shipped scalar-tail `madd`.
 			    - Native gate summary hygiene (2026-04-04):
 			      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate

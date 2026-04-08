@@ -700,11 +700,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `make verify-native-list-int-fast-lowering` gate now also runs
      `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar exact-`madd`
      subpath is pinned by a deterministic disasm A/B instead of only by probe notes. Latest log
-     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): generic
-     `dot_product` and explicit `dot_product_int` both stay at `instruction_count=69`,
-     `madd_count=1` on the shipped default, while forcing
-     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` moves both back to
-     `instruction_count=70`, `madd_count=0`.
+     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_031151_36795.log`): generic
+     `dot_product` and explicit `dot_product_int` now stay at `instruction_count=20`,
+     `madd_count=1` on the shipped post-unroll2 baseline, while forcing
+     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` moves both to
+     `instruction_count=21`, `madd_count=0`.
    - New parity widen (2026-03-28): arm64/x64 fast-loop matchers now also accept the equivalent
      commuted reductions `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum` for both `list<int>`
      and boxed-list direct-loop lowerings. The same `make verify-native-list-int-fast-lowering`
@@ -1803,27 +1803,28 @@ Weights reflect expected impact on C parity and breadth of affected code.
        enabled `steady=0.078774s` vs baseline `0.078684s` (`+0.11%`), gate
        `0.014076s` vs `0.014510s` (`-2.99%`)
      Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` opt-in only.
-   - Shipped scalar exact-`madd` subpath (2026-04-09): the new subpath wrappers now compare the
-     shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` plus isolated
-     `quad` / `double` branches with scalar forced back off. That exposed the only promotable piece
-     of the exact family: scalar-only `madd`.
-     - generic shipped-scalar rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_021122_35896.log`):
-       baseline native `steady=0.078018s`, `gate=0.013796s`, disasm `69`; disabling scalar regresses
-       both to `0.078738s` / `0.014037s`
-       (`+0.92%`, `+1.75%`)
-     - explicit shipped-scalar reruns
-       (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021210_38053.log`,
-       `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`):
-       disabling scalar consistently hurts steady (`+10.28%`, `+8.60%`) while the whole-operation
-       gate stays mixed/noisy (`-4.04%`, `-0.21%`) with one high-variance baseline sample.
-     - New structural guard (2026-04-09): `make verify-native-arm64-dot-madd-scalar-default`
-       now locks the shipped scalar subpath to the live disasm shape on both generic and explicit
-       surfaces, and `make verify-native-list-int-fast-lowering` runs it automatically. Latest log
-       (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): shipped
-       defaults stay at `69` instructions with `madd_count=1`; forcing `SCALAR=0` moves the same
-       loops back to `70` instructions with `madd_count=0`.
-     - Conclusion: ship only the scalar exact-`madd` substitution by default, keep the whole exact
-       branch opt-in, and keep `quad` / `double` as non-default experiments.
+   - Shipped scalar exact-`madd` subpath after the unroll2 default flip (2026-04-09): the exact
+     subpath wrappers still compare the shipped baseline against `SCALAR=0` plus isolated `quad` /
+     `double`, but they now do so on the new 20-instruction scalar baseline instead of the older
+     69-instruction unrolled loop.
+     - generic rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_031413_41277.log`):
+       baseline native `steady=0.153122s`, `gate=0.015751s`, disasm `20`; forcing `SCALAR=0`
+       improved both raw medians to `0.150737s` / `0.014817s` (`-1.56%`, `-5.93%`). The `quad` /
+       `double` rows in that same artifact also improve raw medians, but they are no longer a direct
+       shipped-baseline signal because unroll2 is now default-off.
+     - explicit rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_031505_43502.log`):
+       forcing `SCALAR=0` stays mixed on the new baseline: steady worsens
+       (`0.140619s -> 0.144013s`, `+2.41%`) while gate improves
+       (`0.015298s -> 0.014376s`, `-6.03%`).
+     - New structural guard (updated 2026-04-09): `make verify-native-arm64-dot-madd-scalar-default`
+       now locks the shipped scalar subpath to the live post-unroll2 disasm shape on both generic
+       and explicit surfaces, and `make verify-native-list-int-fast-lowering` runs it automatically.
+       Latest log (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_031151_36795.log`):
+       shipped defaults stay at `20` instructions with `madd_count=1`; forcing `SCALAR=0` moves the
+       same loops to `21` instructions with `madd_count=0`.
+     - Conclusion: keep the scalar-tail `madd` choice as the current shipped baseline, but the old
+       "scalar-only is the one clearly promotable exact piece" claim is no longer current after the
+       unroll2 default moved off.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance
@@ -2660,14 +2661,22 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	      2026-04-04): corrected same-smoke rerun baseline `dot_product` ~3.0142x C, `16383`
 	      ~3.0924x C, `65535` ~3.1914x C. On the repeated-read-loop runner, higher masks regress;
 	      default remains `4095`.
-		    - Arm64 single-pair cursor-reg probe (`make perf-probe-arm64-fast-dot-single-pair-cursor-regs`,
-		      2026-04-04): current kept-state serial rerun stayed inconclusive
-		      (steady default ~3.1205x C vs disabled ~3.1322x C; gate default ~2.6041x C vs disabled
-		      ~2.5322x C). Default remains enabled until the signal is stronger.
-		    - Arm64 dot unroll-by-2 probe (`make perf-probe-arm64-fast-dot-unroll2`, 2026-04-04):
-		      current kept-state serial rerun is mixed (steady default ~2.9806x C vs disabled
-		      ~2.8893x C; gate default ~2.1919x C vs disabled ~2.7147x C). Default remains enabled
-		      until the signal is stronger.
+		    - Arm64 single-pair cursor-reg refresh (`2026-04-09`): wrappers now exist for both generic
+		      and explicit surfaces. On the post-unroll2 shipped baseline, generic rerun
+		      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`)
+		      stayed effectively flat/mixed (`steady 0.139631s -> 0.138138s`, `gate 0.014736s ->
+		      0.014739s`) while explicit rerun
+		      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
+		      favored disabling on both raw medians. Keep cursor-reg enabled for now; it needs a focused
+		      reweight on the new 20-insn baseline, not another stale April 4 summary.
+		    - Arm64 dot unroll-by-2 refresh (`2026-04-09`): wrappers now exist for both generic and
+		      explicit surfaces, and the shipped default is now off. The real post-flip reruns
+		      (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`,
+		      `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`)
+		      kept the new 20-instruction baseline ahead of `UNROLL2=1` on both raw medians:
+		      generic `0.140160s -> 0.143718s` steady / `0.014280s -> 0.015197s` gate, explicit
+		      `0.136499s -> 0.144068s` steady / `0.014523s -> 0.014546s` gate. Keep unroll2 disabled
+		      by default.
 		    - Arm64 unique-list loop-body cleanup (`2026-04-04`): kept `n` hot on the unique-list
 		      get-sum/dot paths, switched scalar unique-list cursor bumps to immediate adds, and
 		      removed duplicate non-unique dot offset recomputes. Current serial reruns improved to
