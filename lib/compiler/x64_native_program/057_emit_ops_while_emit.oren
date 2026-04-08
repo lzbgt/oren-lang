@@ -81,6 +81,18 @@ fn _trace_x64_list_fast_loop(ctx, kind, info) {
     return nil
 }
 
+fn _x64_env_enabled_default_true(name) {
+    var v = oren_env(name)
+    if v == "0" || v == "false" { return false }
+    return true
+}
+
+fn _x64_env_enabled_default_false(name) {
+    var v = oren_env(name)
+    if v == "1" || v == "true" { return true }
+    return false
+}
+
 fn _x64_fastmod_recip_u64(d) {
     if d == nil { return nil }
     if d < 3 { return nil }
@@ -538,6 +550,14 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
     var load_count = oren_list_len(loads)
     var unique_lists = false
     if list_count == load_count { unique_lists = true }
+    var whole_list_helper = false
+    // Keep the exact whole-list helper opt-in until the shared read-split probe shows a win.
+    if oren_list_len(loads) == 1 &&
+        _x64_expr_int_const(ctx, {"type": "Identifier", "value": idx_name}) == 0 &&
+        _x64_expr_int_const(ctx, {"type": "Identifier", "value": sum_name}) == 0 &&
+        _x64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER") == true {
+        whole_list_helper = true
+    }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     _trace_x64_list_fast_loop(ctx, "fast_list_int_get_sum_while", info)
@@ -615,6 +635,31 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
         _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 0)
 
         li = li + 1
+    }
+
+    if whole_list_helper == true {
+        var l_helper_skip = _new_label(ctx, "list_int_get_helper_skip")
+        var helper_slot_list = _intr_tmp_off(ctx, locals, base + 0)
+        if oren_type_tag(helper_slot_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        _emit_mov_r64_mrbp(ctx, 10, 0 - helper_slot_list)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_helper_skip)
+
+        _emit_eval_int_to_rax(ctx, {
+            "type": "Call",
+            "fn": {"type": "Identifier", "value": "oren_list_int_reduce_sum_slots_unchecked"},
+            "args": [{"type": "Identifier", "value": lists[0]}]
+        }, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - off_sum, 0)
+        _emit_mov_r64_mrbp(ctx, 10, 0 - off_n)
+        _emit_mov_mrbp_r64(ctx, 0 - off_idx, 10)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        _emit_label(ctx, labels, l_helper_skip)
     }
 
     _emit_label(ctx, labels, l_fast_cond)
@@ -1285,6 +1330,14 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
     var mul_count = oren_list_len(muls)
     var unique_lists = false
     if list_count == mul_count * 2 { unique_lists = true }
+    var whole_list_helper = false
+    // Keep the exact whole-list helper opt-in until the shared read-split probe shows a win.
+    if mul_count == 1 &&
+        _x64_expr_int_const(ctx, {"type": "Identifier", "value": idx_name}) == 0 &&
+        _x64_expr_int_const(ctx, {"type": "Identifier", "value": sum_name}) == 0 &&
+        _x64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER") == true {
+        whole_list_helper = true
+    }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     _trace_x64_list_fast_loop(ctx, "fast_list_int_dot_while", info)
@@ -1362,6 +1415,56 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
         _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 0)
 
         li = li + 1
+    }
+
+    if whole_list_helper == true {
+        var l_helper_skip = _new_label(ctx, "list_int_dot_helper_skip")
+        var helper_mul = muls[0]
+        var li_left_h = 0
+        while li_left_h < list_count {
+            if _x64_str_eq_bytes(lists[li_left_h], helper_mul["left"]) { break }
+            li_left_h = li_left_h + 1
+        }
+        var li_right_h = 0
+        while li_right_h < list_count {
+            if _x64_str_eq_bytes(lists[li_right_h], helper_mul["right"]) { break }
+            li_right_h = li_right_h + 1
+        }
+
+        var helper_slot_left = _intr_tmp_off(ctx, locals, base + li_left_h * 2)
+        if oren_type_tag(helper_slot_left) == 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_r64_mrbp(ctx, 10, 0 - helper_slot_left)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_helper_skip)
+
+        if li_right_h != li_left_h {
+            var helper_slot_right = _intr_tmp_off(ctx, locals, base + li_right_h * 2)
+            if oren_type_tag(helper_slot_right) == 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_r64_mrbp(ctx, 10, 0 - helper_slot_right)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+            bytes_extend(ctx["code"], insn_mov_rax_mrax())
+            _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
+            _emit_jcc_to_label(ctx, local_fixups, "ne", l_helper_skip)
+        }
+
+        _emit_eval_int_to_rax(ctx, {
+            "type": "Call",
+            "fn": {"type": "Identifier", "value": "oren_list_int_dot_slots_unchecked"},
+            "args": [
+                {"type": "Identifier", "value": helper_mul["left"]},
+                {"type": "Identifier", "value": helper_mul["right"]}
+            ]
+        }, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        _emit_mov_mrbp_r64(ctx, 0 - off_sum, 0)
+        _emit_mov_r64_mrbp(ctx, 10, 0 - off_n)
+        _emit_mov_mrbp_r64(ctx, 0 - off_idx, 10)
+        _emit_jmp_to_label(ctx, local_fixups, l_done)
+        _emit_label(ctx, labels, l_helper_skip)
     }
 
     if unique_lists {

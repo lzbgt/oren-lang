@@ -83,6 +83,12 @@ fn _arm64_env_enabled_default_false(name) {
     return false
 }
 
+fn _arm64_env_enabled_default_true(name) {
+    var v = oren_env(name)
+    if v == "0" || v == "false" { return false }
+    return true
+}
+
 fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
     if ctx == nil || stmt == nil || info == nil { return false }
 
@@ -692,6 +698,14 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     if list_count == load_count { unique_lists = true }
     var single_read_list = false
     if unique_lists == true && list_count == 1 && load_count == 1 { single_read_list = true }
+    var whole_list_helper = false
+    // Keep the exact whole-list helper opt-in until the shared read-split probe shows a win.
+    if single_read_list == true &&
+        _arm64_local_int_const(ctx, idx_name) == 0 &&
+        _arm64_local_int_const(ctx, sum_name) == 0 &&
+        _arm64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER") == true {
+        whole_list_helper = true
+    }
     var unroll2 = false
     if unique_lists == true { unroll2 = true }
     var pair_post = false
@@ -816,6 +830,33 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         emit_str_reg_sp_any(ctx, 1, buf_slot)
 
         li = li + 1
+    }
+
+    var jpos_helper_done = nil
+    if whole_list_helper == true {
+        emit_ldr_reg_sp_any(ctx, 19, list_base_off)
+        emit_load_ptr_from_base_plus(ctx, 1, 19, 0)
+        emit_ldr_reg_sp_any(ctx, 2, n_off)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_helper_skip = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b.ne fast-loop path
+
+        var helper_expr = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "value": "oren_list_int_reduce_sum_slots_unchecked"},
+            "args": [{"type": "Identifier", "value": lists[0]}]
+        }
+        var helper_base_stack = ctx["stack_size"]
+        native_compile_expr(ctx, helper_expr)
+        _arm64_restore_stack_to(ctx, helper_base_stack)
+        emit_str_reg_fp_any(ctx, 0, sum_fp_off)
+        emit_ldr_reg_sp_any(ctx, 0, n_off)
+        emit_str_reg_fp_any(ctx, 0, idx_fp_off)
+        jpos_helper_done = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b end
+
+        var helper_skip_pos = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], jpos_helper_skip, insn_b_cond((helper_skip_pos - jpos_helper_skip) / 4, 1)) // NE
     }
 
     if unique_lists {
@@ -1005,6 +1046,9 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     var end_pos = bytes_len(ctx["code"])
     var skip_off = (end_pos - jpos_skip_slow) / 4
     set_u32_le(ctx["code"], jpos_skip_slow, insn_b(skip_off))
+    if jpos_helper_done != nil {
+        set_u32_le(ctx["code"], jpos_helper_done, insn_b((end_pos - jpos_helper_done) / 4))
+    }
 
     _arm64_restore_stack_to(ctx, base_stack)
     return nil
@@ -1032,6 +1076,14 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     if list_count == mul_count * 2 { unique_lists = true }
     var single_mul_pair = false
     if unique_lists == true && list_count == 2 && mul_count == 1 { single_mul_pair = true }
+    var whole_list_helper = false
+    // Keep the exact whole-list helper opt-in until the shared read-split probe shows a win.
+    if mul_count == 1 &&
+        _arm64_local_int_const(ctx, idx_name) == 0 &&
+        _arm64_local_int_const(ctx, sum_name) == 0 &&
+        _arm64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER") == true {
+        whole_list_helper = true
+    }
     var single_pair_cursor_regs = true
     var v_single_pair_cursor_regs = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS")
     if v_single_pair_cursor_regs != nil && (v_single_pair_cursor_regs == "0" || v_single_pair_cursor_regs == "false") {
@@ -1207,6 +1259,49 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         emit_str_reg_sp_any(ctx, 1, buf_slot)
 
         li = li + 1
+    }
+
+    var jpos_helper_done = nil
+    if whole_list_helper == true {
+        var helper_ok_jumps = []
+        var hi = 0
+        while hi < list_count {
+            var helper_list_slot = list_base_off + hi * 16
+            emit_ldr_reg_sp_any(ctx, 19, helper_list_slot)
+            emit_load_ptr_from_base_plus(ctx, 1, 19, 0)
+            emit_ldr_reg_sp_any(ctx, 2, n_off)
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+            var jpos_helper_count_bad = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(helper_ok_jumps, jpos_helper_count_bad)
+            hi = hi + 1
+        }
+
+        var helper_mul = muls[0]
+        var helper_expr = {
+            "type": "Call",
+            "fn": {"type": "Identifier", "value": "oren_list_int_dot_slots_unchecked"},
+            "args": [
+                {"type": "Identifier", "value": helper_mul["left"]},
+                {"type": "Identifier", "value": helper_mul["right"]}
+            ]
+        }
+        var helper_base_stack = ctx["stack_size"]
+        native_compile_expr(ctx, helper_expr)
+        _arm64_restore_stack_to(ctx, helper_base_stack)
+        emit_str_reg_fp_any(ctx, 0, sum_fp_off)
+        emit_ldr_reg_sp_any(ctx, 0, n_off)
+        emit_str_reg_fp_any(ctx, 0, idx_fp_off)
+        jpos_helper_done = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b end
+
+        var helper_skip_pos = bytes_len(ctx["code"])
+        var hji = 0
+        while hji < oren_list_len(helper_ok_jumps) {
+            var helper_skip_jump = helper_ok_jumps[hji]
+            set_u32_le(ctx["code"], helper_skip_jump, insn_b_cond((helper_skip_pos - helper_skip_jump) / 4, 1)) // NE
+            hji = hji + 1
+        }
     }
 
     if unique_lists {
@@ -1592,6 +1687,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     var end_pos = bytes_len(ctx["code"])
     var skip_off = (end_pos - jpos_skip_slow) / 4
     set_u32_le(ctx["code"], jpos_skip_slow, insn_b(skip_off))
+    if jpos_helper_done != nil {
+        set_u32_le(ctx["code"], jpos_helper_done, insn_b((end_pos - jpos_helper_done) / 4))
+    }
 
     _arm64_restore_stack_to(ctx, base_stack)
     return nil

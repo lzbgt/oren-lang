@@ -438,6 +438,27 @@ Conclusion:
 - the next highest-leverage implementation task is now clearer: move more of the canonical lowering
   toward the direct-slot path, while preserving the existing correctness/lowering guards
 
+Whole-list helper follow-up (2026-04-09):
+
+- I tried the narrowest safe version of that convergence idea on both arm64 and x64: if the
+  canonical `array_sum_int` / `dot_product_int` loop starts from `i == 0`, `sum == 0`, and `n`
+  matches the validated list lengths, the compiler can jump straight to
+  `oren_list_int_reduce_sum_slots_unchecked(...)` / `oren_list_int_dot_slots_unchecked(...)`
+  instead of staying in the existing canonical fast loop.
+- Correctness and lowering shape were clean:
+  - `make verify-native-list-int-fast-lowering`
+  - log: `build/logs/verify_native_list_int_fast_lowering_20260409_000729_50400.log`
+- But the production metric was wrong: serialized no-smoke read-split reruns showed the default-on
+  shortcut made the shipped whole-operation path slower, not faster.
+  - enabled summary: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`
+  - disabled summary: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`
+  - `array_sum_int`: `~1.3445x C` enabled vs `~1.1896x C` disabled
+  - `dot_product_int`: `~1.4160x C` enabled vs `~1.3166x C` disabled
+- Result:
+  - `OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER`
+  - `OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER`
+  remain in-tree only as opt-in experiments; they are not production defaults.
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`

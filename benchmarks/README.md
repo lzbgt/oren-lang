@@ -437,6 +437,22 @@ decision-quality result: the hidden direct-slot helper is now a better whole-ope
 the shipped canonical loop on this split, which makes canonical/direct-slot convergence the higher
 value next step than more packed-bridge tuning.
 
+A later exact whole-list shortcut follow-up on 2026-04-09 showed that this does **not** mean the
+canonical loop should just call the unchecked helper by default. The experimental
+`OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER=1` /
+`OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1` path stayed correctness-clean, but the
+sequential no-smoke rerun (`runs=4`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=4`) regressed
+whole-operation canonical cost:
+
+- enabled artifact: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`
+- disabled artifact: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`
+- `array_sum_int`: `~1.3445x C` enabled vs `~1.1896x C` disabled
+- `dot_product_int`: `~1.4160x C` enabled vs `~1.3166x C` disabled
+
+Those helper knobs are therefore opt-in only. Also: do not run enabled-vs-disabled comparisons for
+this target in parallel. `make perf-probe-list-int-slot-direct-read-split` shares benchmark build
+artifacts, so causal A/B runs need to be serialized.
+
 For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
 
 ```bash

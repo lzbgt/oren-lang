@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-04-08
+**Last updated:** 2026-04-09
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -1284,12 +1284,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				     - direct-slot `array_sum_int_slot_direct`: `~1.0383× C` long-per-rep
 				     - canonical `dot_product_int`: `~1.2680× C` long-per-rep
 				     - direct-slot `dot_product_int_slot_direct`: `~1.1637× C` long-per-rep
-				     - delta note: the same rerun produced unstable split deltas (canonical
-				       `dot_product_int` `~-0.0273× C`, direct-slot `~7.6465× C`), so tracker updates should
-				       prefer long-per-rep on this surface.
-				     Reweight accordingly: the packed bridge still stays closed as the next parity lever, and
-				     the higher-value next task is to pull more of the direct-slot path into the shipped
-				     canonical lowering.
+					     - delta note: the same rerun produced unstable split deltas (canonical
+					       `dot_product_int` `~-0.0273× C`, direct-slot `~7.6465× C`), so tracker updates should
+					       prefer long-per-rep on this surface.
+					     Reweight accordingly: the packed bridge still stays closed as the next parity lever, and
+					     the higher-value next task looked like pulling more of the direct-slot path into the
+					     shipped canonical lowering.
+					   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
+					     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
+					     whole-operation path. The sequential no-smoke rerun with
+					     `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER=1`
+					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`,
+					     `runs=4 warmups=0 n=20000 short_reps=1 long_reps=4`) versus the disabled baseline
+					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`)
+					     came back as:
+					     - `array_sum_int`: `~1.3445× C` enabled vs `~1.1896× C` disabled
+					     - `dot_product_int`: `~1.4160× C` enabled vs `~1.3166× C` disabled
+					     Reweight again: do not ship the exact whole-list helper shortcut; keep those knobs
+					     opt-in only and look for a different canonical/direct-slot convergence move.
 				   - Read-split rerun (2026-04-08): latest
 				     `make perf-probe-list-int-packed-bridge-read-split`
 				     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`)
