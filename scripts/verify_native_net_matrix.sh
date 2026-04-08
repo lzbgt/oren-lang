@@ -30,6 +30,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+source "$ROOT/scripts/linux_docker_lib.sh"
+
 detect_host_platform() {
   local uname_s uname_m os_key arch_key
   uname_s="$(uname -s 2>/dev/null || echo "")"
@@ -72,7 +74,8 @@ HTTP2_PREFACE_LOOPBACK_SRC="tests/native/test_http2_preface_loopback.oren"
 HPACK_SMOKE_SRC="tests/native/test_hpack_smoke.oren"
 HTTP2_HEADERS_LOOPBACK_SRC="tests/native/test_http2_headers_loopback.oren"
 
-LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+LINUX_DOCKER_REF="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+LINUX_DOCKER_ID=""
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-6}"
 SCP_TIMEOUT_SECS="${OREN_REMOTE_SCP_TIMEOUT_SECS:-120}"
@@ -118,7 +121,7 @@ Examples:
   ./scripts/verify_native_net_matrix.sh --targets local,arm64-linux --skip-remote
 
 Env overrides:
-  OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c)
+  OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c; container name, full ID, or unambiguous ID prefix)
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each `oren build ...` step (rolling hang guard)
   OREN_NATIVE_BUILD_TIMEOUT_SECS_X64_WINDOWS (default: 15) timeout override for x64-windows cross builds (toolchain-heavy)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
@@ -816,11 +819,8 @@ remote_run_wsl() {
 }
 
 if has_target arm64-linux; then
+  LINUX_DOCKER_ID="$(linux_docker_require_running "$LINUX_DOCKER_REF")"
   log "== verify: linux/arm64 via docker container id=${LINUX_DOCKER_ID} =="
-  docker ps --filter "id=${LINUX_DOCKER_ID}" --format 'id={{.ID}} status={{.Status}}' | grep -q "id=${LINUX_DOCKER_ID}" || {
-    echo "ERROR: required persistent container not running: ${LINUX_DOCKER_ID}" >&2
-    exit 2
-  }
 
   build_native_bin_src "./oren" "arm64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage2_arm64_linux"

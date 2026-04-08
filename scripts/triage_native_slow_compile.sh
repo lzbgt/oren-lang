@@ -29,7 +29,8 @@ Examples:
 
 Notes:
   - Uses `./scripts/bench_native_compile_one_file.sh` and `./scripts/perf_guard_native_compile_one_file_hit.sh`.
-  - `--qemu` runs `make verify-x64-linux-qemu` (requires the existing linux container `c7e5f7bd9f5c`).
+  - `--qemu` runs `make verify-x64-linux-qemu` (requires the existing linux container referenced by
+    `OREN_LINUX_DOCKER_ID`; default ref: `c7e5f7bd9f5c`, accepted as container name or ID/prefix).
 EOF
 }
 
@@ -79,4 +80,3 @@ fi
 
 echo "" >&2
 echo "OK: triage complete" >&2
-

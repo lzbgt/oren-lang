@@ -16,7 +16,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+source "$ROOT/scripts/linux_docker_lib.sh"
+
+LINUX_DOCKER_REF="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 RUN_TIMEOUT_SECS="${OREN_X64_LINUX_QEMU_NET_RUN_TIMEOUT_SECS:-25}"
 BUILD_TIMEOUT_SECS="${OREN_X64_LINUX_QEMU_NET_BUILD_TIMEOUT_SECS:-120}"
 
@@ -32,10 +34,7 @@ need_bin() {
 
 need_bin docker
 
-if ! docker ps --format '{{.ID}}' | grep -q "^${LINUX_DOCKER_ID}$"; then
-  echo "ERROR: required Linux container is not running: ${LINUX_DOCKER_ID}" >&2
-  exit 2
-fi
+LINUX_DOCKER_ID="$(linux_docker_require_running "$LINUX_DOCKER_REF")"
 
 log "== preflight: container qemu + amd64 loader =="
 docker exec -i "$LINUX_DOCKER_ID" bash -lc 'set -e; command -v qemu-x86_64 >/dev/null; test -e /lib64/ld-linux-x86-64.so.2'

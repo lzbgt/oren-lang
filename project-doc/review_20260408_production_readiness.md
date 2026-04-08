@@ -636,3 +636,28 @@ landed one measured compiler-default improvement:
 This narrows one hot-loop gap without over-claiming broad arm64 parity. The broader production
 blocker remains sustained native `dot_product` parity against vectorized C, not operator/tooling
 reliability.
+
+## 2026-04-09 Tier-1 tooling follow-up
+
+The Tier-1 Linux/QEMU verification scripts also had a real operator-facing false red. The repo and
+AGENTS documentation describe the persistent Ubuntu toolchain container by the stable name
+`c7e5f7bd9f5c`, but several scripts treated `OREN_LINUX_DOCKER_ID` as if it had to be a literal
+running container ID. That could fail even when the documented container name was correct and the
+container was running under a different current ID.
+
+Fix:
+
+- added shared [scripts/linux_docker_lib.sh](/Users/zongbaolu/work/compiler-mini/scripts/linux_docker_lib.sh)
+  to resolve `OREN_LINUX_DOCKER_ID` as a container name, full ID, or unambiguous ID prefix
+- patched the Tier-1 Linux/QEMU callers:
+  [setup_x64_linux_qemu_sysroot.sh](/Users/zongbaolu/work/compiler-mini/scripts/setup_x64_linux_qemu_sysroot.sh),
+  [verify_x64_linux_qemu_smoke.sh](/Users/zongbaolu/work/compiler-mini/scripts/verify_x64_linux_qemu_smoke.sh),
+  [verify_x64_linux_qemu_net_smoke.sh](/Users/zongbaolu/work/compiler-mini/scripts/verify_x64_linux_qemu_net_smoke.sh),
+  [verify_x64_linux_qemu_tls_smoke.sh](/Users/zongbaolu/work/compiler-mini/scripts/verify_x64_linux_qemu_tls_smoke.sh),
+  [verify_native_matrix.sh](/Users/zongbaolu/work/compiler-mini/scripts/verify_native_matrix.sh),
+  and [verify_native_net_matrix.sh](/Users/zongbaolu/work/compiler-mini/scripts/verify_native_net_matrix.sh)
+- patched [triage_native_slow_compile.sh](/Users/zongbaolu/work/compiler-mini/scripts/triage_native_slow_compile.sh)
+  usage text so the operator contract matches the implementation
+
+This does not claim Tier-1 x64 Linux is fully production-ready, but it removes a real verification
+paper cut: the default documented container reference now resolves the way the repo says it should.

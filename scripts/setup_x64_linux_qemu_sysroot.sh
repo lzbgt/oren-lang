@@ -19,7 +19,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+source "$ROOT/scripts/linux_docker_lib.sh"
+
+LINUX_DOCKER_REF="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 
 log() { printf '%s\n' "$*"; }
 
@@ -33,11 +35,7 @@ need_bin() {
 
 need_bin docker
 
-if ! docker ps --format '{{.ID}}' | grep -q "^${LINUX_DOCKER_ID}$"; then
-  echo "ERROR: required Linux container is not running: ${LINUX_DOCKER_ID}" >&2
-  echo "hint: the repo expects the already-running Ubuntu toolchain container (see AGENTS.md)." >&2
-  exit 2
-fi
+LINUX_DOCKER_ID="$(linux_docker_require_running "$LINUX_DOCKER_REF")"
 
 log "== setup: enable amd64 multiarch in container ${LINUX_DOCKER_ID} =="
 docker exec -i "$LINUX_DOCKER_ID" bash -lc 'set -e; dpkg --add-architecture amd64; dpkg --print-foreign-architectures | grep -qx amd64'

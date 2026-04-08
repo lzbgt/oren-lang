@@ -25,6 +25,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+source "$ROOT/scripts/linux_docker_lib.sh"
+
 TEST_SRC="tests/native/test_quick_integration_native.oren"
 TIER1_SRC="tests/fixtures/tier1_native_smoke_main.oren"
 TIER1_EXPECT_MARKERS=1
@@ -54,7 +56,8 @@ STD_FFI_LIBC_SMOKE_SRC="tests/native/test_std_ffi_libc_smoke.oren"
 STD_FFI_KERNEL32_SMOKE_SRC="tests/native/test_std_ffi_kernel32_smoke.oren"
 LIBMATH_SRC="examples/libmath.oren"
 
-LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+LINUX_DOCKER_REF="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+LINUX_DOCKER_ID=""
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-6}"
 SCP_TIMEOUT_SECS="${OREN_REMOTE_SCP_TIMEOUT_SECS:-120}"
@@ -99,7 +102,7 @@ Examples:
   ./scripts/verify_native_matrix.sh --targets local,arm64-linux --skip-remote
 
 Env overrides:
-  OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c)
+  OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c; container name, full ID, or unambiguous ID prefix)
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each `oren build ...` step (rolling hang guard)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
@@ -817,11 +820,8 @@ remote_run_wsl_expect_ok_contains() {
 }
 
 if has_target arm64-linux; then
+  LINUX_DOCKER_ID="$(linux_docker_require_running "$LINUX_DOCKER_REF")"
   log "== verify: linux/arm64 via docker container id=${LINUX_DOCKER_ID} =="
-  docker ps --filter "id=${LINUX_DOCKER_ID}" --format 'id={{.ID}} status={{.Status}}' | grep -q "id=${LINUX_DOCKER_ID}" || {
-    echo "ERROR: required persistent container not running: ${LINUX_DOCKER_ID}" >&2
-    exit 2
-  }
 
   build_native_bin "./oren" "arm64-linux" "build/tmp/qi_stage1_arm64_linux"
   build_native_bin "./oren_stage2" "arm64-linux" "build/tmp/qi_stage2_arm64_linux"
@@ -882,6 +882,7 @@ if has_target arm64-linux; then
 fi
 
 if has_target x64-linux-qemu; then
+  LINUX_DOCKER_ID="$(linux_docker_require_running "$LINUX_DOCKER_REF")"
   log "== verify: x64-linux runtime smoke under qemu-x86_64 (linux container) =="
   # This gate is intentionally separate from remote WSL2:
   # - it catches runtime/codegen issues that compile-only checks miss

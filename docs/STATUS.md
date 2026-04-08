@@ -1467,6 +1467,8 @@ Local (fast):
 Note: `make verify-backend-parity-tags` depends on AVM CLI/VM build; keep select-case parsing + helper visibility in sync with the split.
 
 Remote verify scripts support `OREN_REMOTE_SCP_TIMEOUT_SECS` to bound scp hangs.
+Tier-1 Linux/QEMU scripts accept `OREN_LINUX_DOCKER_ID` as a container name, full ID, or
+unambiguous ID prefix; the documented default `c7e5f7bd9f5c` is the persistent container name.
 
 Tier-1 cross-arch (when touching native/runtime/net):
 
