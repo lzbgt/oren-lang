@@ -50,9 +50,7 @@ import re
 
 summary_re = re.compile(r"summary: (build/logs/perf-probe-arm64-list-int-acceptance-[^ ]+\.summary\.log)")
 metric_re = re.compile(
-    r"^(exit_status|failed_step|steady_array_sum_int|steady_dot_product_int|gate_array_sum_int|"
-    r"gate_dot_product_int|disasm_array_sum_int_insns|disasm_dot_product_int_insns|debug_status|"
-    r"debug_exit_code): (.+)$"
+    r"^([a-z0-9_]+): (.+)$"
 )
 
 
@@ -70,8 +68,47 @@ def parse_acceptance(run_log):
                 line = raw.rstrip("\n")
                 m = metric_re.match(line)
                 if m:
-                    metrics[m.group(1)] = m.group(2)
+                    key = m.group(1)
+                    if key in {
+                        "exit_status",
+                        "failed_step",
+                        "steady_array_sum_int",
+                        "steady_dot_product_int",
+                        "steady_array_sum_int_c_median_s",
+                        "steady_array_sum_int_c_cov",
+                        "steady_array_sum_int_native_median_s",
+                        "steady_array_sum_int_native_cov",
+                        "steady_dot_product_int_c_median_s",
+                        "steady_dot_product_int_c_cov",
+                        "steady_dot_product_int_native_median_s",
+                        "steady_dot_product_int_native_cov",
+                        "gate_array_sum_int",
+                        "gate_dot_product_int",
+                        "gate_array_sum_int_c_median_s",
+                        "gate_array_sum_int_c_cov",
+                        "gate_array_sum_int_native_median_s",
+                        "gate_array_sum_int_native_cov",
+                        "gate_dot_product_int_c_median_s",
+                        "gate_dot_product_int_c_cov",
+                        "gate_dot_product_int_native_median_s",
+                        "gate_dot_product_int_native_cov",
+                        "disasm_array_sum_int_insns",
+                        "disasm_dot_product_int_insns",
+                        "debug_status",
+                        "debug_exit_code",
+                    }:
+                        metrics[key] = m.group(2)
     return summary_path, metrics
+
+
+def parse_float_metric(metrics, key):
+    value = metrics.get(key)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
 
 
 cases = [
@@ -85,8 +122,10 @@ print(f"programs: {os.environ['PROGRAMS']}")
 print(f"run_make_test: {os.environ['RUN_TEST']}")
 print(f"enabled_build_env: {os.environ['ENABLE_ENV']}")
 print("")
+case_metrics = {}
 for label, run_log, wrapper_rc in cases:
     summary_path, metrics = parse_acceptance(run_log)
+    case_metrics[label] = metrics
     print(f"{label}: {run_log}")
     print(f"  wrapper_exit_code: {wrapper_rc}")
     if summary_path is None:
@@ -98,7 +137,15 @@ for label, run_log, wrapper_rc in cases:
         "exit_status",
         "failed_step",
         "steady_dot_product_int",
+        "steady_dot_product_int_c_median_s",
+        "steady_dot_product_int_c_cov",
+        "steady_dot_product_int_native_median_s",
+        "steady_dot_product_int_native_cov",
         "gate_dot_product_int",
+        "gate_dot_product_int_c_median_s",
+        "gate_dot_product_int_c_cov",
+        "gate_dot_product_int_native_median_s",
+        "gate_dot_product_int_native_cov",
         "disasm_dot_product_int_insns",
         "debug_status",
         "debug_exit_code",
@@ -107,6 +154,17 @@ for label, run_log, wrapper_rc in cases:
         if value is not None:
             print(f"  {key}: {value}")
     print("")
+
+default_metrics = case_metrics.get("default", {})
+enabled_metrics = case_metrics.get("enabled", {})
+for label, default_key, enabled_key in [
+    ("steady_dot_product_int_native_median_delta_pct", "steady_dot_product_int_native_median_s", "steady_dot_product_int_native_median_s"),
+    ("gate_dot_product_int_native_median_delta_pct", "gate_dot_product_int_native_median_s", "gate_dot_product_int_native_median_s"),
+]:
+    base = parse_float_metric(default_metrics, default_key)
+    enabled = parse_float_metric(enabled_metrics, enabled_key)
+    if base is not None and enabled is not None and base > 0.0:
+        print(f"{label}: {((enabled / base) - 1.0) * 100.0:+.2f}%")
 PY
 
 echo "arm64 fast dot prefix-zero list<int> probe complete; summary: $summary_log"

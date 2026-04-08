@@ -104,6 +104,25 @@ ratio_patterns = {
     "gate_dot_product": r"dot_product\s+  c:.*?native/C median ratio=([0-9.]+x)",
 }
 
+timing_patterns = {
+    "steady_array_sum_c_median_s": r"array_sum\s+.*?c: median=([0-9.]+)s",
+    "steady_array_sum_c_cov": r"array_sum\s+.*?c: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "steady_array_sum_native_median_s": r"array_sum\s+.*?oren_native: median=([0-9.]+)s",
+    "steady_array_sum_native_cov": r"array_sum\s+.*?oren_native: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "steady_dot_product_c_median_s": r"dot_product\s+.*?c: median=([0-9.]+)s",
+    "steady_dot_product_c_cov": r"dot_product\s+.*?c: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "steady_dot_product_native_median_s": r"dot_product\s+.*?oren_native: median=([0-9.]+)s",
+    "steady_dot_product_native_cov": r"dot_product\s+.*?oren_native: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "gate_array_sum_c_median_s": r"array_sum\s+.*?c: median=([0-9.]+)s",
+    "gate_array_sum_c_cov": r"array_sum\s+.*?c: median=[0-9.]+s cov=([0-9.]+)",
+    "gate_array_sum_native_median_s": r"array_sum\s+.*?oren_native: median=([0-9.]+)s",
+    "gate_array_sum_native_cov": r"array_sum\s+.*?oren_native: median=[0-9.]+s cov=([0-9.]+)",
+    "gate_dot_product_c_median_s": r"dot_product\s+.*?c: median=([0-9.]+)s",
+    "gate_dot_product_c_cov": r"dot_product\s+.*?c: median=[0-9.]+s cov=([0-9.]+)",
+    "gate_dot_product_native_median_s": r"dot_product\s+.*?oren_native: median=([0-9.]+)s",
+    "gate_dot_product_native_cov": r"dot_product\s+.*?oren_native: median=[0-9.]+s cov=([0-9.]+)",
+}
+
 def find_ratio(text, pattern):
     m = re.search(pattern, text, re.S)
     return None if m is None else m.group(1)
@@ -143,6 +162,14 @@ if run_test == "1" or os.path.exists(test_wrapper):
 print("")
 
 for key, pattern in ratio_patterns.items():
+    source_text = steady_text if key.startswith("steady_") else gate_text
+    if source_text is None:
+        continue
+    value = find_ratio(source_text, pattern)
+    if value is not None:
+        print(f"{key}: {value}")
+
+for key, pattern in timing_patterns.items():
     source_text = steady_text if key.startswith("steady_") else gate_text
     if source_text is None:
         continue

@@ -1020,23 +1020,29 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - The dot-only prefix-zero branch is correctness-clean again after the April 9 register-plan fix,
   so the right comparison is now default vs
   `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` on `OREN_ARM64_DOT_ACCEPT_PROGRAMS=dot_product`.
-  Current host rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
-  default `steady_dot_product ~2.9876x`, `gate_dot_product ~2.8425x`, disasm `70`; enabled
-  `steady_dot_product ~3.0230x`, `gate_dot_product ~2.6354x`, disasm `23`. That result is mixed:
-  the generic gate improves, but the preferred generic steady runner regresses slightly, so keep the
-  branch default-off.
+  The wrapper now also preserves raw native/C medians plus covariance from the underlying acceptance
+  bundles, because ratio-only A/Bs were too easy to misread when the C baseline drifted across
+  reruns. Current kept rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_014027_88043.log`):
+  default `steady_dot_product ~2.8260x`, native `0.083484s`, cov `0.0452`, gate native `0.013869s`,
+  cov `0.0163`, disasm `70`; enabled `~2.9272x`, native `0.080339s`, cov `0.0339`, gate native
+  `0.014837s`, cov `0.0145`, disasm `23`. The wrapper also prints the direct native deltas:
+  `steady_dot_product_native_median_delta_pct: -3.77%`, `gate_dot_product_native_median_delta_pct:
+  +6.98%`. So the generic surface is still mixed on the current host: the hot steady kernel gets a
+  little better, but the whole-operation gate gets worse, so keep the branch default-off.
 - To judge the same experiment on the explicit `list<int>` surface instead of the generic
   auto-specialized benchmark, use `make perf-probe-arm64-fast-dot-prefix-zero-list-int`. This keeps
   the shipped baseline on one side and compares it against
   `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` through the new
-  `make perf-probe-arm64-list-int-acceptance` bundle. Current host rerun
-  (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`): default
-  `steady_dot_product_int ~2.8374x`, `gate_dot_product_int ~2.4214x`, disasm `70`; enabled
-  `steady_dot_product_int ~2.6026x`, `gate_dot_product_int ~2.3097x`, disasm `23`. That means the
-  salvaged dot prefix-zero subpath is now a real win on explicit `list<int>` `dot_product_int`, but
-  it should still stay default-off until the generic whole-program acceptance disagreement is
-  understood. The newer specialization wrapper above shows the generic/explicit gap itself stays
-  small on the current host.
+  `make perf-probe-arm64-list-int-acceptance` bundle. Current kept rerun
+  (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_014050_89076.log`): default
+  `steady_dot_product_int ~3.0871x`, native `0.077758s`, cov `0.0475`, gate native `0.013945s`,
+  cov `0.0397`, disasm `70`; enabled `~2.9543x`, native `0.087468s`, cov `0.0873`, gate native
+  `0.015405s`, cov `0.0440`, disasm `23`. The raw native deltas are the decisive part:
+  `steady_dot_product_int_native_median_delta_pct: +12.49%`,
+  `gate_dot_product_int_native_median_delta_pct: +10.47%`. That overturns the older ratio-only
+  “explicit win” reading: the salvaged dot prefix-zero subpath is not promotable on the current host
+  and should stay default-off. The newer specialization wrapper above still shows the
+  generic/explicit gap itself stays small, so this is not a broad source-shape story anymore.
 - For the arm64 exact-path `madd` recheck, use
   `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
   the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial

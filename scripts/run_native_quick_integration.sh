@@ -144,15 +144,13 @@ case "$uname_s" in
 esac
 
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
-  # macOS: under full-suite load, both the base native-quick run and the
-  # OREN_GREEN_POLL_CACHE rerun can legitimately exceed the older watchdog
-  # even when the binary exits cleanly. Recent measured healthy base runs
-  # reached ~23s on this host, a 30s budget still false-red under the
-  # full `make test` path, and a later direct 60s full-suite retry still
-  # died in the stage1 world-lock smoke path while 120s completed cleanly,
-  # so keep that proven wider default to catch real hangs
-  # without killing healthy verification runs.
-  run_timeout_secs=120
+  # macOS: under full-suite load, the native quick-integration base run can
+  # now legitimately exceed the older 120s watchdog on this host. A fresh
+  # 2026-04-09 rerun false-reded at 120s (and again on the built-in 240s
+  # retry) while the same fixture completed cleanly with an explicit 360s
+  # base-run budget. Keep that wider default so healthy verification runs do
+  # not fail before the existing green-cache retry logic even starts.
+  run_timeout_secs=360
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   # macOS: under full-suite load, self-hosted native quick builds can transiently exceed
@@ -187,10 +185,12 @@ if [[ "$os_key" == "windows" ]]; then
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
   if [[ "$compiler_base" == *stage2* ]]; then
-    # Self-hosted stage2 still false-reds at 60s on this host during the base quick run and
-    # only clears on the built-in 120s retry, so keep the direct standalone default aligned
-    # with that proven healthy budget instead of the older 15s/30s/60s guardrails.
-    run_timeout_secs=120
+    # Stage2 used to need a separate bump from the older smaller watchdogs.
+    # The current shared macOS base-run default is already 360s, which is
+    # wider than the previously proven stage2 budget, so just keep the floor.
+    if [[ "$run_timeout_secs" -lt 360 ]]; then
+      run_timeout_secs=360
+    fi
   fi
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then

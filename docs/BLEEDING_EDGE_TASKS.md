@@ -1617,24 +1617,27 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      host (`build/logs/perf-probe-arm64-dot-acceptance-20260409_003014_84317.summary.log`:
 				      `steady_array_sum ~7.1203x C`, `gate_array_sum ~2.3250x C`). The arm64 dot prefix-zero
 				      subpath now mirrors the proven direct-slot register plan after validation, so
-				      `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` is smoke-clean again
-					      (`build/logs/perf-smoke-native-fast-loops-20260409_003456_90383.log`). Use
-					      `make perf-probe-arm64-fast-dot-prefix-zero` for the generic auto-specialized
-					      `dot_product` surface and `make perf-probe-arm64-fast-dot-prefix-zero-list-int` for the
-					      explicit `dot_product_int` surface. Current generic rerun
-					      (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
-					      default `steady_dot_product ~2.9876x C`, `gate_dot_product ~2.8425x C`, disasm `70`;
-					      enabled `steady_dot_product ~3.0230x C`, `gate_dot_product ~2.6354x C`, disasm `23`.
-					      Current explicit `list<int>` rerun
-					      (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`):
-					      default `steady_dot_product_int ~2.8374x C`, `gate_dot_product_int ~2.4214x C`,
-					      disasm `70`; enabled `steady_dot_product_int ~2.6026x C`,
-					      `gate_dot_product_int ~2.3097x C`, disasm `23`.
-					      Keep the family default-off for now: the get-sum leg still regresses, while the dot
-					      leg is now a real win on explicit `list<int>` but only a mixed result on generic
-					      auto-specialized `dot_product`. The new specialization wrapper shows that this does
-					      not look like a large hot-loop source-shape split on the current host; the remaining
-					      disagreement is narrower than that.
+					      `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` is smoke-clean again
+						      (`build/logs/perf-smoke-native-fast-loops-20260409_003456_90383.log`). Use
+						      `make perf-probe-arm64-fast-dot-prefix-zero` for the generic auto-specialized
+						      `dot_product` surface and `make perf-probe-arm64-fast-dot-prefix-zero-list-int` for the
+						      explicit `dot_product_int` surface. The wrappers now keep raw steady/gate native
+						      medians and covariance too, because ratio-only reruns were masking C-baseline drift.
+						      Current generic rerun
+						      (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_014027_88043.log`):
+						      default steady native `0.083484s`, gate native `0.013869s`, disasm `70`; enabled
+						      steady native `0.080339s`, gate native `0.014837s`, disasm `23`
+						      (`steady_dot_product_native_median_delta_pct: -3.77%`,
+						      `gate_dot_product_native_median_delta_pct: +6.98%`). Current explicit `list<int>`
+						      rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_014050_89076.log`):
+						      default steady native `0.077758s`, gate native `0.013945s`, disasm `70`; enabled
+						      steady native `0.087468s`, gate native `0.015405s`, disasm `23`
+						      (`steady_dot_product_int_native_median_delta_pct: +12.49%`,
+						      `gate_dot_product_int_native_median_delta_pct: +10.47%`).
+						      Keep the family default-off: the get-sum leg still regresses, the generic dot leg
+						      stays mixed, and the latest raw-median rerun overturns the older ratio-only
+						      “explicit win” reading. The specialization wrapper still says this is not a large
+						      generic-vs-explicit source-shape split.
 					    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
 						      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
 						      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`

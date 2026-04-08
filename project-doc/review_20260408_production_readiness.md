@@ -309,32 +309,47 @@ Prefix-zero containment follow-up:
   - It compares the shipped default against only
     `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` on
     `OREN_ARM64_DOT_ACCEPT_PROGRAMS=dot_product`.
-- Current dot-only rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
+- The generic and explicit prefix-zero wrappers now also keep raw steady/gate native medians and
+  covariance from the acceptance bundles, because ratio-only A/Bs were masking C-baseline drift.
+- Current dot-only rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_014027_88043.log`):
   - shipped default:
-    - `steady_dot_product ~2.9876x C`
-    - `gate_dot_product ~2.8425x C`
+    - `steady_dot_product ~2.8260x C`
+    - `steady_dot_product_native_median_s: 0.083484`
+    - `gate_dot_product ~2.3626x C`
+    - `gate_dot_product_native_median_s: 0.013869`
     - `disasm_dot_product_insns: 70`
   - enabled dot prefix-zero experiment:
-    - `steady_dot_product ~3.0230x C`
-    - `gate_dot_product ~2.6354x C`
+    - `steady_dot_product ~2.9272x C`
+    - `steady_dot_product_native_median_s: 0.080339`
+    - `gate_dot_product ~2.6579x C`
+    - `gate_dot_product_native_median_s: 0.014837`
     - `disasm_dot_product_insns: 23`
+  - direct native deltas:
+    - `steady_dot_product_native_median_delta_pct: -3.77%`
+    - `gate_dot_product_native_median_delta_pct: +6.98%`
 - There is now a matching explicit `list<int>` acceptance/probe surface:
   - `make perf-probe-arm64-list-int-acceptance`
   - `make perf-probe-arm64-fast-dot-prefix-zero-list-int`
-- Current explicit `list<int>` rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`):
+- Current explicit `list<int>` rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_014050_89076.log`):
   - shipped default:
-    - `steady_dot_product_int ~2.8374x C`
-    - `gate_dot_product_int ~2.4214x C`
+    - `steady_dot_product_int ~3.0871x C`
+    - `steady_dot_product_int_native_median_s: 0.077758`
+    - `gate_dot_product_int ~2.5017x C`
+    - `gate_dot_product_int_native_median_s: 0.013945`
     - `disasm_dot_product_int_insns: 70`
   - enabled dot prefix-zero experiment:
-    - `steady_dot_product_int ~2.6026x C`
-    - `gate_dot_product_int ~2.3097x C`
+    - `steady_dot_product_int ~2.9543x C`
+    - `steady_dot_product_int_native_median_s: 0.087468`
+    - `gate_dot_product_int ~2.6867x C`
+    - `gate_dot_product_int_native_median_s: 0.015405`
     - `disasm_dot_product_int_insns: 23`
+  - direct native deltas:
+    - `steady_dot_product_int_native_median_delta_pct: +12.49%`
+    - `gate_dot_product_int_native_median_delta_pct: +10.47%`
 - Corrected conclusion: keep both prefix-zero branches disabled by default for now. The get-sum leg
-  is still a clear negative result. The dot-only experiment no longer crashes, and it is now
-  measurably better on the explicit `list<int>` benchmark surface; however, the generic
-  auto-specialized `dot_product` surface is still mixed because its steady runner regresses slightly
-  even though its canonical gate improves.
+  is still a clear negative result. The dot-only experiment no longer crashes, but the latest
+  raw-median rerun no longer supports the older ratio-only “explicit win” reading: generic remains
+  mixed and explicit `dot_product_int` regresses on both steady and whole-operation native medians.
 - Follow-up specialization check (2026-04-09): I added
   `make perf-probe-arm64-fast-dot-prefix-zero-specialization` so the repo now has one artifact that
   compares generic auto-specialized `dot_product` against explicit `dot_product_int` on both the

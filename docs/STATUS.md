@@ -1629,20 +1629,25 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	       exact-binary debug rerun into one artifact, and
 	       `make perf-probe-arm64-fast-dot-prefix-zero-list-int` uses that bundle to judge the
 	       salvaged dot prefix-zero subpath on the shared `list<int>` benchmark surface.
-	     - Current generic-dot rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
-	       default `steady_dot_product ~2.9876x C`, `gate_dot_product ~2.8425x C`, disasm `70`;
-	       enabled `steady_dot_product ~3.0230x C`, `gate_dot_product ~2.6354x C`, disasm `23`.
-	     - Current explicit `list<int>` rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_004804_8889.log`):
-	       default `steady_dot_product_int ~2.8374x C`, `gate_dot_product_int ~2.4214x C`,
-	       disasm `70`; enabled `steady_dot_product_int ~2.6026x C`,
-	       `gate_dot_product_int ~2.3097x C`, disasm `23`.
-	     - Conclusion: keep both prefix-zero branches disabled by default for now. The get-sum leg is
-	       already a clear regression, and the dot leg is no longer a blanket loss: it improves the
-	       explicit `list<int>` benchmark on both steady and whole-operation cost, while the generic
-	       auto-specialized `dot_product` surface stays mixed (better gate, slightly worse steady).
-	       The newer specialization wrapper shows that this is not a large hot-loop source-shape split
-	       on the current host, so the next task is narrower: understand why the generic whole-program
-	       acceptance bundle still disagrees before shipping the dot path broadly.
+	     - The generic and explicit prefix-zero wrappers now preserve raw steady/gate native medians and
+	       covariance from the acceptance bundles, because ratio-only A/Bs were masking C-baseline drift.
+	     - Current generic-dot rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_014027_88043.log`):
+	       default `steady_dot_product ~2.8260x C`, native `0.083484s`, gate native `0.013869s`,
+	       disasm `70`; enabled `steady_dot_product ~2.9272x C`, native `0.080339s`,
+	       gate native `0.014837s`, disasm `23`. Direct native deltas:
+	       `steady_dot_product_native_median_delta_pct: -3.77%`,
+	       `gate_dot_product_native_median_delta_pct: +6.98%`.
+	     - Current explicit `list<int>` rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-list-int-20260409_014050_89076.log`):
+	       default `steady_dot_product_int ~3.0871x C`, native `0.077758s`, gate native `0.013945s`,
+	       disasm `70`; enabled `steady_dot_product_int ~2.9543x C`, native `0.087468s`,
+	       gate native `0.015405s`, disasm `23`. Direct native deltas:
+	       `steady_dot_product_int_native_median_delta_pct: +12.49%`,
+	       `gate_dot_product_int_native_median_delta_pct: +10.47%`.
+	     - Conclusion: keep both prefix-zero branches disabled by default. The get-sum leg remains a
+	       clear regression, the generic dot leg is still mixed, and the latest raw-median rerun
+	       overturns the older ratio-only “explicit win” reading on `dot_product_int`. The newer
+	       specialization wrapper still says the generic/explicit gap itself stays small, so the next
+	       arm64 work should move away from prefix-zero promotion and toward other dot-kernel paths.
 	   - Modest arm64 unique-list loop-body cleanup (2026-04-04):
 	     - kept `n` hot in a register for unique-list `fast_list_int_get_sum_while` and
 	       `fast_list_int_dot_while`, switched scalar unique-list cursor bumps from register-add to

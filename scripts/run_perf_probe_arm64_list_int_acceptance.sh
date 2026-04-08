@@ -151,6 +151,25 @@ ratio_patterns = {
     "gate_dot_product_int": r"dot_product_int\s+  result_json:.*?native/C median ratio=([0-9.]+x)",
 }
 
+timing_patterns = {
+    "steady_array_sum_int_c_median_s": r"array_sum_int\s+.*?c: median=([0-9.]+)s",
+    "steady_array_sum_int_c_cov": r"array_sum_int\s+.*?c: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "steady_array_sum_int_native_median_s": r"array_sum_int\s+.*?oren_native: median=([0-9.]+)s",
+    "steady_array_sum_int_native_cov": r"array_sum_int\s+.*?oren_native: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "steady_dot_product_int_c_median_s": r"dot_product_int\s+.*?c: median=([0-9.]+)s",
+    "steady_dot_product_int_c_cov": r"dot_product_int\s+.*?c: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "steady_dot_product_int_native_median_s": r"dot_product_int\s+.*?oren_native: median=([0-9.]+)s",
+    "steady_dot_product_int_native_cov": r"dot_product_int\s+.*?oren_native: median=[0-9.]+s per_rep≈[0-9.]+s cov=([0-9.]+)",
+    "gate_array_sum_int_c_median_s": r"array_sum_int\s+.*?result_json:.*?c: median=([0-9.]+)s",
+    "gate_array_sum_int_c_cov": r"array_sum_int\s+.*?result_json:.*?c: median=[0-9.]+s cov=([0-9.]+)",
+    "gate_array_sum_int_native_median_s": r"array_sum_int\s+.*?result_json:.*?oren_native: median=([0-9.]+)s",
+    "gate_array_sum_int_native_cov": r"array_sum_int\s+.*?result_json:.*?oren_native: median=[0-9.]+s cov=([0-9.]+)",
+    "gate_dot_product_int_c_median_s": r"dot_product_int\s+.*?result_json:.*?c: median=([0-9.]+)s",
+    "gate_dot_product_int_c_cov": r"dot_product_int\s+.*?result_json:.*?c: median=[0-9.]+s cov=([0-9.]+)",
+    "gate_dot_product_int_native_median_s": r"dot_product_int\s+.*?result_json:.*?oren_native: median=([0-9.]+)s",
+    "gate_dot_product_int_native_cov": r"dot_product_int\s+.*?result_json:.*?oren_native: median=[0-9.]+s cov=([0-9.]+)",
+}
+
 
 def find_ratio(text, pattern):
     m = re.search(pattern, text, re.S)
@@ -190,6 +209,14 @@ if run_test == "1" or os.path.exists(test_wrapper):
 print("")
 
 for key, pattern in ratio_patterns.items():
+    source_text = steady_text if key.startswith("steady_") else gate_text
+    if source_text is None:
+        continue
+    value = find_ratio(source_text, pattern)
+    if value is not None:
+        print(f"{key}: {value}")
+
+for key, pattern in timing_patterns.items():
     source_text = steady_text if key.startswith("steady_") else gate_text
     if source_text is None:
         continue
