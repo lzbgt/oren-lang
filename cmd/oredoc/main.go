@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -20,7 +21,7 @@ type metaFile struct {
 }
 
 type metaStruct struct {
-	Name  string      `json:"name"`
+	Name  string       `json:"name"`
 	Serde *serdeSchema `json:"serde,omitempty"`
 }
 
@@ -39,34 +40,48 @@ type serdeField struct {
 	Default interface{} `json:"default"`
 }
 
+func usage(prog string, errOut io.Writer) {
+	fmt.Fprintf(errOut, "Usage:\n")
+	fmt.Fprintf(errOut, "  %s openapi <meta.json> [-o out.json] [-title T] [-version V] [-format json]\n", prog)
+}
+
+func openAPIUsage(prog string, errOut io.Writer) {
+	fmt.Fprintf(errOut, "Usage: %s openapi <meta.json> [-o out.json] [-title T] [-version V] [-format json]\n", prog)
+}
+
+func runOredoc(prog string, args []string, out, errOut io.Writer) int {
+	if len(args) == 0 {
+		usage(prog, errOut)
+		return 2
+	}
+	switch args[0] {
+	case "-h", "--help", "help":
+		usage(prog, out)
+		return 0
+	case "openapi":
+		return runOpenAPI(prog, args[1:], out, errOut)
+	default:
+		fmt.Fprintf(errOut, "ERROR: unknown command: %s\n", args[0])
+		usage(prog, errOut)
+		return 2
+	}
+}
+
 func main() {
 	prog := "oredoc"
 	if len(os.Args) > 0 {
 		prog = os.Args[0]
 	}
-
-	if len(os.Args) < 2 {
-		usage(prog)
-		os.Exit(2)
-	}
-
-	switch os.Args[1] {
-	case "openapi":
-		runOpenAPI(prog, os.Args[2:])
-	default:
-		usage(prog)
-		os.Exit(2)
-	}
+	os.Exit(runOredoc(prog, os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func usage(prog string) {
-	fmt.Fprintf(os.Stderr, "Usage:\n")
-	fmt.Fprintf(os.Stderr, "  %s openapi <meta.json> [-o out.json] [-title T] [-version V] [-format json]\n", prog)
-}
-
-func runOpenAPI(prog string, args []string) {
+func runOpenAPI(prog string, args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("openapi", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
+	fs.SetOutput(errOut)
+	fs.Usage = func() {
+		openAPIUsage(prog, errOut)
+		fs.PrintDefaults()
+	}
 
 	var (
 		outPath = fs.String("o", "", "write output to file (default: stdout)")
@@ -95,48 +110,54 @@ func runOpenAPI(prog string, args []string) {
 	}
 
 	if err := fs.Parse(args2); err != nil {
-		os.Exit(2)
+		if err == flag.ErrHelp {
+			return 0
+		}
+		return 2
 	}
 	rest := fs.Args()
 	if metaPath == "" {
 		if len(rest) != 1 {
-			usage(prog)
-			os.Exit(2)
+			fmt.Fprintln(errOut, "ERROR: missing <meta.json>")
+			usage(prog, errOut)
+			return 2
 		}
 		metaPath = rest[0]
 	} else if len(rest) != 0 {
-		usage(prog)
-		os.Exit(2)
+		fmt.Fprintln(errOut, "ERROR: unexpected extra positional arguments")
+		usage(prog, errOut)
+		return 2
 	}
 
 	raw, err := os.ReadFile(metaPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: failed to read meta: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(errOut, "ERROR: failed to read meta: %v\n", err)
+		return 1
 	}
 
 	var mf metaFile
 	if err := json.Unmarshal(raw, &mf); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: invalid meta json: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(errOut, "ERROR: invalid meta json: %v\n", err)
+		return 1
 	}
 
 	doc := exportOpenAPI(&mf, *title, *version, *format)
-	out, err := json.MarshalIndent(doc, "", "  ")
+	docBytes, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: failed to encode openapi: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(errOut, "ERROR: failed to encode openapi: %v\n", err)
+		return 1
 	}
-	out = append(out, '\n')
+	docBytes = append(docBytes, '\n')
 
 	if *outPath == "" {
-		_, _ = os.Stdout.Write(out)
-		return
+		_, _ = out.Write(docBytes)
+		return 0
 	}
-	if err := os.WriteFile(*outPath, out, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: failed to write output: %v\n", err)
-		os.Exit(1)
+	if err := os.WriteFile(*outPath, docBytes, 0o644); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to write output: %v\n", err)
+		return 1
 	}
+	return 0
 }
 
 func exportOpenAPI(mf *metaFile, title, version, format string) map[string]interface{} {

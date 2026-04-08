@@ -33,93 +33,181 @@ const (
 	// The AVM uses this chain to verify that a developer/org key is delegated by the root.
 	certV1Prefix = "OREN_CERT\n1\n"
 	certV2Prefix = "OREN_CERT\n2\n"
-	certsPrefix = "OREN_CERTS\n1\n"
+	certsPrefix  = "OREN_CERTS\n1\n"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
+	prog := "orensign"
+	if len(os.Args) > 0 {
+		prog = os.Args[0]
 	}
-	switch os.Args[1] {
+	os.Exit(runOrensign(prog, os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func usage(prog string, errOut io.Writer) {
+	fmt.Fprintln(errOut, "Usage:")
+	fmt.Fprintf(errOut, "  %s keygen --out <dir>\n", prog)
+	fmt.Fprintf(errOut, "  %s issue-cert --issuer-sk <issuer_sk.bin> --subject-pk <subject_pk.bin> --out <cert.bin> [--can-issue] [--allow-domains <csv>] [--allow-domains-mask <u64>]\n", prog)
+	fmt.Fprintf(errOut, "  %s sign-obc --sk <path> --in <file.obc> [--cert <cert.bin> ...] [--out <signed.obc>]\n", prog)
+	fmt.Fprintf(errOut, "  %s verify-obc --pk <path> --in <file.obc>\n", prog)
+}
+
+func keygenUsage(prog string, errOut io.Writer) {
+	fmt.Fprintf(errOut, "Usage: %s keygen --out <dir>\n", prog)
+}
+
+func issueCertUsage(prog string, errOut io.Writer) {
+	fmt.Fprintf(errOut, "Usage: %s issue-cert --issuer-sk <issuer_sk.bin> --subject-pk <subject_pk.bin> --out <cert.bin> [--can-issue] [--allow-domains <csv>] [--allow-domains-mask <u64>]\n", prog)
+}
+
+func signOBCUsage(prog string, errOut io.Writer) {
+	fmt.Fprintf(errOut, "Usage: %s sign-obc --sk <path> --in <file.obc> [--cert <cert.bin> ...] [--out <signed.obc>]\n", prog)
+}
+
+func verifyOBCUsage(prog string, errOut io.Writer) {
+	fmt.Fprintf(errOut, "Usage: %s verify-obc --pk <path> --in <file.obc>\n", prog)
+}
+
+func runOrensign(prog string, args []string, out, errOut io.Writer) int {
+	if len(args) == 0 {
+		usage(prog, errOut)
+		return 2
+	}
+	switch args[0] {
+	case "-h", "--help", "help":
+		usage(prog, out)
+		return 0
 	case "keygen":
-		cmdKeygen(os.Args[2:])
+		return runKeygen(prog, args[1:], out, errOut)
 	case "issue-cert":
-		cmdIssueCert(os.Args[2:])
+		return runIssueCert(prog, args[1:], out, errOut)
 	case "sign-obc":
-		cmdSignOBC(os.Args[2:])
+		return runSignOBC(prog, args[1:], out, errOut)
 	case "verify-obc":
-		cmdVerifyOBC(os.Args[2:])
+		return runVerifyOBC(prog, args[1:], out, errOut)
 	default:
-		usage()
-		os.Exit(2)
+		fmt.Fprintf(errOut, "ERROR: unknown command: %s\n", args[0])
+		usage(prog, errOut)
+		return 2
 	}
 }
 
-func usage() {
-	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  orensign keygen --out <dir>")
-	fmt.Fprintln(os.Stderr, "  orensign issue-cert --issuer-sk <issuer_sk.bin> --subject-pk <subject_pk.bin> --out <cert.bin> [--can-issue] [--allow-domains <csv>] [--allow-domains-mask <u64>]")
-	fmt.Fprintln(os.Stderr, "  orensign sign-obc --sk <path> --in <file.obc> [--cert <cert.bin> ...] [--out <signed.obc>]")
-	fmt.Fprintln(os.Stderr, "  orensign verify-obc --pk <path> --in <file.obc>")
-}
-
-func must(err error) {
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR:", err)
-		os.Exit(1)
+func runKeygen(prog string, args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	fs.Usage = func() {
+		keygenUsage(prog, errOut)
+		fs.PrintDefaults()
 	}
-}
-
-func cmdKeygen(args []string) {
-	fs := flag.NewFlagSet("keygen", flag.ExitOnError)
 	outDir := fs.String("out", "", "output directory (created if missing)")
-	must(fs.Parse(args))
-	if *outDir == "" {
-		must(errors.New("missing --out"))
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
+		return 2
 	}
-	must(os.MkdirAll(*outDir, 0o700))
+	if *outDir == "" {
+		fmt.Fprintln(errOut, "ERROR: missing --out")
+		keygenUsage(prog, errOut)
+		return 2
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(errOut, "ERROR: unexpected extra positional arguments")
+		keygenUsage(prog, errOut)
+		return 2
+	}
+	if err := os.MkdirAll(*outDir, 0o700); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to create output directory: %v\n", err)
+		return 1
+	}
 
 	pk, sk, err := ed25519.GenerateKey(rand.Reader)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to generate ed25519 keypair: %v\n", err)
+		return 1
+	}
 
-	must(os.WriteFile(filepath.Join(*outDir, "root_ed25519_sk.bin"), sk, 0o600))
-	must(os.WriteFile(filepath.Join(*outDir, "root_ed25519_pk.bin"), pk, 0o644))
-	must(os.WriteFile(filepath.Join(*outDir, "root_ed25519_pk.hex"), []byte(hex.EncodeToString(pk)+"\n"), 0o644))
+	skFile := filepath.Join(*outDir, "root_ed25519_sk.bin")
+	pkFile := filepath.Join(*outDir, "root_ed25519_pk.bin")
+	pkHexFile := filepath.Join(*outDir, "root_ed25519_pk.hex")
+	keyIDFile := filepath.Join(*outDir, "root_ed25519_keyid.hex")
+	if err := os.WriteFile(skFile, sk, 0o600); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to write %s: %v\n", skFile, err)
+		return 1
+	}
+	if err := os.WriteFile(pkFile, pk, 0o644); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to write %s: %v\n", pkFile, err)
+		return 1
+	}
+	if err := os.WriteFile(pkHexFile, []byte(hex.EncodeToString(pk)+"\n"), 0o644); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to write %s: %v\n", pkHexFile, err)
+		return 1
+	}
 
 	keyID := sha256.Sum256(pk)
-	must(os.WriteFile(filepath.Join(*outDir, "root_ed25519_keyid.hex"), []byte(hex.EncodeToString(keyID[:8])+"\n"), 0o644))
-	fmt.Println("Wrote:")
-	fmt.Println(" ", filepath.Join(*outDir, "root_ed25519_sk.bin"))
-	fmt.Println(" ", filepath.Join(*outDir, "root_ed25519_pk.bin"))
+	if err := os.WriteFile(keyIDFile, []byte(hex.EncodeToString(keyID[:8])+"\n"), 0o644); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to write %s: %v\n", keyIDFile, err)
+		return 1
+	}
+	fmt.Fprintln(out, "Wrote:")
+	fmt.Fprintln(out, " ", skFile)
+	fmt.Fprintln(out, " ", pkFile)
+	return 0
 }
 
-func cmdSignOBC(args []string) {
-	fs := flag.NewFlagSet("sign-obc", flag.ExitOnError)
+func runSignOBC(prog string, args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("sign-obc", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	fs.Usage = func() {
+		signOBCUsage(prog, errOut)
+		fs.PrintDefaults()
+	}
 	skPath := fs.String("sk", "", "ed25519 private key (root_ed25519_sk.bin)")
 	inPath := fs.String("in", "", "input .obc")
 	outPath := fs.String("out", "", "output signed .obc (default: overwrite input)")
 	var certPaths stringSliceFlag
 	fs.Var(&certPaths, "cert", "optional certificate to embed (repeatable, leaf-first)")
-	must(fs.Parse(args))
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
+		return 2
+	}
 	if *skPath == "" || *inPath == "" {
-		must(errors.New("missing --sk or --in"))
+		fmt.Fprintln(errOut, "ERROR: missing --sk or --in")
+		signOBCUsage(prog, errOut)
+		return 2
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(errOut, "ERROR: unexpected extra positional arguments")
+		signOBCUsage(prog, errOut)
+		return 2
 	}
 	if *outPath == "" {
 		*outPath = *inPath
 	}
 	sk, err := os.ReadFile(*skPath)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to read private key: %v\n", err)
+		return 1
+	}
 	if l := len(sk); l != ed25519.PrivateKeySize {
-		must(fmt.Errorf("bad ed25519 private key length: got %d want %d", l, ed25519.PrivateKeySize))
+		fmt.Fprintf(errOut, "ERROR: bad ed25519 private key length: got %d want %d\n", l, ed25519.PrivateKeySize)
+		return 1
 	}
 	pk := ed25519.PrivateKey(sk).Public().(ed25519.PublicKey)
 
 	raw, err := os.ReadFile(*inPath)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to read input obc: %v\n", err)
+		return 1
+	}
 
 	canon, err := obcCanonicalNoSig(raw)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: invalid obc for signing: %v\n", err)
+		return 1
+	}
 	h := sha256.Sum256(canon)
 
 	sig := ed25519.Sign(ed25519.PrivateKey(sk), h[:])
@@ -130,76 +218,147 @@ func cmdSignOBC(args []string) {
 		certs := make([][]byte, 0, len(certPaths))
 		for _, p := range certPaths {
 			certBytes, err := os.ReadFile(p)
-			must(err)
+			if err != nil {
+				fmt.Fprintf(errOut, "ERROR: failed to read cert %s: %v\n", p, err)
+				return 1
+			}
 			certs = append(certs, certBytes)
 		}
 		certsPayload = buildCertsPayload(certs)
 	}
 
 	signed, err := obcWithSigAndCerts(raw, payload, certsPayload)
-	must(err)
-	must(os.WriteFile(*outPath, signed, 0o644))
-	fmt.Println("Signed:", *outPath)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to attach signature: %v\n", err)
+		return 1
+	}
+	if err := os.WriteFile(*outPath, signed, 0o644); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to write signed obc: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(out, "Signed:", *outPath)
+	return 0
 }
 
-func cmdVerifyOBC(args []string) {
-	fs := flag.NewFlagSet("verify-obc", flag.ExitOnError)
+func runVerifyOBC(prog string, args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("verify-obc", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	fs.Usage = func() {
+		verifyOBCUsage(prog, errOut)
+		fs.PrintDefaults()
+	}
 	pkPath := fs.String("pk", "", "ed25519 public key (root_ed25519_pk.bin)")
 	inPath := fs.String("in", "", "input .obc")
-	must(fs.Parse(args))
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
+		return 2
+	}
 	if *pkPath == "" || *inPath == "" {
-		must(errors.New("missing --pk or --in"))
+		fmt.Fprintln(errOut, "ERROR: missing --pk or --in")
+		verifyOBCUsage(prog, errOut)
+		return 2
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(errOut, "ERROR: unexpected extra positional arguments")
+		verifyOBCUsage(prog, errOut)
+		return 2
 	}
 	pk, err := os.ReadFile(*pkPath)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to read public key: %v\n", err)
+		return 1
+	}
 	if l := len(pk); l != ed25519.PublicKeySize {
-		must(fmt.Errorf("bad ed25519 public key length: got %d want %d", l, ed25519.PublicKeySize))
+		fmt.Fprintf(errOut, "ERROR: bad ed25519 public key length: got %d want %d\n", l, ed25519.PublicKeySize)
+		return 1
 	}
 
 	raw, err := os.ReadFile(*inPath)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to read input obc: %v\n", err)
+		return 1
+	}
 	payload, err := obcExtractSigPayload(raw)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: invalid obc: %v\n", err)
+		return 1
+	}
 	if payload == nil {
-		must(errors.New("missing OREN_SIG payload"))
+		fmt.Fprintln(errOut, "ERROR: missing OREN_SIG payload")
+		return 1
 	}
 	keyID, sig, err := parseSigPayload(payload)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: invalid OREN_SIG payload: %v\n", err)
+		return 1
+	}
 	_ = keyID // reserved for multi-key trust sets
 
 	canon, err := obcCanonicalNoSig(raw)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: invalid obc for verification: %v\n", err)
+		return 1
+	}
 	h := sha256.Sum256(canon)
 
 	if !ed25519.Verify(ed25519.PublicKey(pk), h[:], sig) {
-		must(errors.New("signature verification failed"))
+		fmt.Fprintln(errOut, "ERROR: signature verification failed")
+		return 1
 	}
-	fmt.Println("OK")
+	fmt.Fprintln(out, "OK")
+	return 0
 }
 
-func cmdIssueCert(args []string) {
-	fs := flag.NewFlagSet("issue-cert", flag.ExitOnError)
+func runIssueCert(prog string, args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("issue-cert", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	fs.Usage = func() {
+		issueCertUsage(prog, errOut)
+		fs.PrintDefaults()
+	}
 	issuerSKPath := fs.String("issuer-sk", "", "issuer ed25519 private key (root/org)")
 	subjectPKPath := fs.String("subject-pk", "", "subject ed25519 public key (org/dev)")
 	outPath := fs.String("out", "", "output cert file (raw bytes)")
 	canIssue := fs.Bool("can-issue", false, "allow subject to issue derived certs")
 	allowDomains := fs.String("allow-domains", "", "optional CSV allowlist of AVM native domains (CORE,FS,TIME,RNG,NET,PROC,EXIT,ENV,AVM,ALL); empty means inherit")
 	allowDomainsMask := fs.String("allow-domains-mask", "", "optional u64 mask allowlist (hex 0x... or decimal); 0 means inherit")
-	must(fs.Parse(args))
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
+		return 2
+	}
 	if *issuerSKPath == "" || *subjectPKPath == "" || *outPath == "" {
-		must(errors.New("missing --issuer-sk, --subject-pk, or --out"))
+		fmt.Fprintln(errOut, "ERROR: missing --issuer-sk, --subject-pk, or --out")
+		issueCertUsage(prog, errOut)
+		return 2
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(errOut, "ERROR: unexpected extra positional arguments")
+		issueCertUsage(prog, errOut)
+		return 2
 	}
 	issuerSK, err := os.ReadFile(*issuerSKPath)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to read issuer private key: %v\n", err)
+		return 1
+	}
 	if len(issuerSK) != ed25519.PrivateKeySize {
-		must(fmt.Errorf("bad issuer sk length: got %d want %d", len(issuerSK), ed25519.PrivateKeySize))
+		fmt.Fprintf(errOut, "ERROR: bad issuer sk length: got %d want %d\n", len(issuerSK), ed25519.PrivateKeySize)
+		return 1
 	}
 	issuerPK := ed25519.PrivateKey(issuerSK).Public().(ed25519.PublicKey)
 
 	subjectPK, err := os.ReadFile(*subjectPKPath)
-	must(err)
+	if err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to read subject public key: %v\n", err)
+		return 1
+	}
 	if len(subjectPK) != ed25519.PublicKeySize {
-		must(fmt.Errorf("bad subject pk length: got %d want %d", len(subjectPK), ed25519.PublicKeySize))
+		fmt.Fprintf(errOut, "ERROR: bad subject pk length: got %d want %d\n", len(subjectPK), ed25519.PublicKeySize)
+		return 1
 	}
 
 	flags := byte(0)
@@ -208,16 +367,24 @@ func cmdIssueCert(args []string) {
 	}
 
 	if *allowDomains != "" && *allowDomainsMask != "" {
-		must(errors.New("cannot use both --allow-domains and --allow-domains-mask"))
+		fmt.Fprintln(errOut, "ERROR: cannot use both --allow-domains and --allow-domains-mask")
+		issueCertUsage(prog, errOut)
+		return 2
 	}
 	var allowMask uint64 = 0
 	if *allowDomains != "" {
 		m, err := parseAllowDomainsCSV(*allowDomains)
-		must(err)
+		if err != nil {
+			fmt.Fprintf(errOut, "ERROR: invalid --allow-domains value: %v\n", err)
+			return 2
+		}
 		allowMask = m
 	} else if *allowDomainsMask != "" {
 		m, err := parseU64(*allowDomainsMask)
-		must(err)
+		if err != nil {
+			fmt.Fprintf(errOut, "ERROR: invalid --allow-domains-mask value: %v\n", err)
+			return 2
+		}
 		allowMask = m
 	}
 
@@ -227,8 +394,12 @@ func cmdIssueCert(args []string) {
 	sig := ed25519.Sign(ed25519.PrivateKey(issuerSK), bodyHash[:])
 	cert := append(bodyNoSig, sig...)
 
-	must(os.WriteFile(*outPath, cert, 0o644))
-	fmt.Println("Wrote cert:", *outPath)
+	if err := os.WriteFile(*outPath, cert, 0o644); err != nil {
+		fmt.Fprintf(errOut, "ERROR: failed to write cert: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(out, "Wrote cert:", *outPath)
+	return 0
 }
 
 func buildCertV2BodyNoSig(flags byte, issuerPK ed25519.PublicKey, subjectPK []byte, allowDomainsMask uint64) []byte {
