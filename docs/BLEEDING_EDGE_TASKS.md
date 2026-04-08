@@ -2283,6 +2283,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (`build/logs/make_test_retry_summary_20260409.log`).
     Treat this stage1 green-cache/local-ptr issue as intermittent but still active enough to keep
     the no-retry reproducer in the repo.
+  - New + verify (2026-04-09): added a focused local-ptr stress fixture
+    `tests/native/test_quick_integration_green_local_ptr_focus.oren` plus strict wrappers
+    `scripts/triage_native_quick_green_local_ptr_flake.sh`,
+    `make verify-native-quick-green-local-ptr-guarded`, and
+    `make test-native-quick-green-local-ptr-flake`. This keeps the same late-green prelude through
+    `test_green_global_runq_fairness()` but loops only the allocator-integrity + local-ptr region
+    with `OREN_QI_STRESS_ITERS` / `OREN_QI_LOCAL_PTR_MODE` knobs and default
+    `OREN_TRACE_LIST_GET_BAD=1` + runq/entry guards. `make verify-runtime-robustness` now bundles
+    the focused surface through `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`, so the remaining
+    stage1 green-cache/local-ptr suspicion no longer depends on the full quick-integration fixture
+    for coverage.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

@@ -184,6 +184,10 @@ Facts from current verification:
 - the important remaining gap was not a currently reproduced crash, but that the main
   W5 runtime robustness verifier did **not** include the guarded pre-world-lock
   green-cache path that the tracker still called out
+- the current remaining stage1 runtime suspicion is narrower than the broad quick harness:
+  the intermittent green-cache `Indexing on non-container` retry has been tied to the
+  `worker_green_local_ptr_survives_yields` region, so a focused reproducer is more useful than
+  repeatedly rerunning the entire quick-integration fixture
 - the first attempt to add that path exposed two verifier-side false-reds instead of a
   runtime crash:
   - `scripts/triage_stage2_quick_until_world_lock.sh` logged failed builds as `rc=0`
@@ -205,10 +209,26 @@ Fix in this pass:
   stage2 debug build headroom already proven by `test-native-quick-stage2`
 - `make verify-runtime-robustness` now forwards dedicated env knobs for:
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS`
+  - `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS`
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS`
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS`
   - `OREN_RUNTIME_ROBUSTNESS_STAGE2_BUILD_TIMEOUT_SECS`
+
+Additional runtime-robustness follow-up on 2026-04-09:
+
+- added `tests/native/test_quick_integration_green_local_ptr_focus.oren`, which preserves the
+  late-green prelude through `test_green_global_runq_fairness()` and then loops only
+  `test_green_ctx_switch_alloc_integrity`, `test_green_local_ptr_survives_yields`,
+  `test_green_workers_ctx_switch_alloc_integrity`, and
+  `test_green_workers_local_ptr_survives_yields`
+- added `scripts/triage_native_quick_green_local_ptr_flake.sh` plus the operator targets
+  `make verify-native-quick-green-local-ptr-guarded` and
+  `make test-native-quick-green-local-ptr-flake`
+- the focused wrapper keeps strict no-retry semantics and enables `OREN_TRACE_LIST_GET_BAD=1`
+  along with the existing runq / entry-args guards by default
+- `scripts/verify_runtime_robustness_w5.sh` now includes this focused stage1 guard surface by
+  default via `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`
 
 Verification for this follow-up:
 

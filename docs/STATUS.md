@@ -3593,6 +3593,17 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      (`build/logs/make_test_retry_summary_20260409.log`).
      Treat the stage1 green-cache/local-ptr issue as intermittent but still active enough to keep
      the no-retry reproducer in the repo.
+   - New + verify (2026-04-09): the repo now has a focused green-cache/local-ptr reproducer at
+     `make verify-native-quick-green-local-ptr-guarded` /
+     `make test-native-quick-green-local-ptr-flake`. The new fixture
+     `tests/native/test_quick_integration_green_local_ptr_focus.oren` reuses the late-green
+     prelude through `test_green_global_runq_fairness()`, then loops only the allocator-integrity +
+     `worker_green_local_ptr_survives_yields` region with `OREN_QI_STRESS_ITERS` and
+     `OREN_QI_LOCAL_PTR_MODE` knobs. The strict wrapper keeps the current no-retry semantics
+     (`OREN_QI_FAIL_ON_RETRY=1`, `OREN_QI_GREEN_CACHE_RETRIES=0`) and adds `OREN_TRACE_LIST_GET_BAD=1`
+     plus the runq/entry-args guards by default, so the remaining local-ptr suspicion can be
+     chased without the noise of the full quick-integration fixture. `make verify-runtime-robustness`
+     now includes this focused stage1 guard surface via `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`

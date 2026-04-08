@@ -17,6 +17,7 @@ if [[ ! -x "$compiler" ]]; then
 fi
 
 base_runs="${OREN_RUNTIME_ROBUSTNESS_BASE_RUNS:-1}"
+local_ptr_runs="${OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS:-1}"
 preworld_runs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS:-1}"
 stage2_runs="${OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS:-1}"
 c_runs="${OREN_RUNTIME_ROBUSTNESS_C_RUNS:-$runs}"
@@ -46,6 +47,7 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "ts=$ts"
   echo "runs=$runs"
   echo "base_runs=$base_runs"
+  echo "local_ptr_runs=$local_ptr_runs"
   echo "preworld_runs=$preworld_runs"
   echo "stage2_runs=$stage2_runs"
   echo "c_runs=$c_runs"
@@ -66,6 +68,13 @@ IFS=',' read -r -a fixture_arr <<< "$fixtures"
 if [[ "$base_runs" =~ ^[0-9]+$ ]] && [[ "$base_runs" -gt 0 ]]; then
   echo "== stage1/base quick integration (runs=$base_runs) ==" | tee -a "$log"
   ./scripts/triage_native_quick_base_flake.sh "$base_runs" "$compiler" \
+    "${trace_env_arr[@]}" "$@" \
+    >>"$log" 2>&1
+fi
+
+if [[ "$local_ptr_runs" =~ ^[0-9]+$ ]] && [[ "$local_ptr_runs" -gt 0 ]]; then
+  echo "== stage1/green-cache local-ptr focus (runs=$local_ptr_runs) ==" | tee -a "$log"
+  ./scripts/triage_native_quick_green_local_ptr_flake.sh "$local_ptr_runs" "$compiler" \
     "${trace_env_arr[@]}" "$@" \
     >>"$log" 2>&1
 fi

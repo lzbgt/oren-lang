@@ -1,0 +1,70 @@
+// Focused native quick-integration slice for the intermittent green-cache local-ptr flake.
+//
+// Keep only the immediate late-green prelude around global-runq fairness, then loop just the
+// allocator-integrity + local-ptr tests that currently bracket the
+// `worker_green_local_ptr_survives_yields` panic site in the full quick-integration fixture.
+//
+// @include "qi/000_prelude.oren"
+// @include "qi/100_tests_basic.oren"
+// @include "qi/200_tests_wait_gc.oren"
+// @include "qi/300_tests_green.oren"
+
+fn _qi_local_ptr_focus_iters() {
+    var v = oren_env("OREN_QI_STRESS_ITERS")
+    if v == nil || v == "" { return 4 }
+    var n = oren_int_from_string(v)
+    if n <= 0 { return 4 }
+    if n > 1000 { return 1000 }
+    return n
+}
+
+fn _qi_local_ptr_focus_mode() {
+    var v = oren_env("OREN_QI_LOCAL_PTR_MODE")
+    if v == nil || v == "" { return "both" }
+    if strcmp(v, "plain") == 0 { return "plain" }
+    if strcmp(v, "workers") == 0 { return "workers" }
+    return "both"
+}
+
+fn _qi_local_ptr_focus_step(msg) {
+    trace("QI: green local ptr focus " + msg)
+}
+
+fn _qi_local_ptr_focus_prelude() {
+    _qi_local_ptr_focus_step("prelude test_green_topology_rejects_after_workers")
+    test_green_topology_rejects_after_workers()
+    _qi_local_ptr_focus_step("prelude test_green_global_runq_fairness")
+    test_green_global_runq_fairness()
+}
+
+fn main() {
+    if oren_getenv("OREN_QI_TRACE") != 0 { g_qi_trace_on = 1 }
+
+    _qi_local_ptr_focus_prelude()
+
+    var iters = _qi_local_ptr_focus_iters()
+    var mode = _qi_local_ptr_focus_mode()
+    var i = 0
+    while i < iters {
+        var iter_s = oren_int_to_string(i + 1) + "/" + oren_int_to_string(iters)
+        if strcmp(mode, "workers") != 0 {
+            _qi_local_ptr_focus_step("iter=" + iter_s + " before test_green_ctx_switch_alloc_integrity")
+            test_green_ctx_switch_alloc_integrity()
+            _qi_local_ptr_focus_step("iter=" + iter_s + " before test_green_local_ptr_survives_yields")
+            test_green_local_ptr_survives_yields()
+        }
+        if strcmp(mode, "plain") != 0 {
+            _qi_local_ptr_focus_step("iter=" + iter_s + " before test_green_workers_ctx_switch_alloc_integrity")
+            test_green_workers_ctx_switch_alloc_integrity()
+            _qi_local_ptr_focus_step("iter=" + iter_s + " before test_green_workers_local_ptr_survives_yields")
+            test_green_workers_local_ptr_survives_yields()
+        }
+        _qi_local_ptr_focus_step("iter=" + iter_s + " done mode=" + mode)
+        i = i + 1
+    }
+
+    print("ok: qi green local ptr focus")
+    exit(0)
+}
+
+main()
