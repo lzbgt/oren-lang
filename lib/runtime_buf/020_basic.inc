@@ -11,6 +11,96 @@ OrenValue oren_f64_buf_new_uninit(OrenValue len) { return oren_f64_buf_new(len);
 OrenValue oren_u8_buf_new(OrenValue len) { return buf_new(1u, len, OREN_TYPE_U8_BUF); }
 OrenValue oren_u8_buf_new_uninit(OrenValue len) { return oren_u8_buf_new(len); }
 
+enum {
+    BUF_I32_PACK_OK = 0,
+    BUF_I32_PACK_NOT_INT = 1,
+    BUF_I32_PACK_RANGE = 2,
+};
+
+static void store_u32_le(uint8_t* p, uint32_t u);
+
+static int buf_i32_pack_extract(OrenValue v, int assume_int, int32_t* out) {
+    if (!assume_int && v.type != OREN_TYPE_INT) return BUF_I32_PACK_NOT_INT;
+    long long iv = v.as.int_val;
+    if (iv < (long long)INT32_MIN || iv > (long long)INT32_MAX) return BUF_I32_PACK_RANGE;
+    *out = (int32_t)iv;
+    return BUF_I32_PACK_OK;
+}
+
+static OrenValue buf_i32_pack_fill_from_values(OrenValue out, const OrenValue* items, int count, const char* ctx, int assume_int) {
+    OrenBuf* b = out.as.buf_val;
+    if (!b) return buf_err("buffer.i32_pack_list_int: alloc failed");
+    if (count > 0 && !b->data) return buf_err("buffer.i32_pack_list_int: alloc failed");
+    for (int i = 0; i < count; i++) {
+        int32_t lane = 0;
+        int rc = buf_i32_pack_extract(items[i], assume_int, &lane);
+        if (rc == BUF_I32_PACK_NOT_INT) return buf_err(rc == BUF_I32_PACK_NOT_INT ? "buffer.i32_pack_list_int: value not int" : "buffer.i32_pack_list_int: value out of i32 range");
+        if (rc == BUF_I32_PACK_RANGE) return buf_err("buffer.i32_pack_list_int: value out of i32 range");
+        store_u32_le(buf_data(b) + (uint32_t)i * 4u, (uint32_t)lane);
+    }
+    return out;
+}
+
+static OrenValue buf_i32_pack_fill_from_values_into(OrenValue out, const OrenValue* items, int count, const char* ctx, int assume_int) {
+    OrenBuf* b = out.as.buf_val;
+    if (!b) return buf_err("buffer.i32_pack_list_int_into: expects []i32");
+    if (count > 0 && !b->data) return buf_err("buffer.i32_pack_list_int_into: expects []i32");
+    for (int i = 0; i < count; i++) {
+        int32_t lane = 0;
+        int rc = buf_i32_pack_extract(items[i], assume_int, &lane);
+        if (rc == BUF_I32_PACK_NOT_INT) return buf_err("buffer.i32_pack_list_int_into: value not int");
+        if (rc == BUF_I32_PACK_RANGE) return buf_err("buffer.i32_pack_list_int_into: value out of i32 range");
+        store_u32_le(buf_data(b) + (uint32_t)i * 4u, (uint32_t)lane);
+    }
+    return out;
+}
+
+static OrenValue buf_i32_pack_fill_from_list_slow(OrenValue out, OrenValue xs, const char* ctx) {
+    OrenBuf* b = out.as.buf_val;
+    if (!b) return buf_err("buffer.i32_pack_list_int: alloc failed");
+    OrenValue nv = oren_list_int_len(xs);
+    if (nv.type != OREN_TYPE_INT) return buf_err(ctx);
+    int count = (int)nv.as.int_val;
+    if (count > 0 && !b->data) return buf_err(ctx);
+    for (int i = 0; i < count; i++) {
+        OrenValue vv = oren_list_int_get(xs, oren_int((long long)i));
+        int32_t lane = 0;
+        int rc = buf_i32_pack_extract(vv, 0, &lane);
+        if (rc == BUF_I32_PACK_NOT_INT) return buf_err(strcmp(ctx, "buffer.i32_pack_list_int") == 0 ? "buffer.i32_pack_list_int: value not int" : "buffer.i32_pack_list_int_into: value not int");
+        if (rc == BUF_I32_PACK_RANGE) return buf_err(strcmp(ctx, "buffer.i32_pack_list_int") == 0 ? "buffer.i32_pack_list_int: value out of i32 range" : "buffer.i32_pack_list_int_into: value out of i32 range");
+        store_u32_le(buf_data(b) + (uint32_t)i * 4u, (uint32_t)lane);
+    }
+    return out;
+}
+
+OrenValue oren_i32_buf_pack_list_int(OrenValue xs) {
+    if (xs.type != OREN_TYPE_LIST) return buf_err("buffer.i32_pack_list_int: expects list<int>");
+    OrenList* list = xs.as.list_val;
+    int count = list ? list->count : 0;
+    OrenValue out = oren_i32_buf_new_uninit(oren_int((long long)count));
+    if (oren_is_err(out).as.bool_val) return out;
+    if (!list || count == 0) return out;
+    if (!oren_list_locking_needed()) {
+        return buf_i32_pack_fill_from_values(out, list->items, count, "buffer.i32_pack_list_int", list->all_int != 0);
+    }
+    return buf_i32_pack_fill_from_list_slow(out, xs, "buffer.i32_pack_list_int");
+}
+
+OrenValue oren_i32_buf_pack_list_int_into(OrenValue out, OrenValue xs) {
+    if (!buf_is_i32(out)) return buf_err("buffer.i32_pack_list_int_into: expects []i32");
+    if (xs.type != OREN_TYPE_LIST) return buf_err("buffer.i32_pack_list_int_into: expects list<int>");
+    OrenBuf* b = out.as.buf_val;
+    OrenList* list = xs.as.list_val;
+    int count = list ? list->count : 0;
+    if (!b) return buf_err("buffer.i32_pack_list_int_into: expects []i32");
+    if ((int)b->len != count) return buf_err("buffer.i32_pack_list_int_into: length mismatch");
+    if (!list || count == 0) return out;
+    if (!oren_list_locking_needed()) {
+        return buf_i32_pack_fill_from_values_into(out, list->items, count, "buffer.i32_pack_list_int_into", list->all_int != 0);
+    }
+    return buf_i32_pack_fill_from_list_slow(out, xs, "buffer.i32_pack_list_int_into");
+}
+
 OrenValue oren_buf_len(OrenValue buf) {
     if (buf.type != OREN_TYPE_U8_BUF && buf.type != OREN_TYPE_I32_BUF && buf.type != OREN_TYPE_I64_BUF && buf.type != OREN_TYPE_F32_BUF && buf.type != OREN_TYPE_F64_BUF) {
         return buf_err("buf_len expects (buf)");

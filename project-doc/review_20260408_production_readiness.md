@@ -322,6 +322,56 @@ Prefix-zero containment follow-up:
   - `make test`
     - log: `build/logs/make_test_prefix_zero_containment_20260408.log`
 
+Shared `list<int> -> []i32` bridge follow-up:
+
+- I then moved off the speculative arm64 loop-body edits and attacked the adjacent bridge that the
+  tracker still had marked as a W5 blocker.
+- Root cause on current `master`: shared `buffer.i32_pack_list_int(...)` was still building a fresh
+  `[]i32` through an Oren-level element loop in `std:buffer`, so the explicit packed-bridge path
+  paid per-element shared-language dispatch/check/store cost before it even reached the packed dot
+  kernel.
+- Fix in this pass:
+  - added dedicated runtime helpers across all three backends:
+    - native: `oren_i32_buf_pack_list_int(...)` / `_into(...)`
+    - C runtime: same bridge surface with a fast raw-slot path when list locking is not needed
+    - AVM: matching native ids + dispatch cases
+  - rewired shared `buffer.i32_pack_list_int(...)` / `_into(...)` onto those helpers
+  - tightened the native implementation again after the first correctness pass so the hot loop uses
+    cursor increments plus direct little-endian byte stores instead of calling
+    `oren_ptr_set_i32_le(...)` for every lane
+  - added `_into` regression coverage on all three execution surfaces:
+    - `tests/modules/test_linalg.oren`
+    - `tests/native/qi/100_tests_basic.oren`
+    - `tests/avm/test_std_buffer_views_portable.oren`
+
+Measured result:
+
+- `make perf-probe-list-int-dot-ceiling`
+  - first runtime-backed rerun: `build/logs/perf-probe-list-int-dot-ceiling-20260408_231259_80069.log`
+  - tightened native-loop rerun: `build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`
+  - latest ranking on the tightened rerun:
+    - canonical `dot_product_int`: `~1.2169x C`
+    - direct-slot helper `dot_product_int_slot_direct`: `~1.1182x C`
+    - packed bridge SIMD `dot_product_int_packed_bridge`: `~4.9387x C`
+    - packed bridge scalar `dot_product_int_packed_bridge`: `~17.0948x C`
+- `make perf-probe-list-int-packed-bridge-read-split`
+  - first runtime-backed rerun: `build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_231504_82827.log`
+  - tightened native-loop rerun: `build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`
+  - latest attribution on the tightened rerun:
+    - canonical `dot_product_int`: `~1.3778x C` long-per-rep
+    - packed bridge scalar `dot_product_int_packed_bridge`: `~13.5584x C` long-per-rep
+    - packed bridge SIMD `dot_product_int_packed_bridge`: `~4.1480x C` long-per-rep
+    - packed-SIMD repeated-work delta: `~0.4993x C`
+
+Conclusion:
+
+- the shared runtime-backed bridge is a real improvement; it cut the packed-SIMD path from the old
+  hundreds-of-times-C regime down to single-digit multiples of C on the same fast-profile probe
+- the repeated packed-SIMD kernel is no longer the main blocker
+- the remaining blocker is one-shot bridge setup/materialization cost before the kernel runs
+- the next high-leverage parity move is therefore not more packed dot-kernel tuning; it is
+  eliminating, hoisting, caching, or otherwise reusing the `list<int> -> []i32` export work
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`

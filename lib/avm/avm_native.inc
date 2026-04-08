@@ -41,6 +41,14 @@ static const char* avm_oren_type_name_from_tag(int64_t tag) {
     }
 }
 
+static int avm_i32_pack_extract(AvmValue v, int assume_int, int32_t* out) {
+    if (!assume_int && v.type != AVM_VAL_INT) return 1;
+    int64_t iv = v.as.i;
+    if (iv < (int64_t)INT32_MIN || iv > (int64_t)INT32_MAX) return 2;
+    *out = (int32_t)iv;
+    return 0;
+}
+
 AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
     AvmValue res; res.type = AVM_VAL_NIL;
     switch(id) {
@@ -1823,6 +1831,119 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 res.as.buf = b;
             } else {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_i32_buf_new expects (int)");
+            }
+            break;
+        }
+        case 152: { // oren_i32_buf_pack_list_int(xs:list<int>) -> i32_buf
+            if (nargs > 0 && (args[0].type == AVM_VAL_LIST || args[0].type == AVM_VAL_LIST_INT)) {
+                int count = 0;
+                int assume_int = 0;
+                if (args[0].type == AVM_VAL_LIST) {
+                    if (!args[0].as.l) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int: expects list<int>"); break; }
+                    count = args[0].as.l->count;
+                    assume_int = args[0].as.l->all_int != 0;
+                } else {
+                    if (!args[0].as.li) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int: expects list<int>"); break; }
+                    count = args[0].as.li->count;
+                    assume_int = 1;
+                }
+                AvmBuf* b = (AvmBuf*)avm_heap_malloc_k(sizeof(AvmBuf), AVM_ALLOC_KIND_BUF);
+                if (!b) { res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                b->len = (uint32_t)count;
+                b->elem_size = 4u;
+                b->data = NULL;
+                uint64_t bytes_len = (uint64_t)b->len * 4ull;
+                if (bytes_len > 0) {
+                    b->data = (uint8_t*)avm_heap_malloc_k((size_t)bytes_len, AVM_ALLOC_KIND_RAW);
+                    if (!b->data) { avm_heap_free(b); res = avm_alloc_fail_value(); avm_abort(vm, res); break; }
+                    memset(b->data, 0, (size_t)bytes_len);
+                }
+                AvmValue outv;
+                outv.type = AVM_VAL_I32_BUF;
+                outv.as.buf = b;
+                if (args[0].type == AVM_VAL_LIST_INT) {
+                    for (int i = 0; i < count; i++) {
+                        int64_t v = args[0].as.li->items[i];
+                        if (v < (int64_t)INT32_MIN || v > (int64_t)INT32_MAX) {
+                            res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int: value out of i32 range");
+                            break;
+                        }
+                        uint32_t u = (uint32_t)(int32_t)v;
+                        uint32_t off = (uint32_t)i * 4u;
+                        b->data[off] = (uint8_t)(u & 0xFFu);
+                        b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                        b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                        b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                    }
+                    if (res.type == AVM_VAL_NIL) res = outv;
+                } else {
+                    for (int i = 0; i < count; i++) {
+                        int32_t lane = 0;
+                        int rc = avm_i32_pack_extract(args[0].as.l->items[i], assume_int, &lane);
+                        if (rc == 1) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int: value not int"); break; }
+                        if (rc == 2) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int: value out of i32 range"); break; }
+                        uint32_t u = (uint32_t)lane;
+                        uint32_t off = (uint32_t)i * 4u;
+                        b->data[off] = (uint8_t)(u & 0xFFu);
+                        b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                        b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                        b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                    }
+                    if (res.type == AVM_VAL_NIL) res = outv;
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int: expects list<int>");
+            }
+            break;
+        }
+        case 153: { // oren_i32_buf_pack_list_int_into(out:i32_buf, xs:list<int>) -> i32_buf
+            if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && (args[1].type == AVM_VAL_LIST || args[1].type == AVM_VAL_LIST_INT)) {
+                AvmBuf* b = args[0].as.buf;
+                if (!b || b->elem_size != 4u) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: expects []i32"); break; }
+                int count = 0;
+                int assume_int = 0;
+                if (args[1].type == AVM_VAL_LIST) {
+                    if (!args[1].as.l) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: expects list<int>"); break; }
+                    count = args[1].as.l->count;
+                    assume_int = args[1].as.l->all_int != 0;
+                } else {
+                    if (!args[1].as.li) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: expects list<int>"); break; }
+                    count = args[1].as.li->count;
+                    assume_int = 1;
+                }
+                if ((uint32_t)count != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: length mismatch"); break; }
+                if (count > 0 && !b->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: expects []i32"); break; }
+                if (args[1].type == AVM_VAL_LIST_INT) {
+                    for (int i = 0; i < count; i++) {
+                        int64_t v = args[1].as.li->items[i];
+                        if (v < (int64_t)INT32_MIN || v > (int64_t)INT32_MAX) {
+                            res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: value out of i32 range");
+                            break;
+                        }
+                        uint32_t u = (uint32_t)(int32_t)v;
+                        uint32_t off = (uint32_t)i * 4u;
+                        b->data[off] = (uint8_t)(u & 0xFFu);
+                        b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                        b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                        b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                    }
+                } else {
+                    for (int i = 0; i < count; i++) {
+                        int32_t lane = 0;
+                        int rc = avm_i32_pack_extract(args[1].as.l->items[i], assume_int, &lane);
+                        if (rc == 1) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: value not int"); break; }
+                        if (rc == 2) { res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: value out of i32 range"); break; }
+                        uint32_t u = (uint32_t)lane;
+                        uint32_t off = (uint32_t)i * 4u;
+                        b->data[off] = (uint8_t)(u & 0xFFu);
+                        b->data[off + 1] = (uint8_t)((u >> 8) & 0xFFu);
+                        b->data[off + 2] = (uint8_t)((u >> 16) & 0xFFu);
+                        b->data[off + 3] = (uint8_t)((u >> 24) & 0xFFu);
+                    }
+                }
+                if (res.type == AVM_VAL_NIL) res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "buffer.i32_pack_list_int_into: expects []i32");
             }
             break;
         }

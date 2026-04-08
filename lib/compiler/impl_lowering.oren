@@ -353,6 +353,8 @@ fn infer_container_kind(expr, kind_env) {
             var nm = fnn["value"]
             if nm == "oren_new_list_int" { return "list_int" }
             if nm == "oren_i32_buf_new" { return "buf" }
+            if nm == "oren_i32_buf_pack_list_int" { return "buf" }
+            if nm == "oren_i32_buf_pack_list_int_into" { return "buf" }
             if nm == "oren_i64_buf_new" { return "buf" }
             if nm == "oren_f32_buf_new" { return "buf" }
             if nm == "oren_f64_buf_new" { return "buf" }

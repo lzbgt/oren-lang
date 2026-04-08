@@ -11,6 +11,86 @@ fn oren_u8_buf_new(len) { return native_buf_new(len, 1, BUF_TAG_U8) }
 fn oren_u8_buf_new_uninit(len) { return native_buf_new_uninit(len, 1, BUF_TAG_U8) }
 fn oren_u8_buf_wrap_ptr(ptr, len) { return native_buf_wrap_ptr(ptr, len, 1, BUF_TAG_U8) }
 
+fn _i32_pack_list_value_or_err(v, ctx) {
+    if native_value_is_nil(v) { return oren_err(4, ctx + ": value not int") }
+    if native_value_is_true(v) || native_value_is_false(v) { return oren_err(4, ctx + ": value not int") }
+    if native_gc_find_node_nolock(v) != 0 { return oren_err(4, ctx + ": value not int") }
+    if v < -2147483648 || v > 2147483647 { return oren_err(4, ctx + ": value out of i32 range") }
+    return v
+}
+
+fn _i32_pack_list_int_slots_into(out, src_data, n, ctx) {
+    var out_data = oren_buf_data_ptr_unchecked(out)
+    var src = src_data
+    var dst = out_data
+    var i = 0
+    while i < n {
+        var v = ptr_get(src)
+        if v < -2147483648 || v > 2147483647 { return oren_err(4, ctx + ": value out of i32 range") }
+        var u = v & 4294967295
+        ptr_set_byte(dst + 0, u & 255)
+        ptr_set_byte(dst + 1, (u >> 8) & 255)
+        ptr_set_byte(dst + 2, (u >> 16) & 255)
+        ptr_set_byte(dst + 3, (u >> 24) & 255)
+        src = src + 8
+        dst = dst + 4
+        i = i + 1
+    }
+    return out
+}
+
+fn _i32_pack_list_slots_into(out, src_data, n, ctx) {
+    var out_data = oren_buf_data_ptr_unchecked(out)
+    var src = src_data
+    var dst = out_data
+    var i = 0
+    while i < n {
+        var v = _i32_pack_list_value_or_err(ptr_get(src), ctx)
+        if oren_is_err(v) { return v }
+        var u = v & 4294967295
+        ptr_set_byte(dst + 0, u & 255)
+        ptr_set_byte(dst + 1, (u >> 8) & 255)
+        ptr_set_byte(dst + 2, (u >> 16) & 255)
+        ptr_set_byte(dst + 3, (u >> 24) & 255)
+        src = src + 8
+        dst = dst + 4
+        i = i + 1
+    }
+    return out
+}
+
+fn oren_i32_buf_pack_list_int_into(out, xs) {
+    var eout = native_buf_check(out, BUF_TAG_I32, 4)
+    if oren_is_err(eout) { return oren_err(4, "buffer.i32_pack_list_int_into: expects []i32") }
+    if oren_is_list_int(xs) == true {
+        var n_int = oren_list_int_len_unchecked(xs)
+        if ptr_get(out + 0) != n_int { return oren_err(4, "buffer.i32_pack_list_int_into: length mismatch") }
+        return _i32_pack_list_int_slots_into(out, oren_list_int_data_ptr_unchecked(xs), n_int, "buffer.i32_pack_list_int_into")
+    }
+    if oren_is_list(xs) == true {
+        var n = ptr_get(xs + 0)
+        if ptr_get(out + 0) != n { return oren_err(4, "buffer.i32_pack_list_int_into: length mismatch") }
+        return _i32_pack_list_slots_into(out, ptr_get(xs + 16), n, "buffer.i32_pack_list_int_into")
+    }
+    return oren_err(4, "buffer.i32_pack_list_int_into: expects list<int>")
+}
+
+fn oren_i32_buf_pack_list_int(xs) {
+    if oren_is_list_int(xs) == true {
+        var n_int = oren_list_int_len_unchecked(xs)
+        var out_int = oren_i32_buf_new_uninit(n_int)
+        if oren_is_err(out_int) { return out_int }
+        return _i32_pack_list_int_slots_into(out_int, oren_list_int_data_ptr_unchecked(xs), n_int, "buffer.i32_pack_list_int")
+    }
+    if oren_is_list(xs) == true {
+        var n = ptr_get(xs + 0)
+        var out = oren_i32_buf_new_uninit(n)
+        if oren_is_err(out) { return out }
+        return _i32_pack_list_slots_into(out, ptr_get(xs + 16), n, "buffer.i32_pack_list_int")
+    }
+    return oren_err(4, "buffer.i32_pack_list_int: expects list<int>")
+}
+
 fn oren_buf_len(buf) {
     if native_buf_as_node(buf) == 0 { return oren_err(4, "buf_len expects (buf)") }
     return ptr_get(buf + 0)

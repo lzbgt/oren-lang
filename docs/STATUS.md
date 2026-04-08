@@ -55,7 +55,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
 - **Performance parity**: native hot loops remain partly above target (fresh arm64 perf-gate snapshot, 2026-04-04: `loop_sum` 1.09×, `dot_product` 2.82×; `alloc_churn` 5.42×, `alloc_drop` 1.76×).
-- **list<int> hot-loop parity**: the latest focused one-shot rerun now sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The newer unchecked direct-slot probe improved materially as well (`array_sum_int_slot_direct` ~15.11×, `dot_product_int_slot_direct` ~5.18× vs C on the same 2026-04-04 sweep), but that helper-backed path is still slower than the canonical fast loops.
+- **list<int> hot-loop parity**: the latest focused one-shot rerun still sits around `array_sum_int` 2.07×, `dot_product_int` 2.59×, and `multi_list_push_int` 2.24× vs C, while the latest steady-state runner remains above target (`array_sum_int` ~2.43× steady, `dot_product_int` ~2.78× steady vs C on arm64, 2026-04-04). The 2026-04-08 fast dot-ceiling rerun narrowed the explicit helper/bridge picture materially: canonical `dot_product_int` now measured `~1.2169× C`, the hidden direct-slot helper measured `~1.1182× C`, and the packed bridge dropped to `~4.9387× C` SIMD / `~17.0948× C` scalar. But the paired read-split still leaves the whole packed-SIMD bridge at `~4.1480× C` long-per-rep while its repeated-work delta is only `~0.4993× C`, so the remaining blocker is bridge setup/materialization rather than the packed dot kernel itself.
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -384,10 +384,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     This materially strengthens the next-step constraint: current helper/bridge detours are not
 	     competitive with the canonical fast loop, so further work should stay on the direct lowering /
 	     representation side instead of revisiting packed-bridge routing as a near-term parity path.
-	   - Read-split follow-up (2026-04-05): the new `make perf-probe-list-int-packed-bridge-read-split`
-	     surface answers the remaining setup-vs-steady attribution question for the current bridge.
-	     This same batch also closes the remaining comma-separated `OREN_BENCH_ENV_BUILD_OREN`
-	     forwarding gap on the packed-bridge / slot-direct prebuild and smoke helpers, so multi-key
+		   - Read-split follow-up (2026-04-05): the new `make perf-probe-list-int-packed-bridge-read-split`
+		     surface answers the remaining setup-vs-steady attribution question for the current bridge.
+		     This same batch also closes the remaining comma-separated `OREN_BENCH_ENV_BUILD_OREN`
+		     forwarding gap on the packed-bridge / slot-direct prebuild and smoke helpers, so multi-key
 	     build env overrides now reach those surfaces consistently too. The probe warms the hidden
 	     packed-bridge artifacts once, then compares canonical `dot_product_int` against the packed
 	     scalar / SIMD variants with the same short/long read-split runner. Latest
@@ -400,6 +400,33 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     That closes the bridge attribution branch: even after warmup and with repeated-read cost
 		     isolated, the current packed bridge remains hundreds of times slower than the direct lowering,
 		     so it is not a near-term parity route.
+		   - Shared runtime-backed bridge follow-up (2026-04-08): `buffer.i32_pack_list_int(...)` and
+		     `buffer.i32_pack_list_int_into(...)` no longer route through shared Oren element loops.
+		     Native, C, and AVM now expose dedicated runtime helpers for the same bridge, and the native
+		     implementation hoists cursors and writes little-endian `i32` lanes directly instead of
+		     calling the checked store helper per element. Tier-1 coverage now exercises the `_into`
+		     surface on modules/native QI/AVM fixtures during `make test`.
+		   - New ceiling rerun (2026-04-08): with that runtime-backed bridge in place, the latest
+		     `make perf-probe-list-int-dot-ceiling` artifact
+		     (`build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`,
+		     fast profile `runs=2 warmups=0 n=20000 reps=2`) now ranks the same `dot_product_int`
+		     alternatives as:
+		     - canonical `dot_product_int`: ~1.2169× C
+		     - direct-slot helper `dot_product_int_slot_direct`: ~1.1182× C
+		     - packed-bridge SIMD `dot_product_int_packed_bridge`: ~4.9387× C
+		     - packed-bridge scalar `dot_product_int_packed_bridge`: ~17.0948× C
+		     That is a major bridge improvement over the earlier hundreds-of-times results, but it still
+		     leaves the explicit packed route behind the shipped canonical path on whole-operation cost.
+		   - Read-split rerun (2026-04-08): the paired
+		     `make perf-probe-list-int-packed-bridge-read-split` artifact
+		     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`,
+		     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) now changes the attribution again:
+		     - baseline canonical `dot_product_int`: ~1.3778× C long-per-rep
+		     - packed scalar `dot_product_int_packed_bridge`: ~13.5584× C long-per-rep
+		     - packed SIMD `dot_product_int_packed_bridge`: ~4.1480× C long-per-rep, ~0.4993× C delta
+		     So the repeated packed-SIMD kernel is no longer the blocker. The remaining gap is the
+		     one-shot `list<int> -> []i32` bridge setup/materialization cost, which now becomes the next
+		     concrete parity target.
 		   - Packed-SIMD reuse follow-up (2026-04-05): the new
 		     `make perf-probe-list-int-packed-bridge-simd-reuse` surface removes the scalar leg and uses
 		     a more reuse-oriented split (`short_reps=1`, `long_reps=10`) to answer the narrower question
@@ -488,6 +515,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     still leaves the packed bridge hopelessly non-competitive (`~542.7074x C` SIMD,
 		     `~1062.1370x C` scalar on long-per-rep), so the improvement is real but correctly scoped
 		     to direct `i32` conversion surfaces.
+		   - Runtime bridge extension (2026-04-08): the adjacent shared `list<int> -> []i32` bridge is
+		     now on the same principle, but implemented below the stdlib loop layer instead of inside it.
+		     Shared `buffer.i32_pack_list_int` / `_into` now call dedicated runtime helpers across native,
+		     C, and AVM. Native hoists source/destination cursors and writes bytes directly, C uses the
+		     raw list-int slot ABI when list locking is not needed, and AVM now exposes matching native
+		     ids. The same turn added `_into` coverage to modules/native QI/AVM tests.
+		   - Current bridge result (2026-04-08): latest
+		     [perf-probe-list-int-dot-ceiling-20260408_231950_89006.log](/Users/zongbaolu/work/compiler-mini/build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log)
+		     shows the bridge is no longer catastrophically behind (`dot_product_int_packed_bridge`
+		     `~4.9387x C` SIMD, `~17.0948x C` scalar), and the paired read-split artifact
+		     [perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log](/Users/zongbaolu/work/compiler-mini/build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log)
+		     narrows the remaining blocker further: packed-SIMD still lands at `~4.1480x C`
+		     long-per-rep, but its repeated-work delta is already `~0.4993x C`. Reweight accordingly:
+		     the kernel side is good enough to stop tuning for now; the next work item is bridge
+		     setup/materialization elimination or reuse.
 		   - Family follow-up (2026-04-05): the same proven-safe rule now covers the other fresh numeric
 		     typed-buffer export paths too, not just `i32`. Shared stdlib pack/slice/strided/matrix
 		     exports for `i64`, `f32`, and `f64` now also use `*_buf_new_uninit(...)` plus unchecked

@@ -1009,6 +1009,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_buf_store_u8" { native_id = 144 }
         if name == "oren_buf_fill_u8" { native_id = 145 }
         if name == "oren_i32_buf_new" { native_id = 54 }
+        if name == "oren_i32_buf_pack_list_int" { native_id = 152 }
+        if name == "oren_i32_buf_pack_list_int_into" { native_id = 153 }
         if name == "oren_i64_buf_new" { native_id = 55 }
         if name == "oren_f32_buf_new" { native_id = 56 }
         if name == "oren_f64_buf_new" { native_id = 57 }

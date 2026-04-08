@@ -546,6 +546,9 @@ OrenValue oren_u8_buf_new(OrenValue len);
 OrenValue oren_u8_buf_new_uninit(OrenValue len);
 OrenValue oren_i32_buf_new(OrenValue len);
 OrenValue oren_i32_buf_new_uninit(OrenValue len);
+// Shared checked bridge: pack list/list_int values into contiguous i32 buffers.
+OrenValue oren_i32_buf_pack_list_int(OrenValue xs);
+OrenValue oren_i32_buf_pack_list_int_into(OrenValue out, OrenValue xs);
 OrenValue oren_i64_buf_new(OrenValue len);
 OrenValue oren_i64_buf_new_uninit(OrenValue len);
 OrenValue oren_f32_buf_new(OrenValue len);

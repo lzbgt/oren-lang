@@ -1252,15 +1252,35 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `Oren canonical / slot64-vector ~1.0514×`. The extracted slot64 `-O2` loop is still only a
 		     paired-scalar `ldp` + `madd` shape, not a packed NEON loop, so plain “vectorize the current
 		     64-bit slot ABI” is not enough to close the baseline gap by itself.
-		   - Read-split follow-up (2026-04-05): new `make perf-probe-list-int-packed-bridge-read-split`
-		     warms the hidden packed-bridge artifacts once and then compares canonical `dot_product_int`
-		     against packed scalar / SIMD on the same short/long split runner. Latest artifact
-		     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_032402_91481.log`,
-		     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=2 warmups=0 n=20000 short_reps=1
+			   - Read-split follow-up (2026-04-05): new `make perf-probe-list-int-packed-bridge-read-split`
+			     warms the hidden packed-bridge artifacts once and then compares canonical `dot_product_int`
+			     against packed scalar / SIMD on the same short/long split runner. Latest artifact
+			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_032402_91481.log`,
+			     `build_env: OREN_NATIVE_RUNTIME_PROFILE=core`, `runs=2 warmups=0 n=20000 short_reps=1
 		     long_reps=2`) shows the bridge is still nowhere near competitive even after setup is
 		     amortized: baseline `~1.3378× C` long-per-rep, packed-SIMD `~549.8375× C`, packed-scalar
-		     `~1037.5886× C`. Treat that as a closed branch: the current bridge shape is not merely paying
-		     first-build or one-time pack cost, so do not route near-term parity work back through it.
+			     `~1037.5886× C`. Treat that as a closed branch: the current bridge shape is not merely paying
+			     first-build or one-time pack cost, so do not route near-term parity work back through it.
+			   - Shared runtime-backed bridge follow-up (2026-04-08): `buffer.i32_pack_list_int(...)` and
+			     `_into` now route through dedicated runtime helpers across native, C, and AVM instead of a
+			     shared Oren element loop. The native implementation now hoists source/destination cursors
+			     and emits direct byte stores; the same batch added `_into` coverage to modules/native
+			     QI/AVM tests.
+			   - New ceiling rerun (2026-04-08): latest
+			     `make perf-probe-list-int-dot-ceiling`
+			     (`build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`,
+			     `runs=2 warmups=0 n=20000 reps=2`) now ranks the same shapes as canonical
+			     `dot_product_int` `~1.2169× C`, direct-slot helper `~1.1182× C`, packed-SIMD
+			     `~4.9387× C`, packed-scalar `~17.0948× C`. The bridge is no longer catastrophically bad,
+			     but it still trails the shipped whole-operation path.
+			   - Read-split rerun (2026-04-08): latest
+			     `make perf-probe-list-int-packed-bridge-read-split`
+			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`)
+			     changes the attribution: baseline canonical `dot_product_int` is `~1.3778× C`
+			     long-per-rep, packed-scalar is `~13.5584× C`, and packed-SIMD is `~4.1480× C`
+			     long-per-rep while its repeated-work delta is already `~0.4993× C`. Reweight the next work
+			     accordingly: stop tuning the packed dot kernel itself and focus on bridge
+			     setup/materialization elimination or reuse.
 		   - Packed-SIMD reuse follow-up (2026-04-05): new
 		     `make perf-probe-list-int-packed-bridge-simd-reuse` keeps only the canonical baseline and the
 		     packed-SIMD bridge path, but raises the long run to `10` reps so reuse dominates the setup
@@ -1325,19 +1345,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `buffer.try_strided_to_i32_buf`, `buffer.i32_mat_pack_rows`, and
 		     `buffer.i32_mat_to_i32_buf`. The C backend now also exports a conservative
 		     `oren_i32_buf_new_uninit` shim so shared stdlib code remains backend-safe.
-		   - Real workload follow-up (2026-04-05): the kept change materially improves the direct
-		     conversion path on the ranking probe. Latest artifact
-		     (`build/logs/perf-probe-list-int-dot-ceiling-20260405_223926_17836.log`) shows:
-		     - baseline `dot_product_int`: `~1.4238x C`
-		     - `dot_product_int_slot_direct`: `~0.9826x C`
+			   - Real workload follow-up (2026-04-05): the kept change materially improves the direct
+			     conversion path on the ranking probe. Latest artifact
+			     (`build/logs/perf-probe-list-int-dot-ceiling-20260405_223926_17836.log`) shows:
+			     - baseline `dot_product_int`: `~1.4238x C`
+			     - `dot_product_int_slot_direct`: `~0.9826x C`
 		     - baseline `array_sum_int`: `~1.3214x C`
 		     - `array_sum_int_slot_direct`: `~0.7955x C`
-		     Reweight again: the direct `i32` conversion path is now good enough to beat or match the
-		     host C baseline on this fast profile, while the packed bridge still stays catastrophically
-		     bad. The paired read-split artifact
-		     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log`)
-		     still reports `dot_product_int_packed_bridge` at `~542.7074× C` SIMD and `~1062.1370× C`
-		     scalar on long-per-rep.
+			     Reweight again: the direct `i32` conversion path is now good enough to beat or match the
+			     host C baseline on this fast profile, while the packed bridge still stays catastrophically
+			     bad. The paired read-split artifact
+			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_223926_17837.log`)
+			     still reports `dot_product_int_packed_bridge` at `~542.7074× C` SIMD and `~1062.1370× C`
+			     scalar on long-per-rep.
+			   - Bridge/runtime follow-up (2026-04-08): the shared `list<int> -> []i32` export now also
+			     has dedicated runtime-backed fast paths instead of per-element stdlib loops. Shared
+			     `buffer.i32_pack_list_int` / `_into` now lower into native/C/AVM helpers, and the updated
+			     fast-profile probe
+			     (`build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`) cuts the packed
+			     bridge to `~4.9387× C` SIMD / `~17.0948× C` scalar. The paired read-split rerun
+			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`)
+			     shows the remaining packed-SIMD gap is now setup-dominated (`~4.1480× C` long-per-rep,
+			     `~0.4993× C` repeated-work delta), so the next bridge work should target one-shot export
+			     cost rather than the inner packed dot kernel.
 		   - Family expansion (2026-04-05): the same full-overwrite proof now covers the rest of the
 		     fresh numeric typed-buffer exports. Shared stdlib `i64`/`f32`/`f64`
 		     pack/slice/strided/matrix-export paths now also use `*_buf_new_uninit(...)` and unchecked

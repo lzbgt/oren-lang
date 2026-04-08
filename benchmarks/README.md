@@ -396,18 +396,19 @@ loop, the unchecked direct-slot helper path, and the packed-bridge scalar/SIMD p
 profile is `runs=2`, `warmups=0`, `n=20000`, `reps=2`; override it with
 `OREN_LIST_INT_DOT_CEILING_{RUNS,WARMUPS,N,REPS}` when you want a different scale.
 
-The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260405_024559_38593.log`,
+The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260408_231950_89006.log`,
 shows the current ranking on this host:
 
-- baseline canonical `dot_product_int`: `~1.2137x C`
-- direct-slot helper `dot_product_int_slot_direct`: `~1.5149x C`
-- packed bridge SIMD `dot_product_int_packed_bridge`: `~565.8124x C`
-- packed bridge scalar `dot_product_int_packed_bridge`: `~1382.0339x C`
+- baseline canonical `dot_product_int`: `~1.2169x C`
+- direct-slot helper `dot_product_int_slot_direct`: `~1.1182x C`
+- packed bridge SIMD `dot_product_int_packed_bridge`: `~4.9387x C`
+- packed bridge scalar `dot_product_int_packed_bridge`: `~17.0948x C`
 
 That is the current ceiling fact to use when choosing the next implementation move: the canonical
-compiler fast loop still beats the helper/bridge alternatives decisively, so further hot-loop work
-should stay on the direct lowering / representation side instead of detouring back through packing
-or runtime helper boundaries.
+compiler fast loop still beats the explicit packed bridge on whole-operation cost, even after the
+shared `buffer.i32_pack_list_int(_into)` path moved onto dedicated native/C/AVM runtime helpers.
+Treat that as a bridge improvement, not a parity win: the next hot-loop move should target bridge
+setup/materialization cost rather than more packed-kernel tuning.
 
 For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
 
@@ -424,19 +425,19 @@ different scale. The underlying packed-bridge / slot-direct prebuild and smoke h
 forward comma-separated `OREN_BENCH_ENV_BUILD_OREN` values correctly, so this probe can be combined
 with multi-key compiler/runtime build env overrides without silently dropping them.
 
-The latest artifact, `build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_032402_91481.log`,
+The latest artifact, `build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`,
 was run with `build_env: OREN_NATIVE_RUNTIME_PROFILE=core` and came back as:
 
-- baseline canonical `dot_product_int`: `~1.3378x C` long-per-rep
-- packed bridge scalar `dot_product_int_packed_bridge`: `~1037.5886x C` long-per-rep,
-  `~3360.3659x C` delta
-- packed bridge SIMD `dot_product_int_packed_bridge`: `~549.8375x C` long-per-rep,
-  `~126.8281x C` delta
+- baseline canonical `dot_product_int`: `~1.3778x C` long-per-rep
+- packed bridge scalar `dot_product_int_packed_bridge`: `~13.5584x C` long-per-rep
+- packed bridge SIMD `dot_product_int_packed_bridge`: `~4.1480x C` long-per-rep,
+  `~0.4993x C` delta
 
-That closes the main attribution question for the existing bridge: even after warmup and with the
-short/long split isolating repeated reads, the packed-bridge path is still hundreds of times slower
-than the canonical direct lowering. The blocker is not just first-build or one-time pack setup
-cost, so near-term parity work should not go back through the current bridge shape.
+That changes the main attribution for the current bridge. After the new runtime-backed pack fast
+path, the repeated packed-SIMD kernel work is no longer the blocker; on this split it is already
+below C on the `delta` metric. The remaining gap is the one-shot `list<int> -> []i32`
+materialization/setup cost, so future bridge work should target export elimination, reuse, or
+prepacking rather than more inner-kernel tuning.
 
 To answer the narrower question “does the packed SIMD path become viable if we really amortize the
 pack step?”, use:

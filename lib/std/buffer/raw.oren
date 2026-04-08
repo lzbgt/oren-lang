@@ -262,12 +262,11 @@ fn try_store_f64(buf, idx, v) {
 }
 
 fn i32_pack_list_int(xs) {
-    // Safe: on success this path overwrites every lane before the fresh buffer is returned.
-    return _pack_list_like_new_buf_with(xs, "buffer.i32_pack_list_int", i32_new_uninit, _store_i32_buf_unchecked_direct, _validate_i32_or_err)
+    return oren_i32_buf_pack_list_int(xs)
 }
 
 fn i32_pack_list_int_into(out: []i32, xs) {
-    return _pack_list_like_into_with(out, xs, "buffer.i32_pack_list_int_into", _store_i32_direct, _validate_i32_or_err)
+    return oren_i32_buf_pack_list_int_into(out, xs)
 }
 
 fn try_i32_pack_list_int(xs) {
