@@ -17,6 +17,7 @@ only_green_cache="${OREN_QI_ONLY_GREEN_CACHE:-0}"
 green_cache_first="${OREN_QI_GREEN_CACHE_FIRST:-0}"
 green_cache_runs="${OREN_QI_GREEN_CACHE_RUNS:-1}"
 green_cache_retries="${OREN_QI_GREEN_CACHE_RETRIES:-1}"
+followon_smoke_retries="${OREN_QI_FOLLOWON_SMOKE_RETRIES:-1}"
 
 if [[ "$only_green_cache" == "1" ]]; then
   skip_base_run=1
@@ -31,12 +32,88 @@ if [[ "$green_cache_runs" -le 0 ]]; then
   echo "OREN_QI_GREEN_CACHE_RUNS must be >= 1" >&2
   exit 2
 fi
+if ! [[ "$followon_smoke_retries" =~ ^[0-9]+$ ]]; then
+  echo "OREN_QI_FOLLOWON_SMOKE_RETRIES must be a non-negative integer" >&2
+  exit 2
+fi
 if [[ -n "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS}"
 fi
 if [[ -n "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
   run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS}"
 fi
+
+is_timeout_rc() {
+  local rc="${1:-0}"
+  [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]
+}
+
+build_step_checked() {
+  local label="$1"
+  local step_log="$2"
+  shift 2
+
+  set +e
+  "$@" >"$step_log" 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]]; then
+    return 0
+  fi
+
+  echo "ERROR: ${label} build failed (rc=$rc)" >&2
+  if is_timeout_rc "$rc"; then
+    echo "WARN: ${label} build timed out/terminated" >&2
+  fi
+  tail -n 80 "$step_log" >&2 2>/dev/null || true
+  exit "$rc"
+}
+
+run_step_checked() {
+  local label="$1"
+  local step_log="$2"
+  shift 2
+
+  local attempt=0
+  while true; do
+    set +e
+    "$@" >>"$step_log" 2>&1
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      return 0
+    fi
+
+    echo "run_rc=$rc" >>"$step_log"
+    if ! is_timeout_rc "$rc" || [[ "$attempt" -ge "$followon_smoke_retries" ]]; then
+      echo "ERROR: ${label} failed (rc=$rc)" >&2
+      tail -n 80 "$step_log" >&2 2>/dev/null || true
+      exit "$rc"
+    fi
+
+    attempt=$((attempt + 1))
+    echo "WARN: ${label} timeout-like rc=${rc}; retry ${attempt}/${followon_smoke_retries}" >>"$step_log"
+  done
+}
+
+expect_compile_failure_step() {
+  local label="$1"
+  local step_log="$2"
+  shift 2
+
+  set +e
+  "$@" >"$step_log" 2>&1
+  local rc=$?
+  set -e
+
+  if [[ "$rc" -eq 0 ]]; then
+    echo "FAIL: ${label} expected failure but build succeeded" >&2
+    tail -n 80 "$step_log" >&2 2>/dev/null || true
+    exit 1
+  fi
+
+  echo "ok: ${label}" >>"$step_log"
+}
 
 run_with_timeout() {
   local secs="$1"
@@ -243,6 +320,7 @@ fi
 echo "build_timeout_secs=$build_timeout_secs"
 echo "run_timeout_secs=$run_timeout_secs"
 echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
+echo "followon_smoke_retries=$followon_smoke_retries"
 
 rm -f "$log" "$out" 2>/dev/null || true
 if [[ -n "$phases_log" ]]; then
@@ -261,6 +339,7 @@ fi
   echo "build_timeout_secs=$build_timeout_secs"
   echo "run_timeout_secs=$run_timeout_secs"
   echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
+  echo "followon_smoke_retries=$followon_smoke_retries"
 } >>"$log"
 
 set +e
@@ -372,8 +451,10 @@ if [[ "${OREN_QI_SKIP_TEST_RUNNER:-0}" != "1" ]]; then
   tr_src="tests/fixtures/test_runner_smoke.oren"
   tr_log="build/logs/${compiler_base}_test_runner_smoke.log"
   rm -f "$tr_log" 2>/dev/null || true
-  run_with_timeout "$build_timeout_secs" "$compiler" test "$tr_src" \
-    --backend native --platform "$platform" --debug >"$tr_log" 2>&1
+  build_step_checked "test runner smoke" "$tr_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" test "$tr_src" \
+    --backend native --platform "$platform" --debug
+  echo "ok: test runner smoke" >>"$tr_log"
   tail -n 3 "$tr_log" >>"$log"
 fi
 
@@ -383,9 +464,12 @@ if [[ "${OREN_QI_SKIP_SPREAD_SMOKE:-0}" != "1" ]]; then
   sp_out="build/tmp/${compiler_base}_spread_smoke${exe_ext}"
   sp_log="build/logs/${compiler_base}_spread_smoke.log"
   rm -f "$sp_out" "$sp_log" 2>/dev/null || true
-  run_with_timeout "$build_timeout_secs" "$compiler" build "$sp_src" \
-    --backend native --platform "$platform" --debug -o "$sp_out" >"$sp_log" 2>&1
-  run_with_timeout "$run_timeout_secs" "$sp_out" >>"$sp_log" 2>&1
+  build_step_checked "spread/varargs smoke" "$sp_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$sp_src" \
+    --backend native --platform "$platform" --debug -o "$sp_out"
+  run_step_checked "spread/varargs smoke" "$sp_log" \
+    run_with_timeout_retry "$run_timeout_secs" "$sp_out"
+  echo "ok: spread/varargs smoke" >>"$sp_log"
   tail -n 3 "$sp_log" >>"$log"
 fi
 
@@ -395,9 +479,12 @@ if [[ "${OREN_QI_SKIP_RESULT_SMOKE:-0}" != "1" ]]; then
   rs_out="build/tmp/${compiler_base}_result_smoke${exe_ext}"
   rs_log="build/logs/${compiler_base}_result_smoke.log"
   rm -f "$rs_out" "$rs_log" 2>/dev/null || true
-  run_with_timeout "$build_timeout_secs" "$compiler" build "$rs_src" \
-    --backend native --platform "$platform" --debug -o "$rs_out" >"$rs_log" 2>&1
-  run_with_timeout "$run_timeout_secs" "$rs_out" >>"$rs_log" 2>&1
+  build_step_checked "result smoke" "$rs_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$rs_src" \
+    --backend native --platform "$platform" --debug -o "$rs_out"
+  run_step_checked "result smoke" "$rs_log" \
+    run_with_timeout_retry "$run_timeout_secs" "$rs_out"
+  echo "ok: result smoke" >>"$rs_log"
   tail -n 3 "$rs_log" >>"$log"
 fi
 
@@ -407,9 +494,12 @@ ul_out="build/tmp/${compiler_base}_ulock_timeout_portable${exe_ext}"
 ul_log="build/logs/${compiler_base}_ulock_timeout_portable.log"
 rm -f "$ul_log" "$ul_out" 2>/dev/null || true
 
-run_with_timeout "$build_timeout_secs" "$compiler" build "$ul_src" \
-  --backend native --platform "$platform" --debug -o "$ul_out" >"$ul_log" 2>&1
-run_with_timeout_retry "$run_timeout_secs" "$ul_out" >>"$ul_log" 2>&1
+build_step_checked "ulock timeout portable smoke" "$ul_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$ul_src" \
+  --backend native --platform "$platform" --debug -o "$ul_out"
+run_step_checked "ulock timeout portable smoke" "$ul_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$ul_out"
+echo "ok: ulock timeout portable smoke" >>"$ul_log"
 tail -n 3 "$ul_log" >>"$log"
 
 echo "== os thread park/unpark smoke ==" >>"$log"
@@ -417,9 +507,12 @@ ot_src="tests/native/test_os_thread_park_unpark_smoke.oren"
 ot_out="build/tmp/${compiler_base}_os_thread_park_unpark_smoke${exe_ext}"
 ot_log="build/logs/${compiler_base}_os_thread_park_unpark_smoke.log"
 rm -f "$ot_log" "$ot_out" 2>/dev/null || true
-run_with_timeout "$build_timeout_secs" "$compiler" build "$ot_src" \
-  --backend native --platform "$platform" --debug -o "$ot_out" >"$ot_log" 2>&1
-run_with_timeout_retry "$run_timeout_secs" "$ot_out" >>"$ot_log" 2>&1
+build_step_checked "os thread park/unpark smoke" "$ot_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$ot_src" \
+  --backend native --platform "$platform" --debug -o "$ot_out"
+run_step_checked "os thread park/unpark smoke" "$ot_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$ot_out"
+echo "ok: os thread park/unpark smoke" >>"$ot_log"
 tail -n 3 "$ot_log" >>"$log"
 
 echo "== os thread spawn-many smoke ==" >>"$log"
@@ -427,9 +520,12 @@ om_src="tests/native/test_os_thread_spawn_many_smoke.oren"
 om_out="build/tmp/${compiler_base}_os_thread_spawn_many_smoke${exe_ext}"
 om_log="build/logs/${compiler_base}_os_thread_spawn_many_smoke.log"
 rm -f "$om_log" "$om_out" 2>/dev/null || true
-run_with_timeout "$build_timeout_secs" "$compiler" build "$om_src" \
-  --backend native --platform "$platform" --debug -o "$om_out" >"$om_log" 2>&1
-run_with_timeout_retry "$run_timeout_secs" "$om_out" >>"$om_log" 2>&1
+build_step_checked "os thread spawn-many smoke" "$om_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$om_src" \
+  --backend native --platform "$platform" --debug -o "$om_out"
+run_step_checked "os thread spawn-many smoke" "$om_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$om_out"
+echo "ok: os thread spawn-many smoke" >>"$om_log"
 tail -n 3 "$om_log" >>"$log"
 
 echo "== gc stw os-thread collect smoke ==" >>"$log"
@@ -437,9 +533,12 @@ gc_src="tests/native/test_gc_stw_os_thread_collect.oren"
 gc_out="build/tmp/${compiler_base}_gc_stw_os_thread_collect${exe_ext}"
 gc_log="build/logs/${compiler_base}_gc_stw_os_thread_collect.log"
 rm -f "$gc_log" "$gc_out" 2>/dev/null || true
-run_with_timeout "$build_timeout_secs" "$compiler" build "$gc_src" \
-  --backend native --platform "$platform" --debug -o "$gc_out" >"$gc_log" 2>&1
-run_with_timeout_retry "$run_timeout_secs" "$gc_out" >>"$gc_log" 2>&1
+build_step_checked "gc stw os-thread collect smoke" "$gc_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$gc_src" \
+  --backend native --platform "$platform" --debug -o "$gc_out"
+run_step_checked "gc stw os-thread collect smoke" "$gc_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$gc_out"
+echo "ok: gc stw os-thread collect smoke" >>"$gc_log"
 tail -n 3 "$gc_log" >>"$log"
 
 echo "== green two workers world-lock smoke ==" >>"$log"
@@ -447,9 +546,12 @@ gw_src="tests/native/test_green_two_workers_world_lock_smoke.oren"
 gw_out="build/tmp/${compiler_base}_green_two_workers_world_lock_smoke${exe_ext}"
 gw_log="build/logs/${compiler_base}_green_two_workers_world_lock_smoke.log"
 rm -f "$gw_log" "$gw_out" 2>/dev/null || true
-run_with_timeout "$build_timeout_secs" "$compiler" build "$gw_src" \
-  --backend native --platform "$platform" --debug -o "$gw_out" >"$gw_log" 2>&1
-run_with_timeout_retry "$run_timeout_secs" "$gw_out" >>"$gw_log" 2>&1
+build_step_checked "green two workers world-lock smoke" "$gw_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$gw_src" \
+  --backend native --platform "$platform" --debug -o "$gw_out"
+run_step_checked "green two workers world-lock smoke" "$gw_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$gw_out"
+echo "ok: green two workers world-lock smoke" >>"$gw_log"
 tail -n 3 "$gw_log" >>"$log"
 
 echo "== green two workers M<P deterministic smoke ==" >>"$log"
@@ -457,9 +559,12 @@ md_src="tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren"
 md_out="build/tmp/${compiler_base}_green_two_workers_m_less_p_deterministic_smoke${exe_ext}"
 md_log="build/logs/${compiler_base}_green_two_workers_m_less_p_deterministic_smoke.log"
 rm -f "$md_log" "$md_out" 2>/dev/null || true
-run_with_timeout "$build_timeout_secs" "$compiler" build "$md_src" \
-  --backend native --platform "$platform" --debug -o "$md_out" >"$md_log" 2>&1
-run_with_timeout_retry "$run_timeout_secs" "$md_out" >>"$md_log" 2>&1
+build_step_checked "green two workers M<P deterministic smoke" "$md_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$md_src" \
+  --backend native --platform "$platform" --debug -o "$md_out"
+run_step_checked "green two workers M<P deterministic smoke" "$md_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$md_out"
+echo "ok: green two workers M<P deterministic smoke" >>"$md_log"
 tail -n 3 "$md_log" >>"$log"
 
 echo "== arena auto loop smoke ==" >>"$log"
@@ -467,14 +572,17 @@ arena_src="tests/native/test_arena_auto_loop_smoke.oren"
 arena_out="build/tmp/${compiler_base}_arena_auto_loop_smoke${exe_ext}"
 arena_log="build/logs/${compiler_base}_arena_auto_loop_smoke.log"
 rm -f "$arena_log" "$arena_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_src" \
-  --backend native --platform "$platform" --debug -o "$arena_out" >"$arena_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_out" >>"$arena_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop smoke" "$arena_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_src" \
+  --backend native --platform "$platform" --debug -o "$arena_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop smoke" "$arena_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_out"
 if ! grep -q "\\[arena\\]" "$arena_log" 2>/dev/null; then
   echo "ERROR: arena auto loop trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop smoke" >>"$arena_log"
 tail -n 3 "$arena_log" >>"$log"
 
 echo "== arena auto loop assign smoke ==" >>"$log"
@@ -482,14 +590,17 @@ arena_assign_src="tests/native/test_arena_auto_loop_assign_smoke.oren"
 arena_assign_out="build/tmp/${compiler_base}_arena_auto_loop_assign_smoke${exe_ext}"
 arena_assign_log="build/logs/${compiler_base}_arena_auto_loop_assign_smoke.log"
 rm -f "$arena_assign_log" "$arena_assign_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_assign_src" \
-  --backend native --platform "$platform" --debug -o "$arena_assign_out" >"$arena_assign_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_assign_out" >>"$arena_assign_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop assign smoke" "$arena_assign_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_assign_src" \
+  --backend native --platform "$platform" --debug -o "$arena_assign_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop assign smoke" "$arena_assign_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_assign_out"
 if ! grep -q "\\[arena\\]" "$arena_assign_log" 2>/dev/null; then
   echo "ERROR: arena auto loop assign trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_assign_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop assign smoke" >>"$arena_assign_log"
 tail -n 3 "$arena_assign_log" >>"$log"
 
 echo "== arena auto loop list<int> smoke ==" >>"$log"
@@ -497,14 +608,17 @@ arena_int_src="tests/native/test_arena_auto_loop_list_int_smoke.oren"
 arena_int_out="build/tmp/${compiler_base}_arena_auto_loop_list_int_smoke${exe_ext}"
 arena_int_log="build/logs/${compiler_base}_arena_auto_loop_list_int_smoke.log"
 rm -f "$arena_int_log" "$arena_int_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_src" \
-  --backend native --platform "$platform" --debug -o "$arena_int_out" >"$arena_int_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_out" >>"$arena_int_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop list<int> smoke" "$arena_int_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_src" \
+  --backend native --platform "$platform" --debug -o "$arena_int_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop list<int> smoke" "$arena_int_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_int_out"
 if ! grep -q "\\[arena\\]" "$arena_int_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_int_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop list<int> smoke" >>"$arena_int_log"
 tail -n 3 "$arena_int_log" >>"$log"
 
 echo "== arena auto loop list<int> assign smoke ==" >>"$log"
@@ -512,14 +626,17 @@ arena_int_assign_src="tests/native/test_arena_auto_loop_list_int_assign_smoke.or
 arena_int_assign_out="build/tmp/${compiler_base}_arena_auto_loop_list_int_assign_smoke${exe_ext}"
 arena_int_assign_log="build/logs/${compiler_base}_arena_auto_loop_list_int_assign_smoke.log"
 rm -f "$arena_int_assign_log" "$arena_int_assign_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_assign_src" \
-  --backend native --platform "$platform" --debug -o "$arena_int_assign_out" >"$arena_int_assign_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_assign_out" >>"$arena_int_assign_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop list<int> assign smoke" "$arena_int_assign_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_assign_src" \
+  --backend native --platform "$platform" --debug -o "$arena_int_assign_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop list<int> assign smoke" "$arena_int_assign_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_int_assign_out"
 if ! grep -q "\\[arena\\]" "$arena_int_assign_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> assign trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_int_assign_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop list<int> assign smoke" >>"$arena_int_assign_log"
 tail -n 3 "$arena_int_assign_log" >>"$log"
 
 echo "== arena auto loop conditional-assign skip smoke ==" >>"$log"
@@ -527,14 +644,17 @@ arena_skip_src="tests/native/test_arena_auto_loop_conditional_assign_skip_smoke.
 arena_skip_out="build/tmp/${compiler_base}_arena_auto_loop_conditional_assign_skip_smoke${exe_ext}"
 arena_skip_log="build/logs/${compiler_base}_arena_auto_loop_conditional_assign_skip_smoke.log"
 rm -f "$arena_skip_log" "$arena_skip_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_skip_src" \
-  --backend native --platform "$platform" --debug -o "$arena_skip_out" >"$arena_skip_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_skip_out" >>"$arena_skip_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop conditional-assign skip smoke" "$arena_skip_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_skip_src" \
+  --backend native --platform "$platform" --debug -o "$arena_skip_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop conditional-assign skip smoke" "$arena_skip_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_skip_out"
 if grep -q "\\[arena\\]" "$arena_skip_log" 2>/dev/null; then
   echo "ERROR: arena auto loop conditional-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_skip_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop conditional-assign skip smoke" >>"$arena_skip_log"
 tail -n 3 "$arena_skip_log" >>"$log"
 
 echo "== arena auto loop list<int> conditional-assign skip smoke ==" >>"$log"
@@ -542,14 +662,17 @@ arena_int_skip_src="tests/native/test_arena_auto_loop_list_int_conditional_assig
 arena_int_skip_out="build/tmp/${compiler_base}_arena_auto_loop_list_int_conditional_assign_skip_smoke${exe_ext}"
 arena_int_skip_log="build/logs/${compiler_base}_arena_auto_loop_list_int_conditional_assign_skip_smoke.log"
 rm -f "$arena_int_skip_log" "$arena_int_skip_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_skip_src" \
-  --backend native --platform "$platform" --debug -o "$arena_int_skip_out" >"$arena_int_skip_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_skip_out" >>"$arena_int_skip_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop list<int> conditional-assign skip smoke" "$arena_int_skip_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_skip_src" \
+  --backend native --platform "$platform" --debug -o "$arena_int_skip_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop list<int> conditional-assign skip smoke" "$arena_int_skip_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_int_skip_out"
 if grep -q "\\[arena\\]" "$arena_int_skip_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> conditional-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_int_skip_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop list<int> conditional-assign skip smoke" >>"$arena_int_skip_log"
 tail -n 3 "$arena_int_skip_log" >>"$log"
 
 echo "== arena auto loop conditional list literal skip smoke ==" >>"$log"
@@ -557,14 +680,17 @@ arena_lit_skip_src="tests/native/test_arena_auto_loop_conditional_list_lit_skip_
 arena_lit_skip_out="build/tmp/${compiler_base}_arena_auto_loop_conditional_list_lit_skip_smoke${exe_ext}"
 arena_lit_skip_log="build/logs/${compiler_base}_arena_auto_loop_conditional_list_lit_skip_smoke.log"
 rm -f "$arena_lit_skip_log" "$arena_lit_skip_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_lit_skip_src" \
-  --backend native --platform "$platform" --debug -o "$arena_lit_skip_out" >"$arena_lit_skip_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_lit_skip_out" >>"$arena_lit_skip_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop conditional list literal skip smoke" "$arena_lit_skip_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_lit_skip_src" \
+  --backend native --platform "$platform" --debug -o "$arena_lit_skip_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop conditional list literal skip smoke" "$arena_lit_skip_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_lit_skip_out"
 if grep -q "\\[arena\\]" "$arena_lit_skip_log" 2>/dev/null; then
   echo "ERROR: arena auto loop conditional list literal should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_lit_skip_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop conditional list literal skip smoke" >>"$arena_lit_skip_log"
 tail -n 3 "$arena_lit_skip_log" >>"$log"
 
 echo "== arena auto loop use-before-assign skip smoke ==" >>"$log"
@@ -572,14 +698,17 @@ arena_use_before_src="tests/native/test_arena_auto_loop_use_before_assign_skip_s
 arena_use_before_out="build/tmp/${compiler_base}_arena_auto_loop_use_before_assign_skip_smoke${exe_ext}"
 arena_use_before_log="build/logs/${compiler_base}_arena_auto_loop_use_before_assign_skip_smoke.log"
 rm -f "$arena_use_before_log" "$arena_use_before_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_use_before_src" \
-  --backend native --platform "$platform" --debug -o "$arena_use_before_out" >"$arena_use_before_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_use_before_out" >>"$arena_use_before_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop use-before-assign skip smoke" "$arena_use_before_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_use_before_src" \
+  --backend native --platform "$platform" --debug -o "$arena_use_before_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop use-before-assign skip smoke" "$arena_use_before_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_use_before_out"
 if grep -q "\\[arena\\]" "$arena_use_before_log" 2>/dev/null; then
   echo "ERROR: arena auto loop use-before-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_use_before_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop use-before-assign skip smoke" >>"$arena_use_before_log"
 tail -n 3 "$arena_use_before_log" >>"$log"
 
 echo "== arena auto loop list<int> use-before-assign skip smoke ==" >>"$log"
@@ -587,14 +716,17 @@ arena_int_use_before_src="tests/native/test_arena_auto_loop_list_int_use_before_
 arena_int_use_before_out="build/tmp/${compiler_base}_arena_auto_loop_list_int_use_before_assign_skip_smoke${exe_ext}"
 arena_int_use_before_log="build/logs/${compiler_base}_arena_auto_loop_list_int_use_before_assign_skip_smoke.log"
 rm -f "$arena_int_use_before_log" "$arena_int_use_before_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_use_before_src" \
-  --backend native --platform "$platform" --debug -o "$arena_int_use_before_out" >"$arena_int_use_before_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_int_use_before_out" >>"$arena_int_use_before_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop list<int> use-before-assign skip smoke" "$arena_int_use_before_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_use_before_src" \
+  --backend native --platform "$platform" --debug -o "$arena_int_use_before_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop list<int> use-before-assign skip smoke" "$arena_int_use_before_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_int_use_before_out"
 if grep -q "\\[arena\\]" "$arena_int_use_before_log" 2>/dev/null; then
   echo "ERROR: arena auto loop list<int> use-before-assign should skip (unexpected [arena] output)" >&2
   tail -n 80 "$arena_int_use_before_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop list<int> use-before-assign skip smoke" >>"$arena_int_use_before_log"
 tail -n 3 "$arena_int_use_before_log" >>"$log"
 
 echo "== arena auto loop empty list literal smoke ==" >>"$log"
@@ -602,14 +734,17 @@ arena_lit_src="tests/native/test_arena_auto_loop_empty_list_smoke.oren"
 arena_lit_out="build/tmp/${compiler_base}_arena_auto_loop_empty_list_smoke${exe_ext}"
 arena_lit_log="build/logs/${compiler_base}_arena_auto_loop_empty_list_smoke.log"
 rm -f "$arena_lit_log" "$arena_lit_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_lit_src" \
-  --backend native --platform "$platform" --debug -o "$arena_lit_out" >"$arena_lit_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_lit_out" >>"$arena_lit_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop empty list literal smoke" "$arena_lit_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_lit_src" \
+  --backend native --platform "$platform" --debug -o "$arena_lit_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop empty list literal smoke" "$arena_lit_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_lit_out"
 if ! grep -q "\\[arena\\]" "$arena_lit_log" 2>/dev/null; then
   echo "ERROR: arena auto loop empty list trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_lit_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop empty list literal smoke" >>"$arena_lit_log"
 tail -n 3 "$arena_lit_log" >>"$log"
 
 echo "== arena auto loop nested continue smoke ==" >>"$log"
@@ -617,14 +752,17 @@ arena_nested_src="tests/native/test_arena_auto_loop_nested_continue_smoke.oren"
 arena_nested_out="build/tmp/${compiler_base}_arena_auto_loop_nested_continue_smoke${exe_ext}"
 arena_nested_log="build/logs/${compiler_base}_arena_auto_loop_nested_continue_smoke.log"
 rm -f "$arena_nested_log" "$arena_nested_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_nested_src" \
-  --backend native --platform "$platform" --debug -o "$arena_nested_out" >"$arena_nested_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_nested_out" >>"$arena_nested_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop nested continue smoke" "$arena_nested_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_nested_src" \
+  --backend native --platform "$platform" --debug -o "$arena_nested_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop nested continue smoke" "$arena_nested_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_nested_out"
 if ! grep -q "\\[arena\\]" "$arena_nested_log" 2>/dev/null; then
   echo "ERROR: arena auto loop nested continue trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_nested_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop nested continue smoke" >>"$arena_nested_log"
 tail -n 3 "$arena_nested_log" >>"$log"
 
 echo "== arena auto loop continue smoke ==" >>"$log"
@@ -632,14 +770,17 @@ arena_cont_src="tests/native/test_arena_auto_loop_continue_smoke.oren"
 arena_cont_out="build/tmp/${compiler_base}_arena_auto_loop_continue_smoke${exe_ext}"
 arena_cont_log="build/logs/${compiler_base}_arena_auto_loop_continue_smoke.log"
 rm -f "$arena_cont_log" "$arena_cont_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_cont_src" \
-  --backend native --platform "$platform" --debug -o "$arena_cont_out" >"$arena_cont_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_cont_out" >>"$arena_cont_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop continue smoke" "$arena_cont_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_cont_src" \
+  --backend native --platform "$platform" --debug -o "$arena_cont_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop continue smoke" "$arena_cont_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_cont_out"
 if ! grep -q "\\[arena\\]" "$arena_cont_log" 2>/dev/null; then
   echo "ERROR: arena auto loop continue trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_cont_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop continue smoke" >>"$arena_cont_log"
 tail -n 3 "$arena_cont_log" >>"$log"
 
 echo "== arena auto loop break smoke ==" >>"$log"
@@ -647,14 +788,17 @@ arena_break_src="tests/native/test_arena_auto_loop_break_smoke.oren"
 arena_break_out="build/tmp/${compiler_base}_arena_auto_loop_break_smoke${exe_ext}"
 arena_break_log="build/logs/${compiler_base}_arena_auto_loop_break_smoke.log"
 rm -f "$arena_break_log" "$arena_break_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_break_src" \
-  --backend native --platform "$platform" --debug -o "$arena_break_out" >"$arena_break_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_break_out" >>"$arena_break_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop break smoke" "$arena_break_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_break_src" \
+  --backend native --platform "$platform" --debug -o "$arena_break_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop break smoke" "$arena_break_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_break_out"
 if ! grep -q "\\[arena\\]" "$arena_break_log" 2>/dev/null; then
   echo "ERROR: arena auto loop break trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_break_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop break smoke" >>"$arena_break_log"
 tail -n 3 "$arena_break_log" >>"$log"
 
 echo "== arena auto loop return smoke ==" >>"$log"
@@ -662,14 +806,17 @@ arena_ret_src="tests/native/test_arena_auto_loop_return_smoke.oren"
 arena_ret_out="build/tmp/${compiler_base}_arena_auto_loop_return_smoke${exe_ext}"
 arena_ret_log="build/logs/${compiler_base}_arena_auto_loop_return_smoke.log"
 rm -f "$arena_ret_log" "$arena_ret_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_ret_src" \
-  --backend native --platform "$platform" --debug -o "$arena_ret_out" >"$arena_ret_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_ret_out" >>"$arena_ret_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop return smoke" "$arena_ret_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_ret_src" \
+  --backend native --platform "$platform" --debug -o "$arena_ret_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop return smoke" "$arena_ret_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_ret_out"
 if ! grep -q "\\[arena\\]" "$arena_ret_log" 2>/dev/null; then
   echo "ERROR: arena auto loop return trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_ret_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop return smoke" >>"$arena_ret_log"
 tail -n 3 "$arena_ret_log" >>"$log"
 
 echo "== arena auto loop for-post continue smoke ==" >>"$log"
@@ -677,14 +824,17 @@ arena_fpc_src="tests/native/test_arena_auto_loop_for_post_continue_smoke.oren"
 arena_fpc_out="build/tmp/${compiler_base}_arena_auto_loop_for_post_continue_smoke${exe_ext}"
 arena_fpc_log="build/logs/${compiler_base}_arena_auto_loop_for_post_continue_smoke.log"
 rm -f "$arena_fpc_log" "$arena_fpc_out" 2>/dev/null || true
-OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_fpc_src" \
-  --backend native --platform "$platform" --debug -o "$arena_fpc_out" >"$arena_fpc_log" 2>&1
-OREN_TRACE_ARENA=1 run_with_timeout_retry "$run_timeout_secs" "$arena_fpc_out" >>"$arena_fpc_log" 2>&1
+OREN_ARENA_AUTO_LOOP=1 build_step_checked "arena auto loop for-post continue smoke" "$arena_fpc_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_fpc_src" \
+  --backend native --platform "$platform" --debug -o "$arena_fpc_out"
+OREN_TRACE_ARENA=1 run_step_checked "arena auto loop for-post continue smoke" "$arena_fpc_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$arena_fpc_out"
 if ! grep -q "\\[arena\\]" "$arena_fpc_log" 2>/dev/null; then
   echo "ERROR: arena auto loop for-post continue trace missing (expected [arena] output)" >&2
   tail -n 80 "$arena_fpc_log" >&2 2>/dev/null || true
   exit 1
 fi
+echo "ok: arena auto loop for-post continue smoke" >>"$arena_fpc_log"
 tail -n 3 "$arena_fpc_log" >>"$log"
 
 echo "== loop list reuse escape smoke (opt-in) ==" >>"$log"
@@ -692,9 +842,12 @@ reuse_src="tests/native/test_loop_list_reuse_escape_smoke.oren"
 reuse_out="build/tmp/${compiler_base}_loop_list_reuse_escape_smoke${exe_ext}"
 reuse_log="build/logs/${compiler_base}_loop_list_reuse_escape_smoke.log"
 rm -f "$reuse_log" "$reuse_out" 2>/dev/null || true
-OREN_OPT_LOOP_LIST_REUSE=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$reuse_src" \
-  --backend native --platform "$platform" --debug -o "$reuse_out" >"$reuse_log" 2>&1
-run_with_timeout_retry "$run_timeout_secs" "$reuse_out" >>"$reuse_log" 2>&1
+OREN_OPT_LOOP_LIST_REUSE=1 build_step_checked "loop list reuse escape smoke" "$reuse_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$reuse_src" \
+  --backend native --platform "$platform" --debug -o "$reuse_out"
+run_step_checked "loop list reuse escape smoke" "$reuse_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$reuse_out"
+echo "ok: loop list reuse escape smoke" >>"$reuse_log"
 tail -n 3 "$reuse_log" >>"$log"
 
 if [[ "$os_key" != "windows" ]]; then
@@ -707,8 +860,9 @@ if [[ "$os_key" != "windows" ]]; then
   bs_out="build/tmp/${compiler_base}_backslash_path_smoke"
   bs_log="build/logs/${compiler_base}_backslash_path_smoke.log"
   rm -f "$bs_out" "$bs_log" 2>/dev/null || true
-  run_with_timeout "$build_timeout_secs" "$compiler" build "$bs_src" \
-    --backend native --platform "$platform" --no-debug -o "$bs_out" >"$bs_log" 2>&1
+  build_step_checked "path separator smoke (backslash input)" "$bs_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$bs_src" \
+    --backend native --platform "$platform" --no-debug -o "$bs_out"
   test -f "$bs_out" || { echo "FAIL: backslash path smoke did not produce output: $bs_out" >&2; tail -n 80 "$bs_log" >&2; exit 1; }
   echo "OK: backslash path smoke"
 
@@ -723,8 +877,9 @@ if [[ "$os_key" != "windows" ]]; then
   bs_out2_norm="${bs_out2//\\//}"
   bs_log2="build/logs/${compiler_base}_backslash_out_smoke.log"
   rm -f "$bs_out2_norm" "$bs_log2" 2>/dev/null || true
-  run_with_timeout "$build_timeout_secs" "$compiler" build "$bs_src" \
-    --backend native --platform "$platform" --no-debug -o "$bs_out2" >"$bs_log2" 2>&1
+  build_step_checked "path separator smoke (backslash -o output)" "$bs_log2" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$bs_src" \
+    --backend native --platform "$platform" --no-debug -o "$bs_out2"
   test -f "$bs_out2_norm" || { echo "FAIL: backslash -o smoke did not produce output: $bs_out2_norm (from -o $bs_out2)" >&2; tail -n 80 "$bs_log2" >&2; exit 1; }
   echo "OK: backslash -o smoke"
 fi
@@ -735,16 +890,8 @@ tc_log="build/logs/${compiler_base}_typecheck_smoke.log"
 tc_out="build/tmp/${compiler_base}_typecheck_smoke.obc"
 rm -f "$tc_log" "$tc_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$tc_src" --backend bytecode --typecheck -o "$tc_out" >"$tc_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: typecheck smoke expected failure but build succeeded"
-  tail -n 80 "$tc_log"
-  exit 1
-fi
+expect_compile_failure_step "typecheck smoke (numeric vs nil)" "$tc_log" \
+  "$compiler" build "$tc_src" --backend bytecode --typecheck -o "$tc_out"
 tail -n 5 "$tc_log"
 
 echo "== reserved identifier prefix smoke =="
@@ -753,16 +900,8 @@ rp_log="build/logs/${compiler_base}_reserved_ident_prefix_smoke.log"
 rp_out="build/tmp/${compiler_base}_reserved_ident_prefix_smoke.obc"
 rm -f "$rp_log" "$rp_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$rp_src" --backend bytecode --strict-ident-prefixes -o "$rp_out" >"$rp_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: reserved identifier prefix smoke expected failure but build succeeded"
-  tail -n 80 "$rp_log"
-  exit 1
-fi
+expect_compile_failure_step "reserved identifier prefix smoke" "$rp_log" \
+  "$compiler" build "$rp_src" --backend bytecode --strict-ident-prefixes -o "$rp_out"
 tail -n 5 "$rp_log"
 
 echo "== nil-compare guard smoke (late scalar use) =="
@@ -771,16 +910,8 @@ ng_log="build/logs/${compiler_base}_nil_guard_smoke.log"
 ng_out="build/tmp/${compiler_base}_nil_guard_smoke.obc"
 rm -f "$ng_log" "$ng_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$ng_src" --backend bytecode -o "$ng_out" >"$ng_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: nil-compare guard smoke expected failure but build succeeded"
-  tail -n 80 "$ng_log"
-  exit 1
-fi
+expect_compile_failure_step "nil-compare guard smoke (late scalar use)" "$ng_log" \
+  "$compiler" build "$ng_src" --backend bytecode -o "$ng_out"
 tail -n 5 "$ng_log"
 
 echo "== nil-compare guard smoke (late scalar use: arithmetic literal) =="
@@ -789,16 +920,8 @@ ng1_log="build/logs/${compiler_base}_nil_guard_smoke_arith_literal.log"
 ng1_out="build/tmp/${compiler_base}_nil_guard_smoke_arith_literal.obc"
 rm -f "$ng1_log" "$ng1_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$ng1_src" --backend bytecode -o "$ng1_out" >"$ng1_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: nil-compare guard smoke (arith literal) expected failure but build succeeded"
-  tail -n 80 "$ng1_log"
-  exit 1
-fi
+expect_compile_failure_step "nil-compare guard smoke (late scalar use: arithmetic literal)" "$ng1_log" \
+  "$compiler" build "$ng1_src" --backend bytecode -o "$ng1_out"
 tail -n 5 "$ng1_log"
 
 echo "== nil-compare guard smoke (param late scalar use: arithmetic literal) =="
@@ -807,16 +930,8 @@ ngp_log="build/logs/${compiler_base}_nil_guard_smoke_param_arith_literal.log"
 ngp_out="build/tmp/${compiler_base}_nil_guard_smoke_param_arith_literal.obc"
 rm -f "$ngp_log" "$ngp_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$ngp_src" --backend bytecode -o "$ngp_out" >"$ngp_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: nil-compare guard smoke (param arith literal) expected failure but build succeeded"
-  tail -n 80 "$ngp_log"
-  exit 1
-fi
+expect_compile_failure_step "nil-compare guard smoke (param late scalar use: arithmetic literal)" "$ngp_log" \
+  "$compiler" build "$ngp_src" --backend bytecode -o "$ngp_out"
 tail -n 5 "$ngp_log"
 
 echo "== nil-compare guard smoke (late bitwise use) =="
@@ -825,16 +940,8 @@ ngb_log="build/logs/${compiler_base}_nil_guard_smoke_bitwise.log"
 ngb_out="build/tmp/${compiler_base}_nil_guard_smoke_bitwise.obc"
 rm -f "$ngb_log" "$ngb_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$ngb_src" --backend bytecode -o "$ngb_out" >"$ngb_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: nil-compare guard smoke (bitwise) expected failure but build succeeded"
-  tail -n 80 "$ngb_log"
-  exit 1
-fi
+expect_compile_failure_step "nil-compare guard smoke (late bitwise use)" "$ngb_log" \
+  "$compiler" build "$ngb_src" --backend bytecode -o "$ngb_out"
 tail -n 5 "$ngb_log"
 
 echo "== nil-compare guard smoke (late scalar use, top-level) =="
@@ -843,16 +950,8 @@ ng2_log="build/logs/${compiler_base}_nil_guard_smoke_top_level.log"
 ng2_out="build/tmp/${compiler_base}_nil_guard_smoke_top_level.obc"
 rm -f "$ng2_log" "$ng2_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$ng2_src" --backend bytecode -o "$ng2_out" >"$ng2_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: nil-compare guard smoke (top-level) expected failure but build succeeded"
-  tail -n 80 "$ng2_log"
-  exit 1
-fi
+expect_compile_failure_step "nil-compare guard smoke (late scalar use, top-level)" "$ng2_log" \
+  "$compiler" build "$ng2_src" --backend bytecode -o "$ng2_out"
 tail -n 5 "$ng2_log"
 
 echo "== nil-compare guard smoke (annotated call result) =="
@@ -861,16 +960,8 @@ ng3_log="build/logs/${compiler_base}_nil_guard_smoke_annotated_call.log"
 ng3_out="build/tmp/${compiler_base}_nil_guard_smoke_annotated_call.obc"
 rm -f "$ng3_log" "$ng3_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$ng3_src" --backend bytecode -o "$ng3_out" >"$ng3_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: nil-compare guard smoke (annotated call) expected failure but build succeeded"
-  tail -n 80 "$ng3_log"
-  exit 1
-fi
+expect_compile_failure_step "nil-compare guard smoke (annotated call result)" "$ng3_log" \
+  "$compiler" build "$ng3_src" --backend bytecode -o "$ng3_out"
 tail -n 5 "$ng3_log"
 
 echo "== typecheck smoke (bool vs nil) =="
@@ -879,16 +970,8 @@ tc2_log="build/logs/${compiler_base}_typecheck_smoke_bool_nil.log"
 tc2_out="build/tmp/${compiler_base}_typecheck_smoke_bool_nil.obc"
 rm -f "$tc2_log" "$tc2_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$tc2_src" --backend bytecode --typecheck -o "$tc2_out" >"$tc2_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: typecheck smoke (bool vs nil) expected failure but build succeeded"
-  tail -n 80 "$tc2_log"
-  exit 1
-fi
+expect_compile_failure_step "typecheck smoke (bool vs nil)" "$tc2_log" \
+  "$compiler" build "$tc2_src" --backend bytecode --typecheck -o "$tc2_out"
 tail -n 5 "$tc2_log"
 
 echo "== parser smoke (reserved struct field __oren_type) =="
@@ -897,14 +980,9 @@ rs_log="build/logs/${compiler_base}_parser_smoke_reserved_oren_type_field.log"
 rs_out="build/tmp/${compiler_base}_parser_smoke_reserved_oren_type_field.obc"
 rm -f "$rs_log" "$rs_out" 2>/dev/null || true
 
-set +e
-"$compiler" build "$rs_src" --backend bytecode --typecheck -o "$rs_out" >"$rs_log" 2>&1
-rc=$?
-set -e
-
-if [[ "$rc" -eq 0 ]]; then
-  echo "FAIL: parser smoke (reserved __oren_type) expected failure but build succeeded"
-  tail -n 80 "$rs_log"
-  exit 1
-fi
+expect_compile_failure_step "parser smoke (reserved struct field __oren_type)" "$rs_log" \
+  "$compiler" build "$rs_src" --backend bytecode --typecheck -o "$rs_out"
 tail -n 5 "$rs_log"
+
+echo "native quick integration follow-on OK"
+echo "native quick integration follow-on OK" >>"$log"

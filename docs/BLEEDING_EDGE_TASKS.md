@@ -2232,6 +2232,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (`build/logs/codex_verify_green_fairness_guarded_20260307_pass.log`), and the per-run
     logs now stop immediately after the base + green-cache fairness passes while keeping
     the fairness progress markers in the inner log.
+  - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now runs the whole
+    post-phase follow-on smoke block through checked build/run helpers, applies timeout-like
+    reruns per smoke via `OREN_QI_FOLLOWON_SMOKE_RETRIES` (default `1`), and stamps explicit
+    `ok:` completion markers plus a final `native quick integration follow-on OK` line into the
+    inner log. This removes the remaining late `test-native-quick` `Error 143` blind spot where
+    the inner log could stop after `Build successful: ...loop_list_reuse_escape_smoke` without
+    telling us which smoke had actually completed. Verified with:
+    `build/logs/native_quick_followon_guard_20260409.log` and
+    `build/logs/make_test_native_quick_followon_guard_20260409.log`. That verification still hit
+    the existing stage1 base-run timeout retry once (`WARN: timeout (rc=143). Retrying with 720s.`
+    in `build/logs/oren_native_quick_integration.log`), but the suite stayed green and the new
+    markers proved the late follow-on block completed.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

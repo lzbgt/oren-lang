@@ -223,6 +223,30 @@ Verification for this follow-up:
 That change upgrades stage1 green-cache runtime robustness from a side-target / manual
 triage path into part of the main W5 verification bundle.
 
+Additional runtime follow-up on 2026-04-09:
+
+- `scripts/run_native_quick_integration.sh` now runs the entire post-phase follow-on smoke block
+  through checked build/run helpers instead of mixing guarded phase logic with unguarded late
+  smokes
+- timeout-like follow-on smoke exits now get per-smoke reruns via
+  `OREN_QI_FOLLOWON_SMOKE_RETRIES` (default `1`)
+- the inner quick-integration log now carries explicit `ok:` markers for the late smokes and a
+  final `native quick integration follow-on OK` stamp
+- this closes the remaining late `test-native-quick` `Error 143` blind spot where the inner log
+  could stop after `Build successful: ...loop_list_reuse_escape_smoke` without identifying the
+  last completed smoke
+
+Verification for this follow-up:
+
+- direct `./scripts/run_native_quick_integration.sh ./oren`
+  - log: `build/logs/native_quick_followon_guard_20260409.log`
+- `make test`
+  - log: `build/logs/make_test_native_quick_followon_guard_20260409.log`
+  - note: the verification run still exercised the existing stage1 base-run timeout retry once
+    (`WARN: timeout (rc=143). Retrying with 720s.` in
+    `build/logs/oren_native_quick_integration.log`), but it stayed green and the new follow-on
+    markers proved the late-smoke block completed.
+
 ## W5 perf follow-up in this pass
 
 After the runtime-verifier work, the next concrete blocker was still arm64/native hot-loop

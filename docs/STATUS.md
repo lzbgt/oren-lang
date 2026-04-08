@@ -3540,6 +3540,18 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      `build/logs/make_verify_green_preworld_guarded_20260408.log`,
      `build/logs/make_verify_runtime_robustness_20260408.log`, and
      `build/logs/runtime_robustness_w5_20260408_212845.log`.
+   - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now runs the full
+     post-phase follow-on smoke block through checked build/run helpers, keeps timeout-like reruns
+     on each smoke under `OREN_QI_FOLLOWON_SMOKE_RETRIES` (default `1`), and emits explicit
+     `ok:` markers plus a final `native quick integration follow-on OK` stamp in the inner log.
+     This removes the remaining late `test-native-quick` `Error 143` blind spot where the inner
+     log could stop after `Build successful: ...loop_list_reuse_escape_smoke` without identifying
+     the last completed smoke. Verified with:
+     `build/logs/native_quick_followon_guard_20260409.log` and
+     `build/logs/make_test_native_quick_followon_guard_20260409.log`. The verification run still
+     exercised the existing stage1 base-run timeout retry once (`WARN: timeout (rc=143). Retrying
+     with 720s.` in `build/logs/oren_native_quick_integration.log`), but the suite stayed green
+     and the new follow-on markers proved the late-smoke block completed.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
