@@ -261,6 +261,13 @@ Additional runtime follow-up later on 2026-04-09:
   guard paths instead of leaving the base-only timeout/retry path as a side target
 - the latest full `make test` on that tree reached `native quick integration follow-on OK`
   without reproducing the older stage1 base-run timeout retry
+- the same latest full run still logged a green-cache retry after `Indexing on non-container`
+  in `__oren_fnwrap_worker_green_local_ptr_survives_yields`, so focused stage1 wrappers should
+  fail on hidden retries instead of silently passing
+- the clean sequential rerun of that stricter green-cache reproducer later on the same day passed
+  3/3 with `retry_*_count=0`, so the issue remains intermittent rather than a stable current repro
+- the final full-suite rerun on the same tree also reached `native quick integration follow-on OK`
+  with `retry_*_count=0` in the inner quick log (`build/logs/make_test_retry_summary_20260409.log`)
 
 Verification for this follow-up:
 
@@ -276,6 +283,10 @@ Verification for this follow-up:
   - `build/logs/make_test_runtime_base_bundle_20260409.log`
   - inner quick logs: `build/logs/oren_native_quick_base_only.log`,
     `build/logs/oren_native_quick_integration.log`
+- focused no-retry stage1 gates:
+  - `make verify-native-quick-base-guarded`
+  - `make test-native-quick-green-cache-flake`
+  - latest clean strict green-cache log: `build/logs/make_test_native_quick_green_cache_flake_strict_20260409.log`
 
 ## W5 perf follow-up in this pass
 

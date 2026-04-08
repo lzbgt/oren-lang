@@ -19,6 +19,12 @@ green_cache_first="${OREN_QI_GREEN_CACHE_FIRST:-0}"
 green_cache_runs="${OREN_QI_GREEN_CACHE_RUNS:-1}"
 green_cache_retries="${OREN_QI_GREEN_CACHE_RETRIES:-1}"
 followon_smoke_retries="${OREN_QI_FOLLOWON_SMOKE_RETRIES:-1}"
+fail_on_retry="${OREN_QI_FAIL_ON_RETRY:-0}"
+
+retry_base_count=0
+retry_green_cache_count=0
+retry_followon_count=0
+retry_total_count=0
 
 if [[ "$only_green_cache" == "1" ]]; then
   skip_base_run=1
@@ -48,6 +54,23 @@ fi
 is_timeout_rc() {
   local rc="${1:-0}"
   [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]
+}
+
+record_retry() {
+  local bucket="${1:-}"
+  case "$bucket" in
+    base) retry_base_count=$((retry_base_count + 1)) ;;
+    green_cache) retry_green_cache_count=$((retry_green_cache_count + 1)) ;;
+    followon) retry_followon_count=$((retry_followon_count + 1)) ;;
+  esac
+  retry_total_count=$((retry_total_count + 1))
+}
+
+emit_retry_summary() {
+  echo "retry_base_count=$retry_base_count" >>"$log"
+  echo "retry_green_cache_count=$retry_green_cache_count" >>"$log"
+  echo "retry_followon_count=$retry_followon_count" >>"$log"
+  echo "retry_total_count=$retry_total_count" >>"$log"
 }
 
 build_step_checked() {
@@ -94,6 +117,7 @@ run_step_checked() {
     fi
 
     attempt=$((attempt + 1))
+    record_retry followon
     echo "WARN: ${label} timeout-like rc=${rc}; retry ${attempt}/${followon_smoke_retries}" >>"$step_log"
   done
 }
@@ -194,7 +218,13 @@ PY
 }
 
 run_with_timeout_retry() {
+  local retry_bucket="followon"
   local secs="$1"
+  if ! [[ "$secs" =~ ^[0-9]+$ ]]; then
+    retry_bucket="$1"
+    secs="$2"
+    shift
+  fi
   shift
   run_with_timeout "$secs" "$@"
   local rc=$?
@@ -204,6 +234,7 @@ run_with_timeout_retry() {
   # - SIGTERM: 143
   if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
     local secs2=$((secs * 2))
+    record_retry "$retry_bucket"
     echo "WARN: timeout (rc=$rc). Retrying with ${secs2}s." >&2
     run_with_timeout "$secs2" "$@"
     return $?
@@ -323,6 +354,7 @@ echo "build_timeout_secs=$build_timeout_secs"
 echo "run_timeout_secs=$run_timeout_secs"
 echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
 echo "followon_smoke_retries=$followon_smoke_retries"
+echo "fail_on_retry=$fail_on_retry"
 echo "stop_after_base=$stop_after_base"
 
 rm -f "$log" "$out" 2>/dev/null || true
@@ -343,6 +375,7 @@ fi
   echo "run_timeout_secs=$run_timeout_secs"
   echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
   echo "followon_smoke_retries=$followon_smoke_retries"
+  echo "fail_on_retry=$fail_on_retry"
   echo "stop_after_base=$stop_after_base"
 } >>"$log"
 
@@ -389,7 +422,7 @@ run_green_cache() {
     local attempt=0
     while true; do
       set +e
-      OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
+      OREN_GREEN_POLL_CACHE=1 run_with_timeout_retry green_cache "$green_cache_run_timeout_secs" "$out" >>"$log" 2>&1
       local rc=$?
       set -e
       if [[ "$rc" -eq 0 ]]; then
@@ -399,6 +432,7 @@ run_green_cache() {
         return "$rc"
       fi
       attempt=$((attempt + 1))
+      record_retry green_cache
       echo "WARN: green cache run failed (rc=${rc}); retry ${attempt}/${green_cache_retries}" >>"$log"
     done
   done
@@ -410,7 +444,7 @@ run_base() {
     return 0
   fi
   set +e
-  run_with_timeout_retry "$run_timeout_secs" "$out" >>"$log" 2>&1
+  run_with_timeout_retry base "$run_timeout_secs" "$out" >>"$log" 2>&1
   local rc=$?
   set -e
   return "$rc"
@@ -437,8 +471,14 @@ else
     echo "native quick integration base phase OK" >>"$log"
   fi
   if [[ "$phase_rc" -eq 0 && "$stop_after_base" == "1" ]]; then
+    emit_retry_summary
+    if [[ "$fail_on_retry" == "1" && "$retry_total_count" -gt 0 ]]; then
+      echo "FAIL: retries observed with OREN_QI_FAIL_ON_RETRY=1" >>"$log"
+      tail -n 8 "$log"
+      exit 86
+    fi
     echo "skip_reason=OREN_QI_STOP_AFTER_BASE=1" >>"$log"
-    tail -n 5 "$log"
+    tail -n 8 "$log"
     exit 0
   fi
   if [[ "$phase_rc" -eq 0 ]]; then
@@ -452,9 +492,16 @@ fi
 tail -n 5 "$log"
 
 if [[ "$phase_rc" -ne 0 ]]; then
+  emit_retry_summary
   exit "$phase_rc"
 fi
 if [[ "$stop_after_green_cache" == "1" ]]; then
+  emit_retry_summary
+  if [[ "$fail_on_retry" == "1" && "$retry_total_count" -gt 0 ]]; then
+    echo "FAIL: retries observed with OREN_QI_FAIL_ON_RETRY=1" >>"$log"
+    tail -n 8 "$log"
+    exit 86
+  fi
   exit 0
 fi
 
@@ -998,3 +1045,9 @@ tail -n 5 "$rs_log"
 
 echo "native quick integration follow-on OK"
 echo "native quick integration follow-on OK" >>"$log"
+emit_retry_summary
+if [[ "$fail_on_retry" == "1" && "$retry_total_count" -gt 0 ]]; then
+  echo "FAIL: retries observed with OREN_QI_FAIL_ON_RETRY=1" >>"$log"
+  tail -n 8 "$log"
+  exit 86
+fi

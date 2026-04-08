@@ -16,6 +16,7 @@ fi
 
 env \
   OREN_QI_LABEL="native_quick_base_only" \
+  OREN_QI_FAIL_ON_RETRY=1 \
   OREN_QI_TRACE=1 \
   OREN_QI_STOP_AFTER_BASE=1 \
   "${extra_env[@]}" \

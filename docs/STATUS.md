@@ -3558,8 +3558,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      `skip_reason=OREN_QI_STOP_AFTER_BASE=1` into the inner log, and exposes a cheap dedicated
      stage1 reproducer at `make verify-native-quick-base-guarded`. The focused wrapper
      `scripts/triage_native_quick_base_flake.sh` reuses the existing flake harness with
-     `OREN_QI_TRACE=1`, so the remaining stage1 base-run timeout/retry path can be chased with
-     per-test progress instead of waiting for a full `make test`. Verified with
+     `OREN_QI_TRACE=1` plus `OREN_QI_FAIL_ON_RETRY=1`, so the remaining stage1 base-run
+     timeout/retry path can be chased with per-test progress and no hidden reruns instead of
+     waiting for a full `make test`. Verified with
      `build/logs/native_quick_base_only_direct_20260409.log`,
      `build/logs/oren_native_quick_base_only.log`, and
      `build/logs/make_verify_native_quick_base_guarded_20260409.log` (3/3 passes).
@@ -3575,6 +3576,23 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      `build/logs/make_test_runtime_base_bundle_20260409.log`,
      `build/logs/oren_native_quick_base_only.log`, and
      `build/logs/oren_native_quick_integration.log`.
+   - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now records
+     `retry_base_count`, `retry_green_cache_count`, `retry_followon_count`, and
+     `retry_total_count` in the inner log, and accepts `OREN_QI_FAIL_ON_RETRY=1` to turn hidden
+     self-healing reruns into explicit failures. The focused green-cache wrapper
+     `scripts/triage_native_quick_green_cache_flake.sh` now disables inner green-cache reruns via
+     `OREN_QI_GREEN_CACHE_RETRIES=0` and runs under `OREN_QI_FAIL_ON_RETRY=1`. This keeps the
+     focused stage1 green-cache surface honest even when `make test` stays green after a retry,
+     such as the earlier `Indexing on non-container` retry in
+     `build/logs/make_test_runtime_base_bundle_20260409.log`. A clean sequential rerun of the
+     stricter reproducer passed 3/3 on current `master`
+     (`build/logs/make_test_native_quick_green_cache_flake_strict_20260409.log`), and the latest
+     inner quick logs now stamp `retry_*_count=0`
+     (`build/logs/oren_native_quick_integration.log`, `build/logs/oren_native_quick_base_only.log`);
+     the latest full-suite rerun is also clean with the same zero-retry summary
+     (`build/logs/make_test_retry_summary_20260409.log`).
+     Treat the stage1 green-cache/local-ptr issue as intermittent but still active enough to keep
+     the no-retry reproducer in the repo.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`

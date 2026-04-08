@@ -452,10 +452,10 @@ test-native-quick-stage2: oren_stage2 rtobj-seed-quick-stage2
 test-native-quick-flake-debug: oren
 		@./scripts/triage_native_quick_flake_debug.sh 3 "./$(OREN_BIN)"
 
-# Focused flake triage (stage1): run only the green-cache rerun path with STW/runq guards
-# enabled and preserve per-run inner + phase logs.
+# Focused flake triage (stage1): run only the green-cache rerun path with STW/runq guards,
+# no hidden inner reruns, and preserve per-run inner + phase logs.
 test-native-quick-green-cache-flake: oren
-			@./scripts/triage_native_quick_green_cache_flake.sh 3 "./$(OREN_BIN)"
+				@./scripts/triage_native_quick_green_cache_flake.sh 3 "./$(OREN_BIN)"
 
 # Focused flake triage (stage1): isolate only the base quick-integration pass with per-test trace.
 verify-native-quick-base-guarded: oren

@@ -2248,9 +2248,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_QI_STOP_AFTER_BASE=1`, records `native quick integration base phase OK` plus
     `skip_reason=OREN_QI_STOP_AFTER_BASE=1`, and the new wrapper
     `scripts/triage_native_quick_base_flake.sh` feeds that base-only path through the existing
-    flake harness with `OREN_QI_TRACE=1`. `make verify-native-quick-base-guarded` now gives a
-    cheap 3-pass reproducer for the remaining stage1 base-run timeout/retry path with per-test
-    progress in `build/logs/oren_native_quick_base_only.log`. Verified with
+    flake harness with `OREN_QI_TRACE=1` plus `OREN_QI_FAIL_ON_RETRY=1`.
+    `make verify-native-quick-base-guarded` now gives a cheap 3-pass reproducer for the remaining
+    stage1 base-run timeout/retry path with per-test progress in
+    `build/logs/oren_native_quick_base_only.log` and no hidden reruns. Verified with
     `build/logs/native_quick_base_only_direct_20260409.log`,
     `build/logs/oren_native_quick_base_only.log`, and
     `build/logs/make_verify_native_quick_base_guarded_20260409.log`.
@@ -2266,6 +2267,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/make_test_runtime_base_bundle_20260409.log`,
     `build/logs/oren_native_quick_base_only.log`, and
     `build/logs/oren_native_quick_integration.log`.
+  - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now records
+    `retry_base_count`, `retry_green_cache_count`, `retry_followon_count`, and
+    `retry_total_count`, and accepts `OREN_QI_FAIL_ON_RETRY=1` so focused triage surfaces can fail
+    on hidden self-healing reruns instead of reporting green. The focused green-cache wrapper
+    `scripts/triage_native_quick_green_cache_flake.sh` now disables inner green-cache reruns with
+    `OREN_QI_GREEN_CACHE_RETRIES=0` and runs under `OREN_QI_FAIL_ON_RETRY=1`. This keeps the
+    focused green-cache surface honest even when a full `make test` stays green after retrying an
+    `Indexing on non-container` panic in `__oren_fnwrap_worker_green_local_ptr_survives_yields`.
+    A clean sequential rerun of the stricter reproducer passed 3/3 on current `master`
+    (`build/logs/make_test_native_quick_green_cache_flake_strict_20260409.log`), and the latest
+    inner quick logs now stamp `retry_*_count=0`
+    (`build/logs/oren_native_quick_integration.log`, `build/logs/oren_native_quick_base_only.log`);
+    the latest full-suite rerun is also clean with the same zero-retry summary
+    (`build/logs/make_test_retry_summary_20260409.log`).
+    Treat this stage1 green-cache/local-ptr issue as intermittent but still active enough to keep
+    the no-retry reproducer in the repo.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

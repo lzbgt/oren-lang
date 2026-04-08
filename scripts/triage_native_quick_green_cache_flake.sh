@@ -22,6 +22,8 @@ if [[ ! -x "$compiler" ]]; then
   exit 2
 fi
 
+OREN_QI_FAIL_ON_RETRY=1 \
+OREN_QI_GREEN_CACHE_RETRIES=0 \
 OREN_QI_STOP_AFTER_GREEN_CACHE=1 \
 ./scripts/triage_native_quick_flake.sh "$runs" "$compiler" \
   OREN_QI_TRACE=1 \
