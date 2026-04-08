@@ -288,39 +288,46 @@ Prefix-zero containment follow-up:
 
 - I tested another arm64 statement-level loop-body idea: a compile-time-zero fast path for the
   canonical `list<int>` `array_sum` / `dot_product` while-loops.
-- The first implementation was not correctness-safe: with the fast path active, native benchmark
-  smoke still produced the expected `array_sum` outputs (`205`, `710`), but `dot_product 10 3`
-  crashed before returning `6590`.
 - I kept the experiment only as an explicit opt-in compiler knob:
   - `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1`
   - `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`
-- There is now a dedicated failure-aware probe:
+- There is still a failure-aware family probe:
   - `make perf-probe-arm64-fast-loop-prefix-zero`
   - Unlike the pair-post probe, it records wrapper and acceptance exit status per leg and only
     returns non-zero when the shipped default is broken.
-- Current rerun (`build/logs/perf-probe-arm64-fast-loop-prefix-zero-20260408_224002_36344.log`):
+- The get-sum leg is still a measured loss. The isolated rerun
+  (`build/logs/perf-probe-arm64-dot-acceptance-20260409_003014_84317.summary.log`) landed at:
+  - `steady_array_sum ~7.1203x C`
+  - `gate_array_sum ~2.3250x C`
+  - `disasm_array_sum_insns: 18`
+- The dot leg is now correctness-clean after the April 9 register-plan fix that mirrors the proven
+  direct-slot intrinsic register layout after list validation. Native smoke now passes with
+  `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`
+  (`build/logs/perf-smoke-native-fast-loops-20260409_003456_90383.log`).
+- There is now a dedicated serialized dot-only probe:
+  - `make perf-probe-arm64-fast-dot-prefix-zero`
+  - It compares the shipped default against only
+    `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` on
+    `OREN_ARM64_DOT_ACCEPT_PROGRAMS=dot_product`.
+- Current dot-only rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
   - shipped default:
-    - `steady_array_sum ~2.1470x C`
-    - `steady_dot_product ~2.9221x C`
-    - `gate_array_sum ~1.9392x C`
-    - `gate_dot_product ~2.7083x C`
-    - disasm instruction counts: `52` / `70`
-    - `debug_exit_code: 0`
-  - enabled prefix-zero experiment:
-    - `wrapper_exit_code: 2`
-    - `exit_status: 2`
-    - `failed_step: perf-smoke-native-fast-loops`
-- Underlying failure log: `build/logs/perf-smoke-native-fast-loops-20260408_224013_36955.log`
-  confirms the crash happens on native `dot_product 10 3` after `array_sum` already passed.
-- Verification for the containment pass:
-  - `make perf-smoke-native-fast-loops`
-    - wrapper log: `build/logs/perf_smoke_native_fast_loops_prefix_zero_default_20260408.log`
-    - smoke summary: `build/logs/perf-smoke-native-fast-loops-20260408_223942_35777.log`
-  - `make perf-probe-arm64-fast-loop-prefix-zero`
-    - wrapper log: `build/logs/make_perf_probe_arm64_fast_loop_prefix_zero_20260408_safe.log`
-    - summary: `build/logs/perf-probe-arm64-fast-loop-prefix-zero-20260408_224002_36344.log`
-  - `make test`
-    - log: `build/logs/make_test_prefix_zero_containment_20260408.log`
+    - `steady_dot_product ~2.9876x C`
+    - `gate_dot_product ~2.8425x C`
+    - `disasm_dot_product_insns: 70`
+  - enabled dot prefix-zero experiment:
+    - `steady_dot_product ~3.0230x C`
+    - `gate_dot_product ~2.6354x C`
+    - `disasm_dot_product_insns: 23`
+- Conclusion: keep both prefix-zero branches disabled by default. The dot-only experiment no longer
+  crashes and is much shorter in disassembly, but it still regresses the shipped canonical gate,
+  while the get-sum leg is already a clear negative result.
+- Verification for the current salvage pass:
+  - `env OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1' make perf-smoke-native-fast-loops`
+    - wrapper log: `build/logs/make_perf_smoke_native_fast_loops_dot_prefix_zero_only_fix1_clean_20260409.log`
+    - smoke summary: `build/logs/perf-smoke-native-fast-loops-20260409_003456_90383.log`
+  - `make perf-probe-arm64-fast-dot-prefix-zero`
+    - wrapper log: `build/logs/make_perf_probe_arm64_fast_dot_prefix_zero_20260409.log`
+    - summary: `build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`
 
 Shared `list<int> -> []i32` bridge follow-up:
 

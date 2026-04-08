@@ -1583,22 +1583,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      enabled `~2.3932x C`, `~3.1297x C`, `~2.1181x C`, `~2.6913x C`, disasm `47` / `60`.
 				      Keep the pair-post branch default-off; instruction-count wins alone still lose on the
 				      measured hot-loop gates.
-				    - New arm64 fast-loop prefix-zero probe + containment (2026-04-08):
-				      the statement-level prefix-zero list<int> fast paths now stay explicit opt-in only via
+				    - Arm64 fast-loop prefix-zero family remains default-off, but the dot leg is now
+				      correctness-clean and isolated (2026-04-09): the statement-level prefix-zero
+				      list<int> fast paths still stay explicit opt-in only via
 				      `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1` and
-				      `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`; the shipped default no longer routes
-				      through this experiment.
-				      `make perf-probe-arm64-fast-loop-prefix-zero` compares the shipped baseline against the
-				      enabled experiment and records wrapper/acceptance exit status per leg while only
-				      failing the target when the shipped default breaks. Current rerun
-				      (`build/logs/perf-probe-arm64-fast-loop-prefix-zero-20260408_224002_36344.log`):
-				      default `steady_array_sum ~2.1470x C`, `steady_dot_product ~2.9221x C`,
-				      `gate_array_sum ~1.9392x C`, `gate_dot_product ~2.7083x C`, disasm `52` / `70`,
-				      `debug_exit_code: 0`; enabled leg failed at `perf-smoke-native-fast-loops`
-				      (`wrapper_exit_code: 2`, `exit_status: 2`), and the underlying smoke log
-				      `build/logs/perf-smoke-native-fast-loops-20260408_224013_36955.log` shows
-				      `dot_product 10 3` crashing after `array_sum` already passed. Keep the prefix-zero
-				      branch default-off until it is correctness-clean.
+				      `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`.
+				      `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1` is still a clear loss on the current
+				      host (`build/logs/perf-probe-arm64-dot-acceptance-20260409_003014_84317.summary.log`:
+				      `steady_array_sum ~7.1203x C`, `gate_array_sum ~2.3250x C`). The arm64 dot prefix-zero
+				      subpath now mirrors the proven direct-slot register plan after validation, so
+				      `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` is smoke-clean again
+				      (`build/logs/perf-smoke-native-fast-loops-20260409_003456_90383.log`). Use the new
+				      serialized dot-only probe `make perf-probe-arm64-fast-dot-prefix-zero` when revisiting
+				      just the dot leg. Current rerun
+				      (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
+				      default `steady_dot_product ~2.9876x C`, `gate_dot_product ~2.8425x C`, disasm `70`;
+				      enabled `steady_dot_product ~3.0230x C`, `gate_dot_product ~2.6354x C`, disasm `23`.
+				      Keep the family default-off: the dot leg no longer crashes, but it still loses on the
+				      shipped canonical gate, and the get-sum leg already regresses.
 					    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
 						      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
 						      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`

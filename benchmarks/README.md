@@ -974,20 +974,22 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `gate_dot_product ~2.5682x`, disasm `52` / `70`; enabled `~2.3932x`, `~3.1297x`, `~2.1181x`,
   `~2.6913x`, disasm `47` / `60`. Conclusion: keep the pair-load path disabled by default; the
   lower instruction counts still lose on the measured hot-loop trackers.
-- For the arm64 compile-time-zero prefix-loop recheck, use
-  `make perf-probe-arm64-fast-loop-prefix-zero`. This keeps the shipped baseline on one side and
-  compares it against the default-off experimental lowering enabled via
-  `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1,OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`.
-  Unlike the pair-post probe, this wrapper records wrapper/acceptance exit codes and only fails
-  the make target when the shipped default itself is broken, so a crashing experiment still lands
-  as a usable summary artifact. Current host rerun
-  (`build/logs/perf-probe-arm64-fast-loop-prefix-zero-20260408_224002_36344.log`): default
-  `steady_array_sum ~2.1470x`, `steady_dot_product ~2.9221x`, `gate_array_sum ~1.9392x`,
-  `gate_dot_product ~2.7083x`, disasm `52` / `70`, `debug_exit_code 0`; enabled leg failed with
-  `wrapper_exit_code 2`, `exit_status 2`, `failed_step perf-smoke-native-fast-loops`, and the
-  underlying smoke log (`build/logs/perf-smoke-native-fast-loops-20260408_224013_36955.log`)
-  shows `array_sum` still returning `205` / `710` while native `dot_product 10 3` crashed.
-  Conclusion: keep the prefix-zero lowering disabled by default.
+- For the arm64 compile-time-zero prefix-loop family, keep both branches default-off and split the
+  measurements by leg. `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1` is still a clear negative
+  result on the current host: the isolated rerun
+  (`build/logs/perf-probe-arm64-dot-acceptance-20260409_003014_84317.summary.log`) landed at
+  `steady_array_sum ~7.1203x` and `gate_array_sum ~2.3250x`, materially worse than the shipped
+  baseline. The old combined probe `make perf-probe-arm64-fast-loop-prefix-zero` is still useful
+  when you want the whole family in one failure-aware artifact, but the dot leg now has its own
+  dedicated serialized probe: `make perf-probe-arm64-fast-dot-prefix-zero`.
+- The dot-only prefix-zero branch is correctness-clean again after the April 9 register-plan fix,
+  so the right comparison is now default vs
+  `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` on `OREN_ARM64_DOT_ACCEPT_PROGRAMS=dot_product`.
+  Current host rerun (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-20260409_003819_95036.log`):
+  default `steady_dot_product ~2.9876x`, `gate_dot_product ~2.8425x`, disasm `70`; enabled
+  `steady_dot_product ~3.0230x`, `gate_dot_product ~2.6354x`, disasm `23`. Conclusion: keep the
+  dot prefix-zero branch disabled by default too. The instruction-count drop is real, but it still
+  loses on the shipped canonical gate.
 - For the arm64 exact-path `madd` recheck, use
   `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
   the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial
