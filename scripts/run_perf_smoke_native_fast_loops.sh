@@ -8,7 +8,10 @@ log_path="$log_dir/perf-smoke-native-fast-loops-${ts}.log"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
 if [[ -n "$build_env_raw" ]]; then
+    old_ifs="$IFS"
+    IFS=','
     read -r -a build_env_parts <<<"$build_env_raw"
+    IFS="$old_ifs"
 fi
 
 build_native() {

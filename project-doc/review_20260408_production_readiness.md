@@ -223,6 +223,49 @@ Verification for this follow-up:
 That change upgrades stage1 green-cache runtime robustness from a side-target / manual
 triage path into part of the main W5 verification bundle.
 
+## W5 perf follow-up in this pass
+
+After the runtime-verifier work, the next concrete blocker was still arm64/native hot-loop
+parity, especially canonical `dot_product`. I tested one specific loop-body hypothesis in
+the compiler: replacing contiguous `ldr`/`ldr off` groups with arm64 post-index `ldp`
+pair-loads on the canonical `fast_list_int_get_sum_while*` and single-pair
+`fast_list_int_dot_while*` paths.
+
+What held up:
+
+- the experiment is now preserved as a default-off compiler knob instead of a hand edit:
+  - `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST=1`
+  - `OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1`
+- there is now a dedicated reproducible probe:
+  - `make perf-probe-arm64-fast-loop-pair-post`
+- the remaining comma-splitting bug in the perf smoke/disasm/debug helpers was fixed, so
+  comma-separated `OREN_BENCH_ENV_BUILD_OREN=A=1,B=2` now reaches those legs consistently
+  instead of only the gate/steady runners
+
+Measured result:
+
+- paired rerun log: `build/logs/perf-probe-arm64-fast-loop-pair-post-20260408_215548_57748.log`
+- shipped default:
+  - `steady_array_sum ~2.4342x C`
+  - `steady_dot_product ~2.7645x C`
+  - `gate_array_sum ~2.0788x C`
+  - `gate_dot_product ~2.5682x C`
+  - disasm instruction counts: `52` (`array_sum`) / `70` (`dot_product`)
+- enabled pair-post experiment:
+  - `steady_array_sum ~2.3932x C`
+  - `steady_dot_product ~3.1297x C`
+  - `gate_array_sum ~2.1181x C`
+  - `gate_dot_product ~2.6913x C`
+  - disasm instruction counts: `47` / `60`
+
+Conclusion:
+
+- the instruction windows got materially shorter, but the measured hot-loop gates still
+  regressed, especially canonical `dot_product`
+- therefore the pair-post lowering stays disabled by default
+- the new probe means future arm64 loop work can reuse this exact comparison without
+  reopening source diffs or re-learning the comma-splitting failure mode
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`

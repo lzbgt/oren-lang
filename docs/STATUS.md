@@ -1459,13 +1459,28 @@ Weights reflect expected impact on C parity and breadth of affected code.
        `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0` without source edits.
      - The emitter also accepts explicit `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1` / `true`, so
        future reruns can force either side of the comparison without patching code.
-     - Final kept-state rerun (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260404_215653_19700.log`):
-       steady default ~2.9806x C vs disabled ~2.8893x C, canonical gate default ~2.1919x C vs
-       disabled ~2.7147x C.
-     - Conclusion: the current host signal is mixed rather than decisively better in one direction.
-       Keep the shipped unroll-by-2 default for now and reuse the probe for future reruns.
-   - Modest arm64 unique-list loop-body cleanup (2026-04-04):
-     - kept `n` hot in a register for unique-list `fast_list_int_get_sum_while` and
+	     - Final kept-state rerun (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260404_215653_19700.log`):
+	       steady default ~2.9806x C vs disabled ~2.8893x C, canonical gate default ~2.1919x C vs
+	       disabled ~2.7147x C.
+	     - Conclusion: the current host signal is mixed rather than decisively better in one direction.
+	       Keep the shipped unroll-by-2 default for now and reuse the probe for future reruns.
+	   - New arm64 fast-loop pair-post probe + env-parser fix (2026-04-08):
+	     - `make perf-probe-arm64-fast-loop-pair-post` now compares the shipped `array_sum` /
+	       `dot_product` baseline against the default-off experimental pair-load paths enabled via
+	       `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1`.
+	     - While landing that probe, fixed the remaining comma-splitting bug in the smoke/disasm/debug
+	       helper scripts (`run_perf_smoke_native_fast_loops.sh`, `run_perf_smoke_list_int.sh`,
+	       `run_perf_probe_arm64_native_hot_loop_disasm.sh`, `run_perf_debug_native_benchmark.sh`,
+	       and adjacent helper wrappers), so comma-separated `OREN_BENCH_ENV_BUILD_OREN` now reaches
+	       the traced disasm and smoke legs consistently instead of only the gate/steady runners.
+	     - Current rerun (`build/logs/perf-probe-arm64-fast-loop-pair-post-20260408_215548_57748.log`):
+	       default `steady_array_sum ~2.4342x C`, `steady_dot_product ~2.7645x C`,
+	       `gate_array_sum ~2.0788x C`, `gate_dot_product ~2.5682x C`, disasm `52` / `70`;
+	       enabled `~2.3932x C`, `~3.1297x C`, `~2.1181x C`, `~2.6913x C`, disasm `47` / `60`.
+	     - Conclusion: keep the pair-load/post-index branch disabled by default. It trims the traced
+	       arm64 windows materially, but the measured steady and canonical gates still regress.
+	   - Modest arm64 unique-list loop-body cleanup (2026-04-04):
+	     - kept `n` hot in a register for unique-list `fast_list_int_get_sum_while` and
        `fast_list_int_dot_while`, switched scalar unique-list cursor bumps from register-add to
        immediate-add, and removed the duplicate `i * 8` recompute from the non-unique int-dot body.
      - Serial reruns on the kept tree:

@@ -1481,17 +1481,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      kept-state serial rerun stayed inconclusive: steady default ~3.1205x C vs disabled
 			      ~3.1322x C, while the canonical gate read default ~2.6041x C vs disabled ~2.5322x C.
 			      Keep the shipped default for now and use the probe for future reruns.
-			    - New arm64 unroll-by-2 probe (2026-04-04):
-			      `make perf-probe-arm64-fast-dot-unroll2` now compares the shipped unique-list
-			      unroll-by-2 path against `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0` without source
-			      edits. The emitter also accepts explicit `...=1` / `true` so future reruns can force
-			      either side of the comparison. Current kept-state rerun is mixed rather than
-			      decisive: steady default ~2.9806x C vs disabled ~2.8893x C, while the canonical gate
-			      read default ~2.1919x C vs disabled ~2.7147x C. Keep the shipped default for now and
-			      use the probe for future reruns.
-				    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
-				      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
-				      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`
+				    - New arm64 unroll-by-2 probe (2026-04-04):
+				      `make perf-probe-arm64-fast-dot-unroll2` now compares the shipped unique-list
+				      unroll-by-2 path against `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0` without source
+				      edits. The emitter also accepts explicit `...=1` / `true` so future reruns can force
+				      either side of the comparison. Current kept-state rerun is mixed rather than
+				      decisive: steady default ~2.9806x C vs disabled ~2.8893x C, while the canonical gate
+				      read default ~2.1919x C vs disabled ~2.7147x C. Keep the shipped default for now and
+				      use the probe for future reruns.
+				    - New arm64 fast-loop pair-post probe + parser fix (2026-04-08):
+				      `make perf-probe-arm64-fast-loop-pair-post` now compares the shipped `array_sum` /
+				      `dot_product` baseline against the default-off pair-load experiment enabled via
+				      `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1`.
+				      The same batch fixed the remaining comma-splitting bug in the smoke/disasm/debug
+				      helpers, so comma-separated `OREN_BENCH_ENV_BUILD_OREN` now reaches those legs too.
+				      Current rerun (`build/logs/perf-probe-arm64-fast-loop-pair-post-20260408_215548_57748.log`):
+				      default `steady_array_sum ~2.4342x C`, `steady_dot_product ~2.7645x C`,
+				      `gate_array_sum ~2.0788x C`, `gate_dot_product ~2.5682x C`, disasm `52` / `70`;
+				      enabled `~2.3932x C`, `~3.1297x C`, `~2.1181x C`, `~2.6913x C`, disasm `47` / `60`.
+				      Keep the pair-post branch default-off; instruction-count wins alone still lose on the
+				      measured hot-loop gates.
+					    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
+					      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
+					      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`
 				      recompute in the non-unique int-dot body. Serial reruns on the kept tree improved to
 				      canonical `array_sum` ~2.0808x C / `dot_product` ~2.7616x C and steady `array_sum`
 				      ~2.2422x C / `dot_product` ~2.9915x C. This is worth keeping, but the canonical

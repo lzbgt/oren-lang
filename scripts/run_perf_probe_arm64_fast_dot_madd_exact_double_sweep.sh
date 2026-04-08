@@ -13,7 +13,10 @@ out_bin="$tmp_dir/perf_probe_arm64_fast_dot_madd_exact_double_sweep_${ts}"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
 if [[ -n "$build_env_raw" ]]; then
+    old_ifs="$IFS"
+    IFS=','
     read -r -a build_env_parts <<<"$build_env_raw"
+    IFS="$old_ifs"
 fi
 
 max_n="${OREN_ARM64_FAST_DOT_MADD_EXACT_DOUBLE_SWEEP_MAX_N:-24}"

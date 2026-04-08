@@ -899,6 +899,18 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-probe-arm64-fast-dot-dual-accum`. The shipped default keeps the dual-accumulator
   path disabled, and the probe compares that default against
   `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.
+- For the arm64 contiguous-list pair-load/post-index recheck, use
+  `make perf-probe-arm64-fast-loop-pair-post`. This keeps the shipped baseline on one side and
+  compares it against the default-off experimental pair-load paths enabled together via
+  `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1`
+  through the full `array_sum` / `dot_product` acceptance bundle. The probe is only trustworthy
+  after the April 8 comma-splitting fix in the smoke/disasm/debug helpers, which now honor the
+  same comma-separated `OREN_BENCH_ENV_BUILD_OREN` contract as the steady/gate runners. Current
+  host rerun (`build/logs/perf-probe-arm64-fast-loop-pair-post-20260408_215548_57748.log`):
+  default `steady_array_sum ~2.4342x`, `steady_dot_product ~2.7645x`, `gate_array_sum ~2.0788x`,
+  `gate_dot_product ~2.5682x`, disasm `52` / `70`; enabled `~2.3932x`, `~3.1297x`, `~2.1181x`,
+  `~2.6913x`, disasm `47` / `60`. Conclusion: keep the pair-load path disabled by default; the
+  lower instruction counts still lose on the measured hot-loop trackers.
 - For the arm64 exact-path `madd` recheck, use
   `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
   the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial
