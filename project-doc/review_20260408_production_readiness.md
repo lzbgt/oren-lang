@@ -573,6 +573,22 @@ landed one measured compiler-default improvement:
   `madd` (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`)
 - the arm64 acceptance summaries and exact-`madd` wrappers now raise explicit high-variance warning
   keys for noisy gate samples instead of relying on manual COV inspection of nested logs
+- the arm64 dual-accum experiment was also corrected and remeasured:
+  - the opt-in path no longer keeps its secondary accumulator in caller-saved `x17`; it now uses
+    callee-saved `x22`, which removes a real inline-GC-safepoint correctness hazard
+  - new generic and explicit wrappers exist:
+    `make perf-probe-arm64-fast-dot-dual-accum` and
+    `make perf-probe-arm64-fast-dot-dual-accum-list-int`
+  - current generic rerun
+    (`build/logs/perf-probe-arm64-fast-dot-dual-accum-20260409_024400_89920.log`) improved both
+    raw native medians despite a `69 -> 70` disasm increase: steady `0.079878s -> 0.077758s`
+    (`-2.65%`), gate `0.014427s -> 0.013903s` (`-3.63%`)
+  - current explicit rerun
+    (`build/logs/perf-probe-arm64-fast-dot-dual-accum-list-int-20260409_024524_92158.log`) stayed
+    mixed: steady `0.077313s -> 0.080407s` (`+4.00%`), gate `0.016063s -> 0.015338s` (`-4.51%`),
+    but the enabled gate sample warned as high variance
+  - conclusion: the old April 4 repo note claiming dual-accum "regresses both surfaces" is stale,
+    but the current evidence still does not justify promoting the path into the shipped default
 
 This narrows one hot-loop gap without over-claiming broad arm64 parity. The broader production
 blocker remains sustained native `dot_product` parity against vectorized C, not operator/tooling

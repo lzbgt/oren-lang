@@ -1334,8 +1334,10 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             safepoint_spill_pairs = [[19, 20], [25, 26]]
             if dual_accum {
                 // Split the reduction across two independent accumulators to shorten the
-                // dependency chain in the single-pair hot path.
-                push_u32_le(ctx["code"], insn_movz(17, 0))
+                // dependency chain in the single-pair hot path. Keep the secondary accumulator in
+                // X22, not X17: inline GC safepoints only reset caller-saved scratch regs (X9/X10/X11),
+                // and the runtime call itself is only required to preserve callee-saved regs.
+                push_u32_le(ctx["code"], insn_movz(22, 0))
             }
         }
     }
@@ -1343,7 +1345,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     // Keep i/sum in registers across iterations.
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, sum_off)
-    emit_load_i64_imm(ctx, 22, 8)
+    if unique_lists != true {
+        emit_load_i64_imm(ctx, 22, 8)
+    }
     if unique_lists {
         // Unique-list fast paths do not need X21 as a scratch register in the loop body,
         // so keep the loop-invariant upper bound hot instead of reloading it from the stack.
@@ -1397,7 +1401,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_mul(24, 24, 27))
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
                 push_u32_le(ctx["code"], insn_mul(25, 25, 28))
-                push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
+                push_u32_le(ctx["code"], insn_add_reg(22, 22, 25))
             } else if madd_exact_quad {
                 push_u32_le(ctx["code"], insn_madd(23, 24, 27, 23))
                 push_u32_le(ctx["code"], insn_madd(23, 25, 28, 23))
@@ -1421,7 +1425,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_mul(24, 24, 27))
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
                 push_u32_le(ctx["code"], insn_mul(25, 25, 28))
-                push_u32_le(ctx["code"], insn_add_reg(17, 17, 25))
+                push_u32_le(ctx["code"], insn_add_reg(22, 22, 25))
             } else if madd_exact_quad {
                 push_u32_le(ctx["code"], insn_madd(23, 24, 27, 23))
                 push_u32_le(ctx["code"], insn_madd(23, 25, 28, 23))
@@ -1533,7 +1537,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 }
             }
             if single_mul_pair && single_pair_cursor_regs && dual_accum {
-                push_u32_le(ctx["code"], insn_add_reg(17, 17, 28))
+                push_u32_le(ctx["code"], insn_add_reg(22, 22, 28))
             } else if !(single_mul_pair && single_pair_cursor_regs && madd_exact_double && !dual_accum) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 28))
             } else {
@@ -1670,7 +1674,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
     // Update idx/sum locals after loop exit.
     if single_mul_pair && single_pair_cursor_regs && dual_accum {
-        push_u32_le(ctx["code"], insn_add_reg(23, 23, 17))
+        push_u32_le(ctx["code"], insn_add_reg(23, 23, 22))
     }
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
     emit_str_reg_fp_any(ctx, 23, sum_fp_off)

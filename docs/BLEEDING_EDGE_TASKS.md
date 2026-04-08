@@ -1670,13 +1670,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      `array_sum` / `dot_product` ~2.4180x / ~3.0259x C and
 				      `build/logs/perf-gate-native-20260405_002400_78191.summary.log` moved to
 				      ~2.0537x / ~2.5850x C. Reverted; keep the earlier two-pair spill baseline.
-				    - New arm64 dual-accum probe + variance guard (2026-04-04):
-				      `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped single-pair
-				      cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`. The arm64
-			      dot probe scripts also now warn when the canonical one-program gate is too noisy
-			      (`cov >= 0.10`) to support a strong conclusion. Current clean rerun regressed both
-			      surfaces: steady default ~2.8895x C vs enabled ~3.0684x C, canonical gate default
-			      ~2.6129x C vs enabled ~2.7629x C. Keep the dual-accum path disabled.
+				    - Arm64 dual-accum refresh + safepoint-safe register plan (2026-04-09):
+				      `make perf-probe-arm64-fast-dot-dual-accum` now preserves raw native
+				      medians/covariance for generic `dot_product`, and
+				      `make perf-probe-arm64-fast-dot-dual-accum-list-int` does the same for explicit
+				      `dot_product_int`. The opt-in path now keeps its secondary accumulator in
+				      callee-saved `x22` instead of caller-saved `x17`, so inline GC safepoints cannot
+				      clobber it. Current generic rerun improved both raw native medians
+				      (`0.079878s -> 0.077758s` steady, `0.014427s -> 0.013903s` gate), but the explicit
+				      `list<int>` rerun stayed mixed (`0.077313s -> 0.080407s` steady, `0.016063s ->
+				      0.015338s` gate with a high-variance warning). Keep the dual-accum path disabled by
+				      default; the old April 4 "regresses both surfaces" note is stale on the current
+				      tree.
 			    - Native gate summary hygiene (2026-04-04):
 			      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate

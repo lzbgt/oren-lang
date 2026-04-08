@@ -1707,17 +1707,25 @@ Weights reflect expected impact on C parity and breadth of affected code.
          `array_sum` ~2.0537x C, `dot_product` ~2.5850x C
        Conclusion: keep the earlier two-pair spill baseline; the exact single-register spill path
        is not the next production candidate on this host.
-   - New arm64 dual-accum probe + variance guard (2026-04-04):
-     - `make perf-probe-arm64-fast-dot-dual-accum` now compares the shipped
-       single-pair cursor-reg default against `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.
-     - The arm64 dot probe scripts (`cursor-reg`, `unroll2`, `dual-accum`) now parse benchmark
-       `cov` and print a warning when the canonical one-program gate is too noisy (`cov >= 0.10`)
-       to support a strong perf conclusion.
-     - Final clean rerun (`build/logs/perf-probe-arm64-fast-dot-dual-accum-20260404_221723_55004.log`):
-       steady default ~2.8895x C vs enabled ~3.0684x C, canonical gate default ~2.6129x C vs
-       enabled ~2.7629x C.
-     - Conclusion: keep the dual-accum path disabled by default on the current host; it regresses
-       both tracker surfaces in the clean rerun.
+   - Arm64 dual-accum probe refresh + safepoint-safe register plan (2026-04-09):
+     - `make perf-probe-arm64-fast-dot-dual-accum` now preserves raw native medians/covariance for
+       generic `dot_product`, and `make perf-probe-arm64-fast-dot-dual-accum-list-int` does the
+       same for explicit `dot_product_int`.
+     - The opt-in dual-accum lowering no longer hides the secondary accumulator in caller-saved
+       `x17`. The current tree keeps that accumulator in callee-saved `x22` so inline GC
+       safepoints cannot clobber it across the runtime call.
+     - Current generic rerun (`build/logs/perf-probe-arm64-fast-dot-dual-accum-20260409_024400_89920.log`)
+       improved both raw native medians even though the disasm grew by one instruction:
+       steady `0.079878s -> 0.077758s` (`-2.65%`), gate `0.014427s -> 0.013903s` (`-3.63%`),
+       disasm `69 -> 70`.
+     - Current explicit rerun (`build/logs/perf-probe-arm64-fast-dot-dual-accum-list-int-20260409_024524_92158.log`)
+       is still mixed: steady `0.077313s -> 0.080407s` (`+4.00%`), gate `0.016063s -> 0.015338s`
+       (`-4.51%`), but the enabled gate sample warned as high variance
+       (`warning_gate_dot_product_int_high_variance`).
+     - Conclusion: the earlier April 4 "regresses both surfaces" call is stale on the current tree.
+       Keep the dual-accum path disabled by default for now because the explicit `list<int>`
+       surface is still mixed/noisy, but the opt-in path is now correctness-safe and worth future
+       rechecks.
    - Native gate summary hygiene (2026-04-04):
      - `make perf-gate-native` now emits a lightweight summary log next to the raw benchmark log.
      - The summary prints per-program medians/ratios and warns when the canonical one-program gate
@@ -2666,9 +2674,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
 		      `array_sum` ~2.0808x C / `dot_product` ~2.7616x C on the canonical gate and
 		      `array_sum` ~2.2422x C / `dot_product` ~2.9915x C on the steady runner, but the
 		      blocker still remains above the `<=2x C` gate.
-		    - Arm64 dot dual-accum probe (`make perf-probe-arm64-fast-dot-dual-accum`, 2026-04-04):
-		      clean rerun regressed both surfaces (steady default ~2.8895x C vs enabled ~3.0684x C;
-		      gate default ~2.6129x C vs enabled ~2.7629x C), so the dual-accum path stays disabled.
+		    - Arm64 dot dual-accum refresh (`2026-04-09`): current generic rerun improved both raw
+		      native medians (`0.079878s -> 0.077758s` steady, `0.014427s -> 0.013903s` gate), but the
+		      explicit `list<int>` rerun stayed mixed (`0.077313s -> 0.080407s` steady regression,
+		      `0.016063s -> 0.015338s` gate with a high-variance warning). Keep the path disabled by
+		      default, but the old April 4 "loses everywhere" note is no longer accurate.
 		    - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)

@@ -994,9 +994,15 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=0`. The emitter also accepts explicit `0/1`
   (`false/true`) overrides so future reruns can force either side without source edits.
 - For the arm64 single-pair `fast_list_int_dot_while` dual-accumulator recheck, use
-  `make perf-probe-arm64-fast-dot-dual-accum`. The shipped default keeps the dual-accumulator
-  path disabled, and the probe compares that default against
-  `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`.
+  `make perf-probe-arm64-fast-dot-dual-accum` for generic `dot_product` and
+  `make perf-probe-arm64-fast-dot-dual-accum-list-int` for explicit `dot_product_int`.
+  Both wrappers keep the shipped default-off path on one side, compare it against
+  `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`, preserve raw native medians/covariance, and surface
+  any gate high-variance warning directly in the top-level summary.
+- Current 2026-04-09 reruns say the old April 4 "dual-accum loses everywhere" read is stale, but
+  the path still does not qualify for promotion: generic raw medians improved modestly while the
+  explicit `list<int>` steady median regressed about `+4.00%` and the gate-side improvement came
+  from a high-variance sample. The dual-accum path stays disabled by default.
 - For the arm64 contiguous-list pair-load/post-index recheck, use
   `make perf-probe-arm64-fast-loop-pair-post`. This keeps the shipped baseline on one side and
   compares it against the default-off experimental pair-load paths enabled together via
