@@ -1055,6 +1055,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     - `array_sum`: generic `~1.5652× C`, specialized `~1.4639× C` (`~1.0692×` gap)
 		     - `dot_product`: generic `~1.5241× C`, specialized `~1.5157× C` (`~1.0055×` gap)
 		     The delta estimate is too noisy to drive tracker updates here; use the long-per-rep view.
+		   - New focused arm64 dot-prefix-zero specialization wrapper (2026-04-09):
+		     `make perf-probe-arm64-fast-dot-prefix-zero-specialization` compares generic
+		     auto-specialized `dot_product` against explicit `dot_product_int` on both the shipped
+		     default and `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`, then bundles the aligned steady
+		     gap, read-split gap, and specialization trace into one artifact. Latest rerun
+		     (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`)
+		     shows the generic/explicit gap stays small and the rewrite shape is unchanged:
+		     - default steady: generic `~1.4986× C`, specialized `~1.8988× C` (`~0.7892×` gap)
+		     - enabled steady: generic `~1.5949× C`, specialized `~1.6858× C` (`~0.9461×` gap)
+		     - default read-split long-per-rep: generic `~1.7422× C`, specialized `~1.6290× C`
+		       (`~1.0695×` gap)
+		     - enabled read-split long-per-rep: generic `~1.7627× C`, specialized `~1.6367× C`
+		       (`~1.0770×` gap)
+		     - trace on both sides still shows generic `rewrite_init=2`, specialized `rewrite_init=0`,
+		       and both keep `list_push_unchecked=1`
+		     Reweighting: the new prefix-zero dot path does not establish a large generic/source-shape
+		     divergence by itself; the acceptance mismatch is narrower than that.
 		   - New specialization trace probe (2026-04-05): `make perf-probe-list-int-specialization-trace`
 		     confirms the generic benchmark sources already rewrite into the intended `list<int>` shape
 		     (`xs`, `a`, and `b` all show `list_int rewrite init` events), while the explicit
@@ -1607,7 +1624,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      `gate_dot_product_int ~2.3097x C`, disasm `23`.
 					      Keep the family default-off for now: the get-sum leg still regresses, while the dot
 					      leg is now a real win on explicit `list<int>` but only a mixed result on generic
-					      auto-specialized `dot_product`.
+					      auto-specialized `dot_product`. The new specialization wrapper shows that this does
+					      not look like a large hot-loop source-shape split on the current host; the remaining
+					      disagreement is narrower than that.
 					    - Modest arm64 unique-list loop-body cleanup (2026-04-04):
 						      kept `n` hot in a register for the unique-list int get-sum/dot loops, switched
 						      scalar unique-list cursor bumps to immediate adds, and removed the duplicate `i * 8`

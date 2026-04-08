@@ -130,6 +130,22 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      - `array_sum`: generic `~1.5652× C`, specialized `~1.4639× C`, gap `~1.0692×`
      - `dot_product`: generic `~1.5241× C`, specialized `~1.5157× C`, gap `~1.0055×`
      The same artifact reports delta estimates too, but the specialized side prints large
+   - New focused arm64 dot-prefix-zero specialization wrapper (2026-04-09):
+     `make perf-probe-arm64-fast-dot-prefix-zero-specialization` now compares the generic
+     auto-specialized `dot_product` surface against explicit `dot_product_int` on both the shipped
+     default and `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`, then bundles the aligned steady gap,
+     read-split gap, and compile-time specialization trace into one artifact. Latest rerun
+     (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`)
+     shows the generic/explicit gap is still small and the compile-time rewrite shape is unchanged:
+     - default steady: generic `~1.4986× C`, specialized `~1.8988× C`, gap `~0.7892×`
+     - enabled steady: generic `~1.5949× C`, specialized `~1.6858× C`, gap `~0.9461×`
+     - default read-split long-per-rep: generic `~1.7422× C`, specialized `~1.6290× C`, gap `~1.0695×`
+     - enabled read-split long-per-rep: generic `~1.7627× C`, specialized `~1.6367× C`, gap `~1.0770×`
+     - trace on both sides still shows generic `rewrite_init=2`, specialized `rewrite_init=0`, and
+       both keep `list_push_unchecked=1`.
+     Tracker implication: the salvaged prefix-zero dot path does not establish a new hot-loop
+     source-shape divergence by itself. The generic/specialized difference stays near parity and is
+     smaller than the earlier acceptance mismatch suggested.
      delta-vs-long drift warnings, so `long_per_rep` is the tracker-worthy measure here.
    - New specialization trace probe (2026-04-05): `make perf-probe-list-int-specialization-trace`
      builds the generic and explicit `list.int_*` benchmarks with
@@ -1616,10 +1632,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	       `gate_dot_product_int ~2.3097x C`, disasm `23`.
 	     - Conclusion: keep both prefix-zero branches disabled by default for now. The get-sum leg is
 	       already a clear regression, and the dot leg is no longer a blanket loss: it improves the
-	       explicit `list<int>` benchmark on both steady and whole-operation cost, but the generic
-	       auto-specialized `dot_product` surface is still mixed (better gate, slightly worse steady),
-	       so the next implementation task is to explain or isolate that source-shape gap before
-	       shipping it broadly.
+	       explicit `list<int>` benchmark on both steady and whole-operation cost, while the generic
+	       auto-specialized `dot_product` surface stays mixed (better gate, slightly worse steady).
+	       The newer specialization wrapper shows that this is not a large hot-loop source-shape split
+	       on the current host, so the next task is narrower: understand why the generic whole-program
+	       acceptance bundle still disagrees before shipping the dot path broadly.
 	   - Modest arm64 unique-list loop-body cleanup (2026-04-04):
 	     - kept `n` hot in a register for unique-list `fast_list_int_get_sum_while` and
 	       `fast_list_int_dot_while`, switched scalar unique-list cursor bumps from register-add to

@@ -335,6 +335,22 @@ Prefix-zero containment follow-up:
   measurably better on the explicit `list<int>` benchmark surface; however, the generic
   auto-specialized `dot_product` surface is still mixed because its steady runner regresses slightly
   even though its canonical gate improves.
+- Follow-up specialization check (2026-04-09): I added
+  `make perf-probe-arm64-fast-dot-prefix-zero-specialization` so the repo now has one artifact that
+  compares generic auto-specialized `dot_product` against explicit `dot_product_int` on both the
+  shipped default and `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`, while also preserving the
+  compile-time specialization trace. Current rerun
+  (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`) says
+  the generic/explicit gap stays small:
+  - default steady: generic `~1.4986x C`, specialized `~1.8988x C` (`~0.7892x` gap)
+  - enabled steady: generic `~1.5949x C`, specialized `~1.6858x C` (`~0.9461x` gap)
+  - default read-split long-per-rep: generic `~1.7422x C`, specialized `~1.6290x C` (`~1.0695x` gap)
+  - enabled read-split long-per-rep: generic `~1.7627x C`, specialized `~1.6367x C` (`~1.0770x` gap)
+  - compile trace on both sides is unchanged at the high level: generic `rewrite_init=2`,
+    specialized `rewrite_init=0`, and both keep `list_push_unchecked=1`
+- Updated conclusion: the current blocker is no longer well-described as a broad “source-shape gap”.
+  The explicit `list<int>` surface likes the salvaged dot path, the generic acceptance surface is
+  still mixed, and the focused specialization probes keep the generic/explicit gap near parity.
 - Verification for the current salvage pass:
   - `env OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1' make perf-smoke-native-fast-loops`
     - wrapper log: `build/logs/make_perf_smoke_native_fast_loops_dot_prefix_zero_only_fix1_clean_20260409.log`

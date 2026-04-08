@@ -801,6 +801,27 @@ That artifact also reports the short-vs-long delta estimate, but on this host th
 `list<int>` short runs are dominated by setup noise and print the same warning as the underlying
 read-split gate: prefer `long_per_rep` over `delta` for tracker updates.
 
+For the same generic-vs-specialized comparison focused specifically on the arm64
+`OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1` experiment, use:
+
+```bash
+make perf-probe-arm64-fast-dot-prefix-zero-specialization
+```
+
+This keeps the comparison on just `dot_product` vs `dot_product_int`, runs both the steady and
+read-split specialization probes on the shipped default and on the enabled prefix-zero build env,
+and bundles the specialization trace alongside them. Current host rerun
+(`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`):
+
+- default steady: generic `~1.4986x C`, specialized `~1.8988x C` (`generic_vs_specialized ~0.7892x`)
+- enabled steady: generic `~1.5949x C`, specialized `~1.6858x C` (`generic_vs_specialized ~0.9461x`)
+- default read-split long-per-rep: generic `~1.7422x C`, specialized `~1.6290x C` (`~1.0695x`)
+- enabled read-split long-per-rep: generic `~1.7627x C`, specialized `~1.6367x C` (`~1.0770x`)
+
+That is the current attribution fact for the prefix-zero dot work: the generic/explicit gap stays
+small and the specialization trace is unchanged, so the experiment does not establish a large
+source-shape divergence by itself.
+
 And to confirm that the generic benchmarks still compile through the intended `list<int>` rewrite
 path instead of silently falling back to boxed-list behavior, use:
 
@@ -1008,7 +1029,9 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `steady_dot_product_int ~2.8374x`, `gate_dot_product_int ~2.4214x`, disasm `70`; enabled
   `steady_dot_product_int ~2.6026x`, `gate_dot_product_int ~2.3097x`, disasm `23`. That means the
   salvaged dot prefix-zero subpath is now a real win on explicit `list<int>` `dot_product_int`, but
-  it should still stay default-off until the generic/source-shape gap is understood.
+  it should still stay default-off until the generic whole-program acceptance disagreement is
+  understood. The newer specialization wrapper above shows the generic/explicit gap itself stays
+  small on the current host.
 - For the arm64 exact-path `madd` recheck, use
   `make perf-probe-arm64-fast-dot-madd-exact`. This keeps `madd` disabled by default and compares
   the shipped baseline against `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT=1` through the full serial
