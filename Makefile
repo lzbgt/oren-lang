@@ -455,12 +455,17 @@ test-native-quick-flake-debug: oren
 # Focused flake triage (stage1): run only the green-cache rerun path with STW/runq guards
 # enabled and preserve per-run inner + phase logs.
 test-native-quick-green-cache-flake: oren
-		@./scripts/triage_native_quick_green_cache_flake.sh 3 "./$(OREN_BIN)"
+			@./scripts/triage_native_quick_green_cache_flake.sh 3 "./$(OREN_BIN)"
+
+# Focused flake triage (stage1): isolate only the base quick-integration pass with per-test trace.
+verify-native-quick-base-guarded: oren
+			@./scripts/triage_native_quick_base_flake.sh 3 "./$(OREN_BIN)"
+			@echo "verify-native-quick-base-guarded OK"
 
 # Focused flake triage (stage1): run the quick-integration prefix through the GC/STW
 # netpoll wake regression point with waiter diagnostics enabled.
 test-native-quick-gc-stw-focus-flake: oren
-		@./scripts/triage_native_quick_gc_stw_focus_flake.sh 3 "./$(OREN_BIN)"
+			@./scripts/triage_native_quick_gc_stw_focus_flake.sh 3 "./$(OREN_BIN)"
 
 # Focused flake triage (stage1): isolate the late green-worker/STW/join/select tail under
 # green-cache-only reruns with STW waiter dumps enabled.

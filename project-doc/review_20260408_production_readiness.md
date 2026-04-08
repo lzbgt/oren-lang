@@ -247,6 +247,24 @@ Verification for this follow-up:
     `build/logs/oren_native_quick_integration.log`), but it stayed green and the new follow-on
     markers proved the late-smoke block completed.
 
+Additional runtime follow-up later on 2026-04-09:
+
+- `scripts/run_native_quick_integration.sh` now also accepts `OREN_QI_STOP_AFTER_BASE=1`
+- the stage1 base-only path now stamps `native quick integration base phase OK` plus
+  `skip_reason=OREN_QI_STOP_AFTER_BASE=1` into the inner log
+- the new wrapper `scripts/triage_native_quick_base_flake.sh` feeds that base-only path through
+  the existing flake harness with `OREN_QI_TRACE=1`, giving a cheap per-test-progress reproducer
+  for the remaining stage1 base-run timeout/retry path
+- `make verify-native-quick-base-guarded` is now the dedicated 3-pass gate for that surface
+
+Verification for this follow-up:
+
+- direct base-only run:
+  - `build/logs/native_quick_base_only_direct_20260409.log`
+- focused 3-pass base-only gate:
+  - `build/logs/make_verify_native_quick_base_guarded_20260409.log`
+  - inner traced run log: `build/logs/oren_native_quick_base_only.log`
+
 ## W5 perf follow-up in this pass
 
 After the runtime-verifier work, the next concrete blocker was still arm64/native hot-loop

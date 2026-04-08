@@ -2244,6 +2244,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     the existing stage1 base-run timeout retry once (`WARN: timeout (rc=143). Retrying with 720s.`
     in `build/logs/oren_native_quick_integration.log`), but the suite stayed green and the new
     markers proved the late follow-on block completed.
+  - New + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now accepts
+    `OREN_QI_STOP_AFTER_BASE=1`, records `native quick integration base phase OK` plus
+    `skip_reason=OREN_QI_STOP_AFTER_BASE=1`, and the new wrapper
+    `scripts/triage_native_quick_base_flake.sh` feeds that base-only path through the existing
+    flake harness with `OREN_QI_TRACE=1`. `make verify-native-quick-base-guarded` now gives a
+    cheap 3-pass reproducer for the remaining stage1 base-run timeout/retry path with per-test
+    progress in `build/logs/oren_native_quick_base_only.log`. Verified with
+    `build/logs/native_quick_base_only_direct_20260409.log`,
+    `build/logs/oren_native_quick_base_only.log`, and
+    `build/logs/make_verify_native_quick_base_guarded_20260409.log`.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

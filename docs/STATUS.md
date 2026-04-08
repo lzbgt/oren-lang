@@ -3552,6 +3552,16 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      exercised the existing stage1 base-run timeout retry once (`WARN: timeout (rc=143). Retrying
      with 720s.` in `build/logs/oren_native_quick_integration.log`), but the suite stayed green
      and the new follow-on markers proved the late-smoke block completed.
+   - New + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now also accepts
+     `OREN_QI_STOP_AFTER_BASE=1`, stamps `native quick integration base phase OK` plus
+     `skip_reason=OREN_QI_STOP_AFTER_BASE=1` into the inner log, and exposes a cheap dedicated
+     stage1 reproducer at `make verify-native-quick-base-guarded`. The focused wrapper
+     `scripts/triage_native_quick_base_flake.sh` reuses the existing flake harness with
+     `OREN_QI_TRACE=1`, so the remaining stage1 base-run timeout/retry path can be chased with
+     per-test progress instead of waiting for a full `make test`. Verified with
+     `build/logs/native_quick_base_only_direct_20260409.log`,
+     `build/logs/oren_native_quick_base_only.log`, and
+     `build/logs/make_verify_native_quick_base_guarded_20260409.log` (3/3 passes).
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`

@@ -12,6 +12,7 @@ build_timeout_secs=10
 run_timeout_secs=5
 skip_base_run="${OREN_QI_SKIP_BASE_RUN:-0}"
 skip_green_cache="${OREN_QI_SKIP_GREEN_CACHE:-0}"
+stop_after_base="${OREN_QI_STOP_AFTER_BASE:-0}"
 stop_after_green_cache="${OREN_QI_STOP_AFTER_GREEN_CACHE:-0}"
 only_green_cache="${OREN_QI_ONLY_GREEN_CACHE:-0}"
 green_cache_first="${OREN_QI_GREEN_CACHE_FIRST:-0}"
@@ -21,6 +22,7 @@ followon_smoke_retries="${OREN_QI_FOLLOWON_SMOKE_RETRIES:-1}"
 
 if [[ "$only_green_cache" == "1" ]]; then
   skip_base_run=1
+  stop_after_base=0
   stop_after_green_cache=1
   skip_green_cache=0
 fi
@@ -321,6 +323,7 @@ echo "build_timeout_secs=$build_timeout_secs"
 echo "run_timeout_secs=$run_timeout_secs"
 echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
 echo "followon_smoke_retries=$followon_smoke_retries"
+echo "stop_after_base=$stop_after_base"
 
 rm -f "$log" "$out" 2>/dev/null || true
 if [[ -n "$phases_log" ]]; then
@@ -340,6 +343,7 @@ fi
   echo "run_timeout_secs=$run_timeout_secs"
   echo "green_cache_run_timeout_secs=$green_cache_run_timeout_secs"
   echo "followon_smoke_retries=$followon_smoke_retries"
+  echo "stop_after_base=$stop_after_base"
 } >>"$log"
 
 set +e
@@ -429,6 +433,14 @@ else
   run_base
   phase_rc=$?
   set -e
+  if [[ "$phase_rc" -eq 0 ]]; then
+    echo "native quick integration base phase OK" >>"$log"
+  fi
+  if [[ "$phase_rc" -eq 0 && "$stop_after_base" == "1" ]]; then
+    echo "skip_reason=OREN_QI_STOP_AFTER_BASE=1" >>"$log"
+    tail -n 5 "$log"
+    exit 0
+  fi
   if [[ "$phase_rc" -eq 0 ]]; then
     set +e
     run_green_cache
