@@ -69,6 +69,15 @@ def emit_file(label, path):
     print(f"{label}: {path}")
 
 
+def parse_float(value):
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
 smoke_wrapper = os.environ["SMOKE_LOG"]
 disasm_wrapper = os.environ["DISASM_WRAPPER_LOG"]
 steady_wrapper = os.environ["STEADY_WRAPPER_LOG"]
@@ -161,12 +170,15 @@ if run_test == "1" or os.path.exists(test_wrapper):
     emit_file("test_wrapper_log", test_wrapper)
 print("")
 
+captured_metrics = {}
+
 for key, pattern in ratio_patterns.items():
     source_text = steady_text if key.startswith("steady_") else gate_text
     if source_text is None:
         continue
     value = find_ratio(source_text, pattern)
     if value is not None:
+        captured_metrics[key] = value
         print(f"{key}: {value}")
 
 for key, pattern in timing_patterns.items():
@@ -175,6 +187,7 @@ for key, pattern in timing_patterns.items():
         continue
     value = find_ratio(source_text, pattern)
     if value is not None:
+        captured_metrics[key] = value
         print(f"{key}: {value}")
 
 for key, pattern in disasm_patterns.items():
@@ -182,7 +195,18 @@ for key, pattern in disasm_patterns.items():
         continue
     value = find_ratio(disasm_text, pattern)
     if value is not None:
+        captured_metrics[key] = value
         print(f"{key}: {value}")
+
+for name in ["array_sum", "dot_product"]:
+    c_cov = parse_float(captured_metrics.get(f"gate_{name}_c_cov"))
+    native_cov = parse_float(captured_metrics.get(f"gate_{name}_native_cov"))
+    if c_cov is None or native_cov is None:
+        continue
+    if c_cov >= 0.10 or native_cov >= 0.10:
+        print(
+            f"warning_gate_{name}_high_variance: c_cov={c_cov:.4f} native_cov={native_cov:.4f}"
+        )
 
 if debug_text is not None:
     m = re.search(r"status: ([^\n]+)", debug_text)

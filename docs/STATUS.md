@@ -696,6 +696,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      canonical W5 perf-gate benchmarks `benchmarks/array_sum/array_sum.oren` and
      `benchmarks/dot_product/dot_product.oren`, proving the auto-specialized benchmark path still
      stays on the fast `list<int>` lowering on both native backends.
+   - Structural guard widen (2026-04-09): the same
+     `make verify-native-list-int-fast-lowering` gate now also runs
+     `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar exact-`madd`
+     subpath is pinned by a deterministic disasm A/B instead of only by probe notes. Latest log
+     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): generic
+     `dot_product` and explicit `dot_product_int` both stay at `instruction_count=69`,
+     `madd_count=1` on the shipped default, while forcing
+     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` moves both back to
+     `instruction_count=70`, `madd_count=0`.
    - New parity widen (2026-03-28): arm64/x64 fast-loop matchers now also accept the equivalent
      commuted reductions `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum` for both `list<int>`
      and boxed-list direct-loop lowerings. The same `make verify-native-list-int-fast-lowering`
@@ -1799,6 +1808,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
        `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`):
        disabling scalar consistently hurts steady (`+10.28%`, `+8.60%`) while the whole-operation
        gate stays mixed/noisy (`-4.04%`, `-0.21%`) with one high-variance baseline sample.
+     - New structural guard (2026-04-09): `make verify-native-arm64-dot-madd-scalar-default`
+       now locks the shipped scalar subpath to the live disasm shape on both generic and explicit
+       surfaces, and `make verify-native-list-int-fast-lowering` runs it automatically. Latest log
+       (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): shipped
+       defaults stay at `69` instructions with `madd_count=1`; forcing `SCALAR=0` moves the same
+       loops back to `70` instructions with `madd_count=0`.
      - Conclusion: ship only the scalar exact-`madd` substitution by default, keep the whole exact
        branch opt-in, and keep `quad` / `double` as non-default experiments.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
@@ -1814,6 +1829,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `make perf-probe-arm64-fast-dot-madd-exact-double-sweep` and
      `make perf-probe-arm64-fast-dot-double-exit-snippet` both honor
      `OREN_BENCH_ENV_BUILD_OREN` and record the active `build_env` in their summaries.
+     The April 9 follow-up also made the acceptance summaries emit explicit
+     `warning_gate_{dot_product,dot_product_int}_high_variance` keys when gate COV reaches `0.10`,
+     and the exact-`madd` wrapper summaries now preserve those warnings in their own output so noisy
+     gate reruns are visible at the top level.
    - Disasm extraction follow-up (2026-04-05): `make perf-probe-arm64-fast-dot-double-exit-snippet`
      now rebuilds the baseline and exact-double variants with traced `--disasm` and extracts the
      compact 2-wide block from the canonical `fast_list_int_dot_while_no_tick` window into one

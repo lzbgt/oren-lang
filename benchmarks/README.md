@@ -1082,6 +1082,20 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   baseline run), so treat the explicit whole-operation signal as mixed but bounded rather than as a
   reason to undo the shipped scalar default. Use `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0`
   when you need to recheck the pre-promotion behavior exactly.
+- The shipped scalar exact-`madd` default now also has a deterministic structural guard:
+  `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
+  `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the
+  live arm64 shipped baseline still emits one scalar-tail `madd` on both generic `dot_product` and
+  explicit `dot_product_int`, while `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` forces the
+  pre-promotion `mul/add` tail back in. Latest verify log
+  (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): generic and
+  explicit shipped defaults both stay at `instruction_count=69`, `madd_count=1`; forcing
+  `SCALAR=0` moves both back to `instruction_count=70`, `madd_count=0`.
+- The arm64 dot acceptance summaries now emit explicit
+  `warning_gate_{dot_product,dot_product_int}_high_variance` keys when the whole-operation gate COV
+  crosses the `0.10` tripwire, and the exact-`madd` wrapper summaries preserve those warning keys in
+  their own top-level output. That keeps future noisy gate reruns visible instead of requiring manual
+  COV inspection of the nested acceptance summary.
 - For the arm64 exact-double tail-shape sweep, use
   `make perf-probe-arm64-fast-dot-madd-exact-double-sweep`. It builds the exact-double-only native
   `dot_product` benchmark once and then sweeps `n=1..N` (default `24`) at a fixed `reps` (default

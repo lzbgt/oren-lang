@@ -565,6 +565,14 @@ landed one measured compiler-default improvement:
 - the explicit `dot_product_int` surface still shows some whole-operation noise, but disabling the
   shipped scalar subpath consistently hurts steady materially (`+10.28%`, `+8.60%`) across two
   reruns, so the promotion is still directionally supported
+- the shipped scalar default now has a deterministic structural guard:
+  `make verify-native-arm64-dot-madd-scalar-default` and the integrated
+  `make verify-native-list-int-fast-lowering` path both confirm the live arm64 default still emits
+  `69` instructions with one scalar-tail `madd` on generic and explicit surfaces, while forcing
+  `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` moves both back to `70` instructions with no
+  `madd` (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`)
+- the arm64 acceptance summaries and exact-`madd` wrappers now raise explicit high-variance warning
+  keys for noisy gate samples instead of relying on manual COV inspection of nested logs
 
 This narrows one hot-loop gap without over-claiming broad arm64 parity. The broader production
 blocker remains sustained native `dot_product` parity against vectorized C, not operator/tooling

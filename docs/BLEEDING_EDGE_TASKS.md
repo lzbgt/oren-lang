@@ -1519,10 +1519,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      compiler still emits `[x64_list_fast] ... kind=fast_list_int_{get_sum,dot}_while`. That makes
      the remaining task concrete: improve or broaden the existing direct-slot compiler fast loops,
      not the runtime helper boundary.
-   - Follow-up (2026-04-04): the same gate now also compiles the canonical W5 perf-gate benchmarks
-     `benchmarks/array_sum/array_sum.oren` and `benchmarks/dot_product/dot_product.oren`, so the
-     auto-specialized benchmark shapes are guarded alongside the explicit `array_sum_int` /
-     `dot_product_int` probes instead of relying on manual trace spot-checks.
+	   - Follow-up (2026-04-04): the same gate now also compiles the canonical W5 perf-gate benchmarks
+	     `benchmarks/array_sum/array_sum.oren` and `benchmarks/dot_product/dot_product.oren`, so the
+	     auto-specialized benchmark shapes are guarded alongside the explicit `array_sum_int` /
+	     `dot_product_int` probes instead of relying on manual trace spot-checks.
+	   - Structural guard widen (2026-04-09): `make verify-native-list-int-fast-lowering` now also
+	     runs `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar
+	     exact-`madd` tail is guarded by a deterministic disasm A/B. Latest log
+	     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`): generic
+	     `dot_product` and explicit `dot_product_int` stay at `instruction_count=69`, `madd_count=1`
+	     on the shipped default, while forcing
+	     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=0` moves both back to
+	     `instruction_count=70`, `madd_count=0`.
    - New matcher parity widen (2026-03-28): arm64/x64 direct-loop matchers now also accept the
      commuted equivalents `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum`, including the boxed
      list fast-loop siblings. `make verify-native-list-int-fast-lowering` now compiles
@@ -1784,22 +1792,31 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 							      - generic rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_021122_35896.log`):
 							        disabling scalar regresses both raw native medians (`+0.92%` steady,
 							        `+1.75%` gate)
-							      - explicit reruns
-							        (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021210_38053.log`,
-							        `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`):
-							        disabling scalar consistently hurts steady (`+10.28%`, `+8.60%`), while the
-							        gate stays mixed/noisy (`-4.04%`, `-0.21%`)
-							      Reweight: keep scalar exact-`madd` shipped by default, keep the whole exact branch
-							      opt-in, and leave `quad` / `double` as non-default experiments.
+								      - explicit reruns
+								        (`build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021210_38053.log`,
+								        `build/logs/perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths-20260409_021340_41284.log`):
+								        disabling scalar consistently hurts steady (`+10.28%`, `+8.60%`), while the
+								        gate stays mixed/noisy (`-4.04%`, `-0.21%`)
+								      - deterministic guard (arm64, 2026-04-09):
+								        `make verify-native-arm64-dot-madd-scalar-default` now pins the shipped
+								        scalar path to `69` instructions / `madd_count=1` on both generic and
+								        explicit surfaces, with `SCALAR=0` returning both to `70` / `0`
+								        (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_022630_60912.log`)
+								      Reweight: keep scalar exact-`madd` shipped by default, keep the whole exact branch
+								      opt-in, and leave `quad` / `double` as non-default experiments.
 						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
 						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
 						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the
 						      active `build_env`. Keep that harness improvement. Retire the specific
 						      cursor-end lowering branch: the later read-split rerun regressed repeated-loop
 						      `dot_product` on both `long/reps` (`~2.6003x -> ~2.6651x`) and delta-based
-						      steady (`~2.8383x -> ~3.0797x`), so the cursor-end probes and knob were removed
-						      from the live surface after recording the evidence
-						      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
+							      steady (`~2.8383x -> ~3.0797x`), so the cursor-end probes and knob were removed
+							      from the live surface after recording the evidence
+							      (`build/logs/perf-probe-arm64-fast-dot-cursor-end-read-split-20260405_021431_93331.log`).
+							      The April 9 follow-up also added explicit
+							      `warning_gate_{dot_product,dot_product_int}_high_variance` keys to the arm64
+							      acceptance summaries, and the exact-`madd` wrappers now preserve those warning
+							      lines at the top level when gate COV crosses `0.10`.
 						    - New compare probe (arm64, 2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
 						      now compares the shipped traced Oren `dot_product` loop directly against the host
 						      `cc -O2 -S` lowering of `benchmarks/dot_product/dot_product.c`. The latest
