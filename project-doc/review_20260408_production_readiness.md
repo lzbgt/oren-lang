@@ -340,17 +340,20 @@ Prefix-zero containment follow-up:
   compares generic auto-specialized `dot_product` against explicit `dot_product_int` on both the
   shipped default and `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`, while also preserving the
   compile-time specialization trace. Current rerun
-  (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`) says
-  the generic/explicit gap stays small:
-  - default steady: generic `~1.4986x C`, specialized `~1.8988x C` (`~0.7892x` gap)
-  - enabled steady: generic `~1.5949x C`, specialized `~1.6858x C` (`~0.9461x` gap)
-  - default read-split long-per-rep: generic `~1.7422x C`, specialized `~1.6290x C` (`~1.0695x` gap)
-  - enabled read-split long-per-rep: generic `~1.7627x C`, specialized `~1.6367x C` (`~1.0770x` gap)
-  - compile trace on both sides is unchanged at the high level: generic `rewrite_init=2`,
-    specialized `rewrite_init=0`, and both keep `list_push_unchecked=1`
+  (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_011654_49934.log`) says
+  the generic/explicit gap still stays small after restoring typed reserve on the parsed-bound fill
+  loops:
+  - default steady: generic `~1.3947x C`, specialized `~1.6008x C` (`~0.8713x` gap)
+  - enabled steady: generic `~1.3992x C`, specialized `~1.5518x C` (`~0.9017x` gap)
+  - default read-split long-per-rep: generic `~1.6788x C`, specialized `~1.7004x C` (`~0.9873x` gap)
+  - enabled read-split long-per-rep: generic `~1.6392x C`, specialized `~1.5860x C` (`~1.0335x` gap)
+  - compile trace now also confirms typed reserve + typed unchecked fill on the benchmark loops:
+    generic `rewrite_init=2`, `list_int_reserve=2`, `list_int_push_unchecked=2`; specialized
+    `rewrite_init=0`, `list_int_reserve=2`, `list_int_push_unchecked=2`
 - Updated conclusion: the current blocker is no longer well-described as a broad “source-shape gap”.
-  The explicit `list<int>` surface likes the salvaged dot path, the generic acceptance surface is
-  still mixed, and the focused specialization probes keep the generic/explicit gap near parity.
+  The explicit `list<int>` surface likes the salvaged dot path, the focused specialization probes
+  keep the generic/explicit gap near parity, and the parsed-bound benchmark setup gap is now
+  closed. The remaining blocker is back in the steady arm64 dot kernel and the missing vector path.
 - Verification for the current salvage pass:
   - `env OREN_BENCH_ENV_BUILD_OREN='OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1' make perf-smoke-native-fast-loops`
     - wrapper log: `build/logs/make_perf_smoke_native_fast_loops_dot_prefix_zero_only_fix1_clean_20260409.log`

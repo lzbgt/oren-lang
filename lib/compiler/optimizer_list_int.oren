@@ -21,6 +21,15 @@ fn _opt_is_len_call(expr) {
     return true
 }
 
+fn _opt_safe_int_call_name(expr) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var nm = _opt_call_name(expr)
+    if nm != nil { return nm }
+    var fnn = expr["fn"]
+    if fnn != nil && fnn["type"] == "Identifier" { return fnn["value"] }
+    return nil
+}
+
 
 fn _opt_is_safe_int_expr(expr, last_int_safe) {
     if expr == nil { return false }
@@ -32,6 +41,23 @@ fn _opt_is_safe_int_expr(expr, last_int_safe) {
         return false
     }
     if _opt_is_len_call(expr) { return true }
+    if t == "Call" {
+        var nm2 = _opt_safe_int_call_name(expr)
+        var args2 = expr["args"]
+        var argc2 = 0
+        if args2 != nil { argc2 = oren_list_len(args2) }
+        if argc2 == 1 {
+            if nm2 == "oren_int" || nm2 == "oren_trunc_int" || nm2 == "oren_bool_norm" ||
+               nm2 == "oren_f32_to_u32_bits" || nm2 == "oren_f64_to_u64_bits" {
+                return true
+            }
+            if nm2 == "oren_list_int_get" || nm2 == "STD_list_int_get" ||
+               nm2 == "oren_list_int_get_unchecked" || nm2 == "STD_list_int_get_unchecked" {
+                return true
+            }
+        }
+        return false
+    }
     if t == "Prefix" {
         var op0 = expr["op"]
         if op0 == "-" || op0 == "+" { return _opt_is_safe_int_expr(expr["right"], last_int_safe) }

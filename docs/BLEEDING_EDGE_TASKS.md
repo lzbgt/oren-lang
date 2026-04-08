@@ -1060,22 +1060,30 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     auto-specialized `dot_product` against explicit `dot_product_int` on both the shipped
 		     default and `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`, then bundles the aligned steady
 		     gap, read-split gap, and specialization trace into one artifact. Latest rerun
-		     (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`)
-		     shows the generic/explicit gap stays small and the rewrite shape is unchanged:
-		     - default steady: generic `~1.4986× C`, specialized `~1.8988× C` (`~0.7892×` gap)
-		     - enabled steady: generic `~1.5949× C`, specialized `~1.6858× C` (`~0.9461×` gap)
-		     - default read-split long-per-rep: generic `~1.7422× C`, specialized `~1.6290× C`
-		       (`~1.0695×` gap)
-		     - enabled read-split long-per-rep: generic `~1.7627× C`, specialized `~1.6367× C`
-		       (`~1.0770×` gap)
-		     - trace on both sides still shows generic `rewrite_init=2`, specialized `rewrite_init=0`,
-		       and both keep `list_push_unchecked=1`
-		     Reweighting: the new prefix-zero dot path does not establish a large generic/source-shape
-		     divergence by itself; the acceptance mismatch is narrower than that.
+		     (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_011654_49934.log`)
+		     shows the generic/explicit gap stays small, and restoring parsed-bound reserve insertion
+		     moved both whole-operation ratios materially in the right direction:
+		     - default steady: generic `~1.3947× C`, specialized `~1.6008× C` (`~0.8713×` gap)
+		     - enabled steady: generic `~1.3992× C`, specialized `~1.5518× C` (`~0.9017×` gap)
+		     - default read-split long-per-rep: generic `~1.6788× C`, specialized `~1.7004× C`
+		       (`~0.9873×` gap)
+		     - enabled read-split long-per-rep: generic `~1.6392× C`, specialized `~1.5860× C`
+		       (`~1.0335×` gap)
+		     - specialization trace now shows the benchmark fill loops taking typed reserve plus typed
+		       unchecked pushes on both sides (`list_int_reserve=2`, `list_int_push_unchecked=2` for the
+		       `dot_product` pair; trace summary
+		       `build/logs/perf-probe-list-int-specialization-trace-20260409_011625_49062.log`)
+		     Reweighting: the generic parsed-bound fill/setup gap is no longer the blocker on this
+		     benchmark pair. The remaining gap is back in the steady arm64 dot core versus C.
 		   - New specialization trace probe (2026-04-05): `make perf-probe-list-int-specialization-trace`
-		     confirms the generic benchmark sources already rewrite into the intended `list<int>` shape
-		     (`xs`, `a`, and `b` all show `list_int rewrite init` events), while the explicit
-		     `list.int_*` sources start as `oren_new_list_int` candidates and therefore need no rewrite.
+		     now confirms the benchmark fill loops take the full intended typed path, not just the
+		     constructor rewrite:
+		     - generic `array_sum`: `rewrite_init=1`, `list_int_reserve=1`, `list_int_push_unchecked=1`
+		     - generic `dot_product`: `rewrite_init=2`, `list_int_reserve=2`, `list_int_push_unchecked=2`
+		     - explicit `array_sum_int`: `list_int_reserve=1`, `list_int_push_unchecked=1`
+		     - explicit `dot_product_int`: `list_int_reserve=2`, `list_int_push_unchecked=2`
+		     The remaining boxed `list_reserve=1` / `list_push_unchecked=1` counts come from shared
+		     helper functions, not from the benchmark fill loops.
 		   - New scalar-ceiling probe + env-parse fix (2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
 		     now forwards comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, and
 		     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` now compares exact Oren native `dot_product`

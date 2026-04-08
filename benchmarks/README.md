@@ -811,16 +811,16 @@ make perf-probe-arm64-fast-dot-prefix-zero-specialization
 This keeps the comparison on just `dot_product` vs `dot_product_int`, runs both the steady and
 read-split specialization probes on the shipped default and on the enabled prefix-zero build env,
 and bundles the specialization trace alongside them. Current host rerun
-(`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`):
+(`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_011654_49934.log`):
 
-- default steady: generic `~1.4986x C`, specialized `~1.8988x C` (`generic_vs_specialized ~0.7892x`)
-- enabled steady: generic `~1.5949x C`, specialized `~1.6858x C` (`generic_vs_specialized ~0.9461x`)
-- default read-split long-per-rep: generic `~1.7422x C`, specialized `~1.6290x C` (`~1.0695x`)
-- enabled read-split long-per-rep: generic `~1.7627x C`, specialized `~1.6367x C` (`~1.0770x`)
+- default steady: generic `~1.3947x C`, specialized `~1.6008x C` (`generic_vs_specialized ~0.8713x`)
+- enabled steady: generic `~1.3992x C`, specialized `~1.5518x C` (`generic_vs_specialized ~0.9017x`)
+- default read-split long-per-rep: generic `~1.6788x C`, specialized `~1.7004x C` (`~0.9873x`)
+- enabled read-split long-per-rep: generic `~1.6392x C`, specialized `~1.5860x C` (`~1.0335x`)
 
-That is the current attribution fact for the prefix-zero dot work: the generic/explicit gap stays
-small and the specialization trace is unchanged, so the experiment does not establish a large
-source-shape divergence by itself.
+That is the current attribution fact for the prefix-zero dot work: the generic/explicit gap still
+stays small, and the parsed-bound reserve fix improved both whole-operation surfaces materially.
+The remaining blocker is not missing typed fill setup on these benchmarks anymore.
 
 And to confirm that the generic benchmarks still compile through the intended `list<int>` rewrite
 path instead of silently falling back to boxed-list behavior, use:
@@ -829,11 +829,16 @@ path instead of silently falling back to boxed-list behavior, use:
 make perf-probe-list-int-specialization-trace
 ```
 
-The latest trace artifact, `build/logs/perf-probe-list-int-specialization-trace-20260405_025957_59477.log`,
-shows:
+The latest trace artifact, `build/logs/perf-probe-list-int-specialization-trace-20260409_011625_49062.log`,
+shows the full fill-path rewrite:
 
-- generic `array_sum`: `list_int rewrite init name=xs`
-- generic `dot_product`: `list_int rewrite init name=a` and `name=b`
+- generic `array_sum`: `rewrite_init=1`, `list_int_reserve=1`, `list_int_push_unchecked=1`
+- generic `dot_product`: `rewrite_init=2`, `list_int_reserve=2`, `list_int_push_unchecked=2`
+- explicit `array_sum_int`: `list_int_reserve=1`, `list_int_push_unchecked=1`
+- explicit `dot_product_int`: `list_int_reserve=2`, `list_int_push_unchecked=2`
+
+The same summary still reports one boxed `list_reserve` plus one boxed `list_push_unchecked` per
+program from shared helper functions; those are not the benchmark fill loops under study.
 - explicit `array_sum_int` / `dot_product_int`: start as `oren_new_list_int` candidates and therefore
   do not need rewrite-init events
 

@@ -135,27 +135,33 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      auto-specialized `dot_product` surface against explicit `dot_product_int` on both the shipped
      default and `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO=1`, then bundles the aligned steady gap,
      read-split gap, and compile-time specialization trace into one artifact. Latest rerun
-     (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_005745_23039.log`)
-     shows the generic/explicit gap is still small and the compile-time rewrite shape is unchanged:
-     - default steady: generic `~1.4986× C`, specialized `~1.8988× C`, gap `~0.7892×`
-     - enabled steady: generic `~1.5949× C`, specialized `~1.6858× C`, gap `~0.9461×`
-     - default read-split long-per-rep: generic `~1.7422× C`, specialized `~1.6290× C`, gap `~1.0695×`
-     - enabled read-split long-per-rep: generic `~1.7627× C`, specialized `~1.6367× C`, gap `~1.0770×`
-     - trace on both sides still shows generic `rewrite_init=2`, specialized `rewrite_init=0`, and
-       both keep `list_push_unchecked=1`.
-     Tracker implication: the salvaged prefix-zero dot path does not establish a new hot-loop
-     source-shape divergence by itself. The generic/specialized difference stays near parity and is
-     smaller than the earlier acceptance mismatch suggested.
+     (`build/logs/perf-probe-arm64-fast-dot-prefix-zero-specialization-20260409_011654_49934.log`)
+     shows the generic/explicit gap is still small, and restoring parsed-bound reserve insertion
+     materially improved both sides on the whole-operation surface:
+     - default steady: generic `~1.3947× C`, specialized `~1.6008× C`, gap `~0.8713×`
+     - enabled steady: generic `~1.3992× C`, specialized `~1.5518× C`, gap `~0.9017×`
+     - default read-split long-per-rep: generic `~1.6788× C`, specialized `~1.7004× C`, gap `~0.9873×`
+     - enabled read-split long-per-rep: generic `~1.6392× C`, specialized `~1.5860× C`, gap `~1.0335×`
+     - specialization trace now reports the fill-loop reserve path too:
+       generic `rewrite_init=2`, `list_int_reserve=2`, `list_int_push_unchecked=2`;
+       specialized `rewrite_init=0`, `list_int_reserve=2`, `list_int_push_unchecked=2`
+       (trace summary: `build/logs/perf-probe-list-int-specialization-trace-20260409_011625_49062.log`).
+     Tracker implication: the earlier “generic fill loops are missing typed reserve” gap is now
+     closed for the canonical benchmarks. The remaining blocker is back on the steady arm64 dot
+     kernel relative to the vectorized C baseline, not on parsed-bound list setup.
      delta-vs-long drift warnings, so `long_per_rep` is the tracker-worthy measure here.
    - New specialization trace probe (2026-04-05): `make perf-probe-list-int-specialization-trace`
      builds the generic and explicit `list.int_*` benchmarks with
      `OREN_TRACE_LIST_INT=1 OREN_TRACE_LIST_RESERVE=1` and confirms the canonical generic sources
      still rewrite into the intended `list<int>` path. Latest artifact
-     (`build/logs/perf-probe-list-int-specialization-trace-20260405_025957_59477.log`) shows:
-     - generic `array_sum`: `list_int rewrite init name=xs`
-     - generic `dot_product`: `list_int rewrite init name=a` and `name=b`
-     - explicit `array_sum_int` / `dot_product_int`: already start as `oren_new_list_int`
-       candidates, so they do not need rewrite-init events
+     (`build/logs/perf-probe-list-int-specialization-trace-20260409_011625_49062.log`) now shows
+     the full parsed-bound fill pipeline:
+     - generic `array_sum`: `rewrite_init=1`, `list_int_reserve=1`, `list_int_push_unchecked=1`
+     - generic `dot_product`: `rewrite_init=2`, `list_int_reserve=2`, `list_int_push_unchecked=2`
+     - explicit `array_sum_int`: `list_int_reserve=1`, `list_int_push_unchecked=1`
+     - explicit `dot_product_int`: `list_int_reserve=2`, `list_int_push_unchecked=2`
+     The remaining `list_reserve=1` / `list_push_unchecked=1` counts in each case come from shared
+     helper functions, not the benchmark fill loops themselves.
    - Reweight: the current canonical `dot_product` blocker is no longer “generic-list
      specialization is missing.” After the corrected probe and trace, the remaining gap is back in
      the steady-state hot path and the C-side vectorized baseline, not in a silent boxed-list

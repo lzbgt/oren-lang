@@ -173,8 +173,14 @@ def emit_case(label, gap_log, gap_rc, split_log, split_rc, trace_log, trace_rc):
 
     for key, pattern in [
         ("trace_generic_rewrite_init", r"generic\s+.*?rewrite_init: (\d+)"),
+        ("trace_generic_list_reserve", r"generic\s+.*?list_reserve: (\d+)"),
+        ("trace_generic_list_int_reserve", r"generic\s+.*?list_int_reserve: (\d+)"),
+        ("trace_generic_list_int_push_unchecked", r"generic\s+.*?list_int_push_unchecked: (\d+)"),
         ("trace_generic_list_push_unchecked", r"generic\s+.*?list_push_unchecked: (\d+)"),
         ("trace_specialized_rewrite_init", r"specialized\s+.*?rewrite_init: (\d+)"),
+        ("trace_specialized_list_reserve", r"specialized\s+.*?list_reserve: (\d+)"),
+        ("trace_specialized_list_int_reserve", r"specialized\s+.*?list_int_reserve: (\d+)"),
+        ("trace_specialized_list_int_push_unchecked", r"specialized\s+.*?list_int_push_unchecked: (\d+)"),
         ("trace_specialized_list_push_unchecked", r"specialized\s+.*?list_push_unchecked: (\d+)"),
     ]:
         value = capture_metric(trace_text, pattern)

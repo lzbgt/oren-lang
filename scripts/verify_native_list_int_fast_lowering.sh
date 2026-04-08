@@ -62,9 +62,11 @@ run_build \
   "arm64 canonical array_sum auto-list<int> lowerings" \
   "benchmarks/array_sum/array_sum.oren" \
   "${tmp_dir}/array_sum_arm64" \
-  env OREN_TRACE_ARM64_LOOP_STACK=1 ./oren_stage2 build benchmarks/array_sum/array_sum.oren --backend native --no-debug --no-cache -o "${tmp_dir}/array_sum_arm64"
+  env OREN_TRACE_ARM64_LOOP_STACK=1 OREN_TRACE_LIST_RESERVE=1 ./oren_stage2 build benchmarks/array_sum/array_sum.oren --backend native --no-debug --no-cache -o "${tmp_dir}/array_sum_arm64"
 check_expect "arm64 canonical array_sum push lowering" 'fast_list_int_push_while(_no_tick)?'
 check_expect "arm64 canonical array_sum get-sum lowering" 'fast_list_int_get_sum_while(_no_tick)?'
+check_expect "arm64 canonical array_sum reserve insertion" '\[opt\] list_int_reserve name=xs n=n'
+check_expect "arm64 canonical array_sum unchecked push rewrite" '\[opt\] list_int_push_unchecked name=xs'
 
 build_and_check \
   "arm64 dot_product_int fast dot lowering" \
@@ -77,9 +79,13 @@ run_build \
   "arm64 canonical dot_product auto-list<int> lowerings" \
   "benchmarks/dot_product/dot_product.oren" \
   "${tmp_dir}/dot_product_arm64" \
-  env OREN_TRACE_ARM64_LOOP_STACK=1 ./oren_stage2 build benchmarks/dot_product/dot_product.oren --backend native --no-debug --no-cache -o "${tmp_dir}/dot_product_arm64"
+  env OREN_TRACE_ARM64_LOOP_STACK=1 OREN_TRACE_LIST_RESERVE=1 ./oren_stage2 build benchmarks/dot_product/dot_product.oren --backend native --no-debug --no-cache -o "${tmp_dir}/dot_product_arm64"
 check_expect "arm64 canonical dot_product push lowering" 'fast_list_int_push_while(_no_tick)?'
 check_expect "arm64 canonical dot_product dot lowering" 'fast_list_int_dot_while(_no_tick)?'
+check_expect "arm64 canonical dot_product reserve insertion a" '\[opt\] list_int_reserve name=a n=n'
+check_expect "arm64 canonical dot_product reserve insertion b" '\[opt\] list_int_reserve name=b n=n'
+check_expect "arm64 canonical dot_product unchecked push rewrite a" '\[opt\] list_int_push_unchecked name=a'
+check_expect "arm64 canonical dot_product unchecked push rewrite b" '\[opt\] list_int_push_unchecked name=b'
 
 build_and_check \
   "x64 array_sum_int fast get-sum lowering" \
@@ -93,7 +99,9 @@ build_and_check \
   "benchmarks/array_sum/array_sum.oren" \
   "${tmp_dir}/array_sum_x64_linux" \
   '\[x64_list_fast\].*kind=fast_list_int_get_sum_while' \
-  env OREN_TRACE_X64_LIST_FAST=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build benchmarks/array_sum/array_sum.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/array_sum_x64_linux"
+  env OREN_TRACE_X64_LIST_FAST=1 OREN_TRACE_LIST_RESERVE=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build benchmarks/array_sum/array_sum.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/array_sum_x64_linux"
+check_expect "x64 canonical array_sum reserve insertion" '\[opt\] list_int_reserve name=xs n=n'
+check_expect "x64 canonical array_sum unchecked push rewrite" '\[opt\] list_int_push_unchecked name=xs'
 
 build_and_check \
   "x64 dot_product_int fast dot lowering" \
@@ -107,7 +115,11 @@ build_and_check \
   "benchmarks/dot_product/dot_product.oren" \
   "${tmp_dir}/dot_product_x64_linux" \
   '\[x64_list_fast\].*kind=fast_list_int_dot_while' \
-  env OREN_TRACE_X64_LIST_FAST=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build benchmarks/dot_product/dot_product.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/dot_product_x64_linux"
+  env OREN_TRACE_X64_LIST_FAST=1 OREN_TRACE_LIST_RESERVE=1 OREN_PARSE_FORK_PARALLEL=1 OREN_PARSE_JOBS="${OREN_PARSE_JOBS:-8}" ./oren build benchmarks/dot_product/dot_product.oren --backend native --platform x64-linux --no-debug --no-cache -o "${tmp_dir}/dot_product_x64_linux"
+check_expect "x64 canonical dot_product reserve insertion a" '\[opt\] list_int_reserve name=a n=n'
+check_expect "x64 canonical dot_product reserve insertion b" '\[opt\] list_int_reserve name=b n=n'
+check_expect "x64 canonical dot_product unchecked push rewrite a" '\[opt\] list_int_push_unchecked name=a'
+check_expect "x64 canonical dot_product unchecked push rewrite b" '\[opt\] list_int_push_unchecked name=b'
 
 run_build \
   "arm64 commuted list<int> fast lowerings" \

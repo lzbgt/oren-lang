@@ -4,6 +4,8 @@ import optcore "optimizer_core.oren"
 import listint "optimizer_list_int.oren"
 
 fn _opt_is_safe_int_expr(expr, last_int_safe) { return listint._opt_is_safe_int_expr(expr, last_int_safe) }
+fn _opt_call_name(expr) { return listint._opt_call_name(expr) }
+fn _opt_safe_ints_after_stmt(stmt, safe_ints, tag) { return listint._opt_safe_ints_after_stmt(stmt, safe_ints, tag) }
 fn _opt_backend_allows_list_int_unchecked() { return optcore._opt_backend_allows_list_int_unchecked() }
 
 fn _opt_collect_list_pushes_expr(expr, out) {
@@ -13,7 +15,8 @@ fn _opt_collect_list_pushes_expr(expr, out) {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
             var nm = fnn["value"]
-            if nm == "oren_list_push" || nm == "STD_list_push" {
+            if nm == "oren_list_push" || nm == "STD_list_push" ||
+               nm == "oren_list_push_unchecked" || nm == "STD_list_push_unchecked" {
                 var args = expr["args"]
                 if args != nil && oren_list_len(args) >= 2 {
                     var recv_name = opthelp.is_ident(args[0])
@@ -94,7 +97,8 @@ fn _opt_collect_list_int_pushes_expr(expr, out) {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
             var nm = fnn["value"]
-            if nm == "oren_list_int_push" || nm == "STD_list_int_push" {
+            if nm == "oren_list_int_push" || nm == "STD_list_int_push" ||
+               nm == "oren_list_int_push_unchecked" || nm == "STD_list_int_push_unchecked" {
                 var args = expr["args"]
                 if args != nil && oren_list_len(args) >= 2 {
                     var recv_name = opthelp.is_ident(args[0])
@@ -635,19 +639,16 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 var alias_name = nil
                 if v != nil && v["type"] == "Identifier" { alias_name = v["value"] }
                 if v != nil && v["type"] == "Call" {
-                    var fnv = v["fn"]
-                    if fnv != nil && fnv["type"] == "Identifier" {
-                        var fn_name = fnv["value"]
-                        if fn_name == "oren_new_list_int" || fn_name == "oren_arena_new_list_int" ||
-                           fn_name == "oren_arena_new_list_int_auto" {
-                            list_int_new = true
-                        }
-                        if fn_name == "oren_new_list" || fn_name == "oren_list_new_cap" ||
-                           fn_name == "oren_arena_new_list" || fn_name == "oren_arena_new_list_auto" {
-                            list_lit = true
-                            lit_len = 0
-                            lit_int_safe = false
-                        }
+                    var fn_name = _opt_call_name(v)
+                    if fn_name == "oren_new_list_int" || fn_name == "oren_arena_new_list_int" ||
+                       fn_name == "oren_arena_new_list_int_auto" || fn_name == "STD_list_int_new" {
+                        list_int_new = true
+                    }
+                    if fn_name == "oren_new_list" || fn_name == "oren_list_new_cap" ||
+                       fn_name == "oren_arena_new_list" || fn_name == "oren_arena_new_list_auto" {
+                        list_lit = true
+                        lit_len = 0
+                        lit_int_safe = false
                     }
                 }
                 if v != nil && v["type"] == "Array" {
@@ -914,6 +915,7 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
         }
 
         oren_list_push(out, st)
+        last_int_safe = _opt_safe_ints_after_stmt(st, last_int_safe, "reserve")
         if is_top_assign != true {
             var assigned = {}
             opthelp.collect_assigned_names_stmt(assigned, st)
@@ -922,7 +924,6 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 last_list_lit_len[nm2] = -1
                 last_list_lit_intsafe[nm2] = false
                 last_list_int_new[nm2] = false
-                last_int_safe[nm2] = false
             }
         }
         i = i + 1

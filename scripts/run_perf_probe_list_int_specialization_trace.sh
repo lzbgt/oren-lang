@@ -76,6 +76,7 @@ def summarize(path):
         "rewrite_ctor": 0,
         "touch": 0,
         "unsafe": 0,
+        "list_reserve": 0,
         "list_int_reserve": 0,
         "list_int_push_unchecked": 0,
         "list_push_unchecked": 0,
@@ -96,6 +97,8 @@ def summarize(path):
                 metrics["touch"] += 1
             if "[opt] list_int unsafe " in line:
                 metrics["unsafe"] += 1
+            if "[opt] list_reserve name=" in line:
+                metrics["list_reserve"] += 1
             if "[opt] list_int_reserve name=" in line:
                 metrics["list_int_reserve"] += 1
             if "[opt] list_int_push_unchecked name=" in line:
@@ -119,6 +122,7 @@ def emit_group(title, items):
             "list_int_new_ctor",
             "touch",
             "unsafe",
+            "list_reserve",
             "list_int_reserve",
             "list_int_push_unchecked",
             "list_push_unchecked",
