@@ -31,6 +31,14 @@ fn reduce_sum_i32_buf(a: []i32) {
     return dot.reduce_sum_i32_buf(a)
 }
 
+fn reduce_sum_i64_list_int_slots(a) {
+    return dot.reduce_sum_i64_list_int_slots(a)
+}
+
+fn dot_i64_list_int_slots(a, b) {
+    return dot.dot_i64_list_int_slots(a, b)
+}
+
 fn dot_i32_list_int_packed(a, b) {
     return dot.dot_i32_list_int_packed(a, b)
 }

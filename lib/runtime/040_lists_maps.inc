@@ -282,6 +282,10 @@ OrenValue oren_is_list(OrenValue v) {
     return oren_bool(v.type == OREN_TYPE_LIST);
 }
 
+OrenValue oren_is_list_int(OrenValue v) {
+    return oren_bool(v.type == OREN_TYPE_LIST && v.as.list_val && v.as.list_val->all_int);
+}
+
 OrenValue oren_list_push(OrenValue list, OrenValue value) {
     if (list.type != OREN_TYPE_LIST) {
         oren_panic("push on non-list");
@@ -545,6 +549,104 @@ OrenValue oren_list_int_reserve(OrenValue list, OrenValue new_cap) {
     }
     oren_list_reserve_raw(list.as.list_val, (int)new_cap.as.int_val);
     return OREN_NIL;
+}
+
+static int list_int_slots_require(OrenValue list, const char* ctx, OrenList** out) {
+    if (list.type != OREN_TYPE_LIST || list.as.list_val == NULL) {
+        oren_panic(ctx);
+        return 0;
+    }
+    OrenList* l = list.as.list_val;
+    if (!l->all_int) {
+        oren_panic(ctx);
+        return 0;
+    }
+    *out = l;
+    return 1;
+}
+
+OrenValue oren_list_int_reduce_sum_slots(OrenValue list) {
+    if (list.type == OREN_TYPE_NIL) return oren_int(0);
+    lock_collections();
+    OrenList* l = NULL;
+    if (!list_int_slots_require(list, "list_int_reduce_sum_slots on non-list", &l)) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    uint64_t acc = 0;
+    for (int i = 0; i < l->count; i++) acc += (uint64_t)l->items[i].as.int_val;
+    unlock_collections();
+    return oren_int((int64_t)acc);
+}
+
+OrenValue oren_list_int_reduce_sum_slots_unchecked(OrenValue list) {
+    if (list.type == OREN_TYPE_NIL) return oren_int(0);
+    lock_collections();
+    OrenList* l = NULL;
+    if (!list_int_slots_require(list, "list_int_reduce_sum_slots_unchecked on non-list", &l)) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    uint64_t acc = 0;
+    for (int i = 0; i < l->count; i++) acc += (uint64_t)l->items[i].as.int_val;
+    unlock_collections();
+    return oren_int((int64_t)acc);
+}
+
+OrenValue oren_list_int_dot_slots(OrenValue a, OrenValue b) {
+    if (a.type == OREN_TYPE_NIL || b.type == OREN_TYPE_NIL) {
+        if (a.type == OREN_TYPE_NIL && b.type == OREN_TYPE_NIL) return oren_int(0);
+        oren_panic("list_int_dot_slots: length mismatch");
+        return OREN_NIL;
+    }
+    lock_collections();
+    OrenList* la = NULL;
+    OrenList* lb = NULL;
+    if (!list_int_slots_require(a, "list_int_dot_slots on non-list", &la) ||
+        !list_int_slots_require(b, "list_int_dot_slots on non-list", &lb)) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    if (la->count != lb->count) {
+        unlock_collections();
+        oren_panic("list_int_dot_slots: length mismatch");
+        return OREN_NIL;
+    }
+    uint64_t acc = 0;
+    for (int i = 0; i < la->count; i++) {
+        int64_t prod = (int64_t)la->items[i].as.int_val * (int64_t)lb->items[i].as.int_val;
+        acc += (uint64_t)prod;
+    }
+    unlock_collections();
+    return oren_int((int64_t)acc);
+}
+
+OrenValue oren_list_int_dot_slots_unchecked(OrenValue a, OrenValue b) {
+    if (a.type == OREN_TYPE_NIL || b.type == OREN_TYPE_NIL) {
+        if (a.type == OREN_TYPE_NIL && b.type == OREN_TYPE_NIL) return oren_int(0);
+        oren_panic("list_int_dot_slots_unchecked: length mismatch");
+        return OREN_NIL;
+    }
+    lock_collections();
+    OrenList* la = NULL;
+    OrenList* lb = NULL;
+    if (!list_int_slots_require(a, "list_int_dot_slots_unchecked on non-list", &la) ||
+        !list_int_slots_require(b, "list_int_dot_slots_unchecked on non-list", &lb)) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    if (la->count != lb->count) {
+        unlock_collections();
+        oren_panic("list_int_dot_slots_unchecked: length mismatch");
+        return OREN_NIL;
+    }
+    uint64_t acc = 0;
+    for (int i = 0; i < la->count; i++) {
+        int64_t prod = (int64_t)la->items[i].as.int_val * (int64_t)lb->items[i].as.int_val;
+        acc += (uint64_t)prod;
+    }
+    unlock_collections();
+    return oren_int((int64_t)acc);
 }
 
 static int bytes_get_u8_checked(OrenValue bytes, int idx, uint8_t* out) {

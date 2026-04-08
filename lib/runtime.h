@@ -245,6 +245,7 @@ OrenValue oren_arena_new_list(OrenValue cap);
 OrenValue oren_arena_new_list_int(OrenValue cap);
 OrenValue oren_arena_new_list_auto(OrenValue cap);
 OrenValue oren_arena_new_list_int_auto(OrenValue cap);
+OrenValue oren_is_list_int(OrenValue v);
 OrenValue oren_list_int_len(OrenValue list);
 OrenValue oren_list_int_push(OrenValue list, OrenValue value);
 // Unsafe/fast-path: still checks list<int> value type; returns nil.
@@ -252,6 +253,10 @@ OrenValue oren_list_int_push_unchecked(OrenValue list, OrenValue value);
 OrenValue oren_list_int_get(OrenValue list, OrenValue index);
 OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value);
 OrenValue oren_list_int_reserve(OrenValue list, OrenValue new_cap);
+OrenValue oren_list_int_reduce_sum_slots(OrenValue list);
+OrenValue oren_list_int_reduce_sum_slots_unchecked(OrenValue list);
+OrenValue oren_list_int_dot_slots(OrenValue a, OrenValue b);
+OrenValue oren_list_int_dot_slots_unchecked(OrenValue a, OrenValue b);
 // Returns 1 if list/map ops must take locks (threads started / forced), 0 otherwise.
 int oren_list_locking_needed(void);
 // C backend fast-paths for list<int> hot loops (inlines when locks not needed).

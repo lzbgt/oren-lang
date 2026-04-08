@@ -363,6 +363,13 @@ native-only runtime helpers that operate on the explicit `list<int>` 64-bit slot
 (`oren_list_int_*_slots_unchecked`). That gives a ceiling measurement for “lower directly against
 the current raw payload contract” without touching the canonical loop lowerings yet.
 
+That helper surface is no longer benchmark-only. `std:linalg` now exposes
+`reduce_sum_i64_list_int_slots(...)` and `dot_i64_list_int_slots(...)` on the shared C/native/AVM
+surface. Those entrypoints fast-path through `oren_is_list_int(...)` plus the direct-slot helpers
+when the backend can prove an all-int list and fall back to a portable scalar list walk otherwise,
+so `make verify-backend-parity-list-int` now covers the public slot-direct API as well as the hidden
+ceiling benchmarks.
+
 The packed-bridge smoke now defaults to the faster Oren C backend. That preflight still exercises
 the hidden benchmark sources and scalar-vs-kernel bridge toggles, but it avoids paying the
 full-runtime native build cost twice before the actual steady-state probe. Opt into a native smoke

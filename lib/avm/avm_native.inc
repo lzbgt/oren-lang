@@ -1947,6 +1947,167 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 154: { // oren_is_list_int(v) -> bool
+            if (nargs > 0) {
+                int ok = 0;
+                if (args[0].type == AVM_VAL_LIST_INT) {
+                    ok = args[0].as.li != NULL;
+                } else if (args[0].type == AVM_VAL_LIST) {
+                    ok = (args[0].as.l != NULL && args[0].as.l->all_int != 0);
+                }
+                res.type = AVM_VAL_BOOL;
+                res.as.i = ok ? 1 : 0;
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_is_list_int expects (list)");
+            }
+            break;
+        }
+        case 155: { // oren_list_int_reduce_sum_slots(list) -> int
+            if (nargs > 0) {
+                if (args[0].type == AVM_VAL_NIL) {
+                    res.type = AVM_VAL_INT;
+                    res.as.i = 0;
+                    break;
+                }
+                uint64_t acc = 0;
+                if (args[0].type == AVM_VAL_LIST_INT && args[0].as.li) {
+                    AvmListInt* list = args[0].as.li;
+                    for (int i = 0; i < list->count; i++) acc += (uint64_t)list->items[i];
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                if (args[0].type == AVM_VAL_LIST && args[0].as.l && args[0].as.l->all_int != 0) {
+                    AvmList* list = args[0].as.l;
+                    for (int i = 0; i < list->count; i++) acc += (uint64_t)list->items[i].as.i;
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_reduce_sum_slots expects list<int>");
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_reduce_sum_slots expects list<int>");
+            }
+            break;
+        }
+        case 156: { // oren_list_int_reduce_sum_slots_unchecked(list) -> int
+            if (nargs > 0) {
+                if (args[0].type == AVM_VAL_NIL) {
+                    res.type = AVM_VAL_INT;
+                    res.as.i = 0;
+                    break;
+                }
+                uint64_t acc = 0;
+                if (args[0].type == AVM_VAL_LIST_INT && args[0].as.li) {
+                    AvmListInt* list = args[0].as.li;
+                    for (int i = 0; i < list->count; i++) acc += (uint64_t)list->items[i];
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                if (args[0].type == AVM_VAL_LIST && args[0].as.l && args[0].as.l->all_int != 0) {
+                    AvmList* list = args[0].as.l;
+                    for (int i = 0; i < list->count; i++) acc += (uint64_t)list->items[i].as.i;
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_reduce_sum_slots_unchecked expects list<int>");
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_reduce_sum_slots_unchecked expects list<int>");
+            }
+            break;
+        }
+        case 157: { // oren_list_int_dot_slots(a, b) -> int
+            if (nargs > 1) {
+                if (args[0].type == AVM_VAL_NIL || args[1].type == AVM_VAL_NIL) {
+                    if (args[0].type == AVM_VAL_NIL && args[1].type == AVM_VAL_NIL) {
+                        res.type = AVM_VAL_INT;
+                        res.as.i = 0;
+                    } else {
+                        res = avm_err(AVM_ERR_INVALID_ARG, "list_int_dot_slots: length mismatch");
+                    }
+                    break;
+                }
+                uint64_t acc = 0;
+                if (args[0].type == AVM_VAL_LIST_INT && args[1].type == AVM_VAL_LIST_INT &&
+                    args[0].as.li && args[1].as.li) {
+                    AvmListInt* a = args[0].as.li;
+                    AvmListInt* b = args[1].as.li;
+                    if (a->count != b->count) { res = avm_err(AVM_ERR_INVALID_ARG, "list_int_dot_slots: length mismatch"); break; }
+                    for (int i = 0; i < a->count; i++) {
+                        int64_t prod = (int64_t)a->items[i] * (int64_t)b->items[i];
+                        acc += (uint64_t)prod;
+                    }
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                if (args[0].type == AVM_VAL_LIST && args[1].type == AVM_VAL_LIST &&
+                    args[0].as.l && args[1].as.l &&
+                    args[0].as.l->all_int != 0 && args[1].as.l->all_int != 0) {
+                    AvmList* a = args[0].as.l;
+                    AvmList* b = args[1].as.l;
+                    if (a->count != b->count) { res = avm_err(AVM_ERR_INVALID_ARG, "list_int_dot_slots: length mismatch"); break; }
+                    for (int i = 0; i < a->count; i++) {
+                        int64_t prod = (int64_t)a->items[i].as.i * (int64_t)b->items[i].as.i;
+                        acc += (uint64_t)prod;
+                    }
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_dot_slots expects (list<int>, list<int>)");
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_dot_slots expects (list<int>, list<int>)");
+            }
+            break;
+        }
+        case 158: { // oren_list_int_dot_slots_unchecked(a, b) -> int
+            if (nargs > 1) {
+                if (args[0].type == AVM_VAL_NIL || args[1].type == AVM_VAL_NIL) {
+                    if (args[0].type == AVM_VAL_NIL && args[1].type == AVM_VAL_NIL) {
+                        res.type = AVM_VAL_INT;
+                        res.as.i = 0;
+                    } else {
+                        res = avm_err(AVM_ERR_INVALID_ARG, "list_int_dot_slots_unchecked: length mismatch");
+                    }
+                    break;
+                }
+                uint64_t acc = 0;
+                if (args[0].type == AVM_VAL_LIST_INT && args[1].type == AVM_VAL_LIST_INT &&
+                    args[0].as.li && args[1].as.li) {
+                    AvmListInt* a = args[0].as.li;
+                    AvmListInt* b = args[1].as.li;
+                    if (a->count != b->count) { res = avm_err(AVM_ERR_INVALID_ARG, "list_int_dot_slots_unchecked: length mismatch"); break; }
+                    for (int i = 0; i < a->count; i++) {
+                        int64_t prod = (int64_t)a->items[i] * (int64_t)b->items[i];
+                        acc += (uint64_t)prod;
+                    }
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                if (args[0].type == AVM_VAL_LIST && args[1].type == AVM_VAL_LIST &&
+                    args[0].as.l && args[1].as.l &&
+                    args[0].as.l->all_int != 0 && args[1].as.l->all_int != 0) {
+                    AvmList* a = args[0].as.l;
+                    AvmList* b = args[1].as.l;
+                    if (a->count != b->count) { res = avm_err(AVM_ERR_INVALID_ARG, "list_int_dot_slots_unchecked: length mismatch"); break; }
+                    for (int i = 0; i < a->count; i++) {
+                        int64_t prod = (int64_t)a->items[i].as.i * (int64_t)b->items[i].as.i;
+                        acc += (uint64_t)prod;
+                    }
+                    res.type = AVM_VAL_INT;
+                    res.as.i = (int64_t)acc;
+                    break;
+                }
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_dot_slots_unchecked expects (list<int>, list<int>)");
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_list_int_dot_slots_unchecked expects (list<int>, list<int>)");
+            }
+            break;
+        }
         case 55: { // oren_i64_buf_new(len:int) -> I64_BUF
             if (nargs > 0 && args[0].type == AVM_VAL_INT) {
                 int64_t n = args[0].as.i;

@@ -939,6 +939,11 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_list_len" || name == "STD_list_len" { native_id = 12 }
         if name == "oren_list_int_len" || name == "STD_list_int_len" ||
             name == "oren_list_int_len_unchecked" || name == "STD_list_int_len_unchecked" { native_id = 12 }
+        if name == "oren_is_list_int" { native_id = 154 }
+        if name == "oren_list_int_reduce_sum_slots" { native_id = 155 }
+        if name == "oren_list_int_reduce_sum_slots_unchecked" { native_id = 156 }
+        if name == "oren_list_int_dot_slots" { native_id = 157 }
+        if name == "oren_list_int_dot_slots_unchecked" { native_id = 158 }
         // Note: `oren_list_push` returns `nil` (cross-backend contract).
         if name == "oren_list_push" || name == "STD_list_push" || name == "oren_list_push_unchecked" { native_id = 13 }
         if name == "oren_list_int_push" || name == "oren_list_int_push_unchecked" { native_id = 149 }

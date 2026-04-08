@@ -7,6 +7,17 @@ import buffer "std:buffer"
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 fn _vec2_len(a, b, ctx) { return common._vec2_len(a, b, ctx) }
 
+fn _is_int(v) {
+    if v == nil { return false }
+    var tag = oren_type_tag(v)
+    if tag == 1 { return true }
+    if tag == 0 || tag == 3 || tag == 4 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 13 { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == false
+}
+
 fn dot_f64(a, b) {
     var n = _vec2_len(a, b, "dot_f64")
     if oren_is_err(n) { return n }
@@ -54,6 +65,51 @@ fn dot_i32_buf_scalar(a: []i32, b: []i32) {
 
 fn reduce_sum_i32_buf(a: []i32) {
     return oren_buf_reduce_sum_i32(a)
+}
+
+fn _reduce_sum_i64_list_scalar(a, n, ctx) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        var v = a[i]
+        if _is_int(v) == false { return _err_invalid_arg(ctx + ": expects list<int>") }
+        sum = sum + v
+        i = i + 1
+    }
+    return sum
+}
+
+fn _dot_i64_list_scalar(a, b, n, ctx) {
+    var sum = 0
+    var i = 0
+    while i < n {
+        var av = a[i]
+        if _is_int(av) == false { return _err_invalid_arg(ctx + ": expects list<int>") }
+        var bv = b[i]
+        if _is_int(bv) == false { return _err_invalid_arg(ctx + ": expects list<int>") }
+        sum = sum + av * bv
+        i = i + 1
+    }
+    return sum
+}
+
+// Shared slot-direct helpers:
+// - fast path: backend-native list<int> slot ABI when the input is already an all-int list
+// - fallback: scalar list walk to keep semantics portable for generic list inputs
+fn reduce_sum_i64_list_int_slots(a) {
+    var n = list.len(a)
+    if oren_is_err(n) { return _err_invalid_arg("reduce_sum_i64_list_int_slots: expects list<int>") }
+    if oren_is_list_int(a) == true { return oren_list_int_reduce_sum_slots_unchecked(a) }
+    return _reduce_sum_i64_list_scalar(a, n, "reduce_sum_i64_list_int_slots")
+}
+
+fn dot_i64_list_int_slots(a, b) {
+    var n = _vec2_len(a, b, "dot_i64_list_int_slots")
+    if oren_is_err(n) { return n }
+    if oren_is_list_int(a) == true && oren_is_list_int(b) == true {
+        return oren_list_int_dot_slots_unchecked(a, b)
+    }
+    return _dot_i64_list_scalar(a, b, n, "dot_i64_list_int_slots")
 }
 
 fn dot_i32_list_int_packed(a, b) {

@@ -1509,9 +1509,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the
      deterministic panic text for one-nil and length-mismatch
      `oren_list_int_dot_slots_unchecked(...)` calls.
-   - Verification (2026-03-28): the canonical benchmark loops already lower directly against that
-     64-bit-slot ABI on both native backends. New gate:
-     `make verify-native-list-int-fast-lowering`. It compiles
+		   - Shared stdlib follow-up (2026-04-09): the same direct-slot runtime surface is no longer
+		     benchmark-only. `std:linalg` now exposes
+		     `reduce_sum_i64_list_int_slots(...)` / `dot_i64_list_int_slots(...)`, which fast-path through
+		     `oren_is_list_int(...)` plus the direct-slot helpers on C/native/AVM and fall back to a
+		     portable scalar list walk for generic list inputs. `make verify-backend-parity-list-int` now exercises that
+		     public surface via `tests/fixtures/list_int_dot_sum_smoke.oren` instead of only checking the
+		     low-level helper contracts in isolation.
+		   - Verifier watchdog follow-up (2026-04-09): the backend parity scripts now default
+		     `OREN_BACKEND_PARITY_BUILD_TIMEOUT_SECS=120` instead of `20`, matching the repo-wide build
+		     watchdog so local parity runs do not false-time out while queued behind the shared
+		     compiler-build lock or a cold stage2 rebuild.
+	   - Verification (2026-03-28): the canonical benchmark loops already lower directly against that
+	     64-bit-slot ABI on both native backends. New gate:
+	     `make verify-native-list-int-fast-lowering`. It compiles
      `benchmarks/array_sum_int/array_sum_int.oren` and `benchmarks/dot_product_int/dot_product_int.oren`
      with `OREN_TRACE_ARM64_LOOP_STACK=1` on the local arm64 backend and with
      `OREN_TRACE_X64_LIST_FAST=1` on x64-linux, then asserts the arm64 trace still reports

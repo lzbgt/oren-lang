@@ -17,7 +17,7 @@ need_bin diff
 
 timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
-build_timeout_secs="${OREN_BACKEND_PARITY_BUILD_TIMEOUT_SECS:-20}"
+build_timeout_secs="${OREN_BACKEND_PARITY_BUILD_TIMEOUT_SECS:-120}"
 run_timeout_secs="${OREN_BACKEND_PARITY_RUN_TIMEOUT_SECS:-5}"
 
 run_with_timeout() {

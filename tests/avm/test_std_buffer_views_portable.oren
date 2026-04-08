@@ -2,6 +2,7 @@
 
 import buffer "../../lib/std/buffer.oren"
 import bytesm "../../lib/std/bytes.oren"
+import linalg "../../lib/std/linalg.oren"
 
 fn fail() {
     var a = [1]
@@ -76,6 +77,10 @@ fn main() {
     assert_eq(buffer.try_i64_unpack_list(i64_copy_dst)[0], 14)
     assert_true(oren_is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, buffer.i64_new(3))))
     assert_true(oren_is_err(buffer.try_i64_copy_from_i64_buf(i64_copy_dst, buffer.try_u8_from_string("AB"))))
+    assert_eq(linalg.reduce_sum_i64_list_int_slots([7, 8, 9]), 24)
+    assert_eq(linalg.dot_i64_list_int_slots([7, 8, 9], [1, 2, 3]), 50)
+    assert_true(oren_is_err(linalg.dot_i64_list_int_slots([1, 2], [1])))
+    assert_true(oren_is_err(linalg.reduce_sum_i64_list_int_slots([1, "x"])))
     var f32_copy_src = buffer.try_f32_pack_list([6.5, 7.5])
     assert_true(!oren_is_err(f32_copy_src))
     assert_true(!oren_is_err(buffer.try_f32_copy_from_f32_buf(f32_into, f32_copy_src)))

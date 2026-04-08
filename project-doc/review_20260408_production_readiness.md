@@ -517,6 +517,25 @@ Whole-list helper follow-up (2026-04-09):
   - `OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER`
   remain in-tree only as opt-in experiments; they are not production defaults.
 
+Shared slot-direct stdlib follow-up (2026-04-09):
+
+- The repo already had direct-slot runtime helpers plus hidden benchmark-only entrypoints, but that
+  was still a tooling gap: there was no shared/public stdlib surface for “use the direct-slot path
+  when safe, otherwise stay correct”.
+- Fix in this pass:
+  - added `linalg.reduce_sum_i64_list_int_slots(...)`
+  - added `linalg.dot_i64_list_int_slots(...)`
+  - on C/native/AVM, those entrypoints now use `oren_is_list_int(...)` and the direct-slot helper
+    surface when the runtime can prove an all-int list
+  - otherwise they fall back to a portable scalar list walk so generic list callers stay correct on
+    bytecode too
+  - widened `tests/fixtures/list_int_dot_sum_smoke.oren` so `make verify-backend-parity-list-int`
+    exercises the new public slot-direct surface instead of only the older manual list loops
+- Adjacent verifier fix:
+  - all backend parity scripts now default `OREN_BACKEND_PARITY_BUILD_TIMEOUT_SECS=120` instead of
+    `20`, aligning them with the repo-wide build watchdog and avoiding false `124` exits when a
+    parity run queues behind the shared compiler-build lock or a cold stage2 rebuild
+
 Started but not carried to completion in this pass:
 
 - `make readiness-report-json`
