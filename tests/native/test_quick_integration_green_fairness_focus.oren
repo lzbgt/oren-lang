@@ -36,14 +36,23 @@ fn _qi_green_fairness_focus_include_topology() {
     return _qi_env_truthy("OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY")
 }
 
+fn _qi_green_fairness_focus_count_env(key, fallback) {
+    var v = oren_env(key)
+    if v == nil || v == "" { return fallback }
+    var n = oren_int_from_string(v)
+    if n < 0 { return fallback }
+    if n > 100000 { return 100000 }
+    return n
+}
+
 fn _qi_green_fairness_focus_hogs(mode) {
     if strcmp(mode, "short_only") == 0 { return 0 }
-    return 8
+    return _qi_green_fairness_focus_count_env("OREN_QI_GREEN_FAIRNESS_HOGS", 8)
 }
 
 fn _qi_green_fairness_focus_shorts(mode) {
     if strcmp(mode, "hogs_only") == 0 { return 0 }
-    return 40
+    return _qi_green_fairness_focus_count_env("OREN_QI_GREEN_FAIRNESS_SHORTS", 40)
 }
 
 fn _qi_green_fairness_focus_step(msg) {

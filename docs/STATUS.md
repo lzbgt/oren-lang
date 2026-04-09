@@ -3658,6 +3658,32 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      `build/logs/oren_native_quick_flake_20260409_080425_run1_err.log`). Keep the fairness split
      triage-only for now: it is sharper than the old blended surface, but it is not stable enough
      to bundle into `make verify-runtime-robustness`.
+   - Measured (2026-04-09): the one-arg leaf control confirms the remaining failure still
+     requires the mixed fairness interaction. The dedicated `short_only` / `one_arg` slice passed
+     3/3 (`build/logs/triage_native_quick_green_fairness_short_only_onearg_20260409.log`), while
+     the mixed `full` / `one_arg` variant also failed with topology enabled
+     (`build/logs/triage_native_quick_green_fairness_full_topology_onearg_20260409.log`).
+     Topology still is not required, but it also does not clear the mixed one-arg failure. The
+     fairness matrix wrappers now keep the leaf controls first and continue through all cases so
+     one triage run preserves the full split signal instead of stopping at the first failing slice.
+   - Measured (2026-04-09): the new dedicated one-arg matrix wrapper
+     `make test-native-quick-green-fairness-onearg-modes-flake` reran all three one-arg cases
+     and came back green on that pass
+     (`build/logs/make_test_native_quick_green_fairness_onearg_modes_flake_20260409.log`).
+     Treat that as more evidence of volatility, not a closure signal: the value of the serial
+     one-arg matrix is that it preserves the control + mixed case results together even when the
+     failing slice shifts or disappears on a given rerun.
+   - Measured (2026-04-09): the new one-arg count sweep
+     `make test-native-quick-green-fairness-onearg-count-sweep-flake`
+     (`build/logs/make_test_native_quick_green_fairness_onearg_count_sweep_flake_20260409.log`)
+     shows the current repro is not monotonic in short-task count. On the same serial run:
+     `short_only` / `one_arg` / `shorts=40` passed, mixed `hogs=1, shorts=1` passed,
+     mixed `hogs=1, shorts=8` passed, mixed `hogs=8, shorts=8` passed, and mixed
+     `hogs=8, shorts=40` passed, but mixed `hogs=8, shorts=1` failed with `rc=138`
+     on run 2/3 (`build/logs/oren_native_quick_flake_20260409_084111_run2_err.log`).
+     Reweight accordingly: the active failure family is pressure- and timing-sensitive, and the
+     current sharpest reproducer is no longer just “mixed one-arg” but specifically the
+     `full` / `one_arg` / `notopology` slice with high hog pressure and very few short tasks.
    - Rewire + verify (2026-04-09): the focused local-ptr fixture now accepts
      `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` and `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS`, and the
      strict local-ptr wrappers default `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS=0` plus a wider

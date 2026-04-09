@@ -2344,8 +2344,36 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     That is a better triage surface, but still not an honest bundled guard; keep fairness on the
     triage-only entrypoints (`make test-native-quick-green-fairness-zeroarg-flake`,
     `make test-native-quick-green-fairness-onearg-flake`,
+    `make test-native-quick-green-fairness-onearg-modes-flake`,
     `make test-native-quick-green-fairness-modes-flake`) and leave
     `make verify-runtime-robustness` on the stable base/local-ptr/pre-world/stage2/C bundle.
+  - Measured (2026-04-09): the dedicated one-arg leaf control confirms the unstable path still
+    requires the mixed fairness interaction. `short_only` / `one_arg` passed 3/3
+    (`build/logs/triage_native_quick_green_fairness_short_only_onearg_20260409.log`), while the
+    mixed `full` / `one_arg` variant also failed with topology enabled
+    (`build/logs/triage_native_quick_green_fairness_full_topology_onearg_20260409.log`). The
+    focused one-arg matrix now has its own serial wrapper
+    `scripts/verify_native_quick_green_fairness_onearg_modes.sh`, and the full fairness matrix
+    keeps the leaf controls first and continues through all cases so one run captures the passing
+    controls plus the failing mixed slices together.
+  - Measured (2026-04-09): the first rerun of
+    `make test-native-quick-green-fairness-onearg-modes-flake` came back green across the leaf
+    control plus both mixed one-arg variants
+    (`build/logs/make_test_native_quick_green_fairness_onearg_modes_flake_20260409.log`).
+    Treat that as more evidence of runtime volatility rather than closure; the dedicated matrix is
+    still the right entrypoint because it preserves all one-arg case outcomes together even when a
+    single rerun does not reproduce the crash.
+  - Measured (2026-04-09): the new one-arg count sweep
+    `scripts/verify_native_quick_green_fairness_onearg_count_sweep.sh`
+    (`make test-native-quick-green-fairness-onearg-count-sweep-flake`) shows the current crash
+    family is not monotonic in short-task count. The same serial sweep kept `short_only` /
+    `one_arg` / `shorts=40`, mixed `hogs=1, shorts=1`, mixed `hogs=1, shorts=8`, mixed
+    `hogs=8, shorts=8`, and mixed `hogs=8, shorts=40` all green, but reproduced
+    `full` / `one_arg` / `notopology` at `hogs=8, shorts=1` with `rc=138` on run 2/3
+    (`build/logs/make_test_native_quick_green_fairness_onearg_count_sweep_flake_20260409.log`,
+    `build/logs/oren_native_quick_flake_20260409_084111_run2_err.log`). Treat that
+    `hogs=8, shorts=1` slice as the current sharpest fairness repro and keep the broader
+    mode matrices for volatility tracking.
   - Rewire + verify (2026-04-09): the focused local-ptr fixture now accepts
     `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` / `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS`, and the strict
     local-ptr wrappers default fairness off plus `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=720`.

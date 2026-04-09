@@ -282,8 +282,34 @@ Further refinement on 2026-04-09:
 - because of that, fairness remains triage-only. Keep the stable bundled gate on
   `make verify-runtime-robustness` and use
   `make test-native-quick-green-fairness-zeroarg-flake`,
-  `make test-native-quick-green-fairness-onearg-flake`, and
+  `make test-native-quick-green-fairness-onearg-flake`,
+  `make test-native-quick-green-fairness-onearg-modes-flake`, and
   `make test-native-quick-green-fairness-modes-flake` as the active root-cause entrypoints.
+- the latest one-arg leaf control proves the remaining crash still needs the mixed fairness
+  interaction: `short_only` / `one_arg` passed 3/3
+  (`build/logs/triage_native_quick_green_fairness_short_only_onearg_20260409.log`), while the
+  mixed `full` / `one_arg` slice also failed with topology enabled
+  (`build/logs/triage_native_quick_green_fairness_full_topology_onearg_20260409.log`)
+- the fairness matrix wrappers now continue through every configured slice and print per-case
+  PASS/FAIL summaries instead of exiting on the first failing case, so the full split signal is
+  preserved in one triage run
+- the first rerun of the dedicated one-arg matrix
+  (`make test-native-quick-green-fairness-onearg-modes-flake`) came back green across the leaf
+  control plus both mixed one-arg variants
+  (`build/logs/make_test_native_quick_green_fairness_onearg_modes_flake_20260409.log`)
+- treat that as more evidence of volatility rather than closure; the serial one-arg matrix is
+  still the right entrypoint because it preserves all one-arg case outcomes together even when a
+  single rerun does not reproduce the crash
+- the new one-arg count sweep
+  (`make test-native-quick-green-fairness-onearg-count-sweep-flake`) sharpened the mixed one-arg
+  story further: `short_only` / `one_arg` / `shorts=40`, mixed `hogs=1, shorts=1`,
+  mixed `hogs=1, shorts=8`, mixed `hogs=8, shorts=8`, and mixed `hogs=8, shorts=40`
+  all passed in the same serial run, while mixed `hogs=8, shorts=1` failed with `rc=138`
+  on run 2/3 (`build/logs/make_test_native_quick_green_fairness_onearg_count_sweep_flake_20260409.log`,
+  `build/logs/oren_native_quick_flake_20260409_084111_run2_err.log`)
+- that reweights the active fairness repro again: it is not simply “more one-arg short tasks”
+  and not just “full mixed one-arg”; the sharpest current slice is high hog pressure with very
+  few one-arg short tasks
 - the local-ptr fixture now has explicit `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` /
   `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS` knobs, and the strict local-ptr wrappers now default
   fairness off plus `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=720`

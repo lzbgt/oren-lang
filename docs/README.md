@@ -45,8 +45,10 @@ make test-native-quick-green-local-ptr-workers-flake  # focused stage1 green-cac
 make test-native-quick-green-local-ptr-split-flake  # focused stage1 green-cache local-ptr plain+workers split triage/guard surface
 make test-native-quick-green-fairness-flake  # focused stage1 green-cache fairness triage
 make test-native-quick-green-fairness-zeroarg-flake  # mixed fairness zero-arg short-spawn slice without topology
-make test-native-quick-green-fairness-onearg-flake  # mixed fairness one-arg short-spawn slice without topology; latest active repro on the current tree
-make test-native-quick-green-fairness-modes-flake  # split stage1 fairness triage (topology/full, zero-arg vs one-arg mixed slice, leaf spawn shapes)
+make test-native-quick-green-fairness-onearg-flake  # mixed fairness one-arg short-spawn slice without topology
+make test-native-quick-green-fairness-onearg-modes-flake  # focused one-arg fairness matrix: leaf control + mixed no-topology + mixed topology
+make test-native-quick-green-fairness-onearg-count-sweep-flake  # focused one-arg fairness count sweep: short-only control plus mixed h/s pressure variants
+make test-native-quick-green-fairness-modes-flake  # split stage1 fairness triage (zero/one-arg leaf controls first, then mixed slices with/without topology)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage1 base + local-ptr + pre-world-lock + stage2 + C-backend builds; unstable fairness split stays triage-only)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make readiness-report  # generates build/reports/readiness_report_*.md
