@@ -3724,8 +3724,24 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      (`build/logs/make_test_native_quick_green_local_ptr_split_after_timeout_widen_20260409.log`,
      `build/logs/verify_native_quick_green_local_ptr_modes_20260409_072744.log`).
      The guard policy is now explicit: `make test-native-quick-green-local-ptr-flake` remains the
-     mixed-mode triage entrypoint, while `make verify-native-quick-green-local-ptr-guarded` and
-     the bundled `make verify-runtime-robustness` use the stable split plain/workers surface.
+     mixed-mode harness triage entrypoint, while `make verify-native-quick-green-local-ptr-guarded`
+     and the bundled `make verify-runtime-robustness` temporarily used the stable split
+     plain/workers surface.
+   - Re-measure + rewire (2026-04-09): after the single-worker world-lock fix had already cleared
+     the old sharp fairness failure, the focused blended local-ptr `both` surface no longer
+     reproduces on current `master`. The harness-based mixed-mode wrapper passed 3/3 in
+     `build/logs/make_test_native_quick_green_local_ptr_flake_after_single_worker_world_lock_fix_20260409.log`,
+     and a longer no-retry soak passed 10/10 in
+     `build/logs/triage_native_quick_green_local_ptr_flake_10run_after_single_worker_world_lock_fix_20260409.log`.
+   - New + verify (2026-04-09): the repo now has a harness-free direct mixed-mode local-ptr
+     reproducer at `scripts/triage_native_quick_green_local_ptr_both_direct_flake.sh`
+     (`make test-native-quick-green-local-ptr-direct-flake`), which builds the focused local-ptr
+     binary once and reruns the current `both` / topology-on / fairness-off slice directly.
+   - Guard policy (2026-04-09): because the blended `both` path is now the stronger stable surface,
+     `make verify-native-quick-green-local-ptr-guarded` and the local-ptr section of
+     `make verify-runtime-robustness` now use the direct mixed-mode guard. The split plain/workers
+     wrappers remain available as explicit triage entrypoints, and the harness-based blended
+     wrapper remains available when the full quick-integration path itself needs rechecking.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`

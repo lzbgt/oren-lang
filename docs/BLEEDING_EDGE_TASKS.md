@@ -2414,6 +2414,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     Keep the mixed `both` path as the triage reproducer, and use the split surface for
     `make verify-native-quick-green-local-ptr-guarded` plus the bundled
     `make verify-runtime-robustness` gate.
+  - Re-measure + rewire (2026-04-09): on the current tree after the single-worker world-lock fix,
+    the blended local-ptr `both` surface no longer reproduces. The harness wrapper passed 3/3
+    (`build/logs/make_test_native_quick_green_local_ptr_flake_after_single_worker_world_lock_fix_20260409.log`)
+    and then 10/10
+    (`build/logs/triage_native_quick_green_local_ptr_flake_10run_after_single_worker_world_lock_fix_20260409.log`).
+  - New + verify (2026-04-09): added the harness-free direct mixed-mode local-ptr target
+    `scripts/triage_native_quick_green_local_ptr_both_direct_flake.sh`
+    (`make test-native-quick-green-local-ptr-direct-flake`), which builds the focused fixture once
+    and reruns the current `both` / topology-on / fairness-off slice directly.
+  - Guard policy (2026-04-09): the stable local-ptr surface is now the direct mixed both-mode
+    target. `make verify-native-quick-green-local-ptr-guarded` and the local-ptr portion of
+    `make verify-runtime-robustness` use that stronger direct guard; the split plain/workers
+    wrappers remain triage-only, and the harness-based blended wrapper remains available when the
+    broader quick-integration path itself needs rechecking.
   - Verified (2026-03-15): arm64 self-hosted stage2 quick integration no longer times out
     in native emit. `./scripts/run_native_quick_integration.sh ./oren_stage2` completed
     cleanly, and the fresh phase log now reaches `macho.fixups.done` plus

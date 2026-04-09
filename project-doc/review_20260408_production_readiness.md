@@ -350,6 +350,19 @@ Further refinement on 2026-04-09:
   `make test-native-quick-green-local-ptr-flake` remains a mixed-mode triage entrypoint, while
   `make verify-native-quick-green-local-ptr-guarded` and the local-ptr section of
   `make verify-runtime-robustness` use the stable split plain/workers path
+- on the current tree after the single-worker world-lock fix, that older blended local-ptr
+  failure no longer reproduces. The harness-based mixed `both` wrapper passed 3/3
+  (`build/logs/make_test_native_quick_green_local_ptr_flake_after_single_worker_world_lock_fix_20260409.log`)
+  and then a longer 10/10 no-retry soak
+  (`build/logs/triage_native_quick_green_local_ptr_flake_10run_after_single_worker_world_lock_fix_20260409.log`)
+- added a harness-free direct mixed-mode local-ptr reproducer
+  `scripts/triage_native_quick_green_local_ptr_both_direct_flake.sh`
+  (`make test-native-quick-green-local-ptr-direct-flake`), which builds the focused fixture once
+  and reruns the current `both` / topology-on / fairness-off slice directly
+- guard policy is updated accordingly: `make verify-native-quick-green-local-ptr-guarded` and the
+  local-ptr portion of `make verify-runtime-robustness` now use the stronger direct mixed-mode
+  surface; the split plain/workers wrappers remain explicit triage tools, and the harness-based
+  blended wrapper remains available when the broader quick-integration path itself needs rechecking
 
 Verification for this follow-up:
 

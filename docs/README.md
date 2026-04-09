@@ -37,12 +37,13 @@ make test       # fast native smoke
 make test-selfhost  # heavier stage2/capsule/optimizer self-host bundle
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-native-quick-base-guarded  # stage1 base quick path, strict no-retry
-make verify-native-quick-green-local-ptr-guarded  # focused stage1 green-cache local-ptr split guard, fairness skipped, strict no-retry
+make verify-native-quick-green-local-ptr-guarded  # focused stage1 green-cache local-ptr mixed both-mode direct guard, fairness skipped
 make test-native-quick-green-cache-flake  # stage1 green-cache triage, strict no-retry
-make test-native-quick-green-local-ptr-flake  # focused stage1 green-cache local-ptr blended mixed-mode triage
+make test-native-quick-green-local-ptr-flake  # focused stage1 green-cache local-ptr harness triage
+make test-native-quick-green-local-ptr-direct-flake  # harness-free local-ptr mixed both-mode direct soak
 make test-native-quick-green-local-ptr-plain-flake  # focused stage1 green-cache local-ptr plain-only triage
 make test-native-quick-green-local-ptr-workers-flake  # focused stage1 green-cache local-ptr worker-only triage
-make test-native-quick-green-local-ptr-split-flake  # focused stage1 green-cache local-ptr plain+workers split triage/guard surface
+make test-native-quick-green-local-ptr-split-flake  # focused stage1 green-cache local-ptr plain+workers split triage surface
 make test-native-quick-green-fairness-flake  # focused stage1 green-cache fairness triage
 make test-native-quick-green-fairness-zeroarg-flake  # mixed fairness zero-arg short-spawn slice without topology
 make test-native-quick-green-fairness-onearg-flake  # mixed fairness one-arg short-spawn slice without topology
@@ -50,7 +51,7 @@ make test-native-quick-green-fairness-onearg-direct-flake  # harness-free sharp 
 make test-native-quick-green-fairness-onearg-modes-flake  # focused one-arg fairness matrix: leaf control + mixed no-topology + mixed topology
 make test-native-quick-green-fairness-onearg-count-sweep-flake  # focused one-arg fairness count sweep: short-only control plus mixed h/s pressure variants
 make test-native-quick-green-fairness-modes-flake  # split stage1 fairness triage (zero/one-arg leaf controls first, then mixed slices with/without topology)
-make verify-runtime-robustness  # W5 runtime robustness smoke (stage1 base + local-ptr + pre-world-lock + stage2 + C-backend builds; unstable fairness split stays triage-only)
+make verify-runtime-robustness  # W5 runtime robustness smoke (stage1 base + mixed local-ptr direct + pre-world-lock + stage2 + C-backend builds; fairness stays triage-only)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make readiness-report  # generates build/reports/readiness_report_*.md
 make readiness-report-full  # quick + GC stress + runtime robustness
