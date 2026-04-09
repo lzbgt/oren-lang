@@ -177,35 +177,56 @@ This builds and times eight binaries on the same `n/reps` workload:
 - slot64 C `dot_product`
 - Oren native canonical `dot_product_int`
 
-Each C shape is timed both with default `-O2` and with vectorization disabled. The latest artifact,
-`build/logs/perf-probe-list-int-c-ceiling-20260409_132256_79494.log`, shows:
+Each C shape is timed both with default `-O2` and with vectorization disabled. The latest final-tree
+artifact, `build/logs/perf-probe-list-int-c-ceiling-20260409_143734_77001.log`, shows:
 
 - `array_sum_int`
-  - packed32 C vector: `~0.000136s` per rep
-  - packed32 C scalar: `~0.000752s` per rep
+  - packed32 C vector: `~0.000133s` per rep
+  - packed32 C scalar: `~0.000826s` per rep
   - slot64 C vector: `~0.000246s` per rep
-  - slot64 C scalar: `~0.000774s` per rep
-  - Oren native canonical: `~0.001327s` per rep
+  - slot64 C scalar: `~0.000805s` per rep
+  - Oren native canonical: `~0.001425s` per rep
 - `dot_product_int`
-  - packed32 C vector: `~0.000264s` per rep
-  - packed32 C scalar: `~0.000748s` per rep
-  - slot64 C vector: `~0.000736s` per rep
-  - slot64 C scalar: `~0.000804s` per rep
-  - Oren native canonical: `~0.001360s` per rep
+  - packed32 C vector: `~0.000254s` per rep
+  - packed32 C scalar: `~0.000833s` per rep
+  - slot64 C vector: `~0.000785s` per rep
+  - slot64 C scalar: `~0.000860s` per rep
+  - Oren native canonical: `~0.001486s` per rep
 
 The decisive ratios are:
 
-- `array_slot64_vector / array_packed32_vector`: `~1.8165x`
-- `oren_array_sum_int / array_slot64_vector`: `~5.3848x`
-- `oren_array_sum_int / array_slot64_scalar`: `~1.7142x`
-- `dot_slot64_vector / dot_packed32_vector`: `~2.7825x`
-- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0751x`
-- `oren_dot_product_int / dot_slot64_vector`: `~1.8485x`
+- `array_slot64_vector / array_packed32_vector`: `~1.8447x`
+- `oren_array_sum_int / array_slot64_vector`: `~5.7976x`
+- `oren_array_sum_int / array_slot64_scalar`: `~1.7691x`
+- `dot_slot64_vector / dot_packed32_vector`: `~3.0938x`
+- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0315x`
+- `oren_dot_product_int / dot_slot64_vector`: `~1.8923x`
 
 That is the current whole-operation ceiling fact on arm64 `master`: the helper/public-slot ranking
 question is no longer the main blocker. `array_sum_int` still leaves a large gap to a competitive
 slot64 host-C vector path, while `dot_product_int` remains materially above even the slot64 host-C
 ceiling after the current 64-bit slot ABI has already erased most of the packed-vector gain.
+
+To separate one-time setup from the repeated `array_sum_int` read loop directly, use:
+
+```bash
+make perf-probe-list-int-array-sum-c-breakdown
+```
+
+This runs the same workload at `short_reps=1` and `long_reps=100` for packed32 C, slot64 C, and
+the shipped native `array_sum_int`, then derives a coarse `setup_est_s` and `steady_per_rep_s`.
+Current final-tree artifact:
+`build/logs/perf-probe-list-int-array-sum-c-breakdown-20260409_143718_76549.log`
+
+- Oren canonical setup estimate: `~0.009496s`
+- slot64 C vector setup estimate: `~0.004273s`
+- Oren canonical steady per-rep: `~0.001311s`
+- slot64 C vector steady per-rep: `~0.000204s`
+- Oren/slot64-vector steady ratio: `~6.4228x`
+
+The short-run setup estimate is still noisy enough that it should not be used alone for default
+shipping decisions. The stable fact from this probe is narrower: the repeated `array_sum_int`
+read/accumulate kernel is still far above the slot64 C vector path on the same workload.
 
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 
@@ -1172,6 +1193,19 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   (`build/logs/perf-probe-list-int-c-ceiling-20260409_132256_79494.log`) still left canonical
   `oren_array_sum_int / array_slot64_vector` at `~5.3848x`, so this is a worthwhile hot-loop
   cleanup, not the missing whole-operation `array_sum_int` fix.
+- For the arm64 explicit `fast_list_int_get_sum_while` tick-mask sweep, use
+  `make perf-probe-arm64-fast-get-sum-tick-mask-list-int`. This reuses the serialized
+  `make perf-probe-arm64-list-int-acceptance` bundle and compares the shipped get-sum default
+  against explicit mask overrides on the exact `array_sum_int` surface.
+- Current final-tree rerun
+  (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
+  keeps the shipped default at `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now. The
+  rerun is intentionally not over-claimed: explicit `16383` improved steady native median from
+  `0.141901s` to `0.137232s` (`-3.29%`) and `65535` improved it further to `0.131635s`
+  (`-7.23%`), but the gate view stayed too noisy to trust (`c_cov=0.6421` at default,
+  `0.2631` at `16383`, `0.1270` at `65535`). The production-quality conclusion is therefore
+  conservative: keep `4095` shipped and use this new probe as the decision surface for a later,
+  stronger stability-style rerun before changing the default.
 - For the arm64 explicit `fast_list_int_push_while` single-list cursor follow-up, use
   `make perf-probe-arm64-fast-push-single-list-cursor-list-int`. This compares the shipped
   explicit-`array_sum_int` fill loop against

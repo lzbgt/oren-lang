@@ -899,9 +899,28 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 						      is also worth keeping: default steady native median improved from disabled `0.136291s`
 						      to `0.131530s`, gate native improved from disabled `0.010571s` to `0.010084s`, and both
 						      legs kept the same 16-instruction traced loop
+						    - the new setup-vs-steady attribution probe
+						      (`build/logs/perf-probe-list-int-array-sum-c-breakdown-20260409_143718_76549.log`)
+						      closes the remaining “maybe setup dominates” question on the exact `array_sum_int`
+						      workload as far as this current surface can support: the short-run setup estimate
+						      is still noisy, but the steady per-rep gap remains the stronger fact (`~0.001311s`
+						      for Oren canonical vs `~0.000204s` for slot64 C vector, or `~6.4228×`)
+						    - the new explicit get-sum tick-mask sweep
+						      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
+						      is why `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK` still ships at `4095`: explicit
+						      `16383` and `65535` improved steady native medians on that sample, but the gate view
+						      stayed too noisy to trust as a production default (`c_cov=0.6421` at shipped `4095`,
+						      `0.2631` at `16383`, `0.1270` at `65535`)
+						    - the corresponding final-tree whole-operation rerun
+						      (`build/logs/perf-probe-list-int-c-ceiling-20260409_143734_77001.log`) still kept
+						      `oren_array_sum_int / array_slot64_vector ~5.7976×` and
+						      `oren_dot_product_int / dot_slot64_vector ~1.8923×`, so the get-sum tick-mask probe
+						      is worth keeping but is still not the missing slot64-vector parity fix
 						    - that is the stronger whole-operation blocker split on current arm64 `master`: the
 						      helper/public-slot routing question is no longer the main issue, and the new get-sum
 						      and push cursor cleanups are not the missing whole-operation `array_sum_int` fix.
+						      The setup-vs-steady split now says the same thing more directly: the repeated get-sum
+						      kernel still dominates the remaining gap.
 						      `array_sum_int` still leaves a large gap to a competitive slot64 host-C vector path,
 						      while `dot_product_int` still sits materially above even the slot64 host-C ceiling
 						      inside the current 64-bit slot ABI.

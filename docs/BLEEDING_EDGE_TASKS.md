@@ -1415,10 +1415,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									       - `oren_array_sum_int / array_slot64_vector`: `~5.3848×`
 									       - `dot_slot64_vector / dot_packed32_vector`: `~2.7825×`
 									       - `oren_dot_product_int / dot_slot64_vector`: `~1.8485×`
-									     Reweight again: helper/public-slot ordering is no longer the main blocker. On current
-									     arm64 `master`, `array_sum_int` still lacks a competitive slot64-vector whole-operation
-									     path, while `dot_product_int` remains materially above even the slot64 host-C ceiling
-									     inside the current ABI.
+										     Reweight again: helper/public-slot ordering is no longer the main blocker. On current
+										     arm64 `master`, `array_sum_int` still lacks a competitive slot64-vector whole-operation
+										     path, while `dot_product_int` remains materially above even the slot64 host-C ceiling
+										     inside the current ABI.
+					   - New setup-vs-steady attribution follow-up (2026-04-09): new
+					     `make perf-probe-list-int-array-sum-c-breakdown`
+					     (`build/logs/perf-probe-list-int-array-sum-c-breakdown-20260409_143718_76549.log`)
+					     now closes the remaining “maybe fill/setup dominates” question on the exact
+					     `array_sum_int` workload. The short-run setup estimate is still noisy, but the stable
+					     whole-operation fact did not move: Oren steady per-rep came back at `~0.001311s`
+					     versus slot64 C vector `~0.000204s` (`~6.4228×`). Reweight again: the structural
+					     blocker is still the repeated get-sum loop, not another one-time setup tweak.
 									   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
 									     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
 									     whole-operation path. The sequential no-smoke rerun with
@@ -1839,10 +1847,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      to default `0.131530s` (`-3.62%`), gate native improved from disabled `0.010571s` to
 						      default `0.010084s` (`-4.83%`), and both legs kept the same 16-instruction traced loop.
 						      The whole-operation rerun
-						      (`build/logs/perf-probe-list-int-c-ceiling-20260409_132256_79494.log`) improved
-						      canonical `oren_array_sum_int / array_slot64_vector` from `~5.4463×` to `~5.3848×`.
-						      Keep this cursor path enabled, but treat it as a modest whole-operation win rather
-						      than the missing slot64-vector parity fix.
+							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_132256_79494.log`) improved
+							      canonical `oren_array_sum_int / array_slot64_vector` from `~5.4463×` to `~5.3848×`.
+							      Keep this cursor path enabled, but treat it as a modest whole-operation win rather
+							      than the missing slot64-vector parity fix.
+							    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
+							      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
+							      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
+							      serialized acceptance bundle. Current final-tree rerun
+							      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
+							      keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now: explicit `16383`
+							      and `65535` improved steady native medians on that sample (`0.137232s` and `0.131635s`
+							      vs shipped `0.141901s`), but the gate view stayed too noisy to trust as a production
+								      default (`native gate cov=0.6421` at shipped `4095`, `0.2631` at `16383`, `0.1270`
+								      at `65535`).
 			    - Native gate summary hygiene (2026-04-04):
 			      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate
