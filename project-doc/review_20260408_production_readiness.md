@@ -208,6 +208,7 @@ Fix in this pass:
 - `scripts/triage_native_quick_stage2_flake_debug.sh` now defaults to the same `240s`
   stage2 debug build headroom already proven by `test-native-quick-stage2`
 - `make verify-runtime-robustness` now forwards dedicated env knobs for:
+  - `OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS`
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS`
   - `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS`
@@ -800,15 +801,39 @@ Shared slot-direct stdlib follow-up (2026-04-09):
         `~1.1062× C`
       - `array_sum_int`: canonical `~1.3992× C`, hidden helper `~0.9836× C`, public slot
         `~1.2014× C`
-  - read-split caution:
-    - the smoke-on rerun
-      `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_050248_17126.log`
-      and the no-smoke rerun
-      `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_051528_36514.log`
-      disagree on public-vs-helper ordering, so the split surface is still too noisy to use as the
-      primary ranking signal
-    - use the steady ceiling probe above for the current public-slot ordering, and keep the
-      read-split probe as a sanity/regression check only
+	- read-split caution:
+	  - the smoke-on rerun
+	    `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_050248_17126.log`
+	  and the no-smoke rerun
+	    `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_051528_36514.log`
+	  disagree on public-vs-helper ordering, so the split surface is still too noisy to use as the
+	  primary ranking signal
+	  - use the steady ceiling probe above for the current public-slot ordering, and keep the
+	    read-split probe as a sanity/regression check only
+	- Checked-helper contract + unchecked-len follow-up:
+	  - the previous pass still had one backend mismatch hidden under the public-slot work: AVM
+	    returned structured `invalid_arg` errors from the checked raw slot helpers, while the native
+	    runtime bundle still panicked on the same bad inputs
+	  - fix in this pass:
+	    - native checked raw helpers now return structured `invalid_arg` errors, matching AVM/C
+	      behavior
+	    - `make verify-native-slot-direct` now checks both the checked-helper error contract and the
+	      unchecked-helper panic contract
+	    - the public `std:linalg` fast path keeps the cheaper unchecked raw helper once
+	      `oren_is_list_int(...)` has already proven the input, but now uses
+	      `oren_list_int_len_unchecked(...)` for the typed mismatch guard instead of paying
+	      `list.int_len(...)` again
+	  - latest steady ranking surface:
+	    - `build/logs/perf-probe-list-int-dot-ceiling-20260409_100858_61741.log`
+	    - `dot_product_int`: canonical `~1.2954× C`, hidden helper `~1.1648× C`, public slot
+	      `~1.1937× C`
+	    - `array_sum_int`: canonical `~1.2869× C`, hidden helper `~1.0029× C`, public slot
+	      `~1.0855× C`
+	  - interpretation:
+	    - the public slot surface remains behind the hidden helper ceiling, but the residual gap is
+	      now smaller than the earlier tracker state on both steady benchmarks
+	    - this is still a wrapper/helper convergence problem, not a reason to reopen packed-bridge
+	      work
 - Probe UX follow-up:
   - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
     fallback instead of requiring only per-script smoke env vars, which removes a real measurement

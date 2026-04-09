@@ -110,6 +110,8 @@ assert_true(oren_is_err(linalg.reduce_sum_i64_list_int_slots([1, "x"])), 621)
 var li_short = oren_new_list_int(0)
 oren_list_int_push(li_short, 9)
 assert_true(oren_is_err(linalg.dot_i64_list_int_slots(li, li_short)), 622)
+assert_true(oren_is_err(linalg.dot_i64_list_int_slots(li, nil)), 623)
+assert_true(oren_is_err(linalg.dot_i64_list_int_slots(nil, li)), 624)
 
 var li_over = oren_new_list_int(0)
 oren_list_int_push(li_over, 2147483648)

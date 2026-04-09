@@ -11,6 +11,12 @@ fn _make_list(vals) {
     return xs
 }
 
+fn _print_err(v, code) {
+    if oren_is_err(v) != true { return code }
+    print(oren_int_to_string(oren_err_code(v)) + ":" + oren_err_msg(v))
+    return 0
+}
+
 fn main() {
     var args = oren_args()
     var mode = ""
@@ -36,6 +42,20 @@ fn main() {
         if oren_is_err(short) { return 12 }
         print(oren_int_to_string(oren_list_int_dot_slots_unchecked(xs, short)))
         return 93
+    }
+    if mode == "MODE_CHECKED_SUM_NON_LIST" {
+        return _print_err(oren_list_int_reduce_sum_slots([1, "x"]), 94)
+    }
+    if mode == "MODE_CHECKED_DOT_LEFT_NIL" {
+        return _print_err(oren_list_int_dot_slots(nil, ys), 95)
+    }
+    if mode == "MODE_CHECKED_DOT_NON_LIST" {
+        return _print_err(oren_list_int_dot_slots([1, "x"], ys), 96)
+    }
+    if mode == "MODE_CHECKED_DOT_LEN_MISMATCH" {
+        var short_checked = _make_list([5, 6, 7])
+        if oren_is_err(short_checked) { return 13 }
+        return _print_err(oren_list_int_dot_slots(xs, short_checked), 97)
     }
 
     if oren_list_int_reduce_sum_slots(nil) != 0 { return 20 }

@@ -1333,21 +1333,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					     - public-slot `dot_product_int_slot_public`: `~1.2439× C`
 					     Reweight again: keep this split probe as a regression/sanity check only; use the steady
 					     dot-ceiling probe below for public-slot ranking.
-					   - Public slot fast-path collapse (2026-04-09): the public `std:linalg` slot wrappers now
-					     skip the extra generic length front-load on proven `list<int>` inputs, and the top-level
-					     `std:linalg` facade now jumps directly to the raw helper on that fast path while
-					     preserving typed length-mismatch semantics as errors via `list.int_len(...)`. Latest
-					     steady `make perf-probe-list-int-dot-ceiling`
-					     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_050407_19366.log`,
+					   - Public slot checked-contract + unchecked-len follow-up (2026-04-09): the native checked
+					     raw helpers now match AVM/C parity by returning structured `invalid_arg` errors instead
+					     of panicking on bad input, while the public `std:linalg` fast path keeps using the
+					     unchecked helper after `oren_is_list_int(...)` has already proven the input and now uses
+					     `oren_list_int_len_unchecked(...)` for the typed mismatch guard instead of paying the
+					     safer `list.int_len(...)` probe again. Latest steady
+					     `make perf-probe-list-int-dot-ceiling`
+					     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_100858_61741.log`,
 					     `runs=2 warmups=0 n=20000 reps=2`) now ranks:
-					     - canonical `dot_product_int`: `~1.3657× C`
-					     - direct-slot `dot_product_int_slot_direct`: `~1.0803× C`
-					     - public-slot `dot_product_int_slot_public`: `~1.1062× C`
-					     - canonical `array_sum_int`: `~1.3992× C`
-					     - direct-slot `array_sum_int_slot_direct`: `~0.9836× C`
-					     - public-slot `array_sum_int_slot_public`: `~1.2014× C`
-					     Reweight again: the public slot surface is now close enough to the raw helper ceiling
-					     that the remaining work is a narrow wrapper/helper gap, not a missing public hot path.
+					     - canonical `dot_product_int`: `~1.2954× C`
+					     - direct-slot `dot_product_int_slot_direct`: `~1.1648× C`
+					     - public-slot `dot_product_int_slot_public`: `~1.1937× C`
+					     - canonical `array_sum_int`: `~1.2869× C`
+					     - direct-slot `array_sum_int_slot_direct`: `~1.0029× C`
+					     - public-slot `array_sum_int_slot_public`: `~1.0855× C`
+					     Reweight again: the public slot surface is still behind the hidden helper ceiling, but
+					     the residual gap is smaller than the earlier tracker state on both steady benchmarks.
 						   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
 						     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
 						     whole-operation path. The sequential no-smoke rerun with
@@ -2255,20 +2257,28 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/native_quick_base_only_direct_20260409.log`,
     `build/logs/oren_native_quick_base_only.log`, and
     `build/logs/make_verify_native_quick_base_guarded_20260409.log`.
-  - Fix + verify (2026-04-09): `scripts/verify_runtime_robustness_w5.sh` now includes that
-    base-only stage1 reproducer by default before the guarded pre-world-lock green-cache, stage2
-    quick-integration, and C-backend loops. `make verify-runtime-robustness` now forwards
-    `OREN_RUNTIME_ROBUSTNESS_BASE_RUNS`, so the main W5 runtime gate finally covers both active
+	  - Fix + verify (2026-04-09): `scripts/verify_runtime_robustness_w5.sh` now includes that
+	    base-only stage1 reproducer by default before the guarded pre-world-lock green-cache, stage2
+	    quick-integration, and C-backend loops. `make verify-runtime-robustness` now forwards
+	    `OREN_RUNTIME_ROBUSTNESS_BASE_RUNS`, so the main W5 runtime gate finally covers both active
     stage1 quick-integration guard surfaces instead of leaving the base-only timeout/retry path as
     a side target. The latest full `make test` also reached `native quick integration follow-on OK`
     without reproducing the older base-run timeout retry. Verified with
-    `build/logs/make_verify_runtime_robustness_base_bundle_20260409.log`,
-    `build/logs/runtime_robustness_w5_20260409_054902.log`,
-    `build/logs/make_test_runtime_base_bundle_20260409.log`,
-    `build/logs/oren_native_quick_base_only.log`, and
-    `build/logs/oren_native_quick_integration.log`.
-  - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now records
-    `retry_base_count`, `retry_green_cache_count`, `retry_followon_count`, and
+	    `build/logs/make_verify_runtime_robustness_base_bundle_20260409.log`,
+	    `build/logs/runtime_robustness_w5_20260409_054902.log`,
+	    `build/logs/make_test_runtime_base_bundle_20260409.log`,
+	    `build/logs/oren_native_quick_base_only.log`, and
+	    `build/logs/oren_native_quick_integration.log`.
+	  - Fix + verify (2026-04-09): the bundled W5 runtime gate now also forwards
+	    `OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS`, defaulting the stage1 base-build cap to
+	    `720s`. This was necessary once the checked-helper/runtime bundle change forced a cold
+	    base-only rebuild back through `rtobj.miss.build.start` long enough to exceed both the older
+	    `240s` and `480s` caps while the compiler was still actively running. Verified by the updated
+	    script surface (`build/logs/bash_n_verify_runtime_robustness_checked_helper_batch_20260409.log`)
+	    and the latest bundled log header (`build/logs/runtime_robustness_w5_20260409_102644.log`,
+	    `base_build_timeout_secs=720`).
+	  - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now records
+	    `retry_base_count`, `retry_green_cache_count`, `retry_followon_count`, and
     `retry_total_count`, and accepts `OREN_QI_FAIL_ON_RETRY=1` so focused triage surfaces can fail
     on hidden self-healing reruns instead of reporting green. The focused green-cache wrapper
     `scripts/triage_native_quick_green_cache_flake.sh` now disables inner green-cache reruns with

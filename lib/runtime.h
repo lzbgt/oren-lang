@@ -247,6 +247,7 @@ OrenValue oren_arena_new_list_auto(OrenValue cap);
 OrenValue oren_arena_new_list_int_auto(OrenValue cap);
 OrenValue oren_is_list_int(OrenValue v);
 OrenValue oren_list_int_len(OrenValue list);
+OrenValue oren_list_int_len_unchecked(OrenValue list);
 OrenValue oren_list_int_push(OrenValue list, OrenValue value);
 // Unsafe/fast-path: still checks list<int> value type; returns nil.
 OrenValue oren_list_int_push_unchecked(OrenValue list, OrenValue value);

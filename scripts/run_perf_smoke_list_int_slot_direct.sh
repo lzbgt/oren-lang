@@ -83,6 +83,31 @@ run_contract_abort() {
     fi
 }
 
+run_contract_error() {
+    local mode="$1"
+    local expected="$2"
+    local run_log="${tmp_dir}/list_int_slot_direct_contracts_${mode}_${ts}.log"
+
+    echo "[run] slot-direct contract fixture checked mode=${mode}" >>"$log_path"
+    set +e
+    "$contract_bin" "$mode" >"$run_log" 2>&1
+    local rc=$?
+    set -e
+    cat "$run_log" >>"$log_path"
+    echo "[rc] slot-direct contract checked mode=${mode} rc=${rc}" >>"$log_path"
+    if [[ "$rc" -ne 0 ]]; then
+        echo "slot-direct contract checked smoke failed for ${mode}: expected zero exit, got ${rc}" | tee -a "$log_path" >&2
+        exit 1
+    fi
+    local actual
+    actual="$(tr -d '\r' <"$run_log")"
+    echo "[out] slot-direct contract checked mode=${mode} actual=${actual} expected=${expected}" >>"$log_path"
+    if [[ "$actual" != "$expected" ]]; then
+        echo "slot-direct contract checked smoke failed for ${mode}: got '${actual}', expected '${expected}'" | tee -a "$log_path" >&2
+        exit 1
+    fi
+}
+
 run_native_check array_sum_int_slot_direct 205 10 3
 run_native_check array_sum_int_slot_direct 710 20 3
 run_native_check dot_product_int_slot_direct 6590 10 3
@@ -92,6 +117,10 @@ run_native_check array_sum_int_slot_public 710 20 3
 run_native_check dot_product_int_slot_public 6590 10 3
 run_native_check dot_product_int_slot_public 54380 20 3
 run_contract_ok
+run_contract_error MODE_CHECKED_SUM_NON_LIST "4:oren_list_int_reduce_sum_slots expects list<int>"
+run_contract_error MODE_CHECKED_DOT_LEFT_NIL "4:list_int_dot_slots: length mismatch"
+run_contract_error MODE_CHECKED_DOT_NON_LIST "4:oren_list_int_dot_slots expects (list<int>, list<int>)"
+run_contract_error MODE_CHECKED_DOT_LEN_MISMATCH "4:list_int_dot_slots: length mismatch"
 run_contract_abort MODE_DOT_LEFT_NIL 'list_int_dot_slots_unchecked: length mismatch'
 run_contract_abort MODE_DOT_RIGHT_NIL 'list_int_dot_slots_unchecked: length mismatch'
 run_contract_abort MODE_DOT_LEN_MISMATCH 'list_int_dot_slots_unchecked: length mismatch'

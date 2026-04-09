@@ -438,6 +438,11 @@ OrenValue oren_list_int_len(OrenValue list) {
     return oren_list_len(list);
 }
 
+OrenValue oren_list_int_len_unchecked(OrenValue list) {
+    if (list.type != OREN_TYPE_LIST || list.as.list_val == NULL) return oren_int(0);
+    return oren_int(list.as.list_val->count);
+}
+
 OrenValue oren_list_int_push(OrenValue list, OrenValue value) {
     if (!oren_list_int_check_value(value)) return OREN_NIL;
     return oren_list_push(list, value);
@@ -551,27 +556,31 @@ OrenValue oren_list_int_reserve(OrenValue list, OrenValue new_cap) {
     return OREN_NIL;
 }
 
-static int list_int_slots_require(OrenValue list, const char* ctx, OrenList** out) {
-    if (list.type != OREN_TYPE_LIST || list.as.list_val == NULL) {
-        oren_panic(ctx);
-        return 0;
-    }
+static int list_int_slots_try_get(OrenValue list, OrenList** out) {
+    if (list.type != OREN_TYPE_LIST || list.as.list_val == NULL) return 0;
     OrenList* l = list.as.list_val;
-    if (!l->all_int) {
-        oren_panic(ctx);
-        return 0;
-    }
+    if (!l->all_int) return 0;
     *out = l;
     return 1;
+}
+
+static int list_int_slots_require_unchecked(OrenValue list, const char* ctx, OrenList** out) {
+    if (list_int_slots_try_get(list, out)) return 1;
+    oren_panic(ctx);
+    return 0;
+}
+
+static OrenValue list_int_slots_invalid_arg(const char* msg) {
+    return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string(msg));
 }
 
 OrenValue oren_list_int_reduce_sum_slots(OrenValue list) {
     if (list.type == OREN_TYPE_NIL) return oren_int(0);
     lock_collections();
     OrenList* l = NULL;
-    if (!list_int_slots_require(list, "list_int_reduce_sum_slots on non-list", &l)) {
+    if (!list_int_slots_try_get(list, &l)) {
         unlock_collections();
-        return OREN_NIL;
+        return list_int_slots_invalid_arg("oren_list_int_reduce_sum_slots expects list<int>");
     }
     uint64_t acc = 0;
     for (int i = 0; i < l->count; i++) acc += (uint64_t)l->items[i].as.int_val;
@@ -583,7 +592,7 @@ OrenValue oren_list_int_reduce_sum_slots_unchecked(OrenValue list) {
     if (list.type == OREN_TYPE_NIL) return oren_int(0);
     lock_collections();
     OrenList* l = NULL;
-    if (!list_int_slots_require(list, "list_int_reduce_sum_slots_unchecked on non-list", &l)) {
+    if (!list_int_slots_require_unchecked(list, "list_int_reduce_sum_slots_unchecked on non-list", &l)) {
         unlock_collections();
         return OREN_NIL;
     }
@@ -596,21 +605,19 @@ OrenValue oren_list_int_reduce_sum_slots_unchecked(OrenValue list) {
 OrenValue oren_list_int_dot_slots(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_NIL || b.type == OREN_TYPE_NIL) {
         if (a.type == OREN_TYPE_NIL && b.type == OREN_TYPE_NIL) return oren_int(0);
-        oren_panic("list_int_dot_slots: length mismatch");
-        return OREN_NIL;
+        return list_int_slots_invalid_arg("list_int_dot_slots: length mismatch");
     }
     lock_collections();
     OrenList* la = NULL;
     OrenList* lb = NULL;
-    if (!list_int_slots_require(a, "list_int_dot_slots on non-list", &la) ||
-        !list_int_slots_require(b, "list_int_dot_slots on non-list", &lb)) {
+    if (!list_int_slots_try_get(a, &la) ||
+        !list_int_slots_try_get(b, &lb)) {
         unlock_collections();
-        return OREN_NIL;
+        return list_int_slots_invalid_arg("oren_list_int_dot_slots expects (list<int>, list<int>)");
     }
     if (la->count != lb->count) {
         unlock_collections();
-        oren_panic("list_int_dot_slots: length mismatch");
-        return OREN_NIL;
+        return list_int_slots_invalid_arg("list_int_dot_slots: length mismatch");
     }
     uint64_t acc = 0;
     for (int i = 0; i < la->count; i++) {
@@ -630,8 +637,8 @@ OrenValue oren_list_int_dot_slots_unchecked(OrenValue a, OrenValue b) {
     lock_collections();
     OrenList* la = NULL;
     OrenList* lb = NULL;
-    if (!list_int_slots_require(a, "list_int_dot_slots_unchecked on non-list", &la) ||
-        !list_int_slots_require(b, "list_int_dot_slots_unchecked on non-list", &lb)) {
+    if (!list_int_slots_require_unchecked(a, "list_int_dot_slots_unchecked on non-list", &la) ||
+        !list_int_slots_require_unchecked(b, "list_int_dot_slots_unchecked on non-list", &lb)) {
         unlock_collections();
         return OREN_NIL;
     }

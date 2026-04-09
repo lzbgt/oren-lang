@@ -412,7 +412,7 @@ make verify-native-slot-direct
 
 That verifier now inherits the widened slot-surface smoke, so it also checks the public
 `array_sum_int_slot_public` / `dot_product_int_slot_public` numerics alongside the hidden helper
-benchmarks and unchecked-helper panic contracts.
+benchmarks, the checked-helper `invalid_arg` contract, and the unchecked-helper panic contracts.
 
 For one ranked view of the current `list<int>` `dot_product` alternatives, use:
 
@@ -425,22 +425,30 @@ loop, the unchecked direct-slot helper path, and the packed-bridge scalar/SIMD p
 profile is `runs=2`, `warmups=0`, `n=20000`, `reps=2`; override it with
 `OREN_LIST_INT_DOT_CEILING_{RUNS,WARMUPS,N,REPS}` when you want a different scale.
 
-The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260409_050407_19366.log`,
+The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260409_100858_61741.log`,
 now includes the public `std:linalg` slot surface in the same steady ranking:
 
-- baseline canonical `dot_product_int`: `~1.3657x C`
-- direct-slot helper `dot_product_int_slot_direct`: `~1.0803x C`
-- public-slot `dot_product_int_slot_public`: `~1.1062x C`
-- packed bridge SIMD `dot_product_int_packed_bridge`: `~4.5817x C`
-- packed bridge scalar `dot_product_int_packed_bridge`: `~16.7468x C`
+- baseline canonical `dot_product_int`: `~1.2954x C`
+- direct-slot helper `dot_product_int_slot_direct`: `~1.1648x C`
+- public-slot `dot_product_int_slot_public`: `~1.1937x C`
+- packed bridge SIMD `dot_product_int_packed_bridge`: `~4.8573x C`
+- packed bridge scalar `dot_product_int_packed_bridge`: `~16.6962x C`
 
-On the same run, `array_sum_int` came back as canonical `~1.3992x C`, hidden direct-slot helper
-`~0.9836x C`, and public-slot `~1.2014x C`. That is the current ceiling fact to use when choosing
-the next implementation move: the public `std:linalg` slot surface is now close to the raw helper
-ceiling on steady `dot_product_int`, materially better than the shipped canonical path, and still
-far ahead of the packed bridge. Reweight again: packed-bridge tuning stays closed, and the next
-direct-slot move should target the remaining public-wrapper / helper gap rather than re-litigating
-whether the public surface belongs on hot paths.
+On the same run, `array_sum_int` came back as canonical `~1.2869x C`, hidden direct-slot helper
+`~1.0029x C`, and public-slot `~1.0855x C`. The follow-up that produced those numbers was not just
+measurement churn:
+
+- native checked raw helpers now match AVM/C parity by returning structured `invalid_arg` errors on
+  bad input instead of panicking
+- the public fast path still uses the unchecked raw helper once `oren_is_list_int(...)` has already
+  proven the input, but it now uses `oren_list_int_len_unchecked(...)` for the typed mismatch guard
+  instead of paying the safer `list.int_len(...)` probe again
+
+That is the current ceiling fact to use when choosing the next implementation move: the public
+`std:linalg` slot surface is materially better than the shipped canonical path on both steady
+benchmarks and now sits closer to the hidden helper ceiling than the previous tracker state. Keep
+using this steady ceiling probe for decisions; the remaining gap is still narrow, but it is no
+longer large enough to justify packed-bridge detours.
 
 For the same short/long split surface, but comparing canonical against the hidden direct-slot helper
 instead of the packed bridge, use:
@@ -498,15 +506,15 @@ The default profile matches the helper-only split probe:
 `runs=2`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=2`; override it with
 `OREN_LIST_INT_SLOT_SURFACE_SPLIT_{RUNS,WARMUPS,N,SHORT_REPS,LONG_REPS}` when needed.
 
-The latest no-smoke artifact, `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_051528_36514.log`,
+The latest no-smoke artifact, `build/logs/perf-probe-list-int-slot-surface-read-split-20260409_101010_63997.log`,
 comes back as:
 
-- canonical `array_sum_int`: `~1.2464x C` long-per-rep
-- direct-slot `array_sum_int_slot_direct`: `~1.0077x C` long-per-rep
-- public-slot `array_sum_int_slot_public`: `~1.1301x C` long-per-rep
-- canonical `dot_product_int`: `~1.2771x C` long-per-rep
-- direct-slot `dot_product_int_slot_direct`: `~1.0642x C` long-per-rep
-- public-slot `dot_product_int_slot_public`: `~1.2439x C` long-per-rep
+- canonical `array_sum_int`: `~1.2800x C` long-per-rep
+- direct-slot `array_sum_int_slot_direct`: `~1.0584x C` long-per-rep
+- public-slot `array_sum_int_slot_public`: `~1.2717x C` long-per-rep
+- canonical `dot_product_int`: `~1.2829x C` long-per-rep
+- direct-slot `dot_product_int_slot_direct`: `~1.1687x C` long-per-rep
+- public-slot `dot_product_int_slot_public`: `~1.1927x C` long-per-rep
 
 This surface is still noisy enough that you should not use it alone to rank public-slot vs
 hidden-helper ordering. A smoke-on rerun earlier the same day (`build/logs/perf-probe-list-int-slot-surface-read-split-20260409_050248_17126.log`)

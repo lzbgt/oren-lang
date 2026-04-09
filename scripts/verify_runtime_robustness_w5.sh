@@ -22,6 +22,7 @@ preworld_runs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS:-1}"
 stage2_runs="${OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS:-1}"
 c_runs="${OREN_RUNTIME_ROBUSTNESS_C_RUNS:-$runs}"
 fixtures="${OREN_RUNTIME_ROBUSTNESS_C_FIXTURES:-tests/native/fixtures/arith_div0.oren,tests/native/fixtures/arith_div_overflow.oren,tests/native/fixtures/index_set_negative.oren}"
+base_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS:-720}"
 preworld_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS:-240}"
 preworld_run_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS:-30}"
 preworld_green_cache_run_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS:-30}"
@@ -56,6 +57,7 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "uname=$uname_out"
   echo "git_rev=$git_rev"
   echo "fixtures=$fixtures"
+  echo "base_build_timeout_secs=$base_build_timeout_secs"
   echo "preworld_build_timeout_secs=$preworld_build_timeout_secs"
   echo "preworld_run_timeout_secs=$preworld_run_timeout_secs"
   echo "preworld_green_cache_run_timeout_secs=$preworld_green_cache_run_timeout_secs"
@@ -67,7 +69,8 @@ IFS=',' read -r -a fixture_arr <<< "$fixtures"
 
 if [[ "$base_runs" =~ ^[0-9]+$ ]] && [[ "$base_runs" -gt 0 ]]; then
   echo "== stage1/base quick integration (runs=$base_runs) ==" | tee -a "$log"
-  ./scripts/triage_native_quick_base_flake.sh "$base_runs" "$compiler" \
+  OREN_NATIVE_BUILD_TIMEOUT_SECS="$base_build_timeout_secs" \
+    ./scripts/triage_native_quick_base_flake.sh "$base_runs" "$compiler" \
     "${trace_env_arr[@]}" "$@" \
     >>"$log" 2>&1
 fi

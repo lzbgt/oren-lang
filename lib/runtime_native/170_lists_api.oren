@@ -465,6 +465,10 @@ fn _list_int_dot_slots_ptr(pa, pb, n) {
     return sum
 }
 
+fn _list_int_invalid_arg(msg) {
+    return oren_err(4, msg)
+}
+
 // Native-only 64-bit-slot helpers for future direct list<int> lowering/probes.
 //
 // Rolling contract:
@@ -473,7 +477,8 @@ fn _list_int_dot_slots_ptr(pa, pb, n) {
 @oren.keep
 fn oren_list_int_reduce_sum_slots(list) {
     if list == nil { return 0 }
-    return _list_int_reduce_sum_slots_ptr(oren_list_int_data_ptr(list), oren_list_int_len_unchecked(list))
+    if oren_is_list_int(list) != true { return _list_int_invalid_arg("oren_list_int_reduce_sum_slots expects list<int>") }
+    return _list_int_reduce_sum_slots_ptr(oren_list_int_data_ptr_unchecked(list), oren_list_int_len_unchecked(list))
 }
 
 @oren.keep
@@ -486,16 +491,17 @@ fn oren_list_int_reduce_sum_slots_unchecked(list) {
 fn oren_list_int_dot_slots(a, b) {
     if a == nil || b == nil {
         if a == nil && b == nil { return 0 }
-        oren_panic("list_int_dot_slots: length mismatch")
-        return 0
+        return _list_int_invalid_arg("list_int_dot_slots: length mismatch")
+    }
+    if oren_is_list_int(a) != true || oren_is_list_int(b) != true {
+        return _list_int_invalid_arg("oren_list_int_dot_slots expects (list<int>, list<int>)")
     }
     var na = oren_list_int_len_unchecked(a)
     var nb = oren_list_int_len_unchecked(b)
     if na != nb {
-        oren_panic("list_int_dot_slots: length mismatch")
-        return 0
+        return _list_int_invalid_arg("list_int_dot_slots: length mismatch")
     }
-    return _list_int_dot_slots_ptr(oren_list_int_data_ptr(a), oren_list_int_data_ptr(b), na)
+    return _list_int_dot_slots_ptr(oren_list_int_data_ptr_unchecked(a), oren_list_int_data_ptr_unchecked(b), na)
 }
 
 @oren.keep

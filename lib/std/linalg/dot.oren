@@ -105,8 +105,8 @@ fn reduce_sum_i64_list_int_slots(a) {
 
 fn dot_i64_list_int_slots(a, b) {
     if oren_is_list_int(a) == true && oren_is_list_int(b) == true {
-        var na = list.int_len(a)
-        var nb = list.int_len(b)
+        var na = oren_list_int_len_unchecked(a)
+        var nb = oren_list_int_len_unchecked(b)
         if na != nb {
             return _err_invalid_arg("dot_i64_list_int_slots: length mismatch (" + oren_int_to_string(na) + " != " + oren_int_to_string(nb) + ")")
         }
