@@ -195,35 +195,43 @@ fn oren_green_start_workers(n) {
     if n <= 0 { return -1 }
     if n > 64 { n = 64 }
     // Rolling safety:
-    // The native heap/GC model is not concurrency-correct yet. Multiple background workers
-    // can execute green tasks concurrently on multiple OS threads, which is unsafe until:
+    // The native heap/GC model is not concurrency-correct yet. Worker mode introduces at least
+    // two OS threads (host + worker), and multiple background workers widen that concurrency
+    // further. Keep worker-mode execution serialized unless the caller explicitly opts into the
+    // unsafe path.
+    //
+    // This remains unsafe until:
     // - the allocator is made thread-safe (or allocation is mediated by a world lock), AND
     // - GC safepoints/roots are well-defined across threads.
     //
     // Default to 1 worker (still useful: join can block on addr while the worker drains the scheduler).
     // Opt-in for experimentation only.
-    if n > 1 {
-        var v = native_envp_get_value_ptr("OREN_GREEN_WORKERS_UNSAFE_PARALLEL")
-        var unsafe_ok = 0
-        if v != 0 && ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 { unsafe_ok = 1 }
+    var v = native_envp_get_value_ptr("OREN_GREEN_WORKERS_UNSAFE_PARALLEL")
+    var unsafe_ok = 0
+    if v != 0 && ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 { unsafe_ok = 1 }
 
-        // Safe experimentation mode: allow multiple workers only if a world-lock is enabled.
-        // This keeps allocator/GC correctness bounded while exercising the scheduler topology.
-        var wl_ok = g_green_world_lock_enabled
-        var vw = native_envp_get_value_ptr("OREN_GREEN_WORKERS_WORLD_LOCK")
-        if vw != 0 && ptr_get_byte(vw) != 0 && ptr_get_byte(vw) != 48 { wl_ok = 1 }
-
-        if unsafe_ok == 0 && wl_ok != 0 {
-            // Ensure the world lock is actually initialized/enabled (env can request it).
-            if g_green_world_lock_word == 0 {
-                var w = sys_mmap_private_anon(4096)
-                if w == 0 || w == -1 || w < 4096 { exit(938) }
-                ptr_set(w, 0)
-                g_green_world_lock_word = w
-            }
-            g_green_world_lock_enabled = 1
+    // Safe worker-mode default: keep the world lock on whenever workers are active unless the
+    // caller explicitly opts into unsafe parallelism.
+    var wl_ok = g_green_world_lock_enabled
+    var vw = native_envp_get_value_ptr("OREN_GREEN_WORKERS_WORLD_LOCK")
+    if vw != 0 && ptr_get_byte(vw) != 0 && ptr_get_byte(vw) != 48 { wl_ok = 1 }
+    if unsafe_ok == 0 {
+        wl_ok = 1
+    }
+    if unsafe_ok == 0 && wl_ok != 0 {
+        // Ensure the world lock is actually initialized/enabled before any worker starts.
+        if g_green_world_lock_word == 0 {
+            var w = sys_mmap_private_anon(4096)
+            if w == 0 || w == -1 || w < 4096 { exit(938) }
+            ptr_set(w, 0)
+            g_green_world_lock_word = w
         }
+        g_green_world_lock_enabled = 1
+    }
 
+    if n > 1 {
+        // Safe experimentation mode: allow multiple workers only when either the world lock is
+        // active or the caller explicitly opted into unsafe parallel execution.
         if unsafe_ok == 0 && wl_ok == 0 {
             n = 1
         }

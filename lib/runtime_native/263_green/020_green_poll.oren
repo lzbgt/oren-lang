@@ -130,11 +130,11 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if rc_own != 0 { exit(927) }
         }
 
-        // World-lock mode (safe multi-worker bring-up):
-        // When multiple workers exist and the native allocator/GC are not concurrency-correct,
-        // ensure only one OS thread executes scheduler+task code at a time.
+        // World-lock mode (safe worker-mode bring-up):
+        // While the native allocator/GC are not concurrency-correct, ensure only one OS thread
+        // executes scheduler+task code at a time whenever background workers are active.
         var wl = 0
-        if g_green_workers_started != 0 && g_green_worker_count > 1 && g_green_world_lock_enabled != 0 {
+        if g_green_workers_started != 0 && g_green_world_lock_enabled != 0 {
             _green_world_lock_acquire()
             wl = 1
         }

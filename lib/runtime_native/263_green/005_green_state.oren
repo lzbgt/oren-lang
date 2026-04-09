@@ -146,8 +146,8 @@ var g_green_worker_tid_word = 0 // u64* (mmap page, slots)
 // Rolling config: worker idle park timeout (us). 0 => default (10000us).
 var g_green_worker_idle_park_us = 0
 var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
-// Stage N3 bring-up: optional world lock for multi-worker experimentation.
-// When enabled, at most one OS thread executes on a green stack at a time.
+// Stage N3 bring-up: optional world lock for worker-mode safety.
+// When enabled, at most one OS thread executes Oren scheduler / green-task code at a time.
 var g_green_world_lock_word = 0 // u64* (mmap page), used with oren_wait_on_addr/wake (0=unlocked, tid=owner)
 var g_green_world_lock_enabled = 0
 // Debug counters (mmap page; rolling):

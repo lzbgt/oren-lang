@@ -2306,6 +2306,32 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/oren_native_quick_flake_20260409_065015_run3_err.log`). Keep the stable bundled
     guard on the earlier blended local-ptr wrapper for now, and use the split plain/workers
     surfaces as the next root-cause entrypoint.
+  - Root cause + verify (2026-04-09): the current mixed fairness crash was not just “one-arg
+    scheduler volatility”. Worker mode was still leaving the host thread and the single background
+    worker unsynchronized because the green world-lock only engaged for `g_green_worker_count > 1`.
+    The runtime now enables the world lock by default for any worker-mode run unless the caller
+    explicitly opts into `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`, and the host/poll gates now honor
+    that at `1` worker too.
+  - New triage surface (2026-04-09): the sharp mixed fairness slice now has a harness-free direct
+    reproducer at `scripts/triage_native_quick_green_fairness_onearg_h8_s1_direct_flake.sh`
+    (`make test-native-quick-green-fairness-onearg-direct-flake`), which builds the focused
+    fairness binary once and reruns the current `full` / `one_arg` / `notopology` / `hogs=8` /
+    `shorts=1` slice directly.
+  - Measured (2026-04-09): after the single-worker world-lock fix, the old `h8/s1` fairness
+    failure no longer reproduces on the current tree. The direct harness-free target passed 10/10
+    (`build/logs/make_test_native_quick_green_fairness_onearg_direct_flake_20260409.log`), the
+    one-arg count sweep passed all configured cases including the earlier `hogs=8, shorts=1`
+    failure slice
+    (`build/logs/make_test_native_quick_green_fairness_onearg_count_sweep_after_world_lock_fix_20260409.log`),
+    and the full fairness mode matrix passed all seven slices 3/3
+    (`build/logs/make_test_native_quick_green_fairness_modes_after_world_lock_fix_20260409.log`).
+    Reweight accordingly: the current tree no longer has an active fairness repro on these focused
+    stage1 surfaces, although fairness stays triage-only until it has broader soak.
+  - Verification (2026-04-09): the wider runtime bundle and the repo-wide suite both stayed green
+    on the same tree. `make verify-runtime-robustness` passed
+    (`build/logs/make_verify_runtime_robustness_after_single_worker_world_lock_fix_20260409.log`,
+    `build/logs/runtime_robustness_w5_20260409_090337.log`), and `make test` passed
+    (`build/logs/make_test_single_worker_world_lock_fix_20260409.log`).
   - Narrow + verify (2026-04-09): add the dedicated fairness isolator
     `tests/native/test_quick_integration_green_fairness_focus.oren` plus
     `scripts/triage_native_quick_green_fairness_flake.sh` and the matrix wrapper

@@ -46,6 +46,7 @@ make test-native-quick-green-local-ptr-split-flake  # focused stage1 green-cache
 make test-native-quick-green-fairness-flake  # focused stage1 green-cache fairness triage
 make test-native-quick-green-fairness-zeroarg-flake  # mixed fairness zero-arg short-spawn slice without topology
 make test-native-quick-green-fairness-onearg-flake  # mixed fairness one-arg short-spawn slice without topology
+make test-native-quick-green-fairness-onearg-direct-flake  # harness-free sharp fairness repro: build focused binary once, rerun direct h8/s1 one-arg slice
 make test-native-quick-green-fairness-onearg-modes-flake  # focused one-arg fairness matrix: leaf control + mixed no-topology + mixed topology
 make test-native-quick-green-fairness-onearg-count-sweep-flake  # focused one-arg fairness count sweep: short-only control plus mixed h/s pressure variants
 make test-native-quick-green-fairness-modes-flake  # split stage1 fairness triage (zero/one-arg leaf controls first, then mixed slices with/without topology)

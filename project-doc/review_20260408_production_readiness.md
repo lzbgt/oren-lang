@@ -246,6 +246,33 @@ Further refinement on 2026-04-09:
 - because the split surface is already acting as a high-signal triage reproducer, the stable
   bundled guard targets continue to use the earlier blended local-ptr wrapper for now; the next
   runtime-robustness root-cause pass should start from the new split plain/workers scripts
+- the active fairness crash on the prior tree turned out to be a worker-mode serialization hole,
+  not just “one-arg scheduler volatility”: the green world-lock only engaged for
+  `g_green_worker_count > 1`, which left the current `host + 1 worker` fairness reproducer
+  unsynchronized. The runtime now enables the world lock by default for any worker-mode run unless
+  the caller explicitly opts into `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`, and the host/poll paths
+  now honor that at `1` worker too
+- the sharp mixed fairness slice now has a harness-free direct reproducer at
+  `scripts/triage_native_quick_green_fairness_onearg_h8_s1_direct_flake.sh`
+  (`make test-native-quick-green-fairness-onearg-direct-flake`), which builds the focused fairness
+  binary once and reruns the current `full` / `one_arg` / `notopology` / `hogs=8` / `shorts=1`
+  slice directly
+- after the single-worker world-lock fix, the old sharp `h8/s1` fairness crash no longer
+  reproduces on the current tree. The new direct target passed 10/10
+  (`build/logs/make_test_native_quick_green_fairness_onearg_direct_flake_20260409.log`), the
+  one-arg count sweep passed every configured case including the earlier `hogs=8, shorts=1`
+  failure slice
+  (`build/logs/make_test_native_quick_green_fairness_onearg_count_sweep_after_world_lock_fix_20260409.log`),
+  and the full fairness mode matrix passed all seven slices 3/3
+  (`build/logs/make_test_native_quick_green_fairness_modes_after_world_lock_fix_20260409.log`)
+- that means the current tree no longer has an active fairness repro on the focused stage1
+  surfaces. Fairness should remain triage-only until it has broader soak, but the old `h8/s1`
+  failure is no longer the highest-signal blocker
+- the wider runtime bundle and the repo-wide suite also stayed green on the same tree:
+  `make verify-runtime-robustness` passed
+  (`build/logs/make_verify_runtime_robustness_after_single_worker_world_lock_fix_20260409.log`,
+  `build/logs/runtime_robustness_w5_20260409_090337.log`), and `make test` passed
+  (`build/logs/make_test_single_worker_world_lock_fix_20260409.log`)
 - added the dedicated fairness isolator `tests/native/test_quick_integration_green_fairness_focus.oren`,
   the strict wrapper `scripts/triage_native_quick_green_fairness_flake.sh`, and the matrix runner
   `scripts/verify_native_quick_green_fairness_modes.sh`
