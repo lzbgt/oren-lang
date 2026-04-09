@@ -1934,9 +1934,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      (`default_dot_ratio_median ~1.7910×` vs disabled `~1.8065×`).
 									      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` therefore now ships on by default on
 									      the current tree.
-								    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
-								      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
-								      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
+									    - Arm64 explicit push fresh-exact-init follow-up (2026-04-09): explicit
+									      `fast_list_int_push_while` now has an opt-in path
+									      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT=1` that carries conservative
+									      same-block constructor proof from `list.int_new(n)` / `oren_new_list_int(n)` into
+									      the fast fill loop. When `i` is still known `0` and the constructor cap exactly
+									      matches the loop bound, the emitter skips reserve/count/header revalidation and
+									      writes through the constructor-installed buffer directly. Use
+									      `make perf-probe-arm64-fast-push-fresh-exact-init-decision` as the ranking
+									      surface. Current widened safe-tree rerun
+									      (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203332_51451.log`)
+									      preferred enabled on both surfaces, but the immediate promoted-default rerun
+									      (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203846_59158.log`)
+									      flipped the exact whole-operation medians back toward the disabled branch while the
+									      fill/share surface still preferred default. Reweight: keep
+									      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT` opt-in only. This branch is
+									      promising, but the exact same-tree winner is not stable enough yet to ship.
+									    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
+									      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
+									      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
 							      serialized acceptance bundle. Current final-tree rerun
 							      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
 							      keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now: explicit `16383`

@@ -1353,6 +1353,31 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - Keep `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` shipped on. This is the first current-tree fill-side
   branch after the fill-share reweighting that improved both the fill attribution surface and the
   exact whole-operation ceiling instead of only the local acceptance wrapper.
+- The next explicit fill-side follow-up is available behind the opt-in gate
+  `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT=1`. This branch carries a conservative
+  same-block proof for fresh `list<int>` constructors into explicit `fast_list_int_push_while`:
+  when a list was just created as `list.int_new(n)`, `i` is still known `0`, and the constructor
+  cap exactly matches the fast-loop bound, the emitter skips reserve/count/header revalidation and
+  writes through the constructor-installed buffer directly.
+- Use `make perf-probe-arm64-fast-push-fresh-exact-init-decision` as the ranking surface for that
+  branch. Current widened reruns disagree on the exact whole-operation winner:
+  - safe-tree opt-in rerun
+    (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203332_51451.log`)
+    preferred enabled on both surfaces (`enabled_fill_vs_c_vector ~2.6204x` vs default `~2.8017x`,
+    `enabled_array_ratio_median ~2.1902x` vs default `~2.3434x`,
+    `enabled_dot_ratio_median ~1.7876x` vs default `~1.8040x`)
+  - immediate promoted-default rerun
+    (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203846_59158.log`)
+    still preferred default on fill/share (`~2.8342x` vs disabled `~2.8957x`) but flipped the
+    exact whole-operation medians back toward the disabled branch
+    (`default_array_ratio_median ~2.2081x` vs disabled `~2.2036x`,
+    `default_dot_ratio_median ~1.7928x` vs disabled `~1.7478x`)
+- Because the exact same-tree winner inverted across adjacent widened reruns, keep
+  `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT` opt-in only for now. The final safe tree still
+  passed `build/logs/make_verify_native_list_int_fast_lowering_push_fresh_exact_init_optin_final_20260409.log`,
+  `build/logs/make_test_push_fresh_exact_init_optin_batch_20260409.log`,
+  `build/logs/make_verify_runtime_robustness_push_fresh_exact_init_optin_rerun_20260409.log`, and
+  `build/logs/runtime_robustness_w5_20260409_205346.log`.
 - For the arm64 explicit `fast_list_int_get_sum_while` unroll-by-2 follow-up, use
   `make perf-probe-arm64-fast-get-sum-unroll2-list-int` for the local acceptance A/B and
   `make perf-probe-arm64-fast-get-sum-unroll2-decision` for the actual shipped decision surface.

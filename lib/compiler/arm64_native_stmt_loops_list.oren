@@ -300,6 +300,19 @@ fn _arm64_nonneg_linear_safe_n_limit(linear) {
     return (room / mul) + 1
 }
 
+fn _arm64_cap_expr_matches_fast_n(cap_expr, n_name, n_const) {
+    if cap_expr == nil { return false }
+    if n_name != nil {
+        if cap_expr["type"] == "Identifier" && _arm64_str_eq_bytes(cap_expr["value"], n_name) == true { return true }
+    } else if n_const != nil {
+        if cap_expr["type"] == "Integer" {
+            var v = intparse.parse_int_lit(cap_expr["value"])
+            if oren_is_err(v) != true && v == n_const { return true }
+        }
+    }
+    return false
+}
+
 fn _arm64_is_list_int_push_call(ctx, exp) {
     if exp == nil || exp["type"] != "Call" { return nil }
     if exp["fn"] == nil { return nil }
@@ -643,6 +656,7 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
     var all_push_values_idx_int_expr_safe = true
     var all_push_values_nonneg_linear_safe = true
     var nonneg_linear_safe_n_limit = nil
+    var fresh_exact_lists = {}
     pi = 0
     while pi < oren_list_len(pushes) {
         var linear = _arm64_parse_nonneg_linear(pushes[pi]["value"], idx_name)
@@ -663,6 +677,20 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         }
         pi = pi + 1
     }
+    if ctx != nil && ctx["locals_int_const"] != nil && ctx["locals_int_const"][idx_name] == 0 {
+        var fresh_caps = ctx["arm64_fresh_list_int_caps"]
+        if fresh_caps != nil {
+            var fi = 0
+            while fi < oren_list_len(lists) {
+                var list_name2 = lists[fi]
+                var cap_expr = fresh_caps[list_name2]
+                if _arm64_cap_expr_matches_fast_n(cap_expr, n_name, n_const) == true {
+                    fresh_exact_lists[list_name2] = true
+                }
+                fi = fi + 1
+            }
+        }
+    }
     return {
         "idx": idx_name,
         "n": n_name,
@@ -673,6 +701,7 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         "all_push_values_idx_int_expr_safe": all_push_values_idx_int_expr_safe,
         "all_push_values_nonneg_linear_safe": all_push_values_nonneg_linear_safe,
         "nonneg_linear_safe_n_limit": nonneg_linear_safe_n_limit,
+        "fresh_exact_lists": fresh_exact_lists,
     }
 }
 

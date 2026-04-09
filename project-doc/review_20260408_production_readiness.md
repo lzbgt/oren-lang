@@ -674,6 +674,49 @@ Push nonnegative-linear fill-side follow-up (2026-04-09):
   - `build/logs/make_verify_runtime_robustness_push_nonneg_linear_batch_20260409.log`
   - `build/logs/runtime_robustness_w5_20260409_195650.log`
 
+Push fresh-exact-init fill-side follow-up (2026-04-09):
+
+- I then tested the next setup-side shortcut directly instead of assuming that fresh constructor
+  proof would automatically survive the exact whole-operation decision surface.
+- compiler change kept on the final tree:
+  - `lib/compiler/arm64_native_stmt.oren`
+  - `lib/compiler/arm64_native_stmt_loops_list.oren`
+  - `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+  - opt-in env gate only: `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT`
+- what changed:
+  - block compilation now carries conservative same-block provenance for fresh `list<int>`
+    constructors (`list.int_new(n)` / `oren_new_list_int(n)`)
+  - explicit `fast_list_int_push_while` can consume that proof when `i` is still known `0` and the
+    constructor cap exactly matches the fast-loop bound
+  - the experimental emitter path then skips reserve/count/header revalidation and writes through
+    the constructor-installed buffer pointer directly
+- decision surface:
+  - `make perf-probe-arm64-fast-push-fresh-exact-init-decision`
+- widened reruns on adjacent same-day trees disagreed:
+  - safe-tree opt-in rerun
+    (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203332_51451.log`)
+    preferred enabled on both surfaces:
+    - fill/share: enabled `~2.6204x` vs shipped default `~2.8017x`
+    - exact `array_sum_int`: enabled `~2.1902x` vs default `~2.3434x`
+    - exact `dot_product_int`: enabled `~1.7876x` vs default `~1.8040x`
+  - immediate promoted-default rerun
+    (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203846_59158.log`)
+    still preferred default on fill/share (`~2.8342x` vs disabled `~2.8957x`) but flipped the
+    exact whole-operation medians back toward the disabled branch:
+    - exact `array_sum_int`: default `~2.2081x` vs disabled `~2.2036x`
+    - exact `dot_product_int`: default `~1.7928x` vs disabled `~1.7478x`
+- corrected conclusion:
+  - do **not** ship `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT` by default yet
+  - the branch is promising and locally fact-based, but the exact same-tree ranking surface is not
+    stable enough across widened reruns to justify promotion
+  - keep it opt-in only until a stronger exact decision surface, or a more robust implementation,
+    removes that inversion
+- integrated verification on the final safe tree:
+  - `build/logs/make_verify_native_list_int_fast_lowering_push_fresh_exact_init_optin_final_20260409.log`
+  - `build/logs/make_test_push_fresh_exact_init_optin_batch_20260409.log`
+  - `build/logs/make_verify_runtime_robustness_push_fresh_exact_init_optin_rerun_20260409.log`
+  - `build/logs/runtime_robustness_w5_20260409_205346.log`
+
 Perf tooling hardening follow-up:
 
 - the remaining perf/build helper scripts that still hand-parsed
