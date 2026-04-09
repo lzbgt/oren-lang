@@ -550,6 +550,47 @@ Fill-share follow-up (2026-04-09):
     steady read kernel, so the next optimization class should move back toward list
     allocation/push lifetime/setup rather than more get-sum-local loop-body branches
 
+Push idx-expr fill-side follow-up (2026-04-09):
+
+- I then attacked that reweighted fill/setup side directly in the arm64 compiler instead of adding
+  another get-sum-local probe.
+- shipped compiler change:
+  - `lib/compiler/arm64_native_stmt_loops_list.oren`
+  - `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+  - new default-on env gate: `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR`
+- what changed:
+  - pure index-only integer push expressions inside explicit `fast_list_int_push_while` no longer
+    have to route through generic `native_compile_expr(...)` each iteration
+  - the matcher now recognizes safe index-arithmetic expressions, and the emitter lowers them
+    directly in the fast push loop
+- new decision surface:
+  - `make perf-probe-arm64-fast-push-idx-expr-decision`
+- current widened decision artifact:
+  - `build/logs/perf-probe-arm64-fast-push-idx-expr-decision-20260409_183650_90548.log`
+- measured result:
+  - fill/share surface preferred shipped default
+    - `default_fill_vs_c_vector: ~4.4912x`
+    - disabled `~5.0143x`
+    - `fill_pref: default`
+  - exact whole-operation surface also preferred shipped default
+    - `default_array_ratio_median: ~2.2989x`
+    - disabled `~2.3437x`
+    - `array_default_wins: 3/5`
+    - `default_dot_ratio_median: ~1.8313x`
+    - disabled `~1.8546x`
+    - `dot_default_wins: 4/5`
+    - `decision_surface_alignment: agree`
+- integrated verification on the promoted tree:
+  - `build/logs/make_verify_native_list_int_fast_lowering_push_idx_expr_20260409.log`
+  - `build/logs/make_test_push_idx_expr_batch_20260409.log`
+  - `build/logs/make_verify_runtime_robustness_push_idx_expr_batch_20260409.log`
+  - `build/logs/runtime_robustness_w5_20260409_183912.log`
+- corrected conclusion:
+  - keep `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` shipped on by default
+  - this is the first post-fill-share branch that improved both the fill attribution surface and
+    the exact whole-operation ceiling, so it is a real production-facing win rather than another
+    acceptance-only artifact
+
 Perf tooling hardening follow-up:
 
 - the remaining perf/build helper scripts that still hand-parsed
@@ -1009,15 +1050,28 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 									      (`default median ~2.2506×`, enabled median `~2.2797×`). So the dual-accum path is
 									      now factually downgraded to opt-in experiment only, not a production candidate.
 								    - reweight accordingly: the get-sum tick-mask probe
-							      is worth keeping but is still not the missing slot64-vector parity fix
-						    - that is the stronger whole-operation blocker split on current arm64 `master`: the
-						      helper/public-slot routing question is no longer the main issue, and the new get-sum
-						      and push cursor cleanups are not the missing whole-operation `array_sum_int` fix.
-						      The setup-vs-steady split now says the same thing more directly: the repeated get-sum
-						      kernel still dominates the remaining gap.
-						      `array_sum_int` still leaves a large gap to a competitive slot64 host-C vector path,
-						      while `dot_product_int` still sits materially above even the slot64 host-C ceiling
-						      inside the current 64-bit slot ABI.
+								      is worth keeping but is still not the missing slot64-vector parity fix
+						    - the fill-share rerun then changed the next move: the remaining gap was no longer
+						      cleanly attributable to the repeated read loop alone, because single-list fill/setup
+						      had become materially larger in absolute time than the shipped steady read kernel
+						    - the next compiler follow-up on that fill side is now shipped:
+						      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR`, which keeps pure index-only integer push
+						      expressions on the explicit `fast_list_int_push_while` lowering instead of routing
+						      them through generic expression compilation each iteration
+						    - the decision probe
+						      (`build/logs/perf-probe-arm64-fast-push-idx-expr-decision-20260409_183650_90548.log`)
+						      is the important current-tree result:
+						      - fill/share preferred the shipped default (`default_fill_vs_c_vector ~4.4912×`,
+						        disabled `~5.0143×`)
+						      - exact whole-operation `array_sum_int` also preferred the shipped default in `3/5`
+						        sweeps (`default_array_ratio_median ~2.2989×`, disabled `~2.3437×`)
+						      - exact `dot_product_int` preferred the shipped default in `4/5` sweeps
+						        (`default_dot_ratio_median ~1.8313×`, disabled `~1.8546×`)
+						    - that is now the stronger whole-operation blocker split on current arm64 `master`:
+						      the helper/public-slot routing question is no longer the main issue, the rejected
+						      get-sum micro-branches remain rejected on the actual shipped decision surface, and
+						      the fill/setup side now has one real shipped improvement but still leaves
+						      `array_sum_int` materially above a competitive slot64 host-C vector path.
 			- Probe UX follow-up:
 	  - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
 	    fallback instead of requiring only per-script smoke env vars, which removes a real measurement

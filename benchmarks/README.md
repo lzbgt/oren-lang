@@ -253,10 +253,35 @@ is no longer small enough to ignore:
   - `oren_fill_list_int / oren_array_sum_setup_est ~0.5912x`
   - `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`
 
-That reweights the current blocker. The repeated-read `array_sum_int` loop is still above the
-slot64 C vector ceiling, but a single allocation+fill pass is materially larger in absolute time
-than the current shipped steady read kernel. The next high-leverage work should therefore revisit
-list build/fill lifetime and setup costs, not another get-sum-local micro-branch.
+That reweighted the current blocker correctly. The repeated-read `array_sum_int` loop is still
+above the slot64 C vector ceiling, but a single allocation+fill pass is materially larger in
+absolute time than the current shipped steady read kernel.
+
+The next shipped fill-side follow-up on that same tree is:
+
+```bash
+make perf-probe-arm64-fast-push-idx-expr-decision
+```
+
+This measures the new default-on arm64 compiler fast path gated by
+`OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR`, which keeps pure index-only integer push expressions on
+the explicit `fast_list_int_push_while` lowering instead of routing them through generic
+`native_compile_expr(...)`. Current widened rerun
+`build/logs/perf-probe-arm64-fast-push-idx-expr-decision-20260409_183650_90548.log` says the
+shipped default now wins on both relevant surfaces:
+
+- fill/share surface:
+  - default `oren_fill_list_int / c_fill_slot64_vector ~4.4912x`
+  - disabled `~5.0143x`
+  - `fill_pref: default`
+- exact same-tree whole-operation C ceiling:
+  - `default_array_ratio_median ~2.2989x` vs disabled `~2.3437x` (`array_default_wins: 3/5`)
+  - `default_dot_ratio_median ~1.8313x` vs disabled `~1.8546x` (`dot_default_wins: 4/5`)
+  - `decision_surface_alignment: agree`
+
+That is the current production-quality fill-side result: keep
+`OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` shipped on, and keep chasing the larger list build/fill
+lifetime cost from this new baseline instead of going back to rejected get-sum-local branches.
 
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 
@@ -1258,6 +1283,24 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   improved canonical `oren_array_sum_int / array_slot64_vector` from `~5.4463x` to `~5.3848x`.
   Keep the cursor path enabled, but treat it as a modest whole-operation improvement, not the
   missing slot64-vector parity fix.
+- The next fill-side shipped change is narrower and stronger: arm64 explicit
+  `fast_list_int_push_while` now also keeps pure index-only integer push expressions on the fast
+  lowering through the new default-on `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` path instead of
+  paying generic `native_compile_expr(...)` each iteration.
+- Use `make perf-probe-arm64-fast-push-idx-expr-decision` as the current ranking surface for that
+  shipped change. It combines the `list<int>` fill-share attribution probe with same-tree exact
+  `perf-probe-list-int-c-ceiling` reruns on the current tree.
+- Current widened rerun
+  (`build/logs/perf-probe-arm64-fast-push-idx-expr-decision-20260409_183650_90548.log`) keeps that
+  new push-expression path enabled by default:
+  - fill/share surface preferred default (`default_fill_vs_c_vector ~4.4912x`, disabled `~5.0143x`)
+  - exact same-tree whole-operation reruns also preferred default on both programs
+    (`default_array_ratio_median ~2.2989x` vs disabled `~2.3437x`, `array_default_wins: 3/5`;
+    `default_dot_ratio_median ~1.8313x` vs disabled `~1.8546x`, `dot_default_wins: 4/5`)
+  - `decision_surface_alignment: agree`
+- Keep `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` shipped on. This is the first current-tree fill-side
+  branch after the fill-share reweighting that improved both the fill attribution surface and the
+  exact whole-operation ceiling instead of only the local acceptance wrapper.
 - For the arm64 explicit `fast_list_int_get_sum_while` unroll-by-2 follow-up, use
   `make perf-probe-arm64-fast-get-sum-unroll2-list-int` for the local acceptance A/B and
   `make perf-probe-arm64-fast-get-sum-unroll2-decision` for the actual shipped decision surface.

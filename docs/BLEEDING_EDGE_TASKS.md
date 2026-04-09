@@ -1761,19 +1761,34 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      exact dot also stays slightly better on default at `~1.8539x` vs `~1.8578x`).
 				      Keep the get-sum pair-post branch default-off; the acceptance wrapper is not the
 				      ranking surface for this branch.
-				    - New list<int> fill-share decision surface (2026-04-09):
-				      `make perf-probe-list-int-fill-share-decision` adds a hidden single-list
-				      `benchmarks/fill_list_int` benchmark pair and compares that fill-only whole-operation
-				      cost against the exact `array_sum_int` breakdown surface on the same shipped tree.
-				      Current artifact
-				      (`build/logs/perf-probe-list-int-fill-share-decision-20260409_181428_58993.log`)
-				      says the list-build side is no longer small enough to hand-wave away:
-				      fill-only Oren `per_rep_s ~0.005037`, slot64 C vector `~0.001044`,
-				      `oren_fill_list_int / c_fill_slot64_vector ~4.8260x`,
-				      `oren_fill_list_int / oren_array_sum_setup_est ~0.5912x`, and
-				      `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`.
-				      Reweight again: the next high-leverage `array_sum_int` work should attack list
-				      build/fill lifetime/setup costs, not another get-sum-local micro-branch.
+					    - New list<int> fill-share decision surface (2026-04-09):
+					      `make perf-probe-list-int-fill-share-decision` adds a hidden single-list
+					      `benchmarks/fill_list_int` benchmark pair and compares that fill-only whole-operation
+					      cost against the exact `array_sum_int` breakdown surface on the same shipped tree.
+					      Current artifact
+					      (`build/logs/perf-probe-list-int-fill-share-decision-20260409_181428_58993.log`)
+					      says the list-build side is no longer small enough to hand-wave away:
+					      fill-only Oren `per_rep_s ~0.005037`, slot64 C vector `~0.001044`,
+					      `oren_fill_list_int / c_fill_slot64_vector ~4.8260x`,
+					      `oren_fill_list_int / oren_array_sum_setup_est ~0.5912x`, and
+					      `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`.
+					      Reweight again: the next high-leverage `array_sum_int` work should attack list
+					      build/fill lifetime/setup costs, not another get-sum-local micro-branch.
+					    - Arm64 fill-side push-index-expression promotion (2026-04-09): the new default-on
+					      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` path keeps pure index-only integer push
+					      expressions on explicit `fast_list_int_push_while` lowering instead of routing them
+					      through generic `native_compile_expr(...)` each iteration. Use
+					      `make perf-probe-arm64-fast-push-idx-expr-decision` as the current ranking surface.
+					      Current widened rerun
+					      (`build/logs/perf-probe-arm64-fast-push-idx-expr-decision-20260409_183650_90548.log`)
+					      now aligns across both relevant surfaces: fill/share preferred the shipped default
+					      (`default_fill_vs_c_vector ~4.4912x` vs disabled `~5.0143x`), exact same-tree
+					      whole-operation `array_sum_int` preferred default in `3/5` sweeps
+					      (`default_array_ratio_median ~2.2989x` vs disabled `~2.3437x`), and exact
+					      `dot_product_int` also preferred default in `4/5` sweeps
+					      (`default_dot_ratio_median ~1.8313x` vs disabled `~1.8546x`). This is the first
+					      post-fill-share branch that improves both the fill attribution surface and the
+					      exact whole-operation ceiling, so it now ships on by default.
 				    - Arm64 fast-loop prefix-zero family remains default-off, but the dot leg is now
 				      correctness-clean and isolated (2026-04-09): the statement-level prefix-zero
 				      list<int> fast paths still stay explicit opt-in only via
@@ -1863,23 +1878,37 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						      warned as high variance, and both legs kept the same 16-instruction traced loop.
 						      Keep the cursor-reg path enabled, but do not mistake it for the missing whole-op
 						      `array_sum_int` fix.
-						    - Arm64 explicit push single-list cursor follow-up (2026-04-09): new wrapper
-						      `make perf-probe-arm64-fast-push-single-list-cursor-list-int` compares the shipped
-						      `array_sum_int` fill loop against
-						      `OREN_ARM64_FAST_LIST_INT_PUSH_SINGLE_LIST_CURSOR=0` through the same serialized
+							    - Arm64 explicit push single-list cursor follow-up (2026-04-09): new wrapper
+							      `make perf-probe-arm64-fast-push-single-list-cursor-list-int` compares the shipped
+							      `array_sum_int` fill loop against
+							      `OREN_ARM64_FAST_LIST_INT_PUSH_SINGLE_LIST_CURSOR=0` through the same serialized
 						      acceptance bundle. Current rerun
 						      (`build/logs/perf-probe-arm64-fast-push-single-list-cursor-list-int-20260409_132214_76347.log`)
 						      kept the new default-on path: steady native median improved from disabled `0.136291s`
 						      to default `0.131530s` (`-3.62%`), gate native improved from disabled `0.010571s` to
 						      default `0.010084s` (`-4.83%`), and both legs kept the same 16-instruction traced loop.
 						      The whole-operation rerun
-							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_132256_79494.log`) improved
-							      canonical `oren_array_sum_int / array_slot64_vector` from `~5.4463×` to `~5.3848×`.
-							      Keep this cursor path enabled, but treat it as a modest whole-operation win rather
-							      than the missing slot64-vector parity fix.
-							    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
-							      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
-							      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
+								      (`build/logs/perf-probe-list-int-c-ceiling-20260409_132256_79494.log`) improved
+								      canonical `oren_array_sum_int / array_slot64_vector` from `~5.4463×` to `~5.3848×`.
+								      Keep this cursor path enabled, but treat it as a modest whole-operation win rather
+								      than the missing slot64-vector parity fix.
+								    - Arm64 explicit push index-expression fill follow-up (2026-04-09): new ranking
+								      surface `make perf-probe-arm64-fast-push-idx-expr-decision` now compares the shipped
+								      default against `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR=0` on both the
+								      fill/share attribution probe and same-tree exact whole-operation C-ceiling reruns.
+								      The widened rerun
+								      (`build/logs/perf-probe-arm64-fast-push-idx-expr-decision-20260409_183650_90548.log`)
+								      closed this branch as a real shipped win instead of another local-only acceptance
+								      artifact: fill/share preferred default (`default_fill_vs_c_vector ~4.4912×`,
+								      disabled `~5.0143×`), exact `array_sum_int` preferred default in `3/5` sweeps
+								      (`default_array_ratio_median ~2.2989×` vs disabled `~2.3437×`), and exact
+								      `dot_product_int` also preferred default in `4/5` sweeps
+								      (`default_dot_ratio_median ~1.8313×` vs disabled `~1.8546×`).
+								      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` therefore ships on by default on the
+								      current tree.
+								    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
+								      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
+								      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
 							      serialized acceptance bundle. Current final-tree rerun
 							      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
 							      keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now: explicit `16383`

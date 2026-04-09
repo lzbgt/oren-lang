@@ -103,6 +103,65 @@ fn _arm64_env_enabled_default_true(name) {
     return true
 }
 
+fn _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr, idx_name, idx_reg) {
+    if ctx == nil || expr == nil || idx_name == nil { return false }
+    var int_const = exprm.native_expr_int_const(ctx, expr)
+    if int_const != nil {
+        emit_load_i64_imm(ctx, 0, int_const)
+        return true
+    }
+    var et = expr["type"]
+    if et == "Identifier" {
+        if _arm64_str_eq_bytes(expr["value"], idx_name) != true { return false }
+        if idx_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, idx_reg)) }
+        return true
+    }
+    if et == "Prefix" {
+        if expr["op"] != "-" { return false }
+        if _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr["right"], idx_name, idx_reg) != true { return false }
+        push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
+        return true
+    }
+    if et != "Infix" { return false }
+    var op = expr["op"]
+    if op != "+" && op != "-" && op != "*" && op != "%" { return false }
+
+    if _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr["left"], idx_name, idx_reg) != true { return false }
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    if _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr["right"], idx_name, idx_reg) != true {
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+        return false
+    }
+
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+
+    if op == "+" {
+        push_u32_le(ctx["code"], insn_add_reg(0, 1, 0))
+        return true
+    }
+    if op == "-" {
+        push_u32_le(ctx["code"], insn_sub_reg(0, 1, 0))
+        return true
+    }
+    if op == "*" {
+        push_u32_le(ctx["code"], insn_mul(0, 1, 0))
+        return true
+    }
+
+    var rhs_const = exprm.native_expr_int_const(ctx, expr["right"])
+    if rhs_const == nil || rhs_const == 0 || rhs_const == -1 { return false }
+    push_u32_le(ctx["code"], insn_sdiv(2, 1, 0))
+    push_u32_le(ctx["code"], insn_mul(2, 2, 0))
+    push_u32_le(ctx["code"], insn_sub_reg(0, 1, 2))
+    return true
+}
+
 fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
     if ctx == nil || stmt == nil || info == nil { return false }
 
@@ -2044,6 +2103,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var lists = info["lists"]
     var pushes = info["pushes"]
     var single_list_cursor_safe = info["single_list_cursor_safe"] == true
+    var all_push_values_idx_int_expr_safe = info["all_push_values_idx_int_expr_safe"] == true
     var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
     var n_fp_off = nil
     if n_name != nil { n_fp_off = _arm64_local_fp_off(ctx, n_name) }
@@ -2082,6 +2142,11 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         single_list_cursor_safe == true &&
         _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_SINGLE_LIST_CURSOR") == true {
         single_list_cursor = true
+    }
+    var idx_int_expr_fast = false
+    if all_push_values_idx_int_expr_safe == true &&
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR") == true {
+        idx_int_expr_fast = true
     }
 
     // init tick=0
@@ -2227,8 +2292,11 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
 
     gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
 
-    // Keep idx local updated for value expressions.
-    emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+    // Keep idx local updated for generic value expressions. The idx-only int fast path uses X20
+    // directly and avoids the extra frame spill/reload churn in fill-heavy loops.
+    if idx_int_expr_fast != true {
+        emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+    }
 
     if single_list_cursor {
         var push = pushes[0]
@@ -2236,8 +2304,12 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var buf_slot2 = list_base_off + 8
 
         // value -> X0
-        native_compile_expr(ctx, value_expr)
-        _arm64_restore_stack_to(ctx, loop_base_stack)
+        if idx_int_expr_fast == true {
+            _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
+        } else {
+            native_compile_expr(ctx, value_expr)
+            _arm64_restore_stack_to(ctx, loop_base_stack)
+        }
 
         emit_ldr_reg_sp_any(ctx, 19, buf_slot2)
         push_u32_le(ctx["code"], insn_str_ptr(0, 19))
@@ -2262,8 +2334,12 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
             var buf_slot2 = list_slot2 + 8
 
             // value -> X0
-            native_compile_expr(ctx, value_expr)
-            _arm64_restore_stack_to(ctx, loop_base_stack)
+            if idx_int_expr_fast == true {
+                _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
+            } else {
+                native_compile_expr(ctx, value_expr)
+                _arm64_restore_stack_to(ctx, loop_base_stack)
+            }
 
             // addr = buf + i*8 ; store value
             emit_ldr_reg_sp_any(ctx, 20, i_off)

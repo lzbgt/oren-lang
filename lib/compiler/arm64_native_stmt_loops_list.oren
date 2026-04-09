@@ -202,6 +202,31 @@ fn _arm64_expr_is_fast_loop_call_free(exp) {
     return false
 }
 
+fn _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp, idx_name) {
+    if exp == nil || idx_name == nil { return false }
+    if exprm.native_expr_int_const(ctx, exp) != nil { return true }
+    var et = exp["type"]
+    if et == "Identifier" {
+        return _arm64_str_eq_bytes(exp["value"], idx_name)
+    }
+    if et == "Prefix" {
+        if exp["op"] != "-" { return false }
+        return _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp["right"], idx_name)
+    }
+    if et == "Infix" {
+        var op = exp["op"]
+        if op != "+" && op != "-" && op != "*" && op != "%" { return false }
+        if _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp["left"], idx_name) != true { return false }
+        if _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp["right"], idx_name) != true { return false }
+        if op == "%" {
+            var rhs_const = exprm.native_expr_int_const(ctx, exp["right"])
+            if rhs_const == nil || rhs_const == 0 || rhs_const == -1 { return false }
+        }
+        return true
+    }
+    return false
+}
+
 fn _arm64_is_list_int_push_call(ctx, exp) {
     if exp == nil || exp["type"] != "Call" { return nil }
     if exp["fn"] == nil { return nil }
@@ -542,6 +567,15 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
     if oren_list_len(pushes) == 1 && _arm64_expr_is_fast_loop_call_free(pushes[0]["value"]) == true {
         single_list_cursor_safe = true
     }
+    var all_push_values_idx_int_expr_safe = true
+    pi = 0
+    while pi < oren_list_len(pushes) {
+        if _arm64_expr_is_fast_loop_idx_int_arith(ctx, pushes[pi]["value"], idx_name) != true {
+            all_push_values_idx_int_expr_safe = false
+            break
+        }
+        pi = pi + 1
+    }
     return {
         "idx": idx_name,
         "n": n_name,
@@ -549,6 +583,7 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         "lists": lists,
         "pushes": pushes,
         "single_list_cursor_safe": single_list_cursor_safe,
+        "all_push_values_idx_int_expr_safe": all_push_values_idx_int_expr_safe,
     }
 }
 
