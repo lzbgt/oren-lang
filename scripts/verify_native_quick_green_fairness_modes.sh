@@ -17,6 +17,7 @@ fi
 echo "== focused fairness: full + topology ==" >&2
 ./scripts/triage_native_quick_green_fairness_flake.sh "$runs" "$compiler" \
   OREN_QI_GREEN_FAIRNESS_MODE=full \
+  OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE=zero_arg \
   OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY=1 \
   OREN_QI_LABEL=native_quick_green_fairness_full_topology \
   "${extra_env[@]}"
@@ -24,13 +25,23 @@ echo "== focused fairness: full + topology ==" >&2
 echo "== focused fairness: full without topology ==" >&2
 ./scripts/triage_native_quick_green_fairness_flake.sh "$runs" "$compiler" \
   OREN_QI_GREEN_FAIRNESS_MODE=full \
+  OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE=zero_arg \
   OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY=0 \
-  OREN_QI_LABEL=native_quick_green_fairness_full_notopology \
+  OREN_QI_LABEL=native_quick_green_fairness_full_notopology_zeroarg \
+  "${extra_env[@]}"
+
+echo "== focused fairness: full without topology, one-arg shorts ==" >&2
+./scripts/triage_native_quick_green_fairness_flake.sh "$runs" "$compiler" \
+  OREN_QI_GREEN_FAIRNESS_MODE=full \
+  OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE=one_arg \
+  OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY=0 \
+  OREN_QI_LABEL=native_quick_green_fairness_full_notopology_onearg \
   "${extra_env[@]}"
 
 echo "== focused fairness: short-only without topology ==" >&2
 ./scripts/triage_native_quick_green_fairness_flake.sh "$runs" "$compiler" \
   OREN_QI_GREEN_FAIRNESS_MODE=short_only \
+  OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE=zero_arg \
   OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY=0 \
   OREN_QI_LABEL=native_quick_green_fairness_short_only_notopology \
   "${extra_env[@]}"
@@ -38,6 +49,7 @@ echo "== focused fairness: short-only without topology ==" >&2
 echo "== focused fairness: hogs-only without topology ==" >&2
 ./scripts/triage_native_quick_green_fairness_flake.sh "$runs" "$compiler" \
   OREN_QI_GREEN_FAIRNESS_MODE=hogs_only \
+  OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE=zero_arg \
   OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY=0 \
   OREN_QI_LABEL=native_quick_green_fairness_hogs_only_notopology \
   "${extra_env[@]}"

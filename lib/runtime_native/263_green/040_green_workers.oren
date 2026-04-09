@@ -924,6 +924,17 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
 
 @oren.keep
 fn oren_green_spawn(fn_obj, args_list) {
+    var root_count = 0
+    if fn_obj != 0 {
+        native_gc_root_push(fn_obj)
+        root_count = root_count + 1
+    }
+    if args_list != 0 {
+        // Keep host-side spawn arguments visible across the world-lock/alloc path even if the
+        // only live references are transient locals/registers on the spawning thread.
+        native_gc_root_push(args_list)
+        root_count = root_count + 1
+    }
     if _green_trace_args_stamp_enabled() == true {
         var node = _green_args_list_node(args_list, 1)
         var kind = 0
@@ -972,6 +983,7 @@ fn oren_green_spawn(fn_obj, args_list) {
     var g = _green_spawn_alloc_g(fn_obj, args_list)
     if g == 0 {
         _green_world_lock_host_exit(wl)
+        native_gc_root_pop(root_count)
         return 0
     }
 
@@ -987,6 +999,7 @@ fn oren_green_spawn(fn_obj, args_list) {
         _green_global_runq_push(g)
     }
     _green_world_lock_host_exit(wl)
+    native_gc_root_pop(root_count)
     return g
 }
 
@@ -1006,15 +1019,29 @@ fn oren_green_debug_spawn_call_list_to_p(p_id, fn_obj, args_list) {
     var ts0 = _green_thread_state_for_current_thread_or0()
     if ts0 != 0 && ptr_get(ts0 + green_t_off_current_g()) != 0 { return 0 }
 
+    var root_count = 0
+    if fn_obj != 0 {
+        native_gc_root_push(fn_obj)
+        root_count = root_count + 1
+    }
+    if args_list != 0 {
+        native_gc_root_push(args_list)
+        root_count = root_count + 1
+    }
     var wl = _green_world_lock_host_enter()
     var g = _green_spawn_alloc_g(fn_obj, args_list)
     if g == 0 {
         _green_world_lock_host_exit(wl)
+        native_gc_root_pop(root_count)
         return 0
     }
 
     var s = _green_get_state()
-    if s == 0 { return 0 }
+    if s == 0 {
+        _green_world_lock_host_exit(wl)
+        native_gc_root_pop(root_count)
+        return 0
+    }
     _green_lock_acquire()
     var p = _green_state_p_by_id_or0(s, p_id)
     if p == 0 { p = _green_state_p0(s) }
@@ -1023,6 +1050,7 @@ fn oren_green_debug_spawn_call_list_to_p(p_id, fn_obj, args_list) {
     }
     _green_lock_release()
     _green_world_lock_host_exit(wl)
+    native_gc_root_pop(root_count)
     return g
 }
 

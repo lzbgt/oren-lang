@@ -2324,6 +2324,28 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/triage_native_quick_green_fairness_hogs_only_notopology_20260409.log`).
     So the current stage1 corruption no longer points at topology contamination or a single spawn
     shape by itself; it points at the mixed hog+short fairness interaction.
+  - Patch + remeasure (2026-04-09): `oren_green_spawn(...)` and
+    `oren_green_debug_spawn_call_list_to_p(...)` now GC-root `fn_obj` and `args_list` across the
+    host-side world-lock/alloc path. After that fix, the fairness split no longer stays pinned to
+    one short-arg shape. An earlier rerun shifted the `full` / no-topology / `zero_arg`
+    slice from the old immediate `rc=138` crash to a strict green-cache retry
+    (`build/logs/triage_native_quick_green_fairness_full_notopology_zeroarg_postroot_20260409_075401.log`,
+    `build/logs/oren_native_quick_flake_20260409_075404_run2_inner.log`), while the matching
+    `one_arg` slice passed 3/3 then
+    (`build/logs/triage_native_quick_green_fairness_full_notopology_onearg_postroot_20260409_075401.log`).
+  - Measured (2026-04-09): on the latest rerun from the same tree, the split flipped again:
+    `make test-native-quick-green-fairness-zeroarg-flake` passed 3/3 with zero retries
+    (`build/logs/make_test_native_quick_green_fairness_zeroarg_flake_20260409.log`,
+    `build/logs/oren_native_quick_green_fairness_full_notopology_zeroarg.log`), while
+    `make test-native-quick-green-fairness-onearg-flake` failed immediately on run 1/3 with
+    `rc=138`
+    (`build/logs/make_test_native_quick_green_fairness_onearg_flake_20260409.log`,
+    `build/logs/oren_native_quick_flake_20260409_080425_run1_err.log`).
+    That is a better triage surface, but still not an honest bundled guard; keep fairness on the
+    triage-only entrypoints (`make test-native-quick-green-fairness-zeroarg-flake`,
+    `make test-native-quick-green-fairness-onearg-flake`,
+    `make test-native-quick-green-fairness-modes-flake`) and leave
+    `make verify-runtime-robustness` on the stable base/local-ptr/pre-world/stage2/C bundle.
   - Rewire + verify (2026-04-09): the focused local-ptr fixture now accepts
     `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` / `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS`, and the strict
     local-ptr wrappers default fairness off plus `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=720`.

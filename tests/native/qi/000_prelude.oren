@@ -293,6 +293,7 @@ fn worker_green_hog_until_stop(meta) {
 }
 
 fn worker_green_ret_one() { return 1 }
+fn worker_green_ret_one_arg(_x) { return 1 }
 
 fn worker_green_sp_align_mod16() {
     var sp = get_sp()

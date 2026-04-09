@@ -3637,6 +3637,27 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      Reweight the active stage1 runtime suspicion accordingly: topology is not required, and
      neither spawn shape fails by itself on the current tree; the mixed fairness interaction is
      now the highest-signal reproducer.
+   - Patch + remeasure (2026-04-09): `oren_green_spawn(...)` and
+     `oren_green_debug_spawn_call_list_to_p(...)` now GC-root both `fn_obj` and `args_list`
+     across the host-side world-lock / `_green_spawn_alloc_g(...)` path. That removes one real
+     host-safepoint lifetime hazard from the green spawn entrypoints and changes the fairness
+     repro shape on the current tree.
+   - Measured (2026-04-09): after the spawn root-lifetime fix, the mixed fairness repro no longer
+     stays pinned to one short-arg shape. An earlier rerun shifted the failure from the old
+     immediate crash to a strict green-cache retry on the `full` / no-topology / `zero_arg`
+     slice (`build/logs/triage_native_quick_green_fairness_full_notopology_zeroarg_postroot_20260409_075401.log`,
+     `build/logs/oren_native_quick_flake_20260409_075404_run2_inner.log`), while the matching
+     `one_arg` slice passed 3/3 then
+     (`build/logs/triage_native_quick_green_fairness_full_notopology_onearg_postroot_20260409_075401.log`).
+   - Measured (2026-04-09): on the latest rerun from the same tree, that short-arg split flipped
+     again. The `full` / no-topology / `zero_arg` slice passed 3/3 with zero retries
+     (`build/logs/make_test_native_quick_green_fairness_zeroarg_flake_20260409.log`,
+     `build/logs/oren_native_quick_green_fairness_full_notopology_zeroarg.log`), while the
+     matching `one_arg` slice failed immediately on run 1/3 with `rc=138`
+     (`build/logs/make_test_native_quick_green_fairness_onearg_flake_20260409.log`,
+     `build/logs/oren_native_quick_flake_20260409_080425_run1_err.log`). Keep the fairness split
+     triage-only for now: it is sharper than the old blended surface, but it is not stable enough
+     to bundle into `make verify-runtime-robustness`.
    - Rewire + verify (2026-04-09): the focused local-ptr fixture now accepts
      `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` and `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS`, and the
      strict local-ptr wrappers default `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS=0` plus a wider

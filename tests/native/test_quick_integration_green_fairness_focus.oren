@@ -25,6 +25,13 @@ fn _qi_green_fairness_focus_mode() {
     return "full"
 }
 
+fn _qi_green_fairness_focus_short_arg_mode() {
+    var v = oren_env("OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE")
+    if v == nil || v == "" { return "zero_arg" }
+    if strcmp(v, "one_arg") == 0 { return "one_arg" }
+    return "zero_arg"
+}
+
 fn _qi_green_fairness_focus_include_topology() {
     return _qi_env_truthy("OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY")
 }
@@ -48,6 +55,7 @@ fn main() {
 
     var iters = _qi_green_fairness_focus_iters()
     var mode = _qi_green_fairness_focus_mode()
+    var short_arg_mode = _qi_green_fairness_focus_short_arg_mode()
     var include_topology = _qi_green_fairness_focus_include_topology()
     var hogs = _qi_green_fairness_focus_hogs(mode)
     var shorts = _qi_green_fairness_focus_shorts(mode)
@@ -60,8 +68,12 @@ fn main() {
     var i = 0
     while i < iters {
         var iter_s = oren_int_to_string(i + 1) + "/" + oren_int_to_string(iters)
-        _qi_green_fairness_focus_step("iter=" + iter_s + " before test_green_global_runq_fairness_counts mode=" + mode + " hogs=" + oren_int_to_string(hogs) + " shorts=" + oren_int_to_string(shorts))
-        test_green_global_runq_fairness_counts(hogs, shorts)
+        _qi_green_fairness_focus_step("iter=" + iter_s +
+                                      " before test_green_global_runq_fairness_counts_variant mode=" + mode +
+                                      " short_arg_mode=" + short_arg_mode +
+                                      " hogs=" + oren_int_to_string(hogs) +
+                                      " shorts=" + oren_int_to_string(shorts))
+        test_green_global_runq_fairness_counts_variant(hogs, shorts, short_arg_mode)
         _qi_green_fairness_focus_step("iter=" + iter_s + " done mode=" + mode)
         i = i + 1
     }

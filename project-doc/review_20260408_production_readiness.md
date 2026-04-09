@@ -261,6 +261,29 @@ Further refinement on 2026-04-09:
   `build/logs/triage_native_quick_green_fairness_hogs_only_notopology_20260409.log`)
 - that means topology contamination is not required, and neither spawn shape fails by itself on
   this tree; the active root-cause surface is the mixed hog+short fairness interaction
+- `lib/runtime_native/263_green/040_green_workers.oren` now GC-roots both `fn_obj` and
+  `args_list` across the host-side world-lock / `_green_spawn_alloc_g(...)` path in
+  `oren_green_spawn(...)` and `oren_green_debug_spawn_call_list_to_p(...)`
+- after that root-lifetime fix, the fairness split no longer stays pinned to one short-arg shape.
+  An earlier rerun shifted the `full` / no-topology / `zero_arg` slice from the old immediate
+  `rc=138` crash to a strict green-cache retry (`rc=137` under `OREN_QI_FAIL_ON_RETRY=1`) on run
+  2/3
+  (`build/logs/triage_native_quick_green_fairness_full_notopology_zeroarg_postroot_20260409_075401.log`,
+  `build/logs/oren_native_quick_flake_20260409_075404_run2_inner.log`), while the matching
+  `one_arg` slice passed 3/3 then
+  (`build/logs/triage_native_quick_green_fairness_full_notopology_onearg_postroot_20260409_075401.log`)
+- on the latest rerun from the same tree, the split flipped again: the zero-arg mixed slice passed
+  3/3 with zero retries
+  (`build/logs/make_test_native_quick_green_fairness_zeroarg_flake_20260409.log`,
+  `build/logs/oren_native_quick_green_fairness_full_notopology_zeroarg.log`), while the matching
+  one-arg mixed slice failed immediately on run 1/3 with `rc=138`
+  (`build/logs/make_test_native_quick_green_fairness_onearg_flake_20260409.log`,
+  `build/logs/oren_native_quick_flake_20260409_080425_run1_err.log`)
+- because of that, fairness remains triage-only. Keep the stable bundled gate on
+  `make verify-runtime-robustness` and use
+  `make test-native-quick-green-fairness-zeroarg-flake`,
+  `make test-native-quick-green-fairness-onearg-flake`, and
+  `make test-native-quick-green-fairness-modes-flake` as the active root-cause entrypoints.
 - the local-ptr fixture now has explicit `OREN_QI_LOCAL_PTR_INCLUDE_TOPOLOGY` /
   `OREN_QI_LOCAL_PTR_INCLUDE_FAIRNESS` knobs, and the strict local-ptr wrappers now default
   fairness off plus `OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS=720`

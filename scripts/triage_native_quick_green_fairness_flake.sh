@@ -15,13 +15,15 @@ if [[ "$#" -gt 2 ]]; then
 fi
 
 mode="${OREN_QI_GREEN_FAIRNESS_MODE:-full}"
+short_arg_mode="${OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE:-zero_arg}"
 include_topology="${OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY:-1}"
 mode_tag="$(printf '%s' "$mode" | tr -c 'A-Za-z0-9' '_')"
+short_arg_tag="$(printf '%s' "$short_arg_mode" | tr -c 'A-Za-z0-9' '_')"
 topology_tag="topology"
 if [[ "$include_topology" == "0" ]]; then
   topology_tag="notopology"
 fi
-label_default="native_quick_green_fairness_${mode_tag}_${topology_tag}"
+label_default="native_quick_green_fairness_${mode_tag}_${topology_tag}_${short_arg_tag}"
 
 env \
   OREN_QI_SRC="tests/native/test_quick_integration_green_fairness_focus.oren" \
@@ -32,6 +34,7 @@ env \
   OREN_QI_GREEN_CACHE_RETRIES=0 \
   OREN_QI_STRESS_ITERS="${OREN_QI_STRESS_ITERS:-4}" \
   OREN_QI_GREEN_FAIRNESS_MODE="$mode" \
+  OREN_QI_GREEN_FAIRNESS_SHORT_ARG_MODE="$short_arg_mode" \
   OREN_QI_GREEN_FAIRNESS_INCLUDE_TOPOLOGY="$include_topology" \
   OREN_TRACE_GREEN_FAIRNESS=1 \
   OREN_TRACE_LIST_GET_BAD=1 \

@@ -180,7 +180,14 @@ fn test_green_topology_rejects_after_workers() {
     return 0
 }
 
-fn _qi_green_global_runq_fairness_impl(hog_count, short_count, fairness_trace) {
+fn _qi_green_fairness_short_handle(short_arg_mode, short_idx) {
+    if strcmp(short_arg_mode, "one_arg") == 0 {
+        return spawn worker_green_ret_one_arg(short_idx + 1)
+    }
+    return spawn worker_green_ret_one()
+}
+
+fn _qi_green_global_runq_fairness_impl(hog_count, short_count, fairness_trace, short_arg_mode) {
     // Green tasks are the default `spawn` path on macOS/Linux today.
     // Windows uses CreateThread for `spawn`, so skip this test there.
     if g_target_os == 3 { return 0 }
@@ -210,11 +217,14 @@ fn _qi_green_global_runq_fairness_impl(hog_count, short_count, fairness_trace) {
     var hs = []
     i = 0
     while i < short_count {
-        var h2 = spawn worker_green_ret_one()
+        var h2 = _qi_green_fairness_short_handle(short_arg_mode, i)
         oren_list_push(hs, h2)
         i = i + 1
     }
-    if fairness_trace { print("fairness: short_tasks=" + oren_int_to_string(short_count) + " spawned") }
+    if fairness_trace {
+        print("fairness: short_tasks=" + oren_int_to_string(short_count) +
+              " spawned short_arg_mode=" + short_arg_mode)
+    }
 
     i = 0
     while i < oren_list_len(hs) {
@@ -243,12 +253,19 @@ fn _qi_green_global_runq_fairness_impl(hog_count, short_count, fairness_trace) {
 
 fn test_green_global_runq_fairness_counts(hog_count, short_count) {
     trace("QI: test_green_global_runq_fairness_counts hogs=" + oren_int_to_string(hog_count) + " shorts=" + oren_int_to_string(short_count))
-    return _qi_green_global_runq_fairness_impl(hog_count, short_count, _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS"))
+    return _qi_green_global_runq_fairness_impl(hog_count, short_count, _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS"), "zero_arg")
+}
+
+fn test_green_global_runq_fairness_counts_variant(hog_count, short_count, short_arg_mode) {
+    trace("QI: test_green_global_runq_fairness_counts_variant hogs=" + oren_int_to_string(hog_count) +
+          " shorts=" + oren_int_to_string(short_count) +
+          " short_arg_mode=" + short_arg_mode)
+    return _qi_green_global_runq_fairness_impl(hog_count, short_count, _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS"), short_arg_mode)
 }
 
 fn test_green_global_runq_fairness() {
     trace("QI: test_green_global_runq_fairness")
-    return _qi_green_global_runq_fairness_impl(8, 40, _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS"))
+    return _qi_green_global_runq_fairness_impl(8, 40, _qi_env_truthy("OREN_TRACE_GREEN_FAIRNESS"), "zero_arg")
 }
 
 fn test_green_ctx_switch_alloc_integrity() {
