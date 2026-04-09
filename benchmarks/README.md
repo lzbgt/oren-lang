@@ -1436,6 +1436,24 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `build/logs/make_test_push_fresh_exact_init_optin_batch_20260409.log`,
   `build/logs/make_verify_runtime_robustness_push_fresh_exact_init_optin_rerun_20260409.log`, and
   `build/logs/runtime_robustness_w5_20260409_205346.log`.
+- The narrower single-list follow-up is now also isolated behind
+  `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST=1`. This branch keeps the same
+  fresh-constructor proof, but only for the single-list explicit fill shape that the fill/share
+  probe actually measures.
+- Use `make perf-probe-arm64-fast-push-fresh-exact-single-list-decision` as the ranking surface for
+  that narrower branch. The current safe-tree widened rerun
+  (`build/logs/perf-probe-arm64-fast-push-fresh-exact-single-list-decision-20260409_232042_61224.log`)
+  still rejects promotion:
+  - fill/share preferred shipped default (`default_fill_vs_c_vector ~2.7420x`, enabled `~2.7707x`)
+  - exact `array_sum_int` also preferred shipped default (`default_array_ratio_median ~1.9810x` vs
+    enabled `~2.1506x`, `array_default_wins: 4/5`)
+  - exact `dot_product_int` did move slightly toward enabled (`default_dot_ratio_median ~1.7857x`
+    vs enabled `~1.7675x`, `dot_enabled_wins: 4/5`)
+  - `decision_surface_alignment: agree` for the actual target surface because both fill/share and
+    exact `array_sum_int` still prefer the shipped default
+- Reweight again: do not ship `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST` by default.
+  The narrower isolation answered the question cleanly and still points away from more
+  fresh-constructor shortcut tuning and toward a different fill/setup lifetime optimization class.
 - For the arm64 explicit `fast_list_int_get_sum_while` unroll-by-2 follow-up, use
   `make perf-probe-arm64-fast-get-sum-unroll2-list-int` for the local acceptance A/B and
   `make perf-probe-arm64-fast-get-sum-unroll2-decision` for the actual shipped decision surface.

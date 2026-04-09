@@ -1962,9 +1962,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      fill/share surface still preferred default. Reweight: keep
 										      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT` opt-in only. This branch is
 										      promising, but the exact same-tree winner is not stable enough yet to ship.
-										    - Arm64 fast `list<int>` push native-list-header trace alignment (2026-04-09):
-										      explicit `fast_list_int_push_while` no longer emits loop-exit
-										      `oren_trace_list_header(...)` calls on shipped trace-off builds. It now follows
+										    - Arm64 explicit push fresh-exact single-list isolation (2026-04-09): the same
+										      constructor proof is now isolated behind the narrower opt-in gate
+										      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST=1`, which only targets the
+										      single-list explicit fill shape instead of the broader multi-loop family. Use
+										      `make perf-probe-arm64-fast-push-fresh-exact-single-list-decision` as the ranking
+										      surface. The current safe-tree widened rerun
+										      (`build/logs/perf-probe-arm64-fast-push-fresh-exact-single-list-decision-20260409_232042_61224.log`)
+										      still rejects promotion: fill/share preferred shipped default
+										      (`default_fill_vs_c_vector ~2.7420×` vs enabled `~2.7707×`), exact `array_sum_int`
+										      also preferred shipped default (`default_array_ratio_median ~1.9810×` vs enabled
+										      `~2.1506×`, `array_default_wins: 4/5`), while exact `dot_product_int` moved slightly
+										      toward enabled (`default_dot_ratio_median ~1.7857×` vs enabled `~1.7675×`). Keep
+										      this narrower branch opt-in only too; it answered the isolation question but still
+										      does not beat the shipped default on the actual fill-side target surface.
+											    - Arm64 fast `list<int>` push native-list-header trace alignment (2026-04-09):
+											      explicit `fast_list_int_push_while` no longer emits loop-exit
+											      `oren_trace_list_header(...)` calls on shipped trace-off builds. It now follows
 										      the same compile-time debug contract as the older generic fast-list tracing path
 										      and only emits those calls when `OREN_TRACE_NATIVE_LIST_HDR=1` is set. Use
 										      `make perf-probe-arm64-fast-push-native-list-hdr-decision` as the ranking surface.

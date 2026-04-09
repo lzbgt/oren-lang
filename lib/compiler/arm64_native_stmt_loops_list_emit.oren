@@ -2207,6 +2207,17 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT") == true {
         fresh_exact_init_fast = true
     }
+    var fresh_exact_single_list_fast = false
+    if fresh_exact_lists != nil &&
+        list_count == 1 &&
+        oren_list_len(pushes) == 1 &&
+        single_list_cursor_safe == true &&
+        fresh_exact_lists[lists[0]] == true &&
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST") == true {
+        // Narrow experimental shortcut: isolate the single-list explicit fill shape from the broader
+        // fresh-exact proof so it can be ranked independently on the exact whole-operation surface.
+        fresh_exact_single_list_fast = true
+    }
     var idx_int_expr_cursor_regs = false
     if single_list_cursor == true &&
         (idx_nonneg_linear_fast == true || idx_int_expr_fast == true) &&
@@ -2260,7 +2271,12 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var list_fp_off = _arm64_local_fp_off(ctx, list_name)
         var list_slot = list_base_off + li * 16
         var buf_slot = list_slot + 8
-        var list_fresh_exact = fresh_exact_init_fast == true && fresh_exact_lists[list_name] == true
+        var list_fresh_exact = false
+        if fresh_exact_single_list_fast == true {
+            list_fresh_exact = true
+        } else if fresh_exact_init_fast == true && fresh_exact_lists[list_name] == true {
+            list_fresh_exact = true
+        }
 
         // list pointer -> slot
         emit_ldr_reg_fp_any(ctx, 0, list_fp_off)

@@ -717,6 +717,39 @@ Push fresh-exact-init fill-side follow-up (2026-04-09):
   - `build/logs/make_verify_runtime_robustness_push_fresh_exact_init_optin_rerun_20260409.log`
   - `build/logs/runtime_robustness_w5_20260409_205346.log`
 
+Push fresh-exact single-list isolation follow-up (2026-04-09):
+
+- I then isolated the same constructor-proof shortcut down to the actual single-list fill shape
+  instead of leaving it bundled with the broader multi-list experiment.
+- final compiler/runtime state kept on the tree:
+  - `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+  - opt-in env gate only: `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST`
+- what changed:
+  - explicit `fast_list_int_push_while` now has a narrower experimental branch that uses the fresh
+    `list.int_new(n)` proof only when the loop is the single-list explicit fill shape
+  - the broader `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT` experiment remains separate and
+    still opt-in
+- decision surface:
+  - `make perf-probe-arm64-fast-push-fresh-exact-single-list-decision`
+- corrected conclusion from the final safe-tree rerun
+  (`build/logs/perf-probe-arm64-fast-push-fresh-exact-single-list-decision-20260409_232042_61224.log`):
+  - fill/share still preferred the shipped default (`default_fill_vs_c_vector ~2.7420x` vs enabled
+    `~2.7707x`)
+  - exact `array_sum_int` also preferred the shipped default (`default_array_ratio_median ~1.9810x`
+    vs enabled `~2.1506x`, `array_default_wins: 4/5`)
+  - exact `dot_product_int` moved slightly toward enabled (`default_dot_ratio_median ~1.7857x` vs
+    enabled `~1.7675x`, `dot_enabled_wins: 4/5`)
+  - for the actual fill-side target surface, this branch is still a loser
+- shipping call:
+  - keep `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST` opt-in only
+  - this answered the “does the narrower single-list version stabilize?” question with cleaner
+    evidence, and the answer is still no
+- integrated verification on the final safe tree:
+  - `build/logs/make_verify_native_list_int_fast_lowering_push_fresh_exact_single_list_optin_final_20260409.log`
+  - `build/logs/make_test_push_fresh_exact_single_list_optin_final_20260409.log`
+  - `build/logs/make_verify_runtime_robustness_push_fresh_exact_single_list_optin_final_20260409.log`
+  - `build/logs/runtime_robustness_w5_20260409_232324.log`
+
 Native fast-loop list header trace alignment (2026-04-09):
 
 - shipped compiler change:
