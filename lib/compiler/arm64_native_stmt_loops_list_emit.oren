@@ -704,6 +704,11 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         _arm64_env_enabled_default_false("OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER") == true {
         whole_list_helper = true
     }
+    var single_list_cursor_regs = false
+    if single_read_list == true &&
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_GET_SUM_SINGLE_LIST_CURSOR_REGS") == true {
+        single_list_cursor_regs = true
+    }
     var unroll2 = false
     var pair_post = false
     var v_pair_post = oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST")
@@ -852,6 +857,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         set_u32_le(ctx["code"], jpos_helper_skip, insn_b_cond((helper_skip_pos - jpos_helper_skip) / 4, 1)) // NE
     }
 
+    var safepoint_spill_pairs = []
     if unique_lists {
         emit_ldr_reg_sp_any(ctx, 20, i_off)
         emit_load_i64_imm(ctx, 21, 8)
@@ -864,17 +870,33 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
             emit_str_reg_sp_any(ctx, 23, buf_slot_init)
             li_init = li_init + 1
         }
+        if single_read_list && single_list_cursor_regs {
+            // Mirror the proven dot single-pair cursor-reg path: keep the unique list<int> cursor in a
+            // preserved register so the scalar body stops reloading and re-storing the only active buf
+            // slot on every iteration.
+            emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
+            safepoint_spill_pairs = [[19, 20]]
+        }
     }
 
     // Keep i/sum in registers across iterations.
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, sum_off)
     emit_load_i64_imm(ctx, 22, 8)
+    if unique_lists {
+        // Unique-list get-sum does not need X21 as a loop-body scratch, so keep the upper bound hot
+        // instead of reloading it from the stack every iteration.
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
 
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    emit_ldr_reg_sp_any(ctx, 21, n_off)
-    push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    if unique_lists != true {
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+        push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    } else {
+        push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    }
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
@@ -893,7 +915,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [])
+    gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, safepoint_spill_pairs)
 
     if unique_lists != true {
         // idx_offset = i * 8 (reuse for all list loads)
@@ -903,7 +925,11 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     if unroll2 == true {
         if single_read_list {
             var buf_slot_quad = list_base_off + 8
-            emit_ldr_reg_sp_any(ctx, 24, buf_slot_quad)
+            if single_list_cursor_regs {
+                push_u32_le(ctx["code"], insn_mov_reg(24, 19))
+            } else {
+                emit_ldr_reg_sp_any(ctx, 24, buf_slot_quad)
+            }
             if pair_post {
                 // Experimental pair-load path: fold the cursor advance into adjacent loads.
                 push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 24, 16))
@@ -915,7 +941,11 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_ldr_ptr_off(28, 24, 24))
                 push_u32_le(ctx["code"], insn_add_imm(24, 24, 32))
             }
-            emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
+            if single_list_cursor_regs {
+                push_u32_le(ctx["code"], insn_mov_reg(19, 24))
+            } else {
+                emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
+            }
 
             push_u32_le(ctx["code"], insn_add_reg(25, 25, 27))
             push_u32_le(ctx["code"], insn_add_reg(26, 26, 28))
@@ -945,7 +975,11 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
             }
             var buf_slot2u = list_base_off + list_index2 * 16 + 8
 
-            emit_ldr_reg_sp_any(ctx, 24, buf_slot2u)
+            if single_read_list && single_list_cursor_regs {
+                push_u32_le(ctx["code"], insn_mov_reg(24, 19))
+            } else {
+                emit_ldr_reg_sp_any(ctx, 24, buf_slot2u)
+            }
             if pair_post {
                 push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 24, 16))
             } else {
@@ -953,7 +987,11 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_ldr_ptr_off(26, 24, 8))
                 push_u32_le(ctx["code"], insn_add_imm(24, 24, 16))
             }
-            emit_str_reg_sp_any(ctx, 24, buf_slot2u)
+            if single_read_list && single_list_cursor_regs {
+                push_u32_le(ctx["code"], insn_mov_reg(19, 24))
+            } else {
+                emit_str_reg_sp_any(ctx, 24, buf_slot2u)
+            }
 
             if single_read_list {
                 push_u32_le(ctx["code"], insn_add_reg(25, 25, 26))
@@ -977,7 +1015,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [])
+        gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, safepoint_spill_pairs)
     }
 
     var pi = 0
@@ -991,10 +1029,15 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         var buf_slot2 = list_base_off + list_index * 16 + 8
 
         if unique_lists {
-            emit_ldr_reg_sp_any(ctx, 24, buf_slot2)
-            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-            push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
-            emit_str_reg_sp_any(ctx, 24, buf_slot2)
+            if single_read_list && single_list_cursor_regs {
+                push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
+                push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+            } else {
+                emit_ldr_reg_sp_any(ctx, 24, buf_slot2)
+                push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+                push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
+                emit_str_reg_sp_any(ctx, 24, buf_slot2)
+            }
         } else {
             // addr = buf + i*8 ; load value
             emit_ldr_reg_sp_any(ctx, 21, buf_slot2)

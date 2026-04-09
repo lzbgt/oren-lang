@@ -1393,32 +1393,32 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 							     whole-operation winner on current `master`. Use this new stability probe for ordering
 							     decisions and stop assuming more helper/public lowering will automatically beat the
 							     shipped canonical arm64 path.
-							   - Whole-operation host-C ceiling follow-up (2026-04-09): new
-							     `make perf-probe-list-int-c-ceiling` broadens the earlier dot-only slot-ABI ceiling
-							     probe across both canonical benchmarks by timing packed32 C, slot64 C, and the shipped
-							     Oren native `array_sum_int` / `dot_product_int` binaries under the same whole-operation
-							     workload. Latest artifact:
-							     `build/logs/perf-probe-list-int-c-ceiling-20260409_124641_14363.log`
-							     (`runs=5`, `warmups=1`, `n=2000000`, `reps=100`) now comes back as:
-							     - `array_sum_int`
-							       - packed32 C vector: `~0.000134s`
-							       - slot64 C vector: `~0.000259s`
-							       - slot64 C scalar: `~0.000766s`
-							       - Oren canonical: `~0.001304s`
-							     - `dot_product_int`
-							       - packed32 C vector: `~0.000265s`
-							       - slot64 C vector: `~0.000718s`
-							       - slot64 C scalar: `~0.000739s`
-							       - Oren canonical: `~0.001347s`
-							     - decisive ratios:
-							       - `array_slot64_vector / array_packed32_vector`: `~1.9407×`
-							       - `oren_array_sum_int / array_slot64_vector`: `~5.0268×`
-							       - `dot_slot64_vector / dot_packed32_vector`: `~2.7136×`
-							       - `oren_dot_product_int / dot_slot64_vector`: `~1.8769×`
-							     Reweight again: helper/public-slot ordering is no longer the main blocker. On current
-							     arm64 `master`, `array_sum_int` still lacks a competitive slot64-vector whole-operation
-							     path, while `dot_product_int` remains materially above even the slot64 host-C ceiling
-							     inside the current ABI.
+								   - Whole-operation host-C ceiling follow-up (2026-04-09): new
+								     `make perf-probe-list-int-c-ceiling` broadens the earlier dot-only slot-ABI ceiling
+								     probe across both canonical benchmarks by timing packed32 C, slot64 C, and the shipped
+								     Oren native `array_sum_int` / `dot_product_int` binaries under the same whole-operation
+								     workload. Latest artifact:
+								     `build/logs/perf-probe-list-int-c-ceiling-20260409_130147_43042.log`
+								     (`runs=5`, `warmups=1`, `n=2000000`, `reps=100`) now comes back as:
+								     - `array_sum_int`
+								       - packed32 C vector: `~0.000130s`
+								       - slot64 C vector: `~0.000239s`
+								       - slot64 C scalar: `~0.000762s`
+								       - Oren canonical: `~0.001304s`
+								     - `dot_product_int`
+								       - packed32 C vector: `~0.000250s`
+								       - slot64 C vector: `~0.000716s`
+								       - slot64 C scalar: `~0.000749s`
+								       - Oren canonical: `~0.001337s`
+								     - decisive ratios:
+								       - `array_slot64_vector / array_packed32_vector`: `~1.8375×`
+								       - `oren_array_sum_int / array_slot64_vector`: `~5.4463×`
+								       - `dot_slot64_vector / dot_packed32_vector`: `~2.8634×`
+								       - `oren_dot_product_int / dot_slot64_vector`: `~1.8670×`
+								     Reweight again: helper/public-slot ordering is no longer the main blocker. On current
+								     arm64 `master`, `array_sum_int` still lacks a competitive slot64-vector whole-operation
+								     path, while `dot_product_int` remains materially above even the slot64 host-C ceiling
+								     inside the current ABI.
 									   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
 									     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
 									     whole-operation path. The sequential no-smoke rerun with
@@ -1812,12 +1812,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`)
 				      kept the new 20-instruction scalar baseline ahead of `UNROLL2=1` on both raw
 				      medians. Keep unroll2 disabled by default.
-				    - Arm64 cursor-reg refresh on the new baseline (2026-04-09): generic and explicit
-				      wrappers now exist. Post-unroll2 reruns
-				      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`,
-				      `build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
-				      are mixed overall, so keep cursor-reg enabled for now and revisit it separately from
-				      the shipped scalar-tail `madd`.
+					    - Arm64 cursor-reg refresh on the new baseline (2026-04-09): generic and explicit
+					      wrappers now exist. Post-unroll2 reruns
+					      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`,
+					      `build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
+					      are mixed overall, so keep cursor-reg enabled for now and revisit it separately from
+					      the shipped scalar-tail `madd`.
+					    - Arm64 explicit get-sum single-list cursor-reg refresh (2026-04-09): new wrapper
+					      `make perf-probe-arm64-fast-get-sum-single-list-cursor-regs-list-int` compares the
+					      shipped `array_sum_int` scalar loop against
+					      `OREN_ARM64_FAST_LIST_INT_GET_SUM_SINGLE_LIST_CURSOR_REGS=0` through the serialized
+					      acceptance bundle. Current rerun
+					      (`build/logs/perf-probe-arm64-fast-get-sum-single-list-cursor-regs-list-int-20260409_130055_41301.log`)
+					      kept the new default-on path: steady native median improved from disabled `0.134232s`
+					      to default `0.133314s`, gate native stayed effectively flat, the disabled gate leg
+					      warned as high variance, and both legs kept the same 16-instruction traced loop.
+					      Keep the cursor-reg path enabled, but do not mistake it for the missing whole-op
+					      `array_sum_int` fix.
 			    - Native gate summary hygiene (2026-04-04):
 			      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate
