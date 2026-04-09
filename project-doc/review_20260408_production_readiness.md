@@ -874,32 +874,37 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 				      canonical path is now the best repeated whole-operation median on both benchmarks,
 				      public-slot remains close enough to win some `dot_product_int` sweeps, and the hidden
 				      direct-slot helper is no longer a stable whole-operation winner
-					    - the new broader host-C ceiling follow-up is now
-					      `make perf-probe-list-int-c-ceiling`
-					      (`build/logs/perf-probe-list-int-c-ceiling-20260409_130147_43042.log`), which widens the
-					      earlier dot-only slot-ABI ceiling across both canonical benchmarks by comparing packed32
-					      C, slot64 C, and shipped Oren native whole-operation binaries under one workload
-					    - on that surface:
-					      - `array_sum_int`: packed32 C vector `~0.000130s`, slot64 C vector `~0.000239s`,
-					        slot64 C scalar `~0.000762s`, Oren canonical `~0.001304s`
-					      - `dot_product_int`: packed32 C vector `~0.000250s`, slot64 C vector `~0.000716s`,
-					        slot64 C scalar `~0.000749s`, Oren canonical `~0.001337s`
-					      - decisive ratios:
-					        - `array_slot64_vector / array_packed32_vector`: `~1.8375×`
-					        - `oren_array_sum_int / array_slot64_vector`: `~5.4463×`
-					        - `dot_slot64_vector / dot_packed32_vector`: `~2.8634×`
-					        - `oren_dot_product_int / dot_slot64_vector`: `~1.8670×`
-					    - the new explicit get-sum single-list cursor-reg follow-up
-					      (`build/logs/perf-probe-arm64-fast-get-sum-single-list-cursor-regs-list-int-20260409_130055_41301.log`)
-					      is worth keeping but deliberately narrow: default steady native median improved from
-					      disabled `0.134232s` to `0.133314s`, the disabled gate leg warned as high variance, and
-					      both legs kept the same 16-instruction traced loop
-					    - that is the stronger whole-operation blocker split on current arm64 `master`: the
-					      helper/public-slot routing question is no longer the main issue, and the new get-sum
-					      cursor-reg cleanup is not the missing whole-operation `array_sum_int` fix. `array_sum_int`
-					      still leaves a large gap to a competitive slot64 host-C vector path, while
-					      `dot_product_int` still sits materially above even the slot64 host-C ceiling inside
-					      the current 64-bit slot ABI.
+						    - the new broader host-C ceiling follow-up is now
+						      `make perf-probe-list-int-c-ceiling`
+						      (`build/logs/perf-probe-list-int-c-ceiling-20260409_132256_79494.log`), which widens the
+						      earlier dot-only slot-ABI ceiling across both canonical benchmarks by comparing packed32
+						      C, slot64 C, and shipped Oren native whole-operation binaries under one workload
+						    - on that surface:
+						      - `array_sum_int`: packed32 C vector `~0.000136s`, slot64 C vector `~0.000246s`,
+						        slot64 C scalar `~0.000774s`, Oren canonical `~0.001327s`
+						      - `dot_product_int`: packed32 C vector `~0.000264s`, slot64 C vector `~0.000736s`,
+						        slot64 C scalar `~0.000804s`, Oren canonical `~0.001360s`
+						      - decisive ratios:
+						        - `array_slot64_vector / array_packed32_vector`: `~1.8165×`
+						        - `oren_array_sum_int / array_slot64_vector`: `~5.3848×`
+						        - `dot_slot64_vector / dot_packed32_vector`: `~2.7825×`
+						        - `oren_dot_product_int / dot_slot64_vector`: `~1.8485×`
+						    - the new explicit get-sum single-list cursor-reg follow-up
+						      (`build/logs/perf-probe-arm64-fast-get-sum-single-list-cursor-regs-list-int-20260409_130055_41301.log`)
+						      is worth keeping but deliberately narrow: default steady native median improved from
+						      disabled `0.134232s` to `0.133314s`, the disabled gate leg warned as high variance, and
+						      both legs kept the same 16-instruction traced loop
+						    - the new explicit push single-list cursor follow-up
+						      (`build/logs/perf-probe-arm64-fast-push-single-list-cursor-list-int-20260409_132214_76347.log`)
+						      is also worth keeping: default steady native median improved from disabled `0.136291s`
+						      to `0.131530s`, gate native improved from disabled `0.010571s` to `0.010084s`, and both
+						      legs kept the same 16-instruction traced loop
+						    - that is the stronger whole-operation blocker split on current arm64 `master`: the
+						      helper/public-slot routing question is no longer the main issue, and the new get-sum
+						      and push cursor cleanups are not the missing whole-operation `array_sum_int` fix.
+						      `array_sum_int` still leaves a large gap to a competitive slot64 host-C vector path,
+						      while `dot_product_int` still sits materially above even the slot64 host-C ceiling
+						      inside the current 64-bit slot ABI.
 			- Probe UX follow-up:
 	  - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
 	    fallback instead of requiring only per-script smoke env vars, which removes a real measurement

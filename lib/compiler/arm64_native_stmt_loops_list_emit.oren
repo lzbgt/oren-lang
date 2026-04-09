@@ -1999,6 +1999,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var n_const = info["n_const"]
     var lists = info["lists"]
     var pushes = info["pushes"]
+    var single_list_cursor_safe = info["single_list_cursor_safe"] == true
     var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
     var n_fp_off = nil
     if n_name != nil { n_fp_off = _arm64_local_fp_off(ctx, n_name) }
@@ -2030,6 +2031,14 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var n_off = slot0 + 8
     var list_base_off = slot0 + 16
     listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
+
+    var single_list_cursor = false
+    if list_count == 1 &&
+        oren_list_len(pushes) == 1 &&
+        single_list_cursor_safe == true &&
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_SINGLE_LIST_CURSOR") == true {
+        single_list_cursor = true
+    }
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -2152,6 +2161,18 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         li = li + 1
     }
 
+    if single_list_cursor {
+        // Keep the active list<int> cursor in the existing buf stack slot. We deliberately do not
+        // keep it live in X19 across `native_compile_expr`: arm64 expression lowering freely uses
+        // X19/X20 internally, so the safe win here is to stop rebuilding `buf + i*8` every trip.
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_load_i64_imm(ctx, 21, 8)
+        push_u32_le(ctx["code"], insn_mul(22, 20, 21))
+        emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
+        push_u32_le(ctx["code"], insn_add_reg(19, 19, 22))
+        emit_str_reg_sp_any(ctx, 19, list_base_off + 8)
+    }
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -2165,38 +2186,57 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     // Keep idx local updated for value expressions.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
 
-    var pi = 0
-    while pi < oren_list_len(pushes) {
-        var push = pushes[pi]
-        var list_name2 = push["list"]
+    if single_list_cursor {
+        var push = pushes[0]
         var value_expr = push["value"]
-        var list_index = 0
-        while list_index < list_count {
-            if _arm64_str_eq_bytes(lists[list_index], list_name2) { break }
-            list_index = list_index + 1
-        }
-        var list_slot2 = list_base_off + list_index * 16
-        var buf_slot2 = list_slot2 + 8
+        var buf_slot2 = list_base_off + 8
 
         // value -> X0
         native_compile_expr(ctx, value_expr)
         _arm64_restore_stack_to(ctx, loop_base_stack)
 
-        // addr = buf + i*8 ; store value
+        emit_ldr_reg_sp_any(ctx, 19, buf_slot2)
+        push_u32_le(ctx["code"], insn_str_ptr(0, 19))
+        push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+        emit_str_reg_sp_any(ctx, 19, buf_slot2)
+
         emit_ldr_reg_sp_any(ctx, 20, i_off)
-        emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
-        emit_load_i64_imm(ctx, 22, 8)
-        push_u32_le(ctx["code"], insn_mul(23, 20, 22))
-        push_u32_le(ctx["code"], insn_add_reg(23, 21, 23))
-        push_u32_le(ctx["code"], insn_str_ptr(0, 23))
+        push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+        emit_str_reg_sp_any(ctx, 20, i_off)
+    } else {
+        var pi = 0
+        while pi < oren_list_len(pushes) {
+            var push = pushes[pi]
+            var list_name2 = push["list"]
+            var value_expr = push["value"]
+            var list_index = 0
+            while list_index < list_count {
+                if _arm64_str_eq_bytes(lists[list_index], list_name2) { break }
+                list_index = list_index + 1
+            }
+            var list_slot2 = list_base_off + list_index * 16
+            var buf_slot2 = list_slot2 + 8
 
-        pi = pi + 1
+            // value -> X0
+            native_compile_expr(ctx, value_expr)
+            _arm64_restore_stack_to(ctx, loop_base_stack)
+
+            // addr = buf + i*8 ; store value
+            emit_ldr_reg_sp_any(ctx, 20, i_off)
+            emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
+            emit_load_i64_imm(ctx, 22, 8)
+            push_u32_le(ctx["code"], insn_mul(23, 20, 22))
+            push_u32_le(ctx["code"], insn_add_reg(23, 21, 23))
+            push_u32_le(ctx["code"], insn_str_ptr(0, 23))
+
+            pi = pi + 1
+        }
+
+        // i++
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+        emit_str_reg_sp_any(ctx, 20, i_off)
     }
-
-    // i++
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
-    push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
-    emit_str_reg_sp_any(ctx, 20, i_off)
 
     var back_pos = bytes_len(ctx["code"])
     var back_off = (loop_cond_pos - back_pos) / 4
