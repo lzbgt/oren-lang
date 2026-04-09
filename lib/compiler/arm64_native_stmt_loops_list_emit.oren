@@ -162,6 +162,36 @@ fn _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr, idx_name, idx_reg) {
     return true
 }
 
+fn _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, linear, idx_reg) {
+    if ctx == nil || linear == nil || idx_reg == nil { return false }
+    var mul = linear["mul"]
+    var add = linear["add"]
+    var mod = linear["mod"]
+    if mul == nil || add == nil || mod == nil { return false }
+    if mul < 0 || add < 0 || mod < 0 { return false }
+
+    if mul == 0 {
+        emit_load_i64_imm(ctx, 0, add)
+    } else {
+        if idx_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, idx_reg)) }
+        if mul != 1 {
+            emit_load_i64_imm(ctx, 24, mul)
+            push_u32_le(ctx["code"], insn_mul(0, 0, 24))
+        }
+        if add != 0 {
+            emit_load_i64_imm(ctx, 24, add)
+            push_u32_le(ctx["code"], insn_add_reg(0, 0, 24))
+        }
+    }
+    if mod > 0 {
+        emit_load_i64_imm(ctx, 24, mod)
+        push_u32_le(ctx["code"], insn_udiv(25, 0, 24))
+        push_u32_le(ctx["code"], insn_mul(25, 25, 24))
+        push_u32_le(ctx["code"], insn_sub_reg(0, 0, 25))
+    }
+    return true
+}
+
 fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
     if ctx == nil || stmt == nil || info == nil { return false }
 
@@ -2104,6 +2134,8 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var pushes = info["pushes"]
     var single_list_cursor_safe = info["single_list_cursor_safe"] == true
     var all_push_values_idx_int_expr_safe = info["all_push_values_idx_int_expr_safe"] == true
+    var all_push_values_nonneg_linear_safe = info["all_push_values_nonneg_linear_safe"] == true
+    var nonneg_linear_safe_n_limit = info["nonneg_linear_safe_n_limit"]
     var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
     var n_fp_off = nil
     if n_name != nil { n_fp_off = _arm64_local_fp_off(ctx, n_name) }
@@ -2148,9 +2180,17 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR") == true {
         idx_int_expr_fast = true
     }
+    var idx_nonneg_linear_fast = false
+    if all_push_values_nonneg_linear_safe == true &&
+        nonneg_linear_safe_n_limit != nil &&
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR") == true {
+        // This path only handles nonnegative affine/mod shapes with a proven loop-bound ceiling, so
+        // the direct mul/add/(u)div sequence stays semantically aligned with the generic int path.
+        idx_nonneg_linear_fast = true
+    }
     var idx_int_expr_cursor_regs = false
     if single_list_cursor == true &&
-        idx_int_expr_fast == true &&
+        (idx_nonneg_linear_fast == true || idx_int_expr_fast == true) &&
         _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS") == true {
         idx_int_expr_cursor_regs = true
     }
@@ -2186,6 +2226,13 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var jpos_n_neg = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_n_neg, "cond": 11}) // LT
+    if idx_nonneg_linear_fast == true {
+        emit_load_i64_imm(ctx, 1, nonneg_linear_safe_n_limit)
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+        var jpos_n_too_big = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_n_too_big, "cond": 12}) // GT
+    }
 
     // validate lists + capture buf pointers
     var li = 0
@@ -2325,7 +2372,9 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var buf_slot2 = list_base_off + 8
 
         // value -> X0
-        if idx_int_expr_fast == true {
+        if idx_nonneg_linear_fast == true {
+            _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, push["linear"], 20)
+        } else if idx_int_expr_fast == true {
             _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
         } else {
             native_compile_expr(ctx, value_expr)
@@ -2361,7 +2410,9 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
             var buf_slot2 = list_slot2 + 8
 
             // value -> X0
-            if idx_int_expr_fast == true {
+            if idx_nonneg_linear_fast == true {
+                _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, push["linear"], 20)
+            } else if idx_int_expr_fast == true {
                 _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
             } else {
                 native_compile_expr(ctx, value_expr)

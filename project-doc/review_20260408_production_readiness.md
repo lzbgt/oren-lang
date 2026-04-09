@@ -632,6 +632,48 @@ Push idx-expr cursor-reg follow-up (2026-04-09):
   - this branch improves the local fill/setup surface, but it is another exact-whole-operation loss
     on the current shipped tree, so it should not become the new default
 
+Push nonnegative-linear fill-side follow-up (2026-04-09):
+
+- I then promoted the next fill-side branch that actually wins on the same shipped exact surface
+  instead of only improving the local fill probe.
+- shipped compiler change:
+  - `lib/compiler/arm64_native_stmt_loops_list.oren`
+  - `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+  - new default-on env gate: `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR`
+- what changed:
+  - explicit `fast_list_int_push_while` now recognizes nonnegative affine/mod push expressions in
+    the loop index when a safe loop-bound ceiling can be proven at compile time
+  - those shapes lower directly to a mul/add/(u)div sequence inside the fast push loop instead of
+    routing through the generic integer-expression compiler each iteration
+- new decision surface:
+  - `make perf-probe-arm64-fast-push-nonneg-linear-decision`
+- current widened decision artifact:
+  - `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`
+- measured result:
+  - fill/share surface strongly preferred shipped default
+    - `default_fill_vs_c_vector: ~2.8909x`
+    - disabled `~4.3823x`
+    - `fill_pref: default`
+  - exact whole-operation surface also preferred shipped default
+    - `default_array_ratio_median: ~2.2540x`
+    - disabled `~2.2740x`
+    - `exact_array_pref: default`
+    - `default_dot_ratio_median: ~1.7910x`
+    - disabled `~1.8065x`
+    - `exact_dot_pref: default`
+    - `decision_surface_alignment: agree`
+- corrected conclusion:
+  - keep `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` shipped on by default
+  - this is the next current-tree fill-side win after `PUSH_IDX_EXPR` that improves both the fill
+    attribution surface and the exact same-tree whole-operation surface, so it is worth keeping
+  - the next remaining leverage is still broader list build/fill lifetime/setup cost, not a return
+    to the rejected get-sum-local or cursor-only branches
+- integrated verification on the promoted tree:
+  - `build/logs/make_verify_native_list_int_fast_lowering_push_nonneg_linear_20260409.log`
+  - `build/logs/make_test_push_nonneg_linear_batch_20260409.log`
+  - `build/logs/make_verify_runtime_robustness_push_nonneg_linear_batch_20260409.log`
+  - `build/logs/runtime_robustness_w5_20260409_195650.log`
+
 Perf tooling hardening follow-up:
 
 - the remaining perf/build helper scripts that still hand-parsed

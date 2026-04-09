@@ -1920,6 +1920,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      `default_dot_ratio_median ~1.8327×` vs enabled `~1.8585×`).
 									      Reweight: do not ship `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS`
 									      by default; it joins the other “local surface win, exact surface loss” branches.
+									    - Arm64 explicit push nonnegative-linear fill follow-up (2026-04-09): new ranking
+									      surface `make perf-probe-arm64-fast-push-nonneg-linear-decision` now compares the
+									      shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=0` on the same
+									      fill/share attribution probe plus same-tree exact whole-operation C-ceiling reruns.
+									      The widened rerun
+									      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`)
+									      closes this branch as the next real shipped fill-side win: fill/share strongly
+									      preferred default (`default_fill_vs_c_vector ~2.8909×`, disabled `~4.3823×`),
+									      exact `array_sum_int` also preferred default
+									      (`default_array_ratio_median ~2.2540×` vs disabled `~2.2740×`), and exact
+									      `dot_product_int` preferred default too
+									      (`default_dot_ratio_median ~1.7910×` vs disabled `~1.8065×`).
+									      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` therefore now ships on by default on
+									      the current tree.
 								    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
 								      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
 								      explicit `array_sum_int` get-sum default against explicit mask overrides through the same

@@ -227,6 +227,79 @@ fn _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp, idx_name) {
     return false
 }
 
+fn _arm64_parse_nonneg_int_lit_expr(expr) {
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    var v = intparse.parse_int_lit(expr["value"])
+    if oren_is_err(v) == true { return nil }
+    if v < 0 { return nil }
+    return v
+}
+
+fn _arm64_parse_nonneg_linear_core(expr, idx_name) {
+    if expr == nil || idx_name == nil { return nil }
+    var et = expr["type"]
+    if et == "Integer" {
+        var v = _arm64_parse_nonneg_int_lit_expr(expr)
+        if v == nil { return nil }
+        return {"mul": 0, "add": v}
+    }
+    if et == "Identifier" {
+        if _arm64_str_eq_bytes(expr["value"], idx_name) != true { return nil }
+        return {"mul": 1, "add": 0}
+    }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "+" {
+            var left = _arm64_parse_nonneg_linear_core(expr["left"], idx_name)
+            if left == nil { return nil }
+            var right = _arm64_parse_nonneg_linear_core(expr["right"], idx_name)
+            if right == nil { return nil }
+            return {"mul": left["mul"] + right["mul"], "add": left["add"] + right["add"]}
+        }
+        if op == "*" {
+            var left2 = _arm64_parse_nonneg_linear_core(expr["left"], idx_name)
+            if left2 == nil { return nil }
+            var right2 = _arm64_parse_nonneg_linear_core(expr["right"], idx_name)
+            if right2 == nil { return nil }
+            if left2["mul"] == 0 {
+                return {"mul": right2["mul"] * left2["add"], "add": right2["add"] * left2["add"]}
+            }
+            if right2["mul"] == 0 {
+                return {"mul": left2["mul"] * right2["add"], "add": left2["add"] * right2["add"]}
+            }
+            return nil
+        }
+    }
+    return nil
+}
+
+fn _arm64_parse_nonneg_linear(expr, idx_name) {
+    if expr == nil || idx_name == nil { return nil }
+    if expr["type"] == "Infix" && expr["op"] == "%" {
+        var modv = _arm64_parse_nonneg_int_lit_expr(expr["right"])
+        if modv == nil || modv <= 0 { return nil }
+        var left = _arm64_parse_nonneg_linear_core(expr["left"], idx_name)
+        if left == nil { return nil }
+        return {"mul": left["mul"], "add": left["add"], "mod": modv}
+    }
+    var base = _arm64_parse_nonneg_linear_core(expr, idx_name)
+    if base == nil { return nil }
+    return {"mul": base["mul"], "add": base["add"], "mod": 0}
+}
+
+fn _arm64_nonneg_linear_safe_n_limit(linear) {
+    if linear == nil { return nil }
+    var mul = linear["mul"]
+    var add = linear["add"]
+    if mul == nil || add == nil { return nil }
+    if mul < 0 || add < 0 { return nil }
+    if mul == 0 { return 9223372036854775807 }
+    var max_i64 = 9223372036854775807
+    if add > max_i64 { return nil }
+    var room = max_i64 - add
+    return (room / mul) + 1
+}
+
 fn _arm64_is_list_int_push_call(ctx, exp) {
     if exp == nil || exp["type"] != "Call" { return nil }
     if exp["fn"] == nil { return nil }
@@ -568,11 +641,25 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         single_list_cursor_safe = true
     }
     var all_push_values_idx_int_expr_safe = true
+    var all_push_values_nonneg_linear_safe = true
+    var nonneg_linear_safe_n_limit = nil
     pi = 0
     while pi < oren_list_len(pushes) {
+        var linear = _arm64_parse_nonneg_linear(pushes[pi]["value"], idx_name)
+        pushes[pi]["linear"] = linear
+        if linear == nil {
+            all_push_values_nonneg_linear_safe = false
+        } else {
+            var safe_n = _arm64_nonneg_linear_safe_n_limit(linear)
+            pushes[pi]["linear_safe_n_limit"] = safe_n
+            if safe_n == nil {
+                all_push_values_nonneg_linear_safe = false
+            } else if nonneg_linear_safe_n_limit == nil || safe_n < nonneg_linear_safe_n_limit {
+                nonneg_linear_safe_n_limit = safe_n
+            }
+        }
         if _arm64_expr_is_fast_loop_idx_int_arith(ctx, pushes[pi]["value"], idx_name) != true {
             all_push_values_idx_int_expr_safe = false
-            break
         }
         pi = pi + 1
     }
@@ -584,6 +671,8 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         "pushes": pushes,
         "single_list_cursor_safe": single_list_cursor_safe,
         "all_push_values_idx_int_expr_safe": all_push_values_idx_int_expr_safe,
+        "all_push_values_nonneg_linear_safe": all_push_values_nonneg_linear_safe,
+        "nonneg_linear_safe_n_limit": nonneg_linear_safe_n_limit,
     }
 }
 
