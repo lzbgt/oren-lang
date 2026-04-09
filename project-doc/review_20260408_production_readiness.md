@@ -591,6 +591,47 @@ Push idx-expr fill-side follow-up (2026-04-09):
     the exact whole-operation ceiling, so it is a real production-facing win rather than another
     acceptance-only artifact
 
+Push idx-expr cursor-reg follow-up (2026-04-09):
+
+- I then tested the narrower preserved-cursor follow-up directly on top of that shipped
+  `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` baseline instead of assuming another fill-side local win
+  would survive the exact whole-operation surface.
+- shipped compiler state:
+  - `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+  - opt-in env gate only: `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS`
+- what changed:
+  - the single-list idx-expression fast path can keep the active cursor plus `i/n` in preserved
+    regs across iterations and inline safepoints
+  - after measurement, that branch was kept **default-off** because it did not win on the shipped
+    exact same-tree ranking surface
+- new decision surface:
+  - `make perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision`
+- current widened decision artifact:
+  - `build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260409_191744_50107.log`
+- measured result:
+  - fill/share surface preferred enabled
+    - `default_fill_vs_c_vector: ~4.4711x`
+    - enabled `~3.7073x`
+    - `fill_pref: enabled`
+  - exact whole-operation surface still preferred shipped default
+    - `default_array_ratio_median: ~2.2491x`
+    - enabled `~2.3005x`
+    - `array_default_wins: 3/5`
+    - `default_dot_ratio_median: ~1.8327x`
+    - enabled `~1.8585x`
+    - `exact_array_pref: default`
+    - `exact_dot_pref: default`
+    - `decision_surface_alignment: disagree`
+- integrated verification on the final safe tree:
+  - `build/logs/make_verify_native_list_int_fast_lowering_push_idx_expr_cursor_regs_optin_20260409.log`
+  - `build/logs/make_test_push_idx_expr_cursor_regs_optin_batch_20260409.log`
+  - `build/logs/make_verify_runtime_robustness_push_idx_expr_cursor_regs_optin_batch_20260409.log`
+  - `build/logs/runtime_robustness_w5_20260409_192609.log`
+- corrected conclusion:
+  - keep `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS` opt-in only
+  - this branch improves the local fill/setup surface, but it is another exact-whole-operation loss
+    on the current shipped tree, so it should not become the new default
+
 Perf tooling hardening follow-up:
 
 - the remaining perf/build helper scripts that still hand-parsed

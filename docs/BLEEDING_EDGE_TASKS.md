@@ -1903,9 +1903,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 								      disabled `~5.0143×`), exact `array_sum_int` preferred default in `3/5` sweeps
 								      (`default_array_ratio_median ~2.2989×` vs disabled `~2.3437×`), and exact
 								      `dot_product_int` also preferred default in `4/5` sweeps
-								      (`default_dot_ratio_median ~1.8313×` vs disabled `~1.8546×`).
-								      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` therefore ships on by default on the
-								      current tree.
+									      (`default_dot_ratio_median ~1.8313×` vs disabled `~1.8546×`).
+									      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` therefore ships on by default on the
+									      current tree.
+									    - Arm64 push idx-expr preserved-cursor follow-up (2026-04-09): new ranking
+									      surface `make perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision`
+									      compares the shipped default against the opt-in
+									      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=1` branch on the same
+									      fill/share attribution probe plus same-tree exact whole-operation C-ceiling reruns.
+									      Current widened rerun
+									      (`build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260409_191744_50107.log`)
+									      keeps that cursor-reg branch experimental only: fill/share preferred enabled
+									      (`default_fill_vs_c_vector ~4.4711×`, enabled `~3.7073×`), but exact
+									      same-tree whole-operation medians still preferred the shipped default
+									      (`default_array_ratio_median ~2.2491×` vs enabled `~2.3005×`,
+									      `default_dot_ratio_median ~1.8327×` vs enabled `~1.8585×`).
+									      Reweight: do not ship `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS`
+									      by default; it joins the other “local surface win, exact surface loss” branches.
 								    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
 								      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
 								      explicit `array_sum_int` get-sum default against explicit mask overrides through the same

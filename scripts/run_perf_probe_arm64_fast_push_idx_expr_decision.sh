@@ -8,13 +8,17 @@ ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 
-summary_log="$log_dir/perf-probe-arm64-fast-push-idx-expr-decision-${ts}.log"
-default_fill_wrapper_log="$log_dir/perf-probe-arm64-fast-push-idx-expr-decision-${ts}.default-fill.log"
-disabled_fill_wrapper_log="$log_dir/perf-probe-arm64-fast-push-idx-expr-decision-${ts}.disabled-fill.log"
-manifest_log="$log_dir/perf-probe-arm64-fast-push-idx-expr-decision-${ts}.manifest.tsv"
+tag="${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_TAG:-perf-probe-arm64-fast-push-idx-expr-decision}"
+title="${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_TITLE:-arm64 fast list<int> push idx-expr decision summary}"
+variant_label="${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_VARIANT_LABEL:-disabled}"
+variant_env="${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_VARIANT_ENV:-${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_DISABLE_ENV:-OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR=0}}"
+
+summary_log="$log_dir/${tag}-${ts}.log"
+default_fill_wrapper_log="$log_dir/${tag}-${ts}.default-fill.log"
+variant_fill_wrapper_log="$log_dir/${tag}-${ts}.${variant_label}-fill.log"
+manifest_log="$log_dir/${tag}-${ts}.manifest.tsv"
 
 sweeps="${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_SWEEPS:-3}"
-disabled_env="${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_DISABLE_ENV:-OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR=0}"
 
 extract_summary_path() {
     local run_log="$1"
@@ -35,23 +39,23 @@ PY
 make perf-probe-list-int-fill-share-decision >"$default_fill_wrapper_log" 2>&1
 default_fill_summary="$(extract_summary_path "$default_fill_wrapper_log" "perf-probe-list-int-fill-share-decision-")"
 
-env OREN_BENCH_ENV_BUILD_OREN="$disabled_env" \
-    make perf-probe-list-int-fill-share-decision >"$disabled_fill_wrapper_log" 2>&1
-disabled_fill_summary="$(extract_summary_path "$disabled_fill_wrapper_log" "perf-probe-list-int-fill-share-decision-")"
+env OREN_BENCH_ENV_BUILD_OREN="$variant_env" \
+    make perf-probe-list-int-fill-share-decision >"$variant_fill_wrapper_log" 2>&1
+variant_fill_summary="$(extract_summary_path "$variant_fill_wrapper_log" "perf-probe-list-int-fill-share-decision-")"
 
 : >"$manifest_log"
 for sweep in $(seq 1 "$sweeps"); do
     if (( sweep % 2 == 1 )); then
-        order="default disabled"
+        order="default ${variant_label}"
     else
-        order="disabled default"
+        order="${variant_label} default"
     fi
     for label in $order; do
-        run_log="$log_dir/perf-probe-arm64-fast-push-idx-expr-decision-${ts}-${label}-s${sweep}.run.log"
+        run_log="$log_dir/${tag}-${ts}-${label}-s${sweep}.run.log"
         if [[ "$label" == "default" ]]; then
             env make perf-probe-list-int-c-ceiling >"$run_log" 2>&1
         else
-            env OREN_BENCH_ENV_BUILD_OREN="$disabled_env" make perf-probe-list-int-c-ceiling >"$run_log" 2>&1
+            env OREN_BENCH_ENV_BUILD_OREN="$variant_env" make perf-probe-list-int-c-ceiling >"$run_log" 2>&1
         fi
         summary_path="$(extract_summary_path "$run_log" "perf-probe-list-int-c-ceiling-")"
         printf '%s\t%s\t%s\t%s\n' "$sweep" "$label" "$run_log" "$summary_path" >>"$manifest_log"
@@ -60,11 +64,13 @@ done
 
 DEFAULT_FILL_WRAPPER_LOG="$default_fill_wrapper_log" \
 DEFAULT_FILL_SUMMARY="$default_fill_summary" \
-DISABLED_FILL_WRAPPER_LOG="$disabled_fill_wrapper_log" \
-DISABLED_FILL_SUMMARY="$disabled_fill_summary" \
+VARIANT_FILL_WRAPPER_LOG="$variant_fill_wrapper_log" \
+VARIANT_FILL_SUMMARY="$variant_fill_summary" \
 MANIFEST_LOG="$manifest_log" \
 SWEEPS="$sweeps" \
-DISABLED_ENV="$disabled_env" \
+VARIANT_ENV="$variant_env" \
+VARIANT_LABEL="$variant_label" \
+TITLE="$title" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
@@ -100,7 +106,8 @@ def parse_ceiling(path_str):
 
 
 default_fill = parse_fill(os.environ["DEFAULT_FILL_SUMMARY"])
-disabled_fill = parse_fill(os.environ["DISABLED_FILL_SUMMARY"])
+variant_fill = parse_fill(os.environ["VARIANT_FILL_SUMMARY"])
+variant_label = os.environ["VARIANT_LABEL"]
 
 rows = []
 manifest = Path(os.environ["MANIFEST_LOG"])
@@ -116,7 +123,7 @@ for raw in manifest.read_text(encoding="utf-8", errors="replace").splitlines():
     )
 
 default_rows = [r for r in rows if r["label"] == "default"]
-disabled_rows = [r for r in rows if r["label"] == "disabled"]
+variant_rows = [r for r in rows if r["label"] == variant_label]
 
 
 def ratios_for(key, subset):
@@ -133,17 +140,17 @@ def median_or_none(values):
 
 
 default_array = ratios_for("array_ratio", default_rows)
-disabled_array = ratios_for("array_ratio", disabled_rows)
+variant_array = ratios_for("array_ratio", variant_rows)
 default_dot = ratios_for("dot_ratio", default_rows)
-disabled_dot = ratios_for("dot_ratio", disabled_rows)
+variant_dot = ratios_for("dot_ratio", variant_rows)
 
 array_default_wins = 0
-array_disabled_wins = 0
+array_variant_wins = 0
 dot_default_wins = 0
-dot_disabled_wins = 0
+dot_variant_wins = 0
 for sweep in range(1, int(os.environ["SWEEPS"]) + 1):
     d = next((r for r in default_rows if r["sweep"] == sweep), None)
-    x = next((r for r in disabled_rows if r["sweep"] == sweep), None)
+    x = next((r for r in variant_rows if r["sweep"] == sweep), None)
     if d is None or x is None:
         continue
     da = d["summary"].get("array_ratio")
@@ -152,47 +159,48 @@ for sweep in range(1, int(os.environ["SWEEPS"]) + 1):
         if da < xa:
             array_default_wins += 1
         elif xa < da:
-            array_disabled_wins += 1
+            array_variant_wins += 1
     dd = d["summary"].get("dot_ratio")
     xd = x["summary"].get("dot_ratio")
     if dd is not None and xd is not None:
         if dd < xd:
             dot_default_wins += 1
         elif xd < dd:
-            dot_disabled_wins += 1
+            dot_variant_wins += 1
 
 fill_pref = "tie"
-if default_fill["fill_vs_c_vector"] is not None and disabled_fill["fill_vs_c_vector"] is not None:
-    if default_fill["fill_vs_c_vector"] < disabled_fill["fill_vs_c_vector"]:
+if default_fill["fill_vs_c_vector"] is not None and variant_fill["fill_vs_c_vector"] is not None:
+    if default_fill["fill_vs_c_vector"] < variant_fill["fill_vs_c_vector"]:
         fill_pref = "default"
-    elif disabled_fill["fill_vs_c_vector"] < default_fill["fill_vs_c_vector"]:
-        fill_pref = "disabled"
+    elif variant_fill["fill_vs_c_vector"] < default_fill["fill_vs_c_vector"]:
+        fill_pref = variant_label
 
 exact_array_pref = "tie"
-if default_array and disabled_array:
-    if statistics.median(default_array) < statistics.median(disabled_array):
+if default_array and variant_array:
+    if statistics.median(default_array) < statistics.median(variant_array):
         exact_array_pref = "default"
-    elif statistics.median(disabled_array) < statistics.median(default_array):
-        exact_array_pref = "disabled"
+    elif statistics.median(variant_array) < statistics.median(default_array):
+        exact_array_pref = variant_label
 
 exact_dot_pref = "tie"
-if default_dot and disabled_dot:
-    if statistics.median(default_dot) < statistics.median(disabled_dot):
+if default_dot and variant_dot:
+    if statistics.median(default_dot) < statistics.median(variant_dot):
         exact_dot_pref = "default"
-    elif statistics.median(disabled_dot) < statistics.median(default_dot):
-        exact_dot_pref = "disabled"
+    elif statistics.median(variant_dot) < statistics.median(default_dot):
+        exact_dot_pref = variant_label
 
-print("arm64 fast list<int> push idx-expr decision summary")
+print(os.environ["TITLE"])
 print("")
 print(f"sweeps: {os.environ['SWEEPS']}")
-print(f"disabled_build_env: {os.environ['DISABLED_ENV']}")
+print(f"variant_label: {variant_label}")
+print(f"variant_build_env: {os.environ['VARIANT_ENV']}")
 print("")
 print(f"default_fill_wrapper_log: {os.environ['DEFAULT_FILL_WRAPPER_LOG']}")
 print(f"default_fill_summary: {default_fill['path']}")
-print(f"disabled_fill_wrapper_log: {os.environ['DISABLED_FILL_WRAPPER_LOG']}")
-print(f"disabled_fill_summary: {disabled_fill['path']}")
+print(f"{variant_label}_fill_wrapper_log: {os.environ['VARIANT_FILL_WRAPPER_LOG']}")
+print(f"{variant_label}_fill_summary: {variant_fill['path']}")
 print("")
-for label, metrics in [("default", default_fill), ("disabled", disabled_fill)]:
+for label, metrics in [("default", default_fill), (variant_label, variant_fill)]:
     print(f"{label}_fill_vs_c_vector: {metrics['fill_vs_c_vector']:.4f}x")
     print(f"{label}_fill_vs_setup: {metrics['fill_vs_setup']:.4f}x")
     print(f"{label}_fill_vs_steady: {metrics['fill_vs_steady']:.4f}x")
@@ -213,18 +221,18 @@ for row in rows:
 
 if default_array:
     print(f"default_array_ratio_median: {median_or_none(default_array):.4f}x")
-if disabled_array:
-    print(f"disabled_array_ratio_median: {median_or_none(disabled_array):.4f}x")
+if variant_array:
+    print(f"{variant_label}_array_ratio_median: {median_or_none(variant_array):.4f}x")
 print(f"array_default_wins: {array_default_wins}/{os.environ['SWEEPS']}")
-print(f"array_disabled_wins: {array_disabled_wins}/{os.environ['SWEEPS']}")
+print(f"array_{variant_label}_wins: {array_variant_wins}/{os.environ['SWEEPS']}")
 print(f"exact_array_pref: {exact_array_pref}")
 print("")
 if default_dot:
     print(f"default_dot_ratio_median: {median_or_none(default_dot):.4f}x")
-if disabled_dot:
-    print(f"disabled_dot_ratio_median: {median_or_none(disabled_dot):.4f}x")
+if variant_dot:
+    print(f"{variant_label}_dot_ratio_median: {median_or_none(variant_dot):.4f}x")
 print(f"dot_default_wins: {dot_default_wins}/{os.environ['SWEEPS']}")
-print(f"dot_disabled_wins: {dot_disabled_wins}/{os.environ['SWEEPS']}")
+print(f"dot_{variant_label}_wins: {dot_variant_wins}/{os.environ['SWEEPS']}")
 print(f"exact_dot_pref: {exact_dot_pref}")
 print("")
 if fill_pref == exact_array_pref:
@@ -237,4 +245,4 @@ PY
 
 echo "arm64 fast list<int> push idx-expr decision probe complete; summary: $summary_log"
 echo "default fill wrapper log: $default_fill_wrapper_log"
-echo "disabled fill wrapper log: $disabled_fill_wrapper_log"
+echo "${variant_label} fill wrapper log: $variant_fill_wrapper_log"

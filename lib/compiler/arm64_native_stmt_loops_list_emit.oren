@@ -2148,6 +2148,12 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR") == true {
         idx_int_expr_fast = true
     }
+    var idx_int_expr_cursor_regs = false
+    if single_list_cursor == true &&
+        idx_int_expr_fast == true &&
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS") == true {
+        idx_int_expr_cursor_regs = true
+    }
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -2282,15 +2288,30 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         emit_str_reg_sp_any(ctx, 19, list_base_off + 8)
     }
 
+    if idx_int_expr_cursor_regs == true {
+        // Narrow fill-side fast path: once the value expression is proven to be pure idx arithmetic,
+        // keep the cursor and loop bounds live in preserved regs instead of round-tripping them
+        // through stack slots every iteration.
+        emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
-    emit_ldr_reg_sp_any(ctx, 21, n_off)
+    if idx_int_expr_cursor_regs != true {
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+    if idx_int_expr_cursor_regs == true {
+        gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [[19, 20], [21, 22]])
+    } else {
+        gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+    }
 
     // Keep idx local updated for generic value expressions. The idx-only int fast path uses X20
     // directly and avoids the extra frame spill/reload churn in fill-heavy loops.
@@ -2311,14 +2332,20 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
             _arm64_restore_stack_to(ctx, loop_base_stack)
         }
 
-        emit_ldr_reg_sp_any(ctx, 19, buf_slot2)
-        push_u32_le(ctx["code"], insn_str_ptr(0, 19))
-        push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
-        emit_str_reg_sp_any(ctx, 19, buf_slot2)
-
-        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        if idx_int_expr_cursor_regs == true {
+            push_u32_le(ctx["code"], insn_str_ptr(0, 19))
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+        } else {
+            emit_ldr_reg_sp_any(ctx, 19, buf_slot2)
+            push_u32_le(ctx["code"], insn_str_ptr(0, 19))
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+            emit_str_reg_sp_any(ctx, 19, buf_slot2)
+            emit_ldr_reg_sp_any(ctx, 20, i_off)
+        }
         push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
-        emit_str_reg_sp_any(ctx, 20, i_off)
+        if idx_int_expr_cursor_regs != true {
+            emit_str_reg_sp_any(ctx, 20, i_off)
+        }
     } else {
         var pi = 0
         while pi < oren_list_len(pushes) {
@@ -2367,7 +2394,9 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
 
     // Update list counts after loop exit.
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    if idx_int_expr_cursor_regs != true {
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+    }
     var li2 = 0
     while li2 < list_count {
         var list_slot3 = list_base_off + li2 * 16
@@ -2387,7 +2416,6 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     }
 
     // Update idx local after loop exit.
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
 
     var jpos_skip_slow = bytes_len(ctx["code"])

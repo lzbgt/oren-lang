@@ -283,6 +283,33 @@ That is the current production-quality fill-side result: keep
 `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` shipped on, and keep chasing the larger list build/fill
 lifetime cost from this new baseline instead of going back to rejected get-sum-local branches.
 
+For the narrower preserved-cursor follow-up on top of that same shipped fill-side baseline, use:
+
+```bash
+make perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision
+```
+
+This compares the shipped default against the opt-in
+`OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=1` branch, which keeps the single-list
+idx-expression cursor and loop bounds live in preserved regs instead of round-tripping them through
+stack slots each iteration. Current widened decision artifact
+`build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260409_191744_50107.log`
+keeps that branch experimental only:
+
+- fill/share surface preferred the opt-in branch
+  - default `oren_fill_list_int / c_fill_slot64_vector ~4.4711x`
+  - enabled `~3.7073x`
+  - `fill_pref: enabled`
+- exact same-tree whole-operation C ceiling still preferred the shipped default
+  - `default_array_ratio_median ~2.2491x` vs enabled `~2.3005x` (`array_default_wins: 3/5`)
+  - `default_dot_ratio_median ~1.8327x` vs enabled `~1.8585x` (`dot_enabled_wins: 4/5`, but
+    default median still lower)
+  - `decision_surface_alignment: disagree`
+
+Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS` opt-in only. It is
+another branch where local fill/setup wins do not survive the exact same-tree whole-operation
+ranking surface.
+
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 
 ```bash
