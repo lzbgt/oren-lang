@@ -1237,11 +1237,19 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 						        sweeps (`default_array_ratio_median ~2.2989×`, disabled `~2.3437×`)
 						      - exact `dot_product_int` preferred the shipped default in `4/5` sweeps
 						        (`default_dot_ratio_median ~1.8313×`, disabled `~1.8546×`)
-						    - that is now the stronger whole-operation blocker split on current arm64 `master`:
-						      the helper/public-slot routing question is no longer the main issue, the rejected
-						      get-sum micro-branches remain rejected on the actual shipped decision surface, and
-						      the fill/setup side now has one real shipped improvement but still leaves
-						      `array_sum_int` materially above a competitive slot64 host-C vector path.
+							    - that is now the stronger whole-operation blocker split on current arm64 `master`:
+							      the helper/public-slot routing question is no longer the main issue, the rejected
+							      get-sum micro-branches remain rejected on the actual shipped decision surface, and
+							      the fill/setup side now has one real shipped improvement but still leaves
+							      `array_sum_int` materially above a competitive slot64 host-C vector path.
+							    - a follow-up whole-list runtime fill helper was also tested and then removed from
+							      the tree instead of being left as another speculative opt-in path:
+							      `build/logs/perf-probe-arm64-fast-push-fill-helper-decision-20260409_223410_5754.log`
+							      shows fill/share collapsing from default `~2.3500×` to enabled `~98.8846×` and
+							      exact `array_sum_int` regressing from default `~2.1732×` to enabled `~6.0964×`,
+							      while exact `dot_product_int` only improved slightly (`~1.8157×` -> `~1.7652×`).
+							      That makes the next move narrower and cleaner: stay on safer allocation/fill lifetime
+							      reductions, not whole-list runtime helper rerouting.
 			- Probe UX follow-up:
 	  - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
 	    fallback instead of requiring only per-script smoke env vars, which removes a real measurement

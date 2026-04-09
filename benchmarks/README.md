@@ -335,6 +335,21 @@ Keep `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` shipped on. This is the next 
 fill-side improvement after `PUSH_IDX_EXPR` that wins on both the fill attribution surface and the
 exact same-tree whole-operation surface instead of only one of them.
 
+One more aggressive follow-up on that same baseline was tested and then removed from the tree: a
+single-list whole-fill runtime helper that replaced the explicit push loop with one
+`native_list_int_try_fill_nonneg_linear_exact(...)` call. It did trigger on
+`benchmarks/fill_list_int/fill_list_int.oren`, but the decision artifact
+`build/logs/perf-probe-arm64-fast-push-fill-helper-decision-20260409_223410_5754.log` made the
+result decisive enough to prune immediately:
+
+- fill/share surface collapsed from default `~2.3500x` to enabled `~98.8846x`
+- exact `array_sum_int` median regressed from default `~2.1732x` to enabled `~6.0964x`
+- exact `dot_product_int` median improved slightly (`~1.8157x` -> `~1.7652x`), but not enough to
+  offset the fill/array loss
+
+Reweight again: the next fill/setup lifetime pass should stay on safer allocation/fill lowering, not
+on whole-list runtime helper rerouting for the explicit `list<int>` push loop.
+
 For the native fast-loop list header trace default on that same shipped baseline, use:
 
 ```bash

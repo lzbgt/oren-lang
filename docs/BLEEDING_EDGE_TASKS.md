@@ -1774,11 +1774,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`.
 					      Reweight again: the next high-leverage `array_sum_int` work should attack list
 					      build/fill lifetime/setup costs, not another get-sum-local micro-branch.
-					    - Arm64 fill-side push-index-expression promotion (2026-04-09): the new default-on
-					      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` path keeps pure index-only integer push
-					      expressions on explicit `fast_list_int_push_while` lowering instead of routing them
-					      through generic `native_compile_expr(...)` each iteration. Use
-					      `make perf-probe-arm64-fast-push-idx-expr-decision` as the current ranking surface.
+						    - Arm64 fill-side push-index-expression promotion (2026-04-09): the new default-on
+						      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` path keeps pure index-only integer push
+						      expressions on explicit `fast_list_int_push_while` lowering instead of routing them
+						      through generic `native_compile_expr(...)` each iteration. Use
+						      `make perf-probe-arm64-fast-push-idx-expr-decision` as the current ranking surface.
 					      Current widened rerun
 					      (`build/logs/perf-probe-arm64-fast-push-idx-expr-decision-20260409_183650_90548.log`)
 					      now aligns across both relevant surfaces: fill/share preferred the shipped default
@@ -1786,9 +1786,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      whole-operation `array_sum_int` preferred default in `3/5` sweeps
 					      (`default_array_ratio_median ~2.2989x` vs disabled `~2.3437x`), and exact
 					      `dot_product_int` also preferred default in `4/5` sweeps
-					      (`default_dot_ratio_median ~1.8313x` vs disabled `~1.8546x`). This is the first
-					      post-fill-share branch that improves both the fill attribution surface and the
-					      exact whole-operation ceiling, so it now ships on by default.
+						      (`default_dot_ratio_median ~1.8313x` vs disabled `~1.8546x`). This is the first
+						      post-fill-share branch that improves both the fill attribution surface and the
+						      exact whole-operation ceiling, so it now ships on by default.
+						    - Whole-list runtime fill-helper follow-up rejected and removed (2026-04-09):
+						      a single-list helper that replaced the explicit push loop with one
+						      `native_list_int_try_fill_nonneg_linear_exact(...)` call did trigger on
+						      `benchmarks/fill_list_int/fill_list_int.oren`, but the widened decision artifact
+						      (`build/logs/perf-probe-arm64-fast-push-fill-helper-decision-20260409_223410_5754.log`)
+						      made it an immediate no-ship:
+						      - fill/share exploded from default `~2.3500x` to enabled `~98.8846x`
+						      - exact `array_sum_int` regressed from default `~2.1732x` to enabled `~6.0964x`
+						      - exact `dot_product_int` improved only slightly (`~1.8157x` -> `~1.7652x`)
+						      Cleanup: the helper/runtime/compiler plumbing was removed from the tree instead of
+						      being left as another dead opt-in branch. Reweight: keep chasing safer fill/setup
+						      lifetime reductions, not whole-list runtime helper rerouting.
 				    - Arm64 fast-loop prefix-zero family remains default-off, but the dot leg is now
 				      correctness-clean and isolated (2026-04-09): the statement-level prefix-zero
 				      list<int> fast paths still stay explicit opt-in only via
