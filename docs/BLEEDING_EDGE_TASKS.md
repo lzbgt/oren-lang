@@ -1748,6 +1748,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      enabled `~2.3932x C`, `~3.1297x C`, `~2.1181x C`, `~2.6913x C`, disasm `47` / `60`.
 				      Keep the pair-post branch default-off; instruction-count wins alone still lose on the
 				      measured hot-loop gates.
+				    - New explicit get-sum pair-post decision surface (2026-04-09):
+				      `make perf-probe-arm64-fast-get-sum-pair-post-list-int` now isolates the get-sum
+				      `array_sum_int` leg on the shared `list<int>` acceptance bundle, and
+				      `make perf-probe-arm64-fast-get-sum-pair-post-decision` compares the shipped default
+				      against only `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST=1` on the same-tree exact
+				      whole-operation C ceiling. Current widened rerun
+				      (`build/logs/perf-probe-arm64-fast-get-sum-pair-post-decision-20260409_180234_41790.log`)
+				      shows the acceptance wrapper strongly prefers the enabled branch (`steady -26.20%`,
+				      `gate -53.71%`), but the exact whole-operation reruns still prefer the shipped
+				      default in `3/5` sweeps (`default_array_ratio_median ~2.3604x`, enabled `~2.4015x`;
+				      exact dot also stays slightly better on default at `~1.8539x` vs `~1.8578x`).
+				      Keep the get-sum pair-post branch default-off; the acceptance wrapper is not the
+				      ranking surface for this branch.
 				    - Arm64 fast-loop prefix-zero family remains default-off, but the dot leg is now
 				      correctness-clean and isolated (2026-04-09): the statement-level prefix-zero
 				      list<int> fast paths still stay explicit opt-in only via

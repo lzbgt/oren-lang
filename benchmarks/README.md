@@ -1279,6 +1279,21 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_DUAL_ACCUM` as an explicit opt-in
   experiment only. It is not the missing repeated-read `array_sum_int` fix on the current
   post-unroll2 tree.
+- The next exact-path follow-up on the same explicit get-sum branch is now
+  `make perf-probe-arm64-fast-get-sum-pair-post-decision`. It isolates
+  `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST=1` on the same current-tree decision surface instead
+  of the older mixed `array_sum` + `dot_product` family probe. Current widened rerun
+  (`build/logs/perf-probe-arm64-fast-get-sum-pair-post-decision-20260409_180234_41790.log`)
+  landed with the now-familiar split: the local acceptance wrapper strongly preferred the enabled
+  branch (`enabled_steady_array_sum_int_native_median_delta_pct: -26.20%`,
+  `enabled_gate_array_sum_int_native_median_delta_pct: -53.71%`), but the exact same-tree
+  whole-operation C ceiling still preferred the shipped default in `3/5` sweeps
+  (`default_array_ratio_median: ~2.3604x`, `enabled_array_ratio_median: ~2.4015x`). Exact
+  `dot_product_int` also stayed slightly better on the default (`~1.8539x` vs `~1.8578x`).
+- Reweight again: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST` opt-in only. The older family
+  probe is still useful when judging the combined get-sum + dot pair-load experiment, but the
+  shipped get-sum decision surface is now the dedicated pair-post decision probe plus integrated
+  green lanes, not the acceptance wrapper alone.
 - For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
   `make perf-probe-arm64-fast-dot-unroll2` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-unroll2-list-int` for explicit `dot_product_int`. The shipped
@@ -1314,6 +1329,13 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `gate_dot_product ~2.5682x`, disasm `52` / `70`; enabled `~2.3932x`, `~3.1297x`, `~2.1181x`,
   `~2.6913x`, disasm `47` / `60`. Conclusion: keep the pair-load path disabled by default; the
   lower instruction counts still lose on the measured hot-loop trackers.
+- For the explicit `list<int>` get-sum pair-post branch alone, use
+  `make perf-probe-arm64-fast-get-sum-pair-post-list-int` for the local acceptance A/B and
+  `make perf-probe-arm64-fast-get-sum-pair-post-decision` for the shipped ranking surface. Current
+  decision rerun (`build/logs/perf-probe-arm64-fast-get-sum-pair-post-decision-20260409_180234_41790.log`)
+  says the acceptance wrapper is misleading here too: enabled looked much faster locally, but the
+  exact same-tree whole-operation reruns still preferred the shipped default on both
+  `array_sum_int` and `dot_product_int`. So the get-sum pair-post knob also stays default-off.
 - For the arm64 compile-time-zero prefix-loop family, keep both branches default-off and split the
   measurements by leg. `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1` is still a clear negative
   result on the current host: the isolated rerun

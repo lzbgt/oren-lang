@@ -493,6 +493,32 @@ Conclusion:
 - the new probe means future arm64 loop work can reuse this exact comparison without
   reopening source diffs or re-learning the comma-splitting failure mode
 
+Get-sum-specific follow-up (2026-04-09):
+
+- the old family probe was still the wrong shipping surface for the explicit get-sum leg, so I
+  added:
+  - `make perf-probe-arm64-fast-get-sum-pair-post-list-int`
+  - `make perf-probe-arm64-fast-get-sum-pair-post-decision`
+- the new decision probe
+  (`build/logs/perf-probe-arm64-fast-get-sum-pair-post-decision-20260409_180234_41790.log`)
+  isolates `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST=1` on the shared `array_sum_int`
+  acceptance bundle plus same-tree exact `perf-probe-list-int-c-ceiling` reruns
+- result:
+  - local acceptance wrapper strongly preferred enabled
+    - `enabled_steady_array_sum_int_native_median_delta_pct: -26.20%`
+    - `enabled_gate_array_sum_int_native_median_delta_pct: -53.71%`
+  - exact whole-operation surface still preferred shipped default
+    - `default_array_ratio_median: ~2.3604x`
+    - `enabled_array_ratio_median: ~2.4015x`
+    - `array_default_wins: 3/5`
+  - exact `dot_product_int` also stayed slightly better on default
+    - `default_dot_ratio_median: ~1.8539x`
+    - `enabled_dot_ratio_median: ~1.8578x`
+- corrected conclusion:
+  - keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST` opt-in only
+  - the acceptance wrapper is useful as a local sanity surface, but not as the shipping
+    ranking surface for this branch
+
 Perf tooling hardening follow-up:
 
 - the remaining perf/build helper scripts that still hand-parsed
