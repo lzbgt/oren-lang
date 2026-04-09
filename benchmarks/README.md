@@ -1223,11 +1223,11 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   Keep the cursor path enabled, but treat it as a modest whole-operation improvement, not the
   missing slot64-vector parity fix.
 - For the arm64 explicit `fast_list_int_get_sum_while` unroll-by-2 follow-up, use
-  `make perf-probe-arm64-fast-get-sum-unroll2-list-int`. After the root-cause fix in
-  `lib/compiler/arm64_native_stmt_loops_list_emit.oren`, the shipped tree now keeps
-  `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` on by default for single-read-list shapes and compares
-  that live default against `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2=0` through the same
-  serialized acceptance bundle.
+  `make perf-probe-arm64-fast-get-sum-unroll2-list-int` for the local acceptance A/B and
+  `make perf-probe-arm64-fast-get-sum-unroll2-decision` for the actual shipped decision surface.
+  After the root-cause fix in `lib/compiler/arm64_native_stmt_loops_list_emit.oren`, the shipped
+  tree now keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` on by default for single-read-list
+  shapes and compares that live default against `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2=0`.
 - The earlier crashy candidate was not a vague runtime flake. The experimental unrolled arm64
   bodies were reusing reserved heap registers `X27` / `X28` as loop value temporaries; those temps
   now live in caller-saved `X12` / `X13`, which keeps the heap globals intact across the exact
@@ -1241,12 +1241,24 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `build/logs/make_test_get_sum_unroll2_promote_20260409.log`,
   `build/logs/make_verify_runtime_robustness_get_sum_unroll2_promote_20260409.log`, and
   `build/logs/runtime_robustness_w5_20260409_163313.log`.
-- The paired acceptance rerun on the same promoted default
+- The old paired acceptance rerun on the same promoted default
   (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_163132_20811.log`) stayed
   noisy and locally favored the disabled branch (`0.067315s` default vs `0.058718s` disabled
-  steady native median, with default native `cov=0.1658`). Treat that wrapper as a local sanity
-  surface only; the exact whole-operation C ceiling plus the full integrated gates are now the
-  decisive shipped decision surface for this path.
+  steady native median, with default native `cov=0.1658`).
+- The new combined decision probe
+  (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-decision-20260409_170812_66742.log`) makes
+  that disagreement explicit on the same current tree:
+  - acceptance steady still preferred disabled (`disabled_steady_array_sum_int_native_median_delta_pct: -4.79%`)
+  - acceptance gate slightly preferred default (`disabled_gate_array_sum_int_native_median_delta_pct: +0.78%`)
+  - exact whole-operation `array_sum_int` strongly preferred the shipped default in all three
+    same-tree sweeps (`array_default_wins: 3/3`), with default median
+    `oren_array_sum_int / array_slot64_vector ~2.3793x` vs disabled median `~5.3859x`
+  - exact whole-operation `dot_product_int` stayed mixed (`default ~1.8343x`, disabled `~1.8138x`,
+    disabled wins `2/3`), which is consistent with this knob being an `array_sum_int` get-sum
+    decision, not a general dot-path optimization
+- Treat the acceptance wrapper as a local sanity surface only. For shipped decisions on this path,
+  the reusable source of truth is now the combined decision probe plus integrated green lanes, with
+  the exact whole-operation `array_sum_int` C ceiling carrying the ranking weight.
 - For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
   `make perf-probe-arm64-fast-dot-unroll2` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-unroll2-list-int` for explicit `dot_product_int`. The shipped

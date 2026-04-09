@@ -1866,16 +1866,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 								      `lib/compiler/arm64_native_stmt_loops_list_emit.oren`, where the unrolled
 								      bodies were clobbering reserved heap registers `X27` / `X28`. Those temps now
 								      use caller-saved `X12` / `X13`, and
-								      `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` now ships on by default for
-								      single-read-list shapes. The promoted exact whole-operation rerun
-								      (`build/logs/perf-probe-list-int-c-ceiling-20260409_163202_21950.log`) keeps
-								      `oren_array_sum_int / array_slot64_vector ~2.3939×`, while the broad gates now
-								      pass in `build/logs/make_test_get_sum_unroll2_promote_20260409.log` and
-								      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_promote_20260409.log`
-								      / `build/logs/runtime_robustness_w5_20260409_163313.log`. The paired acceptance
-								      wrapper (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_163132_20811.log`)
-								      stayed noisy and locally favored the disabled branch, so exact whole-operation
-								      ceiling plus integrated green lanes are now the decision surface for this path.
+									      `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` now ships on by default for
+									      single-read-list shapes. The promoted exact whole-operation rerun
+									      (`build/logs/perf-probe-list-int-c-ceiling-20260409_163202_21950.log`) keeps
+									      `oren_array_sum_int / array_slot64_vector ~2.3939×`, while the broad gates now
+									      pass in `build/logs/make_test_get_sum_unroll2_promote_20260409.log` and
+									      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_promote_20260409.log`
+									      / `build/logs/runtime_robustness_w5_20260409_163313.log`. The new combined decision
+									      probe (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-decision-20260409_170812_66742.log`)
+									      makes the disagreement explicit: acceptance steady still preferred disabled
+									      (`-4.79%`), acceptance gate slightly preferred default (`+0.78%`), but exact
+									      whole-operation `array_sum_int` preferred the shipped default in all three
+									      same-tree sweeps (`~2.3793×` vs disabled `~5.3859×`, `array_default_wins: 3/3`).
+									      Keep treating the acceptance wrapper as local sanity only; exact whole-operation
+									      ceiling plus integrated green lanes are the decision surface for this path.
 			    - Native gate summary hygiene (2026-04-04):
 			      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate

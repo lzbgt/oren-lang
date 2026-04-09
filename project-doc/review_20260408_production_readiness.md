@@ -923,15 +923,22 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_163202_21950.log`) now keeps
 							      `oren_array_sum_int / array_slot64_vector ~2.3939×` and
 							      `oren_dot_product_int / dot_slot64_vector ~1.8678×`
-							    - the broad integrated gates that previously rejected the candidate now pass in
-							      `build/logs/make_test_get_sum_unroll2_promote_20260409.log`,
-							      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_promote_20260409.log`,
-							      and `build/logs/runtime_robustness_w5_20260409_163313.log`
-							    - the paired acceptance wrapper
-							      (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_163132_20811.log`)
-							      stayed noisy and locally favored the disabled branch, so exact whole-operation
-							      ceiling plus integrated green lanes are now the decision surface for this shipped
-							      path, not that local micro-probe alone
+								    - the broad integrated gates that previously rejected the candidate now pass in
+								      `build/logs/make_test_get_sum_unroll2_promote_20260409.log`,
+								      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_promote_20260409.log`,
+								      and `build/logs/runtime_robustness_w5_20260409_163313.log`
+								    - the new combined decision probe
+								      (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-decision-20260409_170812_66742.log`)
+								      now records the same-tree disagreement instead of leaving it implicit:
+								      acceptance steady still preferred disabled (`-4.79%`), acceptance gate slightly
+								      preferred default (`+0.78%`), but exact whole-operation `array_sum_int`
+								      preferred the shipped default in all three sweeps (`~2.3793×` vs disabled
+								      `~5.3859×`, `array_default_wins: 3/3`)
+								    - exact `dot_product_int` stayed mixed in that same probe (`default ~1.8343×`,
+								      disabled `~1.8138×`, disabled wins `2/3`), which is consistent with this knob
+								      being a get-sum / `array_sum_int` decision rather than a general dot-path win
+								    - so exact whole-operation ceiling plus integrated green lanes remain the shipped
+								      decision surface for this path, not the local acceptance micro-probe by itself
 							    - reweight accordingly: the get-sum tick-mask probe
 						      is worth keeping but is still not the missing slot64-vector parity fix
 						    - that is the stronger whole-operation blocker split on current arm64 `master`: the
