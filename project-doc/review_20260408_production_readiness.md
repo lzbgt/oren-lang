@@ -733,12 +733,15 @@ Whole-list helper follow-up (2026-04-09):
 - Correctness and lowering shape were clean:
   - `make verify-native-list-int-fast-lowering`
   - log: `build/logs/verify_native_list_int_fast_lowering_20260409_000729_50400.log`
-- But the production metric was wrong: serialized no-smoke read-split reruns showed the default-on
-  shortcut made the shipped whole-operation path slower, not faster.
-  - enabled summary: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`
-  - disabled summary: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`
-  - `array_sum_int`: `~1.3445x C` enabled vs `~1.1896x C` disabled
-  - `dot_product_int`: `~1.4160x C` enabled vs `~1.3166x C` disabled
+- But the production metric was wrong: the refreshed post-unroll2 decision probe
+  (`build/logs/perf-probe-arm64-whole-list-get-sum-helper-decision-20260409_173112_97220.log`)
+  makes the current-tree split explicit.
+  - exact `array_sum_int`: shipped default `~1.9974x` vs helper-enabled `~13.6272x`
+    (`exact_array_winner: default`, helper/default `~6.8225x`)
+  - exact `dot_product_int`: shipped default `~1.7628x` vs helper-enabled `~1.8728x`
+  - small read-split hidden helper ceiling remains context only:
+    `slot_direct_array_long_per_rep ~1.0113x`,
+    `slot_direct_vs_canonical_array_long_per_rep ~0.7866x`
 - Result:
   - `OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER`
   - `OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER`

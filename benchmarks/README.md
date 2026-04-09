@@ -580,20 +580,28 @@ the shipped canonical loop on this split, which makes canonical/direct-slot conv
 value next step than more packed-bridge tuning.
 
 A later exact whole-list shortcut follow-up on 2026-04-09 showed that this does **not** mean the
-canonical loop should just call the unchecked helper by default. The experimental
+canonical loop should just call the unchecked helper by default. Use
+`make perf-probe-arm64-whole-list-get-sum-helper-decision` for the current shipped-tree decision
+surface.
+
+The latest artifact,
+`build/logs/perf-probe-arm64-whole-list-get-sum-helper-decision-20260409_173112_97220.log`,
+comes back as:
+
+- exact current-tree `array_sum_int`: shipped default `~1.9974x` vs helper-enabled `~13.6272x`
+  (`exact_array_winner: default`, helper/default `~6.8225x`)
+- exact current-tree `dot_product_int`: shipped default `~1.7628x` vs helper-enabled `~1.8728x`
+- small read-split hidden helper ceiling stays decent: `slot_direct_array_long_per_rep ~1.0113x`,
+  `slot_direct_vs_canonical_array_long_per_rep ~0.7866x`
+
+That is the important split: the hidden direct helper ceiling can still be useful context on the
+small split surface, but the canonical whole-list helper shortcut is still the wrong production
+move on the exact current tree. Keep
 `OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER=1` /
-`OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1` path stayed correctness-clean, but the
-sequential no-smoke rerun (`runs=4`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=4`) regressed
-whole-operation canonical cost:
+`OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1` opt-in only.
 
-- enabled artifact: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`
-- disabled artifact: `build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`
-- `array_sum_int`: `~1.3445x C` enabled vs `~1.1896x C` disabled
-- `dot_product_int`: `~1.4160x C` enabled vs `~1.3166x C` disabled
-
-Those helper knobs are therefore opt-in only. Also: do not run enabled-vs-disabled comparisons for
-this target in parallel. `make perf-probe-list-int-slot-direct-read-split` shares benchmark build
-artifacts, so causal A/B runs need to be serialized.
+Also: do not run enabled-vs-disabled comparisons for this target in parallel. The benchmark build
+artifacts are shared, so causal A/B runs need to be serialized.
 
 For the same short/long split surface, but comparing the public `std:linalg` slot wrappers against
 both the shipped canonical loops and the hidden direct-slot helper ceiling, use:

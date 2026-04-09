@@ -1427,18 +1427,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					     whole-operation fact did not move: Oren steady per-rep came back at `~0.001311s`
 					     versus slot64 C vector `~0.000204s` (`~6.4228×`). Reweight again: the structural
 					     blocker is still the repeated get-sum loop, not another one-time setup tweak.
-									   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
-									     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
-									     whole-operation path. The sequential no-smoke rerun with
-						     `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER=1`
-					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`,
-					     `runs=4 warmups=0 n=20000 short_reps=1 long_reps=4`) versus the disabled baseline
-					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`)
-					     came back as:
-					     - `array_sum_int`: `~1.3445× C` enabled vs `~1.1896× C` disabled
-					     - `dot_product_int`: `~1.4160× C` enabled vs `~1.3166× C` disabled
-					     Reweight again: do not ship the exact whole-list helper shortcut; keep those knobs
-					     opt-in only and look for a different canonical/direct-slot convergence move.
+										   - Exact whole-list helper follow-up (2026-04-09): the refreshed post-unroll2
+										     decision probe
+										     (`build/logs/perf-probe-arm64-whole-list-get-sum-helper-decision-20260409_173112_97220.log`)
+										     confirms the canonical shortcut is still wrong on the exact shipped tree:
+										     - exact `array_sum_int`: default `~1.9974×` vs helper-enabled `~13.6272×`
+										       (`exact_array_winner: default`, helper/default `~6.8225×`)
+										     - exact `dot_product_int`: default `~1.7628×` vs helper-enabled `~1.8728×`
+										     - small split hidden helper ceiling stays useful context only:
+										       `slot_direct_array_long_per_rep ~1.0113×`,
+										       `slot_direct_vs_canonical_array_long_per_rep ~0.7866×`
+										     Reweight again: do not ship the exact whole-list helper shortcut; keep those
+										     knobs opt-in only and look for a different canonical/direct-slot convergence move.
 				   - Read-split rerun (2026-04-08): latest
 				     `make perf-probe-list-int-packed-bridge-read-split`
 				     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`)

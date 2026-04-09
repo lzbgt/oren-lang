@@ -494,22 +494,22 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     residual gap is smaller than the earlier tracker state on both steady benchmarks. Keep the
 			     packed bridge deprioritized and treat the remaining work as a narrow public-wrapper /
 			     helper convergence problem.
-		   - Exact whole-list helper follow-up (2026-04-09): routing the canonical exact whole-list
-		     `array_sum_int` / `dot_product_int` shapes through `oren_list_int_reduce_sum_slots_unchecked`
-		     / `oren_list_int_dot_slots_unchecked` stayed correctness-clean and preserved the existing
-		     lowering traces (`build/logs/verify_native_list_int_fast_lowering_20260409_000729_50400.log`),
-		     but the sequential no-smoke read-split rerun showed the shipped whole-operation path gets
-		     worse when that shortcut is enabled. Enabled artifact
-		     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`,
-		     `runs=4 warmups=0 n=20000 short_reps=1 long_reps=4`) versus disabled artifact
-		     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`) came
-		     back as:
-		     - `array_sum_int`: `~1.3445× C` enabled vs `~1.1896× C` disabled
-		     - `dot_product_int`: `~1.4160× C` enabled vs `~1.3166× C` disabled
-		     Result: the helper shortcut remains available only as an opt-in experiment via
+		   - Exact whole-list helper follow-up (2026-04-09): the refreshed post-unroll2 decision probe
+		     `make perf-probe-arm64-whole-list-get-sum-helper-decision` now replaces the older manual
+		     comparison. Latest artifact
+		     (`build/logs/perf-probe-arm64-whole-list-get-sum-helper-decision-20260409_173112_97220.log`)
+		     shows the same current-tree split more sharply:
+		     - exact `array_sum_int`: shipped default `~1.9974×` vs helper-enabled `~13.6272×`
+		       (`exact_array_winner: default`, helper/default `~6.8225×`)
+		     - exact `dot_product_int`: shipped default `~1.7628×` vs helper-enabled `~1.8728×`
+		     - small split hidden helper ceiling still looks reasonable:
+		       `slot_direct_array_long_per_rep ~1.0113×`,
+		       `slot_direct_vs_canonical_array_long_per_rep ~0.7866×`
+		     Result: the hidden helper ceiling remains useful context, but the canonical whole-list
+		     helper shortcut is still the wrong production move on the exact shipped tree. Keep
 		     `OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER=1` and
-		     `OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1`; the default path stays on the existing
-		     canonical fast loop.
+		     `OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1` opt-in only; the default path stays on
+		     the existing canonical fast loop.
 		   - Read-split rerun (2026-04-08): the paired
 		     `make perf-probe-list-int-packed-bridge-read-split` artifact
 		     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260408_232146_91269.log`,
