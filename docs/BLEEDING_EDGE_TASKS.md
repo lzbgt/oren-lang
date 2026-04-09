@@ -1375,10 +1375,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						     helper/public ranking. The light `runs=2`, `reps=2` ceiling probe still flipped
 						     direct-slot vs public-slot ordering, which is why the new order-balanced stability probe
 						     was added next.
-						   - Order-balanced ceiling stability follow-up (2026-04-09): new
-						     `make perf-probe-list-int-dot-ceiling-stability` rotates baseline, direct-slot,
-						     public-slot, packed-scalar, and packed-SIMD across five sweeps so each case appears in
-						     each starting position once. Latest artifact:
+							   - Order-balanced ceiling stability follow-up (2026-04-09): new
+							     `make perf-probe-list-int-dot-ceiling-stability` rotates baseline, direct-slot,
+							     public-slot, packed-scalar, and packed-SIMD across five sweeps so each case appears in
+							     each starting position once. Latest artifact:
 						     `build/logs/perf-probe-list-int-dot-ceiling-stability-20260409_123207_90132.log`
 						     (`sweeps=5`, `runs=3`, `warmups=1`, `n=20000`, `reps=4`) now comes back as:
 						     - `array_sum_rank_counts`: canonical `2/5` wins, direct-slot `2/5`, public-slot `1/5`
@@ -1387,15 +1387,41 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						       public-slot `~1.2729× C`
 						     - median `dot_product_int`: canonical `~1.2177× C`, public-slot `~1.2231× C`,
 						       direct-slot `~1.3097× C`
-						     Reweight again: on the stronger repeated surface, current arm64 canonical is now the best
-						     whole-operation median on both benchmarks. Public-slot remains close enough to win some
-						     `dot_product_int` sweeps, but neither public-slot nor hidden direct-slot is a stable
-						     whole-operation winner on current `master`. Use this new stability probe for ordering
-						     decisions and stop assuming more helper/public lowering will automatically beat the
-						     shipped canonical arm64 path.
-								   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
-								     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
-								     whole-operation path. The sequential no-smoke rerun with
+							     Reweight again: on the stronger repeated surface, current arm64 canonical is now the best
+							     whole-operation median on both benchmarks. Public-slot remains close enough to win some
+							     `dot_product_int` sweeps, but neither public-slot nor hidden direct-slot is a stable
+							     whole-operation winner on current `master`. Use this new stability probe for ordering
+							     decisions and stop assuming more helper/public lowering will automatically beat the
+							     shipped canonical arm64 path.
+							   - Whole-operation host-C ceiling follow-up (2026-04-09): new
+							     `make perf-probe-list-int-c-ceiling` broadens the earlier dot-only slot-ABI ceiling
+							     probe across both canonical benchmarks by timing packed32 C, slot64 C, and the shipped
+							     Oren native `array_sum_int` / `dot_product_int` binaries under the same whole-operation
+							     workload. Latest artifact:
+							     `build/logs/perf-probe-list-int-c-ceiling-20260409_124641_14363.log`
+							     (`runs=5`, `warmups=1`, `n=2000000`, `reps=100`) now comes back as:
+							     - `array_sum_int`
+							       - packed32 C vector: `~0.000134s`
+							       - slot64 C vector: `~0.000259s`
+							       - slot64 C scalar: `~0.000766s`
+							       - Oren canonical: `~0.001304s`
+							     - `dot_product_int`
+							       - packed32 C vector: `~0.000265s`
+							       - slot64 C vector: `~0.000718s`
+							       - slot64 C scalar: `~0.000739s`
+							       - Oren canonical: `~0.001347s`
+							     - decisive ratios:
+							       - `array_slot64_vector / array_packed32_vector`: `~1.9407×`
+							       - `oren_array_sum_int / array_slot64_vector`: `~5.0268×`
+							       - `dot_slot64_vector / dot_packed32_vector`: `~2.7136×`
+							       - `oren_dot_product_int / dot_slot64_vector`: `~1.8769×`
+							     Reweight again: helper/public-slot ordering is no longer the main blocker. On current
+							     arm64 `master`, `array_sum_int` still lacks a competitive slot64-vector whole-operation
+							     path, while `dot_product_int` remains materially above even the slot64 host-C ceiling
+							     inside the current ABI.
+									   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
+									     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
+									     whole-operation path. The sequential no-smoke rerun with
 						     `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER=1`
 					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`,
 					     `runs=4 warmups=0 n=20000 short_reps=1 long_reps=4`) versus the disabled baseline

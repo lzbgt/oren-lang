@@ -162,6 +162,51 @@ not the packed `smlal/smlal2` loop seen in the packed-i32 benchmark. That is the
 fact to use for next-step planning: the 64-bit slot ABI itself largely erases the auto-vectorization
 gain, and the shipped Oren canonical loop is already within about 5% of that slot64 host-C ceiling.
 
+For the broader whole-operation picture across both `array_sum_int` and `dot_product_int`, use:
+
+```bash
+make perf-probe-list-int-c-ceiling
+```
+
+This builds and times eight binaries on the same `n/reps` workload:
+
+- packed32 C `array_sum`
+- slot64 C `array_sum`
+- Oren native canonical `array_sum_int`
+- packed32 C `dot_product`
+- slot64 C `dot_product`
+- Oren native canonical `dot_product_int`
+
+Each C shape is timed both with default `-O2` and with vectorization disabled. The latest artifact,
+`build/logs/perf-probe-list-int-c-ceiling-20260409_124641_14363.log`, shows:
+
+- `array_sum_int`
+  - packed32 C vector: `~0.000134s` per rep
+  - packed32 C scalar: `~0.000733s` per rep
+  - slot64 C vector: `~0.000259s` per rep
+  - slot64 C scalar: `~0.000766s` per rep
+  - Oren native canonical: `~0.001304s` per rep
+- `dot_product_int`
+  - packed32 C vector: `~0.000265s` per rep
+  - packed32 C scalar: `~0.000755s` per rep
+  - slot64 C vector: `~0.000718s` per rep
+  - slot64 C scalar: `~0.000739s` per rep
+  - Oren native canonical: `~0.001347s` per rep
+
+The decisive ratios are:
+
+- `array_slot64_vector / array_packed32_vector`: `~1.9407x`
+- `oren_array_sum_int / array_slot64_vector`: `~5.0268x`
+- `oren_array_sum_int / array_slot64_scalar`: `~1.7020x`
+- `dot_slot64_vector / dot_packed32_vector`: `~2.7136x`
+- `dot_slot64_scalar / dot_packed32_scalar`: `~0.9798x`
+- `oren_dot_product_int / dot_slot64_vector`: `~1.8769x`
+
+That is the current whole-operation ceiling fact on arm64 `master`: the helper/public-slot ranking
+question is no longer the main blocker. `array_sum_int` still leaves a large gap to a competitive
+slot64 host-C vector path, while `dot_product_int` remains materially above even the slot64 host-C
+ceiling after the current 64-bit slot ABI has already erased most of the packed-vector gain.
+
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 
 ```bash

@@ -870,14 +870,34 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 			        public-slot `~1.2729× C`
 			      - median `dot_product_int`: canonical `~1.2177× C`, public-slot `~1.2231× C`,
 			        direct-slot `~1.3097× C`
-			    - that is the new production-quality ranking fact on current arm64 `master`: the shipped
-			      canonical path is now the best repeated whole-operation median on both benchmarks,
-			      public-slot remains close enough to win some `dot_product_int` sweeps, and the hidden
-			      direct-slot helper is no longer a stable whole-operation winner
-		- Probe UX follow-up:
-  - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
-    fallback instead of requiring only per-script smoke env vars, which removes a real measurement
-    consistency footgun during no-smoke reruns
+				    - that is the new production-quality ranking fact on current arm64 `master`: the shipped
+				      canonical path is now the best repeated whole-operation median on both benchmarks,
+				      public-slot remains close enough to win some `dot_product_int` sweeps, and the hidden
+				      direct-slot helper is no longer a stable whole-operation winner
+				    - the new broader host-C ceiling follow-up is now
+				      `make perf-probe-list-int-c-ceiling`
+				      (`build/logs/perf-probe-list-int-c-ceiling-20260409_124641_14363.log`), which widens the
+				      earlier dot-only slot-ABI ceiling across both canonical benchmarks by comparing packed32
+				      C, slot64 C, and shipped Oren native whole-operation binaries under one workload
+				    - on that surface:
+				      - `array_sum_int`: packed32 C vector `~0.000134s`, slot64 C vector `~0.000259s`,
+				        slot64 C scalar `~0.000766s`, Oren canonical `~0.001304s`
+				      - `dot_product_int`: packed32 C vector `~0.000265s`, slot64 C vector `~0.000718s`,
+				        slot64 C scalar `~0.000739s`, Oren canonical `~0.001347s`
+				      - decisive ratios:
+				        - `array_slot64_vector / array_packed32_vector`: `~1.9407×`
+				        - `oren_array_sum_int / array_slot64_vector`: `~5.0268×`
+				        - `dot_slot64_vector / dot_packed32_vector`: `~2.7136×`
+				        - `oren_dot_product_int / dot_slot64_vector`: `~1.8769×`
+				    - that is the stronger whole-operation blocker split on current arm64 `master`: the
+				      helper/public-slot routing question is no longer the main issue. `array_sum_int`
+				      still leaves a large gap to a competitive slot64 host-C vector path, while
+				      `dot_product_int` still sits materially above even the slot64 host-C ceiling inside
+				      the current 64-bit slot ABI.
+			- Probe UX follow-up:
+	  - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
+	    fallback instead of requiring only per-script smoke env vars, which removes a real measurement
+	    consistency footgun during no-smoke reruns
 
 Started but not carried to completion in this pass:
 
