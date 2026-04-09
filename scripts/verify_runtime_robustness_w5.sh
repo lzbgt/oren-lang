@@ -16,6 +16,40 @@ if [[ ! -x "$compiler" ]]; then
   exit 2
 fi
 
+run_with_timeout() {
+  local secs="$1"
+  shift
+  local had_errexit=0
+  case "$-" in
+    *e*) had_errexit=1 ;;
+  esac
+  set +e
+  "$@" &
+  local pid=$!
+  (
+    sleep "$secs"
+    kill -TERM "$pid" 2>/dev/null || true
+    sleep 2
+    kill -KILL "$pid" 2>/dev/null || true
+  ) &
+  local killer=$!
+  wait "$pid"
+  local rc=$?
+  kill "$killer" 2>/dev/null || true
+  wait "$killer" 2>/dev/null || true
+  if [[ "$had_errexit" -eq 1 ]]; then
+    set -e
+  fi
+  return "$rc"
+}
+
+base_prewarm="${OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM:-1}"
+base_prewarm_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_TIMEOUT_SECS:-360}"
+base_prewarm_build_compiler="${OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_BUILD_COMPILER:-./oren}"
+if [[ ! -x "$base_prewarm_build_compiler" ]]; then
+  base_prewarm_build_compiler="$compiler"
+fi
+
 base_runs="${OREN_RUNTIME_ROBUSTNESS_BASE_RUNS:-1}"
 local_ptr_runs="${OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS:-1}"
 preworld_runs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS:-1}"
@@ -57,6 +91,9 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "uname=$uname_out"
   echo "git_rev=$git_rev"
   echo "fixtures=$fixtures"
+  echo "base_prewarm=$base_prewarm"
+  echo "base_prewarm_timeout_secs=$base_prewarm_timeout_secs"
+  echo "base_prewarm_build_compiler=$base_prewarm_build_compiler"
   echo "base_build_timeout_secs=$base_build_timeout_secs"
   echo "preworld_build_timeout_secs=$preworld_build_timeout_secs"
   echo "preworld_run_timeout_secs=$preworld_run_timeout_secs"
@@ -68,6 +105,34 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 IFS=',' read -r -a fixture_arr <<< "$fixtures"
 
 if [[ "$base_runs" =~ ^[0-9]+$ ]] && [[ "$base_runs" -gt 0 ]]; then
+  if [[ "$base_prewarm" != "0" && "$base_prewarm" != "false" ]]; then
+    base_prewarm_log="build/logs/runtime_robustness_base_prewarm_${ts}.log"
+    {
+      echo "ts=$ts"
+      echo "compiler=$compiler"
+      echo "build_compiler=$base_prewarm_build_compiler"
+      echo "timeout_secs=$base_prewarm_timeout_secs"
+      echo "cwd=$(pwd)"
+      echo "git_rev=$git_rev"
+    } >"$base_prewarm_log"
+    echo "== stage1/base runtime seed prewarm ==" | tee -a "$log"
+    if ! run_with_timeout "$base_prewarm_timeout_secs" \
+      ./scripts/build_runtime_astbin_seed.sh --compiler "$base_prewarm_build_compiler" \
+      >>"$base_prewarm_log" 2>&1; then
+      echo "ERROR: stage1/base runtime astbin seed prewarm failed (log=$base_prewarm_log)" | tee -a "$log"
+      tail -n 120 "$base_prewarm_log" | tee -a "$log"
+      exit 1
+    fi
+    if ! run_with_timeout "$base_prewarm_timeout_secs" \
+      ./scripts/build_rtobj_seed.sh --compiler "$compiler" \
+      --build-compiler "$base_prewarm_build_compiler" --debug \
+      >>"$base_prewarm_log" 2>&1; then
+      echo "ERROR: stage1/base runtime obj seed prewarm failed (log=$base_prewarm_log)" | tee -a "$log"
+      tail -n 120 "$base_prewarm_log" | tee -a "$log"
+      exit 1
+    fi
+    echo "OK: stage1/base runtime seed prewarm complete (log=$base_prewarm_log)" | tee -a "$log"
+  fi
   echo "== stage1/base quick integration (runs=$base_runs) ==" | tee -a "$log"
   OREN_NATIVE_BUILD_TIMEOUT_SECS="$base_build_timeout_secs" \
     ./scripts/triage_native_quick_base_flake.sh "$base_runs" "$compiler" \

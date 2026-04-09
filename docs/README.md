@@ -37,6 +37,7 @@ make test       # fast native smoke
 make test-selfhost  # heavier stage2/capsule/optimizer self-host bundle
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-native-quick-base-guarded  # stage1 base quick path, strict no-retry
+make verify-native-quick-base-cold-seeded  # stage2 base quick path on empty active runtime caches; asserts rtobj.seed_hit after seed prewarm
 make verify-native-quick-green-local-ptr-guarded  # focused stage1 green-cache local-ptr mixed both-mode direct guard, fairness skipped
 make test-native-quick-green-cache-flake  # stage1 green-cache triage, strict no-retry
 make test-native-quick-green-local-ptr-flake  # focused stage1 green-cache local-ptr harness triage
@@ -127,7 +128,9 @@ make verify-status-markdown  # smoke for status markdown renderer
 
 # Optional knobs for runtime robustness:
 # - OREN_RUNTIME_ROBUSTNESS_RUNS, OREN_RUNTIME_ROBUSTNESS_COMPILER
-# - OREN_RUNTIME_ROBUSTNESS_BASE_RUNS, OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS
+# - OREN_RUNTIME_ROBUSTNESS_BASE_RUNS, OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM
+# - OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_TIMEOUT_SECS, OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_BUILD_COMPILER
+# - OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS
 # - OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS
 # - OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS, OREN_RUNTIME_ROBUSTNESS_C_RUNS
 # - OREN_RUNTIME_ROBUSTNESS_C_FIXTURES, OREN_RUNTIME_ROBUSTNESS_TRACE_ENV

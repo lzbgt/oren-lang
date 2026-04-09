@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test test-selfhost verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-green-cache-flake test-native-quick-green-local-ptr-flake test-native-quick-green-local-ptr-direct-flake test-native-quick-green-local-ptr-plain-flake test-native-quick-green-local-ptr-workers-flake test-native-quick-green-local-ptr-split-flake test-native-quick-green-fairness-flake test-native-quick-green-fairness-zeroarg-flake test-native-quick-green-fairness-onearg-flake test-native-quick-green-fairness-onearg-direct-flake test-native-quick-green-fairness-onearg-modes-flake test-native-quick-green-fairness-onearg-count-sweep-flake test-native-quick-green-fairness-modes-flake test-native-quick-gc-stw-focus-flake test-native-quick-green-tail-flake test-native-quick-green-join-waiters-stress-flake test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-native-quick-green-local-ptr-guarded verify-green-world-lock-guarded verify-green-preworld-guarded verify-green-fairness-guarded verify-backend-parity verify-backend-parity-bytes verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-index-audit-trend readiness-report-collect readiness-report-collect-list readiness-report-collect-pack readiness-report-sanitize readiness-pipeline status-snapshot status-snapshot-diff status-faq status-faq-diff status-matrix status-matrix-diff status-markdown verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-index-audit-trend verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-report-collect-pack verify-readiness-report-sanitize verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff verify-status-faq verify-status-faq-diff verify-status-matrix verify-status-matrix-diff verify-status-markdown benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-green-cache-flake test-native-quick-green-local-ptr-flake test-native-quick-green-local-ptr-direct-flake test-native-quick-green-local-ptr-plain-flake test-native-quick-green-local-ptr-workers-flake test-native-quick-green-local-ptr-split-flake test-native-quick-green-fairness-flake test-native-quick-green-fairness-zeroarg-flake test-native-quick-green-fairness-onearg-flake test-native-quick-green-fairness-onearg-direct-flake test-native-quick-green-fairness-onearg-modes-flake test-native-quick-green-fairness-onearg-count-sweep-flake test-native-quick-green-fairness-modes-flake test-native-quick-gc-stw-focus-flake test-native-quick-green-tail-flake test-native-quick-green-join-waiters-stress-flake test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-native-quick-base-cold-seeded verify-native-quick-green-local-ptr-guarded verify-green-world-lock-guarded verify-green-preworld-guarded verify-green-fairness-guarded verify-backend-parity verify-backend-parity-bytes verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-index-audit-trend readiness-report-collect readiness-report-collect-list readiness-report-collect-pack readiness-report-sanitize readiness-pipeline status-snapshot status-snapshot-diff status-faq status-faq-diff status-matrix status-matrix-diff status-markdown verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-index-audit-trend verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-report-collect-pack verify-readiness-report-sanitize verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff verify-status-faq verify-status-faq-diff verify-status-matrix verify-status-matrix-diff verify-status-markdown benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -518,14 +518,20 @@ test-native-quick-green-fairness-modes-flake: oren
 
 # Focused flake triage (stage1): isolate only the base quick-integration pass with per-test trace.
 verify-native-quick-base-guarded: oren
-					@./scripts/triage_native_quick_base_flake.sh 3 "./$(OREN_BIN)"
-					@echo "verify-native-quick-base-guarded OK"
+						@./scripts/triage_native_quick_base_flake.sh 3 "./$(OREN_BIN)"
+						@echo "verify-native-quick-base-guarded OK"
+
+# Focused structural guard: prove the stage2 base quick path uses rtobj seed-hit on an empty
+# active runtime cache instead of rebuilding the runtime object from scratch.
+verify-native-quick-base-cold-seeded: oren_stage2
+						@./scripts/verify_native_quick_base_seeded_cold.sh "./$(OREN_STAGE2_BIN)"
+						@echo "verify-native-quick-base-cold-seeded OK"
 
 # Focused runtime guard (stage1): cover the stronger mixed both-mode local-ptr slice directly,
 # while leaving the harness-based blended and split plain/workers surfaces available as triage.
 verify-native-quick-green-local-ptr-guarded: oren
-					@./scripts/triage_native_quick_green_local_ptr_both_direct_flake.sh 3 "./$(OREN_BIN)"
-					@echo "verify-native-quick-green-local-ptr-guarded OK"
+						@./scripts/triage_native_quick_green_local_ptr_both_direct_flake.sh 3 "./$(OREN_BIN)"
+						@echo "verify-native-quick-green-local-ptr-guarded OK"
 
 # Focused flake triage (stage1): run the quick-integration prefix through the GC/STW
 # netpoll wake regression point with waiter diagnostics enabled.
@@ -836,12 +842,15 @@ verify-status-markdown:
 	@./scripts/verify_status_markdown_smoke.sh
 
 verify-runtime-robustness: oren_stage2
-	OREN_RUNTIME_ROBUSTNESS_BASE_RUNS="$(OREN_RUNTIME_ROBUSTNESS_BASE_RUNS)" \
-	OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS)" \
-	OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS)" \
-	OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS)" \
-	OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS)" \
-	OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS)" \
+		OREN_RUNTIME_ROBUSTNESS_BASE_RUNS="$(OREN_RUNTIME_ROBUSTNESS_BASE_RUNS)" \
+		OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM="$(OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM)" \
+		OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_TIMEOUT_SECS)" \
+		OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_BUILD_COMPILER="$(OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_BUILD_COMPILER)" \
+		OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS)" \
+		OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS)" \
+		OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS)" \
+		OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS)" \
+		OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS)" \
 	OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS="$(OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS)" \
 	OREN_RUNTIME_ROBUSTNESS_STAGE2_BUILD_TIMEOUT_SECS="$(OREN_RUNTIME_ROBUSTNESS_STAGE2_BUILD_TIMEOUT_SECS)" \
 	OREN_RUNTIME_ROBUSTNESS_C_RUNS="$(OREN_RUNTIME_ROBUSTNESS_C_RUNS)" \

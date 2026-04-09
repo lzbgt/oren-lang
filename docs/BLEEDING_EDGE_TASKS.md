@@ -2277,6 +2277,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	    script surface (`build/logs/bash_n_verify_runtime_robustness_checked_helper_batch_20260409.log`)
 	    and the latest bundled log header (`build/logs/runtime_robustness_w5_20260409_102644.log`,
 	    `base_build_timeout_secs=720`).
+	  - Fix + verify (2026-04-09): the bundled W5 runtime gate now prewarms host runtime astbin and
+	    debug rtobj seeds before the base quick-integration leg instead of depending only on the wider
+	    `720s` timeout. The new knobs are `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM`,
+	    `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_TIMEOUT_SECS`, and
+	    `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_BUILD_COMPILER`. The structural companion target
+	    `make verify-native-quick-base-cold-seeded` now forces an empty active runtime obj/astbin
+	    cache and verifies that the stage2 base quick path records `phase=rtobj.seed_hit` rather than
+	    `phase=rtobj.miss.build.start`. Treat that cold-seeded proof as the durable fix; the larger
+	    base-build timeout remains a backstop for unusually slow hosts, not the primary solution.
 	  - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now records
 	    `retry_base_count`, `retry_green_cache_count`, `retry_followon_count`, and
     `retry_total_count`, and accepts `OREN_QI_FAIL_ON_RETRY=1` so focused triage surfaces can fail

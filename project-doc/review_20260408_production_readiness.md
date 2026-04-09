@@ -208,6 +208,9 @@ Fix in this pass:
 - `scripts/triage_native_quick_stage2_flake_debug.sh` now defaults to the same `240s`
   stage2 debug build headroom already proven by `test-native-quick-stage2`
 - `make verify-runtime-robustness` now forwards dedicated env knobs for:
+  - `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM`
+  - `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_TIMEOUT_SECS`
+  - `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_BUILD_COMPILER`
   - `OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS`
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS`
   - `OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS`
@@ -215,6 +218,10 @@ Fix in this pass:
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS`
   - `OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS`
   - `OREN_RUNTIME_ROBUSTNESS_STAGE2_BUILD_TIMEOUT_SECS`
+- the bundled W5 runtime gate now prewarms host runtime astbin + debug rtobj seeds before the
+  base quick-integration leg, and `make verify-native-quick-base-cold-seeded` proves the stage2
+  base path can run with an empty active runtime cache via `phase=rtobj.seed_hit` instead of
+  rebuilding from `rtobj.miss.build.start`
 
 Additional runtime-robustness follow-up on 2026-04-09:
 

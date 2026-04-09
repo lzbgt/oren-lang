@@ -3588,6 +3588,20 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 	    surface itself (`build/logs/bash_n_verify_runtime_robustness_checked_helper_batch_20260409.log`)
 	    plus the new bundled log header in `build/logs/runtime_robustness_w5_20260409_102644.log`
 	    (`base_build_timeout_secs=720`).
+	  - Fix + verify (2026-04-09): `scripts/verify_runtime_robustness_w5.sh` no longer relies only
+	    on that larger timeout. When the base leg is enabled, it now prewarms host runtime astbin and
+	    debug rtobj seeds first with the existing seed helpers, using `./oren` as the default cold-fill
+	    compiler and `./oren_stage2` as the requested rtobj compiler. The bundled gate now forwards
+	    `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM`,
+	    `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_TIMEOUT_SECS`, and
+		    `OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM_BUILD_COMPILER`. The companion structural guard
+		    `make verify-native-quick-base-cold-seeded` proves that the stage2 base quick path can run
+		    with an empty active runtime cache and still take `phase=rtobj.seed_hit` instead of
+		    `phase=rtobj.miss.build.start`. Verified with
+		    `build/logs/make_verify_native_quick_base_cold_seeded_20260409.log`,
+		    `build/logs/native_quick_base_seeded_cold_20260409_105224.log`,
+		    `build/logs/make_verify_runtime_robustness_seed_prewarm_20260409.log`, and
+		    `build/logs/runtime_robustness_w5_20260409_105504.log`.
 	   - Fix + verify (2026-04-09): `scripts/run_native_quick_integration.sh` now records
 	     `retry_base_count`, `retry_green_cache_count`, `retry_followon_count`, and
      `retry_total_count` in the inner log, and accepts `OREN_QI_FAIL_ON_RETRY=1` to turn hidden
