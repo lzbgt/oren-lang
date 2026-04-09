@@ -1861,6 +1861,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 							      vs shipped `0.141901s`), but the gate view stayed too noisy to trust as a production
 								      default (`native gate cov=0.6421` at shipped `4095`, `0.2631` at `16383`, `0.1270`
 								      at `65535`).
+								    - Arm64 explicit get-sum unroll2 follow-up (2026-04-09): new wrapper
+								      `make perf-probe-arm64-fast-get-sum-unroll2-list-int` now keeps
+								      `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` measurable on the shipped default-off tree.
+								      The exact whole-operation A/B was large enough to matter:
+								      baseline C-ceiling rerun
+								      (`build/logs/perf-probe-list-int-c-ceiling-20260409_150442_12959.log`) kept
+								      `oren_array_sum_int / array_slot64_vector ~5.6704×`, while the env-enabled rerun
+								      (`build/logs/perf-probe-list-int-c-ceiling-20260409_150458_13384.log`) improved it to
+								      `~2.8516×`, and the narrower shipped-candidate rerun
+								      (`build/logs/perf-probe-list-int-c-ceiling-20260409_151055_21212.log`) even reached
+								      `~2.3353×`. But the shipped-default experiment is explicitly rejected: `make test`
+								      failed in `build/logs/make_test_get_sum_unroll2_shipped_20260409.log` with
+								      `Error 139`, and `make verify-runtime-robustness` failed in
+								      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_shipped_20260409.log` /
+								      `build/logs/runtime_robustness_w5_20260409_151208.log` with `Error 138`. Final safe
+								      closeout kept the hook default-off, reran the corrected acceptance probe
+								      (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_154046_57475.log`),
+								      and closed green in `build/logs/make_test_get_sum_unroll2_finalsafe_20260409.log`
+								      plus `build/logs/make_verify_runtime_robustness_get_sum_unroll2_finalsafe2_20260409.log`.
 			    - Native gate summary hygiene (2026-04-04):
 			      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate

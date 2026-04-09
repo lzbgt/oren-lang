@@ -1220,6 +1220,31 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   improved canonical `oren_array_sum_int / array_slot64_vector` from `~5.4463x` to `~5.3848x`.
   Keep the cursor path enabled, but treat it as a modest whole-operation improvement, not the
   missing slot64-vector parity fix.
+- For the arm64 explicit `fast_list_int_get_sum_while` unroll-by-2 follow-up, use
+  `make perf-probe-arm64-fast-get-sum-unroll2-list-int`. The shipped tree keeps
+  `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` off by default and compares that exact baseline
+  against `...=1` through the same serialized acceptance bundle.
+- Current 2026-04-09 decision record is intentionally split. The exact whole-operation A/B on the
+  C-ceiling surface showed real upside when the env was forced on: baseline
+  (`build/logs/perf-probe-list-int-c-ceiling-20260409_150442_12959.log`) kept
+  `oren_array_sum_int / array_slot64_vector ~5.6704x`, while the env-enabled rerun
+  (`build/logs/perf-probe-list-int-c-ceiling-20260409_150458_13384.log`) improved that to
+  `~2.8516x`; the narrower shipped-candidate rerun
+  (`build/logs/perf-probe-list-int-c-ceiling-20260409_151055_21212.log`) even reached
+  `~2.3353x`.
+- That candidate is still not production-safe. Promoting unroll2 to the shipped default tripped the
+  broad gates: `make test` failed in
+  `build/logs/make_test_get_sum_unroll2_shipped_20260409.log` with `Error 139`, and
+  `make verify-runtime-robustness` failed in
+  `build/logs/make_verify_runtime_robustness_get_sum_unroll2_shipped_20260409.log` /
+  `build/logs/runtime_robustness_w5_20260409_151208.log` with `Error 138`.
+- The final shipped tree therefore keeps the env hook measurable but default-off. The corrected
+  safe-tree acceptance rerun
+  (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_154046_57475.log`) was not
+  a clean positive result either: enabling unroll2 moved the local steady native median from
+  `0.137200s` to `0.142443s` (`+3.82%`) and the gate leg warned as high variance. Final closeout
+  gates passed on the default-off tree in `build/logs/make_test_get_sum_unroll2_finalsafe_20260409.log`
+  and `build/logs/make_verify_runtime_robustness_get_sum_unroll2_finalsafe2_20260409.log`.
 - For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
   `make perf-probe-arm64-fast-dot-unroll2` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-unroll2-list-int` for explicit `dot_product_int`. The shipped

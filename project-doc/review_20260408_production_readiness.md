@@ -905,15 +905,38 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 						      workload as far as this current surface can support: the short-run setup estimate
 						      is still noisy, but the steady per-rep gap remains the stronger fact (`~0.001311s`
 						      for Oren canonical vs `~0.000204s` for slot64 C vector, or `~6.4228×`)
-						    - the new explicit get-sum tick-mask sweep
-						      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
-						      is why `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK` still ships at `4095`: explicit
-						      `16383` and `65535` improved steady native medians on that sample, but the gate view
-						      stayed too noisy to trust as a production default (`c_cov=0.6421` at shipped `4095`,
-						      `0.2631` at `16383`, `0.1270` at `65535`)
-						    - the corresponding final-tree whole-operation rerun
-						      (`build/logs/perf-probe-list-int-c-ceiling-20260409_143734_77001.log`) still kept
-						      `oren_array_sum_int / array_slot64_vector ~5.7976×` and
+							    - the new explicit get-sum tick-mask sweep
+							      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
+							      is why `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK` still ships at `4095`: explicit
+							      `16383` and `65535` improved steady native medians on that sample, but the gate view
+							      stayed too noisy to trust as a production default (`c_cov=0.6421` at shipped `4095`,
+							      `0.2631` at `16383`, `0.1270` at `65535`)
+							    - the new explicit get-sum unroll2 follow-up
+							      (`make perf-probe-arm64-fast-get-sum-unroll2-list-int`) exposes a previously dead
+							      `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` path on the shipped default-off tree
+							    - the exact whole-operation A/B is large enough to matter:
+							      baseline C-ceiling rerun
+							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_150442_12959.log`) kept
+							      `oren_array_sum_int / array_slot64_vector ~5.6704×`, while the env-enabled rerun
+							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_150458_13384.log`) improved that to
+							      `~2.8516×`; the narrower shipped-candidate rerun
+							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_151055_21212.log`) even reached
+							      `~2.3353×`
+							    - but the promoted default is explicitly rejected on this pass:
+							      `make test` failed in
+							      `build/logs/make_test_get_sum_unroll2_shipped_20260409.log` with `Error 139`, and
+							      `make verify-runtime-robustness` failed in
+							      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_shipped_20260409.log` /
+							      `build/logs/runtime_robustness_w5_20260409_151208.log` with `Error 138`
+							    - the final safe-tree acceptance rerun
+							      (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_154046_57475.log`)
+							      was mixed rather than clearly positive, and the default-off closeout still passed
+							      `make test` plus the bundled W5 runtime gate in
+							      `build/logs/make_test_get_sum_unroll2_finalsafe_20260409.log` and
+							      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_finalsafe2_20260409.log`
+							    - the corresponding final-tree whole-operation rerun
+							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_143734_77001.log`) still kept
+							      `oren_array_sum_int / array_slot64_vector ~5.7976×` and
 						      `oren_dot_product_int / dot_slot64_vector ~1.8923×`, so the get-sum tick-mask probe
 						      is worth keeping but is still not the missing slot64-vector parity fix
 						    - that is the stronger whole-operation blocker split on current arm64 `master`: the

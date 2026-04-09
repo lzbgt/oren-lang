@@ -2788,6 +2788,23 @@ Weights reflect expected impact on C parity and breadth of affected code.
 		      `~0.009496s` versus slot64 C vector `~0.004273s`, but the more stable signal remains the
 		      steady per-rep gap (`~0.001311s` vs `~0.000204s`, or `~6.4228×`). Reweight accordingly:
 		      the repeated get-sum loop remains the main blocker, not another fill/setup tweak.
+		    - Arm64 explicit get-sum unroll2 follow-up (`2026-04-09`): new wrapper
+		      `make perf-probe-arm64-fast-get-sum-unroll2-list-int` now keeps
+		      `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` measurable on the shipped default-off tree.
+		      The exact whole-operation A/B looked promising on the C-ceiling surface
+		      (`build/logs/perf-probe-list-int-c-ceiling-20260409_150442_12959.log` baseline vs
+		      `build/logs/perf-probe-list-int-c-ceiling-20260409_150458_13384.log` env-enabled),
+		      improving `oren_array_sum_int / array_slot64_vector` from `~5.6704×` to `~2.8516×`.
+		      But the default-on candidate was not production-safe: `make test` failed in
+		      `build/logs/make_test_get_sum_unroll2_shipped_20260409.log` with `Error 139`, and
+		      `make verify-runtime-robustness` failed in
+		      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_shipped_20260409.log` /
+		      `build/logs/runtime_robustness_w5_20260409_151208.log` with `Error 138`. The final safe
+		      rerun (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_154046_57475.log`)
+		      stayed mixed and the default-off tree closed green in
+		      `build/logs/make_test_get_sum_unroll2_finalsafe_20260409.log` and
+		      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_finalsafe2_20260409.log`.
+		      Keep unroll2 opt-in for now.
 			    - Arm64 dot unroll-by-2 refresh (`2026-04-09`): wrappers now exist for both generic and
 		      explicit surfaces, and the shipped default is now off. The real post-flip reruns
 		      (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`,

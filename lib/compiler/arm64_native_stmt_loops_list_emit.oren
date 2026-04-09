@@ -709,7 +709,16 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_GET_SUM_SINGLE_LIST_CURSOR_REGS") == true {
         single_list_cursor_regs = true
     }
+    // The explicit list<int> get-sum path already has a dedicated 2-wide lowering. Keep it opt-in
+    // until the exact whole-operation win on `array_sum_int` also survives the runtime-robustness
+    // and full-suite gates; the env knob keeps the currently-dead default path measurable.
     var unroll2 = false
+    var v_unroll2 = oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2")
+    if v_unroll2 == "1" || v_unroll2 == "true" {
+        unroll2 = true
+    } else if v_unroll2 != nil && (v_unroll2 == "0" || v_unroll2 == "false") {
+        unroll2 = false
+    }
     var pair_post = false
     var v_pair_post = oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST")
     if v_pair_post == "1" || v_pair_post == "true" {
