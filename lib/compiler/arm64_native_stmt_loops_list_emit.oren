@@ -76,6 +76,20 @@ fn _arm64_local_int_const(ctx, name) {
     return exprm.native_expr_int_const(ctx, {"type": "Identifier", "token": nil, "value": name})
 }
 
+// Keep arm64 list fast-loop validation on the same alloc-index lookup x64 already uses.
+// Call sites still do explicit kind/magic checks after this helper returns a tracked node or 0.
+fn _arm64_emit_find_tracked_node(ctx, ptr_reg, dst_reg) {
+    if ctx == nil { return nil }
+    if ptr_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, ptr_reg)) }
+    var bl_find = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "native_alloc_index_get"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_alloc_index_get")
+    if dst_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(dst_reg, 0)) }
+    return nil
+}
+
 // Prefix-zero statement fast paths stay opt-in until the full acceptance bundle is clean.
 fn _arm64_env_enabled_default_false(name) {
     var v = oren_env(name)
@@ -130,12 +144,7 @@ fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
-    var bl_find = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
-    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+    _arm64_emit_find_tracked_node(ctx, 19, 0)
 
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
     var jpos_node_nil = bytes_len(ctx["code"])
@@ -250,12 +259,7 @@ fn _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_left_nil, "cond": 0}) // EQ
 
-    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
-    var bl_find_left = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_left, "name": "oren_find_node"})
-    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_left)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+    _arm64_emit_find_tracked_node(ctx, 19, 0)
 
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
     var jpos_left_node_nil = bytes_len(ctx["code"])
@@ -290,12 +294,7 @@ fn _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_right_nil, "cond": 0}) // EQ
 
-    push_u32_le(ctx["code"], insn_mov_reg(0, 20))
-    var bl_find_right = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_right, "name": "oren_find_node"})
-    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_right)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+    _arm64_emit_find_tracked_node(ctx, 20, 0)
 
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
     var jpos_right_node_nil = bytes_len(ctx["code"])
@@ -461,12 +460,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = oren_find_node(list)
-        var bl_find = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
-        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+        // node = native_alloc_index_get(list)
+        _arm64_emit_find_tracked_node(ctx, 0, 0)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -789,12 +784,8 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = oren_find_node(list)
-        var bl_find = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
-        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+        // node = native_alloc_index_get(list)
+        _arm64_emit_find_tracked_node(ctx, 0, 0)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -1222,12 +1213,8 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = oren_find_node(list)
-        var bl_find = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
-        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+        // node = native_alloc_index_get(list)
+        _arm64_emit_find_tracked_node(ctx, 0, 0)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -1798,12 +1785,8 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = oren_find_node(list)
-        var bl_find = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
-        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+        // node = native_alloc_index_get(list)
+        _arm64_emit_find_tracked_node(ctx, 0, 0)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -2055,12 +2038,8 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = oren_find_node(list)
-        var bl_find = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
-        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+        // node = native_alloc_index_get(list)
+        _arm64_emit_find_tracked_node(ctx, 0, 0)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -2321,12 +2300,8 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = oren_find_node(list)
-        var bl_find = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "oren_find_node"})
-        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+        // node = native_alloc_index_get(list)
+        _arm64_emit_find_tracked_node(ctx, 0, 0)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))

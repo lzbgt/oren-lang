@@ -526,6 +526,25 @@ actually flipped the `dot_product_int` public/helper ordering. Treat the split p
 check that the public surface stays in the same ballpark, but use the steady
 `make perf-probe-list-int-dot-ceiling` ranking above for the current decision-quality ordering.
 
+On 2026-04-09, the arm64 compiler-side list fast-loop validation was also converged onto the same
+alloc-index lookup x64 already uses (`native_alloc_index_get` instead of the older
+`oren_find_node` path in `lib/compiler/arm64_native_stmt_loops_list_emit.oren`). Two serialized
+steady ceiling reruns after that change both improved the shipped canonical baseline relative to
+the earlier `build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.log` snapshot:
+
+- `build/logs/perf-probe-list-int-dot-ceiling-20260409_115936_33151.log`
+  - canonical `array_sum_int`: `~1.2173x C`
+  - canonical `dot_product_int`: `~1.3071x C`
+- `build/logs/perf-probe-list-int-dot-ceiling-20260409_120228_38413.log`
+  - canonical `array_sum_int`: `~1.2781x C`
+  - canonical `dot_product_int`: `~1.2155x C`
+
+The direct-slot/public ordering still flipped between those light reruns, so do not rewrite the
+ranking story from this batch alone. The stable claim is narrower: the arm64 alloc-index
+convergence improved the shipped canonical path on repeated serial reruns and stayed correctness
+clean, but the remaining public-slot vs hidden-helper gap still needs a calmer ranking surface than
+the default `runs=2`, `reps=2` ceiling probe.
+
 For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
 
 ```bash

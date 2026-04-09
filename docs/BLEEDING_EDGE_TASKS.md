@@ -1351,17 +1351,35 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					     Reweight again: the public slot surface is still behind the hidden helper ceiling, but
 					     the residual gap remains meaningfully smaller than the older tracker state on both
 					     steady benchmarks.
-					   - Internal `try_fast` helper follow-up (2026-04-09): C/native/AVM now expose
-					     `oren_list_int_*_slots_try_fast(...)` so future lowering experiments can probe a single
-					     checked boundary, but a direct reroute of the public `std:linalg` API through that helper
-					     surface regressed hard on the same steady ceiling
-					     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
-					     public-slot `dot_product_int` `~3.2619× C`, public-slot `array_sum_int` `~2.1178× C`).
-					     Keep that helper surface internal-only for now.
-						   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
-						     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
-						     whole-operation path. The sequential no-smoke rerun with
-					     `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER=1`
+						   - Internal `try_fast` helper follow-up (2026-04-09): C/native/AVM now expose
+						     `oren_list_int_*_slots_try_fast(...)` so future lowering experiments can probe a single
+						     checked boundary, but a direct reroute of the public `std:linalg` API through that helper
+						     surface regressed hard on the same steady ceiling
+						     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
+						     public-slot `dot_product_int` `~3.2619× C`, public-slot `array_sum_int` `~2.1178× C`).
+						     Keep that helper surface internal-only for now.
+						   - Arm64 alloc-index convergence follow-up (2026-04-09): list/list<int> fast-loop
+						     validation in `lib/compiler/arm64_native_stmt_loops_list_emit.oren` now uses the same
+						     `native_alloc_index_get` lookup x64 already uses instead of the older
+						     `oren_find_node` call sequence. This stayed correctness-clean (`make
+						     verify-backend-parity-list-int`, `make test`) and two serialized ceiling reruns both
+						     improved the shipped canonical path versus the earlier
+						     `build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.log` snapshot:
+						     - `build/logs/perf-probe-list-int-dot-ceiling-20260409_115936_33151.log`
+						       - canonical `array_sum_int`: `~1.2173× C`
+						       - canonical `dot_product_int`: `~1.3071× C`
+						     - `build/logs/perf-probe-list-int-dot-ceiling-20260409_120228_38413.log`
+						       - canonical `array_sum_int`: `~1.2781× C`
+						       - canonical `dot_product_int`: `~1.2155× C`
+						     Reweight again: this batch is a real canonical-baseline win, but not yet a stable new
+						     helper/public ranking. The light `runs=2`, `reps=2` ceiling probe still flips direct-slot
+						     vs public-slot ordering, so the next parity move should either strengthen the ranking
+						     surface or continue attacking the remaining public/canonical gap without over-claiming the
+						     exact helper/public order.
+							   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
+							     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
+							     whole-operation path. The sequential no-smoke rerun with
+						     `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER=1`
 					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`,
 					     `runs=4 warmups=0 n=20000 short_reps=1 long_reps=4`) versus the disabled baseline
 					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000926_53704.log`)

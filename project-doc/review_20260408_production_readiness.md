@@ -836,18 +836,29 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 	      `~1.2079× C`
 	    - `array_sum_int`: canonical `~1.4110× C`, hidden helper `~1.0019× C`, public slot
 	      `~1.0800× C`
-	  - interpretation:
-	    - the public slot surface remains behind the hidden helper ceiling, but the residual gap is
-	      still materially smaller than the older tracker state on both steady benchmarks
-	    - this is still a wrapper/helper convergence problem, not a reason to reopen packed-bridge
-	      work
-	    - internal `oren_list_int_*_slots_try_fast(...)` helpers now exist across C/native/AVM for
-	      future lowering experiments, but a direct public reroute through that helper surface
-	      regressed badly on the same steady probe
-	      (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
-	      public-slot `dot_product_int` `~3.2619× C`, public-slot `array_sum_int` `~2.1178× C`), so
-	      that route remains internal-only
-- Probe UX follow-up:
+		  - interpretation:
+		    - the public slot surface remains behind the hidden helper ceiling, but the residual gap is
+		      still materially smaller than the older tracker state on both steady benchmarks
+		    - this is still a wrapper/helper convergence problem, not a reason to reopen packed-bridge
+		      work
+		    - internal `oren_list_int_*_slots_try_fast(...)` helpers now exist across C/native/AVM for
+		      future lowering experiments, but a direct public reroute through that helper surface
+		      regressed badly on the same steady probe
+		      (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
+		      public-slot `dot_product_int` `~3.2619× C`, public-slot `array_sum_int` `~2.1178× C`), so
+		      that route remains internal-only
+		    - later the same day, the arm64 compiler-side list fast-loop validation was converged onto
+		      the same `native_alloc_index_get` lookup x64 already uses instead of the older
+		      `oren_find_node` path in `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+		    - that convergence stayed correctness-clean and two serialized steady reruns both improved
+		      the shipped canonical path versus the earlier snapshot:
+		      - `build/logs/perf-probe-list-int-dot-ceiling-20260409_115936_33151.log`
+		        canonical `array_sum_int` `~1.2173× C`, canonical `dot_product_int` `~1.3071× C`
+		      - `build/logs/perf-probe-list-int-dot-ceiling-20260409_120228_38413.log`
+		        canonical `array_sum_int` `~1.2781× C`, canonical `dot_product_int` `~1.2155× C`
+		    - the direct-slot/public ordering still flipped between those light reruns, so this is a
+		      real canonical-baseline win but not yet a stable new helper/public ranking
+	- Probe UX follow-up:
   - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
     fallback instead of requiring only per-script smoke env vars, which removes a real measurement
     consistency footgun during no-smoke reruns
