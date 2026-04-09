@@ -939,11 +939,20 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 								      `~5.3859×`, `array_default_wins: 3/3`)
 								    - exact `dot_product_int` stayed mixed in that same probe (`default ~1.8343×`,
 								      disabled `~1.8138×`, disabled wins `2/3`), which is consistent with this knob
-								      being a get-sum / `array_sum_int` decision rather than a general dot-path win
-								    - so exact whole-operation ceiling plus integrated green lanes remain the shipped
-								      decision surface for this path, not the local acceptance micro-probe by itself
-							    - reweight accordingly: the get-sum tick-mask probe
-						      is worth keeping but is still not the missing slot64-vector parity fix
+									      being a get-sum / `array_sum_int` decision rather than a general dot-path win
+									    - so exact whole-operation ceiling plus integrated green lanes remain the shipped
+									      decision surface for this path, not the local acceptance micro-probe by itself
+									    - the next explicit get-sum follow-up now closes another tempting but wrong branch:
+									      `build/logs/perf-probe-arm64-fast-get-sum-dual-accum-decision-20260409_174904_22327.log`
+									      compares the shipped default against
+									      `OREN_ARM64_FAST_LIST_INT_GET_SUM_DUAL_ACCUM=1` and shows the same kind of surface
+									      split even more sharply. The local acceptance wrapper preferred the enabled branch
+									      (`steady -19.53%`, `gate -52.65%`), but the widened same-tree exact whole-operation
+									      reruns still preferred the shipped default in `4/5` sweeps
+									      (`default median ~2.2506×`, enabled median `~2.2797×`). So the dual-accum path is
+									      now factually downgraded to opt-in experiment only, not a production candidate.
+								    - reweight accordingly: the get-sum tick-mask probe
+							      is worth keeping but is still not the missing slot64-vector parity fix
 						    - that is the stronger whole-operation blocker split on current arm64 `master`: the
 						      helper/public-slot routing question is no longer the main issue, and the new get-sum
 						      and push cursor cleanups are not the missing whole-operation `array_sum_int` fix.

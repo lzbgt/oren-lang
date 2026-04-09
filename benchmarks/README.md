@@ -1267,6 +1267,18 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - Treat the acceptance wrapper as a local sanity surface only. For shipped decisions on this path,
   the reusable source of truth is now the combined decision probe plus integrated green lanes, with
   the exact whole-operation `array_sum_int` C ceiling carrying the ranking weight.
+- The next current-tree follow-up on the same explicit get-sum path is
+  `make perf-probe-arm64-fast-get-sum-dual-accum-decision`. It compares the shipped default
+  against `OREN_ARM64_FAST_LIST_INT_GET_SUM_DUAL_ACCUM=1` on both the local acceptance wrapper and
+  the same-tree exact whole-operation C ceiling. The fresh widened rerun
+  (`build/logs/perf-probe-arm64-fast-get-sum-dual-accum-decision-20260409_174904_22327.log`)
+  settled that experiment as another current-tree loser: acceptance locally preferred the enabled
+  branch (`steady -19.53%`, `gate -52.65%`), but the exact whole-operation surface still preferred
+  the shipped default in `4/5` sweeps, with default median
+  `oren_array_sum_int / array_slot64_vector ~2.2506x` vs enabled median `~2.2797x`.
+- Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_DUAL_ACCUM` as an explicit opt-in
+  experiment only. It is not the missing repeated-read `array_sum_int` fix on the current
+  post-unroll2 tree.
 - For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
   `make perf-probe-arm64-fast-dot-unroll2` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-unroll2-list-int` for explicit `dot_product_int`. The shipped

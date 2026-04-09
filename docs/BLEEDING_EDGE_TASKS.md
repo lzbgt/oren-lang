@@ -1877,11 +1877,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      makes the disagreement explicit: acceptance steady still preferred disabled
 									      (`-4.79%`), acceptance gate slightly preferred default (`+0.78%`), but exact
 									      whole-operation `array_sum_int` preferred the shipped default in all three
-									      same-tree sweeps (`~2.3793×` vs disabled `~5.3859×`, `array_default_wins: 3/3`).
-									      Keep treating the acceptance wrapper as local sanity only; exact whole-operation
-									      ceiling plus integrated green lanes are the decision surface for this path.
-			    - Native gate summary hygiene (2026-04-04):
-			      `make perf-gate-native` now emits a lightweight summary log and prints the same
+										      same-tree sweeps (`~2.3793×` vs disabled `~5.3859×`, `array_default_wins: 3/3`).
+										      Keep treating the acceptance wrapper as local sanity only; exact whole-operation
+										      ceiling plus integrated green lanes are the decision surface for this path.
+										    - Arm64 explicit get-sum dual-accumulator follow-up (2026-04-09): the new
+										      decision surface `make perf-probe-arm64-fast-get-sum-dual-accum-decision`
+										      compares the shipped default against the opt-in
+										      `OREN_ARM64_FAST_LIST_INT_GET_SUM_DUAL_ACCUM=1` path on both the local
+										      acceptance wrapper and same-tree exact whole-operation C-ceiling sweeps.
+										      The widened rerun
+										      (`build/logs/perf-probe-arm64-fast-get-sum-dual-accum-decision-20260409_174904_22327.log`)
+										      closed that branch as a loser on the actual decision surface: acceptance liked
+										      the enabled leg (`steady -19.53%`, `gate -52.65%`), but exact whole-operation
+										      `array_sum_int` still preferred the shipped default in `4/5` sweeps
+										      (`default ~2.2506×`, enabled `~2.2797×`). Keep dual-accum opt-in only.
+				    - Native gate summary hygiene (2026-04-04):
+				      `make perf-gate-native` now emits a lightweight summary log and prints the same
 			      high-variance warning style used by the arm64 dot probes, so noisy one-program gate
 			      outliers are less likely to be misread as real wins.
 					    - Native gate stability probe (2026-04-04):

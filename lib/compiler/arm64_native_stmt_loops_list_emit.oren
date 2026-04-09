@@ -721,6 +721,19 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     } else if v_unroll2 != nil && (v_unroll2 == "0" || v_unroll2 == "false") {
         unroll2 = false
     }
+    // Keep the secondary-accumulator get-sum path as an explicit experiment only. The current
+    // same-tree exact C-ceiling decision surface still prefers the shipped default scalar+unroll2
+    // body overall, even though the narrower local acceptance wrapper can make this path look good.
+    var dual_accum = false
+    var v_dual_accum = oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_DUAL_ACCUM")
+    if v_dual_accum == "1" || v_dual_accum == "true" {
+        dual_accum = true
+    } else if v_dual_accum != nil && (v_dual_accum == "0" || v_dual_accum == "false") {
+        dual_accum = false
+    }
+    if single_read_list != true {
+        dual_accum = false
+    }
     var pair_post = false
     var v_pair_post = oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST")
     if v_pair_post == "1" || v_pair_post == "true" {
@@ -893,7 +906,11 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     // Keep i/sum in registers across iterations.
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, sum_off)
-    emit_load_i64_imm(ctx, 22, 8)
+    if dual_accum {
+        push_u32_le(ctx["code"], insn_movz(22, 0))
+    } else {
+        emit_load_i64_imm(ctx, 22, 8)
+    }
     if unique_lists {
         // Unique-list get-sum does not need X21 as a loop-body scratch, so keep the upper bound hot
         // instead of reloading it from the stack every iteration.
@@ -960,10 +977,17 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
                 emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
             }
 
-            push_u32_le(ctx["code"], insn_add_reg(25, 25, 12))
-            push_u32_le(ctx["code"], insn_add_reg(26, 26, 13))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-            push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+            if dual_accum {
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                push_u32_le(ctx["code"], insn_add_reg(22, 22, 26))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 12))
+                push_u32_le(ctx["code"], insn_add_reg(22, 22, 13))
+            } else {
+                push_u32_le(ctx["code"], insn_add_reg(25, 25, 12))
+                push_u32_le(ctx["code"], insn_add_reg(26, 26, 13))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+            }
 
             push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
 
@@ -1006,7 +1030,10 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
                 emit_str_reg_sp_any(ctx, 24, buf_slot2u)
             }
 
-            if single_read_list {
+            if single_read_list && dual_accum {
+                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                push_u32_le(ctx["code"], insn_add_reg(22, 22, 26))
+            } else if single_read_list {
                 push_u32_le(ctx["code"], insn_add_reg(25, 25, 26))
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
             } else {
@@ -1073,6 +1100,10 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
     var end_off = (fast_end_pos - jpos_fast_end) / 4
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+
+    if dual_accum {
+        push_u32_le(ctx["code"], insn_add_reg(23, 23, 22))
+    }
 
     // Update idx/sum locals after loop exit.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
