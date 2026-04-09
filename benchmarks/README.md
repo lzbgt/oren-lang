@@ -257,6 +257,18 @@ That reweighted the current blocker correctly. The repeated-read `array_sum_int`
 above the slot64 C vector ceiling, but a single allocation+fill pass is materially larger in
 absolute time than the current shipped steady read kernel.
 
+One follow-up question on the same tree is now settled too: the large `fill_list_int` constructor is
+already arena-backed on the shipped path, so constructor routing itself is not the remaining fill
+blocker. A targeted native trace rerun
+(`build/logs/run_fill_list_int_ctor_probe_final_20260409.log`) shows the benchmark-sized allocation as
+`[list_new_cap] kind=8 cap=2000000 total=16000032 mode=2`, with matching constructor stages for the
+same pointer. `mode=2` is the arena-backed constructor path
+([`lib/runtime_native/095_arena.oren`](/Users/zongbaolu/work/compiler-mini/lib/runtime_native/095_arena.oren)),
+not the plain `oren_new_list_int` malloc path in
+([`lib/runtime_native/170_lists_core.oren`](/Users/zongbaolu/work/compiler-mini/lib/runtime_native/170_lists_core.oren)).
+Reweight accordingly: keep attacking fill-loop bookkeeping/lifetime cost below the constructor
+rather than adding another broad constructor rewrite.
+
 The next shipped fill-side follow-up on that same tree is:
 
 ```bash

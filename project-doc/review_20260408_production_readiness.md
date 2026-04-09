@@ -549,6 +549,15 @@ Fill-share follow-up (2026-04-09):
   - but the list build/fill side is materially larger in absolute time than the current shipped
     steady read kernel, so the next optimization class should move back toward list
     allocation/push lifetime/setup rather than more get-sum-local loop-body branches
+  - exact constructor proof on the shipped tree: a targeted native trace rerun
+    (`build/logs/run_fill_list_int_ctor_probe_final_20260409.log`) shows the benchmark-sized
+    `fill_list_int` header allocation as `[list_new_cap] kind=8 cap=2000000 total=16000032 mode=2`
+  - that `mode=2` callsite comes from the arena-backed constructor path in
+    `lib/runtime_native/095_arena.oren`, not the plain `oren_new_list_int` path in
+    `lib/runtime_native/170_lists_core.oren`
+  - so the current fill/setup blocker is already below constructor routing; broad “maybe this
+    benchmark still needs arena constructor rewriting” follow-ups should be treated as closed on the
+    shipped tree
 
 Push idx-expr fill-side follow-up (2026-04-09):
 

@@ -1774,8 +1774,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					      `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`.
 					      Reweight again: the next high-leverage `array_sum_int` work should attack list
 					      build/fill lifetime/setup costs, not another get-sum-local micro-branch.
+					      - Exact constructor proof on the shipped tree (2026-04-09): a targeted native trace
+					        rerun for `benchmarks/fill_list_int`
+					        (`build/logs/run_fill_list_int_ctor_probe_final_20260409.log`) shows the benchmark-sized
+					        header allocation as `[list_new_cap] kind=8 cap=2000000 total=16000032 mode=2`.
+					        `mode=2` comes from the arena-backed constructor path in
+					        `lib/runtime_native/095_arena.oren`, so the current fill-side blocker is no longer
+					        “maybe this benchmark still uses GC list headers.” Reweight again: future work
+					        should stay below the constructor boundary.
 						    - Arm64 fill-side push-index-expression promotion (2026-04-09): the new default-on
-						      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` path keeps pure index-only integer push
+							      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` path keeps pure index-only integer push
 						      expressions on explicit `fast_list_int_push_while` lowering instead of routing them
 						      through generic `native_compile_expr(...)` each iteration. Use
 						      `make perf-probe-arm64-fast-push-idx-expr-decision` as the current ranking surface.
