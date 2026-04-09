@@ -42,6 +42,7 @@ fn _emit_trace_list_header_x64(ctx, list_reg, op, kind) {
 
 fn _emit_trace_list_header_ring_x64(ctx, list_reg, op, kind) {
     if ctx == nil { return nil }
+    if ctx["trace_native_list_hdr"] == nil { return nil }
 
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)

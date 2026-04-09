@@ -21,6 +21,7 @@ breakdown_short_reps="${OREN_LIST_INT_FILL_SHARE_DECISION_BREAKDOWN_SHORT_REPS:-
 breakdown_long_reps="${OREN_LIST_INT_FILL_SHARE_DECISION_BREAKDOWN_LONG_REPS:-100}"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
+perf_build_use_cache="${OREN_PERF_BUILD_USE_CACHE:-0}"
 
 bench_cc="${OREN_BENCH_CC:-cc}"
 scalar_flags=()
@@ -34,12 +35,13 @@ fi
 
 perf_build_env_read_array "$build_env_raw"
 build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
+perf_build_cache_args
 
 oren_fill_bin="$tmp_dir/fill_list_int_oren_native"
 c_fill_slot_vector_bin="$tmp_dir/fill_list_int_slot64_vector"
 c_fill_slot_scalar_bin="$tmp_dir/fill_list_int_slot64_scalar"
 
-build_fill_cmd=(./oren_stage2 build benchmarks/fill_list_int/fill_list_int.oren --backend native --no-debug --no-cache -o "$oren_fill_bin")
+build_fill_cmd=(./oren_stage2 build benchmarks/fill_list_int/fill_list_int.oren --backend native --no-debug "${PERF_BUILD_CACHE_ARGS[@]}" -o "$oren_fill_bin")
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then
     env "${build_env_parts[@]}" "${build_fill_cmd[@]}" >"$tmp_dir/fill_list_int_oren_native.build.log" 2>&1
 else
@@ -67,6 +69,7 @@ C_FILL_SLOT_VECTOR_BIN="$c_fill_slot_vector_bin" \
 C_FILL_SLOT_SCALAR_BIN="$c_fill_slot_scalar_bin" \
 BREAKDOWN_WRAPPER_LOG="$breakdown_wrapper_log" \
 BUILD_ENV="$build_env_raw" \
+PERF_BUILD_USE_CACHE="$perf_build_use_cache" \
 CC_BIN="$bench_cc" \
 SCALAR_FLAGS="${scalar_flags[*]}" \
 python3 - <<'PY' >"$summary_log"
@@ -182,6 +185,7 @@ print("list<int> array_sum fill-share decision probe")
 print("")
 if os.environ["BUILD_ENV"]:
     print(f"build_env: {os.environ['BUILD_ENV']}")
+print(f"perf_build_use_cache: {os.environ['PERF_BUILD_USE_CACHE']}")
 print(f"cc: {os.environ['CC_BIN']}")
 print(f"scalar_flags: {os.environ['SCALAR_FLAGS']}")
 print(f"runs: {runs}")

@@ -717,6 +717,50 @@ Push fresh-exact-init fill-side follow-up (2026-04-09):
   - `build/logs/make_verify_runtime_robustness_push_fresh_exact_init_optin_rerun_20260409.log`
   - `build/logs/runtime_robustness_w5_20260409_205346.log`
 
+Native fast-loop list header trace alignment (2026-04-09):
+
+- shipped compiler change:
+  - `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+  - `lib/compiler/x64_native_program/057_emit_ops_while_emit.oren`
+- what changed:
+  - explicit `fast_list_int_push_while` no longer emits loop-exit `oren_trace_list_header(...)`
+    calls unconditionally
+  - the `list<int>` fast push path now matches the older generic fast-list tracing contract and
+    only compiles those calls when `OREN_TRACE_NATIVE_LIST_HDR=1` is set
+- decision surface:
+  - `make perf-probe-arm64-fast-push-native-list-hdr-decision`
+- widened cached reruns on the shipped safe tree:
+  - first rerun
+    (`build/logs/perf-probe-arm64-fast-push-native-list-hdr-decision-20260409_213946_33097.log`)
+    slightly preferred `OREN_TRACE_NATIVE_LIST_HDR=1` on fill/share and exact `array_sum_int`:
+    - fill/share: `trace_enabled_fill_vs_c_vector ~2.9109x` vs default `~3.0188x`
+    - exact `array_sum_int`: `trace_enabled_array_ratio_median ~2.1585x` vs default `~2.2058x`
+    - exact `dot_product_int` still preferred the shipped default: `default_dot_ratio_median
+      ~1.7299x` vs `trace_enabled ~1.7855x`
+  - second rerun
+    (`build/logs/perf-probe-arm64-fast-push-native-list-hdr-decision-20260409_214130_36680.log`)
+    kept fill/share narrowly in favor of `OREN_TRACE_NATIVE_LIST_HDR=1`
+    (`~2.8810x` vs default `~2.9011x`) but flipped exact `array_sum_int` back to the shipped
+    default by median (`default_array_ratio_median ~2.1640x` vs `trace_enabled ~2.1655x`) and
+    kept exact `dot_product_int` strongly with the shipped default
+    (`default_dot_ratio_median ~1.7383x` vs `trace_enabled ~1.7840x`, `dot_default_wins: 5/5`)
+  - final cached rerun on the finished scripts
+    (`build/logs/perf-probe-arm64-fast-push-native-list-hdr-decision-20260409_220014_61301.log`)
+    still did not settle the exact whole-operation winner:
+    - fill/share again preferred `OREN_TRACE_NATIVE_LIST_HDR=1`
+      (`trace_enabled_fill_vs_c_vector ~2.8173x` vs default `~3.1008x`)
+    - exact `array_sum_int` preferred the shipped default
+      (`default_array_ratio_median ~2.1390x` vs `trace_enabled ~2.1702x`)
+    - exact `dot_product_int` flipped slightly toward `OREN_TRACE_NATIVE_LIST_HDR=1`
+      (`trace_enabled_dot_ratio_median ~1.7830x` vs default `~1.8028x`)
+- corrected conclusion:
+  - keep the compiler/runtime alignment shipped: trace-off builds should not pay unconditional
+    loop-exit `oren_trace_list_header(...)` calls in explicit `list<int>` fast push loops
+  - keep `OREN_TRACE_NATIVE_LIST_HDR=1` opt-in only for fast-loop tracing
+  - across three widened cached reruns, the exact same-tree whole-operation surface never produced
+    a stable production-quality winner, so default-on native fast-loop header tracing is still not
+    justified
+
 Perf tooling hardening follow-up:
 
 - the remaining perf/build helper scripts that still hand-parsed

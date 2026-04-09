@@ -25,6 +25,7 @@ short_reps="${OREN_LIST_INT_ARRAY_SUM_C_BREAKDOWN_SHORT_REPS:-1}"
 long_reps="${OREN_LIST_INT_ARRAY_SUM_C_BREAKDOWN_LONG_REPS:-100}"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
+perf_build_use_cache="${OREN_PERF_BUILD_USE_CACHE:-0}"
 
 bench_cc="${OREN_BENCH_CC:-cc}"
 scalar_flags=()
@@ -38,6 +39,7 @@ fi
 
 perf_build_env_read_array "$build_env_raw"
 build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
+perf_build_cache_args
 
 cat >"$array_packed_c_src" <<'EOF'
 #include <inttypes.h>
@@ -83,7 +85,7 @@ int main(int argc, char **argv) {
 }
 EOF
 
-build_array_cmd=(./oren_stage2 build benchmarks/array_sum_int/array_sum_int.oren --backend native --no-debug --no-cache -o "$oren_array_bin")
+build_array_cmd=(./oren_stage2 build benchmarks/array_sum_int/array_sum_int.oren --backend native --no-debug "${PERF_BUILD_CACHE_ARGS[@]}" -o "$oren_array_bin")
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then
     env "${build_env_parts[@]}" "${build_array_cmd[@]}" >"$tmp_dir/array_sum_int_oren_native.build.log" 2>&1
 else
@@ -106,6 +108,7 @@ ARRAY_SLOT_VECTOR_BIN="$array_slot_vector_bin" \
 ARRAY_SLOT_SCALAR_BIN="$array_slot_scalar_bin" \
 OREN_ARRAY_BIN="$oren_array_bin" \
 BUILD_ENV="$build_env_raw" \
+PERF_BUILD_USE_CACHE="$perf_build_use_cache" \
 CC_BIN="$bench_cc" \
 SCALAR_FLAGS="${scalar_flags[*]}" \
 python3 - <<'PY' >"$summary_log"
@@ -188,6 +191,7 @@ print("list<int> array_sum_int C breakdown probe")
 print("")
 if os.environ["BUILD_ENV"]:
     print(f"build_env: {os.environ['BUILD_ENV']}")
+print(f"perf_build_use_cache: {os.environ['PERF_BUILD_USE_CACHE']}")
 print(f"cc: {os.environ['CC_BIN']}")
 print(f"scalar_flags: {os.environ['SCALAR_FLAGS']}")
 print(f"runs: {runs}")

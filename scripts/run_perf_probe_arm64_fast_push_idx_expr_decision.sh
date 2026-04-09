@@ -19,6 +19,7 @@ variant_fill_wrapper_log="$log_dir/${tag}-${ts}.${variant_label}-fill.log"
 manifest_log="$log_dir/${tag}-${ts}.manifest.tsv"
 
 sweeps="${OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_SWEEPS:-3}"
+perf_build_use_cache="${OREN_PERF_BUILD_USE_CACHE:-0}"
 
 extract_summary_path() {
     local run_log="$1"
@@ -71,6 +72,7 @@ SWEEPS="$sweeps" \
 VARIANT_ENV="$variant_env" \
 VARIANT_LABEL="$variant_label" \
 TITLE="$title" \
+PERF_BUILD_USE_CACHE="$perf_build_use_cache" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
@@ -194,6 +196,7 @@ print("")
 print(f"sweeps: {os.environ['SWEEPS']}")
 print(f"variant_label: {variant_label}")
 print(f"variant_build_env: {os.environ['VARIANT_ENV']}")
+print(f"perf_build_use_cache: {os.environ['PERF_BUILD_USE_CACHE']}")
 print("")
 print(f"default_fill_wrapper_log: {os.environ['DEFAULT_FILL_WRAPPER_LOG']}")
 print(f"default_fill_summary: {default_fill['path']}")
@@ -243,6 +246,6 @@ print("note: fill_pref comes from the fill-share/setup surface; exact_* preferen
 print("whole-operation C-ceiling reruns on the shipped benchmark programs.")
 PY
 
-echo "arm64 fast list<int> push idx-expr decision probe complete; summary: $summary_log"
+echo "${title}; summary: $summary_log"
 echo "default fill wrapper log: $default_fill_wrapper_log"
 echo "${variant_label} fill wrapper log: $variant_fill_wrapper_log"

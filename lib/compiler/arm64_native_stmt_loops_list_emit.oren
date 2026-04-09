@@ -2468,16 +2468,16 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var list_slot3 = list_base_off + li2 * 16
         emit_ldr_reg_sp_any(ctx, 21, list_slot3)
         push_u32_le(ctx["code"], insn_str_ptr(20, 21))
-        // Emit list_hdr ring entries on loop exit so GC corruption can be correlated
-        // even when compile-time trace flags are not set.
-        push_u32_le(ctx["code"], insn_mov_reg(0, 21)) // list
-        emit_load_i64_imm(ctx, 1, 7) // list_int_push
-        emit_load_i64_imm(ctx, 2, 8) // LIST_INT
-        var bl_trace = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
-        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
+        if ctx["trace_native_list_hdr"] != nil {
+            push_u32_le(ctx["code"], insn_mov_reg(0, 21)) // list
+            emit_load_i64_imm(ctx, 1, 7) // list_int_push
+            emit_load_i64_imm(ctx, 2, 8) // LIST_INT
+            var bl_trace = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
+        }
         li2 = li2 + 1
     }
 

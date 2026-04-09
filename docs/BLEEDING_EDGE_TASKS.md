@@ -1945,13 +1945,34 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      surface. Current widened safe-tree rerun
 									      (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203332_51451.log`)
 									      preferred enabled on both surfaces, but the immediate promoted-default rerun
-									      (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203846_59158.log`)
-									      flipped the exact whole-operation medians back toward the disabled branch while the
-									      fill/share surface still preferred default. Reweight: keep
-									      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT` opt-in only. This branch is
-									      promising, but the exact same-tree winner is not stable enough yet to ship.
-									    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
-									      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
+										      (`build/logs/perf-probe-arm64-fast-push-fresh-exact-init-decision-20260409_203846_59158.log`)
+										      flipped the exact whole-operation medians back toward the disabled branch while the
+										      fill/share surface still preferred default. Reweight: keep
+										      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT` opt-in only. This branch is
+										      promising, but the exact same-tree winner is not stable enough yet to ship.
+										    - Arm64 fast `list<int>` push native-list-header trace alignment (2026-04-09):
+										      explicit `fast_list_int_push_while` no longer emits loop-exit
+										      `oren_trace_list_header(...)` calls on shipped trace-off builds. It now follows
+										      the same compile-time debug contract as the older generic fast-list tracing path
+										      and only emits those calls when `OREN_TRACE_NATIVE_LIST_HDR=1` is set. Use
+										      `make perf-probe-arm64-fast-push-native-list-hdr-decision` as the ranking surface.
+										      The first widened cached rerun
+										      (`build/logs/perf-probe-arm64-fast-push-native-list-hdr-decision-20260409_213946_33097.log`)
+										      slightly preferred `OREN_TRACE_NATIVE_LIST_HDR=1` on fill/share and exact
+										      `array_sum_int`, but the second rerun
+										      (`build/logs/perf-probe-arm64-fast-push-native-list-hdr-decision-20260409_214130_36680.log`)
+										      flipped exact `array_sum_int` back toward default by median and kept exact
+										      `dot_product_int` with the shipped trace-off build (`default_dot_ratio_median
+										      ~1.7383×` vs `trace_enabled ~1.7840×`, `dot_default_wins: 5/5`). The final
+										      cached rerun on the finished scripts
+										      (`build/logs/perf-probe-arm64-fast-push-native-list-hdr-decision-20260409_220014_61301.log`)
+										      still stayed mixed: fill/share again preferred `OREN_TRACE_NATIVE_LIST_HDR=1`,
+										      exact `array_sum_int` preferred default, and exact `dot_product_int` flipped
+										      slightly toward `trace_enabled`. Reweight: keep native fast-loop list header
+										      tracing opt-in only; the codegen alignment is correct and shipped, but the exact
+										      whole-operation winner is not stable enough to justify default-on tracing.
+										    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
+										      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
 									      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
 							      serialized acceptance bundle. Current final-tree rerun
 							      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)

@@ -23,3 +23,11 @@ perf_build_env_read_array() {
         PERF_BUILD_ENV_PARTS+=("$part")
     done < <(perf_build_env_to_nul "$raw")
 }
+
+perf_build_cache_args() {
+    PERF_BUILD_CACHE_ARGS=()
+    if [[ "${OREN_PERF_BUILD_USE_CACHE:-0}" == "1" || "${OREN_PERF_BUILD_USE_CACHE:-0}" == "true" ]]; then
+        return 0
+    fi
+    PERF_BUILD_CACHE_ARGS+=(--no-cache)
+}
