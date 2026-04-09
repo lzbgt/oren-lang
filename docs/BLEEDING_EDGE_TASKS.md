@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-04-09
+**Last updated:** 2026-04-10
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -1945,18 +1945,30 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=0` on the same
 									      fill/share attribution probe plus same-tree exact whole-operation C-ceiling reruns.
 									      The widened rerun
-									      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`)
-									      closes this branch as the next real shipped fill-side win: fill/share strongly
-									      preferred default (`default_fill_vs_c_vector ~2.8909×`, disabled `~4.3823×`),
-									      exact `array_sum_int` also preferred default
-									      (`default_array_ratio_median ~2.2540×` vs disabled `~2.2740×`), and exact
-									      `dot_product_int` preferred default too
-									      (`default_dot_ratio_median ~1.7910×` vs disabled `~1.8065×`).
-									      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` therefore now ships on by default on
-									      the current tree.
-									    - Arm64 explicit push fresh-exact-init follow-up (2026-04-09): explicit
-									      `fast_list_int_push_while` now has an opt-in path
-									      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT=1` that carries conservative
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`)
+										      closes this branch as the next real shipped fill-side win: fill/share strongly
+										      preferred default (`default_fill_vs_c_vector ~2.8909×`, disabled `~4.3823×`),
+										      exact `array_sum_int` also preferred default
+										      (`default_array_ratio_median ~2.2540×` vs disabled `~2.2740×`), and exact
+										      `dot_product_int` preferred default too
+										      (`default_dot_ratio_median ~1.7910×` vs disabled `~1.8065×`).
+										      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` therefore now ships on by default on
+										      the current tree.
+										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
+										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
+										      baseline, but the widened cached decision surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-recurrence-decision-20260410_001827_33770.log`)
+										      rejected it cleanly enough to prune from the tree. Fill/share still preferred the
+										      shipped default (`default_fill_vs_c_vector ~4.7537×`, disabled `~4.8312×`), and
+										      the exact same-tree whole-operation medians also preferred the disabled branch on
+										      both tracked programs (`default_array_ratio_median ~2.3187×` vs disabled
+										      `~2.2727×`, `default_dot_ratio_median ~1.7935×` vs disabled `~1.7737×`).
+										      Reweight: keep the shipped nonnegative-linear fast path simple; the next fill-side
+										      work should attack a different residual cost than `%` recurrence inside the same
+										      single-list cursor loop.
+										    - Arm64 explicit push fresh-exact-init follow-up (2026-04-09): explicit
+										      `fast_list_int_push_while` now has an opt-in path
+										      `OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT=1` that carries conservative
 									      same-block constructor proof from `list.int_new(n)` / `oren_new_list_int(n)` into
 									      the fast fill loop. When `i` is still known `0` and the constructor cap exactly
 									      matches the loop bound, the emitter skips reserve/count/header revalidation and

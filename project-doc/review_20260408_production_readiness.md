@@ -683,6 +683,45 @@ Push nonnegative-linear fill-side follow-up (2026-04-09):
   - `build/logs/make_verify_runtime_robustness_push_nonneg_linear_batch_20260409.log`
   - `build/logs/runtime_robustness_w5_20260409_195650.log`
 
+Push nonnegative-linear recurrence follow-up (2026-04-10):
+
+- I then tested a narrower `%`-recurrence follow-up under the shipped nonnegative-linear fill path
+  instead of assuming the remaining fill-side cost was still dominated by the per-iteration
+  `udiv`-based modulo recomputation.
+- experimental compiler change on the temporary tree only:
+  - `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+  - temporary default-on env gate while measuring:
+    `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_RECURRENCE`
+- what changed on the temporary branch:
+  - for the single-list cursor case only, the fill loop computed the initial nonnegative-linear
+    value once and then carried `current = (current + delta) % mod` across iterations instead of
+    rebuilding `(mul*i + add) % mod` with `udiv`
+  - the carried recurrence state lived in callee-saved regs that the inline safepoint path already
+    spills, so the experiment was correctness-safe enough to rank on the real shipped benchmark
+    surface
+- decision artifact:
+  - `build/logs/perf-probe-arm64-fast-push-nonneg-linear-recurrence-decision-20260410_001827_33770.log`
+- measured result:
+  - fill/share still preferred the shipped default
+    - `default_fill_vs_c_vector: ~4.7537x`
+    - disabled `~4.8312x`
+    - `fill_pref: default`
+  - exact whole-operation medians both preferred the disabled branch
+    - `default_array_ratio_median: ~2.3187x`
+    - disabled `~2.2727x`
+    - `exact_array_pref: disabled`
+    - `default_dot_ratio_median: ~1.7935x`
+    - disabled `~1.7737x`
+    - `exact_dot_pref: disabled`
+    - `decision_surface_alignment: disagree`
+- corrected conclusion:
+  - do **not** keep the modulo-recurrence subpath in the shipped tree
+  - the shipped nonnegative-linear fill path should remain the simpler direct mul/add/(u)div
+    lowering
+  - this branch was removed immediately instead of being left behind as another dead opt-in path
+- verification used for the ranked temporary branch:
+  - `build/logs/make_verify_native_list_int_fast_lowering_push_nonneg_linear_recurrence_20260410.log`
+
 Push fresh-exact-init fill-side follow-up (2026-04-09):
 
 - I then tested the next setup-side shortcut directly instead of assuming that fresh constructor

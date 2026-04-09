@@ -347,6 +347,25 @@ Keep `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` shipped on. This is the next 
 fill-side improvement after `PUSH_IDX_EXPR` that wins on both the fill attribution surface and the
 exact same-tree whole-operation surface instead of only one of them.
 
+One narrower follow-up under that same family was tested and then pruned immediately instead of
+being left behind as another dead branch. The recurrence variant tried to replace the per-iteration
+`udiv`-based `%` recomputation with a carried modulo recurrence for the single-list cursor case, but
+the widened cached decision artifact
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-recurrence-decision-20260410_001827_33770.log`
+did not support shipping it:
+
+- fill/share still preferred the shipped default
+  - default `oren_fill_list_int / c_fill_slot64_vector ~4.7537x`
+  - disabled `~4.8312x`
+  - `fill_pref: default`
+- exact same-tree whole-operation C ceiling preferred the disabled branch on both tracked programs
+  - `default_array_ratio_median ~2.3187x` vs disabled `~2.2727x` (`exact_array_pref: disabled`)
+  - `default_dot_ratio_median ~1.7935x` vs disabled `~1.7737x` (`exact_dot_pref: disabled`)
+  - `decision_surface_alignment: disagree`
+
+So the shipped nonnegative-linear path stays the simpler direct mul/add/(u)div lowering. The
+recurrence subpath was removed from the tree rather than kept as another speculative opt-in.
+
 One more aggressive follow-up on that same baseline was tested and then removed from the tree: a
 single-list whole-fill runtime helper that replaced the explicit push loop with one
 `native_list_int_try_fill_nonneg_linear_exact(...)` call. It did trigger on
