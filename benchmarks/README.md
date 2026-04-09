@@ -181,31 +181,33 @@ Each C shape is timed both with default `-O2` and with vectorization disabled. T
 artifact, `build/logs/perf-probe-list-int-c-ceiling-20260409_143734_77001.log`, shows:
 
 - `array_sum_int`
-  - packed32 C vector: `~0.000133s` per rep
-  - packed32 C scalar: `~0.000826s` per rep
-  - slot64 C vector: `~0.000246s` per rep
-  - slot64 C scalar: `~0.000805s` per rep
-  - Oren native canonical: `~0.001425s` per rep
+  - packed32 C vector: `~0.000126s` per rep
+  - packed32 C scalar: `~0.000729s` per rep
+  - slot64 C vector: `~0.000235s` per rep
+  - slot64 C scalar: `~0.000750s` per rep
+  - Oren native canonical: `~0.000563s` per rep
 - `dot_product_int`
-  - packed32 C vector: `~0.000254s` per rep
-  - packed32 C scalar: `~0.000833s` per rep
-  - slot64 C vector: `~0.000785s` per rep
-  - slot64 C scalar: `~0.000860s` per rep
-  - Oren native canonical: `~0.001486s` per rep
+  - packed32 C vector: `~0.000248s` per rep
+  - packed32 C scalar: `~0.000730s` per rep
+  - slot64 C vector: `~0.000715s` per rep
+  - slot64 C scalar: `~0.000734s` per rep
+  - Oren native canonical: `~0.001335s` per rep
 
 The decisive ratios are:
 
-- `array_slot64_vector / array_packed32_vector`: `~1.8447x`
-- `oren_array_sum_int / array_slot64_vector`: `~5.7976x`
-- `oren_array_sum_int / array_slot64_scalar`: `~1.7691x`
-- `dot_slot64_vector / dot_packed32_vector`: `~3.0938x`
-- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0315x`
-- `oren_dot_product_int / dot_slot64_vector`: `~1.8923x`
+- `array_slot64_vector / array_packed32_vector`: `~1.8622x`
+- `oren_array_sum_int / array_slot64_vector`: `~2.3939x`
+- `oren_array_sum_int / array_slot64_scalar`: `~0.7500x`
+- `dot_slot64_vector / dot_packed32_vector`: `~2.8814x`
+- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0058x`
+- `oren_dot_product_int / dot_slot64_vector`: `~1.8678x`
 
-That is the current whole-operation ceiling fact on arm64 `master`: the helper/public-slot ranking
-question is no longer the main blocker. `array_sum_int` still leaves a large gap to a competitive
-slot64 host-C vector path, while `dot_product_int` remains materially above even the slot64 host-C
-ceiling after the current 64-bit slot ABI has already erased most of the packed-vector gain.
+That is the current whole-operation ceiling fact on arm64 `master` after the explicit get-sum
+unroll2 promotion: the helper/public-slot ranking question is no longer the main blocker, and the
+shipped canonical `array_sum_int` path is no longer stuck around the earlier `~5.8x` slot64-vector
+gap. `array_sum_int` still leaves a meaningful repeated-read gap to a competitive slot64 host-C
+vector path, while `dot_product_int` remains materially above even the slot64 host-C ceiling after
+the current 64-bit slot ABI has already erased most of the packed-vector gain.
 
 To separate one-time setup from the repeated `array_sum_int` read loop directly, use:
 
@@ -1221,30 +1223,30 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   Keep the cursor path enabled, but treat it as a modest whole-operation improvement, not the
   missing slot64-vector parity fix.
 - For the arm64 explicit `fast_list_int_get_sum_while` unroll-by-2 follow-up, use
-  `make perf-probe-arm64-fast-get-sum-unroll2-list-int`. The shipped tree keeps
-  `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` off by default and compares that exact baseline
-  against `...=1` through the same serialized acceptance bundle.
-- Current 2026-04-09 decision record is intentionally split. The exact whole-operation A/B on the
-  C-ceiling surface showed real upside when the env was forced on: baseline
-  (`build/logs/perf-probe-list-int-c-ceiling-20260409_150442_12959.log`) kept
-  `oren_array_sum_int / array_slot64_vector ~5.6704x`, while the env-enabled rerun
-  (`build/logs/perf-probe-list-int-c-ceiling-20260409_150458_13384.log`) improved that to
-  `~2.8516x`; the narrower shipped-candidate rerun
-  (`build/logs/perf-probe-list-int-c-ceiling-20260409_151055_21212.log`) even reached
-  `~2.3353x`.
-- That candidate is still not production-safe. Promoting unroll2 to the shipped default tripped the
-  broad gates: `make test` failed in
-  `build/logs/make_test_get_sum_unroll2_shipped_20260409.log` with `Error 139`, and
-  `make verify-runtime-robustness` failed in
-  `build/logs/make_verify_runtime_robustness_get_sum_unroll2_shipped_20260409.log` /
-  `build/logs/runtime_robustness_w5_20260409_151208.log` with `Error 138`.
-- The final shipped tree therefore keeps the env hook measurable but default-off. The corrected
-  safe-tree acceptance rerun
-  (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_154046_57475.log`) was not
-  a clean positive result either: enabling unroll2 moved the local steady native median from
-  `0.137200s` to `0.142443s` (`+3.82%`) and the gate leg warned as high variance. Final closeout
-  gates passed on the default-off tree in `build/logs/make_test_get_sum_unroll2_finalsafe_20260409.log`
-  and `build/logs/make_verify_runtime_robustness_get_sum_unroll2_finalsafe2_20260409.log`.
+  `make perf-probe-arm64-fast-get-sum-unroll2-list-int`. After the root-cause fix in
+  `lib/compiler/arm64_native_stmt_loops_list_emit.oren`, the shipped tree now keeps
+  `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` on by default for single-read-list shapes and compares
+  that live default against `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2=0` through the same
+  serialized acceptance bundle.
+- The earlier crashy candidate was not a vague runtime flake. The experimental unrolled arm64
+  bodies were reusing reserved heap registers `X27` / `X28` as loop value temporaries; those temps
+  now live in caller-saved `X12` / `X13`, which keeps the heap globals intact across the exact
+  whole-operation path.
+- After that fix, the promoted exact whole-operation rerun
+  (`build/logs/perf-probe-list-int-c-ceiling-20260409_163202_21950.log`) brought
+  `oren_array_sum_int / array_slot64_vector` down to `~2.3939x`; the narrower earlier promoted
+  candidate rerun (`build/logs/perf-probe-list-int-c-ceiling-20260409_151055_21212.log`) had
+  already shown the same shape at `~2.3353x`.
+- The broad gates that previously rejected the candidate now pass on the promoted tree:
+  `build/logs/make_test_get_sum_unroll2_promote_20260409.log`,
+  `build/logs/make_verify_runtime_robustness_get_sum_unroll2_promote_20260409.log`, and
+  `build/logs/runtime_robustness_w5_20260409_163313.log`.
+- The paired acceptance rerun on the same promoted default
+  (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_163132_20811.log`) stayed
+  noisy and locally favored the disabled branch (`0.067315s` default vs `0.058718s` disabled
+  steady native median, with default native `cov=0.1658`). Treat that wrapper as a local sanity
+  surface only; the exact whole-operation C ceiling plus the full integrated gates are now the
+  decisive shipped decision surface for this path.
 - For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
   `make perf-probe-arm64-fast-dot-unroll2` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-unroll2-list-int` for explicit `dot_product_int`. The shipped

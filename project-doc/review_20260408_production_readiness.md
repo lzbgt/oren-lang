@@ -911,33 +911,28 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 							      `16383` and `65535` improved steady native medians on that sample, but the gate view
 							      stayed too noisy to trust as a production default (`c_cov=0.6421` at shipped `4095`,
 							      `0.2631` at `16383`, `0.1270` at `65535`)
-							    - the new explicit get-sum unroll2 follow-up
-							      (`make perf-probe-arm64-fast-get-sum-unroll2-list-int`) exposes a previously dead
-							      `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` path on the shipped default-off tree
-							    - the exact whole-operation A/B is large enough to matter:
-							      baseline C-ceiling rerun
-							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_150442_12959.log`) kept
-							      `oren_array_sum_int / array_slot64_vector ~5.6704×`, while the env-enabled rerun
-							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_150458_13384.log`) improved that to
-							      `~2.8516×`; the narrower shipped-candidate rerun
-							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_151055_21212.log`) even reached
-							      `~2.3353×`
-							    - but the promoted default is explicitly rejected on this pass:
-							      `make test` failed in
-							      `build/logs/make_test_get_sum_unroll2_shipped_20260409.log` with `Error 139`, and
-							      `make verify-runtime-robustness` failed in
-							      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_shipped_20260409.log` /
-							      `build/logs/runtime_robustness_w5_20260409_151208.log` with `Error 138`
-							    - the final safe-tree acceptance rerun
-							      (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_154046_57475.log`)
-							      was mixed rather than clearly positive, and the default-off closeout still passed
-							      `make test` plus the bundled W5 runtime gate in
-							      `build/logs/make_test_get_sum_unroll2_finalsafe_20260409.log` and
-							      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_finalsafe2_20260409.log`
-							    - the corresponding final-tree whole-operation rerun
-							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_143734_77001.log`) still kept
-							      `oren_array_sum_int / array_slot64_vector ~5.7976×` and
-						      `oren_dot_product_int / dot_slot64_vector ~1.8923×`, so the get-sum tick-mask probe
+							    - the explicit get-sum unroll2 follow-up
+							      (`make perf-probe-arm64-fast-get-sum-unroll2-list-int`) is no longer a
+							      default-off dead branch: the earlier crashy candidate was root-caused in
+							      `lib/compiler/arm64_native_stmt_loops_list_emit.oren`, where the experimental
+							      unrolled bodies were clobbering reserved heap registers `X27` / `X28`
+							    - those loop-body value temps now use caller-saved `X12` / `X13`, and
+							      `OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2` now ships on by default for
+							      single-read-list shapes while staying overrideable for A/B and emergency disable
+							    - the promoted exact whole-operation rerun
+							      (`build/logs/perf-probe-list-int-c-ceiling-20260409_163202_21950.log`) now keeps
+							      `oren_array_sum_int / array_slot64_vector ~2.3939×` and
+							      `oren_dot_product_int / dot_slot64_vector ~1.8678×`
+							    - the broad integrated gates that previously rejected the candidate now pass in
+							      `build/logs/make_test_get_sum_unroll2_promote_20260409.log`,
+							      `build/logs/make_verify_runtime_robustness_get_sum_unroll2_promote_20260409.log`,
+							      and `build/logs/runtime_robustness_w5_20260409_163313.log`
+							    - the paired acceptance wrapper
+							      (`build/logs/perf-probe-arm64-fast-get-sum-unroll2-list-int-20260409_163132_20811.log`)
+							      stayed noisy and locally favored the disabled branch, so exact whole-operation
+							      ceiling plus integrated green lanes are now the decision surface for this shipped
+							      path, not that local micro-probe alone
+							    - reweight accordingly: the get-sum tick-mask probe
 						      is worth keeping but is still not the missing slot64-vector parity fix
 						    - that is the stronger whole-operation blocker split on current arm64 `master`: the
 						      helper/public-slot routing question is no longer the main issue, and the new get-sum

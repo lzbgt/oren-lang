@@ -7,11 +7,11 @@ mkdir -p "$log_dir"
 
 summary_log="$log_dir/perf-probe-arm64-fast-get-sum-unroll2-list-int-${ts}.log"
 default_log="$log_dir/perf-probe-arm64-fast-get-sum-unroll2-list-int-default-${ts}.run.log"
-enabled_log="$log_dir/perf-probe-arm64-fast-get-sum-unroll2-list-int-enabled-${ts}.run.log"
+disabled_log="$log_dir/perf-probe-arm64-fast-get-sum-unroll2-list-int-disabled-${ts}.run.log"
 
 programs="${OREN_ARM64_FAST_GET_SUM_UNROLL2_LIST_INT_PROGRAMS:-array_sum_int}"
 run_test="${OREN_ARM64_FAST_GET_SUM_UNROLL2_LIST_INT_RUN_TEST:-0}"
-enable_env="${OREN_ARM64_FAST_GET_SUM_UNROLL2_LIST_INT_ENABLE_ENV:-OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2=1}"
+disable_env="${OREN_ARM64_FAST_GET_SUM_UNROLL2_LIST_INT_DISABLE_ENV:-OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2=0}"
 
 run_capture() {
     local run_log="$1"
@@ -31,19 +31,19 @@ default_rc="$(run_capture "$default_log" env \
     OREN_BENCH_ENV_BUILD_OREN= \
     make perf-probe-arm64-list-int-acceptance)"
 
-enabled_rc="$(run_capture "$enabled_log" env \
+disabled_rc="$(run_capture "$disabled_log" env \
     OREN_ARM64_LIST_INT_ACCEPT_PROGRAMS="$programs" \
     OREN_ARM64_LIST_INT_ACCEPT_RUN_TEST="$run_test" \
-    OREN_BENCH_ENV_BUILD_OREN="$enable_env" \
+    OREN_BENCH_ENV_BUILD_OREN="$disable_env" \
     make perf-probe-arm64-list-int-acceptance)"
 
 DEFAULT_LOG="$default_log" \
 DEFAULT_RC="$default_rc" \
-ENABLED_LOG="$enabled_log" \
-ENABLED_RC="$enabled_rc" \
+DISABLED_LOG="$disabled_log" \
+DISABLED_RC="$disabled_rc" \
 RUN_TEST="$run_test" \
 PROGRAMS="$programs" \
-ENABLE_ENV="$enable_env" \
+DISABLE_ENV="$disable_env" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
@@ -101,14 +101,14 @@ def parse_float_metric(metrics, key):
 
 cases = [
     ("default", os.environ["DEFAULT_LOG"], os.environ["DEFAULT_RC"]),
-    ("enabled", os.environ["ENABLED_LOG"], os.environ["ENABLED_RC"]),
+    ("disabled", os.environ["DISABLED_LOG"], os.environ["DISABLED_RC"]),
 ]
 
 print("arm64 fast get-sum unroll2 list<int> probe summary")
 print("")
 print(f"programs: {os.environ['PROGRAMS']}")
 print(f"run_make_test: {os.environ['RUN_TEST']}")
-print(f"enabled_build_env: {os.environ['ENABLE_ENV']}")
+print(f"disabled_build_env: {os.environ['DISABLE_ENV']}")
 print("")
 case_metrics = {}
 for label, run_log, wrapper_rc in cases:
@@ -145,24 +145,24 @@ for label, run_log, wrapper_rc in cases:
     print("")
 
 default_metrics = case_metrics.get("default", {})
-enabled_metrics = case_metrics.get("enabled", {})
+disabled_metrics = case_metrics.get("disabled", {})
 for label, key in [
-    ("enabled_steady_array_sum_int_native_median_delta_pct", "steady_array_sum_int_native_median_s"),
-    ("enabled_gate_array_sum_int_native_median_delta_pct", "gate_array_sum_int_native_median_s"),
+    ("disabled_steady_array_sum_int_native_median_delta_pct", "steady_array_sum_int_native_median_s"),
+    ("disabled_gate_array_sum_int_native_median_delta_pct", "gate_array_sum_int_native_median_s"),
 ]:
     base = parse_float_metric(default_metrics, key)
-    enabled = parse_float_metric(enabled_metrics, key)
-    if base is not None and enabled is not None and base > 0.0:
-        print(f"{label}: {((enabled / base) - 1.0) * 100.0:+.2f}%")
+    disabled = parse_float_metric(disabled_metrics, key)
+    if base is not None and disabled is not None and base > 0.0:
+        print(f"{label}: {((disabled / base) - 1.0) * 100.0:+.2f}%")
 PY
 
 echo "arm64 fast get-sum unroll2 list<int> probe complete; summary: $summary_log"
 echo "default acceptance log: $default_log"
-echo "enabled acceptance log: $enabled_log"
+echo "disabled acceptance log: $disabled_log"
 if [[ "$default_rc" != "0" ]]; then
     echo "default acceptance failed (exit=$default_rc); keeping probe target red"
     exit "$default_rc"
 fi
-if [[ "$enabled_rc" != "0" ]]; then
-    echo "enabled get-sum unroll2 experiment failed (exit=$enabled_rc); see summary for details"
+if [[ "$disabled_rc" != "0" ]]; then
+    echo "disabled get-sum unroll2 experiment failed (exit=$disabled_rc); see summary for details"
 fi
