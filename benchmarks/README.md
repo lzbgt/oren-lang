@@ -230,6 +230,34 @@ The short-run setup estimate is still noisy enough that it should not be used al
 shipping decisions. The stable fact from this probe is narrower: the repeated `array_sum_int`
 read/accumulate kernel is still far above the slot64 C vector path on the same workload.
 
+To pin the adjacent list-build side on the same shipped tree, use:
+
+```bash
+make perf-probe-list-int-fill-share-decision
+```
+
+This adds a hidden single-list `list<int>` fill-only benchmark (`benchmarks/fill_list_int`) and
+pairs it with the exact `array_sum_int` breakdown surface above. Current artifact
+`build/logs/perf-probe-list-int-fill-share-decision-20260409_181428_58993.log` says the fill side
+is no longer small enough to ignore:
+
+- fill-only Oren `list<int>`: `per_rep_s ~0.005037`
+- fill-only slot64 C vector: `per_rep_s ~0.001044`
+- fill-only slot64 C scalar: `per_rep_s ~0.001462`
+- exact `array_sum_int` breakdown on the same tree:
+  - Oren setup estimate: `~0.008520s`
+  - Oren steady per-rep: `~0.000490s`
+  - slot64 C vector steady per-rep: `~0.000194s`
+- derived:
+  - `oren_fill_list_int / c_fill_slot64_vector ~4.8260x`
+  - `oren_fill_list_int / oren_array_sum_setup_est ~0.5912x`
+  - `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`
+
+That reweights the current blocker. The repeated-read `array_sum_int` loop is still above the
+slot64 C vector ceiling, but a single allocation+fill pass is materially larger in absolute time
+than the current shipped steady read kernel. The next high-leverage work should therefore revisit
+list build/fill lifetime and setup costs, not another get-sum-local micro-branch.
+
 For the serial arm64 dot-core acceptance bundle that matches the recent manual workflow, use:
 
 ```bash

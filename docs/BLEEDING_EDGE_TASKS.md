@@ -1761,6 +1761,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      exact dot also stays slightly better on default at `~1.8539x` vs `~1.8578x`).
 				      Keep the get-sum pair-post branch default-off; the acceptance wrapper is not the
 				      ranking surface for this branch.
+				    - New list<int> fill-share decision surface (2026-04-09):
+				      `make perf-probe-list-int-fill-share-decision` adds a hidden single-list
+				      `benchmarks/fill_list_int` benchmark pair and compares that fill-only whole-operation
+				      cost against the exact `array_sum_int` breakdown surface on the same shipped tree.
+				      Current artifact
+				      (`build/logs/perf-probe-list-int-fill-share-decision-20260409_181428_58993.log`)
+				      says the list-build side is no longer small enough to hand-wave away:
+				      fill-only Oren `per_rep_s ~0.005037`, slot64 C vector `~0.001044`,
+				      `oren_fill_list_int / c_fill_slot64_vector ~4.8260x`,
+				      `oren_fill_list_int / oren_array_sum_setup_est ~0.5912x`, and
+				      `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`.
+				      Reweight again: the next high-leverage `array_sum_int` work should attack list
+				      build/fill lifetime/setup costs, not another get-sum-local micro-branch.
 				    - Arm64 fast-loop prefix-zero family remains default-off, but the dot leg is now
 				      correctness-clean and isolated (2026-04-09): the statement-level prefix-zero
 				      list<int> fast paths still stay explicit opt-in only via

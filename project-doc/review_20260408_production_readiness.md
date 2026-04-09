@@ -519,6 +519,37 @@ Get-sum-specific follow-up (2026-04-09):
   - the acceptance wrapper is useful as a local sanity surface, but not as the shipping
     ranking surface for this branch
 
+Fill-share follow-up (2026-04-09):
+
+- the next unresolved question after the rejected get-sum micro-branches was whether the remaining
+  `array_sum_int` cost on the shipped unroll2-on tree was still mostly the repeated read loop or if
+  list build/fill had become material again
+- I added:
+  - hidden fill-only benchmark pair:
+    - `benchmarks/fill_list_int/fill_list_int.oren`
+    - `benchmarks/fill_list_int/fill_list_int.c`
+  - new decision surface:
+    - `make perf-probe-list-int-fill-share-decision`
+- current artifact:
+  - `build/logs/perf-probe-list-int-fill-share-decision-20260409_181428_58993.log`
+- current measured result:
+  - fill-only Oren `list<int>`: `per_rep_s ~0.005037`
+  - fill-only slot64 C vector: `per_rep_s ~0.001044`
+  - fill-only slot64 C scalar: `per_rep_s ~0.001462`
+  - exact `array_sum_int` breakdown on the same tree:
+    - Oren setup estimate: `~0.008520s`
+    - Oren steady per-rep: `~0.000490s`
+    - slot64 C vector steady per-rep: `~0.000194s`
+  - derived:
+    - `oren_fill_list_int / c_fill_slot64_vector ~4.8260x`
+    - `oren_fill_list_int / oren_array_sum_setup_est ~0.5912x`
+    - `oren_fill_list_int / oren_array_sum_steady_per_rep ~10.2796x`
+- corrected reweighting:
+  - the repeated read loop is still above the slot64 C vector ceiling
+  - but the list build/fill side is materially larger in absolute time than the current shipped
+    steady read kernel, so the next optimization class should move back toward list
+    allocation/push lifetime/setup rather than more get-sum-local loop-body branches
+
 Perf tooling hardening follow-up:
 
 - the remaining perf/build helper scripts that still hand-parsed
