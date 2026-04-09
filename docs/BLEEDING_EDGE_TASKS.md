@@ -1340,16 +1340,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					     `oren_list_int_len_unchecked(...)` for the typed mismatch guard instead of paying the
 					     safer `list.int_len(...)` probe again. Latest steady
 					     `make perf-probe-list-int-dot-ceiling`
-					     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_100858_61741.log`,
+					     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.log`,
 					     `runs=2 warmups=0 n=20000 reps=2`) now ranks:
-					     - canonical `dot_product_int`: `~1.2954× C`
-					     - direct-slot `dot_product_int_slot_direct`: `~1.1648× C`
-					     - public-slot `dot_product_int_slot_public`: `~1.1937× C`
-					     - canonical `array_sum_int`: `~1.2869× C`
-					     - direct-slot `array_sum_int_slot_direct`: `~1.0029× C`
-					     - public-slot `array_sum_int_slot_public`: `~1.0855× C`
+					     - canonical `dot_product_int`: `~1.3221× C`
+					     - direct-slot `dot_product_int_slot_direct`: `~1.0920× C`
+					     - public-slot `dot_product_int_slot_public`: `~1.2079× C`
+					     - canonical `array_sum_int`: `~1.4110× C`
+					     - direct-slot `array_sum_int_slot_direct`: `~1.0019× C`
+					     - public-slot `array_sum_int_slot_public`: `~1.0800× C`
 					     Reweight again: the public slot surface is still behind the hidden helper ceiling, but
-					     the residual gap is smaller than the earlier tracker state on both steady benchmarks.
+					     the residual gap remains meaningfully smaller than the older tracker state on both
+					     steady benchmarks.
+					   - Internal `try_fast` helper follow-up (2026-04-09): C/native/AVM now expose
+					     `oren_list_int_*_slots_try_fast(...)` so future lowering experiments can probe a single
+					     checked boundary, but a direct reroute of the public `std:linalg` API through that helper
+					     surface regressed hard on the same steady ceiling
+					     (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
+					     public-slot `dot_product_int` `~3.2619× C`, public-slot `array_sum_int` `~2.1178× C`).
+					     Keep that helper surface internal-only for now.
 						   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
 						     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
 						     whole-operation path. The sequential no-smoke rerun with

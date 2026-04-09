@@ -588,6 +588,20 @@ OrenValue oren_list_int_reduce_sum_slots(OrenValue list) {
     return oren_int((int64_t)acc);
 }
 
+OrenValue oren_list_int_reduce_sum_slots_try_fast(OrenValue list) {
+    if (list.type == OREN_TYPE_NIL) return oren_int(0);
+    lock_collections();
+    OrenList* l = NULL;
+    if (!list_int_slots_try_get(list, &l)) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    uint64_t acc = 0;
+    for (int i = 0; i < l->count; i++) acc += (uint64_t)l->items[i].as.int_val;
+    unlock_collections();
+    return oren_int((int64_t)acc);
+}
+
 OrenValue oren_list_int_reduce_sum_slots_unchecked(OrenValue list) {
     if (list.type == OREN_TYPE_NIL) return oren_int(0);
     lock_collections();
@@ -614,6 +628,32 @@ OrenValue oren_list_int_dot_slots(OrenValue a, OrenValue b) {
         !list_int_slots_try_get(b, &lb)) {
         unlock_collections();
         return list_int_slots_invalid_arg("oren_list_int_dot_slots expects (list<int>, list<int>)");
+    }
+    if (la->count != lb->count) {
+        unlock_collections();
+        return list_int_slots_invalid_arg("list_int_dot_slots: length mismatch");
+    }
+    uint64_t acc = 0;
+    for (int i = 0; i < la->count; i++) {
+        int64_t prod = (int64_t)la->items[i].as.int_val * (int64_t)lb->items[i].as.int_val;
+        acc += (uint64_t)prod;
+    }
+    unlock_collections();
+    return oren_int((int64_t)acc);
+}
+
+OrenValue oren_list_int_dot_slots_try_fast(OrenValue a, OrenValue b) {
+    if (a.type == OREN_TYPE_NIL || b.type == OREN_TYPE_NIL) {
+        if (a.type == OREN_TYPE_NIL && b.type == OREN_TYPE_NIL) return oren_int(0);
+        return OREN_NIL;
+    }
+    lock_collections();
+    OrenList* la = NULL;
+    OrenList* lb = NULL;
+    if (!list_int_slots_try_get(a, &la) ||
+        !list_int_slots_try_get(b, &lb)) {
+        unlock_collections();
+        return OREN_NIL;
     }
     if (la->count != lb->count) {
         unlock_collections();

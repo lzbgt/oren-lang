@@ -66,6 +66,16 @@ fn main() {
     if oren_list_int_reduce_sum_slots_unchecked(xs) != 10 { return 25 }
     if oren_list_int_dot_slots(xs, ys) != 70 { return 26 }
     if oren_list_int_dot_slots_unchecked(xs, ys) != 70 { return 27 }
+    if oren_list_int_reduce_sum_slots_try_fast(nil) != 0 { return 28 }
+    if oren_list_int_reduce_sum_slots_try_fast(xs) != 10 { return 29 }
+    if oren_list_int_reduce_sum_slots_try_fast([1, "x"]) != nil { return 30 }
+    if oren_list_int_dot_slots_try_fast(nil, nil) != 0 { return 31 }
+    if oren_list_int_dot_slots_try_fast(xs, ys) != 70 { return 32 }
+    if oren_list_int_dot_slots_try_fast(xs, nil) != nil { return 33 }
+    if oren_list_int_dot_slots_try_fast([1, "x"], ys) != nil { return 34 }
+    var short_try = _make_list([5, 6, 7])
+    if oren_is_err(short_try) { return 35 }
+    if oren_is_err(oren_list_int_dot_slots_try_fast(xs, short_try)) != true { return 36 }
     print("ok: list_int_slot_direct_contracts")
     return 0
 }

@@ -425,17 +425,17 @@ loop, the unchecked direct-slot helper path, and the packed-bridge scalar/SIMD p
 profile is `runs=2`, `warmups=0`, `n=20000`, `reps=2`; override it with
 `OREN_LIST_INT_DOT_CEILING_{RUNS,WARMUPS,N,REPS}` when you want a different scale.
 
-The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260409_100858_61741.log`,
-now includes the public `std:linalg` slot surface in the same steady ranking:
+The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.log`,
+keeps the public `std:linalg` slot surface in the same steady ranking:
 
-- baseline canonical `dot_product_int`: `~1.2954x C`
-- direct-slot helper `dot_product_int_slot_direct`: `~1.1648x C`
-- public-slot `dot_product_int_slot_public`: `~1.1937x C`
-- packed bridge SIMD `dot_product_int_packed_bridge`: `~4.8573x C`
-- packed bridge scalar `dot_product_int_packed_bridge`: `~16.6962x C`
+- baseline canonical `dot_product_int`: `~1.3221x C`
+- direct-slot helper `dot_product_int_slot_direct`: `~1.0920x C`
+- public-slot `dot_product_int_slot_public`: `~1.2079x C`
+- packed bridge SIMD `dot_product_int_packed_bridge`: `~5.3266x C`
+- packed bridge scalar `dot_product_int_packed_bridge`: `~17.1611x C`
 
-On the same run, `array_sum_int` came back as canonical `~1.2869x C`, hidden direct-slot helper
-`~1.0029x C`, and public-slot `~1.0855x C`. The follow-up that produced those numbers was not just
+On the same run, `array_sum_int` came back as canonical `~1.4110x C`, hidden direct-slot helper
+`~1.0019x C`, and public-slot `~1.0800x C`. The follow-up that produced those numbers was not just
 measurement churn:
 
 - native checked raw helpers now match AVM/C parity by returning structured `invalid_arg` errors on
@@ -443,6 +443,10 @@ measurement churn:
 - the public fast path still uses the unchecked raw helper once `oren_is_list_int(...)` has already
   proven the input, but it now uses `oren_list_int_len_unchecked(...)` for the typed mismatch guard
   instead of paying the safer `list.int_len(...)` probe again
+- the new internal `oren_list_int_*_slots_try_fast(...)` helpers remain unshipped for the public
+  `std:linalg` routing because the candidate reroute regressed badly on the same steady probe
+  (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
+  public-slot `dot_product_int` `~3.2619x C`, public-slot `array_sum_int` `~2.1178x C`)
 
 That is the current ceiling fact to use when choosing the next implementation move: the public
 `std:linalg` slot surface is materially better than the shipped canonical path on both steady

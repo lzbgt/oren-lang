@@ -258,6 +258,11 @@ OrenValue oren_list_int_reduce_sum_slots(OrenValue list);
 OrenValue oren_list_int_reduce_sum_slots_unchecked(OrenValue list);
 OrenValue oren_list_int_dot_slots(OrenValue a, OrenValue b);
 OrenValue oren_list_int_dot_slots_unchecked(OrenValue a, OrenValue b);
+// Internal fast-path probes for std:linalg:
+// - return computed value / real mismatch error when the input is already the native list<int> shape
+// - return nil when callers should fall back to the generic scalar path
+OrenValue oren_list_int_reduce_sum_slots_try_fast(OrenValue list);
+OrenValue oren_list_int_dot_slots_try_fast(OrenValue a, OrenValue b);
 // Returns 1 if list/map ops must take locks (threads started / forced), 0 otherwise.
 int oren_list_locking_needed(void);
 // C backend fast-paths for list<int> hot loops (inlines when locks not needed).

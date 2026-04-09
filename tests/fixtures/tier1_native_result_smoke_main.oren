@@ -314,6 +314,13 @@ fn smoke_list_int_slot_ops() {
     var raw_dot_nil = oren_list_int_dot_slots(xs, nil)
     if oren_is_err(raw_dot_nil) != true { return 16810 }
     if oren_err_code(raw_dot_nil) != 4 { return 16811 }
+    if oren_list_int_reduce_sum_slots_try_fast(xs) != 10 { return 16812 }
+    if oren_list_int_reduce_sum_slots_try_fast([1, "x"]) != nil { return 16813 }
+    if oren_list_int_dot_slots_try_fast(xs, xs) != 30 { return 16814 }
+    var raw_try_len = oren_list_int_dot_slots_try_fast(xs, short)
+    if oren_is_err(raw_try_len) != true { return 16815 }
+    if oren_err_code(raw_try_len) != 4 { return 16816 }
+    if oren_list_int_dot_slots_try_fast(xs, nil) != nil { return 16817 }
     return 0
 }
 

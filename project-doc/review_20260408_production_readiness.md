@@ -831,16 +831,22 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 	      `oren_list_int_len_unchecked(...)` for the typed mismatch guard instead of paying
 	      `list.int_len(...)` again
 	  - latest steady ranking surface:
-	    - `build/logs/perf-probe-list-int-dot-ceiling-20260409_100858_61741.log`
-	    - `dot_product_int`: canonical `~1.2954× C`, hidden helper `~1.1648× C`, public slot
-	      `~1.1937× C`
-	    - `array_sum_int`: canonical `~1.2869× C`, hidden helper `~1.0029× C`, public slot
-	      `~1.0855× C`
+	    - `build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.log`
+	    - `dot_product_int`: canonical `~1.3221× C`, hidden helper `~1.0920× C`, public slot
+	      `~1.2079× C`
+	    - `array_sum_int`: canonical `~1.4110× C`, hidden helper `~1.0019× C`, public slot
+	      `~1.0800× C`
 	  - interpretation:
 	    - the public slot surface remains behind the hidden helper ceiling, but the residual gap is
-	      now smaller than the earlier tracker state on both steady benchmarks
+	      still materially smaller than the older tracker state on both steady benchmarks
 	    - this is still a wrapper/helper convergence problem, not a reason to reopen packed-bridge
 	      work
+	    - internal `oren_list_int_*_slots_try_fast(...)` helpers now exist across C/native/AVM for
+	      future lowering experiments, but a direct public reroute through that helper surface
+	      regressed badly on the same steady probe
+	      (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
+	      public-slot `dot_product_int` `~3.2619× C`, public-slot `array_sum_int` `~2.1178× C`), so
+	      that route remains internal-only
 - Probe UX follow-up:
   - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
     fallback instead of requiring only per-script smoke env vars, which removes a real measurement
