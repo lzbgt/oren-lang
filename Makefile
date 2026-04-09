@@ -1031,6 +1031,9 @@ perf-probe-list-int-slot-abi-ceiling: oren_stage2
 perf-probe-list-int-dot-ceiling: oren_stage2
 	@./scripts/run_perf_probe_list_int_dot_ceiling.sh
 
+perf-probe-list-int-dot-ceiling-stability: oren_stage2
+	@./scripts/run_perf_probe_list_int_dot_ceiling_stability.sh
+
 perf-probe-list-int-specialization-gap: oren_stage2
 	@./scripts/run_perf_probe_list_int_specialization_gap.sh
 

@@ -425,8 +425,9 @@ loop, the unchecked direct-slot helper path, and the packed-bridge scalar/SIMD p
 profile is `runs=2`, `warmups=0`, `n=20000`, `reps=2`; override it with
 `OREN_LIST_INT_DOT_CEILING_{RUNS,WARMUPS,N,REPS}` when you want a different scale.
 
-The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.log`,
-keeps the public `std:linalg` slot surface in the same steady ranking:
+One representative earlier light artifact,
+`build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.log`, kept the public
+`std:linalg` slot surface in the same steady ranking:
 
 - baseline canonical `dot_product_int`: `~1.3221x C`
 - direct-slot helper `dot_product_int_slot_direct`: `~1.0920x C`
@@ -448,11 +449,40 @@ measurement churn:
   (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
   public-slot `dot_product_int` `~3.2619x C`, public-slot `array_sum_int` `~2.1178x C`)
 
-That is the current ceiling fact to use when choosing the next implementation move: the public
-`std:linalg` slot surface is materially better than the shipped canonical path on both steady
-benchmarks and now sits closer to the hidden helper ceiling than the previous tracker state. Keep
-using this steady ceiling probe for decisions; the remaining gap is still narrow, but it is no
-longer large enough to justify packed-bridge detours.
+That earlier light probe showed why the public `std:linalg` slot surface kept looking like a serious
+candidate relative to the shipped canonical path, but the light surface is too swingy to use alone.
+Keep using this quick ceiling probe as the cheap sanity surface; the remaining gap is still narrow,
+but it is no longer large enough to justify packed-bridge detours.
+
+For order-sensitive ranking decisions, use:
+
+```bash
+make perf-probe-list-int-dot-ceiling-stability
+```
+
+This runs the same five cases as the quick ceiling probe, but does it in an order-balanced
+round-robin across five sweeps so each case appears in each starting position once. The default
+profile is still intentionally moderate (`sweeps=5`, `runs=3`, `warmups=1`, `n=20000`, `reps=4`);
+override it with `OREN_LIST_INT_DOT_CEILING_STABILITY_{SWEEPS,RUNS,WARMUPS,N,REPS,COV_WARN}` when
+you want a different scale. Use this target when you need to decide whether canonical, public-slot,
+or hidden direct-slot is actually winning on the current tree.
+
+The latest artifact, `build/logs/perf-probe-list-int-dot-ceiling-stability-20260409_123207_90132.log`,
+comes back as:
+
+- `array_sum_rank_counts`: canonical won `2/5` sweeps, direct-slot `2/5`, public-slot `1/5`
+- `dot_product_rank_counts`: canonical won `3/5` sweeps, public-slot `2/5`, direct-slot `0/5`
+- median `array_sum_int` ratios: canonical `~1.1887x C`, direct-slot `~1.2329x C`, public-slot
+  `~1.2729x C`
+- median `dot_product_int` ratios: canonical `~1.2177x C`, public-slot `~1.2231x C`, direct-slot
+  `~1.3097x C`
+
+That is the calmer ranking fact to use on current arm64 `master`: the shipped canonical path is now
+the best repeated whole-operation median on this stronger probe, public-slot stays close enough to
+win some `dot_product_int` sweeps, and the hidden direct-slot helper is no longer a stable
+whole-operation winner. Reweight accordingly: use the stability probe for ordering decisions, keep
+the quick ceiling probe for fast sanity checks, and do not assume more public/helper lowering will
+automatically beat the current canonical arm64 path.
 
 For the same short/long split surface, but comparing canonical against the hidden direct-slot helper
 instead of the packed bridge, use:
@@ -540,10 +570,10 @@ the earlier `build/logs/perf-probe-list-int-dot-ceiling-20260409_113946_99659.lo
   - canonical `dot_product_int`: `~1.2155x C`
 
 The direct-slot/public ordering still flipped between those light reruns, so do not rewrite the
-ranking story from this batch alone. The stable claim is narrower: the arm64 alloc-index
-convergence improved the shipped canonical path on repeated serial reruns and stayed correctness
-clean, but the remaining public-slot vs hidden-helper gap still needs a calmer ranking surface than
-the default `runs=2`, `reps=2` ceiling probe.
+ranking story from this batch alone. The later order-balanced stability probe above is now the
+decision-grade surface; the stable claim from the alloc-index batch is narrower: the arm64
+alloc-index convergence improved the shipped canonical path on repeated serial reruns and stayed
+correctness clean.
 
 For a direct answer to “is the packed bridge only losing because of one-time setup cost?”, use:
 

@@ -168,6 +168,10 @@ ranking.sort()
 print("dot_product_rank:")
 for ratio, name in ranking:
     print(f"  {name}: {ratio:.4f}x")
+print("")
+print("decision_note:")
+print("  use make perf-probe-list-int-dot-ceiling-stability when helper/public ordering matters")
+print("  keep this target for the cheap quick snapshot")
 PY
 
 echo "list<int> dot-path ceiling probe complete; summary: $summary_log"

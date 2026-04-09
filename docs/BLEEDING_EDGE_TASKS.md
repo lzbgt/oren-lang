@@ -1372,13 +1372,30 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						       - canonical `array_sum_int`: `~1.2781× C`
 						       - canonical `dot_product_int`: `~1.2155× C`
 						     Reweight again: this batch is a real canonical-baseline win, but not yet a stable new
-						     helper/public ranking. The light `runs=2`, `reps=2` ceiling probe still flips direct-slot
-						     vs public-slot ordering, so the next parity move should either strengthen the ranking
-						     surface or continue attacking the remaining public/canonical gap without over-claiming the
-						     exact helper/public order.
-							   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
-							     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
-							     whole-operation path. The sequential no-smoke rerun with
+						     helper/public ranking. The light `runs=2`, `reps=2` ceiling probe still flipped
+						     direct-slot vs public-slot ordering, which is why the new order-balanced stability probe
+						     was added next.
+						   - Order-balanced ceiling stability follow-up (2026-04-09): new
+						     `make perf-probe-list-int-dot-ceiling-stability` rotates baseline, direct-slot,
+						     public-slot, packed-scalar, and packed-SIMD across five sweeps so each case appears in
+						     each starting position once. Latest artifact:
+						     `build/logs/perf-probe-list-int-dot-ceiling-stability-20260409_123207_90132.log`
+						     (`sweeps=5`, `runs=3`, `warmups=1`, `n=20000`, `reps=4`) now comes back as:
+						     - `array_sum_rank_counts`: canonical `2/5` wins, direct-slot `2/5`, public-slot `1/5`
+						     - `dot_product_rank_counts`: canonical `3/5` wins, public-slot `2/5`, direct-slot `0/5`
+						     - median `array_sum_int`: canonical `~1.1887× C`, direct-slot `~1.2329× C`,
+						       public-slot `~1.2729× C`
+						     - median `dot_product_int`: canonical `~1.2177× C`, public-slot `~1.2231× C`,
+						       direct-slot `~1.3097× C`
+						     Reweight again: on the stronger repeated surface, current arm64 canonical is now the best
+						     whole-operation median on both benchmarks. Public-slot remains close enough to win some
+						     `dot_product_int` sweeps, but neither public-slot nor hidden direct-slot is a stable
+						     whole-operation winner on current `master`. Use this new stability probe for ordering
+						     decisions and stop assuming more helper/public lowering will automatically beat the
+						     shipped canonical arm64 path.
+								   - Exact whole-list helper follow-up (2026-04-09): a direct attempt to do exactly that for
+								     the exact whole-list benchmark shapes stayed correctness-clean but regressed the
+								     whole-operation path. The sequential no-smoke rerun with
 						     `OREN_NATIVE_FAST_LIST_INT_{GET_SUM,DOT}_WHOLE_LIST_HELPER=1`
 					     (`build/logs/perf-probe-list-int-slot-direct-read-split-20260409_000912_53072.log`,
 					     `runs=4 warmups=0 n=20000 short_reps=1 long_reps=4`) versus the disabled baseline

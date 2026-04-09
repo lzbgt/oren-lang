@@ -847,18 +847,34 @@ Shared slot-direct stdlib follow-up (2026-04-09):
 		      (`build/logs/perf-probe-list-int-dot-ceiling-20260409_113108_86448.log`:
 		      public-slot `dot_product_int` `~3.2619× C`, public-slot `array_sum_int` `~2.1178× C`), so
 		      that route remains internal-only
-		    - later the same day, the arm64 compiler-side list fast-loop validation was converged onto
-		      the same `native_alloc_index_get` lookup x64 already uses instead of the older
-		      `oren_find_node` path in `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
-		    - that convergence stayed correctness-clean and two serialized steady reruns both improved
-		      the shipped canonical path versus the earlier snapshot:
-		      - `build/logs/perf-probe-list-int-dot-ceiling-20260409_115936_33151.log`
-		        canonical `array_sum_int` `~1.2173× C`, canonical `dot_product_int` `~1.3071× C`
-		      - `build/logs/perf-probe-list-int-dot-ceiling-20260409_120228_38413.log`
-		        canonical `array_sum_int` `~1.2781× C`, canonical `dot_product_int` `~1.2155× C`
-		    - the direct-slot/public ordering still flipped between those light reruns, so this is a
-		      real canonical-baseline win but not yet a stable new helper/public ranking
-	- Probe UX follow-up:
+			    - later the same day, the arm64 compiler-side list fast-loop validation was converged onto
+			      the same `native_alloc_index_get` lookup x64 already uses instead of the older
+			      `oren_find_node` path in `lib/compiler/arm64_native_stmt_loops_list_emit.oren`
+			    - that convergence stayed correctness-clean and two serialized steady reruns both improved
+			      the shipped canonical path versus the earlier snapshot:
+			      - `build/logs/perf-probe-list-int-dot-ceiling-20260409_115936_33151.log`
+			        canonical `array_sum_int` `~1.2173× C`, canonical `dot_product_int` `~1.3071× C`
+			      - `build/logs/perf-probe-list-int-dot-ceiling-20260409_120228_38413.log`
+			        canonical `array_sum_int` `~1.2781× C`, canonical `dot_product_int` `~1.2155× C`
+			    - the direct-slot/public ordering still flipped between those light reruns, so this was a
+			      real canonical-baseline win but still not a stable new helper/public ranking
+			    - the stronger follow-up is now
+			      `make perf-probe-list-int-dot-ceiling-stability`
+			      (`build/logs/perf-probe-list-int-dot-ceiling-stability-20260409_123207_90132.log`),
+			      which rotates baseline / direct-slot / public-slot / packed-scalar / packed-SIMD across
+			      five sweeps (`runs=3`, `warmups=1`, `n=20000`, `reps=4`)
+			    - on that order-balanced surface:
+			      - `array_sum_rank_counts`: canonical `2/5`, direct-slot `2/5`, public-slot `1/5`
+			      - `dot_product_rank_counts`: canonical `3/5`, public-slot `2/5`, direct-slot `0/5`
+			      - median `array_sum_int`: canonical `~1.1887× C`, direct-slot `~1.2329× C`,
+			        public-slot `~1.2729× C`
+			      - median `dot_product_int`: canonical `~1.2177× C`, public-slot `~1.2231× C`,
+			        direct-slot `~1.3097× C`
+			    - that is the new production-quality ranking fact on current arm64 `master`: the shipped
+			      canonical path is now the best repeated whole-operation median on both benchmarks,
+			      public-slot remains close enough to win some `dot_product_int` sweeps, and the hidden
+			      direct-slot helper is no longer a stable whole-operation winner
+		- Probe UX follow-up:
   - related list-int probe scripts now honor the repo-wide `OREN_PERF_SMOKE_LIST_INT=0` knob as a
     fallback instead of requiring only per-script smoke env vars, which removes a real measurement
     consistency footgun during no-smoke reruns
