@@ -20,6 +20,12 @@ unsupported_err="$TMP/unsupported.err"
 wall_out="$TMP/wall.out"
 wall_err="$TMP/wall.err"
 wall_json="$TMP/wall.run.json"
+heap_ok_out="$TMP/heap-ok.out"
+heap_ok_err="$TMP/heap-ok.err"
+heap_ok_json="$TMP/heap-ok.run.json"
+heap_fail_out="$TMP/heap-fail.out"
+heap_fail_err="$TMP/heap-fail.err"
+heap_fail_json="$TMP/heap-fail.run.json"
 
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$ok_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_ok.oren \
@@ -36,6 +42,15 @@ grep -Fq "native capsule effect gates " "$ok_out" || {
   cat "$ok_err" >&2 || true
   exit 1
 }
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$heap_ok_json" \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_heap_ok.oren \
+  >"$heap_ok_out" 2>"$heap_ok_err"
+grep -Fq "native package policy heap ok" "$heap_ok_out" || {
+  echo "ERROR: native package-policy heap ok fixture did not report success" >&2
+  cat "$heap_ok_out" >&2 || true
+  cat "$heap_ok_err" >&2 || true
+  exit 1
+}
 
 set +e
 ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_deny_time.oren \
@@ -48,9 +63,13 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$wall_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_wall_timeout.oren \
   >"$wall_out" 2>"$wall_err"
 wall_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$heap_fail_json" \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_heap_fail.oren \
+  >"$heap_fail_out" 2>"$heap_fail_err"
+heap_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -58,6 +77,8 @@ from pathlib import Path
 ok_path = Path(sys.argv[1])
 wall_path = Path(sys.argv[2])
 ok_stdout_path = Path(sys.argv[3])
+heap_ok_path = Path(sys.argv[4])
+heap_fail_path = Path(sys.argv[5])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -78,8 +99,12 @@ if ok.get("runtime_profile") != "capsule" or ok.get("capsule") is not True:
     fail(f"{ok_path}: expected capsule runtime profile, got {ok!r}")
 if ok.get("cap_allow_domains") != ["TIME"]:
     fail(f"{ok_path}: expected TIME allow domain, got {ok.get('cap_allow_domains')!r}")
-if (ok.get("effect_ledger") or {}).get("available") is not False:
-    fail(f"{ok_path}: native effect ledger must stay unavailable until runtime export lands")
+ok_ledger = ok.get("effect_ledger") or {}
+if ok_ledger.get("available") is not True:
+    fail(f"{ok_path}: expected captured native runtime ledger summary, got {ok_ledger!r}")
+ok_summary = ok_ledger.get("summary") or {}
+if ok_summary.get("schema") != "oren.effect-ledger-summary.v0":
+    fail(f"{ok_path}: native effect ledger summary schema mismatch: {ok_summary!r}")
 if (ok.get("runner_observed") or {}).get("budget_status") != "runner_wall_only":
     fail(f"{ok_path}: expected runner_wall_only status, got {ok.get('runner_observed')!r}")
 wall = ((ok.get("budgets") or {}).get("wall_ms") or {})
@@ -125,6 +150,47 @@ if wall_budget.get("limit") != 100 or wall_budget.get("enforced") is not True:
     fail(f"{wall_path}: expected enforced 100ms wall budget, got {wall_budget!r}")
 if int(wall_budget.get("elapsed_ns") or 0) <= 0:
     fail(f"{wall_path}: expected positive timeout elapsed_ns, got {wall_budget!r}")
+
+heap_ok = load(heap_ok_path)
+if heap_ok.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{heap_ok_path}: schema mismatch: {heap_ok.get('schema')!r}")
+if heap_ok.get("status") != "pass" or heap_ok.get("exit_code") != 0:
+    fail(f"{heap_ok_path}: expected pass/0, got status={heap_ok.get('status')!r} exit={heap_ok.get('exit_code')!r}")
+if (heap_ok.get("runner_observed") or {}).get("budget_status") != "runner_wall_native_heap":
+    fail(f"{heap_ok_path}: expected runner_wall_native_heap status, got {heap_ok.get('runner_observed')!r}")
+heap_ok_ledger = heap_ok.get("effect_ledger") or {}
+if heap_ok_ledger.get("available") is not True:
+    fail(f"{heap_ok_path}: expected native runtime ledger summary, got {heap_ok_ledger!r}")
+heap_ok_summary = heap_ok_ledger.get("summary") or {}
+heap_ok_budget = ((heap_ok.get("budgets") or {}).get("heap_bytes") or {})
+if heap_ok_budget.get("limit") != 20000000 or heap_ok_budget.get("enforced") is not True:
+    fail(f"{heap_ok_path}: expected enforced 20000000 byte heap budget, got {heap_ok_budget!r}")
+if heap_ok_budget.get("exceeded") is not False:
+    fail(f"{heap_ok_path}: expected non-exceeded heap budget, got {heap_ok_budget!r}")
+heap_ok_used = int(heap_ok_budget.get("used") or -1)
+if heap_ok_used < 0 or heap_ok_used > 20000000:
+    fail(f"{heap_ok_path}: heap used outside budget: {heap_ok_budget!r}")
+summary_heap = (((heap_ok_summary.get("budgets") or {}).get("heap_bytes") or {}))
+if summary_heap.get("kind") != "tracked_live_scan":
+    fail(f"{heap_ok_path}: expected tracked_live_scan native heap summary, got {summary_heap!r}")
+if int(summary_heap.get("used") or -1) != heap_ok_used:
+    fail(f"{heap_ok_path}: runner heap used does not mirror native summary: runner={heap_ok_budget!r} summary={summary_heap!r}")
+
+heap_fail = load(heap_fail_path)
+if heap_fail.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{heap_fail_path}: schema mismatch: {heap_fail.get('schema')!r}")
+if heap_fail.get("status") != "budget_exceeded" or heap_fail.get("exit_code") != 125:
+    fail(
+        f"{heap_fail_path}: expected budget_exceeded/125, got "
+        f"status={heap_fail.get('status')!r} exit={heap_fail.get('exit_code')!r}"
+    )
+heap_fail_budget = ((heap_fail.get("budgets") or {}).get("heap_bytes") or {})
+if heap_fail_budget.get("limit") != 1 or heap_fail_budget.get("enforced") is not True:
+    fail(f"{heap_fail_path}: expected enforced 1 byte heap budget, got {heap_fail_budget!r}")
+if heap_fail_budget.get("exceeded") is not True:
+    fail(f"{heap_fail_path}: expected exceeded heap budget, got {heap_fail_budget!r}")
+if int(heap_fail_budget.get("used") or 0) <= 1:
+    fail(f"{heap_fail_path}: expected heap used to exceed 1 byte, got {heap_fail_budget!r}")
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -163,6 +229,19 @@ grep -Fq "package native wall budget exceeded" "$wall_out" "$wall_err" || {
   echo "ERROR: missing native wall budget diagnostic" >&2
   cat "$wall_out" >&2 || true
   cat "$wall_err" >&2 || true
+  exit 1
+}
+
+if [[ "$heap_fail_rc" -eq 0 ]]; then
+  echo "ERROR: expected native package-policy heap budget to reject over-budget run" >&2
+  cat "$heap_fail_out" >&2 || true
+  cat "$heap_fail_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package native heap budget exceeded" "$heap_fail_out" "$heap_fail_err" || {
+  echo "ERROR: missing native heap budget diagnostic" >&2
+  cat "$heap_fail_out" >&2 || true
+  cat "$heap_fail_err" >&2 || true
   exit 1
 }
 

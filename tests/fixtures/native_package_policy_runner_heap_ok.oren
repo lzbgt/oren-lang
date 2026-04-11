@@ -1,0 +1,12 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_heap_bytes=20000000, budget_wall_ms=1000)
+var native_package_policy_heap_ok = 1
+
+fn main() {
+    var xs = []
+    var i = 0
+    while i < 8 {
+        oren_list_push(xs, i)
+        i = i + 1
+    }
+    print("native package policy heap ok")
+}

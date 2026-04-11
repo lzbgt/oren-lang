@@ -1,0 +1,8 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_heap_bytes=1, budget_wall_ms=1000)
+var native_package_policy_heap_fail = 1
+
+fn main() {
+    var xs = []
+    oren_list_push(xs, 1)
+    print("native package policy heap fail should not pass")
+}

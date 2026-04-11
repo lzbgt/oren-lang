@@ -49,18 +49,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   capsule/gas/heap/wall declarations to AVM runtime policy, with a pre-execution used-domain
   scan that fails closed when bytecode exceeds the package allowlist. The native path consumes
   the same package marker, builds with package-derived capsule/domain policy, enforces
-  `budget_wall_ms` with a process watchdog, and fails closed for gas/heap/CPU budgets until
-  native has equivalent accounting. The native runner can now write
+  `budget_wall_ms` with a process watchdog, enforces `budget_heap_bytes` from captured
+  native-run JSON live-heap scan evidence, and fails closed for gas/CPU budgets until native has
+  equivalent accounting. The native runner can now write
   `oren.native-package-policy-run.v0` via `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` with
-  runner-observed wall-budget timing and `effect_ledger.available=false`; this is evidence for
-  the watchdog bridge, not a replacement for native runtime ledger counters. Native executables
+  runner-observed wall-budget timing and captured native runtime `effect_ledger` summary when
+  available; this is evidence for the watchdog/heap bridge, not a replacement for native gas
+  counters. Native executables
   can also emit `oren.native-run.v0` through `OREN_NATIVE_RUN_JSON=1`, which gives semantic-diff
   runtime-observed `effect_ledger_summary` wall timing, native capsule domain-gate counters,
   selected FS/NET/PROC resource-check counters, and a scanned native `heap_bytes.used` value for
   live tracked heap nodes, while leaving unsupported gas counters as `null`. AVM
   `effect_ledger_summary.budgets` now reports gas, heap, and wall budget fields for that path,
   including `wall_ms.limit` and measured `wall_ms.elapsed_ns`. Next capability work should move
-  from these bridge summaries toward native gas accounting and heap-budget enforcement rather than
+  from these bridge summaries toward native gas accounting and CPU-budget enforcement rather than
   re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by

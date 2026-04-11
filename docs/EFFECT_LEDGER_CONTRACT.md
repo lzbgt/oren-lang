@@ -102,10 +102,11 @@ Required entry fields:
   comparison is possible. C ledger export is still intentionally reported as unavailable rather
   than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
-  through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed wall-budget
-  evidence for native capsule execution, not a runtime effect ledger: it marks
-  `effect_ledger.available=false` until native exports backend-equivalent effect and budget
-  counters.
+  through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
+  wall-budget evidence for native capsule execution and can include a captured native
+  `effect_ledger` summary when the runner enables `OREN_NATIVE_RUN_JSON=1`; native heap budgets
+  are enforced from the captured `heap_bytes.used` live-heap scan, while native gas/CPU budgets
+  remain fail-closed.
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
   `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
   This is the first native-owned effect evidence bridge: it counts central capsule domain-gate
@@ -178,5 +179,5 @@ reports `wall_ms.elapsed_ns` from runtime monotonic time, includes the
 `oren.native-capsule-effect-gates.v0` `domain_gates` object, includes the
 `oren.native-capsule-resource-checks.v0` `resource_checks` object, and reports `heap_bytes.used`
 from a report-time scan of live native GC tracking nodes with `kind="tracked_live_scan"`. Gas
-counters and native heap-budget enforcement still remain unavailable until backend-equivalent
+counters and native CPU-budget enforcement still remain unavailable until backend-equivalent
 counters exist; semantic diff treats this as a runtime ledger summary, not as full budget parity.

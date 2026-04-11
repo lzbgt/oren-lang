@@ -185,12 +185,12 @@ stricter. Broader env budgets are narrowed to the package declaration.
 The native runner consumes the same source package policy and builds with `--capsule`,
 `--enforce-package-policy`, and package-derived `--cap-allow-domains`, then runs with
 matching `OREN_CAPSULE=1` / `OREN_CAP_ALLOW_DOMAINS`. It enforces `budget_wall_ms` with a
-process watchdog. When `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
-`oren.native-package-policy-run.v0` JSON with runner-observed wall-budget evidence, the
-native capsule/domain policy that was applied, and `effect_ledger.available=false` so tooling
-does not confuse external watchdog timing with a native runtime ledger. It intentionally fails
-closed for `budget_gas`, `budget_heap_bytes`, and `budget_cpu_ms` until native has
-backend-equivalent accounting for those fields.
+process watchdog and enforces `budget_heap_bytes` by capturing native `OREN_NATIVE_RUN_JSON=1`
+live-heap scan evidence after the process returns. When `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`
+is set, it writes `oren.native-package-policy-run.v0` JSON with runner-observed wall-budget
+evidence, the native capsule/domain policy that was applied, and any captured native runtime
+`effect_ledger` summary. It intentionally fails closed for `budget_gas` and `budget_cpu_ms`
+until native has backend-equivalent accounting for those fields.
 
 Native capsule runtime now also exposes a smaller runtime evidence surface:
 `native_capsule_effect_gate_summary_json()` returns `oren.native-capsule-effect-gates.v0`,
@@ -206,8 +206,9 @@ Separately, native executables support `OREN_NATIVE_RUN_JSON=1` for a runtime-em
 `effect_ledger_summary` schema with monotonic `wall_ms.elapsed_ns`, native capsule
 domain-gate counters, resource-check counters, and a scanned `heap_bytes.used` value for live
 tracked native heap nodes.
-Gas counters and native heap-budget enforcement are still unavailable; package-policy JSON remains
-runner-observed evidence, while `OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
+Gas counters and native CPU-budget enforcement are still unavailable; package-policy JSON remains
+runner-observed evidence with captured runtime summaries, while direct `OREN_NATIVE_RUN_JSON=1`
+is runtime-observed evidence.
 
 ## Domain Contract
 
@@ -244,10 +245,10 @@ runner-observed evidence, while `OREN_NATIVE_RUN_JSON=1` is runtime-observed evi
   error.
 - Capability budgets are now representable in package metadata. The AVM package-policy
   runner applies the gas/heap/wall subset to concrete AVM runtime knobs; the native runner
-  applies capsule domains plus wall-time process watchdogs and fails closed for gas/heap/CPU
-  budget declarations. They are not yet a complete enforcement contract across native and AVM.
-  Native capsule runtime knobs are domain/resource allowlists first, and CPU budgets remain
-  declarative.
+  applies capsule domains, wall-time process watchdogs, and heap-budget checks from native-run
+  JSON live-heap scans while failing closed for gas/CPU budget declarations. They are not yet a
+  complete enforcement contract across native and AVM. Native capsule runtime knobs are
+  domain/resource allowlists first, and CPU budgets remain declarative.
 - Full effect-ledger runtime emission is not complete yet. The target schema is pinned in
   `docs/EFFECT_LEDGER_CONTRACT.md`, and AVM `--print-run-json` already emits a compact
   `effect_ledger_summary` bridge so future native/AVM work uses one backend-comparable

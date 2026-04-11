@@ -1470,16 +1470,16 @@ For the current capability domain and native runtime-profile contract, see
   against the package allowlist. Use `scripts/run_package_policy.sh --backend native`
   when native capsule execution should consume the same marker: it builds with package
   capsule/domain policy, runs with matching `OREN_CAPSULE` / `OREN_CAP_ALLOW_DOMAINS`,
-  enforces `budget_wall_ms` with a process watchdog, and fails closed for native
-  gas/heap/CPU budgets until those fields have native-equivalent accounting. Set
+  enforces `budget_wall_ms` with a process watchdog, enforces `budget_heap_bytes` from
+  native-run JSON live-heap scan evidence, and fails closed for native gas/CPU budgets until
+  those fields have native-equivalent accounting. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
-  evidence as `oren.native-package-policy-run.v0`; that summary explicitly leaves
-  `effect_ledger.available=false` because it is external watchdog evidence. Set
+  evidence plus any captured runtime ledger summary as `oren.native-package-policy-run.v0`. Set
   `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`
   stdout with compact `effect_ledger_summary` evidence; it currently reports native wall
   elapsed time, capsule domain-gate counters, selected FS/NET/PROC resource-check counters, and
   `heap_bytes.used` from a report-time scan of live tracked native heap nodes. Gas remains `null`,
-  and native heap-budget enforcement still waits on native-equivalent accounting.
+  and native gas/CPU budget enforcement still waits on native-equivalent accounting.
   AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
@@ -3565,11 +3565,12 @@ package capsule/gas/heap/wall declarations onto AVM runtime knobs before executi
 the AVM policy scanner to reject bytecode whose static used domains exceed the package allowlist,
 rather than relying on denied native calls becoming values at runtime. The native path builds with
 package capsule/domain policy, runs with matching native capsule env, enforces `budget_wall_ms`
-with a process watchdog, and fails closed for `budget_gas`, `budget_heap_bytes`, and
-`budget_cpu_ms` until native-equivalent accounting lands. When callers set
+with a process watchdog, enforces `budget_heap_bytes` from captured native-run JSON live-heap
+scan evidence, and fails closed for `budget_gas` and `budget_cpu_ms` until native-equivalent
+accounting lands. When callers set
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
-`oren.native-package-policy-run.v0` with runner-observed wall-budget timing and
-`effect_ledger.available=false`. Native capsule runtime separately exposes
+`oren.native-package-policy-run.v0` with runner-observed wall-budget timing and captured
+`effect_ledger` summary when available. Native capsule runtime separately exposes
 `oren.native-capsule-effect-gates.v0` domain-gate counters and
 `oren.native-capsule-resource-checks.v0` resource-check counters, so tooling can distinguish
 runtime-owned capsule evidence from external runner watchdog timing. When callers request
