@@ -2727,7 +2727,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      Gas summaries include explicit `oren.gas-surface.v0` descriptors so the report can say native
      statement+loop gas and AVM opcode gas are not yet the same comparable unit. The report also
      includes empirical `oren.gas-surface-calibration.v0` ratios, but keeps them out of enforcement
-     until a conversion contract exists.
+     until a conversion contract exists. `make verify-backend-semantic-diff-gas-calibration` runs a
+     second loop-heavy calibration point through the same report/guard path without putting it on the
+     default test-critical path.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).

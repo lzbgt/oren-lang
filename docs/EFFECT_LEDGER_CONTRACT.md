@@ -207,4 +207,6 @@ distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current native
 non-comparable until Oren defines a conversion or instruction-equivalent native gas contract. The
 current semantic-diff report also records empirical `native_per_obc` and `obc_per_native` ratios
 under `oren.gas-surface-calibration.v0`; those numbers are calibration evidence, not a rule that
-package policy may use for enforcement.
+package policy may use for enforcement. `make verify-backend-semantic-diff-gas-calibration` runs the
+same schema guard against an additional loop-heavy fixture so the calibration evidence is not tied
+only to the tiny parity smoke.

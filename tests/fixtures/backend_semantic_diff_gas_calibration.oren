@@ -1,0 +1,19 @@
+fn main() {
+    var outer = 0
+    var total = 0
+    while outer < 9 {
+        var inner = 0
+        var row = outer + 1
+        while inner < 11 {
+            total = total + row * (inner + 3)
+            total = total + inner
+            inner = inner + 1
+        }
+        total = total - outer
+        outer = outer + 1
+    }
+    oren_set_result(total)
+    print("semantic-diff gas total=" + oren_int_to_string(total))
+    print("ok: semantic diff")
+    return 0
+}
