@@ -105,9 +105,9 @@ make verify-avm-effect-ledger-json
 
 The contract guard checks this schema note, the capability contract, the roadmap docs, Makefile
 wiring, and then runs the AVM JSON guard. The AVM guard checks the current
-`effect_ledger_summary` runtime bridge with in-memory record logs, deterministic trace bytes, and
-the `AVM_LOG_BYTES` record-header budget edge. Full native/AVM ledger parity fixtures are still
-future work.
+`effect_ledger_summary` runtime bridge with in-memory record logs, deterministic trace bytes,
+`AVM_TIMEOUT_MS` wall-budget reporting, and the `AVM_LOG_BYTES` record-header budget edge. Full
+native/AVM ledger parity fixtures are still future work.
 
 ## Current AVM Run Summary
 
@@ -133,6 +133,7 @@ mode, record/replay, and budget accounting were active for the run:
     "budgets": {
       "gas": { "executed": 10, "remaining": 99990 },
       "heap_bytes": { "limit": 0, "used": 0 },
+      "wall_ms": { "limit": 1000, "elapsed_ns": 250000 },
       "io_bytes": { "limit": 0, "used": 0 },
       "log_bytes": { "limit": 0, "used": 64 },
       "trace_bytes": { "enabled": false, "limit": 0, "used": 0, "truncated": false }

@@ -47,8 +47,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   `scripts/run_avm_package_policy.sh` is the first explicit package-policy execution boundary:
   it consumes bytecode artifact manifests and applies package capsule/gas/heap/wall declarations
   to AVM runtime policy, with a pre-execution used-domain scan that fails closed when bytecode
-  exceeds the package allowlist. Next capability work should move from this runner toward full
-  native/AVM effect-ledger budget parity rather than re-describing the existing env contract.
+  exceeds the package allowlist. AVM `effect_ledger_summary.budgets` now reports gas, heap, and
+  wall budget fields for that path, including `wall_ms.limit` and measured `wall_ms.elapsed_ns`.
+  Next capability work should move from this runner toward full native/AVM effect-ledger budget
+  parity rather than re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and

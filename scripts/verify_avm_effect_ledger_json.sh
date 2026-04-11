@@ -24,6 +24,7 @@ record_out="$TMP/record.out"
 record_err="$TMP/record.err"
 AVM_RECORD_MEM=1 \
 AVM_LOG_BYTES=4096 \
+AVM_TIMEOUT_MS=1000 \
   ./avm --print-run-json "$record_obc" >"$record_out" 2>"$record_err"
 
 det_out="$TMP/deterministic_trace.out"
@@ -98,6 +99,11 @@ if budgets.get("log_bytes", {}).get("used") != record_info.get("bytes"):
     raise SystemExit("record bytes should match ledger log byte usage")
 if budgets.get("gas", {}).get("executed", 0) <= 0:
     raise SystemExit("expected positive gas execution count")
+wall = budgets.get("wall_ms", {})
+if wall.get("limit") != 1000:
+    raise SystemExit(f"expected wall_ms limit 1000, got {wall}")
+if int(wall.get("elapsed_ns", -1)) < 0:
+    raise SystemExit(f"expected non-negative wall elapsed ns, got {wall}")
 
 det = load_run(sys.argv[2])
 det_ledger = det.get("effect_ledger_summary")

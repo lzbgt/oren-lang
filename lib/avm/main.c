@@ -42,7 +42,7 @@ static const char* avm_effect_replay_source(const AvmVM* vm) {
     return "none";
 }
 
-static void print_effect_ledger_summary_json(FILE* out, const AvmVM* vm) {
+static void print_effect_ledger_summary_json(FILE* out, const AvmVM* vm, uint64_t wall_elapsed_ns, uint64_t wall_limit_ms) {
     uint64_t record_bytes = vm && vm->record_log_bytes
         ? avm_effect_log_bytes_len(vm->record_log_bytes)
         : (vm ? vm->log_used_bytes : 0);
@@ -77,6 +77,9 @@ static void print_effect_ledger_summary_json(FILE* out, const AvmVM* vm) {
     fprintf(out, ",\"heap_bytes\":{\"limit\":%llu,\"used\":%llu}",
         (unsigned long long)(vm ? vm->heap_budget_bytes : 0),
         (unsigned long long)(vm ? vm->heap_used_bytes : 0));
+    fprintf(out, ",\"wall_ms\":{\"limit\":%llu,\"elapsed_ns\":%llu}",
+        (unsigned long long)wall_limit_ms,
+        (unsigned long long)wall_elapsed_ns);
     fprintf(out, ",\"io_bytes\":{\"limit\":%llu,\"used\":%llu}",
         (unsigned long long)(vm ? vm->io_budget_bytes : 0),
         (unsigned long long)(vm ? vm->io_used_bytes : 0));
@@ -1397,9 +1400,11 @@ int main(int argc, char** argv) {
         // - AVM_CALL_DEPTH_MAX: maximum call depth (0/unset = MAX_FRAMES)
         const char* gas_env = getenv("AVM_GAS");
         if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
+        uint64_t timeout_limit_ms = 0;
         const char* timeout_env = timeout_ms_cli ? timeout_ms_cli : getenv("AVM_TIMEOUT_MS");
         if (timeout_env && timeout_env[0]) {
             uint64_t ms = strtoull(timeout_env, NULL, 10);
+            timeout_limit_ms = ms;
             uint64_t base = now_ns();
             if (base != 0 && ms > 0) vm->deadline_ns = base + ms * 1000000ull;
         }
@@ -1428,6 +1433,7 @@ int main(int argc, char** argv) {
             if ((!timeout_env || !timeout_env[0]) && vm->deadline_ns == 0) {
                 uint64_t base = now_ns();
                 if (base != 0) vm->deadline_ns = base + 2000ull * 1000000ull; // 2000ms
+                timeout_limit_ms = 2000ull;
             }
             if ((!mem_env || !mem_env[0]) && vm->heap_budget_bytes == 0) vm->heap_budget_bytes = 32ull * 1024ull * 1024ull; // 32 MiB
             if ((!io_env || !io_env[0]) && vm->io_budget_bytes == 0) vm->io_budget_bytes = 1024ull * 1024ull; // 1 MiB
@@ -1844,7 +1850,7 @@ int main(int argc, char** argv) {
                     fprintf(stdout, "null");
                     break;
             }
-            print_effect_ledger_summary_json(stdout, vm);
+            print_effect_ledger_summary_json(stdout, vm, elapsed_ns, timeout_limit_ms);
             fprintf(stdout, "}\n");
         }
 

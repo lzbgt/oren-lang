@@ -1466,7 +1466,8 @@ For the current capability domain and native runtime-profile contract, see
   source package policy: it maps package capsule intent to AVM capsule/deny-by-default
   execution, `budget_gas` to `AVM_GAS`, `budget_heap_bytes` to `AVM_MEM_BYTES`, and
   `budget_wall_ms` to `AVM_TIMEOUT_MS`, with a pre-execution bytecode used-domain check
-  against the package allowlist.
+  against the package allowlist. AVM run JSON reports the applied gas, heap, and wall budget
+  fields through `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
   a complete stdlib/runtime effect proof.
@@ -3548,7 +3549,9 @@ default; `--enforce-package-policy` / `OREN_ENFORCE_PACKAGE_POLICY=1` promotes
 first explicit policy-application runner: it consumes the bytecode artifact manifest and maps
 package capsule/gas/heap/wall declarations onto AVM runtime knobs before execution. It also
 uses the AVM policy scanner to reject bytecode whose static used domains exceed the package
-allowlist, rather than relying on denied native calls becoming values at runtime.
+allowlist, rather than relying on denied native calls becoming values at runtime. When callers
+request `--print-run-json`, the AVM effect-ledger summary reports the applied `budget_wall_ms`
+as `budgets.wall_ms.limit` and records measured wall elapsed nanoseconds.
 
 ### 2.4 Normalized serde schema (what libraries/tooling want)
 

@@ -83,6 +83,11 @@ if int(gas.get("executed", 0)) + int(gas.get("remaining", 0)) != 100000:
 heap = budgets.get("heap_bytes", {})
 if int(heap.get("limit", 0)) != 1048576:
     raise SystemExit(f"package heap budget was not applied, got {heap!r}")
+wall = budgets.get("wall_ms", {})
+if int(wall.get("limit", 0)) != 1000:
+    raise SystemExit(f"package wall budget was not applied, got {wall!r}")
+if int(wall.get("elapsed_ns", -1)) < 0:
+    raise SystemExit(f"package wall budget should report elapsed ns, got {wall!r}")
 PY
 
 echo "avm package policy runner verify OK"

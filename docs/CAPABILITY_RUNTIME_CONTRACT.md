@@ -169,6 +169,8 @@ That runner builds bytecode with `--manifest`, reads `policy.source_package`, an
 current enforceable subset into AVM runtime policy: `runtime_profile="capsule"` becomes
 capsule/deny-by-default execution with an AVM domain allowlist, `budget_gas` becomes `AVM_GAS`,
 `budget_heap_bytes` becomes `AVM_MEM_BYTES`, and `budget_wall_ms` becomes `AVM_TIMEOUT_MS`.
+When callers pass `--print-run-json`, the AVM `effect_ledger_summary.budgets` bridge reports
+the applied gas, heap, and wall budget fields, including `wall_ms.limit` and `wall_ms.elapsed_ns`.
 Before execution, the runner also scans the bytecode policy surface and fails closed if
 static used AVM domains exceed the package allowlist. Existing stricter env budgets stay
 stricter. Broader env budgets are narrowed to the package declaration. `budget_cpu_ms`
