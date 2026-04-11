@@ -1099,14 +1099,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     vector/mid/tail shape. Both probes now resolve C labels by instruction pattern rather
 			     than assumed block numbers, and
 			     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` now compares exact Oren native `dot_product`
-			     against both vectorized and de-vectorized host-C builds. Latest artifact
-		     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`) measured:
-		     - scalar/vector C ratio `~2.8153×`
-		     - Oren/scalar ratio `~1.0517×`
-		     - Oren/vector ratio `~2.9609×`
+			     against both vectorized and de-vectorized host-C builds. The scalar-ceiling runner is now
+			     parameterized too, with explicit `dot_product_int` coverage via
+			     `make perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int`. Latest artifacts:
+		     - generic `dot_product`
+		       (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260411_164306_40858.log`):
+		       scalar/vector C `~2.9248×`, Oren/scalar `~1.7812×`, Oren/vector `~5.2097×`
+		     - explicit `dot_product_int`
+		       (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int-20260411_164309_41086.log`):
+		       scalar/vector C `~3.0352×`, Oren/scalar `~1.7130×`, Oren/vector `~5.1992×`
+		     The corrected scalar-ceiling extractor now reports the precise inner C loops too: 28
+		     instructions for the NEON vector body and 6 for the de-vectorized scalar `smaddl` loop
+		     on both sources.
 		   - Reweight accordingly: generic-list specialization is not the dominant remaining blocker for
-		     canonical `dot_product`, and neither is another round of scalar micro-tuning. The remaining
-		     large gap is now factually the missing NEON/vector path relative to the host C baseline.
+		     canonical `dot_product`. Scalar loop debt is still material, but the remaining large gap is
+		     compounded by the missing vector/slot64 path relative to the host C baseline.
 	   - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
 	     list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
 	     `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the

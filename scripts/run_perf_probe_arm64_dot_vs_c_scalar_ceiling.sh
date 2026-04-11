@@ -5,16 +5,21 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
 
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
-tmp_dir="build/tmp/perf-probe-arm64-dot-vs-c-scalar-ceiling-${ts}"
+tag="${OREN_ARM64_DOT_CEILING_TAG:-perf-probe-arm64-dot-vs-c-scalar-ceiling}"
+title="${OREN_ARM64_DOT_CEILING_TITLE:-arm64 dot_product vector-vs-scalar C ceiling probe}"
+target_program="${OREN_ARM64_DOT_CEILING_PROGRAM:-dot_product}"
+oren_source="${OREN_ARM64_DOT_CEILING_OREN_SOURCE:-benchmarks/dot_product/dot_product.oren}"
+c_source="${OREN_ARM64_DOT_CEILING_C_SOURCE:-benchmarks/dot_product/dot_product.c}"
+tmp_dir="build/tmp/${tag}-${ts}"
 mkdir -p "$log_dir" "$tmp_dir"
 
-summary_log="$log_dir/perf-probe-arm64-dot-vs-c-scalar-ceiling-${ts}.log"
-wrapper_log="$log_dir/perf-probe-arm64-dot-vs-c-scalar-ceiling-${ts}.run.log"
-vector_asm="$tmp_dir/dot_product_c_vector.s"
-scalar_asm="$tmp_dir/dot_product_c_scalar.s"
-vector_bin="$tmp_dir/dot_product_c_vector"
-scalar_bin="$tmp_dir/dot_product_c_scalar"
-native_bin="$tmp_dir/dot_product_oren_native"
+summary_log="$log_dir/${tag}-${ts}.log"
+wrapper_log="$log_dir/${tag}-${ts}.run.log"
+vector_asm="$tmp_dir/${target_program}_c_vector.s"
+scalar_asm="$tmp_dir/${target_program}_c_scalar.s"
+vector_bin="$tmp_dir/${target_program}_c_vector"
+scalar_bin="$tmp_dir/${target_program}_c_scalar"
+native_bin="$tmp_dir/${target_program}_oren_native"
 
 runs="${OREN_ARM64_DOT_CEILING_RUNS:-5}"
 warmups="${OREN_ARM64_DOT_CEILING_WARMUPS:-1}"
@@ -43,17 +48,17 @@ run_capture() {
 perf_build_env_read_array "$build_env_raw"
 build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
-build_native_cmd=(./oren_stage2 build benchmarks/dot_product/dot_product.oren --backend native --no-debug --no-cache -o "$native_bin")
+build_native_cmd=(./oren_stage2 build "$oren_source" --backend native --no-debug --no-cache -o "$native_bin")
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then
-    env "${build_env_parts[@]}" "${build_native_cmd[@]}" >"$tmp_dir/dot_product_oren_native.build.log" 2>&1
+    env "${build_env_parts[@]}" "${build_native_cmd[@]}" >"$tmp_dir/${target_program}_oren_native.build.log" 2>&1
 else
-    "${build_native_cmd[@]}" >"$tmp_dir/dot_product_oren_native.build.log" 2>&1
+    "${build_native_cmd[@]}" >"$tmp_dir/${target_program}_oren_native.build.log" 2>&1
 fi
 
-"$bench_cc" -O2 -S -o "$vector_asm" benchmarks/dot_product/dot_product.c
-"$bench_cc" -O2 "${scalar_flags[@]}" -S -o "$scalar_asm" benchmarks/dot_product/dot_product.c
-"$bench_cc" -O2 -o "$vector_bin" benchmarks/dot_product/dot_product.c
-"$bench_cc" -O2 "${scalar_flags[@]}" -o "$scalar_bin" benchmarks/dot_product/dot_product.c
+"$bench_cc" -O2 -S -o "$vector_asm" "$c_source"
+"$bench_cc" -O2 "${scalar_flags[@]}" -S -o "$scalar_asm" "$c_source"
+"$bench_cc" -O2 -o "$vector_bin" "$c_source"
+"$bench_cc" -O2 "${scalar_flags[@]}" -o "$scalar_bin" "$c_source"
 
 RUNS="$runs" \
 WARMUPS="$warmups" \
@@ -65,6 +70,10 @@ NATIVE_BIN="$native_bin" \
 VECTOR_ASM="$vector_asm" \
 SCALAR_ASM="$scalar_asm" \
 BUILD_ENV="$build_env_raw" \
+TITLE="$title" \
+TARGET_PROGRAM="$target_program" \
+OREN_SOURCE="$oren_source" \
+C_SOURCE="$c_source" \
 CC_BIN="$bench_cc" \
 CC_BASE="$cc_base" \
 SCALAR_FLAGS="${scalar_flags[*]}" \
@@ -83,7 +92,7 @@ vector_bin = os.environ["VECTOR_BIN"]
 scalar_bin = os.environ["SCALAR_BIN"]
 native_bin = os.environ["NATIVE_BIN"]
 
-label_re = re.compile(r"^([A-Za-z0-9_.$]+):$")
+label_re = re.compile(r"^([A-Za-z_.$][A-Za-z0-9_.$]*):")
 
 
 def run_one(cmd):
@@ -167,7 +176,7 @@ def count_mnemonics(block):
         stripped = line.strip()
         if not stripped or stripped.startswith(";"):
             continue
-        if stripped.endswith(":"):
+        if label_re.match(stripped):
             continue
         parts = stripped.split(None, 1)
         if not parts:
@@ -191,10 +200,13 @@ scalar_label, scalar_block = extract_loop(read_lines(os.environ["SCALAR_ASM"]), 
 vector_total, vector_counts = count_mnemonics(vector_block)
 scalar_total, scalar_counts = count_mnemonics(scalar_block)
 
-print("arm64 dot_product vector-vs-scalar C ceiling probe")
+print(os.environ["TITLE"])
 print("")
 if os.environ["BUILD_ENV"]:
     print(f"build_env: {os.environ['BUILD_ENV']}")
+print(f"target_program: {os.environ['TARGET_PROGRAM']}")
+print(f"oren_source: {os.environ['OREN_SOURCE']}")
+print(f"c_source: {os.environ['C_SOURCE']}")
 print(f"cc: {os.environ['CC_BIN']}")
 print(f"scalar_flags: {os.environ['SCALAR_FLAGS']}")
 print(f"runs: {runs}")
@@ -234,4 +246,4 @@ for line in scalar_block:
     print(f"  {line}")
 PY
 
-echo "arm64 dot vs C scalar ceiling probe complete; summary: $summary_log"
+echo "${title} complete; summary: $summary_log"

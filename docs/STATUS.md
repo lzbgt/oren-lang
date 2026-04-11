@@ -166,7 +166,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      specialization is missing.” After the corrected probe and trace, the remaining gap is back in
      the steady-state hot path and the C-side vectorized baseline, not in a silent boxed-list
      fallback for the generic benchmarks.
-   - New scalar-ceiling probe + env-parse fix (2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
+   - Scalar-ceiling probe + env-parse fix (2026-04-05, refreshed 2026-04-11): `make perf-probe-arm64-dot-vs-c-loop-compare`
      now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, and the new
      `make perf-probe-arm64-dot-vs-c-scalar-ceiling` times the exact Oren native `dot_product`
      benchmark binary against both vectorized and de-vectorized host-C builds of the same source.
@@ -180,17 +180,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log`) shows
      the same 21-instruction `dot_product_int` Oren scalar window against the same host C
      vector/mid/tail shape, with labels resolved by instruction pattern rather than hardcoded names.
-     Latest scalar-ceiling artifact
-     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`) shows:
-     - vectorized C per-rep `~0.000264s`
-	     - scalar C per-rep `~0.000743s`
-	     - Oren native per-rep `~0.000781s`
-	     - scalar/vector ratio `~2.8153×`
-	     - Oren/scalar ratio `~1.0517×`
-	     - Oren/vector ratio `~2.9609×`
-	     This materially sharpens the next-step choice: the current Oren scalar loop is already within
-	     about 5% of scalar C on this host, so the remaining large `dot_product` gap is overwhelmingly
-	     the missing NEON/vector path.
+     The scalar-ceiling runner is now parameterized too; the generic artifact
+     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260411_164306_40858.log`) shows
+     vectorized C `~0.000249s`, scalar C `~0.000728s`, and Oren native `~0.001297s` per rep
+     (`scalar/vector ~2.9248×`, `Oren/scalar ~1.7812×`, `Oren/vector ~5.2097×`), while the
+     explicit-list artifact
+     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int-20260411_164309_41086.log`)
+     shows vectorized C `~0.000250s`, scalar C `~0.000759s`, and Oren native `~0.001301s` per rep
+     (`scalar/vector ~3.0352×`, `Oren/scalar ~1.7130×`, `Oren/vector ~5.1992×`). The corrected
+     scalar-ceiling extractor now reports the precise C inner loops too: 28 instructions for the
+     NEON vector body and 6 for the de-vectorized scalar `smaddl` loop on both sources. Reweight:
+     scalar loop debt is still material, but the remaining large `dot_product` gap is compounded by
+     the missing vector/slot64 path, not by generic-list specialization.
 	   - Slot-ABI ceiling probe (2026-04-05): the new `make perf-probe-list-int-slot-abi-ceiling`
 	     measures how much vector headroom the current `list<int>` 64-bit slot ABI still has on the
 	     host compiler. Latest artifact

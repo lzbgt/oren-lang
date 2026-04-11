@@ -109,26 +109,32 @@ use:
 
 ```bash
 make perf-probe-arm64-dot-vs-c-scalar-ceiling
+make perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int
 ```
 
 This builds [dot_product.c](/Users/zongbaolu/work/compiler-mini/benchmarks/dot_product/dot_product.c)
 twice with the host `cc`: once with default `-O2`, and once with vectorization disabled
 (`-O2 -fno-vectorize -fno-slp-vectorize` on the current clang host). It then times both C binaries
-against the exact Oren native benchmark binary on the same `n/reps` workload.
+against the exact Oren native benchmark binary on the same `n/reps` workload. The `list<int>`
+target uses [dot_product_int.c](/Users/zongbaolu/work/compiler-mini/benchmarks/dot_product_int/dot_product_int.c)
+and [dot_product_int.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/dot_product_int/dot_product_int.oren)
+through the same runner.
 
-The latest artifact, `build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`,
-shows:
+The current precise-label artifacts,
+`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260411_164306_40858.log` and
+`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int-20260411_164309_41086.log`, show:
 
-- vectorized C per-rep: `~0.000264s`
-- scalar C per-rep: `~0.000743s`
-- Oren native per-rep: `~0.000781s`
-- scalar/vector ratio: `~2.8153x`
-- Oren/scalar ratio: `~1.0517x`
-- Oren/vector ratio: `~2.9609x`
+- generic `dot_product`: vectorized C `~0.000249s`, scalar C `~0.000728s`, Oren native `~0.001297s`
+  per rep; scalar/vector `~2.9248x`, Oren/scalar `~1.7812x`, Oren/vector `~5.2097x`
+- explicit `dot_product_int`: vectorized C `~0.000250s`, scalar C `~0.000759s`, Oren native
+  `~0.001301s` per rep; scalar/vector `~3.0352x`, Oren/scalar `~1.7130x`, Oren/vector `~5.1992x`
+- both C sources extract the same precise inner-loop shapes: 28 instructions for the host NEON
+  vector loop and 6 instructions for the de-vectorized scalar `smaddl` loop
 
-That is the current arm64 ceiling fact: the kept Oren scalar loop is already within about 5% of
-scalar C on this host, so the remaining large gap to the default C baseline is overwhelmingly the
-missing NEON/vector path rather than another round of scalar cleanup.
+That refresh changes the scalar-ceiling attribution: the current Oren loop still has material scalar
+debt versus de-vectorized C, but the host C vector body is another roughly 3x faster than scalar C.
+The next dot-parity work should therefore stay focused on vector/slot64 parity while keeping scalar
+loop scheduling visible, not on generic-list specialization guesses.
 
 To measure how much of that remaining gap comes from the current `list<int>` 64-bit slot ABI itself,
 use:
