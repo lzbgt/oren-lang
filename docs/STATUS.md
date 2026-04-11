@@ -253,12 +253,25 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     for unchecked `list<int>` sum/dot helpers (`ldp` pairs and dual `madd` for dot), with an
 	     optional combination with the fast-tick branch. `make perf-probe-list-int-slot-direct-pair-loop-decision`
 	     (`build/logs/perf-probe-list-int-slot-direct-pair-loop-decision-20260411_195615_19255.log`)
-	     rejects promotion: pair-loop alone regressed slot-ABI direct-helper time `+3.15%` and
-	     read-split `array_sum_int` slot-direct native/C `+9.88%`, while improving only
-	     `dot_product_int` `-3.31%`; pair-loop+fast-tick had the same split (`+3.42%` slot-ABI,
-	     `+7.70%` array, `-7.55%` dot). Keep it opt-in; this closes the scalar helper scheduling
-	     shortcut and keeps W5 pointed at a real representation/direct-lowering path.
-	   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
+		     rejects promotion: pair-loop alone regressed slot-ABI direct-helper time `+3.15%` and
+		     read-split `array_sum_int` slot-direct native/C `+9.88%`, while improving only
+		     `dot_product_int` `-3.31%`; pair-loop+fast-tick had the same split (`+3.42%` slot-ABI,
+		     `+7.70%` array, `-7.55%` dot). Keep it opt-in; this closes the scalar helper scheduling
+		     shortcut and keeps W5 pointed at a real representation/direct-lowering path.
+		   - Arm64 get-sum vector-2d decision (2026-04-11): new
+		     `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D=1` emits a default-off direct
+		     `array_sum_int` slot64 SIMD-add body using `ldr q` plus `add.2d`/`addp.2d`, reducing back
+		     into the scalar sum before another possible GC safepoint call. Use
+		     `make perf-probe-arm64-fast-get-sum-vector-2d-decision`; latest widened artifact
+		     `build/logs/perf-probe-arm64-fast-get-sum-vector-2d-decision-20260411_201706_52184.log`
+		     confirms the intended shape (`51` traced instructions, `41` after subtracting two cold GC
+		     tick blocks, `q` loads in the snippet, `add.2d=1`, `addp.2d=2`) but rejects promotion.
+		     Local acceptance preferred enabled (`steady -7.95%`, `gate -1.62%` native medians), while
+		     the same-tree C-ceiling surface preferred shipped default in `4/5` sweeps
+		     (`array` ratio median `~2.2140×` default vs `~2.2967×` enabled, `+3.74%`). Keep this
+		     branch opt-in; a per-iteration AdvSIMD pairwise-add body is not the stable slot64
+		     representation/direct-lowering fix.
+		   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
      `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the
@@ -1736,9 +1749,23 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	       but the exact whole-operation reruns still preferred the shipped default in `3/5`
 	       sweeps (`default_array_ratio_median ~2.3604x`, enabled `~2.4015x`; exact dot also stays
 	       slightly better on default at `~1.8539x` vs `~1.8578x`).
-	     - Conclusion: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST` default-off. The local
-	       acceptance wrapper is not the ranking surface for this branch.
-	   - Arm64 fast-loop prefix-zero family remains default-off, but the dot leg is now isolated and
+		     - Conclusion: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST` default-off. The local
+		       acceptance wrapper is not the ranking surface for this branch.
+		   - New explicit get-sum vector-2d decision surface (2026-04-11):
+		     - `make perf-probe-arm64-fast-get-sum-vector-2d-decision` compares the shipped default
+		       against `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D=1`, a direct slot64 SIMD-add
+		       body that uses `ldr q` plus `add.2d`/`addp.2d` and reduces back into the scalar sum
+		       before another possible GC safepoint call.
+		     - Current widened rerun
+		       (`build/logs/perf-probe-arm64-fast-get-sum-vector-2d-decision-20260411_201706_52184.log`)
+		       confirms the intended structure (`51` traced instructions, `41` after subtracting two
+		       cold tick blocks, `q` loads in the snippet, `add.2d=1`, `addp.2d=2`).
+		     - Measurement split: local acceptance preferred enabled (`steady -7.95%`, `gate -1.62%`
+		       native medians), but the same-tree exact C-ceiling surface preferred shipped default in
+		       `4/5` sweeps (`default_array_ratio_median ~2.2140x`, enabled `~2.2967x`).
+		     - Conclusion: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D` default-off. This is a real
+		       direct-lowering probe, but not a stable shipped answer on the current 64-bit slot stream.
+		   - Arm64 fast-loop prefix-zero family remains default-off, but the dot leg is now isolated and
 	     remeasured cleanly (2026-04-09):
 	     - The statement-level prefix-zero list<int> fast paths still stay explicit opt-in only via
 	       `OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO=1` and

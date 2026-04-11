@@ -1304,8 +1304,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     The scalar-post follow-up now confirms that simply matching the host slot64 scalar loop's
 		     post-index load + `madd` shape is not enough: the opt-in combined Oren loop shrinks to
 		     `18` traced instructions (`11` without the skipped cold GC-call block), but the measured
-		     decision surface still rejects the branch.
-			   - Read-split follow-up (2026-04-05): new `make perf-probe-list-int-packed-bridge-read-split`
+			     decision surface still rejects the branch.
+			   - Get-sum slot64 vector-2d follow-up (2026-04-11): `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D=1`
+			     now exists as a default-off direct-lowering experiment for `array_sum_int`. It emits
+			     `ldr q` over 64-bit list slots, combines lanes with `add.2d`/`addp.2d`, and reduces
+			     back into the scalar sum before another possible GC safepoint call. Use
+			     `make perf-probe-arm64-fast-get-sum-vector-2d-decision` as the ranking surface. The
+			     widened current-tree artifact
+			     (`build/logs/perf-probe-arm64-fast-get-sum-vector-2d-decision-20260411_201706_52184.log`)
+			     confirms the intended shape (`51` traced instructions, `41` without two cold tick
+			     blocks, `q` loads in the snippet, `add.2d=1`, `addp.2d=2`) but rejects promotion:
+			     local acceptance preferred enabled (`steady -7.95%`, `gate -1.62%` native medians),
+			     while the same-tree C-ceiling surface preferred the shipped default in `4/5` sweeps
+			     (`default_array_ratio_median ~2.2140×`, enabled `~2.2967×`). Keep this branch opt-in;
+			     the W5 representation path still needs more than per-iteration pairwise-add on the
+			     current 64-bit slot stream.
+				   - Read-split follow-up (2026-04-05): new `make perf-probe-list-int-packed-bridge-read-split`
 			     warms the hidden packed-bridge artifacts once and then compares canonical `dot_product_int`
 			     against packed scalar / SIMD on the same short/long split runner. Latest artifact
 			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260405_032402_91481.log`,
@@ -1824,10 +1838,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      shows the acceptance wrapper strongly prefers the enabled branch (`steady -26.20%`,
 				      `gate -53.71%`), but the exact whole-operation reruns still prefer the shipped
 				      default in `3/5` sweeps (`default_array_ratio_median ~2.3604x`, enabled `~2.4015x`;
-				      exact dot also stays slightly better on default at `~1.8539x` vs `~1.8578x`).
-				      Keep the get-sum pair-post branch default-off; the acceptance wrapper is not the
-				      ranking surface for this branch.
-					    - New list<int> fill-share decision surface (2026-04-09):
+					      exact dot also stays slightly better on default at `~1.8539x` vs `~1.8578x`).
+					      Keep the get-sum pair-post branch default-off; the acceptance wrapper is not the
+					      ranking surface for this branch.
+					    - New explicit get-sum vector-2d decision surface (2026-04-11):
+					      `make perf-probe-arm64-fast-get-sum-vector-2d-decision` compares the shipped
+					      default against `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D=1`, a direct slot64
+					      SIMD-add body that uses `ldr q` plus `add.2d`/`addp.2d` and reduces back into
+					      the scalar sum before another possible GC safepoint call. Current widened rerun
+					      (`build/logs/perf-probe-arm64-fast-get-sum-vector-2d-decision-20260411_201706_52184.log`)
+					      confirms the intended structure (`51` traced instructions, `41` after subtracting
+					      two cold tick blocks, `q` loads in the snippet, `add.2d=1`, `addp.2d=2`), but
+					      the shipped decision surface rejects promotion: local acceptance preferred enabled
+					      (`steady -7.95%`, `gate -1.62%` native medians), while the exact C-ceiling surface
+					      preferred shipped default in `4/5` sweeps (`default_array_ratio_median ~2.2140x`,
+					      enabled `~2.2967x`). Keep the vector-2d branch default-off; it is a useful
+					      direct-lowering probe, not the stable slot64 fix.
+						    - New list<int> fill-share decision surface (2026-04-09):
 					      `make perf-probe-list-int-fill-share-decision` adds a hidden single-list
 					      `benchmarks/fill_list_int` benchmark pair and compares that fill-only whole-operation
 					      cost against the exact `array_sum_int` breakdown surface on the same shipped tree.

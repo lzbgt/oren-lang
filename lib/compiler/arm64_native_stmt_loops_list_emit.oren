@@ -23,6 +23,8 @@ fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos,
 
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_add_2d(vd, vn, vm) { return core.insn_add_2d(vd, vn, vm) }
+fn insn_addp_2d(vd, vn, vm) { return core.insn_addp_2d(vd, vn, vm) }
 fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
 fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
 fn insn_b(off) { return core.insn_b(off) }
@@ -46,6 +48,8 @@ fn insn_ret() { return core.insn_ret() }
 fn insn_stp_pre() { return core.insn_stp_pre() }
 fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
 fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, rt2, rn, offset) }
+fn insn_ldr_q(vt, rn) { return core.insn_ldr_q(vt, rn) }
+fn insn_ldr_q_off(vt, rn, offset) { return core.insn_ldr_q_off(vt, rn, offset) }
 fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
 fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
 fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
@@ -57,6 +61,7 @@ fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
 fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
 fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
 fn insn_lsrv(rd, rn, rm) { return core.insn_lsrv(rd, rn, rm) }
+fn insn_umov_x_d(rd, rn) { return core.insn_umov_x_d(rd, rn) }
 
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
@@ -896,6 +901,21 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     } else if v_pair_post != nil && (v_pair_post == "0" || v_pair_post == "false") {
         pair_post = false
     }
+    var vector_2d = false
+    var v_vector_2d = oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D")
+    if v_vector_2d == "1" || v_vector_2d == "true" {
+        vector_2d = true
+    } else if v_vector_2d != nil && (v_vector_2d == "0" || v_vector_2d == "false") {
+        vector_2d = false
+    }
+    if single_read_list != true {
+        vector_2d = false
+    }
+    if vector_2d {
+        unroll2 = true
+        dual_accum = false
+        pair_post = false
+    }
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_INT_GET_SUM_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK", 4095)
@@ -1108,40 +1128,61 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     if unroll2 == true {
         if single_read_list {
             var buf_slot_quad = list_base_off + 8
-            if single_list_cursor_regs {
-                push_u32_le(ctx["code"], insn_mov_reg(24, 19))
-            } else {
-                emit_ldr_reg_sp_any(ctx, 24, buf_slot_quad)
-            }
-            // Keep the extra loaded values in caller-saved scratch regs; X27/X28 are reserved
-            // global heap registers and must never be reused as loop-body value temps.
-            if pair_post {
-                // Experimental pair-load path: fold the cursor advance into adjacent loads.
-                push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 24, 16))
-                push_u32_le(ctx["code"], insn_ldp_pair_post(12, 13, 24, 16))
-            } else {
-                push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-                push_u32_le(ctx["code"], insn_ldr_ptr_off(26, 24, 8))
-                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 24, 16))
-                push_u32_le(ctx["code"], insn_ldr_ptr_off(13, 24, 24))
+            if vector_2d {
+                if single_list_cursor_regs {
+                    push_u32_le(ctx["code"], insn_mov_reg(24, 19))
+                } else {
+                    emit_ldr_reg_sp_any(ctx, 24, buf_slot_quad)
+                }
+                push_u32_le(ctx["code"], insn_ldr_q(0, 24))
+                push_u32_le(ctx["code"], insn_ldr_q_off(1, 24, 16))
                 push_u32_le(ctx["code"], insn_add_imm(24, 24, 32))
-            }
-            if single_list_cursor_regs {
-                push_u32_le(ctx["code"], insn_mov_reg(19, 24))
-            } else {
-                emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
-            }
+                if single_list_cursor_regs {
+                    push_u32_le(ctx["code"], insn_mov_reg(19, 24))
+                } else {
+                    emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
+                }
 
-            if dual_accum {
+                push_u32_le(ctx["code"], insn_add_2d(0, 0, 1))
+                push_u32_le(ctx["code"], insn_addp_2d(0, 0, 0))
+                push_u32_le(ctx["code"], insn_umov_x_d(25, 0))
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-                push_u32_le(ctx["code"], insn_add_reg(22, 22, 26))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 12))
-                push_u32_le(ctx["code"], insn_add_reg(22, 22, 13))
             } else {
-                push_u32_le(ctx["code"], insn_add_reg(25, 25, 12))
-                push_u32_le(ctx["code"], insn_add_reg(26, 26, 13))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+                if single_list_cursor_regs {
+                    push_u32_le(ctx["code"], insn_mov_reg(24, 19))
+                } else {
+                    emit_ldr_reg_sp_any(ctx, 24, buf_slot_quad)
+                }
+                // Keep the extra loaded values in caller-saved scratch regs; X27/X28 are reserved
+                // global heap registers and must never be reused as loop-body value temps.
+                if pair_post {
+                    // Experimental pair-load path: fold the cursor advance into adjacent loads.
+                    push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 24, 16))
+                    push_u32_le(ctx["code"], insn_ldp_pair_post(12, 13, 24, 16))
+                } else {
+                    push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(26, 24, 8))
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 24, 16))
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(13, 24, 24))
+                    push_u32_le(ctx["code"], insn_add_imm(24, 24, 32))
+                }
+                if single_list_cursor_regs {
+                    push_u32_le(ctx["code"], insn_mov_reg(19, 24))
+                } else {
+                    emit_str_reg_sp_any(ctx, 24, buf_slot_quad)
+                }
+
+                if dual_accum {
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 26))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 12))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 13))
+                } else {
+                    push_u32_le(ctx["code"], insn_add_reg(25, 25, 12))
+                    push_u32_le(ctx["code"], insn_add_reg(26, 26, 13))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+                }
             }
 
             push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
@@ -1157,46 +1198,65 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
             set_u32_le(ctx["code"], jpos_fast_quad, insn_b_cond(quad_off, 10)) // GE
         }
 
-        var pi2 = 0
-        while pi2 < oren_list_len(loads) {
-            var list_name2 = loads[pi2]
-            var list_index2 = 0
-            while list_index2 < list_count {
-                if _arm64_str_eq_bytes(lists[list_index2], list_name2) { break }
-                list_index2 = list_index2 + 1
-            }
-            var buf_slot2u = list_base_off + list_index2 * 16 + 8
-
-            if single_read_list && single_list_cursor_regs {
+        if vector_2d && single_read_list {
+            var buf_slot2u_vec = list_base_off + 8
+            if single_list_cursor_regs {
                 push_u32_le(ctx["code"], insn_mov_reg(24, 19))
             } else {
-                emit_ldr_reg_sp_any(ctx, 24, buf_slot2u)
+                emit_ldr_reg_sp_any(ctx, 24, buf_slot2u_vec)
             }
-            if pair_post {
-                push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 24, 16))
-            } else {
-                push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-                push_u32_le(ctx["code"], insn_ldr_ptr_off(26, 24, 8))
-                push_u32_le(ctx["code"], insn_add_imm(24, 24, 16))
-            }
-            if single_read_list && single_list_cursor_regs {
+            push_u32_le(ctx["code"], insn_ldr_q(0, 24))
+            push_u32_le(ctx["code"], insn_add_imm(24, 24, 16))
+            if single_list_cursor_regs {
                 push_u32_le(ctx["code"], insn_mov_reg(19, 24))
             } else {
-                emit_str_reg_sp_any(ctx, 24, buf_slot2u)
+                emit_str_reg_sp_any(ctx, 24, buf_slot2u_vec)
             }
+            push_u32_le(ctx["code"], insn_addp_2d(0, 0, 0))
+            push_u32_le(ctx["code"], insn_umov_x_d(25, 0))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+        } else {
+            var pi2 = 0
+            while pi2 < oren_list_len(loads) {
+                var list_name2 = loads[pi2]
+                var list_index2 = 0
+                while list_index2 < list_count {
+                    if _arm64_str_eq_bytes(lists[list_index2], list_name2) { break }
+                    list_index2 = list_index2 + 1
+                }
+                var buf_slot2u = list_base_off + list_index2 * 16 + 8
 
-            if single_read_list && dual_accum {
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-                push_u32_le(ctx["code"], insn_add_reg(22, 22, 26))
-            } else if single_read_list {
-                push_u32_le(ctx["code"], insn_add_reg(25, 25, 26))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-            } else {
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+                if single_read_list && single_list_cursor_regs {
+                    push_u32_le(ctx["code"], insn_mov_reg(24, 19))
+                } else {
+                    emit_ldr_reg_sp_any(ctx, 24, buf_slot2u)
+                }
+                if pair_post {
+                    push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 24, 16))
+                } else {
+                    push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(26, 24, 8))
+                    push_u32_le(ctx["code"], insn_add_imm(24, 24, 16))
+                }
+                if single_read_list && single_list_cursor_regs {
+                    push_u32_le(ctx["code"], insn_mov_reg(19, 24))
+                } else {
+                    emit_str_reg_sp_any(ctx, 24, buf_slot2u)
+                }
+
+                if single_read_list && dual_accum {
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 26))
+                } else if single_read_list {
+                    push_u32_le(ctx["code"], insn_add_reg(25, 25, 26))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                } else {
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+                }
+
+                pi2 = pi2 + 1
             }
-
-            pi2 = pi2 + 1
         }
 
         // i += 2

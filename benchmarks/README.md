@@ -304,6 +304,31 @@ Verdict: keep the counted raw-slot helper pair-loop opt-in. It closes the cheap 
 scheduling branch; W5 still needs a real representation/direct-lowering path such as a safe packed
 view or stronger slot64 direct lowering.
 
+For the direct `array_sum_int` slot64 SIMD-add experiment, use:
+
+```bash
+make perf-probe-arm64-fast-get-sum-vector-2d-decision
+```
+
+This wrapper structurally checks the emitted loop, compares default vs
+`OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D=1` on the local arm64 acceptance surface, then runs an
+order-balanced same-tree C-ceiling surface. Current widened artifact:
+`build/logs/perf-probe-arm64-fast-get-sum-vector-2d-decision-20260411_201706_52184.log`.
+
+- Structural shape is the intended 64-bit slot SIMD-add body: the traced `array_sum_int` range is
+  `51` instructions, `41` after subtracting two cold GC tick blocks, with `ldr q` loads (`3` in the
+  snippet), `add.2d=1`, and `addp.2d=2`.
+- Local acceptance preferred enabled on native medians (`steady -7.95%`, `gate -1.62%`), but the
+  same-tree C-ceiling decision surface rejected promotion: `array_default_wins: 4/5`,
+  default median `oren_array_sum_int / array_slot64_vector ~2.2140x`, enabled median `~2.2967x`
+  (`+3.74%`).
+- The `dot_product_int` control moved toward enabled (`~1.8505x -> ~1.7878x`, `4/5` wins), which is
+  noise/control context here because this knob only changes the get-sum emitter.
+
+Verdict: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D` opt-in. This confirms that simply using
+AdvSIMD pairwise add on the current 64-bit slot stream is not a stable shipped `array_sum_int` fix;
+the W5 representation work still needs either a stronger slot64 direct lowering or a safe packed view.
+
 To separate one-time setup from the repeated `array_sum_int` read loop directly, use:
 
 ```bash
@@ -1680,6 +1705,20 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   probe is still useful when judging the combined get-sum + dot pair-load experiment, but the
   shipped get-sum decision surface is now the dedicated pair-post decision probe plus integrated
   green lanes, not the acceptance wrapper alone.
+- For the arm64 explicit `fast_list_int_get_sum_while` slot64 SIMD-add follow-up, use
+  `make perf-probe-arm64-fast-get-sum-vector-2d-decision`. This tests the new default-off
+  `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D=1` path, which uses `ldr q` plus `add.2d`/`addp.2d`
+  within one tick-protected iteration and reduces back to the scalar sum before another possible GC
+  call. The widened rerun
+  (`build/logs/perf-probe-arm64-fast-get-sum-vector-2d-decision-20260411_201706_52184.log`) confirms
+  the intended shape (`51` traced instructions, `41` without two cold tick blocks, `q` loads in the
+  snippet, `add.2d=1`, `addp.2d=2`) but rejects promotion: local acceptance preferred enabled
+  (`steady -7.95%`, `gate -1.62%`), while the same-tree whole-operation C-ceiling surface preferred
+  shipped default in `4/5` sweeps (`default_array_ratio_median ~2.2140x`, enabled `~2.2967x`).
+- Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D` opt-in only. The residual
+  get-sum gap is not solved by a per-iteration slot64 pairwise-add body; next W5 work should still
+  target a stronger representation/direct-lowering path rather than another local acceptance-only
+  get-sum scheduling branch.
 - For the arm64 `fast_list_int_dot_while` unroll-by-2 recheck, use
   `make perf-probe-arm64-fast-dot-unroll2` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-unroll2-list-int` for explicit `dot_product_int`. The shipped
