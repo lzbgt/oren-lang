@@ -300,28 +300,44 @@ fn native_runtime_run_json_mono_ns() {
     return now
 }
 
-fn native_runtime_stmt_gas_env_enabled() {
+fn native_runtime_gas_accounting_mode() {
     var v = native_envp_get_value_ptr("OREN_NATIVE_GAS_ACCOUNTING")
-    if v == 0 { return false }
+    if v == 0 { return "loop" }
     var c0 = ptr_get_byte(v)
-    if c0 == 0 { return false }
-    if c0 == 48 { return false } // '0'
-    if c0 == 49 { return true } // '1'
-    // Accept only "stmt" / "statement" as the v0 fine native gas spelling.
-    // "basic-block" is reserved for a future distinct gas surface and must not alias statement gas.
+    if c0 == 0 { return "loop" }
+    if c0 == 48 { return "loop" } // '0'
+    if c0 == 49 { return "stmt" } // '1'
+    // Exact v0 fine native gas spellings:
+    // - "stmt" / "statement" charge statement or native-op boundaries plus loop polls.
+    // - "basic-block" charges native lowering-block entries plus loop polls.
     if c0 == 115 { // 's'
-        if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 109 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 0 { return true }
-        if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 97 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 101 && ptr_get_byte(iadd(v, 5)) == 109 && ptr_get_byte(iadd(v, 6)) == 101 && ptr_get_byte(iadd(v, 7)) == 110 && ptr_get_byte(iadd(v, 8)) == 116 && ptr_get_byte(iadd(v, 9)) == 0 { return true }
+        if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 109 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 0 { return "stmt" }
+        if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 97 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 101 && ptr_get_byte(iadd(v, 5)) == 109 && ptr_get_byte(iadd(v, 6)) == 101 && ptr_get_byte(iadd(v, 7)) == 110 && ptr_get_byte(iadd(v, 8)) == 116 && ptr_get_byte(iadd(v, 9)) == 0 { return "stmt" }
     }
-    return false
+    if c0 == 98 { // 'b'
+        if ptr_get_byte(iadd(v, 1)) == 97 && ptr_get_byte(iadd(v, 2)) == 115 && ptr_get_byte(iadd(v, 3)) == 105 && ptr_get_byte(iadd(v, 4)) == 99 && ptr_get_byte(iadd(v, 5)) == 45 && ptr_get_byte(iadd(v, 6)) == 98 && ptr_get_byte(iadd(v, 7)) == 108 && ptr_get_byte(iadd(v, 8)) == 111 && ptr_get_byte(iadd(v, 9)) == 99 && ptr_get_byte(iadd(v, 10)) == 107 && ptr_get_byte(iadd(v, 11)) == 0 { return "basic-block" }
+    }
+    return "loop"
+}
+
+fn native_runtime_stmt_gas_env_enabled() {
+    return native_runtime_gas_accounting_mode() == "stmt"
+}
+
+fn native_runtime_basic_block_gas_env_enabled() {
+    return native_runtime_gas_accounting_mode() == "basic-block"
 }
 
 fn native_runtime_gas_kind_string() {
+    if native_runtime_basic_block_gas_env_enabled() == true { return "native_basic_block_tick_v0" }
     if native_runtime_stmt_gas_env_enabled() == true { return "native_stmt_loop_tick_v0" }
     return "native_loop_safepoint_tick_v0"
 }
 
 fn native_runtime_gas_surface_json() {
+    if native_runtime_basic_block_gas_env_enabled() == true {
+        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_basic_block_tick_v0\",\"backend\":\"native\",\"unit\":\"basic_block_tick\",\"granularity\":\"native_lowering_block_entry_plus_loop_poll\",\"avm_canonical\":false}"
+    }
     if native_runtime_stmt_gas_env_enabled() == true {
         return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_stmt_loop_tick_v0\",\"backend\":\"native\",\"unit\":\"stmt_loop_tick\",\"granularity\":\"statement_or_native_op_plus_loop_poll\",\"avm_canonical\":false}"
     }
@@ -341,8 +357,8 @@ fn native_runtime_run_json_maybe_print(exit_code) {
         var now_ns = native_runtime_run_json_mono_ns()
         if now_ns >= start_ns { elapsed_ns = now_ns - start_ns }
     }
-    var heap_used = native_runtime_heap_used_bytes()
     var gas_ticks = native_runtime_gas_safepoint_ticks()
+    var heap_used = native_runtime_heap_used_bytes()
 
     var line = "{\"schema\":\"oren.native-run.v0\",\"backend\":\"native\",\"exit_code\":" + oren_int_to_string(code)
     line = line + ",\"effect_ledger_summary\":{\"schema\":\"oren.effect-ledger-summary.v0\",\"backend\":\"native\""

@@ -100,7 +100,7 @@ Required entry fields:
   `--print-run-json`. Those runs record native/AVM `effect_ledger_summary` bridges, normalized
   `budget_deltas`, ledger availability per backend, and whether full all-backend ledger/budget
   comparison is possible. The report also exposes explicit gas-surface metadata and currently marks
-  native/OBC gas as non-comparable because native `native_stmt_loop_tick_v0` is not the same unit as
+  native/OBC gas as non-comparable because native `native_basic_block_tick_v0` is not the same unit as
   AVM `avm_opcode_cost_v0`. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
   conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
@@ -204,15 +204,18 @@ from a report-time scan of live native GC tracking nodes with `kind="tracked_liv
 reported as `kind="native_loop_safepoint_tick_v0"` by default; backend loop poll sites charge their
 mask interval when they fire, while direct/manual native `oren_gc_safepoint()` arrivals charge one tick.
 When matching build/run invocations set `OREN_NATIVE_GAS_ACCOUNTING=stmt`, the same field reports
-`kind="native_stmt_loop_tick_v0"` and also charges backend statement/op boundaries. Semantic diff uses
-the statement+loop mode so it has native budget evidence, but each gas object now carries an explicit
-`surface` object with `schema="oren.gas-surface.v0"`. That surface keeps native `native_stmt_loop_tick_v0`
-distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current native/OBC gas surfaces as
-non-comparable until Oren defines a conversion or instruction-equivalent native gas contract. The
-accepted fine native gas mode spellings are exact: `1`, `stmt`, and `statement`. `basic-block` is
-reserved for a future distinct surface and currently falls back to `native_loop_safepoint_tick_v0`;
-`make verify-native-gas-accounting-modes` guards those mode contracts. The current semantic-diff
-report also records empirical `native_per_obc` and `obc_per_native` ratios
+`kind="native_stmt_loop_tick_v0"` and also charges backend statement/op boundaries. The exact synonym
+`statement` reports the same surface, while `OREN_NATIVE_GAS_ACCOUNTING=basic-block` reports the
+distinct `kind="native_basic_block_tick_v0"` surface for native lowering basic-block entry ticks plus
+loop-poll ticks. Semantic diff uses the basic-block mode so it has a separate native surface for
+calibration, but each gas object carries an explicit `surface` object with
+`schema="oren.gas-surface.v0"`. That surface keeps native `native_basic_block_tick_v0` distinct from
+AVM `avm_opcode_cost_v0`; semantic diff reports the current native/OBC gas surfaces as non-comparable
+until Oren defines a weighted conversion or instruction-equivalent native gas contract.
+`make verify-native-gas-accounting-modes` guards those mode contracts. The native build cache key
+also records the normalized gas mode, and the dedicated gas-mode verifier forces `--no-cache` so
+emitted gas notes are tested directly. The current semantic-diff report also records empirical
+`native_per_obc` and `obc_per_native` ratios
 under `oren.gas-surface-calibration.v0`; those numbers are calibration evidence, not a rule that
 package policy may use for enforcement. `make verify-backend-semantic-diff-gas-calibration` runs the
 same schema guard against an additional loop-heavy fixture, and

@@ -221,7 +221,10 @@ fn _arm64_emit_while_generic(ctx, stmt) {
     gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
     ctx["loop_kind"] = prev_kind
 
+    var prev_bb_body = ctx["arm64_basic_block_entry"]
+    ctx["arm64_basic_block_entry"] = true
     NATIVE_COMPILE_STMT(ctx, stmt["body"])
+    ctx["arm64_basic_block_entry"] = prev_bb_body
 
     // Ensure stack is restored to the loop base before iterating.
     var loop_delta = ctx["stack_size"] - loop_base_stack

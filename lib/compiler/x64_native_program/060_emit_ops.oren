@@ -85,6 +85,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
     }
     if trace { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
     var j = 0
+    var charge_basic_block_next = true
     while j < n {
         var op = ops[j]
         if op == nil { j = j + 1; continue }
@@ -112,6 +113,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         _linetab_record_tok(ctx, op["tok"])
         if _x64_native_stmt_gas_enabled(ctx) == true {
             _emit_native_gas_note_x64(ctx, 1)
+        } else if _x64_native_basic_block_gas_enabled(ctx) == true && charge_basic_block_next == true {
+            _emit_native_gas_note_x64(ctx, 1)
+            charge_basic_block_next = false
         }
         if op["op"] == "var_i32" {
             var name = op["name"]
@@ -300,6 +304,12 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         } else {
             err(ctx, "x64 native v0: unknown op in main")
             return nil
+        }
+        if _x64_native_basic_block_gas_enabled(ctx) == true {
+            var opk_bb = op["op"]
+            if opk_bb == "if" || opk_bb == "while" || opk_bb == "for" {
+                charge_basic_block_next = true
+            }
         }
         j = j + 1
     }

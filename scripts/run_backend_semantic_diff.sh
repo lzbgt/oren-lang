@@ -19,8 +19,8 @@ Environment:
   OREN_BACKEND_PARITY_RUN_TIMEOUT_SECS    run timeout, default 5
   OREN_BACKEND_PARITY_TRACE_ENV           optional env forwarded to build/run
 
-Native run-JSON parity builds and runs with OREN_NATIVE_GAS_ACCOUNTING=stmt so
-semantic-diff reports the scoped v0 native statement+loop gas surface.
+Native run-JSON parity builds and runs with OREN_NATIVE_GAS_ACCOUNTING=basic-block
+so semantic-diff reports the scoped v0 native lowering-block gas surface.
 EOF
 }
 
@@ -135,7 +135,7 @@ run_with_timeout "$build_timeout_secs" env "${trace_env_arr[@]}" "$COMPILER" bui
 test -f "$out_c" || { echo "FAIL: missing $out_c" >&2; tail -n 120 "$build_c" >&2 || true; exit 3; }
 
 echo "== semantic diff build: native ==" >&2
-run_with_timeout "$build_timeout_secs" env "${trace_env_arr[@]}" OREN_NATIVE_GAS_ACCOUNTING=stmt "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out_native" >"$build_native" 2>&1
+run_with_timeout "$build_timeout_secs" env "${trace_env_arr[@]}" OREN_NATIVE_GAS_ACCOUNTING=basic-block "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out_native" >"$build_native" 2>&1
 test -f "$out_native" || { echo "FAIL: missing $out_native" >&2; tail -n 120 "$build_native" >&2 || true; exit 4; }
 
 echo "== semantic diff build: bytecode ==" >&2
@@ -145,11 +145,11 @@ test -f "$out_obc" || { echo "FAIL: missing $out_obc" >&2; tail -n 120 "$build_o
 set +e
 run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" "$out_c" >"$run_c_out" 2>"$run_c_err"
 rc_c=$?
-run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" OREN_NATIVE_GAS_ACCOUNTING=stmt "$out_native" >"$run_native_out" 2>"$run_native_err"
+run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" OREN_NATIVE_GAS_ACCOUNTING=basic-block "$out_native" >"$run_native_out" 2>"$run_native_err"
 rc_native=$?
 run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" ./avm "$out_obc" >"$run_obc_out" 2>"$run_obc_err"
 rc_obc=$?
-run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" OREN_NATIVE_GAS_ACCOUNTING=stmt OREN_NATIVE_RUN_JSON=1 "$out_native" >"$run_native_json" 2>"$run_native_json_err"
+run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" OREN_NATIVE_GAS_ACCOUNTING=basic-block OREN_NATIVE_RUN_JSON=1 "$out_native" >"$run_native_json" 2>"$run_native_json_err"
 rc_native_json=$?
 run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" ./avm --print-run-json "$out_obc" >"$run_obc_json" 2>"$run_obc_json_err"
 rc_obc_json=$?

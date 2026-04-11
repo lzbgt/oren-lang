@@ -1072,6 +1072,7 @@ fn compiler_main() {
             "stdlib_mode": stdlib_mode,
             "stdlib_obc": stdlib_obc,
             "link_obc": link_obc,
+            "native_gas_accounting": "loop",
         }
         if deterministic { cfg["deterministic"] = 1 }
         if no_gc { cfg["no_gc"] = 1 }
@@ -1080,6 +1081,14 @@ fn compiler_main() {
         if is_shared_lib { cfg["shared_lib"] = 1 }
         if CAPSULE { cfg["capsule"] = 1 }
         if test_mode { cfg["test_mode"] = 1 }
+        if backend == "native" {
+            var gas_mode_env = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
+            if gas_mode_env == "1" || gas_mode_env == "stmt" || gas_mode_env == "statement" {
+                cfg["native_gas_accounting"] = "stmt"
+            } else if gas_mode_env == "basic-block" {
+                cfg["native_gas_accounting"] = "basic-block"
+            }
+        }
 
         var t_key0 = 0
         if trace_build { t_key0 = oren_time_now_ns() }

@@ -1479,16 +1479,20 @@ For the current capability domain and native runtime-profile contract, see
   one tick; this remains statement+loop-granular rather than instruction-equivalent, and the native
   run JSON gas object identifies that unit with `surface.schema="oren.gas-surface.v0"` and
   `surface.id="native_stmt_loop_tick_v0"`. `OREN_NATIVE_GAS_ACCOUNTING=statement` is an exact synonym
-  for `stmt`; `basic-block` is reserved for a future distinct gas surface and falls back to the
-  default loop-safepoint surface today. Set
+  for `stmt`; `OREN_NATIVE_GAS_ACCOUNTING=basic-block` now selects the distinct
+  `native_basic_block_tick_v0` native lowering-block evidence surface, but package-policy gas budgets
+  still use statement+loop gas until Oren has a weighted native/AVM conversion contract. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
   evidence plus any captured runtime ledger summary as `oren.native-package-policy-run.v0`. Set
   `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`
   stdout with compact `effect_ledger_summary` evidence; it currently reports native wall
   elapsed time, capsule domain-gate counters, selected FS/NET/PROC resource-check counters, and
   `heap_bytes.used` from a report-time scan of live tracked native heap nodes, plus default
-  `native_loop_safepoint_tick_v0` gas ticks or `native_stmt_loop_tick_v0` when
-  `OREN_NATIVE_GAS_ACCOUNTING=stmt` / `statement` is used for matching build/run invocations.
+  `native_loop_safepoint_tick_v0` gas ticks, `native_stmt_loop_tick_v0` when
+  `OREN_NATIVE_GAS_ACCOUNTING=stmt` / `statement` is used for matching build/run invocations, or
+  `native_basic_block_tick_v0` under `OREN_NATIVE_GAS_ACCOUNTING=basic-block`. Native build cache
+  keys include the normalized gas-accounting mode, so cached native artifacts do not cross those
+  compile-time gas surfaces.
   AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`, and marks its gas surface as
   `avm_opcode_cost_v0`. Semantic-diff tooling keeps native and AVM gas non-comparable while those
@@ -3581,8 +3585,8 @@ evidence, enforces `budget_cpu_ms` from child process resource usage where avail
 `budget_gas` from captured `native_stmt_loop_tick_v0` runtime evidence after building and running
 with `OREN_NATIVE_GAS_ACCOUNTING=stmt`; captured gas JSON includes `oren.gas-surface.v0` metadata so
 tools do not confuse native statement+loop ticks with AVM opcode gas. The only fine native gas
-spellings today are exact `1`, `stmt`, and `statement`; `basic-block` is reserved and does not alias
-statement gas. When callers set
+spellings today are exact `1`, `stmt`, `statement`, and `basic-block`; `basic-block` is distinct
+native lowering-block evidence and does not alias statement gas. When callers set
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
 `oren.native-package-policy-run.v0` with runner-observed wall-budget timing and captured
 `effect_ledger` summary when available. Native capsule runtime separately exposes

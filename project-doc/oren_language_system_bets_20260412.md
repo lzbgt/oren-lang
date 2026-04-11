@@ -134,8 +134,8 @@ It is a language plus runtime plus artifact contract.
   Native executables now have a runtime-observed
   `OREN_NATIVE_RUN_JSON=1` bridge with wall timing, capsule domain-gate counters, selected
   FS/NET/PROC resource-check counters, a scanned live tracked-heap byte count, and default
-  loop-safepoint or opt-in statement+loop native gas. Native and AVM gas summaries now carry
-  explicit `oren.gas-surface.v0` metadata, and semantic diff marks `native_stmt_loop_tick_v0` and
+  loop-safepoint, opt-in statement+loop, or opt-in lowering-block native gas. Native and AVM gas summaries now carry
+  explicit `oren.gas-surface.v0` metadata, and semantic diff marks `native_basic_block_tick_v0` and
   `avm_opcode_cost_v0` as non-comparable rather than pretending any positive counter is enough.
   The next step is a conversion contract or finer native instruction-equivalent gas rather than
   another manifest-only field.
@@ -150,8 +150,10 @@ It is a language plus runtime plus artifact contract.
   native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
   `native_instruction_equivalent_or_block_weighted_gas` exists. Oren also guards exact native gas mode
-  spellings: `stmt` and `statement` mean statement+loop gas, while `basic-block` remains reserved for a
-  future distinct surface rather than silently aliasing statement gas. Next work is finer native gas
+  spellings: `stmt` and `statement` mean statement+loop gas, while `basic-block` selects distinct
+  lowering-block evidence rather than silently aliasing statement gas. The native build cache key now
+  includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
+  Next work is weighted native gas
   parity or a stated conversion rule, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.

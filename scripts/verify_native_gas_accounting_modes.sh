@@ -80,9 +80,9 @@ run_case() {
 
   echo "== native gas accounting mode: $name ==" >&2
   if [[ -n "$mode" ]]; then
-    run_with_timeout "$build_timeout_secs" env OREN_NATIVE_GAS_ACCOUNTING="$mode" "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out" >"$build_log" 2>&1
+    run_with_timeout "$build_timeout_secs" env OREN_NATIVE_GAS_ACCOUNTING="$mode" "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug --no-cache -o "$out" >"$build_log" 2>&1
   else
-    run_with_timeout "$build_timeout_secs" env -u OREN_NATIVE_GAS_ACCOUNTING "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out" >"$build_log" 2>&1
+    run_with_timeout "$build_timeout_secs" env -u OREN_NATIVE_GAS_ACCOUNTING "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug --no-cache -o "$out" >"$build_log" 2>&1
   fi
   test -f "$out" || { echo "FAIL: missing $out" >&2; tail -n 120 "$build_log" >&2 || true; exit 3; }
 
@@ -140,7 +140,7 @@ PY
 run_case "default" "" "native_loop_safepoint_tick_v0" "0"
 run_case "stmt" "stmt" "native_stmt_loop_tick_v0" "1"
 run_case "statement" "statement" "native_stmt_loop_tick_v0" "1"
-run_case "basic_block_reserved" "basic-block" "native_loop_safepoint_tick_v0" "0"
+run_case "basic_block" "basic-block" "native_basic_block_tick_v0" "1"
 
 python3 - "$cases_file" <<'PY'
 import json
@@ -150,13 +150,19 @@ from pathlib import Path
 cases_path = Path(sys.argv[1])
 cases = [json.loads(line) for line in cases_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 seen = {case["name"]: case for case in cases}
-required = {"default", "stmt", "statement", "basic_block_reserved"}
+required = {"default", "stmt", "statement", "basic_block"}
 missing = sorted(required - set(seen))
 if missing:
     raise SystemExit(f"{cases_path}: missing mode cases: {missing}")
 if seen["stmt"]["kind"] != seen["statement"]["kind"]:
     raise SystemExit(f"{cases_path}: stmt/statement kind mismatch: {seen!r}")
-if seen["basic_block_reserved"]["kind"] != "native_loop_safepoint_tick_v0":
-    raise SystemExit(f"{cases_path}: basic-block must remain reserved, got {seen['basic_block_reserved']!r}")
+if seen["basic_block"]["kind"] != "native_basic_block_tick_v0":
+    raise SystemExit(f"{cases_path}: basic-block mode mismatch: {seen['basic_block']!r}")
+if seen["basic_block"]["kind"] == seen["stmt"]["kind"]:
+    raise SystemExit(f"{cases_path}: basic-block must stay distinct from statement gas, got {seen!r}")
+if int(seen["basic_block"].get("executed") or 0) <= 0:
+    raise SystemExit(f"{cases_path}: basic-block should report positive gas, got {seen['basic_block']!r}")
+if int(seen["basic_block"].get("executed") or 0) >= int(seen["stmt"].get("executed") or 0):
+    raise SystemExit(f"{cases_path}: basic-block should charge fewer ticks than statement gas for this fixture, got {seen!r}")
 print("native gas accounting modes verify OK")
 PY

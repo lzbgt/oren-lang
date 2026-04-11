@@ -81,7 +81,7 @@ if checks.get("gas_surface_comparison_reason") != "native and OBC gas surfaces d
 gas_surfaces = data.get("gas_surfaces") or {}
 native_surface = gas_surfaces.get("native") or {}
 obc_surface = gas_surfaces.get("obc") or {}
-if native_surface.get("schema") != "oren.gas-surface.v0" or native_surface.get("id") != "native_stmt_loop_tick_v0":
+if native_surface.get("schema") != "oren.gas-surface.v0" or native_surface.get("id") != "native_basic_block_tick_v0":
     fail(f"native gas surface mismatch: {native_surface!r}")
 if obc_surface.get("schema") != "oren.gas-surface.v0" or obc_surface.get("id") != "avm_opcode_cost_v0":
     fail(f"OBC gas surface mismatch: {obc_surface!r}")
@@ -92,7 +92,7 @@ if calibration.get("schema") != "oren.gas-surface-calibration.v0":
     fail(f"gas surface calibration schema mismatch: {calibration!r}")
 if calibration.get("mode") != "empirical_single_fixture":
     fail(f"gas surface calibration mode mismatch: {calibration!r}")
-if calibration.get("native_surface_id") != "native_stmt_loop_tick_v0":
+if calibration.get("native_surface_id") != "native_basic_block_tick_v0":
     fail(f"native gas calibration surface mismatch: {calibration!r}")
 if calibration.get("obc_surface_id") != "avm_opcode_cost_v0":
     fail(f"OBC gas calibration surface mismatch: {calibration!r}")
@@ -143,19 +143,19 @@ if native_deltas.get("wall_elapsed_ns") != native_budgets.get("wall_ms", {}).get
 if native_deltas.get("wall_elapsed_ns") is None or int(native_deltas.get("wall_elapsed_ns")) < 0:
     fail(f"native wall elapsed should be non-negative, got {native_deltas!r}")
 native_gas = native_budgets.get("gas") or {}
-if native_gas.get("kind") != "native_stmt_loop_tick_v0":
+if native_gas.get("kind") != "native_basic_block_tick_v0":
     fail(f"native gas kind mismatch: {native_gas!r}")
-if (native_gas.get("surface") or {}).get("id") != "native_stmt_loop_tick_v0":
+if (native_gas.get("surface") or {}).get("id") != "native_basic_block_tick_v0":
     fail(f"native gas surface should mirror kind, got {native_gas!r}")
 if native_gas.get("executed") is None or int(native_gas.get("executed")) <= 0:
-    fail(f"native gas executed should be positive under semantic-diff statement gas, got {native_gas!r}")
+    fail(f"native gas executed should be positive under semantic-diff basic-block gas, got {native_gas!r}")
 if native_deltas.get("gas_executed") != native_gas.get("executed"):
     fail(f"native gas executed delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
 if native_deltas.get("gas_remaining") != native_gas.get("remaining"):
     fail(f"native gas remaining delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
 if native_deltas.get("gas_kind") != native_gas.get("kind"):
     fail(f"native gas kind delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
-if native_deltas.get("gas_surface_id") != "native_stmt_loop_tick_v0":
+if native_deltas.get("gas_surface_id") != "native_basic_block_tick_v0":
     fail(f"native gas surface delta mismatch, got {native_deltas!r}")
 native_heap = native_budgets.get("heap_bytes") or {}
 if native_heap.get("kind") != "tracked_live_scan":
