@@ -103,8 +103,11 @@ Required entry fields:
   native/OBC gas as non-comparable because native `native_stmt_loop_tick_v0` is not the same unit as
   AVM `avm_opcode_cost_v0`. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
-  conversion contract exists. C ledger export is still intentionally reported as unavailable rather
-  than inferred from logs.
+  conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
+  `oren.gas-surface-calibration-set.v0` report from the default smoke plus the loop-heavy fixture
+  and requires the current ratio spread to remain explicit as `single_ratio_unsafe`, so future work
+  cannot accidentally treat one empirical ratio as a native/AVM conversion rule. C ledger export is
+  still intentionally reported as unavailable rather than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
   wall/gas/heap/CPU-budget evidence for native capsule execution and can include a captured native
@@ -208,5 +211,7 @@ non-comparable until Oren defines a conversion or instruction-equivalent native 
 current semantic-diff report also records empirical `native_per_obc` and `obc_per_native` ratios
 under `oren.gas-surface-calibration.v0`; those numbers are calibration evidence, not a rule that
 package policy may use for enforcement. `make verify-backend-semantic-diff-gas-calibration` runs the
-same schema guard against an additional loop-heavy fixture so the calibration evidence is not tied
-only to the tiny parity smoke.
+same schema guard against an additional loop-heavy fixture, and
+`make verify-backend-gas-surface-calibration-set` writes an `oren.gas-surface-calibration-set.v0`
+report proving the current ratio spread across fixtures is too fixture-sensitive to promote as a
+conversion rule.

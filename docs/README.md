@@ -59,6 +59,7 @@ make verify-runtime-robustness  # W5 runtime robustness smoke (stage1 base + mix
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make verify-backend-semantic-diff  # emits C/native/obc parity JSON plus ledger and gas-surface evidence
 make verify-backend-semantic-diff-gas-calibration  # second semantic-diff gas calibration fixture
+make verify-backend-gas-surface-calibration-set  # combines gas calibration fixtures and guards ratio spread
 make verify-native-capsule-resource-checks  # guards native FS resource-check counters in native-run JSON
 make readiness-report  # generates build/reports/readiness_report_*.md
 make readiness-report-full  # quick + GC stress + runtime robustness

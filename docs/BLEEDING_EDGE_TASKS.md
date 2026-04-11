@@ -66,7 +66,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` descriptors; semantic diff
   reports native/OBC gas as non-comparable while native uses `native_stmt_loop_tick_v0` and AVM uses
   `avm_opcode_cost_v0`. Semantic diff also records `oren.gas-surface-calibration.v0` empirical
-  ratios for the fixture, explicitly marked as not a conversion. AVM `effect_ledger_summary.budgets`
+  ratios for the fixture, explicitly marked as not a conversion. `make verify-backend-gas-surface-calibration-set`
+  now emits an `oren.gas-surface-calibration-set.v0` report and guards the current cross-fixture ratio
+  spread as `single_ratio_unsafe`. AVM `effect_ledger_summary.budgets`
   now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
   `wall_ms.elapsed_ns`. Next capability work should define a conversion contract or finer native
   instruction-equivalent gas rather than re-describing the existing env contract.
@@ -2728,7 +2730,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      statement+loop gas and AVM opcode gas are not yet the same comparable unit. The report also
      includes empirical `oren.gas-surface-calibration.v0` ratios, but keeps them out of enforcement
      until a conversion contract exists. `make verify-backend-semantic-diff-gas-calibration` runs a
-     second loop-heavy calibration point through the same report/guard path without putting it on the
+     second loop-heavy calibration point through the same report/guard path, and
+     `make verify-backend-gas-surface-calibration-set` combines both reports to guard that the current
+     native/OBC ratio spread remains evidence, not an implicit rule. The set guard stays off the
      default test-critical path.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
