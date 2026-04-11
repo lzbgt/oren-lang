@@ -159,13 +159,20 @@ declared intent against actual build flags and runtime-profile request without t
 comparison into enforcement by default. Strict builds can opt into rejection with
 `--enforce-package-policy` or `OREN_ENFORCE_PACKAGE_POLICY=1`.
 
-AVM execution can opt into applying the package policy through:
+Package-policy execution can now use one dispatcher:
+
+```sh
+scripts/run_package_policy.sh --backend avm path/to/source.oren -- --print-run-json
+scripts/run_package_policy.sh --backend native path/to/source.oren -- arg0 arg1
+```
+
+The AVM convenience wrapper remains:
 
 ```sh
 scripts/run_avm_package_policy.sh path/to/source.oren -- --print-run-json
 ```
 
-That runner builds bytecode with `--manifest`, reads `policy.source_package`, and maps the
+The AVM runner builds bytecode with `--manifest`, reads `policy.source_package`, and maps the
 current enforceable subset into AVM runtime policy: `runtime_profile="capsule"` becomes
 capsule/deny-by-default execution with an AVM domain allowlist, `budget_gas` becomes `AVM_GAS`,
 `budget_heap_bytes` becomes `AVM_MEM_BYTES`, and `budget_wall_ms` becomes `AVM_TIMEOUT_MS`.
@@ -173,8 +180,13 @@ When callers pass `--print-run-json`, the AVM `effect_ledger_summary.budgets` br
 the applied gas, heap, and wall budget fields, including `wall_ms.limit` and `wall_ms.elapsed_ns`.
 Before execution, the runner also scans the bytecode policy surface and fails closed if
 static used AVM domains exceed the package allowlist. Existing stricter env budgets stay
-stricter. Broader env budgets are narrowed to the package declaration. `budget_cpu_ms`
-remains manifest-only until native/AVM CPU accounting has one shared contract.
+stricter. Broader env budgets are narrowed to the package declaration.
+
+The native runner consumes the same source package policy and builds with `--capsule`,
+`--enforce-package-policy`, and package-derived `--cap-allow-domains`, then runs with
+matching `OREN_CAPSULE=1` / `OREN_CAP_ALLOW_DOMAINS`. It enforces `budget_wall_ms` with a
+process watchdog. It intentionally fails closed for `budget_gas`, `budget_heap_bytes`, and
+`budget_cpu_ms` until native has backend-equivalent accounting for those fields.
 
 ## Domain Contract
 
@@ -209,10 +221,12 @@ remains manifest-only until native/AVM CPU accounting has one shared contract.
 - `policy.source_package_check` is observe-only by default. It can report `mismatch_observed`;
   `--enforce-package-policy` / `OREN_ENFORCE_PACKAGE_POLICY=1` turns that status into a build
   error.
-- Capability budgets are now representable in package metadata, and the AVM package-policy
-  runner applies the gas/heap/wall subset to concrete AVM runtime knobs. They are not yet a
-  complete enforcement contract across native and AVM. Native capsule runtime knobs are
-  domain/resource allowlists first, and CPU budgets remain declarative.
+- Capability budgets are now representable in package metadata. The AVM package-policy
+  runner applies the gas/heap/wall subset to concrete AVM runtime knobs; the native runner
+  applies capsule domains plus wall-time process watchdogs and fails closed for gas/heap/CPU
+  budget declarations. They are not yet a complete enforcement contract across native and AVM.
+  Native capsule runtime knobs are domain/resource allowlists first, and CPU budgets remain
+  declarative.
 - Full effect-ledger runtime emission is not complete yet. The target schema is pinned in
   `docs/EFFECT_LEDGER_CONTRACT.md`, and AVM `--print-run-json` already emits a compact
   `effect_ledger_summary` bridge so future native/AVM work uses one backend-comparable
@@ -232,6 +246,7 @@ make verify-capability-manifest-policy
 make verify-effect-ledger-contract
 make verify-avm-effect-ledger-json
 make verify-avm-package-policy-runner
+make verify-native-package-policy-runner
 make test-native-capsule-smoke-stage2
 make test-avm
 make verify-backend-parity

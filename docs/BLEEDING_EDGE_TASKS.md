@@ -44,20 +44,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   comparison; `@oren.package(...)` now provides the first source-level package marker for
   runtime-profile intent, allow domains, and budget defaults; `--enforce-package-policy` /
   `OREN_ENFORCE_PACKAGE_POLICY=1` now promotes `mismatch_observed` into a build error.
-  `scripts/run_avm_package_policy.sh` is the first explicit package-policy execution boundary:
-  it consumes bytecode artifact manifests and applies package capsule/gas/heap/wall declarations
-  to AVM runtime policy, with a pre-execution used-domain scan that fails closed when bytecode
-  exceeds the package allowlist. AVM `effect_ledger_summary.budgets` now reports gas, heap, and
-  wall budget fields for that path, including `wall_ms.limit` and measured `wall_ms.elapsed_ns`.
-  Next capability work should move from this runner toward full native/AVM effect-ledger budget
-  parity rather than re-describing the existing env contract.
+  `scripts/run_package_policy.sh` now dispatches explicit package-policy execution for AVM and
+  native capsule runs. The AVM path consumes bytecode artifact manifests and applies package
+  capsule/gas/heap/wall declarations to AVM runtime policy, with a pre-execution used-domain
+  scan that fails closed when bytecode exceeds the package allowlist. The native path consumes
+  the same package marker, builds with package-derived capsule/domain policy, enforces
+  `budget_wall_ms` with a process watchdog, and fails closed for gas/heap/CPU budgets until
+  native has equivalent accounting. AVM `effect_ledger_summary.budgets` now reports gas, heap,
+  and wall budget fields for that path, including `wall_ms.limit` and measured
+  `wall_ms.elapsed_ns`. Next capability work should move from these runners toward full
+  native/AVM effect-ledger budget parity rather than re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and
   `make verify-capability-manifest-policy`; effect-ledger schema drift is guarded by
   `make verify-effect-ledger-contract`, with AVM JSON summary emission covered by
   `make verify-avm-effect-ledger-json` and package-policy execution covered by
-  `make verify-avm-package-policy-runner`.
+  `make verify-avm-package-policy-runner` / `make verify-native-package-policy-runner`.
 - New: `project-doc/oren_feature_horizon_20260412.md` and
   `project-doc/oren_language_system_bets_20260412.md` separate external pressure signals from
   Oren-owned forecast bets. Reweight Oren differentiation toward deterministic native/AVM
@@ -2691,6 +2694,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 5) **Cross-backend parity gates**
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
+   - New (2026-04-12): `scripts/run_backend_semantic_diff.sh` emits
+     `build/reports/backend_semantic_diff_*.json` with backend exit codes, normalized stdout/stderr
+     hashes, log paths, and a pass/fail verdict. This turns one parity smoke into an
+     agent-readable semantic-diff artifact rather than a log-scraping check.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).

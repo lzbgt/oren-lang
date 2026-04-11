@@ -1,0 +1,7 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_wall_ms=100)
+var native_package_policy_wall_timeout = 1
+
+fn main() {
+    while true {
+    }
+}

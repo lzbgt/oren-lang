@@ -42,8 +42,11 @@ metadata_compiler="lib/compiler/metadata.oren"
 seed_script="scripts/build_rtobj_seed.sh"
 metadata_guard="scripts/verify_capability_metadata.sh"
 manifest_policy_guard="scripts/verify_capability_manifest_policy.sh"
+package_policy_runner="scripts/run_package_policy.sh"
 avm_policy_runner="scripts/run_avm_package_policy.sh"
 avm_policy_runner_guard="scripts/verify_avm_package_policy_runner.sh"
+native_policy_runner="scripts/run_native_package_policy.sh"
+native_policy_runner_guard="scripts/verify_native_package_policy_runner.sh"
 
 for f in \
   "$contract" \
@@ -62,8 +65,11 @@ for f in \
   "$seed_script" \
   "$metadata_guard" \
   "$manifest_policy_guard" \
+  "$package_policy_runner" \
   "$avm_policy_runner" \
   "$avm_policy_runner_guard" \
+  "$native_policy_runner" \
+  "$native_policy_runner_guard" \
   Makefile
 do
   require_file "$f"
@@ -82,6 +88,7 @@ require_literal "$contract" "make verify-capability-manifest-policy"
 require_literal "$contract" "make verify-effect-ledger-contract"
 require_literal "$contract" "make verify-avm-effect-ledger-json"
 require_literal "$contract" "make verify-avm-package-policy-runner"
+require_literal "$contract" "make verify-native-package-policy-runner"
 require_literal "$contract" "make test-native-capsule-smoke-stage2"
 require_literal "$contract" "make test-avm"
 require_literal "$contract" "make verify-backend-parity"
@@ -177,11 +184,17 @@ require_literal "$manifest_policy_guard" "source_package"
 require_literal "$manifest_policy_guard" "source_package_check"
 require_literal "$manifest_policy_guard" "--enforce-package-policy"
 require_literal "$manifest_policy_guard" "OREN_ENFORCE_PACKAGE_POLICY"
+require_literal "$package_policy_runner" "--backend avm|native"
 require_literal "$avm_policy_runner" "AVM_GAS"
 require_literal "$avm_policy_runner" "AVM_MEM_BYTES"
 require_literal "$avm_policy_runner" "AVM_TIMEOUT_MS"
 require_literal "$avm_policy_runner" "AVM_ALLOW_DOMAINS"
 require_literal "$avm_policy_runner_guard" "avm_package_policy_runner_ok.oren"
+require_literal "$native_policy_runner" "OREN_CAPSULE"
+require_literal "$native_policy_runner" "OREN_CAP_ALLOW_DOMAINS"
+require_literal "$native_policy_runner" "budget_wall_ms"
+require_literal "$native_policy_runner" "cannot enforce"
+require_literal "$native_policy_runner_guard" "native_package_policy_runner_ok.oren"
 
 # AVM domain ids and selected domain mappings.
 require_regex "$avm_domains" 'var AVM_DOMAIN_CORE = 0$'
@@ -209,15 +222,17 @@ require_literal Makefile "verify-capability-manifest-policy:"
 require_literal Makefile "verify-effect-ledger-contract:"
 require_literal Makefile "verify-avm-effect-ledger-json:"
 require_literal Makefile "verify-avm-package-policy-runner:"
+require_literal Makefile "verify-native-package-policy-runner:"
 require_literal Makefile "./scripts/verify_capability_runtime_contract.sh"
 require_literal Makefile "./scripts/verify_capability_metadata.sh"
 require_literal Makefile "./scripts/verify_capability_manifest_policy.sh"
 require_literal Makefile "./scripts/verify_effect_ledger_contract.sh"
 require_literal Makefile "./scripts/verify_avm_effect_ledger_json.sh"
 require_literal Makefile "./scripts/verify_avm_package_policy_runner.sh"
+require_literal Makefile "./scripts/verify_native_package_policy_runner.sh"
 require_literal Makefile "test-native-capsule-smoke-stage2:"
 require_literal Makefile "test-avm: oren avm"
 require_literal Makefile "verify-backend-parity:"
-require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-avm-spawn-channel-args test-native-quick"
+require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-avm-spawn-channel-args test-native-quick"
 
 echo "capability runtime contract verify OK"

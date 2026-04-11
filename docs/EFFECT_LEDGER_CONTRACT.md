@@ -93,6 +93,10 @@ Required entry fields:
   unbounded output bytes belong behind digests or explicit redaction policy.
 - The ledger should compose with semantic diffs. Cross-backend parity tooling should be able to
   compare `entries` and budget deltas without scraping logs.
+- The first repo-level semantic-diff consumer is intentionally smaller than the full ledger:
+  `scripts/run_backend_semantic_diff.sh` emits `oren.semantic-diff.v0` JSON with C/native/OBC
+  exit codes, normalized stdout/stderr hashes, log paths, and a pass/fail verdict. Future work
+  should add ledger-entry and budget-delta comparisons to the same report shape.
 
 ## Verification Map
 

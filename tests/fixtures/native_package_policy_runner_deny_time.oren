@@ -1,0 +1,7 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_wall_ms=1000)
+var native_package_policy_deny_time = 1
+
+fn main() {
+    oren_sleep_ms(1)
+    print("native package policy deny-time should not run")
+}

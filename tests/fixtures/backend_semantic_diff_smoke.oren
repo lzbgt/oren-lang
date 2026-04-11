@@ -1,0 +1,19 @@
+fn main() {
+    var xs = [3, 1, 4, 1, 5, 9]
+    var sum = 0
+    var weighted = 0
+    var i = 0
+    while i < 6 {
+        var v = xs[i]
+        sum = sum + v
+        weighted = weighted + v * (i + 1)
+        i = i + 1
+    }
+    var score = sum * 1000 + weighted
+    oren_set_result(score)
+    print("semantic-diff sum=" + oren_int_to_string(sum))
+    print("semantic-diff weighted=" + oren_int_to_string(weighted))
+    print("semantic-diff score=" + oren_int_to_string(score))
+    print("ok: semantic diff")
+    return 0
+}

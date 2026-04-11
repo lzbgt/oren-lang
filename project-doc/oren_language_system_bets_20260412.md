@@ -124,14 +124,18 @@ It is a language plus runtime plus artifact contract.
 - Keep implementing artifact policy manifests and package capability manifests. `@oren.package(...)`
   is now the first source-level marker, and artifact manifests now include observe-only
   `source_package_check`; `--enforce-package-policy` now turns `mismatch_observed` into a build
-  error. `scripts/run_avm_package_policy.sh` is the first explicit runner that applies package
-  capsule/gas/heap/wall declarations to AVM execution and rejects bytecode whose static used
-  domains exceed the package allowlist. AVM run JSON now reports gas, heap, and wall package
-  budgets through `effect_ledger_summary.budgets`, so the next step is native-side parity and
-  cross-backend semantic-diff consumption, not another manifest-only field.
+  error. `scripts/run_package_policy.sh` now dispatches package-policy execution for AVM and
+  native: the AVM path applies package capsule/gas/heap/wall declarations and rejects bytecode
+  whose static used domains exceed the package allowlist, while the native path applies package
+  capsule/domain policy plus a wall-time watchdog and fails closed for gas/heap/CPU budgets until
+  native-equivalent counters exist. AVM run JSON now reports gas, heap, and wall package budgets
+  through `effect_ledger_summary.budgets`, so the next step is fuller native-side ledger parity
+  and cross-backend semantic-diff consumption, not another manifest-only field.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
-- Add a small AVM/native semantic-diff command rather than only expanding fixture scripts.
+- `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
+  `oren.semantic-diff.v0` JSON for C/native/OBC runs. Next work is adding ledger-entry and
+  budget-delta comparisons to that report rather than only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

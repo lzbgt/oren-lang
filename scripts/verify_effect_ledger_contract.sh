@@ -30,6 +30,7 @@ horizon_doc="project-doc/oren_feature_horizon_20260412.md"
 bets_doc="project-doc/oren_language_system_bets_20260412.md"
 avm_main="lib/avm/main.c"
 avm_json_guard="scripts/verify_avm_effect_ledger_json.sh"
+semantic_diff_runner="scripts/run_backend_semantic_diff.sh"
 
 for f in \
   "$contract" \
@@ -42,6 +43,7 @@ for f in \
   "$bets_doc" \
   "$avm_main" \
   "$avm_json_guard" \
+  "$semantic_diff_runner" \
   Makefile
 do
   require_file "$f"
@@ -71,21 +73,26 @@ require_literal "$contract" "effect_ledger_summary"
 require_literal "$contract" "oren.effect-ledger-summary.v0"
 require_literal "$contract" "\"determinism\""
 require_literal "$contract" "\"wall_ms\""
+require_literal "$contract" "oren.semantic-diff.v0"
 
 require_literal "$cap_contract" "docs/EFFECT_LEDGER_CONTRACT.md"
 require_literal "$cap_contract" "make verify-effect-ledger-contract"
 require_literal "$docs_index" "docs/EFFECT_LEDGER_CONTRACT.md"
 require_literal "$tasks_doc" "docs/EFFECT_LEDGER_CONTRACT.md"
 require_literal "$status_doc" "Effect ledger contract"
+require_literal "$status_doc" "make verify-backend-semantic-diff"
 require_literal "$thesis_doc" "effect ledgers"
 require_literal "$horizon_doc" "Effect-ledger"
 require_literal "$bets_doc" "effect-ledger schema"
+require_literal "$bets_doc" "scripts/run_backend_semantic_diff.sh"
 require_literal Makefile "verify-effect-ledger-contract:"
 require_literal Makefile "verify-avm-effect-ledger-json:"
+require_literal Makefile "verify-backend-semantic-diff:"
 require_literal Makefile "scripts/verify_effect_ledger_contract.sh"
 require_literal Makefile "scripts/verify_avm_effect_ledger_json.sh"
 require_literal Makefile "verify-effect-ledger-contract: verify-avm-effect-ledger-json"
-require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-avm-spawn-channel-args test-native-quick"
+require_literal Makefile "./scripts/run_backend_semantic_diff.sh"
+require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-avm-spawn-channel-args test-native-quick"
 require_literal "$avm_main" "print_effect_ledger_summary_json"
 require_literal "$avm_main" "effect_ledger_summary"
 require_literal "$avm_main" "oren.effect-ledger-summary.v0"
@@ -95,5 +102,9 @@ require_literal "scripts/verify_avm_effect_ledger_json.sh" "effect_ledger_summar
 require_literal "scripts/verify_avm_effect_ledger_json.sh" "AVM_LOG_BYTES=4"
 require_literal "scripts/verify_avm_effect_ledger_json.sh" "AVM_TIMEOUT_MS=1000"
 require_literal "scripts/verify_avm_effect_ledger_json.sh" "wall_ms"
+require_literal "$semantic_diff_runner" "oren.semantic-diff.v0"
+require_literal "$semantic_diff_runner" "stdout_sha256"
+require_literal "$semantic_diff_runner" "expected_line_present_all"
+require_literal "$semantic_diff_runner" "build/reports/"
 
 echo "effect ledger contract verify OK"

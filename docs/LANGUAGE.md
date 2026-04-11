@@ -1462,12 +1462,18 @@ For the current capability domain and native runtime-profile contract, see
   `policy.source_package_check`, an observe-only comparison of the package marker against
   actual build flags and runtime-profile selection. Use `--enforce-package-policy` or
   `OREN_ENFORCE_PACKAGE_POLICY=1` to fail builds when that check reports `mismatch_observed`.
-  Use `scripts/run_avm_package_policy.sh` when bytecode execution should actually apply the
+  Use `scripts/run_package_policy.sh --backend avm` or
+  `scripts/run_avm_package_policy.sh` when bytecode execution should actually apply the
   source package policy: it maps package capsule intent to AVM capsule/deny-by-default
   execution, `budget_gas` to `AVM_GAS`, `budget_heap_bytes` to `AVM_MEM_BYTES`, and
   `budget_wall_ms` to `AVM_TIMEOUT_MS`, with a pre-execution bytecode used-domain check
-  against the package allowlist. AVM run JSON reports the applied gas, heap, and wall budget
-  fields through `effect_ledger_summary.budgets`, including `wall_ms.limit`.
+  against the package allowlist. Use `scripts/run_package_policy.sh --backend native`
+  when native capsule execution should consume the same marker: it builds with package
+  capsule/domain policy, runs with matching `OREN_CAPSULE` / `OREN_CAP_ALLOW_DOMAINS`,
+  enforces `budget_wall_ms` with a process watchdog, and fails closed for native
+  gas/heap/CPU budgets until those fields have native-equivalent accounting. AVM run JSON
+  reports the applied gas, heap, and wall budget fields through
+  `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
   a complete stdlib/runtime effect proof.
@@ -3545,13 +3551,16 @@ flags and runtime profiles. Artifact `--manifest` output additionally carries
 `policy.source_package_check` with `observe_only` / `mismatch_observed` status, runtime-profile
 comparison, cap-allow coverage, and budget declaration status. The check is diagnostic by
 default; `--enforce-package-policy` / `OREN_ENFORCE_PACKAGE_POLICY=1` promotes
-`mismatch_observed` into a build error. For AVM, `scripts/run_avm_package_policy.sh` is the
-first explicit policy-application runner: it consumes the bytecode artifact manifest and maps
-package capsule/gas/heap/wall declarations onto AVM runtime knobs before execution. It also
-uses the AVM policy scanner to reject bytecode whose static used domains exceed the package
-allowlist, rather than relying on denied native calls becoming values at runtime. When callers
-request `--print-run-json`, the AVM effect-ledger summary reports the applied `budget_wall_ms`
-as `budgets.wall_ms.limit` and records measured wall elapsed nanoseconds.
+`mismatch_observed` into a build error. For execution, `scripts/run_package_policy.sh` dispatches
+to backend-specific policy runners. The AVM path consumes the bytecode artifact manifest and maps
+package capsule/gas/heap/wall declarations onto AVM runtime knobs before execution. It also uses
+the AVM policy scanner to reject bytecode whose static used domains exceed the package allowlist,
+rather than relying on denied native calls becoming values at runtime. The native path builds with
+package capsule/domain policy, runs with matching native capsule env, enforces `budget_wall_ms`
+with a process watchdog, and fails closed for `budget_gas`, `budget_heap_bytes`, and
+`budget_cpu_ms` until native-equivalent accounting lands. When callers request `--print-run-json`,
+the AVM effect-ledger summary reports the applied `budget_wall_ms` as `budgets.wall_ms.limit` and
+records measured wall elapsed nanoseconds.
 
 ### 2.4 Normalized serde schema (what libraries/tooling want)
 
