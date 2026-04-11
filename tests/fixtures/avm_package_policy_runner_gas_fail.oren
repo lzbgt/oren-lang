@@ -1,0 +1,9 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_gas=64, budget_heap_bytes=1048576, budget_wall_ms=1000)
+var avm_package_policy = 1
+
+fn main() {
+    while 1 {
+    }
+}
+
+main()

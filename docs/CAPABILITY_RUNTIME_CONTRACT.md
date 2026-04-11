@@ -113,7 +113,7 @@ the source capability domains and selected build-policy inputs:
       "source_required_domains": ["FS", "TIME", "RNG"],
       "dependency_domain_union": ["FS", "TIME", "RNG"],
       "dependency_domain_union_status": "source_attrs_only",
-      "budgets": { "version": 1, "declared": true, "cpu_ms": 10 }
+      "budgets": { "version": 1, "declared": true, "cpu_ms": 10, "gas": 100000 }
     },
     "source_package_check": {
       "version": 1,
@@ -139,23 +139,40 @@ the source capability domains and selected build-policy inputs:
 
 `runtime_profile` is the build-policy request. In the native default `auto` mode, the
 backend still resolves the concrete runtime path from env/import heuristics, so
-`runtime_path` is `backend-auto` rather than a false claim about a final path. Budget
-declarations are explicitly marked absent until source/package-level budget syntax exists.
+`runtime_path` is `backend-auto` rather than a false claim about a final path. Artifact-level
+budget policy is still explicit: the manifest-level `policy.budgets` object stays unset until a
+build/run policy has actually applied a budget, while `policy.source_package.budgets` records
+source-declared intent.
 
 Source files can now declare a first package-policy marker through a declaration
 attribute:
 
 ```oren
-@oren.package(runtime_profile="capsule", cap_allow_domains="FS,ENV", budget_cpu_ms=10)
+@oren.package(runtime_profile="capsule", cap_allow_domains="FS,ENV", budget_gas=100000, budget_heap_bytes=1048576, budget_wall_ms=1000)
 var package_policy = 1
 ```
 
-That marker is metadata-only. It does not silently enable capsule mode or enforce budgets.
-It normalizes into `metadata.package` and artifact `policy.source_package`. Artifact
-manifests also emit observe-only `policy.source_package_check` status so package tooling
-can compare declared intent against actual build flags and runtime-profile request without
-turning that comparison into enforcement by default. Strict builds can opt into rejection
-with `--enforce-package-policy` or `OREN_ENFORCE_PACKAGE_POLICY=1`.
+That marker does not silently change the normal compiler backend or runtime profile. It
+normalizes into `metadata.package` and artifact `policy.source_package`. Artifact manifests
+also emit observe-only `policy.source_package_check` status so package tooling can compare
+declared intent against actual build flags and runtime-profile request without turning that
+comparison into enforcement by default. Strict builds can opt into rejection with
+`--enforce-package-policy` or `OREN_ENFORCE_PACKAGE_POLICY=1`.
+
+AVM execution can opt into applying the package policy through:
+
+```sh
+scripts/run_avm_package_policy.sh path/to/source.oren -- --print-run-json
+```
+
+That runner builds bytecode with `--manifest`, reads `policy.source_package`, and maps the
+current enforceable subset into AVM runtime policy: `runtime_profile="capsule"` becomes
+capsule/deny-by-default execution with an AVM domain allowlist, `budget_gas` becomes `AVM_GAS`,
+`budget_heap_bytes` becomes `AVM_MEM_BYTES`, and `budget_wall_ms` becomes `AVM_TIMEOUT_MS`.
+Before execution, the runner also scans the bytecode policy surface and fails closed if
+static used AVM domains exceed the package allowlist. Existing stricter env budgets stay
+stricter. Broader env budgets are narrowed to the package declaration. `budget_cpu_ms`
+remains manifest-only until native/AVM CPU accounting has one shared contract.
 
 ## Domain Contract
 
@@ -190,9 +207,10 @@ with `--enforce-package-policy` or `OREN_ENFORCE_PACKAGE_POLICY=1`.
 - `policy.source_package_check` is observe-only by default. It can report `mismatch_observed`;
   `--enforce-package-policy` / `OREN_ENFORCE_PACKAGE_POLICY=1` turns that status into a build
   error.
-- Capability budgets are now representable in package metadata, but they are not yet a
-  complete enforcement contract across native and AVM. AVM has budget machinery; native
-  capsule runtime knobs are domain/resource allowlists first.
+- Capability budgets are now representable in package metadata, and the AVM package-policy
+  runner applies the gas/heap/wall subset to concrete AVM runtime knobs. They are not yet a
+  complete enforcement contract across native and AVM. Native capsule runtime knobs are
+  domain/resource allowlists first, and CPU budgets remain declarative.
 - Full effect-ledger runtime emission is not complete yet. The target schema is pinned in
   `docs/EFFECT_LEDGER_CONTRACT.md`, and AVM `--print-run-json` already emits a compact
   `effect_ledger_summary` bridge so future native/AVM work uses one backend-comparable
@@ -211,6 +229,7 @@ make verify-capability-metadata
 make verify-capability-manifest-policy
 make verify-effect-ledger-contract
 make verify-avm-effect-ledger-json
+make verify-avm-package-policy-runner
 make test-native-capsule-smoke-stage2
 make test-avm
 make verify-backend-parity

@@ -4290,7 +4290,7 @@ Status legend:
 | WebSocket v0 | Rolling | `lib/std/net/ws.oren` | `tests/native/test_ws_echo_loopback.oren` |
 | Channels + select | Rolling | `lib/runtime_native/010_channels_*`, `lib/runtime_native/245_select.oren` | `tests/native/test_integration_suite.oren`, `tests/avm/test_smoke_suite.oren` |
 | Spawn + join | Rolling | `lib/runtime_native/260_threads.oren` | `tests/native/test_integration_suite.oren` |
-| Capsule model (capability gating) | Rolling | runtime + emit constraints | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `@oren.package(...)`, `policy.source_package_check`, `--enforce-package-policy`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `tests/native/fixtures/capsule_*`, `tests/fixtures/meta_capabilities_src.oren` |
+| Capsule model (capability gating) | Rolling | runtime + emit constraints | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `@oren.package(...)`, `policy.source_package_check`, `--enforce-package-policy`, `scripts/run_avm_package_policy.sh`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `make verify-avm-package-policy-runner`, `tests/native/fixtures/capsule_*`, `tests/fixtures/meta_capabilities_src.oren` |
 | UI headless core | Rolling | `lib/std/ui/**` | `tests/avm/test_ui_*_v0.oren` |
 
 ### Backends + AVM
@@ -4300,7 +4300,7 @@ Status legend:
 | C backend | Rolling | `lib/compiler/transpiler.oren` | `make bootstrap`, `make test` |
 | Native backend (arm64/x64) | Rolling | `lib/compiler/arm64_*`, `lib/compiler/x64_*` | Tier-1 fixtures under `tests/fixtures/` |
 | Bytecode backend (OBC) | Rolling | `lib/compiler/codegen_bytecode/**` | `tests/avm/**` |
-| Capability domains (CORE/FS/TIME/RNG/NET/PROC/ENV/AVM) | Rolling | `lib/avm/avm_native.inc`, `lib/compiler/metadata.oren` | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `@oren.package(...)`, `policy.source_package_check`, `--enforce-package-policy`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `tests/avm/**` |
+| Capability domains (CORE/FS/TIME/RNG/NET/PROC/ENV/AVM) | Rolling | `lib/avm/avm_native.inc`, `lib/compiler/metadata.oren` | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `@oren.package(...)`, `policy.source_package_check`, `--enforce-package-policy`, `scripts/run_avm_package_policy.sh`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `make verify-avm-package-policy-runner`, `tests/avm/**` |
 | Effect ledger contract | Rolling schema | `docs/EFFECT_LEDGER_CONTRACT.md`, `lib/avm/main.c` | `make verify-effect-ledger-contract`, `make verify-avm-effect-ledger-json`; AVM run JSON emits `effect_ledger_summary`; full native/AVM ledger parity fixtures are future work |
 | VirtualFS/VirtualNET/VirtualPROC | Rolling | `lib/avm/main.c` | AVM fixtures under `tests/avm/` |
 | `.obc` signature verification | Rolling | `lib/avm/avm_sig.c` | `cmd/orensign/main.go` |

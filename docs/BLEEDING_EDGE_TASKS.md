@@ -43,14 +43,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   source-required domains, source package policy, and observe-only `source_package_check`
   comparison; `@oren.package(...)` now provides the first source-level package marker for
   runtime-profile intent, allow domains, and budget defaults; `--enforce-package-policy` /
-  `OREN_ENFORCE_PACKAGE_POLICY=1` now promotes `mismatch_observed` into a build error. Next
-  capability work should move toward effect-ledger/budget enforcement rather than re-describing
-  the existing env contract. `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger
-  schema before complete runtime emission lands. Contract drift is guarded by
+  `OREN_ENFORCE_PACKAGE_POLICY=1` now promotes `mismatch_observed` into a build error.
+  `scripts/run_avm_package_policy.sh` is the first explicit package-policy execution boundary:
+  it consumes bytecode artifact manifests and applies package capsule/gas/heap/wall declarations
+  to AVM runtime policy, with a pre-execution used-domain scan that fails closed when bytecode
+  exceeds the package allowlist. Next capability work should move from this runner toward full
+  native/AVM effect-ledger budget parity rather than re-describing the existing env contract.
+  `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
+  emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and
   `make verify-capability-manifest-policy`; effect-ledger schema drift is guarded by
   `make verify-effect-ledger-contract`, with AVM JSON summary emission covered by
-  `make verify-avm-effect-ledger-json`.
+  `make verify-avm-effect-ledger-json` and package-policy execution covered by
+  `make verify-avm-package-policy-runner`.
 - New: `project-doc/oren_feature_horizon_20260412.md` and
   `project-doc/oren_language_system_bets_20260412.md` separate external pressure signals from
   Oren-owned forecast bets. Reweight Oren differentiation toward deterministic native/AVM

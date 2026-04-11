@@ -1458,10 +1458,15 @@ For the current capability domain and native runtime-profile contract, see
   declaration. The current fields are `runtime_profile`, `cap_allow_domains`, and budget
   defaults such as `budget_cpu_ms`, `budget_wall_ms`, `budget_heap_bytes`, and `budget_gas`.
   This marker normalizes into metadata/artifact manifests; it does not silently change
-  runtime profile selection or enforce budgets. Artifact manifests also include
+  normal compiler backend selection. Artifact manifests also include
   `policy.source_package_check`, an observe-only comparison of the package marker against
   actual build flags and runtime-profile selection. Use `--enforce-package-policy` or
   `OREN_ENFORCE_PACKAGE_POLICY=1` to fail builds when that check reports `mismatch_observed`.
+  Use `scripts/run_avm_package_policy.sh` when bytecode execution should actually apply the
+  source package policy: it maps package capsule intent to AVM capsule/deny-by-default
+  execution, `budget_gas` to `AVM_GAS`, `budget_heap_bytes` to `AVM_MEM_BYTES`, and
+  `budget_wall_ms` to `AVM_TIMEOUT_MS`, with a pre-execution bytecode used-domain check
+  against the package allowlist.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
   a complete stdlib/runtime effect proof.
@@ -3512,7 +3517,7 @@ That artifact manifest is guarded by `make verify-capability-manifest-policy`.
 Package-policy metadata is declared with `@oren.package(...)` on a top-level declaration:
 
 ```oren
-@oren.package(runtime_profile="capsule", cap_allow_domains="FS,ENV", budget_cpu_ms=10)
+@oren.package(runtime_profile="capsule", cap_allow_domains="FS,ENV", budget_gas=100000, budget_heap_bytes=1048576, budget_wall_ms=1000)
 var package_policy = 1
 ```
 
@@ -3528,18 +3533,22 @@ Shape (rolling, v1):
     "source_required_domains": ["ENV"],
     "dependency_domain_union": ["ENV"],
     "dependency_domain_union_status": "source_attrs_only",
-    "budgets": { "version": 1, "declared": true, "cpu_ms": 10 }
+    "budgets": { "version": 1, "declared": true, "gas": 100000, "wall_ms": 1000, "heap_bytes": 1048576 }
   }
 }
 ```
 
-The marker is intentionally not an enforcement mechanism yet. It gives package tooling,
-artifact manifests, and agents a stable source-declared policy surface to compare with
-actual build flags and runtime profiles. Artifact `--manifest` output additionally carries
+The marker is intentionally not implicit enforcement. It gives package tooling, artifact
+manifests, and agents a stable source-declared policy surface to compare with actual build
+flags and runtime profiles. Artifact `--manifest` output additionally carries
 `policy.source_package_check` with `observe_only` / `mismatch_observed` status, runtime-profile
 comparison, cap-allow coverage, and budget declaration status. The check is diagnostic by
 default; `--enforce-package-policy` / `OREN_ENFORCE_PACKAGE_POLICY=1` promotes
-`mismatch_observed` into a build error.
+`mismatch_observed` into a build error. For AVM, `scripts/run_avm_package_policy.sh` is the
+first explicit policy-application runner: it consumes the bytecode artifact manifest and maps
+package capsule/gas/heap/wall declarations onto AVM runtime knobs before execution. It also
+uses the AVM policy scanner to reject bytecode whose static used domains exceed the package
+allowlist, rather than relying on denied native calls becoming values at runtime.
 
 ### 2.4 Normalized serde schema (what libraries/tooling want)
 

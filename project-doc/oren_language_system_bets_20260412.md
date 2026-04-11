@@ -124,7 +124,10 @@ It is a language plus runtime plus artifact contract.
 - Keep implementing artifact policy manifests and package capability manifests. `@oren.package(...)`
   is now the first source-level marker, and artifact manifests now include observe-only
   `source_package_check`; `--enforce-package-policy` now turns `mismatch_observed` into a build
-  error. The next step is budget/effect-ledger enforcement.
+  error. `scripts/run_avm_package_policy.sh` is the first explicit runner that applies package
+  capsule/gas/heap/wall declarations to AVM execution and rejects bytecode whose static used
+  domains exceed the package allowlist. The next step is deeper native/AVM effect-ledger budget
+  parity, not another manifest-only field.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - Add a small AVM/native semantic-diff command rather than only expanding fixture scripts.

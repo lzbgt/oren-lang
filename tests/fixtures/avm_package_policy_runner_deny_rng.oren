@@ -1,0 +1,9 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="TIME", budget_gas=100000, budget_heap_bytes=1048576, budget_wall_ms=1000)
+var avm_package_policy = 1
+
+fn main() {
+    oren_rand_seed(12345)
+    oren_set_result(oren_rand_u64())
+}
+
+main()
