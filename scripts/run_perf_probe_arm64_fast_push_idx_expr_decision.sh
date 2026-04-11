@@ -85,9 +85,21 @@ def parse_ratio(text, prefix):
     return None if m is None else float(m.group(1))
 
 
-def parse_fill(path_str):
+def read_summary_text(path_str):
+    if not path_str:
+        return ""
     path = Path(path_str)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def fmt_ratio(value):
+    return "missing" if value is None else f"{value:.4f}x"
+
+
+def parse_fill(path_str):
+    text = read_summary_text(path_str)
     return {
         "path": path_str,
         "fill_vs_c_vector": parse_ratio(text, "oren_fill_list_int/c_fill_slot64_vector per_rep ratio:"),
@@ -98,8 +110,7 @@ def parse_fill(path_str):
 
 
 def parse_ceiling(path_str):
-    path = Path(path_str)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = read_summary_text(path_str)
     return {
         "path": path_str,
         "array_ratio": parse_ratio(text, "oren_array_sum_int/array_slot64_vector per_rep ratio:"),
@@ -204,10 +215,10 @@ print(f"{variant_label}_fill_wrapper_log: {os.environ['VARIANT_FILL_WRAPPER_LOG'
 print(f"{variant_label}_fill_summary: {variant_fill['path']}")
 print("")
 for label, metrics in [("default", default_fill), (variant_label, variant_fill)]:
-    print(f"{label}_fill_vs_c_vector: {metrics['fill_vs_c_vector']:.4f}x")
-    print(f"{label}_fill_vs_setup: {metrics['fill_vs_setup']:.4f}x")
-    print(f"{label}_fill_vs_steady: {metrics['fill_vs_steady']:.4f}x")
-    print(f"{label}_array_steady_vs_c_vector: {metrics['array_steady_vs_c_vector']:.4f}x")
+    print(f"{label}_fill_vs_c_vector: {fmt_ratio(metrics['fill_vs_c_vector'])}")
+    print(f"{label}_fill_vs_setup: {fmt_ratio(metrics['fill_vs_setup'])}")
+    print(f"{label}_fill_vs_steady: {fmt_ratio(metrics['fill_vs_steady'])}")
+    print(f"{label}_array_steady_vs_c_vector: {fmt_ratio(metrics['array_steady_vs_c_vector'])}")
     print("")
 print(f"fill_pref: {fill_pref}")
 print("")
