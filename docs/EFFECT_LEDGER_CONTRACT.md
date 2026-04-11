@@ -208,6 +208,9 @@ the statement+loop mode so it has native budget evidence, but each gas object no
 `surface` object with `schema="oren.gas-surface.v0"`. That surface keeps native `native_stmt_loop_tick_v0`
 distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current native/OBC gas surfaces as
 non-comparable until Oren defines a conversion or instruction-equivalent native gas contract. The
+accepted fine native gas mode spellings are exact: `1`, `stmt`, and `statement`. `basic-block` is
+reserved for a future distinct surface and currently falls back to `native_loop_safepoint_tick_v0`;
+`make verify-native-gas-accounting-modes` guards those mode contracts.
 current semantic-diff report also records empirical `native_per_obc` and `obc_per_native` ratios
 under `oren.gas-surface-calibration.v0`; those numbers are calibration evidence, not a rule that
 package policy may use for enforcement. `make verify-backend-semantic-diff-gas-calibration` runs the

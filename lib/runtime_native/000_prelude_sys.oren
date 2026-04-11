@@ -307,12 +307,11 @@ fn native_runtime_stmt_gas_env_enabled() {
     if c0 == 0 { return false }
     if c0 == 48 { return false } // '0'
     if c0 == 49 { return true } // '1'
-    // Accept "stmt" / "statement" / "basic-block" as the v0 fine native gas spelling.
+    // Accept only "stmt" / "statement" as the v0 fine native gas spelling.
+    // "basic-block" is reserved for a future distinct gas surface and must not alias statement gas.
     if c0 == 115 { // 's'
-        if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 109 && ptr_get_byte(iadd(v, 3)) == 116 { return true }
-    }
-    if c0 == 98 { // 'b'
-        if ptr_get_byte(iadd(v, 1)) == 97 && ptr_get_byte(iadd(v, 2)) == 115 && ptr_get_byte(iadd(v, 3)) == 105 && ptr_get_byte(iadd(v, 4)) == 99 { return true }
+        if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 109 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 0 { return true }
+        if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 97 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 101 && ptr_get_byte(iadd(v, 5)) == 109 && ptr_get_byte(iadd(v, 6)) == 101 && ptr_get_byte(iadd(v, 7)) == 110 && ptr_get_byte(iadd(v, 8)) == 116 && ptr_get_byte(iadd(v, 9)) == 0 { return true }
     }
     return false
 }

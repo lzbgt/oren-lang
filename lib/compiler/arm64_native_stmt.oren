@@ -189,7 +189,7 @@ fn _arm64_native_stmt_gas_enabled(ctx) {
     if ctx["native_stmt_gas_enabled"] == false { return false }
     var v = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
     var enabled = false
-    if v == "1" || v == "stmt" || v == "statement" || v == "basic-block" { enabled = true }
+    if v == "1" || v == "stmt" || v == "statement" { enabled = true }
     ctx["native_stmt_gas_enabled"] = enabled
     return enabled
 }

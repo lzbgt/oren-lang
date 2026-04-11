@@ -147,8 +147,10 @@ It is a language plus runtime plus artifact contract.
   `oren.gas-surface-calibration.v0` ratios as evidence, while marking them as not a conversion. The
   `oren.gas-surface-calibration-set.v0` guard combines the tiny smoke and loop-heavy fixture into a
   multi-sample report, preserving the current ratio spread as evidence that Oren needs a real
-  native/AVM gas contract instead of a convenient scalar multiplier. Next work is finer native gas
-  parity or a stated conversion rule, not only expanding fixture scripts.
+  native/AVM gas contract instead of a convenient scalar multiplier. Oren now also guards exact native
+  gas mode spellings: `stmt` and `statement` mean statement+loop gas, while `basic-block` remains
+  reserved for a future distinct surface rather than silently aliasing statement gas. Next work is finer
+  native gas parity or a stated conversion rule, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

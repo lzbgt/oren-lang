@@ -193,7 +193,9 @@ runner builds and runs gas-budgeted artifacts with `OREN_NATIVE_GAS_ACCOUNTING=s
 scoped v0 statement+loop budget: backend statement/op boundaries charge one tick, backend loop poll
 sites charge their mask interval when they fire, and direct/manual runtime safepoint arrivals still
 charge one tick. It is not an instruction-equivalent gas model, so the native run JSON gas object
-also carries `surface.schema="oren.gas-surface.v0"` with `id="native_stmt_loop_tick_v0"`. When
+also carries `surface.schema="oren.gas-surface.v0"` with `id="native_stmt_loop_tick_v0"`. The accepted
+fine native gas spellings are `1`, `stmt`, and `statement`; `basic-block` is reserved for a future
+distinct surface and intentionally falls back to the default loop-safepoint surface. When
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
 `oren.native-package-policy-run.v0` JSON with runner-observed wall/gas/heap/CPU-budget evidence, the
 native capsule/domain policy that was applied, and any captured native runtime `effect_ledger`
@@ -217,10 +219,12 @@ Gas is reported as `native_loop_safepoint_tick_v0` by default; backend loop poll
 mask interval and direct/manual `oren_gc_safepoint()` arrivals charge one tick. When
 `OREN_NATIVE_GAS_ACCOUNTING=stmt` is set for matching build/run invocations, the same field reports
 `native_stmt_loop_tick_v0`, adding backend statement/op-boundary ticks to the loop-safepoint surface.
-Every native gas object also includes an `oren.gas-surface.v0` descriptor; semantic diff now reports
-the native and AVM gas surfaces as non-comparable when their ids differ, instead of treating positive
-counters as the same unit. Future backend work can add finer instruction-equivalent gas without
-changing the existing field shape.
+`OREN_NATIVE_GAS_ACCOUNTING=statement` is an exact synonym for `stmt`; `basic-block` is not accepted
+as an alias because Oren does not yet emit a separate native basic-block gas surface. Every native
+gas object also includes an `oren.gas-surface.v0` descriptor; semantic diff now reports the native
+and AVM gas surfaces as non-comparable when their ids differ, instead of treating positive counters
+as the same unit. Future backend work can add finer instruction-equivalent gas without changing the
+existing field shape.
 Package-policy JSON remains runner-observed wall/gas/heap/CPU evidence with captured runtime summaries,
 while direct `OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
 

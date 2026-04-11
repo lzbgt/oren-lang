@@ -85,7 +85,9 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 544
 // - Add opt-in arm64 statement/op gas notes for native package-policy budget evidence.
 // 2026-04: v0_18
 // - Add gas-surface metadata to native run JSON budget summaries.
-var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_18"
+// 2026-04: v0_19
+// - Tighten native gas accounting mode parsing; reserve basic-block for a future distinct surface.
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_19"
 // 2026-01: v0_17
 // - Fix Tier‑1 Windows correctness for runtime-owned OS threads (`oren_os_thread_spawn`):
 //   `native_call1(addr, arg0)` must follow the active x64 ABI arg-register mapping (SysV vs Win64)
@@ -104,7 +106,9 @@ var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_18"
 // - Add opt-in x64 statement/op gas notes for native package-policy budget evidence.
 // 2026-04: v0_28
 // - Add gas-surface metadata to native run JSON budget summaries.
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_28"
+// 2026-04: v0_29
+// - Tighten native gas accounting mode parsing; reserve basic-block for a future distinct surface.
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_29"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

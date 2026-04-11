@@ -62,7 +62,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   runtime-observed `effect_ledger_summary` wall timing, native capsule domain-gate counters,
   selected FS/NET/PROC resource-check counters, and a scanned native `heap_bytes.used` value for
   live tracked heap nodes, plus default loop-safepoint `native_loop_safepoint_tick_v0` gas ticks or
-  statement+loop `native_stmt_loop_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=stmt` is used.
+  statement+loop `native_stmt_loop_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=stmt` or
+  `statement` is used. `basic-block` is now reserved for a future distinct surface and intentionally
+  falls back to the default loop-safepoint surface.
   Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` descriptors; semantic diff
   reports native/OBC gas as non-comparable while native uses `native_stmt_loop_tick_v0` and AVM uses
   `avm_opcode_cost_v0`. Semantic diff also records `oren.gas-surface-calibration.v0` empirical
@@ -2732,8 +2734,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      until a conversion contract exists. `make verify-backend-semantic-diff-gas-calibration` runs a
      second loop-heavy calibration point through the same report/guard path, and
      `make verify-backend-gas-surface-calibration-set` combines both reports to guard that the current
-     native/OBC ratio spread remains evidence, not an implicit rule. The set guard stays off the
-     default test-critical path.
+     native/OBC ratio spread remains evidence, not an implicit rule. `make verify-native-gas-accounting-modes`
+     now guards that `stmt` and `statement` select statement+loop gas while `basic-block` remains a
+     reserved future spelling, not a hidden alias. The set guard stays off the default test-critical path.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).
