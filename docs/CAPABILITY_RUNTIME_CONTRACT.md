@@ -93,6 +93,7 @@ Oren has three capability layers today.
 Use these targets when changing the capability or runtime-profile contract:
 
 ```sh
+make verify-capability-runtime-contract
 make test-native-capsule-smoke-stage2
 make test-avm
 make verify-backend-parity
@@ -105,3 +106,4 @@ Important fixture families:
   and `tests/native/fixtures/capsule_runtime_*.oren`.
 - AVM policy, record/replay, budget, snapshot, and multiverse fixtures: `tests/avm/`.
 - Cross-backend semantic parity smokes: `make verify-backend-parity`.
+- Contract drift guard: `scripts/verify_capability_runtime_contract.sh`.

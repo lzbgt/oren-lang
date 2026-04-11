@@ -39,6 +39,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
   capability domains, failure model, and verification map; next capability work should move toward
   source-level manifests/budget declarations rather than re-describing the existing env contract.
+  Contract drift is guarded by `make verify-capability-runtime-contract`.
 - Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move

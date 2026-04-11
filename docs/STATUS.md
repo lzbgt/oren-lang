@@ -4269,7 +4269,7 @@ Status legend:
 | WebSocket v0 | Rolling | `lib/std/net/ws.oren` | `tests/native/test_ws_echo_loopback.oren` |
 | Channels + select | Rolling | `lib/runtime_native/010_channels_*`, `lib/runtime_native/245_select.oren` | `tests/native/test_integration_suite.oren`, `tests/avm/test_smoke_suite.oren` |
 | Spawn + join | Rolling | `lib/runtime_native/260_threads.oren` | `tests/native/test_integration_suite.oren` |
-| Capsule model (capability gating) | Rolling | runtime + emit constraints | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `tests/native/fixtures/capsule_*` |
+| Capsule model (capability gating) | Rolling | runtime + emit constraints | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `make verify-capability-runtime-contract`, `tests/native/fixtures/capsule_*` |
 | UI headless core | Rolling | `lib/std/ui/**` | `tests/avm/test_ui_*_v0.oren` |
 
 ### Backends + AVM
@@ -4279,7 +4279,7 @@ Status legend:
 | C backend | Rolling | `lib/compiler/transpiler.oren` | `make bootstrap`, `make test` |
 | Native backend (arm64/x64) | Rolling | `lib/compiler/arm64_*`, `lib/compiler/x64_*` | Tier-1 fixtures under `tests/fixtures/` |
 | Bytecode backend (OBC) | Rolling | `lib/compiler/codegen_bytecode/**` | `tests/avm/**` |
-| Capability domains (CORE/FS/TIME/RNG/NET/PROC/ENV/AVM) | Rolling | `lib/avm/avm_native.inc` | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `tests/avm/**` |
+| Capability domains (CORE/FS/TIME/RNG/NET/PROC/ENV/AVM) | Rolling | `lib/avm/avm_native.inc` | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `make verify-capability-runtime-contract`, `tests/avm/**` |
 | VirtualFS/VirtualNET/VirtualPROC | Rolling | `lib/avm/main.c` | AVM fixtures under `tests/avm/` |
 | `.obc` signature verification | Rolling | `lib/avm/avm_sig.c` | `cmd/orensign/main.go` |
 | Nested universes (AVM in AVM) | Rolling (gated) | `lib/avm/avm_native.inc` | `tests/avm/**` |
