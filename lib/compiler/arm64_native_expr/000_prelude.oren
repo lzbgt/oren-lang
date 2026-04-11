@@ -246,6 +246,33 @@ fn native_emit_gc_safepoint_call_expr(ctx) {
     push_u32_le(ctx["code"], insn_ldp_pair_post(19, 20, 31, 16))
     return nil
 }
+
+fn native_emit_gc_safepoint_call_expr_pairs(ctx, reg_pairs) {
+    var i = 0
+    while i < oren_list_len(reg_pairs) {
+        var pair = reg_pairs[i]
+        if pair != nil && oren_list_len(pair) >= 2 {
+            push_u32_le(ctx["code"], insn_stp_pair_pre(pair[0], pair[1], 31, -16))
+        }
+        i = i + 1
+    }
+
+    var bl_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_gc_safepoint"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_gc_safepoint")
+
+    i = oren_list_len(reg_pairs) - 1
+    while i >= 0 {
+        var pair2 = reg_pairs[i]
+        if pair2 != nil && oren_list_len(pair2) >= 2 {
+            push_u32_le(ctx["code"], insn_ldp_pair_post(pair2[0], pair2[1], 31, 16))
+        }
+        i = i - 1
+    }
+    return nil
+}
 fn insn_fadd_4s(vd, vn, vm) { return core.insn_fadd_4s(vd, vn, vm) }
 fn insn_fmul_4s(vd, vn, vm) { return core.insn_fmul_4s(vd, vn, vm) }
 fn insn_fadd_2d(vd, vn, vm) { return core.insn_fadd_2d(vd, vn, vm) }

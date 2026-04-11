@@ -236,7 +236,19 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     Reweight: the next dot work should target representation/direct lowering for slot64 or a
 	     safe packed view, not a generic helper/public/packed bridge reroute or another scalar-tail
 	     scheduling toggle.
-   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
+	   - Slot-direct fast-tick decision (2026-04-11): new
+	     `make perf-probe-list-int-slot-direct-fast-tick-decision` serializes default vs
+	     `OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK=1`, forcing the shared read-split benchmark
+	     artifacts to rebuild for each side. Latest artifact:
+	     `build/logs/perf-probe-list-int-slot-direct-fast-tick-decision-20260411_194036_96087.log`.
+	     The branch is not promotable: slot-ABI direct-helper time regressed from `~0.001870s` to
+	     `~0.001874s` per rep (`+0.21%`) and still trailed canonical `~0.001296s` plus host slot64 C
+	     `~0.000735s`; read-split slot-direct native/C also regressed on both surfaces
+	     (`array_sum_int` `~1.0010× -> ~1.1249×`, `dot_product_int` `~1.2931× -> ~1.3051×`).
+	     Keep the reduced helper safepoint spill / 4095-tick-mask branch opt-in only. This closes the
+	     tick/spill shortcut as a default path and keeps the next W5 work on real representation or
+	     direct-lowering changes.
+	   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
      `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the
@@ -2899,6 +2911,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Guardrail (2026-04-04): the slot-direct verify target now also exercises the unchecked helper
       edge contract directly through `tests/fixtures/list_int_slot_direct_contracts.oren`, covering
       nil-zero behavior and deterministic mismatch panics in addition to the existing benchmark smoke.
+    - Follow-up (2026-04-11): the slot-direct helper fast-tick branch now exists behind
+      `OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK=1`, reducing the arm64 expr-helper safepoint spill set
+      and using a 4095 default tick mask for the unchecked raw-slot sum/dot helper loops. It is
+      correctness-clean but not promotable: `make perf-probe-list-int-slot-direct-fast-tick-decision`
+      (`build/logs/perf-probe-list-int-slot-direct-fast-tick-decision-20260411_194036_96087.log`)
+      measured slot-ABI helper time `+0.21%` versus default and read-split slot-direct native/C
+      regressions on both `array_sum_int` and `dot_product_int`. Keep it opt-in and keep W5 focused on
+      real representation/direct lowering.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
     - New: native runtime now exposes the current list<int> payload ABI explicitly via

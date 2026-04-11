@@ -1462,8 +1462,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									     Reweight again: the next dot work should target representation/direct lowering
 									     for slot64 or a safe packed view, not the current helper/public/packed bridge
 									     route and not another scalar-tail scheduling toggle.
-					   - New setup-vs-steady attribution follow-up (2026-04-09): new
-					     `make perf-probe-list-int-array-sum-c-breakdown`
+								   - Slot-direct fast-tick decision (2026-04-11): new
+								     `make perf-probe-list-int-slot-direct-fast-tick-decision` serializes default
+								     vs `OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK=1` and forces the shared read-split
+								     artifacts to rebuild for each side. Latest artifact:
+									     `build/logs/perf-probe-list-int-slot-direct-fast-tick-decision-20260411_194036_96087.log`.
+									     Verdict: keep the reduced helper safepoint spill / 4095 tick-mask branch opt-in.
+									     It regressed the slot-ABI direct-helper time from `~0.001870s` to `~0.001874s`
+									     per rep (`+0.21%`) and regressed read-split slot-direct native/C on both
+									     `array_sum_int` (`~1.0010× -> ~1.1249×`) and `dot_product_int`
+									     (`~1.2931× -> ~1.3051×`). This closes the tick/spill shortcut as a default
+									     path; the next W5 move is still a real representation/direct-lowering change.
+						   - New setup-vs-steady attribution follow-up (2026-04-09): new
+						     `make perf-probe-list-int-array-sum-c-breakdown`
 					     (`build/logs/perf-probe-list-int-array-sum-c-breakdown-20260409_143718_76549.log`)
 					     now closes the remaining “maybe fill/setup dominates” question on the exact
 					     `array_sum_int` workload. The short-run setup estimate is still noisy, but the stable
@@ -3694,6 +3705,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Guardrail (2026-04-04): slot-direct verification now includes direct unchecked-helper contract
      coverage via `tests/fixtures/list_int_slot_direct_contracts.oren`, so future arm64/x64 tuning
      cannot silently change nil or mismatch behavior while still passing the benchmark-output smoke.
+   - Follow-up (2026-04-11): arm64 raw-slot helper lowering now has
+     `OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK=1` as a default-off probe that narrows the expr-helper
+     safepoint spill set and uses a 4095 default tick mask. The decision probe
+     `make perf-probe-list-int-slot-direct-fast-tick-decision`
+     (`build/logs/perf-probe-list-int-slot-direct-fast-tick-decision-20260411_194036_96087.log`)
+     rejects promotion: slot-ABI direct-helper time regressed `+0.21%`, and read-split
+     slot-direct native/C regressed on both `array_sum_int` and `dot_product_int`. Keep it opt-in;
+     do not use it as the W5 default path.
    - Constraint (2026-03-20): direct reuse of the packed-i32 SIMD dot kernel is not safe for the
      current `list<int>` fast-loop payload layout because those slots are 64-bit values.
    - New: native runtime now exposes the current `list<int>` payload ABI explicitly via

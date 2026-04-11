@@ -261,6 +261,29 @@ Verdict: keep shipped canonical lowering. The next dot route work should target 
 direct-lowering change for slot64, or a safe packed view, rather than re-routing through the current
 helper/public/packed bridge surfaces or reopening scalar-tail scheduling toggles.
 
+For the narrower slot-direct helper fast-tick experiment, use:
+
+```bash
+make perf-probe-list-int-slot-direct-fast-tick-decision
+```
+
+This wrapper serializes current default vs `OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK=1`, forcing the
+shared read-split benchmark artifacts to rebuild for each side. Current artifact:
+`build/logs/perf-probe-list-int-slot-direct-fast-tick-decision-20260411_194036_96087.log`.
+
+- slot-ABI ceiling: direct helper regressed from `~0.001870s` to `~0.001874s` per rep
+  (`+0.21%`), and the fast-tick helper still trailed canonical `~0.001296s` and host slot64 C
+  `~0.000735s`
+- read-split `array_sum_int`: slot-direct native/C moved from `~1.0010x` to `~1.1249x`
+  (`+12.38%`)
+- read-split `dot_product_int`: slot-direct native/C moved from `~1.2931x` to `~1.3051x`
+  (`+0.93%`)
+
+Verdict: keep the reduced slot-helper safepoint spill / 4095-tick-mask branch opt-in. It is useful as
+a bounded direct-lowering probe, but it does not change the next W5 direction: the remaining work is
+still a real representation/direct-lowering path, not a tick/spill shortcut inside the current helper
+loop.
+
 To separate one-time setup from the repeated `array_sum_int` read loop directly, use:
 
 ```bash
