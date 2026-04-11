@@ -51,6 +51,33 @@ Oren is not far from Zig if measured by "has a legitimate independent product th
 - Oren's multi-backend parity model is closer to "one language that can run as native code or deterministic governed bytecode" than to "a C replacement compiler/toolchain."
 - The project already has concrete surfaces for native runtimes, AVM determinism, capability-governed effects, scheduler work, GC/list header robustness, typed buffers, SIMD probes, readiness tooling, and fixture-first semantic gates.
 
+## Continue Oren Or Fork Zig?
+
+Decision: continue Oren as the mainline project. Do not fork Zig as the primary strategy.
+
+Reasoning:
+
+- A Zig fork would inherit a mature parser/type system/toolchain/cross-compilation stack, but it
+  would also inherit Zig's core product frame: C replacement, manual allocator discipline,
+  `comptime`, and direct systems programming.
+- Oren's value is a different semantic contract: deterministic native plus AVM bytecode execution,
+  capability-governed effects, backend parity, and agent-readable verification artifacts.
+- Implementing that contract inside Zig would not be a small extension. It would require invasive
+  changes to language semantics, standard-library effect surfaces, runtime profiles, build
+  determinism, bytecode/VM representation, capability policy, and cross-backend fixtures.
+- The repo now has an explicit capability/runtime-profile contract in
+  `docs/CAPABILITY_RUNTIME_CONTRACT.md`. That is the sort of product surface that should drive the
+  language design, not be retrofitted onto a fork whose upstream thesis is different.
+
+Use Zig as a reference, not as the substrate:
+
+- copy the engineering values that fit Oren: explicitness, simple control flow, strong diagnostics,
+  C ABI discipline, and cross-compilation ergonomics;
+- avoid copying arbitrary host-effectful `comptime`; Oren's compile-time execution should stay
+  deterministic, budgeted, and capability-scoped;
+- treat a Zig fork only as a time-boxed experiment for a specific component if it can be deleted
+  without threatening Oren's mainline.
+
 ## Strategic Feature Direction
 
 Oren should not try to beat Zig at being Zig. The highest-leverage distinction should be:

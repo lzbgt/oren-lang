@@ -34,6 +34,27 @@ Oren is not far from Zig in having an independent product thesis:
 - Oren's center should be deterministic native/bytecode execution with capability-governed
   effects and agent-readable tooling.
 
+## Fork Zig Or Continue Oren?
+
+Continue Oren as the mainline project. Do not fork Zig as the primary strategy.
+
+A Zig fork only makes sense as a narrow experimental branch if the goal is to reuse Zig's mature
+parser, type system, optimizer pipeline, C ABI integration, and cross-compilation stack. It is a
+poor fit as the mainline because Oren's differentiator is not syntax or a better C replacement; it
+is the capability-governed native/AVM execution contract. Putting that inside Zig would require
+large invasive changes to Zig's language semantics, standard library assumptions, build model,
+effect boundaries, runtime profiles, bytecode/VM story, and determinism guarantees.
+
+The stronger strategy is:
+
+- keep Oren independent as the product and semantic contract;
+- selectively borrow proven ideas from Zig, especially explicitness, build ergonomics, C interop
+  discipline, and compile-time safety constraints;
+- keep `comptime`-like work deterministic, budgeted, and capability-scoped rather than copying
+  arbitrary host-effectful compile-time execution;
+- use Zig as a comparison benchmark and possible host toolchain reference, not as the substrate
+  for Oren's language identity.
+
 ## Distinguishing Features To Build Around
 
 1. Deterministic capability runtime.
