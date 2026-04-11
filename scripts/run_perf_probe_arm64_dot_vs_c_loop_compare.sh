@@ -38,7 +38,7 @@ import re
 from pathlib import Path
 
 summary_re = re.compile(r"summary: (build/logs/perf-probe-arm64-native-hot-loop-disasm-[^ ]+\.log)")
-program_header_re = re.compile(r"^[A-Za-z0-9_]+$")
+label_re = re.compile(r"^([A-Za-z_.$][A-Za-z0-9_.$]*):")
 
 
 def read_lines(path):
@@ -86,22 +86,27 @@ def parse_oren_dot_case(summary_path):
     return data
 
 
-def extract_c_loop(c_lines, label):
-    start = None
-    for idx, line in enumerate(c_lines):
-        if line.strip().startswith(label + ":"):
-            start = idx
-            break
-    if start is None:
-        return None
-    block = []
-    for idx in range(start, len(c_lines)):
+def collect_c_label_blocks(c_lines):
+    blocks = []
+    idx = 0
+    while idx < len(c_lines):
         line = c_lines[idx]
-        if idx != start and line and not line.startswith(("\t", " ", ";")) and line.endswith(":"):
-            break
-        if idx == start or "\t" in line:
-            block.append(line)
-    return block
+        m = label_re.match(line)
+        if not m:
+            idx += 1
+            continue
+        label = m.group(1)
+        block = [line]
+        idx += 1
+        while idx < len(c_lines):
+            next_line = c_lines[idx]
+            if label_re.match(next_line):
+                break
+            if "\t" in next_line or next_line.strip().startswith(";"):
+                block.append(next_line)
+            idx += 1
+        blocks.append((label, block))
+    return blocks
 
 
 def count_mnemonics(lines):
@@ -134,13 +139,34 @@ def format_counts(counts, interesting):
     return " ".join(parts)
 
 
+def find_c_loop_blocks(c_lines):
+    vector_candidates = []
+    tail_candidates = []
+    for label, block in collect_c_label_blocks(c_lines):
+        total, counts = count_mnemonics(block)
+        vector_score = counts.get("smlal2.2d", 0) + counts.get("smlal.2d", 0)
+        tail_score = counts.get("smaddl", 0)
+        if vector_score > 0:
+            vector_candidates.append((vector_score, total, label, block))
+        if tail_score > 0:
+            tail_candidates.append((tail_score, total, label, block))
+    if not vector_candidates or not tail_candidates:
+        raise SystemExit("failed to extract C dot_product loop blocks")
+
+    vector_candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    tail_candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    vec_label, vec_block = vector_candidates[0][2], vector_candidates[0][3]
+    mid_label = None
+    mid_block = None
+    if len(vector_candidates) > 1:
+        mid_label, mid_block = vector_candidates[1][2], vector_candidates[1][3]
+    tail_label, tail_block = tail_candidates[0][2], tail_candidates[0][3]
+    return (vec_label, vec_block), (mid_label, mid_block), (tail_label, tail_block)
+
+
 oren = parse_oren_dot_case(parse_oren_summary_path(os.environ["OREN_WRAPPER_LOG"]))
 c_lines = read_lines(os.environ["C_ASM_LOG"])
-c_vec = extract_c_loop(c_lines, "LBB0_30")
-c_mid = extract_c_loop(c_lines, "LBB0_34")
-c_tail = extract_c_loop(c_lines, "LBB0_37")
-if c_vec is None or c_tail is None:
-    raise SystemExit("failed to extract C dot_product loop blocks")
+(vec_label, c_vec), (mid_label, c_mid), (tail_label, c_tail) = find_c_loop_blocks(c_lines)
 
 vec_total, vec_counts = count_mnemonics(c_vec)
 mid_total, mid_counts = count_mnemonics(c_mid or [])
@@ -156,14 +182,14 @@ for key in ["range_off", "range_abs", "instruction_count", "mnemonic_counts"]:
         print(f"oren_{key}: {oren[key]}")
 print("")
 print(f"c_asm: {os.environ['C_ASM_LOG']}")
-print(f"c_vector_loop_label: LBB0_30")
+print(f"c_vector_loop_label: {vec_label}")
 print(f"c_vector_loop_insns: {vec_total}")
 print(f"c_vector_loop_counts: {format_counts(vec_counts, ['ldp', 'smlal2.2d', 'smlal.2d', 'subs', 'b.ne', 'add.2d', 'addp.2d', 'fmov'])}")
 if c_mid:
-    print(f"c_mid_loop_label: LBB0_34")
+    print(f"c_mid_loop_label: {mid_label}")
     print(f"c_mid_loop_insns: {mid_total}")
     print(f"c_mid_loop_counts: {format_counts(mid_counts, ['ldr', 'smlal2.2d', 'smlal.2d', 'adds', 'b.ne'])}")
-print(f"c_tail_loop_label: LBB0_37")
+print(f"c_tail_loop_label: {tail_label}")
 print(f"c_tail_loop_insns: {tail_total}")
 print(f"c_tail_loop_counts: {format_counts(tail_counts, ['ldrsw', 'smaddl', 'subs', 'b.ne'])}")
 print("")

@@ -87,12 +87,14 @@ make perf-probe-arm64-dot-vs-c-loop-compare
 
 This reuses the traced arm64 hot-loop disasm probe, compiles the C benchmark to assembly, and
 extracts the Oren dot window plus the host C vector loop, mid loop, and scalar tail into one
-summary. The latest artifact,
-`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_030630_69117.log`, shows the kept Oren
-path as a 70-instruction scalar loop, while the host C reference uses a 57-instruction NEON vector
-loop (`ldp q*`, `smlal.2d`, `smlal2.2d`), a 22-instruction vector mid loop, and a 6-instruction
-scalar `smaddl` tail. That is the right current baseline when judging future arm64 dot work: the
-remaining gap is versus a vectorized C loop, not just a better scalar schedule.
+summary. The C loop extractor is label-agnostic now: it chooses the vector loops by `smlal*`
+blocks and the scalar tail by `smaddl`, so Clang basic-block renumbering no longer breaks the
+diagnostic. The latest artifact,
+`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`, shows the kept Oren
+path as a 21-instruction scalar loop, while the host C reference still uses a NEON vector loop
+(`ldp q*`, `smlal.2d`, `smlal2.2d`), vector mid loop, and scalar `smaddl` tail (`28` / `12` / `6`
+instructions in the extracted blocks). That is the right current baseline when judging future arm64
+dot work: the remaining gap is versus a vectorized C loop, not just a better scalar schedule.
 
 The probe also now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, so multi-var build
 env overrides reach the traced Oren build instead of being collapsed into one invalid token.

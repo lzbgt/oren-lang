@@ -1084,10 +1084,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     - explicit `dot_product_int`: `list_int_reserve=2`, `list_int_push_unchecked=2`
 		     The remaining boxed `list_reserve=1` / `list_push_unchecked=1` counts come from shared
 		     helper functions, not from the benchmark fill loops.
-		   - New scalar-ceiling probe + env-parse fix (2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
-		     now forwards comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, and
-		     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` now compares exact Oren native `dot_product`
-		     against both vectorized and de-vectorized host-C builds. Latest artifact
+			   - New scalar-ceiling probe + env-parse fix (2026-04-05, extractor refreshed 2026-04-11):
+			     `make perf-probe-arm64-dot-vs-c-loop-compare` now forwards comma-separated
+			     `OREN_BENCH_ENV_BUILD_OREN` correctly and finds C loop blocks by instruction shape
+			     (`smlal*` for vector blocks, `smaddl` for the scalar tail) instead of hardcoded Clang
+			     `LBB0_*` labels. Latest loop-compare rerun
+			     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`)
+			     shows the current shipped Oren dot window as a 21-instruction scalar loop while host C
+			     still has vector/mid/tail blocks (`28` / `12` / `6` extracted-block instructions), and
+			     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` now compares exact Oren native `dot_product`
+			     against both vectorized and de-vectorized host-C builds. Latest artifact
 		     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`) measured:
 		     - scalar/vector C ratio `~2.8153×`
 		     - Oren/scalar ratio `~1.0517×`
@@ -2241,14 +2247,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 							      `warning_gate_{dot_product,dot_product_int}_high_variance` keys to the arm64
 							      acceptance summaries, and the exact-`madd` wrappers now preserve those warning
 							      lines at the top level when gate COV crosses `0.10`.
-						    - New compare probe (arm64, 2026-04-05): `make perf-probe-arm64-dot-vs-c-loop-compare`
-						      now compares the shipped traced Oren `dot_product` loop directly against the host
-						      `cc -O2 -S` lowering of `benchmarks/dot_product/dot_product.c`. The latest
-						      artifact (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260405_022928_14265.log`)
-						      shows Oren still shipping a 70-instruction scalar loop, while host C is already
-						      using a NEON vector loop plus vector mid loop plus scalar `smaddl` tail
-						      (`57` + `22` + `6` instructions). Reweight future arm64 dot work accordingly:
-						      scalar loop cleanups alone are unlikely to close the full remaining gap.
+							    - New compare probe (arm64, 2026-04-05; extractor refreshed 2026-04-11): `make perf-probe-arm64-dot-vs-c-loop-compare`
+							      now compares the shipped traced Oren `dot_product` loop directly against the host
+							      `cc -O2 -S` lowering of `benchmarks/dot_product/dot_product.c`. It now finds the C
+							      vector/mid/tail blocks by `smlal*` / `smaddl` instruction shape instead of hardcoded
+							      `LBB0_*` labels. The latest artifact
+							      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`)
+							      shows Oren now shipping a 21-instruction scalar loop, while host C is still using a
+							      NEON vector loop plus vector mid loop plus scalar `smaddl` tail
+							      (`28` + `12` + `6` extracted-block instructions). Reweight future arm64 dot work
+							      accordingly: scalar loop cleanups alone are unlikely to close the full remaining gap.
 					    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across
