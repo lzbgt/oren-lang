@@ -1,6 +1,6 @@
 # Capability Runtime Contract
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 
 This is the current Oren v0 contract for capability-governed execution and native
 runtime profiles. It is a rolling engineering contract, not a security certification:
@@ -51,6 +51,31 @@ Oren has three capability layers today.
    with allowed-domain masks, VirtualFS/VirtualNET/VirtualPROC-style fixtures,
    budgets, snapshots, and record/replay surfaces for deterministic effect handling.
 
+## Source Metadata Manifest
+
+`oren meta <file.oren> -o out.meta.json` and native `--metadata` output now include a
+normalized capability manifest in addition to the raw function attributes:
+
+```json
+{
+  "capabilities": {
+    "version": 1,
+    "required_domains": ["FS", "TIME", "RNG"],
+    "functions": [
+      { "name": "read_fs", "domains": ["FS"] },
+      { "name": "timed_random", "domains": ["TIME", "RNG"] }
+    ]
+  }
+}
+```
+
+This manifest is an introspection and tooling contract. It does not replace capsule
+enforcement: native capsule checks still reject disallowed annotated calls at build time,
+and the capsule runtime still applies resource allowlists at runtime. The manifest gives
+package tooling, build orchestrators, and agent-facing planners a deterministic way to see
+which source-level functions require host-effect domains before selecting a runtime profile
+or policy.
+
 ## Domain Contract
 
 | Domain | Native capsule meaning | Runtime knobs / AVM notes |
@@ -79,8 +104,9 @@ Oren has three capability layers today.
 
 ## What Is Not Stable Yet
 
-- The native runtime profile is still selected by env/import heuristic, not by a
-  source-level package manifest.
+- The native runtime profile is still selected by env/import heuristic, not by a full
+  source-level package manifest. Per-source capability metadata exists, but package-level
+  runtime-profile selection is not yet declared in source.
 - Capability budgets are not yet a complete source-level contract across native and
   AVM. AVM has budget machinery; native capsule runtime knobs are domain/resource
   allowlists first.
@@ -94,6 +120,7 @@ Use these targets when changing the capability or runtime-profile contract:
 
 ```sh
 make verify-capability-runtime-contract
+make verify-capability-metadata
 make test-native-capsule-smoke-stage2
 make test-avm
 make verify-backend-parity
@@ -104,6 +131,8 @@ Important fixture families:
 
 - Native capsule compile-time and runtime fixtures: `tests/native/fixtures/capsule_*.oren`
   and `tests/native/fixtures/capsule_runtime_*.oren`.
+- Source-level capability metadata fixture: `tests/fixtures/meta_capabilities_src.oren`.
 - AVM policy, record/replay, budget, snapshot, and multiverse fixtures: `tests/avm/`.
 - Cross-backend semantic parity smokes: `make verify-backend-parity`.
-- Contract drift guard: `scripts/verify_capability_runtime_contract.sh`.
+- Contract drift guards: `scripts/verify_capability_runtime_contract.sh` and
+  `scripts/verify_capability_metadata.sh`.

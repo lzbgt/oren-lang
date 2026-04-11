@@ -251,6 +251,127 @@ fn json_string_array(xs) {
     return out
 }
 
+fn ascii_upper(s) {
+    if s == nil { return s }
+    var out = ""
+    var lower = "abcdefghijklmnopqrstuvwxyz"
+    var upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        var j = 0
+        var mapped = nil
+        while j < oren_string_len(lower) {
+            if oren_string_char_at(lower, j) == ch {
+                mapped = oren_string_char_at(upper, j)
+                j = oren_string_len(lower)
+            } else {
+                j = j + 1
+            }
+        }
+        if mapped != nil { out = out + mapped } else { out = out + ch }
+        i = i + 1
+    }
+    return out
+}
+
+fn string_list_has(xs, value) {
+    if xs == nil { return false }
+    var i = 0
+    while i < oren_list_len(xs) {
+        if xs[i] == value { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn metadata_stmt_function(s) {
+    if s == nil { return nil }
+    if s["type"] == "Function" { return s }
+    if s["type"] == "ExprStmt" {
+        var e = s["expr"]
+        if e != nil && e["type"] == "Function" { return e }
+    }
+    return nil
+}
+
+fn cap_attr_domain(a) {
+    if a == nil { return nil }
+    if a["name"] != "cap.requires" { return nil }
+    var d = attr_kw_string(a, "domain")
+    if d == nil || d == "" { return nil }
+    return ascii_upper(d)
+}
+
+fn cap_domains_for_attrs(attrs) {
+    var out = []
+    if attrs == nil { return out }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var d = cap_attr_domain(attrs[i])
+        if d != nil && d != "" && !string_list_has(out, d) {
+            oren_list_push(out, d)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn cap_required_domains(stmts) {
+    var out = []
+    if stmts == nil { return out }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var func = metadata_stmt_function(stmts[i])
+        if func != nil {
+            var domains = cap_domains_for_attrs(func["attrs"])
+            var j = 0
+            while j < oren_list_len(domains) {
+                var d = domains[j]
+                if d != nil && d != "" && !string_list_has(out, d) {
+                    oren_list_push(out, d)
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn json_capability_functions(stmts) {
+    var out = "["
+    if stmts == nil {
+        out = out + "]"
+        return out
+    }
+    var first = true
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var func = metadata_stmt_function(stmts[i])
+        if func != nil {
+            var domains = cap_domains_for_attrs(func["attrs"])
+            if oren_list_len(domains) > 0 {
+                if !first { out = out + ", " }
+                out = out + "{ \"name\": " + json_string(func["name"]) + ", \"domains\": " + json_string_array(domains) + " }"
+                first = false
+            }
+        }
+        i = i + 1
+    }
+    out = out + "]"
+    return out
+}
+
+fn json_capability_manifest(stmts) {
+    var out = "{\n"
+    out = out + "    \"version\": 1,\n"
+    out = out + "    \"required_domains\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
+    out = out + "    \"functions\": " + json_capability_functions(stmts) + "\n"
+    out = out + "  }"
+    return out
+}
+
 fn serde_struct_formats(attrs) {
     // Returns a list of format strings (e.g. ["json","yaml"]) or nil if absent.
     var b = attr_find(attrs, "serde")
@@ -444,6 +565,10 @@ fn generate_metadata(prog) {
         i = i + 1
     }
     json = json + "\n  ],\n"
+
+    // Normalized capability manifest for source-level tooling.
+    // Raw attrs remain on functions; this view is the stable contract surface.
+    json = json + "  \"capabilities\": " + json_capability_manifest(stmts) + ",\n"
 
     // Trait declarations (rolling, metadata-only for now).
     // Backends ignore these until a stabilized trait model is implemented.

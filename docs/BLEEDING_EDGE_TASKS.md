@@ -37,9 +37,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
-  capability domains, failure model, and verification map; next capability work should move toward
-  source-level manifests/budget declarations rather than re-describing the existing env contract.
-  Contract drift is guarded by `make verify-capability-runtime-contract`.
+  capability domains, failure model, and verification map; `oren meta` now emits a per-source
+  `capabilities` manifest for `@cap.requires` functions. Next capability work should move toward
+  package-level runtime-profile manifests and budget declarations rather than re-describing the
+  existing env contract. Contract drift is guarded by `make verify-capability-runtime-contract`
+  and `make verify-capability-metadata`.
 - Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move

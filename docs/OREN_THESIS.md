@@ -113,5 +113,6 @@ Before claiming Zig-like systems-language maturity, Oren needs:
 - stable native runtime-object cache behavior across Linux/Windows x64;
 - a clearer type-system story beyond the current conservative opt-in checker;
 - sustained W5 hot-loop and allocation-heavy workload parity progress;
-- source-level capability manifests and budget declarations that build on the current
+- package-level capability manifests and budget declarations that build on the current
+  per-source `capabilities` metadata manifest and
   `docs/CAPABILITY_RUNTIME_CONTRACT.md` runtime-profile contract.

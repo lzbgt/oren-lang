@@ -1446,6 +1446,9 @@ For the current capability domain and native runtime-profile contract, see
   are rejected unless that domain is explicitly allowlisted.
 - Direct syscall intrinsics (`sys_*`) are always rejected from user code in capsule mode.
 - `ffi` declarations are rejected in capsule mode (FFI bypasses capability gating).
+- `oren meta` and native `--metadata` emit a normalized top-level `capabilities`
+  manifest that lists required domains by source function. This is a tooling contract;
+  enforcement remains the capsule compiler/runtime policy.
 
 Enable capsule mode at compile time:
 
@@ -3460,7 +3463,31 @@ Notes:
 - `args[*].key` is `null` for positional arguments; keyword args (future) would fill `key`.
 - argument values are literal-only in v0.
 
-### 2.2 Normalized serde schema (what libraries/tooling want)
+### 2.2 Normalized capability manifest
+
+In addition to raw function attrs, `oren meta` / native `--metadata` emit a top-level
+capability manifest for functions annotated with `@cap.requires(domain="...")`.
+
+Shape (rolling, v1):
+
+```json
+{
+  "capabilities": {
+    "version": 1,
+    "required_domains": ["FS", "TIME", "RNG"],
+    "functions": [
+      { "name": "read_fs", "domains": ["FS"] },
+      { "name": "timed_random", "domains": ["TIME", "RNG"] }
+    ]
+  }
+}
+```
+
+Domains are normalized to uppercase and deduplicated per function and across the source
+file. This manifest is for tooling and build policy; capsule enforcement still uses the
+compiler/runtime capability gates described in `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
+
+### 2.3 Normalized serde schema (what libraries/tooling want)
 
 In addition to the raw attribute list, `oren meta` also emits a **normalized** serde schema per struct when any `@serde...` / `@json...` attributes are present.
 

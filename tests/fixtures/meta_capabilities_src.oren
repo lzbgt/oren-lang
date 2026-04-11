@@ -1,0 +1,15 @@
+@cap.requires(domain="fs")
+@cap.requires(domain="FS")
+fn read_fs(path) {
+    return path
+}
+
+@cap.requires(domain="TIME")
+@cap.requires(domain="rng")
+fn timed_random(seed) {
+    return seed + 1
+}
+
+fn pure_core(x) {
+    return x
+}
