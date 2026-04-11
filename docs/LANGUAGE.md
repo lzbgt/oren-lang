@@ -1472,15 +1472,16 @@ For the current capability domain and native runtime-profile contract, see
   capsule/domain policy, runs with matching `OREN_CAPSULE` / `OREN_CAP_ALLOW_DOMAINS`,
   enforces `budget_wall_ms` with a process watchdog, enforces `budget_heap_bytes` from native-run
   JSON live-heap scan evidence, and enforces `budget_cpu_ms` from child process resource usage
-  where available. It still fails closed for declared `budget_gas` until native-equivalent gas
-  accounting exists. Set
+  where available. It also enforces `budget_gas` from native-run JSON
+  `native_safepoint_tick_v0` evidence, which is safepoint-granular rather than
+  instruction-equivalent. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
   evidence plus any captured runtime ledger summary as `oren.native-package-policy-run.v0`. Set
   `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`
   stdout with compact `effect_ledger_summary` evidence; it currently reports native wall
   elapsed time, capsule domain-gate counters, selected FS/NET/PROC resource-check counters, and
-  `heap_bytes.used` from a report-time scan of live tracked native heap nodes. Gas remains
-  unavailable/null until backend-equivalent native gas accounting lands.
+  `heap_bytes.used` from a report-time scan of live tracked native heap nodes, plus
+  `native_safepoint_tick_v0` gas ticks.
   AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
@@ -3567,8 +3568,8 @@ the AVM policy scanner to reject bytecode whose static used domains exceed the p
 rather than relying on denied native calls becoming values at runtime. The native path builds with
 package capsule/domain policy, runs with matching native capsule env, enforces `budget_wall_ms`
 with a process watchdog, enforces `budget_heap_bytes` from captured native-run JSON live-heap scan
-evidence, enforces `budget_cpu_ms` from child process resource usage where available, and still
-fails closed for declared `budget_gas` until native-equivalent gas accounting exists. When callers set
+evidence, enforces `budget_cpu_ms` from child process resource usage where available, and enforces
+`budget_gas` from captured `native_safepoint_tick_v0` runtime evidence. When callers set
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
 `oren.native-package-policy-run.v0` with runner-observed wall-budget timing and captured
 `effect_ledger` summary when available. Native capsule runtime separately exposes

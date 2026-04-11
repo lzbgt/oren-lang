@@ -112,8 +112,10 @@ if native_deltas.get("wall_elapsed_ns") != native_budgets.get("wall_ms", {}).get
 if native_deltas.get("wall_elapsed_ns") is None or int(native_deltas.get("wall_elapsed_ns")) < 0:
     fail(f"native wall elapsed should be non-negative, got {native_deltas!r}")
 native_gas = native_budgets.get("gas") or {}
-if native_gas.get("executed") is not None or native_gas.get("remaining") is not None:
-    fail(f"native gas accounting should be unavailable until real native gas exists, got {native_gas!r}")
+if native_gas.get("kind") != "native_safepoint_tick_v0":
+    fail(f"native gas kind mismatch: {native_gas!r}")
+if native_gas.get("executed") is None or int(native_gas.get("executed")) < 0:
+    fail(f"native gas executed should be non-negative, got {native_gas!r}")
 if native_deltas.get("gas_executed") != native_gas.get("executed"):
     fail(f"native gas executed delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
 if native_deltas.get("gas_remaining") != native_gas.get("remaining"):

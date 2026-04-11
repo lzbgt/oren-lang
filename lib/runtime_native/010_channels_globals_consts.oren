@@ -113,6 +113,10 @@ fn oren_pipe() {
 //   424:gc_stw_state (u64; 0=running, 1=stop-the-world requested; rolling)
 //   432:gc_stw_parked (u64; parked OS-thread count excluding collector; rolling)
 //   440:gc_stw_owner_node (u64; Thread Node pointer of collector; rolling)
+//   472:native_run_json_enabled (u64; 0|1)
+//   480:native_run_json_start_ns (u64)
+//   488:native_run_json_printed (u64; 0|1)
+//   496:native_gas_safepoint_ticks (u64; rolling v0 gas evidence)
 var g_storage = 0
 
 fn oren_globals() {
@@ -181,6 +185,7 @@ var GLOBAL_OFF_GC_STW_OWNER_NODE = 440
 var GLOBAL_OFF_NATIVE_RUN_JSON_ENABLED = 472
 var GLOBAL_OFF_NATIVE_RUN_JSON_START_NS = 480
 var GLOBAL_OFF_NATIVE_RUN_JSON_PRINTED = 488
+var GLOBAL_OFF_NATIVE_GAS_SAFEPOINT_TICKS = 496
 
 // Boot globals storage length (bytes).
 // Must match native runtime object data prefix layout in `rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN`
@@ -277,6 +282,9 @@ fn global_set_native_run_json_start_ns(v) { ptr_set(iadd(oren_globals(), 480), v
 
 fn global_get_native_run_json_printed() { return ptr_get(iadd(oren_globals(), 488)) }
 fn global_set_native_run_json_printed(v) { ptr_set(iadd(oren_globals(), 488), v) }
+
+fn global_get_native_gas_safepoint_ticks() { return ptr_get(iadd(oren_globals(), 496)) }
+fn global_set_native_gas_safepoint_ticks(v) { ptr_set(iadd(oren_globals(), 496), v) }
 
 fn global_get_result_value() { return ptr_get(iadd(oren_globals(), 360)) }
 fn global_set_result_value(v) { ptr_set(iadd(oren_globals(), 360), v) }
@@ -617,6 +625,24 @@ fn native_runtime_heap_used_bytes() {
         limit = limit - 1
     }
     return total
+}
+
+fn native_runtime_gas_reset() {
+    if oren_globals() == 0 { return 0 }
+    global_set_native_gas_safepoint_ticks(0)
+    return 0
+}
+
+fn native_runtime_gas_note_safepoint() {
+    if oren_globals() == 0 { return 0 }
+    var v = global_get_native_gas_safepoint_ticks()
+    global_set_native_gas_safepoint_ticks(v + 1)
+    return 0
+}
+
+fn native_runtime_gas_safepoint_ticks() {
+    if oren_globals() == 0 { return 0 }
+    return global_get_native_gas_safepoint_ticks()
 }
 
 fn native_capsule_effect_gate_summary_json() {

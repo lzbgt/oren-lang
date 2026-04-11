@@ -1,0 +1,13 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_gas=1, budget_wall_ms=1000)
+var native_package_policy_gas_fail = 1
+
+fn main() {
+    var i = 0
+    var s = 0
+    while i < 5000 {
+        s = s + (i % 5)
+        i = i + 1
+    }
+    if s < 0 { exit(3) }
+    print("native package policy gas fail should not pass")
+}

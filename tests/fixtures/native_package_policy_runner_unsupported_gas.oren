@@ -1,6 +1,0 @@
-@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_gas=1000)
-var native_package_policy_unsupported_gas = 1
-
-fn main() {
-    print("native package policy unsupported gas should not run")
-}

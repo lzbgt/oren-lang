@@ -15,8 +15,12 @@ ok_err="$TMP/ok.err"
 ok_json="$TMP/ok.run.json"
 deny_out="$TMP/deny.out"
 deny_err="$TMP/deny.err"
-unsupported_out="$TMP/unsupported.out"
-unsupported_err="$TMP/unsupported.err"
+gas_ok_out="$TMP/gas-ok.out"
+gas_ok_err="$TMP/gas-ok.err"
+gas_ok_json="$TMP/gas-ok.run.json"
+gas_fail_out="$TMP/gas-fail.out"
+gas_fail_err="$TMP/gas-fail.err"
+gas_fail_json="$TMP/gas-fail.run.json"
 wall_out="$TMP/wall.out"
 wall_err="$TMP/wall.err"
 wall_json="$TMP/wall.run.json"
@@ -66,14 +70,24 @@ grep -Fq "native package policy CPU ok" "$cpu_ok_out" || {
   cat "$cpu_ok_err" >&2 || true
   exit 1
 }
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_ok_json" \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_ok_out" 2>"$gas_ok_err"
+grep -Fq "native package policy gas ok" "$gas_ok_out" || {
+  echo "ERROR: native package-policy gas-ok fixture did not report success" >&2
+  cat "$gas_ok_out" >&2 || true
+  cat "$gas_ok_err" >&2 || true
+  exit 1
+}
 
 set +e
 ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_deny_time.oren \
   >"$deny_out" 2>"$deny_err"
 deny_rc=$?
-./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_unsupported_gas.oren \
-  >"$unsupported_out" 2>"$unsupported_err"
-unsupported_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_fail_json" \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_fail.oren \
+  >"$gas_fail_out" 2>"$gas_fail_err"
+gas_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$wall_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_wall_timeout.oren \
   >"$wall_out" 2>"$wall_err"
@@ -88,7 +102,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -100,6 +114,8 @@ heap_ok_path = Path(sys.argv[4])
 heap_fail_path = Path(sys.argv[5])
 cpu_ok_path = Path(sys.argv[6])
 cpu_fail_path = Path(sys.argv[7])
+gas_ok_path = Path(sys.argv[8])
+gas_fail_path = Path(sys.argv[9])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -229,6 +245,33 @@ cpu_ok_used = int(cpu_ok_budget.get("used") or -1)
 if cpu_ok_used < 0 or cpu_ok_used > 60000:
     fail(f"{cpu_ok_path}: CPU used outside budget: {cpu_ok_budget!r}")
 
+gas_ok = load(gas_ok_path)
+if gas_ok.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_ok_path}: schema mismatch: {gas_ok.get('schema')!r}")
+if gas_ok.get("status") != "pass" or gas_ok.get("exit_code") != 0:
+    fail(f"{gas_ok_path}: expected pass/0, got status={gas_ok.get('status')!r} exit={gas_ok.get('exit_code')!r}")
+if (gas_ok.get("runner_observed") or {}).get("budget_status") != "runner_wall_native_gas":
+    fail(f"{gas_ok_path}: expected runner_wall_native_gas status, got {gas_ok.get('runner_observed')!r}")
+gas_ok_ledger = gas_ok.get("effect_ledger") or {}
+if gas_ok_ledger.get("available") is not True:
+    fail(f"{gas_ok_path}: expected native runtime ledger summary, got {gas_ok_ledger!r}")
+gas_ok_summary = gas_ok_ledger.get("summary") or {}
+gas_ok_budget = ((gas_ok.get("budgets") or {}).get("gas") or {})
+if gas_ok_budget.get("limit") != 100000 or gas_ok_budget.get("enforced") is not True:
+    fail(f"{gas_ok_path}: expected enforced 100000 native gas budget, got {gas_ok_budget!r}")
+if gas_ok_budget.get("kind") != "native_safepoint_tick_v0":
+    fail(f"{gas_ok_path}: expected native_safepoint_tick_v0 gas kind, got {gas_ok_budget!r}")
+if gas_ok_budget.get("exceeded") is not False:
+    fail(f"{gas_ok_path}: expected non-exceeded gas budget, got {gas_ok_budget!r}")
+gas_ok_used = int(gas_ok_budget.get("executed") or -1)
+if gas_ok_used < 0 or gas_ok_used > 100000:
+    fail(f"{gas_ok_path}: gas used outside budget: {gas_ok_budget!r}")
+summary_gas = (((gas_ok_summary.get("budgets") or {}).get("gas") or {}))
+if summary_gas.get("kind") != "native_safepoint_tick_v0":
+    fail(f"{gas_ok_path}: expected native_safepoint_tick_v0 native gas summary, got {summary_gas!r}")
+if int(summary_gas.get("executed") or -1) != gas_ok_used:
+    fail(f"{gas_ok_path}: runner gas used does not mirror native summary: runner={gas_ok_budget!r} summary={summary_gas!r}")
+
 cpu_fail = load(cpu_fail_path)
 if cpu_fail.get("schema") != "oren.native-package-policy-run.v0":
     fail(f"{cpu_fail_path}: schema mismatch: {cpu_fail.get('schema')!r}")
@@ -244,6 +287,24 @@ if cpu_fail_budget.get("exceeded") is not True:
     fail(f"{cpu_fail_path}: expected exceeded CPU budget, got {cpu_fail_budget!r}")
 if int(cpu_fail_budget.get("used") or 0) <= 1:
     fail(f"{cpu_fail_path}: expected CPU used to exceed 1ms, got {cpu_fail_budget!r}")
+
+gas_fail = load(gas_fail_path)
+if gas_fail.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_fail_path}: schema mismatch: {gas_fail.get('schema')!r}")
+if gas_fail.get("status") != "budget_exceeded" or gas_fail.get("exit_code") != 127:
+    fail(
+        f"{gas_fail_path}: expected budget_exceeded/127, got "
+        f"status={gas_fail.get('status')!r} exit={gas_fail.get('exit_code')!r}"
+    )
+gas_fail_budget = ((gas_fail.get("budgets") or {}).get("gas") or {})
+if gas_fail_budget.get("limit") != 1 or gas_fail_budget.get("enforced") is not True:
+    fail(f"{gas_fail_path}: expected enforced 1 native gas budget, got {gas_fail_budget!r}")
+if gas_fail_budget.get("kind") != "native_safepoint_tick_v0":
+    fail(f"{gas_fail_path}: expected native_safepoint_tick_v0 gas kind, got {gas_fail_budget!r}")
+if gas_fail_budget.get("exceeded") is not True:
+    fail(f"{gas_fail_path}: expected exceeded gas budget, got {gas_fail_budget!r}")
+if int(gas_fail_budget.get("executed") or 0) <= 1:
+    fail(f"{gas_fail_path}: expected gas used to exceed 1 tick, got {gas_fail_budget!r}")
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -259,16 +320,16 @@ grep -Eiq 'capsule|requires domain|TIME' "$deny_out" "$deny_err" || {
   exit 1
 }
 
-if [[ "$unsupported_rc" -eq 0 ]]; then
-  echo "ERROR: expected native package-policy runner to fail closed for native gas budget" >&2
-  cat "$unsupported_out" >&2 || true
-  cat "$unsupported_err" >&2 || true
+if [[ "$gas_fail_rc" -eq 0 ]]; then
+  echo "ERROR: expected native package-policy gas budget to reject over-budget run" >&2
+  cat "$gas_fail_out" >&2 || true
+  cat "$gas_fail_err" >&2 || true
   exit 1
 fi
-grep -Fq "cannot enforce budget_gas" "$unsupported_out" "$unsupported_err" || {
-  echo "ERROR: missing native gas unsupported diagnostic" >&2
-  cat "$unsupported_out" >&2 || true
-  cat "$unsupported_err" >&2 || true
+grep -Fq "package native gas budget exceeded" "$gas_fail_out" "$gas_fail_err" || {
+  echo "ERROR: missing native gas budget diagnostic" >&2
+  cat "$gas_fail_out" >&2 || true
+  cat "$gas_fail_err" >&2 || true
   exit 1
 }
 

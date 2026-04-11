@@ -103,10 +103,11 @@ Required entry fields:
   than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
-  wall-budget evidence for native capsule execution and can include a captured native
+  wall/gas/heap/CPU-budget evidence for native capsule execution and can include a captured native
   `effect_ledger` summary when the runner enables `OREN_NATIVE_RUN_JSON=1`; native heap budgets
   are enforced from the captured `heap_bytes.used` live-heap scan, native CPU budgets are enforced
-  from child process resource usage where available, and native gas budgets remain fail-closed.
+  from child process resource usage where available, and native gas budgets are enforced from the
+  captured `native_safepoint_tick_v0` counter.
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
   `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
   This is the first native-owned effect evidence bridge: it counts central capsule domain-gate
@@ -178,6 +179,7 @@ prints one `oren.native-run.v0` JSON line containing `effect_ledger_summary`. Na
 reports `wall_ms.elapsed_ns` from runtime monotonic time, includes the
 `oren.native-capsule-effect-gates.v0` `domain_gates` object, includes the
 `oren.native-capsule-resource-checks.v0` `resource_checks` object, and reports `heap_bytes.used`
-from a report-time scan of live native GC tracking nodes with `kind="tracked_live_scan"`. Gas
-remains reported as unavailable/null until backend-equivalent instruction counters exist; semantic
-diff treats native gas as intentionally non-comparable for now.
+from a report-time scan of live native GC tracking nodes with `kind="tracked_live_scan"`. Gas is
+reported as `kind="native_safepoint_tick_v0"` and counts native `oren_gc_safepoint()` arrivals;
+semantic diff treats it as a comparable native summary field while keeping it distinct from future
+instruction-equivalent gas.

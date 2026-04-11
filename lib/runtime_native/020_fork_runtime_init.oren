@@ -320,6 +320,7 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_NATIVE_RUN_JSON_ENABLED = 472
     GLOBAL_OFF_NATIVE_RUN_JSON_START_NS = 480
     GLOBAL_OFF_NATIVE_RUN_JSON_PRINTED = 488
+    GLOBAL_OFF_NATIVE_GAS_SAFEPOINT_TICKS = 496
     GLOBAL_SLOTS_RESERVED = 64
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -468,6 +469,7 @@ fn native_runtime_init(target_os) {
     global_set_native_run_json_enabled(0)
     global_set_native_run_json_start_ns(0)
     global_set_native_run_json_printed(0)
+    native_runtime_gas_reset()
     native_capsule_effect_gate_counters_reset()
     native_capsule_resource_check_counters_reset()
     return 0

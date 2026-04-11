@@ -392,6 +392,7 @@ fn native_alloc_index_recover_ptr(ptr) {
 @oren.keep
 
 fn oren_gc_safepoint() {
+    native_runtime_gas_note_safepoint()
     if g_gc_enabled == 0 { return 0 }
     // STW safepoint: if a collector requests stop-the-world, park here.
     native_gc_stw_poll_and_park()
