@@ -630,7 +630,7 @@ verify-backend-parity-index-panics: oren_stage2 avm
 
 # Cross-backend semantic diff: emit machine-readable C/native/OBC result and OBC ledger evidence.
 verify-backend-semantic-diff: oren_stage2 avm
-	@./scripts/run_backend_semantic_diff.sh
+	@./scripts/verify_backend_semantic_diff.sh
 
 # Cross-backend parity aggregate: run all parity smokes together.
 verify-backend-parity: verify-backend-semantic-diff verify-backend-parity-boxed-list verify-backend-parity-list-int verify-backend-parity-bytes verify-backend-parity-tags verify-backend-parity-arith-panics verify-backend-parity-index-panics

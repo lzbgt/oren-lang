@@ -1471,7 +1471,10 @@ For the current capability domain and native runtime-profile contract, see
   when native capsule execution should consume the same marker: it builds with package
   capsule/domain policy, runs with matching `OREN_CAPSULE` / `OREN_CAP_ALLOW_DOMAINS`,
   enforces `budget_wall_ms` with a process watchdog, and fails closed for native
-  gas/heap/CPU budgets until those fields have native-equivalent accounting. AVM run JSON
+  gas/heap/CPU budgets until those fields have native-equivalent accounting. Set
+  `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
+  evidence as `oren.native-package-policy-run.v0`; that summary explicitly leaves
+  `effect_ledger.available=false` until native runtime ledger export lands. AVM run JSON
   reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
@@ -3558,9 +3561,12 @@ the AVM policy scanner to reject bytecode whose static used domains exceed the p
 rather than relying on denied native calls becoming values at runtime. The native path builds with
 package capsule/domain policy, runs with matching native capsule env, enforces `budget_wall_ms`
 with a process watchdog, and fails closed for `budget_gas`, `budget_heap_bytes`, and
-`budget_cpu_ms` until native-equivalent accounting lands. When callers request `--print-run-json`,
-the AVM effect-ledger summary reports the applied `budget_wall_ms` as `budgets.wall_ms.limit` and
-records measured wall elapsed nanoseconds.
+`budget_cpu_ms` until native-equivalent accounting lands. When callers set
+`OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
+`oren.native-package-policy-run.v0` with runner-observed wall-budget timing and
+`effect_ledger.available=false`. When callers request `--print-run-json`, the AVM
+effect-ledger summary reports the applied `budget_wall_ms` as `budgets.wall_ms.limit` and records
+measured wall elapsed nanoseconds.
 
 ### 2.4 Normalized serde schema (what libraries/tooling want)
 

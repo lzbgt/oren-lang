@@ -185,8 +185,12 @@ stricter. Broader env budgets are narrowed to the package declaration.
 The native runner consumes the same source package policy and builds with `--capsule`,
 `--enforce-package-policy`, and package-derived `--cap-allow-domains`, then runs with
 matching `OREN_CAPSULE=1` / `OREN_CAP_ALLOW_DOMAINS`. It enforces `budget_wall_ms` with a
-process watchdog. It intentionally fails closed for `budget_gas`, `budget_heap_bytes`, and
-`budget_cpu_ms` until native has backend-equivalent accounting for those fields.
+process watchdog. When `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
+`oren.native-package-policy-run.v0` JSON with runner-observed wall-budget evidence, the
+native capsule/domain policy that was applied, and `effect_ledger.available=false` so tooling
+does not confuse external watchdog timing with a native runtime ledger. It intentionally fails
+closed for `budget_gas`, `budget_heap_bytes`, and `budget_cpu_ms` until native has
+backend-equivalent accounting for those fields.
 
 ## Domain Contract
 

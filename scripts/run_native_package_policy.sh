@@ -17,8 +17,10 @@ policy subset that native can enforce today:
 
 Native package-policy execution is fail-closed for declared budget_gas,
 budget_heap_bytes, or budget_cpu_ms until native has backend-equivalent
-accounting for those fields. Set OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN=1, or
-provide OREN_NATIVE_PACKAGE_POLICY_OUT, to keep generated artifacts.
+accounting for those fields. Set OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>
+to write runner-observed wall-budget evidence as JSON. Set
+OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN=1, or provide OREN_NATIVE_PACKAGE_POLICY_OUT,
+to keep generated artifacts.
 EOF
 }
 
@@ -121,7 +123,71 @@ exe_ext = ".exe" if platform.system().lower().startswith("windows") else ""
 out = Path(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_OUT", str(tmp_dir / f"{stem}{exe_ext}")))
 meta_out = tmp_dir / f"{stem}.metadata.json"
 build_log = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_BUILD_LOG", f"build/logs/native_package_policy_{stem}_{ts}.build.log")
+run_json_path = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_RUN_JSON", "")
 keep = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN") or os.environ.get("OREN_NATIVE_PACKAGE_POLICY_OUT"))
+
+def write_run_json(payload):
+    if not run_json_path:
+        return
+    data = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if run_json_path == "-":
+        print(data, end="")
+        return
+    out_path = Path(run_json_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(data, encoding="utf-8")
+
+def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, caps, wall_ms, budgets):
+    unsupported = []
+    for key in ("gas", "heap_bytes", "cpu_ms"):
+        if budgets.get(key) is not None:
+            unsupported.append("budget_" + key)
+    cap_domains = [d for d in caps.split(",") if d]
+    return {
+        "schema": "oren.native-package-policy-run.v0",
+        "backend": "native",
+        "source": str(src),
+        "executable": str(out),
+        "status": status,
+        "exit_code": exit_code,
+        "runtime_profile": profile,
+        "capsule": profile == "capsule",
+        "cap_allow_domains": cap_domains,
+        "effect_ledger": {
+            "available": False,
+            "reason": "native runtime effect ledger export is not implemented",
+        },
+        "runner_observed": {
+            "available": True,
+            "scope": "process-watchdog",
+            "budget_status": "runner_wall_only",
+        },
+        "budgets": {
+            "declared": bool(budgets.get("declared")),
+            "unsupported": unsupported,
+            "wall_ms": {
+                "limit": wall_ms,
+                "elapsed_ns": elapsed_ns,
+                "enforced": wall_ms is not None,
+                "enforcement": "runner-watchdog" if wall_ms is not None else "none",
+            },
+            "gas": {
+                "limit": budgets.get("gas"),
+                "enforced": False,
+                "reason": "native-equivalent accounting not implemented",
+            },
+            "heap_bytes": {
+                "limit": budgets.get("heap_bytes"),
+                "enforced": False,
+                "reason": "native-equivalent accounting not implemented",
+            },
+            "cpu_ms": {
+                "limit": budgets.get("cpu_ms"),
+                "enforced": False,
+                "reason": "native-equivalent accounting not implemented",
+            },
+        },
+    }
 
 try:
     run_checked(["./oren", "meta", src, "--manifest", "-o", str(meta_out)], log_path=f"build/logs/native_package_policy_{stem}_{ts}.meta.log")
@@ -172,10 +238,35 @@ try:
     env["OREN_CAPSULE"] = "1"
     env["OREN_CAP_ALLOW_DOMAINS"] = caps
     timeout = None if wall_ms is None else wall_ms / 1000.0
+    start_ns = time.monotonic_ns()
     try:
         p = subprocess.run([str(out), *prog_args], env=env, timeout=timeout)
     except subprocess.TimeoutExpired:
+        elapsed_ns = time.monotonic_ns() - start_ns
+        write_run_json(run_summary_payload(
+            exit_code=124,
+            status="timeout",
+            elapsed_ns=elapsed_ns,
+            src=src,
+            out=out,
+            profile=profile,
+            caps=caps,
+            wall_ms=wall_ms,
+            budgets=budgets,
+        ))
         fail(f"package native wall budget exceeded: {wall_ms}ms", rc=124)
+    elapsed_ns = time.monotonic_ns() - start_ns
+    write_run_json(run_summary_payload(
+        exit_code=p.returncode,
+        status="pass" if p.returncode == 0 else "fail",
+        elapsed_ns=elapsed_ns,
+        src=src,
+        out=out,
+        profile=profile,
+        caps=caps,
+        wall_ms=wall_ms,
+        budgets=budgets,
+    ))
     raise SystemExit(p.returncode)
 finally:
     if not keep:

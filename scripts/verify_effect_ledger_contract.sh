@@ -31,6 +31,8 @@ bets_doc="project-doc/oren_language_system_bets_20260412.md"
 avm_main="lib/avm/main.c"
 avm_json_guard="scripts/verify_avm_effect_ledger_json.sh"
 semantic_diff_runner="scripts/run_backend_semantic_diff.sh"
+semantic_diff_guard="scripts/verify_backend_semantic_diff.sh"
+native_policy_runner="scripts/run_native_package_policy.sh"
 
 for f in \
   "$contract" \
@@ -44,6 +46,8 @@ for f in \
   "$avm_main" \
   "$avm_json_guard" \
   "$semantic_diff_runner" \
+  "$semantic_diff_guard" \
+  "$native_policy_runner" \
   Makefile
 do
   require_file "$f"
@@ -74,6 +78,7 @@ require_literal "$contract" "oren.effect-ledger-summary.v0"
 require_literal "$contract" "\"determinism\""
 require_literal "$contract" "\"wall_ms\""
 require_literal "$contract" "oren.semantic-diff.v0"
+require_literal "$contract" "oren.native-package-policy-run.v0"
 
 require_literal "$cap_contract" "docs/EFFECT_LEDGER_CONTRACT.md"
 require_literal "$cap_contract" "make verify-effect-ledger-contract"
@@ -91,7 +96,7 @@ require_literal Makefile "verify-backend-semantic-diff:"
 require_literal Makefile "scripts/verify_effect_ledger_contract.sh"
 require_literal Makefile "scripts/verify_avm_effect_ledger_json.sh"
 require_literal Makefile "verify-effect-ledger-contract: verify-avm-effect-ledger-json"
-require_literal Makefile "./scripts/run_backend_semantic_diff.sh"
+require_literal Makefile "./scripts/verify_backend_semantic_diff.sh"
 require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-avm-spawn-channel-args test-native-quick"
 require_literal "$avm_main" "print_effect_ledger_summary_json"
 require_literal "$avm_main" "effect_ledger_summary"
@@ -112,5 +117,13 @@ require_literal "$semantic_diff_runner" "obc_effect_ledger_summary_schema_ok"
 require_literal "$semantic_diff_runner" "ledger_available_backends"
 require_literal "$semantic_diff_runner" "ledger_missing_backends"
 require_literal "$semantic_diff_runner" "build/reports/"
+require_literal "$semantic_diff_guard" "oren.semantic-diff.v0"
+require_literal "$semantic_diff_guard" "obc_run_json_schema_ok"
+require_literal "$semantic_diff_guard" "obc_effect_ledger_summary_schema_ok"
+require_literal "$semantic_diff_guard" "budget_deltas_comparable_all_backends"
+require_literal "$semantic_diff_guard" "backend run JSON ledger export is not implemented"
+require_literal "$native_policy_runner" "oren.native-package-policy-run.v0"
+require_literal "$native_policy_runner" "effect_ledger"
+require_literal "$native_policy_runner" "runner_wall_only"
 
 echo "effect ledger contract verify OK"

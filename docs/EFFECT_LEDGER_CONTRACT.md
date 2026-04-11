@@ -100,6 +100,11 @@ Required entry fields:
   normalized `budget_deltas`, ledger availability per backend, and whether full all-backend
   ledger/budget comparison is possible. Native/C ledger export is still intentionally reported
   as unavailable rather than inferred from logs.
+- The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
+  through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed wall-budget
+  evidence for native capsule execution, not a runtime effect ledger: it marks
+  `effect_ledger.available=false` until native exports backend-equivalent effect and budget
+  counters.
 
 ## Verification Map
 

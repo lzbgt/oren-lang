@@ -50,8 +50,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   scan that fails closed when bytecode exceeds the package allowlist. The native path consumes
   the same package marker, builds with package-derived capsule/domain policy, enforces
   `budget_wall_ms` with a process watchdog, and fails closed for gas/heap/CPU budgets until
-  native has equivalent accounting. AVM `effect_ledger_summary.budgets` now reports gas, heap,
-  and wall budget fields for that path, including `wall_ms.limit` and measured
+  native has equivalent accounting. The native runner can now write
+  `oren.native-package-policy-run.v0` via `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` with
+  runner-observed wall-budget timing and `effect_ledger.available=false`; this is evidence for
+  the watchdog bridge, not a replacement for native runtime ledger counters. AVM
+  `effect_ledger_summary.budgets` now reports gas, heap, and wall budget fields for that path,
+  including `wall_ms.limit` and measured
   `wall_ms.elapsed_ns`. Next capability work should move from these runners toward full
   native/AVM effect-ledger budget parity rather than re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
@@ -2702,7 +2706,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `--print-run-json`, records AVM `effect_ledger_summary` plus normalized `budget_deltas`,
      and reports C/native ledger availability as explicitly missing until those backends
      export equivalent ledgers. This turns one parity smoke into an agent-readable
-     semantic-diff artifact rather than a log-scraping check.
+     semantic-diff artifact rather than a log-scraping check. The native package-policy runner
+     now separately emits `oren.native-package-policy-run.v0` runner-observed wall-budget JSON
+     on request, while still marking native runtime ledger export unavailable.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).

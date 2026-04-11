@@ -193,8 +193,14 @@ require_literal "$avm_policy_runner_guard" "avm_package_policy_runner_ok.oren"
 require_literal "$native_policy_runner" "OREN_CAPSULE"
 require_literal "$native_policy_runner" "OREN_CAP_ALLOW_DOMAINS"
 require_literal "$native_policy_runner" "budget_wall_ms"
+require_literal "$native_policy_runner" "OREN_NATIVE_PACKAGE_POLICY_RUN_JSON"
+require_literal "$native_policy_runner" "oren.native-package-policy-run.v0"
+require_literal "$native_policy_runner" "effect_ledger"
 require_literal "$native_policy_runner" "cannot enforce"
 require_literal "$native_policy_runner_guard" "native_package_policy_runner_ok.oren"
+require_literal "$native_policy_runner_guard" "OREN_NATIVE_PACKAGE_POLICY_RUN_JSON"
+require_literal "$native_policy_runner_guard" "oren.native-package-policy-run.v0"
+require_literal "$native_policy_runner_guard" "runner_wall_only"
 
 # AVM domain ids and selected domain mappings.
 require_regex "$avm_domains" 'var AVM_DOMAIN_CORE = 0$'
