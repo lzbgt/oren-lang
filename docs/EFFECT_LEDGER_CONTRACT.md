@@ -101,7 +101,9 @@ Required entry fields:
   `budget_deltas`, ledger availability per backend, and whether full all-backend ledger/budget
   comparison is possible. The report also exposes explicit gas-surface metadata and currently marks
   native/OBC gas as non-comparable because native `native_stmt_loop_tick_v0` is not the same unit as
-  AVM `avm_opcode_cost_v0`. C ledger export is still intentionally reported as unavailable rather
+  AVM `avm_opcode_cost_v0`. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
+  fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
+  conversion contract exists. C ledger export is still intentionally reported as unavailable rather
   than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
@@ -202,4 +204,7 @@ When matching build/run invocations set `OREN_NATIVE_GAS_ACCOUNTING=stmt`, the s
 the statement+loop mode so it has native budget evidence, but each gas object now carries an explicit
 `surface` object with `schema="oren.gas-surface.v0"`. That surface keeps native `native_stmt_loop_tick_v0`
 distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current native/OBC gas surfaces as
-non-comparable until Oren defines a conversion or instruction-equivalent native gas contract.
+non-comparable until Oren defines a conversion or instruction-equivalent native gas contract. The
+current semantic-diff report also records empirical `native_per_obc` and `obc_per_native` ratios
+under `oren.gas-surface-calibration.v0`; those numbers are calibration evidence, not a rule that
+package policy may use for enforcement.

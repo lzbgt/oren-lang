@@ -143,8 +143,9 @@ It is a language plus runtime plus artifact contract.
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
   `oren.semantic-diff.v0` JSON for C/native/OBC runs plus native/AVM ledger-summary bridges and
-  explicit gas-surface comparison status. Next work is finer native gas parity or a stated
-  conversion rule, not only expanding fixture scripts.
+  explicit gas-surface comparison status. It now also records empirical
+  `oren.gas-surface-calibration.v0` ratios as evidence, while marking them as not a conversion.
+  Next work is finer native gas parity or a stated conversion rule, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

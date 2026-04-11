@@ -87,6 +87,23 @@ if obc_surface.get("schema") != "oren.gas-surface.v0" or obc_surface.get("id") !
     fail(f"OBC gas surface mismatch: {obc_surface!r}")
 if gas_surfaces.get("native_obc_comparable") is not False:
     fail(f"native/OBC gas surface comparison should be false, got {gas_surfaces!r}")
+calibration = data.get("gas_surface_calibration") or {}
+if calibration.get("schema") != "oren.gas-surface-calibration.v0":
+    fail(f"gas surface calibration schema mismatch: {calibration!r}")
+if calibration.get("mode") != "empirical_single_fixture":
+    fail(f"gas surface calibration mode mismatch: {calibration!r}")
+if calibration.get("native_surface_id") != "native_stmt_loop_tick_v0":
+    fail(f"native gas calibration surface mismatch: {calibration!r}")
+if calibration.get("obc_surface_id") != "avm_opcode_cost_v0":
+    fail(f"OBC gas calibration surface mismatch: {calibration!r}")
+if calibration.get("comparable") is not False or calibration.get("not_a_conversion") is not True:
+    fail(f"gas calibration must remain empirical evidence, not a conversion: {calibration!r}")
+if int(calibration.get("native_executed") or 0) <= 0 or int(calibration.get("obc_executed") or 0) <= 0:
+    fail(f"gas calibration should include positive execution counters, got {calibration!r}")
+if float(calibration.get("native_per_obc") or 0.0) <= 0.0 or float(calibration.get("obc_per_native") or 0.0) <= 0.0:
+    fail(f"gas calibration should include positive ratios, got {calibration!r}")
+if checks.get("gas_surface_calibration_available") is not True:
+    fail(f"gas surface calibration availability mismatch: {checks!r}")
 
 backends = data.get("backends") or {}
 native = backends.get("native") or {}

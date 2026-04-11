@@ -335,6 +335,16 @@ def gas_surface(summary):
     surface = gas.get("surface")
     return surface if isinstance(surface, dict) else None
 
+def gas_executed(summary):
+    gas = (((summary or {}).get("budgets") or {}).get("gas") or {})
+    value = gas.get("executed")
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
 native_gas_surface = gas_surface(native_ledger_summary)
 obc_gas_surface = gas_surface(obc_ledger_summary)
 gas_surface_native_obc_comparable = (
@@ -350,6 +360,33 @@ elif gas_surface_native_obc_comparable:
     gas_surface_reason = None
 else:
     gas_surface_reason = "native and OBC gas surfaces differ"
+native_gas_executed = gas_executed(native_ledger_summary)
+obc_gas_executed = gas_executed(obc_ledger_summary)
+gas_calibration_available = (
+    native_gas_executed is not None
+    and obc_gas_executed is not None
+    and native_gas_executed > 0
+    and obc_gas_executed > 0
+)
+native_per_obc = None
+obc_per_native = None
+if gas_calibration_available:
+    native_per_obc = native_gas_executed / obc_gas_executed
+    obc_per_native = obc_gas_executed / native_gas_executed
+gas_surface_calibration = {
+    "schema": "oren.gas-surface-calibration.v0",
+    "mode": "empirical_single_fixture",
+    "source": src,
+    "native_surface_id": native_gas_surface.get("id") if isinstance(native_gas_surface, dict) else None,
+    "obc_surface_id": obc_gas_surface.get("id") if isinstance(obc_gas_surface, dict) else None,
+    "native_executed": native_gas_executed,
+    "obc_executed": obc_gas_executed,
+    "native_per_obc": native_per_obc,
+    "obc_per_native": obc_per_native,
+    "comparable": gas_surface_native_obc_comparable,
+    "not_a_conversion": not gas_surface_native_obc_comparable,
+    "reason": gas_surface_reason,
+}
 stdout_equal = len({backends[name]["stdout_normalized"] for name in order}) == 1
 exit_equal = len({backends[name]["exit_code"] for name in order}) == 1
 all_ok = all(backends[name]["exit_code"] == 0 for name in order)
@@ -397,6 +434,7 @@ out = {
         "budget_deltas_comparable_all_backends": budget_deltas_comparable_all,
         "gas_surface_comparable_native_obc": gas_surface_native_obc_comparable,
         "gas_surface_comparison_reason": gas_surface_reason,
+        "gas_surface_calibration_available": gas_calibration_available,
     },
     "gas_surfaces": {
         "native": native_gas_surface,
@@ -404,6 +442,7 @@ out = {
         "native_obc_comparable": gas_surface_native_obc_comparable,
         "reason": gas_surface_reason,
     },
+    "gas_surface_calibration": gas_surface_calibration,
     "backends": backends,
 }
 
