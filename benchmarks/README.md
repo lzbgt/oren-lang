@@ -2114,9 +2114,10 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   quick-integration and NET/TLS/HTTP2 compile-only fixtures unless explicitly requested, and keeps
   the broad no-cache stage2 FFI/shared-library matrix behind `OREN_NATIVE_X64_INCLUDE_STAGE2_FULL=1`.
   The measured full fixture signals stay recorded separately: stage2 x64 full quick-integration
-  timed out at 300s in `build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log`,
-  and stage2 x64 NET/TLS/HTTP2 timed out at 360s in
-  `build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log`. The bounded
+  exceeded the 300s measurement window (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log`
+  is the timeout placeholder), and stage2 x64 NET/TLS/HTTP2 exceeded the 360s measurement window
+  (`build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log` is the timeout
+  placeholder). The bounded
   default Make verifier passed in `build/logs/verify_native_x64_compile_lazy_fn_offsets_make_default_20260411_233255.log`
   (376s on this host).
 - The remaining direct-build perf probes now share the same parser too. Their

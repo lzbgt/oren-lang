@@ -2498,10 +2498,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	    `make oren_stage2` also passed after the lazy lookup change
 	    (`build/logs/make_oren_stage2_x64_lazy_fn_offsets_lookup_fix_20260411_225140.log`).
 	    The remaining slow surfaces are broader x64 no-cache compile throughput, not rtobj apply:
-	    full quick-integration timed out at 300s
-	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log`), and the
-	    full NET/TLS/HTTP2 compile-only smoke timed out at 360s
-	    (`build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log`). Therefore
+	    full quick-integration exceeded the 300s measurement window
+	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log` is the timeout
+	    placeholder), and the full NET/TLS/HTTP2 compile-only smoke exceeded the 360s measurement
+	    window (`build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log` is
+	    the timeout placeholder). Therefore
 	    `make verify-native-x64-compile` now keeps full QI, NET/TLS/HTTP2, and the broad stage2
 	    FFI/shared-library matrix opt-in while retaining a bounded default stage1+stage2 smoke path
 	    that includes `print`, `ptr_i32_le_native`, `cfg_os_select`, and one FFI smoke per platform.

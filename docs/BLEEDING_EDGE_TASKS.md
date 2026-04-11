@@ -3720,9 +3720,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	    into `ctx["functions"]`. The fixed cache-hit trace reaches user-function compilation after
 	    attaching compact offsets/fixups
 	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_lookup_trace_20260411_225344.log`), while
-	    full QI and NET/TLS/HTTP2 stage2 x64 no-cache compiles remain separate throughput work
-	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log`,
-	    `build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log`). Reweight:
+	    full QI and NET/TLS/HTTP2 stage2 x64 no-cache compiles remain separate throughput work; the
+	    measurement-window timeout placeholders are
+	    `build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log` and
+	    `build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log`. Reweight:
 	    keep `make verify-native-x64-compile` bounded by default and use
 	    `OREN_NATIVE_X64_INCLUDE_QI=1`, `OREN_NATIVE_X64_INCLUDE_NET_TLS_HTTP2=1`, or
 	    `OREN_NATIVE_X64_INCLUDE_STAGE2_FULL=1` only when intentionally probing those slow surfaces.
