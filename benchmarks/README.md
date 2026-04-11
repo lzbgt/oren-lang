@@ -1718,15 +1718,17 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - The current shipped arm64 scalar-core decision is better judged by the post-flip matrix wrappers:
   `make perf-probe-arm64-fast-dot-scalar-core-matrix` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-scalar-core-matrix-list-int` for explicit `dot_product_int`.
-  On the current default-off baseline
-  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260409_033716_83363.log`,
-  `build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-list-int-20260409_033758_85506.log`):
-  - generic `dot_product`: `SCALAR=1` improves both raw native medians
-    (`0.147226s -> 0.140442s`, `-4.61%`; `0.016850s -> 0.016093s`, `-4.49%`), and
-    `CURSOR=0,SCALAR=1` improves them further (`-7.12%`, `-9.15%`)
-  - explicit `dot_product_int`: every non-baseline candidate still worsens whole-operation gate
-    native median even when steady improves; `SCALAR=1` is the clearest example
-    (`0.150822s -> 0.137406s`, `-8.90%` steady, but `0.015208s -> 0.016123s`, `+6.02%` gate)
+  The latest current-tree artifacts
+  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260411_170733_44863.log`,
+  `build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-list-int-20260411_170847_78864.log`)
+  keep the candidate set focused but not yet promotable:
+  - generic `dot_product`: the one-shot acceptance medians prefer `SCALAR=1` and
+    `CURSOR=0,SCALAR=1` on raw native time, but the run is too noisy to use alone
+    (`gate` baseline covariances around `0.41`)
+  - explicit `dot_product_int`: `SCALAR=1` improves steady native median
+    (`0.138499s -> 0.131536s`, `-5.03%`) but is basically flat/slightly worse on the gate
+    (`0.010847s -> 0.010917s`, `+0.65%`); `CURSOR=0,SCALAR=1` improves the same one-shot gate
+    (`0.010847s -> 0.009767s`, `-9.96%`), but needs the order-balanced tie-breaker below
   Reweight: keep the shipped scalar exact-`madd` path opt-in for now, keep cursor regs on by
   default, and use the matrix wrappers for future core-path A/Bs instead of the older subpath-only
   story.
@@ -1735,27 +1737,27 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-probe-arm64-fast-dot-scalar-core-read-split` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-scalar-core-read-split-list-int` for explicit `dot_product_int`.
   Current artifacts
-  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-20260409_035000_5744.log`,
-  `build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-20260409_035009_6305.log`)
+  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-20260411_170937_83286.log`,
+  `build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-20260411_170942_83791.log`)
   say:
-  - generic `dot_product`: `CURSOR=0,SCALAR=1` is the best all-around decomposition on this rerun
-    (`short -3.49%`, `setup -3.27%`, `delta -5.72%`, `long_per_rep -4.47%`)
-  - explicit `dot_product_int`: `SCALAR=1` improves one-shot setup (`short -3.28%`,
-    `setup -3.95%`) and stays almost flat on repeated `long_per_rep` (`-0.11%`), but still hurts
-    the `delta` estimate (`+4.22%`); the combined cursor+scalar case improves short/setup more but
-    worsens `long_per_rep` (`+2.74%`)
+  - generic `dot_product`: the latest read-split does not confirm the one-shot matrix win; the
+    best combined cursor+scalar case is roughly flat on setup (`+0.09%`) and still regresses
+    repeated `long_per_rep` (`+0.88%`)
+  - explicit `dot_product_int`: `SCALAR=1` now improves every reported native component on this
+    rerun (`short -6.13%`, `setup -6.11%`, `delta -6.33%`, `long_per_rep -6.26%`); the probe also
+    emits the usual delta-vs-long drift warning, so prefer `long_per_rep` for tracker updates
   Treat those read-split logs as decomposition tools, not as shipped-default verdicts by
   themselves.
 - When the explicit whole-operation sign is small, use the order-balanced tie-breaker:
   `make perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int`. It runs four whole-operation
   gate sweeps in rotating case order so each scalar-core variant occupies each run position once.
   Latest artifact
-  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-20260409_035611_14589.log`)
+  (`build/logs/perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-20260411_170947_84214.log`)
   keeps the explicit shipped verdict mixed:
-  - `SCALAR=1` wins absolute native gate median in `3/4` sweeps and by median `-1.31%`, but loses
-    normalized `native/C` in `3/4` sweeps with median `+5.74%`
-  - `CURSOR=0,SCALAR=1` is flatter on absolute native median (median `-0.52%`) but still loses
-    normalized `native/C` (median `+2.32%`)
+  - `SCALAR=1` is only a `2/4` native-median win with median `+1.65%`, while normalized
+    `native/C` is a `2/4` win with median `-1.13%`
+  - `CURSOR=0,SCALAR=1` is also only a `2/4` native-median win with median `+0.48%`, and normalized
+    `native/C` is `2/4` with median `+0.15%`
   Reweight: keep scalar exact-`madd` opt-in and keep cursor regs default-on until a candidate wins
   both the decomposition and the whole-operation stability surface together.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
@@ -1763,10 +1765,11 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the
   live arm64 shipped baseline now emits the non-`madd` scalar tail on both generic `dot_product`
   and explicit `dot_product_int`, while `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` reenables
-  the 20-insn `madd` variant. Latest verify log
-  (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): generic and
-  explicit shipped defaults both stay at `instruction_count=21`, `madd_count=0`; forcing
-  `SCALAR=1` moves both to `instruction_count=20`, `madd_count=1`.
+  the `madd` variant. Latest verify log
+  (`build/logs/verify_arm64_dot_madd_scalar_default_20260411_171634_95703.log`): generic and
+  explicit shipped defaults both stay at `instruction_count=21`,
+  `range_without_cold_gc_tick_instruction_count=14`, and `madd_count=0`; forcing `SCALAR=1` moves
+  both to `20`, `13`, and `1`.
 - The arm64 dot acceptance summaries now emit explicit
   `warning_gate_{dot_product,dot_product_int}_high_variance` keys when the whole-operation gate COV
   crosses the `0.10` tripwire, and the exact-`madd` wrapper summaries preserve those warning keys in

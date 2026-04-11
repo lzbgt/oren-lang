@@ -64,15 +64,40 @@ import sys
 
 def parse_case(summary_path, symbol):
     text = open(summary_path, "r", encoding="utf-8").read()
-    pattern = rf"{re.escape(symbol)}\s+  log:.*?instruction_count: (\d+)\n  mnemonic_counts: ([^\n]+)"
-    m = re.search(pattern, text, re.S)
+    pattern = rf"^{re.escape(symbol)}\n(?P<body>.*?)(?=^[A-Za-z0-9_]+\n  log:|\Z)"
+    m = re.search(pattern, text, re.S | re.M)
     if not m:
         raise SystemExit(f"missing {symbol} disasm block in {summary_path}")
-    instruction_count = int(m.group(1))
-    counts_line = m.group(2)
+    fields = {}
+    for line in m.group("body").splitlines():
+        fm = re.match(r"^  ([a-z0-9_]+): (.*)$", line)
+        if fm:
+            fields[fm.group(1)] = fm.group(2)
+    if "instruction_count" not in fields:
+        raise SystemExit(f"missing {symbol} instruction_count in {summary_path}")
+    if "mnemonic_counts" not in fields:
+        raise SystemExit(f"missing {symbol} mnemonic_counts in {summary_path}")
+    instruction_count = int(fields["instruction_count"])
+    range_without_cold_gc_tick_instruction_count = int(
+        fields.get("range_without_cold_gc_tick_instruction_count", instruction_count)
+    )
+    cold_gc_tick_instruction_count = int(fields.get("cold_gc_tick_instruction_count", "0"))
+    counts_line = fields["mnemonic_counts"]
+    range_without_cold_gc_tick_counts = fields.get(
+        "range_without_cold_gc_tick_counts", counts_line
+    )
+    cold_gc_tick_counts = fields.get("cold_gc_tick_counts", "")
     madd_match = re.search(r"(?:^| )madd=(\d+)(?: |$)", counts_line)
     madd_count = 0 if madd_match is None else int(madd_match.group(1))
-    return instruction_count, madd_count, counts_line
+    return (
+        instruction_count,
+        range_without_cold_gc_tick_instruction_count,
+        cold_gc_tick_instruction_count,
+        madd_count,
+        counts_line,
+        range_without_cold_gc_tick_counts,
+        cold_gc_tick_counts,
+    )
 
 
 cases = [
@@ -111,15 +136,36 @@ print("")
 failures = []
 case_results = {}
 for label, run_log, summary_path, symbol, expect_madd in cases:
-    instruction_count, madd_count, counts_line = parse_case(summary_path, symbol)
-    case_results[label] = (instruction_count, madd_count)
+    (
+        instruction_count,
+        range_without_cold_gc_tick_instruction_count,
+        cold_gc_tick_instruction_count,
+        madd_count,
+        counts_line,
+        range_without_cold_gc_tick_counts,
+        cold_gc_tick_counts,
+    ) = parse_case(summary_path, symbol)
+    case_results[label] = (
+        instruction_count,
+        range_without_cold_gc_tick_instruction_count,
+        cold_gc_tick_instruction_count,
+        madd_count,
+    )
     print(f"{label}:")
     print(f"  wrapper_log: {run_log}")
     print(f"  summary_log: {summary_path}")
     print(f"  symbol: {symbol}")
     print(f"  instruction_count: {instruction_count}")
+    print(
+        "  range_without_cold_gc_tick_instruction_count: "
+        f"{range_without_cold_gc_tick_instruction_count}"
+    )
+    print(f"  cold_gc_tick_instruction_count: {cold_gc_tick_instruction_count}")
     print(f"  madd_count: {madd_count}")
     print(f"  mnemonic_counts: {counts_line}")
+    print(f"  range_without_cold_gc_tick_counts: {range_without_cold_gc_tick_counts}")
+    if cold_gc_tick_counts:
+        print(f"  cold_gc_tick_counts: {cold_gc_tick_counts}")
     if madd_count != expect_madd:
         failures.append(f"{label}: expected madd_count={expect_madd}, got {madd_count}")
     print("")
@@ -128,12 +174,22 @@ for baseline_label, enabled_label in [
     ("generic_default", "generic_scalar_enabled"),
     ("list_int_default", "list_int_scalar_enabled"),
 ]:
-    baseline_insns, _ = case_results[baseline_label]
-    enabled_insns, _ = case_results[enabled_label]
+    baseline_insns, baseline_range_without, baseline_cold, _ = case_results[baseline_label]
+    enabled_insns, enabled_range_without, enabled_cold, _ = case_results[enabled_label]
     if enabled_insns != baseline_insns - 1:
         failures.append(
             f"{enabled_label}: expected instruction_count={baseline_insns - 1} "
             f"(baseline - 1), got {enabled_insns}"
+        )
+    if enabled_range_without != baseline_range_without - 1:
+        failures.append(
+            f"{enabled_label}: expected range_without_cold_gc_tick_instruction_count="
+            f"{baseline_range_without - 1} (baseline - 1), got {enabled_range_without}"
+        )
+    if enabled_cold != baseline_cold:
+        failures.append(
+            f"{enabled_label}: expected cold_gc_tick_instruction_count={baseline_cold}, "
+            f"got {enabled_cold}"
         )
 
 if failures:

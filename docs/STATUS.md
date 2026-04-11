@@ -753,15 +753,17 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      canonical W5 perf-gate benchmarks `benchmarks/array_sum/array_sum.oren` and
      `benchmarks/dot_product/dot_product.oren`, proving the auto-specialized benchmark path still
      stays on the fast `list<int>` lowering on both native backends.
-   - Structural guard widen (2026-04-09): the same
+   - Structural guard widen (refreshed 2026-04-11): the same
      `make verify-native-list-int-fast-lowering` gate now also runs
      `make verify-native-arm64-dot-madd-scalar-default`, so the shipped arm64 scalar-tail choice is
      pinned by a deterministic disasm A/B instead of only by probe notes. Latest log
-     (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): generic
+     (`build/logs/verify_arm64_dot_madd_scalar_default_20260411_171634_95703.log`): generic
      `dot_product` and explicit `dot_product_int` now stay at `instruction_count=21`,
-     `madd_count=0` on the shipped post-unroll2 baseline, while forcing
+     `range_without_cold_gc_tick_instruction_count=14`, and `madd_count=0` on the shipped
+     post-unroll2 baseline, while forcing
      `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` moves both to
-     `instruction_count=20`, `madd_count=1`.
+     `instruction_count=20`, `range_without_cold_gc_tick_instruction_count=13`, and
+     `madd_count=1`.
    - New parity widen (2026-03-28): arm64/x64 fast-loop matchers now also accept the equivalent
      commuted reductions `sum = xs[i] + sum` and `sum = a[i] * b[i] + sum` for both `list<int>`
      and boxed-list direct-loop lowerings. The same `make verify-native-list-int-fast-lowering`
@@ -1889,46 +1891,48 @@ Weights reflect expected impact on C parity and breadth of affected code.
      exact subpath wrappers still exist for branch-local debugging, but the new scalar-core matrix
      wrappers are now the right shipped-baseline decision surface on the post-unroll2 tree.
      - Current scalar-core matrix probes
-       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260409_033716_83363.log`,
-       `build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-list-int-20260409_033758_85506.log`)
+       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260411_170733_44863.log`,
+       `build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-list-int-20260411_170847_78864.log`)
        are the right shipped-baseline read now:
-       - generic `dot_product`: `SCALAR=1` improves both raw native medians
-         (`0.147226s -> 0.140442s`, `-4.61%`; `0.016850s -> 0.016093s`, `-4.49%`)
-       - explicit `dot_product_int`: `SCALAR=1` still improves steady materially
-         (`0.150822s -> 0.137406s`, `-8.90%`) but regresses whole-operation gate
-         (`0.015208s -> 0.016123s`, `+6.02%`)
-       - `CURSOR=0` and `CURSOR=0,SCALAR=1` stay similarly mixed once the explicit gate is included
-     - New structural guard (updated 2026-04-09): `make verify-native-arm64-dot-madd-scalar-default`
+       - generic `dot_product`: the one-shot acceptance medians prefer `SCALAR=1` and
+         `CURSOR=0,SCALAR=1`, but the run is too noisy to use alone (`gate` baseline covariance
+         around `0.41`)
+       - explicit `dot_product_int`: `SCALAR=1` improves steady (`0.138499s -> 0.131536s`,
+         `-5.03%`) but is basically flat/slightly worse on the gate (`0.010847s -> 0.010917s`,
+         `+0.65%`)
+       - `CURSOR=0,SCALAR=1` improves the one-shot explicit gate (`0.010847s -> 0.009767s`,
+         `-9.96%`) but still needs the order-balanced tie-breaker below before any default flip
+     - Structural guard (refreshed 2026-04-11): `make verify-native-arm64-dot-madd-scalar-default`
        now locks the shipped default-off scalar tail to the live post-unroll2 disasm shape on both
        generic and explicit surfaces, and `make verify-native-list-int-fast-lowering` runs it
        automatically. Latest log
-       (`build/logs/verify_arm64_dot_madd_scalar_default_20260409_033658_82605.log`): shipped
-       defaults stay at `21` instructions with `madd_count=0`; forcing `SCALAR=1` moves the same
-       loops to `20` instructions with `madd_count=1`.
-     - Read-split decomposition follow-up (2026-04-09): the new wrappers
+       (`build/logs/verify_arm64_dot_madd_scalar_default_20260411_171634_95703.log`): shipped
+       defaults stay at `21` full-range instructions, `14` without the cold GC-call block, and
+       `madd_count=0`; forcing `SCALAR=1` moves the same loops to `20`, `13`, and `1`.
+     - Read-split decomposition follow-up (refreshed 2026-04-11): the wrappers
        `make perf-probe-arm64-fast-dot-scalar-core-read-split` and
        `make perf-probe-arm64-fast-dot-scalar-core-read-split-list-int`
-       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-20260409_035000_5744.log`,
-       `build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-20260409_035009_6305.log`)
+       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-20260411_170937_83286.log`,
+       `build/logs/perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-20260411_170942_83791.log`)
        show the current setup/repeated-work tradeoff directly:
-       - generic `dot_product`: `CURSOR=0,SCALAR=1` improves every reported native component on
-         this rerun (`short -3.49%`, `setup -3.27%`, `delta -5.72%`, `long_per_rep -4.47%`)
-       - explicit `dot_product_int`: `SCALAR=1` improves short/setup (`-3.28%`, `-3.95%`) and is
-         nearly flat on repeated `long_per_rep` (`-0.11%`), but still worsens the `delta`
-         estimate (`+4.22%`); `CURSOR=0,SCALAR=1` improves short/setup more but regresses repeated
-         `long_per_rep` (`+2.74%`)
+       - generic `dot_product`: the latest read-split does not confirm the noisy one-shot matrix win;
+         the combined cursor+scalar case is roughly flat on setup (`+0.09%`) and regresses repeated
+         `long_per_rep` (`+0.88%`)
+       - explicit `dot_product_int`: `SCALAR=1` improves every reported native component on this
+         rerun (`short -6.13%`, `setup -6.11%`, `delta -6.33%`, `long_per_rep -6.26%`), with the
+         usual delta-vs-long drift warning still telling tracker updates to prefer `long_per_rep`
        Use these read-split probes as decomposition tools, not as shipped-default verdicts by
        themselves.
-     - Order-balanced gate-stability tie-breaker (2026-04-09): the new
+     - Order-balanced gate-stability tie-breaker (refreshed 2026-04-11): the
        `make perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int` wrapper rotates the
        four scalar-core cases across four whole-operation sweeps so each case occupies each run
        position once. Latest artifact
-       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-20260409_035611_14589.log`)
+       (`build/logs/perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-20260411_170947_84214.log`)
        keeps the explicit whole-operation verdict mixed:
-       - `SCALAR=1` wins absolute native gate median in `3/4` sweeps and by median `-1.31%`, but
-         loses normalized `native/C` in `3/4` sweeps with median `+5.74%`
-       - `CURSOR=0,SCALAR=1` is flatter on absolute native median (median `-0.52%`) but still
-         loses normalized `native/C` (median `+2.32%`)
+       - `SCALAR=1` is only a `2/4` native-median win with median `+1.65%`, while normalized
+         `native/C` is a `2/4` win with median `-1.13%`
+       - `CURSOR=0,SCALAR=1` is also only a `2/4` native-median win with median `+0.48%`, and
+         normalized `native/C` is `2/4` with median `+0.15%`
      - Conclusion: keep the scalar-tail `madd` choice opt-in on the shipped baseline, keep cursor
        regs on by default, and judge future arm64 dot core changes with the matrix + read-split +
        order-balanced gate-stability probes rather than the older scalar-only promotion story.
