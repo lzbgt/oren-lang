@@ -1564,6 +1564,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 7) **W3 - Docs fidelity + regression gates**
    - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
+   - Public README product positioning is now guarded by `make verify-public-readme-positioning`,
+     keeping single-language comparison references out of public `README*.md` files while archived
+     research notes remain under `project-doc/**` / `docs/refs/**`.
 
 8) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk, but the rolling tracked >2000-line source

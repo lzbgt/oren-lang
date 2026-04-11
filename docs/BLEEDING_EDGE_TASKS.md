@@ -88,6 +88,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   execution, counterfactual AVM snapshots, effect ledgers, budgeted interfaces, semantic diffs,
   representation contracts, proof-carrying artifact manifests, and protocol-independent
   agent-callable module contracts.
+- New: `make verify-public-readme-positioning` keeps public README positioning on the general
+  mainstream-language differentiation line instead of citing one comparison language directly;
+  archived research/reference material remains allowed under `project-doc/**` and `docs/refs/**`.
 - Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move
