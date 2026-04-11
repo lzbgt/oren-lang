@@ -149,18 +149,19 @@ def native_heap_used_from_run_json(native_run_json):
 
 def native_gas_from_run_json(native_run_json):
     if not native_run_json:
-        return (None, None, None)
+        return (None, None, None, None)
     summary = native_run_json.get("effect_ledger_summary") or {}
     gas = ((summary.get("budgets") or {}).get("gas") or {})
     executed = gas.get("executed")
     remaining = gas.get("remaining")
     kind = gas.get("kind")
+    surface = gas.get("surface")
     if executed is None:
-        return (None, remaining, kind)
+        return (None, remaining, kind, surface)
     try:
-        return (int(executed), remaining, kind)
+        return (int(executed), remaining, kind, surface)
     except (TypeError, ValueError):
-        return (None, remaining, kind)
+        return (None, remaining, kind, surface)
 
 def child_cpu_ms_supported():
     return resource is not None and hasattr(resource, "RUSAGE_CHILDREN")
@@ -215,8 +216,9 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
     heap_enforced = heap_limit is not None and heap_used is not None
     heap_exceeded = bool(heap_enforced and heap_used > int(heap_limit))
     gas_limit = budgets.get("gas")
-    gas_used, gas_remaining, gas_kind = native_gas_from_run_json(native_run_json)
-    gas_enforced = gas_limit is not None and gas_used is not None and gas_kind == NATIVE_GAS_KIND
+    gas_used, gas_remaining, gas_kind, gas_surface = native_gas_from_run_json(native_run_json)
+    gas_surface_id = gas_surface.get("id") if isinstance(gas_surface, dict) else None
+    gas_enforced = gas_limit is not None and gas_used is not None and gas_kind == NATIVE_GAS_KIND and gas_surface_id == NATIVE_GAS_KIND
     gas_exceeded = bool(gas_enforced and gas_used > int(gas_limit))
     cpu_limit = budgets.get("cpu_ms")
     cpu_enforced = cpu_limit is not None and cpu_used_ms is not None
@@ -283,6 +285,7 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
                 "executed": gas_used,
                 "remaining": gas_remaining,
                 "kind": gas_kind,
+                "surface": gas_surface,
                 "enforced": gas_enforced,
                 "enforcement": "native-run-json-stmt-loop-tick" if gas_enforced else "none",
                 "exceeded": gas_exceeded,
@@ -403,8 +406,9 @@ try:
     elapsed_ns = time.monotonic_ns() - start_ns
     cpu_used_ms = cpu_delta_ms(cpu_before_ms, child_cpu_ms_snapshot())
     if gas_limit is not None:
-        gas_used, gas_remaining, gas_kind = native_gas_from_run_json(native_run_json)
-        if gas_used is None or gas_kind != NATIVE_GAS_KIND:
+        gas_used, gas_remaining, gas_kind, gas_surface = native_gas_from_run_json(native_run_json)
+        gas_surface_id = gas_surface.get("id") if isinstance(gas_surface, dict) else None
+        if gas_used is None or gas_kind != NATIVE_GAS_KIND or gas_surface_id != NATIVE_GAS_KIND:
             write_run_json(run_summary_payload(
                 exit_code=76,
                 status="budget_unavailable",

@@ -73,6 +73,20 @@ if checks.get("ledger_comparable_all_backends") is not False:
     fail("all-backend ledger comparison should stay false until C emits a ledger")
 if checks.get("budget_deltas_comparable_all_backends") is not False:
     fail("all-backend budget-delta comparison should stay false until C emits a ledger")
+if checks.get("gas_surface_comparable_native_obc") is not False:
+    fail("native/OBC gas surfaces should remain non-comparable until a conversion contract exists")
+if checks.get("gas_surface_comparison_reason") != "native and OBC gas surfaces differ":
+    fail(f"unexpected gas-surface comparison reason: {checks.get('gas_surface_comparison_reason')!r}")
+
+gas_surfaces = data.get("gas_surfaces") or {}
+native_surface = gas_surfaces.get("native") or {}
+obc_surface = gas_surfaces.get("obc") or {}
+if native_surface.get("schema") != "oren.gas-surface.v0" or native_surface.get("id") != "native_stmt_loop_tick_v0":
+    fail(f"native gas surface mismatch: {native_surface!r}")
+if obc_surface.get("schema") != "oren.gas-surface.v0" or obc_surface.get("id") != "avm_opcode_cost_v0":
+    fail(f"OBC gas surface mismatch: {obc_surface!r}")
+if gas_surfaces.get("native_obc_comparable") is not False:
+    fail(f"native/OBC gas surface comparison should be false, got {gas_surfaces!r}")
 
 backends = data.get("backends") or {}
 native = backends.get("native") or {}
@@ -114,12 +128,18 @@ if native_deltas.get("wall_elapsed_ns") is None or int(native_deltas.get("wall_e
 native_gas = native_budgets.get("gas") or {}
 if native_gas.get("kind") != "native_stmt_loop_tick_v0":
     fail(f"native gas kind mismatch: {native_gas!r}")
+if (native_gas.get("surface") or {}).get("id") != "native_stmt_loop_tick_v0":
+    fail(f"native gas surface should mirror kind, got {native_gas!r}")
 if native_gas.get("executed") is None or int(native_gas.get("executed")) <= 0:
     fail(f"native gas executed should be positive under semantic-diff statement gas, got {native_gas!r}")
 if native_deltas.get("gas_executed") != native_gas.get("executed"):
     fail(f"native gas executed delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
 if native_deltas.get("gas_remaining") != native_gas.get("remaining"):
     fail(f"native gas remaining delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
+if native_deltas.get("gas_kind") != native_gas.get("kind"):
+    fail(f"native gas kind delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
+if native_deltas.get("gas_surface_id") != "native_stmt_loop_tick_v0":
+    fail(f"native gas surface delta mismatch, got {native_deltas!r}")
 native_heap = native_budgets.get("heap_bytes") or {}
 if native_heap.get("kind") != "tracked_live_scan":
     fail(f"native heap counter kind mismatch: {native_heap!r}")
@@ -146,9 +166,18 @@ if ledger.get("run_json_exit_code") != 0:
 summary = ledger.get("summary") or {}
 budgets = summary.get("budgets") or {}
 deltas = ledger.get("budget_deltas") or {}
+obc_gas = budgets.get("gas", {})
+if obc_gas.get("kind") != "avm_opcode_cost_v0":
+    fail(f"OBC gas kind mismatch: {obc_gas!r}")
+if (obc_gas.get("surface") or {}).get("id") != "avm_opcode_cost_v0":
+    fail(f"OBC gas surface should mirror kind, got {obc_gas!r}")
 if int(deltas.get("gas_executed", 0)) <= 0:
     fail(f"expected positive OBC gas execution delta, got {deltas!r}")
-if deltas.get("gas_remaining") != budgets.get("gas", {}).get("remaining"):
+if deltas.get("gas_kind") != obc_gas.get("kind"):
+    fail(f"OBC gas kind delta should mirror summary budget, got {deltas!r} vs {obc_gas!r}")
+if deltas.get("gas_surface_id") != "avm_opcode_cost_v0":
+    fail(f"OBC gas surface delta mismatch, got {deltas!r}")
+if deltas.get("gas_remaining") != obc_gas.get("remaining"):
     fail(f"gas remaining delta should mirror summary budget, got {deltas!r} vs {budgets!r}")
 if deltas.get("heap_bytes_used") != budgets.get("heap_bytes", {}).get("used"):
     fail(f"heap used delta should mirror summary budget, got {deltas!r} vs {budgets!r}")

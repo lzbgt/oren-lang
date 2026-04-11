@@ -99,7 +99,9 @@ Required entry fields:
   a second native execution with `OREN_NATIVE_RUN_JSON=1` and the OBC artifact with
   `--print-run-json`. Those runs record native/AVM `effect_ledger_summary` bridges, normalized
   `budget_deltas`, ledger availability per backend, and whether full all-backend ledger/budget
-  comparison is possible. C ledger export is still intentionally reported as unavailable rather
+  comparison is possible. The report also exposes explicit gas-surface metadata and currently marks
+  native/OBC gas as non-comparable because native `native_stmt_loop_tick_v0` is not the same unit as
+  AVM `avm_opcode_cost_v0`. C ledger export is still intentionally reported as unavailable rather
   than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
@@ -158,7 +160,19 @@ mode, record/replay, and budget accounting were active for the run:
     "record": { "enabled": true, "sink": "mem", "bytes": 64 },
     "replay": { "enabled": false, "source": "none", "bytes": 0, "position": 0 },
     "budgets": {
-      "gas": { "executed": 10, "remaining": 99990 },
+      "gas": {
+        "executed": 10,
+        "remaining": 99990,
+        "kind": "avm_opcode_cost_v0",
+        "surface": {
+          "schema": "oren.gas-surface.v0",
+          "id": "avm_opcode_cost_v0",
+          "backend": "bytecode",
+          "unit": "opcode_cost",
+          "granularity": "opcode_dispatch",
+          "avm_canonical": true
+        }
+      },
       "heap_bytes": { "limit": 0, "used": 0 },
       "wall_ms": { "limit": 1000, "elapsed_ns": 250000 },
       "io_bytes": { "limit": 0, "used": 0 },
@@ -185,5 +199,7 @@ reported as `kind="native_loop_safepoint_tick_v0"` by default; backend loop poll
 mask interval when they fire, while direct/manual native `oren_gc_safepoint()` arrivals charge one tick.
 When matching build/run invocations set `OREN_NATIVE_GAS_ACCOUNTING=stmt`, the same field reports
 `kind="native_stmt_loop_tick_v0"` and also charges backend statement/op boundaries. Semantic diff uses
-the statement+loop mode so it has a comparable native summary field while keeping it distinct from
-future instruction-equivalent gas.
+the statement+loop mode so it has native budget evidence, but each gas object now carries an explicit
+`surface` object with `schema="oren.gas-surface.v0"`. That surface keeps native `native_stmt_loop_tick_v0`
+distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current native/OBC gas surfaces as
+non-comparable until Oren defines a conversion or instruction-equivalent native gas contract.

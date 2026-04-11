@@ -99,6 +99,12 @@ if budgets.get("log_bytes", {}).get("used") != record_info.get("bytes"):
     raise SystemExit("record bytes should match ledger log byte usage")
 if budgets.get("gas", {}).get("executed", 0) <= 0:
     raise SystemExit("expected positive gas execution count")
+gas = budgets.get("gas", {})
+if gas.get("kind") != "avm_opcode_cost_v0":
+    raise SystemExit(f"expected AVM opcode gas kind, got {gas}")
+surface = gas.get("surface", {})
+if surface.get("schema") != "oren.gas-surface.v0" or surface.get("id") != "avm_opcode_cost_v0":
+    raise SystemExit(f"expected AVM opcode gas surface, got {gas}")
 wall = budgets.get("wall_ms", {})
 if wall.get("limit") != 1000:
     raise SystemExit(f"expected wall_ms limit 1000, got {wall}")

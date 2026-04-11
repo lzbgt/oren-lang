@@ -322,6 +322,13 @@ fn native_runtime_gas_kind_string() {
     return "native_loop_safepoint_tick_v0"
 }
 
+fn native_runtime_gas_surface_json() {
+    if native_runtime_stmt_gas_env_enabled() == true {
+        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_stmt_loop_tick_v0\",\"backend\":\"native\",\"unit\":\"stmt_loop_tick\",\"granularity\":\"statement_or_native_op_plus_loop_poll\",\"avm_canonical\":false}"
+    }
+    return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_loop_safepoint_tick_v0\",\"backend\":\"native\",\"unit\":\"loop_safepoint_tick\",\"granularity\":\"loop_poll_or_manual_safepoint\",\"avm_canonical\":false}"
+}
+
 fn native_runtime_run_json_maybe_print(exit_code) {
     if global_get_native_run_json_enabled() != 1 { return 0 }
     if global_get_native_run_json_printed() != 0 { return 0 }
@@ -347,7 +354,7 @@ fn native_runtime_run_json_maybe_print(exit_code) {
     line = line + ",\"domain_gates\":" + native_capsule_effect_gate_summary_json()
     line = line + ",\"resource_checks\":" + native_capsule_resource_check_summary_json()
     line = line + ",\"budgets\":{\"gas\":{\"limit\":null,\"executed\":" + oren_int_to_string(gas_ticks)
-    line = line + ",\"remaining\":null,\"kind\":\"" + native_runtime_gas_kind_string() + "\"}"
+    line = line + ",\"remaining\":null,\"kind\":\"" + native_runtime_gas_kind_string() + "\",\"surface\":" + native_runtime_gas_surface_json() + "}"
     line = line + ",\"heap_bytes\":{\"limit\":null,\"used\":" + oren_int_to_string(heap_used) + ",\"kind\":\"tracked_live_scan\"}"
     line = line + ",\"wall_ms\":{\"limit\":null,\"elapsed_ns\":" + oren_int_to_string(elapsed_ns) + "}"
     line = line + ",\"io_bytes\":{\"limit\":null,\"used\":null}"

@@ -134,14 +134,17 @@ It is a language plus runtime plus artifact contract.
   Native executables now have a runtime-observed
   `OREN_NATIVE_RUN_JSON=1` bridge with wall timing, capsule domain-gate counters, selected
   FS/NET/PROC resource-check counters, a scanned live tracked-heap byte count, and default
-  loop-safepoint or opt-in statement+loop native gas. AVM run JSON reports gas, heap, and wall
-  package budgets through `effect_ledger_summary.budgets`, so the next step is finer native
-  instruction-equivalent gas rather than another manifest-only field.
+  loop-safepoint or opt-in statement+loop native gas. Native and AVM gas summaries now carry
+  explicit `oren.gas-surface.v0` metadata, and semantic diff marks `native_stmt_loop_tick_v0` and
+  `avm_opcode_cost_v0` as non-comparable rather than pretending any positive counter is enough.
+  The next step is a conversion contract or finer native instruction-equivalent gas rather than
+  another manifest-only field.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
-  `oren.semantic-diff.v0` JSON for C/native/OBC runs plus native/AVM ledger-summary bridges. Next
-  work is finer native gas parity, not only expanding fixture scripts.
+  `oren.semantic-diff.v0` JSON for C/native/OBC runs plus native/AVM ledger-summary bridges and
+  explicit gas-surface comparison status. Next work is finer native gas parity or a stated
+  conversion rule, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

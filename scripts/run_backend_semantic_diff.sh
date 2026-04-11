@@ -201,6 +201,8 @@ def find_last_json_obj(text):
 def budget_deltas(summary):
     budgets = (summary or {}).get("budgets") or {}
     gas = budgets.get("gas") or {}
+    gas_surface_raw = gas.get("surface")
+    gas_surface = gas_surface_raw if isinstance(gas_surface_raw, dict) else {}
     heap = budgets.get("heap_bytes") or {}
     wall = budgets.get("wall_ms") or {}
     io_b = budgets.get("io_bytes") or {}
@@ -209,6 +211,12 @@ def budget_deltas(summary):
     return {
         "gas_executed": gas.get("executed"),
         "gas_remaining": gas.get("remaining"),
+        "gas_kind": gas.get("kind"),
+        "gas_surface_id": gas_surface.get("id"),
+        "gas_surface_backend": gas_surface.get("backend"),
+        "gas_surface_unit": gas_surface.get("unit"),
+        "gas_surface_granularity": gas_surface.get("granularity"),
+        "gas_surface_avm_canonical": gas_surface.get("avm_canonical"),
         "heap_bytes_used": heap.get("used"),
         "heap_bytes_limit": heap.get("limit"),
         "wall_elapsed_ns": wall.get("elapsed_ns"),
@@ -322,6 +330,26 @@ backends["obc"]["ledger"] = {
 }
 
 order = ["c", "native", "obc"]
+def gas_surface(summary):
+    gas = (((summary or {}).get("budgets") or {}).get("gas") or {})
+    surface = gas.get("surface")
+    return surface if isinstance(surface, dict) else None
+
+native_gas_surface = gas_surface(native_ledger_summary)
+obc_gas_surface = gas_surface(obc_ledger_summary)
+gas_surface_native_obc_comparable = (
+    isinstance(native_gas_surface, dict)
+    and isinstance(obc_gas_surface, dict)
+    and native_gas_surface.get("id") == obc_gas_surface.get("id")
+)
+if not isinstance(native_gas_surface, dict):
+    gas_surface_reason = "native gas surface missing"
+elif not isinstance(obc_gas_surface, dict):
+    gas_surface_reason = "OBC gas surface missing"
+elif gas_surface_native_obc_comparable:
+    gas_surface_reason = None
+else:
+    gas_surface_reason = "native and OBC gas surfaces differ"
 stdout_equal = len({backends[name]["stdout_normalized"] for name in order}) == 1
 exit_equal = len({backends[name]["exit_code"] for name in order}) == 1
 all_ok = all(backends[name]["exit_code"] == 0 for name in order)
@@ -367,6 +395,14 @@ out = {
         "ledger_missing_backends": ledger_missing,
         "ledger_comparable_all_backends": ledger_comparable_all,
         "budget_deltas_comparable_all_backends": budget_deltas_comparable_all,
+        "gas_surface_comparable_native_obc": gas_surface_native_obc_comparable,
+        "gas_surface_comparison_reason": gas_surface_reason,
+    },
+    "gas_surfaces": {
+        "native": native_gas_surface,
+        "obc": obc_gas_surface,
+        "native_obc_comparable": gas_surface_native_obc_comparable,
+        "reason": gas_surface_reason,
     },
     "backends": backends,
 }

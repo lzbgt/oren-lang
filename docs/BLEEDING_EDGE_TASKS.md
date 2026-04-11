@@ -62,10 +62,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   runtime-observed `effect_ledger_summary` wall timing, native capsule domain-gate counters,
   selected FS/NET/PROC resource-check counters, and a scanned native `heap_bytes.used` value for
   live tracked heap nodes, plus default loop-safepoint `native_loop_safepoint_tick_v0` gas ticks or
-  statement+loop `native_stmt_loop_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=stmt` is used. AVM
-  `effect_ledger_summary.budgets` now reports gas, heap, and wall budget fields for that path,
-  including `wall_ms.limit` and measured `wall_ms.elapsed_ns`. Next capability work should move
-  from these statement+loop bridge summaries toward finer native instruction-equivalent gas rather than
+  statement+loop `native_stmt_loop_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=stmt` is used.
+  Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` descriptors; semantic diff
+  reports native/OBC gas as non-comparable while native uses `native_stmt_loop_tick_v0` and AVM uses
+  `avm_opcode_cost_v0`. AVM `effect_ledger_summary.budgets` now reports gas, heap, and wall budget
+  fields for that path, including `wall_ms.limit` and measured `wall_ms.elapsed_ns`. Next capability
+  work should define a conversion contract or finer native instruction-equivalent gas rather than
   re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
@@ -2721,6 +2723,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      now separately emits `oren.native-package-policy-run.v0` runner-observed wall-budget JSON
      on request; native runtime summary export is now `OREN_NATIVE_RUN_JSON=1`, including
      `oren.native-capsule-effect-gates.v0` central domain-gate counters when capsule mode runs.
+     Gas summaries include explicit `oren.gas-surface.v0` descriptors so the report can say native
+     statement+loop gas and AVM opcode gas are not yet the same comparable unit.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).
