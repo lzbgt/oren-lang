@@ -9,7 +9,7 @@ Oren is a **self-hosted language + compiler** with three execution backends:
 The project targets agent‑grade determinism, capability‑gated effects, and a path to
 compiler‑in‑AVM for sandboxed compilation.
 
-For the concise product thesis and Zig-differentiation line, see `docs/OREN_THESIS.md`.
+For the concise product thesis and mainstream-language differentiation line, see `docs/OREN_THESIS.md`.
 For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
 ## Quick start

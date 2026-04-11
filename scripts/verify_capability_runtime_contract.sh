@@ -84,6 +84,7 @@ require_literal "$contract" "@oren.package"
 require_literal "$contract" "dependency_domain_union_status"
 require_literal "$contract" "source_package_check"
 require_literal "$contract" "--enforce-package-policy"
+require_literal "$contract" "OREN_ENFORCE_PACKAGE_POLICY"
 
 # Native runtime profile entry files.
 require_literal "$native_core" "core profile"
@@ -158,6 +159,7 @@ require_literal "$metadata_compiler" "package_policy_check_status"
 require_literal "$compiler_cli" "\"source_package\""
 require_literal "$compiler_cli" "\"source_package_check\""
 require_literal "$compiler_cli" "--enforce-package-policy"
+require_literal "$compiler_cli" "OREN_ENFORCE_PACKAGE_POLICY"
 require_literal "$compiler_cli" "_enforce_package_policy_if_requested"
 require_literal "$metadata_guard" "meta_capabilities_src.oren"
 require_literal "$metadata_guard" "capability_manifest_policy_src.oren"
@@ -167,6 +169,7 @@ require_literal "$manifest_policy_guard" "source_required_domains"
 require_literal "$manifest_policy_guard" "source_package"
 require_literal "$manifest_policy_guard" "source_package_check"
 require_literal "$manifest_policy_guard" "--enforce-package-policy"
+require_literal "$manifest_policy_guard" "OREN_ENFORCE_PACKAGE_POLICY"
 
 # AVM domain ids and selected domain mappings.
 require_regex "$avm_domains" 'var AVM_DOMAIN_CORE = 0$'

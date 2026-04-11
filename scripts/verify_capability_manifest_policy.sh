@@ -11,10 +11,11 @@ c_out="build/tmp/capability_manifest_policy_${ts}"
 c_mismatch_out="build/tmp/capability_manifest_policy_mismatch_${ts}"
 native_out="build/tmp/capability_manifest_policy_native_${ts}"
 enforce_fail_out="build/tmp/capability_manifest_policy_enforce_fail_${ts}"
+env_enforce_fail_out="build/tmp/capability_manifest_policy_env_enforce_fail_${ts}"
 log="build/logs/verify_capability_manifest_policy_${ts}.log"
 
 cleanup() {
-  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json" "$c_mismatch_out" "$c_mismatch_out.manifest.json" "$native_out" "$native_out.manifest.json" "$enforce_fail_out" "$enforce_fail_out.manifest.json"
+  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json" "$c_mismatch_out" "$c_mismatch_out.manifest.json" "$native_out" "$native_out.manifest.json" "$enforce_fail_out" "$enforce_fail_out.manifest.json" "$env_enforce_fail_out" "$env_enforce_fail_out.manifest.json"
 }
 trap cleanup EXIT
 
@@ -53,6 +54,16 @@ trap cleanup EXIT
     --cap-allow-domains FS,ENV \
     -o "$enforce_fail_out"; then
     echo "expected --enforce-package-policy mismatch build to fail" >&2
+    exit 1
+  fi
+
+  echo "checking package policy enforcement env rejects mismatched C backend policy"
+  if OREN_ENFORCE_PACKAGE_POLICY=1 ./oren build tests/fixtures/capability_manifest_policy_src.oren \
+    --backend c \
+    --manifest \
+    --cap-allow-domains FS,ENV \
+    -o "$env_enforce_fail_out"; then
+    echo "expected OREN_ENFORCE_PACKAGE_POLICY mismatch build to fail" >&2
     exit 1
   fi
 
