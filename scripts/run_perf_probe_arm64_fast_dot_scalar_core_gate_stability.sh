@@ -43,6 +43,18 @@ case_env_desc() {
         unroll2_pair_post_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1"
             ;;
+        unroll2_dual_accum_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1"
+            ;;
+        unroll2_dual_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
+            ;;
+        unroll2_pair_post_dual_accum_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1"
+            ;;
+        unroll2_pair_post_dual_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
+            ;;
         unroll2_madd_all_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
             ;;
@@ -83,6 +95,18 @@ case_build_env() {
             ;;
         unroll2_pair_post_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1"
+            ;;
+        unroll2_dual_accum_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1"
+            ;;
+        unroll2_dual_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
+            ;;
+        unroll2_pair_post_dual_accum_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1"
+            ;;
+        unroll2_pair_post_dual_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
             ;;
         unroll2_madd_all_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"

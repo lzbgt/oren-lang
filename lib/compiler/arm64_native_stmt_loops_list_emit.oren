@@ -1279,6 +1279,13 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     } else if v_dual_accum != nil && (v_dual_accum == "0" || v_dual_accum == "false") {
         dual_accum = false
     }
+    var dual_madd = false
+    var v_dual_madd = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD")
+    if dual_accum && (v_dual_madd == "1" || v_dual_madd == "true") {
+        dual_madd = true
+    } else if v_dual_madd != nil && (v_dual_madd == "0" || v_dual_madd == "false") {
+        dual_madd = false
+    }
     var madd_exact = false
     var v_madd_exact = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT")
     if v_madd_exact == "1" || v_madd_exact == "true" {
@@ -1580,10 +1587,15 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_ldr_ptr_off(13, 26, 8))
             }
             if dual_accum {
-                push_u32_le(ctx["code"], insn_mul(24, 24, 12))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
-                push_u32_le(ctx["code"], insn_mul(25, 25, 13))
-                push_u32_le(ctx["code"], insn_add_reg(22, 22, 25))
+                if dual_madd {
+                    push_u32_le(ctx["code"], insn_madd(23, 24, 12, 23))
+                    push_u32_le(ctx["code"], insn_madd(22, 25, 13, 22))
+                } else {
+                    push_u32_le(ctx["code"], insn_mul(24, 24, 12))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+                    push_u32_le(ctx["code"], insn_mul(25, 25, 13))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 25))
+                }
             } else if madd_exact_quad {
                 push_u32_le(ctx["code"], insn_madd(23, 24, 12, 23))
                 push_u32_le(ctx["code"], insn_madd(23, 25, 13, 23))
@@ -1604,10 +1616,15 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_ldr_ptr_off(13, 26, 24))
             }
             if dual_accum {
-                push_u32_le(ctx["code"], insn_mul(24, 24, 12))
-                push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
-                push_u32_le(ctx["code"], insn_mul(25, 25, 13))
-                push_u32_le(ctx["code"], insn_add_reg(22, 22, 25))
+                if dual_madd {
+                    push_u32_le(ctx["code"], insn_madd(23, 24, 12, 23))
+                    push_u32_le(ctx["code"], insn_madd(22, 25, 13, 22))
+                } else {
+                    push_u32_le(ctx["code"], insn_mul(24, 24, 12))
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 24))
+                    push_u32_le(ctx["code"], insn_mul(25, 25, 13))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 25))
+                }
             } else if madd_exact_quad {
                 push_u32_le(ctx["code"], insn_madd(23, 24, 12, 23))
                 push_u32_le(ctx["code"], insn_madd(23, 25, 13, 23))
@@ -1676,7 +1693,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                     push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
                     push_u32_le(ctx["code"], insn_ldr_ptr(13, 26))
                 }
-                if madd_exact_double && !dual_accum {
+                if dual_accum && dual_madd {
+                    push_u32_le(ctx["code"], insn_madd(23, 25, 13, 23))
+                } else if madd_exact_double && !dual_accum {
                     push_u32_le(ctx["code"], insn_madd(23, 25, 13, 23))
                 } else {
                     push_u32_le(ctx["code"], insn_mul(25, 25, 13))
@@ -1705,7 +1724,13 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
 
             // sum += left1 * right1
-            if single_mul_pair && single_pair_cursor_regs && madd_exact_double && !dual_accum {
+            if single_mul_pair && single_pair_cursor_regs && dual_accum && dual_madd {
+                if pair_post {
+                    push_u32_le(ctx["code"], insn_madd(22, 12, 24, 22))
+                } else {
+                    push_u32_le(ctx["code"], insn_madd(22, 12, 13, 22))
+                }
+            } else if single_mul_pair && single_pair_cursor_regs && madd_exact_double && !dual_accum {
                 if pair_post {
                     push_u32_le(ctx["code"], insn_madd(23, 12, 24, 23))
                 } else {
@@ -1719,7 +1744,9 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 }
             }
             if single_mul_pair && single_pair_cursor_regs && dual_accum {
-                push_u32_le(ctx["code"], insn_add_reg(22, 22, 12))
+                if !dual_madd {
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 12))
+                }
             } else if !(single_mul_pair && single_pair_cursor_regs && madd_exact_double && !dual_accum) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 12))
             } else {
@@ -1822,7 +1849,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
 
             // sum += left * right
-            if single_mul_pair && single_pair_cursor_regs && madd_exact_scalar && !dual_accum {
+            if single_mul_pair && single_pair_cursor_regs && ((madd_exact_scalar && !dual_accum) || (dual_accum && dual_madd)) {
                 push_u32_le(ctx["code"], insn_madd(23, 25, 27, 23))
             } else {
                 push_u32_le(ctx["code"], insn_mul(25, 25, 27))

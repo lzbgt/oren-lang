@@ -1865,6 +1865,24 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `UNROLL2=1,QUAD/DOUBLE/SCALAR_MADD=1` row wins the generic gate (`native -2.42%`, `4/4`; native/C
   `-1.70%`, `3/4`) but fails read-split repeated work (`long_per_rep +2.55%`). Keep both branches
   opt-in until one wins decomposition and order-balanced generic/explicit whole-operation views.
+- Dual-accum `madd` decision follow-up (2026-04-11): `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1`
+  now turns the existing opt-in dual-accumulator body from `mul`+`add` pairs into independent
+  `madd` updates, but only when `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1` is already set. The
+  decision wrappers `make perf-probe-arm64-fast-dot-dual-madd-decision` and
+  `make perf-probe-arm64-fast-dot-dual-madd-decision-list-int` rank the unroll2, dual-accum,
+  dual-accum+madd, pair-post+dual-accum, and pair-post+dual-accum+madd rows against the shipped
+  baseline. Current generic artifact
+  (`build/logs/perf-probe-arm64-fast-dot-dual-madd-decision-20260411_183505_89024.log`) rejects the
+  combined candidate: read-split repeated work wins only slightly (`long_per_rep -0.32%`), but the
+  order-balanced gate is not stable enough (`native -1.20%` with only `2/4` wins, normalized
+  `native/C +0.63%` with only `1/4` wins). The explicit list<int> artifact
+  (`build/logs/perf-probe-arm64-fast-dot-dual-madd-decision-list-int-20260411_183536_91542.log`) is
+  also not promotable: read-split `long_per_rep -8.18%`, but gate native median `+1.18%` with `2/4`
+  wins and normalized `native/C +5.43%` with `1/4` wins. Structural disasm
+  (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-dual-madd-20260411_183626_94501.log`)
+  confirms the intended paired post-index `ldp` plus dual-accumulator `madd` shape, with a
+  53-instruction traced range, 39 after subtracting two skipped cold GC-call blocks, and `madd=7`.
+  Keep this branch opt-in; the representation/vector gap is still the higher-leverage target.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the

@@ -2012,10 +2012,27 @@ Weights reflect expected impact on C parity and breadth of affected code.
        only `1/4` wins and normalized `native/C` regressed `+5.16%` with only `1/4` wins. The simpler
        `UNROLL2=1,QUAD/DOUBLE/SCALAR_MADD=1` row wins the generic gate (`native -2.42%`, `4/4`;
        native/C `-1.70%`, `3/4`) but fails read-split repeated work (`long_per_rep +2.55%`).
+     - Dual-accum `madd` decision follow-up (2026-04-11):
+       `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1` now converts the existing opt-in
+       dual-accumulator body from `mul`+`add` pairs into independent `madd` updates, gated behind
+       `OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1`. The new wrappers
+       `make perf-probe-arm64-fast-dot-dual-madd-decision` and
+       `make perf-probe-arm64-fast-dot-dual-madd-decision-list-int` rank the unroll2, dual-accum,
+       dual-accum+madd, pair-post+dual-accum, and pair-post+dual-accum+madd rows. Current generic
+       artifact (`build/logs/perf-probe-arm64-fast-dot-dual-madd-decision-20260411_183505_89024.log`)
+       rejects the combined candidate: read-split `long_per_rep -0.32%`, but gate native median
+       `-1.20%` has only `2/4` wins and normalized `native/C +0.63%` has only `1/4` wins. The
+       explicit artifact (`build/logs/perf-probe-arm64-fast-dot-dual-madd-decision-list-int-20260411_183536_91542.log`)
+       also rejects it: read-split `long_per_rep -8.18%`, but gate native median `+1.18%` with
+       `2/4` wins and normalized `native/C +5.43%` with `1/4` wins. Structural disasm
+       (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-dual-madd-20260411_183626_94501.log`)
+       confirms the intended paired post-index `ldp` plus dual-accumulator `madd` shape, with a
+       53-instruction traced range, 39 after subtracting two skipped cold GC-call blocks, and
+       `madd=7`.
      - Conclusion: keep the scalar-tail `madd` choice opt-in on the shipped baseline, keep cursor
-       regs on by default, keep scalar-post and pair-post+madd opt-in, and judge future arm64 dot
-       core changes with the matrix + read-split + order-balanced gate-stability probes rather than
-       the older scalar-only promotion story.
+       regs on by default, keep scalar-post, pair-post+madd, and dual-accum `madd` opt-in, and judge
+       future arm64 dot core changes with the matrix + read-split + order-balanced gate-stability
+       probes rather than the older scalar-only promotion story.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance
