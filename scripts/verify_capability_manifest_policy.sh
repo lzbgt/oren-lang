@@ -9,10 +9,11 @@ ts="$(date +%Y%m%d_%H%M%S)"
 meta_out="build/tmp/meta_capabilities_policy_${ts}.json"
 c_out="build/tmp/capability_manifest_policy_${ts}"
 c_mismatch_out="build/tmp/capability_manifest_policy_mismatch_${ts}"
+native_out="build/tmp/capability_manifest_policy_native_${ts}"
 log="build/logs/verify_capability_manifest_policy_${ts}.log"
 
 cleanup() {
-  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json" "$c_mismatch_out" "$c_mismatch_out.manifest.json"
+  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json" "$c_mismatch_out" "$c_mismatch_out.manifest.json" "$native_out" "$native_out.manifest.json"
 }
 trap cleanup EXIT
 
@@ -34,12 +35,20 @@ trap cleanup EXIT
     --cap-allow-domains FS \
     -o "$c_mismatch_out"
 
-  python3 - "$meta_out.manifest.json" "$c_out.manifest.json" "$c_mismatch_out.manifest.json" <<'PY'
+  echo "writing native capsule artifact manifest policy match: $native_out"
+  ./oren build tests/fixtures/capability_manifest_policy_src.oren \
+    --backend native \
+    --capsule \
+    --manifest \
+    --cap-allow-domains ENV,FS \
+    -o "$native_out"
+
+  python3 - "$meta_out.manifest.json" "$c_out.manifest.json" "$c_mismatch_out.manifest.json" "$native_out.manifest.json" <<'PY'
 import json
 import sys
 
 # Guard the policy.source_required_domains contract, not only the artifact hash fields.
-meta_manifest, c_manifest, c_mismatch_manifest = sys.argv[1:4]
+meta_manifest, c_manifest, c_mismatch_manifest, native_manifest = sys.argv[1:5]
 
 def load(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -219,6 +228,41 @@ expect_package_check(
     cap_actual=["FS"],
     cap_missing=["ENV"],
     cap_status="missing",
+    budget_status="declared_not_enforced",
+)
+
+native = load(native_manifest)
+expect_common(native_manifest, native, "native")
+expect_policy(
+    native_manifest,
+    native["policy"],
+    backend="native",
+    runtime_profile="capsule",
+    runtime_path="lib/runtime_native_capsule.oren",
+    capsule=True,
+    cap_allow=["ENV", "FS"],
+    required=["ENV"],
+)
+expect_package(
+    native_manifest,
+    native["policy"],
+    declared=True,
+    runtime_profile="capsule",
+    cap_allow=["ENV", "FS"],
+    budgets={"version": 1, "declared": True, "cpu_ms": 10, "heap_bytes": 4096},
+)
+expect_package_check(
+    native_manifest,
+    native["policy"],
+    declared=True,
+    status="observe_only",
+    runtime_declared="capsule",
+    runtime_actual="capsule",
+    runtime_status="match",
+    cap_declared=["ENV", "FS"],
+    cap_actual=["ENV", "FS"],
+    cap_missing=[],
+    cap_status="covers",
     budget_status="declared_not_enforced",
 )
 
