@@ -329,6 +329,19 @@ Verdict: keep `OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D` opt-in. This confirms
 AdvSIMD pairwise add on the current 64-bit slot stream is not a stable shipped `array_sum_int` fix;
 the W5 representation work still needs either a stronger slot64 direct lowering or a safe packed view.
 
+For the arm64 SIMD ISA feasibility check behind that reweighting, use:
+
+```bash
+make verify-native-arm64-slot64-simd-isa
+```
+
+Current artifact: `build/logs/verify_arm64_slot64_simd_isa_20260411_202346_64385.log`. The host
+assembler accepts 64-bit slot vector add/reduce (`ldr q`, `add.2d`, `addp.2d`) and packed-i32
+widening dot (`smull.2d`, `smull2.2d`), but rejects true 64-bit-lane vector multiply
+(`mul v*.2d`). This keeps the dot-side representation question precise: packed i32 can use the
+existing widening multiply path, but the current slot64 ABI cannot become a true 64-bit SIMD dot by
+only swapping the scalar multiply instruction.
+
 To separate one-time setup from the repeated `array_sum_int` read loop directly, use:
 
 ```bash

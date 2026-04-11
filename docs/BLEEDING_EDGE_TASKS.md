@@ -1319,6 +1319,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     (`default_array_ratio_median ~2.2140×`, enabled `~2.2967×`). Keep this branch opt-in;
 			     the W5 representation path still needs more than per-iteration pairwise-add on the
 			     current 64-bit slot stream.
+			   - Arm64 slot64 SIMD ISA check (2026-04-11): new
+			     `make verify-native-arm64-slot64-simd-isa` records the local assembler fact behind the
+			     dot-side reweighting. Latest artifact
+			     `build/logs/verify_arm64_slot64_simd_isa_20260411_202346_64385.log` shows AdvSIMD accepts
+			     slot64 vector add/reduce (`ldr q`, `add.2d`, `addp.2d`) and packed-i32 widening dot
+			     (`smull.2d`, `smull2.2d`), but rejects true 64-bit-lane vector multiply (`mul v*.2d`).
+			     Reweight: do not spend another branch trying to vectorize slot64 dot by swapping the
+			     scalar multiply opcode; the remaining high-leverage path is a safe packed view or a
+			     different representation contract.
 				   - Read-split follow-up (2026-04-05): new `make perf-probe-list-int-packed-bridge-read-split`
 			     warms the hidden packed-bridge artifacts once and then compares canonical `dot_product_int`
 			     against packed scalar / SIMD on the same short/long split runner. Latest artifact

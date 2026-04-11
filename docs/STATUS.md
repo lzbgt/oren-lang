@@ -271,6 +271,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     (`array` ratio median `~2.2140×` default vs `~2.2967×` enabled, `+3.74%`). Keep this
 		     branch opt-in; a per-iteration AdvSIMD pairwise-add body is not the stable slot64
 		     representation/direct-lowering fix.
+		   - Arm64 slot64 SIMD ISA check (2026-04-11): new `make verify-native-arm64-slot64-simd-isa`
+		     records the local assembler fact used for W5 reweighting. Latest artifact
+		     `build/logs/verify_arm64_slot64_simd_isa_20260411_202346_64385.log` shows AdvSIMD accepts
+		     slot64 vector add/reduce (`ldr q`, `add.2d`, `addp.2d`) and packed-i32 widening dot
+		     (`smull.2d`, `smull2.2d`), but rejects true 64-bit-lane vector multiply (`mul v*.2d`).
+		     Reweight: the dot-side slot64 path cannot become a true SIMD dot by a local scalar-multiply
+		     opcode swap; it needs a safe packed i32 view or a different representation contract.
 		   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
