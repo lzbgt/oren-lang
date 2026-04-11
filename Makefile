@@ -1355,7 +1355,7 @@ perf-guard-native-hit: oren_stage2
 # Keep the heavier self-host bundle explicit so the common local gate stays aligned with the
 # repo's <3 minute contract. Use `make test-selfhost` or `make verify-native-quick` when the
 # stage2/capsule/optimizer coverage is desired.
-test: test-native-quick
+test: verify-capability-runtime-contract test-native-quick
 
 # Heavier self-host/local production smoke bundle.
 test-selfhost: verify-native-quick
