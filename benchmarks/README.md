@@ -1618,6 +1618,19 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   (`build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`) showed the
   same direction: `0.136499s -> 0.144068s` steady (`+5.55%`) and `0.014523s -> 0.014546s` gate
   (`+0.16%`). That is why unroll2 is no longer shipped by default.
+- To check whether the old unroll2 family becomes useful only when paired with the scalar exact-`madd`
+  tail, use `make perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int`. It reuses the
+  explicit read-split and order-balanced gate wrappers with an expanded case set:
+  `baseline`, `UNROLL2=1`, `SCALAR=1`, and `UNROLL2=1,SCALAR=1`. Current rerun
+  (`build/logs/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-20260411_172420_40937.log`)
+  rejects the combined candidate too: `UNROLL2=1,SCALAR=1` regressed read-split native
+  `long_per_rep` by `+0.72%`, then lost the whole-operation gate view by native median `+2.20%`
+  (`1/4` wins) and normalized `native/C` median `+8.09%` (`1/4` wins). The separate `UNROLL2=1`
+  and `SCALAR=1` rows also failed at least one required surface (`long_per_rep +7.42%` and
+  `+3.54%`, respectively), so this combined family stays opt-in only.
+  A post-hardening verification rerun
+  (`build/logs/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-20260411_172713_80854.log`)
+  was noisier, with high-covariance nested samples, but it still rejected the same combined candidate.
 - For the arm64 single-pair `fast_list_int_dot_while` dual-accumulator recheck, use
   `make perf-probe-arm64-fast-dot-dual-accum` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-dual-accum-list-int` for explicit `dot_product_int`.
@@ -1760,6 +1773,18 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
     `native/C` is `2/4` with median `+0.15%`
   Reweight: keep scalar exact-`madd` opt-in and keep cursor regs default-on until a candidate wins
   both the decomposition and the whole-operation stability surface together.
+- Follow-up combined-family decision (2026-04-11): the scalar read-split and gate-stability wrappers
+  now accept explicit case sets, and `make perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int`
+  uses that to rank `UNROLL2=1`, `SCALAR=1`, and `UNROLL2=1,SCALAR=1` together on the explicit
+  `dot_product_int` surface. The first artifact
+  (`build/logs/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-20260411_172420_40937.log`)
+  says the combined candidate is not promotable: read-split native `long_per_rep +0.72%`,
+  gate native median `+2.20%` with `1/4` wins, and gate `native/C +8.09%` with `1/4` wins. This is
+  the current answer to the older "quad row under unroll2 might be the real scalar-core candidate"
+  question: not on this shipped tree. An adjacent post-hardening verification artifact
+  (`build/logs/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-20260411_172713_80854.log`)
+  was noisier but reached the same rejection, so the next dot-core work should move away from this
+  combined toggle family.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the

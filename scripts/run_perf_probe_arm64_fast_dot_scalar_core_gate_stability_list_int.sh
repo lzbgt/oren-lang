@@ -16,13 +16,9 @@ sweeps="${OREN_ARM64_FAST_DOT_SCALAR_CORE_GATE_STABILITY_LIST_INT_SWEEPS:-4}"
 runs="${OREN_ARM64_FAST_DOT_SCALAR_CORE_GATE_STABILITY_LIST_INT_RUNS:-5}"
 warmups="${OREN_ARM64_FAST_DOT_SCALAR_CORE_GATE_STABILITY_LIST_INT_WARMUPS:-1}"
 bench_args="${OREN_ARM64_FAST_DOT_SCALAR_CORE_GATE_STABILITY_LIST_INT_ARGS:-2000000 1}"
+case_set="${OREN_ARM64_FAST_DOT_SCALAR_CORE_GATE_STABILITY_LIST_INT_CASES:-baseline cursor_disabled scalar_enabled cursor_scalar_enabled}"
 
-cases=(
-    baseline
-    cursor_disabled
-    scalar_enabled
-    cursor_scalar_enabled
-)
+read -r -a cases <<<"$case_set"
 
 case_env_desc() {
     case "$1" in
@@ -38,7 +34,14 @@ case_env_desc() {
         cursor_scalar_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
             ;;
+        unroll2_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1"
+            ;;
+        unroll2_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
         *)
+            printf 'unknown case: %s\n' "$1" >&2
             return 1
             ;;
     esac
@@ -57,7 +60,14 @@ case_build_env() {
         cursor_scalar_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
             ;;
+        unroll2_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1"
+            ;;
+        unroll2_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
         *)
+            printf 'unknown case: %s\n' "$1" >&2
             return 1
             ;;
     esac
@@ -140,6 +150,7 @@ SWEEPS="$sweeps" \
 RUNS="$runs" \
 WARMUPS="$warmups" \
 BENCH_ARGS="$bench_args" \
+CASE_SET="$case_set" \
 python3 - <<'PY' >"$summary_log"
 import json
 import os
@@ -200,6 +211,8 @@ print(f"sweeps: {os.environ['SWEEPS']}")
 print(f"runs: {os.environ['RUNS']}")
 print(f"warmups: {os.environ['WARMUPS']}")
 print(f"bench_args: {os.environ['BENCH_ARGS']}")
+case_labels = os.environ["CASE_SET"].split()
+print(f"case_set: {os.environ['CASE_SET']}")
 print("rotation: order-balanced round-robin; each case shifts start position once")
 print("")
 
@@ -227,7 +240,7 @@ for sweep in sorted(metrics_by_sweep):
                 )
     baseline = metrics_by_sweep[sweep].get("baseline")
     if baseline and "native_median_s" in baseline:
-        for label in ["cursor_disabled", "scalar_enabled", "cursor_scalar_enabled"]:
+        for label in [item for item in case_labels if item != "baseline"]:
             candidate = metrics_by_sweep[sweep].get(label)
             if candidate and "native_median_s" in candidate:
                 delta_native = pct_delta(candidate["native_median_s"], baseline["native_median_s"])
@@ -240,7 +253,7 @@ for sweep in sorted(metrics_by_sweep):
                 )
     print("")
 
-for label in ["baseline", "cursor_disabled", "scalar_enabled", "cursor_scalar_enabled"]:
+for label in case_labels:
     case_rows = [row for row in metrics_by_case[label] if "native_median_s" in row]
     print(f"{label}:")
     if not case_rows:
