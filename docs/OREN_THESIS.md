@@ -18,6 +18,13 @@ That means Oren should be judged by whether the same program can run under expli
 boundaries, reproduce behavior across backends, and produce machine-readable evidence that
 humans and agents can use to build, test, repair, and audit the system.
 
+Oren's uniqueness is the composition of that contract, not the claim that every individual
+ingredient is unprecedented. Mainstream languages and runtimes already cover parts of the space:
+systems explicitness, memory safety, VM execution, sandboxing, structured tooling, and capability
+research all exist elsewhere. Oren should differentiate by making deterministic native/AVM
+execution, capability-governed effects, backend parity, and agent-readable verification the same
+product surface.
+
 ## Distance From Zig
 
 Oren is far from Zig as a production systems-language toolchain:

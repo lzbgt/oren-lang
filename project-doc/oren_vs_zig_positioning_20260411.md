@@ -51,6 +51,13 @@ Oren is not far from Zig if measured by "has a legitimate independent product th
 - Oren's multi-backend parity model is closer to "one language that can run as native code or deterministic governed bytecode" than to "a C replacement compiler/toolchain."
 - The project already has concrete surfaces for native runtimes, AVM determinism, capability-governed effects, scheduler work, GC/list header robustness, typed buffers, SIMD probes, readiness tooling, and fixture-first semantic gates.
 
+Important precision: Oren's uniqueness is mostly the combined product contract, not that every
+ingredient is absent from mainstream languages. Mainstream systems languages and runtimes already
+cover pieces such as explicit systems programming, memory safety, VM execution, sandboxing,
+structured diagnostics, and capability-style research. The distinctive Oren claim should be that
+deterministic native plus AVM bytecode execution, capability-governed host effects, cross-backend
+semantic parity, and agent-readable verification are one coherent language/toolchain surface.
+
 ## Continue Oren Or Fork Zig?
 
 Decision: continue Oren as the mainline project. Do not fork Zig as the primary strategy.
