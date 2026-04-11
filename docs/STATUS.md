@@ -192,27 +192,30 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      NEON vector body and 6 for the de-vectorized scalar `smaddl` loop on both sources. Reweight:
      scalar loop debt is still material, but the remaining large `dot_product` gap is compounded by
      the missing vector/slot64 path, not by generic-list specialization.
-	   - Slot-ABI ceiling probe (2026-04-05): the new `make perf-probe-list-int-slot-abi-ceiling`
+	   - Slot-ABI ceiling probe (2026-04-05, refreshed 2026-04-11): the new `make perf-probe-list-int-slot-abi-ceiling`
 	     measures how much vector headroom the current `list<int>` 64-bit slot ABI still has on the
 	     host compiler. Latest artifact
-	     (`build/logs/perf-probe-list-int-slot-abi-ceiling-20260405_033149_3497.log`,
+	     (`build/logs/perf-probe-list-int-slot-abi-ceiling-20260411_164808_50266.log`,
 	     `runs=5 warmups=1 n=2000000 reps=100`) compares packed-i32 C, slot64 C, the shipped Oren
 	     canonical benchmark, and the Oren slot-direct helper on the same workload:
-	     - packed-i32 C vector: ~0.000252s per rep
-	     - packed-i32 C scalar: ~0.000731s per rep
-	     - slot64 C “vector”: ~0.000725s per rep
+	     - packed-i32 C vector: ~0.000253s per rep
+	     - packed-i32 C scalar: ~0.000741s per rep
+	     - slot64 C “vector”: ~0.000722s per rep
 	     - slot64 C scalar: ~0.000741s per rep
-	     - Oren native canonical: ~0.000762s per rep
-	     - Oren native slot-direct helper: ~0.003228s per rep
+	     - Oren native canonical: ~0.001289s per rep
+	     - Oren native slot-direct helper: ~0.003260s per rep
 	     Ratio view:
-	     - slot64-vector / packed-vector: ~2.8712×
-	     - slot64-scalar / packed-scalar: ~1.0135×
-	     - Oren canonical / slot64-vector: ~1.0514×
-	     - Oren slot-direct helper / slot64-vector: ~4.4514×
+	     - slot64-vector / packed-vector: ~2.8567×
+	     - slot64-scalar / packed-scalar: ~1.0001×
+	     - Oren canonical / slot64-vector: ~1.7861×
+	     - Oren canonical / slot64-scalar: ~1.7403×
+	     - Oren slot-direct helper / slot64-vector: ~4.5177×
 	     The extracted slot64 `-O2` assembly is still a paired-scalar `ldp` + `madd` loop, not the
-	     packed NEON `smlal/smlal2` loop the compiler emits for packed i32. That reweights the next
-	     move again: the current 64-bit slot ABI itself largely erases the auto-vectorization gain, and
-	     the shipped Oren canonical loop is already very near that slot64 host-C ceiling.
+	     packed NEON `smlal/smlal2` loop the compiler emits for packed i32; the corrected extractor
+	     reports 28 instructions for the packed-i32 NEON body, 12 for the slot64 paired-scalar loop,
+	     and 6 for the slot64 scalar tail. That reweights the next move again: the current 64-bit
+	     slot ABI itself largely erases the auto-vectorization gain, but the shipped Oren canonical
+	     loop still has a material `~1.8×` gap against the slot64 host-C ceiling.
    - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved

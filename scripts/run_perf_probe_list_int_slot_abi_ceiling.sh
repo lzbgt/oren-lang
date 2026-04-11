@@ -2,6 +2,8 @@
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
@@ -20,6 +22,7 @@ slot_scalar_bin="$tmp_dir/dot_product_slot64_scalar"
 oren_canonical_bin="$tmp_dir/dot_product_int_oren_native"
 oren_slot_bin="$tmp_dir/dot_product_int_slot_direct_oren_native"
 slot_c_src="$tmp_dir/dot_product_slot64.c"
+packed_c_src="${OREN_LIST_INT_SLOT_ABI_PACKED_C_SOURCE:-benchmarks/dot_product_int/dot_product_int.c}"
 
 runs="${OREN_LIST_INT_SLOT_ABI_CEILING_RUNS:-5}"
 warmups="${OREN_LIST_INT_SLOT_ABI_CEILING_WARMUPS:-1}"
@@ -27,6 +30,7 @@ n="${OREN_LIST_INT_SLOT_ABI_CEILING_N:-2000000}"
 reps="${OREN_LIST_INT_SLOT_ABI_CEILING_REPS:-100}"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
+perf_build_use_cache="${OREN_PERF_BUILD_USE_CACHE:-0}"
 
 bench_cc="${OREN_BENCH_CC:-cc}"
 scalar_flags=()
@@ -40,6 +44,7 @@ fi
 
 perf_build_env_read_array "$build_env_raw"
 build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
+perf_build_cache_args
 
 cat >"$slot_c_src" <<'EOF'
 #include <inttypes.h>
@@ -90,8 +95,8 @@ int main(int argc, char **argv) {
 }
 EOF
 
-build_canonical_cmd=(./oren_stage2 build benchmarks/dot_product_int/dot_product_int.oren --backend native --no-debug --no-cache -o "$oren_canonical_bin")
-build_slot_cmd=(./oren_stage2 build benchmarks/dot_product_int_slot_direct/dot_product_int_slot_direct.oren --backend native --no-debug --no-cache -o "$oren_slot_bin")
+build_canonical_cmd=(./oren_stage2 build benchmarks/dot_product_int/dot_product_int.oren --backend native --no-debug "${PERF_BUILD_CACHE_ARGS[@]}" -o "$oren_canonical_bin")
+build_slot_cmd=(./oren_stage2 build benchmarks/dot_product_int_slot_direct/dot_product_int_slot_direct.oren --backend native --no-debug "${PERF_BUILD_CACHE_ARGS[@]}" -o "$oren_slot_bin")
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then
     env "${build_env_parts[@]}" "${build_canonical_cmd[@]}" >"$tmp_dir/dot_product_int_oren_native.build.log" 2>&1
     env "${build_env_parts[@]}" "${build_slot_cmd[@]}" >"$tmp_dir/dot_product_int_slot_direct_oren_native.build.log" 2>&1
@@ -100,12 +105,12 @@ else
     "${build_slot_cmd[@]}" >"$tmp_dir/dot_product_int_slot_direct_oren_native.build.log" 2>&1
 fi
 
-"$bench_cc" -O2 -S -o "$packed_vector_asm" benchmarks/dot_product/dot_product.c
-"$bench_cc" -O2 "${scalar_flags[@]}" -S -o "$packed_scalar_asm" benchmarks/dot_product/dot_product.c
+"$bench_cc" -O2 -S -o "$packed_vector_asm" "$packed_c_src"
+"$bench_cc" -O2 "${scalar_flags[@]}" -S -o "$packed_scalar_asm" "$packed_c_src"
 "$bench_cc" -O2 -S -o "$slot_vector_asm" "$slot_c_src"
 "$bench_cc" -O2 "${scalar_flags[@]}" -S -o "$slot_scalar_asm" "$slot_c_src"
-"$bench_cc" -O2 -o "$packed_vector_bin" benchmarks/dot_product/dot_product.c
-"$bench_cc" -O2 "${scalar_flags[@]}" -o "$packed_scalar_bin" benchmarks/dot_product/dot_product.c
+"$bench_cc" -O2 -o "$packed_vector_bin" "$packed_c_src"
+"$bench_cc" -O2 "${scalar_flags[@]}" -o "$packed_scalar_bin" "$packed_c_src"
 "$bench_cc" -O2 -o "$slot_vector_bin" "$slot_c_src"
 "$bench_cc" -O2 "${scalar_flags[@]}" -o "$slot_scalar_bin" "$slot_c_src"
 
@@ -124,6 +129,9 @@ PACKED_SCALAR_ASM="$packed_scalar_asm" \
 SLOT_VECTOR_ASM="$slot_vector_asm" \
 SLOT_SCALAR_ASM="$slot_scalar_asm" \
 BUILD_ENV="$build_env_raw" \
+PERF_BUILD_USE_CACHE="$perf_build_use_cache" \
+PACKED_C_SOURCE="$packed_c_src" \
+SLOT_C_SOURCE="$slot_c_src" \
 CC_BIN="$bench_cc" \
 SCALAR_FLAGS="${scalar_flags[*]}" \
 python3 - <<'PY' >"$summary_log"
@@ -137,7 +145,7 @@ from pathlib import Path
 runs = int(os.environ["RUNS"])
 warmups = int(os.environ["WARMUPS"])
 args = [os.environ["N"], os.environ["REPS"]]
-label_re = re.compile(r"^([A-Za-z0-9_.$]+):$")
+label_re = re.compile(r"^([A-Za-z_.$][A-Za-z0-9_.$]*):")
 
 
 def run_one(cmd):
@@ -229,7 +237,7 @@ def count_mnemonics(block):
         stripped = line.strip()
         if not stripped or stripped.startswith(";") or stripped.startswith("//"):
             continue
-        if stripped.endswith(":"):
+        if label_re.match(stripped):
             continue
         parts = stripped.split(None, 1)
         if not parts:
@@ -262,6 +270,9 @@ print("list<int> slot ABI ceiling probe")
 print("")
 if os.environ["BUILD_ENV"]:
     print(f"build_env: {os.environ['BUILD_ENV']}")
+print(f"perf_build_use_cache: {os.environ['PERF_BUILD_USE_CACHE']}")
+print(f"packed_c_source: {os.environ['PACKED_C_SOURCE']}")
+print(f"slot_c_source: {os.environ['SLOT_C_SOURCE']}")
 print(f"cc: {os.environ['CC_BIN']}")
 print(f"scalar_flags: {os.environ['SCALAR_FLAGS']}")
 print(f"runs: {runs}")
@@ -288,6 +299,7 @@ print(f"slot64_vector/packed_vector per_rep ratio: {(slot_vector['per_rep_s'] / 
 print(f"slot64_scalar/packed_scalar per_rep ratio: {(slot_scalar['per_rep_s'] / packed_scalar['per_rep_s']):.4f}x")
 print(f"oren_slot/slot64_scalar per_rep ratio: {(oren_slot['per_rep_s'] / slot_scalar['per_rep_s']):.4f}x")
 print(f"oren_slot/slot64_vector per_rep ratio: {(oren_slot['per_rep_s'] / slot_vector['per_rep_s']):.4f}x")
+print(f"oren_canonical/slot64_scalar per_rep ratio: {(oren_canonical['per_rep_s'] / slot_scalar['per_rep_s']):.4f}x")
 print(f"oren_canonical/slot64_vector per_rep ratio: {(oren_canonical['per_rep_s'] / slot_vector['per_rep_s']):.4f}x")
 print(f"oren_canonical/packed_vector per_rep ratio: {(oren_canonical['per_rep_s'] / packed_vector['per_rep_s']):.4f}x")
 print(f"oren_canonical/oren_slot per_rep ratio: {(oren_canonical['per_rep_s'] / oren_slot['per_rep_s']):.4f}x")

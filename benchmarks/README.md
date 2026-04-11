@@ -152,28 +152,31 @@ This builds and times six binaries on the same `n/reps` workload:
 - the shipped Oren native `dot_product_int` benchmark
 - the native-only Oren `dot_product_int_slot_direct` benchmark
 
-The latest artifact, `build/logs/perf-probe-list-int-slot-abi-ceiling-20260405_033149_3497.log`,
+The current precise-label artifact, `build/logs/perf-probe-list-int-slot-abi-ceiling-20260411_164808_50266.log`,
 shows:
 
-- packed-i32 C vector: `~0.000252s` per rep
-- packed-i32 C scalar: `~0.000731s` per rep
-- slot64 C “vector”: `~0.000725s` per rep
+- packed-i32 C vector: `~0.000253s` per rep
+- packed-i32 C scalar: `~0.000741s` per rep
+- slot64 C “vector”: `~0.000722s` per rep
 - slot64 C scalar: `~0.000741s` per rep
-- Oren native canonical: `~0.000762s` per rep
-- Oren native slot-direct helper: `~0.003228s` per rep
+- Oren native canonical: `~0.001289s` per rep
+- Oren native slot-direct helper: `~0.003260s` per rep
 
 The ratio view is the important part:
 
-- slot64-vector / packed-vector: `~2.8712x`
-- slot64-scalar / packed-scalar: `~1.0135x`
-- Oren canonical / slot64-vector: `~1.0514x`
-- Oren slot-direct helper / slot64-vector: `~4.4514x`
+- slot64-vector / packed-vector: `~2.8567x`
+- slot64-scalar / packed-scalar: `~1.0001x`
+- Oren canonical / slot64-vector: `~1.7861x`
+- Oren canonical / slot64-scalar: `~1.7403x`
+- Oren slot-direct helper / slot64-vector: `~4.5177x`
 
 And the assembly snippet matters too: the host compiler does not generate a NEON packed-lane loop
 for the slot64 source. Its best `-O2` slot64 loop is still a paired-scalar `ldp` + `madd` shape,
-not the packed `smlal/smlal2` loop seen in the packed-i32 benchmark. That is the current ceiling
-fact to use for next-step planning: the 64-bit slot ABI itself largely erases the auto-vectorization
-gain, and the shipped Oren canonical loop is already within about 5% of that slot64 host-C ceiling.
+not the packed `smlal/smlal2` loop seen in the packed-i32 benchmark. The corrected extractor now
+reports 28 instructions for the packed-i32 NEON loop, 12 for the slot64 paired-scalar loop, and 6
+for the slot64 scalar tail. That is the current ceiling fact to use for next-step planning: the
+64-bit slot ABI itself largely erases the auto-vectorization gain, but the shipped Oren canonical
+loop still has a material `~1.8x` gap against the slot64 host-C ceiling.
 
 For the broader whole-operation picture across both `array_sum_int` and `dot_product_int`, use:
 
@@ -190,30 +193,30 @@ This builds and times eight binaries on the same `n/reps` workload:
 - slot64 C `dot_product`
 - Oren native canonical `dot_product_int`
 
-Each C shape is timed both with default `-O2` and with vectorization disabled. The latest final-tree
-artifact, `build/logs/perf-probe-list-int-c-ceiling-20260409_143734_77001.log`, shows:
+Each C shape is timed both with default `-O2` and with vectorization disabled. The latest current-tree
+artifact, `build/logs/perf-probe-list-int-c-ceiling-20260411_164839_51152.log`, shows:
 
 - `array_sum_int`
-  - packed32 C vector: `~0.000126s` per rep
-  - packed32 C scalar: `~0.000729s` per rep
-  - slot64 C vector: `~0.000235s` per rep
-  - slot64 C scalar: `~0.000750s` per rep
-  - Oren native canonical: `~0.000563s` per rep
+  - packed32 C vector: `~0.000132s` per rep
+  - packed32 C scalar: `~0.000727s` per rep
+  - slot64 C vector: `~0.000241s` per rep
+  - slot64 C scalar: `~0.000757s` per rep
+  - Oren native canonical: `~0.000533s` per rep
 - `dot_product_int`
-  - packed32 C vector: `~0.000248s` per rep
-  - packed32 C scalar: `~0.000730s` per rep
-  - slot64 C vector: `~0.000715s` per rep
-  - slot64 C scalar: `~0.000734s` per rep
-  - Oren native canonical: `~0.001335s` per rep
+  - packed32 C vector: `~0.000259s` per rep
+  - packed32 C scalar: `~0.000737s` per rep
+  - slot64 C vector: `~0.000751s` per rep
+  - slot64 C scalar: `~0.000746s` per rep
+  - Oren native canonical: `~0.001293s` per rep
 
 The decisive ratios are:
 
-- `array_slot64_vector / array_packed32_vector`: `~1.8622x`
-- `oren_array_sum_int / array_slot64_vector`: `~2.3939x`
-- `oren_array_sum_int / array_slot64_scalar`: `~0.7500x`
-- `dot_slot64_vector / dot_packed32_vector`: `~2.8814x`
-- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0058x`
-- `oren_dot_product_int / dot_slot64_vector`: `~1.8678x`
+- `array_slot64_vector / array_packed32_vector`: `~1.8264x`
+- `oren_array_sum_int / array_slot64_vector`: `~2.2146x`
+- `oren_array_sum_int / array_slot64_scalar`: `~0.7033x`
+- `dot_slot64_vector / dot_packed32_vector`: `~2.8978x`
+- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0112x`
+- `oren_dot_product_int / dot_slot64_vector`: `~1.7232x`
 
 That is the current whole-operation ceiling fact on arm64 `master` after the explicit get-sum
 unroll2 promotion: the helper/public-slot ranking question is no longer the main blocker, and the
