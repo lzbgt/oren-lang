@@ -61,6 +61,7 @@ make verify-backend-semantic-diff  # emits C/native/obc parity JSON plus ledger 
 make verify-backend-semantic-diff-gas-calibration  # second semantic-diff gas calibration fixture
 make verify-backend-semantic-diff-gas-branch-calibration  # branch-heavy semantic-diff gas calibration fixture
 make verify-backend-gas-surface-calibration-set  # combines gas calibration fixtures and guards ratio spread
+make verify-backend-native-instruction-surface-decision  # rejects whole-binary disasm counts as runtime gas conversion evidence
 make verify-native-capsule-resource-checks  # guards native FS resource-check counters in native-run JSON
 make verify-native-gas-accounting-modes  # guards native gas mode spellings and distinct block surfaces
 make verify-public-readme-positioning  # guards public README copy against single-language comparison framing

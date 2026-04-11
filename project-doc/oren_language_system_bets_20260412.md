@@ -150,10 +150,14 @@ It is a language plus runtime plus artifact contract.
   native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
   native instruction-equivalent gas exists. The first block-weighted calibration set
-  (`build/reports/backend_gas_surface_calibration_set_20260412_073423_25794.json`) still spans
-  `~1.1357x` to `~13.3761x` native ticks per AVM opcode gas, so block weighting is evidence, not a
-  conversion rule. Oren also guards exact native gas mode
-  spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
+	  (`build/reports/backend_gas_surface_calibration_set_20260412_073423_25794.json`) still spans
+	  `~1.1357x` to `~13.3761x` native ticks per AVM opcode gas, so block weighting is evidence, not a
+	  conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native
+	  disassembly instruction counts as a shortcut because they include linked runtime text and are not
+	  dynamic per-executed-path gas; the first report counted the same `470528` whole-binary native
+	  instructions for all three calibration fixtures while AVM opcode gas varied from `234` to `2328`.
+	  Oren also guards exact native gas mode
+	  spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
   lowering-block evidence, and `block-weighted` selects weighted lowering-block evidence rather than silently aliasing statement gas. The native build cache key now
   includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
   Next work is instruction-equivalent native gas or a stated conversion rule, not only expanding fixture scripts.

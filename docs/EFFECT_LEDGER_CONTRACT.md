@@ -228,3 +228,10 @@ report proving the current ratio spread across default, loop-heavy, and branch-h
 fixture-sensitive to promote as a conversion rule. The same report carries an
 `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false` and
 `required_next_surface="native_instruction_equivalent_gas"`.
+`make verify-backend-native-instruction-surface-decision` records a second blocker:
+`oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
+as a runtime gas surface because they include linked runtime text and are not per-executed-path evidence.
+The first report (`build/reports/backend_native_instruction_surface_decision_20260412_075618_63812.json`)
+counted the same `470528` whole-binary native instructions for the default, loop-heavy, and branch-heavy
+fixtures while AVM opcode gas varied, so the required next surface is dynamic emitter-level instruction
+ticks, not a static binary-size proxy.

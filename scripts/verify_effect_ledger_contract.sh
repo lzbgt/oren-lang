@@ -33,6 +33,7 @@ avm_json_guard="scripts/verify_avm_effect_ledger_json.sh"
 semantic_diff_runner="scripts/run_backend_semantic_diff.sh"
 semantic_diff_guard="scripts/verify_backend_semantic_diff.sh"
 gas_calibration_set_guard="scripts/verify_backend_gas_surface_calibration_set.sh"
+native_instruction_surface_guard="scripts/verify_backend_native_instruction_surface_decision.sh"
 native_gas_modes_guard="scripts/verify_native_gas_accounting_modes.sh"
 native_policy_runner="scripts/run_native_package_policy.sh"
 native_policy_runner_guard="scripts/verify_native_package_policy_runner.sh"
@@ -53,6 +54,7 @@ for f in \
   "$semantic_diff_runner" \
   "$semantic_diff_guard" \
   "$gas_calibration_set_guard" \
+  "$native_instruction_surface_guard" \
   "$native_gas_modes_guard" \
   "$native_policy_runner" \
   "$native_policy_runner_guard" \
@@ -94,6 +96,7 @@ require_literal "$contract" "oren.native-capsule-resource-checks.v0"
 require_literal "$contract" "oren.gas-surface.v0"
 require_literal "$contract" "oren.gas-surface-calibration.v0"
 require_literal "$contract" "oren.gas-surface-calibration-set.v0"
+require_literal "$contract" "oren.native-instruction-surface-decision.v0"
 require_literal "$contract" "avm_opcode_cost_v0"
 require_literal "$contract" "native_stmt_loop_tick_v0"
 require_literal "$contract" "native_basic_block_tick_v0"
@@ -120,6 +123,7 @@ require_literal Makefile "verify-backend-semantic-diff:"
 require_literal Makefile "verify-backend-semantic-diff-gas-calibration:"
 require_literal Makefile "verify-backend-semantic-diff-gas-branch-calibration:"
 require_literal Makefile "verify-backend-gas-surface-calibration-set:"
+require_literal Makefile "verify-backend-native-instruction-surface-decision:"
 require_literal Makefile "verify-native-gas-accounting-modes:"
 require_literal Makefile "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
 require_literal Makefile "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
@@ -197,6 +201,10 @@ require_literal "$gas_calibration_set_guard" "native_instruction_equivalent_gas"
 require_literal "$gas_calibration_set_guard" "backend_semantic_diff_gas_calibration.oren"
 require_literal "$gas_calibration_set_guard" "backend_semantic_diff_gas_branch_calibration.oren"
 require_literal "$gas_calibration_set_guard" "verify_backend_semantic_diff.sh"
+require_literal "$native_instruction_surface_guard" "oren.native-instruction-surface-decision.v0"
+require_literal "$native_instruction_surface_guard" "whole_binary_disasm_not_runtime_path"
+require_literal "$native_instruction_surface_guard" "native_dynamic_emitter_instruction_ticks"
+require_literal "$native_instruction_surface_guard" "native_whole_binary_disasm_instruction_count_v0"
 require_literal "$native_gas_modes_guard" "native_gas_accounting_modes.oren"
 require_literal "$native_gas_modes_guard" "native_loop_safepoint_tick_v0"
 require_literal "$native_gas_modes_guard" "native_stmt_loop_tick_v0"
