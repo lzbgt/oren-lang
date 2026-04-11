@@ -2743,6 +2743,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	      explicit `list<int>` get-sum still ships at `4095`, arm64 `list<int>` dot remains at
 	      `4095`, and x64 read-only list loops remain at `1023`. The new explicit get-sum
 	      tick-mask probe is useful, but the higher-mask candidates are still too noisy to ship.
+	      The stronger same-tree exact decision wrapper now confirms the conservative get-sum
+	      default on the shipped tree:
+	      `build/logs/perf-probe-arm64-fast-get-sum-tick-mask-decision-20260411_162635_82969.log`
+	      preferred `default` on the target `array_sum_int` surface (`~2.1833x` vs `16383`
+	      `~2.2437x`, `65535` `~2.1864x`; `array_default_wins: 2/3`) and on the
+	      `dot_product_int` control (`~1.7332x` vs `~1.7811x`, `~1.7845x`).
 	    - Arm64 canonical hot-loop tick-mask probe (`make perf-probe-arm64-fast-loop-tick-masks`,
 	      2026-04-04): baseline `dot_product` ~2.9293x C, `16383` unchanged, `65535` ~2.8584x C.
 	      Useful tuning surface added; default remains `4095`.

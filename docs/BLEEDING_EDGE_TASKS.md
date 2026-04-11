@@ -2035,14 +2035,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
 									      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
 							      serialized acceptance bundle. Current final-tree rerun
-							      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
-							      keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now: explicit `16383`
-							      and `65535` improved steady native medians on that sample (`0.137232s` and `0.131635s`
-							      vs shipped `0.141901s`), but the gate view stayed too noisy to trust as a production
-								      default (`native gate cov=0.6421` at shipped `4095`, `0.2631` at `16383`, `0.1270`
-								      at `65535`).
-								    - Arm64 explicit get-sum unroll2 promotion (2026-04-09): the earlier crashy
-								      candidate was root-caused in
+								      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
+								      keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now: explicit `16383`
+								      and `65535` improved steady native medians on that sample (`0.137232s` and `0.131635s`
+								      vs shipped `0.141901s`), but the gate view stayed too noisy to trust as a production
+									      default (`native gate cov=0.6421` at shipped `4095`, `0.2631` at `16383`, `0.1270`
+									      at `65535`).
+									      The stronger exact same-tree decision wrapper is now
+									      `make perf-probe-arm64-fast-get-sum-tick-mask-decision`. Current cached rerun
+									      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-decision-20260411_162635_82969.log`)
+									      keeps the shipped default: target exact `array_sum_int` preferred default by
+									      median (`~2.1833×` vs `16383 ~2.2437×`, `65535 ~2.1864×`,
+									      `array_default_wins: 2/3`), and the `dot_product_int` control also preferred
+									      default (`~1.7332×` vs `~1.7811×`, `~1.7845×`).
+									    - Arm64 explicit get-sum unroll2 promotion (2026-04-09): the earlier crashy
+									      candidate was root-caused in
 								      `lib/compiler/arm64_native_stmt_loops_list_emit.oren`, where the unrolled
 								      bodies were clobbering reserved heap registers `X27` / `X28`. Those temps now
 								      use caller-saved `X12` / `X13`, and

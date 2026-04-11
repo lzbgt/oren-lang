@@ -1436,6 +1436,16 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `0.2631` at `16383`, `0.1270` at `65535`). The production-quality conclusion is therefore
   conservative: keep `4095` shipped and use this new probe as the decision surface for a later,
   stronger stability-style rerun before changing the default.
+- The stronger same-tree whole-operation decision surface now exists too:
+  `make perf-probe-arm64-fast-get-sum-tick-mask-decision`. It rotates default, `16383`, and
+  `65535` across exact `perf-probe-list-int-c-ceiling` sweeps and treats `array_sum_int` as the
+  target get-sum surface while reporting `dot_product_int` as a control.
+- Current cached rerun
+  (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-decision-20260411_162635_82969.log`)
+  keeps the shipped default at `4095`: exact `array_sum_int` preferred default by median
+  (`default_array_ratio_median ~2.1833x`, `16383 ~2.2437x`, `65535 ~2.1864x`,
+  `array_default_wins: 2/3`), and the dot control also preferred default
+  (`default_dot_ratio_median ~1.7332x`, `16383 ~1.7811x`, `65535 ~1.7845x`).
 - For the arm64 explicit `fast_list_int_push_while` single-list cursor follow-up, use
   `make perf-probe-arm64-fast-push-single-list-cursor-list-int`. This compares the shipped
   explicit-`array_sum_int` fill loop against
