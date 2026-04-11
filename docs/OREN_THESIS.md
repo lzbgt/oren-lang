@@ -117,4 +117,6 @@ Before claiming Zig-like systems-language maturity, Oren needs:
   per-source `capabilities` metadata manifest and
   `docs/CAPABILITY_RUNTIME_CONTRACT.md` runtime-profile contract.
 
-Related horizon research is archived in `project-doc/oren_feature_horizon_20260412.md`.
+Related horizon research is archived in `project-doc/oren_feature_horizon_20260412.md`; it
+also separates external source signals from Oren-specific forecast bets such as effect ledgers,
+budgeted interfaces, replayable multiverse execution, and agent-callable module contracts.

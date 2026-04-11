@@ -78,6 +78,64 @@ chat history or partial summaries.
 The strongest Oren path is not to chase every modern language feature. The demanding feature
 set should make Oren a governed execution system that can still produce practical native code.
 
+## Forecast Bets Beyond The Source Material
+
+The sources above are pressure signals, not the product thesis by themselves. The Oren-specific
+forecast is that a new language should make the following ideas first-class before mainstream
+languages fully converge on them.
+
+1. **Determinism as a selectable semantic mode, not a VM accident.**
+   A program should be able to choose a fast native profile, a deterministic native profile, or an
+   AVM profile, with the compiler making effect, time, RNG, scheduling, and host IO differences
+   explicit. This is more than "runs in a sandbox": determinism becomes a language/runtime contract.
+
+2. **Effect ledgers instead of ambient syscall wrappers.**
+   Host effects should produce typed ledger entries: requested capability, policy decision, budget
+   delta, input/output digest, replay behavior, and failure mode. That gives agents and auditors a
+   small artifact to reason over without scraping process logs.
+
+3. **Budgets as part of the interface, not deployment config.**
+   Function/module signatures should eventually express resource and effect budgets well enough that
+   tooling can answer: "Can this package run in capsule profile with 10 ms CPU, no NET, deterministic
+   RNG, and 4 MB heap?" This is stronger than an env knob and weaker than heavyweight formal proof.
+
+4. **Agent-callable modules as a language target.**
+   Oren packages should be able to expose commands/tools with typed input/output, capability
+   requirements, redaction rules, consent prompts, and structured errors. That treats the agent/tool
+   boundary as a compilation target like native or AVM, not as a README convention.
+
+5. **Replayable multiverse execution.**
+   AVM snapshots should support cheap forks for "what if this policy/input/tool result were
+   different?" The forecast is that agent workflows need deterministic branches, not only one
+   sequential run. This makes AVM more than portability; it becomes a search and audit substrate.
+
+6. **Cross-backend semantic diff as a compiler feature.**
+   Oren already treats C/native/OBC parity seriously through fixtures. The stronger feature is a
+   compiler/runtime command that emits a structured semantic diff when native and AVM disagree:
+   value tags, effects, budget deltas, scheduler events, and source spans.
+
+7. **Representation contracts instead of hidden optimizer heroics.**
+   Users should be able to request a safe packed view, slot64 list view, typed-buffer view, or
+   aliasing mode with clear semantics. The compiler then optimizes inside that declared contract.
+   This is a middle path between high-level containers that hide layout and low-level languages that
+   force representation details everywhere.
+
+8. **Proof-carrying runtime profiles for ordinary builds.**
+   Each build should carry a small, checkable claim: source capabilities, runtime profile,
+   dependency capability union, build provenance, deterministic mode, and known unstable surfaces.
+   The goal is not academic proof of the whole compiler; it is boring, automatable evidence that a
+   package is allowed to run under a policy.
+
+9. **Policy-readable crypto and data sensitivity.**
+   Future stdlib APIs should expose algorithm families, key lifecycle hints, data sensitivity, and
+   redaction boundaries in metadata. This lets package manifests and agent tools make safe choices
+   as PQC migration and AI data-governance pressure increase.
+
+10. **Docs/tests/status as compiler-facing API.**
+    Oren should continue turning status matrices, readiness reports, and failure artifacts into
+    machine-readable contracts. The forecast is that agent-maintained systems will depend on this as
+    much as human-readable docs.
+
 ### 2026-2027: Make The Governance Contract Boring
 
 - **Package capability manifests.**
