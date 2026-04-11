@@ -262,6 +262,32 @@ fn main() {
         print("tag_parity: map_alias_eq expected true")
         exit(37)
     }
+    var ba = oren_u8_buf_new(1)
+    var bb = oren_u8_buf_new(1)
+    var bc = ba
+    oren_buf_store_u8(ba, 0, 7)
+    oren_buf_store_u8(bb, 0, 7)
+    if ba == bb {
+        print("tag_parity: u8_buf_eq expected false")
+        exit(40)
+    }
+    if ba != bc {
+        print("tag_parity: u8_buf_alias_eq expected true")
+        exit(41)
+    }
+    var bia = buffer.i32_new(1)
+    var bib = buffer.i32_new(1)
+    var bic = bia
+    buffer.try_store_i32(bia, 0, 9)
+    buffer.try_store_i32(bib, 0, 9)
+    if bia == bib {
+        print("tag_parity: i32_buf_eq expected false")
+        exit(42)
+    }
+    if bia != bic {
+        print("tag_parity: i32_buf_alias_eq expected true")
+        exit(43)
+    }
     var fa = id
     var fb = id2
     var fc = fa

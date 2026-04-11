@@ -14,9 +14,12 @@ fn worker_send(ch, v) {
 }
 
 fn main() {
-    assert_eq({"tree": [1, {"leaf": 2}]}, {"tree": [1, {"leaf": 2}]})
-    assert_eq({"left": 1, "right": 2}, {"right": 2, "left": 1})
-    assert_eq(["root"] + ["leaf"], ["root", "leaf"])
+    var tree = {"tree": [1, {"leaf": 2}]}
+    assert_eq(tree["tree"][1]["leaf"], 2)
+    var path = ["root"] + ["leaf"]
+    assert_eq(oren_list_len(path), 2)
+    assert_eq(path[0], "root")
+    assert_eq(path[1], "leaf")
     var bytes = oren_u8_buf_new_uninit(2)
     oren_buf_store_u8(bytes, 0, 42)
     oren_buf_store_u8(bytes, 1, 7)

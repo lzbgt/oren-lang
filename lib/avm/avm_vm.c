@@ -61,72 +61,18 @@ static int select_case_parse(AvmValue v, int* out_kind, int64_t* out_chid, AvmVa
 }
 
 static int avm_value_equal_depth(AvmValue a, AvmValue b, int depth) {
-    if (depth > 64) return 0;
+    (void)depth;
     if (a.type != b.type) return 0;
     if (a.type == AVM_VAL_NIL) return 1;
     if (a.type == AVM_VAL_INT || a.type == AVM_VAL_BOOL) return a.as.i == b.as.i;
     if (a.type == AVM_VAL_FLOAT) return a.as.f == b.as.f;
     if (a.type == AVM_VAL_STRING) return strcmp((char*)a.as.p, (char*)b.as.p) == 0;
-    if (a.type == AVM_VAL_BYTES) {
-        AvmBytes* ab = a.as.b;
-        AvmBytes* bb = b.as.b;
-        if (ab == bb) return 1;
-        if (!ab || !bb || ab->len != bb->len) return 0;
-        if (ab->len <= 0) return 1;
-        if (!ab->data || !bb->data) return 0;
-        return memcmp(ab->data, bb->data, (size_t)ab->len) == 0;
-    }
+    if (a.type == AVM_VAL_BYTES) return a.as.b == b.as.b;
     if (a.type == AVM_VAL_I32_BUF || a.type == AVM_VAL_I64_BUF ||
-        a.type == AVM_VAL_F32_BUF || a.type == AVM_VAL_F64_BUF) {
-        AvmBuf* ab = a.as.buf;
-        AvmBuf* bb = b.as.buf;
-        if (ab == bb) return 1;
-        if (!ab || !bb || ab->len != bb->len || ab->elem_size != bb->elem_size) return 0;
-        size_t bytes = (size_t)ab->len * (size_t)ab->elem_size;
-        if (bytes == 0) return 1;
-        if (!ab->data || !bb->data) return 0;
-        return memcmp(ab->data, bb->data, bytes) == 0;
-    }
-    if (a.type == AVM_VAL_LIST_INT) {
-        AvmListInt* al = a.as.li;
-        AvmListInt* bl = b.as.li;
-        if (al == bl) return 1;
-        if (!al || !bl || al->count != bl->count) return 0;
-        if (al->count > 0 && (!al->items || !bl->items)) return 0;
-        for (int i = 0; i < al->count; i++) {
-            if (al->items[i] != bl->items[i]) return 0;
-        }
-        return 1;
-    }
-    if (a.type == AVM_VAL_LIST) {
-        AvmList* al = a.as.l;
-        AvmList* bl = b.as.l;
-        if (al == bl) return 1;
-        if (!al || !bl || al->count != bl->count) return 0;
-        if (al->count > 0 && (!al->items || !bl->items)) return 0;
-        for (int i = 0; i < al->count; i++) {
-            if (!avm_value_equal_depth(al->items[i], bl->items[i], depth + 1)) return 0;
-        }
-        return 1;
-    }
-    if (a.type == AVM_VAL_MAP) {
-        AvmMap* am = a.as.m;
-        AvmMap* bm = b.as.m;
-        if (am == bm) return 1;
-        if (!am || !bm || am->count != bm->count) return 0;
-        if (am->count > 0 && (!am->keys || !am->values || !bm->keys || !bm->values)) return 0;
-        for (int i = 0; i < am->count; i++) {
-            int found = 0;
-            for (int j = 0; j < bm->count; j++) {
-                if (!avm_value_equal_depth(am->keys[i], bm->keys[j], depth + 1)) continue;
-                if (!avm_value_equal_depth(am->values[i], bm->values[j], depth + 1)) continue;
-                found = 1;
-                break;
-            }
-            if (!found) return 0;
-        }
-        return 1;
-    }
+        a.type == AVM_VAL_F32_BUF || a.type == AVM_VAL_F64_BUF) return a.as.buf == b.as.buf;
+    if (a.type == AVM_VAL_LIST_INT) return a.as.li == b.as.li;
+    if (a.type == AVM_VAL_LIST) return a.as.l == b.as.l;
+    if (a.type == AVM_VAL_MAP) return a.as.m == b.as.m;
     return a.as.p == b.as.p;
 }
 

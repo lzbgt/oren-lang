@@ -1764,12 +1764,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     The same AVM pass fixes spawned task bootstrap to unpack positional args into the task frame,
 		     closing the next `CHAN_SEND expects int channel` smoke-suite failure; keep
 		     `make verify-avm-spawn-channel-args` in the default gate as the focused guard. The broader
-		     curated AVM rerun also fixed aggregate `==` / `!=` to use bounded structural equality for
-		     maps, lists, bytes, and typed buffers, with map equality keyed by semantic key/value pairs
-		     instead of insertion order. It also added AVM `list + list` concatenation for UI diff
-		     path-prefix construction, and maps the `*_buf_new_uninit(...)` typed-buffer constructor
-		     aliases to the existing deterministic AVM buffer constructors. `make test-avm` now clears
-		     the curated UI patch/render/raster/PPM lane again.
+		     curated AVM rerun temporarily added bounded structural equality for aggregate `==` / `!=`;
+		     the follow-up cross-backend tag parity gate rebalanced that operator back to the shipped
+		     C/native identity contract for lists, maps, bytes, and typed buffers. UI tree comparison
+		     now uses an explicit `std:ui/core.node_equal(...)` structural helper instead of relying
+		     on operator divergence. The same AVM pass added AVM `list + list` concatenation for UI
+		     diff path-prefix construction, and maps the `*_buf_new_uninit(...)` typed-buffer
+		     constructor aliases to the existing deterministic AVM buffer constructors.
+		     `make test-avm` now clears the curated UI patch/render/raster/PPM lane again.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

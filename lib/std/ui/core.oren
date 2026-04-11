@@ -168,6 +168,45 @@ fn clone_node(n) {
     return {"t": tag, "k": key, "p": p, "c": out_children}
 }
 
+fn _value_equal(a, b, depth) {
+    if depth > 64 { return false }
+    var ta = oren_type_tag(a)
+    if ta != oren_type_tag(b) { return false }
+    if ta == 6 {
+        var na = oren_list_len(a)
+        if na != oren_list_len(b) { return false }
+        var i = 0
+        while i < na {
+            if !_value_equal(a[i], b[i], depth + 1) { return false }
+            i = i + 1
+        }
+        return true
+    }
+    if ta == 7 {
+        if oren_map_len(a) != oren_map_len(b) { return false }
+        for k in a {
+            if !_map_has_key(b, k) { return false }
+            if !_value_equal(a[k], b[k], depth + 1) { return false }
+        }
+        return true
+    }
+    return a == b
+}
+
+fn _map_has_key(m, want) {
+    for k in m {
+        if k == want { return true }
+    }
+    return false
+}
+
+fn node_equal(a, b) {
+    // Explicit structural equality for UI data trees. Language `==` remains backend-parity
+    // identity equality for aggregate objects, so UI tests/tools should call this helper when
+    // they mean content equality.
+    return _value_equal(a, b, 0)
+}
+
 fn _find_child_index_by_key(cs, k) {
     if cs == nil || k == nil { return nil }
     var i = 0

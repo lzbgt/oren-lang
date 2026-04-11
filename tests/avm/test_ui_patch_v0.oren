@@ -12,9 +12,18 @@ fn fail() {
     print(x)
 }
 
-fn assert_eq(a, b) {
-    if a == b { return 0 }
+fn assert_node_eq(a, b) {
+    if ui_core.node_equal(a, b) { return 0 }
     fail()
+}
+
+fn assert_node_ne(a, b) {
+    if !ui_core.node_equal(a, b) { return 0 }
+    fail()
+}
+
+fn test_node_equal_key_presence() {
+    assert_node_ne({"x": nil}, {"y": nil})
 }
 
 fn test_props_set_patch() {
@@ -26,7 +35,7 @@ fn test_props_set_patch() {
 
     var ops = ui_core.diff(old, new)
     var patched = ui_core.apply_patch(ui_core.clone_node(old), ops)
-    assert_eq(patched, new)
+    assert_node_eq(patched, new)
 }
 
 fn test_insert_remove_nested() {
@@ -51,7 +60,7 @@ fn test_insert_remove_nested() {
 
     var ops = ui_core.diff(old, new)
     var patched = ui_core.apply_patch(ui_core.clone_node(old), ops)
-    assert_eq(patched, new)
+    assert_node_eq(patched, new)
 }
 
 fn test_replace_root_tag_change() {
@@ -59,13 +68,13 @@ fn test_replace_root_tag_change() {
     var new = ui_core.column("a", [ui_core.box("b", 2, 2)])
     var ops = ui_core.diff(old, new)
     var patched = ui_core.apply_patch(ui_core.clone_node(old), ops)
-    assert_eq(patched, new)
+    assert_node_eq(patched, new)
 }
 
 fn main() {
+    test_node_equal_key_presence()
     test_props_set_patch()
     test_insert_remove_nested()
     test_replace_root_tag_change()
     exit(0)
 }
-

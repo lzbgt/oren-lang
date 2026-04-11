@@ -826,12 +826,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     positional args into the new task frame, closing the immediately exposed
 		     `CHAN_SEND expects int channel` runtime failure in the curated smoke suite; `make test` now
 		     includes `make verify-avm-spawn-channel-args` as a focused regression guard. The broader
-		     curated AVM rerun also fixed aggregate `==` / `!=` to use bounded structural equality for
-		     maps, lists, bytes, and typed buffers, with map equality keyed by semantic key/value pairs
-		     instead of insertion order. It also added AVM `list + list` concatenation for UI diff
-		     path-prefix construction, and maps the `*_buf_new_uninit(...)` typed-buffer constructor
-		     aliases to the existing deterministic AVM buffer constructors. `make test-avm` now clears
-		     the curated UI patch/render/raster/PPM lane again.
+		     curated AVM rerun temporarily added bounded structural equality for aggregate `==` / `!=`;
+		     the follow-up cross-backend tag parity gate rebalanced that operator back to the shipped
+		     C/native identity contract for lists, maps, bytes, and typed buffers. UI tree comparison
+		     now uses an explicit `std:ui/core.node_equal(...)` structural helper instead of relying
+		     on operator divergence. The same AVM pass added AVM `list + list` concatenation for UI
+		     diff path-prefix construction, and maps the `*_buf_new_uninit(...)` typed-buffer
+		     constructor aliases to the existing deterministic AVM buffer constructors.
+		     `make test-avm` now clears the curated UI patch/render/raster/PPM lane again.
 	   - Verification follow-up (2026-04-04, widened 2026-04-09): `make verify-native-slot-direct`
 	     now checks more than the benchmark numerics. The slot-direct smoke builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren`, validates the hidden helper-entry
