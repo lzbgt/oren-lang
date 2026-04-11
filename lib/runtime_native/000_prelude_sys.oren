@@ -262,6 +262,64 @@ fn oren_code_addr(fn_ident) { return 0 }
 // This stub must never execute in a correctly built native binary.
 fn native_call1(addr, arg0) { return 0 }
 
+fn native_runtime_run_json_env_enabled() {
+    var v = native_envp_get_value_ptr("OREN_NATIVE_RUN_JSON")
+    if v == 0 { return false }
+    if ptr_get_byte(v) == 0 { return false }
+    if ptr_get_byte(v) == 48 { return false } // '0'
+    return true
+}
+
+fn native_runtime_run_json_init() {
+    global_set_native_run_json_enabled(0)
+    global_set_native_run_json_start_ns(0)
+    global_set_native_run_json_printed(0)
+    if native_runtime_run_json_env_enabled() != true { return 0 }
+    global_set_native_run_json_enabled(1)
+    global_set_native_run_json_start_ns(oren_time_mono_ns())
+    return 0
+}
+
+fn native_runtime_run_json_print_line(line) {
+    if line == 0 { return 0 }
+    var old_capsule = global_get_capsule_mode()
+    if old_capsule == 1 { global_set_capsule_mode(0) }
+    print(line)
+    if old_capsule == 1 { global_set_capsule_mode(1) }
+    return 0
+}
+
+fn native_runtime_run_json_maybe_print(exit_code) {
+    if global_get_native_run_json_enabled() != 1 { return 0 }
+    if global_get_native_run_json_printed() != 0 { return 0 }
+    global_set_native_run_json_printed(1)
+
+    var code = exit_code
+    if code == nil { code = 0 }
+    var start_ns = global_get_native_run_json_start_ns()
+    var elapsed_ns = 0
+    if start_ns > 0 {
+        var now_ns = oren_time_mono_ns()
+        if now_ns >= start_ns { elapsed_ns = now_ns - start_ns }
+    }
+
+    var line = "{\"schema\":\"oren.native-run.v0\",\"backend\":\"native\",\"exit_code\":" + oren_int_to_string(code)
+    line = line + ",\"effect_ledger_summary\":{\"schema\":\"oren.effect-ledger-summary.v0\",\"backend\":\"native\""
+    line = line + ",\"runtime_profile\":\"native\",\"determinism_grade\":\"native-host\""
+    line = line + ",\"determinism\":{\"enabled\":false,\"virtual_now_ns\":null,\"virtual_step_ns\":null,\"virtual_sleep_ns\":null}"
+    line = line + ",\"record\":{\"enabled\":false,\"sink\":\"none\",\"bytes\":0}"
+    line = line + ",\"replay\":{\"enabled\":false,\"source\":\"none\",\"bytes\":0,\"position\":0}"
+    line = line + ",\"domain_gates\":" + native_capsule_effect_gate_summary_json()
+    line = line + ",\"budgets\":{\"gas\":{\"executed\":null,\"remaining\":null}"
+    line = line + ",\"heap_bytes\":{\"limit\":null,\"used\":null}"
+    line = line + ",\"wall_ms\":{\"limit\":null,\"elapsed_ns\":" + oren_int_to_string(elapsed_ns) + "}"
+    line = line + ",\"io_bytes\":{\"limit\":null,\"used\":null}"
+    line = line + ",\"log_bytes\":{\"limit\":null,\"used\":0}"
+    line = line + ",\"trace_bytes\":{\"enabled\":false,\"limit\":null,\"used\":0,\"truncated\":false}}}}"
+    native_runtime_run_json_print_line(line)
+    return 0
+}
+
 fn oren_exit(code) {
     // Process exit (portable entry point used by user code and runtime).
     //
@@ -269,6 +327,7 @@ fn oren_exit(code) {
     // - `sys_exit(code)` is lowered directly to the platform syscall and does not return.
     // - This wrapper exists so source-level `exit(...)` works consistently across backends.
     if code == nil { code = 0 }
+    native_runtime_run_json_maybe_print(code)
     oren_green_last_ops_dump()
     native_alloc_site_dump_and_reset()
     native_list_reserve_bytes_dump_and_reset()

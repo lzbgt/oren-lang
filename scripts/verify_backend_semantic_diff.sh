@@ -43,21 +43,67 @@ for key in ("stdout_equal", "exit_code_equal", "all_exit_zero", "expected_line_p
 
 if checks.get("obc_run_json_schema_ok") is not True:
     fail(f"expected obc_run_json_schema_ok=true, got {checks.get('obc_run_json_schema_ok')!r}")
+if checks.get("native_run_json_schema_ok") is not True:
+    fail(f"expected native_run_json_schema_ok=true, got {checks.get('native_run_json_schema_ok')!r}")
+if checks.get("native_effect_ledger_summary_schema_ok") is not True:
+    fail(
+        "expected native_effect_ledger_summary_schema_ok=true, "
+        f"got {checks.get('native_effect_ledger_summary_schema_ok')!r}"
+    )
+if checks.get("native_domain_gates_schema_ok") is not True:
+    fail(
+        "expected native_domain_gates_schema_ok=true, "
+        f"got {checks.get('native_domain_gates_schema_ok')!r}"
+    )
 if checks.get("obc_effect_ledger_summary_schema_ok") is not True:
     fail(
         "expected obc_effect_ledger_summary_schema_ok=true, "
         f"got {checks.get('obc_effect_ledger_summary_schema_ok')!r}"
     )
-if checks.get("ledger_available_backends") != ["obc"]:
-    fail(f"expected only OBC ledger availability, got {checks.get('ledger_available_backends')!r}")
-if sorted(checks.get("ledger_missing_backends") or []) != ["c", "native"]:
-    fail(f"expected C/native ledger-missing markers, got {checks.get('ledger_missing_backends')!r}")
+if checks.get("ledger_available_backends") != ["native", "obc"]:
+    fail(f"expected native/OBC ledger availability, got {checks.get('ledger_available_backends')!r}")
+if sorted(checks.get("ledger_missing_backends") or []) != ["c"]:
+    fail(f"expected only C ledger-missing marker, got {checks.get('ledger_missing_backends')!r}")
 if checks.get("ledger_comparable_all_backends") is not False:
-    fail("all-backend ledger comparison should stay false until C/native emit ledgers")
+    fail("all-backend ledger comparison should stay false until C emits a ledger")
 if checks.get("budget_deltas_comparable_all_backends") is not False:
-    fail("all-backend budget-delta comparison should stay false until C/native emit ledgers")
+    fail("all-backend budget-delta comparison should stay false until C emits a ledger")
 
 backends = data.get("backends") or {}
+native = backends.get("native") or {}
+native_ledger = native.get("ledger") or {}
+if native_ledger.get("available") is not True:
+    fail(f"native ledger should be available, got {native_ledger!r}")
+if native_ledger.get("run_json_schema") != "oren.native-run.v0":
+    fail(f"native run JSON schema mismatch: {native_ledger.get('run_json_schema')!r}")
+if native_ledger.get("summary_schema") != "oren.effect-ledger-summary.v0":
+    fail(f"native ledger summary schema mismatch: {native_ledger.get('summary_schema')!r}")
+if not native_ledger.get("run_json_log") or not Path(native_ledger["run_json_log"]).is_file():
+    fail(f"native run JSON log missing: {native_ledger.get('run_json_log')!r}")
+if not native_ledger.get("run_json_stderr_log") or not Path(native_ledger["run_json_stderr_log"]).is_file():
+    fail(f"native run JSON stderr log missing: {native_ledger.get('run_json_stderr_log')!r}")
+if native_ledger.get("run_json_exit_code") != 0:
+    fail(f"native run JSON exit mismatch: {native_ledger.get('run_json_exit_code')!r}")
+
+native_summary = native_ledger.get("summary") or {}
+native_budgets = native_summary.get("budgets") or {}
+native_deltas = native_ledger.get("budget_deltas") or {}
+if native_summary.get("backend") != "native":
+    fail(f"native ledger backend mismatch: {native_summary!r}")
+if native_summary.get("determinism_grade") != "native-host":
+    fail(f"native determinism grade mismatch: {native_summary!r}")
+domain_gates = native_summary.get("domain_gates") or {}
+if domain_gates.get("schema") != "oren.native-capsule-effect-gates.v0":
+    fail(f"native domain-gate summary schema mismatch: {domain_gates!r}")
+if domain_gates.get("kind") != "domain_gates" or domain_gates.get("available") is not True:
+    fail(f"native domain-gate summary availability mismatch: {domain_gates!r}")
+if native_deltas.get("wall_elapsed_ns") != native_budgets.get("wall_ms", {}).get("elapsed_ns"):
+    fail(f"native wall elapsed delta should mirror summary budget, got {native_deltas!r} vs {native_budgets!r}")
+if native_deltas.get("wall_elapsed_ns") is None or int(native_deltas.get("wall_elapsed_ns")) < 0:
+    fail(f"native wall elapsed should be non-negative, got {native_deltas!r}")
+if native_deltas.get("gas_executed") is not None:
+    fail(f"native gas counter should stay null until native gas accounting lands, got {native_deltas!r}")
+
 obc = backends.get("obc") or {}
 ledger = obc.get("ledger") or {}
 if ledger.get("available") is not True:
@@ -85,7 +131,7 @@ if deltas.get("heap_bytes_used") != budgets.get("heap_bytes", {}).get("used"):
 if deltas.get("wall_elapsed_ns") != budgets.get("wall_ms", {}).get("elapsed_ns"):
     fail(f"wall elapsed delta should mirror summary budget, got {deltas!r} vs {budgets!r}")
 
-for name in ("c", "native"):
+for name in ("c",):
     ledger = (backends.get(name) or {}).get("ledger") or {}
     if ledger.get("available") is not False:
         fail(f"{name} ledger should be unavailable for now, got {ledger!r}")

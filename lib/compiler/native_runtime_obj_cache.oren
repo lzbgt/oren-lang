@@ -77,7 +77,9 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 544
 //   (incorrect shift field usage in sys_ulock_wake → futex wake-all path).
 // - Fix Linux/arm64 clone(2) syscall ABI arg order and make sys_thread_create safe
 //   w.r.t. child stack switching (child must not restore parent SP-saved regs).
-var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_13"
+// 2026-04: v0_14
+// - Add native run JSON exit-hook emission to the arm64 entry tail.
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_14"
 // 2026-01: v0_17
 // - Fix Tier‑1 Windows correctness for runtime-owned OS threads (`oren_os_thread_spawn`):
 //   `native_call1(addr, arg0)` must follow the active x64 ABI arg-register mapping (SysV vs Win64)
@@ -88,7 +90,9 @@ var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_13"
 // 2026-04: v0_23
 // - Add x64 compact runtime-object function offsets, alongside compact fixup metadata, so
 //   stage2 cache hits do not walk large runtime metadata maps before compiling user code.
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_23"
+// 2026-04: v0_24
+// - Add native run JSON exit-hook emission to the x64 Linux/Windows entry tails.
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_24"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

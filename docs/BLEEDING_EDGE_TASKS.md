@@ -53,10 +53,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   native has equivalent accounting. The native runner can now write
   `oren.native-package-policy-run.v0` via `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` with
   runner-observed wall-budget timing and `effect_ledger.available=false`; this is evidence for
-  the watchdog bridge, not a replacement for native runtime ledger counters. AVM
-  `effect_ledger_summary.budgets` now reports gas, heap, and wall budget fields for that path,
-  including `wall_ms.limit` and measured
-  `wall_ms.elapsed_ns`. Next capability work should move from these runners toward full
+  the watchdog bridge, not a replacement for native runtime ledger counters. Native executables
+  can also emit `oren.native-run.v0` through `OREN_NATIVE_RUN_JSON=1`, which gives semantic-diff
+  runtime-observed `effect_ledger_summary` wall timing plus native capsule domain-gate counters,
+  while leaving unsupported gas/heap counters as `null`. AVM `effect_ledger_summary.budgets` now
+  reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
+  `wall_ms.elapsed_ns`. Next capability work should move from these bridge summaries toward full
   native/AVM effect-ledger budget parity rather than re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
@@ -2702,13 +2704,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
    - New (2026-04-12): `scripts/run_backend_semantic_diff.sh` emits
      `build/reports/backend_semantic_diff_*.json` with backend exit codes, normalized stdout/stderr
-     hashes, log paths, and a pass/fail verdict. It now also runs the OBC artifact with
-     `--print-run-json`, records AVM `effect_ledger_summary` plus normalized `budget_deltas`,
-     and reports C/native ledger availability as explicitly missing until those backends
-     export equivalent ledgers. This turns one parity smoke into an agent-readable
+     hashes, log paths, and a pass/fail verdict. It now also runs native with
+     `OREN_NATIVE_RUN_JSON=1` and the OBC artifact with `--print-run-json`, records native/AVM
+     `effect_ledger_summary` plus normalized `budget_deltas`, and reports only C ledger
+     availability as explicitly missing until that backend exports equivalent ledgers. This turns
+     one parity smoke into an agent-readable
      semantic-diff artifact rather than a log-scraping check. The native package-policy runner
      now separately emits `oren.native-package-policy-run.v0` runner-observed wall-budget JSON
-     on request, while still marking native runtime ledger export unavailable.
+     on request; native runtime summary export is now `OREN_NATIVE_RUN_JSON=1`, including
+     `oren.native-capsule-effect-gates.v0` central domain-gate counters when capsule mode runs.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).

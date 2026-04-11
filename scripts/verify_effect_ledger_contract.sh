@@ -33,6 +33,9 @@ avm_json_guard="scripts/verify_avm_effect_ledger_json.sh"
 semantic_diff_runner="scripts/run_backend_semantic_diff.sh"
 semantic_diff_guard="scripts/verify_backend_semantic_diff.sh"
 native_policy_runner="scripts/run_native_package_policy.sh"
+native_policy_runner_guard="scripts/verify_native_package_policy_runner.sh"
+native_consts="lib/runtime_native/010_channels_globals_consts.oren"
+native_prelude="lib/runtime_native/000_prelude_sys.oren"
 
 for f in \
   "$contract" \
@@ -48,6 +51,9 @@ for f in \
   "$semantic_diff_runner" \
   "$semantic_diff_guard" \
   "$native_policy_runner" \
+  "$native_policy_runner_guard" \
+  "$native_consts" \
+  "$native_prelude" \
   Makefile
 do
   require_file "$f"
@@ -79,6 +85,7 @@ require_literal "$contract" "\"determinism\""
 require_literal "$contract" "\"wall_ms\""
 require_literal "$contract" "oren.semantic-diff.v0"
 require_literal "$contract" "oren.native-package-policy-run.v0"
+require_literal "$contract" "oren.native-capsule-effect-gates.v0"
 
 require_literal "$cap_contract" "docs/EFFECT_LEDGER_CONTRACT.md"
 require_literal "$cap_contract" "make verify-effect-ledger-contract"
@@ -112,18 +119,35 @@ require_literal "$semantic_diff_runner" "stdout_sha256"
 require_literal "$semantic_diff_runner" "expected_line_present_all"
 require_literal "$semantic_diff_runner" "effect_ledger_summary"
 require_literal "$semantic_diff_runner" "budget_deltas"
+require_literal "$semantic_diff_runner" "OREN_NATIVE_RUN_JSON=1"
+require_literal "$semantic_diff_runner" "oren.native-run.v0"
+require_literal "$semantic_diff_runner" "native_effect_ledger_summary_schema_ok"
+require_literal "$semantic_diff_runner" "domain_gates"
+require_literal "$semantic_diff_runner" "native_domain_gates_schema_ok"
 require_literal "$semantic_diff_runner" "obc_run_json_schema_ok"
 require_literal "$semantic_diff_runner" "obc_effect_ledger_summary_schema_ok"
 require_literal "$semantic_diff_runner" "ledger_available_backends"
 require_literal "$semantic_diff_runner" "ledger_missing_backends"
 require_literal "$semantic_diff_runner" "build/reports/"
 require_literal "$semantic_diff_guard" "oren.semantic-diff.v0"
+require_literal "$semantic_diff_guard" "native_run_json_schema_ok"
+require_literal "$semantic_diff_guard" "native_effect_ledger_summary_schema_ok"
+require_literal "$semantic_diff_guard" "native_domain_gates_schema_ok"
 require_literal "$semantic_diff_guard" "obc_run_json_schema_ok"
 require_literal "$semantic_diff_guard" "obc_effect_ledger_summary_schema_ok"
 require_literal "$semantic_diff_guard" "budget_deltas_comparable_all_backends"
 require_literal "$semantic_diff_guard" "backend run JSON ledger export is not implemented"
+require_literal "$semantic_diff_guard" "domain_gates"
+require_literal "$semantic_diff_guard" "oren.native-capsule-effect-gates.v0"
+require_literal "lib/runtime_native/000_prelude_sys.oren" "oren.native-run.v0"
+require_literal "lib/runtime_native/000_prelude_sys.oren" "OREN_NATIVE_RUN_JSON"
 require_literal "$native_policy_runner" "oren.native-package-policy-run.v0"
 require_literal "$native_policy_runner" "effect_ledger"
 require_literal "$native_policy_runner" "runner_wall_only"
+require_literal "$native_policy_runner_guard" "oren.native-capsule-effect-gates.v0"
+require_literal "$native_policy_runner_guard" "native capsule effect gates"
+require_literal "$native_consts" "native_capsule_effect_gate_summary_json"
+require_literal "$native_consts" "native_capsule_effect_gate_note"
+require_literal "$native_prelude" "domain_gates"
 
 echo "effect ledger contract verify OK"

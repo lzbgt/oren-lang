@@ -30,6 +30,12 @@ grep -Fq "native package policy ok" "$ok_out" || {
   cat "$ok_err" >&2 || true
   exit 1
 }
+grep -Fq "native capsule effect gates " "$ok_out" || {
+  echo "ERROR: native package-policy ok fixture did not report capsule effect gates" >&2
+  cat "$ok_out" >&2 || true
+  cat "$ok_err" >&2 || true
+  exit 1
+}
 
 set +e
 ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_deny_time.oren \
@@ -44,13 +50,14 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$wall_json" \
 wall_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 ok_path = Path(sys.argv[1])
 wall_path = Path(sys.argv[2])
+ok_stdout_path = Path(sys.argv[3])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -80,6 +87,30 @@ if wall.get("limit") != 1000 or wall.get("enforced") is not True:
     fail(f"{ok_path}: expected enforced 1000ms wall budget, got {wall!r}")
 if int(wall.get("elapsed_ns") or 0) <= 0:
     fail(f"{ok_path}: expected positive elapsed_ns, got {wall!r}")
+
+gate_prefix = "native capsule effect gates "
+gate_json = None
+for line in ok_stdout_path.read_text(encoding="utf-8").splitlines():
+    if line.startswith(gate_prefix):
+        gate_json = line[len(gate_prefix):]
+if gate_json is None:
+    fail(f"{ok_stdout_path}: missing native capsule effect gate JSON line")
+try:
+    gates = json.loads(gate_json)
+except json.JSONDecodeError as exc:
+    fail(f"{ok_stdout_path}: invalid native capsule effect gate JSON: {exc}")
+if gates.get("schema") != "oren.native-capsule-effect-gates.v0":
+    fail(f"{ok_stdout_path}: effect gate schema mismatch: {gates!r}")
+if gates.get("kind") != "domain_gates" or gates.get("available") is not True:
+    fail(f"{ok_stdout_path}: effect gate availability mismatch: {gates!r}")
+if gates.get("capsule") is not True:
+    fail(f"{ok_stdout_path}: expected capsule=true in effect gate summary: {gates!r}")
+if int(gates.get("total") or 0) <= 0:
+    fail(f"{ok_stdout_path}: expected positive effect gate total: {gates!r}")
+if int(gates.get("denied") or 0) != 0:
+    fail(f"{ok_stdout_path}: expected zero denied effect gates in success path: {gates!r}")
+if int((gates.get("domains") or {}).get("TIME") or 0) <= 0:
+    fail(f"{ok_stdout_path}: expected positive TIME effect gates: {gates!r}")
 
 wall_timeout = load(wall_path)
 if wall_timeout.get("schema") != "oren.native-package-policy-run.v0":

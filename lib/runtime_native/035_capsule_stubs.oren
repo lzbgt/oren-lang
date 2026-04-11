@@ -63,6 +63,7 @@ fn native_runtime_capsule_init() {
         if lim >= 0 { global_set_buf_payload_limit(lim) }
     }
 
+    native_runtime_run_json_init()
     return 0
 }
 
@@ -102,4 +103,3 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
     ptr_set(pair + 8, 0)
     return pair
 }
-

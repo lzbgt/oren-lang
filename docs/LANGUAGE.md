@@ -1474,8 +1474,12 @@ For the current capability domain and native runtime-profile contract, see
   gas/heap/CPU budgets until those fields have native-equivalent accounting. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
   evidence as `oren.native-package-policy-run.v0`; that summary explicitly leaves
-  `effect_ledger.available=false` until native runtime ledger export lands. AVM run JSON
-  reports the applied gas, heap, and wall budget fields through
+  `effect_ledger.available=false` because it is external watchdog evidence. Set
+  `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`
+  stdout with compact `effect_ledger_summary` evidence; it currently reports native wall
+  elapsed time, capsule domain-gate counters, and keeps gas/heap counters `null` until
+  native-equivalent accounting lands.
+  AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
@@ -3564,9 +3568,11 @@ with a process watchdog, and fails closed for `budget_gas`, `budget_heap_bytes`,
 `budget_cpu_ms` until native-equivalent accounting lands. When callers set
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
 `oren.native-package-policy-run.v0` with runner-observed wall-budget timing and
-`effect_ledger.available=false`. When callers request `--print-run-json`, the AVM
-effect-ledger summary reports the applied `budget_wall_ms` as `budgets.wall_ms.limit` and records
-measured wall elapsed nanoseconds.
+`effect_ledger.available=false`. Native capsule runtime separately exposes
+`oren.native-capsule-effect-gates.v0` domain-gate counters, so tooling can distinguish
+runtime-owned capsule gate evidence from external runner watchdog timing. When callers request
+`--print-run-json`, the AVM effect-ledger summary reports the applied `budget_wall_ms` as
+`budgets.wall_ms.limit` and records measured wall elapsed nanoseconds.
 
 ### 2.4 Normalized serde schema (what libraries/tooling want)
 

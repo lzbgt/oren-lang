@@ -143,6 +143,9 @@ require_literal "$compiler_cli" "--capsule"
 require_literal "$compiler_cli" "--cap-allow-domains"
 require_literal "$compiler_cli" "OREN_CAP_ALLOW_DOMAINS"
 require_literal "$capsule_core" "OREN_CAP_ALLOW_DOMAINS"
+require_literal "$native_consts" "native_capsule_effect_gate_summary_json"
+require_literal "$native_consts" "oren.native-capsule-effect-gates.v0"
+require_literal "$capsule_core" "native_capsule_effect_gate_note"
 for knob in \
   OREN_FS_MOUNTS \
   OREN_FS_MOUNTS_READ \
@@ -201,6 +204,8 @@ require_literal "$native_policy_runner_guard" "native_package_policy_runner_ok.o
 require_literal "$native_policy_runner_guard" "OREN_NATIVE_PACKAGE_POLICY_RUN_JSON"
 require_literal "$native_policy_runner_guard" "oren.native-package-policy-run.v0"
 require_literal "$native_policy_runner_guard" "runner_wall_only"
+require_literal "$native_policy_runner_guard" "oren.native-capsule-effect-gates.v0"
+require_literal "$native_policy_runner_guard" "native capsule effect gates"
 
 # AVM domain ids and selected domain mappings.
 require_regex "$avm_domains" 'var AVM_DOMAIN_CORE = 0$'

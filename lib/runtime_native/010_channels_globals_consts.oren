@@ -178,6 +178,9 @@ var GLOBAL_OFF_VALUE_TRUE = 384
 var GLOBAL_OFF_GC_STW_STATE = 424
 var GLOBAL_OFF_GC_STW_PARKED = 432
 var GLOBAL_OFF_GC_STW_OWNER_NODE = 440
+var GLOBAL_OFF_NATIVE_RUN_JSON_ENABLED = 472
+var GLOBAL_OFF_NATIVE_RUN_JSON_START_NS = 480
+var GLOBAL_OFF_NATIVE_RUN_JSON_PRINTED = 488
 
 // Boot globals storage length (bytes).
 // Must match native runtime object data prefix layout in `rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN`
@@ -185,7 +188,7 @@ var GLOBAL_OFF_GC_STW_OWNER_NODE = 440
 fn global_storage_bytes() { return 512 }
 
 // Reserve extra room for rolling ABI growth.
-var GLOBAL_SLOTS_RESERVED = 56
+var GLOBAL_SLOTS_RESERVED = 64
 
 // IMPORTANT (native backend rolling):
 // These offsets are ABI constants for the runtime, but the native backend does not yet reliably
@@ -265,6 +268,15 @@ fn global_set_gc_stw_parked(v) { ptr_set(iadd(oren_globals(), 432), v) }
 
 fn global_get_gc_stw_owner_node() { return ptr_get(iadd(oren_globals(), 440)) }
 fn global_set_gc_stw_owner_node(v) { ptr_set(iadd(oren_globals(), 440), v) }
+
+fn global_get_native_run_json_enabled() { return ptr_get(iadd(oren_globals(), 472)) }
+fn global_set_native_run_json_enabled(v) { ptr_set(iadd(oren_globals(), 472), v) }
+
+fn global_get_native_run_json_start_ns() { return ptr_get(iadd(oren_globals(), 480)) }
+fn global_set_native_run_json_start_ns(v) { ptr_set(iadd(oren_globals(), 480), v) }
+
+fn global_get_native_run_json_printed() { return ptr_get(iadd(oren_globals(), 488)) }
+fn global_set_native_run_json_printed(v) { ptr_set(iadd(oren_globals(), 488), v) }
 
 fn global_get_result_value() { return ptr_get(iadd(oren_globals(), 360)) }
 fn global_set_result_value(v) { ptr_set(iadd(oren_globals(), 360), v) }
@@ -526,6 +538,85 @@ var g_darwin_bsdthread_register_last_rv = 0
 // - Used by `oren_select` / `oren_select_recv` to avoid always picking case 0 when multiple are ready.
 // - In AVM this cursor is per-task; in native runtime (no scheduler yet) we keep a single global cursor.
 var g_select_cursor = 0
+
+// Native capsule effect-gate counters (rolling v0).
+//
+// Scope:
+// - Counts only the central capsule domain-gate checks (`native_capsule_require*`).
+// - Does not yet count resource-level allowlist outcomes after the domain gate.
+var g_native_capsule_effect_gate_total = 0
+var g_native_capsule_effect_gate_denied = 0
+var g_native_capsule_effect_gate_any = 0
+var g_native_capsule_effect_gate_fs = 0
+var g_native_capsule_effect_gate_net = 0
+var g_native_capsule_effect_gate_proc = 0
+var g_native_capsule_effect_gate_env = 0
+var g_native_capsule_effect_gate_time = 0
+var g_native_capsule_effect_gate_rng = 0
+
+fn native_capsule_effect_gate_counters_reset() {
+    g_native_capsule_effect_gate_total = 0
+    g_native_capsule_effect_gate_denied = 0
+    g_native_capsule_effect_gate_any = 0
+    g_native_capsule_effect_gate_fs = 0
+    g_native_capsule_effect_gate_net = 0
+    g_native_capsule_effect_gate_proc = 0
+    g_native_capsule_effect_gate_env = 0
+    g_native_capsule_effect_gate_time = 0
+    g_native_capsule_effect_gate_rng = 0
+    return 0
+}
+
+fn native_capsule_effect_gate_note(mask_bits, denied, is_any) {
+    if global_get_capsule_mode() != 1 { return 0 }
+    g_native_capsule_effect_gate_total = g_native_capsule_effect_gate_total + 1
+    if denied != 0 {
+        g_native_capsule_effect_gate_denied = g_native_capsule_effect_gate_denied + 1
+    }
+    if is_any != 0 {
+        g_native_capsule_effect_gate_any = g_native_capsule_effect_gate_any + 1
+        return 0
+    }
+    if (mask_bits & CAP_FS) != 0 { g_native_capsule_effect_gate_fs = g_native_capsule_effect_gate_fs + 1 }
+    if (mask_bits & CAP_NET) != 0 { g_native_capsule_effect_gate_net = g_native_capsule_effect_gate_net + 1 }
+    if (mask_bits & CAP_PROC) != 0 { g_native_capsule_effect_gate_proc = g_native_capsule_effect_gate_proc + 1 }
+    if (mask_bits & CAP_ENV) != 0 { g_native_capsule_effect_gate_env = g_native_capsule_effect_gate_env + 1 }
+    if (mask_bits & CAP_TIME) != 0 { g_native_capsule_effect_gate_time = g_native_capsule_effect_gate_time + 1 }
+    if (mask_bits & CAP_RNG) != 0 { g_native_capsule_effect_gate_rng = g_native_capsule_effect_gate_rng + 1 }
+    return 0
+}
+
+fn native_capsule_effect_gate_total() { return g_native_capsule_effect_gate_total }
+fn native_capsule_effect_gate_denied() { return g_native_capsule_effect_gate_denied }
+fn native_capsule_effect_gate_any() { return g_native_capsule_effect_gate_any }
+fn native_capsule_effect_gate_fs() { return g_native_capsule_effect_gate_fs }
+fn native_capsule_effect_gate_net() { return g_native_capsule_effect_gate_net }
+fn native_capsule_effect_gate_proc() { return g_native_capsule_effect_gate_proc }
+fn native_capsule_effect_gate_env() { return g_native_capsule_effect_gate_env }
+fn native_capsule_effect_gate_time() { return g_native_capsule_effect_gate_time }
+fn native_capsule_effect_gate_rng() { return g_native_capsule_effect_gate_rng }
+
+fn native_capsule_effect_gate_summary_json() {
+    var line = "{\"schema\":\"oren.native-capsule-effect-gates.v0\",\"kind\":\"domain_gates\""
+    line = line + ",\"available\":true"
+    if global_get_capsule_mode() == 1 {
+        line = line + ",\"capsule\":true"
+    } else {
+        line = line + ",\"capsule\":false"
+    }
+    line = line + ",\"total\":" + oren_int_to_string(g_native_capsule_effect_gate_total)
+    line = line + ",\"denied\":" + oren_int_to_string(g_native_capsule_effect_gate_denied)
+    line = line + ",\"any\":" + oren_int_to_string(g_native_capsule_effect_gate_any)
+    line = line + ",\"domains\":{"
+    line = line + "\"FS\":" + oren_int_to_string(g_native_capsule_effect_gate_fs)
+    line = line + ",\"NET\":" + oren_int_to_string(g_native_capsule_effect_gate_net)
+    line = line + ",\"PROC\":" + oren_int_to_string(g_native_capsule_effect_gate_proc)
+    line = line + ",\"ENV\":" + oren_int_to_string(g_native_capsule_effect_gate_env)
+    line = line + ",\"TIME\":" + oren_int_to_string(g_native_capsule_effect_gate_time)
+    line = line + ",\"RNG\":" + oren_int_to_string(g_native_capsule_effect_gate_rng)
+    line = line + "}}"
+    return line
+}
 
 // Linux epoll constants (stable on Linux; unused on macOS).
 // Used by syscall-first NET wait to avoid libc poll/select shims.

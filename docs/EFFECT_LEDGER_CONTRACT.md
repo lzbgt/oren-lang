@@ -96,15 +96,20 @@ Required entry fields:
 - The first repo-level semantic-diff consumer is intentionally smaller than the full ledger:
   `scripts/run_backend_semantic_diff.sh` emits `oren.semantic-diff.v0` JSON with C/native/OBC
   exit codes, normalized stdout/stderr hashes, log paths, and a pass/fail verdict. It also runs
-  the OBC artifact with `--print-run-json` and records the AVM `effect_ledger_summary`,
-  normalized `budget_deltas`, ledger availability per backend, and whether full all-backend
-  ledger/budget comparison is possible. Native/C ledger export is still intentionally reported
-  as unavailable rather than inferred from logs.
+  a second native execution with `OREN_NATIVE_RUN_JSON=1` and the OBC artifact with
+  `--print-run-json`. Those runs record native/AVM `effect_ledger_summary` bridges, normalized
+  `budget_deltas`, ledger availability per backend, and whether full all-backend ledger/budget
+  comparison is possible. C ledger export is still intentionally reported as unavailable rather
+  than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed wall-budget
   evidence for native capsule execution, not a runtime effect ledger: it marks
   `effect_ledger.available=false` until native exports backend-equivalent effect and budget
   counters.
+- Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
+  `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
+  This is the first native-owned effect evidence bridge: it counts central capsule domain-gate
+  checks and denied gates, but not resource-level allowlist outcomes after the domain gate.
 
 ## Verification Map
 
@@ -118,8 +123,9 @@ make verify-avm-effect-ledger-json
 The contract guard checks this schema note, the capability contract, the roadmap docs, Makefile
 wiring, and then runs the AVM JSON guard. The AVM guard checks the current
 `effect_ledger_summary` runtime bridge with in-memory record logs, deterministic trace bytes,
-`AVM_TIMEOUT_MS` wall-budget reporting, and the `AVM_LOG_BYTES` record-header budget edge. Full
-native/AVM ledger parity fixtures are still future work.
+`AVM_TIMEOUT_MS` wall-budget reporting, and the `AVM_LOG_BYTES` record-header budget edge. The
+native package-policy guard checks the current capsule domain-gate counter bridge. Full native/AVM
+ledger parity fixtures are still future work.
 
 ## Current AVM Run Summary
 
@@ -158,3 +164,11 @@ The summary is useful for orchestration and smoke tests, but the future feature 
 entry ledger with domains, operations, decisions, digests, redaction, replay, and source spans.
 The summary intentionally reports budget counters that already exist in the VM, rather than a
 parallel accounting system.
+
+Native executables can now opt into the same compact bridge by setting
+`OREN_NATIVE_RUN_JSON=1`. On normal `main` return or explicit `exit(...)`, the native runtime
+prints one `oren.native-run.v0` JSON line containing `effect_ledger_summary`. Native currently
+reports `wall_ms.elapsed_ns` from runtime monotonic time, includes the
+`oren.native-capsule-effect-gates.v0` `domain_gates` object, and keeps gas/heap counters as `null`
+until backend-equivalent counters exist; semantic diff treats that as a runtime ledger summary,
+not as full budget parity.

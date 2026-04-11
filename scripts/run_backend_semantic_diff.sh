@@ -110,6 +110,8 @@ run_native_out="${log_prefix}_native.stdout"
 run_native_err="${log_prefix}_native.stderr"
 run_obc_out="${log_prefix}_obc.stdout"
 run_obc_err="${log_prefix}_obc.stderr"
+run_native_json="${log_prefix}_native.run.json"
+run_native_json_err="${log_prefix}_native.run.stderr"
 run_obc_json="${log_prefix}_obc.run.json"
 run_obc_json_err="${log_prefix}_obc.run.stderr"
 
@@ -144,11 +146,15 @@ run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" "$out_native" >"$
 rc_native=$?
 run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" ./avm "$out_obc" >"$run_obc_out" 2>"$run_obc_err"
 rc_obc=$?
+run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" OREN_NATIVE_RUN_JSON=1 "$out_native" >"$run_native_json" 2>"$run_native_json_err"
+rc_native_json=$?
 run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" ./avm --print-run-json "$out_obc" >"$run_obc_json" 2>"$run_obc_json_err"
 rc_obc_json=$?
 set -e
 
-python3 - "$report" "$src" "$expect_line" "$run_obc_json" "$run_obc_json_err" "$rc_obc_json" \
+python3 - "$report" "$src" "$expect_line" \
+  "$run_native_json" "$run_native_json_err" "$rc_native_json" \
+  "$run_obc_json" "$run_obc_json_err" "$rc_obc_json" \
   c "$rc_c" "$run_c_out" "$run_c_err" "$build_c" \
   native "$rc_native" "$run_native_out" "$run_native_err" "$build_native" \
   obc "$rc_obc" "$run_obc_out" "$run_obc_err" "$build_obc" <<'PY'
@@ -160,10 +166,13 @@ from pathlib import Path
 report = Path(sys.argv[1])
 src = sys.argv[2]
 expect_line = sys.argv[3]
-obc_run_json_log = sys.argv[4]
-obc_run_json_stderr_log = sys.argv[5]
-obc_run_json_rc = int(sys.argv[6])
-items = sys.argv[7:]
+native_run_json_log = sys.argv[4]
+native_run_json_stderr_log = sys.argv[5]
+native_run_json_rc = int(sys.argv[6])
+obc_run_json_log = sys.argv[7]
+obc_run_json_stderr_log = sys.argv[8]
+obc_run_json_rc = int(sys.argv[9])
+items = sys.argv[10:]
 
 def read_text(path_s):
     return Path(path_s).read_text(encoding="utf-8", errors="replace")
@@ -247,6 +256,38 @@ for i in range(0, len(items), 5):
         "ledger": unavailable_ledger("backend run JSON ledger export is not implemented"),
     }
 
+native_run_json = find_last_json_obj(read_text(native_run_json_log))
+native_run_json_schema = native_run_json.get("schema") if isinstance(native_run_json, dict) else None
+native_ledger_summary = None
+if native_run_json_schema == "oren.native-run.v0":
+    native_ledger_summary = native_run_json.get("effect_ledger_summary")
+native_ledger_summary_schema = native_ledger_summary.get("schema") if isinstance(native_ledger_summary, dict) else None
+native_ledger_available = native_run_json_rc == 0 and native_ledger_summary_schema == "oren.effect-ledger-summary.v0"
+native_domain_gates = native_ledger_summary.get("domain_gates") if isinstance(native_ledger_summary, dict) else None
+native_domain_gates_schema = native_domain_gates.get("schema") if isinstance(native_domain_gates, dict) else None
+native_domain_gates_ok = native_domain_gates_schema == "oren.native-capsule-effect-gates.v0"
+if native_run_json_rc != 0:
+    native_ledger_reason = "native run JSON execution failed"
+elif native_run_json_schema != "oren.native-run.v0":
+    native_ledger_reason = "missing oren.native-run.v0 JSON in native run JSON log"
+elif not isinstance(native_ledger_summary, dict):
+    native_ledger_reason = "missing effect_ledger_summary in native run JSON"
+elif native_ledger_summary_schema != "oren.effect-ledger-summary.v0":
+    native_ledger_reason = "effect_ledger_summary schema mismatch"
+else:
+    native_ledger_reason = None
+backends["native"]["ledger"] = {
+    "available": native_ledger_available,
+    "reason": native_ledger_reason,
+    "run_json_schema": native_run_json_schema,
+    "summary_schema": native_ledger_summary_schema,
+    "summary": native_ledger_summary,
+    "budget_deltas": budget_deltas(native_ledger_summary) if native_ledger_available else None,
+    "run_json_log": native_run_json_log,
+    "run_json_stderr_log": native_run_json_stderr_log,
+    "run_json_exit_code": native_run_json_rc,
+}
+
 obc_run_json = find_last_json_obj(read_text(obc_run_json_log))
 obc_run_json_schema = obc_run_json.get("schema") if isinstance(obc_run_json, dict) else None
 obc_ledger_summary = None
@@ -280,12 +321,14 @@ exit_equal = len({backends[name]["exit_code"] for name in order}) == 1
 all_ok = all(backends[name]["exit_code"] == 0 for name in order)
 expect_ok = all(backends[name]["expected_line_present"] for name in order)
 obc_run_json_ok = obc_run_json_rc == 0 and obc_run_json_schema == "avm.run.v1"
+native_run_json_ok = native_run_json_rc == 0 and native_run_json_schema == "oren.native-run.v0"
+native_ledger_ok = backends["native"]["ledger"]["available"]
 obc_ledger_ok = backends["obc"]["ledger"]["available"]
 ledger_available = [name for name in order if backends[name]["ledger"]["available"]]
 ledger_missing = [name for name in order if not backends[name]["ledger"]["available"]]
 ledger_comparable_all = len(ledger_available) == len(order)
 budget_deltas_comparable_all = ledger_comparable_all and all(backends[name]["ledger"]["budget_deltas"] is not None for name in order)
-status = "pass" if stdout_equal and exit_equal and all_ok and expect_ok and obc_run_json_ok and obc_ledger_ok else "fail"
+status = "pass" if stdout_equal and exit_equal and all_ok and expect_ok and native_run_json_ok and native_ledger_ok and native_domain_gates_ok and obc_run_json_ok and obc_ledger_ok else "fail"
 
 out = {
     "schema": "oren.semantic-diff.v0",
@@ -298,6 +341,14 @@ out = {
         "all_exit_zero": all_ok,
         "expected_line": expect_line,
         "expected_line_present_all": expect_ok,
+        "native_run_json_exit_zero": native_run_json_rc == 0,
+        "native_run_json_schema": native_run_json_schema,
+        "native_run_json_schema_ok": native_run_json_schema == "oren.native-run.v0",
+        "native_effect_ledger_summary_present": native_ledger_ok,
+        "native_effect_ledger_summary_schema": native_ledger_summary_schema,
+        "native_effect_ledger_summary_schema_ok": native_ledger_summary_schema == "oren.effect-ledger-summary.v0",
+        "native_domain_gates_schema": native_domain_gates_schema,
+        "native_domain_gates_schema_ok": native_domain_gates_ok,
         "obc_run_json_exit_zero": obc_run_json_rc == 0,
         "obc_run_json_schema": obc_run_json_schema,
         "obc_run_json_schema_ok": obc_run_json_schema == "avm.run.v1",

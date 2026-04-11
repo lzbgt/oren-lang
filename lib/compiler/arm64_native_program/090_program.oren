@@ -420,6 +420,12 @@ fn native_compile_program_arm64(linked, platform) {
         } else {
             push_u32_le(ctx["code"], insn_movz(19, 0)) // X19 = 0
         }
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+        var run_json_fix = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": run_json_fix, "name": "native_runtime_run_json_maybe_print"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], run_json_fix)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_run_json_maybe_print")
         var shutdown_fix = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})

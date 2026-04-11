@@ -1121,6 +1121,12 @@ fn native_compile_program_x64(linked, platform) {
             //
             // - rcx = u32 exit code
             // - call [IAT ExitProcess]
+            bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0)) // r12 = main ret
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 12)) // rcx = main ret
+            var call_run_json_win = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_run_json_win, "name": "native_runtime_run_json_maybe_print"})
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12)) // restore rax
             bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
 
             var mov_iat_pos = bytes_len(ctx["code"])
@@ -1169,6 +1175,12 @@ fn native_compile_program_x64(linked, platform) {
         } else {
             // Linux x86_64: exit_group(main_ret) via syscall (process-wide)
             // rdi = rax
+            bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0)) // r12 = main ret
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 12)) // rdi = main ret
+            var call_run_json_linux = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_run_json_linux, "name": "native_runtime_run_json_maybe_print"})
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12)) // restore rax
             bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // mov rdi, rax
             // rax = SYS_exit_group
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))

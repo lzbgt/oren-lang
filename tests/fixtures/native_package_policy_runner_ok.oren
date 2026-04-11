@@ -2,7 +2,17 @@
 var native_package_policy_ok = 1
 
 fn main() {
+    var total0 = native_capsule_effect_gate_total()
+    var time0 = native_capsule_effect_gate_time()
+    var denied0 = native_capsule_effect_gate_denied()
     var rc = oren_sleep_ms(1)
     if rc != 0 { exit(2) }
+    var total1 = native_capsule_effect_gate_total()
+    var time1 = native_capsule_effect_gate_time()
+    var denied1 = native_capsule_effect_gate_denied()
+    if total1 <= total0 { exit(3) }
+    if time1 <= time0 { exit(4) }
+    if denied1 != denied0 { exit(5) }
     print("native package policy ok")
+    print("native capsule effect gates " + native_capsule_effect_gate_summary_json())
 }

@@ -192,6 +192,19 @@ does not confuse external watchdog timing with a native runtime ledger. It inten
 closed for `budget_gas`, `budget_heap_bytes`, and `budget_cpu_ms` until native has
 backend-equivalent accounting for those fields.
 
+Native capsule runtime now also exposes a smaller runtime evidence surface:
+`native_capsule_effect_gate_summary_json()` returns `oren.native-capsule-effect-gates.v0`,
+counting central domain-gate checks for `FS`, `NET`, `PROC`, `ENV`, `TIME`, and `RNG`.
+This is intentionally not the full native effect ledger: it does not yet count resource-level
+allowlist decisions after the domain gate, but it gives package-policy and semantic-diff tools
+a runtime-owned counter surface instead of relying only on process watchdog evidence.
+
+Separately, native executables support `OREN_NATIVE_RUN_JSON=1` for a runtime-emitted
+`oren.native-run.v0` stdout line. That bridge currently reports the native
+`effect_ledger_summary` schema with monotonic `wall_ms.elapsed_ns` and explicit `null`
+gas/heap budget counters; package-policy JSON remains runner-observed evidence, while
+`OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
+
 ## Domain Contract
 
 | Domain | Native capsule meaning | Runtime knobs / AVM notes |
@@ -234,7 +247,9 @@ backend-equivalent accounting for those fields.
 - Full effect-ledger runtime emission is not complete yet. The target schema is pinned in
   `docs/EFFECT_LEDGER_CONTRACT.md`, and AVM `--print-run-json` already emits a compact
   `effect_ledger_summary` bridge so future native/AVM work uses one backend-comparable
-  vocabulary instead of ad-hoc logs.
+  vocabulary instead of ad-hoc logs. Native capsule builds now expose
+  `oren.native-capsule-effect-gates.v0` domain-gate counters as the first native-side runtime
+  evidence bridge, but full native resource-decision and budget ledgers are still future work.
 - The native and AVM policy vocabularies are converging but not fully unified. For
   example, AVM has explicit `CORE`, `EXIT`, and `AVM` domains while native capsule
   enrollment currently focuses on `FS`, `NET`, `PROC`, `ENV`, `TIME`, and `RNG`.

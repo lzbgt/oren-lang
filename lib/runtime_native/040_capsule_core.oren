@@ -65,6 +65,8 @@ fn native_runtime_capsule_init() {
         if lim >= 0 { global_set_buf_payload_limit(lim) }
     }
 
+    native_runtime_run_json_init()
+
     var k_capsule = "OREN_CAPSULE"
     var v_capsule = native_envp_get_value_ptr(k_capsule)
     if v_capsule == 0 { return 0 }
@@ -197,7 +199,11 @@ fn native_capsule_require(mask_bit, name) {
     if global_get_capsule_mode() != 1 { return 0 }
     var allow = global_get_cap_allow_mask()
     var allowed = allow & mask_bit
-    if allowed != 0 { return 0 }
+    if allowed != 0 {
+        native_capsule_effect_gate_note(mask_bit, 0, 0)
+        return 0
+    }
+    native_capsule_effect_gate_note(mask_bit, 1, 0)
     native_capsule_diag_print("CAPSULE DENY: " + name)
     native_capsule_diag_print("hint: set OREN_CAP_ALLOW_DOMAINS to include " + name + " (or pass --cap-allow-domains)")
     exit(77)
@@ -208,7 +214,11 @@ fn native_capsule_require_any(mask_bits, name_hint) {
     if global_get_capsule_mode() != 1 { return 0 }
     var allow = global_get_cap_allow_mask()
     var allowed = allow & mask_bits
-    if allowed != 0 { return 0 }
+    if allowed != 0 {
+        native_capsule_effect_gate_note(mask_bits, 0, 1)
+        return 0
+    }
+    native_capsule_effect_gate_note(mask_bits, 1, 1)
     native_capsule_diag_print("CAPSULE DENY: " + name_hint)
     native_capsule_diag_print("hint: set OREN_CAP_ALLOW_DOMAINS to include one of: " + name_hint + " (or pass --cap-allow-domains)")
     exit(77)
