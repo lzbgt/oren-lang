@@ -1904,6 +1904,28 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   gate native regresses (`+2.72%`, `1/4`) and normalized `native/C` regresses (`+2.83%`, `2/4`).
   Keep low32 loads opt-in; this rules out the cheap "use i32 loads from 64-bit slots" shortcut as a
   shipped answer to the vector/slot64 representation gap.
+- Prefix pair-loop decision follow-up (2026-04-11): `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP=1`
+  is a new default-off exact prefix-zero dot branch that emits a counted 2-wide pair loop with the
+  remainder branch outside the hot pair body. The reusable probes are
+  `make perf-probe-arm64-fast-dot-prefix-pair-loop-decision` for the simple generic+explicit
+  prefix-zero acceptance surface and `make perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision`
+  / `make perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-list-int` for the broader
+  read-split + order-balanced gate surface. Structural disasm
+  (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-prefix-pair-loop-20260411_190748_44241.log`)
+  confirms the intended pair-loop shape: `ldp=8`, `madd=3`, a 44-instruction traced range, and
+  26 instructions after subtracting two skipped cold GC-call blocks. The simple wrapper artifact
+  (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-decision-20260411_191033_47867.log`)
+  looked superficially positive (`dot_product` steady/gate native `-0.75%` / `-1.92%`;
+  `dot_product_int` `-0.27%` / `-5.88%`), but the stronger stability surface rejected the branch.
+  Correctness coverage for the new scalar remainder path is `make verify-native-arm64-dot-prefix-pair-loop-tail`,
+  which builds generic and explicit dot benchmarks under the pair-loop env and checks `n=0,1,2,3,10,11,20,21`.
+  Generic stability artifact
+  (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-20260411_191326_52903.log`)
+  had read-split `long_per_rep +3.34%` and only `2/4` gate wins even though medians improved. Explicit
+  artifact
+  (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-list-int-20260411_191335_53758.log`)
+  had read-split `long_per_rep +12.87%`, gate native `-0.73%` with `3/4` wins, and normalized
+  `native/C -0.94%` with only `2/4` wins. Keep this counted pair-loop branch opt-in.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the

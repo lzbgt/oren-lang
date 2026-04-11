@@ -79,6 +79,9 @@ case_env_desc() {
         unroll2_low32_dual_madd_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
             ;;
+        prefix_pair_loop_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP=1"
+            ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2
             return 1
@@ -143,6 +146,9 @@ case_build_env() {
             ;;
         unroll2_low32_dual_madd_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
+            ;;
+        prefix_pair_loop_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP=1"
             ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2

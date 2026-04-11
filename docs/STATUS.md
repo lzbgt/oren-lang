@@ -2047,10 +2047,30 @@ Weights reflect expected impact on C parity and breadth of affected code.
        (`build/logs/perf-probe-arm64-fast-dot-low32-loads-decision-list-int-20260411_185153_19370.log`)
        has the opposite failure mode for the combined row: read-split `long_per_rep -0.81%`, but gate
        native `+2.72%` with `1/4` wins and normalized `native/C +2.83%` with `2/4` wins.
+     - Prefix pair-loop decision follow-up (2026-04-11):
+       `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP=1` is a new default-off exact prefix-zero
+       dot branch that emits a counted 2-wide pair loop and keeps the remainder branch outside the
+       hot pair body. New wrappers:
+       `make perf-probe-arm64-fast-dot-prefix-pair-loop-decision`,
+       `make perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision`, and
+       `make perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-list-int`. Structural disasm
+       (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-prefix-pair-loop-20260411_190748_44241.log`)
+       confirms the intended `ldp` pair + `madd` body: 44 traced instructions, 26 after subtracting
+       two cold GC-call blocks. The simple prefix-zero acceptance wrapper
+       (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-decision-20260411_191033_47867.log`)
+       looked superficially positive (`dot_product` steady/gate native `-0.75%` / `-1.92%`;
+       `dot_product_int` `-0.27%` / `-5.88%`), but the stronger stability surface rejects promotion:
+       generic stability
+       (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-20260411_191326_52903.log`)
+       has read-split `long_per_rep +3.34%` and only `2/4` order-balanced gate wins; explicit
+       stability
+       (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-list-int-20260411_191335_53758.log`)
+       has read-split `long_per_rep +12.87%` and normalized gate `native/C` only `2/4` wins.
      - Conclusion: keep the scalar-tail `madd` choice opt-in on the shipped baseline, keep cursor
-       regs on by default, keep scalar-post, pair-post+madd, dual-accum `madd`, and low32 slot loads
-       opt-in, and judge future arm64 dot core changes with the matrix + read-split + order-balanced
-       gate-stability probes rather than the older scalar-only promotion story.
+       regs on by default, keep scalar-post, pair-post+madd, dual-accum `madd`, low32 slot loads, and
+       the counted prefix pair-loop opt-in, and judge future arm64 dot core changes with the matrix +
+       read-split + order-balanced gate-stability probes rather than the older scalar-only promotion
+       story.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance

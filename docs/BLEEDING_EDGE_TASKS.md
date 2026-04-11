@@ -2387,10 +2387,31 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 								        has the opposite split for the combined row: read-split
 								        `long_per_rep -0.81%`, but gate native `+2.72%` with `1/4` wins and
 								        normalized `native/C +2.83%` with `2/4` wins.
+								      - prefix pair-loop decision (arm64, 2026-04-11):
+								        `OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP=1` is a new default-off
+								        exact prefix-zero dot branch that emits a counted 2-wide pair loop and keeps
+								        the scalar remainder outside the hot pair body. The simple wrapper is
+								        `make perf-probe-arm64-fast-dot-prefix-pair-loop-decision`; the broader
+								        wrappers are `make perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision`
+								        and `make perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-list-int`.
+								        Structural disasm
+								        (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-prefix-pair-loop-20260411_190748_44241.log`)
+								        confirms the intended `ldp` pair + `madd` body: 44 traced instructions and
+								        26 after subtracting two cold GC-call blocks. The simple wrapper
+								        (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-decision-20260411_191033_47867.log`)
+								        looked positive (`dot_product` steady/gate native `-0.75%` / `-1.92%`;
+								        `dot_product_int` `-0.27%` / `-5.88%`), but the stronger stability surface
+								        rejected the branch: generic stability
+								        (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-20260411_191326_52903.log`)
+								        had read-split `long_per_rep +3.34%` and only `2/4` order-balanced gate wins;
+								        explicit stability
+								        (`build/logs/perf-probe-arm64-fast-dot-prefix-pair-loop-stability-decision-list-int-20260411_191335_53758.log`)
+								        had read-split `long_per_rep +12.87%` and normalized gate `native/C` only
+								        `2/4` wins.
 								      Reweight: keep scalar exact-`madd` opt-in, keep cursor regs default-on, keep the
 								      whole exact branch opt-in, keep scalar-post, pair-post+madd, dual-accum
-								      `madd`, and low32 slot-loads opt-in, and use the matrix + read-split +
-								      gate-stability wrappers for future core A/B work.
+								      `madd`, low32 slot-loads, and prefix pair-loop opt-in, and use the matrix +
+								      read-split + gate-stability wrappers for future core A/B work.
 						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
 						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
 						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the
