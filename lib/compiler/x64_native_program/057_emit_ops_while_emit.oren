@@ -4,6 +4,9 @@ fn _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label
     var end_label2 = _new_label(ctx, "while_end")
 
     _emit_label(ctx, labels, cond_label)
+    if _x64_native_block_weighted_gas_enabled(ctx) == true {
+        _emit_native_gas_note_x64(ctx, 2)
+    }
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
     _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label2)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }

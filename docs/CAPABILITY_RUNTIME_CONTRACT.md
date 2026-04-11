@@ -195,9 +195,9 @@ sites charge their mask interval when they fire, and direct/manual runtime safep
 charge one tick. It is not an instruction-equivalent gas model, so the native run JSON gas object
 also carries `surface.schema="oren.gas-surface.v0"` with `id="native_stmt_loop_tick_v0"`. The accepted
 package-policy fine gas spellings remain `1`, `stmt`, and `statement`. The separate
-`OREN_NATIVE_GAS_ACCOUNTING=basic-block` spelling is now a runtime evidence surface
-(`native_basic_block_tick_v0`), but package-policy gas budgets still use statement+loop gas until a
-weighted native/AVM conversion contract exists. When
+`OREN_NATIVE_GAS_ACCOUNTING=basic-block` and `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` spellings are
+runtime evidence surfaces (`native_basic_block_tick_v0` and `native_block_weighted_tick_v0`), but
+package-policy gas budgets still use statement+loop gas until a native/AVM conversion contract exists. When
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
 `oren.native-package-policy-run.v0` JSON with runner-observed wall/gas/heap/CPU-budget evidence, the
 native capsule/domain policy that was applied, and any captured native runtime `effect_ledger`
@@ -223,7 +223,9 @@ mask interval and direct/manual `oren_gc_safepoint()` arrivals charge one tick. 
 `native_stmt_loop_tick_v0`, adding backend statement/op-boundary ticks to the loop-safepoint surface.
 `OREN_NATIVE_GAS_ACCOUNTING=statement` is an exact synonym for `stmt`;
 `OREN_NATIVE_GAS_ACCOUNTING=basic-block` reports `native_basic_block_tick_v0`, adding native lowering
-basic-block entry ticks plus loop-poll ticks as a distinct non-AVM-canonical surface. Every native
+basic-block entry ticks plus loop-poll ticks as a distinct non-AVM-canonical surface.
+`OREN_NATIVE_GAS_ACCOUNTING=block-weighted` reports `native_block_weighted_tick_v0`, adding static
+lowering-block weights plus loop-condition charges and loop-poll ticks. Every native
 gas object also includes an `oren.gas-surface.v0` descriptor; semantic diff now reports the native
 and AVM gas surfaces as non-comparable when their ids differ, instead of treating positive counters
 as the same unit. Future backend work can add finer instruction-equivalent gas without changing the
@@ -272,8 +274,8 @@ while direct `OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
   live-heap scans, CPU-budget checks from child process resource usage where available, and a
   scoped `native_stmt_loop_tick_v0` gas check with explicit `oren.gas-surface.v0` metadata. They are
   not yet a complete enforcement contract across native and AVM because native package gas is still
-  statement+loop-granular, and the newer `native_basic_block_tick_v0` semantic-diff surface is
-  unweighted lowering-block evidence rather than AVM-opcode-equivalent gas. Native capsule
+  statement+loop-granular, and the newer `native_block_weighted_tick_v0` semantic-diff surface is
+  weighted lowering-block evidence rather than AVM-opcode-equivalent gas. Native capsule
   runtime knobs are domain/resource allowlists first.
 - Full effect-ledger runtime emission is not complete yet. The target schema is pinned in
   `docs/EFFECT_LEDGER_CONTRACT.md`, and AVM `--print-run-json` already emits a compact

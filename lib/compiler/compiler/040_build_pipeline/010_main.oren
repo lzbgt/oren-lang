@@ -1087,6 +1087,8 @@ fn compiler_main() {
                 cfg["native_gas_accounting"] = "stmt"
             } else if gas_mode_env == "basic-block" {
                 cfg["native_gas_accounting"] = "basic-block"
+            } else if gas_mode_env == "block-weighted" {
+                cfg["native_gas_accounting"] = "block-weighted"
             }
         }
 

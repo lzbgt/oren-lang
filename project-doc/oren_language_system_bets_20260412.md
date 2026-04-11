@@ -134,8 +134,8 @@ It is a language plus runtime plus artifact contract.
   Native executables now have a runtime-observed
   `OREN_NATIVE_RUN_JSON=1` bridge with wall timing, capsule domain-gate counters, selected
   FS/NET/PROC resource-check counters, a scanned live tracked-heap byte count, and default
-  loop-safepoint, opt-in statement+loop, or opt-in lowering-block native gas. Native and AVM gas summaries now carry
-  explicit `oren.gas-surface.v0` metadata, and semantic diff marks `native_basic_block_tick_v0` and
+  loop-safepoint, opt-in statement+loop, opt-in lowering-block, or opt-in weighted lowering-block
+  native gas. Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` metadata, and semantic diff marks `native_block_weighted_tick_v0` and
   `avm_opcode_cost_v0` as non-comparable rather than pretending any positive counter is enough.
   The next step is a conversion contract or finer native instruction-equivalent gas rather than
   another manifest-only field.
@@ -149,12 +149,14 @@ It is a language plus runtime plus artifact contract.
   into a multi-sample report, preserving the current ratio spread as evidence that Oren needs a real
   native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
-  `native_instruction_equivalent_or_block_weighted_gas` exists. Oren also guards exact native gas mode
-  spellings: `stmt` and `statement` mean statement+loop gas, while `basic-block` selects distinct
-  lowering-block evidence rather than silently aliasing statement gas. The native build cache key now
+  native instruction-equivalent gas exists. The first block-weighted calibration set
+  (`build/reports/backend_gas_surface_calibration_set_20260412_073423_25794.json`) still spans
+  `~1.1357x` to `~13.3761x` native ticks per AVM opcode gas, so block weighting is evidence, not a
+  conversion rule. Oren also guards exact native gas mode
+  spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
+  lowering-block evidence, and `block-weighted` selects weighted lowering-block evidence rather than silently aliasing statement gas. The native build cache key now
   includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
-  Next work is weighted native gas
-  parity or a stated conversion rule, not only expanding fixture scripts.
+  Next work is instruction-equivalent native gas or a stated conversion rule, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

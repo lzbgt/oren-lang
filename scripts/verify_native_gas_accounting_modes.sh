@@ -141,6 +141,7 @@ run_case "default" "" "native_loop_safepoint_tick_v0" "0"
 run_case "stmt" "stmt" "native_stmt_loop_tick_v0" "1"
 run_case "statement" "statement" "native_stmt_loop_tick_v0" "1"
 run_case "basic_block" "basic-block" "native_basic_block_tick_v0" "1"
+run_case "block_weighted" "block-weighted" "native_block_weighted_tick_v0" "1"
 
 python3 - "$cases_file" <<'PY'
 import json
@@ -150,7 +151,7 @@ from pathlib import Path
 cases_path = Path(sys.argv[1])
 cases = [json.loads(line) for line in cases_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 seen = {case["name"]: case for case in cases}
-required = {"default", "stmt", "statement", "basic_block"}
+required = {"default", "stmt", "statement", "basic_block", "block_weighted"}
 missing = sorted(required - set(seen))
 if missing:
     raise SystemExit(f"{cases_path}: missing mode cases: {missing}")
@@ -164,5 +165,13 @@ if int(seen["basic_block"].get("executed") or 0) <= 0:
     raise SystemExit(f"{cases_path}: basic-block should report positive gas, got {seen['basic_block']!r}")
 if int(seen["basic_block"].get("executed") or 0) >= int(seen["stmt"].get("executed") or 0):
     raise SystemExit(f"{cases_path}: basic-block should charge fewer ticks than statement gas for this fixture, got {seen!r}")
+if seen["block_weighted"]["kind"] != "native_block_weighted_tick_v0":
+    raise SystemExit(f"{cases_path}: block-weighted mode mismatch: {seen['block_weighted']!r}")
+if seen["block_weighted"]["kind"] == seen["basic_block"]["kind"] or seen["block_weighted"]["kind"] == seen["stmt"]["kind"]:
+    raise SystemExit(f"{cases_path}: block-weighted must stay distinct from basic-block and statement gas, got {seen!r}")
+if int(seen["block_weighted"].get("executed") or 0) <= 0:
+    raise SystemExit(f"{cases_path}: block-weighted should report positive gas, got {seen['block_weighted']!r}")
+if int(seen["block_weighted"].get("executed") or 0) <= int(seen["basic_block"].get("executed") or 0):
+    raise SystemExit(f"{cases_path}: block-weighted should charge more than basic-block for this fixture, got {seen!r}")
 print("native gas accounting modes verify OK")
 PY

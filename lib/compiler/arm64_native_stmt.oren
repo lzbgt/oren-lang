@@ -191,6 +191,7 @@ fn _arm64_native_gas_accounting_mode(ctx) {
     var mode = "none"
     if v == "1" || v == "stmt" || v == "statement" { mode = "stmt" }
     else if v == "basic-block" { mode = "basic-block" }
+    else if v == "block-weighted" { mode = "block-weighted" }
     ctx["native_gas_accounting_mode"] = mode
     return mode
 }
@@ -202,7 +203,13 @@ fn _arm64_native_stmt_gas_enabled(ctx) {
 
 fn _arm64_native_basic_block_gas_enabled(ctx) {
     if ctx == nil { return false }
-    return _arm64_native_gas_accounting_mode(ctx) == "basic-block"
+    var mode = _arm64_native_gas_accounting_mode(ctx)
+    return mode == "basic-block" || mode == "block-weighted"
+}
+
+fn _arm64_native_block_weighted_gas_enabled(ctx) {
+    if ctx == nil { return false }
+    return _arm64_native_gas_accounting_mode(ctx) == "block-weighted"
 }
 
 fn _arm64_stmt_gas_should_charge(ctx, stmt) {
@@ -241,6 +248,55 @@ fn _arm64_stmt_starts_following_basic_block(stmt) {
         if e != nil && e["type"] == "If" { return true }
     }
     return false
+}
+
+fn _arm64_stmt_static_gas_weight(stmt) {
+    if stmt == nil { return 0 }
+    var st = stmt["type"]
+    if st == "Block" || st == "Function" { return 0 }
+    if st == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" { return 0 }
+        if e != nil && e["type"] == "If" { return 2 }
+    }
+    if st == "If" || st == "While" || st == "For" { return 2 }
+    return 1
+}
+
+fn _arm64_block_weight_from_stmt_list(stmts, start) {
+    if stmts == nil { return 1 }
+    var n = oren_list_len(stmts)
+    var i = start
+    var total = 0
+    while i < n {
+        var cur = stmts[i]
+        total = total + _arm64_stmt_static_gas_weight(cur)
+        if _arm64_stmt_starts_following_basic_block(cur) == true { break }
+        if cur != nil {
+            var st = cur["type"]
+            if st == "Return" || st == "Break" || st == "Continue" { break }
+        }
+        i = i + 1
+    }
+    if total <= 0 { return 1 }
+    return total
+}
+
+fn _arm64_basic_block_gas_amount(ctx, stmt) {
+    if _arm64_native_block_weighted_gas_enabled(ctx) == true {
+        var override = ctx["arm64_basic_block_gas_weight_override"]
+        ctx["arm64_basic_block_gas_weight_override"] = nil
+        if override != nil && override > 0 { return override }
+        var w = _arm64_stmt_static_gas_weight(stmt)
+        if w > 0 { return w }
+    }
+    return 1
+}
+
+fn _arm64_emit_block_weighted_loop_condition_gas(ctx) {
+    if _arm64_native_block_weighted_gas_enabled(ctx) != true { return nil }
+    gc.native_emit_runtime_gas_note_amount(ctx, 2)
+    return nil
 }
 
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
@@ -381,7 +437,7 @@ fn native_compile_stmt(ctx, stmt) {
     if _arm64_stmt_gas_should_charge(ctx, stmt) == true {
         gc.native_emit_runtime_gas_note_amount(ctx, 1)
     } else if _arm64_basic_block_gas_should_charge(ctx, stmt) == true {
-        gc.native_emit_runtime_gas_note_amount(ctx, 1)
+        gc.native_emit_runtime_gas_note_amount(ctx, _arm64_basic_block_gas_amount(ctx, stmt))
         ctx["arm64_basic_block_entry"] = false
     }
     var r = native_compile_stmt_inner(ctx, stmt)
@@ -472,6 +528,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 continue
             }
             ctx["arm64_fresh_list_int_caps"] = fresh_caps
+            if _arm64_native_block_weighted_gas_enabled(ctx) == true && ctx["arm64_basic_block_entry"] == true {
+                ctx["arm64_basic_block_gas_weight_override"] = _arm64_block_weight_from_stmt_list(stmts, i)
+            }
             var r = native_compile_stmt(ctx, cur)
             if r == false {
                 falls_through = false
@@ -750,6 +809,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var loop_base_stack = ctx["stack_size"]
         loopm._arm64_trace_loop_stack(ctx, "for_loop", loop_base_stack, 2, 0, 16)
         var start_pos = bytes_len(ctx["code"])
+        _arm64_emit_block_weighted_loop_condition_gas(ctx)
 
         var prev_loop = ctx["loop_ctx"]
         var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": nil, "break_jumps": [], "continue_jumps": []}

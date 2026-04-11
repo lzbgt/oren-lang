@@ -132,6 +132,7 @@ fn _x64_native_gas_accounting_mode(ctx) {
     var mode = "none"
     if v == "1" || v == "stmt" || v == "statement" { mode = "stmt" }
     else if v == "basic-block" { mode = "basic-block" }
+    else if v == "block-weighted" { mode = "block-weighted" }
     ctx["native_gas_accounting_mode"] = mode
     return mode
 }
@@ -143,7 +144,13 @@ fn _x64_native_stmt_gas_enabled(ctx) {
 
 fn _x64_native_basic_block_gas_enabled(ctx) {
     if ctx == nil { return false }
-    return _x64_native_gas_accounting_mode(ctx) == "basic-block"
+    var mode = _x64_native_gas_accounting_mode(ctx)
+    return mode == "basic-block" || mode == "block-weighted"
+}
+
+fn _x64_native_block_weighted_gas_enabled(ctx) {
+    if ctx == nil { return false }
+    return _x64_native_gas_accounting_mode(ctx) == "block-weighted"
 }
 
 fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask) {

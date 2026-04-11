@@ -134,7 +134,7 @@ conversion_decision = {
     "comparable": False,
     "not_a_conversion": True,
     "forbidden_policy": "single_fixture_ratio",
-    "required_next_surface": "native_instruction_equivalent_or_block_weighted_gas",
+    "required_next_surface": "native_instruction_equivalent_gas",
     "package_policy_may_convert": False,
 }
 

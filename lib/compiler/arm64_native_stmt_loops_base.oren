@@ -110,6 +110,22 @@ fn _arm64_set_compile_hooks(expr_fn, stmt_fn) {
     return nil
 }
 
+fn _arm64_native_block_weighted_gas_enabled(ctx) {
+    if ctx == nil { return false }
+    var mode = ctx["native_gas_accounting_mode"]
+    if mode == nil {
+        var v = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
+        if v == "block-weighted" { mode = "block-weighted" }
+    }
+    return mode == "block-weighted"
+}
+
+fn _arm64_emit_block_weighted_loop_condition_gas(ctx) {
+    if _arm64_native_block_weighted_gas_enabled(ctx) != true { return nil }
+    gc.native_emit_runtime_gas_note_amount(ctx, 2)
+    return nil
+}
+
 fn _arm64_restore_stack_to(ctx, base_stack) {
     // Rolling safety: keep runtime SP and compile-time `ctx["stack_size"]` consistent.
     //
@@ -197,6 +213,7 @@ fn _arm64_emit_while_generic(ctx, stmt) {
     var loop_base_stack = ctx["stack_size"]
     _arm64_trace_loop_stack(ctx, "while_generic", loop_base_stack, 2, 0, 16)
     var start_pos = bytes_len(ctx["code"])
+    _arm64_emit_block_weighted_loop_condition_gas(ctx)
 
     var prev_loop = ctx["loop_ctx"]
     var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": start_pos, "break_jumps": [], "continue_jumps": []}
