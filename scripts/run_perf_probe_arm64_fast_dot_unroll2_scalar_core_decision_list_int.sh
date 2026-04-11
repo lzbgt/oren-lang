@@ -8,12 +8,16 @@ ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 
-summary_log="$log_dir/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-${ts}.log"
-read_split_wrapper_log="$log_dir/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-read-split-${ts}.run.log"
-gate_wrapper_log="$log_dir/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-gate-stability-${ts}.run.log"
+tag="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_TAG:-perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int}"
+title="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_TITLE:-arm64 fast dot unroll2 + scalar-core decision list<int> summary}"
+complete_label="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_COMPLETE_LABEL:-arm64 fast-dot unroll2 scalar-core decision list<int> probe}"
 
-case_set="${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CASES:-baseline unroll2_enabled scalar_enabled unroll2_scalar_enabled}"
-candidate="${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CANDIDATE:-unroll2_scalar_enabled}"
+summary_log="$log_dir/${tag}-${ts}.log"
+read_split_wrapper_log="$log_dir/${tag}-read-split-${ts}.run.log"
+gate_wrapper_log="$log_dir/${tag}-gate-stability-${ts}.run.log"
+
+case_set="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_CASES:-${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CASES:-baseline unroll2_enabled scalar_enabled unroll2_scalar_enabled}}"
+candidate="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_CANDIDATE:-${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CANDIDATE:-unroll2_scalar_enabled}}"
 
 extract_summary_path() {
     local run_log="$1"
@@ -63,6 +67,7 @@ GATE_WRAPPER_RC="$gate_rc" \
 GATE_SUMMARY="$gate_summary" \
 CASE_SET="$case_set" \
 CANDIDATE="$candidate" \
+TITLE="$title" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
@@ -136,7 +141,7 @@ if gate_summary and os.path.exists(gate_summary):
             gate_deltas[current]["native_over_c_delta_pct_max"] = float(m_ratio.group(3))
             gate_deltas[current]["native_over_c_delta_wins"] = m_ratio.group(4)
 
-print("arm64 fast dot unroll2 + scalar-core decision list<int> summary")
+print(os.environ["TITLE"])
 print("")
 print(f"case_set: {os.environ['CASE_SET']}")
 print(f"candidate: {candidate}")
@@ -213,7 +218,7 @@ else:
     print("decision: candidate clears this decision surface; run broader integration before any default flip.")
 PY
 
-echo "arm64 fast-dot unroll2 scalar-core decision list<int> probe complete; summary: $summary_log"
+echo "$complete_label complete; summary: $summary_log"
 echo "read-split wrapper log: $read_split_wrapper_log"
 echo "gate-stability wrapper log: $gate_wrapper_log"
 

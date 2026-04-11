@@ -32,6 +32,7 @@ fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
 fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
+fn insn_ldr_ptr_post(rd, rn, offset) { return core.insn_ldr_ptr_post(rd, rn, offset) }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
 fn insn_madd(rd, rn, rm, ra) { return core.insn_madd(rd, rn, rm, ra) }
@@ -1309,6 +1310,10 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     } else if v_madd_exact_scalar != nil && (v_madd_exact_scalar == "0" || v_madd_exact_scalar == "false") {
         madd_exact_scalar = false
     }
+    var scalar_post = false
+    if _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST") == true {
+        scalar_post = true
+    }
     // The old unique-list default-on unroll2 path now loses on both generic and explicit raw
     // medians on the current host. Keep it as an explicit opt-in experiment instead of shipping it.
     var unroll2 = false
@@ -1792,11 +1797,16 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
         if unique_lists {
             if single_mul_pair && single_pair_cursor_regs {
-                push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
-                push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+                if scalar_post {
+                    push_u32_le(ctx["code"], insn_ldr_ptr_post(25, 19, 8))
+                    push_u32_le(ctx["code"], insn_ldr_ptr_post(27, 26, 8))
+                } else {
+                    push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
+                    push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
 
-                push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
-                push_u32_le(ctx["code"], insn_add_imm(26, 26, 8))
+                    push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+                    push_u32_le(ctx["code"], insn_add_imm(26, 26, 8))
+                }
             } else {
                 // left value (advance cursor)
                 emit_ldr_reg_sp_any(ctx, 24, buf_left)

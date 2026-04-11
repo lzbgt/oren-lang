@@ -74,6 +74,9 @@ fn main() {
 
     // Basic integer loads/stores (imm=0).
     expect_u32(core.insn_ldr_ptr(0, 1), 0xF9400020, 185) // ldr x0, [x1]
+    expect_u32(core.insn_ldr_ptr_post(2, 3, -8), 0xF85F8462, 182) // ldr x2, [x3], #-8
+    expect_u32(core.insn_ldr_ptr_post(27, 26, 8), 0xF840875B, 183) // ldr x27, [x26], #8
+    expect_u32(core.insn_ldr_ptr_post(25, 19, 8), 0xF8408679, 184) // ldr x25, [x19], #8
     expect_u32(core.insn_str_ptr(2, 3), 0xF9000062, 186) // str x2, [x3]
     expect_u32(core.insn_ldrb(4, 5), 0x394000A4, 187)    // ldrb w4, [x5]
     expect_u32(core.insn_ldr_reg_sp(0, 0), 0xF94003E0, 188) // ldr x0, [sp]

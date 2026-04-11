@@ -1036,6 +1036,17 @@ fn insn_ldr_ptr_off(rd, rn, offset) {
     return 4181721088 + ((offset / 8) * 1024) + (rn * 32) + rd
 }
 
+fn insn_ldr_ptr_post(rd, rn, offset) {
+    // LDR Xt, [Xn], #imm9 (post-index, writes back to base).
+    // Verified via clang:
+    //   ldr x25, [x19], #8 => 0xF8408679
+    //   ldr x2, [x3], #-8 => 0xF85F8462
+    var imm9 = offset
+    if offset < 0 { imm9 = imm9 + 512 } // 2's complement 9-bit
+    // Base: 0xF8400400
+    return 4164944896 + (imm9 * 4096) + (rn * 32) + rd
+}
+
 fn insn_str_ptr(rd, rn) {
     // STR Xt, [Xn] with imm = 0 (unsigned offset encoding)
     // Verified via clang:

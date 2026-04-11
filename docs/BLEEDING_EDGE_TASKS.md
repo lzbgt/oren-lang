@@ -1301,6 +1301,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     6-instruction slot64 scalar tail. Plain “vectorize the current 64-bit slot ABI” is not
 		     enough to regain packed-i32 NEON throughput, but the current Oren loop still has a material
 		     scalar/slot64-ceiling gap too.
+		     The scalar-post follow-up now confirms that simply matching the host slot64 scalar loop's
+		     post-index load + `madd` shape is not enough: the opt-in combined Oren loop shrinks to
+		     `18` traced instructions (`11` without the skipped cold GC-call block), but the measured
+		     decision surface still rejects the branch.
 			   - Read-split follow-up (2026-04-05): new `make perf-probe-list-int-packed-bridge-read-split`
 			     warms the hidden packed-bridge artifacts once and then compares canonical `dot_product_int`
 			     against packed scalar / SIMD on the same short/long split runner. Latest artifact
@@ -2272,9 +2276,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 								        (`build/logs/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-20260411_172713_80854.log`)
 								        was noisier, with high-covariance nested samples, but still rejected the same
 								        combined candidate.
+								      - scalar-post + scalar-core decision (arm64, 2026-04-11):
+								        `make perf-probe-arm64-fast-dot-scalar-post-decision-list-int`
+								        ranks `baseline`, `SCALAR_POST=1`, `SCALAR=1`, and
+								        `SCALAR_POST=1,SCALAR=1` on the same explicit `dot_product_int`
+								        read-split and order-balanced gate surfaces. The structural artifacts confirm
+								        the intended lowering:
+								        - `OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1`
+								          (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-scalar-post-20260411_174133_69032.log`)
+								          emits post-index loads and shrinks the traced range to `19` instructions,
+								          `12` without the skipped cold GC-call block
+								        - `OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1`
+								          (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-scalar-post-madd-20260411_174149_69542.log`)
+								          emits post-index loads plus `madd` and shrinks the traced range to `18`
+								          instructions, `11` without the skipped cold block
+								        The decision artifact
+								        (`build/logs/perf-probe-arm64-fast-dot-scalar-post-decision-list-int-20260411_173911_64748.log`)
+								        rejects the combined candidate: read-split native `long_per_rep +0.99%`,
+								        gate native median `+1.17%` with `2/4` wins, and gate `native/C +2.22%`
+								        with `2/4` wins. The standalone `SCALAR_POST=1` row also fails read-split
+								        (`long_per_rep +4.57%`) and gate native median (`+1.01%`, `2/4` wins).
 								      Reweight: keep scalar exact-`madd` opt-in, keep cursor regs default-on, keep the
-								      whole exact branch opt-in, and use the matrix + read-split + gate-stability
-								      wrappers for future core A/B work.
+								      whole exact branch opt-in, keep scalar-post opt-in, and use the matrix +
+								      read-split + gate-stability wrappers for future core A/B work.
 						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
 						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
 						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the

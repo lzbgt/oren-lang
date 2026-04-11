@@ -36,6 +36,12 @@ case_env_desc() {
         unroll2_scalar_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
             ;;
+        scalar_post_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1"
+            ;;
+        scalar_post_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2
             return 1
@@ -61,6 +67,12 @@ case_build_env() {
             ;;
         unroll2_scalar_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        scalar_post_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1"
+            ;;
+        scalar_post_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
             ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2

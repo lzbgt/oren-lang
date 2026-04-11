@@ -108,6 +108,13 @@ host C vector/mid/tail shape, with labels selected by instruction pattern rather
 The probe also now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, so multi-var build
 env overrides reach the traced Oren build instead of being collapsed into one invalid token.
 
+The 2026-04-11 scalar-post follow-up confirms that matching the host slot64 scalar loop's visible
+post-index load plus `madd` shape is not sufficient by itself. With
+`OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1`, the
+explicit `dot_product_int` traced Oren range shrinks to 18 instructions, or 11 after excluding the
+skipped 7-instruction cold GC-call block, but the decision probe still rejects the branch on the
+read-split plus order-balanced gate surface.
+
 To quantify how much of the remaining gap is still scalar-codegen debt versus the missing NEON path,
 use:
 
@@ -1785,6 +1792,26 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   (`build/logs/perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int-20260411_172713_80854.log`)
   was noisier but reached the same rejection, so the next dot-core work should move away from this
   combined toggle family.
+- Scalar-post decision follow-up (2026-04-11): `make perf-probe-arm64-fast-dot-scalar-post-decision-list-int`
+  ranks `baseline`, `SCALAR_POST=1`, `SCALAR=1`, and `SCALAR_POST=1,SCALAR=1` on the same explicit
+  `dot_product_int` read-split and order-balanced gate surface. The structural disasm checks show
+  the expected shape:
+  - `OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1`
+    (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-scalar-post-20260411_174133_69032.log`)
+    lowers the hot body to post-index loads and moves the traced range to `19` instructions, or `12`
+    without the skipped cold GC-call block
+  - `OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1`
+    (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-scalar-post-madd-20260411_174149_69542.log`)
+    emits post-index loads plus `madd`, moving the traced range to `18`, or `11` without the cold
+    block
+  The ranking artifact
+  (`build/logs/perf-probe-arm64-fast-dot-scalar-post-decision-list-int-20260411_173911_64748.log`)
+  still rejects the combined candidate: read-split native `long_per_rep +0.99%`, gate native median
+  `+1.17%` with `2/4` wins, and gate `native/C +2.22%` with `2/4` wins. The standalone
+  `SCALAR_POST=1` row also fails read-split (`long_per_rep +4.57%`) and the gate median (`+1.01%`,
+  `2/4` wins). Reweight: keep scalar-post and scalar exact-`madd` opt-in; this closes the cheap
+  "match host scalar post-index+madd" branch and leaves the bigger vector/slot64 representation gap
+  as the next high-leverage dot-parity surface.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the
