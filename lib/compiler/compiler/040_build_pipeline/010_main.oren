@@ -644,7 +644,9 @@ fn compiler_main() {
         if backend0m == nil { backend0m = "c" }
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0m, "debug": cfg_debugm, "keep_all_top_level_functions": true})
         var meta_json = metadata.generate_metadata(linked)
-        var meta_policy = _artifact_manifest_policy_with_package("meta", false, [], metadata.cap_required_domains(linked["statements"]), metadata.json_package_manifest(linked["statements"]))
+        var meta_domains = metadata.cap_required_domains(linked["statements"])
+        var meta_profile = _runtime_profile_request_for_manifest("meta", false)
+        var meta_policy = _artifact_manifest_policy_with_package("meta", false, [], meta_domains, metadata.json_package_manifest(linked["statements"]), metadata.json_package_policy_check(linked["statements"], meta_profile, []))
         ensure_dir(dirname(out_meta))
         var w = oren_write_file(out_meta, meta_json)
         if oren_is_err(w) {
@@ -1206,7 +1208,9 @@ fn compiler_main() {
         if oren_list_len(link_obc) > 0 { allow_undef = true }
 
         var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
-        var bytecode_policy = _artifact_manifest_policy_with_package("bytecode", CAPSULE, CAP_ALLOW_DOMAINS, metadata.cap_required_domains(linked_bc["statements"]), metadata.json_package_manifest(linked_bc["statements"]))
+        var bytecode_domains = metadata.cap_required_domains(linked_bc["statements"])
+        var bytecode_profile = _runtime_profile_request_for_manifest("bytecode", CAPSULE)
+        var bytecode_policy = _artifact_manifest_policy_with_package("bytecode", CAPSULE, CAP_ALLOW_DOMAINS, bytecode_domains, metadata.json_package_manifest(linked_bc["statements"]), metadata.json_package_policy_check(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS))
 
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
         if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
@@ -1379,7 +1383,9 @@ fn compiler_main() {
         }
 
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib, "test_mode": test_mode})
-        var native_policy = _artifact_manifest_policy_with_package("native", CAPSULE, CAP_ALLOW_DOMAINS, metadata.cap_required_domains(linked["statements"]), metadata.json_package_manifest(linked["statements"]))
+        var native_domains = metadata.cap_required_domains(linked["statements"])
+        var native_profile = _runtime_profile_request_for_manifest("native", CAPSULE)
+        var native_policy = _artifact_manifest_policy_with_package("native", CAPSULE, CAP_ALLOW_DOMAINS, native_domains, metadata.json_package_manifest(linked["statements"]), metadata.json_package_policy_check(linked["statements"], native_profile, CAP_ALLOW_DOMAINS))
         if trace_build_summary { t_sum_link_done = oren_time_now_ns() }
         if trace_phase_path != nil {
             var linked_stmts = 0
@@ -1680,7 +1686,9 @@ fn compiler_main() {
     // ASTs (MODULE_ORDER + prog), so we must sync generated functions back into those
     // unit programs before transpiling.
     var linked_c = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "test_mode": test_mode})
-    var c_policy = _artifact_manifest_policy_with_package("c", CAPSULE, CAP_ALLOW_DOMAINS, metadata.cap_required_domains(linked_c["statements"]), metadata.json_package_manifest(linked_c["statements"]))
+    var c_domains = metadata.cap_required_domains(linked_c["statements"])
+    var c_profile = _runtime_profile_request_for_manifest("c", CAPSULE)
+    var c_policy = _artifact_manifest_policy_with_package("c", CAPSULE, CAP_ALLOW_DOMAINS, c_domains, metadata.json_package_manifest(linked_c["statements"]), metadata.json_package_policy_check(linked_c["statements"], c_profile, CAP_ALLOW_DOMAINS))
     c_backend_sync_generated_functions(prog, MODULE_ORDER, linked_c)
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     // IMPORTANT (rolling hygiene):

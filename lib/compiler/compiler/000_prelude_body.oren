@@ -372,9 +372,10 @@ fn _artifact_manifest_policy(backend, capsule, cap_allow_domains, source_require
     }
 }
 
-fn _artifact_manifest_policy_with_package(backend, capsule, cap_allow_domains, source_required_domains, source_package_json) {
+fn _artifact_manifest_policy_with_package(backend, capsule, cap_allow_domains, source_required_domains, source_package_json, source_package_check_json) {
     var p = _artifact_manifest_policy(backend, capsule, cap_allow_domains, source_required_domains)
     p["source_package"] = source_package_json
+    p["source_package_check"] = source_package_check_json
     return p
 }
 
@@ -393,6 +394,10 @@ fn _artifact_manifest_policy_json(policy) {
     if source_package == nil || source_package == "" {
         source_package = "{\"version\":1,\"declared\":false,\"runtime_profile\":null,\"cap_allow_domains\":[],\"source_required_domains\":" + _json_string_array(source_required_domains) + ",\"dependency_domain_union\":" + _json_string_array(source_required_domains) + ",\"dependency_domain_union_status\":\"source_attrs_only\",\"budgets\":{\"version\":1,\"declared\":false}}"
     }
+    var source_package_check = policy["source_package_check"]
+    if source_package_check == nil || source_package_check == "" {
+        source_package_check = "{\"version\":1,\"declared\":false,\"status\":\"not_declared\",\"runtime_profile\":{\"declared\":null,\"actual\":\"" + _json_escape(runtime_profile) + "\",\"status\":\"not_declared\"},\"cap_allow_domains\":{\"declared\":[],\"actual\":" + _json_string_array(cap_allow_domains) + ",\"missing\":[],\"status\":\"not_declared\"},\"budget_status\":\"not_declared\"}"
+    }
     return "\"policy\":{\"version\":1," +
         "\"backend\":\"" + _json_escape(backend) + "\"," +
         "\"runtime_profile\":\"" + _json_escape(runtime_profile) + "\"," +
@@ -401,6 +406,7 @@ fn _artifact_manifest_policy_json(policy) {
         "\"cap_allow_domains\":" + _json_string_array(cap_allow_domains) + "," +
         "\"source_required_domains\":" + _json_string_array(source_required_domains) + "," +
         "\"source_package\":" + source_package + "," +
+        "\"source_package_check\":" + source_package_check + "," +
         "\"budgets\":{\"version\":1,\"declared\":false}" +
         "}"
 }

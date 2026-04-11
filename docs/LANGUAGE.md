@@ -1458,7 +1458,9 @@ For the current capability domain and native runtime-profile contract, see
   declaration. The current fields are `runtime_profile`, `cap_allow_domains`, and budget
   defaults such as `budget_cpu_ms`, `budget_wall_ms`, `budget_heap_bytes`, and `budget_gas`.
   This marker normalizes into metadata/artifact manifests; it does not silently change
-  runtime profile selection or enforce budgets.
+  runtime profile selection or enforce budgets. Artifact manifests also include
+  `policy.source_package_check`, an observe-only comparison of the package marker against
+  actual build flags and runtime-profile selection.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
   a complete stdlib/runtime effect proof.
@@ -3532,7 +3534,10 @@ Shape (rolling, v1):
 
 The marker is intentionally not an enforcement mechanism yet. It gives package tooling,
 artifact manifests, and agents a stable source-declared policy surface to compare with
-actual build flags and runtime profiles.
+actual build flags and runtime profiles. Artifact `--manifest` output additionally carries
+`policy.source_package_check` with `observe_only` / `mismatch_observed` status, runtime-profile
+comparison, cap-allow coverage, and budget declaration status. The check is intentionally
+diagnostic-only for now.
 
 ### 2.4 Normalized serde schema (what libraries/tooling want)
 

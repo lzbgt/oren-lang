@@ -8,10 +8,11 @@ mkdir -p build/logs build/tmp
 ts="$(date +%Y%m%d_%H%M%S)"
 meta_out="build/tmp/meta_capabilities_policy_${ts}.json"
 c_out="build/tmp/capability_manifest_policy_${ts}"
+c_mismatch_out="build/tmp/capability_manifest_policy_mismatch_${ts}"
 log="build/logs/verify_capability_manifest_policy_${ts}.log"
 
 cleanup() {
-  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json"
+  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json" "$c_mismatch_out" "$c_mismatch_out.manifest.json"
 }
 trap cleanup EXIT
 
@@ -26,12 +27,19 @@ trap cleanup EXIT
     --cap-allow-domains FS,ENV \
     -o "$c_out"
 
-  python3 - "$meta_out.manifest.json" "$c_out.manifest.json" <<'PY'
+  echo "writing C artifact manifest policy mismatch observation: $c_mismatch_out"
+  ./oren build tests/fixtures/capability_manifest_policy_src.oren \
+    --backend c \
+    --manifest \
+    --cap-allow-domains FS \
+    -o "$c_mismatch_out"
+
+  python3 - "$meta_out.manifest.json" "$c_out.manifest.json" "$c_mismatch_out.manifest.json" <<'PY'
 import json
 import sys
 
 # Guard the policy.source_required_domains contract, not only the artifact hash fields.
-meta_manifest, c_manifest = sys.argv[1], sys.argv[2]
+meta_manifest, c_manifest, c_mismatch_manifest = sys.argv[1:4]
 
 def load(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -85,6 +93,30 @@ def expect_package(path, policy, *, declared, runtime_profile, cap_allow, budget
     if pkg != expected:
         raise SystemExit(f"{path}: unexpected source_package: {pkg!r}")
 
+def expect_package_check(path, policy, *, declared, status, runtime_declared, runtime_actual, runtime_status, cap_declared, cap_actual, cap_missing, cap_status, budget_status):
+    chk = policy.get("source_package_check")
+    if not isinstance(chk, dict):
+        raise SystemExit(f"{path}: policy.source_package_check must be an object")
+    expected = {
+        "version": 1,
+        "declared": declared,
+        "status": status,
+        "runtime_profile": {
+            "declared": runtime_declared,
+            "actual": runtime_actual,
+            "status": runtime_status,
+        },
+        "cap_allow_domains": {
+            "declared": cap_declared,
+            "actual": cap_actual,
+            "missing": cap_missing,
+            "status": cap_status,
+        },
+        "budget_status": budget_status,
+    }
+    if chk != expected:
+        raise SystemExit(f"{path}: unexpected source_package_check: {chk!r}")
+
 meta = load(meta_manifest)
 expect_common(meta_manifest, meta, "meta")
 expect_policy(
@@ -104,6 +136,20 @@ expect_package(
     runtime_profile=None,
     cap_allow=[],
     budgets={"version": 1, "declared": False},
+)
+expect_package_check(
+    meta_manifest,
+    meta["policy"],
+    declared=False,
+    status="not_declared",
+    runtime_declared=None,
+    runtime_actual="none",
+    runtime_status="not_declared",
+    cap_declared=[],
+    cap_actual=[],
+    cap_missing=[],
+    cap_status="not_declared",
+    budget_status="not_declared",
 )
 
 c = load(c_manifest)
@@ -125,6 +171,55 @@ expect_package(
     runtime_profile="capsule",
     cap_allow=["ENV", "FS"],
     budgets={"version": 1, "declared": True, "cpu_ms": 10, "heap_bytes": 4096},
+)
+expect_package_check(
+    c_manifest,
+    c["policy"],
+    declared=True,
+    status="mismatch_observed",
+    runtime_declared="capsule",
+    runtime_actual="none",
+    runtime_status="backend_not_runtime_profiled",
+    cap_declared=["ENV", "FS"],
+    cap_actual=["FS", "ENV"],
+    cap_missing=[],
+    cap_status="covers",
+    budget_status="declared_not_enforced",
+)
+
+c_mismatch = load(c_mismatch_manifest)
+expect_common(c_mismatch_manifest, c_mismatch, "c")
+expect_policy(
+    c_mismatch_manifest,
+    c_mismatch["policy"],
+    backend="c",
+    runtime_profile="none",
+    runtime_path="",
+    capsule=False,
+    cap_allow=["FS"],
+    required=["ENV"],
+)
+expect_package(
+    c_mismatch_manifest,
+    c_mismatch["policy"],
+    declared=True,
+    runtime_profile="capsule",
+    cap_allow=["ENV", "FS"],
+    budgets={"version": 1, "declared": True, "cpu_ms": 10, "heap_bytes": 4096},
+)
+expect_package_check(
+    c_mismatch_manifest,
+    c_mismatch["policy"],
+    declared=True,
+    status="mismatch_observed",
+    runtime_declared="capsule",
+    runtime_actual="none",
+    runtime_status="backend_not_runtime_profiled",
+    cap_declared=["ENV", "FS"],
+    cap_actual=["FS"],
+    cap_missing=["ENV"],
+    cap_status="missing",
+    budget_status="declared_not_enforced",
 )
 
 print("capability manifest policy JSON verified")

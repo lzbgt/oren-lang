@@ -122,8 +122,9 @@ It is a language plus runtime plus artifact contract.
 ## Immediate Translation Into Repo Work
 
 - Keep implementing artifact policy manifests and package capability manifests. `@oren.package(...)`
-  is now the first source-level marker; the next step is comparing/enforcing that declaration
-  against build flags and runtime-profile selection.
+  is now the first source-level marker, and artifact manifests now include observe-only
+  `source_package_check`; the next step is enforcing that declaration against build flags and
+  runtime-profile selection.
 - Define the stable effect-ledger schema before adding more ad-hoc traces.
 - Add a small AVM/native semantic-diff command rather than only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,

@@ -40,10 +40,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   capability domains, failure model, and verification map; `oren meta` now emits a per-source
   `capabilities` manifest for `@cap.requires` functions; artifact `--manifest` output now carries
   build-policy fields for backend, runtime-profile request, capsule flag, allowlisted domains,
-  source-required domains, and source package policy; `@oren.package(...)` now provides the first
-  source-level package marker for runtime-profile intent, allow domains, and budget defaults.
-  Next capability work should move toward enforcing or comparing package-level runtime-profile
-  declarations rather than re-describing the existing env contract. Contract drift is guarded by
+  source-required domains, source package policy, and observe-only `source_package_check`
+  comparison; `@oren.package(...)` now provides the first source-level package marker for
+  runtime-profile intent, allow domains, and budget defaults. Next capability work should move
+  toward enforcement of package-level runtime-profile declarations rather than re-describing the
+  existing env contract. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and
   `make verify-capability-manifest-policy`.
 - New: `project-doc/oren_feature_horizon_20260412.md` and

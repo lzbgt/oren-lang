@@ -115,6 +115,23 @@ the source capability domains and selected build-policy inputs:
       "dependency_domain_union_status": "source_attrs_only",
       "budgets": { "version": 1, "declared": true, "cpu_ms": 10 }
     },
+    "source_package_check": {
+      "version": 1,
+      "declared": true,
+      "status": "mismatch_observed",
+      "runtime_profile": {
+        "declared": "capsule",
+        "actual": "none",
+        "status": "backend_not_runtime_profiled"
+      },
+      "cap_allow_domains": {
+        "declared": ["FS"],
+        "actual": ["FS"],
+        "missing": [],
+        "status": "covers"
+      },
+      "budget_status": "declared_not_enforced"
+    },
     "budgets": { "version": 1, "declared": false }
   }
 }
@@ -134,9 +151,10 @@ var package_policy = 1
 ```
 
 That marker is metadata-only. It does not silently enable capsule mode or enforce budgets.
-It normalizes into `metadata.package` and artifact `policy.source_package` so package
-tooling can compare the declared policy against the actual build flags and runtime profile
-request.
+It normalizes into `metadata.package` and artifact `policy.source_package`. Artifact
+manifests also emit observe-only `policy.source_package_check` status so package tooling
+can compare declared intent against actual build flags and runtime-profile request without
+turning that comparison into enforcement yet.
 
 ## Domain Contract
 
@@ -168,6 +186,8 @@ request.
 
 - The native runtime profile is still selected by env/import heuristic, not enforced by
   the package marker. The source package marker records declared intent for tooling only.
+- `policy.source_package_check` is observe-only. It can report `mismatch_observed`, but the
+  compiler does not reject the artifact on that basis yet.
 - Capability budgets are now representable in package metadata, but they are not yet a
   complete enforcement contract across native and AVM. AVM has budget machinery; native
   capsule runtime knobs are domain/resource allowlists first.
