@@ -1883,6 +1883,27 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   confirms the intended paired post-index `ldp` plus dual-accumulator `madd` shape, with a
   53-instruction traced range, 39 after subtracting two skipped cold GC-call blocks, and `madd=7`.
   Keep this branch opt-in; the representation/vector gap is still the higher-leverage target.
+- Low-32 slot-load decision follow-up (2026-04-11): `OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1`
+  is a new exact single-pair cursor-reg experiment that keeps the existing 8-byte `list<int>` slot
+  stride but emits sign-extending `ldrsw` loads from the low 32 bits of each slot. It is intentionally
+  default-off because the general `list<int>` ABI stores 64-bit integers; it is only a candidate
+  surface for range-proved i32 workloads such as the current dot benchmarks. Structural disasm
+  (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-low32-dual-madd-20260411_185115_16862.log`)
+  confirms the intended opt-in shape for `UNROLL2=1,LOW32=1,DUAL_ACCUM=1,DUAL_MADD=1`: `ldrsw=14`,
+  `madd=7`, a 63-instruction traced range, and 49 instructions after subtracting two skipped cold
+  GC-call blocks. The decision wrappers are `make perf-probe-arm64-fast-dot-low32-loads-decision`
+  and `make perf-probe-arm64-fast-dot-low32-loads-decision-list-int`. Current generic artifact
+  (`build/logs/perf-probe-arm64-fast-dot-low32-loads-decision-20260411_185129_17298.log`) rejects the
+  combined candidate: read-split repeated work regresses (`long_per_rep +1.25%`) and gate native
+  median is effectively flat/regressed (`+0.12%`, `2/4` wins), even though normalized gate `native/C`
+  improves (`-1.99%`, `3/4` wins). The standalone `LOW32=1` row wins the generic gate
+  (`native -2.44%`, `3/4`; `native/C -4.18%`, `3/4`) but still loses read-split repeated work
+  (`long_per_rep +1.25%`). The explicit artifact
+  (`build/logs/perf-probe-arm64-fast-dot-low32-loads-decision-list-int-20260411_185153_19370.log`)
+  has the opposite split for the combined candidate: read-split wins (`long_per_rep -0.81%`), but
+  gate native regresses (`+2.72%`, `1/4`) and normalized `native/C` regresses (`+2.83%`, `2/4`).
+  Keep low32 loads opt-in; this rules out the cheap "use i32 loads from 64-bit slots" shortcut as a
+  shipped answer to the vector/slot64 representation gap.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the

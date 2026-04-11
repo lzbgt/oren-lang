@@ -2029,10 +2029,28 @@ Weights reflect expected impact on C parity and breadth of affected code.
        confirms the intended paired post-index `ldp` plus dual-accumulator `madd` shape, with a
        53-instruction traced range, 39 after subtracting two skipped cold GC-call blocks, and
        `madd=7`.
+     - Low-32 slot-load decision follow-up (2026-04-11):
+       `OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1` now probes a default-off exact single-pair
+       cursor-reg path that keeps the 8-byte `list<int>` slot stride but loads the low 32 bits via
+       sign-extending `ldrsw`. This is not ABI-safe as a general default because `list<int>` slots are
+       64-bit integers; it is only a range-proved/i32-workload experiment. Structural disasm
+       (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-low32-dual-madd-20260411_185115_16862.log`)
+       confirms the intended `UNROLL2=1,LOW32=1,DUAL_ACCUM=1,DUAL_MADD=1` shape: `ldrsw=14`,
+       `madd=7`, 63 traced instructions, and 49 after subtracting two cold GC-call blocks. The new
+       wrappers `make perf-probe-arm64-fast-dot-low32-loads-decision` and
+       `make perf-probe-arm64-fast-dot-low32-loads-decision-list-int` reject the combined candidate
+       across the shared surface. Generic artifact
+       (`build/logs/perf-probe-arm64-fast-dot-low32-loads-decision-20260411_185129_17298.log`) has
+       read-split `long_per_rep +1.25%`, gate native `+0.12%` with `2/4` wins, and normalized
+       `native/C -1.99%` with `3/4` wins; the standalone `LOW32=1` row wins the generic gate but still
+       loses read-split repeated work (`long_per_rep +1.25%`). Explicit artifact
+       (`build/logs/perf-probe-arm64-fast-dot-low32-loads-decision-list-int-20260411_185153_19370.log`)
+       has the opposite failure mode for the combined row: read-split `long_per_rep -0.81%`, but gate
+       native `+2.72%` with `1/4` wins and normalized `native/C +2.83%` with `2/4` wins.
      - Conclusion: keep the scalar-tail `madd` choice opt-in on the shipped baseline, keep cursor
-       regs on by default, keep scalar-post, pair-post+madd, and dual-accum `madd` opt-in, and judge
-       future arm64 dot core changes with the matrix + read-split + order-balanced gate-stability
-       probes rather than the older scalar-only promotion story.
+       regs on by default, keep scalar-post, pair-post+madd, dual-accum `madd`, and low32 slot loads
+       opt-in, and judge future arm64 dot core changes with the matrix + read-split + order-balanced
+       gate-stability probes rather than the older scalar-only promotion story.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance

@@ -33,6 +33,7 @@ fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
 fn insn_ldr_ptr_post(rd, rn, offset) { return core.insn_ldr_ptr_post(rd, rn, offset) }
+fn insn_ldrsw(rt, rn, offset) { return core.insn_ldrsw(rt, rn, offset) }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
 fn insn_madd(rd, rn, rm, ra) { return core.insn_madd(rd, rn, rm, ra) }
@@ -75,6 +76,16 @@ fn _arm64_restore_stack_to(ctx, base_stack) { return listm._arm64_restore_stack_
 fn _arm64_local_int_const(ctx, name) {
     if ctx == nil || name == nil { return nil }
     return exprm.native_expr_int_const(ctx, {"type": "Identifier", "token": nil, "value": name})
+}
+
+fn _arm64_emit_list_int_dot_slot_load(ctx, dst, base, offset, low32_loads) {
+    if low32_loads == true {
+        push_u32_le(ctx["code"], insn_ldrsw(dst, base, offset))
+    } else if offset == 0 {
+        push_u32_le(ctx["code"], insn_ldr_ptr(dst, base))
+    } else {
+        push_u32_le(ctx["code"], insn_ldr_ptr_off(dst, base, offset))
+    }
 }
 
 // Keep arm64 list fast-loop validation on the same alloc-index lookup x64 already uses.
@@ -1272,6 +1283,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     if v_single_pair_cursor_regs != nil && (v_single_pair_cursor_regs == "0" || v_single_pair_cursor_regs == "false") {
         single_pair_cursor_regs = false
     }
+    var low32_loads = false
+    if single_mul_pair &&
+        single_pair_cursor_regs &&
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS") == true {
+        low32_loads = true
+    }
     var dual_accum = false
     var v_dual_accum = oren_env("OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM")
     if v_dual_accum == "1" || v_dual_accum == "true" {
@@ -1576,7 +1593,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
     if unroll2 == true {
         if single_mul_pair && single_pair_cursor_regs {
-            if pair_post {
+            if low32_loads {
+                _arm64_emit_list_int_dot_slot_load(ctx, 24, 19, 0, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 25, 19, 8, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 12, 26, 0, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 13, 26, 8, true)
+            } else if pair_post {
                 // Experimental pair-load path: fold the cursor advance into adjacent loads.
                 push_u32_le(ctx["code"], insn_ldp_pair_post(24, 25, 19, 16))
                 push_u32_le(ctx["code"], insn_ldp_pair_post(12, 13, 26, 16))
@@ -1606,7 +1628,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
             }
 
-            if pair_post {
+            if low32_loads {
+                _arm64_emit_list_int_dot_slot_load(ctx, 24, 19, 16, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 25, 19, 24, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 12, 26, 16, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 13, 26, 24, true)
+            } else if pair_post {
                 push_u32_le(ctx["code"], insn_ldp_pair_post(24, 25, 19, 16))
                 push_u32_le(ctx["code"], insn_ldp_pair_post(12, 13, 26, 16))
             } else {
@@ -1635,7 +1662,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                 push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
             }
 
-            if !pair_post {
+            if low32_loads || !pair_post {
                 push_u32_le(ctx["code"], insn_add_imm(19, 19, 32))
                 push_u32_le(ctx["code"], insn_add_imm(26, 26, 32))
             }
@@ -1684,7 +1711,14 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                     exact_double_terminal_guard_pos = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // patched: b.ge fallback mul/add double path
                 }
-                if pair_post {
+                if low32_loads {
+                    _arm64_emit_list_int_dot_slot_load(ctx, 25, 19, 0, true)
+                    _arm64_emit_list_int_dot_slot_load(ctx, 12, 19, 8, true)
+                    push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
+                    _arm64_emit_list_int_dot_slot_load(ctx, 13, 26, 0, true)
+                    _arm64_emit_list_int_dot_slot_load(ctx, 24, 26, 8, true)
+                    push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
+                } else if pair_post {
                     push_u32_le(ctx["code"], insn_ldp_pair_post(25, 12, 19, 16))
                     push_u32_le(ctx["code"], insn_ldp_pair_post(13, 24, 26, 16))
                 } else {
@@ -1701,7 +1735,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
                     push_u32_le(ctx["code"], insn_mul(25, 25, 13))
                     push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
                 }
-                if !pair_post {
+                if !low32_loads && !pair_post {
                     push_u32_le(ctx["code"], insn_ldr_ptr_off(13, 26, 8))
                     push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
                 }
@@ -1725,19 +1759,19 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
             // sum += left1 * right1
             if single_mul_pair && single_pair_cursor_regs && dual_accum && dual_madd {
-                if pair_post {
+                if pair_post || low32_loads {
                     push_u32_le(ctx["code"], insn_madd(22, 12, 24, 22))
                 } else {
                     push_u32_le(ctx["code"], insn_madd(22, 12, 13, 22))
                 }
             } else if single_mul_pair && single_pair_cursor_regs && madd_exact_double && !dual_accum {
-                if pair_post {
+                if pair_post || low32_loads {
                     push_u32_le(ctx["code"], insn_madd(23, 12, 24, 23))
                 } else {
                     push_u32_le(ctx["code"], insn_madd(23, 12, 13, 23))
                 }
             } else {
-                if single_mul_pair && single_pair_cursor_regs && pair_post {
+                if single_mul_pair && single_pair_cursor_regs && (pair_post || low32_loads) {
                     push_u32_le(ctx["code"], insn_mul(12, 12, 24))
                 } else {
                     push_u32_le(ctx["code"], insn_mul(12, 12, 13))
@@ -1766,7 +1800,14 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             set_u32_le(ctx["code"], exact_double_terminal_guard_pos, insn_b_cond(exact_double_fallback_off, 10)) // GE
 
             // Terminal exact-double chunk falls back to the original mul/add sequence.
-            if pair_post {
+            if low32_loads {
+                _arm64_emit_list_int_dot_slot_load(ctx, 25, 19, 0, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 12, 19, 8, true)
+                push_u32_le(ctx["code"], insn_add_imm(19, 19, 16))
+                _arm64_emit_list_int_dot_slot_load(ctx, 13, 26, 0, true)
+                _arm64_emit_list_int_dot_slot_load(ctx, 24, 26, 8, true)
+                push_u32_le(ctx["code"], insn_add_imm(26, 26, 16))
+            } else if pair_post {
                 push_u32_le(ctx["code"], insn_ldp_pair_post(25, 12, 19, 16))
                 push_u32_le(ctx["code"], insn_ldp_pair_post(13, 24, 26, 16))
             } else {
@@ -1777,7 +1818,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
             }
             push_u32_le(ctx["code"], insn_mul(25, 25, 13))
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
-            if pair_post {
+            if pair_post || low32_loads {
                 push_u32_le(ctx["code"], insn_mul(12, 12, 24))
             } else {
                 push_u32_le(ctx["code"], insn_ldr_ptr_off(13, 26, 8))
@@ -1824,7 +1865,12 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
         if unique_lists {
             if single_mul_pair && single_pair_cursor_regs {
-                if scalar_post {
+                if low32_loads {
+                    _arm64_emit_list_int_dot_slot_load(ctx, 25, 19, 0, true)
+                    push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+                    _arm64_emit_list_int_dot_slot_load(ctx, 27, 26, 0, true)
+                    push_u32_le(ctx["code"], insn_add_imm(26, 26, 8))
+                } else if scalar_post {
                     push_u32_le(ctx["code"], insn_ldr_ptr_post(25, 19, 8))
                     push_u32_le(ctx["code"], insn_ldr_ptr_post(27, 26, 8))
                 } else {

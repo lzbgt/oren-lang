@@ -63,6 +63,18 @@ case_env_desc() {
         scalar_post_madd_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
             ;;
+        low32_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1"
+            ;;
+        low32_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_low32_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1"
+            ;;
+        unroll2_low32_dual_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
+            ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2
             return 1
@@ -115,6 +127,18 @@ case_build_env() {
             ;;
         scalar_post_madd_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        low32_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1"
+            ;;
+        low32_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_low32_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1"
+            ;;
+        unroll2_low32_dual_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM=1,OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD=1"
             ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2

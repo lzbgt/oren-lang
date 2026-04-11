@@ -2366,10 +2366,31 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 								        confirms the intended paired post-index `ldp` plus dual-accumulator
 								        `madd` shape, with a 53-instruction traced range, 39 after subtracting
 								        two skipped cold GC-call blocks, and `madd=7`.
+								      - low32 slot-load decision (arm64, 2026-04-11):
+								        `OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS=1` keeps the current 8-byte
+								        `list<int>` slot stride but emits sign-extending `ldrsw` from the low
+								        32 bits of each slot for the exact single-pair cursor-reg path. It is
+								        intentionally default-off because general `list<int>` slots hold 64-bit
+								        integers; treat it only as a range-proved/i32 workload experiment.
+								        Structural disasm
+								        (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-low32-dual-madd-20260411_185115_16862.log`)
+								        confirms the intended `UNROLL2=1,LOW32=1,DUAL_ACCUM=1,DUAL_MADD=1`
+								        shape: `ldrsw=14`, `madd=7`, 63 traced instructions, and 49 after
+								        subtracting two cold GC-call blocks. The new generic decision wrapper
+								        (`build/logs/perf-probe-arm64-fast-dot-low32-loads-decision-20260411_185129_17298.log`)
+								        rejects the combined candidate: read-split `long_per_rep +1.25%`,
+								        gate native `+0.12%` with `2/4` wins, and normalized `native/C -1.99%`
+								        with `3/4` wins. The standalone `LOW32=1` row wins the generic gate but
+								        still loses read-split repeated work (`long_per_rep +1.25%`). The
+								        explicit decision wrapper
+								        (`build/logs/perf-probe-arm64-fast-dot-low32-loads-decision-list-int-20260411_185153_19370.log`)
+								        has the opposite split for the combined row: read-split
+								        `long_per_rep -0.81%`, but gate native `+2.72%` with `1/4` wins and
+								        normalized `native/C +2.83%` with `2/4` wins.
 								      Reweight: keep scalar exact-`madd` opt-in, keep cursor regs default-on, keep the
-								      whole exact branch opt-in, keep scalar-post, pair-post+madd, and dual-accum
-								      `madd` opt-in, and use the matrix + read-split + gate-stability wrappers for
-								      future core A/B work.
+								      whole exact branch opt-in, keep scalar-post, pair-post+madd, dual-accum
+								      `madd`, and low32 slot-loads opt-in, and use the matrix + read-split +
+								      gate-stability wrappers for future core A/B work.
 						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
 						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
 						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the
