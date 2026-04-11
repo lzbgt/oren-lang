@@ -63,7 +63,8 @@ Oren is not far from Zig in having an independent product thesis:
 
 6. Capability-aware modules and runtime profiles.
    Imports and runtime profile choices should make effect surfaces visible. Native profiles such
-   as `core`, `full`, and `capsule` are the right foundation for this direction.
+   as `core`, `full`, and `capsule` are the right foundation for this direction. The current
+   contract is pinned in `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
 ## Non-Goals
 
@@ -84,4 +85,5 @@ Before claiming Zig-like systems-language maturity, Oren needs:
 - stable native runtime-object cache behavior across Linux/Windows x64;
 - a clearer type-system story beyond the current conservative opt-in checker;
 - sustained W5 hot-loop and allocation-heavy workload parity progress;
-- a documented capability/runtime-profile contract that users can rely on.
+- source-level capability manifests and budget declarations that build on the current
+  `docs/CAPABILITY_RUNTIME_CONTRACT.md` runtime-profile contract.

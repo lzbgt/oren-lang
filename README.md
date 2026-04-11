@@ -10,6 +10,7 @@ The project targets agent‑grade determinism, capability‑gated effects, and a
 compiler‑in‑AVM for sandboxed compilation.
 
 For the concise product thesis and Zig-differentiation line, see `docs/OREN_THESIS.md`.
+For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
 ## Quick start
 
@@ -94,6 +95,7 @@ make avm
 
 Start here: `docs/README.md` (canonical entry point and doc map).
 Product thesis: `docs/OREN_THESIS.md`.
+Capability runtime contract: `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 Readiness schema/tooling: `docs/READINESS.md`.
 Readiness index JSON schema: `docs/readiness_index.schema.json`.
 

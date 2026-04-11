@@ -1,6 +1,6 @@
 # Language (Manual + Spec + Appendices)
 
-**Last updated:** 2026-02-19
+**Last updated:** 2026-04-11
 
 This file merges the former language manual, spec, and appendices into one canonical reference.
 Use the manual for day‑to‑day programming, the spec for compiler‑level semantics, and the
@@ -1438,6 +1438,9 @@ Packed views are designed to avoid heap pressure: they are “structured access 
 
 Oren has a rolling “capsule” model to make **host effects explicit**.
 This is primarily a **compiler mode** plus a convention for annotating runtime APIs:
+
+For the current capability domain and native runtime-profile contract, see
+`docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
 - In capsule mode, calls to functions annotated with `@cap.requires(domain="FS|NET|PROC|ENV|TIME|RNG")`
   are rejected unless that domain is explicitly allowlisted.

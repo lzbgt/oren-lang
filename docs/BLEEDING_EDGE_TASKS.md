@@ -11,6 +11,7 @@ kept in sync with `docs/STATUS.md`.
 ## As a user/client, bleeding-edge features I want
 
 - Deterministic execution with capability-gated effects (FS/NET/PROC/ENV/TIME/RNG) across backends.
+  Current contract: `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 - Performance parity with C on hot loops and allocation-heavy workloads.
 - Cross-backend semantic parity (C/native/OBC) with clear fixtures and regression gates.
 - Portable bytecode (AVM) that runs deterministically and supports sandboxed execution.
@@ -35,6 +36,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
+- New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
+  capability domains, failure model, and verification map; next capability work should move toward
+  source-level manifests/budget declarations rather than re-describing the existing env contract.
 - Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move

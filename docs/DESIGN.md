@@ -1,6 +1,6 @@
 # Design + Toolchain (Language + Compiler + Runtime + AVM)
 
-**Last updated:** 2026-02-19
+**Last updated:** 2026-04-11
 
 This document is the lean, canonical design + toolchain reference. It merges the former
 compiler/backend, runtime/stdlib, AVM, and toolchain/platform docs into one place.
@@ -231,6 +231,7 @@ Rolling metadata conventions (unused BYTES constants appended by compiler):
 
 - Effects are grouped by domains (FS/NET/PROC/ENV/TIME/RNG).
 - AVM can enforce domain allow-lists before execution.
+- The current cross-runtime capability/profile contract is `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
 Evidence:
 

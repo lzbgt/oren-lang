@@ -1,0 +1,107 @@
+# Capability Runtime Contract
+
+**Last updated:** 2026-04-11
+
+This is the current Oren v0 contract for capability-governed execution and native
+runtime profiles. It is a rolling engineering contract, not a security certification:
+the code and fixtures below define what users can rely on today, and `docs/STATUS.md`
+tracks the gaps.
+
+## Why This Exists
+
+Oren's product thesis is deterministic, capability-governed execution across native
+and AVM bytecode backends. That requires a stable vocabulary for:
+
+- which host-effect domains exist;
+- which runtime profile a native build injects;
+- where compile-time capsule checks end and runtime allowlists begin;
+- which verification targets prove the contract.
+
+## Native Runtime Profiles
+
+Native builds select one injected runtime entry file:
+
+| Profile | Entry file | Selection | Contract |
+| --- | --- | --- | --- |
+| `core` / `minimal` | `lib/runtime_native_core.oren` | `OREN_NATIVE_RUNTIME_PROFILE=core` or `minimal`; also the default `auto` seed profile | Smaller non-capsule runtime for typical programs. Includes capsule stubs, core typed buffers, file/path helpers, select, threads, yield, SHA-256, time, RNG, env helpers, and basic IO. Excludes heavy HPC typed-buffer kernels, TCP/UDP networking, `oren_net_get`, AVM bridge, and AVM-only helpers. |
+| `full` | `lib/runtime_native.oren` | `OREN_NATIVE_RUNTIME_PROFILE=full`, or `auto` when the native compiler sees `std:net/*` imports | Full non-capsule runtime. Includes TCP/UDP, full typed-buffer/HPC surfaces, `oren_net_get`, and the AVM bridge. It uses permissive capsule stubs, not capsule syscall hooks. |
+| `capsule` | `lib/runtime_native_capsule.oren` | `./oren build ... --backend native --capsule` or platform capsule mode | Capsule-enabled native runtime. Includes `runtime_native/040_capsule_core.oren`, FS/NET/proc/time syscall hooks, and the full-runtime networking, typed-buffer, and AVM bridge surfaces behind domain checks. Capsule selection takes precedence over `OREN_NATIVE_RUNTIME_PROFILE`. |
+
+The arm64 and x64 native backends use the same selection policy. The seed builder
+mirrors it: `scripts/build_rtobj_seed.sh --capsule` seeds the capsule entry, while
+`--runtime-profile <full|core|minimal>` seeds non-capsule entries.
+
+## Capability Layers
+
+Oren has three capability layers today.
+
+1. **Native compile-time capsule layer.**
+   Capsule mode rejects calls to functions annotated with
+   `@cap.requires(domain="FS|NET|PROC|ENV|TIME|RNG")` unless the domain is enrolled
+   with `--cap-allow-domains` or `OREN_CAP_ALLOW_DOMAINS`. It also rejects direct
+   user `sys_*` intrinsics and `ffi` declarations in capsule mode.
+
+2. **Native runtime allowlist layer.**
+   The capsule runtime maps enrolled domains to concrete resource allowlists. For
+   example, enrolling `FS` permits the domain, but the runtime still checks mounts
+   or path prefixes before allowing host filesystem access.
+
+3. **AVM policy layer.**
+   The bytecode backend tags effectful native calls by AVM domain. The AVM can run
+   with allowed-domain masks, VirtualFS/VirtualNET/VirtualPROC-style fixtures,
+   budgets, snapshots, and record/replay surfaces for deterministic effect handling.
+
+## Domain Contract
+
+| Domain | Native capsule meaning | Runtime knobs / AVM notes |
+| --- | --- | --- |
+| `CORE` | Pure/core execution. Native capsule code does not require an explicit `CORE` allow bit. | AVM domain `CORE` is domain `0` and is used for pure/core VM calls. |
+| `FS` | Files, paths, stat/readdir, binary IO, and filesystem syscalls. | Native: `OREN_FS_MOUNTS`, `OREN_FS_MOUNTS_READ`, `OREN_FS_MOUNTS_WRITE`, `OREN_FS_ALLOW_PREFIXES`, `OREN_FS_ALLOW_READ_PREFIXES`, `OREN_FS_ALLOW_WRITE_PREFIXES`. AVM: FS domain plus VirtualFS and host-FS policy fixtures. |
+| `NET` | TCP/UDP/socket surfaces and network syscalls. | Native: `OREN_NET_ALLOW_LOOPBACK`, `OREN_NET_ALLOW_TCP_CONNECT`, `OREN_NET_ALLOW_TCP_LISTEN`, `OREN_NET_TCP_CONNECT_MAP`, `OREN_NET_TCP_LISTEN_MAP`. AVM: NET domain plus VirtualNET/multiverse fixtures. |
+| `PROC` | Process spawn, system shell helpers, process-related syscalls, threads, wait/kill ownership edges, and controlled child environment. | Native: `OREN_PROC_ALLOW_EXEC_PREFIXES`, `OREN_PROC_ALLOW_SYSTEM`, `OREN_PROC_INHERIT_ENV`, `OREN_PROC_ALLOW_ENV_KEYS`, `OREN_PROC_ALLOW_ARGV`. AVM: PROC domain plus VirtualPROC/multiverse fixtures. |
+| `ENV` | Environment variable reads. | Native: `oren_env` / `oren_getenv` are annotated with `ENV`; capsule-denied `oren_getenv` reads return `0`, so `oren_env` returns `nil`. AVM: ENV is domain `7` and is covered by record/replay env fixtures. |
+| `TIME` | Wall-clock, sleep, wait, and time-adjacent syscall hooks. | Native: `@cap.requires(domain="TIME")` plus capsule syscall hooks. AVM: TIME is domain `2`; deterministic and record/replay fixtures cover time behavior. |
+| `RNG` | Entropy and random-number APIs. | Native: `@cap.requires(domain="RNG")`. AVM: RNG is domain `3`; deterministic and record/replay fixtures cover random behavior. |
+| `EXIT` | Process or VM exit behavior. | Native process exit is not a native capsule allow bit today. AVM: EXIT is domain `6` so replay and nested VM runs can model exit as data instead of terminating the host process early. |
+| `AVM` | Nested bytecode execution from native full runtime through the AVM bridge. | Native: the bridge is in the full and capsule runtimes, not the core runtime. AVM: AVM is domain `8` for nested multiverse execution. |
+
+## Failure Model
+
+- Native compile-time capsule failures are hard build errors: disallowed annotated
+  calls, direct user `sys_*` intrinsics, and `ffi` declarations are rejected before
+  native code is emitted.
+- Native runtime capsule failures fail closed. The runtime prints `CAPSULE DENY: ...`
+  diagnostics with hints for the relevant domain or resource allowlist, then uses
+  the policy-specific failure path for that API.
+- AVM failures are VM policy errors or structured VM results. Record/replay fixtures
+  must keep effect behavior deterministic and must not accidentally terminate the
+  host process from inside replayed or nested execution.
+
+## What Is Not Stable Yet
+
+- The native runtime profile is still selected by env/import heuristic, not by a
+  source-level package manifest.
+- Capability budgets are not yet a complete source-level contract across native and
+  AVM. AVM has budget machinery; native capsule runtime knobs are domain/resource
+  allowlists first.
+- The native and AVM policy vocabularies are converging but not fully unified. For
+  example, AVM has explicit `CORE`, `EXIT`, and `AVM` domains while native capsule
+  enrollment currently focuses on `FS`, `NET`, `PROC`, `ENV`, `TIME`, and `RNG`.
+
+## Verification Map
+
+Use these targets when changing the capability or runtime-profile contract:
+
+```sh
+make test-native-capsule-smoke-stage2
+make test-avm
+make verify-backend-parity
+make test
+```
+
+Important fixture families:
+
+- Native capsule compile-time and runtime fixtures: `tests/native/fixtures/capsule_*.oren`
+  and `tests/native/fixtures/capsule_runtime_*.oren`.
+- AVM policy, record/replay, budget, snapshot, and multiverse fixtures: `tests/avm/`.
+- Cross-backend semantic parity smokes: `make verify-backend-parity`.

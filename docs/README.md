@@ -1,6 +1,6 @@
 # Start Here: Oren Docs (Canonical)
 
-**Last updated:** 2026-04-09
+**Last updated:** 2026-04-11
 
 This file is the single **entry point** for the Oren docs. It merges the former root README
 orientation with the docs index so you can start in one place and branch out only when needed.
@@ -17,6 +17,7 @@ Design intent (rolling): deterministic execution for agent workflows, capability
 and a path to compiler-in-AVM for sandboxed compilation.
 
 For the concise product thesis and Zig-differentiation line, see `docs/OREN_THESIS.md`.
+For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
 ## 1) Current reality (backends + platforms)
 
@@ -270,6 +271,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 - `docs/STATUS.md` — task tracker + feature matrix, gaps, roadmap, agentic requirements
 - `docs/BLEEDING_EDGE_TASKS.md` — bleeding-edge goals + derived task buckets
 - `docs/OREN_THESIS.md` — concise product thesis + Oren-vs-Zig differentiation
+- `docs/CAPABILITY_RUNTIME_CONTRACT.md` — current capability domains, native runtime profiles, failure model, and verification map
 - `docs/READINESS.md` — readiness report schema + tooling
 - `docs/readiness_index.schema.json` — JSON schema for readiness index entries
 

@@ -96,4 +96,5 @@ Before claiming parity with Zig-like systems-language maturity, Oren needs:
 - stable native runtime-object cache hit behavior across Linux/Windows x64;
 - a clearer type-system story beyond the current conservative opt-in checker;
 - performance parity progress on W5 hot loops and allocation-heavy workloads;
-- a written "Oren thesis" page that states the differentiator in product terms: deterministic capability-governed native/bytecode execution for agent workflows.
+- a written "Oren thesis" page that states the differentiator in product terms: deterministic capability-governed native/bytecode execution for agent workflows;
+- a current capability/runtime-profile contract for the thesis surface (`docs/CAPABILITY_RUNTIME_CONTRACT.md`).
