@@ -175,6 +175,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`) shows the current
      shipped Oren dot window as a 21-instruction scalar loop, while host C still exposes vector/mid/tail
      blocks (`28` / `12` / `6` instructions).
+     New explicit-list counterpart:
+     `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`. Latest artifact
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log`) shows
+     the same 21-instruction `dot_product_int` Oren scalar window against the same host C
+     vector/mid/tail shape, with labels resolved by instruction pattern rather than hardcoded names.
      Latest scalar-ceiling artifact
      (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260405_030703_69836.log`) shows:
      - vectorized C per-rep `~0.000264s`
@@ -1949,6 +1954,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (`28` + `12` + `6` extracted-block instructions). That materially raises the bar for the
      remaining blocker: on this host, arm64 `dot_product`
      underperformance is against a vectorized C baseline, not just against a tighter scalar loop.
+     The same script now has `make perf-probe-arm64-dot-vs-c-loop-compare-list-int` for the explicit
+     `dot_product_int` surface; latest artifact
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log`) shows
+     the same 21-instruction Oren scalar window and the same host C vector/mid/tail shape.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):

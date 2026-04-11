@@ -95,6 +95,11 @@ path as a 21-instruction scalar loop, while the host C reference still uses a NE
 (`ldp q*`, `smlal.2d`, `smlal2.2d`), vector mid loop, and scalar `smaddl` tail (`28` / `12` / `6`
 instructions in the extracted blocks). That is the right current baseline when judging future arm64
 dot work: the remaining gap is versus a vectorized C loop, not just a better scalar schedule.
+For the explicit `list<int>` counterpart, use
+`make perf-probe-arm64-dot-vs-c-loop-compare-list-int`; latest artifact
+`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log` shows the same
+21-instruction Oren scalar loop against the same host C vector/mid/tail shape, with labels selected
+by instruction pattern rather than assumed `LBB0_*` numbers.
 
 The probe also now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, so multi-var build
 env overrides reach the traced Oren build instead of being collapsed into one invalid token.

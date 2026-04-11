@@ -5,12 +5,18 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf_build_env_lib.sh"
 
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
-tmp_dir="build/tmp/perf-probe-arm64-dot-vs-c-loop-compare-${ts}"
+tag="${OREN_ARM64_DOT_VS_C_TAG:-perf-probe-arm64-dot-vs-c-loop-compare}"
+title="${OREN_ARM64_DOT_VS_C_TITLE:-arm64 dot_product Oren-vs-C loop compare}"
+target_program="${OREN_ARM64_DOT_VS_C_PROGRAM:-dot_product}"
+c_source="${OREN_ARM64_DOT_VS_C_C_SOURCE:-benchmarks/dot_product/dot_product.c}"
+oren_probe_target="${OREN_ARM64_DOT_VS_C_OREN_PROBE_TARGET:-perf-probe-arm64-native-hot-loop-disasm}"
+oren_summary_prefix="${OREN_ARM64_DOT_VS_C_OREN_SUMMARY_PREFIX:-perf-probe-arm64-native-hot-loop-disasm-}"
+tmp_dir="build/tmp/${tag}-${ts}"
 mkdir -p "$log_dir" "$tmp_dir"
 
-summary_log="$log_dir/perf-probe-arm64-dot-vs-c-loop-compare-${ts}.log"
-oren_wrapper_log="$log_dir/perf-probe-arm64-dot-vs-c-loop-compare-oren-${ts}.run.log"
-c_asm_log="$tmp_dir/dot_product_c_arm64.s"
+summary_log="$log_dir/${tag}-${ts}.log"
+oren_wrapper_log="$log_dir/${tag}-oren-${ts}.run.log"
+c_asm_log="$tmp_dir/${target_program}_c_arm64.s"
 build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
 build_env_parts=()
 perf_build_env_read_array "$build_env_raw"
@@ -23,21 +29,25 @@ run_capture() {
 }
 
 if [[ ${#build_env_parts[@]} -gt 0 ]]; then
-    run_capture "$oren_wrapper_log" env "${build_env_parts[@]}" make perf-probe-arm64-native-hot-loop-disasm
+    run_capture "$oren_wrapper_log" env "${build_env_parts[@]}" make "$oren_probe_target"
 else
-    run_capture "$oren_wrapper_log" make perf-probe-arm64-native-hot-loop-disasm
+    run_capture "$oren_wrapper_log" make "$oren_probe_target"
 fi
-cc -O2 -S -o "$c_asm_log" benchmarks/dot_product/dot_product.c
+cc -O2 -S -o "$c_asm_log" "$c_source"
 
 OREN_WRAPPER_LOG="$oren_wrapper_log" \
 C_ASM_LOG="$c_asm_log" \
 BUILD_ENV="$build_env_raw" \
+TITLE="$title" \
+TARGET_PROGRAM="$target_program" \
+C_SOURCE="$c_source" \
+OREN_SUMMARY_PREFIX="$oren_summary_prefix" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
 from pathlib import Path
 
-summary_re = re.compile(r"summary: (build/logs/perf-probe-arm64-native-hot-loop-disasm-[^ ]+\.log)")
+summary_re = re.compile(r"summary: (build/logs/" + re.escape(os.environ["OREN_SUMMARY_PREFIX"]) + r"[^ ]+\.log)")
 label_re = re.compile(r"^([A-Za-z_.$][A-Za-z0-9_.$]*):")
 
 
@@ -57,11 +67,12 @@ def parse_oren_summary_path(wrapper_path):
 
 
 def parse_oren_dot_case(summary_path):
+    target = os.environ["TARGET_PROGRAM"]
     lines = read_lines(summary_path)
     try:
-        start = lines.index("dot_product")
+        start = lines.index(target)
     except ValueError:
-        raise SystemExit(f"missing dot_product block in {summary_path}")
+        raise SystemExit(f"missing {target} block in {summary_path}")
     lines = lines[start + 1 :]
     data = {"summary_path": summary_path}
     snippet = []
@@ -151,7 +162,7 @@ def find_c_loop_blocks(c_lines):
         if tail_score > 0:
             tail_candidates.append((tail_score, total, label, block))
     if not vector_candidates or not tail_candidates:
-        raise SystemExit("failed to extract C dot_product loop blocks")
+        raise SystemExit(f"failed to extract C {os.environ['TARGET_PROGRAM']} loop blocks")
 
     vector_candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
     tail_candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
@@ -172,15 +183,17 @@ vec_total, vec_counts = count_mnemonics(c_vec)
 mid_total, mid_counts = count_mnemonics(c_mid or [])
 tail_total, tail_counts = count_mnemonics(c_tail)
 
-print("arm64 dot_product Oren-vs-C loop compare")
+print(os.environ["TITLE"])
 print("")
 if os.environ["BUILD_ENV"]:
     print(f"build_env: {os.environ['BUILD_ENV']}")
+print(f"target_program: {os.environ['TARGET_PROGRAM']}")
 print(f"oren_summary: {oren['summary_path']}")
 for key in ["range_off", "range_abs", "instruction_count", "mnemonic_counts"]:
     if key in oren:
         print(f"oren_{key}: {oren[key]}")
 print("")
+print(f"c_source: {os.environ['C_SOURCE']}")
 print(f"c_asm: {os.environ['C_ASM_LOG']}")
 print(f"c_vector_loop_label: {vec_label}")
 print(f"c_vector_loop_insns: {vec_total}")
@@ -206,11 +219,11 @@ print("c_tail_loop:")
 for line in c_tail:
     print(f"  {line}")
 print("")
-print("oren_dot_snippet:")
+print(f"oren_{os.environ['TARGET_PROGRAM']}_snippet:")
 for line in oren["snippet"]:
     print(f"  {line}")
 PY
 
-echo "arm64 dot vs C loop compare complete; summary: $summary_log"
+echo "${title} complete; summary: $summary_log"
 echo "oren wrapper log: $oren_wrapper_log"
 echo "c asm log: $c_asm_log"
