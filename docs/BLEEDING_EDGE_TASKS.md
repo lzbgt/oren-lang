@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -44,7 +44,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   and `make verify-capability-metadata`.
 - New: `project-doc/oren_feature_horizon_20260412.md` indexes the CHERI/CISA/MCP/NIST/OpenTelemetry/
   Rust/SLSA/WASI source archive and reweights Oren differentiation toward governed execution
-  contracts, provenance, observability, sandbox/component interop, and package capability manifests.
+  contracts, provenance, observability, sandbox/component interop, PQC/AI-era risk posture, and
+  package capability manifests.
 - Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move

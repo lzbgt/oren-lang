@@ -1,6 +1,6 @@
 # Oren Thesis and Differentiation
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 
 This page is the concise product thesis for Oren. For the longer research note and archived
 Zig source pages, see `project-doc/oren_vs_zig_positioning_20260411.md`.
