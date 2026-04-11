@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-04-10
+**Last updated:** 2026-04-11
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -2782,19 +2782,33 @@ Weights reflect expected impact on C parity and breadth of affected code.
 			      `oren_array_sum_int / array_slot64_vector` from `~5.4463×` to `~5.3848×`. Keep the
 			      cursor path enabled, but treat it as a modest whole-operation win rather than the
 			      missing slot64-vector parity fix.
-		    - Arm64 explicit get-sum tick-mask refresh (`2026-04-09`): new wrapper
-		      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
-		      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
-		      serialized acceptance bundle. Current final-tree rerun
-		      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
-		      keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now: explicit `16383` and
-		      `65535` both improved steady native medians on that sample (`0.137232s` and `0.131635s`
-		      vs shipped `0.141901s`), but the gate view stayed too noisy to trust as a production
-		      default (`native gate cov=0.6421` at shipped `4095`, `0.2631` at `16383`, `0.1270` at
-		      `65535`). Reweight accordingly: the probe is worth keeping, but not yet worth a shipped
-		      higher mask.
-		    - New whole-operation setup-vs-steady attribution (`2026-04-09`):
-		      `make perf-probe-list-int-array-sum-c-breakdown`
+			    - Arm64 explicit get-sum tick-mask refresh (`2026-04-09`): new wrapper
+			      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
+			      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
+			      serialized acceptance bundle. Current final-tree rerun
+			      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)
+			      keeps `OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK=4095` for now: explicit `16383` and
+			      `65535` both improved steady native medians on that sample (`0.137232s` and `0.131635s`
+			      vs shipped `0.141901s`), but the gate view stayed too noisy to trust as a production
+			      default (`native gate cov=0.6421` at shipped `4095`, `0.2631` at `16383`, `0.1270` at
+			      `65535`). Reweight accordingly: the probe is worth keeping, but not yet worth a shipped
+			      higher mask.
+			    - Arm64 explicit push tick-mask decision surface (`2026-04-11`): new wrapper
+			      `make perf-probe-arm64-fast-push-tick-mask-decision` compares the shipped
+			      `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` behavior against `16383` and
+			      `65535` on both fill/share attribution and exact same-tree C-ceiling reruns. Current
+			      cached rerun
+			      (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260411_161037_18451.log`)
+			      does not support a shipped default change: fill/share preferred default
+			      (`default_fill_vs_c_vector ~2.6362×` vs `16383 ~2.8750×`, `65535 ~2.8309×`), exact
+			      `array_sum_int` preferred `65535` by median (`default_array_ratio_median ~2.2996×`,
+			      `16383 ~2.2720×`, `65535 ~2.1974×`, `array_mask_65535_wins: 2/3`), and exact
+			      `dot_product_int` preferred default by median (`default_dot_ratio_median ~1.7705×`,
+			      `16383 ~1.7852×`, `65535 ~1.7837×`) while per-sweep dot wins split `1/3` each.
+			      Reweight: keep the shipped `4095` push tick mask; the higher masks are still
+			      probe-only because the decision surfaces disagree.
+			    - New whole-operation setup-vs-steady attribution (`2026-04-09`):
+			      `make perf-probe-list-int-array-sum-c-breakdown`
 		      (`build/logs/perf-probe-list-int-array-sum-c-breakdown-20260409_143718_76549.log`)
 		      now shows the repeated `array_sum_int` kernel is still the structural blocker while the
 		      short-run setup estimate stays noisy: Oren canonical setup estimate came back at

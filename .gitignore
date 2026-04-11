@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 build/
+/.config/
 *.dSYM/
 /project-doc/remote/
 /project-doc/remote_logs/

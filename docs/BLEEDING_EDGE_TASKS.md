@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-04-10
+**Last updated:** 2026-04-11
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -2013,12 +2013,26 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      cached rerun on the finished scripts
 										      (`build/logs/perf-probe-arm64-fast-push-native-list-hdr-decision-20260409_220014_61301.log`)
 										      still stayed mixed: fill/share again preferred `OREN_TRACE_NATIVE_LIST_HDR=1`,
-										      exact `array_sum_int` preferred default, and exact `dot_product_int` flipped
-										      slightly toward `trace_enabled`. Reweight: keep native fast-loop list header
-										      tracing opt-in only; the codegen alignment is correct and shipped, but the exact
-										      whole-operation winner is not stable enough to justify default-on tracing.
-										    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
-										      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
+											      exact `array_sum_int` preferred default, and exact `dot_product_int` flipped
+											      slightly toward `trace_enabled`. Reweight: keep native fast-loop list header
+											      tracing opt-in only; the codegen alignment is correct and shipped, but the exact
+											      whole-operation winner is not stable enough to justify default-on tracing.
+											    - Arm64 explicit push tick-mask decision surface (2026-04-11): new wrapper
+											      `make perf-probe-arm64-fast-push-tick-mask-decision` compares the shipped
+											      `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` behavior against `16383` and
+											      `65535` on both the fill/share attribution surface and exact same-tree
+											      C-ceiling reruns. Current cached rerun
+											      (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260411_161037_18451.log`)
+											      does not support promotion: fill/share preferred default
+											      (`default_fill_vs_c_vector ~2.6362×` vs `16383 ~2.8750×`, `65535 ~2.8309×`),
+											      exact `array_sum_int` preferred `65535` by median
+											      (`default_array_ratio_median ~2.2996×`, `16383 ~2.2720×`, `65535 ~2.1974×`),
+											      and exact `dot_product_int` preferred default by median
+											      (`default_dot_ratio_median ~1.7705×`, `16383 ~1.7852×`, `65535 ~1.7837×`).
+											      Reweight: keep the shipped `4095` push tick mask; higher masks remain
+											      probe-only because the decision surfaces disagree.
+											    - Arm64 explicit get-sum tick-mask follow-up (2026-04-09): new wrapper
+											      `make perf-probe-arm64-fast-get-sum-tick-mask-list-int` now compares the shipped
 									      explicit `array_sum_int` get-sum default against explicit mask overrides through the same
 							      serialized acceptance bundle. Current final-tree rerun
 							      (`build/logs/perf-probe-arm64-fast-get-sum-tick-mask-list-int-20260409_143632_74801.log`)

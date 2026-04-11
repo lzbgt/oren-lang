@@ -366,6 +366,32 @@ did not support shipping it:
 So the shipped nonnegative-linear path stays the simpler direct mul/add/(u)div lowering. The
 recurrence subpath was removed from the tree rather than kept as another speculative opt-in.
 
+For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
+
+```bash
+make perf-probe-arm64-fast-push-tick-mask-decision
+```
+
+This compares the shipped `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` behavior against
+`16383` and `65535` on both the fill/share attribution surface and same-tree whole-operation
+`array_sum_int` / `dot_product_int` C-ceiling reruns. Treat it as a decision surface for the
+explicit push loop only; higher masks need agreement across both surfaces before changing the
+shipped default.
+
+Current cached rerun
+(`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260411_161037_18451.log`)
+does not support a shipped default change:
+
+- fill/share preferred the shipped default (`default_fill_vs_c_vector ~2.6362x` vs `16383`
+  `~2.8750x` and `65535` `~2.8309x`)
+- exact `array_sum_int` preferred `65535` by median (`default_array_ratio_median ~2.2996x`,
+  `16383 ~2.2720x`, `65535 ~2.1974x`, `array_mask_65535_wins: 2/3`)
+- exact `dot_product_int` preferred the shipped default by median (`default_dot_ratio_median
+  ~1.7705x`, `16383 ~1.7852x`, `65535 ~1.7837x`) while per-sweep wins split `1/3` each
+- `decision_surface_alignment: disagree`
+
+Keep `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` for now; the higher masks are still probe-only.
+
 One more aggressive follow-up on that same baseline was tested and then removed from the tree: a
 single-list whole-fill runtime helper that replaced the explicit push loop with one
 `native_list_int_try_fill_nonneg_linear_exact(...)` call. It did trigger on
