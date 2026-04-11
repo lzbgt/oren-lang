@@ -9,6 +9,8 @@ Oren is a **self-hosted language + compiler** with three execution backends:
 The project targets agent‑grade determinism, capability‑gated effects, and a path to
 compiler‑in‑AVM for sandboxed compilation.
 
+For the concise product thesis and Zig-differentiation line, see `docs/OREN_THESIS.md`.
+
 ## Quick start
 
 ```bash
@@ -91,6 +93,7 @@ make avm
 ## Docs
 
 Start here: `docs/README.md` (canonical entry point and doc map).
+Product thesis: `docs/OREN_THESIS.md`.
 Readiness schema/tooling: `docs/READINESS.md`.
 Readiness index JSON schema: `docs/readiness_index.schema.json`.
 

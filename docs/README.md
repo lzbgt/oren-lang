@@ -16,6 +16,8 @@ Oren is a **self-hosted language + compiler** with three execution backends:
 Design intent (rolling): deterministic execution for agent workflows, capability-gated effects,
 and a path to compiler-in-AVM for sandboxed compilation.
 
+For the concise product thesis and Zig-differentiation line, see `docs/OREN_THESIS.md`.
+
 ## 1) Current reality (backends + platforms)
 
 - **C backend (default)**: used in the stage0→stage1 chain and portable to any host with `cc`.
@@ -267,6 +269,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 - `docs/STATUS.md` — task tracker + feature matrix, gaps, roadmap, agentic requirements
 - `docs/BLEEDING_EDGE_TASKS.md` — bleeding-edge goals + derived task buckets
+- `docs/OREN_THESIS.md` — concise product thesis + Oren-vs-Zig differentiation
 - `docs/READINESS.md` — readiness report schema + tooling
 - `docs/readiness_index.schema.json` — JSON schema for readiness index entries
 
