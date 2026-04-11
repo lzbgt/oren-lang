@@ -96,9 +96,17 @@ def parse_ratio_line(text, prefix):
     return None if m is None else float(m.group(1))
 
 
-def parse_ceiling(path_str):
+def read_summary_text(path_str):
+    if not path_str:
+        return ""
     path = Path(path_str)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def parse_ceiling(path_str):
+    text = read_summary_text(path_str)
     return {
         "path": path_str,
         "array_ratio": parse_ratio_line(text, "oren_array_sum_int/array_slot64_vector per_rep ratio:"),
