@@ -1089,15 +1089,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     `OREN_BENCH_ENV_BUILD_OREN` correctly and finds C loop blocks by instruction shape
 			     (`smlal*` for vector blocks, `smaddl` for the scalar tail) instead of hardcoded Clang
 			     `LBB0_*` labels. Latest loop-compare rerun
-			     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`)
-			     shows the current shipped Oren dot window as a 21-instruction scalar loop while host C
-			     still has vector/mid/tail blocks (`28` / `12` / `6` extracted-block instructions), and
+			     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`)
+			     shows the current shipped Oren dot window as a 21-instruction traced range, and now
+			     separates the 7-instruction skipped cold GC-call block from the 14-instruction
+			     range-without-cold-tick count. Host C still has vector/mid/tail blocks (`28` / `12` /
+			     `6` extracted-block instructions), and
 			     the new explicit-list counterpart
 			     `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`
-			     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log`)
-			     shows the same 21-instruction `dot_product_int` Oren scalar window against the same C
-			     vector/mid/tail shape. Both probes now resolve C labels by instruction pattern rather
-			     than assumed block numbers, and
+			     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log`)
+			     shows the same 21-instruction `dot_product_int` Oren traced range, the same
+			     14-instruction range without the cold GC-call block, and the same C vector/mid/tail
+			     shape. Both probes now resolve C labels by instruction pattern rather than assumed
+			     block numbers, and
 			     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` now compares exact Oren native `dot_product`
 			     against both vectorized and de-vectorized host-C builds. The scalar-ceiling runner is now
 			     parameterized too, with explicit `dot_product_int` coverage via
@@ -1900,14 +1903,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 				      exist, and the shipped default is off. Real post-flip reruns
 				      (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`,
 				      `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`)
-				      kept the new 20-instruction scalar baseline ahead of `UNROLL2=1` on both raw
-				      medians. Keep unroll2 disabled by default.
-					    - Arm64 cursor-reg refresh on the new baseline (2026-04-09): generic and explicit
-					      wrappers now exist. Post-unroll2 reruns
-					      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`,
-					      `build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
-					      are mixed overall, so keep cursor-reg enabled for now and revisit it separately from
-					      the shipped scalar-tail `madd`.
+					      kept the non-unrolled 21-instruction traced baseline (14 instructions after
+					      subtracting the skipped cold GC-call block) ahead of `UNROLL2=1` on both raw
+					      medians. Keep unroll2 disabled by default.
+					    - Arm64 cursor-reg refresh on the current baseline (2026-04-11): generic and
+					      explicit wrappers now exist and were rerun after the cold-tick disasm accounting.
+					      Generic `dot_product`
+					      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260411_170046_96599.log`)
+					      prefers keeping cursor regs enabled on raw native medians (`steady 0.130047s ->
+					      0.133221s`, `gate 0.010926s -> 0.011969s` when disabled). Explicit
+					      `dot_product_int`
+					      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260411_170108_97730.log`)
+					      is still mixed: disabled improves raw native by only `-1.31%` / `-0.05%`, while
+					      the ratio view worsens due the paired C median shift. Keep cursor-reg enabled.
 						    - Arm64 explicit get-sum single-list cursor-reg refresh (2026-04-09): new wrapper
 						      `make perf-probe-arm64-fast-get-sum-single-list-cursor-regs-list-int` compares the
 						      shipped `array_sum_int` scalar loop against
@@ -2267,14 +2275,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 							      `cc -O2 -S` lowering of `benchmarks/dot_product/dot_product.c`. It now finds the C
 							      vector/mid/tail blocks by `smlal*` / `smaddl` instruction shape instead of hardcoded
 							      `LBB0_*` labels. The latest artifact
-							      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`)
-							      shows Oren now shipping a 21-instruction scalar loop, while host C is still using a
-							      NEON vector loop plus vector mid loop plus scalar `smaddl` tail
-							      (`28` + `12` + `6` extracted-block instructions). Reweight future arm64 dot work
-							      accordingly: scalar loop cleanups alone are unlikely to close the full remaining gap.
+							      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`)
+							      shows Oren now shipping a 21-instruction traced range and a 14-instruction range after
+							      subtracting the skipped cold GC-call block, while host C is still using a NEON vector
+							      loop plus vector mid loop plus scalar `smaddl` tail (`28` + `12` + `6`
+							      extracted-block instructions). Reweight future arm64 dot work accordingly: cold
+							      safepoint save/restore cleanup alone is unlikely to close the full remaining gap.
 							      The new explicit-list companion
 							      `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`
-							      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log`)
+							      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log`)
 							      confirms the same current shape for `dot_product_int`.
 					    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.

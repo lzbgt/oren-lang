@@ -189,7 +189,18 @@ if os.environ["BUILD_ENV"]:
     print(f"build_env: {os.environ['BUILD_ENV']}")
 print(f"target_program: {os.environ['TARGET_PROGRAM']}")
 print(f"oren_summary: {oren['summary_path']}")
-for key in ["range_off", "range_abs", "instruction_count", "mnemonic_counts"]:
+for key in [
+    "range_off",
+    "range_abs",
+    "instruction_count",
+    "range_without_cold_gc_tick_instruction_count",
+    "cold_gc_tick_blocks",
+    "cold_gc_tick_instruction_count",
+    "mnemonic_counts",
+    "range_without_cold_gc_tick_counts",
+    "cold_gc_tick_counts",
+    "cold_gc_tick_ranges",
+]:
     if key in oren:
         print(f"oren_{key}: {oren[key]}")
 print("")

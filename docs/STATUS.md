@@ -172,14 +172,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      benchmark binary against both vectorized and de-vectorized host-C builds of the same source.
      The loop-compare extractor no longer depends on hardcoded Clang `LBB0_*` labels; it now selects
      C vector loops by `smlal*` blocks and the scalar tail by `smaddl`. Latest loop-compare rerun
-     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`) shows the current
-     shipped Oren dot window as a 21-instruction scalar loop, while host C still exposes vector/mid/tail
-     blocks (`28` / `12` / `6` instructions).
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`) shows the current
+     shipped Oren dot window as a 21-instruction traced range, and now separates the 7-instruction
+     skipped cold GC-call block from the 14-instruction range-without-cold-tick count. Host C still
+     exposes vector/mid/tail blocks (`28` / `12` / `6` instructions).
      New explicit-list counterpart:
      `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`. Latest artifact
-     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log`) shows
-     the same 21-instruction `dot_product_int` Oren scalar window against the same host C
-     vector/mid/tail shape, with labels resolved by instruction pattern rather than hardcoded names.
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log`) shows
+     the same 21-instruction `dot_product_int` Oren traced range, the same 14-instruction range
+     without the cold GC-call block, and the same host C vector/mid/tail shape, with labels resolved
+     by instruction pattern rather than hardcoded names.
      The scalar-ceiling runner is now parameterized too; the generic artifact
      (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260411_164306_40858.log`) shows
      vectorized C `~0.000249s`, scalar C `~0.000728s`, and Oren native `~0.001297s` per rep
@@ -1644,12 +1646,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
        `run_perf_gate_list_int.sh`, `run_perf_gate_list_int_read_split.sh`,
        `run_perf_gate_list_int_steady.sh`, and `benchmarks/run_benchmarks.py` all now use
        collision-resistant timestamps so adjacent probe variants do not overwrite logs/results.
-     - Current kept-state serial rerun (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260404_214038_91205.log`):
-       steady default ~3.1205x C vs disabled ~3.1322x C, canonical gate default ~2.6041x C vs
-       disabled ~2.5322x C.
-     - Conclusion: the current host signal is too close and too noisy to justify a shipped default
-       flip. Keep the cursor-reg path enabled by default, but use the new probe for future reruns
-       instead of ad-hoc source edits.
+     - Current same-tree rerun
+       (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260411_170046_96599.log`):
+       disabling cursor regs regressed raw native generic `dot_product` time (`steady 0.130047s ->
+       0.133221s`, `gate 0.010926s -> 0.011969s`; `+2.44%` / `+9.55%`).
+     - Explicit `dot_product_int`
+       (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260411_170108_97730.log`)
+       stayed mixed: disabled cursor regs slightly improved raw native medians (`0.131784s ->
+       0.130060s`, `0.010440s -> 0.010435s`; `-1.31%` / `-0.05%`), but the gate ratio worsened
+       (`~1.8254x` -> `~2.0207x`) because the paired C median shifted.
+     - Conclusion: keep the cursor-reg path enabled by default; do not flip the shipped default on a
+       tiny explicit-only raw-native delta that conflicts with the generic surface.
    - New arm64 unroll-by-2 probe (2026-04-04):
      - `make perf-probe-arm64-fast-dot-unroll2` now compares the shipped
        `fast_list_int_dot_while` unique-list unroll-by-2 path against
@@ -1952,16 +1959,18 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `benchmarks/dot_product/dot_product.c`. The refreshed extractor is no longer pinned to hardcoded
      `LBB0_*` labels; it finds C vector/mid blocks via `smlal*` and the scalar tail via `smaddl`.
      The latest artifact
-     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`) shows the kept
-     Oren path as a 21-instruction scalar loop on the current shipped baseline, while the host C
-     reference is already a NEON vector loop plus vector mid loop plus scalar `smaddl` tail
-     (`28` + `12` + `6` extracted-block instructions). That materially raises the bar for the
-     remaining blocker: on this host, arm64 `dot_product`
-     underperformance is against a vectorized C baseline, not just against a tighter scalar loop.
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`) shows the kept
+     Oren path as a 21-instruction traced range on the current shipped baseline, with a 14-instruction
+     range after subtracting the skipped cold GC-call block. The host C reference is already a NEON
+     vector loop plus vector mid loop plus scalar `smaddl` tail (`28` + `12` + `6` extracted-block
+     instructions). That materially raises the bar for the remaining blocker: on this host, arm64
+     `dot_product` underperformance is against a vectorized C baseline and a measured slot64 scalar
+     ceiling, not just against the untaken safepoint save/restore block or a tighter scalar loop.
      The same script now has `make perf-probe-arm64-dot-vs-c-loop-compare-list-int` for the explicit
      `dot_product_int` surface; latest artifact
-     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log`) shows
-     the same 21-instruction Oren scalar window and the same host C vector/mid/tail shape.
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log`) shows
+     the same 21-instruction Oren traced range, the same 14-instruction range without the cold
+     GC-call block, and the same host C vector/mid/tail shape.
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
@@ -2777,14 +2786,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	      2026-04-04): corrected same-smoke rerun baseline `dot_product` ~3.0142x C, `16383`
 	      ~3.0924x C, `65535` ~3.1914x C. On the repeated-read-loop runner, higher masks regress;
 	      default remains `4095`.
-		    - Arm64 single-pair cursor-reg refresh (`2026-04-09`): wrappers now exist for both generic
-		      and explicit surfaces. On the post-unroll2 shipped baseline, generic rerun
-		      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`)
-		      stayed effectively flat/mixed (`steady 0.139631s -> 0.138138s`, `gate 0.014736s ->
-		      0.014739s`) while explicit rerun
-		      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
-		      favored disabling on both raw medians. Keep cursor-reg enabled for now; it needs a focused
-		      reweight on the new 20-insn baseline, not another stale April 4 summary.
+		    - Arm64 single-pair cursor-reg refresh (`2026-04-11`): wrappers now exist for both generic
+		      and explicit surfaces. The same-tree generic rerun
+		      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260411_170046_96599.log`)
+		      prefers keeping cursor regs enabled on raw native medians (`steady 0.130047s -> 0.133221s`,
+		      `gate 0.010926s -> 0.011969s` when disabled). Explicit rerun
+		      (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260411_170108_97730.log`)
+		      is still mixed: disabled improves raw native by only `-1.31%` / `-0.05%`, while the ratio
+		      view worsens due the paired C median shift. Keep cursor-reg enabled; this is no longer a
+		      stale April 4/9 verdict.
 			    - Arm64 explicit get-sum single-list cursor-reg refresh (`2026-04-09`): new wrapper
 			      `make perf-probe-arm64-fast-get-sum-single-list-cursor-regs-list-int` now compares the
 			      shipped `array_sum_int` scalar loop against
@@ -2865,7 +2875,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 		      explicit surfaces, and the shipped default is now off. The real post-flip reruns
 		      (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`,
 		      `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`)
-		      kept the new 20-instruction baseline ahead of `UNROLL2=1` on both raw medians:
+			      kept the then-current non-unrolled baseline ahead of `UNROLL2=1` on both raw medians:
 		      generic `0.140160s -> 0.143718s` steady / `0.014280s -> 0.015197s` gate, explicit
 		      `0.136499s -> 0.144068s` steady / `0.014523s -> 0.014546s` gate. Keep unroll2 disabled
 		      by default.

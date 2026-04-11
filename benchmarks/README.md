@@ -90,16 +90,20 @@ extracts the Oren dot window plus the host C vector loop, mid loop, and scalar t
 summary. The C loop extractor is label-agnostic now: it chooses the vector loops by `smlal*`
 blocks and the scalar tail by `smaddl`, so Clang basic-block renumbering no longer breaks the
 diagnostic. The latest artifact,
-`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_163215_92691.log`, shows the kept Oren
-path as a 21-instruction scalar loop, while the host C reference still uses a NEON vector loop
-(`ldp q*`, `smlal.2d`, `smlal2.2d`), vector mid loop, and scalar `smaddl` tail (`28` / `12` / `6`
-instructions in the extracted blocks). That is the right current baseline when judging future arm64
-dot work: the remaining gap is versus a vectorized C loop, not just a better scalar schedule.
+`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`, shows the kept Oren
+path as a 21-instruction traced range, but the updated Oren extractor now separates the skipped cold
+GC-call block: the range-without-cold-tick count is 14 instructions, with 7 instructions in the cold
+`stp/stp/bl/ldp/ldp/mov/mov` block. The host C reference still uses a NEON vector loop (`ldp q*`,
+`smlal.2d`, `smlal2.2d`), vector mid loop, and scalar `smaddl` tail (`28` / `12` / `6` instructions
+in the extracted blocks). That is the right current baseline when judging future arm64 dot work: the
+remaining gap is versus a vectorized C loop and a measured slot64 scalar ceiling, not just the cold
+safepoint save/restore block in the traced range.
 For the explicit `list<int>` counterpart, use
 `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`; latest artifact
-`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_163716_32365.log` shows the same
-21-instruction Oren scalar loop against the same host C vector/mid/tail shape, with labels selected
-by instruction pattern rather than assumed `LBB0_*` numbers.
+`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log` shows the same
+21-instruction Oren traced range, 14-instruction range without the cold GC-call block, and the same
+host C vector/mid/tail shape, with labels selected by instruction pattern rather than assumed
+`LBB0_*` numbers.
 
 The probe also now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, so multi-var build
 env overrides reach the traced Oren build instead of being collapsed into one invalid token.
@@ -1415,15 +1419,15 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `dot_product_int`. The shipped default still keeps the cursor-reg scalar path enabled, and both
   wrappers preserve raw native medians/covariance while comparing that baseline against
   `OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0`.
-- Current post-unroll2-default reruns keep the cursor-reg decision mixed instead of stale:
-  generic rerun (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260409_031016_33496.log`)
-  moved to native `steady=0.139631s` vs disabled `0.138138s` (`-1.07%`), but gate stayed
-  effectively flat/slightly worse when disabled (`0.014736s` vs `0.014739s`, `+0.02%`); explicit
-  rerun (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260409_031050_34865.log`)
-  favored disabling on both raw medians (`0.146614s -> 0.139638s`, `0.015100s -> 0.014574s`).
-  Keep cursor-reg enabled for now because the generic shipped baseline is still at least gate-flat
-  and this path carries the live scalar-tail `madd`; it needs a focused follow-up on the new
-  baseline rather than another stale April 4 verdict.
+- Current same-tree reruns keep the cursor-reg path enabled by default. Generic
+  `dot_product` (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-20260411_170046_96599.log`)
+  regressed when cursor regs were disabled on raw native time (`steady 0.130047s -> 0.133221s`,
+  `gate 0.010926s -> 0.011969s`; `+2.44%` / `+9.55%`). Explicit `dot_product_int`
+  (`build/logs/perf-probe-arm64-fast-dot-single-pair-cursor-regs-list-int-20260411_170108_97730.log`)
+  stayed mixed: disabled slightly improved raw native medians (`0.131784s -> 0.130060s`,
+  `0.010440s -> 0.010435s`; `-1.31%` / `-0.05%`), but the gate ratio worsened
+  (`~1.8254x` -> `~2.0207x`) because the paired C median also shifted. Do not flip the shipped
+  default based on that tiny explicit-only raw delta.
 - For the arm64 explicit `fast_list_int_get_sum_while` single-list cursor-reg recheck, use
   `make perf-probe-arm64-fast-get-sum-single-list-cursor-regs-list-int`. This compares the shipped
   explicit-`array_sum_int` baseline against
@@ -1608,7 +1612,7 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1`.
 - Current post-flip reruns justify that shipped change directly:
   generic rerun (`build/logs/perf-probe-arm64-fast-dot-unroll2-20260409_030759_29018.log`) kept
-  the new 20-instruction scalar loop at native `steady=0.140160s`, `gate=0.014280s`; re-enabling
+  the then-current non-unrolled scalar loop at native `steady=0.140160s`, `gate=0.014280s`; re-enabling
   unroll2 moved those to `0.143718s` (`+2.54%`) and `0.015197s` (`+6.42%`) while growing the
   traced loop back to `69` instructions. Explicit rerun
   (`build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260409_030846_30731.log`) showed the
@@ -1697,8 +1701,9 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - For the arm64 exact-path `madd` subcase split, use
   `make perf-probe-arm64-fast-dot-madd-exact-subpaths` for generic `dot_product` and
   `make perf-probe-arm64-fast-dot-madd-exact-list-int-subpaths` for explicit `dot_product_int`.
-  After the shipped unroll2 default moved off, these subpath probes now hang off the 20-insn scalar
-  baseline rather than the older 69-insn unrolled loop.
+  After the shipped unroll2 default moved off, these subpath probes now hang off the non-unrolled
+  21-instruction traced baseline (14 instructions after subtracting the skipped cold GC-call block)
+  rather than the older 69-insn unrolled loop.
 - Current generic rerun (`build/logs/perf-probe-arm64-fast-dot-madd-exact-subpaths-20260409_031413_41277.log`)
   says the old "scalar-only is the one promotable piece" story is no longer current on this new
   baseline: forcing `SCALAR=0` improved both raw native medians (`0.153122s -> 0.150737s`,

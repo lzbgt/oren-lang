@@ -41,6 +41,7 @@ import sys
 
 range_re = re.compile(r"\[arm64_loop_range\] kind=([^\s]+) start=(\d+) end=(\d+) bytes=(\d+)")
 addr_re = re.compile(r"^([0-9a-fA-F]{16})\b")
+branch_target_re = re.compile(r"\b0x([0-9a-fA-F]+)\b")
 
 def load_lines(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -79,11 +80,10 @@ def collect_snippet(lines, base_addr, start_off, end_off, pad_bytes=32):
             keep.append(line)
     return start_abs, end_abs, keep
 
-def collect_range_mnemonics(lines, base_addr, start_off, end_off):
+def collect_range_insns(lines, base_addr, start_off, end_off):
     start_abs = base_addr + start_off
     end_abs = base_addr + end_off
-    counts = {}
-    total = 0
+    insns = []
     for line in lines:
         m = addr_re.match(line)
         if not m:
@@ -95,9 +95,46 @@ def collect_range_mnemonics(lines, base_addr, start_off, end_off):
         if len(parts) < 2:
             continue
         mnemonic = parts[1]
-        total += 1
+        target = None
+        if len(parts) >= 3:
+            tm = branch_target_re.search(parts[2])
+            if tm:
+                target = int(tm.group(1), 16)
+        insns.append({"addr": addr, "mnemonic": mnemonic, "line": line, "target": target})
+    return insns
+
+def count_mnemonics(insns):
+    counts = {}
+    for insn in insns:
+        mnemonic = insn["mnemonic"]
         counts[mnemonic] = counts.get(mnemonic, 0) + 1
-    return total, counts
+    return len(insns), counts
+
+def format_counts(counts, interesting):
+    parts = []
+    for mnemonic in interesting:
+        if mnemonic in counts:
+            parts.append(f"{mnemonic}={counts[mnemonic]}")
+    for mnemonic in sorted(counts):
+        if mnemonic in interesting:
+            continue
+        parts.append(f"{mnemonic}={counts[mnemonic]}")
+    return " ".join(parts)
+
+def collect_cold_gc_tick_blocks(insns):
+    cold_addrs = set()
+    blocks = []
+    for insn in insns:
+        if insn["mnemonic"] != "b.ne" or insn["target"] is None or insn["target"] <= insn["addr"]:
+            continue
+        skipped = [cand for cand in insns if insn["addr"] < cand["addr"] < insn["target"]]
+        if not any(cand["mnemonic"] == "bl" for cand in skipped):
+            continue
+        blocks.append((insn["addr"], insn["target"], skipped))
+        for cand in skipped:
+            cold_addrs.add(cand["addr"])
+    cold_insns = [insn for insn in insns if insn["addr"] in cold_addrs]
+    return blocks, cold_insns
 
 def emit_block(label, path, prefix):
     lines = load_lines(path)
@@ -115,23 +152,34 @@ def emit_block(label, path, prefix):
         return False
     kind, start_off, end_off, nbytes = found
     start_abs, end_abs, snippet = collect_snippet(lines, base, start_off, end_off)
-    total_insns, counts = collect_range_mnemonics(lines, base, start_off, end_off)
+    insns = collect_range_insns(lines, base, start_off, end_off)
+    total_insns, counts = count_mnemonics(insns)
+    cold_blocks, cold_insns = collect_cold_gc_tick_blocks(insns)
+    cold_addrs = {insn["addr"] for insn in cold_insns}
+    range_without_cold_insns = [insn for insn in insns if insn["addr"] not in cold_addrs]
+    range_without_cold_count, range_without_cold_counts = count_mnemonics(range_without_cold_insns)
+    cold_insn_count, cold_counts = count_mnemonics(cold_insns)
     print(f"  kind: {kind}")
     print(f"  text_base: 0x{base:016x}")
     print(f"  range_off: {start_off}..{end_off} ({nbytes} bytes)")
     print(f"  range_abs: 0x{start_abs:016x}..0x{end_abs:016x}")
     print(f"  instruction_count: {total_insns}")
+    print(f"  range_without_cold_gc_tick_instruction_count: {range_without_cold_count}")
+    print(f"  cold_gc_tick_blocks: {len(cold_blocks)}")
+    print(f"  cold_gc_tick_instruction_count: {cold_insn_count}")
     interesting = ["ldr", "ldp", "str", "stp", "mul", "add", "cmp", "b", "bl"]
-    parts = []
-    for mnemonic in interesting:
-        if mnemonic in counts:
-            parts.append(f"{mnemonic}={counts[mnemonic]}")
-    for mnemonic in sorted(counts):
-        if mnemonic in interesting:
-            continue
-        parts.append(f"{mnemonic}={counts[mnemonic]}")
-    if parts:
-        print(f"  mnemonic_counts: {' '.join(parts)}")
+    formatted_counts = format_counts(counts, interesting)
+    if formatted_counts:
+        print(f"  mnemonic_counts: {formatted_counts}")
+    formatted_range_without_cold_counts = format_counts(range_without_cold_counts, interesting)
+    if formatted_range_without_cold_counts:
+        print(f"  range_without_cold_gc_tick_counts: {formatted_range_without_cold_counts}")
+    formatted_cold_counts = format_counts(cold_counts, interesting)
+    if formatted_cold_counts:
+        print(f"  cold_gc_tick_counts: {formatted_cold_counts}")
+    if cold_blocks:
+        ranges = " ".join(f"0x{start:016x}->0x{target:016x}" for start, target, _ in cold_blocks)
+        print(f"  cold_gc_tick_ranges: {ranges}")
     print("  snippet:")
     if not snippet:
         print("    <no instructions captured>")
