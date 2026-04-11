@@ -2296,9 +2296,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 								        gate native median `+1.17%` with `2/4` wins, and gate `native/C +2.22%`
 								        with `2/4` wins. The standalone `SCALAR_POST=1` row also fails read-split
 								        (`long_per_rep +4.57%`) and gate native median (`+1.01%`, `2/4` wins).
+								      - pair-post + exact-body `madd` decision (arm64, 2026-04-11):
+								        `make perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int`
+								        ranks `baseline`, `UNROLL2=1`, `UNROLL2=1,PAIR_POST=1`,
+								        `UNROLL2=1,QUAD/DOUBLE/SCALAR_MADD=1`, and the combined
+								        `UNROLL2=1,PAIR_POST=1,QUAD/DOUBLE/SCALAR_MADD=1` candidate. The focused
+								        explicit decision artifact
+								        (`build/logs/perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int-20260411_175200_21609.log`)
+								        says the combined candidate clears that narrow surface: read-split native
+								        `long_per_rep -0.22%`, gate native median `-1.03%` with `3/4` wins, and
+								        gate `native/C -5.64%` with `4/4` wins. Structural disasm
+								        (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-unroll2-pair-post-madd-20260411_175249_24107.log`)
+								        confirms the intended 4-wide paired-scalar body: post-index `ldp` pairs plus
+								        `madd`, with a 63-instruction traced range and 49 instructions after
+								        subtracting two skipped cold GC-call blocks. Broader acceptance keeps this
+								        opt-in: explicit `dot_product_int` improves raw native medians (`steady -0.74%`,
+								        `gate -6.12%`;
+								        `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260411_175304_24487.log`),
+								        but generic `dot_product` regresses steady native time while slightly improving
+								        gate (`+1.69%` / `-0.63%`;
+								        `build/logs/perf-probe-arm64-fast-dot-unroll2-20260411_175335_25935.log`).
 								      Reweight: keep scalar exact-`madd` opt-in, keep cursor regs default-on, keep the
-								      whole exact branch opt-in, keep scalar-post opt-in, and use the matrix +
-								      read-split + gate-stability wrappers for future core A/B work.
+								      whole exact branch opt-in, keep scalar-post and pair-post+madd opt-in, and use
+								      the matrix + read-split + gate-stability wrappers for future core A/B work.
 						    - Acceptance surface fix + cursor-end probe (arm64, 2026-04-05):
 						      `OREN_BENCH_ENV_BUILD_OREN` now reaches smoke/disasm/debug inside
 						      `make perf-probe-arm64-dot-acceptance`, and the acceptance summary records the

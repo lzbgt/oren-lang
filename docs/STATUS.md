@@ -1970,10 +1970,27 @@ Weights reflect expected impact on C parity and breadth of affected code.
        median `+1.17%` with `2/4` wins, and gate `native/C +2.22%` with `2/4` wins. The standalone
        `SCALAR_POST=1` row also fails read-split (`long_per_rep +4.57%`) and gate native median
        (`+1.01%`, `2/4` wins).
+     - Pair-post + exact-body `madd` decision (2026-04-11):
+       `make perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int` ranks `baseline`,
+       `UNROLL2=1`, `UNROLL2=1,PAIR_POST=1`, `UNROLL2=1,QUAD/DOUBLE/SCALAR_MADD=1`, and the combined
+       `UNROLL2=1,PAIR_POST=1,QUAD/DOUBLE/SCALAR_MADD=1` candidate. The focused explicit decision
+       artifact
+       (`build/logs/perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int-20260411_175200_21609.log`)
+       says the combined candidate clears that narrow surface: read-split native `long_per_rep -0.22%`,
+       gate native median `-1.03%` with `3/4` wins, and gate `native/C -5.64%` with `4/4` wins.
+       Structural disasm
+       (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-unroll2-pair-post-madd-20260411_175249_24107.log`)
+       confirms the intended 4-wide paired-scalar body: post-index `ldp` pairs plus `madd`, with a
+       63-instruction traced range and 49 instructions after subtracting two skipped cold GC-call
+       blocks. Broader acceptance keeps this opt-in: explicit `dot_product_int` improves raw native
+       medians (`steady -0.74%`, `gate -6.12%`;
+       `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260411_175304_24487.log`), but generic
+       `dot_product` regresses steady native time while slightly improving gate (`+1.69%` / `-0.63%`;
+       `build/logs/perf-probe-arm64-fast-dot-unroll2-20260411_175335_25935.log`).
      - Conclusion: keep the scalar-tail `madd` choice opt-in on the shipped baseline, keep cursor
-       regs on by default, keep scalar-post opt-in, and judge future arm64 dot core changes with
-       the matrix + read-split + order-balanced gate-stability probes rather than the older
-       scalar-only promotion story.
+       regs on by default, keep scalar-post and pair-post+madd opt-in, and judge future arm64 dot
+       core changes with the matrix + read-split + order-balanced gate-stability probes rather than
+       the older scalar-only promotion story.
    - Acceptance surface fix + cursor-end probe (2026-04-05):
      `OREN_BENCH_ENV_BUILD_OREN` now reaches the smoke, traced disasm, and exact native debug legs
      in the arm64 dot acceptance surface instead of only the gate runners, and the acceptance
