@@ -52,7 +52,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   `budget_wall_ms` with a process watchdog, enforces `budget_heap_bytes` from captured native-run
   JSON live-heap scan evidence, enforces `budget_cpu_ms` from child process resource usage where
   available, and enforces `budget_gas` from captured native-run
-  `native_safepoint_tick_v0` evidence.
+  `native_loop_safepoint_tick_v0` evidence.
   The native runner can now write
   `oren.native-package-policy-run.v0` via `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` with
   runner-observed wall/gas/heap/CPU-budget evidence and captured native runtime `effect_ledger`
@@ -60,10 +60,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   can also emit `oren.native-run.v0` through `OREN_NATIVE_RUN_JSON=1`, which gives semantic-diff
   runtime-observed `effect_ledger_summary` wall timing, native capsule domain-gate counters,
   selected FS/NET/PROC resource-check counters, and a scanned native `heap_bytes.used` value for
-  live tracked heap nodes, plus safepoint-granular `native_safepoint_tick_v0` gas ticks. AVM
+  live tracked heap nodes, plus loop-safepoint-granular `native_loop_safepoint_tick_v0` gas ticks. AVM
   `effect_ledger_summary.budgets` now reports gas, heap, and wall budget fields for that path,
   including `wall_ms.limit` and measured `wall_ms.elapsed_ns`. Next capability work should move
-  from these bridge summaries toward finer native instruction/basic-block gas rather than
+  from these loop-safepoint bridge summaries toward finer native instruction/basic-block gas rather than
   re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by

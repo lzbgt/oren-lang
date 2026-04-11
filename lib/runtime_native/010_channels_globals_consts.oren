@@ -633,11 +633,17 @@ fn native_runtime_gas_reset() {
     return 0
 }
 
-fn native_runtime_gas_note_safepoint() {
+fn native_runtime_gas_note(amount) {
     if oren_globals() == 0 { return 0 }
+    if amount == nil { return 0 }
+    if amount <= 0 { return 0 }
     var v = global_get_native_gas_safepoint_ticks()
-    global_set_native_gas_safepoint_ticks(v + 1)
+    global_set_native_gas_safepoint_ticks(v + amount)
     return 0
+}
+
+fn native_runtime_gas_note_safepoint() {
+    return native_runtime_gas_note(1)
 }
 
 fn native_runtime_gas_safepoint_ticks() {

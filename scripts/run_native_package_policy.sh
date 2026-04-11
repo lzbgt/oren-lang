@@ -16,9 +16,9 @@ policy subset that native can enforce today:
   - budget_wall_ms -> runner process watchdog
   - budget_heap_bytes -> native-run JSON live-heap scan check
   - budget_cpu_ms -> child process CPU-time check from resource usage when supported
-  - budget_gas -> native-run JSON safepoint-tick counter check
+  - budget_gas -> native-run JSON loop-safepoint counter check
 
-Native package-policy gas accounting is the scoped v0 native safepoint-tick
+Native package-policy gas accounting is the scoped v0 native loop-safepoint
 surface, not full instruction-equivalent gas. budget_cpu_ms still fails closed
 when child CPU usage is not available on the host.
 Set OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path> to write runner-observed
@@ -214,7 +214,7 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
     heap_exceeded = bool(heap_enforced and heap_used > int(heap_limit))
     gas_limit = budgets.get("gas")
     gas_used, gas_remaining, gas_kind = native_gas_from_run_json(native_run_json)
-    gas_enforced = gas_limit is not None and gas_used is not None and gas_kind == "native_safepoint_tick_v0"
+    gas_enforced = gas_limit is not None and gas_used is not None and gas_kind == "native_loop_safepoint_tick_v0"
     gas_exceeded = bool(gas_enforced and gas_used > int(gas_limit))
     cpu_limit = budgets.get("cpu_ms")
     cpu_enforced = cpu_limit is not None and cpu_used_ms is not None
@@ -282,9 +282,9 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
                 "remaining": gas_remaining,
                 "kind": gas_kind,
                 "enforced": gas_enforced,
-                "enforcement": "native-run-json-safepoint-tick" if gas_enforced else "none",
+                "enforcement": "native-run-json-loop-safepoint-tick" if gas_enforced else "none",
                 "exceeded": gas_exceeded,
-                "reason": None if gas_enforced or gas_limit is None else "native safepoint-tick gas summary was not captured",
+                "reason": None if gas_enforced or gas_limit is None else "native loop-safepoint gas summary was not captured",
             },
             "heap_bytes": {
                 "limit": heap_limit,
@@ -397,7 +397,7 @@ try:
     cpu_used_ms = cpu_delta_ms(cpu_before_ms, child_cpu_ms_snapshot())
     if gas_limit is not None:
         gas_used, gas_remaining, gas_kind = native_gas_from_run_json(native_run_json)
-        if gas_used is None or gas_kind != "native_safepoint_tick_v0":
+        if gas_used is None or gas_kind != "native_loop_safepoint_tick_v0":
             write_run_json(run_summary_payload(
                 exit_code=76,
                 status="budget_unavailable",
@@ -411,7 +411,7 @@ try:
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
             ))
-            fail("package native gas budget cannot be checked: native safepoint-tick gas summary was not captured", rc=76)
+            fail("package native gas budget cannot be checked: native loop-safepoint gas summary was not captured", rc=76)
         if gas_used > gas_limit:
             write_run_json(run_summary_payload(
                 exit_code=127,
@@ -426,7 +426,7 @@ try:
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
             ))
-            fail(f"package native gas budget exceeded: used {gas_used} native_safepoint_tick_v0 > limit {gas_limit}", rc=127)
+            fail(f"package native gas budget exceeded: used {gas_used} native_loop_safepoint_tick_v0 > limit {gas_limit}", rc=127)
     if heap_limit is not None:
         heap_used = native_heap_used_from_run_json(native_run_json)
         if heap_used is None:

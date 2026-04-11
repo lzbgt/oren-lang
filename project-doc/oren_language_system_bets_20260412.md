@@ -129,11 +129,11 @@ It is a language plus runtime plus artifact contract.
   whose static used domains exceed the package allowlist, while the native path applies package
   capsule/domain policy plus a wall-time watchdog, enforces heap budgets from captured native-run
   JSON live-heap scan evidence, enforces CPU budgets from child process resource usage where
-  available, and enforces gas budgets from captured `native_safepoint_tick_v0` evidence.
+  available, and enforces gas budgets from captured `native_loop_safepoint_tick_v0` evidence.
   Native executables now have a runtime-observed
   `OREN_NATIVE_RUN_JSON=1` bridge with wall timing, capsule domain-gate counters, selected
   FS/NET/PROC resource-check counters, a scanned live tracked-heap byte count, and
-  safepoint-granular native gas. AVM run JSON reports gas, heap, and wall package budgets through
+  loop-safepoint-granular native gas. AVM run JSON reports gas, heap, and wall package budgets through
   `effect_ledger_summary.budgets`, so the next step is finer native instruction/basic-block gas
   rather than another manifest-only field.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is

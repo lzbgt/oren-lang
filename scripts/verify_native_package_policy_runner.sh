@@ -259,16 +259,18 @@ gas_ok_summary = gas_ok_ledger.get("summary") or {}
 gas_ok_budget = ((gas_ok.get("budgets") or {}).get("gas") or {})
 if gas_ok_budget.get("limit") != 100000 or gas_ok_budget.get("enforced") is not True:
     fail(f"{gas_ok_path}: expected enforced 100000 native gas budget, got {gas_ok_budget!r}")
-if gas_ok_budget.get("kind") != "native_safepoint_tick_v0":
-    fail(f"{gas_ok_path}: expected native_safepoint_tick_v0 gas kind, got {gas_ok_budget!r}")
+if gas_ok_budget.get("kind") != "native_loop_safepoint_tick_v0":
+    fail(f"{gas_ok_path}: expected native_loop_safepoint_tick_v0 gas kind, got {gas_ok_budget!r}")
 if gas_ok_budget.get("exceeded") is not False:
     fail(f"{gas_ok_path}: expected non-exceeded gas budget, got {gas_ok_budget!r}")
 gas_ok_used = int(gas_ok_budget.get("executed") or -1)
 if gas_ok_used < 0 or gas_ok_used > 100000:
     fail(f"{gas_ok_path}: gas used outside budget: {gas_ok_budget!r}")
+if gas_ok_used < 1024:
+    fail(f"{gas_ok_path}: expected loop-safepoint interval gas charge, got {gas_ok_budget!r}")
 summary_gas = (((gas_ok_summary.get("budgets") or {}).get("gas") or {}))
-if summary_gas.get("kind") != "native_safepoint_tick_v0":
-    fail(f"{gas_ok_path}: expected native_safepoint_tick_v0 native gas summary, got {summary_gas!r}")
+if summary_gas.get("kind") != "native_loop_safepoint_tick_v0":
+    fail(f"{gas_ok_path}: expected native_loop_safepoint_tick_v0 native gas summary, got {summary_gas!r}")
 if int(summary_gas.get("executed") or -1) != gas_ok_used:
     fail(f"{gas_ok_path}: runner gas used does not mirror native summary: runner={gas_ok_budget!r} summary={summary_gas!r}")
 
@@ -299,8 +301,8 @@ if gas_fail.get("status") != "budget_exceeded" or gas_fail.get("exit_code") != 1
 gas_fail_budget = ((gas_fail.get("budgets") or {}).get("gas") or {})
 if gas_fail_budget.get("limit") != 1 or gas_fail_budget.get("enforced") is not True:
     fail(f"{gas_fail_path}: expected enforced 1 native gas budget, got {gas_fail_budget!r}")
-if gas_fail_budget.get("kind") != "native_safepoint_tick_v0":
-    fail(f"{gas_fail_path}: expected native_safepoint_tick_v0 gas kind, got {gas_fail_budget!r}")
+if gas_fail_budget.get("kind") != "native_loop_safepoint_tick_v0":
+    fail(f"{gas_fail_path}: expected native_loop_safepoint_tick_v0 gas kind, got {gas_fail_budget!r}")
 if gas_fail_budget.get("exceeded") is not True:
     fail(f"{gas_fail_path}: expected exceeded gas budget, got {gas_fail_budget!r}")
 if int(gas_fail_budget.get("executed") or 0) <= 1:

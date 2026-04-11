@@ -15,6 +15,7 @@ fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, 
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
 
+fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
 
@@ -171,6 +172,19 @@ fn native_emit_gc_safepoint_call_pairs(ctx, reg_pairs) {
     return nil
 }
 
+fn native_emit_runtime_gas_note_amount(ctx, amount) {
+    if amount == nil { return nil }
+    if amount <= 0 { return nil }
+
+    emit_load_u64_imm(ctx, 0, amount)
+    var bl_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "native_runtime_gas_note"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_gas_note")
+    return nil
+}
+
 fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     // PERF:
     // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
@@ -204,6 +218,7 @@ fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     var jskip_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
 
+    native_emit_runtime_gas_note_amount(ctx, tick_mask)
     native_emit_gc_safepoint_call(ctx)
 
     var after_call = bytes_len(ctx["code"])
@@ -232,6 +247,7 @@ fn native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, reg_pairs) {
     var jskip_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
 
+    native_emit_runtime_gas_note_amount(ctx, tick_mask)
     native_emit_gc_safepoint_call_pairs(ctx, reg_pairs)
     // Reset tick/mask after runtime call (caller-saved regs).
     push_u32_le(ctx["code"], insn_movz(9, 0))

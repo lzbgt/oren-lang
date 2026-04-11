@@ -112,7 +112,7 @@ if native_deltas.get("wall_elapsed_ns") != native_budgets.get("wall_ms", {}).get
 if native_deltas.get("wall_elapsed_ns") is None or int(native_deltas.get("wall_elapsed_ns")) < 0:
     fail(f"native wall elapsed should be non-negative, got {native_deltas!r}")
 native_gas = native_budgets.get("gas") or {}
-if native_gas.get("kind") != "native_safepoint_tick_v0":
+if native_gas.get("kind") != "native_loop_safepoint_tick_v0":
     fail(f"native gas kind mismatch: {native_gas!r}")
 if native_gas.get("executed") is None or int(native_gas.get("executed")) < 0:
     fail(f"native gas executed should be non-negative, got {native_gas!r}")

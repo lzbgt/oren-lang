@@ -109,6 +109,21 @@ fn _emit_gc_safepoint_call_x64(ctx) {
     return nil
 }
 
+fn _emit_native_gas_note_x64(ctx, amount) {
+    if amount == nil { return nil }
+    if amount <= 0 { return nil }
+
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    if oren_type_tag(a0_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg reg for native_runtime_gas_note")
+        return nil
+    }
+    var a0 = a0_enc - 1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(a0, amount))
+    _emit_call_rel32_named_x64(ctx, "native_runtime_gas_note")
+    return nil
+}
+
 fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask) {
     // PERF:
     // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
@@ -131,8 +146,8 @@ fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     var skip = _new_label(ctx, "gc_sp_skip")
     _emit_jcc_to_label(ctx, local_fixups, "ne", skip)
+    _emit_native_gas_note_x64(ctx, tick_mask)
     _emit_gc_safepoint_call_x64(ctx)
     _emit_label(ctx, labels, skip)
     return nil
 }
-

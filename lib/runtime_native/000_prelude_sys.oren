@@ -325,7 +325,7 @@ fn native_runtime_run_json_maybe_print(exit_code) {
     line = line + ",\"domain_gates\":" + native_capsule_effect_gate_summary_json()
     line = line + ",\"resource_checks\":" + native_capsule_resource_check_summary_json()
     line = line + ",\"budgets\":{\"gas\":{\"limit\":null,\"executed\":" + oren_int_to_string(gas_ticks)
-    line = line + ",\"remaining\":null,\"kind\":\"native_safepoint_tick_v0\"}"
+    line = line + ",\"remaining\":null,\"kind\":\"native_loop_safepoint_tick_v0\"}"
     line = line + ",\"heap_bytes\":{\"limit\":null,\"used\":" + oren_int_to_string(heap_used) + ",\"kind\":\"tracked_live_scan\"}"
     line = line + ",\"wall_ms\":{\"limit\":null,\"elapsed_ns\":" + oren_int_to_string(elapsed_ns) + "}"
     line = line + ",\"io_bytes\":{\"limit\":null,\"used\":null}"
