@@ -170,5 +170,5 @@ fn main() {
     if r1 != 1 { print("FAIL: join1 r=" + oren_int_to_string(r1)); exit(17) }
 
     print("ok: green two workers P swap smoke")
-    return 0
+    exit(0)
 }

@@ -196,5 +196,5 @@ fn main() {
     if r2 != 1 { print("FAIL: join2 r=" + oren_int_to_string(r2)); exit(24) }
 
     print("ok: green two workers M<P deterministic smoke")
-    return 0
+    exit(0)
 }

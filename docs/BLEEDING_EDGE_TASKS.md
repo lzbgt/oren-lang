@@ -4112,6 +4112,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      removes the late `rc=143` false-red where the inner stage2 log had already completed
      successfully but the outer make target was still terminated by a racing watchdog
      (2026-03-27).
+   - Fix: the standalone two-worker green scheduler world-lock / M<P / P-swap smokes now call
+     `exit(0)` after their success print, matching the loopback tests that also start persistent
+     green workers. A 2026-04-12 default `make test` run showed
+     `test_green_two_workers_world_lock_smoke` printing both success lines but then staying alive
+     until the 360s watchdog returned `run_rc=1`; the fixture now terminates the process
+     explicitly after proving the scheduler property instead of depending on background-worker
+     runtime cleanup.
    - Fix: macOS stage1 native-quick verification now also keeps the default green-cache rerun
      watchdog at `360s` instead of `240s`. A direct `240s` run still false-red with `rc=143`
      after the rerun had already emitted its last visible debug lines, while `360s` completed

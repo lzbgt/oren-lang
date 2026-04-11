@@ -90,5 +90,5 @@ fn main() {
     }
 
     print("ok: green two workers M<P smoke")
-    return 0
+    exit(0)
 }

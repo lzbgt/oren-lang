@@ -69,5 +69,5 @@ fn main() {
     if trace { oren_green_last_ops_dump() }
 
     print("ok: green two workers world lock smoke")
-    return 0
+    exit(0)
 }
