@@ -42,6 +42,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   package-level runtime-profile manifests and budget declarations rather than re-describing the
   existing env contract. Contract drift is guarded by `make verify-capability-runtime-contract`
   and `make verify-capability-metadata`.
+- New: `project-doc/oren_feature_horizon_20260412.md` indexes the CHERI/CISA/MCP/NIST/OpenTelemetry/
+  Rust/SLSA/WASI source archive and reweights Oren differentiation toward governed execution
+  contracts, provenance, observability, sandbox/component interop, and package capability manifests.
 - Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move

@@ -116,3 +116,5 @@ Before claiming Zig-like systems-language maturity, Oren needs:
 - package-level capability manifests and budget declarations that build on the current
   per-source `capabilities` metadata manifest and
   `docs/CAPABILITY_RUNTIME_CONTRACT.md` runtime-profile contract.
+
+Related horizon research is archived in `project-doc/oren_feature_horizon_20260412.md`.

@@ -1,0 +1,331 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js light">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Component Model Concepts - The WebAssembly Component Model</title>
+        <!-- Custom HTML head -->
+<script defer data-domain="component-model.bytecodealliance.org" src="https://plausible.io/js/script.js"></script>        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/head.hbs">
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded "><a href="../introduction.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Understanding WebAssembly Components</li><li class="chapter-item expanded "><a href="../design/why-component-model.html"><strong aria-hidden="true">2.</strong> Why the Component Model?</a></li><li class="chapter-item expanded "><a href="../design/component-model-concepts.html" class="active"><strong aria-hidden="true">3.</strong> Component Model Concepts</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../design/components.html"><strong aria-hidden="true">3.1.</strong> Components</a></li><li class="chapter-item "><a href="../design/interfaces.html"><strong aria-hidden="true">3.2.</strong> Interfaces</a></li><li class="chapter-item "><a href="../design/worlds.html"><strong aria-hidden="true">3.3.</strong> Worlds</a></li><li class="chapter-item "><a href="../design/packages.html"><strong aria-hidden="true">3.4.</strong> Packages</a></li></ol></li><li class="chapter-item expanded "><a href="../design/wit-example.html"><strong aria-hidden="true">4.</strong> WIT By Example</a></li><li class="chapter-item expanded "><a href="../design/wit.html"><strong aria-hidden="true">5.</strong> WIT Reference</a></li><li class="chapter-item expanded affix "><li class="part-title">Using WebAssembly Components</li><li class="chapter-item expanded "><a href="../language-support.html"><strong aria-hidden="true">6.</strong> Creating Components</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../building-a-simple-component.html"><strong aria-hidden="true">6.1.</strong> Building a simple component</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../language-support/building-a-simple-component/c.html"><strong aria-hidden="true">6.1.1.</strong> C/C++</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/csharp.html"><strong aria-hidden="true">6.1.2.</strong> C#</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/go.html"><strong aria-hidden="true">6.1.3.</strong> Go</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/javascript.html"><strong aria-hidden="true">6.1.4.</strong> JavaScript</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/python.html"><strong aria-hidden="true">6.1.5.</strong> Python</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/rust.html"><strong aria-hidden="true">6.1.6.</strong> Rust</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/moonbit.html"><strong aria-hidden="true">6.1.7.</strong> MoonBit</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/wat.html"><strong aria-hidden="true">6.1.8.</strong> WebAssembly Text Format (WAT)</a></li><li class="chapter-item "><a href="../language-support/building-a-simple-component/other-languages.html"><strong aria-hidden="true">6.1.9.</strong> Other Languages</a></li></ol></li><li class="chapter-item "><a href="../importing-and-reusing-components.html"><strong aria-hidden="true">6.2.</strong> Importing and reusing components</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../language-support/importing-and-reusing-components/rust.html"><strong aria-hidden="true">6.2.1.</strong> Rust</a></li><li class="chapter-item "><a href="../language-support/importing-and-reusing-components/javascript.html"><strong aria-hidden="true">6.2.2.</strong> Javascript</a></li><li class="chapter-item "><a href="../language-support/importing-and-reusing-components/other-languages.html"><strong aria-hidden="true">6.2.3.</strong> Other Languages</a></li></ol></li><li class="chapter-item "><a href="../creating-runnable-components.html"><strong aria-hidden="true">6.3.</strong> Creating runnable components</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../language-support/creating-runnable-components/rust.html"><strong aria-hidden="true">6.3.1.</strong> Rust</a></li><li class="chapter-item "><a href="../language-support/creating-runnable-components/javascript.html"><strong aria-hidden="true">6.3.2.</strong> Javascript</a></li><li class="chapter-item "><a href="../language-support/creating-runnable-components/other-languages.html"><strong aria-hidden="true">6.3.3.</strong> Other languages</a></li></ol></li><li class="chapter-item "><a href="../using-wit-resources.html"><strong aria-hidden="true">6.4.</strong> Using WIT resources</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../language-support/using-wit-resources/rust.html"><strong aria-hidden="true">6.4.1.</strong> Rust</a></li></ol></li></ol></li><li class="chapter-item expanded "><a href="../running-components.html"><strong aria-hidden="true">7.</strong> Running Components</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../running-components/wasmtime.html"><strong aria-hidden="true">7.1.</strong> Wasmtime</a></li><li class="chapter-item "><a href="../running-components/jco.html"><strong aria-hidden="true">7.2.</strong> jco</a></li></ol></li><li class="chapter-item expanded "><a href="../composing-and-distributing.html"><strong aria-hidden="true">8.</strong> Consuming and Distributing Components</a><a class="toggle"><div>❱</div></a></li><li><ol class="section"><li class="chapter-item "><a href="../composing-and-distributing/composing.html"><strong aria-hidden="true">8.1.</strong> Composing Components</a></li><li class="chapter-item "><a href="../composing-and-distributing/distributing.html"><strong aria-hidden="true">8.2.</strong> Distributing and Fetching Components and WIT</a></li></ol></li><li class="chapter-item expanded "><a href="../tutorial.html"><strong aria-hidden="true">9.</strong> Tutorial</a></li><li class="chapter-item expanded affix "><li class="part-title">Advanced Topics</li><li class="chapter-item expanded "><a href="../advanced/canonical-abi.html"><strong aria-hidden="true">10.</strong> Canonical ABI</a></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="../reference/faq.html"><strong aria-hidden="true">11.</strong> Frequently Asked Questions (FAQ)</a></li><li class="chapter-item expanded "><a href="../reference/useful-links.html"><strong aria-hidden="true">12.</strong> Useful Links</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light (default)</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The WebAssembly Component Model</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/bytecodealliance/component-docs/tree/main/component-model" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/bytecodealliance/component-docs/tree/main/component-model/src/design/component-model-concepts.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <style>
+.mdbook-alerts {
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  border-left: 0.25em solid var(--mdbook-alerts-color);
+}
+
+.mdbook-alerts > *:first-child {
+  margin-top: 0;
+}
+
+.mdbook-alerts > *:last-child {
+  margin-bottom: 0;
+}
+
+.mdbook-alerts-title {
+  display: flex;
+  font-weight: 600;
+  align-items: center;
+  line-height: 1;
+  color: var(--mdbook-alerts-color);
+  text-transform: capitalize;
+}
+
+.mdbook-alerts-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.2em;
+  background-color: currentColor;
+  -webkit-mask: no-repeat center / 100%;
+  mask: no-repeat center / 100%;
+  -webkit-mask-image: var(--mdbook-alerts-icon);
+  mask-image: var(--mdbook-alerts-icon);
+}
+
+.mdbook-alerts-note {
+  --mdbook-alerts-color: rgb(9, 105, 218);
+  /* https://icon-sets.iconify.design/material-symbols/info-outline-rounded/ */
+  --mdbook-alerts-icon: url('data:image/svg+xml,%3Csvg xmlns="http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg" width="24" height="24" viewBox="0 0 24 24"%3E%3Cpath fill="currentColor" d="M12 17q.425 0 .713-.288T13 16v-4q0-.425-.288-.712T12 11q-.425 0-.712.288T11 12v4q0 .425.288.713T12 17m0-8q.425 0 .713-.288T13 8q0-.425-.288-.712T12 7q-.425 0-.712.288T11 8q0 .425.288.713T12 9m0 13q-2.075 0-3.9-.788t-3.175-2.137q-1.35-1.35-2.137-3.175T2 12q0-2.075.788-3.9t2.137-3.175q1.35-1.35 3.175-2.137T12 2q2.075 0 3.9.788t3.175 2.137q1.35 1.35 2.138 3.175T22 12q0 2.075-.788 3.9t-2.137 3.175q-1.35 1.35-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12q0-3.35-2.325-5.675T12 4Q8.65 4 6.325 6.325T4 12q0 3.35 2.325 5.675T12 20m0-8"%2F%3E%3C%2Fsvg%3E');
+}
+
+.mdbook-alerts-tip {
+  --mdbook-alerts-color: rgb(26, 127, 55);
+  /* https://icon-sets.iconify.design/material-symbols/lightbulb-outline-rounded/ */
+  --mdbook-alerts-icon: url('data:image/svg+xml,%3Csvg xmlns="http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg" width="24" height="24" viewBox="0 0 24 24"%3E%3Cpath fill="currentColor" d="M12 22q-.825 0-1.412-.587T10 20h4q0 .825-.587 1.413T12 22m-3-3q-.425 0-.712-.288T8 18q0-.425.288-.712T9 17h6q.425 0 .713.288T16 18q0 .425-.288.713T15 19zm-.75-3q-1.725-1.025-2.738-2.75T4.5 9.5q0-3.125 2.188-5.312T12 2q3.125 0 5.313 2.188T19.5 9.5q0 2.025-1.012 3.75T15.75 16zm.6-2h6.3q1.125-.8 1.738-1.975T17.5 9.5q0-2.3-1.6-3.9T12 4Q9.7 4 8.1 5.6T6.5 9.5q0 1.35.613 2.525T8.85 14M12 14"%2F%3E%3C%2Fsvg%3E');
+}
+
+.mdbook-alerts-important {
+  --mdbook-alerts-color: rgb(130, 80, 223);
+  /* https://icon-sets.iconify.design/material-symbols/chat-info-outline-rounded/ */
+  --mdbook-alerts-icon: url('data:image/svg+xml,%3Csvg xmlns="http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg" width="24" height="24" viewBox="0 0 24 24"%3E%3Cpath fill="currentColor" d="M12 7q.425 0 .713-.288T13 6q0-.425-.288-.712T12 5q-.425 0-.712.288T11 6q0 .425.288.713T12 7m0 8q.425 0 .713-.288T13 14v-4q0-.425-.288-.712T12 9q-.425 0-.712.288T11 10v4q0 .425.288.713T12 15m-6 3l-2.3 2.3q-.475.475-1.088.213T2 19.575V4q0-.825.588-1.412T4 2h16q.825 0 1.413.588T22 4v12q0 .825-.587 1.413T20 18zm-.85-2H20V4H4v13.125zM4 16V4z"%2F%3E%3C%2Fsvg%3E');
+}
+
+.mdbook-alerts-warning {
+  --mdbook-alerts-color: rgb(154, 103, 0);
+  /* https://icon-sets.iconify.design/material-symbols/warning-outline-rounded/ */
+  --mdbook-alerts-icon: url('data:image/svg+xml,%3Csvg xmlns="http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg" width="24" height="24" viewBox="0 0 24 24"%3E%3Cpath fill="currentColor" d="M2.725 21q-.275 0-.5-.137t-.35-.363q-.125-.225-.137-.488t.137-.512l9.25-16q.15-.25.388-.375T12 3q.25 0 .488.125t.387.375l9.25 16q.15.25.138.513t-.138.487q-.125.225-.35.363t-.5.137zm1.725-2h15.1L12 6zM12 18q.425 0 .713-.288T13 17q0-.425-.288-.712T12 16q-.425 0-.712.288T11 17q0 .425.288.713T12 18m0-3q.425 0 .713-.288T13 14v-3q0-.425-.288-.712T12 10q-.425 0-.712.288T11 11v3q0 .425.288.713T12 15m0-2.5"%2F%3E%3C%2Fsvg%3E');
+}
+
+.mdbook-alerts-caution {
+  --mdbook-alerts-color: rgb(207, 34, 46);
+  /* https://icon-sets.iconify.design/material-symbols/brightness-alert-outline-rounded/ */
+  --mdbook-alerts-icon: url('data:image/svg+xml,%3Csvg xmlns="http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg" width="24" height="24" viewBox="0 0 24 24"%3E%3Cpath fill="currentColor" d="M12 17q.425 0 .713-.288T13 16q0-.425-.288-.712T12 15q-.425 0-.712.288T11 16q0 .425.288.713T12 17m0-4q.425 0 .713-.288T13 12V8q0-.425-.288-.712T12 7q-.425 0-.712.288T11 8v4q0 .425.288.713T12 13m-3.35 7H6q-.825 0-1.412-.587T4 18v-2.65L2.075 13.4q-.275-.3-.425-.662T1.5 12q0-.375.15-.737t.425-.663L4 8.65V6q0-.825.588-1.412T6 4h2.65l1.95-1.925q.3-.275.663-.425T12 1.5q.375 0 .738.15t.662.425L15.35 4H18q.825 0 1.413.588T20 6v2.65l1.925 1.95q.275.3.425.663t.15.737q0 .375-.15.738t-.425.662L20 15.35V18q0 .825-.587 1.413T18 20h-2.65l-1.95 1.925q-.3.275-.662.425T12 22.5q-.375 0-.737-.15t-.663-.425zm.85-2l2.5 2.5l2.5-2.5H18v-3.5l2.5-2.5L18 9.5V6h-3.5L12 3.5L9.5 6H6v3.5L3.5 12L6 14.5V18zm2.5-6"%2F%3E%3C%2Fsvg%3E');
+}
+
+</style>
+<h2 id="component-model-concepts"><a class="header" href="#component-model-concepts">Component Model Concepts</a></h2>
+<p>The WebAssembly Component Model extends core WebAssembly in several ways.
+The Component Model:</p>
+<ul>
+<li>Adds consistent representation of higher-level types</li>
+<li>Enables interface-driven development</li>
+<li>Makes core WebAssembly composable:
+components that provide functionality and those that use them
+can be composed together into <em>one</em> resulting component.</li>
+</ul>
+<p>This section introduces the core concepts behind the component model.
+For the rationale behind the component model, see <a href="./why-component-model.html">the previous section</a>.</p>
+<h3 id="components"><a class="header" href="#components">Components</a></h3>
+<p>A <a href="./components.html">WebAssembly Component</a> is a binary that
+conforms to the <a href="../advanced/canonical-abi.html">Canonical ABI</a>;
+often a WebAssembly core module extended with the features
+of the Component Model
+(higher-level types, interfaces).
+WebAssembly components are <em>nestable</em>:
+they may contain zero or more core modules and/or sub-components composed together.
+For example, a component implementing a simple calculator might be written
+by composing together a component that parses strings to floating-point numbers
+with a component that does the main arithmetic.</p>
+<h3 id="webassembly-interface-types-wit"><a class="header" href="#webassembly-interface-types-wit">WebAssembly Interface Types (WIT)</a></h3>
+<p><a href="https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md">WebAssembly Interface Types (WIT)</a> is the <a href="https://en.wikipedia.org/wiki/Interface_description_language">Interface Definition Language (IDL)</a>
+used to formally define functionality for WebAssembly components.
+WIT gives WebAssembly components the ability to express type signatures
+in a language-agnostic way,
+so any component binary can be checked, composed and executed.</p>
+<h4 id="interfaces"><a class="header" href="#interfaces">Interfaces</a></h4>
+<p>An <a href="./interfaces.html"><em>interface</em></a> is a collection of type definitions
+and function declarations (function names accompanied by type signatures).
+Typically, a single interface describes a specific, focused bit
+of functionality.</p>
+<p>For example, in <a href="https://github.com/WebAssembly/wasi-cli/blob/main/wit/stdio.wit">wasi-cli</a>,
+three separate interfaces are used to implement <code>stdin</code>, <code>stdout</code>, and <code>stderr</code>
+(streams typically available in command-line-like environments)</p>
+<h3 id="worlds"><a class="header" href="#worlds">Worlds</a></h3>
+<p>A <a href="./worlds.html"><em>world</em></a> is a collection of interfaces and types
+that expresses what features a component offers
+and what features it depends on.</p>
+<p>For example, wasi-cli includes the <a href="https://github.com/WebAssembly/wasi-cli/blob/main/wit/command.wit"><code>command</code> world</a>,
+which depends on interfaces
+that represent the <code>stdin</code>, <code>stdout</code>, and <code>stderr</code> streams,
+among other things.
+A component implementing the <code>command</code> world
+must be invoked in an environment that implements those interfaces.</p>
+<h3 id="packages"><a class="header" href="#packages">Packages</a></h3>
+<p>A <a href="./packages.html"><em>package</em></a> is a set of WIT files
+containing a related set of interfaces and worlds.</p>
+<p>For example, the <a href="https://github.com/WebAssembly/wasi-http/blob/main/wit/proxy.wit">wasi-http</a> package includes
+an <code>imports</code> world encapsulating the interfaces that an HTTP proxy depends on,
+and a <code>proxy</code> world that depends on <code>imports</code>.</p>
+<h3 id="platforms"><a class="header" href="#platforms">Platforms</a></h3>
+<p>In the context of WebAssembly, a <em>host</em> refers to a WebAssembly runtime
+capable of executing WebAssembly binaries.
+The runtime can be inside a browser or can stand alone.
+A <em>guest</em> refers to the WebAssembly binary that is executed by the host.
+(These terms borrow from their analogs in <a href="https://en.wikipedia.org/wiki/Virtualization">virtualization</a>, where a guest is
+a software-based virtual machine that runs on physical hardware,
+which is the &quot;host&quot;)</p>
+<p>The Component Model introduces the idea of a <em>platform</em>
+to core WebAssembly—enabling the structured, standardized use
+of host functionality for WebAssembly guests.
+Components may import functionality that is provided
+by the platform on which they are executed.</p>
+<h3 id="wasi"><a class="header" href="#wasi">WASI</a></h3>
+<p>The WebAssembly System Interface (<a href="https://wasi.dev/">WASI</a>) defines in WIT
+a family of interfaces for common system-level functions.
+WASI defines a platform for component writers that mimics
+existing programs that developers are familiar with
+(for example, <code>wasi-cli</code> or <code>wasi-http</code>),
+standardizing the functionality components depend on.</p>
+<div class="mdbook-alerts mdbook-alerts-note">
+<p class="mdbook-alerts-title">
+  <span class="mdbook-alerts-icon"></span>
+  note
+</p>
+<p>The Component Model is stewarded by the <a href="https://bytecodealliance.org/">Bytecode Alliance</a> and designed <a href="https://github.com/WebAssembly/component-model">in the open</a>.</p>
+<p>See the <a href="https://github.com/WebAssembly/component-model"><code>WebAssembly/component-model</code></a> repository for <a href="https://github.com/WebAssembly/component-model/blob/main/design/high-level/Goals.md">goals</a>, <a href="https://github.com/WebAssembly/component-model/blob/main/design/high-level/UseCases.md">use cases</a>, and <a href="https://github.com/WebAssembly/component-model/blob/main/design/high-level/Choices.md">high level design choices</a>.</p>
+</div>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../design/why-component-model.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                            <a rel="next" href="../design/components.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../design/why-component-model.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                    <a rel="next" href="../design/components.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        <script src="../elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../searcher.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="../book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+    </body>
+</html>

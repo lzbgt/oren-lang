@@ -1,2 +1,3 @@
 # Preserve downloaded upstream HTML snapshots byte-for-byte; do not text-diff them.
 project-doc/web/zig/*.html -diff
+project-doc/web/feature-horizon-20260412/**/*.html -diff
