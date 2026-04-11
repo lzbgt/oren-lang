@@ -183,6 +183,30 @@ fn _arm64_should_skip_reserve_stmt(cur, next, ctx) {
     return false
 }
 
+fn _arm64_native_stmt_gas_enabled(ctx) {
+    if ctx == nil { return false }
+    if ctx["native_stmt_gas_enabled"] == true { return true }
+    if ctx["native_stmt_gas_enabled"] == false { return false }
+    var v = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
+    var enabled = false
+    if v == "1" || v == "stmt" || v == "statement" || v == "basic-block" { enabled = true }
+    ctx["native_stmt_gas_enabled"] = enabled
+    return enabled
+}
+
+fn _arm64_stmt_gas_should_charge(ctx, stmt) {
+    if _arm64_native_stmt_gas_enabled(ctx) != true { return false }
+    if ctx["in_function"] != true { return false }
+    if stmt == nil { return false }
+    var st = stmt["type"]
+    if st == "Block" || st == "Function" { return false }
+    if st == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" { return false }
+    }
+    return true
+}
+
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
 fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
@@ -317,6 +341,9 @@ fn native_compile_stmt(ctx, stmt) {
         }
         ctx["stmt_depth"] = depth - 1
         return false
+    }
+    if _arm64_stmt_gas_should_charge(ctx, stmt) == true {
+        gc.native_emit_runtime_gas_note_amount(ctx, 1)
     }
     var r = native_compile_stmt_inner(ctx, stmt)
     ctx["stmt_depth"] = depth - 1

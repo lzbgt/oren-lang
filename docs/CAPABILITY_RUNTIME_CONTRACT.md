@@ -188,10 +188,11 @@ matching `OREN_CAPSULE=1` / `OREN_CAP_ALLOW_DOMAINS`. It enforces `budget_wall_m
 process watchdog, enforces `budget_heap_bytes` by capturing native `OREN_NATIVE_RUN_JSON=1`
 live-heap scan evidence after the process returns, and enforces `budget_cpu_ms` from child
 process resource usage when the host exposes that accounting surface. It now also enforces
-`budget_gas` from the runtime-owned `native_loop_safepoint_tick_v0` counter in native run JSON. This is a
-scoped v0 loop-safepoint budget: backend loop poll sites charge their mask interval when they fire,
-and direct/manual runtime safepoint arrivals still charge one tick. It is not an
-instruction-equivalent gas model. When
+`budget_gas` from the runtime-owned `native_stmt_loop_tick_v0` counter in native run JSON. The
+runner builds and runs gas-budgeted artifacts with `OREN_NATIVE_GAS_ACCOUNTING=stmt`. This is a
+scoped v0 statement+loop budget: backend statement/op boundaries charge one tick, backend loop poll
+sites charge their mask interval when they fire, and direct/manual runtime safepoint arrivals still
+charge one tick. It is not an instruction-equivalent gas model. When
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
 `oren.native-package-policy-run.v0` JSON with runner-observed wall/gas/heap/CPU-budget evidence, the
 native capsule/domain policy that was applied, and any captured native runtime `effect_ledger`
@@ -211,9 +212,11 @@ Separately, native executables support `OREN_NATIVE_RUN_JSON=1` for a runtime-em
 `effect_ledger_summary` schema with monotonic `wall_ms.elapsed_ns`, native capsule
 domain-gate counters, resource-check counters, and a scanned `heap_bytes.used` value for live
 tracked native heap nodes.
-Gas is reported as `native_loop_safepoint_tick_v0`; backend loop poll sites charge their mask
-interval and direct/manual `oren_gc_safepoint()` arrivals charge one tick. Future backend work can
-add finer instruction-equivalent or basic-block gas without changing the existing field shape.
+Gas is reported as `native_loop_safepoint_tick_v0` by default; backend loop poll sites charge their
+mask interval and direct/manual `oren_gc_safepoint()` arrivals charge one tick. When
+`OREN_NATIVE_GAS_ACCOUNTING=stmt` is set for matching build/run invocations, the same field reports
+`native_stmt_loop_tick_v0`, adding backend statement/op-boundary ticks to the loop-safepoint surface.
+Future backend work can add finer instruction-equivalent gas without changing the existing field shape.
 Package-policy JSON remains runner-observed wall/gas/heap/CPU evidence with captured runtime summaries,
 while direct `OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
 
@@ -254,8 +257,8 @@ while direct `OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
   runner applies the gas/heap/wall subset to concrete AVM runtime knobs; the native runner
   applies capsule domains, wall-time process watchdogs, heap-budget checks from native-run JSON
   live-heap scans, CPU-budget checks from child process resource usage where available, and a
-  scoped `native_loop_safepoint_tick_v0` gas check. They are not yet a complete enforcement contract
-  across native and AVM because native gas is still safepoint-granular rather than instruction
+  scoped `native_stmt_loop_tick_v0` gas check. They are not yet a complete enforcement contract
+  across native and AVM because native gas is still statement+loop-granular rather than instruction
   granular. Native capsule runtime knobs are domain/resource allowlists first.
 - Full effect-ledger runtime emission is not complete yet. The target schema is pinned in
   `docs/EFFECT_LEDGER_CONTRACT.md`, and AVM `--print-run-json` already emits a compact

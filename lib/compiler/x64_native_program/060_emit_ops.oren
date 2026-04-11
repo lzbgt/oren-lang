@@ -110,6 +110,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             print("[x64_emit_ops] j=" + oren_int_to_string(j) + "/" + oren_int_to_string(n) + " op=" + opk + extra + loc)
         }
         _linetab_record_tok(ctx, op["tok"])
+        if _x64_native_stmt_gas_enabled(ctx) == true {
+            _emit_native_gas_note_x64(ctx, 1)
+        }
         if op["op"] == "var_i32" {
             var name = op["name"]
             var off = locals[name]

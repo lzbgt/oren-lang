@@ -124,6 +124,17 @@ fn _emit_native_gas_note_x64(ctx, amount) {
     return nil
 }
 
+fn _x64_native_stmt_gas_enabled(ctx) {
+    if ctx == nil { return false }
+    if ctx["native_stmt_gas_enabled"] == true { return true }
+    if ctx["native_stmt_gas_enabled"] == false { return false }
+    var v = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
+    var enabled = false
+    if v == "1" || v == "stmt" || v == "statement" || v == "basic-block" { enabled = true }
+    ctx["native_stmt_gas_enabled"] = enabled
+    return enabled
+}
+
 fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask) {
     // PERF:
     // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.

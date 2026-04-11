@@ -21,6 +21,9 @@ gas_ok_json="$TMP/gas-ok.run.json"
 gas_fail_out="$TMP/gas-fail.out"
 gas_fail_err="$TMP/gas-fail.err"
 gas_fail_json="$TMP/gas-fail.run.json"
+gas_stmt_fail_out="$TMP/gas-stmt-fail.out"
+gas_stmt_fail_err="$TMP/gas-stmt-fail.err"
+gas_stmt_fail_json="$TMP/gas-stmt-fail.run.json"
 wall_out="$TMP/wall.out"
 wall_err="$TMP/wall.err"
 wall_json="$TMP/wall.run.json"
@@ -88,6 +91,10 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_fail_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_fail.oren \
   >"$gas_fail_out" 2>"$gas_fail_err"
 gas_fail_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_stmt_fail_json" \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_stmt_fail.oren \
+  >"$gas_stmt_fail_out" 2>"$gas_stmt_fail_err"
+gas_stmt_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$wall_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_wall_timeout.oren \
   >"$wall_out" 2>"$wall_err"
@@ -102,7 +109,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -116,6 +123,7 @@ cpu_ok_path = Path(sys.argv[6])
 cpu_fail_path = Path(sys.argv[7])
 gas_ok_path = Path(sys.argv[8])
 gas_fail_path = Path(sys.argv[9])
+gas_stmt_fail_path = Path(sys.argv[10])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -259,18 +267,18 @@ gas_ok_summary = gas_ok_ledger.get("summary") or {}
 gas_ok_budget = ((gas_ok.get("budgets") or {}).get("gas") or {})
 if gas_ok_budget.get("limit") != 100000 or gas_ok_budget.get("enforced") is not True:
     fail(f"{gas_ok_path}: expected enforced 100000 native gas budget, got {gas_ok_budget!r}")
-if gas_ok_budget.get("kind") != "native_loop_safepoint_tick_v0":
-    fail(f"{gas_ok_path}: expected native_loop_safepoint_tick_v0 gas kind, got {gas_ok_budget!r}")
+if gas_ok_budget.get("kind") != "native_stmt_loop_tick_v0":
+    fail(f"{gas_ok_path}: expected native_stmt_loop_tick_v0 gas kind, got {gas_ok_budget!r}")
 if gas_ok_budget.get("exceeded") is not False:
     fail(f"{gas_ok_path}: expected non-exceeded gas budget, got {gas_ok_budget!r}")
 gas_ok_used = int(gas_ok_budget.get("executed") or -1)
 if gas_ok_used < 0 or gas_ok_used > 100000:
     fail(f"{gas_ok_path}: gas used outside budget: {gas_ok_budget!r}")
 if gas_ok_used < 1024:
-    fail(f"{gas_ok_path}: expected loop-safepoint interval gas charge, got {gas_ok_budget!r}")
+    fail(f"{gas_ok_path}: expected at least one loop-safepoint interval gas charge, got {gas_ok_budget!r}")
 summary_gas = (((gas_ok_summary.get("budgets") or {}).get("gas") or {}))
-if summary_gas.get("kind") != "native_loop_safepoint_tick_v0":
-    fail(f"{gas_ok_path}: expected native_loop_safepoint_tick_v0 native gas summary, got {summary_gas!r}")
+if summary_gas.get("kind") != "native_stmt_loop_tick_v0":
+    fail(f"{gas_ok_path}: expected native_stmt_loop_tick_v0 native gas summary, got {summary_gas!r}")
 if int(summary_gas.get("executed") or -1) != gas_ok_used:
     fail(f"{gas_ok_path}: runner gas used does not mirror native summary: runner={gas_ok_budget!r} summary={summary_gas!r}")
 
@@ -301,12 +309,30 @@ if gas_fail.get("status") != "budget_exceeded" or gas_fail.get("exit_code") != 1
 gas_fail_budget = ((gas_fail.get("budgets") or {}).get("gas") or {})
 if gas_fail_budget.get("limit") != 1 or gas_fail_budget.get("enforced") is not True:
     fail(f"{gas_fail_path}: expected enforced 1 native gas budget, got {gas_fail_budget!r}")
-if gas_fail_budget.get("kind") != "native_loop_safepoint_tick_v0":
-    fail(f"{gas_fail_path}: expected native_loop_safepoint_tick_v0 gas kind, got {gas_fail_budget!r}")
+if gas_fail_budget.get("kind") != "native_stmt_loop_tick_v0":
+    fail(f"{gas_fail_path}: expected native_stmt_loop_tick_v0 gas kind, got {gas_fail_budget!r}")
 if gas_fail_budget.get("exceeded") is not True:
     fail(f"{gas_fail_path}: expected exceeded gas budget, got {gas_fail_budget!r}")
 if int(gas_fail_budget.get("executed") or 0) <= 1:
     fail(f"{gas_fail_path}: expected gas used to exceed 1 tick, got {gas_fail_budget!r}")
+
+gas_stmt_fail = load(gas_stmt_fail_path)
+if gas_stmt_fail.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_stmt_fail_path}: schema mismatch: {gas_stmt_fail.get('schema')!r}")
+if gas_stmt_fail.get("status") != "budget_exceeded" or gas_stmt_fail.get("exit_code") != 127:
+    fail(
+        f"{gas_stmt_fail_path}: expected budget_exceeded/127, got "
+        f"status={gas_stmt_fail.get('status')!r} exit={gas_stmt_fail.get('exit_code')!r}"
+    )
+gas_stmt_fail_budget = ((gas_stmt_fail.get("budgets") or {}).get("gas") or {})
+if gas_stmt_fail_budget.get("limit") != 8 or gas_stmt_fail_budget.get("enforced") is not True:
+    fail(f"{gas_stmt_fail_path}: expected enforced 8 native gas budget, got {gas_stmt_fail_budget!r}")
+if gas_stmt_fail_budget.get("kind") != "native_stmt_loop_tick_v0":
+    fail(f"{gas_stmt_fail_path}: expected native_stmt_loop_tick_v0 gas kind, got {gas_stmt_fail_budget!r}")
+if gas_stmt_fail_budget.get("exceeded") is not True:
+    fail(f"{gas_stmt_fail_path}: expected exceeded statement gas budget, got {gas_stmt_fail_budget!r}")
+if int(gas_stmt_fail_budget.get("executed") or 0) <= 8:
+    fail(f"{gas_stmt_fail_path}: expected statement gas used to exceed 8 ticks, got {gas_stmt_fail_budget!r}")
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -332,6 +358,19 @@ grep -Fq "package native gas budget exceeded" "$gas_fail_out" "$gas_fail_err" ||
   echo "ERROR: missing native gas budget diagnostic" >&2
   cat "$gas_fail_out" >&2 || true
   cat "$gas_fail_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_stmt_fail_rc" -eq 0 ]]; then
+  echo "ERROR: expected native package-policy statement gas budget to reject over-budget run" >&2
+  cat "$gas_stmt_fail_out" >&2 || true
+  cat "$gas_stmt_fail_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package native gas budget exceeded" "$gas_stmt_fail_out" "$gas_stmt_fail_err" || {
+  echo "ERROR: missing native statement gas budget diagnostic" >&2
+  cat "$gas_stmt_fail_out" >&2 || true
+  cat "$gas_stmt_fail_err" >&2 || true
   exit 1
 }
 

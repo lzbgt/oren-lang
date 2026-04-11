@@ -1473,16 +1473,18 @@ For the current capability domain and native runtime-profile contract, see
   enforces `budget_wall_ms` with a process watchdog, enforces `budget_heap_bytes` from native-run
   JSON live-heap scan evidence, and enforces `budget_cpu_ms` from child process resource usage
   where available. It also enforces `budget_gas` from native-run JSON
-  `native_loop_safepoint_tick_v0` evidence. Backend loop poll sites charge their mask interval
-  when they fire, while direct/manual native safepoints charge one tick; this remains
-  safepoint-granular rather than instruction-equivalent. Set
+  `native_stmt_loop_tick_v0` evidence after building and running with
+  `OREN_NATIVE_GAS_ACCOUNTING=stmt`. Backend statement/op boundaries charge one tick, backend loop
+  poll sites charge their mask interval when they fire, and direct/manual native safepoints charge
+  one tick; this remains statement+loop-granular rather than instruction-equivalent. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
   evidence plus any captured runtime ledger summary as `oren.native-package-policy-run.v0`. Set
   `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`
   stdout with compact `effect_ledger_summary` evidence; it currently reports native wall
   elapsed time, capsule domain-gate counters, selected FS/NET/PROC resource-check counters, and
-  `heap_bytes.used` from a report-time scan of live tracked native heap nodes, plus
-  `native_loop_safepoint_tick_v0` gas ticks.
+  `heap_bytes.used` from a report-time scan of live tracked native heap nodes, plus default
+  `native_loop_safepoint_tick_v0` gas ticks or `native_stmt_loop_tick_v0` when
+  `OREN_NATIVE_GAS_ACCOUNTING=stmt` is used for matching build/run invocations.
   AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
@@ -3570,7 +3572,8 @@ rather than relying on denied native calls becoming values at runtime. The nativ
 package capsule/domain policy, runs with matching native capsule env, enforces `budget_wall_ms`
 with a process watchdog, enforces `budget_heap_bytes` from captured native-run JSON live-heap scan
 evidence, enforces `budget_cpu_ms` from child process resource usage where available, and enforces
-`budget_gas` from captured `native_loop_safepoint_tick_v0` runtime evidence. When callers set
+`budget_gas` from captured `native_stmt_loop_tick_v0` runtime evidence after building and running
+with `OREN_NATIVE_GAS_ACCOUNTING=stmt`. When callers set
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
 `oren.native-package-policy-run.v0` with runner-observed wall-budget timing and captured
 `effect_ledger` summary when available. Native capsule runtime separately exposes
