@@ -255,7 +255,11 @@ This wrapper reruns `perf-probe-list-int-slot-abi-ceiling`, `perf-probe-list-int
   - hidden direct-slot wins dot on this rerun (`3/5`, median `-10.83%` vs baseline) but loses array
     badly (`1/5`, median `+18.24%`)
   - public-slot is mixed (`1/5` array wins, `1/5` dot wins)
-  - packed bridge remains far behind (`packed_simd` dot median `+301.76%` vs baseline)
+  - packed bridge was far behind on that route artifact (`packed_simd` dot median `+301.76%` vs
+    baseline), and the 2026-04-11 pointer-i32 pack-store improvement narrows but does not change that
+    decision: `build/logs/perf-probe-list-int-dot-ceiling-stability-20260411_204859_99207.log` gives
+    packed-SIMD `0/5` wins on both array and dot, with median deltas `+269.38%` array and `+134.27%`
+    dot versus canonical baseline.
 
 Verdict: keep shipped canonical lowering. The next dot route work should target a representation or
 direct-lowering change for slot64, or a safe packed view, rather than re-routing through the current
@@ -1051,6 +1055,32 @@ that is useful but not sufficient:
 So destination-buffer reuse trims only a small slice of the fresh-pack cost and still loses badly
 to the existing pack-once bridge. The next bridge move should therefore target eliminating or
 hoisting the repeated materialization/copy itself, not just reusing the output buffer.
+
+The 2026-04-11 native pointer-i32 follow-up changes the cost floor, but not the shipping decision.
+`oren_ptr_get_i32_le` and `oren_ptr_set_i32_le` now have arm64/x64 native intrinsics, and the
+runtime `list<int> -> []i32` pack loop uses the 32-bit store helper instead of four byte stores per
+element. The current artifact,
+`build/logs/perf-probe-list-int-packed-bridge-read-split-20260411_203510_80313.log`, was run at the
+same small read-split profile (`runs=2`, `warmups=0`, `n=20000`, `short_reps=1`, `long_reps=2`) and
+comes back as:
+
+- baseline canonical `dot_product_int`: `~1.2150x C` long-per-rep
+- fresh-pack SIMD: `~4.6037x C` long-per-rep
+- reuse-work SIMD: `~4.0130x C` long-per-rep
+- pack-once SIMD: `~2.3687x C` long-per-rep, `~2.4378x C` delta
+- pack-once SIMD / baseline long-per-rep: `~1.9495x`
+
+A bounded steady cross-check,
+`build/logs/perf-probe-list-int-packed-bridge-20260411_204441_93198.log`, used `runs=2`,
+`warmups=0`, `n=20000`, and `reps=2`; it reports packed-SIMD `array_sum_int_packed_bridge`
+`~2.9643x C` and `dot_product_int_packed_bridge` `~2.1500x C` versus canonical `array_sum_int`
+`~1.2482x C` and `dot_product_int` `~1.2109x C`. This is a real bridge-materialization improvement
+relative to the prior `20260408_234329` read-split, but it still leaves the packed bridge behind the
+canonical fast loop. The same conclusion holds on the route-stability rerun
+`build/logs/perf-probe-list-int-dot-ceiling-stability-20260411_204859_99207.log`: packed-SIMD had
+`0/5` wins for both array and dot, with median deltas `+269.38%` and `+134.27%` versus baseline.
+Keep treating a safe packed view as a representation/ownership problem that must avoid or hoist the
+copy, not as another per-byte-store tuning branch.
 
 To answer the narrower question “does the packed SIMD path become viable if we really amortize the
 pack step?”, use:

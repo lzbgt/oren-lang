@@ -1004,13 +1004,21 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 0))
             return nil
         }
-	        if nm == "ptr_set_byte" {
+        if nm == "oren_ptr_get_i32_le" {
+            if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: oren_ptr_get_i32_le expects 1 arg"); return nil }
+            _emit_eval_int_to_rax(ctx, args[0], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            bytes_extend(ctx["code"], insn_mov_r32_m64_disp(0, 0, 0)) // eax = dword ptr [rax]
+            bytes_extend(ctx["code"], insn_movsxd_r64_r32(0, 0))      // rax = sign_extend(eax)
+            return nil
+        }
+        if nm == "ptr_set_byte" {
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: ptr_set_byte expects 2 args"); return nil }
-	            // Must not keep `ptr` only in a register across nested expression evaluation.
-	            var base = _intr_tmp_push(ctx, 1)
-	            if oren_type_tag(base) == 0 { return nil }
-	            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-	            if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
+            // Must not keep `ptr` only in a register across nested expression evaluation.
+            var base = _intr_tmp_push(ctx, 1)
+            if oren_type_tag(base) == 0 { return nil }
+            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+            if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
             _emit_eval_int_to_rax(ctx, args[0], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -1027,7 +1035,28 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
 
-	        if nm == "oren_buf_load_u8_unchecked" {
+        if nm == "oren_ptr_set_i32_le" {
+            if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_ptr_set_i32_le expects 2 args"); return nil }
+            var base = _intr_tmp_push(ctx, 1)
+            if oren_type_tag(base) == 0 { return nil }
+            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+            if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+            _emit_eval_int_to_rax(ctx, args[0], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0)
+
+            _emit_eval_int_to_rax(ctx, args[1], locals)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+            _emit_mov_r64_mrbp(ctx, 2, 0 - tmp_ptr) // rdx = ptr
+            bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(2, 0, 0)) // dword ptr [rdx] = eax
+            bytes_extend(ctx["code"], insn_movsxd_r64_r32(0, 0))       // return signed i32
+            _intr_tmp_pop(ctx, base)
+            return nil
+        }
+
+        if nm == "oren_buf_load_u8_unchecked" {
             // Tooling hot path (stage2-native compiler):
             // Inline `oren_buf_load_u8_unchecked(buf, idx)` to avoid per-byte function call overhead
             // during astbin decode.
@@ -1037,10 +1066,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - load byte at data_ptr+idx and return it as int (0..255)
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_buf_load_u8_unchecked expects 2 args"); return nil }
 
-	            var base = _intr_tmp_push(ctx, 1)
-	            if oren_type_tag(base) == 0 { return nil }
-	            var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
-	            if oren_type_tag(tmp_buf) == 0 { _intr_tmp_pop(ctx, base); return nil }
+            var base = _intr_tmp_push(ctx, 1)
+            if oren_type_tag(base) == 0 { return nil }
+            var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
+            if oren_type_tag(tmp_buf) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
             _emit_eval_int_to_rax(ctx, args[0], locals) // buf -> rax
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -1060,7 +1089,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             _intr_tmp_pop(ctx, base)
             return nil
-	        }
+        }
 	        if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return nil }
 	        if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return nil }
 	        if nm == "simd_dot_i32_ptr" { _emit_intrinsic_simd_dot_i32_ptr_x64(ctx, expr, locals); return nil }

@@ -1551,6 +1551,27 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     So caller-managed destination-buffer reuse trims only a small slice of the fresh-pack cost
 			     and still loses badly to the existing pack-once bridge. Keep the next work aimed at
 			     eliminating or hoisting the repeated `list<int> -> []i32` materialization itself.
+			   - Native pointer-i32 pack-store follow-up (2026-04-11): arm64/x64 native now inline
+			     `oren_ptr_get_i32_le` / `oren_ptr_set_i32_le`, and the `list<int> -> []i32` pack loop
+			     stores lanes through the 32-bit little-endian pointer helper instead of four
+			     `ptr_set_byte` calls. The current read-split artifact
+			     (`build/logs/perf-probe-list-int-packed-bridge-read-split-20260411_203510_80313.log`,
+			     `runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) moves the bridge materially:
+			     - canonical `dot_product_int`: `~1.2150× C` long-per-rep
+			     - fresh-pack SIMD: `~4.6037× C` long-per-rep
+			     - reuse-work SIMD: `~4.0130× C` long-per-rep
+			     - pack-once SIMD: `~2.3687× C` long-per-rep, `~2.4378× C` delta
+			     - pack-once SIMD / canonical baseline long-per-rep: `~1.9495×`
+			     Bounded steady cross-check
+			     (`build/logs/perf-probe-list-int-packed-bridge-20260411_204441_93198.log`,
+			     `runs=2 warmups=0 n=20000 reps=2`) reports packed-SIMD `array_sum_int_packed_bridge`
+			     `~2.9643× C` and `dot_product_int_packed_bridge` `~2.1500× C`, versus canonical
+			     `array_sum_int` `~1.2482× C` and `dot_product_int` `~1.2109× C`. Keep the intrinsic
+			     improvement, but do not promote the packed bridge. The current route-stability rerun
+			     (`build/logs/perf-probe-list-int-dot-ceiling-stability-20260411_204859_99207.log`)
+			     still gives packed-SIMD `0/5` wins on both array and dot, with median deltas `+269.38%`
+			     and `+134.27%` versus canonical. The next representation task is still copy
+			     avoidance/hoisting or a real packed-view contract rather than another bridge reroute.
 		   - Packed-SIMD reuse follow-up (2026-04-05): new
 		     `make perf-probe-list-int-packed-bridge-simd-reuse` keeps only the canonical baseline and the
 		     packed-SIMD bridge path, but raises the long run to `10` reps so reuse dominates the setup

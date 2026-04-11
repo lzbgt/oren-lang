@@ -666,6 +666,10 @@ fn test_ptr_endian_helpers_native() {
 
     assert_eq(oren_ptr_set_i32_be(p + 8, -1), -1, 910)
     assert_eq(oren_ptr_get_i32_be(p + 8), -1, 911)
+    assert_eq(oren_ptr_set_i32_le(p + 12, -2), -2, 915)
+    assert_eq(ptr_get_byte(p + 12), 254, 916)
+    assert_eq(ptr_get_byte(p + 15), 255, 917)
+    assert_eq(oren_ptr_get_i32_le(p + 12), -2, 918)
 
     // u64
     // 0x0102030405060708 fits in signed i64, so we can round-trip in v0.

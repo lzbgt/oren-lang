@@ -27,11 +27,7 @@ fn _i32_pack_list_int_slots_into(out, src_data, n, ctx) {
     while i < n {
         var v = ptr_get(src)
         if v < -2147483648 || v > 2147483647 { return oren_err(4, ctx + ": value out of i32 range") }
-        var u = v & 4294967295
-        ptr_set_byte(dst + 0, u & 255)
-        ptr_set_byte(dst + 1, (u >> 8) & 255)
-        ptr_set_byte(dst + 2, (u >> 16) & 255)
-        ptr_set_byte(dst + 3, (u >> 24) & 255)
+        oren_ptr_set_i32_le(dst, v)
         src = src + 8
         dst = dst + 4
         i = i + 1
@@ -47,11 +43,7 @@ fn _i32_pack_list_slots_into(out, src_data, n, ctx) {
     while i < n {
         var v = _i32_pack_list_value_or_err(ptr_get(src), ctx)
         if oren_is_err(v) { return v }
-        var u = v & 4294967295
-        ptr_set_byte(dst + 0, u & 255)
-        ptr_set_byte(dst + 1, (u >> 8) & 255)
-        ptr_set_byte(dst + 2, (u >> 16) & 255)
-        ptr_set_byte(dst + 3, (u >> 24) & 255)
+        oren_ptr_set_i32_le(dst, v)
         src = src + 8
         dst = dst + 4
         i = i + 1

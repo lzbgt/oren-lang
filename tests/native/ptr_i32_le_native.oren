@@ -1,0 +1,26 @@
+fn assert_eq(a, b, code) {
+    if a != b {
+        exit(code)
+    }
+}
+
+fn main() {
+    var p = malloc(16)
+    if p == 0 { exit(90) }
+
+    assert_eq(oren_ptr_set_i32_le(p, -2), -2, 1)
+    assert_eq(ptr_get_byte(p + 0), 254, 2)
+    assert_eq(ptr_get_byte(p + 1), 255, 3)
+    assert_eq(ptr_get_byte(p + 2), 255, 4)
+    assert_eq(ptr_get_byte(p + 3), 255, 5)
+    assert_eq(oren_ptr_get_i32_le(p), -2, 6)
+
+    assert_eq(oren_ptr_set_i32_le(p + 4, 305419896), 305419896, 7)
+    assert_eq(ptr_get_byte(p + 4), 120, 8)
+    assert_eq(ptr_get_byte(p + 5), 86, 9)
+    assert_eq(ptr_get_byte(p + 6), 52, 10)
+    assert_eq(ptr_get_byte(p + 7), 18, 11)
+    assert_eq(oren_ptr_get_i32_le(p + 4), 305419896, 12)
+
+    exit(0)
+}

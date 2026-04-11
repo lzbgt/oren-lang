@@ -233,6 +233,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     tracked benchmarks. Hidden direct-slot won dot on this rerun (`3/5`, median `-10.83%` vs
 	     baseline) but lost array badly (`1/5`, median `+18.24%`); public-slot stayed mixed (`1/5`
 	     wins on both benchmarks); packed-SIMD stayed far behind (`dot median +301.76%` vs baseline).
+	     After the 2026-04-11 pointer-i32 pack-store improvement, the narrower current stability rerun
+	     `build/logs/perf-probe-list-int-dot-ceiling-stability-20260411_204859_99207.log` supersedes only
+	     the packed-leg magnitude, not the route decision: packed-SIMD still has `0/5` wins on both
+	     array and dot, with median deltas `+269.38%` array and `+134.27%` dot versus canonical.
 	     Reweight: the next dot work should target representation/direct lowering for slot64 or a
 	     safe packed view, not a generic helper/public/packed bridge reroute or another scalar-tail
 	     scheduling toggle.
@@ -616,6 +620,28 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     The reuse-work leg only trims a small slice of the fresh-pack cost and still loses badly to
 		     the existing pack-once bridge. Reweight again: destination-buffer reuse alone is not the
 		     parity lever; the remaining cost is the repeated `list<int> -> []i32` materialization/copy.
+		   - Native pointer-i32 pack-store follow-up (2026-04-11): arm64/x64 native now inline
+		     `oren_ptr_get_i32_le` / `oren_ptr_set_i32_le`, and the runtime `list<int> -> []i32` pack loop
+		     stores each lane through the 32-bit little-endian pointer helper instead of four byte stores.
+		     The fresh read-split probe
+		     `build/logs/perf-probe-list-int-packed-bridge-read-split-20260411_203510_80313.log`
+		     (`runs=2 warmups=0 n=20000 short_reps=1 long_reps=2`) materially lowers the bridge floor:
+		     - canonical `dot_product_int`: ~1.2150× C long-per-rep
+		     - fresh-pack SIMD: ~4.6037× C long-per-rep
+		     - reuse-work SIMD: ~4.0130× C long-per-rep
+		     - pack-once SIMD: ~2.3687× C long-per-rep, ~2.4378× C delta
+		     - pack-once SIMD / canonical baseline long-per-rep: ~1.9495×
+		     Bounded steady cross-check
+		     `build/logs/perf-probe-list-int-packed-bridge-20260411_204441_93198.log`
+		     (`runs=2 warmups=0 n=20000 reps=2`) reports packed-SIMD `array_sum_int_packed_bridge`
+		     ~2.9643× C and `dot_product_int_packed_bridge` ~2.1500× C, versus canonical `array_sum_int`
+		     ~1.2482× C and `dot_product_int` ~1.2109× C. Verdict: keep the improvement because it fixes
+		     an obvious materialization cost, but do not reopen the packed bridge as a default route yet.
+		     The current route-stability rerun
+		     `build/logs/perf-probe-list-int-dot-ceiling-stability-20260411_204859_99207.log` still gives
+		     packed-SIMD `0/5` wins on both array and dot, with median deltas `+269.38%` and `+134.27%`
+		     versus canonical. The remaining work is to avoid/hoist the copy or change the representation
+		     contract.
 		   - Packed-SIMD reuse follow-up (2026-04-05): the new
 		     `make perf-probe-list-int-packed-bridge-simd-reuse` surface removes the scalar leg and uses
 		     a more reuse-oriented split (`short_reps=1`, `long_reps=10`) to answer the narrower question

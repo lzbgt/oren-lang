@@ -604,6 +604,13 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 return true
             }
 
+            if fn_name == "oren_ptr_get_i32_le" {
+                native_compile_expr(ctx, args[0])
+                // LDRSW X0, [X0]
+                push_u32_le(ctx["code"], insn_ldrsw(0, 0, 0))
+                return true
+            }
+
             if fn_name == "ptr_set_byte" {
                 native_compile_expr(ctx, args[0]) // ptr -> X0
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -618,6 +625,24 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
     
                 // STRB W0, [X1]
                 push_u32_le(ctx["code"], insn_strb(0, 1))
+                return true
+            }
+
+            if fn_name == "oren_ptr_set_i32_le" {
+                native_compile_expr(ctx, args[0]) // ptr -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                native_compile_expr(ctx, args[1]) // val -> X0 (lower 32 bits)
+
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // ptr -> X1
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // STR W0, [X1]; return sign-extended i32 in X0.
+                push_u32_le(ctx["code"], insn_str_w(0, 1, 0))
+                push_u32_le(ctx["code"], insn_sxtw(0, 0))
                 return true
             }
 
