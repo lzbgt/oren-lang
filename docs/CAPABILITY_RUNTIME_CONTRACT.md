@@ -53,11 +53,21 @@ Oren has three capability layers today.
 
 ## Source Metadata Manifest
 
-`oren meta <file.oren> -o out.meta.json` and native `--metadata` output now include a
-normalized capability manifest in addition to the raw function attributes:
+`oren meta <file.oren> -o out.meta.json` and native `--metadata` output now include
+normalized package/capability manifests in addition to the raw declaration attributes:
 
 ```json
 {
+  "package": {
+    "version": 1,
+    "declared": false,
+    "runtime_profile": null,
+    "cap_allow_domains": [],
+    "source_required_domains": ["FS", "TIME", "RNG"],
+    "dependency_domain_union": ["FS", "TIME", "RNG"],
+    "dependency_domain_union_status": "source_attrs_only",
+    "budgets": { "version": 1, "declared": false }
+  },
   "capabilities": {
     "version": 1,
     "required_domains": ["FS", "TIME", "RNG"],
@@ -76,6 +86,9 @@ package tooling, build orchestrators, and agent-facing planners a deterministic 
 which source-level functions require host-effect domains before selecting a runtime profile
 or policy.
 
+`dependency_domain_union` is intentionally marked `source_attrs_only`: it is the linked
+source-level `@cap.requires` union, not yet a full stdlib/runtime effect proof.
+
 Artifact `--manifest` output also carries a policy block that ties the artifact hash to
 the source capability domains and selected build-policy inputs:
 
@@ -92,6 +105,16 @@ the source capability domains and selected build-policy inputs:
     "capsule": false,
     "cap_allow_domains": ["FS"],
     "source_required_domains": ["FS", "TIME", "RNG"],
+    "source_package": {
+      "version": 1,
+      "declared": true,
+      "runtime_profile": "capsule",
+      "cap_allow_domains": ["FS"],
+      "source_required_domains": ["FS", "TIME", "RNG"],
+      "dependency_domain_union": ["FS", "TIME", "RNG"],
+      "dependency_domain_union_status": "source_attrs_only",
+      "budgets": { "version": 1, "declared": true, "cpu_ms": 10 }
+    },
     "budgets": { "version": 1, "declared": false }
   }
 }
@@ -101,6 +124,19 @@ the source capability domains and selected build-policy inputs:
 backend still resolves the concrete runtime path from env/import heuristics, so
 `runtime_path` is `backend-auto` rather than a false claim about a final path. Budget
 declarations are explicitly marked absent until source/package-level budget syntax exists.
+
+Source files can now declare a first package-policy marker through a declaration
+attribute:
+
+```oren
+@oren.package(runtime_profile="capsule", cap_allow_domains="FS,ENV", budget_cpu_ms=10)
+var package_policy = 1
+```
+
+That marker is metadata-only. It does not silently enable capsule mode or enforce budgets.
+It normalizes into `metadata.package` and artifact `policy.source_package` so package
+tooling can compare the declared policy against the actual build flags and runtime profile
+request.
 
 ## Domain Contract
 
@@ -130,12 +166,11 @@ declarations are explicitly marked absent until source/package-level budget synt
 
 ## What Is Not Stable Yet
 
-- The native runtime profile is still selected by env/import heuristic, not by a full
-  source-level package manifest. Per-source capability metadata and artifact policy
-  manifests exist, but package-level runtime-profile selection is not yet declared in source.
-- Capability budgets are not yet a complete source-level contract across native and
-  AVM. AVM has budget machinery; native capsule runtime knobs are domain/resource
-  allowlists first.
+- The native runtime profile is still selected by env/import heuristic, not enforced by
+  the package marker. The source package marker records declared intent for tooling only.
+- Capability budgets are now representable in package metadata, but they are not yet a
+  complete enforcement contract across native and AVM. AVM has budget machinery; native
+  capsule runtime knobs are domain/resource allowlists first.
 - The native and AVM policy vocabularies are converging but not fully unified. For
   example, AVM has explicit `CORE`, `EXIT`, and `AVM` domains while native capsule
   enrollment currently focuses on `FS`, `NET`, `PROC`, `ENV`, `TIME`, and `RNG`.

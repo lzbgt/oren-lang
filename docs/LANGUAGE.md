@@ -1447,12 +1447,21 @@ For the current capability domain and native runtime-profile contract, see
 - Direct syscall intrinsics (`sys_*`) are always rejected from user code in capsule mode.
 - `ffi` declarations are rejected in capsule mode (FFI bypasses capability gating).
 - `oren meta` and native `--metadata` emit a normalized top-level `capabilities`
-  manifest that lists required domains by source function. This is a tooling contract;
-  enforcement remains the capsule compiler/runtime policy.
+  manifest that lists required domains by source function, plus a normalized top-level
+  `package` manifest for package-policy intent. This is a tooling contract; enforcement
+  remains the capsule compiler/runtime policy.
 - `--manifest` artifact manifests include a `policy` block with backend, runtime-profile
   request, capsule flag, allowlisted domains, source-required domains, and an explicit
   budget-declaration marker. In native `auto` mode, the manifest records `backend-auto`
   rather than pretending the backend heuristic has a source-level package declaration.
+- `@oren.package(...)` can attach a metadata-only package-policy marker to a top-level
+  declaration. The current fields are `runtime_profile`, `cap_allow_domains`, and budget
+  defaults such as `budget_cpu_ms`, `budget_wall_ms`, `budget_heap_bytes`, and `budget_gas`.
+  This marker normalizes into metadata/artifact manifests; it does not silently change
+  runtime profile selection or enforce budgets.
+  The `source_required_domains` / `dependency_domain_union` fields are currently
+  `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
+  a complete stdlib/runtime effect proof.
 
 Enable capsule mode at compile time:
 
@@ -3495,7 +3504,37 @@ When `--manifest` is requested, the artifact manifest also embeds the required s
 domains in `policy.source_required_domains` alongside backend/runtime-profile policy inputs.
 That artifact manifest is guarded by `make verify-capability-manifest-policy`.
 
-### 2.3 Normalized serde schema (what libraries/tooling want)
+### 2.3 Normalized package policy manifest
+
+Package-policy metadata is declared with `@oren.package(...)` on a top-level declaration:
+
+```oren
+@oren.package(runtime_profile="capsule", cap_allow_domains="FS,ENV", budget_cpu_ms=10)
+var package_policy = 1
+```
+
+Shape (rolling, v1):
+
+```json
+{
+  "package": {
+    "version": 1,
+    "declared": true,
+    "runtime_profile": "capsule",
+    "cap_allow_domains": ["FS", "ENV"],
+    "source_required_domains": ["ENV"],
+    "dependency_domain_union": ["ENV"],
+    "dependency_domain_union_status": "source_attrs_only",
+    "budgets": { "version": 1, "declared": true, "cpu_ms": 10 }
+  }
+}
+```
+
+The marker is intentionally not an enforcement mechanism yet. It gives package tooling,
+artifact manifests, and agents a stable source-declared policy surface to compare with
+actual build flags and runtime profiles.
+
+### 2.4 Normalized serde schema (what libraries/tooling want)
 
 In addition to the raw attribute list, `oren meta` also emits a **normalized** serde schema per struct when any `@serde...` / `@json...` attributes are present.
 

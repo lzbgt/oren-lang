@@ -1,3 +1,6 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="ENV,FS", budget_cpu_ms=10, budget_heap_bytes=4096)
+var manifest_policy_package = 1
+
 @cap.requires(domain="env")
 fn manifest_policy_env_guard(x) {
     return x

@@ -123,6 +123,8 @@ fn new_parser(l) {
     // Build-profile conditional compilation (sugar for @cfg("debug") / @cfg("release")).
     oren_list_push(known, "oren.debug")
     oren_list_push(known, "oren.release")
+    // Source/package policy metadata (tooling contract; enforcement stays explicit).
+    oren_list_push(known, "oren.package")
     // Arena auto-loop annotations (compiler-only).
     oren_list_push(known, "oren.arena")
     oren_list_push(known, "oren.arena_iter")

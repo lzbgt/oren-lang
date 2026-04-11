@@ -55,7 +55,7 @@ def expect_common(path, data, kind):
 def expect_policy(path, policy, *, backend, runtime_profile, runtime_path, capsule, cap_allow, required):
     if not isinstance(policy, dict):
         raise SystemExit(f"{path}: policy must be an object")
-    expected = {
+    for key, value in {
         "version": 1,
         "backend": backend,
         "runtime_profile": runtime_profile,
@@ -64,9 +64,26 @@ def expect_policy(path, policy, *, backend, runtime_profile, runtime_path, capsu
         "cap_allow_domains": cap_allow,
         "source_required_domains": required,
         "budgets": {"version": 1, "declared": False},
+    }.items():
+        if policy.get(key) != value:
+            raise SystemExit(f"{path}: unexpected policy.{key}: {policy.get(key)!r}")
+
+def expect_package(path, policy, *, declared, runtime_profile, cap_allow, budgets):
+    pkg = policy.get("source_package")
+    if not isinstance(pkg, dict):
+        raise SystemExit(f"{path}: policy.source_package must be an object")
+    expected = {
+        "version": 1,
+        "declared": declared,
+        "runtime_profile": runtime_profile,
+        "cap_allow_domains": cap_allow,
+        "source_required_domains": policy.get("source_required_domains"),
+        "dependency_domain_union": policy.get("source_required_domains"),
+        "dependency_domain_union_status": "source_attrs_only",
+        "budgets": budgets,
     }
-    if policy != expected:
-        raise SystemExit(f"{path}: unexpected policy object: {policy!r}")
+    if pkg != expected:
+        raise SystemExit(f"{path}: unexpected source_package: {pkg!r}")
 
 meta = load(meta_manifest)
 expect_common(meta_manifest, meta, "meta")
@@ -80,6 +97,14 @@ expect_policy(
     cap_allow=[],
     required=["FS", "TIME", "RNG"],
 )
+expect_package(
+    meta_manifest,
+    meta["policy"],
+    declared=False,
+    runtime_profile=None,
+    cap_allow=[],
+    budgets={"version": 1, "declared": False},
+)
 
 c = load(c_manifest)
 expect_common(c_manifest, c, "c")
@@ -92,6 +117,14 @@ expect_policy(
     capsule=False,
     cap_allow=["FS", "ENV"],
     required=["ENV"],
+)
+expect_package(
+    c_manifest,
+    c["policy"],
+    declared=True,
+    runtime_profile="capsule",
+    cap_allow=["ENV", "FS"],
+    budgets={"version": 1, "declared": True, "cpu_ms": 10, "heap_bytes": 4096},
 )
 
 print("capability manifest policy JSON verified")

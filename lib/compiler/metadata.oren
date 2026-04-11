@@ -295,6 +295,96 @@ fn metadata_stmt_function(s) {
     return nil
 }
 
+fn metadata_stmt_attrs(s) {
+    if s == nil { return nil }
+    var func = metadata_stmt_function(s)
+    if func != nil { return func["attrs"] }
+    if s["type"] == "Type" || s["type"] == "Import" || s["type"] == "FFI" {
+        return s["attrs"]
+    }
+    if s["type"] == "Var" {
+        if s["name"] != nil && s["name"]["type"] == "Identifier" {
+            return s["name"]["attrs"]
+        }
+        return s["attrs"]
+    }
+    return s["attrs"]
+}
+
+fn package_attr_for_stmts(stmts) {
+    if stmts == nil { return nil }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var a = attr_find(metadata_stmt_attrs(stmts[i]), "oren.package")
+        if a != nil { return a }
+        i = i + 1
+    }
+    return nil
+}
+
+fn package_cap_allow_domains(stmts) {
+    var a = package_attr_for_stmts(stmts)
+    if a == nil { return [] }
+    var domains = attr_kw_string(a, "cap_allow_domains")
+    var raw = split_csv_ws(domains)
+    var out = []
+    var i = 0
+    while i < oren_list_len(raw) {
+        var d = ascii_upper(raw[i])
+        if d != nil && d != "" && !string_list_has(out, d) {
+            oren_list_push(out, d)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn json_package_budgets(a) {
+    var declared = false
+    var out = "{ \"version\": 1, \"declared\": "
+    var tail = ""
+    var keys = ["cpu_ms", "wall_ms", "heap_bytes", "gas"]
+    var i = 0
+    while i < oren_list_len(keys) {
+        var key = keys[i]
+        var v = attr_kw_value(a, "budget_" + key)
+        if v != nil {
+            declared = true
+            tail = tail + ", \"" + key + "\": " + json_attr_value(v)
+        }
+        i = i + 1
+    }
+    if declared { out = out + "true" } else { out = out + "false" }
+    out = out + tail + " }"
+    return out
+}
+
+fn json_package_manifest(stmts) {
+    var a = package_attr_for_stmts(stmts)
+    var out = "{\n"
+    out = out + "    \"version\": 1,\n"
+    if a == nil {
+        out = out + "    \"declared\": false,\n"
+        out = out + "    \"runtime_profile\": null,\n"
+        out = out + "    \"cap_allow_domains\": [],\n"
+        out = out + "    \"source_required_domains\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
+        out = out + "    \"dependency_domain_union\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
+        out = out + "    \"dependency_domain_union_status\": \"source_attrs_only\",\n"
+        out = out + "    \"budgets\": { \"version\": 1, \"declared\": false }\n"
+        out = out + "  }"
+        return out
+    }
+    out = out + "    \"declared\": true,\n"
+    out = out + "    \"runtime_profile\": " + json_string(attr_kw_string(a, "runtime_profile")) + ",\n"
+    out = out + "    \"cap_allow_domains\": " + json_string_array(package_cap_allow_domains(stmts)) + ",\n"
+    out = out + "    \"source_required_domains\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
+    out = out + "    \"dependency_domain_union\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
+    out = out + "    \"dependency_domain_union_status\": \"source_attrs_only\",\n"
+    out = out + "    \"budgets\": " + json_package_budgets(a) + "\n"
+    out = out + "  }"
+    return out
+}
+
 fn cap_attr_domain(a) {
     if a == nil { return nil }
     if a["name"] != "cap.requires" { return nil }
@@ -566,8 +656,9 @@ fn generate_metadata(prog) {
     }
     json = json + "\n  ],\n"
 
-    // Normalized capability manifest for source-level tooling.
-    // Raw attrs remain on functions; this view is the stable contract surface.
+    // Normalized package/capability manifests for source-level tooling.
+    // Raw attrs remain on declarations; these views are the stable contract surface.
+    json = json + "  \"package\": " + json_package_manifest(stmts) + ",\n"
     json = json + "  \"capabilities\": " + json_capability_manifest(stmts) + ",\n"
 
     // Trait declarations (rolling, metadata-only for now).
