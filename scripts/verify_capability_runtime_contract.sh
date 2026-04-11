@@ -41,6 +41,7 @@ compiler_cli="lib/compiler/compiler/000_prelude_body.oren"
 metadata_compiler="lib/compiler/metadata.oren"
 seed_script="scripts/build_rtobj_seed.sh"
 metadata_guard="scripts/verify_capability_metadata.sh"
+manifest_policy_guard="scripts/verify_capability_manifest_policy.sh"
 
 for f in \
   "$contract" \
@@ -58,6 +59,7 @@ for f in \
   "$metadata_compiler" \
   "$seed_script" \
   "$metadata_guard" \
+  "$manifest_policy_guard" \
   Makefile
 do
   require_file "$f"
@@ -72,6 +74,7 @@ require_literal "$contract" "## Failure Model"
 require_literal "$contract" "## Verification Map"
 require_literal "$contract" "make verify-capability-runtime-contract"
 require_literal "$contract" "make verify-capability-metadata"
+require_literal "$contract" "make verify-capability-manifest-policy"
 require_literal "$contract" "make test-native-capsule-smoke-stage2"
 require_literal "$contract" "make test-avm"
 require_literal "$contract" "make verify-backend-parity"
@@ -146,6 +149,9 @@ require_literal "$env_runtime" "if (allow & 8) == 0 { return 0 }"
 require_literal "$metadata_compiler" "capabilities"
 require_literal "$metadata_compiler" "cap_required_domains"
 require_literal "$metadata_guard" "meta_capabilities_src.oren"
+require_literal "$compiler_cli" "_write_artifact_manifest_with_policy"
+require_literal "$manifest_policy_guard" "capability_manifest_policy_src.oren"
+require_literal "$manifest_policy_guard" "source_required_domains"
 
 # AVM domain ids and selected domain mappings.
 require_regex "$avm_domains" 'var AVM_DOMAIN_CORE = 0$'
@@ -166,14 +172,16 @@ require_literal "$avm_native_map" "if name == \"oren_avm_run_obc_bytes\" { nativ
 
 # Makefile verification hooks.
 require_literal Makefile ".PHONY: verify-capability-runtime-contract"
-require_literal Makefile ".PHONY: verify-capability-runtime-contract verify-capability-metadata"
+require_literal Makefile ".PHONY: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy"
 require_literal Makefile "verify-capability-runtime-contract:"
 require_literal Makefile "verify-capability-metadata:"
+require_literal Makefile "verify-capability-manifest-policy:"
 require_literal Makefile "./scripts/verify_capability_runtime_contract.sh"
 require_literal Makefile "./scripts/verify_capability_metadata.sh"
+require_literal Makefile "./scripts/verify_capability_manifest_policy.sh"
 require_literal Makefile "test-native-capsule-smoke-stage2:"
 require_literal Makefile "test-avm: oren avm"
 require_literal Makefile "verify-backend-parity:"
-require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata test-native-quick"
+require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy test-native-quick"
 
 echo "capability runtime contract verify OK"

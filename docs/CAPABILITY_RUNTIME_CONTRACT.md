@@ -76,6 +76,32 @@ package tooling, build orchestrators, and agent-facing planners a deterministic 
 which source-level functions require host-effect domains before selecting a runtime profile
 or policy.
 
+Artifact `--manifest` output also carries a policy block that ties the artifact hash to
+the source capability domains and selected build-policy inputs:
+
+```json
+{
+  "version": 1,
+  "kind": "native",
+  "sha256": "...",
+  "policy": {
+    "version": 1,
+    "backend": "native",
+    "runtime_profile": "auto",
+    "runtime_path": "backend-auto",
+    "capsule": false,
+    "cap_allow_domains": ["FS"],
+    "source_required_domains": ["FS", "TIME", "RNG"],
+    "budgets": { "version": 1, "declared": false }
+  }
+}
+```
+
+`runtime_profile` is the build-policy request. In the native default `auto` mode, the
+backend still resolves the concrete runtime path from env/import heuristics, so
+`runtime_path` is `backend-auto` rather than a false claim about a final path. Budget
+declarations are explicitly marked absent until source/package-level budget syntax exists.
+
 ## Domain Contract
 
 | Domain | Native capsule meaning | Runtime knobs / AVM notes |
@@ -105,8 +131,8 @@ or policy.
 ## What Is Not Stable Yet
 
 - The native runtime profile is still selected by env/import heuristic, not by a full
-  source-level package manifest. Per-source capability metadata exists, but package-level
-  runtime-profile selection is not yet declared in source.
+  source-level package manifest. Per-source capability metadata and artifact policy
+  manifests exist, but package-level runtime-profile selection is not yet declared in source.
 - Capability budgets are not yet a complete source-level contract across native and
   AVM. AVM has budget machinery; native capsule runtime knobs are domain/resource
   allowlists first.
@@ -121,6 +147,7 @@ Use these targets when changing the capability or runtime-profile contract:
 ```sh
 make verify-capability-runtime-contract
 make verify-capability-metadata
+make verify-capability-manifest-policy
 make test-native-capsule-smoke-stage2
 make test-avm
 make verify-backend-parity

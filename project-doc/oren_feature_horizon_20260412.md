@@ -23,11 +23,18 @@ chat history or partial summaries.
 | NIST SSDF SP 800-218 | `project-doc/web/feature-horizon-20260412/nist/nist-ssdf-sp800-218.html` | `https://csrc.nist.gov/pubs/sp/800/218/final` |
 | OpenTelemetry semantic conventions | `project-doc/web/feature-horizon-20260412/opentelemetry/opentelemetry-semantic-conventions.html` | `https://opentelemetry.io/docs/concepts/semantic-conventions/` |
 | OpenTelemetry specification | `project-doc/web/feature-horizon-20260412/opentelemetry/opentelemetry-spec.html` | `https://opentelemetry.io/docs/specs/otel/` |
+| Reproducible Builds formal definition | `project-doc/web/feature-horizon-20260412/reproducible-builds/formal-definition.html` | `https://reproducible-builds.org/docs/formal-definition/` |
 | Rust Foundation strategic plan | `project-doc/web/feature-horizon-20260412/rust/rust-foundation-strategic-plan-2026-2028.html` | `https://rustfoundation.org/strategic-plan/` |
 | Rust project goals | `project-doc/web/feature-horizon-20260412/rust/rust-project-goals-2025h2.html` | `https://rust-lang.github.io/rust-project-goals/2025h2/index.html` |
 | SLSA v1.1 | `project-doc/web/feature-horizon-20260412/slsa/slsa-spec-v1.1.html` | `https://slsa.dev/spec/v1.1/` |
+| NIST AI Agent Standards Initiative | `project-doc/web/feature-horizon-20260412/nist/nist-ai-agent-standards-initiative-2026.html` | `https://www.nist.gov/news-events/news/2026/02/announcing-ai-agent-standards-initiative-interoperable-and-secure` |
+| WebAssembly 3.0 | `project-doc/web/feature-horizon-20260412/wasm/webassembly-wasm-3-completed.html` | `https://webassembly.org/news/2025-09-17-wasm-3.0/` |
 | WebAssembly Component Model | `project-doc/web/feature-horizon-20260412/wasm/bytecodealliance-component-model-concepts.html` | `https://component-model.bytecodealliance.org/design/component-model-concepts.html` |
 | WASI | `project-doc/web/feature-horizon-20260412/wasm/wasi-dev.html` | `https://wasi.dev/` |
+
+MCP is archived here only as point-in-time protocol evidence. It is not the strategic target for
+Oren. The Oren-owned surface should be deterministic execution evidence, module manifests, effect
+ledgers, and replayable AVM/native behavior that can later adapt to many protocols.
 
 ## Implications For Oren
 
@@ -43,17 +50,18 @@ chat history or partial summaries.
    keep moving toward explicit source/package manifests rather than implicit ambient authority.
    That keeps a future hardware-capability or sandbox-backed mapping plausible.
 
-3. **Agent-readable contracts are a product feature.**
-   MCP exists because tools and agents need explicit, typed protocol boundaries. Oren should
-   treat metadata output, diagnostics, readiness reports, capability manifests, and replay logs as
-   first-class contracts for agents, not as incidental compiler debug output.
+3. **Agent-readable contracts are a product feature, but protocol lock-in is not.**
+   MCP and the 2026 NIST AI Agent Standards Initiative are pressure signals: agents need secure,
+   interoperable, typed boundaries. They are not Oren's thesis. Oren should own the deeper language
+   contract: metadata output, diagnostics, readiness reports, capability manifests, effect ledgers,
+   semantic diffs, and replay logs as first-class artifacts that can project into many protocols.
 
 4. **Supply-chain posture should be built into the toolchain.**
-   SLSA, NIST SSDF, NIST AI RMF, and NIST PQC sources favor reproducible builds, provenance,
-   dependency clarity, risk-management artifacts, crypto agility, and secure-by-default release
-   workflows. Oren's deterministic metadata and runtime-profile selection should lead toward build
-   attestations that include source capability requirements, backend, runtime profile, compiler hash,
-   policy inputs, and crypto/runtime dependency posture.
+   SLSA, Reproducible Builds, NIST SSDF, NIST AI RMF, and NIST PQC sources favor reproducible
+   builds, provenance, dependency clarity, risk-management artifacts, crypto agility, and
+   secure-by-default release workflows. Oren's deterministic metadata and runtime-profile selection
+   should lead toward build attestations that include source capability requirements, backend,
+   runtime profile, compiler hash, policy inputs, and crypto/runtime dependency posture.
 
 5. **WASI/component interop is a natural sandbox target.**
    WASI and the WebAssembly Component Model align with capability-oriented host imports and
@@ -61,12 +69,17 @@ chat history or partial summaries.
    sandbox/component terminology that future WASM/WASI targets do not need a separate authority
    model.
 
-6. **Observability needs stable semantic events, not ad-hoc traces.**
+6. **Deterministic execution is becoming an explicit runtime feature elsewhere.**
+   WebAssembly 3.0's deterministic profile is useful pressure evidence: deterministic execution is
+   no longer only a test harness concern. Oren should go further by attaching determinism to source
+   capability domains, AVM replay, native runtime profiles, schedule traces, and artifact manifests.
+
+7. **Observability needs stable semantic events, not ad-hoc traces.**
    OpenTelemetry's specification and semantic-convention split is a useful model: Oren runtime and
    AVM events should eventually have stable names and fields for capability denials, budget
    consumption, GC/scheduler actions, replay divergence, and host-effect calls.
 
-7. **PQC and AI-era risk controls should shape stdlib and toolchain APIs.**
+8. **PQC and AI-era risk controls should shape stdlib and toolchain APIs.**
    NIST's PQC standardization and AI RMF profile point at two durable 2026-2032 pressures:
    cryptographic agility and governed agent workflows. Oren does not need to become a crypto
    research language, but the standard library and build tooling should avoid hard-coded crypto
@@ -83,6 +96,12 @@ set should make Oren a governed execution system that can still produce practica
 The sources above are pressure signals, not the product thesis by themselves. The Oren-specific
 forecast is that a new language should make the following ideas first-class before mainstream
 languages fully converge on them.
+
+The deeper forecast is archived separately in
+`project-doc/oren_language_system_bets_20260412.md`. That note is deliberately protocol-independent:
+it treats today's agent protocols as adapters and argues for Oren-owned semantics such as
+determinism grades, AVM counterfactual execution, effect ledgers, budgeted interfaces,
+denial-as-data, schedule capsules, and semantic package manifests.
 
 1. **Determinism as a selectable semantic mode, not a VM accident.**
    A program should be able to choose a fast native profile, a deterministic native profile, or an
@@ -169,9 +188,10 @@ languages fully converge on them.
   capability domains and native/AVM profiles. The target is one authority model that can later
   project to AVM, native capsule, and WASI/component interop.
 - **Agent tool module contract.**
-  Borrow MCP's lessons: explicit tool/resource/prompt-like surfaces, capability negotiation,
-  consent and scope metadata, isolated sessions, and structured errors. Oren tools should be
-  callable by agents without scraping logs or guessing side effects.
+  Define an Oren-owned module contract for typed inputs/outputs, capability negotiation, consent
+  and scope metadata, isolated sessions, redaction, and structured errors. Do not make this
+  MCP-specific: protocol adapters should project the Oren contract into whatever agent ecosystem
+  survives.
 - **Deterministic scheduler profile.**
   Stabilize a replayable scheduler mode for green threads, channels/select, timers, GC interaction,
   and host IO. Native can keep a faster opportunistic profile, but the deterministic profile must
@@ -206,16 +226,20 @@ languages fully converge on them.
 
 ## Concrete Follow-Ups
 
-- Extend the new per-source `capabilities` metadata into a package-level manifest that declares
-  runtime profile, domain requirements, and budget defaults.
+- Extend the new per-source `capabilities` metadata and artifact manifest `policy` block into a
+  package-level manifest that declares runtime profile, domain requirements, and budget defaults.
 - Add an attestation-oriented metadata bundle for native builds: compiler revision, backend,
   runtime profile, source capability domains, and deterministic build inputs.
 - Define a small stable event schema for capability decisions and budget consumption before adding
   more tracing knobs.
+- Add determinism grades to metadata: pure, deterministic-host, replayable-host, and
+  nondeterministic.
+- Sketch the AVM counterfactual execution API: snapshot, fork, policy override, effect replay,
+  semantic diff.
 - Add a policy-readable crypto inventory to metadata before adding broad crypto APIs; the feature
   should support PQC migration rather than hard-code one algorithm generation.
-- Specify an MCP-style tool/module metadata subset for Oren packages that expose agent-callable
-  commands, including capability domains and structured failure modes.
+- Specify an Oren-native tool/module metadata subset for packages that expose agent-callable
+  commands, including capability domains, redaction, consent, budgets, and structured failure modes.
 - Keep W5 representation/direct-lowering work separate from the product thesis: performance parity
   remains necessary, but Oren's differentiation is the governed execution contract around that
   performance surface.

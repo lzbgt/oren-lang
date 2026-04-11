@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -77,7 +77,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   `try_mat_load/store_i64`, and `try_mat_load/store_f64`; covered by result smoke + native quick
   integration + dedicated AVM buffer-view smoke.
 
-Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
+Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase. The current strategy notes are `docs/OREN_THESIS.md`, `project-doc/oren_feature_horizon_20260412.md`, and `project-doc/oren_language_system_bets_20260412.md`.
 
 ### Backend readiness (rolling snapshot)
 
@@ -4269,7 +4269,7 @@ Status legend:
 | WebSocket v0 | Rolling | `lib/std/net/ws.oren` | `tests/native/test_ws_echo_loopback.oren` |
 | Channels + select | Rolling | `lib/runtime_native/010_channels_*`, `lib/runtime_native/245_select.oren` | `tests/native/test_integration_suite.oren`, `tests/avm/test_smoke_suite.oren` |
 | Spawn + join | Rolling | `lib/runtime_native/260_threads.oren` | `tests/native/test_integration_suite.oren` |
-| Capsule model (capability gating) | Rolling | runtime + emit constraints | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `tests/native/fixtures/capsule_*`, `tests/fixtures/meta_capabilities_src.oren` |
+| Capsule model (capability gating) | Rolling | runtime + emit constraints | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `tests/native/fixtures/capsule_*`, `tests/fixtures/meta_capabilities_src.oren` |
 | UI headless core | Rolling | `lib/std/ui/**` | `tests/avm/test_ui_*_v0.oren` |
 
 ### Backends + AVM
@@ -4279,7 +4279,7 @@ Status legend:
 | C backend | Rolling | `lib/compiler/transpiler.oren` | `make bootstrap`, `make test` |
 | Native backend (arm64/x64) | Rolling | `lib/compiler/arm64_*`, `lib/compiler/x64_*` | Tier-1 fixtures under `tests/fixtures/` |
 | Bytecode backend (OBC) | Rolling | `lib/compiler/codegen_bytecode/**` | `tests/avm/**` |
-| Capability domains (CORE/FS/TIME/RNG/NET/PROC/ENV/AVM) | Rolling | `lib/avm/avm_native.inc`, `lib/compiler/metadata.oren` | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `tests/avm/**` |
+| Capability domains (CORE/FS/TIME/RNG/NET/PROC/ENV/AVM) | Rolling | `lib/avm/avm_native.inc`, `lib/compiler/metadata.oren` | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `tests/avm/**` |
 | VirtualFS/VirtualNET/VirtualPROC | Rolling | `lib/avm/main.c` | AVM fixtures under `tests/avm/` |
 | `.obc` signature verification | Rolling | `lib/avm/avm_sig.c` | `cmd/orensign/main.go` |
 | Nested universes (AVM in AVM) | Rolling (gated) | `lib/avm/avm_native.inc` | `tests/avm/**` |

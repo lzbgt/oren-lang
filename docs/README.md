@@ -272,6 +272,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 - `docs/BLEEDING_EDGE_TASKS.md` — bleeding-edge goals + derived task buckets
 - `docs/OREN_THESIS.md` — concise product thesis + Oren-vs-Zig differentiation
 - `docs/CAPABILITY_RUNTIME_CONTRACT.md` — current capability domains, native runtime profiles, failure model, and verification map
+- `project-doc/oren_language_system_bets_20260412.md` — speculative Oren-owned 2026-2032 language-system bets beyond protocol copying
 - `docs/READINESS.md` — readiness report schema + tooling
 - `docs/readiness_index.schema.json` — JSON schema for readiness index entries
 

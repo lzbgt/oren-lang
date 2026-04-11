@@ -3,7 +3,7 @@
 .PHONY: test-native-quick test-native-quick-stage2 test-native-quick-flake-debug test-native-quick-green-cache-flake test-native-quick-green-local-ptr-flake test-native-quick-green-local-ptr-direct-flake test-native-quick-green-local-ptr-plain-flake test-native-quick-green-local-ptr-workers-flake test-native-quick-green-local-ptr-split-flake test-native-quick-green-fairness-flake test-native-quick-green-fairness-zeroarg-flake test-native-quick-green-fairness-onearg-flake test-native-quick-green-fairness-onearg-direct-flake test-native-quick-green-fairness-onearg-modes-flake test-native-quick-green-fairness-onearg-count-sweep-flake test-native-quick-green-fairness-modes-flake test-native-quick-gc-stw-focus-flake test-native-quick-green-tail-flake test-native-quick-green-join-waiters-stress-flake test-native-quick-stage2-flake-debug test-native-quick-arith-div0-flake test-native-capsule-smoke-stage2 verify-native-quick verify-native-quick-simd verify-native-quick-base-cold-seeded verify-native-quick-green-local-ptr-guarded verify-green-world-lock-guarded verify-green-preworld-guarded verify-green-fairness-guarded verify-backend-parity verify-backend-parity-bytes verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-runtime-robustness verify-simd-determinism verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux readiness-report readiness-report-full readiness-report-minimal readiness-report-json readiness-report-index readiness-report-summary readiness-report-dashboard readiness-report-index-stats readiness-report-index-prune readiness-report-index-trim readiness-report-index-csv readiness-report-index-query readiness-report-index-rollup readiness-report-index-merge readiness-report-index-compact readiness-report-index-schema readiness-report-index-diff readiness-report-index-diff-summary readiness-report-index-gate readiness-report-index-lint readiness-report-index-split readiness-report-index-latest readiness-report-index-trend readiness-report-index-profiles readiness-report-index-tags readiness-report-index-audit readiness-report-index-audit-trend readiness-report-collect readiness-report-collect-list readiness-report-collect-pack readiness-report-sanitize readiness-pipeline status-snapshot status-snapshot-diff status-faq status-faq-diff status-matrix status-matrix-diff status-markdown verify-readiness-report verify-readiness-report-summary verify-readiness-report-dashboard verify-readiness-report-index-tools verify-readiness-report-index-csv verify-readiness-report-index-query-rollup verify-readiness-report-index-merge-compact verify-readiness-report-index-schema verify-readiness-report-index-diff verify-readiness-report-index-diff-summary verify-readiness-report-index-gate verify-readiness-report-index-lint verify-readiness-report-index-split verify-readiness-report-index-trim verify-readiness-report-index-latest verify-readiness-report-index-trend verify-readiness-report-index-profiles verify-readiness-report-index-tags verify-readiness-report-index-audit verify-readiness-report-index-audit-trend verify-readiness-report-collect verify-readiness-report-collect-list verify-readiness-report-collect-pack verify-readiness-report-sanitize verify-readiness-pipeline verify-status-snapshot verify-status-snapshot-diff verify-status-faq verify-status-faq-diff verify-status-matrix verify-status-matrix-diff verify-status-markdown benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
-.PHONY: verify-capability-runtime-contract verify-capability-metadata
+.PHONY: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy
 .PHONY: verify-x64-linux-qemu
 .PHONY: verify-x64-linux-qemu-net
 .PHONY: verify-x64-linux-qemu-tls
@@ -852,6 +852,9 @@ verify-capability-runtime-contract:
 verify-capability-metadata: oren
 	@./scripts/verify_capability_metadata.sh
 
+verify-capability-manifest-policy: oren
+	@./scripts/verify_capability_manifest_policy.sh
+
 verify-runtime-robustness: oren_stage2
 		OREN_RUNTIME_ROBUSTNESS_BASE_RUNS="$(OREN_RUNTIME_ROBUSTNESS_BASE_RUNS)" \
 		OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM="$(OREN_RUNTIME_ROBUSTNESS_BASE_PREWARM)" \
@@ -1358,7 +1361,7 @@ perf-guard-native-hit: oren_stage2
 # Keep the heavier self-host bundle explicit so the common local gate stays aligned with the
 # repo's <3 minute contract. Use `make test-selfhost` or `make verify-native-quick` when the
 # stage2/capsule/optimizer coverage is desired.
-test: verify-capability-runtime-contract verify-capability-metadata test-native-quick
+test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy test-native-quick
 
 # Heavier self-host/local production smoke bundle.
 test-selfhost: verify-native-quick

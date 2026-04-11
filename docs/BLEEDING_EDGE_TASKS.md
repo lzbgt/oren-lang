@@ -38,14 +38,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
   capability domains, failure model, and verification map; `oren meta` now emits a per-source
-  `capabilities` manifest for `@cap.requires` functions. Next capability work should move toward
+  `capabilities` manifest for `@cap.requires` functions; artifact `--manifest` output now carries
+  build-policy fields for backend, runtime-profile request, capsule flag, allowlisted domains,
+  source-required domains, and undeclared budget status. Next capability work should move toward
   package-level runtime-profile manifests and budget declarations rather than re-describing the
-  existing env contract. Contract drift is guarded by `make verify-capability-runtime-contract`
-  and `make verify-capability-metadata`.
-- New: `project-doc/oren_feature_horizon_20260412.md` indexes the CHERI/CISA/MCP/NIST/OpenTelemetry/
-  Rust/SLSA/WASI source archive and reweights Oren differentiation toward governed execution
-  contracts, provenance, observability, sandbox/component interop, PQC/AI-era risk posture, and
-  package capability manifests.
+  existing env contract. Contract drift is guarded by `make verify-capability-runtime-contract`,
+  `make verify-capability-metadata`, and `make verify-capability-manifest-policy`.
+- New: `project-doc/oren_feature_horizon_20260412.md` and
+  `project-doc/oren_language_system_bets_20260412.md` separate external pressure signals from
+  Oren-owned forecast bets. Reweight Oren differentiation toward deterministic native/AVM
+  execution, counterfactual AVM snapshots, effect ledgers, budgeted interfaces, semantic diffs,
+  representation contracts, proof-carrying artifact manifests, and protocol-independent
+  agent-callable module contracts.
 - Done: rtobj cache hash now reflects trace codegen flags end-to-end (alloc_req/list_hdr/list_reserve),
   including rtobj seed selection, keeping runtime tracing consistent under cache hits.
 - Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move

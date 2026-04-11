@@ -318,7 +318,83 @@ fn _json_escape(s) {
     return out
 }
 
-fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic, size_bytes) {
+fn _json_bool(b) {
+    if b == true { return "true" }
+    return "false"
+}
+
+fn _json_string_array(xs) {
+    if xs == nil { return "[]" }
+    var out = "["
+    var i = 0
+    var first = true
+    while i < oren_list_len(xs) {
+        var s = xs[i]
+        if s != nil && s != "" {
+            if !first { out = out + ", " }
+            out = out + "\"" + _json_escape(s) + "\""
+            first = false
+        }
+        i = i + 1
+    }
+    out = out + "]"
+    return out
+}
+
+fn _runtime_profile_request_for_manifest(backend, capsule) {
+    if backend != "native" { return "none" }
+    if capsule == true { return "capsule" }
+    var req = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
+    if req == "full" { return "full" }
+    if req == "core" { return "core" }
+    if req == "minimal" { return "minimal" }
+    return "auto"
+}
+
+fn _runtime_path_for_manifest_profile(profile) {
+    if profile == "capsule" { return "lib/runtime_native_capsule.oren" }
+    if profile == "full" { return "lib/runtime_native.oren" }
+    if profile == "core" { return "lib/runtime_native_core.oren" }
+    if profile == "minimal" { return "lib/runtime_native_core.oren" }
+    if profile == "auto" { return "backend-auto" }
+    return ""
+}
+
+fn _artifact_manifest_policy(backend, capsule, cap_allow_domains, source_required_domains) {
+    var profile = _runtime_profile_request_for_manifest(backend, capsule)
+    return {
+        "backend": backend,
+        "runtime_profile": profile,
+        "runtime_path": _runtime_path_for_manifest_profile(profile),
+        "capsule": capsule,
+        "cap_allow_domains": cap_allow_domains,
+        "source_required_domains": source_required_domains,
+    }
+}
+
+fn _artifact_manifest_policy_json(policy) {
+    if policy == nil { policy = _artifact_manifest_policy("unknown", false, [], []) }
+    var backend = policy["backend"]
+    if backend == nil { backend = "unknown" }
+    var runtime_profile = policy["runtime_profile"]
+    if runtime_profile == nil { runtime_profile = "none" }
+    var runtime_path = policy["runtime_path"]
+    if runtime_path == nil { runtime_path = "" }
+    var capsule = policy["capsule"] == true
+    var cap_allow_domains = policy["cap_allow_domains"]
+    var source_required_domains = policy["source_required_domains"]
+    return "\"policy\":{\"version\":1," +
+        "\"backend\":\"" + _json_escape(backend) + "\"," +
+        "\"runtime_profile\":\"" + _json_escape(runtime_profile) + "\"," +
+        "\"runtime_path\":\"" + _json_escape(runtime_path) + "\"," +
+        "\"capsule\":" + _json_bool(capsule) + "," +
+        "\"cap_allow_domains\":" + _json_string_array(cap_allow_domains) + "," +
+        "\"source_required_domains\":" + _json_string_array(source_required_domains) + "," +
+        "\"budgets\":{\"version\":1,\"declared\":false}" +
+        "}"
+}
+
+fn _write_artifact_manifest_with_policy(kind, path, sha256_hex, target, arch, deterministic, size_bytes, policy) {
     // Machine-readable artifact record for Compiler-in-AVM v2.
     //
     // Manifest path: <artifact_path>.manifest.json
@@ -334,7 +410,8 @@ fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic,
         "\"path\":\"" + _json_escape(path) + "\"," +
         "\"target\":\"" + _json_escape(target) + "\"," +
         "\"arch\":\"" + _json_escape(arch) + "\"," +
-        "\"deterministic\":" + det +
+        "\"deterministic\":" + det + "," +
+        _artifact_manifest_policy_json(policy) +
         "}\n"
     var w = oren_write_file(mp, s)
     if oren_is_err(w) {
@@ -345,6 +422,10 @@ fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic,
     }
     print("Wrote manifest: " + mp)
     return nil
+}
+
+fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic, size_bytes) {
+    return _write_artifact_manifest_with_policy(kind, path, sha256_hex, target, arch, deterministic, size_bytes, nil)
 }
 
 fn ensure_dir(path) {

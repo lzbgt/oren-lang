@@ -1,0 +1,8 @@
+@cap.requires(domain="env")
+fn manifest_policy_env_guard(x) {
+    return x
+}
+
+fn main() {
+    return manifest_policy_env_guard(0)
+}

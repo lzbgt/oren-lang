@@ -644,6 +644,7 @@ fn compiler_main() {
         if backend0m == nil { backend0m = "c" }
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0m, "debug": cfg_debugm, "keep_all_top_level_functions": true})
         var meta_json = metadata.generate_metadata(linked)
+        var meta_policy = _artifact_manifest_policy("meta", false, [], metadata.cap_required_domains(linked["statements"]))
         ensure_dir(dirname(out_meta))
         var w = oren_write_file(out_meta, meta_json)
         if oren_is_err(w) {
@@ -670,7 +671,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("meta", out_meta, bs) }
             if emit_manifest {
                 var h = _sha256_hex(bs)
-                _write_artifact_manifest("meta", out_meta, h, target, arch, deterministic, _bytes_len_any(bs))
+                _write_artifact_manifest_with_policy("meta", out_meta, h, target, arch, deterministic, _bytes_len_any(bs), meta_policy)
             }
         }
         return nil
@@ -1029,6 +1030,7 @@ fn compiler_main() {
     if emit_meta { cache_enabled = false }
     if is_shared_lib { cache_enabled = false }
     if notarize { cache_enabled = false }
+    if emit_manifest { cache_enabled = false }
     // Rolling perf policy:
     // Debug builds are frequently used in tests/bring-up and can be expensive to hash for
     // content-addressed caching under the native runtime. Disable build cache for debug builds
@@ -1204,6 +1206,7 @@ fn compiler_main() {
         if oren_list_len(link_obc) > 0 { allow_undef = true }
 
         var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
+        var bytecode_policy = _artifact_manifest_policy("bytecode", CAPSULE, CAP_ALLOW_DOMAINS, metadata.cap_required_domains(linked_bc["statements"]))
 
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
         if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
@@ -1344,7 +1347,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
             if emit_manifest {
                 var h = _sha256_hex(out_bytes)
-                _write_artifact_manifest("bytecode", out_path, h, target, arch, deterministic, _bytes_len_any(out_bytes))
+                _write_artifact_manifest_with_policy("bytecode", out_path, h, target, arch, deterministic, _bytes_len_any(out_bytes), bytecode_policy)
             }
             if cache_enabled && cache_key != nil {
                 cache_store_artifact(cache_dir, cache_key, out_bytes)
@@ -1359,7 +1362,7 @@ fn compiler_main() {
         if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes2) }
         if emit_manifest {
             var h2 = _sha256_hex(out_bytes2)
-            _write_artifact_manifest("bytecode", out_path, h2, target, arch, deterministic, _bytes_len_any(out_bytes2))
+            _write_artifact_manifest_with_policy("bytecode", out_path, h2, target, arch, deterministic, _bytes_len_any(out_bytes2), bytecode_policy)
         }
         if cache_enabled && cache_key != nil {
             cache_store_artifact(cache_dir, cache_key, out_bytes2)
@@ -1376,6 +1379,7 @@ fn compiler_main() {
         }
 
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib, "test_mode": test_mode})
+        var native_policy = _artifact_manifest_policy("native", CAPSULE, CAP_ALLOW_DOMAINS, metadata.cap_required_domains(linked["statements"]))
         if trace_build_summary { t_sum_link_done = oren_time_now_ns() }
         if trace_phase_path != nil {
             var linked_stmts = 0
@@ -1530,7 +1534,7 @@ fn compiler_main() {
                 if deterministic { _emit_artifact_hash("meta", meta_path, bsM) }
                 if emit_manifest {
                     var h = _sha256_hex(bsM)
-                    _write_artifact_manifest("meta", meta_path, h, target, arch, deterministic, _bytes_len_any(bsM))
+                    _write_artifact_manifest_with_policy("meta", meta_path, h, target, arch, deterministic, _bytes_len_any(bsM), native_policy)
                 }
             }
         }
@@ -1620,7 +1624,7 @@ fn compiler_main() {
             if deterministic { _emit_artifact_hash("native", out_path, bs) }
             if emit_manifest {
                 var h = _sha256_hex(bs)
-                _write_artifact_manifest("native", out_path, h, target, arch, deterministic, _bytes_len_any(bs))
+                _write_artifact_manifest_with_policy("native", out_path, h, target, arch, deterministic, _bytes_len_any(bs), native_policy)
             }
         }
         if trace_build_summary { t_sum_hash_done = oren_time_now_ns() }
@@ -1676,6 +1680,7 @@ fn compiler_main() {
     // ASTs (MODULE_ORDER + prog), so we must sync generated functions back into those
     // unit programs before transpiling.
     var linked_c = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "test_mode": test_mode})
+    var c_policy = _artifact_manifest_policy("c", CAPSULE, CAP_ALLOW_DOMAINS, metadata.cap_required_domains(linked_c["statements"]))
     c_backend_sync_generated_functions(prog, MODULE_ORDER, linked_c)
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     // IMPORTANT (rolling hygiene):
@@ -1940,7 +1945,7 @@ fn compiler_main() {
         if deterministic { _emit_artifact_hash("c", out_path, bsC) }
         if emit_manifest {
             var h = _sha256_hex(bsC)
-            _write_artifact_manifest("c", out_path, h, target, arch, deterministic, _bytes_len_any(bsC))
+            _write_artifact_manifest_with_policy("c", out_path, h, target, arch, deterministic, _bytes_len_any(bsC), c_policy)
         }
     }
     if cache_enabled && cache_key != nil {

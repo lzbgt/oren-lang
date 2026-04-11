@@ -1449,6 +1449,10 @@ For the current capability domain and native runtime-profile contract, see
 - `oren meta` and native `--metadata` emit a normalized top-level `capabilities`
   manifest that lists required domains by source function. This is a tooling contract;
   enforcement remains the capsule compiler/runtime policy.
+- `--manifest` artifact manifests include a `policy` block with backend, runtime-profile
+  request, capsule flag, allowlisted domains, source-required domains, and an explicit
+  budget-declaration marker. In native `auto` mode, the manifest records `backend-auto`
+  rather than pretending the backend heuristic has a source-level package declaration.
 
 Enable capsule mode at compile time:
 
@@ -3486,6 +3490,10 @@ Shape (rolling, v1):
 Domains are normalized to uppercase and deduplicated per function and across the source
 file. This manifest is for tooling and build policy; capsule enforcement still uses the
 compiler/runtime capability gates described in `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
+
+When `--manifest` is requested, the artifact manifest also embeds the required source
+domains in `policy.source_required_domains` alongside backend/runtime-profile policy inputs.
+That artifact manifest is guarded by `make verify-capability-manifest-policy`.
 
 ### 2.3 Normalized serde schema (what libraries/tooling want)
 

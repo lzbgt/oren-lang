@@ -114,9 +114,12 @@ Before claiming Zig-like systems-language maturity, Oren needs:
 - a clearer type-system story beyond the current conservative opt-in checker;
 - sustained W5 hot-loop and allocation-heavy workload parity progress;
 - package-level capability manifests and budget declarations that build on the current
-  per-source `capabilities` metadata manifest and
+  per-source `capabilities` metadata manifest, artifact manifest policy block, and
   `docs/CAPABILITY_RUNTIME_CONTRACT.md` runtime-profile contract.
 
 Related horizon research is archived in `project-doc/oren_feature_horizon_20260412.md`; it
 also separates external source signals from Oren-specific forecast bets such as effect ledgers,
 budgeted interfaces, replayable multiverse execution, and agent-callable module contracts.
+The most speculative Oren-owned language-system bets are tracked in
+`project-doc/oren_language_system_bets_20260412.md`; that note intentionally treats MCP-like
+protocols as replaceable adapters rather than the project identity.
