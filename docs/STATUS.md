@@ -197,21 +197,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	   - Slot-ABI ceiling probe (2026-04-05, refreshed 2026-04-11): the new `make perf-probe-list-int-slot-abi-ceiling`
 	     measures how much vector headroom the current `list<int>` 64-bit slot ABI still has on the
 	     host compiler. Latest artifact
-	     (`build/logs/perf-probe-list-int-slot-abi-ceiling-20260411_164808_50266.log`,
+	     (`build/logs/perf-probe-list-int-slot-abi-ceiling-20260411_181606_60508.log`,
 	     `runs=5 warmups=1 n=2000000 reps=100`) compares packed-i32 C, slot64 C, the shipped Oren
 	     canonical benchmark, and the Oren slot-direct helper on the same workload:
-	     - packed-i32 C vector: ~0.000253s per rep
-	     - packed-i32 C scalar: ~0.000741s per rep
-	     - slot64 C “vector”: ~0.000722s per rep
-	     - slot64 C scalar: ~0.000741s per rep
-	     - Oren native canonical: ~0.001289s per rep
-	     - Oren native slot-direct helper: ~0.003260s per rep
+	     - packed-i32 C vector: ~0.000250s per rep
+	     - packed-i32 C scalar: ~0.000747s per rep
+	     - slot64 C “vector”: ~0.000728s per rep
+	     - slot64 C scalar: ~0.000759s per rep
+	     - Oren native canonical: ~0.001305s per rep
+	     - Oren native slot-direct helper: ~0.003599s per rep
 	     Ratio view:
-	     - slot64-vector / packed-vector: ~2.8567×
-	     - slot64-scalar / packed-scalar: ~1.0001×
-	     - Oren canonical / slot64-vector: ~1.7861×
-	     - Oren canonical / slot64-scalar: ~1.7403×
-	     - Oren slot-direct helper / slot64-vector: ~4.5177×
+	     - slot64-vector / packed-vector: ~2.9086×
+	     - slot64-scalar / packed-scalar: ~1.0165×
+	     - Oren canonical / slot64-vector: ~1.7932×
+	     - Oren canonical / slot64-scalar: ~1.7195×
+	     - Oren slot-direct helper / slot64-vector: ~4.9453×
 	     The extracted slot64 `-O2` assembly is still a paired-scalar `ldp` + `madd` loop, not the
 	     packed NEON `smlal/smlal2` loop the compiler emits for packed i32; the corrected extractor
 	     reports 28 instructions for the packed-i32 NEON body, 12 for the slot64 paired-scalar loop,
@@ -222,6 +222,20 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     post-index load + `madd` shape is not enough: the opt-in combined Oren loop shrinks to
 	     `18` traced instructions (`11` without the skipped cold GC-call block), but the measured
 	     decision surface still rejects the branch.
+	   - Dot route decision wrapper (2026-04-11): new `make perf-probe-list-int-dot-route-decision`
+	     reruns the slot-ABI ceiling, whole-operation C ceiling, and order-balanced dot-ceiling
+	     stability surface in one current-tree wrapper. Latest artifact:
+	     `build/logs/perf-probe-list-int-dot-route-decision-20260411_181606_60502.log`. It keeps
+	     the shipped canonical lowering: slot64 still loses packed-NEON headroom
+	     (`slot64_vector / packed_vector ~2.9086×`, `slot64_scalar / packed_scalar ~1.0165×`), the
+	     whole-operation host-ceiling gaps remain material (`oren_dot_product_int / dot_slot64_vector
+	     ~1.7959×`, `oren_array_sum_int / array_slot64_vector ~2.2778×`), and no reroute clears both
+	     tracked benchmarks. Hidden direct-slot won dot on this rerun (`3/5`, median `-10.83%` vs
+	     baseline) but lost array badly (`1/5`, median `+18.24%`); public-slot stayed mixed (`1/5`
+	     wins on both benchmarks); packed-SIMD stayed far behind (`dot median +301.76%` vs baseline).
+	     Reweight: the next dot work should target representation/direct lowering for slot64 or a
+	     safe packed view, not a generic helper/public/packed bridge reroute or another scalar-tail
+	     scheduling toggle.
    - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved

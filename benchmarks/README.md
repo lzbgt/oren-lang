@@ -163,23 +163,23 @@ This builds and times six binaries on the same `n/reps` workload:
 - the shipped Oren native `dot_product_int` benchmark
 - the native-only Oren `dot_product_int_slot_direct` benchmark
 
-The current precise-label artifact, `build/logs/perf-probe-list-int-slot-abi-ceiling-20260411_164808_50266.log`,
+The current precise-label artifact, `build/logs/perf-probe-list-int-slot-abi-ceiling-20260411_181606_60508.log`,
 shows:
 
-- packed-i32 C vector: `~0.000253s` per rep
-- packed-i32 C scalar: `~0.000741s` per rep
-- slot64 C “vector”: `~0.000722s` per rep
-- slot64 C scalar: `~0.000741s` per rep
-- Oren native canonical: `~0.001289s` per rep
-- Oren native slot-direct helper: `~0.003260s` per rep
+- packed-i32 C vector: `~0.000250s` per rep
+- packed-i32 C scalar: `~0.000747s` per rep
+- slot64 C “vector”: `~0.000728s` per rep
+- slot64 C scalar: `~0.000759s` per rep
+- Oren native canonical: `~0.001305s` per rep
+- Oren native slot-direct helper: `~0.003599s` per rep
 
 The ratio view is the important part:
 
-- slot64-vector / packed-vector: `~2.8567x`
-- slot64-scalar / packed-scalar: `~1.0001x`
-- Oren canonical / slot64-vector: `~1.7861x`
-- Oren canonical / slot64-scalar: `~1.7403x`
-- Oren slot-direct helper / slot64-vector: `~4.5177x`
+- slot64-vector / packed-vector: `~2.9086x`
+- slot64-scalar / packed-scalar: `~1.0165x`
+- Oren canonical / slot64-vector: `~1.7932x`
+- Oren canonical / slot64-scalar: `~1.7195x`
+- Oren slot-direct helper / slot64-vector: `~4.9453x`
 
 And the assembly snippet matters too: the host compiler does not generate a NEON packed-lane loop
 for the slot64 source. Its best `-O2` slot64 loop is still a paired-scalar `ldp` + `madd` shape,
@@ -205,29 +205,29 @@ This builds and times eight binaries on the same `n/reps` workload:
 - Oren native canonical `dot_product_int`
 
 Each C shape is timed both with default `-O2` and with vectorization disabled. The latest current-tree
-artifact, `build/logs/perf-probe-list-int-c-ceiling-20260411_164839_51152.log`, shows:
+artifact, `build/logs/perf-probe-list-int-c-ceiling-20260411_181614_60702.log`, shows:
 
 - `array_sum_int`
-  - packed32 C vector: `~0.000132s` per rep
-  - packed32 C scalar: `~0.000727s` per rep
-  - slot64 C vector: `~0.000241s` per rep
-  - slot64 C scalar: `~0.000757s` per rep
-  - Oren native canonical: `~0.000533s` per rep
+  - packed32 C vector: `~0.000134s` per rep
+  - packed32 C scalar: `~0.000731s` per rep
+  - slot64 C vector: `~0.000246s` per rep
+  - slot64 C scalar: `~0.000774s` per rep
+  - Oren native canonical: `~0.000561s` per rep
 - `dot_product_int`
-  - packed32 C vector: `~0.000259s` per rep
+  - packed32 C vector: `~0.000250s` per rep
   - packed32 C scalar: `~0.000737s` per rep
-  - slot64 C vector: `~0.000751s` per rep
-  - slot64 C scalar: `~0.000746s` per rep
-  - Oren native canonical: `~0.001293s` per rep
+  - slot64 C vector: `~0.000738s` per rep
+  - slot64 C scalar: `~0.000778s` per rep
+  - Oren native canonical: `~0.001326s` per rep
 
 The decisive ratios are:
 
-- `array_slot64_vector / array_packed32_vector`: `~1.8264x`
-- `oren_array_sum_int / array_slot64_vector`: `~2.2146x`
-- `oren_array_sum_int / array_slot64_scalar`: `~0.7033x`
-- `dot_slot64_vector / dot_packed32_vector`: `~2.8978x`
-- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0112x`
-- `oren_dot_product_int / dot_slot64_vector`: `~1.7232x`
+- `array_slot64_vector / array_packed32_vector`: `~1.8365x`
+- `oren_array_sum_int / array_slot64_vector`: `~2.2778x`
+- `oren_array_sum_int / array_slot64_scalar`: `~0.7256x`
+- `dot_slot64_vector / dot_packed32_vector`: `~2.9502x`
+- `dot_slot64_scalar / dot_packed32_scalar`: `~1.0562x`
+- `oren_dot_product_int / dot_slot64_vector`: `~1.7959x`
 
 That is the current whole-operation ceiling fact on arm64 `master` after the explicit get-sum
 unroll2 promotion: the helper/public-slot ranking question is no longer the main blocker, and the
@@ -235,6 +235,31 @@ shipped canonical `array_sum_int` path is no longer stuck around the earlier `~5
 gap. `array_sum_int` still leaves a meaningful repeated-read gap to a competitive slot64 host-C
 vector path, while `dot_product_int` remains materially above even the slot64 host-C ceiling after
 the current 64-bit slot ABI has already erased most of the packed-vector gain.
+
+For the current route-level decision surface that ties those facts to the helper/public/packed
+alternatives, use:
+
+```bash
+make perf-probe-list-int-dot-route-decision
+```
+
+This wrapper reruns `perf-probe-list-int-slot-abi-ceiling`, `perf-probe-list-int-c-ceiling`, and
+`perf-probe-list-int-dot-ceiling-stability`, then emits one decision summary. Current artifact:
+`build/logs/perf-probe-list-int-dot-route-decision-20260411_181606_60502.log`.
+
+- slot64 still loses packed-NEON headroom: `slot64_vector / packed_vector ~2.9086x` while
+  `slot64_scalar / packed_scalar ~1.0165x`
+- whole-operation gaps remain: `oren_dot_product_int / dot_slot64_vector ~1.7959x` and
+  `oren_array_sum_int / array_slot64_vector ~2.2778x`
+- route stability rejects all reroutes as default candidates:
+  - hidden direct-slot wins dot on this rerun (`3/5`, median `-10.83%` vs baseline) but loses array
+    badly (`1/5`, median `+18.24%`)
+  - public-slot is mixed (`1/5` array wins, `1/5` dot wins)
+  - packed bridge remains far behind (`packed_simd` dot median `+301.76%` vs baseline)
+
+Verdict: keep shipped canonical lowering. The next dot route work should target a representation or
+direct-lowering change for slot64, or a safe packed view, rather than re-routing through the current
+helper/public/packed bridge surfaces or reopening scalar-tail scheduling toggles.
 
 To separate one-time setup from the repeated `array_sum_int` read loop directly, use:
 
