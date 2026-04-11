@@ -55,6 +55,11 @@ if checks.get("native_domain_gates_schema_ok") is not True:
         "expected native_domain_gates_schema_ok=true, "
         f"got {checks.get('native_domain_gates_schema_ok')!r}"
     )
+if checks.get("native_resource_checks_schema_ok") is not True:
+    fail(
+        "expected native_resource_checks_schema_ok=true, "
+        f"got {checks.get('native_resource_checks_schema_ok')!r}"
+    )
 if checks.get("obc_effect_ledger_summary_schema_ok") is not True:
     fail(
         "expected obc_effect_ledger_summary_schema_ok=true, "
@@ -97,12 +102,24 @@ if domain_gates.get("schema") != "oren.native-capsule-effect-gates.v0":
     fail(f"native domain-gate summary schema mismatch: {domain_gates!r}")
 if domain_gates.get("kind") != "domain_gates" or domain_gates.get("available") is not True:
     fail(f"native domain-gate summary availability mismatch: {domain_gates!r}")
+resource_checks = native_summary.get("resource_checks") or {}
+if resource_checks.get("schema") != "oren.native-capsule-resource-checks.v0":
+    fail(f"native resource-check summary schema mismatch: {resource_checks!r}")
+if resource_checks.get("kind") != "resource_checks" or resource_checks.get("available") is not True:
+    fail(f"native resource-check summary availability mismatch: {resource_checks!r}")
 if native_deltas.get("wall_elapsed_ns") != native_budgets.get("wall_ms", {}).get("elapsed_ns"):
     fail(f"native wall elapsed delta should mirror summary budget, got {native_deltas!r} vs {native_budgets!r}")
 if native_deltas.get("wall_elapsed_ns") is None or int(native_deltas.get("wall_elapsed_ns")) < 0:
     fail(f"native wall elapsed should be non-negative, got {native_deltas!r}")
 if native_deltas.get("gas_executed") is not None:
     fail(f"native gas counter should stay null until native gas accounting lands, got {native_deltas!r}")
+native_heap = native_budgets.get("heap_bytes") or {}
+if native_heap.get("kind") != "tracked_live_scan":
+    fail(f"native heap counter kind mismatch: {native_heap!r}")
+if native_deltas.get("heap_bytes_used") != native_heap.get("used"):
+    fail(f"native heap used delta should mirror summary budget, got {native_deltas!r} vs {native_heap!r}")
+if native_deltas.get("heap_bytes_used") is None or int(native_deltas.get("heap_bytes_used")) < 0:
+    fail(f"native heap used should be non-negative, got {native_deltas!r}")
 
 obc = backends.get("obc") or {}
 ledger = obc.get("ledger") or {}

@@ -289,6 +289,16 @@ fn native_runtime_run_json_print_line(line) {
     return 0
 }
 
+fn native_runtime_run_json_mono_ns() {
+    // Runtime telemetry is not a user-visible TIME effect. Keep the capsule domain
+    // gate around program calls, but bypass it while sampling the report timestamp.
+    var old_capsule = global_get_capsule_mode()
+    if old_capsule == 1 { global_set_capsule_mode(0) }
+    var now = oren_time_mono_ns()
+    if old_capsule == 1 { global_set_capsule_mode(1) }
+    return now
+}
+
 fn native_runtime_run_json_maybe_print(exit_code) {
     if global_get_native_run_json_enabled() != 1 { return 0 }
     if global_get_native_run_json_printed() != 0 { return 0 }
@@ -299,9 +309,10 @@ fn native_runtime_run_json_maybe_print(exit_code) {
     var start_ns = global_get_native_run_json_start_ns()
     var elapsed_ns = 0
     if start_ns > 0 {
-        var now_ns = oren_time_mono_ns()
+        var now_ns = native_runtime_run_json_mono_ns()
         if now_ns >= start_ns { elapsed_ns = now_ns - start_ns }
     }
+    var heap_used = native_runtime_heap_used_bytes()
 
     var line = "{\"schema\":\"oren.native-run.v0\",\"backend\":\"native\",\"exit_code\":" + oren_int_to_string(code)
     line = line + ",\"effect_ledger_summary\":{\"schema\":\"oren.effect-ledger-summary.v0\",\"backend\":\"native\""
@@ -310,8 +321,9 @@ fn native_runtime_run_json_maybe_print(exit_code) {
     line = line + ",\"record\":{\"enabled\":false,\"sink\":\"none\",\"bytes\":0}"
     line = line + ",\"replay\":{\"enabled\":false,\"source\":\"none\",\"bytes\":0,\"position\":0}"
     line = line + ",\"domain_gates\":" + native_capsule_effect_gate_summary_json()
+    line = line + ",\"resource_checks\":" + native_capsule_resource_check_summary_json()
     line = line + ",\"budgets\":{\"gas\":{\"executed\":null,\"remaining\":null}"
-    line = line + ",\"heap_bytes\":{\"limit\":null,\"used\":null}"
+    line = line + ",\"heap_bytes\":{\"limit\":null,\"used\":" + oren_int_to_string(heap_used) + ",\"kind\":\"tracked_live_scan\"}"
     line = line + ",\"wall_ms\":{\"limit\":null,\"elapsed_ns\":" + oren_int_to_string(elapsed_ns) + "}"
     line = line + ",\"io_bytes\":{\"limit\":null,\"used\":null}"
     line = line + ",\"log_bytes\":{\"limit\":null,\"used\":0}"

@@ -529,6 +529,7 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
 
                         if ok {
                             // Path already starts with enrolled host prefix; allow as-is.
+                            native_capsule_resource_check_note(NATIVE_CAP_RES_FS_MOUNT, 0)
                             return pair
                         }
                     }
@@ -543,10 +544,12 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
         var host_path = native_capsule_fs_mount_resolve(path, mounts)
         if host_path == 0 {
             free(pair)
+            native_capsule_resource_check_note(NATIVE_CAP_RES_FS_MOUNT, 1)
             print("CAPSULE DENY: FS_MOUNT")
             print("hint: enroll FS mounts via OREN_FS_MOUNTS / OREN_FS_MOUNTS_READ / OREN_FS_MOUNTS_WRITE")
-            exit(78)
+            oren_exit(78)
         }
+        native_capsule_resource_check_note(NATIVE_CAP_RES_FS_MOUNT, 0)
         ptr_set(pair + 0, host_path)
         ptr_set(pair + 8, 1)
         return pair
@@ -558,10 +561,14 @@ fn native_capsule_fs_path_resolve_pair(path, op_kind) {
     // op_kind: 0=read, 1=write (avoid string pointer equality issues).
     if op_kind == 0 { prefs = global_get_fs_allow_read_prefixes_ptr() }
     if op_kind == 1 { prefs = global_get_fs_allow_write_prefixes_ptr() }
-    if native_capsule_fs_path_allowed(path, prefs) { return pair }
+    if native_capsule_fs_path_allowed(path, prefs) {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_FS_PATH, 0)
+        return pair
+    }
     free(pair)
+    native_capsule_resource_check_note(NATIVE_CAP_RES_FS_PATH, 1)
     print("CAPSULE DENY: FS_PATH")
     print("hint: allow FS prefixes via OREN_FS_ALLOW_PREFIXES or OREN_FS_ALLOW_READ_PREFIXES / OREN_FS_ALLOW_WRITE_PREFIXES (or use mounts via OREN_FS_MOUNTS[_READ|_WRITE])")
-    exit(78)
+    oren_exit(78)
     return 0
 }

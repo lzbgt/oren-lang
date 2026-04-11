@@ -1,0 +1,8 @@
+fn main() {
+    var rc = sys_access("build/tmp/native_capsule_resource_checks/allowed/in.txt", 0)
+    if rc < 0 { exit(2) }
+    if native_capsule_resource_fs_path_allowed() <= 0 { exit(3) }
+    if native_capsule_resource_fs_path_denied() != 0 { exit(4) }
+    if native_capsule_resource_check_denied() != 0 { exit(5) }
+    print("native capsule resource checks " + native_capsule_resource_check_summary_json())
+}

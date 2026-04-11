@@ -331,6 +331,19 @@ fn native_runtime_init(target_os) {
     CAP_TIME = 16
     CAP_RNG = 32
 
+    // Native capsule resource-check kind IDs.
+    NATIVE_CAP_RES_FS_PATH = 1
+    NATIVE_CAP_RES_FS_MOUNT = 2
+    NATIVE_CAP_RES_NET_SOCKET = 3
+    NATIVE_CAP_RES_NET_ENDPOINT = 4
+    NATIVE_CAP_RES_NET_FD = 5
+    NATIVE_CAP_RES_NET_ACCEPT = 6
+    NATIVE_CAP_RES_PROC_SYSTEM = 7
+    NATIVE_CAP_RES_PROC_EXEC = 8
+    NATIVE_CAP_RES_PROC_ARGV = 9
+    NATIVE_CAP_RES_PROC_WAIT = 10
+    NATIVE_CAP_RES_PROC_KILL = 11
+
     // Oren-level open(2) flags (translated by native syscall lowering).
     OREN_O_CREAT = 256
     OREN_O_TRUNC = 512
@@ -456,6 +469,7 @@ fn native_runtime_init(target_os) {
     global_set_native_run_json_start_ns(0)
     global_set_native_run_json_printed(0)
     native_capsule_effect_gate_counters_reset()
+    native_capsule_resource_check_counters_reset()
     return 0
 }
 

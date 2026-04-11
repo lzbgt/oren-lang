@@ -145,7 +145,10 @@ require_literal "$compiler_cli" "OREN_CAP_ALLOW_DOMAINS"
 require_literal "$capsule_core" "OREN_CAP_ALLOW_DOMAINS"
 require_literal "$native_consts" "native_capsule_effect_gate_summary_json"
 require_literal "$native_consts" "oren.native-capsule-effect-gates.v0"
+require_literal "$native_consts" "native_capsule_resource_check_summary_json"
+require_literal "$native_consts" "oren.native-capsule-resource-checks.v0"
 require_literal "$capsule_core" "native_capsule_effect_gate_note"
+require_literal "$capsule_core" "native_capsule_resource_check_note"
 for knob in \
   OREN_FS_MOUNTS \
   OREN_FS_MOUNTS_READ \
@@ -206,6 +209,7 @@ require_literal "$native_policy_runner_guard" "oren.native-package-policy-run.v0
 require_literal "$native_policy_runner_guard" "runner_wall_only"
 require_literal "$native_policy_runner_guard" "oren.native-capsule-effect-gates.v0"
 require_literal "$native_policy_runner_guard" "native capsule effect gates"
+require_literal "$native_policy_runner_guard" "native package policy ok"
 
 # AVM domain ids and selected domain mappings.
 require_regex "$avm_domains" 'var AVM_DOMAIN_CORE = 0$'
@@ -234,6 +238,7 @@ require_literal Makefile "verify-effect-ledger-contract:"
 require_literal Makefile "verify-avm-effect-ledger-json:"
 require_literal Makefile "verify-avm-package-policy-runner:"
 require_literal Makefile "verify-native-package-policy-runner:"
+require_literal Makefile "verify-native-capsule-resource-checks:"
 require_literal Makefile "./scripts/verify_capability_runtime_contract.sh"
 require_literal Makefile "./scripts/verify_capability_metadata.sh"
 require_literal Makefile "./scripts/verify_capability_manifest_policy.sh"
@@ -241,9 +246,10 @@ require_literal Makefile "./scripts/verify_effect_ledger_contract.sh"
 require_literal Makefile "./scripts/verify_avm_effect_ledger_json.sh"
 require_literal Makefile "./scripts/verify_avm_package_policy_runner.sh"
 require_literal Makefile "./scripts/verify_native_package_policy_runner.sh"
+require_literal Makefile "./scripts/verify_native_capsule_resource_checks.sh"
 require_literal Makefile "test-native-capsule-smoke-stage2:"
 require_literal Makefile "test-avm: oren avm"
 require_literal Makefile "verify-backend-parity:"
-require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-avm-spawn-channel-args test-native-quick"
+require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-native-capsule-resource-checks verify-avm-spawn-channel-args test-native-quick"
 
 echo "capability runtime contract verify OK"

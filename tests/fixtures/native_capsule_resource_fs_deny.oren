@@ -1,0 +1,5 @@
+fn main() {
+    var rc = sys_access("build/tmp/native_capsule_resource_checks/denied/in.txt", 0)
+    print("unexpected rc " + oren_int_to_string(rc))
+    exit(9)
+}

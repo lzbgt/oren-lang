@@ -266,6 +266,9 @@ native_ledger_available = native_run_json_rc == 0 and native_ledger_summary_sche
 native_domain_gates = native_ledger_summary.get("domain_gates") if isinstance(native_ledger_summary, dict) else None
 native_domain_gates_schema = native_domain_gates.get("schema") if isinstance(native_domain_gates, dict) else None
 native_domain_gates_ok = native_domain_gates_schema == "oren.native-capsule-effect-gates.v0"
+native_resource_checks = native_ledger_summary.get("resource_checks") if isinstance(native_ledger_summary, dict) else None
+native_resource_checks_schema = native_resource_checks.get("schema") if isinstance(native_resource_checks, dict) else None
+native_resource_checks_ok = native_resource_checks_schema == "oren.native-capsule-resource-checks.v0"
 if native_run_json_rc != 0:
     native_ledger_reason = "native run JSON execution failed"
 elif native_run_json_schema != "oren.native-run.v0":
@@ -328,7 +331,7 @@ ledger_available = [name for name in order if backends[name]["ledger"]["availabl
 ledger_missing = [name for name in order if not backends[name]["ledger"]["available"]]
 ledger_comparable_all = len(ledger_available) == len(order)
 budget_deltas_comparable_all = ledger_comparable_all and all(backends[name]["ledger"]["budget_deltas"] is not None for name in order)
-status = "pass" if stdout_equal and exit_equal and all_ok and expect_ok and native_run_json_ok and native_ledger_ok and native_domain_gates_ok and obc_run_json_ok and obc_ledger_ok else "fail"
+status = "pass" if stdout_equal and exit_equal and all_ok and expect_ok and native_run_json_ok and native_ledger_ok and native_domain_gates_ok and native_resource_checks_ok and obc_run_json_ok and obc_ledger_ok else "fail"
 
 out = {
     "schema": "oren.semantic-diff.v0",
@@ -349,6 +352,8 @@ out = {
         "native_effect_ledger_summary_schema_ok": native_ledger_summary_schema == "oren.effect-ledger-summary.v0",
         "native_domain_gates_schema": native_domain_gates_schema,
         "native_domain_gates_schema_ok": native_domain_gates_ok,
+        "native_resource_checks_schema": native_resource_checks_schema,
+        "native_resource_checks_schema_ok": native_resource_checks_ok,
         "obc_run_json_exit_zero": obc_run_json_rc == 0,
         "obc_run_json_schema": obc_run_json_schema,
         "obc_run_json_schema_ok": obc_run_json_schema == "avm.run.v1",

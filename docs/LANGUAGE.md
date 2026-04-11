@@ -1477,8 +1477,9 @@ For the current capability domain and native runtime-profile contract, see
   `effect_ledger.available=false` because it is external watchdog evidence. Set
   `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`
   stdout with compact `effect_ledger_summary` evidence; it currently reports native wall
-  elapsed time, capsule domain-gate counters, and keeps gas/heap counters `null` until
-  native-equivalent accounting lands.
+  elapsed time, capsule domain-gate counters, selected FS/NET/PROC resource-check counters, and
+  `heap_bytes.used` from a report-time scan of live tracked native heap nodes. Gas remains `null`,
+  and native heap-budget enforcement still waits on native-equivalent accounting.
   AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
@@ -3569,8 +3570,9 @@ with a process watchdog, and fails closed for `budget_gas`, `budget_heap_bytes`,
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
 `oren.native-package-policy-run.v0` with runner-observed wall-budget timing and
 `effect_ledger.available=false`. Native capsule runtime separately exposes
-`oren.native-capsule-effect-gates.v0` domain-gate counters, so tooling can distinguish
-runtime-owned capsule gate evidence from external runner watchdog timing. When callers request
+`oren.native-capsule-effect-gates.v0` domain-gate counters and
+`oren.native-capsule-resource-checks.v0` resource-check counters, so tooling can distinguish
+runtime-owned capsule evidence from external runner watchdog timing. When callers request
 `--print-run-json`, the AVM effect-ledger summary reports the applied `budget_wall_ms` as
 `budgets.wall_ms.limit` and records measured wall elapsed nanoseconds.
 

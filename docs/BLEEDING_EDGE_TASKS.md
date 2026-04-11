@@ -55,18 +55,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   runner-observed wall-budget timing and `effect_ledger.available=false`; this is evidence for
   the watchdog bridge, not a replacement for native runtime ledger counters. Native executables
   can also emit `oren.native-run.v0` through `OREN_NATIVE_RUN_JSON=1`, which gives semantic-diff
-  runtime-observed `effect_ledger_summary` wall timing plus native capsule domain-gate counters,
-  while leaving unsupported gas/heap counters as `null`. AVM `effect_ledger_summary.budgets` now
-  reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
-  `wall_ms.elapsed_ns`. Next capability work should move from these bridge summaries toward full
-  native/AVM effect-ledger budget parity rather than re-describing the existing env contract.
+  runtime-observed `effect_ledger_summary` wall timing, native capsule domain-gate counters,
+  selected FS/NET/PROC resource-check counters, and a scanned native `heap_bytes.used` value for
+  live tracked heap nodes, while leaving unsupported gas counters as `null`. AVM
+  `effect_ledger_summary.budgets` now reports gas, heap, and wall budget fields for that path,
+  including `wall_ms.limit` and measured `wall_ms.elapsed_ns`. Next capability work should move
+  from these bridge summaries toward native gas accounting and heap-budget enforcement rather than
+  re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and
   `make verify-capability-manifest-policy`; effect-ledger schema drift is guarded by
   `make verify-effect-ledger-contract`, with AVM JSON summary emission covered by
-  `make verify-avm-effect-ledger-json` and package-policy execution covered by
-  `make verify-avm-package-policy-runner` / `make verify-native-package-policy-runner`.
+  `make verify-avm-effect-ledger-json`, package-policy execution covered by
+  `make verify-avm-package-policy-runner` / `make verify-native-package-policy-runner`, and native
+  resource-check summaries covered by `make verify-native-capsule-resource-checks`.
 - New: `project-doc/oren_feature_horizon_20260412.md` and
   `project-doc/oren_language_system_bets_20260412.md` separate external pressure signals from
   Oren-owned forecast bets. Reweight Oren differentiation toward deterministic native/AVM

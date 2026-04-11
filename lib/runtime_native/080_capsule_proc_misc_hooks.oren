@@ -3,7 +3,11 @@ fn native_capsule_require_proc_system() {
     // blocked in capsule mode unless explicitly enabled (it executes a shell).
     native_capsule_require(CAP_PROC, "PROC")
     if global_get_capsule_mode() != 1 { return 0 }
-    if global_get_proc_allow_system() == 1 { return 0 }
+    if global_get_proc_allow_system() == 1 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_SYSTEM, 0)
+        return 0
+    }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_SYSTEM, 1)
     print("CAPSULE DENY: PROC_SYSTEM")
     exit(81)
     return 0
@@ -14,7 +18,11 @@ fn native_capsule_require_proc_exec(path) {
     native_capsule_require(CAP_PROC, "PROC")
     if global_get_capsule_mode() != 1 { return 0 }
     var prefs = global_get_proc_allow_exec_prefixes_ptr()
-    if native_capsule_fs_path_allowed(path, prefs) { return 0 }
+    if native_capsule_fs_path_allowed(path, prefs) {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_EXEC, 0)
+        return 0
+    }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_EXEC, 1)
     print("CAPSULE DENY: PROC_EXEC")
     exit(80)
     return 0
@@ -77,11 +85,13 @@ fn native_capsule_require_proc_argv(exec_path, argv_ptrs, argc) {
 
     var allow = global_get_proc_allow_argv_ptr()
     if allow == 0 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_ARGV, 1)
         print("CAPSULE DENY: PROC_ARGV (missing OREN_PROC_ALLOW_ARGV)")
         exit(82)
         return 0
     }
     if ptr_get_byte(allow) == 0 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_ARGV, 1)
         print("CAPSULE DENY: PROC_ARGV (empty OREN_PROC_ALLOW_ARGV)")
         exit(82)
         return 0
@@ -162,8 +172,14 @@ fn native_capsule_require_proc_argv(exec_path, argv_ptrs, argc) {
                             }
 
                             if ok {
-                                if saw_trailing_star { return 0 }
-                                if argi == argc { return 0 }
+                                if saw_trailing_star {
+                                    native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_ARGV, 0)
+                                    return 0
+                                }
+                                if argi == argc {
+                                    native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_ARGV, 0)
+                                    return 0
+                                }
                             }
                         }
                     }
@@ -175,6 +191,7 @@ fn native_capsule_require_proc_argv(exec_path, argv_ptrs, argc) {
         i = i + 1
     }
 
+    native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_ARGV, 1)
     print("CAPSULE DENY: PROC_ARGV")
     exit(82)
     return 0
@@ -410,13 +427,16 @@ fn native_capsule_sys_wait4_pre(pid, options) {
     if global_get_capsule_mode() != 1 { return 0 }
     // Deny pid=-1/0 in capsule mode for now; require explicit registered child pid.
     if pid <= 0 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_WAIT, 1)
         print("CAPSULE DENY: PROC_WAIT")
         exit(80)
     }
     if native_capsule_proc_pid_allowed(pid) != true {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_WAIT, 1)
         print("CAPSULE DENY: PROC_WAIT")
         exit(80)
     }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_WAIT, 0)
     return 0
 }
 
@@ -425,16 +445,20 @@ fn native_capsule_sys_kill_pre(pid, signum) {
     native_capsule_require(CAP_PROC, "PROC")
     if global_get_capsule_mode() != 1 { return 0 }
     if pid <= 0 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_KILL, 1)
         print("CAPSULE DENY: PROC_KILL")
         exit(80)
     }
     if native_capsule_proc_pid_allowed(pid) != true {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_KILL, 1)
         print("CAPSULE DENY: PROC_KILL")
         exit(80)
     }
     if signum < 0 || signum > 64 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_KILL, 1)
         print("CAPSULE DENY: PROC_KILL")
         exit(80)
     }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_PROC_KILL, 0)
     return 0
 }

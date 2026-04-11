@@ -109,7 +109,12 @@ Required entry fields:
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
   `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
   This is the first native-owned effect evidence bridge: it counts central capsule domain-gate
-  checks and denied gates, but not resource-level allowlist outcomes after the domain gate.
+  checks and denied gates.
+- Native capsule runtime also exposes `oren.native-capsule-resource-checks.v0` through
+  `native_capsule_resource_check_summary_json()` and the native run JSON `resource_checks` field.
+  This counts selected concrete FS/NET/PROC resource allow/deny decisions after a domain gate,
+  such as FS prefix/mount checks, NET socket/endpoint checks, and PROC exec/argv/wait/kill checks.
+  It is still a summary bridge, not a complete ordered effect ledger.
 
 ## Verification Map
 
@@ -124,8 +129,9 @@ The contract guard checks this schema note, the capability contract, the roadmap
 wiring, and then runs the AVM JSON guard. The AVM guard checks the current
 `effect_ledger_summary` runtime bridge with in-memory record logs, deterministic trace bytes,
 `AVM_TIMEOUT_MS` wall-budget reporting, and the `AVM_LOG_BYTES` record-header budget edge. The
-native package-policy guard checks the current capsule domain-gate counter bridge. Full native/AVM
-ledger parity fixtures are still future work.
+native package-policy guard checks the current capsule domain-gate counter bridge, and
+`make verify-native-capsule-resource-checks` checks the native resource-check summary bridge.
+Full native/AVM ledger parity fixtures are still future work.
 
 ## Current AVM Run Summary
 
@@ -169,6 +175,8 @@ Native executables can now opt into the same compact bridge by setting
 `OREN_NATIVE_RUN_JSON=1`. On normal `main` return or explicit `exit(...)`, the native runtime
 prints one `oren.native-run.v0` JSON line containing `effect_ledger_summary`. Native currently
 reports `wall_ms.elapsed_ns` from runtime monotonic time, includes the
-`oren.native-capsule-effect-gates.v0` `domain_gates` object, and keeps gas/heap counters as `null`
-until backend-equivalent counters exist; semantic diff treats that as a runtime ledger summary,
-not as full budget parity.
+`oren.native-capsule-effect-gates.v0` `domain_gates` object, includes the
+`oren.native-capsule-resource-checks.v0` `resource_checks` object, and reports `heap_bytes.used`
+from a report-time scan of live native GC tracking nodes with `kind="tracked_live_scan"`. Gas
+counters and native heap-budget enforcement still remain unavailable until backend-equivalent
+counters exist; semantic diff treats this as a runtime ledger summary, not as full budget parity.

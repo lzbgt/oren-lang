@@ -5,6 +5,7 @@ fn native_capsule_sys_socket_pre(domain, type, protocol) {
 
     // Allow only AF_INET in v0.
     if domain != OREN_AF_INET {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_SOCKET, 1)
         print("CAPSULE DENY: NET_SOCKET_DOMAIN")
         exit(79)
     }
@@ -12,19 +13,24 @@ fn native_capsule_sys_socket_pre(domain, type, protocol) {
     // Allow TCP/UDP only.
     if type == OREN_SOCK_STREAM { // SOCK_STREAM
         if protocol != 0 && protocol != OREN_IPPROTO_TCP {
+            native_capsule_resource_check_note(NATIVE_CAP_RES_NET_SOCKET, 1)
             print("CAPSULE DENY: NET_SOCKET_PROTO")
             exit(79)
         }
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_SOCKET, 0)
         return 0
     }
     if type == OREN_SOCK_DGRAM { // SOCK_DGRAM
         if protocol != 0 && protocol != 17 {
+            native_capsule_resource_check_note(NATIVE_CAP_RES_NET_SOCKET, 1)
             print("CAPSULE DENY: NET_SOCKET_PROTO")
             exit(79)
         }
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_SOCKET, 0)
         return 0
     }
 
+    native_capsule_resource_check_note(NATIVE_CAP_RES_NET_SOCKET, 1)
     print("CAPSULE DENY: NET_SOCKET_TYPE")
     exit(79)
     return 0
@@ -47,11 +53,14 @@ fn native_capsule_sys_connect_pre(fd, addr, addrlen) {
 
     // Require fd to be a socket created in this process (simple per-fd capability).
     if native_capsule_net_fd_kind_get(fd) == 0 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_FD, 1)
         print("CAPSULE DENY: NET_FD")
         exit(79)
     }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_NET_FD, 0)
 
     if addr == 0 || addrlen < 8 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 1)
         print("CAPSULE DENY: NET_CONNECT_SOCKADDR")
         exit(79)
     }
@@ -59,7 +68,10 @@ fn native_capsule_sys_connect_pre(fd, addr, addrlen) {
     // Optional vnet-style mapping (enrollment mechanism).
     var map_csv = global_get_net_tcp_connect_map_ptr()
     var mapped = native_capsule_net_tcp_map_apply(addr, addrlen, map_csv)
-    if mapped == 1 { return 0 }
+    if mapped == 1 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 0)
+        return 0
+    }
 
     // Parse sockaddr_in and enforce endpoint allowlist / loopback.
     var ip4 = addr + 4
@@ -70,14 +82,22 @@ fn native_capsule_sys_connect_pre(fd, addr, addrlen) {
     // - macOS/BSD: [1] = AF_INET
     // - Linux/Windows: [0] = AF_INET (u16 LE)
     if ptr_get_byte(addr + 1) != OREN_AF_INET && ptr_get_byte(addr + 0) != OREN_AF_INET {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 1)
         print("CAPSULE DENY: NET_CONNECT_SOCKADDR")
         exit(79)
     }
     if global_get_net_allow_loopback() == 1 {
-        if native_ipv4_is_loopback_ip4(ip4) { return 0 }
+        if native_ipv4_is_loopback_ip4(ip4) {
+            native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 0)
+            return 0
+        }
     }
     var prefs = global_get_net_allow_tcp_connect_ptr()
-    if native_capsule_net_endpoint_allowed_ip4(ip4, port, prefs) { return 0 }
+    if native_capsule_net_endpoint_allowed_ip4(ip4, port, prefs) {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 0)
+        return 0
+    }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 1)
     print("CAPSULE DENY: NET_CONNECT")
     exit(79)
     return 0
@@ -98,20 +118,27 @@ fn native_capsule_sys_bind_pre(fd, addr, addrlen) {
     native_capsule_require(CAP_NET, "NET")
     if global_get_capsule_mode() != 1 { return 0 }
     if native_capsule_net_fd_kind_get(fd) == 0 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_FD, 1)
         print("CAPSULE DENY: NET_FD")
         exit(79)
     }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_NET_FD, 0)
 
     if addr == 0 || addrlen < 8 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 1)
         print("CAPSULE DENY: NET_BIND_SOCKADDR")
         exit(79)
     }
 
     var map_csv = global_get_net_tcp_listen_map_ptr()
     var mapped = native_capsule_net_tcp_map_apply(addr, addrlen, map_csv)
-    if mapped == 1 { return 0 }
+    if mapped == 1 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 0)
+        return 0
+    }
 
     if ptr_get_byte(addr + 1) != OREN_AF_INET && ptr_get_byte(addr + 0) != OREN_AF_INET {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 1)
         print("CAPSULE DENY: NET_BIND_SOCKADDR")
         exit(79)
     }
@@ -121,10 +148,17 @@ fn native_capsule_sys_bind_pre(fd, addr, addrlen) {
     var port = (hi << 8) | lo
 
     if global_get_net_allow_loopback() == 1 {
-        if native_ipv4_is_loopback_ip4(ip4) { return 0 }
+        if native_ipv4_is_loopback_ip4(ip4) {
+            native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 0)
+            return 0
+        }
     }
     var prefs = global_get_net_allow_tcp_listen_ptr()
-    if native_capsule_net_endpoint_allowed_ip4(ip4, port, prefs) { return 0 }
+    if native_capsule_net_endpoint_allowed_ip4(ip4, port, prefs) {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 0)
+        return 0
+    }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ENDPOINT, 1)
     print("CAPSULE DENY: NET_LISTEN")
     exit(79)
     return 0
@@ -138,9 +172,11 @@ fn native_capsule_sys_listen_pre(fd, backlog) {
     native_capsule_require(CAP_NET, "NET")
     if global_get_capsule_mode() != 1 { return 0 }
     if native_capsule_net_fd_kind_get(fd) == 0 {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_FD, 1)
         print("CAPSULE DENY: NET_FD")
         exit(79)
     }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_NET_FD, 0)
     return 0
 }
 
@@ -157,9 +193,11 @@ fn native_capsule_sys_accept_pre(fd, addr, addrlen_ptr) {
     native_capsule_require(CAP_NET, "NET")
     if global_get_capsule_mode() != 1 { return 0 }
     if native_capsule_net_fd_kind_get(fd) != FD_KIND_TCP_LISTEN {
+        native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ACCEPT, 1)
         print("CAPSULE DENY: NET_ACCEPT")
         exit(79)
     }
+    native_capsule_resource_check_note(NATIVE_CAP_RES_NET_ACCEPT, 0)
     return 0
 }
 

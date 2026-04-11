@@ -129,16 +129,16 @@ It is a language plus runtime plus artifact contract.
   whose static used domains exceed the package allowlist, while the native path applies package
   capsule/domain policy plus a wall-time watchdog and fails closed for gas/heap/CPU budgets until
   native-equivalent counters exist. Native executables now have a runtime-observed
-  `OREN_NATIVE_RUN_JSON=1` bridge with wall timing, capsule domain-gate counters, and explicit
-  `null` gas/heap counters; AVM run JSON reports gas, heap, and wall package budgets through
-  `effect_ledger_summary.budgets`, so the next step is fuller native-side budget parity rather
-  than another manifest-only field.
+  `OREN_NATIVE_RUN_JSON=1` bridge with wall timing, capsule domain-gate counters, selected
+  FS/NET/PROC resource-check counters, and a scanned live tracked-heap byte count; gas remains
+  `null`. AVM run JSON reports gas, heap, and wall package budgets through
+  `effect_ledger_summary.budgets`, so the next step is native gas accounting and heap-budget
+  enforcement rather than another manifest-only field.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
   `oren.semantic-diff.v0` JSON for C/native/OBC runs plus native/AVM ledger-summary bridges. Next
-  work is making native gas/heap deltas real enough to compare, rather than only expanding fixture
-  scripts.
+  work is native gas accounting and heap-budget enforcement, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling
