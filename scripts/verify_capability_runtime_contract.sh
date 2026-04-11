@@ -234,6 +234,7 @@ require_literal "$native_policy_runner_guard" "package native CPU budget exceede
 require_literal Makefile "verify-native-gas-accounting-modes:"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "basic-block must stay distinct from statement gas"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "block-weighted must stay distinct from basic-block and statement gas"
+require_literal "scripts/verify_native_gas_accounting_modes.sh" "instruction-equivalent gas must stay reserved"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_stmt_loop_tick_v0"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_basic_block_tick_v0"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_block_weighted_tick_v0"

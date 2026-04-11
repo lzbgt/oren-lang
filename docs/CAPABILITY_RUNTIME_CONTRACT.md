@@ -196,8 +196,11 @@ charge one tick. It is not an instruction-equivalent gas model, so the native ru
 also carries `surface.schema="oren.gas-surface.v0"` with `id="native_stmt_loop_tick_v0"`. The accepted
 package-policy fine gas spellings remain `1`, `stmt`, and `statement`. The separate
 `OREN_NATIVE_GAS_ACCOUNTING=basic-block` and `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` spellings are
-runtime evidence surfaces (`native_basic_block_tick_v0` and `native_block_weighted_tick_v0`), but
-package-policy gas budgets still use statement+loop gas until a native/AVM conversion contract exists. When
+runtime evidence surfaces (`native_basic_block_tick_v0` and `native_block_weighted_tick_v0`), while
+`OREN_NATIVE_GAS_ACCOUNTING=instruction-equivalent` is intentionally reserved and does not alias any
+current fine-grained surface. It currently falls back to the default loop-safepoint surface until an
+actual instruction-equivalent implementation exists. Package-policy gas budgets still use statement+loop
+gas until a native/AVM conversion contract exists. When
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
 `oren.native-package-policy-run.v0` JSON with runner-observed wall/gas/heap/CPU-budget evidence, the
 native capsule/domain policy that was applied, and any captured native runtime `effect_ledger`
@@ -228,8 +231,9 @@ basic-block entry ticks plus loop-poll ticks as a distinct non-AVM-canonical sur
 lowering-block weights plus loop-condition charges and loop-poll ticks. Every native
 gas object also includes an `oren.gas-surface.v0` descriptor; semantic diff now reports the native
 and AVM gas surfaces as non-comparable when their ids differ, instead of treating positive counters
-as the same unit. Future backend work can add finer instruction-equivalent gas without changing the
-existing field shape. Native artifact cache keys include the normalized `OREN_NATIVE_GAS_ACCOUNTING`
+as the same unit. The exact `instruction-equivalent` spelling is a reserved request and is guarded not
+to alias `stmt`, `basic-block`, or `block-weighted`; future backend work can add that surface without
+changing the existing field shape. Native artifact cache keys include the normalized `OREN_NATIVE_GAS_ACCOUNTING`
 mode, and the gas-mode verifier also uses `--no-cache`, so compile-time mode changes cannot be
 certified by stale cached artifacts.
 Package-policy JSON remains runner-observed wall/gas/heap/CPU evidence with captured runtime summaries,

@@ -213,7 +213,9 @@ charges and loop-poll ticks. Semantic diff uses the block-weighted mode so it ha
 calibration surface, but each gas object carries an explicit `surface` object with
 `schema="oren.gas-surface.v0"`. That surface keeps native `native_block_weighted_tick_v0` distinct from
 AVM `avm_opcode_cost_v0`; semantic diff reports the current native/OBC gas surfaces as non-comparable
-until Oren defines an instruction-equivalent native gas contract.
+until Oren defines an instruction-equivalent native gas contract. The exact native mode spelling
+`instruction-equivalent` is reserved: today the guard proves it falls back to default loop-safepoint
+gas instead of silently aliasing statement, basic-block, or block-weighted gas.
 `make verify-native-gas-accounting-modes` guards those mode contracts. The native build cache key
 also records the normalized gas mode, and the dedicated gas-mode verifier forces `--no-cache` so
 emitted gas notes are tested directly. The current semantic-diff report also records empirical

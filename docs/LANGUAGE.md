@@ -3590,7 +3590,9 @@ with `OREN_NATIVE_GAS_ACCOUNTING=stmt`; captured gas JSON includes `oren.gas-sur
 tools do not confuse native statement+loop ticks with AVM opcode gas. The fine native gas
 spellings today are exact `1`, `stmt`, `statement`, `basic-block`, and `block-weighted`;
 `basic-block` is distinct native lowering-block evidence and `block-weighted` is weighted
-native lowering-block evidence, so neither aliases statement gas. When callers set
+native lowering-block evidence, so neither aliases statement gas. The exact spelling
+`instruction-equivalent` is reserved and guarded not to alias any current fine-grained gas surface.
+When callers set
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
 `oren.native-package-policy-run.v0` with runner-observed wall-budget timing and captured
 `effect_ledger` summary when available. Native capsule runtime separately exposes
