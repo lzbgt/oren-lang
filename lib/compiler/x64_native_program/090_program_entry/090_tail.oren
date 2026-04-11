@@ -241,6 +241,7 @@ fn native_compile_program_x64(linked, platform) {
         fns = _extract_functions_v0(ctx, linked2)
     }
     if fns == nil { return ctx }
+    if trace_prog { print("[x64_compile] collect functions done fns=" + oren_int_to_string(oren_list_len(fns))) }
 
     // --- Type constructors (Tier‑1 parity with arm64 native) ---
     //
@@ -249,10 +250,12 @@ fn native_compile_program_x64(linked, platform) {
     //
     // arm64 implements this in its native stmt compiler; x64 must synthesize the same
     // constructor functions so programs using type constructors compile on x86_64 too.
+    if trace_prog { print("[x64_compile] type constructors start") }
     var type_ctors = _x64_extract_type_constructors_v0(ctx, linked2)
     if type_ctors == nil { return ctx }
     var tci = 0
     while tci < oren_list_len(type_ctors) { oren_list_push(fns, type_ctors[tci]); tci = tci + 1 }
+    if trace_prog { print("[x64_compile] type constructors done count=" + oren_int_to_string(oren_list_len(type_ctors))) }
     // Rolling parity with other backends:
     // - `fn main()` is optional; if absent, only `__top_level__` runs.
     var has_main = false
@@ -263,8 +266,10 @@ fn native_compile_program_x64(linked, platform) {
     // Collect `ffi name` declarations so:
     // - the name is reserved (globals can't shadow it)
     // - direct calls can resolve to backend-emitted stubs
+    if trace_prog { print("[x64_compile] ffi decls start") }
     _x64_collect_ffi_decls(ctx, runtime_stmts, user_stmts)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+    if trace_prog { print("[x64_compile] ffi decls done") }
 
     // --- Global vars + top-level statements (Tier‑1 convergence) ---
     //
@@ -272,8 +277,10 @@ fn native_compile_program_x64(linked, platform) {
     // that will run before `main` as a synthesized `__top_level__` function.
     //
     // We scan after function collection so we can reject global names that shadow functions.
+    if trace_prog { print("[x64_compile] top-level globals start") }
     var top_info = _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts)
     if top_info == nil { return ctx }
+    if trace_prog { print("[x64_compile] top-level globals done") }
 
     // Collect lambdas (anonymous Function nodes with name="") from the full statement set
     // that will actually be compiled.
@@ -288,6 +295,7 @@ fn native_compile_program_x64(linked, platform) {
     // - x64 synthesizes type constructors.
     var stmts_all = linked2["statements"]
     if stmts_all == nil { stmts_all = [] }
+    if trace_prog { print("[x64_compile] collect lambdas start stmts=" + oren_int_to_string(oren_list_len(stmts_all))) }
     var li = 0
     while li < oren_list_len(stmts_all) {
         callable.collect_lambdas_in_statement(ctx, stmts_all[li])
@@ -303,6 +311,7 @@ fn native_compile_program_x64(linked, platform) {
         callable.collect_lambdas_in_expression(ctx, type_ctors[ltc])
         ltc = ltc + 1
     }
+    if trace_prog { print("[x64_compile] collect lambdas done defs=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"]))) }
 
 
     var dbg_lam = oren_env("OREN_DEBUG_X64_LAMBDAS")
@@ -346,6 +355,7 @@ fn native_compile_program_x64(linked, platform) {
     // Lambda wrappers are named `__oren_lambda_N` and already implement the uniform call ABI:
     //   fn __oren_lambda_N(__env, __args_list) { ... }
     // They inline the original lambda body and bind captures/params from env/args.
+    if trace_prog { print("[x64_compile] lambda wrappers start") }
     var lj = 0
     while lj < oren_list_len(ctx["lambda_defs"]) {
         var def = ctx["lambda_defs"][lj]
@@ -358,6 +368,7 @@ fn native_compile_program_x64(linked, platform) {
         }
         lj = lj + 1
     }
+    if trace_prog { print("[x64_compile] lambda wrappers done count=" + oren_int_to_string(oren_list_len(wrappers))) }
 
     // --- Panic symbolication (best-effort) ---
     //
@@ -451,7 +462,23 @@ fn native_compile_program_x64(linked, platform) {
             // Add runtime symbols from the cached meta so best-effort traces can resolve runtime frames too.
             if used_rtobj == true {
                 var pend = ctx["rtobj_pending"]
-                if pend != nil && pend["fn_offs_enc"] != nil {
+                var rt_fn_compact = nil
+                if pend != nil { rt_fn_compact = pend["fn_offsets_compact"] }
+                var rt_names = nil
+                if rt_fn_compact != nil { rt_names = rt_fn_compact["names"] }
+                if rt_names != nil {
+                    var rn_i = 0
+                    while rn_i < oren_list_len(rt_names) {
+                        var rnm0 = rt_names[rn_i]
+                        if rnm0 != nil && rnm0 != "" {
+                            _x64_symtab_push_unique(sym_seen, sym_names, rnm0)
+                            if ctx["symtab_display"][rnm0] == nil {
+                                ctx["symtab_display"][rnm0] = rnm0 + "@<runtime>"
+                            }
+                        }
+                        rn_i = rn_i + 1
+                    }
+                } else if pend != nil && pend["fn_offs_enc"] != nil {
                     var idxr = 0
                     var pairr = [nil, nil]
                     while 1 {
@@ -511,6 +538,7 @@ fn native_compile_program_x64(linked, platform) {
         _data_reserve_linetab(ctx, 16384)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     }
+    if trace_prog { print("[x64_compile] debug metadata setup done") }
 
     // --- Stack safety (call depth guard; Tier‑1 parity) ---
     //
@@ -531,6 +559,7 @@ fn native_compile_program_x64(linked, platform) {
     var is_shared = platform != nil && platform["shared_lib"] == true
     var is_dll = is_win && is_shared
     var is_so = (is_win != true) && is_shared
+    if trace_prog { print("[x64_compile] entry stub start") }
 
     // Windows DLL entrypoint (DllMain) must behave like a normal Win64 ABI function:
     // - preserve non-volatile regs
@@ -609,6 +638,7 @@ fn native_compile_program_x64(linked, platform) {
     var entry_total = entry_shadow + entry_stack_args + entry_scratch + entry_align_pad
     if entry_total > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_total)) }
     var scratch_base = entry_shadow + entry_stack_args + entry_align_pad
+    if trace_prog { print("[x64_compile] entry prologue done") }
 
     if platform != nil && platform["os"] == "windows"  {
         if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win begin") }
@@ -733,6 +763,7 @@ fn native_compile_program_x64(linked, platform) {
     if trace_entry && platform != nil && platform["os"] == "windows" {
         _emit_windows_write_cstr(ctx, "ENTRY: runtime_init ok")
     }
+    if trace_prog { print("[x64_compile] runtime init call emitted") }
 
     // Register embedded string literals once at startup (Tier‑1 performance).
     //
@@ -773,6 +804,7 @@ fn native_compile_program_x64(linked, platform) {
         }
       }
     }
+    if trace_prog { print("[x64_compile] cstr0 table call emitted") }
 
     // Register embedded debug-info table in debug builds (Tier‑1 debuggability).
     //
@@ -822,6 +854,7 @@ fn native_compile_program_x64(linked, platform) {
         _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
       }
     }
+    if trace_prog { print("[x64_compile] debug-info call emitted") }
 
     // native_runtime_set_args(argc, argv)
     if platform != nil && platform["os"] == "windows" {
@@ -837,6 +870,7 @@ fn native_compile_program_x64(linked, platform) {
     if trace_entry && platform != nil && platform["os"] == "windows" {
         _emit_windows_write_cstr(ctx, "ENTRY: set_args ok")
     }
+    if trace_prog { print("[x64_compile] set args call emitted") }
 
     // Windows: convert Win32 env block -> POSIX envp (Tier‑1 parity).
     //
@@ -883,6 +917,7 @@ fn native_compile_program_x64(linked, platform) {
     if trace_entry && platform != nil && platform["os"] == "windows" {
         _emit_windows_write_cstr(ctx, "ENTRY: set_envp ok")
     }
+    if trace_prog { print("[x64_compile] set envp call emitted") }
 
     // native_runtime_capsule_init() (env + capsule init).
     //
@@ -892,6 +927,7 @@ fn native_compile_program_x64(linked, platform) {
     var call_capsule_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
+    if trace_prog { print("[x64_compile] capsule init call emitted") }
 
     // native_runtime_init_gc_mode(default_enabled)
     var gc_default = 1
@@ -907,6 +943,7 @@ fn native_compile_program_x64(linked, platform) {
     if trace_entry && platform != nil && platform["os"] == "windows" {
         _emit_windows_write_cstr(ctx, "ENTRY: gc_mode ok")
     }
+    if trace_prog { print("[x64_compile] gc mode call emitted") }
 
     // Register global slots as GC roots (native parity with C backend).
     // Do this after GC mode init so native_gc_register_root is active.
@@ -915,6 +952,7 @@ fn native_compile_program_x64(linked, platform) {
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     var trace_root_names = ctx["trace_gc_root_names"]
     if gmap != nil {
+        if trace_prog { print("[x64_compile] global root registration start") }
         var gi = 0
         var pair = [nil, nil]
         var arg_reg = 7 // rdi
@@ -962,10 +1000,12 @@ fn native_compile_program_x64(linked, platform) {
             }
             gi = gi + 1
         }
+        if trace_prog { print("[x64_compile] global root registration done count=" + oren_int_to_string(gi)) }
     }
 
     // Register main thread for GC/stack safety (allow skip for bisecting entry crashes).
     if skip_register_thread != true {
+        if trace_prog { print("[x64_compile] register thread call start") }
         if trace_entry && platform != nil && platform["os"] == "windows" {
             // Save current RSP in a non-volatile register to detect stack drift.
             bytes_extend(ctx["code"], insn_mov_r64_r64(12, 4)) // r12 = rsp
@@ -995,6 +1035,7 @@ fn native_compile_program_x64(linked, platform) {
         if exit_after_register_thread == true {
             _emit_abort_exitcode(ctx, 241)
         }
+        if trace_prog { print("[x64_compile] register thread call emitted") }
     } else {
         if trace_entry && platform != nil && platform["os"] == "windows" {
             _emit_windows_write_cstr(ctx, "ENTRY: register_thread skip")
@@ -1006,6 +1047,7 @@ fn native_compile_program_x64(linked, platform) {
     // This converges x64 behavior with the other backends while keeping the x64 v0
     // "fn main() required" rule.
     if skip_top_level != true {
+        if trace_prog { print("[x64_compile] top-level entry call start") }
         if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
             _emit_windows_write_cstr(ctx, "ENTRY: top_level call")
         }
@@ -1015,6 +1057,7 @@ fn native_compile_program_x64(linked, platform) {
         if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
             _emit_windows_write_cstr(ctx, "ENTRY: top_level ok")
         }
+        if trace_prog { print("[x64_compile] top-level entry call emitted") }
     } else {
         if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
             _emit_windows_write_cstr(ctx, "ENTRY: top_level skip")
@@ -1137,6 +1180,7 @@ fn native_compile_program_x64(linked, platform) {
         }
     }
     if trace_sum { t_entry_done = oren_time_now_ns() }
+    if trace_prog { print("[x64_compile] entry stub done") }
 
     // --- functions ---
     // Compile the synthesized top-level initializer function first so:
@@ -1148,8 +1192,10 @@ fn native_compile_program_x64(linked, platform) {
     // If a runtime object is pending, splice its code after the entry stub now so
     // runtime functions resolve by name before compiling user code.
     if used_rtobj == true {
+        if trace_prog { print("[x64_compile] rtobj code splice start") }
         _x64_rtobj_apply_code_to_ctx(ctx)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+        if trace_prog { print("[x64_compile] rtobj code splice done") }
     }
     if trace_sum { t_apply_rtobj_done = oren_time_now_ns() }
 

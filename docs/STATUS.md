@@ -2485,6 +2485,29 @@ Weights reflect expected impact on C parity and breadth of affected code.
 	    (`build/logs/codex_make_test_rerun_20260319.log`), so this tracker item is no longer an
 	    active verification blocker. Keep future work here focused on robustness/perf regressions,
 	    not on the old stage2 emitter or native quick bring-up failures.
+	  - Update (2026-04-11): x64 stage2 runtime-object cache hits now avoid the same class of
+	    eager large-metadata walk that previously hurt arm64. The x64 runtime-object backend sig is
+	    bumped to `x64_v0_23`; cached meta now carries compact x64 fixup sidecars
+	    (`x64_fixups_compact`), compact runtime function offsets (`fn_offsets_compact`), and a lazy
+	    cstr0 offset sidecar. The stage2 apply path stashes those into the x64 context instead of
+	    materializing thousands of runtime fixup/function/cstr0 entries into normal maps/lists, and
+	    ELF/PE emit plus symtab finalization now use lazy runtime-function lookup over the compact
+	    sidecars. Traced QI compile progress shows the fixed cache-hit path reaching user-code
+	    compilation after `function offsets compact attached` and `compact fixups attached`
+	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_lookup_trace_20260411_225344.log`);
+	    `make oren_stage2` also passed after the lazy lookup change
+	    (`build/logs/make_oren_stage2_x64_lazy_fn_offsets_lookup_fix_20260411_225140.log`).
+	    The remaining slow surfaces are broader x64 no-cache compile throughput, not rtobj apply:
+	    full quick-integration timed out at 300s
+	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log`), and the
+	    full NET/TLS/HTTP2 compile-only smoke timed out at 360s
+	    (`build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log`). Therefore
+	    `make verify-native-x64-compile` now keeps full QI, NET/TLS/HTTP2, and the broad stage2
+	    FFI/shared-library matrix opt-in while retaining a bounded default stage1+stage2 smoke path
+	    that includes `print`, `ptr_i32_le_native`, `cfg_os_select`, and one FFI smoke per platform.
+	    The cleaned single-run default verifier passed in
+	    `build/logs/verify_native_x64_compile_lazy_fn_offsets_make_default_20260411_233255.log`
+	    (376s on this host).
 	   - Update (2026-03-05): fast_list_int_push_while now emits list_hdr ring entries on loop
 	     exit even without compile-time trace flags, so GC corruptions can be correlated from
 	     standard trace runs.

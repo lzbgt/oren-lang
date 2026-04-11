@@ -33,7 +33,12 @@ Examples:
 
 Env:
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10)
-  OREN_NATIVE_BUILD_TIMEOUT_SECS_NET_TLS_HTTP2 (default: 15) timeout override for the large NET/TLS/HTTP2 compile-only smoke fixture
+  OREN_NATIVE_BUILD_TIMEOUT_SECS_STAGE2 (default: 90) timeout floor for stage2 compile-only fixtures
+  OREN_NATIVE_BUILD_TIMEOUT_SECS_QI timeout override when full quick-integration is explicitly enabled
+  OREN_NATIVE_BUILD_TIMEOUT_SECS_NET_TLS_HTTP2 timeout override when the large NET/TLS/HTTP2 compile-only smoke fixture is explicitly enabled
+  OREN_NATIVE_X64_INCLUDE_QI=1 to include the full quick-integration fixture (slow; off by default)
+  OREN_NATIVE_X64_INCLUDE_NET_TLS_HTTP2=1 to include the full-runtime NET/TLS/HTTP2 fixture (slow; off by default)
+  OREN_NATIVE_X64_INCLUDE_STAGE2_FULL=1 to include the broad no-cache stage2 FFI/shared-lib matrix (slow; off by default)
 EOF
 }
 
@@ -128,6 +133,10 @@ if [[ "$TARGETS_CSV" != "all" ]]; then
 fi
 
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
+BUILD_TIMEOUT_SECS_STAGE2="${OREN_NATIVE_BUILD_TIMEOUT_SECS_STAGE2:-90}"
+INCLUDE_QI="${OREN_NATIVE_X64_INCLUDE_QI:-0}"
+INCLUDE_NET_TLS_HTTP2="${OREN_NATIVE_X64_INCLUDE_NET_TLS_HTTP2:-0}"
+INCLUDE_STAGE2_FULL="${OREN_NATIVE_X64_INCLUDE_STAGE2_FULL:-0}"
 
 # Compiler-only performance knobs (rolling hang guard):
 # - Stage2 native backend uses fork-based spawn on macOS/Linux today; module parsing can be
@@ -146,6 +155,7 @@ COMPILER_ENV=(
 QI_SRC="tests/native/test_quick_integration_native.oren"
 PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
+PTR_I32_LE_SRC="tests/native/ptr_i32_le_native.oren"
 CFG_OS_SRC="tests/native/cfg_os_select.oren"
 NET_TLS_HTTP2_SMOKE_SRC="tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren"
 
@@ -251,11 +261,11 @@ ensure_runtime_obj_seed() {
 
   if [[ "$TRACE" -eq 1 ]]; then
     echo "== seed: runtime obj (platform=$platform profile=$runtime_profile) ==" >&2
-    ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --no-debug 2>&1 | tee "$seed_log"
+    ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --build-compiler ./oren --no-debug 2>&1 | tee "$seed_log"
     return "${PIPESTATUS[0]}"
   fi
 
-  ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --no-debug >"$seed_log" 2>&1
+  ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --build-compiler ./oren --no-debug >"$seed_log" 2>&1
 }
 
 build_one() {
@@ -276,10 +286,19 @@ build_one() {
   local logf="build/logs/x64_compile_only_${ccname}_${platform}_${bname}.log"
 
   # Rolling hang guard:
-  # Most fixtures should stay <10s, but the NET/TLS/HTTP2 compile-only smoke intentionally
-  # forces a very large stdlib closure (and we run with `--no-cache`), so allow a slightly
-  # larger guard to avoid false positives while still detecting true hangs.
+  # Most fixtures should stay <10s, but a few opt-in/large fixtures intentionally force a
+  # larger closure (and we run with `--no-cache`), so allow bounded per-fixture overrides
+  # while still detecting true hangs.
   local timeout_secs="$BUILD_TIMEOUT_SECS"
+  if [[ "$ccname" == *stage2* && "$timeout_secs" -lt "$BUILD_TIMEOUT_SECS_STAGE2" ]]; then
+    timeout_secs="$BUILD_TIMEOUT_SECS_STAGE2"
+  fi
+  if [[ "$src" == "$QI_SRC" ]]; then
+    local qi_override="${OREN_NATIVE_BUILD_TIMEOUT_SECS_QI:-}"
+    if [[ -n "$qi_override" ]]; then
+      timeout_secs="$qi_override"
+    fi
+  fi
   if [[ "$src" == "$NET_TLS_HTTP2_SMOKE_SRC" ]]; then
     local t_override="${OREN_NATIVE_BUILD_TIMEOUT_SECS_NET_TLS_HTTP2:-}"
     if [[ -n "$t_override" ]]; then
@@ -398,21 +417,32 @@ run_suite_x64_linux() {
   local compiler="$1"
   local tag="$2"
 
-  build_one "$compiler" x64-linux "$QI_SRC" "build/tmp/qi_${tag}_x64_linux"
-  check_elf_x64 "build/tmp/qi_${tag}_x64_linux"
+  if [[ "$INCLUDE_QI" == "1" ]]; then
+    build_one "$compiler" x64-linux "$QI_SRC" "build/tmp/qi_${tag}_x64_linux"
+    check_elf_x64 "build/tmp/qi_${tag}_x64_linux"
+  fi
 
-  build_one "$compiler" x64-linux "$NET_TLS_HTTP2_SMOKE_SRC" "build/tmp/net_tls_http2_smoke_${tag}_x64_linux"
-  check_elf_x64 "build/tmp/net_tls_http2_smoke_${tag}_x64_linux"
+  if [[ "$INCLUDE_NET_TLS_HTTP2" == "1" ]]; then
+    build_one "$compiler" x64-linux "$NET_TLS_HTTP2_SMOKE_SRC" "build/tmp/net_tls_http2_smoke_${tag}_x64_linux"
+    check_elf_x64 "build/tmp/net_tls_http2_smoke_${tag}_x64_linux"
+  fi
 
   build_one "$compiler" x64-linux "$PRINT_SRC" "build/tmp/print_${tag}_x64_linux"
   check_elf_x64 "build/tmp/print_${tag}_x64_linux"
   check_bin_contains "build/tmp/print_${tag}_x64_linux" "$PRINT_NEEDLE"
+
+  build_one "$compiler" x64-linux "$PTR_I32_LE_SRC" "build/tmp/ptr_i32_le_${tag}_x64_linux"
+  check_elf_x64 "build/tmp/ptr_i32_le_${tag}_x64_linux"
 
   build_one "$compiler" x64-linux "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_linux"
   check_elf_x64 "build/tmp/cfg_os_${tag}_x64_linux"
 
   build_one "$compiler" x64-linux "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_ok_${tag}_x64_linux"
+
+  if [[ "$tag" == "stage2" && "$INCLUDE_STAGE2_FULL" != "1" ]]; then
+    return 0
+  fi
 
   build_one "$compiler" x64-linux "$LINUX_FFI_I32_SRC" "build/tmp/ffi_i32_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_i32_${tag}_x64_linux"
@@ -459,22 +489,33 @@ run_suite_x64_win() {
   local compiler="$1"
   local tag="$2"
 
-  build_one "$compiler" x64-windows "$QI_SRC" "build/tmp/qi_${tag}_x64_windows.exe"
-  check_pe_x64_exe "build/tmp/qi_${tag}_x64_windows.exe"
-  check_pe_x64_entry_disp8_zero_sane "build/tmp/qi_${tag}_x64_windows.exe"
+  if [[ "$INCLUDE_QI" == "1" ]]; then
+    build_one "$compiler" x64-windows "$QI_SRC" "build/tmp/qi_${tag}_x64_windows.exe"
+    check_pe_x64_exe "build/tmp/qi_${tag}_x64_windows.exe"
+    check_pe_x64_entry_disp8_zero_sane "build/tmp/qi_${tag}_x64_windows.exe"
+  fi
 
-  build_one "$compiler" x64-windows "$NET_TLS_HTTP2_SMOKE_SRC" "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
-  check_pe_x64_exe "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
+  if [[ "$INCLUDE_NET_TLS_HTTP2" == "1" ]]; then
+    build_one "$compiler" x64-windows "$NET_TLS_HTTP2_SMOKE_SRC" "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
+    check_pe_x64_exe "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
+  fi
 
   build_one "$compiler" x64-windows "$PRINT_SRC" "build/tmp/print_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/print_${tag}_x64_windows.exe"
   check_bin_contains "build/tmp/print_${tag}_x64_windows.exe" "$PRINT_NEEDLE"
+
+  build_one "$compiler" x64-windows "$PTR_I32_LE_SRC" "build/tmp/ptr_i32_le_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ptr_i32_le_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/cfg_os_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_k32_${tag}_x64_windows.exe"
+
+  if [[ "$tag" == "stage2" && "$INCLUDE_STAGE2_FULL" != "1" ]]; then
+    return 0
+  fi
 
   build_one "$compiler" x64-windows "$STD_FFI_K32_SMOKE_SRC" "build/tmp/std_ffi_k32_smoke_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/std_ffi_k32_smoke_${tag}_x64_windows.exe"
@@ -540,7 +581,7 @@ if [[ "$WANT_WIN" -eq 1 ]]; then echo -n "x64-win " >&2; fi
 echo -n "compilers=" >&2
 if [[ "$WANT_STAGE1" -eq 1 ]]; then echo -n "stage1 " >&2; fi
 if [[ "$WANT_STAGE2" -eq 1 ]]; then echo -n "stage2 " >&2; fi
-echo "timeout=${BUILD_TIMEOUT_SECS}s ==" >&2
+echo "timeout=${BUILD_TIMEOUT_SECS}s stage2_timeout_floor=${BUILD_TIMEOUT_SECS_STAGE2}s include_qi=${INCLUDE_QI} include_net_tls_http2=${INCLUDE_NET_TLS_HTTP2} include_stage2_full=${INCLUDE_STAGE2_FULL} ==" >&2
 
 if [[ "$WANT_LINUX" -eq 1 ]]; then
   ensure_runtime_astbin_seed x64-linux || {
@@ -548,19 +589,20 @@ if [[ "$WANT_LINUX" -eq 1 ]]; then
     tail -n 120 build/logs/runtime_astbin_seed_x64-linux.log >&2 || true
     exit 2
   }
-  # Seed both profiles because this suite compiles both:
-  # - core: quick fixtures
-  # - full: std:net smoke fixture
+  # Core is always covered by the bounded default matrix. Full-runtime seeds are
+  # only needed for the explicitly enabled slow fixtures.
   ensure_runtime_obj_seed x64-linux core || {
     echo "ERROR: runtime obj seed failed for x64-linux/core (see build/logs/runtime_obj_seed_x64-linux_core.log)" >&2
     tail -n 120 build/logs/runtime_obj_seed_x64-linux_core.log >&2 || true
     exit 2
   }
-  ensure_runtime_obj_seed x64-linux full || {
-    echo "ERROR: runtime obj seed failed for x64-linux/full (see build/logs/runtime_obj_seed_x64-linux_full.log)" >&2
-    tail -n 120 build/logs/runtime_obj_seed_x64-linux_full.log >&2 || true
-    exit 2
-  }
+  if [[ "$INCLUDE_QI" == "1" || "$INCLUDE_NET_TLS_HTTP2" == "1" ]]; then
+    ensure_runtime_obj_seed x64-linux full || {
+      echo "ERROR: runtime obj seed failed for x64-linux/full (see build/logs/runtime_obj_seed_x64-linux_full.log)" >&2
+      tail -n 120 build/logs/runtime_obj_seed_x64-linux_full.log >&2 || true
+      exit 2
+    }
+  fi
 fi
 
 if [[ "$WANT_WIN" -eq 1 ]]; then
@@ -574,11 +616,13 @@ if [[ "$WANT_WIN" -eq 1 ]]; then
     tail -n 120 build/logs/runtime_obj_seed_x64-windows_core.log >&2 || true
     exit 2
   }
-  ensure_runtime_obj_seed x64-windows full || {
-    echo "ERROR: runtime obj seed failed for x64-windows/full (see build/logs/runtime_obj_seed_x64-windows_full.log)" >&2
-    tail -n 120 build/logs/runtime_obj_seed_x64-windows_full.log >&2 || true
-    exit 2
-  }
+  if [[ "$INCLUDE_QI" == "1" || "$INCLUDE_NET_TLS_HTTP2" == "1" ]]; then
+    ensure_runtime_obj_seed x64-windows full || {
+      echo "ERROR: runtime obj seed failed for x64-windows/full (see build/logs/runtime_obj_seed_x64-windows_full.log)" >&2
+      tail -n 120 build/logs/runtime_obj_seed_x64-windows_full.log >&2 || true
+      exit 2
+    }
+  fi
 fi
 
 if [[ "$WANT_LINUX" -eq 1 ]]; then

@@ -1098,11 +1098,42 @@ fn _astbin_guess_pool_cap_for_v2(v) {
             if cand_fx > cap2 { cap2 = cand_fx }
         }
     }
+    var x64fxc = v["x64_fixups_compact"]
+    if x64fxc != nil && _astbin_is_map(x64fxc) {
+        var nx64fx = 0
+        var x64_call = x64fxc["call_pos_enc"]
+        if x64_call != nil && _astbin_is_list(x64_call) { nx64fx = nx64fx + oren_list_len(x64_call) }
+        var x64_data = x64fxc["rip_data_lea_pos_enc"]
+        if x64_data != nil && _astbin_is_list(x64_data) { nx64fx = nx64fx + oren_list_len(x64_data) }
+        var x64_data_rsi = x64fxc["rip_data_lea_rsi_pos_enc"]
+        if x64_data_rsi != nil && _astbin_is_list(x64_data_rsi) { nx64fx = nx64fx + oren_list_len(x64_data_rsi) }
+        var x64_data_mov = x64fxc["rip_data_mov_rax_pos_enc"]
+        if x64_data_mov != nil && _astbin_is_list(x64_data_mov) { nx64fx = nx64fx + oren_list_len(x64_data_mov) }
+        var x64_fnobj = x64fxc["data_fnobj_code_ptr_data_off_enc"]
+        if x64_fnobj != nil && _astbin_is_list(x64_fnobj) { nx64fx = nx64fx + oren_list_len(x64_fnobj) }
+        var x64_code = x64fxc["rip_code_lea_pos_enc"]
+        if x64_code != nil && _astbin_is_list(x64_code) { nx64fx = nx64fx + oren_list_len(x64_code) }
+        var x64_rdata = x64fxc["rip_rdata_lea_pos_enc"]
+        if x64_rdata != nil && _astbin_is_list(x64_rdata) { nx64fx = nx64fx + oren_list_len(x64_rdata) }
+        if nx64fx > 0 {
+            var cand_x64_fx = nx64fx * 2
+            if cand_x64_fx > cap2 { cap2 = cand_x64_fx }
+        }
+    }
     var fnm = v["fn_offs_enc"]
     if fnm != nil && _astbin_is_map(fnm) {
         var nfn = oren_map_len(fnm)
         var cand = nfn * 4
         if cand > cap2 { cap2 = cand }
+    }
+    var x64fnc = v["fn_offsets_compact"]
+    if x64fnc != nil && _astbin_is_map(x64fnc) {
+        var x64_names = x64fnc["names"]
+        if x64_names != nil && _astbin_is_list(x64_names) {
+            var nx64fn = oren_list_len(x64_names)
+            var cand_x64_fn = nx64fn * 2
+            if cand_x64_fn > cap2 { cap2 = cand_x64_fn }
+        }
     }
     var gl = v["globals"]
     if gl != nil && _astbin_is_map(gl) {

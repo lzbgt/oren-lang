@@ -3712,6 +3712,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  - Next: make the forced cold rtobj seed path cheap enough to refresh cache entries quickly
 	    after compiler-side metadata/layout changes (current log:
 	    `build/logs/codex_build_rtobj_seed_arm64_20260308.log`).
+	  - Update (2026-04-11): x64 rtobj cache hits now use the same lazy-metadata principle instead
+	    of eagerly decoding large runtime metadata before user compilation. X64 runtime-object sig
+	    `x64_v0_23` stores compact fixups (`x64_fixups_compact`), compact function offsets
+	    (`fn_offsets_compact`), and lazy cstr0 offsets; ELF/PE and symtab emission resolve runtime
+	    function offsets through lazy lookup sidecars instead of merging the runtime function map
+	    into `ctx["functions"]`. The fixed cache-hit trace reaches user-function compilation after
+	    attaching compact offsets/fixups
+	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_lookup_trace_20260411_225344.log`), while
+	    full QI and NET/TLS/HTTP2 stage2 x64 no-cache compiles remain separate throughput work
+	    (`build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log`,
+	    `build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log`). Reweight:
+	    keep `make verify-native-x64-compile` bounded by default and use
+	    `OREN_NATIVE_X64_INCLUDE_QI=1`, `OREN_NATIVE_X64_INCLUDE_NET_TLS_HTTP2=1`, or
+	    `OREN_NATIVE_X64_INCLUDE_STAGE2_FULL=1` only when intentionally probing those slow surfaces.
+	    The cleaned default Make verifier passed in
+	    `build/logs/verify_native_x64_compile_lazy_fn_offsets_make_default_20260411_233255.log`
+	    (376s on this host).
 	  - Trace: stage2 quick-integration flake harness ran 10 passes without failure on 2026-03-03
 	    (log: `build/logs/triage_stage2_quick_20260303_214758.log`).
   - New: `scripts/triage_native_quick_flake.sh` runs stage1 native quick integration in a loop

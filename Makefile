@@ -395,8 +395,9 @@ rtobj-seed: oren_stage2 astbin-seed
 		fi
 
 # Generate/update rtobj seed for cross x64 targets (best-effort).
-# This keeps `make verify-native-x64-compile` bounded even on a clean cache
-# (the NET/TLS/HTTP2 smoke is intentionally large; see `scripts/verify_native_x64_compile_only.sh` for its timeout guard).
+# This keeps `make verify-native-x64-compile` bounded even on a clean cache; the
+# verifier keeps full QI / NET/TLS/HTTP2 / broad stage2 FFI sweeps behind explicit
+# opt-in envs in `scripts/verify_native_x64_compile_only.sh`.
 #
 # Warm x64 astbin seeds first so cold capsule rtobj fills can inject the prebuilt runtime astbin
 # directly instead of re-expanding the runtime on first miss.

@@ -56,6 +56,158 @@ fn _elf_decode_data_off(enc) {
     return enc - 1
 }
 
+fn _elf_rtobj_decode_enc0(enc) {
+    if oren_type_tag(enc) == 1 && enc > 0 { return enc - 1 }
+    return 0
+}
+
+fn _elf_x64_string_eq(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    if oren_type_tag(a) != 4 { return false }
+    if oren_type_tag(b) != 4 { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        var ba = oren_string_byte_at_unchecked(a, i) & 255
+        var bb = oren_string_byte_at_unchecked(b, i) & 255
+        if ba != bb { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _elf_x64_lookup_fn(ctx, functions, name) {
+    var target = nil
+    if name != nil && functions != nil { target = functions[name] }
+    if target != nil { return target }
+    if ctx == nil || name == nil { return nil }
+    var comp = ctx["runtime_x64_fn_offsets_compact"]
+    var base = ctx["runtime_x64_fn_offsets_base_code"]
+    if base == nil { base = 0 }
+    if comp != nil {
+        var names = comp["names"]
+        var offs = comp["offs_enc"]
+        var i = 0
+        while names != nil && i < oren_list_len(names) {
+            if _elf_x64_string_eq(names[i], name) {
+                var off_enc = nil
+                if offs != nil { off_enc = offs[i] }
+                return base + _elf_rtobj_decode_enc0(off_enc)
+            }
+            i = i + 1
+        }
+    }
+    var enc_map = ctx["runtime_x64_fn_offsets_enc"]
+    if enc_map != nil {
+        var enc = enc_map[name]
+        if oren_type_tag(enc) == 1 && enc > 0 { return base + (enc - 1) }
+    }
+    return nil
+}
+
+fn _elf_apply_x64_rtobj_rip_data_fixups(code, poss, offs, rtbase, text_base, data_base_off) {
+    if poss == nil { return nil }
+    var n = oren_list_len(poss)
+    var i = 0
+    while i < n {
+        var disp_pos = rtbase + _elf_rtobj_decode_enc0(poss[i])
+        var data_off = 0
+        if offs != nil { data_off = _elf_rtobj_decode_enc0(offs[i]) }
+        var insn_start = disp_pos - 3
+        var next_rip = text_base + (insn_start + 7)
+        var target_addr = text_base + data_base_off + data_off
+        var disp = target_addr - next_rip
+        if disp < 0 { disp = 4294967296 + disp }
+        set_u32_le(code, disp_pos, disp)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _elf_apply_x64_rtobj_call_fixups(ctx, code, poss, names, rtbase, functions) {
+    if poss == nil { return nil }
+    var n = oren_list_len(poss)
+    var i = 0
+    while i < n {
+        var name = nil
+        if names != nil { name = names[i] }
+        var target = _elf_x64_lookup_fn(ctx, functions, name)
+        if target == nil {
+            print("x64 elf: undefined function " + name)
+            oren_exit(1)
+        }
+        var pos = rtbase + _elf_rtobj_decode_enc0(poss[i])
+        var disp = target - (pos + 5)
+        if disp < 0 { disp = 4294967296 + disp }
+        set_u32_le(code, pos + 1, disp)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _elf_apply_x64_rtobj_code_lea_fixups(ctx, code, poss, names, rtbase, functions, text_base) {
+    if poss == nil { return nil }
+    var n = oren_list_len(poss)
+    var i = 0
+    while i < n {
+        var name = nil
+        if names != nil { name = names[i] }
+        var target_off = _elf_x64_lookup_fn(ctx, functions, name)
+        if target_off == nil {
+            print("x64 elf: undefined function " + name)
+            oren_exit(1)
+        }
+        var disp_pos = rtbase + _elf_rtobj_decode_enc0(poss[i])
+        var insn_start = disp_pos - 3
+        var next_rip = text_base + (insn_start + 7)
+        var target_addr = text_base + target_off
+        var disp = target_addr - next_rip
+        if disp < 0 { disp = 4294967296 + disp }
+        set_u32_le(code, disp_pos, disp)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _elf_apply_x64_rtobj_fnobj_fixups(ctx, data, offs, names, functions, text_base, is_shared_lib) {
+    if offs == nil { return nil }
+    var n = oren_list_len(offs)
+    var i = 0
+    while i < n {
+        var name = nil
+        if names != nil { name = names[i] }
+        var target_off = _elf_x64_lookup_fn(ctx, functions, name)
+        if target_off == nil {
+            print("x64 elf: undefined function " + name)
+            oren_exit(1)
+        }
+        var data_off = _elf_rtobj_decode_enc0(offs[i])
+        if is_shared_lib == true { set_u64_le(data, data_off, 0) }
+        else { set_u64_le(data, data_off, text_base + target_off) }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _elf_apply_x64_rtobj_compact_fixups(ctx, code, data, functions, text_base, data_base_off, is_shared_lib) {
+    if ctx == nil { return nil }
+    var fx = ctx["runtime_x64_fixups_compact"]
+    if fx == nil { return nil }
+    var rtbase = ctx["runtime_x64_fixups_base_code"]
+    if rtbase == nil { rtbase = 0 }
+    _elf_apply_x64_rtobj_call_fixups(ctx, code, fx["call_pos_enc"], fx["call_name"], rtbase, functions)
+    _elf_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_lea_pos_enc"], fx["rip_data_lea_data_off_enc"], rtbase, text_base, data_base_off)
+    _elf_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_lea_rsi_pos_enc"], fx["rip_data_lea_rsi_data_off_enc"], rtbase, text_base, data_base_off)
+    _elf_apply_x64_rtobj_rip_data_fixups(code, fx["rip_data_mov_rax_pos_enc"], fx["rip_data_mov_rax_data_off_enc"], rtbase, text_base, data_base_off)
+    _elf_apply_x64_rtobj_rip_data_fixups(code, fx["rip_rdata_lea_pos_enc"], fx["rip_rdata_lea_data_off_enc"], rtbase, text_base, data_base_off)
+    _elf_apply_x64_rtobj_fnobj_fixups(ctx, data, fx["data_fnobj_code_ptr_data_off_enc"], fx["data_fnobj_code_ptr_name"], functions, text_base, is_shared_lib)
+    _elf_apply_x64_rtobj_code_lea_fixups(ctx, code, fx["rip_code_lea_pos_enc"], fx["rip_code_lea_name"], rtbase, functions, text_base)
+    return nil
+}
+
 fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {
     // Emit one Elf64_Phdr (56 bytes) into `p`.
     push_u32_le(p, p_type)
@@ -418,6 +570,29 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         }
 
         // Relocate fnobj code_ptr fields (emitted by x64_native_program as absolute pointers in ET_EXEC mode).
+        var rt_fx = ctx["runtime_x64_fixups_compact"]
+        if rt_fx != nil {
+            var rt_offs = rt_fx["data_fnobj_code_ptr_data_off_enc"]
+            var rt_names = rt_fx["data_fnobj_code_ptr_name"]
+            var ri = 0
+            while rt_offs != nil && ri < oren_list_len(rt_offs) {
+                var rnm = nil
+                if rt_names != nil { rnm = rt_names[ri] }
+                var rfn = _elf_x64_lookup_fn(ctx, functions, rnm)
+                if rfn == nil {
+                    print("x64 elf: internal: relocation requested for missing function: " + rnm)
+                    oren_exit(1)
+                }
+                var rdata_off = _elf_rtobj_decode_enc0(rt_offs[ri])
+                var r_offset_rt = base + data_file_off + rdata_off
+                var r_info_rt = 0 * 4294967296 + rela_type_relative
+                var add_rt = text_base + rfn
+                push_u64_le(rela, r_offset_rt)
+                push_u64_le(rela, r_info_rt)
+                push_u64_le(rela, add_rt)
+                ri = ri + 1
+            }
+        }
         var fx = ctx["fixups"]
         if fx == nil { fx = [] }
         var fi = 0
@@ -425,8 +600,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
             var f0 = fx[fi]
             if f0 != nil && f0["type"] == "data_fnobj_code_ptr" {
                 var nm0 = f0["name"]
-                var fn_off0 = nil
-                if nm0 != nil && functions != nil { fn_off0 = functions[nm0] }
+                var fn_off0 = _elf_x64_lookup_fn(ctx, functions, nm0)
                 if fn_off0 == nil {
                     print("x64 elf: internal: relocation requested for missing function: " + nm0)
                     oren_exit(1)
@@ -730,6 +904,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
     }
 
     if trace_sum { t_fix_start = oren_time_now_ns() }
+    _elf_apply_x64_rtobj_compact_fixups(ctx, code, data, functions, text_base, data_base_off, is_shared_lib)
     var i = 0
     while i < oren_list_len(fixups) {
         var f = fixups[i]
@@ -773,7 +948,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
         }
         if f["type"] == "call_rel32" {
             var name = f["name"]
-            var target = functions[name]
+            var target = _elf_x64_lookup_fn(ctx, functions, name)
             if target == nil {
                 print("x64 elf: undefined function " + name)
                 oren_exit(1)
@@ -834,7 +1009,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             // - ET_EXEC: store the absolute virtual address (fixed base).
             // - ET_DYN (.so): store 0 and rely on a R_X86_64_RELATIVE relocation emitted in `.rela.dyn`.
             var name2 = f["name"]
-            var target_off2 = functions[name2]
+            var target_off2 = _elf_x64_lookup_fn(ctx, functions, name2)
             if target_off2 == nil {
                 print("x64 elf: undefined function " + name2)
                 oren_exit(1)
@@ -855,7 +1030,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             // f["pos"] points to disp32 field within the instruction.
             var disp_pos3 = f["pos"]
             var name2 = f["name"]
-            var target_off2 = functions[name2]
+            var target_off2 = _elf_x64_lookup_fn(ctx, functions, name2)
             if target_off2 == nil {
                 print("x64 elf: undefined function " + name2)
                 oren_exit(1)

@@ -6,6 +6,9 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
     // after the entry stub is emitted so the entrypoint stays at offset 0.
     if ctx == nil || meta == nil { return false }
     if ctx["errors"] == nil { ctx["errors"] = [] }
+    var trace = oren_env("OREN_TRACE_X64_RTOBJ_APPLY") != nil
+    if trace != true && oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace = true }
+    if trace { print("[x64_rtobj_apply] data/meta start") }
 
     var want_prefix = rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN
     var have_prefix = bytes_len(ctx["data"])
@@ -17,9 +20,11 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
     // Append runtime data tail (after the shared prefix slot).
     var data_tail = meta["data_tail_u8"]
     if data_tail != nil { bytes_extend_u8_buf(ctx["data"], data_tail) }
+    if trace { print("[x64_rtobj_apply] data tail merged") }
 
     // Merge runtime globals (name -> data_off+1).
     if meta["globals"] != nil {
+        if trace { print("[x64_rtobj_apply] globals merge start") }
         var idxg = 0
         var pairg = [nil, nil]
         while 1 {
@@ -36,11 +41,13 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
             }
             idxg = idxg + 1
         }
+        if trace { print("[x64_rtobj_apply] globals merge done count=" + oren_int_to_string(idxg)) }
     }
 
     // Merge runtime imports/FFI link names so emitters can resolve runtime external calls.
     var imp_rt = meta["import_list"]
     if imp_rt != nil {
+        if trace { print("[x64_rtobj_apply] imports merge start count=" + oren_int_to_string(oren_list_len(imp_rt))) }
         if ctx["imports"] == nil { ctx["imports"] = {} }
         if ctx["import_list"] == nil { ctx["import_list"] = [] }
         var ii = 0
@@ -52,9 +59,11 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
             }
             ii = ii + 1
         }
+        if trace { print("[x64_rtobj_apply] imports merge done") }
     }
     var ln = meta["ffi_link_names"]
     if ln != nil {
+        if trace { print("[x64_rtobj_apply] ffi link merge start") }
         if ctx["ffi_link_names"] == nil { ctx["ffi_link_names"] = {} }
         var idxl = 0
         var pairl = [nil, nil]
@@ -72,6 +81,7 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
             }
             idxl = idxl + 1
         }
+        if trace { print("[x64_rtobj_apply] ffi link merge done count=" + oren_int_to_string(idxl)) }
     }
 
     // Merge runtime cstr0 dedup map (string -> off+1).
@@ -90,6 +100,7 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
     // - Opt-in: set `OREN_X64_RT_OBJ_MERGE_CSTR0_OFFS=1` to merge and reduce binary size.
     var merge_cstr0_offs = oren_env("OREN_X64_RT_OBJ_MERGE_CSTR0_OFFS") != nil
     if merge_cstr0_offs && meta["cstr0_offs"] != nil {
+        if trace { print("[x64_rtobj_apply] cstr0 offs merge start") }
         if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
         var idxo = 0
         var pairo = [nil, nil]
@@ -105,28 +116,32 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
             }
             idxo = idxo + 1
         }
+        if trace { print("[x64_rtobj_apply] cstr0 offs merge done count=" + oren_int_to_string(idxo)) }
     }
 
-    // Merge runtime cstr0 offsets list (decoded offs into ctx list).
-    if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
+    // Keep runtime cstr0 offsets encoded until final data-table emission.
+    //
+    // Stage2-native x64 can spend disproportionate time in the eager decode+push merge
+    // even for modest runtime literal tables. Stashing the encoded/u8 rtobj list matches the
+    // arm64 rtobj path and leaves `ctx["cstr0_list"]` for user/backend-emitted literals only.
+    if trace { print("[x64_rtobj_apply] cstr0 list stash start") }
+    var c0_u8 = meta["cstr0_offsets_u8"]
+    if c0_u8 != nil {
+        ctx["rtobj_cstr0_offsets_u8"] = c0_u8
+    }
     var c0 = meta["cstr0_list_enc"]
     if c0 != nil {
-        var i0 = 0
-        while i0 < oren_list_len(c0) {
-            var off_enc2 = c0[i0]
-            var off2 = _rtobj_decode_int_enc(off_enc2)
-            if off2 != nil {
-                oren_list_push(ctx["cstr0_list"], off2)
-            }
-            i0 = i0 + 1
-        }
+        ctx["rtobj_cstr0_list_enc"] = c0
     }
+    if trace { print("[x64_rtobj_apply] cstr0 list stash done") }
 
     // Seed function metadata (for lambda capture analysis + wrapper synthesis + var shadow checks).
+    if trace { print("[x64_rtobj_apply] function metadata seed start") }
     if meta["declared_functions"] != nil { ctx["declared_functions"] = meta["declared_functions"] }
     if meta["func_arity"] != nil { ctx["func_arity"] = meta["func_arity"] }
     if meta["func_varargs_fixed"] != nil { ctx["func_varargs_fixed"] = meta["func_varargs_fixed"] }
     if meta["func_decl_order"] != nil { ctx["func_decl_order"] = meta["func_decl_order"] }
+    if trace { print("[x64_rtobj_apply] function metadata seed done") }
 
     // Prevent lambda wrapper name collisions with the cached runtime.
     var lc_enc = meta["lambda_counter_enc"]
@@ -138,7 +153,45 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
     ctx["runtime_injected"] = true
     // Stash the full meta (including code_u8) for a later splice after entry stub emission.
     ctx["rtobj_pending"] = meta
+    if trace { print("[x64_rtobj_apply] data/meta done") }
     return true
+}
+
+fn _x64_rtobj_string_eq(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    if oren_type_tag(a) != 4 { return false }
+    if oren_type_tag(b) != 4 { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        var ba = oren_string_byte_at_unchecked(a, i) & 255
+        var bb = oren_string_byte_at_unchecked(b, i) & 255
+        if ba != bb { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, fx) {
+    if ctx == nil || fx == nil { return nil }
+    var names = fx["call_name"]
+    if names == nil { return nil }
+    var helper_name = _x64_panic_helper_name()
+    var i = 0
+    while i < oren_list_len(names) {
+        if _x64_rtobj_string_eq(names[i], helper_name) {
+            // Runtime object code may contain compiler-generated abort sites that call the
+            // shared panic helper. Mark it needed so the final program emits the helper
+            // even when user code itself doesn't trigger a compiler panic path.
+            ctx["need_panic_helper"] = true
+            return nil
+        }
+        i = i + 1
+    }
+    return nil
 }
 
 fn _x64_rtobj_apply_code_to_ctx(ctx) {
@@ -147,19 +200,48 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     var meta = ctx["rtobj_pending"]
     if meta == nil { return false }
     if ctx["errors"] == nil { ctx["errors"] = [] }
+    var trace = oren_env("OREN_TRACE_X64_RTOBJ_APPLY") != nil
+    if trace != true && oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace = true }
 
     var base_code = bytes_len(ctx["code"])
+    if trace { print("[x64_rtobj_apply] start base_code=" + oren_int_to_string(base_code)) }
 
     // Append runtime code.
     var code_u8 = meta["code_u8"]
+    if trace {
+        var code_n = -1
+        if code_u8 != nil && oren_is_u8_buf(code_u8) == true { code_n = oren_buf_len(code_u8) }
+        print("[x64_rtobj_apply] append code start bytes=" + oren_int_to_string(code_n))
+    }
     if code_u8 != nil { bytes_extend_u8_buf(ctx["code"], code_u8) }
+    if trace { print("[x64_rtobj_apply] append code done total_code=" + oren_int_to_string(bytes_len(ctx["code"]))) }
 
     // Merge runtime function code offsets (name -> off+1 encoding in meta).
+    //
+    // Prefer the compact parallel-list form. The legacy map is kept for older cache entries, but
+    // repeatedly walking that map during stage2 x64 cache hits is a measurable bottleneck.
+    var fn_compact = meta["fn_offsets_compact"]
+    var fn_compact_names = nil
+    var fn_compact_n = 0
+    if fn_compact != nil {
+        fn_compact_names = fn_compact["names"]
+        if fn_compact_names != nil { fn_compact_n = oren_list_len(fn_compact_names) }
+    }
     var fn_offs_enc = meta["fn_offs_enc"]
-    if fn_offs_enc != nil {
+    if fn_compact_n > 0 {
+        ctx["runtime_x64_fn_offsets_compact"] = fn_compact
+        ctx["runtime_x64_fn_offsets_base_code"] = base_code
+        if trace { print("[x64_rtobj_apply] function offsets compact attached count=" + oren_int_to_string(fn_compact_n)) }
+    } else if fn_offs_enc != nil {
+        if ctx["functions"] == nil { ctx["functions"] = {} }
+        var fn_map_n = oren_map_len(fn_offs_enc)
+        if trace { print("[x64_rtobj_apply] function offsets start count=" + oren_int_to_string(fn_map_n)) }
         var idxf = 0
         var pairf = [nil, nil]
         while 1 {
+            if trace && idxf >= 0 && (idxf / 1000) * 1000 == idxf {
+                print("[x64_rtobj_apply] function offset " + oren_int_to_string(idxf) + "/" + oren_int_to_string(fn_map_n))
+            }
             var okf = oren_iter_next_entry(fn_offs_enc, idxf, pairf)
             if okf == 0 { break }
             var nm = pairf[0]
@@ -170,13 +252,30 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
             }
             idxf = idxf + 1
         }
+        if trace { print("[x64_rtobj_apply] function offsets done count=" + oren_int_to_string(idxf)) }
+    }
+
+    var x64_fx_compact = meta["x64_fixups_compact"]
+    if x64_fx_compact != nil {
+        ctx["runtime_x64_fixups_compact"] = x64_fx_compact
+        ctx["runtime_x64_fixups_base_code"] = base_code
+        _x64_rtobj_compact_mark_panic_helper_if_needed(ctx, x64_fx_compact)
+        if trace { print("[x64_rtobj_apply] compact fixups attached") }
     }
 
     // Merge runtime fixups (pos encoded as +1; adjust by base_code).
+    //
+    // New x64 rtobj entries store the hot runtime fixups in `x64_fixups_compact`.
+    // This fallback remains for unknown/new fixup types and for legacy cache entries.
     var fx = meta["fixups_enc"]
     if fx != nil {
+        if trace { print("[x64_rtobj_apply] fixups start count=" + oren_int_to_string(oren_list_len(fx))) }
         var fi = 0
-        while fi < oren_list_len(fx) {
+        var fx_n = oren_list_len(fx)
+        while fi < fx_n {
+            if trace && fi >= 0 && (fi / 1000) * 1000 == fi {
+                print("[x64_rtobj_apply] fixup " + oren_int_to_string(fi) + "/" + oren_int_to_string(fx_n))
+            }
             var f0 = fx[fi]
             if f0 != nil {
                 var pos = _rtobj_decode_int_enc(f0["pos"])
@@ -209,11 +308,13 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
             }
             fi = fi + 1
         }
+        if trace { print("[x64_rtobj_apply] fixups done count=" + oren_int_to_string(fi)) }
     }
 
     // Preferred representation (rolling): rip_data32 positions aggregated by label.
     var r32 = meta["rip_data32_fixups_enc"]
     if r32 != nil {
+        if trace { print("[x64_rtobj_apply] rip_data32 start") }
         var idx2 = 0
         var pair2 = [nil, nil]
         while 1 {
@@ -232,9 +333,11 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
             }
             idx2 = idx2 + 1
         }
+        if trace { print("[x64_rtobj_apply] rip_data32 done labels=" + oren_int_to_string(idx2)) }
     }
 
     ctx["rtobj_pending"] = nil
+    if trace { print("[x64_rtobj_apply] done") }
     return true
 }
 
@@ -505,6 +608,8 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         "runtime_hash": runtime_hash,
         "data_prefix_len": prefix,
         "fn_offs_enc": _x64_rtobj_encode_offsets_map_int(ctx["functions"]),
+        "fn_offsets_compact": _x64_rtobj_encode_fn_offsets_compact(ctx["functions"]),
+        "x64_fixups_compact": _x64_rtobj_encode_fixups_compact(ctx["fixups"]),
         "fixups_enc": _x64_rtobj_encode_fixups(ctx["fixups"]),
         "rip_data32_fixups_enc": _x64_rtobj_encode_rip_data32_fixups(ctx["rip_data32_fixups"]),
         "globals": ctx["globals"],
@@ -554,7 +659,8 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
               " data_bytes=" + oren_int_to_string(oren_buf_len(data_u8)) +
               " fixups_n=" + oren_int_to_string(fx_n))
     }
-    return {"meta": meta, "code_u8": code_u8, "data_tail_u8": tail}
+    var cstr0_offsets_u8 = _x64_rtobj_encode_offsets_u8_from_int_list(ctx["cstr0_list"])
+    return {"meta": meta, "code_u8": code_u8, "data_tail_u8": tail, "cstr0_offsets_u8": cstr0_offsets_u8}
 }
 
 fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
@@ -591,7 +697,7 @@ fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
 
     // Persist to cache.
     var meta = built["meta"]
-    rtobj.rtobj_store(dir, key, meta, built["code_u8"], built["data_tail_u8"], nil)
+    rtobj.rtobj_store(dir, key, meta, built["code_u8"], built["data_tail_u8"], built["cstr0_offsets_u8"])
 
     // Apply immediately (avoid re-reading).
     meta["code_u8"] = built["code_u8"]

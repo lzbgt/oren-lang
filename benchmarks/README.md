@@ -2105,6 +2105,20 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   `make perf-smoke-list-int-packed-bridge`, and `make perf-smoke-list-int-slot-direct` all honor
   `OREN_BENCH_ENV_BUILD_OREN`, and the hidden steady helper probes now record `build_env` in their
   summaries. That closes the last mixed-baseline gap in the helper-path perf tooling.
+- The x64 compile-only verifier now keeps its default matrix bounded after the 2026-04-11
+  runtime-object metadata fix. X64 rtobj cache entries use backend sig `x64_v0_23` with compact
+  fixup metadata, compact function-offset metadata, and a lazy cstr0 offset sidecar, so stage2
+  cache hits no longer eagerly walk the large runtime fixup/function/cstr0 maps before compiling
+  user code. The default `make verify-native-x64-compile` path now seeds x64 rtobjs through
+  `scripts/build_rtobj_seed.sh --compiler ./oren_stage2 --build-compiler ./oren`, skips full
+  quick-integration and NET/TLS/HTTP2 compile-only fixtures unless explicitly requested, and keeps
+  the broad no-cache stage2 FFI/shared-library matrix behind `OREN_NATIVE_X64_INCLUDE_STAGE2_FULL=1`.
+  The measured full fixture signals stay recorded separately: stage2 x64 full quick-integration
+  timed out at 300s in `build/logs/x64_stage2_qi_linux_lazy_fn_offsets_measure_20260411_225556.log`,
+  and stage2 x64 NET/TLS/HTTP2 timed out at 360s in
+  `build/logs/x64_stage2_net_tls_http2_linux_timeout_measure_20260411_231009.log`. The bounded
+  default Make verifier passed in `build/logs/verify_native_x64_compile_lazy_fn_offsets_make_default_20260411_233255.log`
+  (376s on this host).
 - The remaining direct-build perf probes now share the same parser too. Their
   `OREN_BENCH_ENV_BUILD_OREN` handling is centralized in `scripts/perf_build_env_lib.sh`, so
   comma-separated multi-var build envs no longer depend on per-script `join_build_env` /

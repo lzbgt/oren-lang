@@ -528,6 +528,28 @@ fn _x64_rtobj_encode_offsets_map_int(m) {
     return out
 }
 
+fn _x64_rtobj_encode_fn_offsets_compact(m) {
+    // Encode map<string,int> as parallel lists to avoid stage2 cache-hit map iteration.
+    if m == nil { return nil }
+    var names = []
+    var offs_enc = []
+    var idx = 0
+    var pair = [nil, nil]
+    while 1 {
+        var ok = oren_iter_next_entry(m, idx, pair)
+        if ok == 0 { break }
+        var k = pair[0]
+        var v = pair[1]
+        if k != nil && oren_type_tag(v) == 1 {
+            oren_list_push(names, k)
+            oren_list_push(offs_enc, v + 1)
+        }
+        idx = idx + 1
+    }
+    if oren_list_len(names) == 0 { return nil }
+    return {"names": names, "offs_enc": offs_enc}
+}
+
 fn _x64_rtobj_encode_offsets_list_int(xs) {
     if xs == nil { return [] }
     var out = []
@@ -541,6 +563,119 @@ fn _x64_rtobj_encode_offsets_list_int(xs) {
     return out
 }
 
+fn _x64_rtobj_encode_offsets_u8_from_int_list(xs) {
+    if xs == nil { return nil }
+    var b = bytes_new()
+    var i = 0
+    while i < oren_list_len(xs) {
+        push_u64_le(b, xs[i])
+        i = i + 1
+    }
+    return bytes_finalize(b)
+}
+
+fn _x64_rtobj_fixup_supported_by_compact(ty) {
+    if ty == "call_rel32" { return true }
+    if ty == "rip_data_lea" { return true }
+    if ty == "rip_data_lea_rsi" { return true }
+    if ty == "rip_data_mov_rax" { return true }
+    if ty == "data_fnobj_code_ptr" { return true }
+    if ty == "rip_code_lea" { return true }
+    if ty == "rip_rdata_lea" { return true }
+    return false
+}
+
+fn _x64_rtobj_fixup_push_pos_name(poss, names, f0) {
+    if f0 == nil { return false }
+    var pos = f0["pos"]
+    var name = f0["name"]
+    if oren_type_tag(pos) != 1 || name == nil { return false }
+    oren_list_push(poss, pos + 1)
+    oren_list_push(names, name)
+    return true
+}
+
+fn _x64_rtobj_fixup_push_data(poss, offs, f0) {
+    if f0 == nil { return false }
+    var pos = f0["pos"]
+    if oren_type_tag(pos) != 1 { return false }
+    var data_off = f0["data_off"]
+    oren_list_push(poss, pos + 1)
+    if oren_type_tag(data_off) == 1 { oren_list_push(offs, data_off + 1) }
+    else { oren_list_push(offs, 0) }
+    return true
+}
+
+fn _x64_rtobj_fixup_push_data_name(offs, names, f0) {
+    if f0 == nil { return false }
+    var name = f0["name"]
+    if name == nil { return false }
+    var data_off = f0["data_off"]
+    if oren_type_tag(data_off) == 1 { oren_list_push(offs, data_off + 1) }
+    else { oren_list_push(offs, 0) }
+    oren_list_push(names, name)
+    return true
+}
+
+fn _x64_rtobj_encode_fixups_compact(fixups) {
+    if fixups == nil { return nil }
+    var call_pos_enc = []
+    var call_name = []
+    var rip_data_lea_pos_enc = []
+    var rip_data_lea_data_off_enc = []
+    var rip_data_lea_rsi_pos_enc = []
+    var rip_data_lea_rsi_data_off_enc = []
+    var rip_data_mov_rax_pos_enc = []
+    var rip_data_mov_rax_data_off_enc = []
+    var data_fnobj_code_ptr_data_off_enc = []
+    var data_fnobj_code_ptr_name = []
+    var rip_code_lea_pos_enc = []
+    var rip_code_lea_name = []
+    var rip_rdata_lea_pos_enc = []
+    var rip_rdata_lea_data_off_enc = []
+    var any = false
+    var i = 0
+    while i < oren_list_len(fixups) {
+        var f0 = fixups[i]
+        if f0 != nil {
+            var ty = f0["type"]
+            if ty == "call_rel32" {
+                if _x64_rtobj_fixup_push_pos_name(call_pos_enc, call_name, f0) { any = true }
+            } else if ty == "rip_data_lea" {
+                if _x64_rtobj_fixup_push_data(rip_data_lea_pos_enc, rip_data_lea_data_off_enc, f0) { any = true }
+            } else if ty == "rip_data_lea_rsi" {
+                if _x64_rtobj_fixup_push_data(rip_data_lea_rsi_pos_enc, rip_data_lea_rsi_data_off_enc, f0) { any = true }
+            } else if ty == "rip_data_mov_rax" {
+                if _x64_rtobj_fixup_push_data(rip_data_mov_rax_pos_enc, rip_data_mov_rax_data_off_enc, f0) { any = true }
+            } else if ty == "data_fnobj_code_ptr" {
+                if _x64_rtobj_fixup_push_data_name(data_fnobj_code_ptr_data_off_enc, data_fnobj_code_ptr_name, f0) { any = true }
+            } else if ty == "rip_code_lea" {
+                if _x64_rtobj_fixup_push_pos_name(rip_code_lea_pos_enc, rip_code_lea_name, f0) { any = true }
+            } else if ty == "rip_rdata_lea" {
+                if _x64_rtobj_fixup_push_data(rip_rdata_lea_pos_enc, rip_rdata_lea_data_off_enc, f0) { any = true }
+            }
+        }
+        i = i + 1
+    }
+    if any != true { return nil }
+    return {
+        "call_pos_enc": call_pos_enc,
+        "call_name": call_name,
+        "rip_data_lea_pos_enc": rip_data_lea_pos_enc,
+        "rip_data_lea_data_off_enc": rip_data_lea_data_off_enc,
+        "rip_data_lea_rsi_pos_enc": rip_data_lea_rsi_pos_enc,
+        "rip_data_lea_rsi_data_off_enc": rip_data_lea_rsi_data_off_enc,
+        "rip_data_mov_rax_pos_enc": rip_data_mov_rax_pos_enc,
+        "rip_data_mov_rax_data_off_enc": rip_data_mov_rax_data_off_enc,
+        "data_fnobj_code_ptr_data_off_enc": data_fnobj_code_ptr_data_off_enc,
+        "data_fnobj_code_ptr_name": data_fnobj_code_ptr_name,
+        "rip_code_lea_pos_enc": rip_code_lea_pos_enc,
+        "rip_code_lea_name": rip_code_lea_name,
+        "rip_rdata_lea_pos_enc": rip_rdata_lea_pos_enc,
+        "rip_rdata_lea_data_off_enc": rip_rdata_lea_data_off_enc
+    }
+}
+
 fn _x64_rtobj_encode_fixups(fixups) {
     if fixups == nil { return [] }
     var out = []
@@ -551,6 +686,7 @@ fn _x64_rtobj_encode_fixups(fixups) {
             // NOTE: rip_data32 fixups are persisted separately in `rip_data32_fixups_enc`
             // to avoid storing thousands of per-fixup maps in the rtobj meta.
             if f0["type"] == "rip_data32" { i = i + 1; continue }
+            if _x64_rtobj_fixup_supported_by_compact(f0["type"]) { i = i + 1; continue }
             var f1 = {"type": f0["type"], "pos": (f0["pos"] + 1)}
             if f0["name"] != nil { f1["name"] = f0["name"] }
             if f0["data_label"] != nil { f1["data_label"] = f0["data_label"] }
