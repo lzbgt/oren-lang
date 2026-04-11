@@ -154,7 +154,8 @@ That marker is metadata-only. It does not silently enable capsule mode or enforc
 It normalizes into `metadata.package` and artifact `policy.source_package`. Artifact
 manifests also emit observe-only `policy.source_package_check` status so package tooling
 can compare declared intent against actual build flags and runtime-profile request without
-turning that comparison into enforcement yet.
+turning that comparison into enforcement by default. Strict builds can opt into rejection
+with `--enforce-package-policy` or `OREN_ENFORCE_PACKAGE_POLICY=1`.
 
 ## Domain Contract
 
@@ -186,8 +187,9 @@ turning that comparison into enforcement yet.
 
 - The native runtime profile is still selected by env/import heuristic, not enforced by
   the package marker. The source package marker records declared intent for tooling only.
-- `policy.source_package_check` is observe-only. It can report `mismatch_observed`, but the
-  compiler does not reject the artifact on that basis yet.
+- `policy.source_package_check` is observe-only by default. It can report `mismatch_observed`;
+  `--enforce-package-policy` / `OREN_ENFORCE_PACKAGE_POLICY=1` turns that status into a build
+  error.
 - Capability budgets are now representable in package metadata, but they are not yet a
   complete enforcement contract across native and AVM. AVM has budget machinery; native
   capsule runtime knobs are domain/resource allowlists first.

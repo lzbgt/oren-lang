@@ -423,6 +423,39 @@ fn package_budget_declared(a) {
     return false
 }
 
+fn package_policy_check_status_for_attr(a, actual_runtime_profile, actual_cap_allow_domains) {
+    var actual_profile = actual_runtime_profile
+    if actual_profile == nil || actual_profile == "" { actual_profile = "none" }
+    var actual_domains = normalize_domain_list(actual_cap_allow_domains)
+
+    if a == nil { return "not_declared" }
+
+    var declared_profile = attr_kw_string(a, "runtime_profile")
+    var runtime_status = "not_declared"
+    if declared_profile != nil && declared_profile != "" {
+        if actual_profile == "none" {
+            runtime_status = "backend_not_runtime_profiled"
+        } else {
+            if declared_profile == actual_profile { runtime_status = "match" } else { runtime_status = "mismatch" }
+        }
+    }
+
+    var declared_domains = package_attr_cap_allow_domains(a)
+    var missing = string_list_missing(declared_domains, actual_domains)
+    var cap_status = "not_declared"
+    if oren_list_len(declared_domains) > 0 {
+        if oren_list_len(missing) == 0 { cap_status = "covers" } else { cap_status = "missing" }
+    }
+
+    var status = "observe_only"
+    if runtime_status == "mismatch" || runtime_status == "backend_not_runtime_profiled" || cap_status == "missing" { status = "mismatch_observed" }
+    return status
+}
+
+fn package_policy_check_status(stmts, actual_runtime_profile, actual_cap_allow_domains) {
+    return package_policy_check_status_for_attr(package_attr_for_stmts(stmts), actual_runtime_profile, actual_cap_allow_domains)
+}
+
 fn json_package_policy_check(stmts, actual_runtime_profile, actual_cap_allow_domains) {
     var a = package_attr_for_stmts(stmts)
     var actual_profile = actual_runtime_profile
@@ -457,8 +490,7 @@ fn json_package_policy_check(stmts, actual_runtime_profile, actual_cap_allow_dom
     var budget_status = "not_declared"
     if package_budget_declared(a) { budget_status = "declared_not_enforced" }
 
-    var status = "observe_only"
-    if runtime_status == "mismatch" || runtime_status == "backend_not_runtime_profiled" || cap_status == "missing" { status = "mismatch_observed" }
+    var status = package_policy_check_status_for_attr(a, actual_profile, actual_domains)
 
     return "{ \"version\": 1, \"declared\": " + json_bool(declared) + ", \"status\": " + json_string(status) + ", " +
         "\"runtime_profile\": { \"declared\": " + json_string(declared_profile) + ", \"actual\": " + json_string(actual_profile) + ", \"status\": " + json_string(runtime_status) + " }, " +

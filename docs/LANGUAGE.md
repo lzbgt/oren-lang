@@ -1460,7 +1460,8 @@ For the current capability domain and native runtime-profile contract, see
   This marker normalizes into metadata/artifact manifests; it does not silently change
   runtime profile selection or enforce budgets. Artifact manifests also include
   `policy.source_package_check`, an observe-only comparison of the package marker against
-  actual build flags and runtime-profile selection.
+  actual build flags and runtime-profile selection. Use `--enforce-package-policy` or
+  `OREN_ENFORCE_PACKAGE_POLICY=1` to fail builds when that check reports `mismatch_observed`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
   a complete stdlib/runtime effect proof.
@@ -3536,8 +3537,9 @@ The marker is intentionally not an enforcement mechanism yet. It gives package t
 artifact manifests, and agents a stable source-declared policy surface to compare with
 actual build flags and runtime profiles. Artifact `--manifest` output additionally carries
 `policy.source_package_check` with `observe_only` / `mismatch_observed` status, runtime-profile
-comparison, cap-allow coverage, and budget declaration status. The check is intentionally
-diagnostic-only for now.
+comparison, cap-allow coverage, and budget declaration status. The check is diagnostic by
+default; `--enforce-package-policy` / `OREN_ENFORCE_PACKAGE_POLICY=1` promotes
+`mismatch_observed` into a build error.
 
 ### 2.4 Normalized serde schema (what libraries/tooling want)
 

@@ -28,6 +28,7 @@ fn cli_add_build_opts(cmd, allow_emit_c, default_backend) {
     argparse.cmd_option_env(cmd, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
     argparse.cmd_flag_env(cmd, "--capsule", nil, "(native backend) capability-safe subset: deny host effects unless allowlisted", "OREN_CAPSULE")
     argparse.cmd_option_env(cmd, "--cap-allow-domains", nil, "string", "", "CSV allow capability domains in capsule mode", "OREN_CAP_ALLOW_DOMAINS")
+    argparse.cmd_flag_env(cmd, "--enforce-package-policy", nil, "Fail if @oren.package policy intent does not match selected build policy", "OREN_ENFORCE_PACKAGE_POLICY")
     argparse.cmd_option(cmd, "--codesign", nil, "string", "", "(macOS) codesign identity")
     argparse.cmd_flag(cmd, "--notarize", nil, "(macOS) notarize output with notarytool")
     argparse.cmd_option(cmd, "--notary-profile", nil, "string", "", "(macOS) notarytool keychain profile")
@@ -69,6 +70,7 @@ fn cli_spec() {
     argparse.cmd_option_env(emitc, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
     argparse.cmd_flag_env(emitc, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
     argparse.cmd_option_env(emitc, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(emitc, "--enforce-package-policy", nil, "Fail if @oren.package policy intent does not match selected build policy", "OREN_ENFORCE_PACKAGE_POLICY")
     argparse.cmd_flag_env(emitc, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds", "OREN_DETERMINISTIC")
     argparse.cmd_flag(emitc, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed builds)")
 
@@ -377,6 +379,17 @@ fn _artifact_manifest_policy_with_package(backend, capsule, cap_allow_domains, s
     p["source_package"] = source_package_json
     p["source_package_check"] = source_package_check_json
     return p
+}
+
+fn _enforce_package_policy_if_requested(enforce, artifact_kind, status) {
+    if enforce != true { return nil }
+    if status == "mismatch_observed" {
+        var msg = "oren build: @oren.package policy mismatch for " + artifact_kind + " artifact (inspect --manifest policy.source_package_check)"
+        emit_diag("compile", 2, msg)
+        print(msg)
+        oren_exit(2)
+    }
+    return nil
 }
 
 fn _artifact_manifest_policy_json(policy) {

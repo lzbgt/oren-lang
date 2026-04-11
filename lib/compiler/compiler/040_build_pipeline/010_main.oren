@@ -713,6 +713,7 @@ fn compiler_main() {
     var is_shared_lib = false
     var deterministic = false
     var emit_manifest = false
+    var enforce_package_policy = false
     var do_typecheck = false
     var call_depth_max = 8192
     var obc_lib = false
@@ -916,6 +917,7 @@ fn compiler_main() {
     no_gc = (opts["no-gc"] == true)
     deterministic = (opts["deterministic"] == true)
     if seen["manifest"] == true { emit_manifest = true }
+    enforce_package_policy = (opts["enforce-package-policy"] == true)
 
     STRICT_ATTRS = (opts["strict-attrs"] == true)
     ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
@@ -1210,7 +1212,10 @@ fn compiler_main() {
         var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
         var bytecode_domains = metadata.cap_required_domains(linked_bc["statements"])
         var bytecode_profile = _runtime_profile_request_for_manifest("bytecode", CAPSULE)
-        var bytecode_policy = _artifact_manifest_policy_with_package("bytecode", CAPSULE, CAP_ALLOW_DOMAINS, bytecode_domains, metadata.json_package_manifest(linked_bc["statements"]), metadata.json_package_policy_check(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS))
+        var bytecode_policy_check = metadata.json_package_policy_check(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS)
+        var bytecode_policy_status = metadata.package_policy_check_status(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS)
+        _enforce_package_policy_if_requested(enforce_package_policy, "bytecode", bytecode_policy_status)
+        var bytecode_policy = _artifact_manifest_policy_with_package("bytecode", CAPSULE, CAP_ALLOW_DOMAINS, bytecode_domains, metadata.json_package_manifest(linked_bc["statements"]), bytecode_policy_check)
 
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
         if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
@@ -1385,7 +1390,10 @@ fn compiler_main() {
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib, "test_mode": test_mode})
         var native_domains = metadata.cap_required_domains(linked["statements"])
         var native_profile = _runtime_profile_request_for_manifest("native", CAPSULE)
-        var native_policy = _artifact_manifest_policy_with_package("native", CAPSULE, CAP_ALLOW_DOMAINS, native_domains, metadata.json_package_manifest(linked["statements"]), metadata.json_package_policy_check(linked["statements"], native_profile, CAP_ALLOW_DOMAINS))
+        var native_policy_check = metadata.json_package_policy_check(linked["statements"], native_profile, CAP_ALLOW_DOMAINS)
+        var native_policy_status = metadata.package_policy_check_status(linked["statements"], native_profile, CAP_ALLOW_DOMAINS)
+        _enforce_package_policy_if_requested(enforce_package_policy, "native", native_policy_status)
+        var native_policy = _artifact_manifest_policy_with_package("native", CAPSULE, CAP_ALLOW_DOMAINS, native_domains, metadata.json_package_manifest(linked["statements"]), native_policy_check)
         if trace_build_summary { t_sum_link_done = oren_time_now_ns() }
         if trace_phase_path != nil {
             var linked_stmts = 0
@@ -1688,7 +1696,10 @@ fn compiler_main() {
     var linked_c = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "test_mode": test_mode})
     var c_domains = metadata.cap_required_domains(linked_c["statements"])
     var c_profile = _runtime_profile_request_for_manifest("c", CAPSULE)
-    var c_policy = _artifact_manifest_policy_with_package("c", CAPSULE, CAP_ALLOW_DOMAINS, c_domains, metadata.json_package_manifest(linked_c["statements"]), metadata.json_package_policy_check(linked_c["statements"], c_profile, CAP_ALLOW_DOMAINS))
+    var c_policy_check = metadata.json_package_policy_check(linked_c["statements"], c_profile, CAP_ALLOW_DOMAINS)
+    var c_policy_status = metadata.package_policy_check_status(linked_c["statements"], c_profile, CAP_ALLOW_DOMAINS)
+    _enforce_package_policy_if_requested(enforce_package_policy, "c", c_policy_status)
+    var c_policy = _artifact_manifest_policy_with_package("c", CAPSULE, CAP_ALLOW_DOMAINS, c_domains, metadata.json_package_manifest(linked_c["statements"]), c_policy_check)
     c_backend_sync_generated_functions(prog, MODULE_ORDER, linked_c)
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     // IMPORTANT (rolling hygiene):

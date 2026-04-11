@@ -42,9 +42,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   build-policy fields for backend, runtime-profile request, capsule flag, allowlisted domains,
   source-required domains, source package policy, and observe-only `source_package_check`
   comparison; `@oren.package(...)` now provides the first source-level package marker for
-  runtime-profile intent, allow domains, and budget defaults. Next capability work should move
-  toward enforcement of package-level runtime-profile declarations rather than re-describing the
-  existing env contract. Contract drift is guarded by
+  runtime-profile intent, allow domains, and budget defaults; `--enforce-package-policy` /
+  `OREN_ENFORCE_PACKAGE_POLICY=1` now promotes `mismatch_observed` into a build error. Next
+  capability work should move toward effect-ledger/budget enforcement rather than re-describing
+  the existing env contract. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and
   `make verify-capability-manifest-policy`.
 - New: `project-doc/oren_feature_horizon_20260412.md` and

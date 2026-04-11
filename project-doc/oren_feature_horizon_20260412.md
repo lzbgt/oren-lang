@@ -229,7 +229,7 @@ denial-as-data, schedule capsules, and semantic package manifests.
 - Extend the new per-source `capabilities` metadata and artifact manifest `policy` block into a
   package-level manifest that declares runtime profile, domain requirements, and budget defaults.
   The first source-level marker is now `@oren.package(...)`; artifact manifests now also emit
-  observe-only `source_package_check` comparison. The next step is enforcement.
+  `source_package_check`, with opt-in enforcement through `--enforce-package-policy`.
 - Add an attestation-oriented metadata bundle for native builds: compiler revision, backend,
   runtime profile, source capability domains, and deterministic build inputs.
 - Define a small stable event schema for capability decisions and budget consumption before adding

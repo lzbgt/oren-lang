@@ -10,10 +10,11 @@ meta_out="build/tmp/meta_capabilities_policy_${ts}.json"
 c_out="build/tmp/capability_manifest_policy_${ts}"
 c_mismatch_out="build/tmp/capability_manifest_policy_mismatch_${ts}"
 native_out="build/tmp/capability_manifest_policy_native_${ts}"
+enforce_fail_out="build/tmp/capability_manifest_policy_enforce_fail_${ts}"
 log="build/logs/verify_capability_manifest_policy_${ts}.log"
 
 cleanup() {
-  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json" "$c_mismatch_out" "$c_mismatch_out.manifest.json" "$native_out" "$native_out.manifest.json"
+  rm -f "$meta_out" "$meta_out.manifest.json" "$c_out" "$c_out.manifest.json" "$c_mismatch_out" "$c_mismatch_out.manifest.json" "$native_out" "$native_out.manifest.json" "$enforce_fail_out" "$enforce_fail_out.manifest.json"
 }
 trap cleanup EXIT
 
@@ -40,8 +41,20 @@ trap cleanup EXIT
     --backend native \
     --capsule \
     --manifest \
+    --enforce-package-policy \
     --cap-allow-domains ENV,FS \
     -o "$native_out"
+
+  echo "checking package policy enforcement rejects mismatched C backend policy"
+  if ./oren build tests/fixtures/capability_manifest_policy_src.oren \
+    --backend c \
+    --manifest \
+    --enforce-package-policy \
+    --cap-allow-domains FS,ENV \
+    -o "$enforce_fail_out"; then
+    echo "expected --enforce-package-policy mismatch build to fail" >&2
+    exit 1
+  fi
 
   python3 - "$meta_out.manifest.json" "$c_out.manifest.json" "$c_mismatch_out.manifest.json" "$native_out.manifest.json" <<'PY'
 import json
