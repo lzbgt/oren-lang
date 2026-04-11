@@ -1747,6 +1747,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `oren_bytes_len(...)` / `oren_bytes_get_u8(...)` instead of assuming `list<int>` bodies.
 		     Reweight again: the obvious `.obc` reader bridge in the AVM harness layer is closed; keep
 		     the remaining `read_bytes` surfaces only where they are the API under test.
+		   - AVM byte-slice bridge follow-up (2026-04-12): add the missing bytecode native mappings for
+		     `oren_string_from_bytes_slice(...)` and `oren_u8_buf_from_bytes_slice(...)`, matching the
+		     shared C/native bridge surface used by `std:bytes` / `std:strings`. This closes the
+		     `test_smoke_suite` bytecode build failure found while widening AVM run-JSON verification.
+		     The same AVM pass fixes spawned task bootstrap to unpack positional args into the task frame,
+		     closing the next `CHAN_SEND expects int channel` smoke-suite failure; keep
+		     `make verify-avm-spawn-channel-args` in the default gate as the focused guard. The broader
+		     curated AVM rerun also fixed aggregate `==` / `!=` to use bounded structural equality for
+		     maps, lists, bytes, and typed buffers, with map equality keyed by semantic key/value pairs
+		     instead of insertion order. It also added AVM `list + list` concatenation for UI diff
+		     path-prefix construction, and maps the `*_buf_new_uninit(...)` typed-buffer constructor
+		     aliases to the existing deterministic AVM buffer constructors. `make test-avm` now clears
+		     the curated UI patch/render/raster/PPM lane again.
 		   - Guardrail follow-up (2026-04-04): `make verify-native-slot-direct` now covers the unchecked
 		     helper edge contract as well as the benchmark numerics. The slot-direct smoke builds
 		     `tests/fixtures/list_int_slot_direct_contracts.oren` and checks nil-zero behavior plus the

@@ -206,6 +206,6 @@ require_literal Makefile "./scripts/verify_avm_effect_ledger_json.sh"
 require_literal Makefile "test-native-capsule-smoke-stage2:"
 require_literal Makefile "test-avm: oren avm"
 require_literal Makefile "verify-backend-parity:"
-require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract test-native-quick"
+require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-spawn-channel-args test-native-quick"
 
 echo "capability runtime contract verify OK"

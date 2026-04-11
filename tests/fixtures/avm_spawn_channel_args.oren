@@ -1,0 +1,51 @@
+fn fail() {
+    var xs = [1]
+    print(xs[2])
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn worker_send(ch, v) {
+    oren_chan_send(ch, v)
+    return v + 1
+}
+
+fn main() {
+    assert_eq({"tree": [1, {"leaf": 2}]}, {"tree": [1, {"leaf": 2}]})
+    assert_eq({"left": 1, "right": 2}, {"right": 2, "left": 1})
+    assert_eq(["root"] + ["leaf"], ["root", "leaf"])
+    var bytes = oren_u8_buf_new_uninit(2)
+    oren_buf_store_u8(bytes, 0, 42)
+    oren_buf_store_u8(bytes, 1, 7)
+    assert_eq(oren_bytes_get_u8(bytes, 0), 42)
+    assert_eq(oren_bytes_get_u8(bytes, 1), 7)
+
+    var ch = oren_new_channel()
+    var h = spawn worker_send(ch, 123)
+    assert_eq(oren_chan_recv(ch), 123)
+    assert_eq(oren_join(h), 124)
+
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    var h2 = spawn worker_send(c2, 7)
+    var sel = oren_select_recv([c1, c2])
+    assert_eq(sel[0], 1)
+    assert_eq(sel[1], 7)
+    assert_eq(oren_join(h2), 8)
+
+    var s1 = oren_new_channel()
+    var s2 = oren_new_channel()
+    var r1 = oren_select([[1, s1, 11], [1, s2, 22]])
+    assert_eq(r1[0], 0)
+    assert_eq(r1[1], 1)
+
+    var r2 = oren_select([[1, s1, 33], [1, s2, 44]])
+    assert_eq(r2[0], 1)
+    assert_eq(r2[1], 1)
+
+    assert_eq(oren_chan_recv(s1), 11)
+    assert_eq(oren_chan_recv(s2), 44)
+}

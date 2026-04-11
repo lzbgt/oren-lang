@@ -60,6 +60,124 @@ static int select_case_parse(AvmValue v, int* out_kind, int64_t* out_chid, AvmVa
     return 0;
 }
 
+static int avm_value_equal_depth(AvmValue a, AvmValue b, int depth) {
+    if (depth > 64) return 0;
+    if (a.type != b.type) return 0;
+    if (a.type == AVM_VAL_NIL) return 1;
+    if (a.type == AVM_VAL_INT || a.type == AVM_VAL_BOOL) return a.as.i == b.as.i;
+    if (a.type == AVM_VAL_FLOAT) return a.as.f == b.as.f;
+    if (a.type == AVM_VAL_STRING) return strcmp((char*)a.as.p, (char*)b.as.p) == 0;
+    if (a.type == AVM_VAL_BYTES) {
+        AvmBytes* ab = a.as.b;
+        AvmBytes* bb = b.as.b;
+        if (ab == bb) return 1;
+        if (!ab || !bb || ab->len != bb->len) return 0;
+        if (ab->len <= 0) return 1;
+        if (!ab->data || !bb->data) return 0;
+        return memcmp(ab->data, bb->data, (size_t)ab->len) == 0;
+    }
+    if (a.type == AVM_VAL_I32_BUF || a.type == AVM_VAL_I64_BUF ||
+        a.type == AVM_VAL_F32_BUF || a.type == AVM_VAL_F64_BUF) {
+        AvmBuf* ab = a.as.buf;
+        AvmBuf* bb = b.as.buf;
+        if (ab == bb) return 1;
+        if (!ab || !bb || ab->len != bb->len || ab->elem_size != bb->elem_size) return 0;
+        size_t bytes = (size_t)ab->len * (size_t)ab->elem_size;
+        if (bytes == 0) return 1;
+        if (!ab->data || !bb->data) return 0;
+        return memcmp(ab->data, bb->data, bytes) == 0;
+    }
+    if (a.type == AVM_VAL_LIST_INT) {
+        AvmListInt* al = a.as.li;
+        AvmListInt* bl = b.as.li;
+        if (al == bl) return 1;
+        if (!al || !bl || al->count != bl->count) return 0;
+        if (al->count > 0 && (!al->items || !bl->items)) return 0;
+        for (int i = 0; i < al->count; i++) {
+            if (al->items[i] != bl->items[i]) return 0;
+        }
+        return 1;
+    }
+    if (a.type == AVM_VAL_LIST) {
+        AvmList* al = a.as.l;
+        AvmList* bl = b.as.l;
+        if (al == bl) return 1;
+        if (!al || !bl || al->count != bl->count) return 0;
+        if (al->count > 0 && (!al->items || !bl->items)) return 0;
+        for (int i = 0; i < al->count; i++) {
+            if (!avm_value_equal_depth(al->items[i], bl->items[i], depth + 1)) return 0;
+        }
+        return 1;
+    }
+    if (a.type == AVM_VAL_MAP) {
+        AvmMap* am = a.as.m;
+        AvmMap* bm = b.as.m;
+        if (am == bm) return 1;
+        if (!am || !bm || am->count != bm->count) return 0;
+        if (am->count > 0 && (!am->keys || !am->values || !bm->keys || !bm->values)) return 0;
+        for (int i = 0; i < am->count; i++) {
+            int found = 0;
+            for (int j = 0; j < bm->count; j++) {
+                if (!avm_value_equal_depth(am->keys[i], bm->keys[j], depth + 1)) continue;
+                if (!avm_value_equal_depth(am->values[i], bm->values[j], depth + 1)) continue;
+                found = 1;
+                break;
+            }
+            if (!found) return 0;
+        }
+        return 1;
+    }
+    return a.as.p == b.as.p;
+}
+
+static int avm_list_like_count(AvmValue v, int* out_count) {
+    if (v.type == AVM_VAL_LIST && v.as.l) {
+        *out_count = v.as.l->count;
+        return v.as.l->count >= 0 && (v.as.l->count == 0 || v.as.l->items);
+    }
+    if (v.type == AVM_VAL_LIST_INT && v.as.li) {
+        *out_count = v.as.li->count;
+        return v.as.li->count >= 0 && (v.as.li->count == 0 || v.as.li->items);
+    }
+    return 0;
+}
+
+static AvmValue avm_list_like_item(AvmValue v, int idx) {
+    if (v.type == AVM_VAL_LIST) return v.as.l->items[idx];
+    return avm_int(v.as.li->items[idx]);
+}
+
+static AvmValue avm_concat_list_values(AvmValue a, AvmValue b) {
+    int ac = 0;
+    int bc = 0;
+    if (!avm_list_like_count(a, &ac) || !avm_list_like_count(b, &bc) || ac > INT_MAX - bc) {
+        return avm_err(AVM_ERR_INVALID_ARG, "list concat expects valid lists");
+    }
+    int total = ac + bc;
+    AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+    if (!list) return avm_alloc_fail_value();
+    list->count = total;
+    list->capacity = total;
+    list->all_int = 1;
+    list->items = NULL;
+    if (total > 0) {
+        list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)total, AVM_ALLOC_KIND_LIST);
+        if (!list->items) { avm_heap_free(list); return avm_alloc_fail_value(); }
+        for (int i = 0; i < ac; i++) {
+            list->items[i] = avm_list_like_item(a, i);
+            if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
+        }
+        for (int i = 0; i < bc; i++) {
+            list->items[ac + i] = avm_list_like_item(b, i);
+            if (list->all_int && list->items[ac + i].type != AVM_VAL_INT) list->all_int = 0;
+        }
+    }
+    AvmValue r;
+    r.type = AVM_VAL_LIST;
+    r.as.l = list;
+    return r;
+}
+
 static AvmValue avm_func_new(AvmVM* vm, uint32_t addr, AvmValue env) {
     (void)vm;
     AvmFunc* fn = (AvmFunc*)avm_heap_malloc_k(sizeof(AvmFunc), AVM_ALLOC_KIND_FUNC);
@@ -281,6 +399,11 @@ void avm_run(AvmVM* vm) {
                         memcpy(s + la, sb, lb);
                         s[la + lb] = 0;
                         AvmValue r; r.type = AVM_VAL_STRING; r.as.p = s; vm->stack[vm->sp++] = r;
+                    } else if ((a.type == AVM_VAL_LIST || a.type == AVM_VAL_LIST_INT) &&
+                               (b.type == AVM_VAL_LIST || b.type == AVM_VAL_LIST_INT)) {
+                        AvmValue r = avm_concat_list_values(a, b);
+                        if (avm_is_err_val(r)) { avm_abort(vm, r); break; }
+                        vm->stack[vm->sp++] = r;
                     } else {
                         // Rolling behavior: type mismatch yields nil (avoid host crash).
                         vm->stack[vm->sp++] = avm_nil();
@@ -389,15 +512,7 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    int eq = 0;
-                    if (a.type == b.type) {
-                        if (a.type == AVM_VAL_NIL) eq = 1;
-                        else if (a.type == AVM_VAL_INT || a.type == AVM_VAL_BOOL) eq = (a.as.i == b.as.i);
-                        else if (a.type == AVM_VAL_FLOAT) eq = (a.as.f == b.as.f);
-                        else if (a.type == AVM_VAL_STRING) eq = (strcmp((char*)a.as.p, (char*)b.as.p) == 0);
-                        else eq = (a.as.p == b.as.p);
-                    }
-                    vm->stack[vm->sp++] = avm_bool(eq);
+                    vm->stack[vm->sp++] = avm_bool(avm_value_equal_depth(a, b, 0));
                 }
                 break;
             }
@@ -405,15 +520,7 @@ void avm_run(AvmVM* vm) {
                 if (vm->sp >= 2) {
                     AvmValue b = vm->stack[--vm->sp];
                     AvmValue a = vm->stack[--vm->sp];
-                    int eq = 0;
-                    if (a.type == b.type) {
-                        if (a.type == AVM_VAL_NIL) eq = 1;
-                        else if (a.type == AVM_VAL_INT || a.type == AVM_VAL_BOOL) eq = (a.as.i == b.as.i);
-                        else if (a.type == AVM_VAL_FLOAT) eq = (a.as.f == b.as.f);
-                        else if (a.type == AVM_VAL_STRING) eq = (strcmp((char*)a.as.p, (char*)b.as.p) == 0);
-                        else eq = (a.as.p == b.as.p);
-                    }
-                    vm->stack[vm->sp++] = avm_bool(!eq);
+                    vm->stack[vm->sp++] = avm_bool(!avm_value_equal_depth(a, b, 0));
                 }
                 break;
             }
@@ -1282,7 +1389,7 @@ select_done:
                     int cur = sched->current_tid;
                     AvmTask* ct = &sched->tasks[cur];
                     ct->blocked = 1;
-                    ct->wait_kind = 3;
+                    ct->wait_kind = 5;
                     ct->wait_list = lv;
                     (void)sched_select_waiter_add(sched, cur);
                     task_save_from_vm(vm, ct);

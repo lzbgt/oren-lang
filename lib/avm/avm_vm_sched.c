@@ -249,14 +249,35 @@ int sched_new_task(AvmVM* vm, AvmSched* s, AvmValue fn, AvmValue args_list) {
     if (!t->frames) { free(t->stack); t->stack = NULL; t->used = 0; return -1; }
     memset(t->frames, 0, sizeof(AvmFrame) * (size_t)MAX_FRAMES);
 
-    // Seed new task state (stack/pc/frames).
+    // Seed new task state (stack/pc/frames). A spawned task starts at the
+    // function entry with the same local layout as a direct call: positional
+    // arguments begin at fp=0. Varargs spawn sites already pack the trailing
+    // rest list into the args list before reaching the VM.
     t->pc = fn.as.fn->addr;
     t->sp = 0;
     t->fp = 0;
     t->frame_count = 0;
     t->env = fn.as.fn->env;
-    // Push args list (CALL_INDIRECT_SPREAD semantics for now).
-    t->stack[t->sp++] = args_list;
+    AvmList* args = args_list.as.l;
+    if (args->count < 0 || args->count > (int)AVM_STACK_SIZE) {
+        free(t->frames);
+        free(t->stack);
+        t->frames = NULL;
+        t->stack = NULL;
+        t->used = 0;
+        return -1;
+    }
+    if (args->count > 0 && !args->items) {
+        free(t->frames);
+        free(t->stack);
+        t->frames = NULL;
+        t->stack = NULL;
+        t->used = 0;
+        return -1;
+    }
+    for (int i = 0; i < args->count; i++) {
+        t->stack[t->sp++] = args->items[i];
+    }
 
     if (tid >= s->task_count) s->task_count = tid + 1;
     (void)sched_ready_push(s, tid);
@@ -403,17 +424,25 @@ void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
         int woke = 0;
         for (int step = 0; step < cnt; step++) {
             int k = (start + step) % cnt;
-            AvmValue casev = list.as.l->items[k];
-            if (casev.type != AVM_VAL_LIST || !casev.as.l || casev.as.l->count < 2) continue;
-            AvmValue kindv = casev.as.l->items[0];
-            AvmValue chv = casev.as.l->items[1];
-            if (kindv.type != AVM_VAL_INT || chv.type != AVM_VAL_INT) continue;
-            int kind = (int)kindv.as.i;
-            int64_t chid = chv.as.i;
+            int kind = 0;
+            int64_t chid = 0;
             AvmValue sendv = avm_nil();
-            if (kind == 1) {
-                if (casev.as.l->count < 3) continue;
-                sendv = casev.as.l->items[2];
+            if (t->wait_kind == 3) {
+                AvmValue chv = list.as.l->items[k];
+                if (chv.type != AVM_VAL_INT) continue;
+                chid = chv.as.i;
+            } else {
+                AvmValue casev = list.as.l->items[k];
+                if (casev.type != AVM_VAL_LIST || !casev.as.l || casev.as.l->count < 2) continue;
+                AvmValue kindv = casev.as.l->items[0];
+                AvmValue chv = casev.as.l->items[1];
+                if (kindv.type != AVM_VAL_INT || chv.type != AVM_VAL_INT) continue;
+                kind = (int)kindv.as.i;
+                chid = chv.as.i;
+                if (kind == 1) {
+                    if (casev.as.l->count < 3) continue;
+                    sendv = casev.as.l->items[2];
+                }
             }
             AvmChan* ch = sched_chan_get(s, chid);
             if (!ch) continue;

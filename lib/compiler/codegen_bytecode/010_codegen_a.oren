@@ -953,6 +953,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "int_mod" { native_id = 15 }
         if name == "oren_bytes_from_string" { native_id = 16 }
         if name == "oren_string_from_bytes" { native_id = 44 }
+        if name == "oren_string_from_bytes_slice" { native_id = 161 }
+        if name == "oren_u8_buf_from_bytes_slice" { native_id = 162 }
         if name == "oren_err" { native_id = 19 }
         if name == "oren_is_err" { native_id = 20 }
         if name == "oren_err_code" { native_id = 21 }
@@ -1011,16 +1013,16 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_iter_next" { native_id = 43 }
         // U8 buffers in AVM are represented as BYTES (portable, deterministic).
         // Provide the u8-buf surface as core natives so std:buffer can run under AVM.
-        if name == "oren_u8_buf_new" { native_id = 142 }
+        if name == "oren_u8_buf_new" || name == "oren_u8_buf_new_uninit" { native_id = 142 }
         if name == "oren_buf_load_u8" { native_id = 143 }
         if name == "oren_buf_store_u8" { native_id = 144 }
         if name == "oren_buf_fill_u8" { native_id = 145 }
-        if name == "oren_i32_buf_new" { native_id = 54 }
+        if name == "oren_i32_buf_new" || name == "oren_i32_buf_new_uninit" { native_id = 54 }
         if name == "oren_i32_buf_pack_list_int" { native_id = 152 }
         if name == "oren_i32_buf_pack_list_int_into" { native_id = 153 }
-        if name == "oren_i64_buf_new" { native_id = 55 }
-        if name == "oren_f32_buf_new" { native_id = 56 }
-        if name == "oren_f64_buf_new" { native_id = 57 }
+        if name == "oren_i64_buf_new" || name == "oren_i64_buf_new_uninit" { native_id = 55 }
+        if name == "oren_f32_buf_new" || name == "oren_f32_buf_new_uninit" { native_id = 56 }
+        if name == "oren_f64_buf_new" || name == "oren_f64_buf_new_uninit" { native_id = 57 }
         if name == "oren_buf_len" { native_id = 58 }
         if name == "oren_buf_load_i32" { native_id = 59 }
         if name == "oren_buf_store_i32" { native_id = 60 }

@@ -818,6 +818,20 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     map-key, and compiler-in-AVM fixtures now read `.obc` via `oren_read_u8_buf(...)`
 		     directly, and their local VFS fixture builders now append generic bytes via
 		     `oren_bytes_len(...)` / `oren_bytes_get_u8(...)` instead of assuming `list<int>` bodies.
+		   - AVM byte-slice bridge follow-up (2026-04-12): bytecode now maps
+		     `oren_string_from_bytes_slice(...)` and `oren_u8_buf_from_bytes_slice(...)` to AVM native
+		     helpers. This closes the direct generic-bytes bridge used by `std:bytes` / `std:strings`,
+		     so curated `make test-avm` no longer fails at `test_smoke_suite` bytecode build time after
+		     the shared helper cleanup. The same AVM pass also fixes spawned task bootstrap to unpack
+		     positional args into the new task frame, closing the immediately exposed
+		     `CHAN_SEND expects int channel` runtime failure in the curated smoke suite; `make test` now
+		     includes `make verify-avm-spawn-channel-args` as a focused regression guard. The broader
+		     curated AVM rerun also fixed aggregate `==` / `!=` to use bounded structural equality for
+		     maps, lists, bytes, and typed buffers, with map equality keyed by semantic key/value pairs
+		     instead of insertion order. It also added AVM `list + list` concatenation for UI diff
+		     path-prefix construction, and maps the `*_buf_new_uninit(...)` typed-buffer constructor
+		     aliases to the existing deterministic AVM buffer constructors. `make test-avm` now clears
+		     the curated UI patch/render/raster/PPM lane again.
 	   - Verification follow-up (2026-04-04, widened 2026-04-09): `make verify-native-slot-direct`
 	     now checks more than the benchmark numerics. The slot-direct smoke builds
 	     `tests/fixtures/list_int_slot_direct_contracts.oren`, validates the hidden helper-entry
