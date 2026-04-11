@@ -193,6 +193,10 @@ with `--enforce-package-policy` or `OREN_ENFORCE_PACKAGE_POLICY=1`.
 - Capability budgets are now representable in package metadata, but they are not yet a
   complete enforcement contract across native and AVM. AVM has budget machinery; native
   capsule runtime knobs are domain/resource allowlists first.
+- Full effect-ledger runtime emission is not complete yet. The target schema is pinned in
+  `docs/EFFECT_LEDGER_CONTRACT.md`, and AVM `--print-run-json` already emits a compact
+  `effect_ledger_summary` bridge so future native/AVM work uses one backend-comparable
+  vocabulary instead of ad-hoc logs.
 - The native and AVM policy vocabularies are converging but not fully unified. For
   example, AVM has explicit `CORE`, `EXIT`, and `AVM` domains while native capsule
   enrollment currently focuses on `FS`, `NET`, `PROC`, `ENV`, `TIME`, and `RNG`.
@@ -205,6 +209,8 @@ Use these targets when changing the capability or runtime-profile contract:
 make verify-capability-runtime-contract
 make verify-capability-metadata
 make verify-capability-manifest-policy
+make verify-effect-ledger-contract
+make verify-avm-effect-ledger-json
 make test-native-capsule-smoke-stage2
 make test-avm
 make verify-backend-parity

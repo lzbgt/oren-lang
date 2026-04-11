@@ -125,7 +125,8 @@ It is a language plus runtime plus artifact contract.
   is now the first source-level marker, and artifact manifests now include observe-only
   `source_package_check`; `--enforce-package-policy` now turns `mismatch_observed` into a build
   error. The next step is budget/effect-ledger enforcement.
-- Define the stable effect-ledger schema before adding more ad-hoc traces.
+- The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
+  conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - Add a small AVM/native semantic-diff command rather than only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.

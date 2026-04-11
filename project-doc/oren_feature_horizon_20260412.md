@@ -232,8 +232,8 @@ denial-as-data, schedule capsules, and semantic package manifests.
   `source_package_check`, with opt-in enforcement through `--enforce-package-policy`.
 - Add an attestation-oriented metadata bundle for native builds: compiler revision, backend,
   runtime profile, source capability domains, and deterministic build inputs.
-- Define a small stable event schema for capability decisions and budget consumption before adding
-  more tracing knobs.
+- Effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work should make
+  native/AVM runtime emission conform to that schema before adding more tracing knobs.
 - Add determinism grades to metadata: pure, deterministic-host, replayable-host, and
   nondeterministic.
 - Sketch the AVM counterfactual execution API: snapshot, fork, policy override, effect replay,

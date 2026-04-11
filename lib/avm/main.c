@@ -23,6 +23,74 @@ static void sha_u32_le(AvmSha256Ctx* h, uint32_t v) {
     avm_sha256_update(h, b, 4);
 }
 
+static uint64_t avm_effect_log_bytes_len(const AvmBytes* b) {
+    if (!b || b->len <= 0) return 0;
+    return (uint64_t)b->len;
+}
+
+static const char* avm_effect_record_sink(const AvmVM* vm) {
+    if (!vm) return "none";
+    if (vm->record_log_bytes) return "mem";
+    if (vm->record_log) return "file";
+    return "none";
+}
+
+static const char* avm_effect_replay_source(const AvmVM* vm) {
+    if (!vm) return "none";
+    if (vm->replay_log_bytes) return "mem";
+    if (vm->replay_log) return "file";
+    return "none";
+}
+
+static void print_effect_ledger_summary_json(FILE* out, const AvmVM* vm) {
+    uint64_t record_bytes = vm && vm->record_log_bytes
+        ? avm_effect_log_bytes_len(vm->record_log_bytes)
+        : (vm ? vm->log_used_bytes : 0);
+    uint64_t replay_bytes = vm && vm->replay_log_bytes
+        ? avm_effect_log_bytes_len(vm->replay_log_bytes)
+        : 0;
+    int replayable = vm && (vm->deterministic || vm->record_log || vm->record_log_bytes || vm->replay_log || vm->replay_log_bytes);
+
+    fprintf(out, ",\"effect_ledger_summary\":{");
+    fprintf(out, "\"schema\":\"oren.effect-ledger-summary.v0\"");
+    fprintf(out, ",\"backend\":\"bytecode\"");
+    fprintf(out, ",\"runtime_profile\":\"avm\"");
+    fprintf(out, ",\"determinism_grade\":\"%s\"", replayable ? "replayable-host" : "nondeterministic");
+    fprintf(out, ",\"determinism\":{\"enabled\":%s,\"virtual_now_ns\":%llu,\"virtual_step_ns\":%llu,\"virtual_sleep_ns\":%llu}",
+        (vm && vm->deterministic) ? "true" : "false",
+        (unsigned long long)(vm ? vm->virtual_now_ns : 0),
+        (unsigned long long)(vm ? vm->virtual_step_ns : 0),
+        (unsigned long long)(vm ? vm->virtual_sleep_ns : 0));
+    fprintf(out, ",\"record\":{\"enabled\":%s,\"sink\":\"%s\",\"bytes\":%llu}",
+        (vm && (vm->record_log || vm->record_log_bytes)) ? "true" : "false",
+        avm_effect_record_sink(vm),
+        (unsigned long long)record_bytes);
+    fprintf(out, ",\"replay\":{\"enabled\":%s,\"source\":\"%s\",\"bytes\":%llu,\"position\":%u}",
+        (vm && (vm->replay_log || vm->replay_log_bytes)) ? "true" : "false",
+        avm_effect_replay_source(vm),
+        (unsigned long long)replay_bytes,
+        (unsigned)(vm ? vm->replay_log_pos : 0));
+    fprintf(out, ",\"budgets\":{");
+    fprintf(out, "\"gas\":{\"executed\":%llu,\"remaining\":%llu}",
+        (unsigned long long)(vm ? vm->gas_executed : 0),
+        (unsigned long long)(vm ? vm->gas_remaining : 0));
+    fprintf(out, ",\"heap_bytes\":{\"limit\":%llu,\"used\":%llu}",
+        (unsigned long long)(vm ? vm->heap_budget_bytes : 0),
+        (unsigned long long)(vm ? vm->heap_used_bytes : 0));
+    fprintf(out, ",\"io_bytes\":{\"limit\":%llu,\"used\":%llu}",
+        (unsigned long long)(vm ? vm->io_budget_bytes : 0),
+        (unsigned long long)(vm ? vm->io_used_bytes : 0));
+    fprintf(out, ",\"log_bytes\":{\"limit\":%llu,\"used\":%llu}",
+        (unsigned long long)(vm ? vm->log_budget_bytes : 0),
+        (unsigned long long)(vm ? vm->log_used_bytes : 0));
+    fprintf(out, ",\"trace_bytes\":{\"enabled\":%s,\"limit\":%llu,\"used\":%llu,\"truncated\":%s}",
+        (vm && vm->trace_bytes_enabled) ? "true" : "false",
+        (unsigned long long)(vm ? vm->trace_budget_bytes : 0),
+        (unsigned long long)(vm ? vm->trace_used_bytes : 0),
+        (vm && vm->trace_bytes_truncated) ? "true" : "false");
+    fprintf(out, "}}");
+}
+
 int main(int argc, char** argv) {
     const char* obc_path = NULL;
     const char* snap_in = NULL;
@@ -1320,6 +1388,52 @@ int main(int argc, char** argv) {
             vm->list_freelist_max_block_bytes = list_block_cap;
         }
 
+        // Budgets/timeouts (macOS-first, rolling ABI):
+        // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
+        // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)
+        // - AVM_MEM_BYTES: heap budget for AVM heap objects (0/unset = unlimited)
+        // - AVM_IO_BYTES: io budget for FS bytes read/written (0/unset = unlimited)
+        // - AVM_LOG_BYTES: record/replay log budget (bytes appended, incl header) (0/unset = unlimited)
+        // - AVM_CALL_DEPTH_MAX: maximum call depth (0/unset = MAX_FRAMES)
+        const char* gas_env = getenv("AVM_GAS");
+        if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
+        const char* timeout_env = timeout_ms_cli ? timeout_ms_cli : getenv("AVM_TIMEOUT_MS");
+        if (timeout_env && timeout_env[0]) {
+            uint64_t ms = strtoull(timeout_env, NULL, 10);
+            uint64_t base = now_ns();
+            if (base != 0 && ms > 0) vm->deadline_ns = base + ms * 1000000ull;
+        }
+        const char* depth_env = call_depth_max_cli ? call_depth_max_cli : getenv("AVM_CALL_DEPTH_MAX");
+        if (depth_env && depth_env[0]) {
+            uint64_t d = strtoull(depth_env, NULL, 10);
+            if (d == 0) {
+                vm->frame_limit = (uint32_t)MAX_FRAMES;
+            } else if (d > (uint64_t)MAX_FRAMES) {
+                vm->frame_limit = (uint32_t)MAX_FRAMES;
+            } else {
+                vm->frame_limit = (uint32_t)d;
+            }
+        }
+        const char* mem_env = getenv("AVM_MEM_BYTES");
+        if (mem_env && mem_env[0]) vm->heap_budget_bytes = strtoull(mem_env, NULL, 10);
+        const char* io_env = getenv("AVM_IO_BYTES");
+        if (io_env && io_env[0]) vm->io_budget_bytes = strtoull(io_env, NULL, 10);
+        const char* log_env = getenv("AVM_LOG_BYTES");
+        if (log_env && log_env[0]) vm->log_budget_bytes = strtoull(log_env, NULL, 10);
+
+        // Capsule defaults (rolling): apply safe budgets unless explicitly overridden by env.
+        // These defaults are intentionally conservative and may evolve while the repo is rolling.
+        if (capsule) {
+            if ((!gas_env || !gas_env[0]) && vm->gas_remaining == 0) vm->gas_remaining = 5000000ull;
+            if ((!timeout_env || !timeout_env[0]) && vm->deadline_ns == 0) {
+                uint64_t base = now_ns();
+                if (base != 0) vm->deadline_ns = base + 2000ull * 1000000ull; // 2000ms
+            }
+            if ((!mem_env || !mem_env[0]) && vm->heap_budget_bytes == 0) vm->heap_budget_bytes = 32ull * 1024ull * 1024ull; // 32 MiB
+            if ((!io_env || !io_env[0]) && vm->io_budget_bytes == 0) vm->io_budget_bytes = 1024ull * 1024ull; // 1 MiB
+            if ((!log_env || !log_env[0]) && vm->log_budget_bytes == 0) vm->log_budget_bytes = 1024ull * 1024ull; // 1 MiB
+        }
+
         // Deterministic record/replay (rolling):
         // - AVM_RECORD_LOG: path to write a native-call replay log (FS domain currently).
         // - AVM_REPLAY_LOG: path to read a native-call replay log (FS domain currently).
@@ -1500,52 +1614,6 @@ int main(int argc, char** argv) {
         // - This is an optimization only; semantics must match scalar fallback.
         const char* simd_env = getenv("AVM_ENABLE_SIMD");
         if (simd_env && simd_env[0] && simd_env[0] != '0') vm->enable_simd = 1;
-
-        // Budgets/timeouts (macOS-first, rolling ABI):
-    // - AVM_GAS: maximum instruction steps (0/unset = unlimited)
-    // - AVM_TIMEOUT_MS: wall-time timeout in milliseconds (0/unset = unlimited)
-    // - AVM_MEM_BYTES: heap budget for AVM heap objects (0/unset = unlimited)
-    // - AVM_IO_BYTES: io budget for FS bytes read/written (0/unset = unlimited)
-    // - AVM_LOG_BYTES: record/replay log budget (bytes appended, incl header) (0/unset = unlimited)
-    // - AVM_CALL_DEPTH_MAX: maximum call depth (0/unset = MAX_FRAMES)
-    const char* gas_env = getenv("AVM_GAS");
-    if (gas_env && gas_env[0]) vm->gas_remaining = strtoull(gas_env, NULL, 10);
-    const char* timeout_env = timeout_ms_cli ? timeout_ms_cli : getenv("AVM_TIMEOUT_MS");
-    if (timeout_env && timeout_env[0]) {
-        uint64_t ms = strtoull(timeout_env, NULL, 10);
-        uint64_t base = now_ns();
-        if (base != 0 && ms > 0) vm->deadline_ns = base + ms * 1000000ull;
-    }
-    const char* depth_env = call_depth_max_cli ? call_depth_max_cli : getenv("AVM_CALL_DEPTH_MAX");
-    if (depth_env && depth_env[0]) {
-        uint64_t d = strtoull(depth_env, NULL, 10);
-        if (d == 0) {
-            vm->frame_limit = (uint32_t)MAX_FRAMES;
-        } else if (d > (uint64_t)MAX_FRAMES) {
-            vm->frame_limit = (uint32_t)MAX_FRAMES;
-        } else {
-            vm->frame_limit = (uint32_t)d;
-        }
-    }
-    const char* mem_env = getenv("AVM_MEM_BYTES");
-    if (mem_env && mem_env[0]) vm->heap_budget_bytes = strtoull(mem_env, NULL, 10);
-    const char* io_env = getenv("AVM_IO_BYTES");
-    if (io_env && io_env[0]) vm->io_budget_bytes = strtoull(io_env, NULL, 10);
-    const char* log_env = getenv("AVM_LOG_BYTES");
-    if (log_env && log_env[0]) vm->log_budget_bytes = strtoull(log_env, NULL, 10);
-
-        // Capsule defaults (rolling): apply safe budgets unless explicitly overridden by env.
-        // These defaults are intentionally conservative and may evolve while the repo is rolling.
-        if (capsule) {
-            if ((!gas_env || !gas_env[0]) && vm->gas_remaining == 0) vm->gas_remaining = 5000000ull;
-            if ((!timeout_env || !timeout_env[0]) && vm->deadline_ns == 0) {
-                uint64_t base = now_ns();
-                if (base != 0) vm->deadline_ns = base + 2000ull * 1000000ull; // 2000ms
-            }
-            if ((!mem_env || !mem_env[0]) && vm->heap_budget_bytes == 0) vm->heap_budget_bytes = 32ull * 1024ull * 1024ull; // 32 MiB
-            if ((!io_env || !io_env[0]) && vm->io_budget_bytes == 0) vm->io_budget_bytes = 1024ull * 1024ull; // 1 MiB
-            if ((!log_env || !log_env[0]) && vm->log_budget_bytes == 0) vm->log_budget_bytes = 1024ull * 1024ull; // 1 MiB
-        }
 
         // Capability enforcement (rolling ABI):
         // - AVM_ALLOW_DOMAINS: comma-separated domain integers (e.g. "0,1"). Unset/empty means allow all.
@@ -1776,6 +1844,7 @@ int main(int argc, char** argv) {
                     fprintf(stdout, "null");
                     break;
             }
+            print_effect_ledger_summary_json(stdout, vm);
             fprintf(stdout, "}\n");
         }
 

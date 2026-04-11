@@ -45,9 +45,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   runtime-profile intent, allow domains, and budget defaults; `--enforce-package-policy` /
   `OREN_ENFORCE_PACKAGE_POLICY=1` now promotes `mismatch_observed` into a build error. Next
   capability work should move toward effect-ledger/budget enforcement rather than re-describing
-  the existing env contract. Contract drift is guarded by
+  the existing env contract. `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger
+  schema before complete runtime emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and
-  `make verify-capability-manifest-policy`.
+  `make verify-capability-manifest-policy`; effect-ledger schema drift is guarded by
+  `make verify-effect-ledger-contract`, with AVM JSON summary emission covered by
+  `make verify-avm-effect-ledger-json`.
 - New: `project-doc/oren_feature_horizon_20260412.md` and
   `project-doc/oren_language_system_bets_20260412.md` separate external pressure signals from
   Oren-owned forecast bets. Reweight Oren differentiation toward deterministic native/AVM

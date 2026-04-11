@@ -123,3 +123,4 @@ budgeted interfaces, replayable multiverse execution, and agent-callable module 
 The most speculative Oren-owned language-system bets are tracked in
 `project-doc/oren_language_system_bets_20260412.md`; that note intentionally treats MCP-like
 protocols as replaceable adapters rather than the project identity.
+The first pinned effect-ledger schema target is `docs/EFFECT_LEDGER_CONTRACT.md`.

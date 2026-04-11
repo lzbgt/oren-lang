@@ -4280,6 +4280,7 @@ Status legend:
 | Native backend (arm64/x64) | Rolling | `lib/compiler/arm64_*`, `lib/compiler/x64_*` | Tier-1 fixtures under `tests/fixtures/` |
 | Bytecode backend (OBC) | Rolling | `lib/compiler/codegen_bytecode/**` | `tests/avm/**` |
 | Capability domains (CORE/FS/TIME/RNG/NET/PROC/ENV/AVM) | Rolling | `lib/avm/avm_native.inc`, `lib/compiler/metadata.oren` | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `@oren.package(...)`, `policy.source_package_check`, `--enforce-package-policy`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `tests/avm/**` |
+| Effect ledger contract | Rolling schema | `docs/EFFECT_LEDGER_CONTRACT.md`, `lib/avm/main.c` | `make verify-effect-ledger-contract`, `make verify-avm-effect-ledger-json`; AVM run JSON emits `effect_ledger_summary`; full native/AVM ledger parity fixtures are future work |
 | VirtualFS/VirtualNET/VirtualPROC | Rolling | `lib/avm/main.c` | AVM fixtures under `tests/avm/` |
 | `.obc` signature verification | Rolling | `lib/avm/avm_sig.c` | `cmd/orensign/main.go` |
 | Nested universes (AVM in AVM) | Rolling (gated) | `lib/avm/avm_native.inc` | `tests/avm/**` |
