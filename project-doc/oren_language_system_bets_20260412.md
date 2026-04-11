@@ -145,12 +145,14 @@ It is a language plus runtime plus artifact contract.
   `oren.semantic-diff.v0` JSON for C/native/OBC runs plus native/AVM ledger-summary bridges and
   explicit gas-surface comparison status. It now also records empirical
   `oren.gas-surface-calibration.v0` ratios as evidence, while marking them as not a conversion. The
-  `oren.gas-surface-calibration-set.v0` guard combines the tiny smoke and loop-heavy fixture into a
-  multi-sample report, preserving the current ratio spread as evidence that Oren needs a real
-  native/AVM gas contract instead of a convenient scalar multiplier. Oren now also guards exact native
-  gas mode spellings: `stmt` and `statement` mean statement+loop gas, while `basic-block` remains
-  reserved for a future distinct surface rather than silently aliasing statement gas. Next work is finer
-  native gas parity or a stated conversion rule, not only expanding fixture scripts.
+  `oren.gas-surface-calibration-set.v0` guard combines tiny smoke, loop-heavy, and branch-heavy fixtures
+  into a multi-sample report, preserving the current ratio spread as evidence that Oren needs a real
+  native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
+  `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
+  `native_instruction_equivalent_or_block_weighted_gas` exists. Oren also guards exact native gas mode
+  spellings: `stmt` and `statement` mean statement+loop gas, while `basic-block` remains reserved for a
+  future distinct surface rather than silently aliasing statement gas. Next work is finer native gas
+  parity or a stated conversion rule, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

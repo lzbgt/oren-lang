@@ -8,6 +8,7 @@ if [[ "$#" == "0" ]]; then
   fixtures=(
     "tests/fixtures/backend_semantic_diff_smoke.oren"
     "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
+    "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
   )
 else
   fixtures=("$@")
@@ -124,6 +125,18 @@ ratio_max = max(ratios)
 ratio_spread = ratio_max / ratio_min if ratio_min > 0.0 else None
 single_ratio_unsafe = ratio_spread is not None and ratio_spread >= min_spread
 status = "pass" if single_ratio_unsafe else "fail"
+conversion_decision = {
+    "schema": "oren.gas-surface-conversion-decision.v0",
+    "status": "blocked",
+    "reason": "single_ratio_unsafe" if single_ratio_unsafe else "insufficient_ratio_spread_evidence",
+    "native_surface_id": native_surface_id,
+    "obc_surface_id": obc_surface_id,
+    "comparable": False,
+    "not_a_conversion": True,
+    "forbidden_policy": "single_fixture_ratio",
+    "required_next_surface": "native_instruction_equivalent_or_block_weighted_gas",
+    "package_policy_may_convert": False,
+}
 
 out = {
     "schema": "oren.gas-surface-calibration-set.v0",
@@ -143,6 +156,7 @@ out = {
         "min_required_spread": min_spread,
         "single_ratio_unsafe": single_ratio_unsafe,
     },
+    "conversion_decision": conversion_decision,
 }
 
 out_path.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n", encoding="utf-8")

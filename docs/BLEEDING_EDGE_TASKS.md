@@ -69,8 +69,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   reports native/OBC gas as non-comparable while native uses `native_stmt_loop_tick_v0` and AVM uses
   `avm_opcode_cost_v0`. Semantic diff also records `oren.gas-surface-calibration.v0` empirical
   ratios for the fixture, explicitly marked as not a conversion. `make verify-backend-gas-surface-calibration-set`
-  now emits an `oren.gas-surface-calibration-set.v0` report and guards the current cross-fixture ratio
-  spread as `single_ratio_unsafe`. AVM `effect_ledger_summary.budgets`
+  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy, and
+  branch-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
+  emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
+  `native_instruction_equivalent_or_block_weighted_gas` before package policy may convert native/OBC
+  gas. AVM `effect_ledger_summary.budgets`
   now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
   `wall_ms.elapsed_ns`. Next capability work should define a conversion contract or finer native
   instruction-equivalent gas rather than re-describing the existing env contract.

@@ -104,10 +104,11 @@ Required entry fields:
   AVM `avm_opcode_cost_v0`. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
   conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
-  `oren.gas-surface-calibration-set.v0` report from the default smoke plus the loop-heavy fixture
-  and requires the current ratio spread to remain explicit as `single_ratio_unsafe`, so future work
-  cannot accidentally treat one empirical ratio as a native/AVM conversion rule. C ledger export is
-  still intentionally reported as unavailable rather than inferred from logs.
+  `oren.gas-surface-calibration-set.v0` report from default smoke, loop-heavy, and branch-heavy
+  fixtures. The report keeps the current ratio spread explicit as `single_ratio_unsafe` and emits an
+  `oren.gas-surface-conversion-decision.v0` object that blocks package-policy gas conversion from a
+  single empirical ratio until Oren has `native_instruction_equivalent_or_block_weighted_gas` evidence.
+  C ledger export is still intentionally reported as unavailable rather than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
   wall/gas/heap/CPU-budget evidence for native capsule execution and can include a captured native
@@ -210,11 +211,13 @@ distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current native
 non-comparable until Oren defines a conversion or instruction-equivalent native gas contract. The
 accepted fine native gas mode spellings are exact: `1`, `stmt`, and `statement`. `basic-block` is
 reserved for a future distinct surface and currently falls back to `native_loop_safepoint_tick_v0`;
-`make verify-native-gas-accounting-modes` guards those mode contracts.
-current semantic-diff report also records empirical `native_per_obc` and `obc_per_native` ratios
+`make verify-native-gas-accounting-modes` guards those mode contracts. The current semantic-diff
+report also records empirical `native_per_obc` and `obc_per_native` ratios
 under `oren.gas-surface-calibration.v0`; those numbers are calibration evidence, not a rule that
 package policy may use for enforcement. `make verify-backend-semantic-diff-gas-calibration` runs the
 same schema guard against an additional loop-heavy fixture, and
 `make verify-backend-gas-surface-calibration-set` writes an `oren.gas-surface-calibration-set.v0`
-report proving the current ratio spread across fixtures is too fixture-sensitive to promote as a
-conversion rule.
+report proving the current ratio spread across default, loop-heavy, and branch-heavy fixtures is too
+fixture-sensitive to promote as a conversion rule. The same report carries an
+`oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false` and
+`required_next_surface="native_instruction_equivalent_or_block_weighted_gas"`.

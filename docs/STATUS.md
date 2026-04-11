@@ -1567,6 +1567,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Public README product positioning is now guarded by `make verify-public-readme-positioning`,
      keeping single-language comparison references out of public `README*.md` files while archived
      research notes remain under `project-doc/**` / `docs/refs/**`.
+   - Gas-surface calibration now includes default smoke, loop-heavy, and branch-heavy fixtures plus
+     an `oren.gas-surface-conversion-decision.v0` blocker, keeping package-policy gas conversion
+     disabled until native instruction-equivalent or block-weighted gas evidence exists.
 
 8) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk, but the rolling tracked >2000-line source

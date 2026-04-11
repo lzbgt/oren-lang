@@ -1,0 +1,31 @@
+fn main() {
+    var i = 0
+    var total = 7
+    var toggle = 0
+    while i < 37 {
+        if i < 9 {
+            total = total + i * 3 + 1
+        } else {
+            if i < 21 {
+                total = total + i * 2 - 5
+            } else {
+                total = total + i + 11
+            }
+        }
+        if toggle == 0 {
+            total = total + 13
+            toggle = 1
+        } else {
+            total = total - 4
+            toggle = 0
+        }
+        if total > 900 {
+            total = total - 29
+        }
+        i = i + 1
+    }
+    oren_set_result(total)
+    print("semantic-diff gas branch total=" + oren_int_to_string(total))
+    print("ok: semantic diff")
+    return 0
+}
