@@ -111,8 +111,13 @@ if native_deltas.get("wall_elapsed_ns") != native_budgets.get("wall_ms", {}).get
     fail(f"native wall elapsed delta should mirror summary budget, got {native_deltas!r} vs {native_budgets!r}")
 if native_deltas.get("wall_elapsed_ns") is None or int(native_deltas.get("wall_elapsed_ns")) < 0:
     fail(f"native wall elapsed should be non-negative, got {native_deltas!r}")
-if native_deltas.get("gas_executed") is not None:
-    fail(f"native gas counter should stay null until native gas accounting lands, got {native_deltas!r}")
+native_gas = native_budgets.get("gas") or {}
+if native_gas.get("executed") is not None or native_gas.get("remaining") is not None:
+    fail(f"native gas accounting should be unavailable until real native gas exists, got {native_gas!r}")
+if native_deltas.get("gas_executed") != native_gas.get("executed"):
+    fail(f"native gas executed delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
+if native_deltas.get("gas_remaining") != native_gas.get("remaining"):
+    fail(f"native gas remaining delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
 native_heap = native_budgets.get("heap_bytes") or {}
 if native_heap.get("kind") != "tracked_live_scan":
     fail(f"native heap counter kind mismatch: {native_heap!r}")

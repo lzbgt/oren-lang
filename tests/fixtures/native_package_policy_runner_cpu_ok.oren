@@ -1,0 +1,8 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_cpu_ms=60000, budget_wall_ms=1000)
+var native_package_policy_cpu_ok = 1
+
+fn main() {
+    var x = 1 + 2
+    if x != 3 { exit(3) }
+    print("native package policy CPU ok")
+}

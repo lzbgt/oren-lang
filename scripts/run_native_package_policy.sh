@@ -15,9 +15,11 @@ policy subset that native can enforce today:
   - cap_allow_domains -> native --cap-allow-domains plus OREN_CAP_ALLOW_DOMAINS
   - budget_wall_ms -> runner process watchdog
   - budget_heap_bytes -> native-run JSON live-heap scan check
+  - budget_cpu_ms -> child process CPU-time check from resource usage when supported
 
-Native package-policy execution is fail-closed for declared budget_gas or
-budget_cpu_ms until native has backend-equivalent accounting for those fields.
+Native package-policy execution is fail-closed for declared budget_gas until
+native-equivalent gas accounting exists, and for budget_cpu_ms when child CPU
+usage is not available on the host.
 Set OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path> to write runner-observed
 wall-budget evidence plus any captured native runtime ledger summary as JSON. Set
 OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN=1, or provide OREN_NATIVE_PACKAGE_POLICY_OUT,
@@ -57,6 +59,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+try:
+    import resource
+except ImportError:
+    resource = None
 
 NATIVE_DOMAINS = {"FS", "NET", "PROC", "ENV", "TIME", "RNG"}
 
@@ -137,6 +144,20 @@ def native_heap_used_from_run_json(native_run_json):
     except (TypeError, ValueError):
         return None
 
+def child_cpu_ms_supported():
+    return resource is not None and hasattr(resource, "RUSAGE_CHILDREN")
+
+def child_cpu_ms_snapshot():
+    if not child_cpu_ms_supported():
+        return None
+    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return int(round((usage.ru_utime + usage.ru_stime) * 1000.0))
+
+def cpu_delta_ms(before, after):
+    if before is None or after is None:
+        return None
+    return max(0, after - before)
+
 src = sys.argv[1]
 prog_args = split_prog_args(sys.argv[2:])
 if prog_args and prog_args[0] == "--":
@@ -165,11 +186,8 @@ def write_run_json(payload):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(data, encoding="utf-8")
 
-def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, caps, wall_ms, budgets, native_run_json=None):
+def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, caps, wall_ms, budgets, native_run_json=None, cpu_used_ms=None):
     unsupported = []
-    for key in ("gas", "cpu_ms"):
-        if budgets.get(key) is not None:
-            unsupported.append("budget_" + key)
     cap_domains = [d for d in caps.split(",") if d]
     native_summary = None
     if native_run_json:
@@ -178,6 +196,23 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
     heap_used = native_heap_used_from_run_json(native_run_json)
     heap_enforced = heap_limit is not None and heap_used is not None
     heap_exceeded = bool(heap_enforced and heap_used > int(heap_limit))
+    gas_limit = budgets.get("gas")
+    cpu_limit = budgets.get("cpu_ms")
+    cpu_enforced = cpu_limit is not None and cpu_used_ms is not None
+    cpu_exceeded = bool(cpu_enforced and cpu_used_ms > int(cpu_limit))
+    if heap_enforced and cpu_enforced:
+        budget_status = "runner_wall_native_heap_child_cpu"
+    elif heap_enforced:
+        budget_status = "runner_wall_native_heap"
+    elif cpu_enforced:
+        budget_status = "runner_wall_child_cpu"
+    else:
+        budget_status = "runner_wall_only"
+    scope_parts = ["process-watchdog"]
+    if native_summary is not None:
+        scope_parts.append("native-run-json")
+    if cpu_enforced:
+        scope_parts.append("child-rusage")
     if native_summary is not None:
         effect_ledger = {
             "available": True,
@@ -203,8 +238,8 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
         "effect_ledger": effect_ledger,
         "runner_observed": {
             "available": True,
-            "scope": "process-watchdog+native-run-json" if native_summary is not None else "process-watchdog",
-            "budget_status": "runner_wall_native_heap" if heap_enforced else "runner_wall_only",
+            "scope": "+".join(scope_parts),
+            "budget_status": budget_status,
         },
         "budgets": {
             "declared": bool(budgets.get("declared")),
@@ -216,9 +251,13 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
                 "enforcement": "runner-watchdog" if wall_ms is not None else "none",
             },
             "gas": {
-                "limit": budgets.get("gas"),
+                "limit": gas_limit,
+                "executed": None,
+                "remaining": None,
                 "enforced": False,
-                "reason": "native-equivalent accounting not implemented",
+                "enforcement": "none",
+                "exceeded": False,
+                "reason": None if gas_limit is None else "native gas accounting is not implemented",
             },
             "heap_bytes": {
                 "limit": heap_limit,
@@ -229,9 +268,12 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
                 "reason": None if heap_enforced or heap_limit is None else "native runtime heap summary was not captured",
             },
             "cpu_ms": {
-                "limit": budgets.get("cpu_ms"),
-                "enforced": False,
-                "reason": "native-equivalent accounting not implemented",
+                "limit": cpu_limit,
+                "used": cpu_used_ms,
+                "enforced": cpu_enforced,
+                "enforcement": "runner-child-rusage" if cpu_enforced else "none",
+                "exceeded": cpu_exceeded,
+                "reason": None if cpu_enforced or cpu_limit is None else "child process CPU usage is unavailable on this host",
             },
         },
     }
@@ -248,22 +290,26 @@ try:
         fail(f"native package runner currently requires runtime_profile=\"capsule\", got {profile!r}")
 
     budgets = pkg.get("budgets") or {}
-    if budgets.get("declared"):
-        unsupported = []
-        for key in ("gas", "cpu_ms"):
-            if budgets.get(key) is not None:
-                unsupported.append("budget_" + key)
-        if unsupported:
-            fail(
-                "native package runner cannot enforce "
-                + ",".join(unsupported)
-                + " yet; use AVM package-policy execution or remove those declarations for native"
-            )
-
     wall_ms = None
+    gas_limit = None
     heap_limit = None
+    cpu_limit = None
+    if budgets.get("gas") is not None:
+        gas_limit = positive_int(budgets.get("gas"), "budget_gas")
+    if gas_limit is not None:
+        fail(
+            "native package runner cannot enforce budget_gas yet; "
+            "use AVM package-policy execution or remove that declaration for native"
+        )
     if budgets.get("heap_bytes") is not None:
         heap_limit = positive_int(budgets.get("heap_bytes"), "budget_heap_bytes")
+    if budgets.get("cpu_ms") is not None:
+        cpu_limit = positive_int(budgets.get("cpu_ms"), "budget_cpu_ms")
+        if not child_cpu_ms_supported():
+            fail(
+                "native package runner cannot enforce budget_cpu_ms on this host; "
+                "use AVM package-policy execution or remove that declaration for native"
+            )
     if budgets.get("wall_ms") is not None:
         wall_ms = positive_int(budgets.get("wall_ms"), "budget_wall_ms")
     env_wall = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TIMEOUT_MS")
@@ -292,6 +338,7 @@ try:
         env["OREN_NATIVE_RUN_JSON"] = "1"
     timeout = None if wall_ms is None else wall_ms / 1000.0
     start_ns = time.monotonic_ns()
+    cpu_before_ms = child_cpu_ms_snapshot() if cpu_limit is not None else None
     try:
         if capture_native_run_json:
             p = subprocess.run(
@@ -310,6 +357,7 @@ try:
             native_run_json = None
     except subprocess.TimeoutExpired:
         elapsed_ns = time.monotonic_ns() - start_ns
+        cpu_used_ms = cpu_delta_ms(cpu_before_ms, child_cpu_ms_snapshot())
         write_run_json(run_summary_payload(
             exit_code=124,
             status="timeout",
@@ -320,9 +368,11 @@ try:
             caps=caps,
             wall_ms=wall_ms,
             budgets=budgets,
+            cpu_used_ms=cpu_used_ms,
         ))
         fail(f"package native wall budget exceeded: {wall_ms}ms", rc=124)
     elapsed_ns = time.monotonic_ns() - start_ns
+    cpu_used_ms = cpu_delta_ms(cpu_before_ms, child_cpu_ms_snapshot())
     if heap_limit is not None:
         heap_used = native_heap_used_from_run_json(native_run_json)
         if heap_used is None:
@@ -337,6 +387,7 @@ try:
                 wall_ms=wall_ms,
                 budgets=budgets,
                 native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
             ))
             fail("package native heap budget cannot be checked: native runtime heap summary was not captured", rc=76)
         if heap_used > heap_limit:
@@ -351,8 +402,40 @@ try:
                 wall_ms=wall_ms,
                 budgets=budgets,
                 native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
             ))
             fail(f"package native heap budget exceeded: used {heap_used} bytes > limit {heap_limit} bytes", rc=125)
+    if cpu_limit is not None:
+        if cpu_used_ms is None:
+            write_run_json(run_summary_payload(
+                exit_code=76,
+                status="budget_unavailable",
+                elapsed_ns=elapsed_ns,
+                src=src,
+                out=out,
+                profile=profile,
+                caps=caps,
+                wall_ms=wall_ms,
+                budgets=budgets,
+                native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
+            ))
+            fail("package native CPU budget cannot be checked: child process CPU usage is unavailable", rc=76)
+        if cpu_used_ms > cpu_limit:
+            write_run_json(run_summary_payload(
+                exit_code=126,
+                status="budget_exceeded",
+                elapsed_ns=elapsed_ns,
+                src=src,
+                out=out,
+                profile=profile,
+                caps=caps,
+                wall_ms=wall_ms,
+                budgets=budgets,
+                native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
+            ))
+            fail(f"package native CPU budget exceeded: used {cpu_used_ms}ms > limit {cpu_limit}ms", rc=126)
     write_run_json(run_summary_payload(
         exit_code=p.returncode,
         status="pass" if p.returncode == 0 else "fail",
@@ -364,6 +447,7 @@ try:
         wall_ms=wall_ms,
         budgets=budgets,
         native_run_json=native_run_json,
+        cpu_used_ms=cpu_used_ms,
     ))
     raise SystemExit(p.returncode)
 finally:

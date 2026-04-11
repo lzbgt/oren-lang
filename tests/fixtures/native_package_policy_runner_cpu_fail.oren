@@ -1,0 +1,13 @@
+@oren.package(runtime_profile="capsule", cap_allow_domains="", budget_cpu_ms=1, budget_wall_ms=3000)
+var native_package_policy_cpu_fail = 1
+
+fn main() {
+    var i = 0
+    var s = 0
+    while i < 1000000 {
+        s = s + (i % 7)
+        i = i + 1
+    }
+    if s < 0 { exit(9) }
+    print("native package policy CPU fail should not pass")
+}
