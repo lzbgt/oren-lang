@@ -1815,11 +1815,15 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
 - Pair-post + exact-body `madd` decision follow-up (2026-04-11):
   `make perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int` ranks `baseline`, `UNROLL2=1`,
   `UNROLL2=1,PAIR_POST=1`, `UNROLL2=1,QUAD/DOUBLE/SCALAR_MADD=1`, and the combined
-  `UNROLL2=1,PAIR_POST=1,QUAD/DOUBLE/SCALAR_MADD=1` candidate. The focused explicit decision artifact
-  (`build/logs/perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int-20260411_175200_21609.log`)
-  says the combined candidate clears that narrow surface: read-split native `long_per_rep -0.22%`,
-  gate native median `-1.03%` with `3/4` wins, and gate `native/C -5.64%` with `4/4` wins. Structural
-  disasm
+  `UNROLL2=1,PAIR_POST=1,QUAD/DOUBLE/SCALAR_MADD=1` candidate. The first focused explicit decision
+  artifact (`build/logs/perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int-20260411_175200_21609.log`)
+  cleared that narrow surface (`long_per_rep -0.22%`, gate native median `-1.03%` with `3/4` wins,
+  and gate `native/C -5.64%` with `4/4` wins), but the immediate same-target rerun after generic
+  wrapper parameterization
+  (`build/logs/perf-probe-arm64-fast-dot-pair-post-madd-decision-list-int-20260411_180637_46019.log`)
+  rejected it (`long_per_rep +6.27%`, gate native median `+0.49%` with `2/4` wins, and gate
+  `native/C -2.93%` with `3/4` wins). Treat the explicit surface as unstable, not promotable.
+  Structural disasm
   (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-unroll2-pair-post-madd-20260411_175249_24107.log`)
   confirms the intended 4-wide paired-scalar body: post-index `ldp` pairs plus `madd`, with a
   63-instruction traced range, 49 after subtracting two skipped cold GC-call blocks. Broader acceptance
@@ -1827,8 +1831,15 @@ committed. Keep them under `build/benchmarks/results/`, and commit only stable s
   (`steady -0.74%`, `gate -6.12%`;
   `build/logs/perf-probe-arm64-fast-dot-unroll2-list-int-20260411_175304_24487.log`), but generic
   `dot_product` regressed steady native time while slightly improving gate (`+1.69%` / `-0.63%`;
-  `build/logs/perf-probe-arm64-fast-dot-unroll2-20260411_175335_25935.log`). Keep the combined
-  pair-post+madd branch opt-in until it wins the generic steady surface too.
+  `build/logs/perf-probe-arm64-fast-dot-unroll2-20260411_175335_25935.log`). The matching generic
+  decision wrapper is now `make perf-probe-arm64-fast-dot-pair-post-madd-decision`; current artifact
+  (`build/logs/perf-probe-arm64-fast-dot-pair-post-madd-decision-20260411_180500_42245.log`)
+  rejects the same combined candidate despite a read-split repeated-work win
+  (`long_per_rep -2.46%`), because order-balanced gate native median regressed `+1.72%` with only
+  `1/4` wins and normalized `native/C` regressed `+5.16%` with only `1/4` wins. The simpler
+  `UNROLL2=1,QUAD/DOUBLE/SCALAR_MADD=1` row wins the generic gate (`native -2.42%`, `4/4`; native/C
+  `-1.70%`, `3/4`) but fails read-split repeated work (`long_per_rep +2.55%`). Keep both branches
+  opt-in until one wins decomposition and order-balanced generic/explicit whole-operation views.
 - The shipped scalar exact-`madd` default state now also has a deterministic structural guard:
   `make verify-native-arm64-dot-madd-scalar-default`. The same check is wired into
   `make verify-native-list-int-fast-lowering`, so the existing fast-lowering gate now also proves the

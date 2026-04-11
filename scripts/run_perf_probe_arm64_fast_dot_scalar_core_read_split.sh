@@ -14,6 +14,90 @@ warmups="${OREN_ARM64_FAST_DOT_SCALAR_CORE_READ_SPLIT_WARMUPS:-1}"
 n="${OREN_ARM64_FAST_DOT_SCALAR_CORE_READ_SPLIT_N:-2000000}"
 short_reps="${OREN_ARM64_FAST_DOT_SCALAR_CORE_READ_SPLIT_SHORT_REPS:-1}"
 long_reps="${OREN_ARM64_FAST_DOT_SCALAR_CORE_READ_SPLIT_LONG_REPS:-10}"
+case_set="${OREN_ARM64_FAST_DOT_SCALAR_CORE_READ_SPLIT_CASES:-baseline cursor_disabled scalar_enabled cursor_scalar_enabled}"
+
+case_env_desc() {
+    case "$1" in
+        baseline)
+            printf '%s\n' "default shipped baseline"
+            ;;
+        cursor_disabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0"
+            ;;
+        scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        cursor_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1"
+            ;;
+        unroll2_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_pair_post_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1"
+            ;;
+        unroll2_madd_all_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_pair_post_madd_all_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        scalar_post_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1"
+            ;;
+        scalar_post_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        *)
+            printf 'unknown case: %s\n' "$1" >&2
+            return 1
+            ;;
+    esac
+}
+
+case_build_env() {
+    case "$1" in
+        baseline)
+            ;;
+        cursor_disabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0"
+            ;;
+        scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        cursor_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1"
+            ;;
+        unroll2_scalar_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_pair_post_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1"
+            ;;
+        unroll2_madd_all_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        unroll2_pair_post_madd_all_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2=1,OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        scalar_post_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1"
+            ;;
+        scalar_post_madd_enabled)
+            printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST=1,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1"
+            ;;
+        *)
+            printf 'unknown case: %s\n' "$1" >&2
+            return 1
+            ;;
+    esac
+}
 
 run_case() {
     local label="$1"
@@ -43,17 +127,12 @@ run_case() {
 }
 
 : >"$manifest_log"
-run_case baseline "default shipped baseline"
-run_case cursor_disabled \
-    "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0" \
-    OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0
-run_case scalar_enabled \
-    "OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1" \
-    OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1
-run_case cursor_scalar_enabled \
-    "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0,OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1" \
-    OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS=0 \
-    OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1
+read -r -a cases <<<"$case_set"
+for label in "${cases[@]}"; do
+    env_desc="$(case_env_desc "$label")"
+    build_env="$(case_build_env "$label")"
+    run_case "$label" "$env_desc" "$build_env"
+done
 
 MANIFEST_LOG="$manifest_log" \
 PROGRAMS="$programs" \
@@ -62,6 +141,7 @@ WARMUPS="$warmups" \
 N="$n" \
 SHORT_REPS="$short_reps" \
 LONG_REPS="$long_reps" \
+CASE_SET="$case_set" \
 python3 - <<'PY' >"$summary_log"
 import os
 import re
@@ -121,6 +201,7 @@ print(f"warmups: {os.environ['WARMUPS']}")
 print(f"n: {os.environ['N']}")
 print(f"short_reps: {os.environ['SHORT_REPS']}")
 print(f"long_reps: {os.environ['LONG_REPS']}")
+print(f"case_set: {os.environ['CASE_SET']}")
 print("")
 
 rows = []

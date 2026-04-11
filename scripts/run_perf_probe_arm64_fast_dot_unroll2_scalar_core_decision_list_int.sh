@@ -8,16 +8,23 @@ ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
 mkdir -p "$log_dir"
 
-tag="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_TAG:-perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int}"
-title="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_TITLE:-arm64 fast dot unroll2 + scalar-core decision list<int> summary}"
-complete_label="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_COMPLETE_LABEL:-arm64 fast-dot unroll2 scalar-core decision list<int> probe}"
+tag="${OREN_ARM64_FAST_DOT_CASE_DECISION_TAG:-${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_TAG:-perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int}}"
+title="${OREN_ARM64_FAST_DOT_CASE_DECISION_TITLE:-${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_TITLE:-arm64 fast dot unroll2 + scalar-core decision list<int> summary}}"
+complete_label="${OREN_ARM64_FAST_DOT_CASE_DECISION_COMPLETE_LABEL:-${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_COMPLETE_LABEL:-arm64 fast-dot unroll2 scalar-core decision list<int> probe}}"
+metric_program="${OREN_ARM64_FAST_DOT_CASE_DECISION_METRIC_PROGRAM:-dot_product_int}"
+read_split_target="${OREN_ARM64_FAST_DOT_CASE_DECISION_READ_SPLIT_TARGET:-perf-probe-arm64-fast-dot-scalar-core-read-split-list-int}"
+read_split_cases_env="${OREN_ARM64_FAST_DOT_CASE_DECISION_READ_SPLIT_CASES_ENV:-OREN_ARM64_FAST_DOT_SCALAR_CORE_READ_SPLIT_LIST_INT_CASES}"
+read_split_summary_prefix="${OREN_ARM64_FAST_DOT_CASE_DECISION_READ_SPLIT_SUMMARY_PREFIX:-perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-}"
+gate_stability_target="${OREN_ARM64_FAST_DOT_CASE_DECISION_GATE_STABILITY_TARGET:-perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int}"
+gate_stability_cases_env="${OREN_ARM64_FAST_DOT_CASE_DECISION_GATE_STABILITY_CASES_ENV:-OREN_ARM64_FAST_DOT_SCALAR_CORE_GATE_STABILITY_LIST_INT_CASES}"
+gate_stability_summary_prefix="${OREN_ARM64_FAST_DOT_CASE_DECISION_GATE_STABILITY_SUMMARY_PREFIX:-perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-}"
 
 summary_log="$log_dir/${tag}-${ts}.log"
 read_split_wrapper_log="$log_dir/${tag}-read-split-${ts}.run.log"
 gate_wrapper_log="$log_dir/${tag}-gate-stability-${ts}.run.log"
 
-case_set="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_CASES:-${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CASES:-baseline unroll2_enabled scalar_enabled unroll2_scalar_enabled}}"
-candidate="${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_CANDIDATE:-${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CANDIDATE:-unroll2_scalar_enabled}}"
+case_set="${OREN_ARM64_FAST_DOT_CASE_DECISION_CASES:-${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_CASES:-${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CASES:-baseline unroll2_enabled scalar_enabled unroll2_scalar_enabled}}}"
+candidate="${OREN_ARM64_FAST_DOT_CASE_DECISION_CANDIDATE:-${OREN_ARM64_FAST_DOT_CASE_DECISION_LIST_INT_CANDIDATE:-${OREN_ARM64_FAST_DOT_UNROLL2_SCALAR_CORE_DECISION_LIST_INT_CANDIDATE:-unroll2_scalar_enabled}}}"
 
 extract_summary_path() {
     local run_log="$1"
@@ -37,26 +44,26 @@ PY
 
 set +e
 env \
-    OREN_ARM64_FAST_DOT_SCALAR_CORE_READ_SPLIT_LIST_INT_CASES="$case_set" \
-    make perf-probe-arm64-fast-dot-scalar-core-read-split-list-int >"$read_split_wrapper_log" 2>&1
+    "$read_split_cases_env=$case_set" \
+    make "$read_split_target" >"$read_split_wrapper_log" 2>&1
 read_split_rc=$?
 set -e
 
 read_split_summary=""
 if [[ "$read_split_rc" == "0" ]]; then
-    read_split_summary="$(extract_summary_path "$read_split_wrapper_log" "perf-probe-arm64-fast-dot-scalar-core-read-split-list-int-" || true)"
+    read_split_summary="$(extract_summary_path "$read_split_wrapper_log" "$read_split_summary_prefix" || true)"
 fi
 
 set +e
 env \
-    OREN_ARM64_FAST_DOT_SCALAR_CORE_GATE_STABILITY_LIST_INT_CASES="$case_set" \
-    make perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int >"$gate_wrapper_log" 2>&1
+    "$gate_stability_cases_env=$case_set" \
+    make "$gate_stability_target" >"$gate_wrapper_log" 2>&1
 gate_rc=$?
 set -e
 
 gate_summary=""
 if [[ "$gate_rc" == "0" ]]; then
-    gate_summary="$(extract_summary_path "$gate_wrapper_log" "perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int-" || true)"
+    gate_summary="$(extract_summary_path "$gate_wrapper_log" "$gate_stability_summary_prefix" || true)"
 fi
 
 READ_SPLIT_WRAPPER_LOG="$read_split_wrapper_log" \
@@ -67,6 +74,7 @@ GATE_WRAPPER_RC="$gate_rc" \
 GATE_SUMMARY="$gate_summary" \
 CASE_SET="$case_set" \
 CANDIDATE="$candidate" \
+METRIC_PROGRAM="$metric_program" \
 TITLE="$title" \
 python3 - <<'PY' >"$summary_log"
 import os
@@ -98,12 +106,14 @@ def fmt_pct(value):
 read_split_summary = os.environ["READ_SPLIT_SUMMARY"]
 gate_summary = os.environ["GATE_SUMMARY"]
 candidate = os.environ["CANDIDATE"]
+metric_program = os.environ["METRIC_PROGRAM"]
+metric_re = re.escape(metric_program)
 
 read_split_deltas = {}
 if read_split_summary and os.path.exists(read_split_summary):
     text = open(read_split_summary, "r", encoding="utf-8").read()
     for raw in text.splitlines():
-        m = re.match(r"^([a-z0-9_]+)_dot_product_int_native_(short|setup|delta|long_per_rep)_delta_pct: ([+-][0-9.]+)%$", raw)
+        m = re.match(rf"^([a-z0-9_]+)_{metric_re}_native_(short|setup|delta|long_per_rep)_delta_pct: ([+-][0-9.]+)%$", raw)
         if m:
             read_split_deltas.setdefault(m.group(1), {})[m.group(2)] = float(m.group(3))
 
@@ -145,6 +155,7 @@ print(os.environ["TITLE"])
 print("")
 print(f"case_set: {os.environ['CASE_SET']}")
 print(f"candidate: {candidate}")
+print(f"metric_program: {metric_program}")
 print(f"read_split_wrapper_log: {os.environ['READ_SPLIT_WRAPPER_LOG']}")
 print(f"read_split_wrapper_exit_code: {os.environ['READ_SPLIT_WRAPPER_RC']}")
 print(f"read_split_summary: {read_split_summary or 'missing'}")
