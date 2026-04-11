@@ -95,8 +95,11 @@ Required entry fields:
   compare `entries` and budget deltas without scraping logs.
 - The first repo-level semantic-diff consumer is intentionally smaller than the full ledger:
   `scripts/run_backend_semantic_diff.sh` emits `oren.semantic-diff.v0` JSON with C/native/OBC
-  exit codes, normalized stdout/stderr hashes, log paths, and a pass/fail verdict. Future work
-  should add ledger-entry and budget-delta comparisons to the same report shape.
+  exit codes, normalized stdout/stderr hashes, log paths, and a pass/fail verdict. It also runs
+  the OBC artifact with `--print-run-json` and records the AVM `effect_ledger_summary`,
+  normalized `budget_deltas`, ledger availability per backend, and whether full all-backend
+  ledger/budget comparison is possible. Native/C ledger export is still intentionally reported
+  as unavailable rather than inferred from logs.
 
 ## Verification Map
 

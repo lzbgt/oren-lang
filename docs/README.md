@@ -57,7 +57,7 @@ make test-native-quick-green-fairness-onearg-count-sweep-flake  # focused one-ar
 make test-native-quick-green-fairness-modes-flake  # split stage1 fairness triage (zero/one-arg leaf controls first, then mixed slices with/without topology)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage1 base + mixed local-ptr direct + pre-world-lock + stage2 + C-backend builds; fairness stays triage-only)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
-make verify-backend-semantic-diff  # emits build/reports/backend_semantic_diff_*.json for C/native/obc parity evidence
+make verify-backend-semantic-diff  # emits C/native/obc parity JSON plus OBC ledger/budget evidence
 make readiness-report  # generates build/reports/readiness_report_*.md
 make readiness-report-full  # quick + GC stress + runtime robustness
 make readiness-report-minimal  # native quick only

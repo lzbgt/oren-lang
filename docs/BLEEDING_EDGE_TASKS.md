@@ -2698,8 +2698,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
    - New (2026-04-12): `scripts/run_backend_semantic_diff.sh` emits
      `build/reports/backend_semantic_diff_*.json` with backend exit codes, normalized stdout/stderr
-     hashes, log paths, and a pass/fail verdict. This turns one parity smoke into an
-     agent-readable semantic-diff artifact rather than a log-scraping check.
+     hashes, log paths, and a pass/fail verdict. It now also runs the OBC artifact with
+     `--print-run-json`, records AVM `effect_ledger_summary` plus normalized `budget_deltas`,
+     and reports C/native ledger availability as explicitly missing until those backends
+     export equivalent ledgers. This turns one parity smoke into an agent-readable
+     semantic-diff artifact rather than a log-scraping check.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).

@@ -110,6 +110,8 @@ run_native_out="${log_prefix}_native.stdout"
 run_native_err="${log_prefix}_native.stderr"
 run_obc_out="${log_prefix}_obc.stdout"
 run_obc_err="${log_prefix}_obc.stderr"
+run_obc_json="${log_prefix}_obc.run.json"
+run_obc_json_err="${log_prefix}_obc.run.stderr"
 
 cleanup_artifacts=1
 if [[ -n "${OREN_BACKEND_SEMANTIC_DIFF_KEEP_ARTIFACTS:-}" ]]; then
@@ -142,9 +144,11 @@ run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" "$out_native" >"$
 rc_native=$?
 run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" ./avm "$out_obc" >"$run_obc_out" 2>"$run_obc_err"
 rc_obc=$?
+run_with_timeout "$run_timeout_secs" env "${trace_env_arr[@]}" ./avm --print-run-json "$out_obc" >"$run_obc_json" 2>"$run_obc_json_err"
+rc_obc_json=$?
 set -e
 
-python3 - "$report" "$src" "$expect_line" \
+python3 - "$report" "$src" "$expect_line" "$run_obc_json" "$run_obc_json_err" "$rc_obc_json" \
   c "$rc_c" "$run_c_out" "$run_c_err" "$build_c" \
   native "$rc_native" "$run_native_out" "$run_native_err" "$build_native" \
   obc "$rc_obc" "$run_obc_out" "$run_obc_err" "$build_obc" <<'PY'
@@ -156,7 +160,10 @@ from pathlib import Path
 report = Path(sys.argv[1])
 src = sys.argv[2]
 expect_line = sys.argv[3]
-items = sys.argv[4:]
+obc_run_json_log = sys.argv[4]
+obc_run_json_stderr_log = sys.argv[5]
+obc_run_json_rc = int(sys.argv[6])
+items = sys.argv[7:]
 
 def read_text(path_s):
     return Path(path_s).read_text(encoding="utf-8", errors="replace")
@@ -167,6 +174,54 @@ def normalize(text):
 
 def sha256_s(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+def find_last_json_obj(text):
+    for line in reversed(text.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+def budget_deltas(summary):
+    budgets = (summary or {}).get("budgets") or {}
+    gas = budgets.get("gas") or {}
+    heap = budgets.get("heap_bytes") or {}
+    wall = budgets.get("wall_ms") or {}
+    io_b = budgets.get("io_bytes") or {}
+    log_b = budgets.get("log_bytes") or {}
+    trace_b = budgets.get("trace_bytes") or {}
+    return {
+        "gas_executed": gas.get("executed"),
+        "gas_remaining": gas.get("remaining"),
+        "heap_bytes_used": heap.get("used"),
+        "heap_bytes_limit": heap.get("limit"),
+        "wall_elapsed_ns": wall.get("elapsed_ns"),
+        "wall_ms_limit": wall.get("limit"),
+        "io_bytes_used": io_b.get("used"),
+        "io_bytes_limit": io_b.get("limit"),
+        "log_bytes_used": log_b.get("used"),
+        "log_bytes_limit": log_b.get("limit"),
+        "trace_bytes_used": trace_b.get("used"),
+        "trace_bytes_limit": trace_b.get("limit"),
+        "trace_bytes_truncated": trace_b.get("truncated"),
+    }
+
+def unavailable_ledger(reason):
+    return {
+        "available": False,
+        "reason": reason,
+        "run_json_schema": None,
+        "summary_schema": None,
+        "summary": None,
+        "budget_deltas": None,
+        "run_json_log": None,
+        "run_json_stderr_log": None,
+        "run_json_exit_code": None,
+    }
 
 backends = {}
 for i in range(0, len(items), 5):
@@ -189,14 +244,48 @@ for i in range(0, len(items), 5):
         "stderr_log": stderr_path,
         "build_log": build_log,
         "expected_line_present": expect_line in stdout_norm.splitlines(),
+        "ledger": unavailable_ledger("backend run JSON ledger export is not implemented"),
     }
+
+obc_run_json = find_last_json_obj(read_text(obc_run_json_log))
+obc_run_json_schema = obc_run_json.get("schema") if isinstance(obc_run_json, dict) else None
+obc_ledger_summary = None
+if obc_run_json_schema == "avm.run.v1":
+    obc_ledger_summary = obc_run_json.get("effect_ledger_summary")
+obc_ledger_summary_schema = obc_ledger_summary.get("schema") if isinstance(obc_ledger_summary, dict) else None
+obc_ledger_available = obc_ledger_summary_schema == "oren.effect-ledger-summary.v0"
+if obc_run_json_schema != "avm.run.v1":
+    obc_ledger_reason = "missing avm.run.v1 JSON in AVM run JSON log"
+elif not isinstance(obc_ledger_summary, dict):
+    obc_ledger_reason = "missing effect_ledger_summary in AVM run JSON"
+elif obc_ledger_summary_schema != "oren.effect-ledger-summary.v0":
+    obc_ledger_reason = "effect_ledger_summary schema mismatch"
+else:
+    obc_ledger_reason = None
+backends["obc"]["ledger"] = {
+    "available": obc_ledger_available,
+    "reason": obc_ledger_reason,
+    "run_json_schema": obc_run_json_schema,
+    "summary_schema": obc_ledger_summary_schema,
+    "summary": obc_ledger_summary,
+    "budget_deltas": budget_deltas(obc_ledger_summary) if obc_ledger_available else None,
+    "run_json_log": obc_run_json_log,
+    "run_json_stderr_log": obc_run_json_stderr_log,
+    "run_json_exit_code": obc_run_json_rc,
+}
 
 order = ["c", "native", "obc"]
 stdout_equal = len({backends[name]["stdout_normalized"] for name in order}) == 1
 exit_equal = len({backends[name]["exit_code"] for name in order}) == 1
 all_ok = all(backends[name]["exit_code"] == 0 for name in order)
 expect_ok = all(backends[name]["expected_line_present"] for name in order)
-status = "pass" if stdout_equal and exit_equal and all_ok and expect_ok else "fail"
+obc_run_json_ok = obc_run_json_rc == 0 and obc_run_json_schema == "avm.run.v1"
+obc_ledger_ok = backends["obc"]["ledger"]["available"]
+ledger_available = [name for name in order if backends[name]["ledger"]["available"]]
+ledger_missing = [name for name in order if not backends[name]["ledger"]["available"]]
+ledger_comparable_all = len(ledger_available) == len(order)
+budget_deltas_comparable_all = ledger_comparable_all and all(backends[name]["ledger"]["budget_deltas"] is not None for name in order)
+status = "pass" if stdout_equal and exit_equal and all_ok and expect_ok and obc_run_json_ok and obc_ledger_ok else "fail"
 
 out = {
     "schema": "oren.semantic-diff.v0",
@@ -209,6 +298,16 @@ out = {
         "all_exit_zero": all_ok,
         "expected_line": expect_line,
         "expected_line_present_all": expect_ok,
+        "obc_run_json_exit_zero": obc_run_json_rc == 0,
+        "obc_run_json_schema": obc_run_json_schema,
+        "obc_run_json_schema_ok": obc_run_json_schema == "avm.run.v1",
+        "obc_effect_ledger_summary_present": obc_ledger_ok,
+        "obc_effect_ledger_summary_schema": obc_ledger_summary_schema,
+        "obc_effect_ledger_summary_schema_ok": obc_ledger_summary_schema == "oren.effect-ledger-summary.v0",
+        "ledger_available_backends": ledger_available,
+        "ledger_missing_backends": ledger_missing,
+        "ledger_comparable_all_backends": ledger_comparable_all,
+        "budget_deltas_comparable_all_backends": budget_deltas_comparable_all,
     },
     "backends": backends,
 }
