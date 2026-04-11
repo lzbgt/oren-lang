@@ -25,6 +25,24 @@ fn _arm64_expr_slot_direct_fast_tick_mask() {
     return _arm64_expr_parse_tick_mask_decimal(oren_env("OREN_ARM64_LIST_INT_SLOT_DIRECT_TICK_MASK"), 4095)
 }
 
+fn _arm64_expr_emit_slot_direct_gc_tick(ctx, tick_mask, fast_tick, spill_pairs) {
+    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    var jpos_skip_gc = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    if fast_tick == true {
+        native_emit_gc_safepoint_call_expr_pairs(ctx, spill_pairs)
+    } else {
+        native_emit_gc_safepoint_call_expr(ctx)
+    }
+    push_u32_le(ctx["code"], insn_movz(9, 0))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    var after_gc = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], jpos_skip_gc, insn_b_cond((after_gc - jpos_skip_gc) / 4, 1)) // NE
+    return nil
+}
+
 fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
             if fn_name == "oren_list_len" || fn_name == "STD_list_len" {
@@ -936,30 +954,50 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_movz(20, 0)) // X20 = i
                 push_u32_le(ctx["code"], insn_movz(22, 0)) // X22 = sum
                 var sum_fast_tick = _arm64_expr_env_enabled_default_false("OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK")
+                var sum_pair_loop = _arm64_expr_env_enabled_default_false("OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP")
                 var sum_tick_mask = 1023
                 if sum_fast_tick == true { sum_tick_mask = _arm64_expr_slot_direct_fast_tick_mask() }
                 push_u32_le(ctx["code"], insn_movz(9, 0))
                 push_u32_le(ctx["code"], insn_movz(10, sum_tick_mask))
+
+                if sum_pair_loop == true {
+                    var sum_pair_cond = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], insn_add_imm(24, 20, 1))
+                    push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
+                    var jpos_sum_pair_tail = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    _arm64_expr_emit_slot_direct_gc_tick(ctx, sum_tick_mask, sum_fast_tick, [[19, 20], [21, 22]])
+                    push_u32_le(ctx["code"], insn_ldp_pair_post(24, 25, 19, 16))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 24))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 25))
+                    push_u32_le(ctx["code"], insn_add_imm(20, 20, 2))
+                    var sum_pair_back = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], insn_b((sum_pair_cond - sum_pair_back) / 4))
+
+                    var sum_tail_cond = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], jpos_sum_pair_tail, insn_b_cond((sum_tail_cond - jpos_sum_pair_tail) / 4, 10)) // GE
+                    push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+                    var jpos_sum_pair_end = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    _arm64_expr_emit_slot_direct_gc_tick(ctx, sum_tick_mask, sum_fast_tick, [[19, 20], [21, 22]])
+                    push_u32_le(ctx["code"], insn_ldr_ptr(24, 19))
+                    push_u32_le(ctx["code"], insn_add_reg(22, 22, 24))
+
+                    var sum_pair_end = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], jpos_sum_pair_end, insn_b_cond((sum_pair_end - jpos_sum_pair_end) / 4, 10)) // GE
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 22))
+
+                    var sum_pair_done = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_sum_done, insn_b((sum_pair_done - br_sum_done) / 4))
+                    return true
+                }
 
                 var sum_loop_cond = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
                 var jpos_sum_end = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
-                push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
-                push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
-                push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
-                var jpos_sum_skip_gc = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                if sum_fast_tick == true {
-                    native_emit_gc_safepoint_call_expr_pairs(ctx, [[19, 20], [21, 22]])
-                } else {
-                    native_emit_gc_safepoint_call_expr(ctx)
-                }
-                push_u32_le(ctx["code"], insn_movz(9, 0))
-                push_u32_le(ctx["code"], insn_movz(10, sum_tick_mask))
-                var sum_after_gc = bytes_len(ctx["code"])
-                set_u32_le(ctx["code"], jpos_sum_skip_gc, insn_b_cond((sum_after_gc - jpos_sum_skip_gc) / 4, 1)) // NE
+                _arm64_expr_emit_slot_direct_gc_tick(ctx, sum_tick_mask, sum_fast_tick, [[19, 20], [21, 22]])
                 push_u32_le(ctx["code"], insn_ldr_ptr(24, 19))
                 push_u32_le(ctx["code"], insn_add_reg(22, 22, 24))
                 push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
@@ -1034,30 +1072,54 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_movz(23, 0)) // X23 = sum
                 push_u32_le(ctx["code"], insn_movz(24, 0)) // X24 = i
                 var dot_fast_tick = _arm64_expr_env_enabled_default_false("OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK")
+                var dot_pair_loop = _arm64_expr_env_enabled_default_false("OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP")
                 var dot_tick_mask = 1023
                 if dot_fast_tick == true { dot_tick_mask = _arm64_expr_slot_direct_fast_tick_mask() }
                 push_u32_le(ctx["code"], insn_movz(9, 0))
                 push_u32_le(ctx["code"], insn_movz(10, dot_tick_mask))
+
+                if dot_pair_loop == true {
+                    push_u32_le(ctx["code"], insn_movz(22, 0)) // X22 = secondary accumulator
+                    var dot_pair_cond = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], insn_add_imm(25, 24, 1))
+                    push_u32_le(ctx["code"], insn_cmp_reg(25, 21))
+                    var jpos_dot_pair_tail = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    _arm64_expr_emit_slot_direct_gc_tick(ctx, dot_tick_mask, dot_fast_tick, [[19, 20], [21, 22], [23, 24]])
+                    push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 19, 16))
+                    push_u32_le(ctx["code"], insn_ldp_pair_post(11, 12, 20, 16))
+                    push_u32_le(ctx["code"], insn_madd(23, 25, 11, 23))
+                    push_u32_le(ctx["code"], insn_madd(22, 26, 12, 22))
+                    push_u32_le(ctx["code"], insn_add_imm(24, 24, 2))
+                    var dot_pair_back = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], insn_b((dot_pair_cond - dot_pair_back) / 4))
+
+                    var dot_tail_cond = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], jpos_dot_pair_tail, insn_b_cond((dot_tail_cond - jpos_dot_pair_tail) / 4, 10)) // GE
+                    push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
+                    var jpos_dot_pair_end = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    _arm64_expr_emit_slot_direct_gc_tick(ctx, dot_tick_mask, dot_fast_tick, [[19, 20], [21, 22], [23, 24]])
+                    push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
+                    push_u32_le(ctx["code"], insn_ldr_ptr(26, 20))
+                    push_u32_le(ctx["code"], insn_madd(23, 25, 26, 23))
+
+                    var dot_pair_end = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], jpos_dot_pair_end, insn_b_cond((dot_pair_end - jpos_dot_pair_end) / 4, 10)) // GE
+                    push_u32_le(ctx["code"], insn_add_reg(23, 23, 22))
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 23))
+
+                    var dot_pair_done = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_dot_done, insn_b((dot_pair_done - br_dot_done) / 4))
+                    return true
+                }
 
                 var dot_loop_cond = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], insn_cmp_reg(24, 21))
                 var jpos_dot_end = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
-                push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
-                push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
-                push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
-                var jpos_dot_skip_gc = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                if dot_fast_tick == true {
-                    native_emit_gc_safepoint_call_expr_pairs(ctx, [[19, 20], [21, 22], [23, 24]])
-                } else {
-                    native_emit_gc_safepoint_call_expr(ctx)
-                }
-                push_u32_le(ctx["code"], insn_movz(9, 0))
-                push_u32_le(ctx["code"], insn_movz(10, dot_tick_mask))
-                var dot_after_gc = bytes_len(ctx["code"])
-                set_u32_le(ctx["code"], jpos_dot_skip_gc, insn_b_cond((dot_after_gc - jpos_dot_skip_gc) / 4, 1)) // NE
+                _arm64_expr_emit_slot_direct_gc_tick(ctx, dot_tick_mask, dot_fast_tick, [[19, 20], [21, 22], [23, 24]])
                 push_u32_le(ctx["code"], insn_ldr_ptr(25, 19))
                 push_u32_le(ctx["code"], insn_ldr_ptr(26, 20))
                 push_u32_le(ctx["code"], insn_mul(25, 25, 26))

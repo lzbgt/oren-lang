@@ -183,6 +183,7 @@ fn insn_orr_reg(rd, rn, rm) { return core.insn_orr_reg(rd, rn, rm) }
 fn insn_eor_reg(rd, rn, rm) { return core.insn_eor_reg(rd, rn, rm) }
 fn insn_lslv(rd, rn, rm) { return core.insn_lslv(rd, rn, rm) }
 fn insn_lsrv(rd, rn, rm) { return core.insn_lsrv(rd, rn, rm) }
+fn insn_madd(rd, rn, rm, ra) { return core.insn_madd(rd, rn, rm, ra) }
 fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
 fn insn_cset(rd, cond) { return core.insn_cset(rd, cond) }
 fn insn_b(off) { return core.insn_b(off) }

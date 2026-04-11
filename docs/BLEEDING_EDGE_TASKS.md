@@ -1473,6 +1473,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									     `array_sum_int` (`~1.0010× -> ~1.1249×`) and `dot_product_int`
 									     (`~1.2931× -> ~1.3051×`). This closes the tick/spill shortcut as a default
 									     path; the next W5 move is still a real representation/direct-lowering change.
+								   - Slot-direct helper pair-loop decision (2026-04-11): new
+								     `OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP=1` emits a counted 2-wide
+								     raw-slot helper loop for unchecked `list<int>` sum/dot helpers, and
+								     `make perf-probe-list-int-slot-direct-pair-loop-decision`
+									     (`build/logs/perf-probe-list-int-slot-direct-pair-loop-decision-20260411_195615_19255.log`)
+									     covers default, fast-tick, pair-loop, and pair-loop+fast-tick builds.
+									     Verdict: keep it opt-in. Pair-loop alone regressed slot-ABI direct-helper
+									     time `+3.15%` and read-split `array_sum_int` slot-direct native/C `+9.88%`,
+									     while improving only `dot_product_int` `-3.31%`; pair-loop+fast-tick also
+									     regressed slot-ABI `+3.42%` and array `+7.70%` while improving dot `-7.55%`.
+									     This closes the scalar helper scheduling shortcut as a default path.
 						   - New setup-vs-steady attribution follow-up (2026-04-09): new
 						     `make perf-probe-list-int-array-sum-c-breakdown`
 					     (`build/logs/perf-probe-list-int-array-sum-c-breakdown-20260409_143718_76549.log`)
@@ -3713,6 +3724,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      rejects promotion: slot-ABI direct-helper time regressed `+0.21%`, and read-split
      slot-direct native/C regressed on both `array_sum_int` and `dot_product_int`. Keep it opt-in;
      do not use it as the W5 default path.
+   - Follow-up (2026-04-11): `OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP=1` is now a default-off
+     counted 2-wide raw-slot helper loop probe for unchecked `list<int>` sum/dot helpers. The decision
+     probe `make perf-probe-list-int-slot-direct-pair-loop-decision`
+     (`build/logs/perf-probe-list-int-slot-direct-pair-loop-decision-20260411_195615_19255.log`)
+     rejects promotion: pair-loop alone regressed slot-ABI direct-helper time `+3.15%` and
+     read-split `array_sum_int` slot-direct native/C `+9.88%`, while improving only `dot_product_int`
+     `-3.31%`; pair-loop+fast-tick regressed slot-ABI `+3.42%` and array `+7.70%`, while improving
+     dot `-7.55%`. Keep it opt-in; W5 still needs a real representation/direct-lowering path.
    - Constraint (2026-03-20): direct reuse of the packed-i32 SIMD dot kernel is not safe for the
      current `list<int>` fast-loop payload layout because those slots are 64-bit values.
    - New: native runtime now exposes the current `list<int>` payload ABI explicitly via

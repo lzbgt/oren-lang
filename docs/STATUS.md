@@ -248,6 +248,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     Keep the reduced helper safepoint spill / 4095-tick-mask branch opt-in only. This closes the
 	     tick/spill shortcut as a default path and keeps the next W5 work on real representation or
 	     direct-lowering changes.
+	   - Slot-direct helper pair-loop decision (2026-04-11): new
+	     `OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP=1` emits a counted 2-wide raw-slot helper loop
+	     for unchecked `list<int>` sum/dot helpers (`ldp` pairs and dual `madd` for dot), with an
+	     optional combination with the fast-tick branch. `make perf-probe-list-int-slot-direct-pair-loop-decision`
+	     (`build/logs/perf-probe-list-int-slot-direct-pair-loop-decision-20260411_195615_19255.log`)
+	     rejects promotion: pair-loop alone regressed slot-ABI direct-helper time `+3.15%` and
+	     read-split `array_sum_int` slot-direct native/C `+9.88%`, while improving only
+	     `dot_product_int` `-3.31%`; pair-loop+fast-tick had the same split (`+3.42%` slot-ABI,
+	     `+7.70%` array, `-7.55%` dot). Keep it opt-in; this closes the scalar helper scheduling
+	     shortcut and keeps W5 pointed at a real representation/direct-lowering path.
 	   - New: arm64 fast LCG loop lowering now activates for `benchmarks/loop_sum/loop_sum.oren` again after fixing the shared `UMULH` opcode encoder; `loop_sum` is back within gate, so the remaining hot-loop gap is centered on dot-product/list-load overhead rather than that encoder bug (2026-03-20).
    - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
      list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
@@ -2919,6 +2929,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
       measured slot-ABI helper time `+0.21%` versus default and read-split slot-direct native/C
       regressions on both `array_sum_int` and `dot_product_int`. Keep it opt-in and keep W5 focused on
       real representation/direct lowering.
+    - Follow-up (2026-04-11): the raw-slot helper counted pair-loop branch now exists behind
+      `OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP=1`, with `make perf-probe-list-int-slot-direct-pair-loop-decision`
+      (`build/logs/perf-probe-list-int-slot-direct-pair-loop-decision-20260411_195615_19255.log`)
+      covering default, fast-tick, pair-loop, and pair-loop+fast-tick builds. It is correctness-clean
+      but not promotable: pair-loop alone regressed slot-ABI direct-helper time `+3.15%` and
+      read-split `array_sum_int` slot-direct native/C `+9.88%`, while improving only
+      `dot_product_int` `-3.31%`; pair-loop+fast-tick regressed slot-ABI `+3.42%` and array
+      `+7.70%` while improving dot `-7.55%`. Keep it opt-in and continue toward a real safe packed
+      view or stronger slot64 direct-lowering path.
     - Constraint (2026-03-20): direct reuse of the packed-i32 `simd_dot_i32_ptr` kernel is not
       safe for current `list<int>` fast loops because their payload slots are 64-bit values.
     - New: native runtime now exposes the current list<int> payload ABI explicitly via

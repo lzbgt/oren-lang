@@ -284,6 +284,26 @@ a bounded direct-lowering probe, but it does not change the next W5 direction: t
 still a real representation/direct-lowering path, not a tick/spill shortcut inside the current helper
 loop.
 
+For the counted 2-wide raw-slot helper pair-loop experiment, use:
+
+```bash
+make perf-probe-list-int-slot-direct-pair-loop-decision
+```
+
+This wrapper serializes default, fast-tick, pair-loop, and pair-loop+fast-tick builds, then restores
+the default shared slot-direct artifacts. Current artifact:
+`build/logs/perf-probe-list-int-slot-direct-pair-loop-decision-20260411_195615_19255.log`.
+
+- `OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP=1` is not promotable: slot-ABI direct-helper time
+  regressed `+3.15%`, read-split `array_sum_int` slot-direct native/C regressed `+9.88%`, and
+  only `dot_product_int` improved (`-3.31%`).
+- Pair-loop plus fast-tick is also not promotable: slot-ABI direct-helper time regressed `+3.42%`,
+  read-split `array_sum_int` regressed `+7.70%`, and `dot_product_int` improved `-7.55%`.
+
+Verdict: keep the counted raw-slot helper pair-loop opt-in. It closes the cheap scalar helper
+scheduling branch; W5 still needs a real representation/direct-lowering path such as a safe packed
+view or stronger slot64 direct lowering.
+
 To separate one-time setup from the repeated `array_sum_int` read loop directly, use:
 
 ```bash
