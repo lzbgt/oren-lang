@@ -82,7 +82,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   branch-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
   emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
   validated dynamic-emitter or native instruction-equivalent gas before package policy may convert
-  native/OBC gas. The first dynamic-emitter calibration set
+  native/OBC gas. The calibration samples now also carry the dynamic-emitter surface metadata
+  (`unit_scope`, `runtime_path_aware`, `cross_arch_comparable`, `conversion_ready`) so the blocker is
+  machine-readable even before looking at ratios. The first dynamic-emitter calibration set
   (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) still shows
   `native_per_obc` spread from `~2.49x` to `~16.82x`, so dynamic-emitter evidence is path-aware
   but not a conversion rule. `make verify-backend-native-instruction-surface-decision`

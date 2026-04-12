@@ -150,7 +150,10 @@ It is a language plus runtime plus artifact contract.
   into a multi-sample report, preserving the current ratio spread as evidence that Oren needs a real
   native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
-  validated native dynamic-emitter or instruction-equivalent gas exists. The first dynamic-emitter
+  validated native dynamic-emitter or instruction-equivalent gas exists, and each calibration sample
+  carries native surface metadata (`unit_scope`, `runtime_path_aware`, `cross_arch_comparable`,
+  `conversion_ready`) so tooling can reject conversion by contract rather than by ratio heuristics
+  alone. The first dynamic-emitter
   calibration set (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`)
   still spans `~2.49x` to `~16.82x` native ticks per AVM opcode gas, so dynamic-emitter evidence is
   path-aware but still not a conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native

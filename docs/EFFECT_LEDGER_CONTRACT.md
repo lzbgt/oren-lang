@@ -108,6 +108,9 @@ Required entry fields:
   fixtures. The report keeps the current ratio spread explicit as `single_ratio_unsafe` and emits an
   `oren.gas-surface-conversion-decision.v0` object that blocks package-policy gas conversion from a
   single empirical ratio until Oren has validated native dynamic-emitter or instruction-equivalent gas evidence.
+  The calibration samples also carry the native surface's `unit_scope`, `runtime_path_aware`,
+  `cross_arch_comparable`, and `conversion_ready` metadata so the decision is blocked by declared
+  surface semantics as well as by the observed ratio spread.
   C ledger export is still intentionally reported as unavailable rather than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed

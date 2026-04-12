@@ -98,6 +98,10 @@ if calibration.get("mode") != "empirical_single_fixture":
     fail(f"gas surface calibration mode mismatch: {calibration!r}")
 if calibration.get("native_surface_id") != "native_dynamic_emitter_tick_v0":
     fail(f"native gas calibration surface mismatch: {calibration!r}")
+if calibration.get("native_surface_unit_scope") != "backend_local" or calibration.get("native_surface_runtime_path_aware") is not True:
+    fail(f"native gas calibration should preserve backend-local dynamic-emitter metadata: {calibration!r}")
+if calibration.get("native_surface_cross_arch_comparable") is not False or calibration.get("native_surface_conversion_ready") is not False:
+    fail(f"native gas calibration should preserve non-conversion-ready metadata: {calibration!r}")
 if calibration.get("obc_surface_id") != "avm_opcode_cost_v0":
     fail(f"OBC gas calibration surface mismatch: {calibration!r}")
 if calibration.get("comparable") is not False or calibration.get("not_a_conversion") is not True:
