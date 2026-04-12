@@ -158,7 +158,9 @@ Required entry fields:
   (`test_injection="drop_gas_surface"`), force zero gas (`test_injection="zero_gas"`), and force
   sidecar timeout (`test_injection="timeout"`), requiring `missing_or_noncanonical_avm_gas_surface`,
   `missing_or_nonpositive_avm_gas`, or `timeout` failure evidence before the runner reports
-  `budget_unavailable`.
+  `budget_unavailable`. A sidecar build-failure probe (`test_injection="build_fail"`) now also requires
+  `certification_status="build_failed"` plus `certification_failure_reasons=["sidecar_build_failed"]`,
+  preserving a structured non-certified sidecar record even when no AVM sidecar run exists.
   With
   `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
   `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that

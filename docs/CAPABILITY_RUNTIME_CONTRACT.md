@@ -238,7 +238,10 @@ valid stdout/exit AVM gas certificate, and an exit-code mismatch probe
 (`test_injection="exit_code"`) proving nonzero sidecar exits are non-certified rather than usable gas
 evidence. It also probes dropped gas-surface metadata (`test_injection="drop_gas_surface"`), zero gas
 (`test_injection="zero_gas"`), and sidecar timeout (`test_injection="timeout"`) so missing canonical
-gas evidence fails closed instead of becoming package-policy gas enforcement.
+gas evidence fails closed instead of becoming package-policy gas enforcement. A sidecar build-failure
+probe (`test_injection="build_fail"`) also emits a structured non-certified sidecar record with
+`certification_status="build_failed"` and `certification_failure_reasons=["sidecar_build_failed"]`
+instead of leaving consumers to infer policy state from a missing JSON report.
 That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the
 resolved `avm-sidecar` gas profile uses it as package `budget_gas` enforcement. The `auto` profile
 can resolve there for gas-budgeted packages.

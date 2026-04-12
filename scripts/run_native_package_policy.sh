@@ -141,8 +141,7 @@ def run_checked(cmd, *, env=None, log_path=None):
     if log_path is None:
         p = subprocess.run(cmd, env=env)
     else:
-        with open(log_path, "w", encoding="utf-8") as log:
-            p = subprocess.run(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, text=True)
+        p = run_logged(cmd, env=env, log_path=log_path)
     if p.returncode != 0:
         if log_path is not None:
             try:
@@ -150,6 +149,10 @@ def run_checked(cmd, *, env=None, log_path=None):
             except OSError:
                 pass
         raise SystemExit(p.returncode)
+
+def run_logged(cmd, *, env=None, log_path):
+    with open(log_path, "w", encoding="utf-8") as log:
+        return subprocess.run(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, text=True)
 
 def extract_native_run_json(stdout_text):
     found = None
@@ -266,6 +269,43 @@ def avm_allow_domains_for_package(domains):
             fail(f"AVM sidecar cannot map package domain {name!r}")
         domain_ids.add(AVM_DOMAIN_IDS[name])
     return ",".join(str(x) for x in sorted(domain_ids))
+
+def avm_canonical_sidecar_build_failed_payload(*, src, obc, build_log, build_exit_code, test_injection=None):
+    return {
+        "schema": "oren.avm-canonical-sidecar-gas.v0",
+        "status": "build_failed",
+        "source": str(src),
+        "native_backend": "native",
+        "sidecar_backend": "obc",
+        "sidecar_artifact": str(obc),
+        "sidecar_build_log": str(build_log),
+        "sidecar_build_exit_code": build_exit_code,
+        "same_source": True,
+        "same_run_stdout_equal": None,
+        "same_run_stderr_equal": None,
+        "same_run_exit_code_equal": None,
+        "native_exit_code": None,
+        "sidecar_exit_code": None,
+        "native_stdout_sha256": None,
+        "sidecar_stdout_sha256": None,
+        "native_stderr_sha256": None,
+        "sidecar_stderr_sha256": None,
+        "certification_status": "build_failed",
+        "certification_failure_reasons": ["sidecar_build_failed"],
+        "certification_warnings": [],
+        "test_injection": test_injection,
+        "gas_surface": None,
+        "gas_executed": None,
+        "gas_remaining": None,
+        "budget_exceeded": False,
+        "budget_exceeded_source": None,
+        "sidecar_error": None,
+        "native_runtime_conversion": False,
+        "package_policy_may_use": False,
+        "package_policy_may_use_reason": "avm_canonical_sidecar_build_failed",
+        "policy_scope": "native_package_policy_same_source_artifact",
+        "reason": "AVM canonical sidecar build failed before package run",
+    }
 
 def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json, test_injection=None):
     avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
@@ -638,10 +678,42 @@ try:
 
     if avm_sidecar_enabled:
         sidecar_build_log = f"build/logs/native_package_policy_{stem}_{ts}.avm-sidecar.build.log"
-        run_checked(
-            ["./oren", "build", src, "--backend", "bytecode", "--manifest", "-o", str(obc_sidecar)],
-            log_path=sidecar_build_log,
-        )
+        sidecar_build_start_ns = time.monotonic_ns()
+        test_sidecar_build_fail = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_BUILD_FAIL")
+        if test_sidecar_build_fail:
+            Path(sidecar_build_log).write_text("verifier injected AVM sidecar build failure\n", encoding="utf-8")
+            sidecar_build_rc = 99
+        else:
+            sidecar_build_p = run_logged(
+                ["./oren", "build", src, "--backend", "bytecode", "--manifest", "-o", str(obc_sidecar)],
+                log_path=sidecar_build_log,
+            )
+            sidecar_build_rc = sidecar_build_p.returncode
+        if sidecar_build_rc != 0:
+            avm_sidecar_gas = avm_canonical_sidecar_build_failed_payload(
+                src=src,
+                obc=obc_sidecar,
+                build_log=sidecar_build_log,
+                build_exit_code=sidecar_build_rc,
+                test_injection="build_fail" if test_sidecar_build_fail else None,
+            )
+            write_run_json(run_summary_payload(
+                exit_code=77,
+                status="budget_unavailable",
+                elapsed_ns=time.monotonic_ns() - sidecar_build_start_ns,
+                src=src,
+                out=out,
+                profile=profile,
+                caps=caps,
+                wall_ms=wall_ms,
+                budgets=budgets,
+                avm_sidecar_gas=avm_sidecar_gas,
+            ))
+            try:
+                print(Path(sidecar_build_log).read_text(encoding="utf-8"), end="", file=sys.stderr)
+            except OSError:
+                pass
+            fail("package AVM canonical sidecar build failed", rc=77)
 
     env = os.environ.copy()
     env["OREN_CAPSULE"] = "1"

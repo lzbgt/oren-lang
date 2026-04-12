@@ -69,7 +69,9 @@ The native package-policy verifier covers both `stdout_suffix` as a certificatio
 `stderr_suffix` as a non-blocking warning path. It also covers `exit_code` as a certification failure
 for nonzero sidecar exits, preserving canonical gas evidence while forbidding package-policy use.
 It also covers `drop_gas_surface`, `zero_gas`, and `timeout` probes so missing/nonpositive canonical
-gas metadata and sidecar timeouts are separately non-certified.
+gas metadata and sidecar timeouts are separately non-certified. It also covers a `build_fail` probe so
+sidecar construction failure is reported as `certification_status="build_failed"` with
+`sidecar_build_failed`, not as a missing runner report.
 Budget-exceeded sidecar certificates prefer the structured AVM `avm.run.v1.error` object
 (`code=9`, `msg="budget exceeded (gas)"`) over stderr text.
 `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher

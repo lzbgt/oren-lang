@@ -93,7 +93,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  still intact. It now also covers an exit-code mismatch injection so nonzero sidecar exits remain
 	  non-certified even when stdout/stderr and canonical gas evidence are present. Missing gas-surface,
 	  zero-gas, and timeout injections now separately prove absent canonical gas evidence also fails
-	  closed.
+	  closed. A sidecar build-failure injection now proves the runner still emits structured
+	  `sidecar_build_failed` evidence instead of dropping the JSON contract.
 	  `make verify-backend-gas-surface-calibration-set`
 	  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
 	  branch-heavy, call-heavy, and allocation-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
