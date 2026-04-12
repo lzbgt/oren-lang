@@ -153,8 +153,8 @@ It is a language plus runtime plus artifact contract.
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus
 		  `enforcement_profile="avm-sidecar"` without claiming native runtime conversion; the shared
 		  dispatcher exposes the same path as
-		  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, with
-		  `--gas-profile auto` selecting it for gas-budgeted packages.
+		  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, and now defaults
+		  native dispatch to `auto` so gas-budgeted packages select that path.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
@@ -189,8 +189,8 @@ It is a language plus runtime plus artifact contract.
 	  includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
 	  `docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` now make that registry
 	  machine-checked across runtime JSON, semantic-diff, package-policy, and docs.
-			  Next work is broadening the AVM canonical sidecar enforcement profile or adding
-		  instruction-equivalent native gas, not only expanding fixture scripts.
+			  Next work is adding instruction-equivalent native gas or tightening package-bound AVM sidecar
+		  coverage, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

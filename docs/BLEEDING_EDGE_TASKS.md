@@ -109,9 +109,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		  with `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which records AVM canonical gas only after the
 		  sidecar runs under package budgets and matches native stdout/exit. The explicit
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` profile and the dispatcher/native `auto`
-		  profile for gas-budgeted packages now use that certificate for `budget_gas` enforcement and report
-		  `runner_wall_avm_canonical_gas`; next capability work should make that profile the right default
-		  boundary or add finer native instruction-equivalent gas rather than re-describing the existing env contract.
+		  default for gas-budgeted packages now use that certificate for `budget_gas` enforcement and report
+		  `runner_wall_avm_canonical_gas`; next capability work should add finer native instruction-equivalent
+		  gas or tighten package-bound sidecar coverage rather than re-describing the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and

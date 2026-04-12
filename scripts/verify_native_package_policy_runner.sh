@@ -18,12 +18,18 @@ deny_err="$TMP/deny.err"
 gas_ok_out="$TMP/gas-ok.out"
 gas_ok_err="$TMP/gas-ok.err"
 gas_ok_json="$TMP/gas-ok.run.json"
+gas_env_override_ok_out="$TMP/gas-env-override-ok.out"
+gas_env_override_ok_err="$TMP/gas-env-override-ok.err"
+gas_env_override_ok_json="$TMP/gas-env-override-ok.run.json"
 gas_sidecar_ok_out="$TMP/gas-sidecar-ok.out"
 gas_sidecar_ok_err="$TMP/gas-sidecar-ok.err"
 gas_sidecar_ok_json="$TMP/gas-sidecar-ok.run.json"
 gas_auto_ok_out="$TMP/gas-auto-ok.out"
 gas_auto_ok_err="$TMP/gas-auto-ok.err"
 gas_auto_ok_json="$TMP/gas-auto-ok.run.json"
+gas_dispatch_default_ok_out="$TMP/gas-dispatch-default-ok.out"
+gas_dispatch_default_ok_err="$TMP/gas-dispatch-default-ok.err"
+gas_dispatch_default_ok_json="$TMP/gas-dispatch-default-ok.run.json"
 gas_fail_out="$TMP/gas-fail.out"
 gas_fail_err="$TMP/gas-fail.err"
 gas_fail_json="$TMP/gas-fail.run.json"
@@ -88,12 +94,22 @@ grep -Fq "native package policy CPU ok" "$cpu_ok_out" || {
 }
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_ok_json" \
   OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1 \
-  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  ./scripts/run_package_policy.sh --backend native --gas-profile native-stmt tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_ok_out" 2>"$gas_ok_err"
 grep -Fq "native package policy gas ok" "$gas_ok_out" || {
   echo "ERROR: native package-policy gas-ok fixture did not report success" >&2
   cat "$gas_ok_out" >&2 || true
   cat "$gas_ok_err" >&2 || true
+  exit 1
+}
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_env_override_ok_json" \
+  OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=native-stmt \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_env_override_ok_out" 2>"$gas_env_override_ok_err"
+grep -Fq "native package policy gas ok" "$gas_env_override_ok_out" || {
+  echo "ERROR: native package-policy env override gas profile fixture did not report success" >&2
+  cat "$gas_env_override_ok_out" >&2 || true
+  cat "$gas_env_override_ok_err" >&2 || true
   exit 1
 }
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_ok_json" \
@@ -114,13 +130,22 @@ grep -Fq "native package policy gas ok" "$gas_auto_ok_out" || {
   cat "$gas_auto_ok_err" >&2 || true
   exit 1
 }
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_dispatch_default_ok_json" \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_dispatch_default_ok_out" 2>"$gas_dispatch_default_ok_err"
+grep -Fq "native package policy gas ok" "$gas_dispatch_default_ok_out" || {
+  echo "ERROR: native package-policy dispatcher default gas profile fixture did not report success" >&2
+  cat "$gas_dispatch_default_ok_out" >&2 || true
+  cat "$gas_dispatch_default_ok_err" >&2 || true
+  exit 1
+}
 
 set +e
 ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_deny_time.oren \
   >"$deny_out" 2>"$deny_err"
 deny_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_fail_json" \
-  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_fail.oren \
+  ./scripts/run_package_policy.sh --backend native --gas-profile native-stmt tests/fixtures/native_package_policy_runner_gas_fail.oren \
   >"$gas_fail_out" 2>"$gas_fail_err"
 gas_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_fail_json" \
@@ -135,7 +160,7 @@ gas_profile_bad_rc=$?
   >"$gas_profile_avm_bad_out" 2>"$gas_profile_avm_bad_err"
 gas_profile_avm_bad_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_stmt_fail_json" \
-  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_stmt_fail.oren \
+  ./scripts/run_package_policy.sh --backend native --gas-profile native-stmt tests/fixtures/native_package_policy_runner_gas_stmt_fail.oren \
   >"$gas_stmt_fail_out" 2>"$gas_stmt_fail_err"
 gas_stmt_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$wall_json" \
@@ -152,7 +177,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_auto_ok_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -170,6 +195,8 @@ gas_stmt_fail_path = Path(sys.argv[10])
 gas_sidecar_ok_path = Path(sys.argv[11])
 gas_sidecar_fail_path = Path(sys.argv[12])
 gas_auto_ok_path = Path(sys.argv[13])
+gas_dispatch_default_ok_path = Path(sys.argv[14])
+gas_env_override_ok_path = Path(sys.argv[15])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -373,6 +400,28 @@ assert_native_stmt_surface(gas_ok_path, summary_gas.get("surface") or {})
 if int(summary_gas.get("executed") or -1) != gas_ok_used:
     fail(f"{gas_ok_path}: runner gas used does not mirror native summary: runner={gas_ok_budget!r} summary={summary_gas!r}")
 
+gas_env_override_ok = load(gas_env_override_ok_path)
+if gas_env_override_ok.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_env_override_ok_path}: schema mismatch: {gas_env_override_ok.get('schema')!r}")
+if gas_env_override_ok.get("status") != "pass" or gas_env_override_ok.get("exit_code") != 0:
+    fail(
+        f"{gas_env_override_ok_path}: expected pass/0, got "
+        f"status={gas_env_override_ok.get('status')!r} exit={gas_env_override_ok.get('exit_code')!r}"
+    )
+if (gas_env_override_ok.get("runner_observed") or {}).get("budget_status") != "runner_wall_native_gas":
+    fail(
+        f"{gas_env_override_ok_path}: expected env override to keep runner_wall_native_gas status, "
+        f"got {gas_env_override_ok.get('runner_observed')!r}"
+    )
+gas_env_override_ok_budget = ((gas_env_override_ok.get("budgets") or {}).get("gas") or {})
+if gas_env_override_ok_budget.get("enforcement_profile") != "native-stmt":
+    fail(f"{gas_env_override_ok_path}: env override should preserve native-stmt enforcement, got {gas_env_override_ok_budget!r}")
+if gas_env_override_ok_budget.get("requested_enforcement_profile") != "native-stmt":
+    fail(f"{gas_env_override_ok_path}: env override should request native-stmt, got {gas_env_override_ok_budget!r}")
+if gas_env_override_ok_budget.get("kind") != "native_stmt_loop_tick_v0" or gas_env_override_ok_budget.get("enforced") is not True:
+    fail(f"{gas_env_override_ok_path}: env override should enforce native statement gas, got {gas_env_override_ok_budget!r}")
+assert_native_stmt_surface(gas_env_override_ok_path, gas_env_override_ok_budget.get("surface") or {})
+
 gas_sidecar_ok = load(gas_sidecar_ok_path)
 if gas_sidecar_ok.get("schema") != "oren.native-package-policy-run.v0":
     fail(f"{gas_sidecar_ok_path}: schema mismatch: {gas_sidecar_ok.get('schema')!r}")
@@ -410,6 +459,43 @@ auto_sidecar = gas_auto_ok.get("avm_canonical_sidecar_gas") or {}
 assert_avm_canonical_sidecar(gas_auto_ok_path, auto_sidecar)
 if int(gas_auto_ok_budget.get("executed") or -1) != int(auto_sidecar.get("gas_executed") or -2):
     fail(f"{gas_auto_ok_path}: auto gas budget should mirror sidecar certificate, got {gas_auto_ok_budget!r} vs {auto_sidecar!r}")
+
+gas_dispatch_default_ok = load(gas_dispatch_default_ok_path)
+if gas_dispatch_default_ok.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_dispatch_default_ok_path}: schema mismatch: {gas_dispatch_default_ok.get('schema')!r}")
+if gas_dispatch_default_ok.get("status") != "pass" or gas_dispatch_default_ok.get("exit_code") != 0:
+    fail(
+        f"{gas_dispatch_default_ok_path}: expected pass/0, got "
+        f"status={gas_dispatch_default_ok.get('status')!r} exit={gas_dispatch_default_ok.get('exit_code')!r}"
+    )
+if (gas_dispatch_default_ok.get("runner_observed") or {}).get("budget_status") != "runner_wall_avm_canonical_gas":
+    fail(
+        f"{gas_dispatch_default_ok_path}: expected dispatcher default to report runner_wall_avm_canonical_gas, "
+        f"got {gas_dispatch_default_ok.get('runner_observed')!r}"
+    )
+gas_dispatch_default_ok_budget = ((gas_dispatch_default_ok.get("budgets") or {}).get("gas") or {})
+if (
+    gas_dispatch_default_ok_budget.get("enforcement") != "avm-canonical-sidecar"
+    or gas_dispatch_default_ok_budget.get("enforcement_profile") != "avm-sidecar"
+):
+    fail(
+        f"{gas_dispatch_default_ok_path}: dispatcher default should resolve to AVM sidecar enforcement, "
+        f"got {gas_dispatch_default_ok_budget!r}"
+    )
+if gas_dispatch_default_ok_budget.get("requested_enforcement_profile") != "auto":
+    fail(
+        f"{gas_dispatch_default_ok_path}: expected dispatcher default to request auto gas profile, "
+        f"got {gas_dispatch_default_ok_budget!r}"
+    )
+if gas_dispatch_default_ok_budget.get("kind") != "avm_opcode_cost_v0" or gas_dispatch_default_ok_budget.get("enforced") is not True:
+    fail(f"{gas_dispatch_default_ok_path}: expected enforced AVM canonical gas in dispatcher default, got {gas_dispatch_default_ok_budget!r}")
+default_sidecar = gas_dispatch_default_ok.get("avm_canonical_sidecar_gas") or {}
+assert_avm_canonical_sidecar(gas_dispatch_default_ok_path, default_sidecar)
+if int(gas_dispatch_default_ok_budget.get("executed") or -1) != int(default_sidecar.get("gas_executed") or -2):
+    fail(
+        f"{gas_dispatch_default_ok_path}: dispatcher default gas budget should mirror sidecar certificate, "
+        f"got {gas_dispatch_default_ok_budget!r} vs {default_sidecar!r}"
+    )
 
 cpu_fail = load(cpu_fail_path)
 if cpu_fail.get("schema") != "oren.native-package-policy-run.v0":

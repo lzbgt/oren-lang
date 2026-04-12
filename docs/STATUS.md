@@ -1570,8 +1570,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Gas-surface calibration now includes default smoke, loop-heavy, branch-heavy, call-heavy, and
 	     allocation-heavy fixtures plus
 	     an `oren.gas-surface-conversion-decision.v0` blocker, keeping package-policy gas conversion
-	     disabled unless the explicit AVM sidecar enforcement profile is selected or native
-	     instruction-equivalent gas exists. The
+	     disabled unless package policy uses the AVM sidecar enforcement profile, now the shared native
+	     dispatcher default for gas-budgeted packages, or native instruction-equivalent gas exists. The
 	     first dynamic-emitter native surface still spans `~2.49x` to `~16.82x` native ticks per AVM opcode
      gas across the calibration set
      (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`).
@@ -1598,12 +1598,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
 		   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
 		     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
-		     stdout/exit matches the native run. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` now
+		     stdout/exit matches the native run. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`
 		     turns that package-bound sidecar into explicit `budget_gas` enforcement, reported as
 		     `runner_wall_avm_canonical_gas` with `enforcement_profile="avm-sidecar"`; the shared
 		     dispatcher exposes the same policy as
-		     `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, and
-		     `--gas-profile auto` selects it when `budget_gas` is declared.
+		     `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar` and now defaults
+		     native dispatch to `auto`, which selects it when `budget_gas` is declared.
 	   - `docs/GAS_SURFACE_REGISTRY.md` plus `make verify-gas-surface-registry` now guard the registered
 	     gas-surface inventory, including AVM-canonical versus native backend-local conversion status.
 

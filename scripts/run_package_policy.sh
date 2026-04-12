@@ -13,9 +13,9 @@ Dispatches package-policy execution to the backend-specific runner. This keeps
 AVM and native backends still have different enforcement surfaces.
 
 --gas-profile applies only to the native backend:
-  native-stmt   enforce budget_gas with native statement+loop gas (default)
+  native-stmt   enforce budget_gas with native statement+loop gas
   avm-sidecar   enforce budget_gas with package-bound AVM canonical sidecar gas
-  auto          choose avm-sidecar when the package declares budget_gas
+  auto          choose avm-sidecar when the package declares budget_gas (dispatcher default)
 EOF
 }
 
@@ -83,6 +83,8 @@ case "$backend" in
   native)
     if [[ -n "$gas_profile" ]]; then
       export OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE="$gas_profile"
+    elif [[ -z "${OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE:-}" ]]; then
+      export OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE="auto"
     fi
     exec "$ROOT/scripts/run_native_package_policy.sh" "$@"
     ;;

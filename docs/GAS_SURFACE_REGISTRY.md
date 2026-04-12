@@ -35,8 +35,9 @@ a fixture-specific ratio.
   certificate, reporting `runner_wall_avm_canonical_gas` and
   `enforcement_profile="avm-sidecar"`. The shared dispatcher exposes the same profile as
   `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, and
-  `--gas-profile auto` selects that profile when the package declares `budget_gas`. This still is not a
-  native runtime gas conversion.
+  now defaults native runs to `auto` when no explicit profile or env override is present. `auto`
+  selects that sidecar profile when the package declares `budget_gas`. This still is not a native
+  runtime gas conversion.
 - `instruction-equivalent` is a reserved native gas-accounting spelling. It must not alias any
   current native surface until a real implementation and conversion contract exist.
 - Calibration reports can record empirical ratios, but `oren.gas-surface-calibration.v0` and
@@ -55,10 +56,10 @@ package policy must not use it. The native package-policy runner can opt into a 
 `native_package_policy_same_source_artifact` sidecar with
 `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`; that certificate is package-bound AVM evidence only when
 the bytecode sidecar runs with the same package budgets and matches native stdout/exit after run-JSON
-lines are removed. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or dispatcher
-`--gas-profile avm-sidecar` on `--backend native`, makes that certificate the runner's gas
-enforcement profile. `--gas-profile auto` does the same when a package gas budget exists. It still
-sets `native_runtime_conversion=false` and uses AVM canonical `avm_opcode_cost_v0` units, not native
+lines are removed. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher
+`--gas-profile avm-sidecar` on `--backend native`, or the dispatcher default `auto` profile for a
+gas-budgeted package makes that certificate the runner's gas enforcement profile. It still sets
+`native_runtime_conversion=false` and uses AVM canonical `avm_opcode_cost_v0` units, not native
 backend-local gas units.
 
 ## Guards
