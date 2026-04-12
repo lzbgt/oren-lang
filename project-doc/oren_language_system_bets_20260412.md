@@ -155,6 +155,8 @@ It is a language plus runtime plus artifact contract.
 		  The runner guard now proves non-certified sidecar evidence fails closed with an auditable
 		  stdout-mismatch `test_injection`, so package policy cannot silently enforce gas from a sidecar
 		  whose stdout/exit certificate is unavailable.
+		  It also proves an auditable stderr-mismatch warning remains non-blocking, preserving AVM
+		  sidecar gas enforcement when stdout/exit certification is intact.
 		  It can now also select
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus

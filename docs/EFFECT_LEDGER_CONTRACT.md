@@ -147,6 +147,9 @@ Required entry fields:
   (`test_injection="stdout_suffix"`) and requires `certification_status="unavailable"`,
   `certification_failure_reasons=["stdout_mismatch"]`, `package_policy_may_use=false`, and
   `budget_unavailable` runner status for that non-certified sidecar path.
+  It separately injects a verifier-only stderr mismatch (`test_injection="stderr_suffix"`) and requires
+  `certification_warnings=["stderr_mismatch"]` while preserving stdout/exit certification and AVM
+  sidecar gas enforcement.
   With
   `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
   `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that

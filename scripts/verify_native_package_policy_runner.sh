@@ -39,6 +39,9 @@ gas_sidecar_fail_json="$TMP/gas-sidecar-fail.run.json"
 gas_sidecar_uncertified_out="$TMP/gas-sidecar-uncertified.out"
 gas_sidecar_uncertified_err="$TMP/gas-sidecar-uncertified.err"
 gas_sidecar_uncertified_json="$TMP/gas-sidecar-uncertified.run.json"
+gas_sidecar_stderr_warning_out="$TMP/gas-sidecar-stderr-warning.out"
+gas_sidecar_stderr_warning_err="$TMP/gas-sidecar-stderr-warning.err"
+gas_sidecar_stderr_warning_json="$TMP/gas-sidecar-stderr-warning.run.json"
 gas_profile_bad_out="$TMP/gas-profile-bad.out"
 gas_profile_bad_err="$TMP/gas-profile-bad.err"
 gas_profile_avm_bad_out="$TMP/gas-profile-avm-bad.out"
@@ -160,6 +163,11 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_uncertified_json" \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_sidecar_uncertified_out" 2>"$gas_sidecar_uncertified_err"
 gas_sidecar_uncertified_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_stderr_warning_json" \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDERR_SUFFIX=$'\nverifier stderr warning\n' \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_stderr_warning_out" 2>"$gas_sidecar_stderr_warning_err"
+gas_sidecar_stderr_warning_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=sidecar \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_profile_bad_out" 2>"$gas_profile_bad_err"
@@ -185,7 +193,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -203,9 +211,10 @@ gas_stmt_fail_path = Path(sys.argv[10])
 gas_sidecar_ok_path = Path(sys.argv[11])
 gas_sidecar_fail_path = Path(sys.argv[12])
 gas_sidecar_uncertified_path = Path(sys.argv[13])
-gas_auto_ok_path = Path(sys.argv[14])
-gas_dispatch_default_ok_path = Path(sys.argv[15])
-gas_env_override_ok_path = Path(sys.argv[16])
+gas_sidecar_stderr_warning_path = Path(sys.argv[14])
+gas_auto_ok_path = Path(sys.argv[15])
+gas_dispatch_default_ok_path = Path(sys.argv[16])
+gas_env_override_ok_path = Path(sys.argv[17])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -666,6 +675,47 @@ if uncertified_surface.get("id") != "avm_opcode_cost_v0" or uncertified_surface.
     fail(f"{gas_sidecar_uncertified_path}: uncertified sidecar should still report AVM canonical gas surface evidence, got {sidecar_uncertified!r}")
 if int(sidecar_uncertified.get("gas_executed") or 0) <= 0:
     fail(f"{gas_sidecar_uncertified_path}: uncertified sidecar should distinguish parity failure from missing gas evidence, got {sidecar_uncertified!r}")
+
+gas_sidecar_stderr_warning = load(gas_sidecar_stderr_warning_path)
+if gas_sidecar_stderr_warning.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_sidecar_stderr_warning_path}: schema mismatch: {gas_sidecar_stderr_warning.get('schema')!r}")
+if gas_sidecar_stderr_warning.get("status") != "pass" or gas_sidecar_stderr_warning.get("exit_code") != 0:
+    fail(
+        f"{gas_sidecar_stderr_warning_path}: expected pass/0 for warning-only sidecar, got "
+        f"status={gas_sidecar_stderr_warning.get('status')!r} exit={gas_sidecar_stderr_warning.get('exit_code')!r}"
+    )
+gas_sidecar_stderr_warning_budget = ((gas_sidecar_stderr_warning.get("budgets") or {}).get("gas") or {})
+if gas_sidecar_stderr_warning_budget.get("enforcement") != "avm-canonical-sidecar":
+    fail(f"{gas_sidecar_stderr_warning_path}: warning-only sidecar should still enforce AVM canonical gas, got {gas_sidecar_stderr_warning_budget!r}")
+if gas_sidecar_stderr_warning_budget.get("enforced") is not True:
+    fail(f"{gas_sidecar_stderr_warning_path}: warning-only sidecar gas should remain enforced, got {gas_sidecar_stderr_warning_budget!r}")
+sidecar_stderr_warning = gas_sidecar_stderr_warning.get("avm_canonical_sidecar_gas") or {}
+if sidecar_stderr_warning.get("status") != "available" or sidecar_stderr_warning.get("certification_status") != "stdout_exit_match":
+    fail(f"{gas_sidecar_stderr_warning_path}: stderr-only sidecar warning should keep stdout/exit certificate available, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("package_policy_may_use") is not True:
+    fail(f"{gas_sidecar_stderr_warning_path}: warning-only sidecar should remain package-policy usable, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("certification_failure_reasons") != []:
+    fail(f"{gas_sidecar_stderr_warning_path}: warning-only sidecar should not carry failure reasons, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("certification_warnings") != ["stderr_mismatch"]:
+    fail(f"{gas_sidecar_stderr_warning_path}: expected stderr_mismatch warning, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("test_injection") != "stderr_suffix":
+    fail(f"{gas_sidecar_stderr_warning_path}: expected auditable stderr_suffix verifier injection, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("same_run_stdout_equal") is not True or sidecar_stderr_warning.get("same_run_exit_code_equal") is not True:
+    fail(f"{gas_sidecar_stderr_warning_path}: stderr-only warning should preserve stdout/exit parity, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("same_run_stderr_equal") is not False:
+    fail(f"{gas_sidecar_stderr_warning_path}: expected explicit stderr mismatch warning evidence, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("native_stdout_sha256") != sidecar_stderr_warning.get("sidecar_stdout_sha256"):
+    fail(f"{gas_sidecar_stderr_warning_path}: stdout hashes should still match for warning-only sidecar, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("native_stderr_sha256") == sidecar_stderr_warning.get("sidecar_stderr_sha256"):
+    fail(f"{gas_sidecar_stderr_warning_path}: stderr hashes should differ for injected warning, got {sidecar_stderr_warning!r}")
+stderr_warning_surface = sidecar_stderr_warning.get("gas_surface") or {}
+if stderr_warning_surface.get("id") != "avm_opcode_cost_v0" or stderr_warning_surface.get("unit_scope") != "avm_canonical":
+    fail(f"{gas_sidecar_stderr_warning_path}: warning-only sidecar should preserve AVM canonical surface evidence, got {sidecar_stderr_warning!r}")
+if int(gas_sidecar_stderr_warning_budget.get("executed") or -1) != int(sidecar_stderr_warning.get("gas_executed") or -2):
+    fail(
+        f"{gas_sidecar_stderr_warning_path}: warning-only gas budget should mirror sidecar evidence, "
+        f"got {gas_sidecar_stderr_warning_budget!r} vs {sidecar_stderr_warning!r}"
+    )
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -719,6 +769,13 @@ grep -Fq "package AVM canonical sidecar gas could not be certified for native ru
   cat "$gas_sidecar_uncertified_err" >&2 || true
   exit 1
 }
+
+if [[ "$gas_sidecar_stderr_warning_rc" -ne 0 ]]; then
+  echo "ERROR: expected stderr-warning AVM sidecar evidence to remain usable" >&2
+  cat "$gas_sidecar_stderr_warning_out" >&2 || true
+  cat "$gas_sidecar_stderr_warning_err" >&2 || true
+  exit 1
+fi
 
 if [[ "$gas_profile_bad_rc" -eq 0 ]]; then
   echo "ERROR: expected invalid native package-policy gas profile to fail closed" >&2

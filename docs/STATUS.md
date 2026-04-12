@@ -1613,6 +1613,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     injects an auditable stdout mismatch, requires `certification_status="unavailable"` and
 				     `certification_failure_reasons=["stdout_mismatch"]`, and checks the runner reports
 				     `budget_unavailable` instead of treating the AVM sidecar as gas enforcement.
+				     The adjacent stderr-mismatch probe now stays certified with
+				     `certification_warnings=["stderr_mismatch"]`, proving warnings are non-blocking.
 	   - `docs/GAS_SURFACE_REGISTRY.md` plus `make verify-gas-surface-registry` now guard the registered
 	     gas-surface inventory, including AVM-canonical versus native backend-local conversion status.
 

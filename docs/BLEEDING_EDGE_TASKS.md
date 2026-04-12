@@ -89,7 +89,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  decision reports preserve that warning-free stderr-parity and test-injection-free evidence.
 	  Native package-policy verification now also covers the non-certified sidecar branch with an
 	  auditable stdout-mismatch `test_injection`, requiring `budget_unavailable` rather than accidental
-	  `budget_gas` enforcement.
+	  `budget_gas` enforcement, and the stderr-mismatch warning branch with AVM sidecar gas enforcement
+	  still intact.
 	  `make verify-backend-gas-surface-calibration-set`
 	  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
 	  branch-heavy, call-heavy, and allocation-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and

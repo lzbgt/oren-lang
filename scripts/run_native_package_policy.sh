@@ -732,11 +732,16 @@ try:
             ))
             fail("package AVM canonical sidecar timed out", rc=77)
         avm_stdout_for_payload = avm_p.stdout or ""
+        avm_stderr_for_payload = avm_p.stderr or ""
         test_sidecar_stdout_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDOUT_SUFFIX")
+        test_sidecar_stderr_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDERR_SUFFIX")
         test_injection = None
         if test_sidecar_stdout_suffix:
             avm_stdout_for_payload = f"{avm_stdout_for_payload}{test_sidecar_stdout_suffix}"
             test_injection = "stdout_suffix"
+        if test_sidecar_stderr_suffix:
+            avm_stderr_for_payload = f"{avm_stderr_for_payload}{test_sidecar_stderr_suffix}"
+            test_injection = "stderr_suffix" if test_injection is None else f"{test_injection}+stderr_suffix"
         avm_sidecar_gas = avm_canonical_sidecar_payload(
             src=src,
             obc=obc_sidecar,
@@ -746,7 +751,7 @@ try:
             avm_stdout=avm_stdout_for_payload,
             avm_exit_code=avm_p.returncode,
             avm_run_json=extract_avm_run_json(avm_p.stdout or ""),
-            avm_stderr=avm_p.stderr or "",
+            avm_stderr=avm_stderr_for_payload,
             test_injection=test_injection,
         )
         if gas_enforcement_profile == "avm-sidecar" and avm_sidecar_gas.get("status") == "budget_exceeded":

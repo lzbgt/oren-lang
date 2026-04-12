@@ -64,6 +64,8 @@ parity certificates, budget-exceeded certificates, and non-certified sidecar out
 Verifier-only non-certified probes are auditable through `test_injection`; normal sidecar
 certificates must leave that field `null`, and the calibration-set / native instruction-surface
 decision reports preserve aggregate test-injection-free evidence for their semantic-diff sidecars.
+The native package-policy verifier covers both `stdout_suffix` as a certification failure and
+`stderr_suffix` as a non-blocking warning path.
 Budget-exceeded sidecar certificates prefer the structured AVM `avm.run.v1.error` object
 (`code=9`, `msg="budget exceeded (gas)"`) over stderr text.
 `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher

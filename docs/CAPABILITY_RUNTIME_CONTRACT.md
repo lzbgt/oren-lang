@@ -231,7 +231,9 @@ normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, an e
 `certification_status`, machine-readable non-blocking `certification_warnings`, and machine-readable
 `certification_failure_reasons` for non-certified sidecar outcomes. The runner verifier now has an
 auditable stdout-mismatch probe (`test_injection="stdout_suffix"`) proving non-certified sidecar
-evidence fails closed with `budget_unavailable` instead of being accepted by gas enforcement.
+evidence fails closed with `budget_unavailable` instead of being accepted by gas enforcement, plus a
+stderr-mismatch probe (`test_injection="stderr_suffix"`) proving non-blocking warnings do not revoke a
+valid stdout/exit AVM gas certificate.
 That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the
 resolved `avm-sidecar` gas profile uses it as package `budget_gas` enforcement. The `auto` profile
 can resolve there for gas-budgeted packages.
