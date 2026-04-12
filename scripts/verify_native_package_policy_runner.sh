@@ -29,6 +29,8 @@ gas_sidecar_fail_err="$TMP/gas-sidecar-fail.err"
 gas_sidecar_fail_json="$TMP/gas-sidecar-fail.run.json"
 gas_profile_bad_out="$TMP/gas-profile-bad.out"
 gas_profile_bad_err="$TMP/gas-profile-bad.err"
+gas_profile_avm_bad_out="$TMP/gas-profile-avm-bad.out"
+gas_profile_avm_bad_err="$TMP/gas-profile-avm-bad.err"
 gas_stmt_fail_out="$TMP/gas-stmt-fail.out"
 gas_stmt_fail_err="$TMP/gas-stmt-fail.err"
 gas_stmt_fail_json="$TMP/gas-stmt-fail.run.json"
@@ -92,8 +94,7 @@ grep -Fq "native package policy gas ok" "$gas_ok_out" || {
   exit 1
 }
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_ok_json" \
-  OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar \
-  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_sidecar_ok_out" 2>"$gas_sidecar_ok_err"
 grep -Fq "native package policy gas ok" "$gas_sidecar_ok_out" || {
   echo "ERROR: native package-policy AVM sidecar gas-ok fixture did not report success" >&2
@@ -111,14 +112,16 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_fail_json" \
   >"$gas_fail_out" 2>"$gas_fail_err"
 gas_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_fail_json" \
-  OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar \
-  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_fail.oren \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_fail.oren \
   >"$gas_sidecar_fail_out" 2>"$gas_sidecar_fail_err"
 gas_sidecar_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=sidecar \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_profile_bad_out" 2>"$gas_profile_bad_err"
 gas_profile_bad_rc=$?
+./scripts/run_package_policy.sh --backend avm --gas-profile avm-sidecar tests/fixtures/avm_package_policy_runner_ok.oren \
+  >"$gas_profile_avm_bad_out" 2>"$gas_profile_avm_bad_err"
+gas_profile_avm_bad_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_stmt_fail_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_stmt_fail.oren \
   >"$gas_stmt_fail_out" 2>"$gas_stmt_fail_err"
@@ -500,6 +503,19 @@ grep -Fq "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE must be native-stmt or avm-side
   echo "ERROR: missing invalid gas profile diagnostic" >&2
   cat "$gas_profile_bad_out" >&2 || true
   cat "$gas_profile_bad_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_profile_avm_bad_rc" -eq 0 ]]; then
+  echo "ERROR: expected AVM package-policy dispatch to reject native gas profile" >&2
+  cat "$gas_profile_avm_bad_out" >&2 || true
+  cat "$gas_profile_avm_bad_err" >&2 || true
+  exit 1
+fi
+grep -Fq -- "--gas-profile applies only to --backend native" "$gas_profile_avm_bad_out" "$gas_profile_avm_bad_err" || {
+  echo "ERROR: missing AVM gas profile rejection diagnostic" >&2
+  cat "$gas_profile_avm_bad_out" >&2 || true
+  cat "$gas_profile_avm_bad_err" >&2 || true
   exit 1
 }
 

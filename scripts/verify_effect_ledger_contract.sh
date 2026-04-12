@@ -338,6 +338,8 @@ require_literal "$native_policy_runner_guard" "native_package_policy_runner_gas_
 require_literal "$native_policy_runner_guard" "native_package_policy_runner_gas_fail.oren"
 require_literal "$native_policy_runner_guard" "OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR"
 require_literal "$native_policy_runner_guard" "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE"
+require_literal "$native_policy_runner_guard" "--gas-profile avm-sidecar"
+require_literal "$native_policy_runner_guard" "--gas-profile applies only to --backend native"
 require_literal "$native_policy_runner_guard" "native_package_policy_same_source_artifact"
 require_literal "$native_policy_runner_guard" "avm_opcode_cost_v0"
 require_literal "$native_policy_runner_guard" "runner_wall_avm_canonical_gas"

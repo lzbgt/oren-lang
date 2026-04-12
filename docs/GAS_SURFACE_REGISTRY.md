@@ -33,7 +33,9 @@ a fixture-specific ratio.
 - The native package-policy runner's `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` profile
   can enforce package `budget_gas` from a package-bound `oren.avm-canonical-sidecar-gas.v0`
   certificate, reporting `runner_wall_avm_canonical_gas` and
-  `enforcement_profile="avm-sidecar"`. This still is not a native runtime gas conversion.
+  `enforcement_profile="avm-sidecar"`. The shared dispatcher exposes the same profile as
+  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`. This still is not a
+  native runtime gas conversion.
 - `instruction-equivalent` is a reserved native gas-accounting spelling. It must not alias any
   current native surface until a real implementation and conversion contract exist.
 - Calibration reports can record empirical ratios, but `oren.gas-surface-calibration.v0` and
@@ -52,9 +54,10 @@ package policy must not use it. The native package-policy runner can opt into a 
 `native_package_policy_same_source_artifact` sidecar with
 `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`; that certificate is package-bound AVM evidence only when
 the bytecode sidecar runs with the same package budgets and matches native stdout/exit after run-JSON
-lines are removed. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` makes that certificate the
-runner's gas enforcement profile; it still sets `native_runtime_conversion=false` and uses AVM
-canonical `avm_opcode_cost_v0` units, not native backend-local gas units.
+lines are removed. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or dispatcher
+`--gas-profile avm-sidecar` on `--backend native`, makes that certificate the runner's gas
+enforcement profile; it still sets `native_runtime_conversion=false` and uses AVM canonical
+`avm_opcode_cost_v0` units, not native backend-local gas units.
 
 ## Guards
 

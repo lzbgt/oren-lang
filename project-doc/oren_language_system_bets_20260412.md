@@ -151,7 +151,9 @@ It is a language plus runtime plus artifact contract.
 		  certificate usable only when stdout/exit matches the native run. It can now also select
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus
-		  `enforcement_profile="avm-sidecar"` without claiming native runtime conversion.
+		  `enforcement_profile="avm-sidecar"` without claiming native runtime conversion; the shared
+		  dispatcher exposes the same path as
+		  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits

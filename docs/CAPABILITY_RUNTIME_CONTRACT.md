@@ -164,6 +164,7 @@ Package-policy execution can now use one dispatcher:
 ```sh
 scripts/run_package_policy.sh --backend avm path/to/source.oren -- --print-run-json
 scripts/run_package_policy.sh --backend native path/to/source.oren -- arg0 arg1
+scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar path/to/source.oren
 ```
 
 The AVM convenience wrapper remains:
@@ -204,8 +205,10 @@ package-policy fine gas spellings remain `1`, `stmt`, and `statement`. The separ
 current fine-grained surface. It currently falls back to the default loop-safepoint surface until an
 actual instruction-equivalent implementation exists. Package-policy gas budgets use the
 `native-stmt` enforcement profile by default. Setting
-`OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` switches `budget_gas` enforcement to the
-package-bound AVM canonical sidecar profile instead of native statement gas; the runner then reports
+`OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` or the dispatcher option
+`scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar` switches `budget_gas`
+enforcement to the package-bound AVM canonical sidecar profile instead of native statement gas; the
+runner then reports
 `runner_wall_avm_canonical_gas`, `enforcement="avm-canonical-sidecar"`, and
 `enforcement_profile="avm-sidecar"` in `oren.native-package-policy-run.v0`. When
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
@@ -255,8 +258,9 @@ Semantic diff also records `oren.avm-canonical-sidecar-gas.v0`: a same-source OB
 the AVM canonical `avm_opcode_cost_v0` value beside native runtime gas, with
 `native_runtime_conversion=false` and `package_policy_may_use=false` because semantic-diff fixtures
 are analysis-only and not package/input-bound. The native package-policy runner now has that
-separate package-bound profile through `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`; semantic
-diff fixtures remain analysis-only and still cannot grant package-policy authority.
+separate package-bound profile through `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` or
+dispatcher `--gas-profile avm-sidecar`; semantic diff fixtures remain analysis-only and still cannot
+grant package-policy authority.
 	`docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` keep that gas-surface inventory
 	and conversion status aligned with runtime JSON, semantic-diff, and package-policy evidence.
 The exact `instruction-equivalent` spelling is a reserved request and is guarded not
@@ -309,8 +313,9 @@ while direct `OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
   live-heap scans, CPU-budget checks from child process resource usage where available, and a
   scoped default `native_stmt_loop_tick_v0` gas check with explicit backend-local/non-conversion-ready
   `oren.gas-surface.v0` metadata. The native runner can also opt into
-  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which enforces `budget_gas` with the
-  package-bound AVM canonical sidecar (`avm_opcode_cost_v0`) and reports
+  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which is also exposed as
+  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, enforces
+  `budget_gas` with the package-bound AVM canonical sidecar (`avm_opcode_cost_v0`), and reports
   `runner_wall_avm_canonical_gas`. They are
   not yet a complete native instruction-equivalent enforcement contract because the default native
   package gas is still statement+loop-granular, and the newer `native_dynamic_emitter_tick_v0`

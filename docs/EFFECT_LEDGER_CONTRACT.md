@@ -137,8 +137,9 @@ Required entry fields:
 	  sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
 	  `package_policy_may_use=true` only when stdout and exit status match the native run, while still
 	  preserving `native_runtime_conversion=false`. With
-	  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, the runner turns that package-bound sidecar
-	  into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0` reports
+	  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
+	  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that
+	  package-bound sidecar into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0` reports
 	  `runner_wall_avm_canonical_gas`, `enforcement="avm-canonical-sidecar"`, and
 	  `enforcement_profile="avm-sidecar"` while still preserving `native_runtime_conversion=false`.
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
