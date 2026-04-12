@@ -42,6 +42,34 @@ static const char* avm_effect_replay_source(const AvmVM* vm) {
     return "none";
 }
 
+static int avm_error_fields(AvmValue v, int64_t* code_out, const char** msg_out) {
+    if (code_out) *code_out = -1;
+    if (msg_out) *msg_out = NULL;
+    if (v.type != AVM_VAL_MAP || !v.as.m) return 0;
+
+    AvmMap* map = v.as.m;
+    int is_err = 0;
+    int64_t code = -1;
+    const char* msg = NULL;
+    for (int i = 0; i < map->count; i++) {
+        AvmValue k = map->keys[i];
+        if (k.type != AVM_VAL_STRING) continue;
+        const char* key = (const char*)k.as.p;
+        AvmValue val = map->values[i];
+        if (strcmp(key, "__err") == 0) {
+            if (val.type == AVM_VAL_BOOL || val.type == AVM_VAL_INT) is_err = val.as.i != 0;
+        } else if (strcmp(key, "code") == 0 && val.type == AVM_VAL_INT) {
+            code = val.as.i;
+        } else if (strcmp(key, "msg") == 0 && val.type == AVM_VAL_STRING) {
+            msg = (const char*)val.as.p;
+        }
+    }
+    if (!is_err) return 0;
+    if (code_out) *code_out = code;
+    if (msg_out) *msg_out = msg;
+    return 1;
+}
+
 static void print_effect_ledger_summary_json(FILE* out, const AvmVM* vm, uint64_t wall_elapsed_ns, uint64_t wall_limit_ms) {
     uint64_t record_bytes = vm && vm->record_log_bytes
         ? avm_effect_log_bytes_len(vm->record_log_bytes)
@@ -1804,6 +1832,18 @@ int main(int argc, char** argv) {
             fprintf(stdout, "{");
             fprintf(stdout, "\"schema\":\"avm.run.v1\"");
             fprintf(stdout, ",\"exit_code\":%d", vm->exit_code);
+            int64_t error_code = -1;
+            const char* error_msg = NULL;
+            int has_error = avm_error_fields(vm->last_error, &error_code, &error_msg);
+            fprintf(stdout, ",\"status\":\"%s\"", vm->exit_code == 0 ? "ok" : (vm->paused ? "paused" : (has_error ? "error" : "nonzero_exit")));
+            fprintf(stdout, ",\"error\":");
+            if (has_error) {
+                fprintf(stdout, "{\"code\":%lld,\"msg\":\"", (long long)error_code);
+                print_json_escaped_string(stdout, error_msg ? error_msg : "");
+                fprintf(stdout, "\"}");
+            } else {
+                fprintf(stdout, "null");
+            }
             fprintf(stdout, ",\"gas_executed\":%llu", (unsigned long long)vm->gas_executed);
             fprintf(stdout, ",\"wall_elapsed_ns\":%llu", (unsigned long long)elapsed_ns);
             if (elapsed_ns > 0 && vm->gas_executed > 0) {

@@ -260,7 +260,21 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
     avm_stderr_normalized = strip_run_json_lines(avm_stderr)
     same_stdout = native_stdout_normalized == avm_stdout_normalized
     same_exit = native_exit_code == avm_exit_code
-    budget_exceeded = "budget exceeded (gas)" in (avm_stderr or "")
+    avm_run_error = None
+    if isinstance(avm_run_json, dict) and isinstance(avm_run_json.get("error"), dict):
+        avm_run_error = avm_run_json.get("error")
+    structured_budget_exceeded = (
+        isinstance(avm_run_error, dict)
+        and avm_run_error.get("code") == 9
+        and avm_run_error.get("msg") == "budget exceeded (gas)"
+    )
+    stderr_budget_exceeded = "budget exceeded (gas)" in (avm_stderr or "")
+    budget_exceeded = structured_budget_exceeded or stderr_budget_exceeded
+    budget_exceeded_source = (
+        "avm_run_json_error"
+        if structured_budget_exceeded
+        else ("stderr_diagnostic" if stderr_budget_exceeded else None)
+    )
     canonical_surface = (
         isinstance(avm_gas_surface, dict)
         and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
@@ -320,6 +334,8 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
         "gas_executed": avm_gas_used,
         "gas_remaining": avm_gas_remaining,
         "budget_exceeded": budget_exceeded,
+        "budget_exceeded_source": budget_exceeded_source,
+        "sidecar_error": avm_run_error,
         "native_runtime_conversion": False,
         "package_policy_may_use": package_policy_may_use,
         "package_policy_may_use_reason": package_policy_may_use_reason,

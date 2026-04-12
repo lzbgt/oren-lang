@@ -1521,7 +1521,7 @@ For the current capability domain and native runtime-profile contract, see
   `native_dynamic_emitter_tick_v0` under `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter`. Native build cache
   keys include the normalized gas-accounting mode, so cached native artifacts do not cross those
   compile-time gas surfaces.
-  AVM run JSON reports the applied gas, heap, and wall budget fields through
+  AVM run JSON reports top-level `status` / structured `error` fields plus the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`, and marks its gas surface as
   canonical `avm_opcode_cost_v0` opcode-dispatch gas with
 		  `unit_scope="avm_canonical"`, `runtime_path_aware=true`, `cross_arch_comparable=true`,

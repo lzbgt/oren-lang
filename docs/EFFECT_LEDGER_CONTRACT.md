@@ -178,12 +178,15 @@ Full native/AVM ledger parity fixtures are still future work.
 
 ## Current AVM Run Summary
 
-AVM `--print-run-json` now includes an `effect_ledger_summary` object. This is intentionally not
+AVM `--print-run-json` now includes top-level `status` / `error` fields plus an
+`effect_ledger_summary` object. This is intentionally not
 the full ordered ledger above; it is a compact bridge surface that reports whether deterministic
 mode, record/replay, and budget accounting were active for the run:
 
 ```json
 {
+  "status": "ok",
+  "error": null,
   "effect_ledger_summary": {
     "schema": "oren.effect-ledger-summary.v0",
     "backend": "bytecode",
@@ -225,7 +228,9 @@ mode, record/replay, and budget accounting were active for the run:
 }
 ```
 
-The summary is useful for orchestration and smoke tests, but the future feature is still the full
+On VM failures the top-level `error` field is a structured error object, for example
+`{"code":9,"msg":"budget exceeded (gas)"}` for AVM canonical gas exhaustion. The summary is useful
+for orchestration and smoke tests, but the future feature is still the full
 entry ledger with domains, operations, decisions, digests, redaction, replay, and source spans.
 The summary intentionally reports budget counters that already exist in the VM, rather than a
 parallel accounting system.

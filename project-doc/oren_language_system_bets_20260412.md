@@ -147,9 +147,9 @@ It is a language plus runtime plus artifact contract.
 	  than another manifest-only field.
 		  Native package policy can now opt into that package-bound sidecar path with
 			  `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`: it builds a bytecode sidecar from the same source
-			  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
+				  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
 				  certificate usable when stdout/exit matches the native run or when the sidecar reports AVM
-				  canonical gas budget exhaustion. It also records normalized stdout/stderr hashes plus an explicit
+				  canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. It also records normalized stdout/stderr hashes plus an explicit
 				  `certification_status` and `certification_failure_reasons`. It can now also select
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus

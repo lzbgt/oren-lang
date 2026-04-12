@@ -179,7 +179,10 @@ current enforceable subset into AVM runtime policy: `runtime_profile="capsule"` 
 capsule/deny-by-default execution with an AVM domain allowlist, `budget_gas` becomes `AVM_GAS`,
 `budget_heap_bytes` becomes `AVM_MEM_BYTES`, and `budget_wall_ms` becomes `AVM_TIMEOUT_MS`.
 When callers pass `--print-run-json`, the AVM `effect_ledger_summary.budgets` bridge reports
-the applied gas, heap, and wall budget fields, including `wall_ms.limit` and `wall_ms.elapsed_ns`.
+the applied gas, heap, and wall budget fields, including `wall_ms.limit` and `wall_ms.elapsed_ns`;
+the same `avm.run.v1` line also carries `status` and a structured `error` object for VM failures,
+so package sidecar enforcement can key off `AVM_ERR_BUDGET` / `budget exceeded (gas)` without
+scraping stderr diagnostics.
 Before execution, the runner also scans the bytecode policy surface and fails closed if
 static used AVM domains exceed the package allowlist. Existing stricter env budgets stay
 stricter. Broader env budgets are narrowed to the package declaration.

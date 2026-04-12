@@ -246,11 +246,20 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
     if budget_exceeded:
         if sidecar.get("package_policy_may_use_reason") != "avm_canonical_gas_budget_exceeded":
             fail(f"{path}: AVM sidecar budget-exceeded reason mismatch: {sidecar!r}")
+        if sidecar.get("budget_exceeded_source") != "avm_run_json_error":
+            fail(f"{path}: AVM sidecar budget-exceeded certificate should use structured AVM run JSON error, got {sidecar!r}")
+        err = sidecar.get("sidecar_error") or {}
+        if err.get("code") != 9 or err.get("msg") != "budget exceeded (gas)":
+            fail(f"{path}: AVM sidecar budget-exceeded error mismatch: {sidecar!r}")
     else:
         if sidecar.get("native_stdout_sha256") != sidecar.get("sidecar_stdout_sha256"):
             fail(f"{path}: AVM sidecar stdout hashes should match for available certificate, got {sidecar!r}")
         if sidecar.get("package_policy_may_use_reason") != "stdout_exit_match_with_avm_canonical_gas":
             fail(f"{path}: AVM sidecar package-policy reason mismatch: {sidecar!r}")
+        if sidecar.get("budget_exceeded") is not False or sidecar.get("budget_exceeded_source") is not None:
+            fail(f"{path}: AVM sidecar available certificate should not carry budget exhaustion, got {sidecar!r}")
+        if sidecar.get("sidecar_error") is not None:
+            fail(f"{path}: AVM sidecar available certificate should have no sidecar error, got {sidecar!r}")
     sidecar_surface = sidecar.get("gas_surface") or {}
     if sidecar_surface.get("id") != "avm_opcode_cost_v0" or sidecar_surface.get("unit_scope") != "avm_canonical":
         fail(f"{path}: AVM sidecar gas surface mismatch: {sidecar!r}")

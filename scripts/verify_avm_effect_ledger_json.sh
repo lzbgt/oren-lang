@@ -57,7 +57,21 @@ grep -Fq "AVM_LOG_BYTES too small for log header (need 8)" "$small_log_err" || {
   exit 1
 }
 
-python3 - "$record_out" "$det_out" <<'PY'
+gas_fail_out="$TMP/gas_fail.out"
+gas_fail_err="$TMP/gas_fail.err"
+set +e
+AVM_GAS=1 \
+  ./avm --print-run-json "$record_obc" >"$gas_fail_out" 2>"$gas_fail_err"
+gas_fail_rc=$?
+set -e
+if [[ "$gas_fail_rc" -eq 0 ]]; then
+  echo "ERROR: expected AVM_GAS=1 to reject the run" >&2
+  cat "$gas_fail_out" >&2 || true
+  cat "$gas_fail_err" >&2 || true
+  exit 1
+fi
+
+python3 - "$record_out" "$det_out" "$gas_fail_out" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -73,6 +87,8 @@ def load_run(path_s):
 record = load_run(sys.argv[1])
 if record.get("schema") != "avm.run.v1":
     raise SystemExit("record run JSON schema mismatch")
+if record.get("status") != "ok" or record.get("error") is not None:
+    raise SystemExit(f"record run should report ok/null error, got status={record.get('status')!r} error={record.get('error')!r}")
 ledger = record.get("effect_ledger_summary")
 if not isinstance(ledger, dict):
     raise SystemExit("record run missing effect_ledger_summary")
@@ -120,6 +136,8 @@ if int(wall.get("elapsed_ns", -1)) < 0:
     raise SystemExit(f"expected non-negative wall elapsed ns, got {wall}")
 
 det = load_run(sys.argv[2])
+if det.get("status") != "ok" or det.get("error") is not None:
+    raise SystemExit(f"deterministic run should report ok/null error, got status={det.get('status')!r} error={det.get('error')!r}")
 det_ledger = det.get("effect_ledger_summary")
 if not isinstance(det_ledger, dict):
     raise SystemExit("deterministic run missing effect_ledger_summary")
@@ -137,6 +155,17 @@ if int(trace_info.get("used", 0)) <= 8:
     raise SystemExit(f"expected trace bytes beyond header, got {trace_info}")
 if trace_info.get("truncated") is not False:
     raise SystemExit(f"trace should not be truncated: {trace_info}")
+
+gas_fail = load_run(sys.argv[3])
+if gas_fail.get("status") != "error":
+    raise SystemExit(f"gas-budget failure should report status=error, got {gas_fail!r}")
+err = gas_fail.get("error")
+if not isinstance(err, dict) or err.get("code") != 9 or err.get("msg") != "budget exceeded (gas)":
+    raise SystemExit(f"gas-budget failure should expose structured AVM error, got {gas_fail!r}")
+gas_fail_ledger = gas_fail.get("effect_ledger_summary") or {}
+gas_fail_gas = ((gas_fail_ledger.get("budgets") or {}).get("gas") or {})
+if gas_fail_gas.get("kind") != "avm_opcode_cost_v0":
+    raise SystemExit(f"gas-budget failure should preserve canonical gas metadata, got {gas_fail_gas!r}")
 PY
 
 echo "avm effect ledger JSON verify OK"

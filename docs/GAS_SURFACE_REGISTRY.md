@@ -60,6 +60,8 @@ lines are removed, or when the sidecar itself reports AVM canonical gas budget e
 records include normalized stdout/stderr hashes, `certification_status`,
 `certification_failure_reasons`, and `package_policy_may_use_reason` so consumers can distinguish
 parity certificates, budget-exceeded certificates, and non-certified sidecar outcomes.
+Budget-exceeded sidecar certificates prefer the structured AVM `avm.run.v1.error` object
+(`code=9`, `msg="budget exceeded (gas)"`) over stderr text.
 `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher
 `--gas-profile avm-sidecar` on `--backend native`, or the dispatcher default `auto` profile for a
 gas-budgeted package makes that certificate the runner's gas enforcement profile. It still sets

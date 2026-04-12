@@ -1597,10 +1597,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     evidence beside native runtime gas, with normalized stdout/stderr hashes,
 			     `certification_status`, `certification_failure_reasons`, `native_runtime_conversion=false`,
 			     and `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
-		   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
-		     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
-		     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget
-		     exhaustion. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` turns that package-bound
+			   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
+			     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
+			     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget
+			     exhaustion through structured `avm.run.v1.error` evidence.
+			     `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` turns that package-bound
 		     sidecar into explicit `budget_gas` enforcement, reported as
 		     `runner_wall_avm_canonical_gas` with `enforcement_profile="avm-sidecar"`; the shared
 		     dispatcher exposes the same policy as

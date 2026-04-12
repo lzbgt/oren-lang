@@ -109,7 +109,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			  `wall_ms.elapsed_ns`. Native package policy can now opt into a package-bound sidecar certificate
 			  with `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which records AVM canonical gas only after the
 			  sidecar runs under package budgets and matches native stdout/exit, or after the sidecar itself
-			  reports AVM canonical gas budget exhaustion. The explicit
+			  reports AVM canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. The explicit
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` profile and the dispatcher/native `auto`
 		  default for gas-budgeted packages now use that certificate for `budget_gas` enforcement and report
 		  `runner_wall_avm_canonical_gas`; next capability work should add finer native instruction-equivalent
