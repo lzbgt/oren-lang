@@ -1,0 +1,49 @@
+# Gas Surface Registry
+
+This registry is the canonical inventory for gas counters that appear in Oren run JSON,
+semantic-diff reports, package-policy runner evidence, and calibration reports.
+
+The rule is intentionally strict: only AVM opcode gas is currently a conversion-ready
+canonical gas unit. Native counters are runtime evidence for native execution and native
+package-policy enforcement, but they are not AVM gas and must not be converted into AVM gas by
+a fixture-specific ratio.
+
+## Registered Surfaces
+
+| Surface | Backend | Unit scope | Unit family | Conversion status | Primary consumers |
+|---|---|---|---|---|---|
+| `avm_opcode_cost_v0` | `bytecode` | `avm_canonical` | opcode dispatch | `cross_arch_comparable=true`, `conversion_ready=true`, `avm_canonical=true` | AVM `effect_ledger_summary`, semantic diff, calibration set |
+| `native_loop_safepoint_tick_v0` | `native` | `backend_local` | native loop safepoint | `cross_arch_comparable=false`, `conversion_ready=false`, `avm_canonical=false` | default native `OREN_NATIVE_RUN_JSON=1` |
+| `native_stmt_loop_tick_v0` | `native` | `backend_local` | native statement or op | `cross_arch_comparable=false`, `conversion_ready=false`, `avm_canonical=false` | native package-policy gas budgets |
+| `native_basic_block_tick_v0` | `native` | `backend_local` | native lowering block | `cross_arch_comparable=false`, `conversion_ready=false`, `avm_canonical=false` | native gas-mode verification |
+| `native_block_weighted_tick_v0` | `native` | `backend_local` | native lowering block weight | `cross_arch_comparable=false`, `conversion_ready=false`, `avm_canonical=false` | native gas-mode verification |
+| `native_dynamic_emitter_tick_v0` | `native` | `backend_local` | `fixed_width_instruction_span` on arm64, `emitted_byte_span` on x64 | `cross_arch_comparable=false`, `conversion_ready=false`, `avm_canonical=false` | semantic diff and gas calibration |
+
+## Policy
+
+- Package-policy conversion from native gas to AVM gas is blocked until a validated conversion
+  contract exists.
+- `native_stmt_loop_tick_v0` can enforce native package `budget_gas`, but only as a native
+  statement/op plus loop-poll budget.
+- `native_dynamic_emitter_tick_v0` is runtime path-aware evidence for semantic diff, but it is
+  architecture-specific and remains non-conversion-ready.
+- `instruction-equivalent` is a reserved native gas-accounting spelling. It must not alias any
+  current native surface until a real implementation and conversion contract exist.
+- Calibration reports can record empirical ratios, but `oren.gas-surface-calibration.v0` and
+  `oren.gas-surface-calibration-set.v0` must keep those ratios out of enforcement.
+
+## Guards
+
+Use these checks when changing gas accounting, run JSON, package policy, or semantic diff:
+
+```sh
+make verify-gas-surface-registry
+make verify-effect-ledger-contract
+make verify-backend-gas-surface-calibration-set
+make verify-backend-native-instruction-surface-decision
+make verify-native-gas-accounting-modes
+```
+
+`make verify-gas-surface-registry` emits `oren.gas-surface-registry-check.v0` JSON under
+`build/reports/` and verifies that the registry, runtime metadata, semantic-diff tooling, native
+package policy, and docs still agree on each surface's canonicality and conversion status.

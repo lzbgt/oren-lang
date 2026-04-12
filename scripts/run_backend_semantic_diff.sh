@@ -353,6 +353,8 @@ def gas_executed(summary):
 
 def source_class(path):
     name = Path(path).name
+    if "gas_alloc_calibration" in name:
+        return "alloc_heavy"
     if "gas_call_calibration" in name:
         return "call_heavy"
     if "gas_branch_calibration" in name:

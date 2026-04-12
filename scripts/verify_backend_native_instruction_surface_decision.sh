@@ -6,12 +6,13 @@ cd "$ROOT"
 
 if [[ "$#" == "0" ]]; then
   default_fixture_set=1
-  fixtures=(
-    "tests/fixtures/backend_semantic_diff_smoke.oren"
-    "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
-    "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
-    "tests/fixtures/backend_semantic_diff_gas_call_calibration.oren"
-  )
+    fixtures=(
+      "tests/fixtures/backend_semantic_diff_smoke.oren"
+      "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
+      "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
+      "tests/fixtures/backend_semantic_diff_gas_call_calibration.oren"
+      "tests/fixtures/backend_semantic_diff_gas_alloc_calibration.oren"
+    )
 else
   default_fixture_set=0
   fixtures=("$@")
@@ -155,7 +156,7 @@ for i in range(0, len(items), 3):
     obc_executed = int(calibration.get("obc_executed") or 0)
     native_surface_id = calibration.get("native_surface_id")
     sample_class = calibration.get("source_class") or "custom"
-    if sample_class not in ("smoke", "loop_heavy", "branch_heavy", "call_heavy", "custom"):
+    if sample_class not in ("smoke", "loop_heavy", "branch_heavy", "call_heavy", "alloc_heavy", "custom"):
         raise SystemExit(f"{semantic_report}: expected calibration source_class metadata, got {calibration!r}")
     native_surface_target_arch = calibration.get("native_surface_target_arch")
     native_surface_unit_family = calibration.get("native_surface_unit_family")
@@ -207,7 +208,7 @@ for i in range(0, len(items), 3):
 whole_binary_ratios = [sample["whole_binary_instruction_per_obc_gas"] for sample in samples]
 whole_binary_counts = [sample["whole_binary_instruction_count"] for sample in samples]
 sample_classes = sorted({sample["source_class"] for sample in samples})
-required_sample_classes = ["branch_heavy", "call_heavy", "loop_heavy", "smoke"] if default_fixture_set else []
+required_sample_classes = ["alloc_heavy", "branch_heavy", "call_heavy", "loop_heavy", "smoke"] if default_fixture_set else []
 if default_fixture_set:
     missing = sorted(set(required_sample_classes) - set(sample_classes))
     if missing:

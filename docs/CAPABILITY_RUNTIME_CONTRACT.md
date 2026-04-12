@@ -240,8 +240,10 @@ gas object also includes an `oren.gas-surface.v0` descriptor with `unit_scope="b
 architecture-specific (`fixed_width_instruction_span` on arm64, `emitted_byte_span` on x64). AVM run JSON marks
 `avm_opcode_cost_v0` as the canonical opcode-dispatch gas target with `unit_scope="avm_canonical"`,
 `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`, and
-`avm_canonical=true`; semantic diff now reports the native and AVM gas surfaces as non-comparable
+	`avm_canonical=true`; semantic diff now reports the native and AVM gas surfaces as non-comparable
 when native cannot honestly target that unit, instead of treating positive counters as the same unit.
+`docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` keep that gas-surface inventory
+and conversion status aligned with runtime JSON, semantic-diff, and package-policy evidence.
 The exact `instruction-equivalent` spelling is a reserved request and is guarded not
 to alias `stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter`; future backend work can add that surface without
 changing the existing field shape. The current native instruction-surface decision guard also rejects

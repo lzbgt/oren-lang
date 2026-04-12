@@ -107,15 +107,18 @@ Required entry fields:
   until they can target that unit honestly. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
   conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
-  `oren.gas-surface-calibration-set.v0` report from default smoke, loop-heavy, branch-heavy, and
-  call-heavy fixtures. The report keeps the current ratio spread explicit as `single_ratio_unsafe` and emits an
+  `oren.gas-surface-calibration-set.v0` report from default smoke, loop-heavy, branch-heavy,
+  call-heavy, and allocation-heavy fixtures. The report keeps the current ratio spread explicit as `single_ratio_unsafe` and emits an
   `oren.gas-surface-conversion-decision.v0` object that blocks package-policy gas conversion from a
   single empirical ratio until Oren has validated native dynamic-emitter or instruction-equivalent gas evidence.
   The calibration samples also carry the native surface's `unit_scope`, `target_arch`,
   `unit_family`, `runtime_path_aware`, `cross_arch_comparable`, and `conversion_ready` metadata plus
   the AVM surface's canonical metadata, so the decision is blocked by declared surface semantics as well as by the observed ratio spread. Default
   calibration-set reports also carry `required_sample_classes` / `observed_sample_classes` so a future
-  conversion rule cannot be inferred from only loop-heavy or branch-heavy samples.
+  conversion rule cannot be inferred from only loop-heavy, branch-heavy, call-heavy, or allocation-heavy samples.
+  `docs/GAS_SURFACE_REGISTRY.md` is the gas-surface inventory, and `make verify-gas-surface-registry`
+  emits `oren.gas-surface-registry-check.v0` to guard that registry against runtime JSON,
+  semantic-diff, package-policy, and AVM/native metadata drift.
   C ledger export is still intentionally reported as unavailable rather than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
@@ -243,20 +246,21 @@ emitted gas notes are tested directly. The current semantic-diff report also rec
 under `oren.gas-surface-calibration.v0`; those numbers are calibration evidence, not a rule that
 package policy may use for enforcement. `make verify-backend-semantic-diff-gas-calibration` runs the
 same schema guard against an additional loop-heavy fixture, and
-  `make verify-backend-semantic-diff-gas-call-calibration` covers a function-call-heavy fixture.
-  `make verify-backend-gas-surface-calibration-set` writes an `oren.gas-surface-calibration-set.v0`
-  report proving the current ratio spread across default, loop-heavy, branch-heavy, and call-heavy fixtures is too
-  fixture-sensitive to promote as a conversion rule. The same report carries an
+  `make verify-backend-semantic-diff-gas-call-calibration` covers a function-call-heavy fixture, and
+  `make verify-backend-semantic-diff-gas-alloc-calibration` covers an allocation-heavy fixture.
+	  `make verify-backend-gas-surface-calibration-set` writes an `oren.gas-surface-calibration-set.v0`
+	  report proving the current ratio spread across default, loop-heavy, branch-heavy, call-heavy, and allocation-heavy fixtures is too
+	  fixture-sensitive to promote as a conversion rule. The same report carries an
   `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false` and
   `required_next_surface="validated_native_dynamic_emitter_or_instruction_equivalent_gas"`.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:
 `oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
 as a runtime gas surface by cross-checking them against the current `native_dynamic_emitter_tick_v0`
 runtime surface. Whole-binary counts include linked runtime text and are not per-executed-path evidence.
-The earlier report (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`)
+	The earlier report (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`)
 counted the same `474624` whole-binary native instructions for the default, loop-heavy, and branch-heavy
 fixtures while AVM opcode gas varied. The default decision guard now also requires the call-heavy sample
-class, so the required next step is validating dynamic-emitter evidence or adding instruction-equivalent
+and allocation-heavy sample classes, so the required next step is validating dynamic-emitter evidence or adding instruction-equivalent
 native gas, not promoting a static binary-size proxy.
 The first dynamic-emitter calibration set
 (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) narrowed the contract to

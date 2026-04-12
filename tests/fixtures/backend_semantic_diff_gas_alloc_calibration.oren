@@ -1,0 +1,25 @@
+fn main() {
+    var rows = []
+    var outer = 0
+    var total = 17
+    while outer < 14 {
+        var row = []
+        var inner = 0
+        while inner < 8 {
+            var v = (outer + 3) * (inner + 5) + total
+            oren_list_push(row, v)
+            total = total + row[inner]
+            inner = inner + 1
+        }
+        oren_list_push(rows, row)
+        total = total + oren_list_len(row)
+        if total > 5000 {
+            total = total - rows[outer][0]
+        }
+        outer = outer + 1
+    }
+    oren_set_result(total)
+    print("semantic-diff gas alloc total=" + oren_int_to_string(total))
+    print("ok: semantic diff")
+    return 0
+}

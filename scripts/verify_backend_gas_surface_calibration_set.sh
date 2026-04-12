@@ -6,12 +6,13 @@ cd "$ROOT"
 
 if [[ "$#" == "0" ]]; then
   default_fixture_set=1
-  fixtures=(
-    "tests/fixtures/backend_semantic_diff_smoke.oren"
-    "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
-    "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
-    "tests/fixtures/backend_semantic_diff_gas_call_calibration.oren"
-  )
+    fixtures=(
+      "tests/fixtures/backend_semantic_diff_smoke.oren"
+      "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
+      "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
+      "tests/fixtures/backend_semantic_diff_gas_call_calibration.oren"
+      "tests/fixtures/backend_semantic_diff_gas_alloc_calibration.oren"
+    )
 else
   default_fixture_set=0
   fixtures=("$@")
@@ -89,7 +90,11 @@ for path in report_paths:
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
     cur_sample_class = calibration.get("source_class") or "custom"
-    if cur_sample_class not in ("smoke", "loop_heavy", "branch_heavy", "call_heavy", "custom"):
+    if cur_native_surface != "native_dynamic_emitter_tick_v0":
+        raise SystemExit(f"{path}: expected native dynamic-emitter calibration surface, got {calibration!r}")
+    if cur_obc_surface != "avm_opcode_cost_v0":
+        raise SystemExit(f"{path}: expected AVM opcode gas calibration surface, got {calibration!r}")
+    if cur_sample_class not in ("smoke", "loop_heavy", "branch_heavy", "call_heavy", "alloc_heavy", "custom"):
         raise SystemExit(f"{path}: calibration source_class mismatch: {calibration!r}")
     if native_surface_id is None:
         native_surface_id = cur_native_surface
@@ -186,7 +191,7 @@ for path in report_paths:
 
 ratios = [sample["native_per_obc"] for sample in samples]
 sample_classes = sorted({sample["source_class"] for sample in samples})
-required_sample_classes = ["branch_heavy", "call_heavy", "loop_heavy", "smoke"] if default_fixture_set else []
+required_sample_classes = ["alloc_heavy", "branch_heavy", "call_heavy", "loop_heavy", "smoke"] if default_fixture_set else []
 if default_fixture_set:
     missing = sorted(set(required_sample_classes) - set(sample_classes))
     if missing:

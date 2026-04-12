@@ -148,8 +148,8 @@ It is a language plus runtime plus artifact contract.
   `oren.semantic-diff.v0` JSON for C/native/OBC runs plus native/AVM ledger-summary bridges and
   explicit gas-surface comparison status. It now also records empirical
   `oren.gas-surface-calibration.v0` ratios as evidence, while marking them as not a conversion. The
-  `oren.gas-surface-calibration-set.v0` guard combines tiny smoke, loop-heavy, branch-heavy, and
-  call-heavy fixtures into a multi-sample report, preserving the current ratio spread as evidence
+  `oren.gas-surface-calibration-set.v0` guard combines tiny smoke, loop-heavy, branch-heavy,
+  call-heavy, and allocation-heavy fixtures into a multi-sample report, preserving the current ratio spread as evidence
   that Oren needs a real native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
   validated native dynamic-emitter or instruction-equivalent gas exists, and each calibration sample
@@ -163,7 +163,7 @@ It is a language plus runtime plus artifact contract.
 	  `native_dynamic_emitter_tick_v0` runtime surface: whole-binary counts include linked runtime text
 		  and are not dynamic per-executed-path gas. The first static-proxy report counted the same `474624`
 		  whole-binary native instructions for the original three calibration fixtures while AVM opcode gas varied
-		  from `234` to `2328`; the current default guard also requires call-heavy source-class coverage.
+			  from `234` to `2328`; the current default guard also requires call-heavy and allocation-heavy source-class coverage.
 	  Oren also guards exact native gas mode
   spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
   lowering-block evidence, `block-weighted` selects weighted lowering-block evidence, and
@@ -173,8 +173,10 @@ It is a language plus runtime plus artifact contract.
   `conversion_ready=false`, and `avm_canonical=false` across all native modes, so future tooling
   cannot mistake statement/basic/block-weighted/dynamic-emitter counters for instruction-equivalent gas or hide
   arm64/x64 unit-family differences. The native build cache key now
-  includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
-  Next work is validating the dynamic-emitter conversion contract or adding instruction-equivalent native
+	  includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
+  `docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` now make that registry
+  machine-checked across runtime JSON, semantic-diff, package-policy, and docs.
+	  Next work is validating the dynamic-emitter conversion contract or adding instruction-equivalent native
   gas, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
