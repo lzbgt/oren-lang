@@ -24,6 +24,9 @@ gas_env_override_ok_json="$TMP/gas-env-override-ok.run.json"
 gas_sidecar_ok_out="$TMP/gas-sidecar-ok.out"
 gas_sidecar_ok_err="$TMP/gas-sidecar-ok.err"
 gas_sidecar_ok_json="$TMP/gas-sidecar-ok.run.json"
+gas_sidecar_args_ok_out="$TMP/gas-sidecar-args-ok.out"
+gas_sidecar_args_ok_err="$TMP/gas-sidecar-args-ok.err"
+gas_sidecar_args_ok_json="$TMP/gas-sidecar-args-ok.run.json"
 gas_auto_ok_out="$TMP/gas-auto-ok.out"
 gas_auto_ok_err="$TMP/gas-auto-ok.err"
 gas_auto_ok_json="$TMP/gas-auto-ok.run.json"
@@ -151,6 +154,15 @@ grep -Fq "native package policy gas ok" "$gas_sidecar_ok_out" || {
   cat "$gas_sidecar_ok_err" >&2 || true
   exit 1
 }
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_args_ok_json" \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren -- alpha beta \
+  >"$gas_sidecar_args_ok_out" 2>"$gas_sidecar_args_ok_err"
+grep -Fq "native package policy gas ok" "$gas_sidecar_args_ok_out" || {
+  echo "ERROR: native package-policy AVM sidecar arg-bound gas-ok fixture did not report success" >&2
+  cat "$gas_sidecar_args_ok_out" >&2 || true
+  cat "$gas_sidecar_args_ok_err" >&2 || true
+  exit 1
+}
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_auto_ok_json" \
   ./scripts/run_package_policy.sh --backend native --gas-profile auto tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_auto_ok_out" 2>"$gas_auto_ok_err"
@@ -256,7 +268,8 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_run_error_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_missing_run_json_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" "$gas_sidecar_native_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_args_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_run_error_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_missing_run_json_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" "$gas_sidecar_native_fail_json" <<'PY'
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -272,20 +285,21 @@ gas_ok_path = Path(sys.argv[8])
 gas_fail_path = Path(sys.argv[9])
 gas_stmt_fail_path = Path(sys.argv[10])
 gas_sidecar_ok_path = Path(sys.argv[11])
-gas_sidecar_fail_path = Path(sys.argv[12])
-gas_sidecar_uncertified_path = Path(sys.argv[13])
-gas_sidecar_stderr_warning_path = Path(sys.argv[14])
-gas_auto_ok_path = Path(sys.argv[15])
-gas_dispatch_default_ok_path = Path(sys.argv[16])
-gas_env_override_ok_path = Path(sys.argv[17])
-gas_sidecar_exit_mismatch_path = Path(sys.argv[18])
-gas_sidecar_run_error_path = Path(sys.argv[19])
-gas_sidecar_missing_surface_path = Path(sys.argv[20])
-gas_sidecar_missing_run_json_path = Path(sys.argv[21])
-gas_sidecar_zero_gas_path = Path(sys.argv[22])
-gas_sidecar_timeout_path = Path(sys.argv[23])
-gas_sidecar_build_fail_path = Path(sys.argv[24])
-gas_sidecar_native_fail_path = Path(sys.argv[25])
+gas_sidecar_args_ok_path = Path(sys.argv[12])
+gas_sidecar_fail_path = Path(sys.argv[13])
+gas_sidecar_uncertified_path = Path(sys.argv[14])
+gas_sidecar_stderr_warning_path = Path(sys.argv[15])
+gas_auto_ok_path = Path(sys.argv[16])
+gas_dispatch_default_ok_path = Path(sys.argv[17])
+gas_env_override_ok_path = Path(sys.argv[18])
+gas_sidecar_exit_mismatch_path = Path(sys.argv[19])
+gas_sidecar_run_error_path = Path(sys.argv[20])
+gas_sidecar_missing_surface_path = Path(sys.argv[21])
+gas_sidecar_missing_run_json_path = Path(sys.argv[22])
+gas_sidecar_zero_gas_path = Path(sys.argv[23])
+gas_sidecar_timeout_path = Path(sys.argv[24])
+gas_sidecar_build_fail_path = Path(sys.argv[25])
+gas_sidecar_native_fail_path = Path(sys.argv[26])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -294,6 +308,10 @@ def load(path):
     if not path.is_file():
         fail(f"{path}: missing native runner JSON")
     return json.loads(path.read_text(encoding="utf-8"))
+
+def sha256_json(value):
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 def assert_native_stmt_surface(path, surface):
     if surface.get("schema") != "oren.gas-surface.v0" or surface.get("id") != "native_stmt_loop_tick_v0":
@@ -309,7 +327,23 @@ def assert_native_stmt_surface(path, surface):
     if surface.get("avm_canonical") is not False:
         fail(f"{path}: native package-policy statement gas must not claim AVM canonical units, got {surface!r}")
 
-def assert_sidecar_identity_hashes(path, sidecar, *, sidecar_artifact_required=True):
+def assert_sidecar_input_binding(path, sidecar, *, expected_program_args=None, package_policy_declared=True):
+    expected_args = [] if expected_program_args is None else list(expected_program_args)
+    if sidecar.get("program_args") != expected_args:
+        fail(f"{path}: AVM sidecar should bind exact program args {expected_args!r}, got {sidecar!r}")
+    if sidecar.get("program_args_sha256") != sha256_json(expected_args):
+        fail(f"{path}: AVM sidecar program args hash mismatch, got {sidecar!r}")
+    package_hash = sidecar.get("package_policy_sha256")
+    if package_policy_declared:
+        if not isinstance(package_hash, str) or len(package_hash) != 64:
+            fail(f"{path}: package-bound AVM sidecar should include package policy hash, got {sidecar!r}")
+        if sidecar.get("package_policy_declared") is not True:
+            fail(f"{path}: package-bound AVM sidecar should declare package policy binding, got {sidecar!r}")
+    else:
+        if package_hash is not None or sidecar.get("package_policy_declared") is not False:
+            fail(f"{path}: non-package-bound AVM sidecar should not claim package policy binding, got {sidecar!r}")
+
+def assert_sidecar_identity_hashes(path, sidecar, *, sidecar_artifact_required=True, expected_program_args=None):
     for key in ("source_sha256", "native_artifact_sha256"):
         value = sidecar.get(key)
         if not isinstance(value, str) or len(value) != 64:
@@ -322,8 +356,9 @@ def assert_sidecar_identity_hashes(path, sidecar, *, sidecar_artifact_required=T
             fail(f"{path}: AVM sidecar should include sidecar artifact identity, got {sidecar!r}")
     elif sidecar_hash is not None:
         fail(f"{path}: AVM sidecar should omit sidecar artifact hash when no sidecar artifact exists, got {sidecar!r}")
+    assert_sidecar_input_binding(path, sidecar, expected_program_args=expected_program_args)
 
-def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
+def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False, expected_program_args=None):
     if sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
         fail(f"{path}: AVM canonical sidecar schema mismatch: {sidecar!r}")
     expected_status = "budget_exceeded" if budget_exceeded else "available"
@@ -333,7 +368,7 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
         fail(f"{path}: AVM sidecar policy scope mismatch: {sidecar!r}")
     if sidecar.get("same_source") is not True:
         fail(f"{path}: AVM sidecar should certify same-source evidence, got {sidecar!r}")
-    assert_sidecar_identity_hashes(path, sidecar)
+    assert_sidecar_identity_hashes(path, sidecar, expected_program_args=expected_program_args)
     if sidecar.get("native_runtime_conversion") is not False:
         fail(f"{path}: AVM sidecar must not claim native runtime conversion, got {sidecar!r}")
     if not isinstance(sidecar.get("native_exit_code"), int) or not isinstance(sidecar.get("sidecar_exit_code"), int):
@@ -588,6 +623,29 @@ sidecar_ok = gas_sidecar_ok.get("avm_canonical_sidecar_gas") or {}
 assert_avm_canonical_sidecar(gas_sidecar_ok_path, sidecar_ok)
 if int(gas_sidecar_ok_budget.get("executed") or -1) != int(sidecar_ok.get("gas_executed") or -2):
     fail(f"{gas_sidecar_ok_path}: AVM sidecar gas budget should mirror sidecar certificate, got {gas_sidecar_ok_budget!r} vs {sidecar_ok!r}")
+
+gas_sidecar_args_ok = load(gas_sidecar_args_ok_path)
+if gas_sidecar_args_ok.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_sidecar_args_ok_path}: schema mismatch: {gas_sidecar_args_ok.get('schema')!r}")
+if gas_sidecar_args_ok.get("status") != "pass" or gas_sidecar_args_ok.get("exit_code") != 0:
+    fail(
+        f"{gas_sidecar_args_ok_path}: expected arg-bound sidecar run to pass, got "
+        f"status={gas_sidecar_args_ok.get('status')!r} exit={gas_sidecar_args_ok.get('exit_code')!r}"
+    )
+gas_sidecar_args_ok_budget = ((gas_sidecar_args_ok.get("budgets") or {}).get("gas") or {})
+if (
+    gas_sidecar_args_ok_budget.get("enforcement") != "avm-canonical-sidecar"
+    or gas_sidecar_args_ok_budget.get("enforcement_profile") != "avm-sidecar"
+    or gas_sidecar_args_ok_budget.get("kind") != "avm_opcode_cost_v0"
+):
+    fail(f"{gas_sidecar_args_ok_path}: arg-bound sidecar should enforce AVM canonical gas, got {gas_sidecar_args_ok_budget!r}")
+sidecar_args_ok = gas_sidecar_args_ok.get("avm_canonical_sidecar_gas") or {}
+assert_avm_canonical_sidecar(gas_sidecar_args_ok_path, sidecar_args_ok, expected_program_args=["alpha", "beta"])
+if int(gas_sidecar_args_ok_budget.get("executed") or -1) != int(sidecar_args_ok.get("gas_executed") or -2):
+    fail(
+        f"{gas_sidecar_args_ok_path}: arg-bound sidecar gas budget should mirror sidecar certificate, "
+        f"got {gas_sidecar_args_ok_budget!r} vs {sidecar_args_ok!r}"
+    )
 
 gas_auto_ok = load(gas_auto_ok_path)
 if gas_auto_ok.get("schema") != "oren.native-package-policy-run.v0":

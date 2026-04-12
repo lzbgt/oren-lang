@@ -1594,24 +1594,27 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `cross_arch_comparable=true`, `conversion_ready=true`, and `avm_canonical=true`, while
 			     native dynamic-emitter gas remains a separate non-conversion-ready evidence surface.
 		   - Semantic diff now emits `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas
-		     evidence beside native runtime gas, with source/native-artifact/sidecar-artifact SHA-256 identity
-		     hashes, normalized stdout/stderr hashes,
+			     evidence beside native runtime gas, with source/native-artifact/sidecar-artifact SHA-256 identity
+			     hashes, program-args/package-policy binding hashes, normalized stdout/stderr hashes,
 		     explicit `same_run_stderr_equal` evidence, concrete native/sidecar exit codes,
 			     non-blocking `certification_warnings`,
 			     `certification_status`, `certification_failure_reasons`,
 			     `native_runtime_conversion=false`, and
 			     `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
-			     Calibration-set and native instruction-surface decision consumers now preserve those
-			     source/native-artifact/sidecar-artifact identity hashes per sample and aggregate
-			     `avm_canonical_sidecar_identity_hashes_present_all` evidence.
+				     Calibration-set and native instruction-surface decision consumers now preserve those
+				     source/native-artifact/sidecar-artifact identity hashes and input-binding hashes per sample,
+				     plus aggregate `avm_canonical_sidecar_identity_hashes_present_all` and
+				     `avm_canonical_sidecar_input_binding_present_all` evidence.
 			     Native package-policy verification also injects structured non-gas AVM sidecar run errors
 			     and requires a distinct `sidecar_error` failure reason rather than flattening them into
 			     plain exit-code mismatch evidence.
 			   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
 			     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
 				     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget
-				     exhaustion through structured `avm.run.v1.error` evidence.
-				     `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` turns that package-bound
+					     exhaustion through structured `avm.run.v1.error` evidence.
+					     The certificate now binds exact program args and the declared package policy with stable
+					     SHA-256 fields, so consumers do not infer package/input identity from artifact hashes alone.
+					     `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` turns that package-bound
 				     sidecar into explicit `budget_gas` enforcement, reported as
 				     `runner_wall_avm_canonical_gas` with `enforcement_profile="avm-sidecar"`; the shared
 				     dispatcher exposes the same policy as

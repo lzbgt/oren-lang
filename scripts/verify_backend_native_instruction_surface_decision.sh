@@ -223,6 +223,10 @@ for i in range(0, len(items), 3):
         raise SystemExit(f"{semantic_report}: AVM sidecar should preserve native artifact identity hash, got {sidecar!r}")
     if not sidecar.get("sidecar_artifact") or not valid_sha256(sidecar.get("sidecar_artifact_sha256")):
         raise SystemExit(f"{semantic_report}: AVM sidecar should preserve sidecar artifact identity hash, got {sidecar!r}")
+    if sidecar.get("program_args") != [] or not valid_sha256(sidecar.get("program_args_sha256")):
+        raise SystemExit(f"{semantic_report}: semantic-diff AVM sidecar should preserve empty program-args binding, got {sidecar!r}")
+    if sidecar.get("package_policy_sha256") is not None or sidecar.get("package_policy_declared") is not False:
+        raise SystemExit(f"{semantic_report}: semantic-diff AVM sidecar should not claim package-policy binding, got {sidecar!r}")
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -253,6 +257,11 @@ for i in range(0, len(items), 3):
             "avm_canonical_sidecar_sidecar_artifact": sidecar.get("sidecar_artifact"),
             "avm_canonical_sidecar_sidecar_artifact_sha256": sidecar.get("sidecar_artifact_sha256"),
             "avm_canonical_sidecar_identity_hashes_present": True,
+            "avm_canonical_sidecar_program_args": sidecar.get("program_args"),
+            "avm_canonical_sidecar_program_args_sha256": sidecar.get("program_args_sha256"),
+            "avm_canonical_sidecar_package_policy_sha256": sidecar.get("package_policy_sha256"),
+            "avm_canonical_sidecar_package_policy_declared": sidecar.get("package_policy_declared"),
+            "avm_canonical_sidecar_input_binding_present": True,
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
@@ -306,6 +315,9 @@ decision = {
     "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
     "avm_canonical_sidecar_identity_hashes_present_all": all(
         sample["avm_canonical_sidecar_identity_hashes_present"] for sample in samples
+    ),
+    "avm_canonical_sidecar_input_binding_present_all": all(
+        sample["avm_canonical_sidecar_input_binding_present"] for sample in samples
     ),
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,

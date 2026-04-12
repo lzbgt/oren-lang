@@ -149,13 +149,15 @@ It is a language plus runtime plus artifact contract.
 		  `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`: it builds a bytecode sidecar from the same source
 		  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
 		  certificate usable when stdout/exit matches the native run or when the sidecar reports AVM
-		  canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. It also records
-		  source/native-artifact/sidecar-artifact SHA-256 identity hashes, normalized stdout/stderr hashes,
+			  canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. It also records
+			  source/native-artifact/sidecar-artifact SHA-256 identity hashes, stable program-args/package-policy
+			  binding hashes, normalized stdout/stderr hashes,
 			  explicit `same_run_stderr_equal` evidence, concrete
 			  native/sidecar exit codes, non-blocking `certification_warnings`, and explicit
-			  `certification_status` / `certification_failure_reasons`. Calibration-set and native
-			  instruction-surface decision consumers preserve the source/native-artifact/sidecar-artifact
-			  identity hashes per sample instead of collapsing them to a boolean-only certificate.
+				  `certification_status` / `certification_failure_reasons`. Calibration-set and native
+				  instruction-surface decision consumers preserve the source/native-artifact/sidecar-artifact
+				  identity hashes plus semantic-diff input-binding evidence per sample instead of collapsing
+				  them to a boolean-only certificate.
 			  Structured non-gas AVM sidecar run errors are now a separate guarded non-certified class
 			  (`test_injection="run_error"`, `certification_failure_reasons` includes `sidecar_error`).
 		  The runner guard now proves non-certified sidecar evidence fails closed with an auditable

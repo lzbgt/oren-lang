@@ -157,6 +157,12 @@ for key in ("source_sha256", "native_artifact_sha256", "sidecar_artifact_sha256"
         fail(f"AVM canonical sidecar should include {key} identity hash, got {avm_sidecar!r}")
 if not avm_sidecar.get("native_artifact") or not avm_sidecar.get("sidecar_artifact"):
     fail(f"AVM canonical sidecar should include native/sidecar artifact paths, got {avm_sidecar!r}")
+if avm_sidecar.get("program_args") != []:
+    fail(f"semantic-diff AVM canonical sidecar should bind empty program args, got {avm_sidecar!r}")
+if not isinstance(avm_sidecar.get("program_args_sha256"), str) or len(avm_sidecar.get("program_args_sha256")) != 64:
+    fail(f"semantic-diff AVM canonical sidecar should include program args hash, got {avm_sidecar!r}")
+if avm_sidecar.get("package_policy_sha256") is not None or avm_sidecar.get("package_policy_declared") is not False:
+    fail(f"semantic-diff AVM canonical sidecar should explicitly omit package-policy binding, got {avm_sidecar!r}")
 if avm_sidecar.get("same_run_stdout_equal") is not True or avm_sidecar.get("same_run_exit_code_equal") is not True:
     fail(f"AVM canonical sidecar requires stdout/exit parity evidence, got {avm_sidecar!r}")
 if avm_sidecar.get("native_exit_code") != 0 or avm_sidecar.get("sidecar_exit_code") != 0:

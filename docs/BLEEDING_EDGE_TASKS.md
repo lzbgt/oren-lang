@@ -83,12 +83,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  `avm_canonical=true`). Semantic diff also records `oren.gas-surface-calibration.v0` empirical
 	  ratios for the fixture, explicitly marked as not a conversion, and now emits
 	  `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas evidence with
-		  `package_policy_may_use=false`, source/native-artifact/sidecar-artifact SHA-256 identity hashes,
-		  normalized stdout/stderr hashes, explicit `same_run_stderr_equal`,
-		  concrete native/sidecar exit codes, non-blocking `certification_warnings`, `certification_status`, and
-		  `certification_failure_reasons` evidence. Higher-level calibration and native instruction-surface
-		  decision reports preserve that warning-free stderr-parity, test-injection-free evidence, and per-sample
-		  source/native-artifact/sidecar-artifact identity hashes.
+			  `package_policy_may_use=false`, source/native-artifact/sidecar-artifact SHA-256 identity hashes,
+			  program-args/package-policy binding hashes, normalized stdout/stderr hashes, explicit `same_run_stderr_equal`,
+			  concrete native/sidecar exit codes, non-blocking `certification_warnings`, `certification_status`, and
+			  `certification_failure_reasons` evidence. Higher-level calibration and native instruction-surface
+			  decision reports preserve that warning-free stderr-parity, test-injection-free evidence, and per-sample
+			  source/native-artifact/sidecar-artifact identity plus input-binding hashes.
 		  Native package-policy verification now also distinguishes structured non-gas AVM sidecar run errors
 		  with a `run_error` injection and `sidecar_error` failure reason.
 		  Native package-policy verification now also covers the non-certified sidecar branch with an
@@ -125,8 +125,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			  now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
 			  `wall_ms.elapsed_ns`. Native package policy can now opt into a package-bound sidecar certificate
 			  with `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which records AVM canonical gas only after the
-			  sidecar runs under package budgets and matches native stdout/exit, or after the sidecar itself
-			  reports AVM canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. The explicit
+				  sidecar runs under package budgets and matches native stdout/exit, or after the sidecar itself
+				  reports AVM canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. The sidecar
+			  certificate now binds exact program args and package policy with stable SHA-256 fields. The explicit
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` profile and the dispatcher/native `auto`
 		  default for gas-budgeted packages now use that certificate for `budget_gas` enforcement and report
 		  `runner_wall_avm_canonical_gas`; next capability work should add finer native instruction-equivalent

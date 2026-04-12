@@ -57,7 +57,8 @@ package policy must not use it. The native package-policy runner can opt into a 
 `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`; that certificate is package-bound AVM evidence only when
 the bytecode sidecar runs with the same package budgets and matches native stdout/exit after run-JSON
 lines are removed, or when the sidecar itself reports AVM canonical gas budget exhaustion. Sidecar
-records include source/native-artifact/sidecar-artifact SHA-256 identity hashes, normalized
+records include source/native-artifact/sidecar-artifact SHA-256 identity hashes,
+`program_args_sha256`, `package_policy_sha256`, `package_policy_declared`, normalized
 stdout/stderr hashes, explicit `same_run_stderr_equal` evidence,
 concrete `native_exit_code` / `sidecar_exit_code` values, `certification_status`, non-blocking
 `certification_warnings`, `certification_failure_reasons`, and
@@ -65,6 +66,9 @@ concrete `native_exit_code` / `sidecar_exit_code` values, `certification_status`
 parity certificates, budget-exceeded certificates, and non-certified sidecar outcomes.
 Calibration-set and native instruction-surface decision reports preserve those identity hashes
 per sample and expose aggregate `avm_canonical_sidecar_identity_hashes_present_all` evidence.
+They also preserve `avm_canonical_sidecar_input_binding_present_all`, with semantic-diff sidecars
+bound to empty program args and no package policy while package-policy sidecars bind the declared
+package policy and program args.
 Verifier-only non-certified probes are auditable through `test_injection`; normal sidecar
 certificates must leave that field `null`, and the calibration-set / native instruction-surface
 decision reports preserve aggregate test-injection-free evidence for their semantic-diff sidecars.

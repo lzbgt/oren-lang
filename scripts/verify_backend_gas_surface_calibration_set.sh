@@ -121,6 +121,10 @@ for path in report_paths:
         raise SystemExit(f"{path}: AVM canonical sidecar should preserve native artifact identity hash: {sidecar!r}")
     if not sidecar.get("sidecar_artifact") or not valid_sha256(sidecar.get("sidecar_artifact_sha256")):
         raise SystemExit(f"{path}: AVM canonical sidecar should preserve sidecar artifact identity hash: {sidecar!r}")
+    if sidecar.get("program_args") != [] or not valid_sha256(sidecar.get("program_args_sha256")):
+        raise SystemExit(f"{path}: semantic-diff AVM canonical sidecar should preserve empty program-args binding: {sidecar!r}")
+    if sidecar.get("package_policy_sha256") is not None or sidecar.get("package_policy_declared") is not False:
+        raise SystemExit(f"{path}: semantic-diff AVM canonical sidecar should not claim package-policy binding: {sidecar!r}")
 
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
@@ -233,6 +237,11 @@ for path in report_paths:
             "avm_canonical_sidecar_sidecar_artifact": sidecar.get("sidecar_artifact"),
             "avm_canonical_sidecar_sidecar_artifact_sha256": sidecar.get("sidecar_artifact_sha256"),
             "avm_canonical_sidecar_identity_hashes_present": True,
+            "avm_canonical_sidecar_program_args": sidecar.get("program_args"),
+            "avm_canonical_sidecar_program_args_sha256": sidecar.get("program_args_sha256"),
+            "avm_canonical_sidecar_package_policy_sha256": sidecar.get("package_policy_sha256"),
+            "avm_canonical_sidecar_package_policy_declared": sidecar.get("package_policy_declared"),
+            "avm_canonical_sidecar_input_binding_present": True,
             "native_executed": native_executed,
             "obc_executed": obc_executed,
             "native_per_obc": native_per_obc,
@@ -287,6 +296,9 @@ conversion_decision = {
     "avm_canonical_sidecar_identity_hashes_present_all": all(
         sample["avm_canonical_sidecar_identity_hashes_present"] for sample in samples
     ),
+    "avm_canonical_sidecar_input_binding_present_all": all(
+        sample["avm_canonical_sidecar_input_binding_present"] for sample in samples
+    ),
     "forbidden_policy": "single_fixture_ratio",
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
@@ -321,6 +333,9 @@ out = {
         "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
         "avm_canonical_sidecar_identity_hashes_present_all": all(
             sample["avm_canonical_sidecar_identity_hashes_present"] for sample in samples
+        ),
+        "avm_canonical_sidecar_input_binding_present_all": all(
+            sample["avm_canonical_sidecar_input_binding_present"] for sample in samples
         ),
     },
     "sample_count": len(samples),

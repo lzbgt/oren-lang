@@ -214,6 +214,12 @@ def sha256_file(path):
     except OSError:
         return None
 
+def canonical_json(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+def sha256_json(obj):
+    return sha256_s(canonical_json(obj))
+
 def append_test_injection(current, label):
     return label if current is None else f"{current}+{label}"
 
@@ -285,7 +291,17 @@ def avm_allow_domains_for_package(domains):
         domain_ids.add(AVM_DOMAIN_IDS[name])
     return ",".join(str(x) for x in sorted(domain_ids))
 
-def avm_canonical_sidecar_build_failed_payload(*, src, native_artifact, obc, build_log, build_exit_code, test_injection=None):
+def avm_canonical_sidecar_input_binding(*, program_args=None, package_policy=None):
+    args = [str(arg) for arg in (program_args or [])]
+    policy = package_policy if isinstance(package_policy, dict) else None
+    return {
+        "program_args": args,
+        "program_args_sha256": sha256_json(args),
+        "package_policy_sha256": sha256_json(policy) if policy is not None else None,
+        "package_policy_declared": bool(policy.get("declared")) if policy is not None else False,
+    }
+
+def avm_canonical_sidecar_build_failed_payload(*, src, native_artifact, obc, build_log, build_exit_code, program_args=None, package_policy=None, test_injection=None):
     return {
         "schema": "oren.avm-canonical-sidecar-gas.v0",
         "status": "build_failed",
@@ -297,6 +313,7 @@ def avm_canonical_sidecar_build_failed_payload(*, src, native_artifact, obc, bui
         "native_artifact_sha256": sha256_file(native_artifact),
         "sidecar_artifact": str(obc),
         "sidecar_artifact_sha256": sha256_file(obc),
+        **avm_canonical_sidecar_input_binding(program_args=program_args, package_policy=package_policy),
         "sidecar_build_log": str(build_log),
         "sidecar_build_exit_code": build_exit_code,
         "same_source": True,
@@ -326,7 +343,7 @@ def avm_canonical_sidecar_build_failed_payload(*, src, native_artifact, obc, bui
         "reason": "AVM canonical sidecar build failed before package run",
     }
 
-def avm_canonical_sidecar_not_run_native_failed_payload(*, src, native_artifact, obc, native_stdout, native_stderr, native_exit_code):
+def avm_canonical_sidecar_not_run_native_failed_payload(*, src, native_artifact, obc, native_stdout, native_stderr, native_exit_code, program_args=None, package_policy=None):
     native_stdout_normalized = strip_run_json_lines(native_stdout)
     native_stderr_normalized = strip_run_json_lines(native_stderr)
     return {
@@ -340,6 +357,7 @@ def avm_canonical_sidecar_not_run_native_failed_payload(*, src, native_artifact,
         "native_artifact_sha256": sha256_file(native_artifact),
         "sidecar_artifact": str(obc),
         "sidecar_artifact_sha256": sha256_file(obc),
+        **avm_canonical_sidecar_input_binding(program_args=program_args, package_policy=package_policy),
         "same_source": True,
         "same_run_stdout_equal": None,
         "same_run_stderr_equal": None,
@@ -367,7 +385,7 @@ def avm_canonical_sidecar_not_run_native_failed_payload(*, src, native_artifact,
         "reason": "AVM canonical sidecar was not run because the native package run failed",
     }
 
-def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json, test_injection=None):
+def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json, program_args=None, package_policy=None, test_injection=None):
     avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
     native_stdout_normalized = strip_run_json_lines(native_stdout)
     avm_stdout_normalized = strip_run_json_lines(avm_stdout)
@@ -446,6 +464,7 @@ def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, n
         "native_artifact_sha256": sha256_file(native_artifact),
         "sidecar_artifact": str(obc),
         "sidecar_artifact_sha256": sha256_file(obc),
+        **avm_canonical_sidecar_input_binding(program_args=program_args, package_policy=package_policy),
         "same_source": True,
         "same_run_stdout_equal": same_stdout,
         "same_run_stderr_equal": same_stderr,
@@ -762,6 +781,8 @@ try:
                 obc=obc_sidecar,
                 build_log=sidecar_build_log,
                 build_exit_code=sidecar_build_rc,
+                program_args=prog_args,
+                package_policy=pkg,
                 test_injection="build_fail" if test_sidecar_build_fail else None,
             )
             write_run_json(run_summary_payload(
@@ -838,6 +859,8 @@ try:
             native_stdout=native_stdout,
             native_stderr=p.stderr or "",
             native_exit_code=p.returncode,
+            program_args=prog_args,
+            package_policy=pkg,
         )
     if avm_sidecar_enabled and p.returncode == 0:
         avm_env = os.environ.copy()
@@ -877,6 +900,7 @@ try:
                 "native_artifact_sha256": sha256_file(out),
                 "sidecar_artifact": str(obc_sidecar),
                 "sidecar_artifact_sha256": sha256_file(obc_sidecar),
+                **avm_canonical_sidecar_input_binding(program_args=prog_args, package_policy=pkg),
                 "same_source": True,
                 "native_runtime_conversion": False,
                 "package_policy_may_use": False,
@@ -967,6 +991,8 @@ try:
             avm_exit_code=avm_exit_code_for_payload,
             avm_run_json=avm_run_json_for_payload,
             avm_stderr=avm_stderr_for_payload,
+            program_args=prog_args,
+            package_policy=pkg,
             test_injection=test_injection,
         )
         if gas_enforcement_profile == "avm-sidecar" and avm_sidecar_gas.get("status") == "budget_exceeded":

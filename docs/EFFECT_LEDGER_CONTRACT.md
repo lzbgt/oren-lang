@@ -140,7 +140,8 @@ Required entry fields:
   sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
   `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
   canonical gas sidecar itself reports budget exhaustion. It records source/native-artifact/sidecar-artifact
-  SHA-256 identity hashes, normalized stdout/stderr hashes,
+  SHA-256 identity hashes, `program_args_sha256`, `package_policy_sha256`, `package_policy_declared`,
+  normalized stdout/stderr hashes,
   explicit `same_run_stderr_equal` evidence, concrete `native_exit_code` / `sidecar_exit_code` values,
   `certification_status`, non-blocking
   `certification_warnings`, `certification_failure_reasons`, and `package_policy_may_use_reason`
@@ -310,8 +311,11 @@ carries an `oren.gas-surface-conversion-decision.v0` decision with `package_poli
 and `required_next_surface="native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"`,
 and preserves aggregate `avm_canonical_sidecar_exit_code_equal_all` plus
 `avm_canonical_sidecar_test_injection_free` evidence for its semantic-diff sidecars, with
-`avm_canonical_sidecar_identity_hashes_present_all=true` proving every sample still carries
-source/native-artifact/sidecar-artifact identity hashes. Per-sample calibration and native
+  `avm_canonical_sidecar_identity_hashes_present_all=true` proving every sample still carries
+source/native-artifact/sidecar-artifact identity hashes. They also preserve
+`avm_canonical_sidecar_input_binding_present_all=true`: semantic-diff sidecars explicitly bind empty
+program args and no package policy, while package-policy sidecars bind the declared package policy
+through `program_args_sha256` and `package_policy_sha256`. Per-sample calibration and native
 instruction-surface decision records also preserve those hashes under
 `avm_canonical_sidecar_*_sha256` fields.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:

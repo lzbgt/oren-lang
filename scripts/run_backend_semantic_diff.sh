@@ -203,6 +203,12 @@ def sha256_file(path_s):
     except OSError:
         return None
 
+def canonical_json(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+def sha256_json(obj):
+    return sha256_s(canonical_json(obj))
+
 def find_last_json_obj(text):
     for line in reversed(text.splitlines()):
         line = line.strip()
@@ -498,6 +504,10 @@ avm_canonical_sidecar_gas = {
     "native_artifact_sha256": sha256_file(out_native),
     "sidecar_artifact": out_obc,
     "sidecar_artifact_sha256": sha256_file(out_obc),
+    "program_args": [],
+    "program_args_sha256": sha256_json([]),
+    "package_policy_sha256": None,
+    "package_policy_declared": False,
     "same_source": True,
     "same_run_stdout_equal": native_obc_stdout_equal,
     "same_run_stderr_equal": native_obc_stderr_equal,

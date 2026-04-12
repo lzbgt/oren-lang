@@ -227,7 +227,8 @@ summary. When `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1` is set, the native runn
 bytecode sidecar from the same source and package manifest, runs it under the declared package AVM
 budgets, checks stdout/exit parity with the native run after removing run-JSON lines, and records
 `oren.avm-canonical-sidecar-gas.v0` with `policy_scope="native_package_policy_same_source_artifact"`,
-source/native-artifact/sidecar-artifact SHA-256 identity hashes, normalized stdout/stderr hashes,
+source/native-artifact/sidecar-artifact SHA-256 identity hashes, `program_args_sha256`,
+`package_policy_sha256`, `package_policy_declared`, normalized stdout/stderr hashes,
 explicit `same_run_stderr_equal` evidence, concrete
 `native_exit_code` / `sidecar_exit_code` values, an explicit
 `certification_status`, machine-readable non-blocking `certification_warnings`, and machine-readable
@@ -295,7 +296,9 @@ separate package-bound profile through `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=a
 dispatcher `--gas-profile avm-sidecar`, or the native dispatcher's default `auto` profile for
 gas-budgeted packages; semantic diff fixtures remain analysis-only and still cannot grant
 package-policy authority. Both semantic-diff and package-policy sidecar records carry normalized
-stdout/stderr hashes plus `package_policy_may_use_reason`, so consumers can audit whether the
+stdout/stderr hashes plus `package_policy_may_use_reason`; semantic-diff sidecars explicitly bind
+empty program args and no package policy, while package-policy sidecars bind the exact program args
+and declared package policy with stable SHA-256 fields. Consumers can audit whether the
 certificate came from stdout/exit parity or from AVM canonical budget exhaustion, and inspect
 `certification_failure_reasons` when certification is unavailable.
 Verifier-only test injection is explicit in the sidecar record and must stay absent from normal
