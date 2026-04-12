@@ -207,7 +207,11 @@ gas until a native/AVM conversion contract exists. When
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` is set, it writes
 `oren.native-package-policy-run.v0` JSON with runner-observed wall/gas/heap/CPU-budget evidence, the
 native capsule/domain policy that was applied, and any captured native runtime `effect_ledger`
-summary.
+summary. When `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1` is set, the native runner also builds a
+bytecode sidecar from the same source and package manifest, runs it under the declared package AVM
+budgets, checks stdout/exit parity with the native run after removing run-JSON lines, and records
+`oren.avm-canonical-sidecar-gas.v0` with `policy_scope="native_package_policy_same_source_artifact"`.
+That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion.
 
 Native capsule runtime now also exposes a smaller runtime evidence surface:
 `native_capsule_effect_gate_summary_json()` returns `oren.native-capsule-effect-gates.v0`,

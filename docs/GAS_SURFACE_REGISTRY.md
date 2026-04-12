@@ -43,10 +43,12 @@ system. `oren.avm-canonical-sidecar-gas.v0` records that OBC value next to nativ
 gas for the same source/fixture, with `native_runtime_conversion=false`.
 
 That sidecar is useful for parity analysis because it gives every semantic-diff sample an AVM
-canonical gas certificate. It is not package-policy binding yet: the current scope is
-`semantic_diff_same_source_fixture`, so package policy must not use it until Oren adds package/input
-binding that proves the sidecar artifact is the authoritative AVM gas certificate for the native
-program being enforced.
+canonical gas certificate. Under semantic diff its scope is `semantic_diff_same_source_fixture`, so
+package policy must not use it. The native package-policy runner can opt into a stronger
+`native_package_policy_same_source_artifact` sidecar with
+`OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`; that certificate is package-bound AVM evidence only when
+the bytecode sidecar runs with the same package budgets and matches native stdout/exit after run-JSON
+lines are removed. It still sets `native_runtime_conversion=false`.
 
 ## Guards
 

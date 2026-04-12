@@ -105,7 +105,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  and `make verify-gas-surface-registry` now pin the gas-surface inventory so tools cannot drift on
 	  AVM-canonical versus native backend-local conversion status. AVM `effect_ledger_summary.budgets`
 	  now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
-	  `wall_ms.elapsed_ns`. Next capability work should package-bind AVM canonical sidecar gas or add
+	  `wall_ms.elapsed_ns`. Native package policy can now opt into a package-bound sidecar certificate
+	  with `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which records AVM canonical gas only after the
+	  sidecar runs under package budgets and matches native stdout/exit. Next capability work should make
+	  that sidecar part of an explicit enforcement profile or add
 	  finer native instruction-equivalent gas rather than re-describing
 	  the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime

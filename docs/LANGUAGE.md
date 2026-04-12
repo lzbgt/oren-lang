@@ -1479,8 +1479,13 @@ For the current capability domain and native runtime-profile contract, see
   one tick; this remains statement+loop-granular rather than instruction-equivalent, and the native
   run JSON gas object identifies that unit with `surface.schema="oren.gas-surface.v0"` and
   `surface.id="native_stmt_loop_tick_v0"`, while also marking it `unit_scope="backend_local"`,
-  `unit_family="native_statement_or_op"`, `conversion_ready=false`, and `avm_canonical=false`.
-  `OREN_NATIVE_GAS_ACCOUNTING=statement` is an exact synonym
+	  `unit_family="native_statement_or_op"`, `conversion_ready=false`, and `avm_canonical=false`.
+	  Setting `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1` asks the native package-policy runner to
+	  build a bytecode sidecar from the same source/package manifest, run it under the declared AVM
+	  budgets, and record package-bound `oren.avm-canonical-sidecar-gas.v0` AVM opcode gas when stdout
+	  and exit status match the native run; this remains sidecar AVM evidence, not native gas
+	  conversion.
+	  `OREN_NATIVE_GAS_ACCOUNTING=statement` is an exact synonym
   for `stmt`; `OREN_NATIVE_GAS_ACCOUNTING=basic-block` selects the distinct
   `native_basic_block_tick_v0` native lowering-block evidence surface, and
   `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` selects the stronger

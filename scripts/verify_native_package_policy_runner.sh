@@ -74,6 +74,7 @@ grep -Fq "native package policy CPU ok" "$cpu_ok_out" || {
   exit 1
 }
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_ok_json" \
+  OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1 \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_ok_out" 2>"$gas_ok_err"
 grep -Fq "native package policy gas ok" "$gas_ok_out" || {
@@ -285,6 +286,28 @@ if gas_ok_budget.get("kind") != "native_stmt_loop_tick_v0":
     fail(f"{gas_ok_path}: expected native_stmt_loop_tick_v0 gas kind, got {gas_ok_budget!r}")
 gas_ok_surface = gas_ok_budget.get("surface") or {}
 assert_native_stmt_surface(gas_ok_path, gas_ok_surface)
+gas_ok_sidecar = gas_ok.get("avm_canonical_sidecar_gas") or {}
+if gas_ok_sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
+    fail(f"{gas_ok_path}: AVM canonical sidecar schema mismatch: {gas_ok_sidecar!r}")
+if gas_ok_sidecar.get("status") != "available":
+    fail(f"{gas_ok_path}: expected available AVM canonical sidecar gas, got {gas_ok_sidecar!r}")
+if gas_ok_sidecar.get("policy_scope") != "native_package_policy_same_source_artifact":
+    fail(f"{gas_ok_path}: AVM sidecar policy scope mismatch: {gas_ok_sidecar!r}")
+if gas_ok_sidecar.get("same_source") is not True or gas_ok_sidecar.get("same_run_stdout_equal") is not True:
+    fail(f"{gas_ok_path}: AVM sidecar should certify same-source stdout parity, got {gas_ok_sidecar!r}")
+if gas_ok_sidecar.get("same_run_exit_code_equal") is not True:
+    fail(f"{gas_ok_path}: AVM sidecar should certify exit-code parity, got {gas_ok_sidecar!r}")
+if gas_ok_sidecar.get("native_runtime_conversion") is not False:
+    fail(f"{gas_ok_path}: AVM sidecar must not claim native runtime conversion, got {gas_ok_sidecar!r}")
+if gas_ok_sidecar.get("package_policy_may_use") is not True:
+    fail(f"{gas_ok_path}: package-bound AVM sidecar should be usable as an AVM canonical certificate, got {gas_ok_sidecar!r}")
+gas_ok_sidecar_surface = gas_ok_sidecar.get("gas_surface") or {}
+if gas_ok_sidecar_surface.get("id") != "avm_opcode_cost_v0" or gas_ok_sidecar_surface.get("unit_scope") != "avm_canonical":
+    fail(f"{gas_ok_path}: AVM sidecar gas surface mismatch: {gas_ok_sidecar!r}")
+if gas_ok_sidecar_surface.get("conversion_ready") is not True or gas_ok_sidecar_surface.get("avm_canonical") is not True:
+    fail(f"{gas_ok_path}: AVM sidecar should preserve canonical metadata: {gas_ok_sidecar!r}")
+if int(gas_ok_sidecar.get("gas_executed") or 0) <= 0:
+    fail(f"{gas_ok_path}: AVM sidecar should report positive canonical gas, got {gas_ok_sidecar!r}")
 if gas_ok_budget.get("exceeded") is not False:
     fail(f"{gas_ok_path}: expected non-exceeded gas budget, got {gas_ok_budget!r}")
 gas_ok_used = int(gas_ok_budget.get("executed") or -1)

@@ -24,6 +24,8 @@ The runner builds and runs gas budget fixtures with OREN_NATIVE_GAS_ACCOUNTING=s
 closed when child CPU usage is not available on the host.
 Set OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path> to write runner-observed
 wall/gas/heap/CPU-budget evidence plus any captured native runtime ledger summary as JSON. Set
+OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1 to also build and run a bytecode sidecar with
+the same package budgets and record AVM-canonical opcode gas as non-converting package evidence. Set
 OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN=1, or provide OREN_NATIVE_PACKAGE_POLICY_OUT,
 to keep generated artifacts.
 EOF
@@ -68,6 +70,17 @@ except ImportError:
     resource = None
 
 NATIVE_DOMAINS = {"FS", "NET", "PROC", "ENV", "TIME", "RNG"}
+AVM_DOMAIN_IDS = {
+    "CORE": 0,
+    "FS": 1,
+    "TIME": 2,
+    "RNG": 3,
+    "NET": 4,
+    "PROC": 5,
+    "EXIT": 6,
+    "ENV": 7,
+    "AVM": 8,
+}
 NATIVE_GAS_KIND = "native_stmt_loop_tick_v0"
 
 def fail(msg, rc=2):
@@ -134,6 +147,34 @@ def extract_native_run_json(stdout_text):
             found = obj
     return found
 
+def extract_avm_run_json(stdout_text):
+    found = None
+    for raw in stdout_text.splitlines():
+        line = raw.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if obj.get("schema") == "avm.run.v1":
+            found = obj
+    return found
+
+def strip_run_json_lines(stdout_text):
+    lines = []
+    for raw in (stdout_text or "").splitlines():
+        line = raw.strip()
+        if line.startswith("{"):
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                obj = None
+            if isinstance(obj, dict) and obj.get("schema") in ("oren.native-run.v0", "avm.run.v1"):
+                continue
+        lines.append(raw.rstrip())
+    return "\n".join(lines).strip()
+
 def native_heap_used_from_run_json(native_run_json):
     if not native_run_json:
         return None
@@ -163,6 +204,66 @@ def native_gas_from_run_json(native_run_json):
     except (TypeError, ValueError):
         return (None, remaining, kind, surface)
 
+def avm_gas_from_run_json(avm_run_json):
+    if not avm_run_json:
+        return (None, None, None, None)
+    summary = avm_run_json.get("effect_ledger_summary") or {}
+    gas = ((summary.get("budgets") or {}).get("gas") or {})
+    executed = gas.get("executed")
+    remaining = gas.get("remaining")
+    kind = gas.get("kind")
+    surface = gas.get("surface")
+    if executed is None:
+        return (None, remaining, kind, surface)
+    try:
+        return (int(executed), remaining, kind, surface)
+    except (TypeError, ValueError):
+        return (None, remaining, kind, surface)
+
+def avm_allow_domains_for_package(domains):
+    domain_ids = {AVM_DOMAIN_IDS["CORE"], AVM_DOMAIN_IDS["EXIT"]}
+    for raw in domains or []:
+        name = str(raw).strip().upper()
+        if not name:
+            continue
+        if name not in AVM_DOMAIN_IDS:
+            fail(f"AVM sidecar cannot map package domain {name!r}")
+        domain_ids.add(AVM_DOMAIN_IDS[name])
+    return ",".join(str(x) for x in sorted(domain_ids))
+
+def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, avm_stdout, avm_exit_code, avm_run_json):
+    avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
+    same_stdout = strip_run_json_lines(native_stdout) == strip_run_json_lines(avm_stdout)
+    same_exit = native_exit_code == avm_exit_code
+    canonical = (
+        isinstance(avm_gas_surface, dict)
+        and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
+        and avm_gas_surface.get("unit_scope") == "avm_canonical"
+        and avm_gas_surface.get("conversion_ready") is True
+        and avm_gas_surface.get("avm_canonical") is True
+        and avm_gas_used is not None
+        and avm_gas_used > 0
+    )
+    available = bool(same_stdout and same_exit and canonical and avm_exit_code == 0)
+    return {
+        "schema": "oren.avm-canonical-sidecar-gas.v0",
+        "status": "available" if available else "unavailable",
+        "source": str(src),
+        "native_backend": "native",
+        "sidecar_backend": "obc",
+        "sidecar_artifact": str(obc),
+        "same_source": True,
+        "same_run_stdout_equal": same_stdout,
+        "same_run_exit_code_equal": same_exit,
+        "gas_surface": avm_gas_surface,
+        "gas_executed": avm_gas_used,
+        "gas_remaining": avm_gas_remaining,
+        "native_runtime_conversion": False,
+        "package_policy_may_use": available,
+        "policy_scope": "native_package_policy_same_source_artifact",
+        "reason": "package-bound AVM canonical sidecar gas; not a native runtime gas conversion",
+    }
+
 def child_cpu_ms_supported():
     return resource is not None and hasattr(resource, "RUSAGE_CHILDREN")
 
@@ -189,9 +290,11 @@ tmp_dir.mkdir(parents=True, exist_ok=True)
 
 exe_ext = ".exe" if platform.system().lower().startswith("windows") else ""
 out = Path(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_OUT", str(tmp_dir / f"{stem}{exe_ext}")))
+obc_sidecar = tmp_dir / f"{stem}.sidecar.obc"
 meta_out = tmp_dir / f"{stem}.metadata.json"
 build_log = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_BUILD_LOG", f"build/logs/native_package_policy_{stem}_{ts}.build.log")
 run_json_path = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_RUN_JSON", "")
+avm_sidecar_enabled = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR"))
 keep = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN") or os.environ.get("OREN_NATIVE_PACKAGE_POLICY_OUT"))
 
 def write_run_json(payload):
@@ -205,7 +308,7 @@ def write_run_json(payload):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(data, encoding="utf-8")
 
-def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, caps, wall_ms, budgets, native_run_json=None, cpu_used_ms=None):
+def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, caps, wall_ms, budgets, native_run_json=None, cpu_used_ms=None, avm_sidecar_gas=None):
     unsupported = []
     cap_domains = [d for d in caps.split(",") if d]
     native_summary = None
@@ -243,6 +346,8 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
         scope_parts.append("native-run-json")
     if cpu_enforced:
         scope_parts.append("child-rusage")
+    if avm_sidecar_gas and avm_sidecar_gas.get("status") == "available":
+        scope_parts.append("avm-canonical-sidecar")
     if native_summary is not None:
         effect_ledger = {
             "available": True,
@@ -270,6 +375,12 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
             "available": True,
             "scope": "+".join(scope_parts),
             "budget_status": budget_status,
+        },
+        "avm_canonical_sidecar_gas": avm_sidecar_gas or {
+            "schema": "oren.avm-canonical-sidecar-gas.v0",
+            "status": "not_requested",
+            "package_policy_may_use": False,
+            "policy_scope": "native_package_policy_same_source_artifact",
         },
         "budgets": {
             "declared": bool(budgets.get("declared")),
@@ -360,10 +471,17 @@ try:
         build_env["OREN_NATIVE_GAS_ACCOUNTING"] = "stmt"
     run_checked(build_cmd, env=build_env, log_path=build_log)
 
+    if avm_sidecar_enabled:
+        sidecar_build_log = f"build/logs/native_package_policy_{stem}_{ts}.avm-sidecar.build.log"
+        run_checked(
+            ["./oren", "build", src, "--backend", "bytecode", "--manifest", "-o", str(obc_sidecar)],
+            log_path=sidecar_build_log,
+        )
+
     env = os.environ.copy()
     env["OREN_CAPSULE"] = "1"
     env["OREN_CAP_ALLOW_DOMAINS"] = caps
-    capture_native_run_json = bool(run_json_path or heap_limit is not None or gas_limit is not None)
+    capture_native_run_json = bool(run_json_path or heap_limit is not None or gas_limit is not None or avm_sidecar_enabled)
     if capture_native_run_json:
         env["OREN_NATIVE_RUN_JSON"] = "1"
     if gas_limit is not None:
@@ -383,9 +501,11 @@ try:
             )
             sys.stdout.write(p.stdout or "")
             sys.stderr.write(p.stderr or "")
-            native_run_json = extract_native_run_json(p.stdout or "")
+            native_stdout = p.stdout or ""
+            native_run_json = extract_native_run_json(native_stdout)
         else:
             p = subprocess.run([str(out), *prog_args], env=env, timeout=timeout)
+            native_stdout = ""
             native_run_json = None
     except subprocess.TimeoutExpired:
         elapsed_ns = time.monotonic_ns() - start_ns
@@ -405,6 +525,84 @@ try:
         fail(f"package native wall budget exceeded: {wall_ms}ms", rc=124)
     elapsed_ns = time.monotonic_ns() - start_ns
     cpu_used_ms = cpu_delta_ms(cpu_before_ms, child_cpu_ms_snapshot())
+    avm_sidecar_gas = None
+    if avm_sidecar_enabled and p.returncode == 0:
+        avm_env = os.environ.copy()
+        if profile == "capsule":
+            avm_env["AVM_CAPSULE"] = "1"
+            avm_env["AVM_ALLOW_DOMAINS"] = avm_allow_domains_for_package(pkg.get("cap_allow_domains") or [])
+        if gas_limit is not None:
+            avm_env["AVM_GAS"] = str(gas_limit)
+        if heap_limit is not None:
+            avm_env["AVM_MEM_BYTES"] = str(heap_limit)
+        if wall_ms is not None:
+            avm_env["AVM_TIMEOUT_MS"] = str(wall_ms)
+        avm_cmd = ["./avm", "--print-run-json", str(obc_sidecar)]
+        if prog_args:
+            avm_cmd.extend(["--", *prog_args])
+        try:
+            avm_p = subprocess.run(
+                avm_cmd,
+                env=avm_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            avm_sidecar_gas = {
+                "schema": "oren.avm-canonical-sidecar-gas.v0",
+                "status": "timeout",
+                "source": str(src),
+                "native_backend": "native",
+                "sidecar_backend": "obc",
+                "sidecar_artifact": str(obc_sidecar),
+                "same_source": True,
+                "native_runtime_conversion": False,
+                "package_policy_may_use": False,
+                "policy_scope": "native_package_policy_same_source_artifact",
+                "reason": "AVM canonical sidecar timed out under package wall budget",
+            }
+            write_run_json(run_summary_payload(
+                exit_code=77,
+                status="budget_unavailable",
+                elapsed_ns=elapsed_ns,
+                src=src,
+                out=out,
+                profile=profile,
+                caps=caps,
+                wall_ms=wall_ms,
+                budgets=budgets,
+                native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
+            ))
+            fail("package AVM canonical sidecar timed out", rc=77)
+        avm_sidecar_gas = avm_canonical_sidecar_payload(
+            src=src,
+            obc=obc_sidecar,
+            native_stdout=native_stdout,
+            native_exit_code=p.returncode,
+            avm_stdout=avm_p.stdout or "",
+            avm_exit_code=avm_p.returncode,
+            avm_run_json=extract_avm_run_json(avm_p.stdout or ""),
+        )
+        if avm_sidecar_gas.get("status") != "available":
+            write_run_json(run_summary_payload(
+                exit_code=77,
+                status="budget_unavailable",
+                elapsed_ns=elapsed_ns,
+                src=src,
+                out=out,
+                profile=profile,
+                caps=caps,
+                wall_ms=wall_ms,
+                budgets=budgets,
+                native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
+            ))
+            fail("package AVM canonical sidecar gas could not be certified for native run", rc=77)
     if gas_limit is not None:
         gas_used, gas_remaining, gas_kind, gas_surface = native_gas_from_run_json(native_run_json)
         gas_surface_id = gas_surface.get("id") if isinstance(gas_surface, dict) else None
@@ -421,6 +619,7 @@ try:
                 budgets=budgets,
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail("package native gas budget cannot be checked: native statement+loop gas summary was not captured", rc=76)
         if gas_used > gas_limit:
@@ -436,6 +635,7 @@ try:
                 budgets=budgets,
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail(f"package native gas budget exceeded: used {gas_used} {NATIVE_GAS_KIND} > limit {gas_limit}", rc=127)
     if heap_limit is not None:
@@ -453,6 +653,7 @@ try:
                 budgets=budgets,
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail("package native heap budget cannot be checked: native runtime heap summary was not captured", rc=76)
         if heap_used > heap_limit:
@@ -468,6 +669,7 @@ try:
                 budgets=budgets,
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail(f"package native heap budget exceeded: used {heap_used} bytes > limit {heap_limit} bytes", rc=125)
     if cpu_limit is not None:
@@ -484,6 +686,7 @@ try:
                 budgets=budgets,
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail("package native CPU budget cannot be checked: child process CPU usage is unavailable", rc=76)
         if cpu_used_ms > cpu_limit:
@@ -499,6 +702,7 @@ try:
                 budgets=budgets,
                 native_run_json=native_run_json,
                 cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail(f"package native CPU budget exceeded: used {cpu_used_ms}ms > limit {cpu_limit}ms", rc=126)
     write_run_json(run_summary_payload(
@@ -513,6 +717,7 @@ try:
         budgets=budgets,
         native_run_json=native_run_json,
         cpu_used_ms=cpu_used_ms,
+        avm_sidecar_gas=avm_sidecar_gas,
     ))
     raise SystemExit(p.returncode)
 finally:

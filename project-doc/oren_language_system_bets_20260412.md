@@ -141,8 +141,13 @@ It is a language plus runtime plus artifact contract.
 	  `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`,
 	  `avm_canonical=true`) as non-comparable rather than pretending any positive counter is enough.
 	  Semantic diff now also carries same-source `oren.avm-canonical-sidecar-gas.v0` OBC evidence with
-	  `package_policy_may_use=false`; the next step is package-binding that AVM sidecar or adding finer native instruction-equivalent gas rather than
-	  another manifest-only field.
+	  `package_policy_may_use=false`, so parity tooling gets AVM canonical evidence without pretending it
+	  is native gas. The next step is making that sidecar package-policy-bound or adding finer native
+	  instruction-equivalent gas rather than another manifest-only field.
+	  Native package policy can now opt into that package-bound sidecar path with
+	  `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`: it builds a bytecode sidecar from the same source
+	  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
+	  certificate usable only when stdout/exit matches the native run.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
