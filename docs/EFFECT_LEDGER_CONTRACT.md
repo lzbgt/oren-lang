@@ -108,7 +108,8 @@ Required entry fields:
   until they can target that unit honestly. Semantic diff also emits
   `oren.avm-canonical-sidecar-gas.v0`, a same-source OBC sidecar that records the AVM canonical gas
   evidence next to native runtime evidence while preserving `native_runtime_conversion=false` and
-  `package_policy_may_use=false`. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
+  `package_policy_may_use=false`; higher-level calibration/decision reports preserve its
+  `same_run_stderr_equal` evidence. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
   conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
   `oren.gas-surface-calibration-set.v0` report from default smoke, loop-heavy, branch-heavy,
@@ -275,11 +276,11 @@ package policy may use for enforcement. `make verify-backend-semantic-diff-gas-c
 same schema guard against an additional loop-heavy fixture, and
   `make verify-backend-semantic-diff-gas-call-calibration` covers a function-call-heavy fixture, and
   `make verify-backend-semantic-diff-gas-alloc-calibration` covers an allocation-heavy fixture.
-	  `make verify-backend-gas-surface-calibration-set` writes an `oren.gas-surface-calibration-set.v0`
-	  report proving the current ratio spread across default, loop-heavy, branch-heavy, call-heavy, and allocation-heavy fixtures is too
-	  fixture-sensitive to promote as a conversion rule. The same report carries an
-	  `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false` and
-	  `required_next_surface="native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"`.
+`make verify-backend-gas-surface-calibration-set` writes an `oren.gas-surface-calibration-set.v0`
+report proving the current ratio spread across default, loop-heavy, branch-heavy, call-heavy, and
+allocation-heavy fixtures is too fixture-sensitive to promote as a conversion rule. The same report
+carries an `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false`
+and `required_next_surface="native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"`.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:
 `oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
 as a runtime gas surface by cross-checking them against the current `native_dynamic_emitter_tick_v0`

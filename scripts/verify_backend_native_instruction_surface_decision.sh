@@ -26,6 +26,7 @@ fi
 timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
 build_timeout_secs="${OREN_NATIVE_INSTRUCTION_SURFACE_BUILD_TIMEOUT_SECS:-120}"
+semantic_run_timeout_secs="${OREN_NATIVE_INSTRUCTION_SURFACE_SEMANTIC_RUN_TIMEOUT_SECS:-20}"
 
 run_with_timeout() {
   local secs="$1"
@@ -90,7 +91,7 @@ for src in "${fixtures[@]}"; do
 
   echo "== native instruction-surface fixture: $src ==" >&2
   set +e
-  runner_output="$(./scripts/verify_backend_semantic_diff.sh "$src" 2>&1)"
+  runner_output="$(env OREN_BACKEND_PARITY_RUN_TIMEOUT_SECS="${OREN_BACKEND_PARITY_RUN_TIMEOUT_SECS:-$semantic_run_timeout_secs}" ./scripts/verify_backend_semantic_diff.sh "$src" 2>&1)"
   rc=$?
   set -e
   printf '%s\n' "$runner_output"
@@ -197,6 +198,10 @@ for i in range(0, len(items), 3):
         raise SystemExit(f"{semantic_report}: AVM sidecar must remain same-source evidence, not conversion, got {sidecar!r}")
     if sidecar.get("package_policy_may_use") is not False:
         raise SystemExit(f"{semantic_report}: AVM sidecar is not package-policy binding yet, got {sidecar!r}")
+    if sidecar.get("same_run_stderr_equal") is not True:
+        raise SystemExit(
+            f"{semantic_report}: AVM sidecar should preserve semantic-diff stderr parity evidence, got {sidecar!r}"
+        )
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -215,6 +220,7 @@ for i in range(0, len(items), 3):
             "avm_canonical_sidecar_available": True,
             "avm_canonical_sidecar_policy_scope": sidecar.get("policy_scope"),
             "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
+            "avm_canonical_sidecar_stderr_equal": sidecar.get("same_run_stderr_equal"),
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
@@ -262,6 +268,7 @@ decision = {
     "observed_obc_surface_avm_canonical": True,
     "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
     "package_policy_may_use_avm_sidecar": False,
+    "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
     "observed_sample_classes": sample_classes,

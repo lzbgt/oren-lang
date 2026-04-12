@@ -26,6 +26,7 @@ fi
 mkdir -p build/reports
 ts="$(date +%Y%m%d_%H%M%S)"
 set_report="build/reports/backend_gas_surface_calibration_set_${ts}_$$.json"
+semantic_run_timeout_secs="${OREN_GAS_SURFACE_CALIBRATION_SEMANTIC_RUN_TIMEOUT_SECS:-20}"
 reports=()
 
 for src in "${fixtures[@]}"; do
@@ -36,7 +37,7 @@ for src in "${fixtures[@]}"; do
 
   echo "== gas surface calibration fixture: $src ==" >&2
   set +e
-  runner_output="$(./scripts/verify_backend_semantic_diff.sh "$src" 2>&1)"
+  runner_output="$(env OREN_BACKEND_PARITY_RUN_TIMEOUT_SECS="${OREN_BACKEND_PARITY_RUN_TIMEOUT_SECS:-$semantic_run_timeout_secs}" ./scripts/verify_backend_semantic_diff.sh "$src" 2>&1)"
   rc=$?
   set -e
   printf '%s\n' "$runner_output"
@@ -101,6 +102,8 @@ for path in report_paths:
         raise SystemExit(f"{path}: semantic-diff sidecar is not package-policy binding yet: {sidecar!r}")
     if sidecar.get("policy_scope") != "semantic_diff_same_source_fixture":
         raise SystemExit(f"{path}: AVM canonical sidecar policy scope mismatch: {sidecar!r}")
+    if sidecar.get("same_run_stderr_equal") is not True:
+        raise SystemExit(f"{path}: AVM canonical sidecar should preserve semantic-diff stderr parity evidence: {sidecar!r}")
 
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
@@ -201,6 +204,7 @@ for path in report_paths:
             "avm_canonical_sidecar_gas_executed": int(sidecar.get("gas_executed") or 0),
             "avm_canonical_sidecar_policy_scope": sidecar.get("policy_scope"),
             "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
+            "avm_canonical_sidecar_stderr_equal": sidecar.get("same_run_stderr_equal"),
             "native_executed": native_executed,
             "obc_executed": obc_executed,
             "native_per_obc": native_per_obc,
@@ -248,6 +252,7 @@ conversion_decision = {
     "obc_surface_avm_canonical": True,
     "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
     "package_policy_may_use_avm_sidecar": False,
+    "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
     "forbidden_policy": "single_fixture_ratio",
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
@@ -277,6 +282,7 @@ out = {
         "obc_surface_avm_canonical": True,
         "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
         "package_policy_may_use_avm_sidecar": False,
+        "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
     },
     "sample_count": len(samples),
     "required_sample_classes": required_sample_classes,
