@@ -89,6 +89,9 @@ are reported as `certification_status="not_run_native_failed"` with `native_exit
 the native exit instead of recasting it as a sidecar gas policy error.
 Budget-exceeded sidecar certificates prefer the structured AVM `avm.run.v1.error` object
 (`code=9`, `msg="budget exceeded (gas)"`) over stderr text.
+The native package-policy guard also proves stderr text is not enough by combining a schema-mismatched
+sidecar run JSON with a stderr-only `budget exceeded (gas)` diagnostic; that evidence remains
+`unavailable` until the canonical `avm.run.v1` schema and AVM gas surface are both certified.
 `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher
 `--gas-profile avm-sidecar` on `--backend native`, or the dispatcher default `auto` profile for a
 gas-budgeted package makes that certificate the runner's gas enforcement profile. It still sets

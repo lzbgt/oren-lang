@@ -155,7 +155,10 @@ Required entry fields:
   `budget_unavailable` runner status for that non-certified sidecar path.
   It separately injects a verifier-only stderr mismatch (`test_injection="stderr_suffix"`) and requires
   `certification_warnings=["stderr_mismatch"]` while preserving stdout/exit certification and AVM
-  sidecar gas enforcement. A verifier-only exit-code mismatch (`test_injection="exit_code"`) now also
+  sidecar gas enforcement. The guard also combines a schema-mismatched run JSON with a stderr-only
+  `budget exceeded (gas)` diagnostic (`test_injection="stderr_suffix+schema"`) and requires
+  `budget_unavailable`, so stderr text cannot certify gas without canonical `avm.run.v1` evidence.
+  A verifier-only exit-code mismatch (`test_injection="exit_code"`) now also
   requires `certification_failure_reasons=["exit_code_mismatch", "sidecar_exit_nonzero"]`,
   `package_policy_may_use=false`, and `budget_unavailable` so nonzero sidecar exits cannot be treated
   as gas certificates. Additional verifier-only probes now remove sidecar run JSON
@@ -163,8 +166,9 @@ Required entry fields:
 (`test_injection="schema"`), remove the sidecar gas surface
 (`test_injection="drop_gas_surface"`), force zero gas (`test_injection="zero_gas"`), and force
 sidecar timeout (`test_injection="timeout"`), requiring `missing_or_noncanonical_avm_run_json`,
-`missing_or_noncanonical_avm_gas_surface`, `missing_or_nonpositive_avm_gas`, or `timeout` failure evidence before the runner reports
-`budget_unavailable`. A structured non-gas AVM run-error probe (`test_injection="run_error"`) now
+`missing_or_noncanonical_avm_gas_surface`, `missing_or_nonpositive_avm_gas`, or `timeout` failure
+evidence before the runner reports `budget_unavailable`. A structured non-gas AVM run-error probe
+(`test_injection="run_error"`) now
 also requires `sidecar_error` failure evidence while preserving canonical gas evidence. A sidecar
 build-failure probe (`test_injection="build_fail"`) now also requires
 `certification_status="build_failed"` plus `certification_failure_reasons=["sidecar_build_failed"]`,

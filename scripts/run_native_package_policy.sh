@@ -477,7 +477,7 @@ def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, n
         package_policy_may_use_reason = "sidecar_stdout_or_exit_mismatch_or_missing_canonical_gas"
     return {
         "schema": "oren.avm-canonical-sidecar-gas.v0",
-        "status": "available" if available else ("budget_exceeded" if budget_exceeded else "unavailable"),
+        "status": "available" if available else ("budget_exceeded" if package_policy_may_use and budget_exceeded else "unavailable"),
         "source": str(src),
         "source_sha256": sha256_file(src),
         "native_backend": "native",

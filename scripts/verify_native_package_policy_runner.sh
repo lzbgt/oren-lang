@@ -60,6 +60,9 @@ gas_sidecar_missing_run_json_json="$TMP/gas-sidecar-missing-run-json.run.json"
 gas_sidecar_schema_mismatch_out="$TMP/gas-sidecar-schema-mismatch.out"
 gas_sidecar_schema_mismatch_err="$TMP/gas-sidecar-schema-mismatch.err"
 gas_sidecar_schema_mismatch_json="$TMP/gas-sidecar-schema-mismatch.run.json"
+gas_sidecar_schema_stderr_budget_out="$TMP/gas-sidecar-schema-stderr-budget.out"
+gas_sidecar_schema_stderr_budget_err="$TMP/gas-sidecar-schema-stderr-budget.err"
+gas_sidecar_schema_stderr_budget_json="$TMP/gas-sidecar-schema-stderr-budget.run.json"
 gas_sidecar_zero_gas_out="$TMP/gas-sidecar-zero-gas.out"
 gas_sidecar_zero_gas_err="$TMP/gas-sidecar-zero-gas.err"
 gas_sidecar_zero_gas_json="$TMP/gas-sidecar-zero-gas.run.json"
@@ -232,6 +235,12 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_schema_mismatch_json" \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_sidecar_schema_mismatch_out" 2>"$gas_sidecar_schema_mismatch_err"
 gas_sidecar_schema_mismatch_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_schema_stderr_budget_json" \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_SCHEMA=not.avm.run.v1 \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDERR_SUFFIX=$'\nbudget exceeded (gas)\n' \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_schema_stderr_budget_out" 2>"$gas_sidecar_schema_stderr_budget_err"
+gas_sidecar_schema_stderr_budget_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_zero_gas_json" \
   OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_ZERO_GAS=1 \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
@@ -276,7 +285,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_args_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_run_error_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_missing_run_json_json" "$gas_sidecar_schema_mismatch_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" "$gas_sidecar_native_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_args_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_run_error_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_missing_run_json_json" "$gas_sidecar_schema_mismatch_json" "$gas_sidecar_schema_stderr_budget_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" "$gas_sidecar_native_fail_json" <<'PY'
 import hashlib
 import json
 import sys
@@ -305,10 +314,11 @@ gas_sidecar_run_error_path = Path(sys.argv[20])
 gas_sidecar_missing_surface_path = Path(sys.argv[21])
 gas_sidecar_missing_run_json_path = Path(sys.argv[22])
 gas_sidecar_schema_mismatch_path = Path(sys.argv[23])
-gas_sidecar_zero_gas_path = Path(sys.argv[24])
-gas_sidecar_timeout_path = Path(sys.argv[25])
-gas_sidecar_build_fail_path = Path(sys.argv[26])
-gas_sidecar_native_fail_path = Path(sys.argv[27])
+gas_sidecar_schema_stderr_budget_path = Path(sys.argv[24])
+gas_sidecar_zero_gas_path = Path(sys.argv[25])
+gas_sidecar_timeout_path = Path(sys.argv[26])
+gas_sidecar_build_fail_path = Path(sys.argv[27])
+gas_sidecar_native_fail_path = Path(sys.argv[28])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -917,7 +927,9 @@ def assert_sidecar_unavailable_run(
     run_json_status="ok",
     run_json_error_code=None,
     run_json_error_msg=None,
+    expected_warnings=None,
 ):
+    expected_warnings = [] if expected_warnings is None else list(expected_warnings)
     data = load(path)
     if data.get("schema") != "oren.native-package-policy-run.v0":
         fail(f"{path}: schema mismatch: {data.get('schema')!r}")
@@ -947,8 +959,8 @@ def assert_sidecar_unavailable_run(
         fail(f"{path}: uncertified sidecar must not be package-policy usable, got {sidecar!r}")
     if set(sidecar.get("certification_failure_reasons") or []) != set(expected_reasons):
         fail(f"{path}: unexpected uncertified sidecar failure reasons, got {sidecar!r}")
-    if sidecar.get("certification_warnings") != []:
-        fail(f"{path}: uncertified sidecar should not carry warnings, got {sidecar!r}")
+    if sidecar.get("certification_warnings") != expected_warnings:
+        fail(f"{path}: unexpected uncertified sidecar warnings, expected {expected_warnings!r}, got {sidecar!r}")
     if sidecar.get("test_injection") != expected_injection:
         fail(f"{path}: expected auditable verifier injection {expected_injection!r}, got {sidecar!r}")
     assert_sidecar_run_json(
@@ -1091,6 +1103,44 @@ if int(sidecar_schema_mismatch.get("gas_executed") or 0) <= 0:
     fail(f"{gas_sidecar_schema_mismatch_path}: schema-mismatched sidecar should distinguish run-JSON schema failure from missing gas execution, got {sidecar_schema_mismatch!r}")
 if sidecar_schema_mismatch.get("package_policy_may_use_reason") != "sidecar_stdout_or_exit_mismatch_or_missing_canonical_gas":
     fail(f"{gas_sidecar_schema_mismatch_path}: schema-mismatched sidecar package-policy reason mismatch, got {sidecar_schema_mismatch!r}")
+
+_, _, sidecar_schema_stderr_budget = assert_sidecar_unavailable_run(
+    gas_sidecar_schema_stderr_budget_path,
+    ["missing_or_noncanonical_avm_run_json", "missing_or_noncanonical_avm_gas_surface"],
+    "stderr_suffix+schema",
+    run_json_schema="not.avm.run.v1",
+    expected_warnings=["stderr_mismatch"],
+)
+if sidecar_schema_stderr_budget.get("sidecar_run_json_schema") != "not.avm.run.v1":
+    fail(
+        f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should preserve "
+        f"the bad schema for audit, got {sidecar_schema_stderr_budget!r}"
+    )
+if sidecar_schema_stderr_budget.get("same_run_stdout_equal") is not True:
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should preserve stdout parity, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("same_run_stderr_equal") is not False:
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should expose stderr mismatch evidence, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("same_run_exit_code_equal") is not True:
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should preserve exit parity, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("native_exit_code") != 0 or sidecar_schema_stderr_budget.get("sidecar_exit_code") != 0:
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should expose zero native/sidecar exits, got {sidecar_schema_stderr_budget!r}")
+schema_stderr_budget_surface = sidecar_schema_stderr_budget.get("gas_surface") or {}
+if schema_stderr_budget_surface.get("id") != "avm_opcode_cost_v0" or schema_stderr_budget_surface.get("unit_scope") != "avm_canonical":
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should preserve gas evidence but not certify it, got {sidecar_schema_stderr_budget!r}")
+if int(sidecar_schema_stderr_budget.get("gas_executed") or 0) <= 0:
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should distinguish schema failure from missing gas execution, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("budget_exceeded") is not True:
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should expose the stderr gas-budget diagnostic, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("budget_exceeded_source") != "stderr_diagnostic":
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar should mark stderr as the budget diagnostic source, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("status") != "unavailable":
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: uncertified stderr-budget diagnostic must not become sidecar budget_exceeded status, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("certification_status") != "unavailable":
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: uncertified stderr-budget diagnostic must not become certified, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("package_policy_may_use") is not False:
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: uncertified stderr-budget diagnostic must not be package-policy usable, got {sidecar_schema_stderr_budget!r}")
+if sidecar_schema_stderr_budget.get("package_policy_may_use_reason") != "sidecar_stdout_or_exit_mismatch_or_missing_canonical_gas":
+    fail(f"{gas_sidecar_schema_stderr_budget_path}: schema+stderr-budget sidecar package-policy reason mismatch, got {sidecar_schema_stderr_budget!r}")
 
 _, _, sidecar_zero_gas = assert_sidecar_unavailable_run(
     gas_sidecar_zero_gas_path,
@@ -1350,6 +1400,25 @@ grep -Fq "package AVM canonical sidecar gas could not be certified for native ru
   cat "$gas_sidecar_schema_mismatch_err" >&2 || true
   exit 1
 }
+
+if [[ "$gas_sidecar_schema_stderr_budget_rc" -eq 0 ]]; then
+  echo "ERROR: expected schema-mismatched stderr-budget AVM sidecar evidence to fail closed" >&2
+  cat "$gas_sidecar_schema_stderr_budget_out" >&2 || true
+  cat "$gas_sidecar_schema_stderr_budget_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package AVM canonical sidecar gas could not be certified for native run" "$gas_sidecar_schema_stderr_budget_out" "$gas_sidecar_schema_stderr_budget_err" || {
+  echo "ERROR: missing schema-mismatched stderr-budget AVM sidecar diagnostic" >&2
+  cat "$gas_sidecar_schema_stderr_budget_out" >&2 || true
+  cat "$gas_sidecar_schema_stderr_budget_err" >&2 || true
+  exit 1
+}
+if grep -Fq "package AVM canonical sidecar gas budget exceeded" "$gas_sidecar_schema_stderr_budget_out" "$gas_sidecar_schema_stderr_budget_err"; then
+  echo "ERROR: schema-mismatched stderr-budget sidecar must not take the budget-exceeded path" >&2
+  cat "$gas_sidecar_schema_stderr_budget_out" >&2 || true
+  cat "$gas_sidecar_schema_stderr_budget_err" >&2 || true
+  exit 1
+fi
 
 if [[ "$gas_sidecar_zero_gas_rc" -eq 0 ]]; then
   echo "ERROR: expected zero-gas AVM sidecar evidence to fail closed" >&2

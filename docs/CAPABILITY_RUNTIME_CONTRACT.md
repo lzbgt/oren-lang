@@ -238,12 +238,15 @@ source/native-artifact/sidecar-artifact SHA-256 identity hashes, `program_args_s
 auditable stdout-mismatch probe (`test_injection="stdout_suffix"`) proving non-certified sidecar
 evidence fails closed with `budget_unavailable` instead of being accepted by gas enforcement, plus a
 stderr-mismatch probe (`test_injection="stderr_suffix"`) proving non-blocking warnings do not revoke a
-	valid stdout/exit AVM gas certificate, and an exit-code mismatch probe
-	(`test_injection="exit_code"`) proving nonzero sidecar exits are non-certified rather than usable gas
-	evidence. It also probes dropped run JSON (`test_injection="drop_run_json"`), dropped gas-surface
-	metadata (`test_injection="drop_gas_surface"`), schema-mismatched run JSON
-	(`test_injection="schema"`), zero gas (`test_injection="zero_gas"`), and sidecar
-	timeout (`test_injection="timeout"`) so missing canonical gas evidence fails closed instead of becoming
+valid stdout/exit AVM gas certificate, and an exit-code mismatch probe
+(`test_injection="exit_code"`) proving nonzero sidecar exits are non-certified rather than usable gas
+evidence. It also combines schema-mismatched run JSON with a stderr-only `budget exceeded (gas)`
+diagnostic (`test_injection="stderr_suffix+schema"`) and requires `budget_unavailable`, so stderr
+text cannot certify gas without canonical `avm.run.v1` evidence. It also probes dropped run JSON
+(`test_injection="drop_run_json"`), dropped gas-surface metadata
+(`test_injection="drop_gas_surface"`), schema-mismatched run JSON
+(`test_injection="schema"`), zero gas (`test_injection="zero_gas"`), and sidecar
+timeout (`test_injection="timeout"`) so missing canonical gas evidence fails closed instead of becoming
 package-policy gas enforcement. It also probes structured non-gas AVM run errors
 (`test_injection="run_error"`) and requires `certification_failure_reasons` to include
 `sidecar_error` so consumers can distinguish them from plain exit-code mismatches. A sidecar build-failure

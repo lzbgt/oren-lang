@@ -1628,6 +1628,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     `budget_unavailable` instead of treating the AVM sidecar as gas enforcement.
 				     The adjacent stderr-mismatch probe now stays certified with
 				     `certification_warnings=["stderr_mismatch"]`, proving warnings are non-blocking.
+				     A combined schema-mismatch plus stderr `budget exceeded (gas)` probe now remains
+				     `budget_unavailable`, proving stderr diagnostics cannot certify gas without canonical
+				     `avm.run.v1` evidence.
 				     An exit-code mismatch probe now also requires `exit_code_mismatch` plus
 				     `sidecar_exit_nonzero` failure reasons and keeps the sidecar non-certified.
 					     Missing run-JSON, schema-mismatch, gas-surface, zero-gas, and timeout probes now cover the remaining

@@ -93,12 +93,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		  Native package-policy verification now also distinguishes structured non-gas AVM sidecar run errors
 		  with a `run_error` injection and `sidecar_error` failure reason.
 		  Native package-policy verification now also covers the non-certified sidecar branch with an
-	  auditable stdout-mismatch `test_injection`, requiring `budget_unavailable` rather than accidental
-	  `budget_gas` enforcement, and the stderr-mismatch warning branch with AVM sidecar gas enforcement
-	  still intact. It now also covers an exit-code mismatch injection so nonzero sidecar exits remain
-	  non-certified even when stdout/stderr and canonical gas evidence are present. Missing run-JSON,
-	  schema-mismatch, gas-surface, zero-gas, and timeout injections now separately prove absent or invalid canonical gas evidence also fails
-	  closed. A sidecar build-failure injection now proves the runner still emits structured
+		  auditable stdout-mismatch `test_injection`, requiring `budget_unavailable` rather than accidental
+		  `budget_gas` enforcement, and the stderr-mismatch warning branch with AVM sidecar gas enforcement
+		  still intact. It now also covers schema-mismatch plus stderr `budget exceeded (gas)` injection, so
+		  stderr diagnostics cannot certify gas without canonical `avm.run.v1` evidence. It now also covers
+		  an exit-code mismatch injection so nonzero sidecar exits remain
+		  non-certified even when stdout/stderr and canonical gas evidence are present. Missing run-JSON,
+		  schema-mismatch, gas-surface, zero-gas, and timeout injections now separately prove absent or
+		  invalid canonical gas evidence also fails closed. A sidecar build-failure injection now proves the runner still emits structured
 	  `sidecar_build_failed` evidence instead of dropping the JSON contract. A native-failure fixture
 	  now also keeps the native exit visible with `not_run_native_failed` sidecar evidence instead of
 	  masking it as sidecar gas unavailability.

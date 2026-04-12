@@ -165,6 +165,8 @@ It is a language plus runtime plus artifact contract.
 		  whose stdout/exit certificate is unavailable.
 		  It also proves an auditable stderr-mismatch warning remains non-blocking, preserving AVM
 		  sidecar gas enforcement when stdout/exit certification is intact.
+		  It now also proves a schema-mismatched sidecar with a stderr-only `budget exceeded (gas)`
+		  diagnostic remains non-certified, so stderr text cannot replace canonical `avm.run.v1` evidence.
 		  It now also proves an auditable exit-code mismatch stays non-certified, so a nonzero sidecar
 		  exit cannot be converted into package gas enforcement.
 	  Missing sidecar run JSON, schema-mismatched run JSON, gas-surface metadata, zero gas, and sidecar
