@@ -27,6 +27,8 @@ gas_fail_json="$TMP/gas-fail.run.json"
 gas_sidecar_fail_out="$TMP/gas-sidecar-fail.out"
 gas_sidecar_fail_err="$TMP/gas-sidecar-fail.err"
 gas_sidecar_fail_json="$TMP/gas-sidecar-fail.run.json"
+gas_profile_bad_out="$TMP/gas-profile-bad.out"
+gas_profile_bad_err="$TMP/gas-profile-bad.err"
 gas_stmt_fail_out="$TMP/gas-stmt-fail.out"
 gas_stmt_fail_err="$TMP/gas-stmt-fail.err"
 gas_stmt_fail_json="$TMP/gas-stmt-fail.run.json"
@@ -113,6 +115,10 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_fail_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_fail.oren \
   >"$gas_sidecar_fail_out" 2>"$gas_sidecar_fail_err"
 gas_sidecar_fail_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=sidecar \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_profile_bad_out" 2>"$gas_profile_bad_err"
+gas_profile_bad_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_stmt_fail_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_stmt_fail.oren \
   >"$gas_stmt_fail_out" 2>"$gas_stmt_fail_err"
@@ -481,6 +487,19 @@ grep -Fq "package AVM canonical sidecar gas budget exceeded" "$gas_sidecar_fail_
   echo "ERROR: missing AVM sidecar gas budget diagnostic" >&2
   cat "$gas_sidecar_fail_out" >&2 || true
   cat "$gas_sidecar_fail_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_profile_bad_rc" -eq 0 ]]; then
+  echo "ERROR: expected invalid native package-policy gas profile to fail closed" >&2
+  cat "$gas_profile_bad_out" >&2 || true
+  cat "$gas_profile_bad_err" >&2 || true
+  exit 1
+fi
+grep -Fq "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE must be native-stmt or avm-sidecar" "$gas_profile_bad_out" "$gas_profile_bad_err" || {
+  echo "ERROR: missing invalid gas profile diagnostic" >&2
+  cat "$gas_profile_bad_out" >&2 || true
+  cat "$gas_profile_bad_err" >&2 || true
   exit 1
 }
 
