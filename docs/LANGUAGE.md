@@ -1485,7 +1485,9 @@ For the current capability domain and native runtime-profile contract, see
   `native_block_weighted_tick_v0` weighted lowering-block evidence surface, and
   `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` selects runtime path-aware
   `native_dynamic_emitter_tick_v0` emitter-span evidence, but package-policy gas
-  budgets still use statement+loop gas until Oren has a native/AVM conversion contract. Set
+  budgets still use statement+loop gas until Oren has a native/AVM conversion contract. The dynamic
+  gas-surface descriptor is marked `unit_scope="backend_local"`, `cross_arch_comparable=false`, and
+  `conversion_ready=false`, so tools must not treat it as architecture-neutral instruction gas. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
   evidence plus any captured runtime ledger summary as `oren.native-package-policy-run.v0`. Set
   `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`
@@ -3593,7 +3595,7 @@ with `OREN_NATIVE_GAS_ACCOUNTING=stmt`; captured gas JSON includes `oren.gas-sur
 tools do not confuse native statement+loop ticks with AVM opcode gas. The fine native gas
 spellings today are exact `1`, `stmt`, `statement`, `basic-block`, `block-weighted`, and `dynamic-emitter`;
 `basic-block` is distinct native lowering-block evidence and `block-weighted` is weighted
-native lowering-block evidence, while `dynamic-emitter` is runtime path-aware emitter-span evidence.
+native lowering-block evidence, while `dynamic-emitter` is backend-local runtime path-aware emitter-span evidence.
 The exact spelling `instruction-equivalent` is reserved and guarded not to alias any current
 fine-grained gas surface.
 When callers set

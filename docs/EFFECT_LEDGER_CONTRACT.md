@@ -213,9 +213,12 @@ charges and loop-poll ticks. `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` report
 `kind="native_dynamic_emitter_tick_v0"`, using patchable runtime notes that charge executed backend emitter
 spans while excluding the gas-note call overhead itself. Semantic diff uses the dynamic-emitter mode so it
 has runtime path-aware native evidence, but each gas object carries an explicit `surface` object with
-`schema="oren.gas-surface.v0"`. That surface keeps native `native_dynamic_emitter_tick_v0` distinct from
-AVM `avm_opcode_cost_v0`; semantic diff reports the current native/OBC gas surfaces as non-comparable
-until Oren validates a conversion contract. The exact native mode spelling
+`schema="oren.gas-surface.v0"`. The dynamic-emitter surface also reports
+`unit_scope="backend_local"`, `runtime_path_aware=true`, `cross_arch_comparable=false`, and
+`conversion_ready=false`; arm64 and x64 can therefore expose path-aware evidence without pretending the
+counter is architecture-neutral instruction gas. That surface keeps native
+`native_dynamic_emitter_tick_v0` distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current
+native/OBC gas surfaces as non-comparable until Oren validates a conversion contract. The exact native mode spelling
 `instruction-equivalent` is reserved: today the guard proves it falls back to default loop-safepoint
 gas instead of silently aliasing statement, basic-block, block-weighted, or dynamic-emitter gas.
 `make verify-native-gas-accounting-modes` guards those mode contracts. The native build cache key

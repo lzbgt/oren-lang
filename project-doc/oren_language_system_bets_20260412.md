@@ -162,8 +162,10 @@ It is a language plus runtime plus artifact contract.
 	  Oren also guards exact native gas mode
   spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
   lowering-block evidence, `block-weighted` selects weighted lowering-block evidence, and
-  `dynamic-emitter` selects runtime path-aware emitter-span evidence rather than silently aliasing
-  statement gas. The native build cache key now
+  `dynamic-emitter` selects backend-local runtime path-aware emitter-span evidence rather than silently
+  aliasing statement gas. Its gas-surface metadata explicitly sets `unit_scope="backend_local"`,
+  `cross_arch_comparable=false`, and `conversion_ready=false`, so future tooling cannot mistake it for
+  instruction-equivalent gas. The native build cache key now
   includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
   Next work is validating the dynamic-emitter conversion contract or adding instruction-equivalent native
   gas, not only expanding fixture scripts.

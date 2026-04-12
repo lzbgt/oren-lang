@@ -352,7 +352,7 @@ fn native_runtime_gas_kind_string() {
 
 fn native_runtime_gas_surface_json() {
     if native_runtime_dynamic_emitter_gas_env_enabled() == true {
-        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_dynamic_emitter_tick_v0\",\"backend\":\"native\",\"unit\":\"dynamic_emitter_tick\",\"granularity\":\"executed_backend_emitter_span_delta_excluding_runtime_note_overhead\",\"avm_canonical\":false}"
+        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_dynamic_emitter_tick_v0\",\"backend\":\"native\",\"unit\":\"dynamic_emitter_tick\",\"unit_scope\":\"backend_local\",\"granularity\":\"executed_backend_emitter_span_delta_excluding_runtime_note_overhead\",\"runtime_path_aware\":true,\"cross_arch_comparable\":false,\"conversion_ready\":false,\"avm_canonical\":false}"
     }
     if native_runtime_block_weighted_gas_env_enabled() == true {
         return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_block_weighted_tick_v0\",\"backend\":\"native\",\"unit\":\"block_weighted_tick\",\"granularity\":\"native_lowering_block_weight_plus_loop_condition_and_loop_poll\",\"avm_canonical\":false}"

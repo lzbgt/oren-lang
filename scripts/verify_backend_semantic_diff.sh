@@ -83,6 +83,10 @@ native_surface = gas_surfaces.get("native") or {}
 obc_surface = gas_surfaces.get("obc") or {}
 if native_surface.get("schema") != "oren.gas-surface.v0" or native_surface.get("id") != "native_dynamic_emitter_tick_v0":
     fail(f"native gas surface mismatch: {native_surface!r}")
+if native_surface.get("unit_scope") != "backend_local" or native_surface.get("runtime_path_aware") is not True:
+    fail(f"native dynamic-emitter surface should be backend-local runtime-path-aware evidence, got {native_surface!r}")
+if native_surface.get("cross_arch_comparable") is not False or native_surface.get("conversion_ready") is not False:
+    fail(f"native dynamic-emitter surface must not be marked conversion-ready, got {native_surface!r}")
 if obc_surface.get("schema") != "oren.gas-surface.v0" or obc_surface.get("id") != "avm_opcode_cost_v0":
     fail(f"OBC gas surface mismatch: {obc_surface!r}")
 if gas_surfaces.get("native_obc_comparable") is not False:
@@ -157,6 +161,10 @@ if native_deltas.get("gas_kind") != native_gas.get("kind"):
     fail(f"native gas kind delta should mirror summary budget, got {native_deltas!r} vs {native_gas!r}")
 if native_deltas.get("gas_surface_id") != "native_dynamic_emitter_tick_v0":
     fail(f"native gas surface delta mismatch, got {native_deltas!r}")
+if native_deltas.get("gas_surface_unit_scope") != "backend_local" or native_deltas.get("gas_surface_runtime_path_aware") is not True:
+    fail(f"native gas surface delta should preserve backend-local dynamic-emitter metadata, got {native_deltas!r}")
+if native_deltas.get("gas_surface_cross_arch_comparable") is not False or native_deltas.get("gas_surface_conversion_ready") is not False:
+    fail(f"native gas surface delta should preserve non-conversion metadata, got {native_deltas!r}")
 native_heap = native_budgets.get("heap_bytes") or {}
 if native_heap.get("kind") != "tracked_live_scan":
     fail(f"native heap counter kind mismatch: {native_heap!r}")

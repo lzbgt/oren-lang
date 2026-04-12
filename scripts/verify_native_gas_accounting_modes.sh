@@ -123,6 +123,11 @@ if gas.get("kind") != expected_kind:
     raise SystemExit(f"{stdout_log}: {name} expected gas kind {expected_kind}, got {gas!r}")
 if surface.get("schema") != "oren.gas-surface.v0" or surface.get("id") != expected_kind:
     raise SystemExit(f"{stdout_log}: {name} expected gas surface {expected_kind}, got {gas!r}")
+if name == "dynamic_emitter":
+    if surface.get("unit_scope") != "backend_local" or surface.get("runtime_path_aware") is not True:
+        raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface should be backend-local runtime-path-aware evidence, got {surface!r}")
+    if surface.get("cross_arch_comparable") is not False or surface.get("conversion_ready") is not False:
+        raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface must stay non-conversion-ready, got {surface!r}")
 if require_positive and int(executed or 0) <= 0:
     raise SystemExit(f"{stdout_log}: {name} expected positive gas execution, got {gas!r}")
 print(json.dumps({

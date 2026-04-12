@@ -232,7 +232,9 @@ basic-block entry ticks plus loop-poll ticks as a distinct non-AVM-canonical sur
 lowering-block weights plus loop-condition charges and loop-poll ticks.
 `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` reports `native_dynamic_emitter_tick_v0`, adding runtime
 path-aware backend emitter span ticks. Every native
-gas object also includes an `oren.gas-surface.v0` descriptor; semantic diff now reports the native
+gas object also includes an `oren.gas-surface.v0` descriptor. The dynamic-emitter descriptor is
+explicitly `unit_scope="backend_local"`, `runtime_path_aware=true`, `cross_arch_comparable=false`, and
+`conversion_ready=false`; semantic diff now reports the native
 and AVM gas surfaces as non-comparable when their ids differ, instead of treating positive counters
 as the same unit. The exact `instruction-equivalent` spelling is a reserved request and is guarded not
 to alias `stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter`; future backend work can add that surface without
