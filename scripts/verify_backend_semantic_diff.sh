@@ -137,6 +137,35 @@ if float(calibration.get("native_per_obc") or 0.0) <= 0.0 or float(calibration.g
     fail(f"gas calibration should include positive ratios, got {calibration!r}")
 if checks.get("gas_surface_calibration_available") is not True:
     fail(f"gas surface calibration availability mismatch: {checks!r}")
+if checks.get("avm_canonical_sidecar_gas_available") is not True:
+    fail(f"AVM canonical sidecar gas availability mismatch: {checks!r}")
+
+avm_sidecar = data.get("avm_canonical_sidecar_gas") or {}
+if avm_sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
+    fail(f"AVM canonical sidecar gas schema mismatch: {avm_sidecar!r}")
+if avm_sidecar.get("status") != "available":
+    fail(f"AVM canonical sidecar gas should be available for semantic-diff fixtures, got {avm_sidecar!r}")
+if avm_sidecar.get("native_backend") != "native" or avm_sidecar.get("sidecar_backend") != "obc":
+    fail(f"AVM canonical sidecar backend metadata mismatch: {avm_sidecar!r}")
+if avm_sidecar.get("same_source") is not True:
+    fail(f"AVM canonical sidecar should be explicitly same-source evidence, got {avm_sidecar!r}")
+if avm_sidecar.get("same_run_stdout_equal") is not True or avm_sidecar.get("same_run_exit_code_equal") is not True:
+    fail(f"AVM canonical sidecar requires stdout/exit parity evidence, got {avm_sidecar!r}")
+sidecar_surface = avm_sidecar.get("gas_surface") or {}
+if sidecar_surface.get("id") != "avm_opcode_cost_v0" or sidecar_surface.get("unit_scope") != "avm_canonical":
+    fail(f"AVM canonical sidecar gas surface mismatch: {avm_sidecar!r}")
+if sidecar_surface.get("conversion_ready") is not True or sidecar_surface.get("avm_canonical") is not True:
+    fail(f"AVM canonical sidecar should carry conversion-ready AVM metadata, got {avm_sidecar!r}")
+if int(avm_sidecar.get("gas_executed") or 0) != int(calibration.get("obc_executed") or 0):
+    fail(f"AVM canonical sidecar gas should mirror OBC calibration gas, got {avm_sidecar!r} vs {calibration!r}")
+if avm_sidecar.get("native_runtime_surface_id") != "native_dynamic_emitter_tick_v0":
+    fail(f"AVM canonical sidecar should name the native runtime evidence surface, got {avm_sidecar!r}")
+if avm_sidecar.get("native_runtime_conversion") is not False:
+    fail(f"AVM canonical sidecar must not claim native runtime conversion, got {avm_sidecar!r}")
+if avm_sidecar.get("package_policy_may_use") is not False:
+    fail(f"semantic-diff AVM canonical sidecar is not package-policy binding yet, got {avm_sidecar!r}")
+if avm_sidecar.get("policy_scope") != "semantic_diff_same_source_fixture":
+    fail(f"AVM canonical sidecar policy scope mismatch: {avm_sidecar!r}")
 
 backends = data.get("backends") or {}
 native = backends.get("native") or {}

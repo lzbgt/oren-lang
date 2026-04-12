@@ -104,13 +104,17 @@ Required entry fields:
   AVM's canonical `avm_opcode_cost_v0` opcode-dispatch gas surface. The AVM surface declares
   `unit_scope="avm_canonical"`, `runtime_path_aware=true`, `cross_arch_comparable=true`,
   `conversion_ready=true`, and `avm_canonical=true`; native surfaces must not claim comparability
-  until they can target that unit honestly. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
+  until they can target that unit honestly. Semantic diff also emits
+  `oren.avm-canonical-sidecar-gas.v0`, a same-source OBC sidecar that records the AVM canonical gas
+  evidence next to native runtime evidence while preserving `native_runtime_conversion=false` and
+  `package_policy_may_use=false`. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
   conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
   `oren.gas-surface-calibration-set.v0` report from default smoke, loop-heavy, branch-heavy,
   call-heavy, and allocation-heavy fixtures. The report keeps the current ratio spread explicit as `single_ratio_unsafe` and emits an
   `oren.gas-surface-conversion-decision.v0` object that blocks package-policy gas conversion from a
-  single empirical ratio until Oren has validated native dynamic-emitter or instruction-equivalent gas evidence.
+  single empirical ratio until Oren has package-bound AVM canonical sidecar gas or native
+  instruction-equivalent gas evidence.
   The calibration samples also carry the native surface's `unit_scope`, `target_arch`,
   `unit_family`, `runtime_path_aware`, `cross_arch_comparable`, and `conversion_ready` metadata plus
   the AVM surface's canonical metadata, so the decision is blocked by declared surface semantics as well as by the observed ratio spread. Default
@@ -251,17 +255,17 @@ same schema guard against an additional loop-heavy fixture, and
 	  `make verify-backend-gas-surface-calibration-set` writes an `oren.gas-surface-calibration-set.v0`
 	  report proving the current ratio spread across default, loop-heavy, branch-heavy, call-heavy, and allocation-heavy fixtures is too
 	  fixture-sensitive to promote as a conversion rule. The same report carries an
-  `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false` and
-  `required_next_surface="validated_native_dynamic_emitter_or_instruction_equivalent_gas"`.
+	  `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false` and
+	  `required_next_surface="native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"`.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:
 `oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
 as a runtime gas surface by cross-checking them against the current `native_dynamic_emitter_tick_v0`
 runtime surface. Whole-binary counts include linked runtime text and are not per-executed-path evidence.
 	The earlier report (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`)
 counted the same `474624` whole-binary native instructions for the default, loop-heavy, and branch-heavy
-fixtures while AVM opcode gas varied. The default decision guard now also requires the call-heavy sample
-and allocation-heavy sample classes, so the required next step is validating dynamic-emitter evidence or adding instruction-equivalent
-native gas, not promoting a static binary-size proxy.
+	fixtures while AVM opcode gas varied. The default decision guard now also requires the call-heavy sample
+	and allocation-heavy sample classes, so the required next step is package-binding AVM canonical sidecar gas
+	or adding instruction-equivalent native gas, not promoting a static binary-size proxy.
 The first dynamic-emitter calibration set
 (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) narrowed the contract to
 runtime path-aware native evidence, but still blocked conversion: default smoke, loop-heavy, and

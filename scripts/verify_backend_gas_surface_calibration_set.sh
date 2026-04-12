@@ -71,6 +71,7 @@ native_surface_id = None
 obc_surface_id = None
 native_target_arch = None
 native_unit_family = None
+required_next_surface = "native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"
 
 for path in report_paths:
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -86,6 +87,20 @@ for path in report_paths:
         raise SystemExit(f"{path}: calibration mode mismatch: {calibration!r}")
     if calibration.get("comparable") is not False or calibration.get("not_a_conversion") is not True:
         raise SystemExit(f"{path}: calibration must remain evidence, not conversion: {calibration!r}")
+    sidecar = data.get("avm_canonical_sidecar_gas") or {}
+    if sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0" or sidecar.get("status") != "available":
+        raise SystemExit(f"{path}: missing AVM canonical sidecar gas evidence: {sidecar!r}")
+    sidecar_surface = sidecar.get("gas_surface") or {}
+    if sidecar_surface.get("id") != "avm_opcode_cost_v0" or sidecar_surface.get("unit_scope") != "avm_canonical":
+        raise SystemExit(f"{path}: AVM canonical sidecar gas surface mismatch: {sidecar!r}")
+    if sidecar_surface.get("conversion_ready") is not True or sidecar_surface.get("avm_canonical") is not True:
+        raise SystemExit(f"{path}: AVM canonical sidecar should preserve canonical metadata: {sidecar!r}")
+    if sidecar.get("same_source") is not True or sidecar.get("native_runtime_conversion") is not False:
+        raise SystemExit(f"{path}: sidecar must stay same-source evidence, not native conversion: {sidecar!r}")
+    if sidecar.get("package_policy_may_use") is not False:
+        raise SystemExit(f"{path}: semantic-diff sidecar is not package-policy binding yet: {sidecar!r}")
+    if sidecar.get("policy_scope") != "semantic_diff_same_source_fixture":
+        raise SystemExit(f"{path}: AVM canonical sidecar policy scope mismatch: {sidecar!r}")
 
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
@@ -159,6 +174,8 @@ for path in report_paths:
     obc_per_native = float(calibration.get("obc_per_native") or 0.0)
     if native_executed <= 0 or obc_executed <= 0:
         raise SystemExit(f"{path}: expected positive gas counters, got {calibration!r}")
+    if int(sidecar.get("gas_executed") or 0) != obc_executed:
+        raise SystemExit(f"{path}: AVM sidecar gas must mirror OBC canonical gas, got {sidecar!r} vs {calibration!r}")
     if native_per_obc <= 0.0 or obc_per_native <= 0.0:
         raise SystemExit(f"{path}: expected positive ratios, got {calibration!r}")
 
@@ -180,6 +197,10 @@ for path in report_paths:
             "obc_surface_cross_arch_comparable": cur_obc_cross_arch_comparable,
             "obc_surface_conversion_ready": cur_obc_conversion_ready,
             "obc_surface_avm_canonical": cur_obc_avm_canonical,
+            "avm_canonical_sidecar_available": True,
+            "avm_canonical_sidecar_gas_executed": int(sidecar.get("gas_executed") or 0),
+            "avm_canonical_sidecar_policy_scope": sidecar.get("policy_scope"),
+            "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
             "native_executed": native_executed,
             "obc_executed": obc_executed,
             "native_per_obc": native_per_obc,
@@ -225,8 +246,10 @@ conversion_decision = {
     "obc_surface_cross_arch_comparable": True,
     "obc_surface_conversion_ready": True,
     "obc_surface_avm_canonical": True,
+    "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
+    "package_policy_may_use_avm_sidecar": False,
     "forbidden_policy": "single_fixture_ratio",
-    "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
+    "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
     "observed_sample_classes": sample_classes,
     "sample_class_coverage_ok": (not default_fixture_set) or set(required_sample_classes).issubset(set(sample_classes)),
@@ -252,6 +275,8 @@ out = {
         "obc_surface_cross_arch_comparable": True,
         "obc_surface_conversion_ready": True,
         "obc_surface_avm_canonical": True,
+        "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
+        "package_policy_may_use_avm_sidecar": False,
     },
     "sample_count": len(samples),
     "required_sample_classes": required_sample_classes,

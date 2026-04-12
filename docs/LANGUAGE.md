@@ -1507,11 +1507,13 @@ For the current capability domain and native runtime-profile contract, see
   AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`, and marks its gas surface as
   canonical `avm_opcode_cost_v0` opcode-dispatch gas with
-	  `unit_scope="avm_canonical"`, `runtime_path_aware=true`, `cross_arch_comparable=true`,
-	  `conversion_ready=true`, and `avm_canonical=true`. Semantic-diff tooling keeps native and AVM gas
-	  non-comparable while the native surface cannot target that AVM unit honestly. The gas-surface
-	  inventory and conversion status are tracked in `docs/GAS_SURFACE_REGISTRY.md` and guarded by
-	  `make verify-gas-surface-registry`.
+		  `unit_scope="avm_canonical"`, `runtime_path_aware=true`, `cross_arch_comparable=true`,
+		  `conversion_ready=true`, and `avm_canonical=true`. Semantic-diff tooling keeps native and AVM gas
+		  non-comparable while the native surface cannot target that AVM unit honestly. It also records
+		  `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas evidence beside native runtime gas,
+		  with `package_policy_may_use=false` until that sidecar is package/input-bound. The gas-surface
+		  inventory and conversion status are tracked in `docs/GAS_SURFACE_REGISTRY.md` and guarded by
+		  `make verify-gas-surface-registry`.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
   a complete stdlib/runtime effect proof.

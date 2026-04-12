@@ -431,6 +431,35 @@ ledger_available = [name for name in order if backends[name]["ledger"]["availabl
 ledger_missing = [name for name in order if not backends[name]["ledger"]["available"]]
 ledger_comparable_all = len(ledger_available) == len(order)
 budget_deltas_comparable_all = ledger_comparable_all and all(backends[name]["ledger"]["budget_deltas"] is not None for name in order)
+avm_canonical_sidecar_gas_available = (
+    stdout_equal
+    and exit_equal
+    and isinstance(obc_gas_surface, dict)
+    and obc_gas_surface.get("id") == "avm_opcode_cost_v0"
+    and obc_gas_surface.get("unit_scope") == "avm_canonical"
+    and obc_gas_surface.get("conversion_ready") is True
+    and obc_gas_surface.get("avm_canonical") is True
+    and obc_gas_executed is not None
+    and obc_gas_executed > 0
+)
+avm_canonical_sidecar_gas = {
+    "schema": "oren.avm-canonical-sidecar-gas.v0",
+    "status": "available" if avm_canonical_sidecar_gas_available else "unavailable",
+    "source": src,
+    "native_backend": "native",
+    "sidecar_backend": "obc",
+    "same_source": True,
+    "same_run_stdout_equal": stdout_equal,
+    "same_run_exit_code_equal": exit_equal,
+    "gas_surface": obc_gas_surface,
+    "gas_executed": obc_gas_executed,
+    "native_runtime_surface_id": native_gas_surface.get("id") if isinstance(native_gas_surface, dict) else None,
+    "native_runtime_gas_executed": native_gas_executed,
+    "native_runtime_conversion": False,
+    "package_policy_may_use": False,
+    "policy_scope": "semantic_diff_same_source_fixture",
+    "reason": "same-source AVM canonical sidecar evidence; not a native runtime gas conversion",
+}
 status = "pass" if stdout_equal and exit_equal and all_ok and expect_ok and native_run_json_ok and native_ledger_ok and native_domain_gates_ok and native_resource_checks_ok and obc_run_json_ok and obc_ledger_ok else "fail"
 
 out = {
@@ -467,6 +496,7 @@ out = {
         "gas_surface_comparable_native_obc": gas_surface_native_obc_comparable,
         "gas_surface_comparison_reason": gas_surface_reason,
         "gas_surface_calibration_available": gas_calibration_available,
+        "avm_canonical_sidecar_gas_available": avm_canonical_sidecar_gas_available,
     },
     "gas_surfaces": {
         "native": native_gas_surface,
@@ -475,6 +505,7 @@ out = {
         "reason": gas_surface_reason,
     },
     "gas_surface_calibration": gas_surface_calibration,
+    "avm_canonical_sidecar_gas": avm_canonical_sidecar_gas,
     "backends": backends,
 }
 

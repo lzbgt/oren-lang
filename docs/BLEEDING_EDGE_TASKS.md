@@ -79,14 +79,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` descriptors; semantic diff
   reports native/OBC gas as non-comparable while native semantic-diff uses `native_dynamic_emitter_tick_v0` and AVM uses
   canonical `avm_opcode_cost_v0` opcode-dispatch gas (`unit_scope="avm_canonical"`,
-  `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`,
-  `avm_canonical=true`). Semantic diff also records `oren.gas-surface-calibration.v0` empirical
-  ratios for the fixture, explicitly marked as not a conversion. `make verify-backend-gas-surface-calibration-set`
-  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
-  branch-heavy, call-heavy, and allocation-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
-  emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
-  validated dynamic-emitter or native instruction-equivalent gas before package policy may convert
-  native/OBC gas. The calibration samples now also carry the dynamic-emitter surface metadata
+	  `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`,
+	  `avm_canonical=true`). Semantic diff also records `oren.gas-surface-calibration.v0` empirical
+	  ratios for the fixture, explicitly marked as not a conversion, and now emits
+	  `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas evidence with
+	  `package_policy_may_use=false`. `make verify-backend-gas-surface-calibration-set`
+	  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
+	  branch-heavy, call-heavy, and allocation-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
+	  emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
+	  package-bound AVM canonical sidecar gas or native instruction-equivalent gas before package policy may compare
+	  native/OBC gas as one unit. The calibration samples now also carry the dynamic-emitter surface metadata
   (`unit_scope`, `target_arch`, `unit_family`, `runtime_path_aware`, `cross_arch_comparable`,
   `conversion_ready`) and the AVM canonical metadata (`unit_scope="avm_canonical"`,
   `avm_canonical=true`) so the blocker is machine-readable even before looking at ratios. The first dynamic-emitter calibration set
@@ -102,10 +104,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			  guard also requires call-heavy and allocation-heavy sample classes. `docs/GAS_SURFACE_REGISTRY.md`
 	  and `make verify-gas-surface-registry` now pin the gas-surface inventory so tools cannot drift on
 	  AVM-canonical versus native backend-local conversion status. AVM `effect_ledger_summary.budgets`
-  now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
-  `wall_ms.elapsed_ns`. Next capability work should define a validated dynamic-emitter conversion
-  contract or finer native instruction-equivalent gas rather than re-describing
-  the existing env contract.
+	  now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
+	  `wall_ms.elapsed_ns`. Next capability work should package-bind AVM canonical sidecar gas or add
+	  finer native instruction-equivalent gas rather than re-describing
+	  the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and

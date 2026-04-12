@@ -241,9 +241,13 @@ architecture-specific (`fixed_width_instruction_span` on arm64, `emitted_byte_sp
 `avm_opcode_cost_v0` as the canonical opcode-dispatch gas target with `unit_scope="avm_canonical"`,
 `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`, and
 	`avm_canonical=true`; semantic diff now reports the native and AVM gas surfaces as non-comparable
-when native cannot honestly target that unit, instead of treating positive counters as the same unit.
-`docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` keep that gas-surface inventory
-and conversion status aligned with runtime JSON, semantic-diff, and package-policy evidence.
+	when native cannot honestly target that unit, instead of treating positive counters as the same unit.
+Semantic diff also records `oren.avm-canonical-sidecar-gas.v0`: a same-source OBC sidecar using
+the AVM canonical `avm_opcode_cost_v0` value beside native runtime gas, with
+`native_runtime_conversion=false` and `package_policy_may_use=false` until package/input binding
+turns that sidecar into enforceable package evidence.
+	`docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` keep that gas-surface inventory
+	and conversion status aligned with runtime JSON, semantic-diff, and package-policy evidence.
 The exact `instruction-equivalent` spelling is a reserved request and is guarded not
 to alias `stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter`; future backend work can add that surface without
 changing the existing field shape. The current native instruction-surface decision guard also rejects

@@ -138,10 +138,11 @@ It is a language plus runtime plus artifact contract.
   opt-in dynamic-emitter native gas. Native and AVM gas summaries now carry explicit
   `oren.gas-surface.v0` metadata, and semantic diff marks `native_dynamic_emitter_tick_v0` and
   canonical `avm_opcode_cost_v0` opcode-dispatch gas (`unit_scope="avm_canonical"`,
-  `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`,
-  `avm_canonical=true`) as non-comparable rather than pretending any positive counter is enough.
-  The next step is a conversion contract or finer native instruction-equivalent gas rather than
-  another manifest-only field.
+	  `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`,
+	  `avm_canonical=true`) as non-comparable rather than pretending any positive counter is enough.
+	  Semantic diff now also carries same-source `oren.avm-canonical-sidecar-gas.v0` OBC evidence with
+	  `package_policy_may_use=false`; the next step is package-binding that AVM sidecar or adding finer native instruction-equivalent gas rather than
+	  another manifest-only field.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
@@ -151,8 +152,8 @@ It is a language plus runtime plus artifact contract.
   `oren.gas-surface-calibration-set.v0` guard combines tiny smoke, loop-heavy, branch-heavy,
   call-heavy, and allocation-heavy fixtures into a multi-sample report, preserving the current ratio spread as evidence
   that Oren needs a real native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
-  `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
-  validated native dynamic-emitter or instruction-equivalent gas exists, and each calibration sample
+	  `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
+	  AVM canonical sidecar gas is package-bound or native instruction-equivalent gas exists, and each calibration sample
   carries native surface metadata (`unit_scope`, `target_arch`, `unit_family`, `runtime_path_aware`,
   `cross_arch_comparable`, `conversion_ready`) plus the AVM canonical surface metadata, so tooling can
   reject conversion by contract rather than by ratio heuristics alone. The first dynamic-emitter
@@ -174,10 +175,10 @@ It is a language plus runtime plus artifact contract.
   cannot mistake statement/basic/block-weighted/dynamic-emitter counters for instruction-equivalent gas or hide
   arm64/x64 unit-family differences. The native build cache key now
 	  includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
-  `docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` now make that registry
-  machine-checked across runtime JSON, semantic-diff, package-policy, and docs.
-	  Next work is validating the dynamic-emitter conversion contract or adding instruction-equivalent native
-  gas, not only expanding fixture scripts.
+	  `docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` now make that registry
+	  machine-checked across runtime JSON, semantic-diff, package-policy, and docs.
+		  Next work is package-binding the AVM canonical sidecar or adding instruction-equivalent native gas,
+	  not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

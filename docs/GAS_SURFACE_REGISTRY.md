@@ -27,10 +27,26 @@ a fixture-specific ratio.
   statement/op plus loop-poll budget.
 - `native_dynamic_emitter_tick_v0` is runtime path-aware evidence for semantic diff, but it is
   architecture-specific and remains non-conversion-ready.
+- `oren.avm-canonical-sidecar-gas.v0` is not a new gas surface. It is a semantic-diff
+  same-source sidecar that reuses the AVM canonical `avm_opcode_cost_v0` run for evidence while
+  preserving `package_policy_may_use=false`.
 - `instruction-equivalent` is a reserved native gas-accounting spelling. It must not alias any
   current native surface until a real implementation and conversion contract exist.
 - Calibration reports can record empirical ratios, but `oren.gas-surface-calibration.v0` and
   `oren.gas-surface-calibration-set.v0` must keep those ratios out of enforcement.
+
+## AVM Canonical Sidecar Evidence
+
+Semantic diff runs the same source through C, native, and OBC. The OBC leg can produce
+`avm_opcode_cost_v0`, which is already AVM canonical and conversion-ready inside the AVM unit
+system. `oren.avm-canonical-sidecar-gas.v0` records that OBC value next to native backend-local
+gas for the same source/fixture, with `native_runtime_conversion=false`.
+
+That sidecar is useful for parity analysis because it gives every semantic-diff sample an AVM
+canonical gas certificate. It is not package-policy binding yet: the current scope is
+`semantic_diff_same_source_fixture`, so package policy must not use it until Oren adds package/input
+binding that proves the sidecar artifact is the authoritative AVM gas certificate for the native
+program being enforced.
 
 ## Guards
 

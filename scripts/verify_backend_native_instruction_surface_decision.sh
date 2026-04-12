@@ -128,6 +128,7 @@ default_fixture_set = sys.argv[3] == "1"
 items = sys.argv[4:]
 if len(items) % 3 != 0:
     raise SystemExit("expected source/report/disasm triples")
+required_next_surface = "native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"
 
 def count_disasm_instructions(path):
     text = Path(path).read_text(encoding="utf-8", errors="replace")
@@ -152,6 +153,7 @@ for i in range(0, len(items), 3):
     if data.get("status") != "pass":
         raise SystemExit(f"{semantic_report}: semantic diff status mismatch: {data.get('status')!r}")
     calibration = data.get("gas_surface_calibration") or {}
+    sidecar = data.get("avm_canonical_sidecar_gas") or {}
     native_executed = int(calibration.get("native_executed") or 0)
     obc_executed = int(calibration.get("obc_executed") or 0)
     native_surface_id = calibration.get("native_surface_id")
@@ -182,6 +184,19 @@ for i in range(0, len(items), 3):
         raise SystemExit(f"{semantic_report}: expected AVM canonical conversion-ready gas metadata, got {calibration!r}")
     if obc_surface_avm_canonical is not True:
         raise SystemExit(f"{semantic_report}: expected avm_canonical=true in OBC gas metadata, got {calibration!r}")
+    if sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0" or sidecar.get("status") != "available":
+        raise SystemExit(f"{semantic_report}: missing AVM canonical sidecar gas evidence, got {sidecar!r}")
+    sidecar_surface = sidecar.get("gas_surface") or {}
+    if sidecar_surface.get("id") != "avm_opcode_cost_v0" or sidecar_surface.get("unit_scope") != "avm_canonical":
+        raise SystemExit(f"{semantic_report}: AVM canonical sidecar gas surface mismatch, got {sidecar!r}")
+    if sidecar_surface.get("conversion_ready") is not True or sidecar_surface.get("avm_canonical") is not True:
+        raise SystemExit(f"{semantic_report}: AVM canonical sidecar metadata mismatch, got {sidecar!r}")
+    if int(sidecar.get("gas_executed") or 0) != obc_executed:
+        raise SystemExit(f"{semantic_report}: AVM canonical sidecar gas mismatch, got {sidecar!r} vs {calibration!r}")
+    if sidecar.get("same_source") is not True or sidecar.get("native_runtime_conversion") is not False:
+        raise SystemExit(f"{semantic_report}: AVM sidecar must remain same-source evidence, not conversion, got {sidecar!r}")
+    if sidecar.get("package_policy_may_use") is not False:
+        raise SystemExit(f"{semantic_report}: AVM sidecar is not package-policy binding yet, got {sidecar!r}")
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -197,6 +212,9 @@ for i in range(0, len(items), 3):
             "obc_surface_unit_scope": obc_surface_unit_scope,
             "obc_surface_conversion_ready": obc_surface_conversion_ready,
             "obc_surface_avm_canonical": obc_surface_avm_canonical,
+            "avm_canonical_sidecar_available": True,
+            "avm_canonical_sidecar_policy_scope": sidecar.get("policy_scope"),
+            "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
@@ -242,11 +260,13 @@ decision = {
     "observed_obc_surface_unit_scope": "avm_canonical",
     "observed_obc_surface_conversion_ready": True,
     "observed_obc_surface_avm_canonical": True,
-    "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
+    "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
+    "package_policy_may_use_avm_sidecar": False,
+    "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
     "observed_sample_classes": sample_classes,
     "sample_class_coverage_ok": (not default_fixture_set) or set(required_sample_classes).issubset(set(sample_classes)),
-    "notes": "Whole-binary native disassembly counts include linked runtime text and are not per-executed-path gas; runtime dynamic-emitter ticks are path-aware evidence but are not yet a conversion contract.",
+    "notes": "Whole-binary native disassembly counts include linked runtime text and are not per-executed-path gas; runtime dynamic-emitter ticks are path-aware evidence but are not yet a conversion contract; AVM canonical sidecar gas is same-source semantic-diff evidence, not package-policy binding yet.",
 }
 
 out = {
