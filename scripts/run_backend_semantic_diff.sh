@@ -452,6 +452,9 @@ avm_canonical_sidecar_gas_available = (
     and obc_gas_executed > 0
 )
 avm_canonical_sidecar_failure_reasons = []
+avm_canonical_sidecar_warnings = []
+if not native_obc_stderr_equal:
+    avm_canonical_sidecar_warnings.append("stderr_mismatch")
 if not native_obc_stdout_equal:
     avm_canonical_sidecar_failure_reasons.append("stdout_mismatch")
 if not native_obc_exit_equal:
@@ -484,6 +487,7 @@ avm_canonical_sidecar_gas = {
     "sidecar_stderr_sha256": backends["obc"]["stderr_sha256"],
     "certification_status": "stdout_exit_match" if avm_canonical_sidecar_gas_available else "unavailable",
     "certification_failure_reasons": avm_canonical_sidecar_failure_reasons,
+    "certification_warnings": avm_canonical_sidecar_warnings,
     "gas_surface": obc_gas_surface,
     "gas_executed": obc_gas_executed,
     "budget_exceeded": False,

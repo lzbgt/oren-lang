@@ -239,6 +239,8 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
         fail(f"{path}: AVM sidecar certification status mismatch: {sidecar!r}")
     if sidecar.get("certification_failure_reasons") != []:
         fail(f"{path}: certified AVM sidecar should have no failure reasons, got {sidecar!r}")
+    if not isinstance(sidecar.get("certification_warnings"), list):
+        fail(f"{path}: AVM sidecar should expose non-blocking certification warnings, got {sidecar!r}")
     if not sidecar.get("native_stdout_sha256") or not sidecar.get("sidecar_stdout_sha256"):
         fail(f"{path}: AVM sidecar should include normalized stdout hashes, got {sidecar!r}")
     if not sidecar.get("native_stderr_sha256") or not sidecar.get("sidecar_stderr_sha256"):
@@ -258,6 +260,8 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
             fail(f"{path}: AVM sidecar stdout hashes should match for available certificate, got {sidecar!r}")
         if sidecar.get("same_run_stderr_equal") is not True:
             fail(f"{path}: AVM sidecar stderr parity should be explicit for available certificate, got {sidecar!r}")
+        if sidecar.get("certification_warnings") != []:
+            fail(f"{path}: available AVM sidecar should not carry certification warnings, got {sidecar!r}")
         if sidecar.get("native_stderr_sha256") != sidecar.get("sidecar_stderr_sha256"):
             fail(f"{path}: AVM sidecar stderr hashes should match for available certificate, got {sidecar!r}")
         if sidecar.get("package_policy_may_use_reason") != "stdout_exit_match_with_avm_canonical_gas":

@@ -150,8 +150,9 @@ It is a language plus runtime plus artifact contract.
 				  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
 		  certificate usable when stdout/exit matches the native run or when the sidecar reports AVM
 		  canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. It also records
-		  normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, and explicit
-		  `certification_status` / `certification_failure_reasons`. It can now also select
+		  normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, non-blocking
+		  `certification_warnings`, and explicit `certification_status` / `certification_failure_reasons`.
+		  It can now also select
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus
 		  `enforcement_profile="avm-sidecar"` without claiming native runtime conversion; the shared

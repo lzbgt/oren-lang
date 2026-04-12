@@ -58,8 +58,8 @@ package policy must not use it. The native package-policy runner can opt into a 
 the bytecode sidecar runs with the same package budgets and matches native stdout/exit after run-JSON
 lines are removed, or when the sidecar itself reports AVM canonical gas budget exhaustion. Sidecar
 records include normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence,
-`certification_status`, `certification_failure_reasons`, and `package_policy_may_use_reason` so
-consumers can distinguish
+`certification_status`, non-blocking `certification_warnings`, `certification_failure_reasons`, and
+`package_policy_may_use_reason` so consumers can distinguish
 parity certificates, budget-exceeded certificates, and non-certified sidecar outcomes.
 Budget-exceeded sidecar certificates prefer the structured AVM `avm.run.v1.error` object
 (`code=9`, `msg="budget exceeded (gas)"`) over stderr text.

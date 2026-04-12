@@ -202,6 +202,10 @@ for i in range(0, len(items), 3):
         raise SystemExit(
             f"{semantic_report}: AVM sidecar should preserve semantic-diff stderr parity evidence, got {sidecar!r}"
         )
+    if sidecar.get("certification_warnings") != []:
+        raise SystemExit(
+            f"{semantic_report}: AVM sidecar should preserve warning-free semantic-diff evidence, got {sidecar!r}"
+        )
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -221,6 +225,7 @@ for i in range(0, len(items), 3):
             "avm_canonical_sidecar_policy_scope": sidecar.get("policy_scope"),
             "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
             "avm_canonical_sidecar_stderr_equal": sidecar.get("same_run_stderr_equal"),
+            "avm_canonical_sidecar_certification_warnings": sidecar.get("certification_warnings"),
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
@@ -269,6 +274,7 @@ decision = {
     "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
     "package_policy_may_use_avm_sidecar": False,
     "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
+    "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
     "observed_sample_classes": sample_classes,

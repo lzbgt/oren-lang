@@ -139,8 +139,9 @@ Required entry fields:
   sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
   `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
   canonical gas sidecar itself reports budget exhaustion. It records normalized stdout/stderr hashes,
-  explicit `same_run_stderr_equal` evidence, `certification_status`,
-  `certification_failure_reasons`, and `package_policy_may_use_reason` while still preserving
+  explicit `same_run_stderr_equal` evidence, `certification_status`, non-blocking
+  `certification_warnings`, `certification_failure_reasons`, and `package_policy_may_use_reason`
+  while still preserving
   `native_runtime_conversion=false`. With
   `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
   `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that

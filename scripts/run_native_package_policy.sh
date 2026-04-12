@@ -294,6 +294,9 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
         and canonical_surface
     )
     certification_failure_reasons = []
+    certification_warnings = []
+    if not same_stderr:
+        certification_warnings.append("stderr_mismatch")
     if not same_stdout:
         certification_failure_reasons.append("stdout_mismatch")
     if not same_exit:
@@ -332,6 +335,7 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
         "sidecar_stderr_sha256": sha256_s(avm_stderr_normalized),
         "certification_status": certification_status,
         "certification_failure_reasons": certification_failure_reasons,
+        "certification_warnings": certification_warnings,
         "gas_surface": avm_gas_surface,
         "gas_executed": avm_gas_used,
         "gas_remaining": avm_gas_remaining,
