@@ -160,7 +160,7 @@ It is a language plus runtime plus artifact contract.
 		  sidecar gas enforcement when stdout/exit certification is intact.
 		  It now also proves an auditable exit-code mismatch stays non-certified, so a nonzero sidecar
 		  exit cannot be converted into package gas enforcement.
-		  Missing sidecar gas-surface metadata, zero gas, and sidecar timeout probes now also stay
+		  Missing sidecar run JSON, gas-surface metadata, zero gas, and sidecar timeout probes now also stay
 		  non-certified, so package policy requires real AVM canonical gas evidence before enforcement.
 		  Sidecar build failure now also emits structured `sidecar_build_failed` evidence instead of
 		  leaving package-policy consumers with a missing JSON report.

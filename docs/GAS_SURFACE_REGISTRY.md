@@ -68,8 +68,8 @@ decision reports preserve aggregate test-injection-free evidence for their seman
 The native package-policy verifier covers both `stdout_suffix` as a certification failure and
 `stderr_suffix` as a non-blocking warning path. It also covers `exit_code` as a certification failure
 for nonzero sidecar exits, preserving canonical gas evidence while forbidding package-policy use.
-It also covers `drop_gas_surface`, `zero_gas`, and `timeout` probes so missing/nonpositive canonical
-gas metadata and sidecar timeouts are separately non-certified. It also covers a `build_fail` probe so
+It also covers `drop_run_json`, `drop_gas_surface`, `zero_gas`, and `timeout` probes so missing/nonpositive
+canonical run/gas metadata and sidecar timeouts are separately non-certified. It also covers a `build_fail` probe so
 sidecar construction failure is reported as `certification_status="build_failed"` with
 `sidecar_build_failed`, not as a missing runner report. Native package failures before sidecar execution
 are reported as `certification_status="not_run_native_failed"` with `native_exit_nonzero`, preserving

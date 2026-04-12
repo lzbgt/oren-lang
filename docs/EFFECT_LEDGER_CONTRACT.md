@@ -154,7 +154,8 @@ Required entry fields:
   sidecar gas enforcement. A verifier-only exit-code mismatch (`test_injection="exit_code"`) now also
   requires `certification_failure_reasons=["exit_code_mismatch", "sidecar_exit_nonzero"]`,
   `package_policy_may_use=false`, and `budget_unavailable` so nonzero sidecar exits cannot be treated
-  as gas certificates. Additional verifier-only probes now remove the sidecar gas surface
+  as gas certificates. Additional verifier-only probes now remove sidecar run JSON
+  (`test_injection="drop_run_json"`), remove the sidecar gas surface
   (`test_injection="drop_gas_surface"`), force zero gas (`test_injection="zero_gas"`), and force
   sidecar timeout (`test_injection="timeout"`), requiring `missing_or_noncanonical_avm_gas_surface`,
   `missing_or_nonpositive_avm_gas`, or `timeout` failure evidence before the runner reports

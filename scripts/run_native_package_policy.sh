@@ -874,6 +874,7 @@ try:
         test_sidecar_stdout_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDOUT_SUFFIX")
         test_sidecar_stderr_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDERR_SUFFIX")
         test_sidecar_exit_code = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE")
+        test_sidecar_drop_run_json = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_RUN_JSON")
         test_sidecar_drop_gas_surface = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_GAS_SURFACE")
         test_sidecar_zero_gas = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_ZERO_GAS")
         test_injection = None
@@ -892,6 +893,9 @@ try:
                 fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE must be in 0..255")
             test_injection = append_test_injection(test_injection, "exit_code")
         avm_run_json_for_payload = extract_avm_run_json(avm_p.stdout or "")
+        if test_sidecar_drop_run_json:
+            avm_run_json_for_payload = None
+            test_injection = append_test_injection(test_injection, "drop_run_json")
         if test_sidecar_drop_gas_surface or test_sidecar_zero_gas:
             if not isinstance(avm_run_json_for_payload, dict):
                 fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR gas mutation requires AVM run JSON")

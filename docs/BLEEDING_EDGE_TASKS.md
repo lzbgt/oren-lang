@@ -91,8 +91,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  auditable stdout-mismatch `test_injection`, requiring `budget_unavailable` rather than accidental
 	  `budget_gas` enforcement, and the stderr-mismatch warning branch with AVM sidecar gas enforcement
 	  still intact. It now also covers an exit-code mismatch injection so nonzero sidecar exits remain
-	  non-certified even when stdout/stderr and canonical gas evidence are present. Missing gas-surface,
-	  zero-gas, and timeout injections now separately prove absent canonical gas evidence also fails
+	  non-certified even when stdout/stderr and canonical gas evidence are present. Missing run-JSON,
+	  gas-surface, zero-gas, and timeout injections now separately prove absent canonical gas evidence also fails
 	  closed. A sidecar build-failure injection now proves the runner still emits structured
 	  `sidecar_build_failed` evidence instead of dropping the JSON contract. A native-failure fixture
 	  now also keeps the native exit visible with `not_run_native_failed` sidecar evidence instead of

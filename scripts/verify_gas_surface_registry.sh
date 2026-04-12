@@ -211,6 +211,7 @@ global_literals = [
     ("native_policy_guard", "stderr_suffix"),
     ("native_policy_guard", "exit_code"),
     ("native_policy_guard", "drop_gas_surface"),
+    ("native_policy_guard", "drop_run_json"),
     ("native_policy_guard", "zero_gas"),
     ("native_policy_guard", "timeout"),
     ("native_policy_guard", "build_fail"),

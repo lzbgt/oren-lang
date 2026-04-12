@@ -48,6 +48,9 @@ gas_sidecar_exit_mismatch_json="$TMP/gas-sidecar-exit-mismatch.run.json"
 gas_sidecar_missing_surface_out="$TMP/gas-sidecar-missing-surface.out"
 gas_sidecar_missing_surface_err="$TMP/gas-sidecar-missing-surface.err"
 gas_sidecar_missing_surface_json="$TMP/gas-sidecar-missing-surface.run.json"
+gas_sidecar_missing_run_json_out="$TMP/gas-sidecar-missing-run-json.out"
+gas_sidecar_missing_run_json_err="$TMP/gas-sidecar-missing-run-json.err"
+gas_sidecar_missing_run_json_json="$TMP/gas-sidecar-missing-run-json.run.json"
 gas_sidecar_zero_gas_out="$TMP/gas-sidecar-zero-gas.out"
 gas_sidecar_zero_gas_err="$TMP/gas-sidecar-zero-gas.err"
 gas_sidecar_zero_gas_json="$TMP/gas-sidecar-zero-gas.run.json"
@@ -196,6 +199,11 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_missing_surface_json" \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_sidecar_missing_surface_out" 2>"$gas_sidecar_missing_surface_err"
 gas_sidecar_missing_surface_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_missing_run_json_json" \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_RUN_JSON=1 \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_missing_run_json_out" 2>"$gas_sidecar_missing_run_json_err"
+gas_sidecar_missing_run_json_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_zero_gas_json" \
   OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_ZERO_GAS=1 \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
@@ -240,7 +248,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" "$gas_sidecar_native_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_missing_run_json_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" "$gas_sidecar_native_fail_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -264,10 +272,11 @@ gas_dispatch_default_ok_path = Path(sys.argv[16])
 gas_env_override_ok_path = Path(sys.argv[17])
 gas_sidecar_exit_mismatch_path = Path(sys.argv[18])
 gas_sidecar_missing_surface_path = Path(sys.argv[19])
-gas_sidecar_zero_gas_path = Path(sys.argv[20])
-gas_sidecar_timeout_path = Path(sys.argv[21])
-gas_sidecar_build_fail_path = Path(sys.argv[22])
-gas_sidecar_native_fail_path = Path(sys.argv[23])
+gas_sidecar_missing_run_json_path = Path(sys.argv[20])
+gas_sidecar_zero_gas_path = Path(sys.argv[21])
+gas_sidecar_timeout_path = Path(sys.argv[22])
+gas_sidecar_build_fail_path = Path(sys.argv[23])
+gas_sidecar_native_fail_path = Path(sys.argv[24])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -880,6 +889,22 @@ if sidecar_missing_surface.get("gas_surface") is not None:
 if int(sidecar_missing_surface.get("gas_executed") or 0) <= 0:
     fail(f"{gas_sidecar_missing_surface_path}: missing-surface sidecar should distinguish metadata failure from missing gas execution, got {sidecar_missing_surface!r}")
 
+_, _, sidecar_missing_run_json = assert_sidecar_unavailable_run(
+    gas_sidecar_missing_run_json_path,
+    ["missing_or_noncanonical_avm_gas_surface"],
+    "drop_run_json",
+)
+if sidecar_missing_run_json.get("same_run_stdout_equal") is not True or sidecar_missing_run_json.get("same_run_stderr_equal") is not True:
+    fail(f"{gas_sidecar_missing_run_json_path}: missing-run-json sidecar should preserve stdout/stderr parity, got {sidecar_missing_run_json!r}")
+if sidecar_missing_run_json.get("same_run_exit_code_equal") is not True:
+    fail(f"{gas_sidecar_missing_run_json_path}: missing-run-json sidecar should preserve exit parity, got {sidecar_missing_run_json!r}")
+if sidecar_missing_run_json.get("native_exit_code") != 0 or sidecar_missing_run_json.get("sidecar_exit_code") != 0:
+    fail(f"{gas_sidecar_missing_run_json_path}: missing-run-json sidecar should expose zero native/sidecar exits, got {sidecar_missing_run_json!r}")
+if sidecar_missing_run_json.get("gas_surface") is not None or sidecar_missing_run_json.get("gas_executed") is not None:
+    fail(f"{gas_sidecar_missing_run_json_path}: missing-run-json sidecar should omit AVM canonical gas evidence, got {sidecar_missing_run_json!r}")
+if sidecar_missing_run_json.get("sidecar_error") is not None:
+    fail(f"{gas_sidecar_missing_run_json_path}: missing-run-json sidecar should not synthesize AVM run error evidence, got {sidecar_missing_run_json!r}")
+
 _, _, sidecar_zero_gas = assert_sidecar_unavailable_run(
     gas_sidecar_zero_gas_path,
     ["missing_or_nonpositive_avm_gas"],
@@ -1091,6 +1116,19 @@ grep -Fq "package AVM canonical sidecar gas could not be certified for native ru
   echo "ERROR: missing missing-surface AVM sidecar diagnostic" >&2
   cat "$gas_sidecar_missing_surface_out" >&2 || true
   cat "$gas_sidecar_missing_surface_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_sidecar_missing_run_json_rc" -eq 0 ]]; then
+  echo "ERROR: expected missing-run-json AVM sidecar evidence to fail closed" >&2
+  cat "$gas_sidecar_missing_run_json_out" >&2 || true
+  cat "$gas_sidecar_missing_run_json_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package AVM canonical sidecar gas could not be certified for native run" "$gas_sidecar_missing_run_json_out" "$gas_sidecar_missing_run_json_err" || {
+  echo "ERROR: missing missing-run-json AVM sidecar diagnostic" >&2
+  cat "$gas_sidecar_missing_run_json_out" >&2 || true
+  cat "$gas_sidecar_missing_run_json_err" >&2 || true
   exit 1
 }
 
