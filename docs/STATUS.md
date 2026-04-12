@@ -1593,10 +1593,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     target: it records `unit_scope="avm_canonical"`, `runtime_path_aware=true`,
 		     `cross_arch_comparable=true`, `conversion_ready=true`, and `avm_canonical=true`, while
 			     native dynamic-emitter gas remains a separate non-conversion-ready evidence surface.
-		   - Semantic diff now emits `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas
-		     evidence beside native runtime gas, with normalized stdout/stderr hashes,
-		     `certification_status`, `native_runtime_conversion=false`, and `package_policy_may_use=false`
-		     because semantic-diff fixtures are not package/input-bound.
+			   - Semantic diff now emits `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas
+			     evidence beside native runtime gas, with normalized stdout/stderr hashes,
+			     `certification_status`, `certification_failure_reasons`, `native_runtime_conversion=false`,
+			     and `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
 		   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
 		     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
 		     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget

@@ -224,7 +224,8 @@ summary. When `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1` is set, the native runn
 bytecode sidecar from the same source and package manifest, runs it under the declared package AVM
 budgets, checks stdout/exit parity with the native run after removing run-JSON lines, and records
 `oren.avm-canonical-sidecar-gas.v0` with `policy_scope="native_package_policy_same_source_artifact"`,
-normalized stdout/stderr hashes, and an explicit `certification_status`.
+normalized stdout/stderr hashes, an explicit `certification_status`, and machine-readable
+`certification_failure_reasons` for non-certified sidecar outcomes.
 That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the
 resolved `avm-sidecar` gas profile uses it as package `budget_gas` enforcement. The `auto` profile
 can resolve there for gas-budgeted packages.
@@ -271,7 +272,8 @@ dispatcher `--gas-profile avm-sidecar`, or the native dispatcher's default `auto
 gas-budgeted packages; semantic diff fixtures remain analysis-only and still cannot grant
 package-policy authority. Both semantic-diff and package-policy sidecar records carry normalized
 stdout/stderr hashes plus `package_policy_may_use_reason`, so consumers can audit whether the
-certificate came from stdout/exit parity or from AVM canonical budget exhaustion.
+certificate came from stdout/exit parity or from AVM canonical budget exhaustion, and inspect
+`certification_failure_reasons` when certification is unavailable.
 	`docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` keep that gas-surface inventory
 	and conversion status aligned with runtime JSON, semantic-diff, and package-policy evidence.
 The exact `instruction-equivalent` spelling is a reserved request and is guarded not

@@ -444,6 +444,23 @@ avm_canonical_sidecar_gas_available = (
     and obc_gas_executed is not None
     and obc_gas_executed > 0
 )
+avm_canonical_sidecar_failure_reasons = []
+if not native_obc_stdout_equal:
+    avm_canonical_sidecar_failure_reasons.append("stdout_mismatch")
+if not native_obc_exit_equal:
+    avm_canonical_sidecar_failure_reasons.append("exit_code_mismatch")
+if not (
+    isinstance(obc_gas_surface, dict)
+    and obc_gas_surface.get("id") == "avm_opcode_cost_v0"
+    and obc_gas_surface.get("unit_scope") == "avm_canonical"
+    and obc_gas_surface.get("conversion_ready") is True
+    and obc_gas_surface.get("avm_canonical") is True
+):
+    avm_canonical_sidecar_failure_reasons.append("missing_or_noncanonical_avm_gas_surface")
+elif obc_gas_executed is None or obc_gas_executed <= 0:
+    avm_canonical_sidecar_failure_reasons.append("missing_or_nonpositive_avm_gas")
+if avm_canonical_sidecar_gas_available:
+    avm_canonical_sidecar_failure_reasons = []
 avm_canonical_sidecar_gas = {
     "schema": "oren.avm-canonical-sidecar-gas.v0",
     "status": "available" if avm_canonical_sidecar_gas_available else "unavailable",
@@ -458,6 +475,7 @@ avm_canonical_sidecar_gas = {
     "native_stderr_sha256": backends["native"]["stderr_sha256"],
     "sidecar_stderr_sha256": backends["obc"]["stderr_sha256"],
     "certification_status": "stdout_exit_match" if avm_canonical_sidecar_gas_available else "unavailable",
+    "certification_failure_reasons": avm_canonical_sidecar_failure_reasons,
     "gas_surface": obc_gas_surface,
     "gas_executed": obc_gas_executed,
     "native_runtime_surface_id": native_gas_surface.get("id") if isinstance(native_gas_surface, dict) else None,

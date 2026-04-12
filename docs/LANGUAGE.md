@@ -1484,8 +1484,8 @@ For the current capability domain and native runtime-profile contract, see
 		  build a bytecode sidecar from the same source/package manifest, run it under the declared AVM
 		  budgets, and record package-bound `oren.avm-canonical-sidecar-gas.v0` AVM opcode gas when stdout
 		  and exit status match the native run or when the sidecar itself reports AVM canonical gas budget
-		  exhaustion. The record includes normalized stdout/stderr hashes and `certification_status`; this
-		  remains sidecar AVM evidence, not native gas conversion. Setting
+		  exhaustion. The record includes normalized stdout/stderr hashes, `certification_status`, and
+		  `certification_failure_reasons`; this remains sidecar AVM evidence, not native gas conversion. Setting
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or using
 		  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, upgrades that
 		  package-bound sidecar into the native runner's `budget_gas` enforcement profile: the runner
@@ -1528,8 +1528,8 @@ For the current capability domain and native runtime-profile contract, see
 		  `conversion_ready=true`, and `avm_canonical=true`. Semantic-diff tooling keeps native and AVM gas
 		  non-comparable while the native surface cannot target that AVM unit honestly. It also records
 		  `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas evidence beside native runtime gas,
-		  with normalized output hashes, `certification_status`, and `package_policy_may_use=false` because
-		  semantic-diff fixtures are not package/input-bound.
+			  with normalized output hashes, `certification_status`, `certification_failure_reasons`, and
+			  `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
 			  The native package-policy runner's separate `avm-sidecar` gas profile is the package-bound path
 		  that can use AVM canonical sidecar evidence for `budget_gas`, and the shared dispatcher exposes it
 		  with `--backend native --gas-profile avm-sidecar` and defaults native dispatch to `auto`,

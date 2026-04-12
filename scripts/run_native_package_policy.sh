@@ -261,28 +261,42 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
     same_stdout = native_stdout_normalized == avm_stdout_normalized
     same_exit = native_exit_code == avm_exit_code
     budget_exceeded = "budget exceeded (gas)" in (avm_stderr or "")
-    canonical = (
+    canonical_surface = (
         isinstance(avm_gas_surface, dict)
         and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
         and avm_gas_surface.get("unit_scope") == "avm_canonical"
         and avm_gas_surface.get("conversion_ready") is True
         and avm_gas_surface.get("avm_canonical") is True
+    )
+    canonical_positive_gas = (
+        canonical_surface
         and avm_gas_used is not None
         and avm_gas_used > 0
     )
-    available = bool(same_stdout and same_exit and canonical and avm_exit_code == 0)
+    available = bool(same_stdout and same_exit and canonical_positive_gas and avm_exit_code == 0)
     package_policy_may_use = available or (
         budget_exceeded
-        and isinstance(avm_gas_surface, dict)
-        and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
-        and avm_gas_surface.get("unit_scope") == "avm_canonical"
+        and canonical_surface
     )
+    certification_failure_reasons = []
+    if not same_stdout:
+        certification_failure_reasons.append("stdout_mismatch")
+    if not same_exit:
+        certification_failure_reasons.append("exit_code_mismatch")
+    if avm_exit_code != 0 and not budget_exceeded:
+        certification_failure_reasons.append("sidecar_exit_nonzero")
+    if not canonical_surface:
+        certification_failure_reasons.append("missing_or_noncanonical_avm_gas_surface")
+    elif not budget_exceeded and not canonical_positive_gas:
+        certification_failure_reasons.append("missing_or_nonpositive_avm_gas")
     if available:
         certification_status = "stdout_exit_match"
         package_policy_may_use_reason = "stdout_exit_match_with_avm_canonical_gas"
+        certification_failure_reasons = []
     elif package_policy_may_use and budget_exceeded:
         certification_status = "budget_exceeded_canonical_surface"
         package_policy_may_use_reason = "avm_canonical_gas_budget_exceeded"
+        certification_failure_reasons = []
     else:
         certification_status = "unavailable"
         package_policy_may_use_reason = "sidecar_stdout_or_exit_mismatch_or_missing_canonical_gas"
@@ -301,6 +315,7 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
         "native_stderr_sha256": sha256_s(native_stderr_normalized),
         "sidecar_stderr_sha256": sha256_s(avm_stderr_normalized),
         "certification_status": certification_status,
+        "certification_failure_reasons": certification_failure_reasons,
         "gas_surface": avm_gas_surface,
         "gas_executed": avm_gas_used,
         "gas_remaining": avm_gas_remaining,
@@ -402,6 +417,7 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
         and gas_enforcement_profile == "avm-sidecar"
         and avm_sidecar_gas is not None
         and avm_sidecar_gas.get("package_policy_may_use") is True
+        and avm_sidecar_gas.get("certification_status") in ("stdout_exit_match", "budget_exceeded_canonical_surface")
         and sidecar_gas_surface_id == "avm_opcode_cost_v0"
     )
     if sidecar_gas_enforced:
@@ -671,6 +687,7 @@ try:
                 "package_policy_may_use": False,
                 "package_policy_may_use_reason": "avm_canonical_sidecar_timeout",
                 "certification_status": "timeout",
+                "certification_failure_reasons": ["timeout"],
                 "policy_scope": "native_package_policy_same_source_artifact",
                 "reason": "AVM canonical sidecar timed out under package wall budget",
             }

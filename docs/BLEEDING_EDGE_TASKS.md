@@ -83,8 +83,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  `avm_canonical=true`). Semantic diff also records `oren.gas-surface-calibration.v0` empirical
 	  ratios for the fixture, explicitly marked as not a conversion, and now emits
 	  `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas evidence with
-		  `package_policy_may_use=false`, normalized stdout/stderr hashes, and `certification_status`
-		  evidence. `make verify-backend-gas-surface-calibration-set`
+			  `package_policy_may_use=false`, normalized stdout/stderr hashes, `certification_status`, and
+			  `certification_failure_reasons` evidence. `make verify-backend-gas-surface-calibration-set`
 	  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
 	  branch-heavy, call-heavy, and allocation-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
 	  emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
