@@ -64,6 +64,8 @@ if len(report_paths) < 2:
 samples = []
 native_surface_id = None
 obc_surface_id = None
+native_target_arch = None
+native_unit_family = None
 
 for path in report_paths:
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -95,12 +97,33 @@ for path in report_paths:
             f"{path}: OBC gas surface mismatch: {cur_obc_surface!r} != {obc_surface_id!r}"
         )
     cur_native_unit_scope = calibration.get("native_surface_unit_scope")
+    cur_native_target_arch = calibration.get("native_surface_target_arch")
+    cur_native_unit_family = calibration.get("native_surface_unit_family")
     cur_native_runtime_path_aware = calibration.get("native_surface_runtime_path_aware")
     cur_native_cross_arch_comparable = calibration.get("native_surface_cross_arch_comparable")
     cur_native_conversion_ready = calibration.get("native_surface_conversion_ready")
     if cur_native_unit_scope != "backend_local" or cur_native_runtime_path_aware is not True:
         raise SystemExit(
             f"{path}: native dynamic-emitter calibration should be backend-local runtime-path-aware evidence: {calibration!r}"
+        )
+    if cur_native_target_arch not in ("arm64", "x64"):
+        raise SystemExit(f"{path}: native dynamic-emitter calibration should declare target_arch: {calibration!r}")
+    expected_unit_family = "fixed_width_instruction_span" if cur_native_target_arch == "arm64" else "emitted_byte_span"
+    if cur_native_unit_family != expected_unit_family:
+        raise SystemExit(
+            f"{path}: native dynamic-emitter unit_family mismatch, expected {expected_unit_family!r}: {calibration!r}"
+        )
+    if native_target_arch is None:
+        native_target_arch = cur_native_target_arch
+    if native_unit_family is None:
+        native_unit_family = cur_native_unit_family
+    if cur_native_target_arch != native_target_arch:
+        raise SystemExit(
+            f"{path}: native dynamic-emitter target_arch mismatch: {cur_native_target_arch!r} != {native_target_arch!r}"
+        )
+    if cur_native_unit_family != native_unit_family:
+        raise SystemExit(
+            f"{path}: native dynamic-emitter unit_family mismatch: {cur_native_unit_family!r} != {native_unit_family!r}"
         )
     if cur_native_cross_arch_comparable is not False or cur_native_conversion_ready is not False:
         raise SystemExit(
@@ -122,6 +145,8 @@ for path in report_paths:
             "report": str(path),
             "native_surface_id": cur_native_surface,
             "native_surface_unit_scope": cur_native_unit_scope,
+            "native_surface_target_arch": cur_native_target_arch,
+            "native_surface_unit_family": cur_native_unit_family,
             "native_surface_runtime_path_aware": cur_native_runtime_path_aware,
             "native_surface_cross_arch_comparable": cur_native_cross_arch_comparable,
             "native_surface_conversion_ready": cur_native_conversion_ready,
@@ -143,6 +168,7 @@ single_ratio_unsafe = ratio_spread is not None and ratio_spread >= min_spread
 status = "pass" if single_ratio_unsafe else "fail"
 surface_metadata_blocks_conversion = any(
     sample["native_surface_unit_scope"] == "backend_local"
+    or sample["native_surface_target_arch"] in ("arm64", "x64")
     or sample["native_surface_cross_arch_comparable"] is False
     or sample["native_surface_conversion_ready"] is False
     for sample in samples
@@ -173,6 +199,8 @@ out = {
         "comparable": False,
         "not_a_conversion": True,
         "native_surface_unit_scope": "backend_local",
+        "native_surface_target_arch": native_target_arch,
+        "native_surface_unit_family": native_unit_family,
         "native_surface_runtime_path_aware": True,
         "native_surface_cross_arch_comparable": False,
         "native_surface_conversion_ready": False,

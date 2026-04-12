@@ -69,8 +69,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   runtime path-aware `native_dynamic_emitter_tick_v0` ticks when
   `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` is used. The dynamic-emitter surface is explicitly
   backend-local and not conversion-ready (`unit_scope="backend_local"`,
-  `cross_arch_comparable=false`, `conversion_ready=false`), so semantic-diff consumers cannot mistake
-  it for architecture-neutral instruction gas.
+  `target_arch`, `unit_family`, `cross_arch_comparable=false`, `conversion_ready=false`), so
+  semantic-diff consumers cannot mistake it for architecture-neutral instruction gas or hide arm64/x64
+  unit-family differences.
   The native build cache key now includes the
   normalized gas-accounting mode, and the mode guard forces `--no-cache`, after a verifier run showed
   cached artifacts could otherwise hide backend gas-note differences behind identical binaries.
@@ -83,8 +84,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
   validated dynamic-emitter or native instruction-equivalent gas before package policy may convert
   native/OBC gas. The calibration samples now also carry the dynamic-emitter surface metadata
-  (`unit_scope`, `runtime_path_aware`, `cross_arch_comparable`, `conversion_ready`) so the blocker is
-  machine-readable even before looking at ratios. The first dynamic-emitter calibration set
+  (`unit_scope`, `target_arch`, `unit_family`, `runtime_path_aware`, `cross_arch_comparable`,
+  `conversion_ready`) so the blocker is machine-readable even before looking at ratios. The first dynamic-emitter calibration set
   (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) still shows
   `native_per_obc` spread from `~2.49x` to `~16.82x`, so dynamic-emitter evidence is path-aware
   but not a conversion rule. `make verify-backend-native-instruction-surface-decision`

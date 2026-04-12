@@ -126,6 +126,11 @@ if surface.get("schema") != "oren.gas-surface.v0" or surface.get("id") != expect
 if name == "dynamic_emitter":
     if surface.get("unit_scope") != "backend_local" or surface.get("runtime_path_aware") is not True:
         raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface should be backend-local runtime-path-aware evidence, got {surface!r}")
+    if surface.get("target_arch") not in ("arm64", "x64"):
+        raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface should declare target_arch, got {surface!r}")
+    expected_unit_family = "fixed_width_instruction_span" if surface.get("target_arch") == "arm64" else "emitted_byte_span"
+    if surface.get("unit_family") != expected_unit_family:
+        raise SystemExit(f"{stdout_log}: dynamic-emitter gas unit_family mismatch, expected {expected_unit_family}, got {surface!r}")
     if surface.get("cross_arch_comparable") is not False or surface.get("conversion_ready") is not False:
         raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface must stay non-conversion-ready, got {surface!r}")
 if require_positive and int(executed or 0) <= 0:

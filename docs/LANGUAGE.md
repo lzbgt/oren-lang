@@ -1486,8 +1486,9 @@ For the current capability domain and native runtime-profile contract, see
   `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` selects runtime path-aware
   `native_dynamic_emitter_tick_v0` emitter-span evidence, but package-policy gas
   budgets still use statement+loop gas until Oren has a native/AVM conversion contract. The dynamic
-  gas-surface descriptor is marked `unit_scope="backend_local"`, `cross_arch_comparable=false`, and
-  `conversion_ready=false`, so tools must not treat it as architecture-neutral instruction gas. Set
+  gas-surface descriptor is marked `unit_scope="backend_local"`, includes `target_arch` and
+  `unit_family`, and sets `cross_arch_comparable=false` and `conversion_ready=false`, so tools must
+  not treat it as architecture-neutral instruction gas. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
   evidence plus any captured runtime ledger summary as `oren.native-package-policy-run.v0`. Set
   `OREN_NATIVE_RUN_JSON=1` on native executables for runtime-observed `oren.native-run.v0`

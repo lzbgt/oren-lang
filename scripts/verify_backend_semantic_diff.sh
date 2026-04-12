@@ -85,6 +85,11 @@ if native_surface.get("schema") != "oren.gas-surface.v0" or native_surface.get("
     fail(f"native gas surface mismatch: {native_surface!r}")
 if native_surface.get("unit_scope") != "backend_local" or native_surface.get("runtime_path_aware") is not True:
     fail(f"native dynamic-emitter surface should be backend-local runtime-path-aware evidence, got {native_surface!r}")
+if native_surface.get("target_arch") not in ("arm64", "x64"):
+    fail(f"native dynamic-emitter surface should declare target_arch, got {native_surface!r}")
+expected_unit_family = "fixed_width_instruction_span" if native_surface.get("target_arch") == "arm64" else "emitted_byte_span"
+if native_surface.get("unit_family") != expected_unit_family:
+    fail(f"native dynamic-emitter unit_family mismatch, expected {expected_unit_family!r}, got {native_surface!r}")
 if native_surface.get("cross_arch_comparable") is not False or native_surface.get("conversion_ready") is not False:
     fail(f"native dynamic-emitter surface must not be marked conversion-ready, got {native_surface!r}")
 if obc_surface.get("schema") != "oren.gas-surface.v0" or obc_surface.get("id") != "avm_opcode_cost_v0":
@@ -100,6 +105,10 @@ if calibration.get("native_surface_id") != "native_dynamic_emitter_tick_v0":
     fail(f"native gas calibration surface mismatch: {calibration!r}")
 if calibration.get("native_surface_unit_scope") != "backend_local" or calibration.get("native_surface_runtime_path_aware") is not True:
     fail(f"native gas calibration should preserve backend-local dynamic-emitter metadata: {calibration!r}")
+if calibration.get("native_surface_target_arch") != native_surface.get("target_arch"):
+    fail(f"native gas calibration should preserve target_arch metadata: {calibration!r} vs {native_surface!r}")
+if calibration.get("native_surface_unit_family") != native_surface.get("unit_family"):
+    fail(f"native gas calibration should preserve unit_family metadata: {calibration!r} vs {native_surface!r}")
 if calibration.get("native_surface_cross_arch_comparable") is not False or calibration.get("native_surface_conversion_ready") is not False:
     fail(f"native gas calibration should preserve non-conversion-ready metadata: {calibration!r}")
 if calibration.get("obc_surface_id") != "avm_opcode_cost_v0":
@@ -167,6 +176,10 @@ if native_deltas.get("gas_surface_id") != "native_dynamic_emitter_tick_v0":
     fail(f"native gas surface delta mismatch, got {native_deltas!r}")
 if native_deltas.get("gas_surface_unit_scope") != "backend_local" or native_deltas.get("gas_surface_runtime_path_aware") is not True:
     fail(f"native gas surface delta should preserve backend-local dynamic-emitter metadata, got {native_deltas!r}")
+if native_deltas.get("gas_surface_target_arch") != native_surface.get("target_arch"):
+    fail(f"native gas surface delta should preserve target_arch metadata, got {native_deltas!r} vs {native_surface!r}")
+if native_deltas.get("gas_surface_unit_family") != native_surface.get("unit_family"):
+    fail(f"native gas surface delta should preserve unit_family metadata, got {native_deltas!r} vs {native_surface!r}")
 if native_deltas.get("gas_surface_cross_arch_comparable") is not False or native_deltas.get("gas_surface_conversion_ready") is not False:
     fail(f"native gas surface delta should preserve non-conversion metadata, got {native_deltas!r}")
 native_heap = native_budgets.get("heap_bytes") or {}

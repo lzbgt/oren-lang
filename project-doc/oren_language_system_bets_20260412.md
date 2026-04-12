@@ -151,9 +151,9 @@ It is a language plus runtime plus artifact contract.
   native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
   validated native dynamic-emitter or instruction-equivalent gas exists, and each calibration sample
-  carries native surface metadata (`unit_scope`, `runtime_path_aware`, `cross_arch_comparable`,
-  `conversion_ready`) so tooling can reject conversion by contract rather than by ratio heuristics
-  alone. The first dynamic-emitter
+  carries native surface metadata (`unit_scope`, `target_arch`, `unit_family`, `runtime_path_aware`,
+  `cross_arch_comparable`, `conversion_ready`) so tooling can reject conversion by contract rather
+  than by ratio heuristics alone. The first dynamic-emitter
   calibration set (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`)
   still spans `~2.49x` to `~16.82x` native ticks per AVM opcode gas, so dynamic-emitter evidence is
   path-aware but still not a conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native
@@ -167,8 +167,9 @@ It is a language plus runtime plus artifact contract.
   lowering-block evidence, `block-weighted` selects weighted lowering-block evidence, and
   `dynamic-emitter` selects backend-local runtime path-aware emitter-span evidence rather than silently
   aliasing statement gas. Its gas-surface metadata explicitly sets `unit_scope="backend_local"`,
-  `cross_arch_comparable=false`, and `conversion_ready=false`, so future tooling cannot mistake it for
-  instruction-equivalent gas. The native build cache key now
+  includes `target_arch` and `unit_family`, and sets `cross_arch_comparable=false` and
+  `conversion_ready=false`, so future tooling cannot mistake it for instruction-equivalent gas or hide
+  arm64/x64 unit-family differences. The native build cache key now
   includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
   Next work is validating the dynamic-emitter conversion contract or adding instruction-equivalent native
   gas, not only expanding fixture scripts.

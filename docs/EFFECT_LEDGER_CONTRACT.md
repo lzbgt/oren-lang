@@ -108,9 +108,9 @@ Required entry fields:
   fixtures. The report keeps the current ratio spread explicit as `single_ratio_unsafe` and emits an
   `oren.gas-surface-conversion-decision.v0` object that blocks package-policy gas conversion from a
   single empirical ratio until Oren has validated native dynamic-emitter or instruction-equivalent gas evidence.
-  The calibration samples also carry the native surface's `unit_scope`, `runtime_path_aware`,
-  `cross_arch_comparable`, and `conversion_ready` metadata so the decision is blocked by declared
-  surface semantics as well as by the observed ratio spread.
+  The calibration samples also carry the native surface's `unit_scope`, `target_arch`,
+  `unit_family`, `runtime_path_aware`, `cross_arch_comparable`, and `conversion_ready` metadata so the
+  decision is blocked by declared surface semantics as well as by the observed ratio spread.
   C ledger export is still intentionally reported as unavailable rather than inferred from logs.
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
@@ -217,9 +217,10 @@ charges and loop-poll ticks. `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` report
 spans while excluding the gas-note call overhead itself. Semantic diff uses the dynamic-emitter mode so it
 has runtime path-aware native evidence, but each gas object carries an explicit `surface` object with
 `schema="oren.gas-surface.v0"`. The dynamic-emitter surface also reports
-`unit_scope="backend_local"`, `runtime_path_aware=true`, `cross_arch_comparable=false`, and
-`conversion_ready=false`; arm64 and x64 can therefore expose path-aware evidence without pretending the
-counter is architecture-neutral instruction gas. That surface keeps native
+`unit_scope="backend_local"`, `target_arch`, `unit_family`, `runtime_path_aware=true`,
+`cross_arch_comparable=false`, and `conversion_ready=false`; arm64 reports
+`unit_family="fixed_width_instruction_span"` while x64 reports `unit_family="emitted_byte_span"`, so
+both can expose path-aware evidence without pretending the counter is architecture-neutral instruction gas. That surface keeps native
 `native_dynamic_emitter_tick_v0` distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current
 native/OBC gas surfaces as non-comparable until Oren validates a conversion contract. The exact native mode spelling
 `instruction-equivalent` is reserved: today the guard proves it falls back to default loop-safepoint

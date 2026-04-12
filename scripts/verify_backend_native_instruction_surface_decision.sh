@@ -150,12 +150,21 @@ for i in range(0, len(items), 3):
     native_executed = int(calibration.get("native_executed") or 0)
     obc_executed = int(calibration.get("obc_executed") or 0)
     native_surface_id = calibration.get("native_surface_id")
+    native_surface_target_arch = calibration.get("native_surface_target_arch")
+    native_surface_unit_family = calibration.get("native_surface_unit_family")
     obc_surface_id = calibration.get("obc_surface_id")
     whole_binary_instruction_count = count_disasm_instructions(disasm_log)
     if native_executed <= 0 or obc_executed <= 0:
         raise SystemExit(f"{semantic_report}: expected positive semantic gas counters, got {calibration!r}")
     if native_surface_id != "native_dynamic_emitter_tick_v0":
         raise SystemExit(f"{semantic_report}: expected dynamic-emitter native gas surface, got {native_surface_id!r}")
+    if native_surface_target_arch not in ("arm64", "x64"):
+        raise SystemExit(f"{semantic_report}: expected native dynamic-emitter target_arch metadata, got {calibration!r}")
+    expected_unit_family = "fixed_width_instruction_span" if native_surface_target_arch == "arm64" else "emitted_byte_span"
+    if native_surface_unit_family != expected_unit_family:
+        raise SystemExit(
+            f"{semantic_report}: expected native dynamic-emitter unit_family {expected_unit_family!r}, got {calibration!r}"
+        )
     if obc_surface_id != "avm_opcode_cost_v0":
         raise SystemExit(f"{semantic_report}: expected AVM opcode gas surface, got {obc_surface_id!r}")
     if whole_binary_instruction_count <= 0:
@@ -166,6 +175,8 @@ for i in range(0, len(items), 3):
             "semantic_report": semantic_report,
             "disasm_log": disasm_log,
             "native_surface_id": native_surface_id,
+            "native_surface_target_arch": native_surface_target_arch,
+            "native_surface_unit_family": native_surface_unit_family,
             "obc_surface_id": obc_surface_id,
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
@@ -200,6 +211,8 @@ decision = {
     "candidate_package_policy_may_convert": False,
     "observed_runtime_surface_id": "native_dynamic_emitter_tick_v0",
     "observed_runtime_surface_dynamic": True,
+    "observed_runtime_surface_target_arch": samples[0]["native_surface_target_arch"],
+    "observed_runtime_surface_unit_family": samples[0]["native_surface_unit_family"],
     "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
     "notes": "Whole-binary native disassembly counts include linked runtime text and are not per-executed-path gas; runtime dynamic-emitter ticks are path-aware evidence but are not yet a conversion contract.",
 }

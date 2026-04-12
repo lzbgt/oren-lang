@@ -91,7 +91,9 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 544
 // - Add native dynamic-emitter gas surface metadata and mode parsing.
 // 2026-04: v0_23
 // - Add dynamic-emitter gas surface conversion-readiness metadata.
-var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_23"
+// 2026-04: v0_24
+// - Add dynamic-emitter gas surface target-arch/unit-family metadata.
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_24"
 // 2026-01: v0_17
 // - Fix Tier‑1 Windows correctness for runtime-owned OS threads (`oren_os_thread_spawn`):
 //   `native_call1(addr, arg0)` must follow the active x64 ABI arg-register mapping (SysV vs Win64)
@@ -116,7 +118,9 @@ var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_23"
 // - Add native dynamic-emitter gas surface metadata and mode parsing.
 // 2026-04: v0_33
 // - Add dynamic-emitter gas surface conversion-readiness metadata.
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_33"
+// 2026-04: v0_34
+// - Add dynamic-emitter gas surface target-arch/unit-family metadata.
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_34"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }
