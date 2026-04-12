@@ -6,7 +6,7 @@ cd "$ROOT"
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/run_package_policy.sh --backend avm|native [--gas-profile native-stmt|avm-sidecar] <source.oren> [-- <run-args...>]
+usage: scripts/run_package_policy.sh --backend avm|native [--gas-profile native-stmt|avm-sidecar|auto] <source.oren> [-- <run-args...>]
 
 Dispatches package-policy execution to the backend-specific runner. This keeps
 `@oren.package(...)` policy application discoverable as one command while the
@@ -15,6 +15,7 @@ AVM and native backends still have different enforcement surfaces.
 --gas-profile applies only to the native backend:
   native-stmt   enforce budget_gas with native statement+loop gas (default)
   avm-sidecar   enforce budget_gas with package-bound AVM canonical sidecar gas
+  auto          choose avm-sidecar when the package declares budget_gas
 EOF
 }
 
@@ -41,7 +42,7 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --gas-profile)
       if [[ "$#" -lt 2 ]]; then
-        echo "ERROR: --gas-profile requires native-stmt|avm-sidecar" >&2
+        echo "ERROR: --gas-profile requires native-stmt|avm-sidecar|auto" >&2
         usage
         exit 2
       fi

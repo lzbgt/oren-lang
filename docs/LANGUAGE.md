@@ -1487,9 +1487,10 @@ For the current capability domain and native runtime-profile contract, see
 		  conversion. Setting `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or using
 		  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, upgrades that
 		  package-bound sidecar into the native runner's `budget_gas` enforcement profile: the runner
-	  enforces the AVM canonical `avm_opcode_cost_v0` sidecar budget, reports
-	  `runner_wall_avm_canonical_gas`, and records `enforcement_profile="avm-sidecar"` while still
-	  keeping `native_runtime_conversion=false`.
+		  enforces the AVM canonical `avm_opcode_cost_v0` sidecar budget, reports
+		  `runner_wall_avm_canonical_gas`, and records `enforcement_profile="avm-sidecar"` while still
+		  keeping `native_runtime_conversion=false`. The `auto` profile chooses that same sidecar profile
+		  when the package declares `budget_gas` and records `requested_enforcement_profile="auto"`.
 	  `OREN_NATIVE_GAS_ACCOUNTING=statement` is an exact synonym
   for `stmt`; `OREN_NATIVE_GAS_ACCOUNTING=basic-block` selects the distinct
   `native_basic_block_tick_v0` native lowering-block evidence surface, and
@@ -1525,7 +1526,8 @@ For the current capability domain and native runtime-profile contract, see
 		  with `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
 		  The native package-policy runner's separate `avm-sidecar` gas profile is the package-bound path
 		  that can use AVM canonical sidecar evidence for `budget_gas`, and the shared dispatcher exposes it
-		  with `--backend native --gas-profile avm-sidecar`. The gas-surface
+		  with `--backend native --gas-profile avm-sidecar` or gas-budget-triggered
+		  `--backend native --gas-profile auto`. The gas-surface
 		  inventory and conversion status are tracked in `docs/GAS_SURFACE_REGISTRY.md` and guarded by
 		  `make verify-gas-surface-registry`.
   The `source_required_domains` / `dependency_domain_union` fields are currently

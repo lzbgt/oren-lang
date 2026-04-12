@@ -23,7 +23,9 @@ surface, not full instruction-equivalent gas and not AVM-canonical opcode gas.
 The runner builds and runs gas budget fixtures with OREN_NATIVE_GAS_ACCOUNTING=stmt. budget_cpu_ms still fails
 closed when child CPU usage is not available on the host.
 Set OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar to enforce budget_gas
-from a package-bound AVM canonical sidecar instead of native statement gas.
+from a package-bound AVM canonical sidecar instead of native statement gas. Set
+OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=auto to choose avm-sidecar when the
+package declares budget_gas.
 Set OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path> to write runner-observed
 wall/gas/heap/CPU-budget evidence plus any captured native runtime ledger summary as JSON. Set
 OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1 to also build and run a bytecode sidecar with
@@ -104,8 +106,10 @@ def normalize_gas_profile(value):
         return "native-stmt"
     if raw in ("avm-sidecar", "avm-canonical-sidecar"):
         return "avm-sidecar"
+    if raw in ("auto", "package-auto", "package-default"):
+        return "auto"
     fail(
-        "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE must be native-stmt or avm-sidecar, "
+        "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE must be native-stmt, avm-sidecar, or auto, "
         f"got {value!r}"
     )
 
@@ -315,8 +319,10 @@ obc_sidecar = tmp_dir / f"{stem}.sidecar.obc"
 meta_out = tmp_dir / f"{stem}.metadata.json"
 build_log = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_BUILD_LOG", f"build/logs/native_package_policy_{stem}_{ts}.build.log")
 run_json_path = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_RUN_JSON", "")
-gas_enforcement_profile = normalize_gas_profile(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE"))
-avm_sidecar_enabled = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR")) or gas_enforcement_profile == "avm-sidecar"
+requested_gas_enforcement_profile = normalize_gas_profile(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE"))
+gas_enforcement_profile = requested_gas_enforcement_profile
+avm_sidecar_env_requested = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR"))
+avm_sidecar_enabled = avm_sidecar_env_requested
 keep = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN") or os.environ.get("OREN_NATIVE_PACKAGE_POLICY_OUT"))
 
 def write_run_json(payload):
@@ -467,6 +473,7 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
                     else ("native-run-json-stmt-loop-tick" if native_gas_enforced else "none")
                 ),
                 "enforcement_profile": gas_enforcement_profile,
+                "requested_enforcement_profile": requested_gas_enforcement_profile,
                 "exceeded": gas_exceeded,
                 "reason": (
                     None
@@ -530,6 +537,9 @@ try:
     if env_wall:
         env_wall_i = positive_int(env_wall, "OREN_NATIVE_PACKAGE_POLICY_TIMEOUT_MS")
         wall_ms = env_wall_i if wall_ms is None else min(wall_ms, env_wall_i)
+    if requested_gas_enforcement_profile == "auto":
+        gas_enforcement_profile = "avm-sidecar" if gas_limit is not None else "native-stmt"
+    avm_sidecar_enabled = avm_sidecar_env_requested or gas_enforcement_profile == "avm-sidecar"
 
     caps = domain_csv(pkg.get("cap_allow_domains") or [])
     build_cmd = [

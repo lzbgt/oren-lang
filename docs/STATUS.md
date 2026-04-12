@@ -1602,7 +1602,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     turns that package-bound sidecar into explicit `budget_gas` enforcement, reported as
 		     `runner_wall_avm_canonical_gas` with `enforcement_profile="avm-sidecar"`; the shared
 		     dispatcher exposes the same policy as
-		     `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`.
+		     `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, and
+		     `--gas-profile auto` selects it when `budget_gas` is declared.
 	   - `docs/GAS_SURFACE_REGISTRY.md` plus `make verify-gas-surface-registry` now guard the registered
 	     gas-surface inventory, including AVM-canonical versus native backend-local conversion status.
 

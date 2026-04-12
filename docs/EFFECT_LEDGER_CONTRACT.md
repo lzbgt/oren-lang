@@ -142,6 +142,9 @@ Required entry fields:
 	  package-bound sidecar into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0` reports
 	  `runner_wall_avm_canonical_gas`, `enforcement="avm-canonical-sidecar"`, and
 	  `enforcement_profile="avm-sidecar"` while still preserving `native_runtime_conversion=false`.
+	  The dispatcher/native profile value `auto` chooses that same sidecar enforcement whenever the
+	  package declares `budget_gas`, and records `requested_enforcement_profile="auto"` beside the
+	  resolved profile in runner JSON.
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
   `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
   This is the first native-owned effect evidence bridge: it counts central capsule domain-gate

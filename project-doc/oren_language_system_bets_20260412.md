@@ -153,7 +153,8 @@ It is a language plus runtime plus artifact contract.
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus
 		  `enforcement_profile="avm-sidecar"` without claiming native runtime conversion; the shared
 		  dispatcher exposes the same path as
-		  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`.
+		  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, with
+		  `--gas-profile auto` selecting it for gas-budgeted packages.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits

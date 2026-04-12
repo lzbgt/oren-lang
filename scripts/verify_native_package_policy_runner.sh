@@ -21,6 +21,9 @@ gas_ok_json="$TMP/gas-ok.run.json"
 gas_sidecar_ok_out="$TMP/gas-sidecar-ok.out"
 gas_sidecar_ok_err="$TMP/gas-sidecar-ok.err"
 gas_sidecar_ok_json="$TMP/gas-sidecar-ok.run.json"
+gas_auto_ok_out="$TMP/gas-auto-ok.out"
+gas_auto_ok_err="$TMP/gas-auto-ok.err"
+gas_auto_ok_json="$TMP/gas-auto-ok.run.json"
 gas_fail_out="$TMP/gas-fail.out"
 gas_fail_err="$TMP/gas-fail.err"
 gas_fail_json="$TMP/gas-fail.run.json"
@@ -102,6 +105,15 @@ grep -Fq "native package policy gas ok" "$gas_sidecar_ok_out" || {
   cat "$gas_sidecar_ok_err" >&2 || true
   exit 1
 }
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_auto_ok_json" \
+  ./scripts/run_package_policy.sh --backend native --gas-profile auto tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_auto_ok_out" 2>"$gas_auto_ok_err"
+grep -Fq "native package policy gas ok" "$gas_auto_ok_out" || {
+  echo "ERROR: native package-policy auto gas profile fixture did not report success" >&2
+  cat "$gas_auto_ok_out" >&2 || true
+  cat "$gas_auto_ok_err" >&2 || true
+  exit 1
+}
 
 set +e
 ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_deny_time.oren \
@@ -140,7 +152,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_auto_ok_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -157,6 +169,7 @@ gas_fail_path = Path(sys.argv[9])
 gas_stmt_fail_path = Path(sys.argv[10])
 gas_sidecar_ok_path = Path(sys.argv[11])
 gas_sidecar_fail_path = Path(sys.argv[12])
+gas_auto_ok_path = Path(sys.argv[13])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -379,6 +392,25 @@ assert_avm_canonical_sidecar(gas_sidecar_ok_path, sidecar_ok)
 if int(gas_sidecar_ok_budget.get("executed") or -1) != int(sidecar_ok.get("gas_executed") or -2):
     fail(f"{gas_sidecar_ok_path}: AVM sidecar gas budget should mirror sidecar certificate, got {gas_sidecar_ok_budget!r} vs {sidecar_ok!r}")
 
+gas_auto_ok = load(gas_auto_ok_path)
+if gas_auto_ok.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_auto_ok_path}: schema mismatch: {gas_auto_ok.get('schema')!r}")
+if gas_auto_ok.get("status") != "pass" or gas_auto_ok.get("exit_code") != 0:
+    fail(f"{gas_auto_ok_path}: expected pass/0, got status={gas_auto_ok.get('status')!r} exit={gas_auto_ok.get('exit_code')!r}")
+if (gas_auto_ok.get("runner_observed") or {}).get("budget_status") != "runner_wall_avm_canonical_gas":
+    fail(f"{gas_auto_ok_path}: expected runner_wall_avm_canonical_gas status, got {gas_auto_ok.get('runner_observed')!r}")
+gas_auto_ok_budget = ((gas_auto_ok.get("budgets") or {}).get("gas") or {})
+if gas_auto_ok_budget.get("enforcement") != "avm-canonical-sidecar" or gas_auto_ok_budget.get("enforcement_profile") != "avm-sidecar":
+    fail(f"{gas_auto_ok_path}: auto profile should resolve to AVM sidecar enforcement, got {gas_auto_ok_budget!r}")
+if gas_auto_ok_budget.get("requested_enforcement_profile") != "auto":
+    fail(f"{gas_auto_ok_path}: expected requested auto gas profile, got {gas_auto_ok_budget!r}")
+if gas_auto_ok_budget.get("kind") != "avm_opcode_cost_v0" or gas_auto_ok_budget.get("enforced") is not True:
+    fail(f"{gas_auto_ok_path}: expected enforced AVM canonical gas in auto profile, got {gas_auto_ok_budget!r}")
+auto_sidecar = gas_auto_ok.get("avm_canonical_sidecar_gas") or {}
+assert_avm_canonical_sidecar(gas_auto_ok_path, auto_sidecar)
+if int(gas_auto_ok_budget.get("executed") or -1) != int(auto_sidecar.get("gas_executed") or -2):
+    fail(f"{gas_auto_ok_path}: auto gas budget should mirror sidecar certificate, got {gas_auto_ok_budget!r} vs {auto_sidecar!r}")
+
 cpu_fail = load(cpu_fail_path)
 if cpu_fail.get("schema") != "oren.native-package-policy-run.v0":
     fail(f"{cpu_fail_path}: schema mismatch: {cpu_fail.get('schema')!r}")
@@ -499,7 +531,7 @@ if [[ "$gas_profile_bad_rc" -eq 0 ]]; then
   cat "$gas_profile_bad_err" >&2 || true
   exit 1
 fi
-grep -Fq "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE must be native-stmt or avm-sidecar" "$gas_profile_bad_out" "$gas_profile_bad_err" || {
+grep -Fq "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE must be native-stmt, avm-sidecar, or auto" "$gas_profile_bad_out" "$gas_profile_bad_err" || {
   echo "ERROR: missing invalid gas profile diagnostic" >&2
   cat "$gas_profile_bad_out" >&2 || true
   cat "$gas_profile_bad_err" >&2 || true
