@@ -351,6 +351,18 @@ def gas_executed(summary):
     except (TypeError, ValueError):
         return None
 
+def source_class(path):
+    name = Path(path).name
+    if "gas_call_calibration" in name:
+        return "call_heavy"
+    if "gas_branch_calibration" in name:
+        return "branch_heavy"
+    if "gas_calibration" in name:
+        return "loop_heavy"
+    if "smoke" in name:
+        return "smoke"
+    return "custom"
+
 native_gas_surface = gas_surface(native_ledger_summary)
 obc_gas_surface = gas_surface(obc_ledger_summary)
 gas_surface_native_obc_comparable = (
@@ -383,6 +395,7 @@ gas_surface_calibration = {
     "schema": "oren.gas-surface-calibration.v0",
     "mode": "empirical_single_fixture",
     "source": src,
+    "source_class": source_class(src),
     "native_surface_id": native_gas_surface.get("id") if isinstance(native_gas_surface, dict) else None,
     "native_surface_unit_scope": native_gas_surface.get("unit_scope") if isinstance(native_gas_surface, dict) else None,
     "native_surface_target_arch": native_gas_surface.get("target_arch") if isinstance(native_gas_surface, dict) else None,

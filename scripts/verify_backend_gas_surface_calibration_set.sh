@@ -5,12 +5,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 if [[ "$#" == "0" ]]; then
+  default_fixture_set=1
   fixtures=(
     "tests/fixtures/backend_semantic_diff_smoke.oren"
     "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
     "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
+    "tests/fixtures/backend_semantic_diff_gas_call_calibration.oren"
   )
 else
+  default_fixture_set=0
   fixtures=("$@")
 fi
 
@@ -48,14 +51,15 @@ for src in "${fixtures[@]}"; do
   reports+=("$report")
 done
 
-python3 - "$set_report" "${reports[@]}" <<'PY'
+python3 - "$set_report" "$default_fixture_set" "${reports[@]}" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 
 out_path = Path(sys.argv[1])
-report_paths = [Path(p) for p in sys.argv[2:]]
+default_fixture_set = sys.argv[2] == "1"
+report_paths = [Path(p) for p in sys.argv[3:]]
 
 min_spread = float(os.environ.get("OREN_GAS_SURFACE_CALIBRATION_MIN_SPREAD", "1.10"))
 if len(report_paths) < 2:
@@ -84,6 +88,9 @@ for path in report_paths:
 
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
+    cur_sample_class = calibration.get("source_class") or "custom"
+    if cur_sample_class not in ("smoke", "loop_heavy", "branch_heavy", "call_heavy", "custom"):
+        raise SystemExit(f"{path}: calibration source_class mismatch: {calibration!r}")
     if native_surface_id is None:
         native_surface_id = cur_native_surface
     if obc_surface_id is None:
@@ -142,6 +149,7 @@ for path in report_paths:
     samples.append(
         {
             "source": calibration.get("source") or data.get("source"),
+            "source_class": cur_sample_class,
             "report": str(path),
             "native_surface_id": cur_native_surface,
             "native_surface_unit_scope": cur_native_unit_scope,
@@ -161,6 +169,12 @@ for path in report_paths:
     )
 
 ratios = [sample["native_per_obc"] for sample in samples]
+sample_classes = sorted({sample["source_class"] for sample in samples})
+required_sample_classes = ["branch_heavy", "call_heavy", "loop_heavy", "smoke"] if default_fixture_set else []
+if default_fixture_set:
+    missing = sorted(set(required_sample_classes) - set(sample_classes))
+    if missing:
+        raise SystemExit(f"default gas calibration set missing sample classes: {missing!r}")
 ratio_min = min(ratios)
 ratio_max = max(ratios)
 ratio_spread = ratio_max / ratio_min if ratio_min > 0.0 else None
@@ -187,6 +201,9 @@ conversion_decision = {
     "native_surface_conversion_ready": False,
     "forbidden_policy": "single_fixture_ratio",
     "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
+    "required_sample_classes": required_sample_classes,
+    "observed_sample_classes": sample_classes,
+    "sample_class_coverage_ok": (not default_fixture_set) or set(required_sample_classes).issubset(set(sample_classes)),
     "package_policy_may_convert": False,
 }
 
@@ -206,6 +223,8 @@ out = {
         "native_surface_conversion_ready": False,
     },
     "sample_count": len(samples),
+    "required_sample_classes": required_sample_classes,
+    "observed_sample_classes": sample_classes,
     "samples": samples,
     "ratio": {
         "native_per_obc_min": ratio_min,

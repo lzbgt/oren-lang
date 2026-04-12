@@ -60,6 +60,7 @@ make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
 make verify-backend-semantic-diff  # emits C/native/obc parity JSON plus ledger and gas-surface evidence
 make verify-backend-semantic-diff-gas-calibration  # second semantic-diff gas calibration fixture
 make verify-backend-semantic-diff-gas-branch-calibration  # branch-heavy semantic-diff gas calibration fixture
+make verify-backend-semantic-diff-gas-call-calibration  # call-heavy semantic-diff gas calibration fixture
 make verify-backend-gas-surface-calibration-set  # combines gas calibration fixtures and guards ratio spread
 make verify-backend-native-instruction-surface-decision  # rejects whole-binary disasm counts as runtime gas conversion evidence
 make verify-native-capsule-resource-checks  # guards native FS resource-check counters in native-run JSON

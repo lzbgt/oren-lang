@@ -146,9 +146,9 @@ It is a language plus runtime plus artifact contract.
   `oren.semantic-diff.v0` JSON for C/native/OBC runs plus native/AVM ledger-summary bridges and
   explicit gas-surface comparison status. It now also records empirical
   `oren.gas-surface-calibration.v0` ratios as evidence, while marking them as not a conversion. The
-  `oren.gas-surface-calibration-set.v0` guard combines tiny smoke, loop-heavy, and branch-heavy fixtures
-  into a multi-sample report, preserving the current ratio spread as evidence that Oren needs a real
-  native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
+  `oren.gas-surface-calibration-set.v0` guard combines tiny smoke, loop-heavy, branch-heavy, and
+  call-heavy fixtures into a multi-sample report, preserving the current ratio spread as evidence
+  that Oren needs a real native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
   validated native dynamic-emitter or instruction-equivalent gas exists, and each calibration sample
   carries native surface metadata (`unit_scope`, `target_arch`, `unit_family`, `runtime_path_aware`,
@@ -159,9 +159,9 @@ It is a language plus runtime plus artifact contract.
   path-aware but still not a conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native
 	  disassembly instruction counts as a shortcut by cross-checking them against the current
 	  `native_dynamic_emitter_tick_v0` runtime surface: whole-binary counts include linked runtime text
-	  and are not dynamic per-executed-path gas. The first static-proxy report counted the same `474624`
-	  whole-binary native instructions for all three calibration fixtures while AVM opcode gas varied
-	  from `234` to `2328`.
+		  and are not dynamic per-executed-path gas. The first static-proxy report counted the same `474624`
+		  whole-binary native instructions for the original three calibration fixtures while AVM opcode gas varied
+		  from `234` to `2328`; the current default guard also requires call-heavy source-class coverage.
 	  Oren also guards exact native gas mode
   spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
   lowering-block evidence, `block-weighted` selects weighted lowering-block evidence, and

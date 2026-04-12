@@ -101,6 +101,8 @@ if calibration.get("schema") != "oren.gas-surface-calibration.v0":
     fail(f"gas surface calibration schema mismatch: {calibration!r}")
 if calibration.get("mode") != "empirical_single_fixture":
     fail(f"gas surface calibration mode mismatch: {calibration!r}")
+if calibration.get("source_class") not in ("smoke", "loop_heavy", "branch_heavy", "call_heavy", "custom"):
+    fail(f"gas surface calibration source_class mismatch: {calibration!r}")
 if calibration.get("native_surface_id") != "native_dynamic_emitter_tick_v0":
     fail(f"native gas calibration surface mismatch: {calibration!r}")
 if calibration.get("native_surface_unit_scope") != "backend_local" or calibration.get("native_surface_runtime_path_aware") is not True:

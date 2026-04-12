@@ -79,8 +79,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   reports native/OBC gas as non-comparable while native semantic-diff uses `native_dynamic_emitter_tick_v0` and AVM uses
   `avm_opcode_cost_v0`. Semantic diff also records `oren.gas-surface-calibration.v0` empirical
   ratios for the fixture, explicitly marked as not a conversion. `make verify-backend-gas-surface-calibration-set`
-  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy, and
-  branch-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
+  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
+  branch-heavy, and call-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
   emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
   validated dynamic-emitter or native instruction-equivalent gas before package policy may convert
   native/OBC gas. The calibration samples now also carry the dynamic-emitter surface metadata
@@ -92,9 +92,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  also rejects the tempting whole-binary native disassembly shortcut by cross-checking it against
 	  the current `native_dynamic_emitter_tick_v0` runtime surface: whole-binary counts include linked
 	  runtime text and are not per-executed-path gas. The first static-proxy report
-	  (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`) counted
-	  the same `474624` whole-binary native instructions for all three fixtures while OBC opcode gas
-	  varied from `234` to `2328`, confirming the shortcut is runtime-insensitive. AVM `effect_ledger_summary.budgets`
+		  (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`) counted
+		  the same `474624` whole-binary native instructions for the original three fixtures while OBC opcode gas
+		  varied from `234` to `2328`, confirming the shortcut is runtime-insensitive; the current default
+		  guard also requires a call-heavy sample class. AVM `effect_ledger_summary.budgets`
   now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
   `wall_ms.elapsed_ns`. Next capability work should define a validated dynamic-emitter conversion
   contract or finer native instruction-equivalent gas rather than re-describing
@@ -2761,7 +2762,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      includes empirical `oren.gas-surface-calibration.v0` ratios, but keeps them out of enforcement
      until a conversion contract exists. `make verify-backend-semantic-diff-gas-calibration` runs a
      second loop-heavy calibration point through the same report/guard path, and
-     `make verify-backend-gas-surface-calibration-set` combines the smoke, loop-heavy, and branch-heavy reports to guard that the current
+	     `make verify-backend-gas-surface-calibration-set` combines the smoke, loop-heavy, branch-heavy, and call-heavy reports to guard that the current
      native/OBC ratio spread remains evidence, not an implicit rule. `make verify-native-gas-accounting-modes`
      now guards that `stmt` and `statement` select statement+loop gas, `basic-block` selects a
      distinct native lowering-block surface, `block-weighted` selects weighted lowering-block

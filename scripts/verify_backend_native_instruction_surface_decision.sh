@@ -5,12 +5,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 if [[ "$#" == "0" ]]; then
+  default_fixture_set=1
   fixtures=(
     "tests/fixtures/backend_semantic_diff_smoke.oren"
     "tests/fixtures/backend_semantic_diff_gas_calibration.oren"
     "tests/fixtures/backend_semantic_diff_gas_branch_calibration.oren"
+    "tests/fixtures/backend_semantic_diff_gas_call_calibration.oren"
   )
 else
+  default_fixture_set=0
   fixtures=("$@")
 fi
 
@@ -112,7 +115,7 @@ for src in "${fixtures[@]}"; do
   idx=$((idx + 1))
 done
 
-python3 - "$report" "$platform" "${sample_args[@]}" <<'PY'
+python3 - "$report" "$platform" "$default_fixture_set" "${sample_args[@]}" <<'PY'
 import json
 import re
 import sys
@@ -120,7 +123,8 @@ from pathlib import Path
 
 out_path = Path(sys.argv[1])
 platform = sys.argv[2]
-items = sys.argv[3:]
+default_fixture_set = sys.argv[3] == "1"
+items = sys.argv[4:]
 if len(items) % 3 != 0:
     raise SystemExit("expected source/report/disasm triples")
 
@@ -150,6 +154,9 @@ for i in range(0, len(items), 3):
     native_executed = int(calibration.get("native_executed") or 0)
     obc_executed = int(calibration.get("obc_executed") or 0)
     native_surface_id = calibration.get("native_surface_id")
+    sample_class = calibration.get("source_class") or "custom"
+    if sample_class not in ("smoke", "loop_heavy", "branch_heavy", "call_heavy", "custom"):
+        raise SystemExit(f"{semantic_report}: expected calibration source_class metadata, got {calibration!r}")
     native_surface_target_arch = calibration.get("native_surface_target_arch")
     native_surface_unit_family = calibration.get("native_surface_unit_family")
     obc_surface_id = calibration.get("obc_surface_id")
@@ -172,6 +179,7 @@ for i in range(0, len(items), 3):
     samples.append(
         {
             "source": src,
+            "source_class": sample_class,
             "semantic_report": semantic_report,
             "disasm_log": disasm_log,
             "native_surface_id": native_surface_id,
@@ -188,6 +196,12 @@ for i in range(0, len(items), 3):
 
 whole_binary_ratios = [sample["whole_binary_instruction_per_obc_gas"] for sample in samples]
 whole_binary_counts = [sample["whole_binary_instruction_count"] for sample in samples]
+sample_classes = sorted({sample["source_class"] for sample in samples})
+required_sample_classes = ["branch_heavy", "call_heavy", "loop_heavy", "smoke"] if default_fixture_set else []
+if default_fixture_set:
+    missing = sorted(set(required_sample_classes) - set(sample_classes))
+    if missing:
+        raise SystemExit(f"default native instruction-surface decision missing sample classes: {missing!r}")
 runtime_ratios = [
     sample["native_dynamic_emitter_executed"] / sample["obc_opcode_gas_executed"]
     for sample in samples
@@ -214,6 +228,9 @@ decision = {
     "observed_runtime_surface_target_arch": samples[0]["native_surface_target_arch"],
     "observed_runtime_surface_unit_family": samples[0]["native_surface_unit_family"],
     "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
+    "required_sample_classes": required_sample_classes,
+    "observed_sample_classes": sample_classes,
+    "sample_class_coverage_ok": (not default_fixture_set) or set(required_sample_classes).issubset(set(sample_classes)),
     "notes": "Whole-binary native disassembly counts include linked runtime text and are not per-executed-path gas; runtime dynamic-emitter ticks are path-aware evidence but are not yet a conversion contract.",
 }
 
@@ -222,6 +239,8 @@ out = {
     "status": "pass",
     "platform": platform,
     "sample_count": len(samples),
+    "required_sample_classes": required_sample_classes,
+    "observed_sample_classes": sample_classes,
     "samples": samples,
     "ratio": {
         "whole_binary_instruction_count_min": count_min,

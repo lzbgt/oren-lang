@@ -1,0 +1,46 @@
+fn calibrate_leaf(x, salt) {
+    var v = x * 3 + salt
+    if v > 97 {
+        return v - 41
+    }
+    if v < 11 {
+        return v + 23
+    }
+    return v + 7
+}
+
+fn calibrate_step(seed, limit) {
+    var i = 0
+    var acc = seed
+    while i < limit {
+        acc = acc + calibrate_leaf(i + 1, acc)
+        if acc > 700 {
+            acc = acc - calibrate_leaf(i, 5)
+        }
+        i = i + 1
+    }
+    return acc
+}
+
+fn main() {
+    var i = 0
+    var total = 13
+    while i < 19 {
+        var limit = 2
+        if i > 5 {
+            limit = 3
+        }
+        if i > 12 {
+            limit = 4
+        }
+        total = total + calibrate_step(i + total, limit)
+        if total > 2000 {
+            total = total - 997
+        }
+        i = i + 1
+    }
+    oren_set_result(total)
+    print("semantic-diff gas call total=" + oren_int_to_string(total))
+    print("ok: semantic diff")
+    return 0
+}
