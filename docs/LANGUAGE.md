@@ -1504,8 +1504,10 @@ For the current capability domain and native runtime-profile contract, see
   compile-time gas surfaces.
   AVM run JSON reports the applied gas, heap, and wall budget fields through
   `effect_ledger_summary.budgets`, including `wall_ms.limit`, and marks its gas surface as
-  `avm_opcode_cost_v0`. Semantic-diff tooling keeps native and AVM gas non-comparable while those
-  surface ids differ.
+  canonical `avm_opcode_cost_v0` opcode-dispatch gas with
+  `unit_scope="avm_canonical"`, `runtime_path_aware=true`, `cross_arch_comparable=true`,
+  `conversion_ready=true`, and `avm_canonical=true`. Semantic-diff tooling keeps native and AVM gas
+  non-comparable while the native surface cannot target that AVM unit honestly.
   The `source_required_domains` / `dependency_domain_union` fields are currently
   `source_attrs_only`, meaning they come from linked `@cap.requires` attributes rather than
   a complete stdlib/runtime effect proof.

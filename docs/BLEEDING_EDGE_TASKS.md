@@ -77,7 +77,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   cached artifacts could otherwise hide backend gas-note differences behind identical binaries.
   Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` descriptors; semantic diff
   reports native/OBC gas as non-comparable while native semantic-diff uses `native_dynamic_emitter_tick_v0` and AVM uses
-  `avm_opcode_cost_v0`. Semantic diff also records `oren.gas-surface-calibration.v0` empirical
+  canonical `avm_opcode_cost_v0` opcode-dispatch gas (`unit_scope="avm_canonical"`,
+  `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`,
+  `avm_canonical=true`). Semantic diff also records `oren.gas-surface-calibration.v0` empirical
   ratios for the fixture, explicitly marked as not a conversion. `make verify-backend-gas-surface-calibration-set`
   now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
   branch-heavy, and call-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
@@ -85,7 +87,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   validated dynamic-emitter or native instruction-equivalent gas before package policy may convert
   native/OBC gas. The calibration samples now also carry the dynamic-emitter surface metadata
   (`unit_scope`, `target_arch`, `unit_family`, `runtime_path_aware`, `cross_arch_comparable`,
-  `conversion_ready`) so the blocker is machine-readable even before looking at ratios. The first dynamic-emitter calibration set
+  `conversion_ready`) and the AVM canonical metadata (`unit_scope="avm_canonical"`,
+  `avm_canonical=true`) so the blocker is machine-readable even before looking at ratios. The first dynamic-emitter calibration set
   (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) still shows
   `native_per_obc` spread from `~2.49x` to `~16.82x`, so dynamic-emitter evidence is path-aware
   but not a conversion rule. `make verify-backend-native-instruction-surface-decision`
@@ -2758,7 +2761,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      on request; native runtime summary export is now `OREN_NATIVE_RUN_JSON=1`, including
      `oren.native-capsule-effect-gates.v0` central domain-gate counters when capsule mode runs.
      Gas summaries include explicit `oren.gas-surface.v0` descriptors so the report can say native
-     dynamic-emitter gas and AVM opcode gas are not yet the same comparable unit. The report also
+     dynamic-emitter gas is not yet the same comparable unit as canonical AVM opcode-dispatch gas. The report also
      includes empirical `oren.gas-surface-calibration.v0` ratios, but keeps them out of enforcement
      until a conversion contract exists. `make verify-backend-semantic-diff-gas-calibration` runs a
      second loop-heavy calibration point through the same report/guard path, and

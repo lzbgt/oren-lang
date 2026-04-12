@@ -94,6 +94,14 @@ if native_surface.get("cross_arch_comparable") is not False or native_surface.ge
     fail(f"native dynamic-emitter surface must not be marked conversion-ready, got {native_surface!r}")
 if obc_surface.get("schema") != "oren.gas-surface.v0" or obc_surface.get("id") != "avm_opcode_cost_v0":
     fail(f"OBC gas surface mismatch: {obc_surface!r}")
+if obc_surface.get("unit") != "opcode_cost" or obc_surface.get("granularity") != "opcode_dispatch":
+    fail(f"OBC gas surface should declare opcode-dispatch cost units, got {obc_surface!r}")
+if obc_surface.get("unit_scope") != "avm_canonical" or obc_surface.get("runtime_path_aware") is not True:
+    fail(f"OBC gas surface should be runtime-path-aware AVM canonical gas, got {obc_surface!r}")
+if obc_surface.get("cross_arch_comparable") is not True or obc_surface.get("conversion_ready") is not True:
+    fail(f"OBC gas surface should be the conversion-ready AVM canonical target, got {obc_surface!r}")
+if obc_surface.get("avm_canonical") is not True:
+    fail(f"OBC gas surface should preserve avm_canonical=true, got {obc_surface!r}")
 if gas_surfaces.get("native_obc_comparable") is not False:
     fail(f"native/OBC gas surface comparison should be false, got {gas_surfaces!r}")
 calibration = data.get("gas_surface_calibration") or {}
@@ -115,6 +123,12 @@ if calibration.get("native_surface_cross_arch_comparable") is not False or calib
     fail(f"native gas calibration should preserve non-conversion-ready metadata: {calibration!r}")
 if calibration.get("obc_surface_id") != "avm_opcode_cost_v0":
     fail(f"OBC gas calibration surface mismatch: {calibration!r}")
+if calibration.get("obc_surface_unit_scope") != "avm_canonical" or calibration.get("obc_surface_runtime_path_aware") is not True:
+    fail(f"OBC gas calibration should preserve AVM canonical runtime-path-aware metadata: {calibration!r}")
+if calibration.get("obc_surface_cross_arch_comparable") is not True or calibration.get("obc_surface_conversion_ready") is not True:
+    fail(f"OBC gas calibration should preserve AVM canonical conversion metadata: {calibration!r}")
+if calibration.get("obc_surface_avm_canonical") is not True:
+    fail(f"OBC gas calibration should preserve avm_canonical=true, got {calibration!r}")
 if calibration.get("comparable") is not False or calibration.get("not_a_conversion") is not True:
     fail(f"gas calibration must remain empirical evidence, not a conversion: {calibration!r}")
 if int(calibration.get("native_executed") or 0) <= 0 or int(calibration.get("obc_executed") or 0) <= 0:
@@ -215,12 +229,25 @@ if obc_gas.get("kind") != "avm_opcode_cost_v0":
     fail(f"OBC gas kind mismatch: {obc_gas!r}")
 if (obc_gas.get("surface") or {}).get("id") != "avm_opcode_cost_v0":
     fail(f"OBC gas surface should mirror kind, got {obc_gas!r}")
+obc_gas_surface = obc_gas.get("surface") or {}
+if obc_gas_surface.get("unit_scope") != "avm_canonical" or obc_gas_surface.get("runtime_path_aware") is not True:
+    fail(f"OBC gas summary should preserve AVM canonical runtime-path-aware metadata, got {obc_gas!r}")
+if obc_gas_surface.get("cross_arch_comparable") is not True or obc_gas_surface.get("conversion_ready") is not True:
+    fail(f"OBC gas summary should preserve AVM canonical conversion metadata, got {obc_gas!r}")
+if obc_gas_surface.get("avm_canonical") is not True:
+    fail(f"OBC gas summary should preserve avm_canonical=true, got {obc_gas!r}")
 if int(deltas.get("gas_executed", 0)) <= 0:
     fail(f"expected positive OBC gas execution delta, got {deltas!r}")
 if deltas.get("gas_kind") != obc_gas.get("kind"):
     fail(f"OBC gas kind delta should mirror summary budget, got {deltas!r} vs {obc_gas!r}")
 if deltas.get("gas_surface_id") != "avm_opcode_cost_v0":
     fail(f"OBC gas surface delta mismatch, got {deltas!r}")
+if deltas.get("gas_surface_unit_scope") != "avm_canonical" or deltas.get("gas_surface_runtime_path_aware") is not True:
+    fail(f"OBC gas surface delta should preserve AVM canonical runtime-path-aware metadata, got {deltas!r}")
+if deltas.get("gas_surface_cross_arch_comparable") is not True or deltas.get("gas_surface_conversion_ready") is not True:
+    fail(f"OBC gas surface delta should preserve AVM canonical conversion metadata, got {deltas!r}")
+if deltas.get("gas_surface_avm_canonical") is not True:
+    fail(f"OBC gas surface delta should preserve avm_canonical=true, got {deltas!r}")
 if deltas.get("gas_remaining") != obc_gas.get("remaining"):
     fail(f"gas remaining delta should mirror summary budget, got {deltas!r} vs {budgets!r}")
 if deltas.get("heap_bytes_used") != budgets.get("heap_bytes", {}).get("used"):

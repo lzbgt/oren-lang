@@ -101,7 +101,10 @@ Required entry fields:
   `budget_deltas`, ledger availability per backend, and whether full all-backend ledger/budget
   comparison is possible. The report also exposes explicit gas-surface metadata and currently marks
   native/OBC gas as non-comparable because native `native_dynamic_emitter_tick_v0` is not the same unit as
-  AVM `avm_opcode_cost_v0`. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
+  AVM's canonical `avm_opcode_cost_v0` opcode-dispatch gas surface. The AVM surface declares
+  `unit_scope="avm_canonical"`, `runtime_path_aware=true`, `cross_arch_comparable=true`,
+  `conversion_ready=true`, and `avm_canonical=true`; native surfaces must not claim comparability
+  until they can target that unit honestly. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
   conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
   `oren.gas-surface-calibration-set.v0` report from default smoke, loop-heavy, branch-heavy, and
@@ -109,8 +112,8 @@ Required entry fields:
   `oren.gas-surface-conversion-decision.v0` object that blocks package-policy gas conversion from a
   single empirical ratio until Oren has validated native dynamic-emitter or instruction-equivalent gas evidence.
   The calibration samples also carry the native surface's `unit_scope`, `target_arch`,
-  `unit_family`, `runtime_path_aware`, `cross_arch_comparable`, and `conversion_ready` metadata so the
-  decision is blocked by declared surface semantics as well as by the observed ratio spread. Default
+  `unit_family`, `runtime_path_aware`, `cross_arch_comparable`, and `conversion_ready` metadata plus
+  the AVM surface's canonical metadata, so the decision is blocked by declared surface semantics as well as by the observed ratio spread. Default
   calibration-set reports also carry `required_sample_classes` / `observed_sample_classes` so a future
   conversion rule cannot be inferred from only loop-heavy or branch-heavy samples.
   C ledger export is still intentionally reported as unavailable rather than inferred from logs.
@@ -180,7 +183,11 @@ mode, record/replay, and budget accounting were active for the run:
           "id": "avm_opcode_cost_v0",
           "backend": "bytecode",
           "unit": "opcode_cost",
+          "unit_scope": "avm_canonical",
           "granularity": "opcode_dispatch",
+          "runtime_path_aware": true,
+          "cross_arch_comparable": true,
+          "conversion_ready": true,
           "avm_canonical": true
         }
       },
@@ -223,7 +230,9 @@ has runtime path-aware native evidence, but each gas object carries an explicit 
 `cross_arch_comparable=false`, and `conversion_ready=false`; arm64 reports
 `unit_family="fixed_width_instruction_span"` while x64 reports `unit_family="emitted_byte_span"`, so
 both can expose path-aware evidence without pretending the counter is architecture-neutral instruction gas. That surface keeps native
-`native_dynamic_emitter_tick_v0` distinct from AVM `avm_opcode_cost_v0`; semantic diff reports the current
+`native_dynamic_emitter_tick_v0` distinct from AVM's canonical `avm_opcode_cost_v0`
+(`unit_scope="avm_canonical"`, `runtime_path_aware=true`, `cross_arch_comparable=true`,
+`conversion_ready=true`); semantic diff reports the current
 native/OBC gas surfaces as non-comparable until Oren validates a conversion contract. The exact native mode spelling
 `instruction-equivalent` is reserved: today the guard proves it falls back to default loop-safepoint
 gas instead of silently aliasing statement, basic-block, block-weighted, or dynamic-emitter gas.

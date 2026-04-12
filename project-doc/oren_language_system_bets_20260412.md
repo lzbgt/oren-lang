@@ -137,7 +137,9 @@ It is a language plus runtime plus artifact contract.
   loop-safepoint, opt-in statement+loop, opt-in lowering-block, opt-in weighted lowering-block, or
   opt-in dynamic-emitter native gas. Native and AVM gas summaries now carry explicit
   `oren.gas-surface.v0` metadata, and semantic diff marks `native_dynamic_emitter_tick_v0` and
-  `avm_opcode_cost_v0` as non-comparable rather than pretending any positive counter is enough.
+  canonical `avm_opcode_cost_v0` opcode-dispatch gas (`unit_scope="avm_canonical"`,
+  `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`,
+  `avm_canonical=true`) as non-comparable rather than pretending any positive counter is enough.
   The next step is a conversion contract or finer native instruction-equivalent gas rather than
   another manifest-only field.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
@@ -152,8 +154,8 @@ It is a language plus runtime plus artifact contract.
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
   validated native dynamic-emitter or instruction-equivalent gas exists, and each calibration sample
   carries native surface metadata (`unit_scope`, `target_arch`, `unit_family`, `runtime_path_aware`,
-  `cross_arch_comparable`, `conversion_ready`) so tooling can reject conversion by contract rather
-  than by ratio heuristics alone. The first dynamic-emitter
+  `cross_arch_comparable`, `conversion_ready`) plus the AVM canonical surface metadata, so tooling can
+  reject conversion by contract rather than by ratio heuristics alone. The first dynamic-emitter
   calibration set (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`)
   still spans `~2.49x` to `~16.82x` native ticks per AVM opcode gas, so dynamic-emitter evidence is
   path-aware but still not a conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native

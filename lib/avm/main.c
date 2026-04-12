@@ -71,7 +71,7 @@ static void print_effect_ledger_summary_json(FILE* out, const AvmVM* vm, uint64_
         (unsigned long long)replay_bytes,
         (unsigned)(vm ? vm->replay_log_pos : 0));
     fprintf(out, ",\"budgets\":{");
-    fprintf(out, "\"gas\":{\"executed\":%llu,\"remaining\":%llu,\"kind\":\"avm_opcode_cost_v0\",\"surface\":{\"schema\":\"oren.gas-surface.v0\",\"id\":\"avm_opcode_cost_v0\",\"backend\":\"bytecode\",\"unit\":\"opcode_cost\",\"granularity\":\"opcode_dispatch\",\"avm_canonical\":true}}",
+    fprintf(out, "\"gas\":{\"executed\":%llu,\"remaining\":%llu,\"kind\":\"avm_opcode_cost_v0\",\"surface\":{\"schema\":\"oren.gas-surface.v0\",\"id\":\"avm_opcode_cost_v0\",\"backend\":\"bytecode\",\"unit\":\"opcode_cost\",\"unit_scope\":\"avm_canonical\",\"granularity\":\"opcode_dispatch\",\"runtime_path_aware\":true,\"cross_arch_comparable\":true,\"conversion_ready\":true,\"avm_canonical\":true}}",
         (unsigned long long)(vm ? vm->gas_executed : 0),
         (unsigned long long)(vm ? vm->gas_remaining : 0));
     fprintf(out, ",\"heap_bytes\":{\"limit\":%llu,\"used\":%llu}",

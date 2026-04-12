@@ -160,6 +160,9 @@ for i in range(0, len(items), 3):
     native_surface_target_arch = calibration.get("native_surface_target_arch")
     native_surface_unit_family = calibration.get("native_surface_unit_family")
     obc_surface_id = calibration.get("obc_surface_id")
+    obc_surface_unit_scope = calibration.get("obc_surface_unit_scope")
+    obc_surface_conversion_ready = calibration.get("obc_surface_conversion_ready")
+    obc_surface_avm_canonical = calibration.get("obc_surface_avm_canonical")
     whole_binary_instruction_count = count_disasm_instructions(disasm_log)
     if native_executed <= 0 or obc_executed <= 0:
         raise SystemExit(f"{semantic_report}: expected positive semantic gas counters, got {calibration!r}")
@@ -174,6 +177,10 @@ for i in range(0, len(items), 3):
         )
     if obc_surface_id != "avm_opcode_cost_v0":
         raise SystemExit(f"{semantic_report}: expected AVM opcode gas surface, got {obc_surface_id!r}")
+    if obc_surface_unit_scope != "avm_canonical" or obc_surface_conversion_ready is not True:
+        raise SystemExit(f"{semantic_report}: expected AVM canonical conversion-ready gas metadata, got {calibration!r}")
+    if obc_surface_avm_canonical is not True:
+        raise SystemExit(f"{semantic_report}: expected avm_canonical=true in OBC gas metadata, got {calibration!r}")
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -186,6 +193,9 @@ for i in range(0, len(items), 3):
             "native_surface_target_arch": native_surface_target_arch,
             "native_surface_unit_family": native_surface_unit_family,
             "obc_surface_id": obc_surface_id,
+            "obc_surface_unit_scope": obc_surface_unit_scope,
+            "obc_surface_conversion_ready": obc_surface_conversion_ready,
+            "obc_surface_avm_canonical": obc_surface_avm_canonical,
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
@@ -227,6 +237,10 @@ decision = {
     "observed_runtime_surface_dynamic": True,
     "observed_runtime_surface_target_arch": samples[0]["native_surface_target_arch"],
     "observed_runtime_surface_unit_family": samples[0]["native_surface_unit_family"],
+    "observed_obc_surface_id": "avm_opcode_cost_v0",
+    "observed_obc_surface_unit_scope": "avm_canonical",
+    "observed_obc_surface_conversion_ready": True,
+    "observed_obc_surface_avm_canonical": True,
     "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
     "required_sample_classes": required_sample_classes,
     "observed_sample_classes": sample_classes,

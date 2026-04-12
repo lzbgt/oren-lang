@@ -109,6 +109,11 @@ for path in report_paths:
     cur_native_runtime_path_aware = calibration.get("native_surface_runtime_path_aware")
     cur_native_cross_arch_comparable = calibration.get("native_surface_cross_arch_comparable")
     cur_native_conversion_ready = calibration.get("native_surface_conversion_ready")
+    cur_obc_unit_scope = calibration.get("obc_surface_unit_scope")
+    cur_obc_runtime_path_aware = calibration.get("obc_surface_runtime_path_aware")
+    cur_obc_cross_arch_comparable = calibration.get("obc_surface_cross_arch_comparable")
+    cur_obc_conversion_ready = calibration.get("obc_surface_conversion_ready")
+    cur_obc_avm_canonical = calibration.get("obc_surface_avm_canonical")
     if cur_native_unit_scope != "backend_local" or cur_native_runtime_path_aware is not True:
         raise SystemExit(
             f"{path}: native dynamic-emitter calibration should be backend-local runtime-path-aware evidence: {calibration!r}"
@@ -136,6 +141,12 @@ for path in report_paths:
         raise SystemExit(
             f"{path}: native dynamic-emitter calibration must remain non-conversion-ready: {calibration!r}"
         )
+    if cur_obc_unit_scope != "avm_canonical" or cur_obc_runtime_path_aware is not True:
+        raise SystemExit(f"{path}: OBC calibration should preserve AVM canonical runtime-path-aware metadata: {calibration!r}")
+    if cur_obc_cross_arch_comparable is not True or cur_obc_conversion_ready is not True:
+        raise SystemExit(f"{path}: OBC calibration should preserve AVM canonical conversion metadata: {calibration!r}")
+    if cur_obc_avm_canonical is not True:
+        raise SystemExit(f"{path}: OBC calibration should preserve avm_canonical=true: {calibration!r}")
 
     native_executed = int(calibration.get("native_executed") or 0)
     obc_executed = int(calibration.get("obc_executed") or 0)
@@ -159,6 +170,11 @@ for path in report_paths:
             "native_surface_cross_arch_comparable": cur_native_cross_arch_comparable,
             "native_surface_conversion_ready": cur_native_conversion_ready,
             "obc_surface_id": cur_obc_surface,
+            "obc_surface_unit_scope": cur_obc_unit_scope,
+            "obc_surface_runtime_path_aware": cur_obc_runtime_path_aware,
+            "obc_surface_cross_arch_comparable": cur_obc_cross_arch_comparable,
+            "obc_surface_conversion_ready": cur_obc_conversion_ready,
+            "obc_surface_avm_canonical": cur_obc_avm_canonical,
             "native_executed": native_executed,
             "obc_executed": obc_executed,
             "native_per_obc": native_per_obc,
@@ -199,6 +215,11 @@ conversion_decision = {
     "not_a_conversion": True,
     "surface_metadata_blocks_conversion": surface_metadata_blocks_conversion,
     "native_surface_conversion_ready": False,
+    "obc_surface_unit_scope": "avm_canonical",
+    "obc_surface_runtime_path_aware": True,
+    "obc_surface_cross_arch_comparable": True,
+    "obc_surface_conversion_ready": True,
+    "obc_surface_avm_canonical": True,
     "forbidden_policy": "single_fixture_ratio",
     "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
     "required_sample_classes": required_sample_classes,
@@ -221,6 +242,11 @@ out = {
         "native_surface_runtime_path_aware": True,
         "native_surface_cross_arch_comparable": False,
         "native_surface_conversion_ready": False,
+        "obc_surface_unit_scope": "avm_canonical",
+        "obc_surface_runtime_path_aware": True,
+        "obc_surface_cross_arch_comparable": True,
+        "obc_surface_conversion_ready": True,
+        "obc_surface_avm_canonical": True,
     },
     "sample_count": len(samples),
     "required_sample_classes": required_sample_classes,

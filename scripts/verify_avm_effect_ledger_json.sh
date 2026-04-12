@@ -105,6 +105,14 @@ if gas.get("kind") != "avm_opcode_cost_v0":
 surface = gas.get("surface", {})
 if surface.get("schema") != "oren.gas-surface.v0" or surface.get("id") != "avm_opcode_cost_v0":
     raise SystemExit(f"expected AVM opcode gas surface, got {gas}")
+if surface.get("unit") != "opcode_cost" or surface.get("granularity") != "opcode_dispatch":
+    raise SystemExit(f"expected AVM opcode-dispatch gas surface unit, got {surface}")
+if surface.get("unit_scope") != "avm_canonical" or surface.get("runtime_path_aware") is not True:
+    raise SystemExit(f"expected runtime-path-aware AVM canonical gas surface, got {surface}")
+if surface.get("cross_arch_comparable") is not True or surface.get("conversion_ready") is not True:
+    raise SystemExit(f"expected conversion-ready AVM canonical gas surface, got {surface}")
+if surface.get("avm_canonical") is not True:
+    raise SystemExit(f"expected AVM canonical gas surface marker, got {surface}")
 wall = budgets.get("wall_ms", {})
 if wall.get("limit") != 1000:
     raise SystemExit(f"expected wall_ms limit 1000, got {wall}")

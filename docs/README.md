@@ -57,7 +57,7 @@ make test-native-quick-green-fairness-onearg-count-sweep-flake  # focused one-ar
 make test-native-quick-green-fairness-modes-flake  # split stage1 fairness triage (zero/one-arg leaf controls first, then mixed slices with/without topology)
 make verify-runtime-robustness  # W5 runtime robustness smoke (stage1 base + mixed local-ptr direct + pre-world-lock + stage2 + C-backend builds; fairness stays triage-only)
 make verify-backend-parity  # cross-backend parity smokes (C/native/obc)
-make verify-backend-semantic-diff  # emits C/native/obc parity JSON plus ledger and gas-surface evidence
+make verify-backend-semantic-diff  # emits C/native/obc parity JSON plus ledger and canonical AVM gas-surface evidence
 make verify-backend-semantic-diff-gas-calibration  # second semantic-diff gas calibration fixture
 make verify-backend-semantic-diff-gas-branch-calibration  # branch-heavy semantic-diff gas calibration fixture
 make verify-backend-semantic-diff-gas-call-calibration  # call-heavy semantic-diff gas calibration fixture
