@@ -43,6 +43,8 @@ for key in ("stdout_equal", "exit_code_equal", "all_exit_zero", "expected_line_p
 
 if checks.get("obc_run_json_schema_ok") is not True:
     fail(f"expected obc_run_json_schema_ok=true, got {checks.get('obc_run_json_schema_ok')!r}")
+if checks.get("obc_run_json_status_ok") is not True or checks.get("obc_run_json_error_null") is not True:
+    fail(f"expected OBC run JSON ok/null error, got status_ok={checks.get('obc_run_json_status_ok')!r} error_null={checks.get('obc_run_json_error_null')!r}")
 if checks.get("native_run_json_schema_ok") is not True:
     fail(f"expected native_run_json_schema_ok=true, got {checks.get('native_run_json_schema_ok')!r}")
 if checks.get("native_effect_ledger_summary_schema_ok") is not True:
@@ -263,6 +265,8 @@ if not ledger.get("run_json_stderr_log") or not Path(ledger["run_json_stderr_log
     fail(f"OBC run JSON stderr log missing: {ledger.get('run_json_stderr_log')!r}")
 if ledger.get("run_json_exit_code") != 0:
     fail(f"OBC run JSON exit mismatch: {ledger.get('run_json_exit_code')!r}")
+if ledger.get("run_json_status") != "ok" or ledger.get("run_json_error") is not None:
+    fail(f"OBC run JSON should expose ok/null error, got {ledger!r}")
 
 summary = ledger.get("summary") or {}
 budgets = summary.get("budgets") or {}

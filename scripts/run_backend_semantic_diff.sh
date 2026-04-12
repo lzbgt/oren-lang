@@ -247,6 +247,8 @@ def unavailable_ledger(reason):
         "run_json_log": None,
         "run_json_stderr_log": None,
         "run_json_exit_code": None,
+        "run_json_status": None,
+        "run_json_error": None,
     }
 
 backends = {}
@@ -306,6 +308,8 @@ backends["native"]["ledger"] = {
     "run_json_log": native_run_json_log,
     "run_json_stderr_log": native_run_json_stderr_log,
     "run_json_exit_code": native_run_json_rc,
+    "run_json_status": native_run_json.get("status") if isinstance(native_run_json, dict) else None,
+    "run_json_error": native_run_json.get("error") if isinstance(native_run_json, dict) else None,
 }
 
 obc_run_json = find_last_json_obj(read_text(obc_run_json_log))
@@ -333,6 +337,8 @@ backends["obc"]["ledger"] = {
     "run_json_log": obc_run_json_log,
     "run_json_stderr_log": obc_run_json_stderr_log,
     "run_json_exit_code": obc_run_json_rc,
+    "run_json_status": obc_run_json.get("status") if isinstance(obc_run_json, dict) else None,
+    "run_json_error": obc_run_json.get("error") if isinstance(obc_run_json, dict) else None,
 }
 
 order = ["c", "native", "obc"]
@@ -515,6 +521,8 @@ out = {
         "obc_run_json_exit_zero": obc_run_json_rc == 0,
         "obc_run_json_schema": obc_run_json_schema,
         "obc_run_json_schema_ok": obc_run_json_schema == "avm.run.v1",
+        "obc_run_json_status_ok": obc_run_json.get("status") == "ok" if isinstance(obc_run_json, dict) else False,
+        "obc_run_json_error_null": obc_run_json.get("error") is None if isinstance(obc_run_json, dict) else False,
         "obc_effect_ledger_summary_present": obc_ledger_ok,
         "obc_effect_ledger_summary_schema": obc_ledger_summary_schema,
         "obc_effect_ledger_summary_schema_ok": obc_ledger_summary_schema == "oren.effect-ledger-summary.v0",

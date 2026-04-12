@@ -98,7 +98,8 @@ Required entry fields:
   exit codes, normalized stdout/stderr hashes, log paths, and a pass/fail verdict. It also runs
   a second native execution with `OREN_NATIVE_RUN_JSON=1` and the OBC artifact with
   `--print-run-json`. Those runs record native/AVM `effect_ledger_summary` bridges, normalized
-  `budget_deltas`, ledger availability per backend, and whether full all-backend ledger/budget
+  `budget_deltas`, AVM `avm.run.v1` `status` / `error` fields, ledger availability per
+  backend, and whether full all-backend ledger/budget
   comparison is possible. The report also exposes explicit gas-surface metadata and currently marks
   native/OBC gas as non-comparable because native `native_dynamic_emitter_tick_v0` is not the same unit as
   AVM's canonical `avm_opcode_cost_v0` opcode-dispatch gas surface. The AVM surface declares
