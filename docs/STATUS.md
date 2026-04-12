@@ -1601,14 +1601,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
 			   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
 			     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
-			     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget
-			     exhaustion through structured `avm.run.v1.error` evidence.
-			     `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` turns that package-bound
-		     sidecar into explicit `budget_gas` enforcement, reported as
-		     `runner_wall_avm_canonical_gas` with `enforcement_profile="avm-sidecar"`; the shared
-		     dispatcher exposes the same policy as
-		     `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar` and now defaults
-		     native dispatch to `auto`, which selects it when `budget_gas` is declared.
+				     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget
+				     exhaustion through structured `avm.run.v1.error` evidence.
+				     `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` turns that package-bound
+				     sidecar into explicit `budget_gas` enforcement, reported as
+				     `runner_wall_avm_canonical_gas` with `enforcement_profile="avm-sidecar"`; the shared
+				     dispatcher exposes the same policy as
+				     `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar` and now defaults
+				     native dispatch to `auto`, which selects it when `budget_gas` is declared.
+				     Non-certified sidecar evidence is now guarded explicitly: the package-policy verifier
+				     injects an auditable stdout mismatch, requires `certification_status="unavailable"` and
+				     `certification_failure_reasons=["stdout_mismatch"]`, and checks the runner reports
+				     `budget_unavailable` instead of treating the AVM sidecar as gas enforcement.
 	   - `docs/GAS_SURFACE_REGISTRY.md` plus `make verify-gas-surface-registry` now guard the registered
 	     gas-surface inventory, including AVM-canonical versus native backend-local conversion status.
 

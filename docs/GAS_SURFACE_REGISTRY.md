@@ -61,6 +61,9 @@ records include normalized stdout/stderr hashes, explicit `same_run_stderr_equal
 `certification_status`, non-blocking `certification_warnings`, `certification_failure_reasons`, and
 `package_policy_may_use_reason` so consumers can distinguish
 parity certificates, budget-exceeded certificates, and non-certified sidecar outcomes.
+Verifier-only non-certified probes are auditable through `test_injection`; normal sidecar
+certificates must leave that field `null`, and the calibration-set / native instruction-surface
+decision reports preserve aggregate test-injection-free evidence for their semantic-diff sidecars.
 Budget-exceeded sidecar certificates prefer the structured AVM `avm.run.v1.error` object
 (`code=9`, `msg="budget exceeded (gas)"`) over stderr text.
 `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher

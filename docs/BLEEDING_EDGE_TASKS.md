@@ -86,7 +86,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  `package_policy_may_use=false`, normalized stdout/stderr hashes, explicit `same_run_stderr_equal`,
 	  non-blocking `certification_warnings`, `certification_status`, and
 	  `certification_failure_reasons` evidence. Higher-level calibration and native instruction-surface
-	  decision reports preserve that warning-free stderr-parity evidence.
+	  decision reports preserve that warning-free stderr-parity and test-injection-free evidence.
+	  Native package-policy verification now also covers the non-certified sidecar branch with an
+	  auditable stdout-mismatch `test_injection`, requiring `budget_unavailable` rather than accidental
+	  `budget_gas` enforcement.
 	  `make verify-backend-gas-surface-calibration-set`
 	  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
 	  branch-heavy, call-heavy, and allocation-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and

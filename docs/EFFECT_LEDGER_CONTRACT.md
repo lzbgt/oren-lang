@@ -142,7 +142,12 @@ Required entry fields:
   explicit `same_run_stderr_equal` evidence, `certification_status`, non-blocking
   `certification_warnings`, `certification_failure_reasons`, and `package_policy_may_use_reason`
   while still preserving
-  `native_runtime_conversion=false`. With
+  `native_runtime_conversion=false`.
+  The native package-policy guard also injects an auditable verifier-only stdout mismatch
+  (`test_injection="stdout_suffix"`) and requires `certification_status="unavailable"`,
+  `certification_failure_reasons=["stdout_mismatch"]`, `package_policy_may_use=false`, and
+  `budget_unavailable` runner status for that non-certified sidecar path.
+  With
   `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
   `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that
   package-bound sidecar into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0`
@@ -281,7 +286,9 @@ same schema guard against an additional loop-heavy fixture, and
 report proving the current ratio spread across default, loop-heavy, branch-heavy, call-heavy, and
 allocation-heavy fixtures is too fixture-sensitive to promote as a conversion rule. The same report
 carries an `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false`
-and `required_next_surface="native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"`.
+and `required_next_surface="native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"`,
+and preserves aggregate `avm_canonical_sidecar_test_injection_free` evidence for its semantic-diff
+sidecars.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:
 `oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
 as a runtime gas surface by cross-checking them against the current `native_dynamic_emitter_tick_v0`

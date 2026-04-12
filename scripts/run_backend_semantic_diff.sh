@@ -488,6 +488,7 @@ avm_canonical_sidecar_gas = {
     "certification_status": "stdout_exit_match" if avm_canonical_sidecar_gas_available else "unavailable",
     "certification_failure_reasons": avm_canonical_sidecar_failure_reasons,
     "certification_warnings": avm_canonical_sidecar_warnings,
+    "test_injection": None,
     "gas_surface": obc_gas_surface,
     "gas_executed": obc_gas_executed,
     "budget_exceeded": False,

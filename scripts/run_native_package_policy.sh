@@ -252,7 +252,7 @@ def avm_allow_domains_for_package(domains):
         domain_ids.add(AVM_DOMAIN_IDS[name])
     return ",".join(str(x) for x in sorted(domain_ids))
 
-def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json):
+def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json, test_injection=None):
     avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
     native_stdout_normalized = strip_run_json_lines(native_stdout)
     avm_stdout_normalized = strip_run_json_lines(avm_stdout)
@@ -336,6 +336,7 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
         "certification_status": certification_status,
         "certification_failure_reasons": certification_failure_reasons,
         "certification_warnings": certification_warnings,
+        "test_injection": test_injection,
         "gas_surface": avm_gas_surface,
         "gas_executed": avm_gas_used,
         "gas_remaining": avm_gas_remaining,
@@ -710,6 +711,8 @@ try:
                 "package_policy_may_use_reason": "avm_canonical_sidecar_timeout",
                 "certification_status": "timeout",
                 "certification_failure_reasons": ["timeout"],
+                "certification_warnings": [],
+                "test_injection": None,
                 "policy_scope": "native_package_policy_same_source_artifact",
                 "reason": "AVM canonical sidecar timed out under package wall budget",
             }
@@ -728,16 +731,23 @@ try:
                 avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail("package AVM canonical sidecar timed out", rc=77)
+        avm_stdout_for_payload = avm_p.stdout or ""
+        test_sidecar_stdout_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDOUT_SUFFIX")
+        test_injection = None
+        if test_sidecar_stdout_suffix:
+            avm_stdout_for_payload = f"{avm_stdout_for_payload}{test_sidecar_stdout_suffix}"
+            test_injection = "stdout_suffix"
         avm_sidecar_gas = avm_canonical_sidecar_payload(
             src=src,
             obc=obc_sidecar,
             native_stdout=native_stdout,
             native_stderr=p.stderr or "",
             native_exit_code=p.returncode,
-            avm_stdout=avm_p.stdout or "",
+            avm_stdout=avm_stdout_for_payload,
             avm_exit_code=avm_p.returncode,
             avm_run_json=extract_avm_run_json(avm_p.stdout or ""),
             avm_stderr=avm_p.stderr or "",
+            test_injection=test_injection,
         )
         if gas_enforcement_profile == "avm-sidecar" and avm_sidecar_gas.get("status") == "budget_exceeded":
             write_run_json(run_summary_payload(

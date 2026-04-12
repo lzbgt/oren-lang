@@ -106,6 +106,8 @@ for path in report_paths:
         raise SystemExit(f"{path}: AVM canonical sidecar should preserve semantic-diff stderr parity evidence: {sidecar!r}")
     if sidecar.get("certification_warnings") != []:
         raise SystemExit(f"{path}: AVM canonical sidecar should preserve warning-free semantic-diff evidence: {sidecar!r}")
+    if sidecar.get("test_injection") is not None:
+        raise SystemExit(f"{path}: semantic-diff sidecar should not carry verifier test injection: {sidecar!r}")
 
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
@@ -208,6 +210,7 @@ for path in report_paths:
             "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
             "avm_canonical_sidecar_stderr_equal": sidecar.get("same_run_stderr_equal"),
             "avm_canonical_sidecar_certification_warnings": sidecar.get("certification_warnings"),
+            "avm_canonical_sidecar_test_injection": sidecar.get("test_injection"),
             "native_executed": native_executed,
             "obc_executed": obc_executed,
             "native_per_obc": native_per_obc,
@@ -257,6 +260,7 @@ conversion_decision = {
     "package_policy_may_use_avm_sidecar": False,
     "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
     "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
+    "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
     "forbidden_policy": "single_fixture_ratio",
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
@@ -288,6 +292,7 @@ out = {
         "package_policy_may_use_avm_sidecar": False,
         "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
         "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
+        "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
     },
     "sample_count": len(samples),
     "required_sample_classes": required_sample_classes,

@@ -161,6 +161,8 @@ if avm_sidecar.get("certification_failure_reasons") != []:
     fail(f"AVM canonical sidecar should have no certification failure reasons for semantic-diff fixtures, got {avm_sidecar!r}")
 if avm_sidecar.get("certification_warnings") != []:
     fail(f"AVM canonical sidecar should have no certification warnings for semantic-diff fixtures, got {avm_sidecar!r}")
+if avm_sidecar.get("test_injection") is not None:
+    fail(f"semantic-diff AVM canonical sidecar should not carry verifier test injection, got {avm_sidecar!r}")
 if avm_sidecar.get("budget_exceeded") is not False or avm_sidecar.get("budget_exceeded_source") is not None:
     fail(f"semantic-diff AVM canonical sidecar should not claim budget exhaustion, got {avm_sidecar!r}")
 if avm_sidecar.get("sidecar_error") is not None:

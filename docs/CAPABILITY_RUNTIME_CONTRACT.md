@@ -229,7 +229,9 @@ budgets, checks stdout/exit parity with the native run after removing run-JSON l
 `oren.avm-canonical-sidecar-gas.v0` with `policy_scope="native_package_policy_same_source_artifact"`,
 normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, an explicit
 `certification_status`, machine-readable non-blocking `certification_warnings`, and machine-readable
-`certification_failure_reasons` for non-certified sidecar outcomes.
+`certification_failure_reasons` for non-certified sidecar outcomes. The runner verifier now has an
+auditable stdout-mismatch probe (`test_injection="stdout_suffix"`) proving non-certified sidecar
+evidence fails closed with `budget_unavailable` instead of being accepted by gas enforcement.
 That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the
 resolved `avm-sidecar` gas profile uses it as package `budget_gas` enforcement. The `auto` profile
 can resolve there for gas-budgeted packages.
@@ -278,6 +280,8 @@ package-policy authority. Both semantic-diff and package-policy sidecar records 
 stdout/stderr hashes plus `package_policy_may_use_reason`, so consumers can audit whether the
 certificate came from stdout/exit parity or from AVM canonical budget exhaustion, and inspect
 `certification_failure_reasons` when certification is unavailable.
+Verifier-only test injection is explicit in the sidecar record and must stay absent from normal
+semantic-diff/package-policy certificates.
 	`docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` keep that gas-surface inventory
 	and conversion status aligned with runtime JSON, semantic-diff, and package-policy evidence.
 The exact `instruction-equivalent` spelling is a reserved request and is guarded not
