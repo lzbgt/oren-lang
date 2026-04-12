@@ -160,7 +160,10 @@ Required entry fields:
   `missing_or_nonpositive_avm_gas`, or `timeout` failure evidence before the runner reports
   `budget_unavailable`. A sidecar build-failure probe (`test_injection="build_fail"`) now also requires
   `certification_status="build_failed"` plus `certification_failure_reasons=["sidecar_build_failed"]`,
-  preserving a structured non-certified sidecar record even when no AVM sidecar run exists.
+  preserving a structured non-certified sidecar record even when no AVM sidecar run exists. A
+  native-failure fixture now also requires `certification_status="not_run_native_failed"` and
+  `certification_failure_reasons=["native_exit_nonzero"]`, preserving the native program failure exit
+  instead of masking it as a package-policy sidecar certification failure.
   With
   `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
   `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that

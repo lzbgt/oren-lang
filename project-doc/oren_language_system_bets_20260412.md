@@ -164,6 +164,8 @@ It is a language plus runtime plus artifact contract.
 		  non-certified, so package policy requires real AVM canonical gas evidence before enforcement.
 		  Sidecar build failure now also emits structured `sidecar_build_failed` evidence instead of
 		  leaving package-policy consumers with a missing JSON report.
+		  A native package failure before sidecar execution now keeps the native exit and records
+		  `not_run_native_failed` / `native_exit_nonzero`, avoiding a misleading sidecar-gas error.
 		  It can now also select
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus

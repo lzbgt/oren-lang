@@ -307,6 +307,43 @@ def avm_canonical_sidecar_build_failed_payload(*, src, obc, build_log, build_exi
         "reason": "AVM canonical sidecar build failed before package run",
     }
 
+def avm_canonical_sidecar_not_run_native_failed_payload(*, src, obc, native_stdout, native_stderr, native_exit_code):
+    native_stdout_normalized = strip_run_json_lines(native_stdout)
+    native_stderr_normalized = strip_run_json_lines(native_stderr)
+    return {
+        "schema": "oren.avm-canonical-sidecar-gas.v0",
+        "status": "not_run_native_failed",
+        "source": str(src),
+        "native_backend": "native",
+        "sidecar_backend": "obc",
+        "sidecar_artifact": str(obc),
+        "same_source": True,
+        "same_run_stdout_equal": None,
+        "same_run_stderr_equal": None,
+        "same_run_exit_code_equal": None,
+        "native_exit_code": native_exit_code,
+        "sidecar_exit_code": None,
+        "native_stdout_sha256": sha256_s(native_stdout_normalized),
+        "sidecar_stdout_sha256": None,
+        "native_stderr_sha256": sha256_s(native_stderr_normalized),
+        "sidecar_stderr_sha256": None,
+        "certification_status": "not_run_native_failed",
+        "certification_failure_reasons": ["native_exit_nonzero"],
+        "certification_warnings": [],
+        "test_injection": None,
+        "gas_surface": None,
+        "gas_executed": None,
+        "gas_remaining": None,
+        "budget_exceeded": False,
+        "budget_exceeded_source": None,
+        "sidecar_error": None,
+        "native_runtime_conversion": False,
+        "package_policy_may_use": False,
+        "package_policy_may_use_reason": "native_run_failed_before_sidecar",
+        "policy_scope": "native_package_policy_same_source_artifact",
+        "reason": "AVM canonical sidecar was not run because the native package run failed",
+    }
+
 def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json, test_injection=None):
     avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
     native_stdout_normalized = strip_run_json_lines(native_stdout)
@@ -763,6 +800,14 @@ try:
     elapsed_ns = time.monotonic_ns() - start_ns
     cpu_used_ms = cpu_delta_ms(cpu_before_ms, child_cpu_ms_snapshot())
     avm_sidecar_gas = None
+    if avm_sidecar_enabled and p.returncode != 0:
+        avm_sidecar_gas = avm_canonical_sidecar_not_run_native_failed_payload(
+            src=src,
+            obc=obc_sidecar,
+            native_stdout=native_stdout,
+            native_stderr=p.stderr or "",
+            native_exit_code=p.returncode,
+        )
     if avm_sidecar_enabled and p.returncode == 0:
         avm_env = os.environ.copy()
         if profile == "capsule":
@@ -904,7 +949,7 @@ try:
                 avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail("package AVM canonical sidecar gas could not be certified for native run", rc=77)
-    if gas_limit is not None and gas_enforcement_profile == "avm-sidecar":
+    if gas_limit is not None and gas_enforcement_profile == "avm-sidecar" and p.returncode == 0:
         if not avm_sidecar_gas or avm_sidecar_gas.get("package_policy_may_use") is not True:
             write_run_json(run_summary_payload(
                 exit_code=77,
@@ -921,7 +966,7 @@ try:
                 avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail("package AVM canonical sidecar gas was not certified for enforcement", rc=77)
-    elif gas_limit is not None:
+    elif gas_limit is not None and gas_enforcement_profile == "native-stmt":
         gas_used, gas_remaining, gas_kind, gas_surface = native_gas_from_run_json(native_run_json)
         gas_surface_id = gas_surface.get("id") if isinstance(gas_surface, dict) else None
         if gas_used is None or gas_kind != NATIVE_GAS_KIND or gas_surface_id != NATIVE_GAS_KIND:

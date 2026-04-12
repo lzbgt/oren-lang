@@ -242,6 +242,10 @@ gas evidence fails closed instead of becoming package-policy gas enforcement. A 
 probe (`test_injection="build_fail"`) also emits a structured non-certified sidecar record with
 `certification_status="build_failed"` and `certification_failure_reasons=["sidecar_build_failed"]`
 instead of leaving consumers to infer policy state from a missing JSON report.
+If the native package run itself exits nonzero before sidecar execution, the runner preserves that
+native failure and records `certification_status="not_run_native_failed"` with
+`certification_failure_reasons=["native_exit_nonzero"]`, rather than replacing the native exit with a
+generic gas-certification error.
 That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the
 resolved `avm-sidecar` gas profile uses it as package `budget_gas` enforcement. The `auto` profile
 can resolve there for gas-budgeted packages.

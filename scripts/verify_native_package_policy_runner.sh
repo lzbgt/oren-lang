@@ -57,6 +57,9 @@ gas_sidecar_timeout_json="$TMP/gas-sidecar-timeout.run.json"
 gas_sidecar_build_fail_out="$TMP/gas-sidecar-build-fail.out"
 gas_sidecar_build_fail_err="$TMP/gas-sidecar-build-fail.err"
 gas_sidecar_build_fail_json="$TMP/gas-sidecar-build-fail.run.json"
+gas_sidecar_native_fail_out="$TMP/gas-sidecar-native-fail.out"
+gas_sidecar_native_fail_err="$TMP/gas-sidecar-native-fail.err"
+gas_sidecar_native_fail_json="$TMP/gas-sidecar-native-fail.run.json"
 gas_profile_bad_out="$TMP/gas-profile-bad.out"
 gas_profile_bad_err="$TMP/gas-profile-bad.err"
 gas_profile_avm_bad_out="$TMP/gas-profile-avm-bad.out"
@@ -208,6 +211,10 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_build_fail_json" \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_sidecar_build_fail_out" 2>"$gas_sidecar_build_fail_err"
 gas_sidecar_build_fail_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_native_fail_json" \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_native_fail.oren \
+  >"$gas_sidecar_native_fail_out" 2>"$gas_sidecar_native_fail_err"
+gas_sidecar_native_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=sidecar \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_profile_bad_out" 2>"$gas_profile_bad_err"
@@ -233,7 +240,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" "$gas_sidecar_build_fail_json" "$gas_sidecar_native_fail_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -260,6 +267,7 @@ gas_sidecar_missing_surface_path = Path(sys.argv[19])
 gas_sidecar_zero_gas_path = Path(sys.argv[20])
 gas_sidecar_timeout_path = Path(sys.argv[21])
 gas_sidecar_build_fail_path = Path(sys.argv[22])
+gas_sidecar_native_fail_path = Path(sys.argv[23])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -960,6 +968,45 @@ if (
     fail(f"{gas_sidecar_build_fail_path}: build-failed sidecar should not claim runtime parity evidence, got {sidecar_build_fail!r}")
 if sidecar_build_fail.get("gas_surface") is not None or sidecar_build_fail.get("gas_executed") is not None:
     fail(f"{gas_sidecar_build_fail_path}: build-failed sidecar should not expose gas evidence, got {sidecar_build_fail!r}")
+
+gas_sidecar_native_fail = load(gas_sidecar_native_fail_path)
+if gas_sidecar_native_fail.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_sidecar_native_fail_path}: schema mismatch: {gas_sidecar_native_fail.get('schema')!r}")
+if gas_sidecar_native_fail.get("status") != "fail" or gas_sidecar_native_fail.get("exit_code") != 7:
+    fail(
+        f"{gas_sidecar_native_fail_path}: expected native failure to preserve fail/7, got "
+        f"status={gas_sidecar_native_fail.get('status')!r} exit={gas_sidecar_native_fail.get('exit_code')!r}"
+    )
+gas_sidecar_native_fail_budget = ((gas_sidecar_native_fail.get("budgets") or {}).get("gas") or {})
+if gas_sidecar_native_fail_budget.get("enforced") is not False or gas_sidecar_native_fail_budget.get("enforcement_profile") != "avm-sidecar":
+    fail(f"{gas_sidecar_native_fail_path}: native-failed AVM sidecar gas must not be marked enforced, got {gas_sidecar_native_fail_budget!r}")
+if gas_sidecar_native_fail_budget.get("reason") != "AVM canonical sidecar gas was not certified":
+    fail(f"{gas_sidecar_native_fail_path}: native-failed AVM sidecar gas reason mismatch, got {gas_sidecar_native_fail_budget!r}")
+sidecar_native_fail = gas_sidecar_native_fail.get("avm_canonical_sidecar_gas") or {}
+if sidecar_native_fail.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
+    fail(f"{gas_sidecar_native_fail_path}: AVM sidecar schema mismatch: {sidecar_native_fail!r}")
+if sidecar_native_fail.get("status") != "not_run_native_failed" or sidecar_native_fail.get("certification_status") != "not_run_native_failed":
+    fail(f"{gas_sidecar_native_fail_path}: expected not_run_native_failed certification status, got {sidecar_native_fail!r}")
+if sidecar_native_fail.get("certification_failure_reasons") != ["native_exit_nonzero"]:
+    fail(f"{gas_sidecar_native_fail_path}: expected native_exit_nonzero failure reason, got {sidecar_native_fail!r}")
+if sidecar_native_fail.get("package_policy_may_use") is not False:
+    fail(f"{gas_sidecar_native_fail_path}: native-failed sidecar must not be package-policy usable, got {sidecar_native_fail!r}")
+if sidecar_native_fail.get("package_policy_may_use_reason") != "native_run_failed_before_sidecar":
+    fail(f"{gas_sidecar_native_fail_path}: native-failed sidecar reason mismatch, got {sidecar_native_fail!r}")
+if sidecar_native_fail.get("native_exit_code") != 7 or sidecar_native_fail.get("sidecar_exit_code") is not None:
+    fail(f"{gas_sidecar_native_fail_path}: native-failed sidecar should preserve native exit and omit sidecar exit, got {sidecar_native_fail!r}")
+if sidecar_native_fail.get("test_injection") is not None:
+    fail(f"{gas_sidecar_native_fail_path}: native-failed sidecar should not look like verifier injection, got {sidecar_native_fail!r}")
+if (
+    sidecar_native_fail.get("same_run_stdout_equal") is not None
+    or sidecar_native_fail.get("same_run_stderr_equal") is not None
+    or sidecar_native_fail.get("same_run_exit_code_equal") is not None
+):
+    fail(f"{gas_sidecar_native_fail_path}: native-failed sidecar should not claim runtime parity evidence, got {sidecar_native_fail!r}")
+if not sidecar_native_fail.get("native_stdout_sha256") or sidecar_native_fail.get("sidecar_stdout_sha256") is not None:
+    fail(f"{gas_sidecar_native_fail_path}: native-failed sidecar should preserve only native stdout hash, got {sidecar_native_fail!r}")
+if sidecar_native_fail.get("gas_surface") is not None or sidecar_native_fail.get("gas_executed") is not None:
+    fail(f"{gas_sidecar_native_fail_path}: native-failed sidecar should not expose gas evidence, got {sidecar_native_fail!r}")
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -1083,6 +1130,19 @@ grep -Fq "package AVM canonical sidecar build failed" "$gas_sidecar_build_fail_o
   echo "ERROR: missing build-failed AVM sidecar diagnostic" >&2
   cat "$gas_sidecar_build_fail_out" >&2 || true
   cat "$gas_sidecar_build_fail_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_sidecar_native_fail_rc" -ne 7 ]]; then
+  echo "ERROR: expected native-failed AVM sidecar run to preserve native exit 7" >&2
+  cat "$gas_sidecar_native_fail_out" >&2 || true
+  cat "$gas_sidecar_native_fail_err" >&2 || true
+  exit 1
+fi
+grep -Fq "native package policy native fail" "$gas_sidecar_native_fail_out" || {
+  echo "ERROR: missing native-failed AVM sidecar fixture output" >&2
+  cat "$gas_sidecar_native_fail_out" >&2 || true
+  cat "$gas_sidecar_native_fail_err" >&2 || true
   exit 1
 }
 

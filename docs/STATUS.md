@@ -1621,7 +1621,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     Missing gas-surface, zero-gas, and timeout probes now cover the remaining
 				     non-certified AVM sidecar gas-evidence branches. A sidecar build-failure probe now
 				     also keeps the native package-policy run JSON structured with `sidecar_build_failed`
-				     instead of failing before report emission.
+				     instead of failing before report emission. A native-failure fixture now preserves
+				     the native exit with `not_run_native_failed` sidecar evidence rather than masking it
+				     as sidecar gas unavailability.
 	   - `docs/GAS_SURFACE_REGISTRY.md` plus `make verify-gas-surface-registry` now guard the registered
 	     gas-surface inventory, including AVM-canonical versus native backend-local conversion status.
 

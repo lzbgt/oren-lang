@@ -94,7 +94,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  non-certified even when stdout/stderr and canonical gas evidence are present. Missing gas-surface,
 	  zero-gas, and timeout injections now separately prove absent canonical gas evidence also fails
 	  closed. A sidecar build-failure injection now proves the runner still emits structured
-	  `sidecar_build_failed` evidence instead of dropping the JSON contract.
+	  `sidecar_build_failed` evidence instead of dropping the JSON contract. A native-failure fixture
+	  now also keeps the native exit visible with `not_run_native_failed` sidecar evidence instead of
+	  masking it as sidecar gas unavailability.
 	  `make verify-backend-gas-surface-calibration-set`
 	  now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy,
 	  branch-heavy, call-heavy, and allocation-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
