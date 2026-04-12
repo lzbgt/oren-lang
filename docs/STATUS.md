@@ -1618,6 +1618,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     `certification_warnings=["stderr_mismatch"]`, proving warnings are non-blocking.
 				     An exit-code mismatch probe now also requires `exit_code_mismatch` plus
 				     `sidecar_exit_nonzero` failure reasons and keeps the sidecar non-certified.
+				     Missing gas-surface, zero-gas, and timeout probes now cover the remaining
+				     non-certified AVM sidecar gas-evidence branches.
 	   - `docs/GAS_SURFACE_REGISTRY.md` plus `make verify-gas-surface-registry` now guard the registered
 	     gas-surface inventory, including AVM-canonical versus native backend-local conversion status.
 

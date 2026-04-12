@@ -160,6 +160,8 @@ It is a language plus runtime plus artifact contract.
 		  sidecar gas enforcement when stdout/exit certification is intact.
 		  It now also proves an auditable exit-code mismatch stays non-certified, so a nonzero sidecar
 		  exit cannot be converted into package gas enforcement.
+		  Missing sidecar gas-surface metadata, zero gas, and sidecar timeout probes now also stay
+		  non-certified, so package policy requires real AVM canonical gas evidence before enforcement.
 		  It can now also select
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus

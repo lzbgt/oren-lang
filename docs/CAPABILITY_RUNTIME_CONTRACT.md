@@ -236,7 +236,9 @@ evidence fails closed with `budget_unavailable` instead of being accepted by gas
 stderr-mismatch probe (`test_injection="stderr_suffix"`) proving non-blocking warnings do not revoke a
 valid stdout/exit AVM gas certificate, and an exit-code mismatch probe
 (`test_injection="exit_code"`) proving nonzero sidecar exits are non-certified rather than usable gas
-evidence.
+evidence. It also probes dropped gas-surface metadata (`test_injection="drop_gas_surface"`), zero gas
+(`test_injection="zero_gas"`), and sidecar timeout (`test_injection="timeout"`) so missing canonical
+gas evidence fails closed instead of becoming package-policy gas enforcement.
 That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the
 resolved `avm-sidecar` gas profile uses it as package `budget_gas` enforcement. The `auto` profile
 can resolve there for gas-budgeted packages.

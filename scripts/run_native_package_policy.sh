@@ -196,6 +196,9 @@ def strip_run_json_lines(stdout_text):
 def sha256_s(text):
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
 
+def append_test_injection(current, label):
+    return label if current is None else f"{current}+{label}"
+
 def native_heap_used_from_run_json(native_run_json):
     if not native_run_json:
         return None
@@ -240,6 +243,18 @@ def avm_gas_from_run_json(avm_run_json):
         return (int(executed), remaining, kind, surface)
     except (TypeError, ValueError):
         return (None, remaining, kind, surface)
+
+def avm_gas_budget_obj(avm_run_json):
+    if not isinstance(avm_run_json, dict):
+        return None
+    summary = avm_run_json.get("effect_ledger_summary")
+    if not isinstance(summary, dict):
+        return None
+    budgets = summary.get("budgets")
+    if not isinstance(budgets, dict):
+        return None
+    gas = budgets.get("gas")
+    return gas if isinstance(gas, dict) else None
 
 def avm_allow_domains_for_package(domains):
     domain_ids = {AVM_DOMAIN_IDS["CORE"], AVM_DOMAIN_IDS["EXIT"]}
@@ -690,7 +705,10 @@ try:
         avm_cmd = ["./avm", "--print-run-json", str(obc_sidecar)]
         if prog_args:
             avm_cmd.extend(["--", *prog_args])
+        test_sidecar_timeout = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_TIMEOUT")
         try:
+            if test_sidecar_timeout:
+                raise subprocess.TimeoutExpired(avm_cmd, timeout if timeout is not None else 0)
             avm_p = subprocess.run(
                 avm_cmd,
                 env=avm_env,
@@ -714,7 +732,7 @@ try:
                 "certification_status": "timeout",
                 "certification_failure_reasons": ["timeout"],
                 "certification_warnings": [],
-                "test_injection": None,
+                "test_injection": "timeout" if test_sidecar_timeout else None,
                 "policy_scope": "native_package_policy_same_source_artifact",
                 "reason": "AVM canonical sidecar timed out under package wall budget",
             }
@@ -739,13 +757,15 @@ try:
         test_sidecar_stdout_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDOUT_SUFFIX")
         test_sidecar_stderr_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDERR_SUFFIX")
         test_sidecar_exit_code = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE")
+        test_sidecar_drop_gas_surface = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_GAS_SURFACE")
+        test_sidecar_zero_gas = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_ZERO_GAS")
         test_injection = None
         if test_sidecar_stdout_suffix:
             avm_stdout_for_payload = f"{avm_stdout_for_payload}{test_sidecar_stdout_suffix}"
-            test_injection = "stdout_suffix"
+            test_injection = append_test_injection(test_injection, "stdout_suffix")
         if test_sidecar_stderr_suffix:
             avm_stderr_for_payload = f"{avm_stderr_for_payload}{test_sidecar_stderr_suffix}"
-            test_injection = "stderr_suffix" if test_injection is None else f"{test_injection}+stderr_suffix"
+            test_injection = append_test_injection(test_injection, "stderr_suffix")
         if test_sidecar_exit_code:
             try:
                 avm_exit_code_for_payload = int(test_sidecar_exit_code, 10)
@@ -753,7 +773,21 @@ try:
                 fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE must be an integer exit code")
             if avm_exit_code_for_payload < 0 or avm_exit_code_for_payload > 255:
                 fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE must be in 0..255")
-            test_injection = "exit_code" if test_injection is None else f"{test_injection}+exit_code"
+            test_injection = append_test_injection(test_injection, "exit_code")
+        avm_run_json_for_payload = extract_avm_run_json(avm_p.stdout or "")
+        if test_sidecar_drop_gas_surface or test_sidecar_zero_gas:
+            if not isinstance(avm_run_json_for_payload, dict):
+                fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR gas mutation requires AVM run JSON")
+            avm_run_json_for_payload = json.loads(json.dumps(avm_run_json_for_payload))
+            test_gas = avm_gas_budget_obj(avm_run_json_for_payload)
+            if test_gas is None:
+                fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR gas mutation requires AVM gas summary")
+            if test_sidecar_drop_gas_surface:
+                test_gas.pop("surface", None)
+                test_injection = append_test_injection(test_injection, "drop_gas_surface")
+            if test_sidecar_zero_gas:
+                test_gas["executed"] = 0
+                test_injection = append_test_injection(test_injection, "zero_gas")
         avm_sidecar_gas = avm_canonical_sidecar_payload(
             src=src,
             obc=obc_sidecar,
@@ -762,7 +796,7 @@ try:
             native_exit_code=p.returncode,
             avm_stdout=avm_stdout_for_payload,
             avm_exit_code=avm_exit_code_for_payload,
-            avm_run_json=extract_avm_run_json(avm_p.stdout or ""),
+            avm_run_json=avm_run_json_for_payload,
             avm_stderr=avm_stderr_for_payload,
             test_injection=test_injection,
         )

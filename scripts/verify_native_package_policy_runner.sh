@@ -45,6 +45,15 @@ gas_sidecar_stderr_warning_json="$TMP/gas-sidecar-stderr-warning.run.json"
 gas_sidecar_exit_mismatch_out="$TMP/gas-sidecar-exit-mismatch.out"
 gas_sidecar_exit_mismatch_err="$TMP/gas-sidecar-exit-mismatch.err"
 gas_sidecar_exit_mismatch_json="$TMP/gas-sidecar-exit-mismatch.run.json"
+gas_sidecar_missing_surface_out="$TMP/gas-sidecar-missing-surface.out"
+gas_sidecar_missing_surface_err="$TMP/gas-sidecar-missing-surface.err"
+gas_sidecar_missing_surface_json="$TMP/gas-sidecar-missing-surface.run.json"
+gas_sidecar_zero_gas_out="$TMP/gas-sidecar-zero-gas.out"
+gas_sidecar_zero_gas_err="$TMP/gas-sidecar-zero-gas.err"
+gas_sidecar_zero_gas_json="$TMP/gas-sidecar-zero-gas.run.json"
+gas_sidecar_timeout_out="$TMP/gas-sidecar-timeout.out"
+gas_sidecar_timeout_err="$TMP/gas-sidecar-timeout.err"
+gas_sidecar_timeout_json="$TMP/gas-sidecar-timeout.run.json"
 gas_profile_bad_out="$TMP/gas-profile-bad.out"
 gas_profile_bad_err="$TMP/gas-profile-bad.err"
 gas_profile_avm_bad_out="$TMP/gas-profile-avm-bad.out"
@@ -176,6 +185,21 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_exit_mismatch_json" \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_sidecar_exit_mismatch_out" 2>"$gas_sidecar_exit_mismatch_err"
 gas_sidecar_exit_mismatch_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_missing_surface_json" \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_GAS_SURFACE=1 \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_missing_surface_out" 2>"$gas_sidecar_missing_surface_err"
+gas_sidecar_missing_surface_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_zero_gas_json" \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_ZERO_GAS=1 \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_zero_gas_out" 2>"$gas_sidecar_zero_gas_err"
+gas_sidecar_zero_gas_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_timeout_json" \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_TIMEOUT=1 \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_timeout_out" 2>"$gas_sidecar_timeout_err"
+gas_sidecar_timeout_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=sidecar \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_profile_bad_out" 2>"$gas_profile_bad_err"
@@ -201,7 +225,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" "$gas_sidecar_missing_surface_json" "$gas_sidecar_zero_gas_json" "$gas_sidecar_timeout_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -224,6 +248,9 @@ gas_auto_ok_path = Path(sys.argv[15])
 gas_dispatch_default_ok_path = Path(sys.argv[16])
 gas_env_override_ok_path = Path(sys.argv[17])
 gas_sidecar_exit_mismatch_path = Path(sys.argv[18])
+gas_sidecar_missing_surface_path = Path(sys.argv[19])
+gas_sidecar_zero_gas_path = Path(sys.argv[20])
+gas_sidecar_timeout_path = Path(sys.argv[21])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -736,6 +763,41 @@ if int(gas_sidecar_stderr_warning_budget.get("executed") or -1) != int(sidecar_s
         f"got {gas_sidecar_stderr_warning_budget!r} vs {sidecar_stderr_warning!r}"
     )
 
+def assert_sidecar_unavailable_run(path, expected_reasons, expected_injection):
+    data = load(path)
+    if data.get("schema") != "oren.native-package-policy-run.v0":
+        fail(f"{path}: schema mismatch: {data.get('schema')!r}")
+    if data.get("status") != "budget_unavailable" or data.get("exit_code") != 77:
+        fail(
+            f"{path}: expected budget_unavailable/77 for uncertified sidecar, got "
+            f"status={data.get('status')!r} exit={data.get('exit_code')!r}"
+        )
+    budget = ((data.get("budgets") or {}).get("gas") or {})
+    if budget.get("limit") != 100000:
+        fail(f"{path}: expected original gas limit on uncertified sidecar, got {budget!r}")
+    if budget.get("enforcement_profile") != "avm-sidecar":
+        fail(f"{path}: expected avm-sidecar enforcement profile, got {budget!r}")
+    if budget.get("enforced") is not False:
+        fail(f"{path}: uncertified AVM sidecar gas must not be marked enforced, got {budget!r}")
+    if budget.get("reason") != "AVM canonical sidecar gas was not certified":
+        fail(f"{path}: uncertified AVM sidecar gas reason mismatch, got {budget!r}")
+    sidecar = data.get("avm_canonical_sidecar_gas") or {}
+    if sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
+        fail(f"{path}: AVM sidecar schema mismatch: {sidecar!r}")
+    if sidecar.get("status") != "unavailable":
+        fail(f"{path}: expected unavailable AVM sidecar status, got {sidecar!r}")
+    if sidecar.get("certification_status") != "unavailable":
+        fail(f"{path}: expected unavailable certification status, got {sidecar!r}")
+    if sidecar.get("package_policy_may_use") is not False:
+        fail(f"{path}: uncertified sidecar must not be package-policy usable, got {sidecar!r}")
+    if set(sidecar.get("certification_failure_reasons") or []) != set(expected_reasons):
+        fail(f"{path}: unexpected uncertified sidecar failure reasons, got {sidecar!r}")
+    if sidecar.get("certification_warnings") != []:
+        fail(f"{path}: uncertified sidecar should not carry warnings, got {sidecar!r}")
+    if sidecar.get("test_injection") != expected_injection:
+        fail(f"{path}: expected auditable verifier injection {expected_injection!r}, got {sidecar!r}")
+    return data, budget, sidecar
+
 gas_sidecar_exit_mismatch = load(gas_sidecar_exit_mismatch_path)
 if gas_sidecar_exit_mismatch.get("schema") != "oren.native-package-policy-run.v0":
     fail(f"{gas_sidecar_exit_mismatch_path}: schema mismatch: {gas_sidecar_exit_mismatch.get('schema')!r}")
@@ -784,6 +846,68 @@ if exit_mismatch_surface.get("id") != "avm_opcode_cost_v0" or exit_mismatch_surf
     fail(f"{gas_sidecar_exit_mismatch_path}: exit-mismatched sidecar should preserve AVM canonical surface evidence, got {sidecar_exit_mismatch!r}")
 if int(sidecar_exit_mismatch.get("gas_executed") or 0) <= 0:
     fail(f"{gas_sidecar_exit_mismatch_path}: exit-mismatched sidecar should distinguish exit failure from missing gas evidence, got {sidecar_exit_mismatch!r}")
+
+_, _, sidecar_missing_surface = assert_sidecar_unavailable_run(
+    gas_sidecar_missing_surface_path,
+    ["missing_or_noncanonical_avm_gas_surface"],
+    "drop_gas_surface",
+)
+if sidecar_missing_surface.get("same_run_stdout_equal") is not True or sidecar_missing_surface.get("same_run_stderr_equal") is not True:
+    fail(f"{gas_sidecar_missing_surface_path}: missing-surface sidecar should preserve stdout/stderr parity, got {sidecar_missing_surface!r}")
+if sidecar_missing_surface.get("same_run_exit_code_equal") is not True:
+    fail(f"{gas_sidecar_missing_surface_path}: missing-surface sidecar should preserve exit parity, got {sidecar_missing_surface!r}")
+if sidecar_missing_surface.get("native_exit_code") != 0 or sidecar_missing_surface.get("sidecar_exit_code") != 0:
+    fail(f"{gas_sidecar_missing_surface_path}: missing-surface sidecar should expose zero native/sidecar exits, got {sidecar_missing_surface!r}")
+if sidecar_missing_surface.get("gas_surface") is not None:
+    fail(f"{gas_sidecar_missing_surface_path}: missing-surface injection should remove canonical gas surface, got {sidecar_missing_surface!r}")
+if int(sidecar_missing_surface.get("gas_executed") or 0) <= 0:
+    fail(f"{gas_sidecar_missing_surface_path}: missing-surface sidecar should distinguish metadata failure from missing gas execution, got {sidecar_missing_surface!r}")
+
+_, _, sidecar_zero_gas = assert_sidecar_unavailable_run(
+    gas_sidecar_zero_gas_path,
+    ["missing_or_nonpositive_avm_gas"],
+    "zero_gas",
+)
+if sidecar_zero_gas.get("same_run_stdout_equal") is not True or sidecar_zero_gas.get("same_run_stderr_equal") is not True:
+    fail(f"{gas_sidecar_zero_gas_path}: zero-gas sidecar should preserve stdout/stderr parity, got {sidecar_zero_gas!r}")
+if sidecar_zero_gas.get("same_run_exit_code_equal") is not True:
+    fail(f"{gas_sidecar_zero_gas_path}: zero-gas sidecar should preserve exit parity, got {sidecar_zero_gas!r}")
+if sidecar_zero_gas.get("native_exit_code") != 0 or sidecar_zero_gas.get("sidecar_exit_code") != 0:
+    fail(f"{gas_sidecar_zero_gas_path}: zero-gas sidecar should expose zero native/sidecar exits, got {sidecar_zero_gas!r}")
+zero_gas_surface = sidecar_zero_gas.get("gas_surface") or {}
+if zero_gas_surface.get("id") != "avm_opcode_cost_v0" or zero_gas_surface.get("unit_scope") != "avm_canonical":
+    fail(f"{gas_sidecar_zero_gas_path}: zero-gas sidecar should preserve canonical surface metadata, got {sidecar_zero_gas!r}")
+if sidecar_zero_gas.get("gas_executed") is None or int(sidecar_zero_gas.get("gas_executed")) != 0:
+    fail(f"{gas_sidecar_zero_gas_path}: zero-gas injection should report zero AVM canonical gas, got {sidecar_zero_gas!r}")
+
+gas_sidecar_timeout = load(gas_sidecar_timeout_path)
+if gas_sidecar_timeout.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_sidecar_timeout_path}: schema mismatch: {gas_sidecar_timeout.get('schema')!r}")
+if gas_sidecar_timeout.get("status") != "budget_unavailable" or gas_sidecar_timeout.get("exit_code") != 77:
+    fail(
+        f"{gas_sidecar_timeout_path}: expected budget_unavailable/77 for timed-out sidecar, got "
+        f"status={gas_sidecar_timeout.get('status')!r} exit={gas_sidecar_timeout.get('exit_code')!r}"
+    )
+gas_sidecar_timeout_budget = ((gas_sidecar_timeout.get("budgets") or {}).get("gas") or {})
+if gas_sidecar_timeout_budget.get("enforced") is not False or gas_sidecar_timeout_budget.get("enforcement_profile") != "avm-sidecar":
+    fail(f"{gas_sidecar_timeout_path}: timed-out AVM sidecar gas must not be marked enforced, got {gas_sidecar_timeout_budget!r}")
+if gas_sidecar_timeout_budget.get("reason") != "AVM canonical sidecar gas was not certified":
+    fail(f"{gas_sidecar_timeout_path}: timed-out AVM sidecar gas reason mismatch, got {gas_sidecar_timeout_budget!r}")
+sidecar_timeout = gas_sidecar_timeout.get("avm_canonical_sidecar_gas") or {}
+if sidecar_timeout.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
+    fail(f"{gas_sidecar_timeout_path}: AVM sidecar schema mismatch: {sidecar_timeout!r}")
+if sidecar_timeout.get("status") != "timeout" or sidecar_timeout.get("certification_status") != "timeout":
+    fail(f"{gas_sidecar_timeout_path}: expected timeout certification status, got {sidecar_timeout!r}")
+if sidecar_timeout.get("package_policy_may_use") is not False:
+    fail(f"{gas_sidecar_timeout_path}: timed-out sidecar must not be package-policy usable, got {sidecar_timeout!r}")
+if sidecar_timeout.get("certification_failure_reasons") != ["timeout"]:
+    fail(f"{gas_sidecar_timeout_path}: expected timeout failure reason, got {sidecar_timeout!r}")
+if sidecar_timeout.get("certification_warnings") != []:
+    fail(f"{gas_sidecar_timeout_path}: timeout sidecar should not carry warnings, got {sidecar_timeout!r}")
+if sidecar_timeout.get("test_injection") != "timeout":
+    fail(f"{gas_sidecar_timeout_path}: expected auditable timeout verifier injection, got {sidecar_timeout!r}")
+if sidecar_timeout.get("package_policy_may_use_reason") != "avm_canonical_sidecar_timeout":
+    fail(f"{gas_sidecar_timeout_path}: timeout sidecar reason mismatch, got {sidecar_timeout!r}")
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -855,6 +979,45 @@ grep -Fq "package AVM canonical sidecar gas could not be certified for native ru
   echo "ERROR: missing exit-mismatched AVM sidecar diagnostic" >&2
   cat "$gas_sidecar_exit_mismatch_out" >&2 || true
   cat "$gas_sidecar_exit_mismatch_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_sidecar_missing_surface_rc" -eq 0 ]]; then
+  echo "ERROR: expected missing-surface AVM sidecar evidence to fail closed" >&2
+  cat "$gas_sidecar_missing_surface_out" >&2 || true
+  cat "$gas_sidecar_missing_surface_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package AVM canonical sidecar gas could not be certified for native run" "$gas_sidecar_missing_surface_out" "$gas_sidecar_missing_surface_err" || {
+  echo "ERROR: missing missing-surface AVM sidecar diagnostic" >&2
+  cat "$gas_sidecar_missing_surface_out" >&2 || true
+  cat "$gas_sidecar_missing_surface_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_sidecar_zero_gas_rc" -eq 0 ]]; then
+  echo "ERROR: expected zero-gas AVM sidecar evidence to fail closed" >&2
+  cat "$gas_sidecar_zero_gas_out" >&2 || true
+  cat "$gas_sidecar_zero_gas_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package AVM canonical sidecar gas could not be certified for native run" "$gas_sidecar_zero_gas_out" "$gas_sidecar_zero_gas_err" || {
+  echo "ERROR: missing zero-gas AVM sidecar diagnostic" >&2
+  cat "$gas_sidecar_zero_gas_out" >&2 || true
+  cat "$gas_sidecar_zero_gas_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_sidecar_timeout_rc" -eq 0 ]]; then
+  echo "ERROR: expected timed-out AVM sidecar evidence to fail closed" >&2
+  cat "$gas_sidecar_timeout_out" >&2 || true
+  cat "$gas_sidecar_timeout_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package AVM canonical sidecar timed out" "$gas_sidecar_timeout_out" "$gas_sidecar_timeout_err" || {
+  echo "ERROR: missing timed-out AVM sidecar diagnostic" >&2
+  cat "$gas_sidecar_timeout_out" >&2 || true
+  cat "$gas_sidecar_timeout_err" >&2 || true
   exit 1
 }
 
