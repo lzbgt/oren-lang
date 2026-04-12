@@ -18,9 +18,15 @@ deny_err="$TMP/deny.err"
 gas_ok_out="$TMP/gas-ok.out"
 gas_ok_err="$TMP/gas-ok.err"
 gas_ok_json="$TMP/gas-ok.run.json"
+gas_sidecar_ok_out="$TMP/gas-sidecar-ok.out"
+gas_sidecar_ok_err="$TMP/gas-sidecar-ok.err"
+gas_sidecar_ok_json="$TMP/gas-sidecar-ok.run.json"
 gas_fail_out="$TMP/gas-fail.out"
 gas_fail_err="$TMP/gas-fail.err"
 gas_fail_json="$TMP/gas-fail.run.json"
+gas_sidecar_fail_out="$TMP/gas-sidecar-fail.out"
+gas_sidecar_fail_err="$TMP/gas-sidecar-fail.err"
+gas_sidecar_fail_json="$TMP/gas-sidecar-fail.run.json"
 gas_stmt_fail_out="$TMP/gas-stmt-fail.out"
 gas_stmt_fail_err="$TMP/gas-stmt-fail.err"
 gas_stmt_fail_json="$TMP/gas-stmt-fail.run.json"
@@ -83,6 +89,16 @@ grep -Fq "native package policy gas ok" "$gas_ok_out" || {
   cat "$gas_ok_err" >&2 || true
   exit 1
 }
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_ok_json" \
+  OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_ok_out" 2>"$gas_sidecar_ok_err"
+grep -Fq "native package policy gas ok" "$gas_sidecar_ok_out" || {
+  echo "ERROR: native package-policy AVM sidecar gas-ok fixture did not report success" >&2
+  cat "$gas_sidecar_ok_out" >&2 || true
+  cat "$gas_sidecar_ok_err" >&2 || true
+  exit 1
+}
 
 set +e
 ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_deny_time.oren \
@@ -92,6 +108,11 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_fail_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_fail.oren \
   >"$gas_fail_out" 2>"$gas_fail_err"
 gas_fail_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_fail_json" \
+  OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar \
+  ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_fail.oren \
+  >"$gas_sidecar_fail_out" 2>"$gas_sidecar_fail_err"
+gas_sidecar_fail_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_stmt_fail_json" \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_stmt_fail.oren \
   >"$gas_stmt_fail_out" 2>"$gas_stmt_fail_err"
@@ -110,7 +131,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -125,6 +146,8 @@ cpu_fail_path = Path(sys.argv[7])
 gas_ok_path = Path(sys.argv[8])
 gas_fail_path = Path(sys.argv[9])
 gas_stmt_fail_path = Path(sys.argv[10])
+gas_sidecar_ok_path = Path(sys.argv[11])
+gas_sidecar_fail_path = Path(sys.argv[12])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -147,6 +170,26 @@ def assert_native_stmt_surface(path, surface):
         fail(f"{path}: native package-policy statement gas must not be conversion-ready, got {surface!r}")
     if surface.get("avm_canonical") is not False:
         fail(f"{path}: native package-policy statement gas must not claim AVM canonical units, got {surface!r}")
+
+def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
+    if sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
+        fail(f"{path}: AVM canonical sidecar schema mismatch: {sidecar!r}")
+    expected_status = "budget_exceeded" if budget_exceeded else "available"
+    if sidecar.get("status") != expected_status:
+        fail(f"{path}: expected AVM canonical sidecar status {expected_status!r}, got {sidecar!r}")
+    if sidecar.get("policy_scope") != "native_package_policy_same_source_artifact":
+        fail(f"{path}: AVM sidecar policy scope mismatch: {sidecar!r}")
+    if sidecar.get("same_source") is not True:
+        fail(f"{path}: AVM sidecar should certify same-source evidence, got {sidecar!r}")
+    if sidecar.get("native_runtime_conversion") is not False:
+        fail(f"{path}: AVM sidecar must not claim native runtime conversion, got {sidecar!r}")
+    if sidecar.get("package_policy_may_use") is not True:
+        fail(f"{path}: package-bound AVM sidecar should be usable as an AVM canonical certificate, got {sidecar!r}")
+    sidecar_surface = sidecar.get("gas_surface") or {}
+    if sidecar_surface.get("id") != "avm_opcode_cost_v0" or sidecar_surface.get("unit_scope") != "avm_canonical":
+        fail(f"{path}: AVM sidecar gas surface mismatch: {sidecar!r}")
+    if sidecar_surface.get("conversion_ready") is not True or sidecar_surface.get("avm_canonical") is not True:
+        fail(f"{path}: AVM sidecar should preserve canonical metadata: {sidecar!r}")
 
 ok = load(ok_path)
 if ok.get("schema") != "oren.native-package-policy-run.v0":
@@ -287,25 +330,11 @@ if gas_ok_budget.get("kind") != "native_stmt_loop_tick_v0":
 gas_ok_surface = gas_ok_budget.get("surface") or {}
 assert_native_stmt_surface(gas_ok_path, gas_ok_surface)
 gas_ok_sidecar = gas_ok.get("avm_canonical_sidecar_gas") or {}
-if gas_ok_sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
-    fail(f"{gas_ok_path}: AVM canonical sidecar schema mismatch: {gas_ok_sidecar!r}")
-if gas_ok_sidecar.get("status") != "available":
-    fail(f"{gas_ok_path}: expected available AVM canonical sidecar gas, got {gas_ok_sidecar!r}")
-if gas_ok_sidecar.get("policy_scope") != "native_package_policy_same_source_artifact":
-    fail(f"{gas_ok_path}: AVM sidecar policy scope mismatch: {gas_ok_sidecar!r}")
+assert_avm_canonical_sidecar(gas_ok_path, gas_ok_sidecar)
 if gas_ok_sidecar.get("same_source") is not True or gas_ok_sidecar.get("same_run_stdout_equal") is not True:
     fail(f"{gas_ok_path}: AVM sidecar should certify same-source stdout parity, got {gas_ok_sidecar!r}")
 if gas_ok_sidecar.get("same_run_exit_code_equal") is not True:
     fail(f"{gas_ok_path}: AVM sidecar should certify exit-code parity, got {gas_ok_sidecar!r}")
-if gas_ok_sidecar.get("native_runtime_conversion") is not False:
-    fail(f"{gas_ok_path}: AVM sidecar must not claim native runtime conversion, got {gas_ok_sidecar!r}")
-if gas_ok_sidecar.get("package_policy_may_use") is not True:
-    fail(f"{gas_ok_path}: package-bound AVM sidecar should be usable as an AVM canonical certificate, got {gas_ok_sidecar!r}")
-gas_ok_sidecar_surface = gas_ok_sidecar.get("gas_surface") or {}
-if gas_ok_sidecar_surface.get("id") != "avm_opcode_cost_v0" or gas_ok_sidecar_surface.get("unit_scope") != "avm_canonical":
-    fail(f"{gas_ok_path}: AVM sidecar gas surface mismatch: {gas_ok_sidecar!r}")
-if gas_ok_sidecar_surface.get("conversion_ready") is not True or gas_ok_sidecar_surface.get("avm_canonical") is not True:
-    fail(f"{gas_ok_path}: AVM sidecar should preserve canonical metadata: {gas_ok_sidecar!r}")
 if int(gas_ok_sidecar.get("gas_executed") or 0) <= 0:
     fail(f"{gas_ok_path}: AVM sidecar should report positive canonical gas, got {gas_ok_sidecar!r}")
 if gas_ok_budget.get("exceeded") is not False:
@@ -321,6 +350,25 @@ if summary_gas.get("kind") != "native_stmt_loop_tick_v0":
 assert_native_stmt_surface(gas_ok_path, summary_gas.get("surface") or {})
 if int(summary_gas.get("executed") or -1) != gas_ok_used:
     fail(f"{gas_ok_path}: runner gas used does not mirror native summary: runner={gas_ok_budget!r} summary={summary_gas!r}")
+
+gas_sidecar_ok = load(gas_sidecar_ok_path)
+if gas_sidecar_ok.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_sidecar_ok_path}: schema mismatch: {gas_sidecar_ok.get('schema')!r}")
+if gas_sidecar_ok.get("status") != "pass" or gas_sidecar_ok.get("exit_code") != 0:
+    fail(f"{gas_sidecar_ok_path}: expected pass/0, got status={gas_sidecar_ok.get('status')!r} exit={gas_sidecar_ok.get('exit_code')!r}")
+if (gas_sidecar_ok.get("runner_observed") or {}).get("budget_status") != "runner_wall_avm_canonical_gas":
+    fail(f"{gas_sidecar_ok_path}: expected runner_wall_avm_canonical_gas status, got {gas_sidecar_ok.get('runner_observed')!r}")
+gas_sidecar_ok_budget = ((gas_sidecar_ok.get("budgets") or {}).get("gas") or {})
+if gas_sidecar_ok_budget.get("limit") != 100000 or gas_sidecar_ok_budget.get("enforced") is not True:
+    fail(f"{gas_sidecar_ok_path}: expected enforced 100000 AVM canonical gas budget, got {gas_sidecar_ok_budget!r}")
+if gas_sidecar_ok_budget.get("enforcement") != "avm-canonical-sidecar" or gas_sidecar_ok_budget.get("enforcement_profile") != "avm-sidecar":
+    fail(f"{gas_sidecar_ok_path}: expected AVM sidecar gas enforcement profile, got {gas_sidecar_ok_budget!r}")
+if gas_sidecar_ok_budget.get("kind") != "avm_opcode_cost_v0":
+    fail(f"{gas_sidecar_ok_path}: expected avm_opcode_cost_v0 gas kind, got {gas_sidecar_ok_budget!r}")
+sidecar_ok = gas_sidecar_ok.get("avm_canonical_sidecar_gas") or {}
+assert_avm_canonical_sidecar(gas_sidecar_ok_path, sidecar_ok)
+if int(gas_sidecar_ok_budget.get("executed") or -1) != int(sidecar_ok.get("gas_executed") or -2):
+    fail(f"{gas_sidecar_ok_path}: AVM sidecar gas budget should mirror sidecar certificate, got {gas_sidecar_ok_budget!r} vs {sidecar_ok!r}")
 
 cpu_fail = load(cpu_fail_path)
 if cpu_fail.get("schema") != "oren.native-package-policy-run.v0":
@@ -375,6 +423,26 @@ if gas_stmt_fail_budget.get("exceeded") is not True:
     fail(f"{gas_stmt_fail_path}: expected exceeded statement gas budget, got {gas_stmt_fail_budget!r}")
 if int(gas_stmt_fail_budget.get("executed") or 0) <= 8:
     fail(f"{gas_stmt_fail_path}: expected statement gas used to exceed 8 ticks, got {gas_stmt_fail_budget!r}")
+
+gas_sidecar_fail = load(gas_sidecar_fail_path)
+if gas_sidecar_fail.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_sidecar_fail_path}: schema mismatch: {gas_sidecar_fail.get('schema')!r}")
+if gas_sidecar_fail.get("status") != "budget_exceeded" or gas_sidecar_fail.get("exit_code") != 127:
+    fail(
+        f"{gas_sidecar_fail_path}: expected budget_exceeded/127, got "
+        f"status={gas_sidecar_fail.get('status')!r} exit={gas_sidecar_fail.get('exit_code')!r}"
+    )
+gas_sidecar_fail_budget = ((gas_sidecar_fail.get("budgets") or {}).get("gas") or {})
+if gas_sidecar_fail_budget.get("limit") != 1 or gas_sidecar_fail_budget.get("enforced") is not True:
+    fail(f"{gas_sidecar_fail_path}: expected enforced 1 AVM canonical gas budget, got {gas_sidecar_fail_budget!r}")
+if gas_sidecar_fail_budget.get("enforcement") != "avm-canonical-sidecar" or gas_sidecar_fail_budget.get("enforcement_profile") != "avm-sidecar":
+    fail(f"{gas_sidecar_fail_path}: expected AVM sidecar gas enforcement profile, got {gas_sidecar_fail_budget!r}")
+if gas_sidecar_fail_budget.get("kind") != "avm_opcode_cost_v0":
+    fail(f"{gas_sidecar_fail_path}: expected avm_opcode_cost_v0 gas kind, got {gas_sidecar_fail_budget!r}")
+if gas_sidecar_fail_budget.get("exceeded") is not True:
+    fail(f"{gas_sidecar_fail_path}: expected exceeded AVM canonical gas budget, got {gas_sidecar_fail_budget!r}")
+sidecar_fail = gas_sidecar_fail.get("avm_canonical_sidecar_gas") or {}
+assert_avm_canonical_sidecar(gas_sidecar_fail_path, sidecar_fail, budget_exceeded=True)
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -400,6 +468,19 @@ grep -Fq "package native gas budget exceeded" "$gas_fail_out" "$gas_fail_err" ||
   echo "ERROR: missing native gas budget diagnostic" >&2
   cat "$gas_fail_out" >&2 || true
   cat "$gas_fail_err" >&2 || true
+  exit 1
+}
+
+if [[ "$gas_sidecar_fail_rc" -eq 0 ]]; then
+  echo "ERROR: expected native package-policy AVM sidecar gas budget to reject over-budget run" >&2
+  cat "$gas_sidecar_fail_out" >&2 || true
+  cat "$gas_sidecar_fail_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package AVM canonical sidecar gas budget exceeded" "$gas_sidecar_fail_out" "$gas_sidecar_fail_err" || {
+  echo "ERROR: missing AVM sidecar gas budget diagnostic" >&2
+  cat "$gas_sidecar_fail_out" >&2 || true
+  cat "$gas_sidecar_fail_err" >&2 || true
   exit 1
 }
 

@@ -127,7 +127,7 @@ Required entry fields:
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
   wall/gas/heap/CPU-budget evidence for native capsule execution and can include a captured native
-  `effect_ledger` summary when the runner enables `OREN_NATIVE_RUN_JSON=1`; native heap budgets
+	  `effect_ledger` summary when the runner enables `OREN_NATIVE_RUN_JSON=1`; native heap budgets
 	  are enforced from the captured `heap_bytes.used` live-heap scan, native CPU budgets are enforced
 	  from child process resource usage where available, and native gas budgets are enforced from the
 	  captured `native_stmt_loop_tick_v0` counter after the runner builds and runs the artifact with
@@ -136,7 +136,11 @@ Required entry fields:
 	  package-bound `oren.avm-canonical-sidecar-gas.v0` evidence after building and running a bytecode
 	  sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
 	  `package_policy_may_use=true` only when stdout and exit status match the native run, while still
-	  preserving `native_runtime_conversion=false`.
+	  preserving `native_runtime_conversion=false`. With
+	  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, the runner turns that package-bound sidecar
+	  into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0` reports
+	  `runner_wall_avm_canonical_gas`, `enforcement="avm-canonical-sidecar"`, and
+	  `enforcement_profile="avm-sidecar"` while still preserving `native_runtime_conversion=false`.
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
   `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
   This is the first native-owned effect evidence bridge: it counts central capsule domain-gate
@@ -269,8 +273,9 @@ runtime surface. Whole-binary counts include linked runtime text and are not per
 	The earlier report (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`)
 counted the same `474624` whole-binary native instructions for the default, loop-heavy, and branch-heavy
 	fixtures while AVM opcode gas varied. The default decision guard now also requires the call-heavy sample
-	and allocation-heavy sample classes, so the required next step is package-binding AVM canonical sidecar gas
-	or adding instruction-equivalent native gas, not promoting a static binary-size proxy.
+		and allocation-heavy sample classes, so the required next step is broadening the explicit
+		package-bound AVM canonical sidecar enforcement profile or adding instruction-equivalent native gas,
+		not promoting a static binary-size proxy.
 The first dynamic-emitter calibration set
 (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) narrowed the contract to
 runtime path-aware native evidence, but still blocked conversion: default smoke, loop-heavy, and

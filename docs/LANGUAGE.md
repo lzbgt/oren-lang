@@ -1478,21 +1478,26 @@ For the current capability domain and native runtime-profile contract, see
   poll sites charge their mask interval when they fire, and direct/manual native safepoints charge
   one tick; this remains statement+loop-granular rather than instruction-equivalent, and the native
   run JSON gas object identifies that unit with `surface.schema="oren.gas-surface.v0"` and
-  `surface.id="native_stmt_loop_tick_v0"`, while also marking it `unit_scope="backend_local"`,
+	  `surface.id="native_stmt_loop_tick_v0"`, while also marking it `unit_scope="backend_local"`,
 	  `unit_family="native_statement_or_op"`, `conversion_ready=false`, and `avm_canonical=false`.
 	  Setting `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1` asks the native package-policy runner to
 	  build a bytecode sidecar from the same source/package manifest, run it under the declared AVM
 	  budgets, and record package-bound `oren.avm-canonical-sidecar-gas.v0` AVM opcode gas when stdout
 	  and exit status match the native run; this remains sidecar AVM evidence, not native gas
-	  conversion.
+	  conversion. Setting `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar` upgrades that
+	  package-bound sidecar into the native runner's `budget_gas` enforcement profile: the runner
+	  enforces the AVM canonical `avm_opcode_cost_v0` sidecar budget, reports
+	  `runner_wall_avm_canonical_gas`, and records `enforcement_profile="avm-sidecar"` while still
+	  keeping `native_runtime_conversion=false`.
 	  `OREN_NATIVE_GAS_ACCOUNTING=statement` is an exact synonym
   for `stmt`; `OREN_NATIVE_GAS_ACCOUNTING=basic-block` selects the distinct
   `native_basic_block_tick_v0` native lowering-block evidence surface, and
   `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` selects the stronger
   `native_block_weighted_tick_v0` weighted lowering-block evidence surface, and
   `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` selects runtime path-aware
-  `native_dynamic_emitter_tick_v0` emitter-span evidence, but package-policy gas
-  budgets still use statement+loop gas until Oren has a native/AVM conversion contract. Every native
+  `native_dynamic_emitter_tick_v0` emitter-span evidence. Default native package-policy gas
+  budgets still use statement+loop gas, and the explicit `avm-sidecar` profile uses package-bound
+  AVM canonical gas rather than converting any native surface. Every native
   gas-surface descriptor is marked `unit_scope="backend_local"`, includes `target_arch` and
   `unit_family`, and sets `cross_arch_comparable=false`, `conversion_ready=false`, and
   `avm_canonical=false`, so tools must not treat it as architecture-neutral instruction gas. Set
@@ -1516,7 +1521,9 @@ For the current capability domain and native runtime-profile contract, see
 		  `conversion_ready=true`, and `avm_canonical=true`. Semantic-diff tooling keeps native and AVM gas
 		  non-comparable while the native surface cannot target that AVM unit honestly. It also records
 		  `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas evidence beside native runtime gas,
-		  with `package_policy_may_use=false` until that sidecar is package/input-bound. The gas-surface
+		  with `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
+		  The native package-policy runner's separate `avm-sidecar` gas profile is the package-bound path
+		  that can use AVM canonical sidecar evidence for `budget_gas`. The gas-surface
 		  inventory and conversion status are tracked in `docs/GAS_SURFACE_REGISTRY.md` and guarded by
 		  `make verify-gas-surface-registry`.
   The `source_required_domains` / `dependency_domain_union` fields are currently

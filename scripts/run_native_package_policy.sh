@@ -22,6 +22,8 @@ Native package-policy gas accounting is the scoped v0 native statement+loop
 surface, not full instruction-equivalent gas and not AVM-canonical opcode gas.
 The runner builds and runs gas budget fixtures with OREN_NATIVE_GAS_ACCOUNTING=stmt. budget_cpu_ms still fails
 closed when child CPU usage is not available on the host.
+Set OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar to enforce budget_gas
+from a package-bound AVM canonical sidecar instead of native statement gas.
 Set OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path> to write runner-observed
 wall/gas/heap/CPU-budget evidence plus any captured native runtime ledger summary as JSON. Set
 OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1 to also build and run a bytecode sidecar with
@@ -95,6 +97,17 @@ def positive_int(value, name):
     if out <= 0:
         fail(f"{name} must be a positive integer, got {value!r}")
     return out
+
+def normalize_gas_profile(value):
+    raw = str(value or "native-stmt").strip().lower().replace("_", "-")
+    if raw in ("", "native-stmt", "stmt", "statement"):
+        return "native-stmt"
+    if raw in ("avm-sidecar", "avm-canonical-sidecar"):
+        return "avm-sidecar"
+    fail(
+        "OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE must be native-stmt or avm-sidecar, "
+        f"got {value!r}"
+    )
 
 def split_prog_args(args):
     if args and args[0] == "--":
@@ -231,10 +244,11 @@ def avm_allow_domains_for_package(domains):
         domain_ids.add(AVM_DOMAIN_IDS[name])
     return ",".join(str(x) for x in sorted(domain_ids))
 
-def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, avm_stdout, avm_exit_code, avm_run_json):
+def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json):
     avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
     same_stdout = strip_run_json_lines(native_stdout) == strip_run_json_lines(avm_stdout)
     same_exit = native_exit_code == avm_exit_code
+    budget_exceeded = "budget exceeded (gas)" in (avm_stderr or "")
     canonical = (
         isinstance(avm_gas_surface, dict)
         and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
@@ -245,9 +259,15 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, 
         and avm_gas_used > 0
     )
     available = bool(same_stdout and same_exit and canonical and avm_exit_code == 0)
+    package_policy_may_use = available or (
+        budget_exceeded
+        and isinstance(avm_gas_surface, dict)
+        and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
+        and avm_gas_surface.get("unit_scope") == "avm_canonical"
+    )
     return {
         "schema": "oren.avm-canonical-sidecar-gas.v0",
-        "status": "available" if available else "unavailable",
+        "status": "available" if available else ("budget_exceeded" if budget_exceeded else "unavailable"),
         "source": str(src),
         "native_backend": "native",
         "sidecar_backend": "obc",
@@ -258,8 +278,9 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, 
         "gas_surface": avm_gas_surface,
         "gas_executed": avm_gas_used,
         "gas_remaining": avm_gas_remaining,
+        "budget_exceeded": budget_exceeded,
         "native_runtime_conversion": False,
-        "package_policy_may_use": available,
+        "package_policy_may_use": package_policy_may_use,
         "policy_scope": "native_package_policy_same_source_artifact",
         "reason": "package-bound AVM canonical sidecar gas; not a native runtime gas conversion",
     }
@@ -294,7 +315,8 @@ obc_sidecar = tmp_dir / f"{stem}.sidecar.obc"
 meta_out = tmp_dir / f"{stem}.metadata.json"
 build_log = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_BUILD_LOG", f"build/logs/native_package_policy_{stem}_{ts}.build.log")
 run_json_path = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_RUN_JSON", "")
-avm_sidecar_enabled = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR"))
+gas_enforcement_profile = normalize_gas_profile(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE"))
+avm_sidecar_enabled = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR")) or gas_enforcement_profile == "avm-sidecar"
 keep = bool(os.environ.get("OREN_NATIVE_PACKAGE_POLICY_KEEP_BIN") or os.environ.get("OREN_NATIVE_PACKAGE_POLICY_OUT"))
 
 def write_run_json(payload):
@@ -321,18 +343,59 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
     gas_limit = budgets.get("gas")
     gas_used, gas_remaining, gas_kind, gas_surface = native_gas_from_run_json(native_run_json)
     gas_surface_id = gas_surface.get("id") if isinstance(gas_surface, dict) else None
-    gas_enforced = gas_limit is not None and gas_used is not None and gas_kind == NATIVE_GAS_KIND and gas_surface_id == NATIVE_GAS_KIND
-    gas_exceeded = bool(gas_enforced and gas_used > int(gas_limit))
+    native_gas_enforced = (
+        gas_limit is not None
+        and gas_enforcement_profile == "native-stmt"
+        and gas_used is not None
+        and gas_kind == NATIVE_GAS_KIND
+        and gas_surface_id == NATIVE_GAS_KIND
+    )
+    sidecar_gas_used = None
+    sidecar_gas_remaining = None
+    sidecar_gas_kind = None
+    sidecar_gas_surface = None
+    sidecar_gas_surface_id = None
+    sidecar_budget_exceeded = False
+    if avm_sidecar_gas:
+        sidecar_gas_used = avm_sidecar_gas.get("gas_executed")
+        sidecar_gas_remaining = avm_sidecar_gas.get("gas_remaining")
+        sidecar_gas_surface = avm_sidecar_gas.get("gas_surface")
+        sidecar_gas_surface_id = sidecar_gas_surface.get("id") if isinstance(sidecar_gas_surface, dict) else None
+        sidecar_gas_kind = sidecar_gas_surface_id
+        sidecar_budget_exceeded = avm_sidecar_gas.get("budget_exceeded") is True or avm_sidecar_gas.get("status") == "budget_exceeded"
+        try:
+            if sidecar_gas_used is not None:
+                sidecar_gas_used = int(sidecar_gas_used)
+        except (TypeError, ValueError):
+            sidecar_gas_used = None
+    sidecar_gas_enforced = (
+        gas_limit is not None
+        and gas_enforcement_profile == "avm-sidecar"
+        and avm_sidecar_gas is not None
+        and avm_sidecar_gas.get("package_policy_may_use") is True
+        and sidecar_gas_surface_id == "avm_opcode_cost_v0"
+    )
+    if sidecar_gas_enforced:
+        gas_used = sidecar_gas_used
+        gas_remaining = sidecar_gas_remaining
+        gas_kind = sidecar_gas_kind
+        gas_surface = sidecar_gas_surface
+    gas_enforced = native_gas_enforced or sidecar_gas_enforced
+    gas_exceeded = bool(
+        (native_gas_enforced and gas_used is not None and gas_used > int(gas_limit))
+        or (sidecar_gas_enforced and sidecar_budget_exceeded)
+        or (sidecar_gas_enforced and gas_used is not None and gas_used > int(gas_limit))
+    )
     cpu_limit = budgets.get("cpu_ms")
     cpu_enforced = cpu_limit is not None and cpu_used_ms is not None
     cpu_exceeded = bool(cpu_enforced and cpu_used_ms > int(cpu_limit))
     # Stable runner budget_status vocabulary includes:
-    # runner_wall_only, runner_wall_native_gas, runner_wall_native_heap,
-    # runner_wall_child_cpu, plus combined forms such as
+    # runner_wall_only, runner_wall_native_gas, runner_wall_avm_canonical_gas,
+    # runner_wall_native_heap, runner_wall_child_cpu, plus combined forms such as
     # runner_wall_native_gas_native_heap_child_cpu.
     budget_parts = ["runner_wall"]
     if gas_enforced:
-        budget_parts.append("native_gas")
+        budget_parts.append("avm_canonical_gas" if gas_enforcement_profile == "avm-sidecar" else "native_gas")
     if heap_enforced:
         budget_parts.append("native_heap")
     if cpu_enforced:
@@ -346,7 +409,7 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
         scope_parts.append("native-run-json")
     if cpu_enforced:
         scope_parts.append("child-rusage")
-    if avm_sidecar_gas and avm_sidecar_gas.get("status") == "available":
+    if avm_sidecar_gas and avm_sidecar_gas.get("package_policy_may_use") is True:
         scope_parts.append("avm-canonical-sidecar")
     if native_summary is not None:
         effect_ledger = {
@@ -398,9 +461,22 @@ def run_summary_payload(*, exit_code, status, elapsed_ns, src, out, profile, cap
                 "kind": gas_kind,
                 "surface": gas_surface,
                 "enforced": gas_enforced,
-                "enforcement": "native-run-json-stmt-loop-tick" if gas_enforced else "none",
+                "enforcement": (
+                    "avm-canonical-sidecar"
+                    if sidecar_gas_enforced
+                    else ("native-run-json-stmt-loop-tick" if native_gas_enforced else "none")
+                ),
+                "enforcement_profile": gas_enforcement_profile,
                 "exceeded": gas_exceeded,
-                "reason": None if gas_enforced or gas_limit is None else "native statement+loop gas summary was not captured",
+                "reason": (
+                    None
+                    if gas_enforced or gas_limit is None
+                    else (
+                        "AVM canonical sidecar gas was not certified"
+                        if gas_enforcement_profile == "avm-sidecar"
+                        else "native statement+loop gas summary was not captured"
+                    )
+                ),
             },
             "heap_bytes": {
                 "limit": heap_limit,
@@ -467,7 +543,7 @@ try:
         "-o", str(out),
     ]
     build_env = os.environ.copy()
-    if gas_limit is not None:
+    if gas_limit is not None and gas_enforcement_profile == "native-stmt":
         build_env["OREN_NATIVE_GAS_ACCOUNTING"] = "stmt"
     run_checked(build_cmd, env=build_env, log_path=build_log)
 
@@ -484,7 +560,7 @@ try:
     capture_native_run_json = bool(run_json_path or heap_limit is not None or gas_limit is not None or avm_sidecar_enabled)
     if capture_native_run_json:
         env["OREN_NATIVE_RUN_JSON"] = "1"
-    if gas_limit is not None:
+    if gas_limit is not None and gas_enforcement_profile == "native-stmt":
         env["OREN_NATIVE_GAS_ACCOUNTING"] = "stmt"
     timeout = None if wall_ms is None else wall_ms / 1000.0
     start_ns = time.monotonic_ns()
@@ -586,7 +662,24 @@ try:
             avm_stdout=avm_p.stdout or "",
             avm_exit_code=avm_p.returncode,
             avm_run_json=extract_avm_run_json(avm_p.stdout or ""),
+            avm_stderr=avm_p.stderr or "",
         )
+        if gas_enforcement_profile == "avm-sidecar" and avm_sidecar_gas.get("status") == "budget_exceeded":
+            write_run_json(run_summary_payload(
+                exit_code=127,
+                status="budget_exceeded",
+                elapsed_ns=elapsed_ns,
+                src=src,
+                out=out,
+                profile=profile,
+                caps=caps,
+                wall_ms=wall_ms,
+                budgets=budgets,
+                native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
+            ))
+            fail(f"package AVM canonical sidecar gas budget exceeded: limit {gas_limit}", rc=127)
         if avm_sidecar_gas.get("status") != "available":
             write_run_json(run_summary_payload(
                 exit_code=77,
@@ -603,7 +696,24 @@ try:
                 avm_sidecar_gas=avm_sidecar_gas,
             ))
             fail("package AVM canonical sidecar gas could not be certified for native run", rc=77)
-    if gas_limit is not None:
+    if gas_limit is not None and gas_enforcement_profile == "avm-sidecar":
+        if not avm_sidecar_gas or avm_sidecar_gas.get("package_policy_may_use") is not True:
+            write_run_json(run_summary_payload(
+                exit_code=77,
+                status="budget_unavailable",
+                elapsed_ns=elapsed_ns,
+                src=src,
+                out=out,
+                profile=profile,
+                caps=caps,
+                wall_ms=wall_ms,
+                budgets=budgets,
+                native_run_json=native_run_json,
+                cpu_used_ms=cpu_used_ms,
+                avm_sidecar_gas=avm_sidecar_gas,
+            ))
+            fail("package AVM canonical sidecar gas was not certified for enforcement", rc=77)
+    elif gas_limit is not None:
         gas_used, gas_remaining, gas_kind, gas_surface = native_gas_from_run_json(native_run_json)
         gas_surface_id = gas_surface.get("id") if isinstance(gas_surface, dict) else None
         if gas_used is None or gas_kind != NATIVE_GAS_KIND or gas_surface_id != NATIVE_GAS_KIND:

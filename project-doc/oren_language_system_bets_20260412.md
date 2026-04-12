@@ -142,12 +142,16 @@ It is a language plus runtime plus artifact contract.
 	  `avm_canonical=true`) as non-comparable rather than pretending any positive counter is enough.
 	  Semantic diff now also carries same-source `oren.avm-canonical-sidecar-gas.v0` OBC evidence with
 	  `package_policy_may_use=false`, so parity tooling gets AVM canonical evidence without pretending it
-	  is native gas. The next step is making that sidecar package-policy-bound or adding finer native
-	  instruction-equivalent gas rather than another manifest-only field.
-	  Native package policy can now opt into that package-bound sidecar path with
-	  `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`: it builds a bytecode sidecar from the same source
-	  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
-	  certificate usable only when stdout/exit matches the native run.
+	  is native gas. Native package policy now has a package-bound sidecar enforcement profile; the
+	  remaining gap is broadening that profile or adding finer native instruction-equivalent gas rather
+	  than another manifest-only field.
+		  Native package policy can now opt into that package-bound sidecar path with
+		  `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`: it builds a bytecode sidecar from the same source
+		  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
+		  certificate usable only when stdout/exit matches the native run. It can now also select
+		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
+		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus
+		  `enforcement_profile="avm-sidecar"` without claiming native runtime conversion.
 - The initial effect-ledger schema is now pinned in `docs/EFFECT_LEDGER_CONTRACT.md`; next work is
   conforming native/AVM runtime emission and cross-backend semantic-diff consumption.
 - `scripts/run_backend_semantic_diff.sh` is now the first small semantic-diff consumer: it emits
@@ -182,8 +186,8 @@ It is a language plus runtime plus artifact contract.
 	  includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
 	  `docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` now make that registry
 	  machine-checked across runtime JSON, semantic-diff, package-policy, and docs.
-		  Next work is package-binding the AVM canonical sidecar or adding instruction-equivalent native gas,
-	  not only expanding fixture scripts.
+			  Next work is broadening the AVM canonical sidecar enforcement profile or adding
+		  instruction-equivalent native gas, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling
