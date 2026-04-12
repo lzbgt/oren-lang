@@ -156,12 +156,14 @@ Required entry fields:
   requires `certification_failure_reasons=["exit_code_mismatch", "sidecar_exit_nonzero"]`,
   `package_policy_may_use=false`, and `budget_unavailable` so nonzero sidecar exits cannot be treated
   as gas certificates. Additional verifier-only probes now remove sidecar run JSON
-  (`test_injection="drop_run_json"`), remove the sidecar gas surface
-  (`test_injection="drop_gas_surface"`), force zero gas (`test_injection="zero_gas"`), and force
-  sidecar timeout (`test_injection="timeout"`), requiring `missing_or_noncanonical_avm_gas_surface`,
-  `missing_or_nonpositive_avm_gas`, or `timeout` failure evidence before the runner reports
-  `budget_unavailable`. A sidecar build-failure probe (`test_injection="build_fail"`) now also requires
-  `certification_status="build_failed"` plus `certification_failure_reasons=["sidecar_build_failed"]`,
+(`test_injection="drop_run_json"`), remove the sidecar gas surface
+(`test_injection="drop_gas_surface"`), force zero gas (`test_injection="zero_gas"`), and force
+sidecar timeout (`test_injection="timeout"`), requiring `missing_or_noncanonical_avm_gas_surface`,
+`missing_or_nonpositive_avm_gas`, or `timeout` failure evidence before the runner reports
+`budget_unavailable`. A structured non-gas AVM run-error probe (`test_injection="run_error"`) now
+also requires `sidecar_error` failure evidence while preserving canonical gas evidence. A sidecar
+build-failure probe (`test_injection="build_fail"`) now also requires
+`certification_status="build_failed"` plus `certification_failure_reasons=["sidecar_build_failed"]`,
   preserving a structured non-certified sidecar record even when no AVM sidecar run exists. A
   native-failure fixture now also requires `certification_status="not_run_native_failed"` and
   `certification_failure_reasons=["native_exit_nonzero"]`, preserving the native program failure exit

@@ -1604,6 +1604,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     Calibration-set and native instruction-surface decision consumers now preserve those
 			     source/native-artifact/sidecar-artifact identity hashes per sample and aggregate
 			     `avm_canonical_sidecar_identity_hashes_present_all` evidence.
+			     Native package-policy verification also injects structured non-gas AVM sidecar run errors
+			     and requires a distinct `sidecar_error` failure reason rather than flattening them into
+			     plain exit-code mismatch evidence.
 			   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
 			     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
 				     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget

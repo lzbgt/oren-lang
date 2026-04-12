@@ -418,6 +418,8 @@ def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, n
         certification_failure_reasons.append("exit_code_mismatch")
     if avm_exit_code != 0 and not budget_exceeded:
         certification_failure_reasons.append("sidecar_exit_nonzero")
+    if isinstance(avm_run_error, dict) and not budget_exceeded:
+        certification_failure_reasons.append("sidecar_error")
     if not canonical_surface:
         certification_failure_reasons.append("missing_or_noncanonical_avm_gas_surface")
     elif not budget_exceeded and not canonical_positive_gas:
@@ -910,6 +912,7 @@ try:
         test_sidecar_drop_run_json = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_RUN_JSON")
         test_sidecar_drop_gas_surface = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_GAS_SURFACE")
         test_sidecar_zero_gas = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_ZERO_GAS")
+        test_sidecar_run_error = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_RUN_ERROR")
         test_injection = None
         if test_sidecar_stdout_suffix:
             avm_stdout_for_payload = f"{avm_stdout_for_payload}{test_sidecar_stdout_suffix}"
@@ -942,6 +945,17 @@ try:
             if test_sidecar_zero_gas:
                 test_gas["executed"] = 0
                 test_injection = append_test_injection(test_injection, "zero_gas")
+        if test_sidecar_run_error:
+            if not isinstance(avm_run_json_for_payload, dict):
+                fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_RUN_ERROR requires AVM run JSON")
+            avm_run_json_for_payload = json.loads(json.dumps(avm_run_json_for_payload))
+            avm_run_json_for_payload["status"] = "error"
+            avm_run_json_for_payload["error"] = {
+                "code": 42,
+                "msg": "verifier non-gas sidecar error",
+            }
+            avm_exit_code_for_payload = 42
+            test_injection = append_test_injection(test_injection, "run_error")
         avm_sidecar_gas = avm_canonical_sidecar_payload(
             src=src,
             native_artifact=out,

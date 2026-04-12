@@ -156,6 +156,8 @@ It is a language plus runtime plus artifact contract.
 			  `certification_status` / `certification_failure_reasons`. Calibration-set and native
 			  instruction-surface decision consumers preserve the source/native-artifact/sidecar-artifact
 			  identity hashes per sample instead of collapsing them to a boolean-only certificate.
+			  Structured non-gas AVM sidecar run errors are now a separate guarded non-certified class
+			  (`test_injection="run_error"`, `certification_failure_reasons` includes `sidecar_error`).
 		  The runner guard now proves non-certified sidecar evidence fails closed with an auditable
 		  stdout-mismatch `test_injection`, so package policy cannot silently enforce gas from a sidecar
 		  whose stdout/exit certificate is unavailable.
