@@ -42,6 +42,9 @@ gas_sidecar_uncertified_json="$TMP/gas-sidecar-uncertified.run.json"
 gas_sidecar_stderr_warning_out="$TMP/gas-sidecar-stderr-warning.out"
 gas_sidecar_stderr_warning_err="$TMP/gas-sidecar-stderr-warning.err"
 gas_sidecar_stderr_warning_json="$TMP/gas-sidecar-stderr-warning.run.json"
+gas_sidecar_exit_mismatch_out="$TMP/gas-sidecar-exit-mismatch.out"
+gas_sidecar_exit_mismatch_err="$TMP/gas-sidecar-exit-mismatch.err"
+gas_sidecar_exit_mismatch_json="$TMP/gas-sidecar-exit-mismatch.run.json"
 gas_profile_bad_out="$TMP/gas-profile-bad.out"
 gas_profile_bad_err="$TMP/gas-profile-bad.err"
 gas_profile_avm_bad_out="$TMP/gas-profile-avm-bad.out"
@@ -168,6 +171,11 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_stderr_warning_json" \
   ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_sidecar_stderr_warning_out" 2>"$gas_sidecar_stderr_warning_err"
 gas_sidecar_stderr_warning_rc=$?
+OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$gas_sidecar_exit_mismatch_json" \
+  OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE=42 \
+  ./scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar tests/fixtures/native_package_policy_runner_gas_ok.oren \
+  >"$gas_sidecar_exit_mismatch_out" 2>"$gas_sidecar_exit_mismatch_err"
+gas_sidecar_exit_mismatch_rc=$?
 OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=sidecar \
   ./scripts/run_package_policy.sh --backend native tests/fixtures/native_package_policy_runner_gas_ok.oren \
   >"$gas_profile_bad_out" 2>"$gas_profile_bad_err"
@@ -193,7 +201,7 @@ OREN_NATIVE_PACKAGE_POLICY_RUN_JSON="$cpu_fail_json" \
 cpu_fail_rc=$?
 set -e
 
-python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" <<'PY'
+python3 - "$ok_json" "$wall_json" "$ok_out" "$heap_ok_json" "$heap_fail_json" "$cpu_ok_json" "$cpu_fail_json" "$gas_ok_json" "$gas_fail_json" "$gas_stmt_fail_json" "$gas_sidecar_ok_json" "$gas_sidecar_fail_json" "$gas_sidecar_uncertified_json" "$gas_sidecar_stderr_warning_json" "$gas_auto_ok_json" "$gas_dispatch_default_ok_json" "$gas_env_override_ok_json" "$gas_sidecar_exit_mismatch_json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -215,6 +223,7 @@ gas_sidecar_stderr_warning_path = Path(sys.argv[14])
 gas_auto_ok_path = Path(sys.argv[15])
 gas_dispatch_default_ok_path = Path(sys.argv[16])
 gas_env_override_ok_path = Path(sys.argv[17])
+gas_sidecar_exit_mismatch_path = Path(sys.argv[18])
 
 def fail(msg):
     raise SystemExit(msg)
@@ -250,6 +259,8 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
         fail(f"{path}: AVM sidecar should certify same-source evidence, got {sidecar!r}")
     if sidecar.get("native_runtime_conversion") is not False:
         fail(f"{path}: AVM sidecar must not claim native runtime conversion, got {sidecar!r}")
+    if not isinstance(sidecar.get("native_exit_code"), int) or not isinstance(sidecar.get("sidecar_exit_code"), int):
+        fail(f"{path}: AVM sidecar should expose concrete native/sidecar exit codes, got {sidecar!r}")
     if sidecar.get("package_policy_may_use") is not True:
         fail(f"{path}: package-bound AVM sidecar should be usable as an AVM canonical certificate, got {sidecar!r}")
     expected_certification = "budget_exceeded_canonical_surface" if budget_exceeded else "stdout_exit_match"
@@ -268,6 +279,8 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
     if not isinstance(sidecar.get("same_run_stderr_equal"), bool):
         fail(f"{path}: AVM sidecar should expose explicit stderr parity, got {sidecar!r}")
     if budget_exceeded:
+        if sidecar.get("native_exit_code") != 0 or sidecar.get("sidecar_exit_code") == 0:
+            fail(f"{path}: AVM sidecar budget-exceeded certificate should expose native success and sidecar failure exits, got {sidecar!r}")
         if sidecar.get("package_policy_may_use_reason") != "avm_canonical_gas_budget_exceeded":
             fail(f"{path}: AVM sidecar budget-exceeded reason mismatch: {sidecar!r}")
         if sidecar.get("budget_exceeded_source") != "avm_run_json_error":
@@ -276,6 +289,8 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
         if err.get("code") != 9 or err.get("msg") != "budget exceeded (gas)":
             fail(f"{path}: AVM sidecar budget-exceeded error mismatch: {sidecar!r}")
     else:
+        if sidecar.get("native_exit_code") != 0 or sidecar.get("sidecar_exit_code") != 0:
+            fail(f"{path}: AVM sidecar available certificate should expose zero native/sidecar exits, got {sidecar!r}")
         if sidecar.get("native_stdout_sha256") != sidecar.get("sidecar_stdout_sha256"):
             fail(f"{path}: AVM sidecar stdout hashes should match for available certificate, got {sidecar!r}")
         if sidecar.get("same_run_stderr_equal") is not True:
@@ -666,6 +681,8 @@ if sidecar_uncertified.get("same_run_stdout_equal") is not False:
     fail(f"{gas_sidecar_uncertified_path}: expected stdout mismatch evidence, got {sidecar_uncertified!r}")
 if sidecar_uncertified.get("same_run_stderr_equal") is not True or sidecar_uncertified.get("same_run_exit_code_equal") is not True:
     fail(f"{gas_sidecar_uncertified_path}: stdout-only uncertified sidecar should preserve stderr/exit parity, got {sidecar_uncertified!r}")
+if sidecar_uncertified.get("native_exit_code") != 0 or sidecar_uncertified.get("sidecar_exit_code") != 0:
+    fail(f"{gas_sidecar_uncertified_path}: stdout-only uncertified sidecar should expose zero native/sidecar exits, got {sidecar_uncertified!r}")
 if sidecar_uncertified.get("native_stdout_sha256") == sidecar_uncertified.get("sidecar_stdout_sha256"):
     fail(f"{gas_sidecar_uncertified_path}: stdout hashes should differ for injected mismatch, got {sidecar_uncertified!r}")
 if sidecar_uncertified.get("native_stderr_sha256") != sidecar_uncertified.get("sidecar_stderr_sha256"):
@@ -702,6 +719,8 @@ if sidecar_stderr_warning.get("test_injection") != "stderr_suffix":
     fail(f"{gas_sidecar_stderr_warning_path}: expected auditable stderr_suffix verifier injection, got {sidecar_stderr_warning!r}")
 if sidecar_stderr_warning.get("same_run_stdout_equal") is not True or sidecar_stderr_warning.get("same_run_exit_code_equal") is not True:
     fail(f"{gas_sidecar_stderr_warning_path}: stderr-only warning should preserve stdout/exit parity, got {sidecar_stderr_warning!r}")
+if sidecar_stderr_warning.get("native_exit_code") != 0 or sidecar_stderr_warning.get("sidecar_exit_code") != 0:
+    fail(f"{gas_sidecar_stderr_warning_path}: warning-only sidecar should expose zero native/sidecar exits, got {sidecar_stderr_warning!r}")
 if sidecar_stderr_warning.get("same_run_stderr_equal") is not False:
     fail(f"{gas_sidecar_stderr_warning_path}: expected explicit stderr mismatch warning evidence, got {sidecar_stderr_warning!r}")
 if sidecar_stderr_warning.get("native_stdout_sha256") != sidecar_stderr_warning.get("sidecar_stdout_sha256"):
@@ -716,6 +735,55 @@ if int(gas_sidecar_stderr_warning_budget.get("executed") or -1) != int(sidecar_s
         f"{gas_sidecar_stderr_warning_path}: warning-only gas budget should mirror sidecar evidence, "
         f"got {gas_sidecar_stderr_warning_budget!r} vs {sidecar_stderr_warning!r}"
     )
+
+gas_sidecar_exit_mismatch = load(gas_sidecar_exit_mismatch_path)
+if gas_sidecar_exit_mismatch.get("schema") != "oren.native-package-policy-run.v0":
+    fail(f"{gas_sidecar_exit_mismatch_path}: schema mismatch: {gas_sidecar_exit_mismatch.get('schema')!r}")
+if gas_sidecar_exit_mismatch.get("status") != "budget_unavailable" or gas_sidecar_exit_mismatch.get("exit_code") != 77:
+    fail(
+        f"{gas_sidecar_exit_mismatch_path}: expected budget_unavailable/77 for exit-mismatched sidecar, got "
+        f"status={gas_sidecar_exit_mismatch.get('status')!r} exit={gas_sidecar_exit_mismatch.get('exit_code')!r}"
+    )
+gas_sidecar_exit_mismatch_budget = ((gas_sidecar_exit_mismatch.get("budgets") or {}).get("gas") or {})
+if gas_sidecar_exit_mismatch_budget.get("limit") != 100000:
+    fail(f"{gas_sidecar_exit_mismatch_path}: expected original gas limit on exit-mismatched sidecar, got {gas_sidecar_exit_mismatch_budget!r}")
+if gas_sidecar_exit_mismatch_budget.get("enforcement_profile") != "avm-sidecar":
+    fail(f"{gas_sidecar_exit_mismatch_path}: expected avm-sidecar enforcement profile, got {gas_sidecar_exit_mismatch_budget!r}")
+if gas_sidecar_exit_mismatch_budget.get("enforced") is not False:
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-mismatched AVM sidecar gas must not be marked enforced, got {gas_sidecar_exit_mismatch_budget!r}")
+if gas_sidecar_exit_mismatch_budget.get("reason") != "AVM canonical sidecar gas was not certified":
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-mismatched AVM sidecar gas reason mismatch, got {gas_sidecar_exit_mismatch_budget!r}")
+sidecar_exit_mismatch = gas_sidecar_exit_mismatch.get("avm_canonical_sidecar_gas") or {}
+if sidecar_exit_mismatch.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
+    fail(f"{gas_sidecar_exit_mismatch_path}: AVM sidecar schema mismatch: {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("status") != "unavailable":
+    fail(f"{gas_sidecar_exit_mismatch_path}: expected unavailable AVM sidecar status, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("certification_status") != "unavailable":
+    fail(f"{gas_sidecar_exit_mismatch_path}: expected unavailable certification status, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("package_policy_may_use") is not False:
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-mismatched sidecar must not be package-policy usable, got {sidecar_exit_mismatch!r}")
+exit_mismatch_reasons = set(sidecar_exit_mismatch.get("certification_failure_reasons") or [])
+if exit_mismatch_reasons != {"exit_code_mismatch", "sidecar_exit_nonzero"}:
+    fail(f"{gas_sidecar_exit_mismatch_path}: expected only exit_code_mismatch/sidecar_exit_nonzero reasons, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("certification_warnings") != []:
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-code-only test injection should not create sidecar warnings, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("test_injection") != "exit_code":
+    fail(f"{gas_sidecar_exit_mismatch_path}: expected auditable exit_code verifier injection, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("same_run_stdout_equal") is not True or sidecar_exit_mismatch.get("same_run_stderr_equal") is not True:
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-code-only sidecar should preserve stdout/stderr parity, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("same_run_exit_code_equal") is not False:
+    fail(f"{gas_sidecar_exit_mismatch_path}: expected explicit exit-code mismatch evidence, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("native_exit_code") != 0 or sidecar_exit_mismatch.get("sidecar_exit_code") != 42:
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-code injection should expose native exit 0 and sidecar exit 42, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("native_stdout_sha256") != sidecar_exit_mismatch.get("sidecar_stdout_sha256"):
+    fail(f"{gas_sidecar_exit_mismatch_path}: stdout hashes should still match for exit-code mismatch, got {sidecar_exit_mismatch!r}")
+if sidecar_exit_mismatch.get("native_stderr_sha256") != sidecar_exit_mismatch.get("sidecar_stderr_sha256"):
+    fail(f"{gas_sidecar_exit_mismatch_path}: stderr hashes should still match for exit-code mismatch, got {sidecar_exit_mismatch!r}")
+exit_mismatch_surface = sidecar_exit_mismatch.get("gas_surface") or {}
+if exit_mismatch_surface.get("id") != "avm_opcode_cost_v0" or exit_mismatch_surface.get("unit_scope") != "avm_canonical":
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-mismatched sidecar should preserve AVM canonical surface evidence, got {sidecar_exit_mismatch!r}")
+if int(sidecar_exit_mismatch.get("gas_executed") or 0) <= 0:
+    fail(f"{gas_sidecar_exit_mismatch_path}: exit-mismatched sidecar should distinguish exit failure from missing gas evidence, got {sidecar_exit_mismatch!r}")
 PY
 
 if [[ "$deny_rc" -eq 0 ]]; then
@@ -776,6 +844,19 @@ if [[ "$gas_sidecar_stderr_warning_rc" -ne 0 ]]; then
   cat "$gas_sidecar_stderr_warning_err" >&2 || true
   exit 1
 fi
+
+if [[ "$gas_sidecar_exit_mismatch_rc" -eq 0 ]]; then
+  echo "ERROR: expected exit-mismatched AVM sidecar evidence to fail closed" >&2
+  cat "$gas_sidecar_exit_mismatch_out" >&2 || true
+  cat "$gas_sidecar_exit_mismatch_err" >&2 || true
+  exit 1
+fi
+grep -Fq "package AVM canonical sidecar gas could not be certified for native run" "$gas_sidecar_exit_mismatch_out" "$gas_sidecar_exit_mismatch_err" || {
+  echo "ERROR: missing exit-mismatched AVM sidecar diagnostic" >&2
+  cat "$gas_sidecar_exit_mismatch_out" >&2 || true
+  cat "$gas_sidecar_exit_mismatch_err" >&2 || true
+  exit 1
+}
 
 if [[ "$gas_profile_bad_rc" -eq 0 ]]; then
   echo "ERROR: expected invalid native package-policy gas profile to fail closed" >&2

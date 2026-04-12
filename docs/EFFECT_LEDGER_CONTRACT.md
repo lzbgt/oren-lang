@@ -109,7 +109,8 @@ Required entry fields:
   `oren.avm-canonical-sidecar-gas.v0`, a same-source OBC sidecar that records the AVM canonical gas
   evidence next to native runtime evidence while preserving `native_runtime_conversion=false` and
   `package_policy_may_use=false`; higher-level calibration/decision reports preserve its
-  `same_run_stderr_equal` evidence. It includes `oren.gas-surface-calibration.v0` empirical ratios for the
+  `same_run_stderr_equal` and `same_run_exit_code_equal` evidence. It includes
+  `oren.gas-surface-calibration.v0` empirical ratios for the
   fixture, but those ratios are evidence only and are flagged as `not_a_conversion` until a real
   conversion contract exists. `scripts/verify_backend_gas_surface_calibration_set.sh` writes an
   `oren.gas-surface-calibration-set.v0` report from default smoke, loop-heavy, branch-heavy,
@@ -139,7 +140,8 @@ Required entry fields:
   sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
   `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
   canonical gas sidecar itself reports budget exhaustion. It records normalized stdout/stderr hashes,
-  explicit `same_run_stderr_equal` evidence, `certification_status`, non-blocking
+  explicit `same_run_stderr_equal` evidence, concrete `native_exit_code` / `sidecar_exit_code` values,
+  `certification_status`, non-blocking
   `certification_warnings`, `certification_failure_reasons`, and `package_policy_may_use_reason`
   while still preserving
   `native_runtime_conversion=false`.
@@ -149,7 +151,10 @@ Required entry fields:
   `budget_unavailable` runner status for that non-certified sidecar path.
   It separately injects a verifier-only stderr mismatch (`test_injection="stderr_suffix"`) and requires
   `certification_warnings=["stderr_mismatch"]` while preserving stdout/exit certification and AVM
-  sidecar gas enforcement.
+  sidecar gas enforcement. A verifier-only exit-code mismatch (`test_injection="exit_code"`) now also
+  requires `certification_failure_reasons=["exit_code_mismatch", "sidecar_exit_nonzero"]`,
+  `package_policy_may_use=false`, and `budget_unavailable` so nonzero sidecar exits cannot be treated
+  as gas certificates.
   With
   `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
   `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that
@@ -290,8 +295,8 @@ report proving the current ratio spread across default, loop-heavy, branch-heavy
 allocation-heavy fixtures is too fixture-sensitive to promote as a conversion rule. The same report
 carries an `oren.gas-surface-conversion-decision.v0` decision with `package_policy_may_convert=false`
 and `required_next_surface="native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"`,
-and preserves aggregate `avm_canonical_sidecar_test_injection_free` evidence for its semantic-diff
-sidecars.
+and preserves aggregate `avm_canonical_sidecar_exit_code_equal_all` plus
+`avm_canonical_sidecar_test_injection_free` evidence for its semantic-diff sidecars.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:
 `oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
 as a runtime gas surface by cross-checking them against the current `native_dynamic_emitter_tick_v0`

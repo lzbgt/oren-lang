@@ -481,6 +481,8 @@ avm_canonical_sidecar_gas = {
     "same_run_stdout_equal": native_obc_stdout_equal,
     "same_run_stderr_equal": native_obc_stderr_equal,
     "same_run_exit_code_equal": native_obc_exit_equal,
+    "native_exit_code": backends["native"]["exit_code"],
+    "sidecar_exit_code": backends["obc"]["exit_code"],
     "native_stdout_sha256": backends["native"]["stdout_sha256"],
     "sidecar_stdout_sha256": backends["obc"]["stdout_sha256"],
     "native_stderr_sha256": backends["native"]["stderr_sha256"],

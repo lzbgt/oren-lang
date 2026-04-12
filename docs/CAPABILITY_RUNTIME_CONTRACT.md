@@ -227,13 +227,16 @@ summary. When `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1` is set, the native runn
 bytecode sidecar from the same source and package manifest, runs it under the declared package AVM
 budgets, checks stdout/exit parity with the native run after removing run-JSON lines, and records
 `oren.avm-canonical-sidecar-gas.v0` with `policy_scope="native_package_policy_same_source_artifact"`,
-normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, an explicit
+normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, concrete
+`native_exit_code` / `sidecar_exit_code` values, an explicit
 `certification_status`, machine-readable non-blocking `certification_warnings`, and machine-readable
 `certification_failure_reasons` for non-certified sidecar outcomes. The runner verifier now has an
 auditable stdout-mismatch probe (`test_injection="stdout_suffix"`) proving non-certified sidecar
 evidence fails closed with `budget_unavailable` instead of being accepted by gas enforcement, plus a
 stderr-mismatch probe (`test_injection="stderr_suffix"`) proving non-blocking warnings do not revoke a
-valid stdout/exit AVM gas certificate.
+valid stdout/exit AVM gas certificate, and an exit-code mismatch probe
+(`test_injection="exit_code"`) proving nonzero sidecar exits are non-certified rather than usable gas
+evidence.
 That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the
 resolved `avm-sidecar` gas profile uses it as package `budget_gas` enforcement. The `auto` profile
 can resolve there for gas-budgeted packages.

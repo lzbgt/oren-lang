@@ -329,6 +329,8 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
         "same_run_stdout_equal": same_stdout,
         "same_run_stderr_equal": same_stderr,
         "same_run_exit_code_equal": same_exit,
+        "native_exit_code": native_exit_code,
+        "sidecar_exit_code": avm_exit_code,
         "native_stdout_sha256": sha256_s(native_stdout_normalized),
         "sidecar_stdout_sha256": sha256_s(avm_stdout_normalized),
         "native_stderr_sha256": sha256_s(native_stderr_normalized),
@@ -733,8 +735,10 @@ try:
             fail("package AVM canonical sidecar timed out", rc=77)
         avm_stdout_for_payload = avm_p.stdout or ""
         avm_stderr_for_payload = avm_p.stderr or ""
+        avm_exit_code_for_payload = avm_p.returncode
         test_sidecar_stdout_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDOUT_SUFFIX")
         test_sidecar_stderr_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDERR_SUFFIX")
+        test_sidecar_exit_code = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE")
         test_injection = None
         if test_sidecar_stdout_suffix:
             avm_stdout_for_payload = f"{avm_stdout_for_payload}{test_sidecar_stdout_suffix}"
@@ -742,6 +746,14 @@ try:
         if test_sidecar_stderr_suffix:
             avm_stderr_for_payload = f"{avm_stderr_for_payload}{test_sidecar_stderr_suffix}"
             test_injection = "stderr_suffix" if test_injection is None else f"{test_injection}+stderr_suffix"
+        if test_sidecar_exit_code:
+            try:
+                avm_exit_code_for_payload = int(test_sidecar_exit_code, 10)
+            except ValueError:
+                fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE must be an integer exit code")
+            if avm_exit_code_for_payload < 0 or avm_exit_code_for_payload > 255:
+                fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE must be in 0..255")
+            test_injection = "exit_code" if test_injection is None else f"{test_injection}+exit_code"
         avm_sidecar_gas = avm_canonical_sidecar_payload(
             src=src,
             obc=obc_sidecar,
@@ -749,7 +761,7 @@ try:
             native_stderr=p.stderr or "",
             native_exit_code=p.returncode,
             avm_stdout=avm_stdout_for_payload,
-            avm_exit_code=avm_p.returncode,
+            avm_exit_code=avm_exit_code_for_payload,
             avm_run_json=extract_avm_run_json(avm_p.stdout or ""),
             avm_stderr=avm_stderr_for_payload,
             test_injection=test_injection,

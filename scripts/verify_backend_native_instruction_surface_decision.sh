@@ -202,6 +202,12 @@ for i in range(0, len(items), 3):
         raise SystemExit(
             f"{semantic_report}: AVM sidecar should preserve semantic-diff stderr parity evidence, got {sidecar!r}"
         )
+    if sidecar.get("same_run_exit_code_equal") is not True:
+        raise SystemExit(
+            f"{semantic_report}: AVM sidecar should preserve semantic-diff exit-code parity evidence, got {sidecar!r}"
+        )
+    if sidecar.get("native_exit_code") != 0 or sidecar.get("sidecar_exit_code") != 0:
+        raise SystemExit(f"{semantic_report}: AVM sidecar should expose zero native/sidecar exits, got {sidecar!r}")
     if sidecar.get("certification_warnings") != []:
         raise SystemExit(
             f"{semantic_report}: AVM sidecar should preserve warning-free semantic-diff evidence, got {sidecar!r}"
@@ -227,6 +233,9 @@ for i in range(0, len(items), 3):
             "avm_canonical_sidecar_policy_scope": sidecar.get("policy_scope"),
             "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
             "avm_canonical_sidecar_stderr_equal": sidecar.get("same_run_stderr_equal"),
+            "avm_canonical_sidecar_exit_code_equal": sidecar.get("same_run_exit_code_equal"),
+            "avm_canonical_sidecar_native_exit_code": sidecar.get("native_exit_code"),
+            "avm_canonical_sidecar_sidecar_exit_code": sidecar.get("sidecar_exit_code"),
             "avm_canonical_sidecar_certification_warnings": sidecar.get("certification_warnings"),
             "avm_canonical_sidecar_test_injection": sidecar.get("test_injection"),
             "native_dynamic_emitter_executed": native_executed,
@@ -277,6 +286,7 @@ decision = {
     "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
     "package_policy_may_use_avm_sidecar": False,
     "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
+    "avm_canonical_sidecar_exit_code_equal_all": all(sample["avm_canonical_sidecar_exit_code_equal"] for sample in samples),
     "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
     "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
     "required_next_surface": required_next_surface,

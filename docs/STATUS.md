@@ -1568,11 +1568,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      keeping single-language comparison references out of public `README*.md` files while archived
      research notes remain under `project-doc/**` / `docs/refs/**`.
    - Gas-surface calibration now includes default smoke, loop-heavy, branch-heavy, call-heavy, and
-	     allocation-heavy fixtures plus
-	     an `oren.gas-surface-conversion-decision.v0` blocker, keeping package-policy gas conversion
-	     disabled unless package policy uses the AVM sidecar enforcement profile, now the shared native
-	     dispatcher default for gas-budgeted packages, or native instruction-equivalent gas exists. The
-	     first dynamic-emitter native surface still spans `~2.49x` to `~16.82x` native ticks per AVM opcode
+     allocation-heavy fixtures plus
+     an `oren.gas-surface-conversion-decision.v0` blocker, keeping package-policy gas conversion
+     disabled unless package policy uses the AVM sidecar enforcement profile, now the shared native
+     dispatcher default for gas-budgeted packages, or native instruction-equivalent gas exists. The
+     first dynamic-emitter native surface still spans `~2.49x` to `~16.82x` native ticks per AVM opcode
      gas across the calibration set
      (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`).
 	   - `make verify-backend-native-instruction-surface-decision` now records a separate
@@ -1594,11 +1594,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `cross_arch_comparable=true`, `conversion_ready=true`, and `avm_canonical=true`, while
 			     native dynamic-emitter gas remains a separate non-conversion-ready evidence surface.
 		   - Semantic diff now emits `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas
-				     evidence beside native runtime gas, with normalized stdout/stderr hashes,
-				     explicit `same_run_stderr_equal` evidence, non-blocking `certification_warnings`,
-				     `certification_status`, `certification_failure_reasons`,
-				     `native_runtime_conversion=false`, and
-				     `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
+		     evidence beside native runtime gas, with normalized stdout/stderr hashes,
+		     explicit `same_run_stderr_equal` evidence, concrete native/sidecar exit codes,
+		     non-blocking `certification_warnings`,
+		     `certification_status`, `certification_failure_reasons`,
+		     `native_runtime_conversion=false`, and
+		     `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
 			   - Native package policy can opt into `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, which builds a
 			     same-source bytecode sidecar under package AVM budgets and records AVM canonical gas only when
 				     stdout/exit matches the native run or the sidecar itself reports AVM canonical gas budget
@@ -1615,6 +1616,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     `budget_unavailable` instead of treating the AVM sidecar as gas enforcement.
 				     The adjacent stderr-mismatch probe now stays certified with
 				     `certification_warnings=["stderr_mismatch"]`, proving warnings are non-blocking.
+				     An exit-code mismatch probe now also requires `exit_code_mismatch` plus
+				     `sidecar_exit_nonzero` failure reasons and keeps the sidecar non-certified.
 	   - `docs/GAS_SURFACE_REGISTRY.md` plus `make verify-gas-surface-registry` now guard the registered
 	     gas-surface inventory, including AVM-canonical versus native backend-local conversion status.
 

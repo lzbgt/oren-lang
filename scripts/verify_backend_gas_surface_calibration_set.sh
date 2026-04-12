@@ -104,6 +104,10 @@ for path in report_paths:
         raise SystemExit(f"{path}: AVM canonical sidecar policy scope mismatch: {sidecar!r}")
     if sidecar.get("same_run_stderr_equal") is not True:
         raise SystemExit(f"{path}: AVM canonical sidecar should preserve semantic-diff stderr parity evidence: {sidecar!r}")
+    if sidecar.get("same_run_exit_code_equal") is not True:
+        raise SystemExit(f"{path}: AVM canonical sidecar should preserve semantic-diff exit-code parity evidence: {sidecar!r}")
+    if sidecar.get("native_exit_code") != 0 or sidecar.get("sidecar_exit_code") != 0:
+        raise SystemExit(f"{path}: AVM canonical sidecar should expose zero native/sidecar exits: {sidecar!r}")
     if sidecar.get("certification_warnings") != []:
         raise SystemExit(f"{path}: AVM canonical sidecar should preserve warning-free semantic-diff evidence: {sidecar!r}")
     if sidecar.get("test_injection") is not None:
@@ -209,6 +213,9 @@ for path in report_paths:
             "avm_canonical_sidecar_policy_scope": sidecar.get("policy_scope"),
             "avm_canonical_sidecar_package_policy_may_use": sidecar.get("package_policy_may_use"),
             "avm_canonical_sidecar_stderr_equal": sidecar.get("same_run_stderr_equal"),
+            "avm_canonical_sidecar_exit_code_equal": sidecar.get("same_run_exit_code_equal"),
+            "avm_canonical_sidecar_native_exit_code": sidecar.get("native_exit_code"),
+            "avm_canonical_sidecar_sidecar_exit_code": sidecar.get("sidecar_exit_code"),
             "avm_canonical_sidecar_certification_warnings": sidecar.get("certification_warnings"),
             "avm_canonical_sidecar_test_injection": sidecar.get("test_injection"),
             "native_executed": native_executed,
@@ -259,6 +266,7 @@ conversion_decision = {
     "avm_canonical_sidecar_available": all(sample["avm_canonical_sidecar_available"] for sample in samples),
     "package_policy_may_use_avm_sidecar": False,
     "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
+    "avm_canonical_sidecar_exit_code_equal_all": all(sample["avm_canonical_sidecar_exit_code_equal"] for sample in samples),
     "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
     "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
     "forbidden_policy": "single_fixture_ratio",

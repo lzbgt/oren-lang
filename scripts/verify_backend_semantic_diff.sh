@@ -153,6 +153,8 @@ if avm_sidecar.get("same_source") is not True:
     fail(f"AVM canonical sidecar should be explicitly same-source evidence, got {avm_sidecar!r}")
 if avm_sidecar.get("same_run_stdout_equal") is not True or avm_sidecar.get("same_run_exit_code_equal") is not True:
     fail(f"AVM canonical sidecar requires stdout/exit parity evidence, got {avm_sidecar!r}")
+if avm_sidecar.get("native_exit_code") != 0 or avm_sidecar.get("sidecar_exit_code") != 0:
+    fail(f"AVM canonical sidecar should expose zero native/sidecar exits for semantic-diff fixtures, got {avm_sidecar!r}")
 if avm_sidecar.get("same_run_stderr_equal") is not True:
     fail(f"AVM canonical sidecar should expose stderr parity for semantic-diff fixtures, got {avm_sidecar!r}")
 if avm_sidecar.get("certification_status") != "stdout_exit_match":
