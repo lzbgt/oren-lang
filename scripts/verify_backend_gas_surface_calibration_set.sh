@@ -125,6 +125,13 @@ for path in report_paths:
         raise SystemExit(f"{path}: semantic-diff AVM canonical sidecar should preserve empty program-args binding: {sidecar!r}")
     if sidecar.get("package_policy_sha256") is not None or sidecar.get("package_policy_declared") is not False:
         raise SystemExit(f"{path}: semantic-diff AVM canonical sidecar should not claim package-policy binding: {sidecar!r}")
+    if (
+        sidecar.get("sidecar_run_json_present") is not True
+        or sidecar.get("sidecar_run_json_schema") != "avm.run.v1"
+        or sidecar.get("sidecar_run_json_status") != "ok"
+        or sidecar.get("sidecar_run_json_error") is not None
+    ):
+        raise SystemExit(f"{path}: semantic-diff AVM canonical sidecar should preserve successful AVM run JSON evidence: {sidecar!r}")
 
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
@@ -242,6 +249,11 @@ for path in report_paths:
             "avm_canonical_sidecar_package_policy_sha256": sidecar.get("package_policy_sha256"),
             "avm_canonical_sidecar_package_policy_declared": sidecar.get("package_policy_declared"),
             "avm_canonical_sidecar_input_binding_present": True,
+            "avm_canonical_sidecar_run_json_present": sidecar.get("sidecar_run_json_present"),
+            "avm_canonical_sidecar_run_json_schema": sidecar.get("sidecar_run_json_schema"),
+            "avm_canonical_sidecar_run_json_status": sidecar.get("sidecar_run_json_status"),
+            "avm_canonical_sidecar_run_json_error": sidecar.get("sidecar_run_json_error"),
+            "avm_canonical_sidecar_run_json_ok": True,
             "native_executed": native_executed,
             "obc_executed": obc_executed,
             "native_per_obc": native_per_obc,
@@ -299,6 +311,9 @@ conversion_decision = {
     "avm_canonical_sidecar_input_binding_present_all": all(
         sample["avm_canonical_sidecar_input_binding_present"] for sample in samples
     ),
+    "avm_canonical_sidecar_run_json_ok_all": all(
+        sample["avm_canonical_sidecar_run_json_ok"] for sample in samples
+    ),
     "forbidden_policy": "single_fixture_ratio",
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
@@ -336,6 +351,9 @@ out = {
         ),
         "avm_canonical_sidecar_input_binding_present_all": all(
             sample["avm_canonical_sidecar_input_binding_present"] for sample in samples
+        ),
+        "avm_canonical_sidecar_run_json_ok_all": all(
+            sample["avm_canonical_sidecar_run_json_ok"] for sample in samples
         ),
     },
     "sample_count": len(samples),

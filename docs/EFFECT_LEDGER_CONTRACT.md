@@ -138,11 +138,13 @@ Required entry fields:
   With `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, the same runner can additionally emit
   package-bound `oren.avm-canonical-sidecar-gas.v0` evidence after building and running a bytecode
   sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
-  `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
-  canonical gas sidecar itself reports budget exhaustion. It records source/native-artifact/sidecar-artifact
-  SHA-256 identity hashes, `program_args_sha256`, `package_policy_sha256`, `package_policy_declared`,
-  normalized stdout/stderr hashes,
-  explicit `same_run_stderr_equal` evidence, concrete `native_exit_code` / `sidecar_exit_code` values,
+	  `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
+	  canonical gas sidecar itself reports budget exhaustion. It records source/native-artifact/sidecar-artifact
+	  SHA-256 identity hashes, `program_args_sha256`, `package_policy_sha256`, `package_policy_declared`,
+	  explicit sidecar `avm.run.v1` fields (`sidecar_run_json_present`,
+	  `sidecar_run_json_schema`, `sidecar_run_json_status`, and `sidecar_run_json_error`),
+	  normalized stdout/stderr hashes,
+	  explicit `same_run_stderr_equal` evidence, concrete `native_exit_code` / `sidecar_exit_code` values,
   `certification_status`, non-blocking
   `certification_warnings`, `certification_failure_reasons`, and `package_policy_may_use_reason`
   while still preserving
@@ -314,10 +316,12 @@ and preserves aggregate `avm_canonical_sidecar_exit_code_equal_all` plus
   `avm_canonical_sidecar_identity_hashes_present_all=true` proving every sample still carries
 source/native-artifact/sidecar-artifact identity hashes. They also preserve
 `avm_canonical_sidecar_input_binding_present_all=true`: semantic-diff sidecars explicitly bind empty
-program args and no package policy, while package-policy sidecars bind the declared package policy
-through `program_args_sha256` and `package_policy_sha256`. Per-sample calibration and native
-instruction-surface decision records also preserve those hashes under
-`avm_canonical_sidecar_*_sha256` fields.
+	program args and no package policy, while package-policy sidecars bind the declared package policy
+	through `program_args_sha256` and `package_policy_sha256`. Per-sample calibration and native
+	instruction-surface decision records also preserve those hashes under
+	`avm_canonical_sidecar_*_sha256` fields, and now expose
+	`avm_canonical_sidecar_run_json_ok_all=true` so consumers can tell that every semantic-diff sidecar
+	had parseable `avm.run.v1` success evidence instead of inferring that from gas fields.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:
 `oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
 as a runtime gas surface by cross-checking them against the current `native_dynamic_emitter_tick_v0`

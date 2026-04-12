@@ -1594,17 +1594,19 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `cross_arch_comparable=true`, `conversion_ready=true`, and `avm_canonical=true`, while
 			     native dynamic-emitter gas remains a separate non-conversion-ready evidence surface.
 		   - Semantic diff now emits `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas
-			     evidence beside native runtime gas, with source/native-artifact/sidecar-artifact SHA-256 identity
-			     hashes, program-args/package-policy binding hashes, normalized stdout/stderr hashes,
-		     explicit `same_run_stderr_equal` evidence, concrete native/sidecar exit codes,
-			     non-blocking `certification_warnings`,
+				     evidence beside native runtime gas, with source/native-artifact/sidecar-artifact SHA-256 identity
+				     hashes, program-args/package-policy binding hashes, normalized stdout/stderr hashes,
+			     explicit sidecar `avm.run.v1` status/error evidence, `same_run_stderr_equal` evidence,
+			     concrete native/sidecar exit codes,
+				     non-blocking `certification_warnings`,
 			     `certification_status`, `certification_failure_reasons`,
 			     `native_runtime_conversion=false`, and
 			     `package_policy_may_use=false` because semantic-diff fixtures are not package/input-bound.
-				     Calibration-set and native instruction-surface decision consumers now preserve those
-				     source/native-artifact/sidecar-artifact identity hashes and input-binding hashes per sample,
-				     plus aggregate `avm_canonical_sidecar_identity_hashes_present_all` and
-				     `avm_canonical_sidecar_input_binding_present_all` evidence.
+					     Calibration-set and native instruction-surface decision consumers now preserve those
+					     source/native-artifact/sidecar-artifact identity hashes and input-binding hashes per sample,
+					     plus aggregate `avm_canonical_sidecar_identity_hashes_present_all` and
+					     `avm_canonical_sidecar_input_binding_present_all` /
+					     `avm_canonical_sidecar_run_json_ok_all` evidence.
 			     Native package-policy verification also injects structured non-gas AVM sidecar run errors
 			     and requires a distinct `sidecar_error` failure reason rather than flattening them into
 			     plain exit-code mismatch evidence.

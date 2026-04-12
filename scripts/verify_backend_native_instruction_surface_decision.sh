@@ -227,6 +227,13 @@ for i in range(0, len(items), 3):
         raise SystemExit(f"{semantic_report}: semantic-diff AVM sidecar should preserve empty program-args binding, got {sidecar!r}")
     if sidecar.get("package_policy_sha256") is not None or sidecar.get("package_policy_declared") is not False:
         raise SystemExit(f"{semantic_report}: semantic-diff AVM sidecar should not claim package-policy binding, got {sidecar!r}")
+    if (
+        sidecar.get("sidecar_run_json_present") is not True
+        or sidecar.get("sidecar_run_json_schema") != "avm.run.v1"
+        or sidecar.get("sidecar_run_json_status") != "ok"
+        or sidecar.get("sidecar_run_json_error") is not None
+    ):
+        raise SystemExit(f"{semantic_report}: semantic-diff AVM sidecar should preserve successful AVM run JSON evidence, got {sidecar!r}")
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -262,6 +269,11 @@ for i in range(0, len(items), 3):
             "avm_canonical_sidecar_package_policy_sha256": sidecar.get("package_policy_sha256"),
             "avm_canonical_sidecar_package_policy_declared": sidecar.get("package_policy_declared"),
             "avm_canonical_sidecar_input_binding_present": True,
+            "avm_canonical_sidecar_run_json_present": sidecar.get("sidecar_run_json_present"),
+            "avm_canonical_sidecar_run_json_schema": sidecar.get("sidecar_run_json_schema"),
+            "avm_canonical_sidecar_run_json_status": sidecar.get("sidecar_run_json_status"),
+            "avm_canonical_sidecar_run_json_error": sidecar.get("sidecar_run_json_error"),
+            "avm_canonical_sidecar_run_json_ok": True,
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
@@ -318,6 +330,9 @@ decision = {
     ),
     "avm_canonical_sidecar_input_binding_present_all": all(
         sample["avm_canonical_sidecar_input_binding_present"] for sample in samples
+    ),
+    "avm_canonical_sidecar_run_json_ok_all": all(
+        sample["avm_canonical_sidecar_run_json_ok"] for sample in samples
     ),
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,

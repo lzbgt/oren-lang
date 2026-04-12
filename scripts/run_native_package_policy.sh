@@ -301,6 +301,21 @@ def avm_canonical_sidecar_input_binding(*, program_args=None, package_policy=Non
         "package_policy_declared": bool(policy.get("declared")) if policy is not None else False,
     }
 
+def avm_canonical_sidecar_run_json_binding(avm_run_json):
+    if not isinstance(avm_run_json, dict):
+        return {
+            "sidecar_run_json_present": False,
+            "sidecar_run_json_schema": None,
+            "sidecar_run_json_status": None,
+            "sidecar_run_json_error": None,
+        }
+    return {
+        "sidecar_run_json_present": True,
+        "sidecar_run_json_schema": avm_run_json.get("schema"),
+        "sidecar_run_json_status": avm_run_json.get("status"),
+        "sidecar_run_json_error": avm_run_json.get("error"),
+    }
+
 def avm_canonical_sidecar_build_failed_payload(*, src, native_artifact, obc, build_log, build_exit_code, program_args=None, package_policy=None, test_injection=None):
     return {
         "schema": "oren.avm-canonical-sidecar-gas.v0",
@@ -316,6 +331,7 @@ def avm_canonical_sidecar_build_failed_payload(*, src, native_artifact, obc, bui
         **avm_canonical_sidecar_input_binding(program_args=program_args, package_policy=package_policy),
         "sidecar_build_log": str(build_log),
         "sidecar_build_exit_code": build_exit_code,
+        **avm_canonical_sidecar_run_json_binding(None),
         "same_source": True,
         "same_run_stdout_equal": None,
         "same_run_stderr_equal": None,
@@ -358,6 +374,7 @@ def avm_canonical_sidecar_not_run_native_failed_payload(*, src, native_artifact,
         "sidecar_artifact": str(obc),
         "sidecar_artifact_sha256": sha256_file(obc),
         **avm_canonical_sidecar_input_binding(program_args=program_args, package_policy=package_policy),
+        **avm_canonical_sidecar_run_json_binding(None),
         "same_source": True,
         "same_run_stdout_equal": None,
         "same_run_stderr_equal": None,
@@ -465,6 +482,7 @@ def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, n
         "sidecar_artifact": str(obc),
         "sidecar_artifact_sha256": sha256_file(obc),
         **avm_canonical_sidecar_input_binding(program_args=program_args, package_policy=package_policy),
+        **avm_canonical_sidecar_run_json_binding(avm_run_json),
         "same_source": True,
         "same_run_stdout_equal": same_stdout,
         "same_run_stderr_equal": same_stderr,
@@ -901,6 +919,7 @@ try:
                 "sidecar_artifact": str(obc_sidecar),
                 "sidecar_artifact_sha256": sha256_file(obc_sidecar),
                 **avm_canonical_sidecar_input_binding(program_args=prog_args, package_policy=pkg),
+                **avm_canonical_sidecar_run_json_binding(None),
                 "same_source": True,
                 "native_runtime_conversion": False,
                 "package_policy_may_use": False,

@@ -228,8 +228,10 @@ bytecode sidecar from the same source and package manifest, runs it under the de
 budgets, checks stdout/exit parity with the native run after removing run-JSON lines, and records
 `oren.avm-canonical-sidecar-gas.v0` with `policy_scope="native_package_policy_same_source_artifact"`,
 source/native-artifact/sidecar-artifact SHA-256 identity hashes, `program_args_sha256`,
-`package_policy_sha256`, `package_policy_declared`, normalized stdout/stderr hashes,
-explicit `same_run_stderr_equal` evidence, concrete
+	`package_policy_sha256`, `package_policy_declared`, normalized stdout/stderr hashes,
+	explicit sidecar `avm.run.v1` fields (`sidecar_run_json_present`, `sidecar_run_json_schema`,
+	`sidecar_run_json_status`, and `sidecar_run_json_error`),
+	explicit `same_run_stderr_equal` evidence, concrete
 `native_exit_code` / `sidecar_exit_code` values, an explicit
 `certification_status`, machine-readable non-blocking `certification_warnings`, and machine-readable
 `certification_failure_reasons` for non-certified sidecar outcomes. The runner verifier now has an
@@ -298,9 +300,10 @@ gas-budgeted packages; semantic diff fixtures remain analysis-only and still can
 package-policy authority. Both semantic-diff and package-policy sidecar records carry normalized
 stdout/stderr hashes plus `package_policy_may_use_reason`; semantic-diff sidecars explicitly bind
 empty program args and no package policy, while package-policy sidecars bind the exact program args
-and declared package policy with stable SHA-256 fields. Consumers can audit whether the
-certificate came from stdout/exit parity or from AVM canonical budget exhaustion, and inspect
-`certification_failure_reasons` when certification is unavailable.
+	and declared package policy with stable SHA-256 fields. Consumers can audit whether the
+	certificate came from stdout/exit parity or from AVM canonical budget exhaustion, inspect the
+	sidecar `avm.run.v1` status/error that produced the gas evidence, and inspect
+	`certification_failure_reasons` when certification is unavailable.
 Verifier-only test injection is explicit in the sidecar record and must stay absent from normal
 semantic-diff/package-policy certificates.
 	`docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` keep that gas-surface inventory

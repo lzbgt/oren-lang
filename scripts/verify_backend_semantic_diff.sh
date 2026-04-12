@@ -163,6 +163,13 @@ if not isinstance(avm_sidecar.get("program_args_sha256"), str) or len(avm_sideca
     fail(f"semantic-diff AVM canonical sidecar should include program args hash, got {avm_sidecar!r}")
 if avm_sidecar.get("package_policy_sha256") is not None or avm_sidecar.get("package_policy_declared") is not False:
     fail(f"semantic-diff AVM canonical sidecar should explicitly omit package-policy binding, got {avm_sidecar!r}")
+if (
+    avm_sidecar.get("sidecar_run_json_present") is not True
+    or avm_sidecar.get("sidecar_run_json_schema") != "avm.run.v1"
+    or avm_sidecar.get("sidecar_run_json_status") != "ok"
+    or avm_sidecar.get("sidecar_run_json_error") is not None
+):
+    fail(f"semantic-diff AVM canonical sidecar should preserve successful AVM sidecar run JSON status/error, got {avm_sidecar!r}")
 if avm_sidecar.get("same_run_stdout_equal") is not True or avm_sidecar.get("same_run_exit_code_equal") is not True:
     fail(f"AVM canonical sidecar requires stdout/exit parity evidence, got {avm_sidecar!r}")
 if avm_sidecar.get("native_exit_code") != 0 or avm_sidecar.get("sidecar_exit_code") != 0:

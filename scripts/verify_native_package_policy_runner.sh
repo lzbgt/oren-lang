@@ -343,6 +343,29 @@ def assert_sidecar_input_binding(path, sidecar, *, expected_program_args=None, p
         if package_hash is not None or sidecar.get("package_policy_declared") is not False:
             fail(f"{path}: non-package-bound AVM sidecar should not claim package policy binding, got {sidecar!r}")
 
+def assert_sidecar_run_json(path, sidecar, *, present, status=None, error_code=None, error_msg=None):
+    if sidecar.get("sidecar_run_json_present") is not present:
+        fail(f"{path}: AVM sidecar run JSON presence mismatch, got {sidecar!r}")
+    if not present:
+        if (
+            sidecar.get("sidecar_run_json_schema") is not None
+            or sidecar.get("sidecar_run_json_status") is not None
+            or sidecar.get("sidecar_run_json_error") is not None
+        ):
+            fail(f"{path}: AVM sidecar should omit run JSON schema/status/error when no run JSON is present, got {sidecar!r}")
+        return
+    if sidecar.get("sidecar_run_json_schema") != "avm.run.v1":
+        fail(f"{path}: AVM sidecar should preserve avm.run.v1 schema, got {sidecar!r}")
+    if status is not None and sidecar.get("sidecar_run_json_status") != status:
+        fail(f"{path}: AVM sidecar run JSON status mismatch, expected {status!r}, got {sidecar!r}")
+    err = sidecar.get("sidecar_run_json_error")
+    if error_code is None:
+        if err is not None:
+            fail(f"{path}: AVM sidecar run JSON error should be null, got {sidecar!r}")
+    else:
+        if not isinstance(err, dict) or err.get("code") != error_code or err.get("msg") != error_msg:
+            fail(f"{path}: AVM sidecar run JSON error mismatch, got {sidecar!r}")
+
 def assert_sidecar_identity_hashes(path, sidecar, *, sidecar_artifact_required=True, expected_program_args=None):
     for key in ("source_sha256", "native_artifact_sha256"):
         value = sidecar.get(key)
@@ -391,6 +414,7 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False, expect
     if not isinstance(sidecar.get("same_run_stderr_equal"), bool):
         fail(f"{path}: AVM sidecar should expose explicit stderr parity, got {sidecar!r}")
     if budget_exceeded:
+        assert_sidecar_run_json(path, sidecar, present=True, status="error", error_code=9, error_msg="budget exceeded (gas)")
         if sidecar.get("native_exit_code") != 0 or sidecar.get("sidecar_exit_code") == 0:
             fail(f"{path}: AVM sidecar budget-exceeded certificate should expose native success and sidecar failure exits, got {sidecar!r}")
         if sidecar.get("package_policy_may_use_reason") != "avm_canonical_gas_budget_exceeded":
@@ -401,6 +425,7 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False, expect
         if err.get("code") != 9 or err.get("msg") != "budget exceeded (gas)":
             fail(f"{path}: AVM sidecar budget-exceeded error mismatch: {sidecar!r}")
     else:
+        assert_sidecar_run_json(path, sidecar, present=True, status="ok")
         if sidecar.get("native_exit_code") != 0 or sidecar.get("sidecar_exit_code") != 0:
             fail(f"{path}: AVM sidecar available certificate should expose zero native/sidecar exits, got {sidecar!r}")
         if sidecar.get("native_stdout_sha256") != sidecar.get("sidecar_stdout_sha256"):
@@ -799,6 +824,7 @@ if sidecar_uncertified.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
     fail(f"{gas_sidecar_uncertified_path}: AVM sidecar schema mismatch: {sidecar_uncertified!r}")
 if sidecar_uncertified.get("status") != "unavailable":
     fail(f"{gas_sidecar_uncertified_path}: expected unavailable AVM sidecar status, got {sidecar_uncertified!r}")
+assert_sidecar_run_json(gas_sidecar_uncertified_path, sidecar_uncertified, present=True, status="ok")
 if sidecar_uncertified.get("certification_status") != "unavailable":
     fail(f"{gas_sidecar_uncertified_path}: expected unavailable certification status, got {sidecar_uncertified!r}")
 if sidecar_uncertified.get("package_policy_may_use") is not False:
@@ -844,6 +870,7 @@ if gas_sidecar_stderr_warning_budget.get("enforced") is not True:
 sidecar_stderr_warning = gas_sidecar_stderr_warning.get("avm_canonical_sidecar_gas") or {}
 if sidecar_stderr_warning.get("status") != "available" or sidecar_stderr_warning.get("certification_status") != "stdout_exit_match":
     fail(f"{gas_sidecar_stderr_warning_path}: stderr-only sidecar warning should keep stdout/exit certificate available, got {sidecar_stderr_warning!r}")
+assert_sidecar_run_json(gas_sidecar_stderr_warning_path, sidecar_stderr_warning, present=True, status="ok")
 if sidecar_stderr_warning.get("package_policy_may_use") is not True:
     fail(f"{gas_sidecar_stderr_warning_path}: warning-only sidecar should remain package-policy usable, got {sidecar_stderr_warning!r}")
 if sidecar_stderr_warning.get("certification_failure_reasons") != []:
@@ -871,7 +898,16 @@ if int(gas_sidecar_stderr_warning_budget.get("executed") or -1) != int(sidecar_s
         f"got {gas_sidecar_stderr_warning_budget!r} vs {sidecar_stderr_warning!r}"
     )
 
-def assert_sidecar_unavailable_run(path, expected_reasons, expected_injection):
+def assert_sidecar_unavailable_run(
+    path,
+    expected_reasons,
+    expected_injection,
+    *,
+    run_json_present=True,
+    run_json_status="ok",
+    run_json_error_code=None,
+    run_json_error_msg=None,
+):
     data = load(path)
     if data.get("schema") != "oren.native-package-policy-run.v0":
         fail(f"{path}: schema mismatch: {data.get('schema')!r}")
@@ -905,6 +941,14 @@ def assert_sidecar_unavailable_run(path, expected_reasons, expected_injection):
         fail(f"{path}: uncertified sidecar should not carry warnings, got {sidecar!r}")
     if sidecar.get("test_injection") != expected_injection:
         fail(f"{path}: expected auditable verifier injection {expected_injection!r}, got {sidecar!r}")
+    assert_sidecar_run_json(
+        path,
+        sidecar,
+        present=run_json_present,
+        status=run_json_status,
+        error_code=run_json_error_code,
+        error_msg=run_json_error_msg,
+    )
     return data, budget, sidecar
 
 gas_sidecar_exit_mismatch = load(gas_sidecar_exit_mismatch_path)
@@ -930,6 +974,7 @@ if sidecar_exit_mismatch.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
 if sidecar_exit_mismatch.get("status") != "unavailable":
     fail(f"{gas_sidecar_exit_mismatch_path}: expected unavailable AVM sidecar status, got {sidecar_exit_mismatch!r}")
 assert_sidecar_identity_hashes(gas_sidecar_exit_mismatch_path, sidecar_exit_mismatch)
+assert_sidecar_run_json(gas_sidecar_exit_mismatch_path, sidecar_exit_mismatch, present=True, status="ok")
 if sidecar_exit_mismatch.get("certification_status") != "unavailable":
     fail(f"{gas_sidecar_exit_mismatch_path}: expected unavailable certification status, got {sidecar_exit_mismatch!r}")
 if sidecar_exit_mismatch.get("package_policy_may_use") is not False:
@@ -961,6 +1006,9 @@ _, _, sidecar_run_error = assert_sidecar_unavailable_run(
     gas_sidecar_run_error_path,
     ["exit_code_mismatch", "sidecar_exit_nonzero", "sidecar_error"],
     "run_error",
+    run_json_status="error",
+    run_json_error_code=42,
+    run_json_error_msg="verifier non-gas sidecar error",
 )
 if sidecar_run_error.get("same_run_stdout_equal") is not True or sidecar_run_error.get("same_run_stderr_equal") is not True:
     fail(f"{gas_sidecar_run_error_path}: run-error sidecar should preserve stdout/stderr parity, got {sidecar_run_error!r}")
@@ -997,6 +1045,8 @@ _, _, sidecar_missing_run_json = assert_sidecar_unavailable_run(
     gas_sidecar_missing_run_json_path,
     ["missing_or_noncanonical_avm_gas_surface"],
     "drop_run_json",
+    run_json_present=False,
+    run_json_status=None,
 )
 if sidecar_missing_run_json.get("same_run_stdout_equal") is not True or sidecar_missing_run_json.get("same_run_stderr_equal") is not True:
     fail(f"{gas_sidecar_missing_run_json_path}: missing-run-json sidecar should preserve stdout/stderr parity, got {sidecar_missing_run_json!r}")
@@ -1045,6 +1095,7 @@ if sidecar_timeout.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
 if sidecar_timeout.get("status") != "timeout" or sidecar_timeout.get("certification_status") != "timeout":
     fail(f"{gas_sidecar_timeout_path}: expected timeout certification status, got {sidecar_timeout!r}")
 assert_sidecar_identity_hashes(gas_sidecar_timeout_path, sidecar_timeout)
+assert_sidecar_run_json(gas_sidecar_timeout_path, sidecar_timeout, present=False)
 if sidecar_timeout.get("package_policy_may_use") is not False:
     fail(f"{gas_sidecar_timeout_path}: timed-out sidecar must not be package-policy usable, got {sidecar_timeout!r}")
 if sidecar_timeout.get("certification_failure_reasons") != ["timeout"]:
@@ -1075,6 +1126,7 @@ if sidecar_build_fail.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
 if sidecar_build_fail.get("status") != "build_failed" or sidecar_build_fail.get("certification_status") != "build_failed":
     fail(f"{gas_sidecar_build_fail_path}: expected build_failed certification status, got {sidecar_build_fail!r}")
 assert_sidecar_identity_hashes(gas_sidecar_build_fail_path, sidecar_build_fail, sidecar_artifact_required=False)
+assert_sidecar_run_json(gas_sidecar_build_fail_path, sidecar_build_fail, present=False)
 if sidecar_build_fail.get("package_policy_may_use") is not False:
     fail(f"{gas_sidecar_build_fail_path}: build-failed sidecar must not be package-policy usable, got {sidecar_build_fail!r}")
 if sidecar_build_fail.get("certification_failure_reasons") != ["sidecar_build_failed"]:
@@ -1119,6 +1171,7 @@ if sidecar_native_fail.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
 if sidecar_native_fail.get("status") != "not_run_native_failed" or sidecar_native_fail.get("certification_status") != "not_run_native_failed":
     fail(f"{gas_sidecar_native_fail_path}: expected not_run_native_failed certification status, got {sidecar_native_fail!r}")
 assert_sidecar_identity_hashes(gas_sidecar_native_fail_path, sidecar_native_fail)
+assert_sidecar_run_json(gas_sidecar_native_fail_path, sidecar_native_fail, present=False)
 if sidecar_native_fail.get("certification_failure_reasons") != ["native_exit_nonzero"]:
     fail(f"{gas_sidecar_native_fail_path}: expected native_exit_nonzero failure reason, got {sidecar_native_fail!r}")
 if sidecar_native_fail.get("package_policy_may_use") is not False:
