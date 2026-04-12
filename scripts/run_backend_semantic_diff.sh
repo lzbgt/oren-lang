@@ -429,6 +429,7 @@ stdout_equal = len({backends[name]["stdout_normalized"] for name in order}) == 1
 native_obc_stdout_equal = backends["native"]["stdout_normalized"] == backends["obc"]["stdout_normalized"]
 exit_equal = len({backends[name]["exit_code"] for name in order}) == 1
 native_obc_exit_equal = backends["native"]["exit_code"] == backends["obc"]["exit_code"]
+native_obc_stderr_equal = backends["native"]["stderr_sha256"] == backends["obc"]["stderr_sha256"]
 all_ok = all(backends[name]["exit_code"] == 0 for name in order)
 expect_ok = all(backends[name]["expected_line_present"] for name in order)
 obc_run_json_ok = obc_run_json_rc == 0 and obc_run_json_schema == "avm.run.v1"
@@ -475,6 +476,7 @@ avm_canonical_sidecar_gas = {
     "sidecar_backend": "obc",
     "same_source": True,
     "same_run_stdout_equal": native_obc_stdout_equal,
+    "same_run_stderr_equal": native_obc_stderr_equal,
     "same_run_exit_code_equal": native_obc_exit_equal,
     "native_stdout_sha256": backends["native"]["stdout_sha256"],
     "sidecar_stdout_sha256": backends["obc"]["stdout_sha256"],

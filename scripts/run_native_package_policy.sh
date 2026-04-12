@@ -259,6 +259,7 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
     native_stderr_normalized = strip_run_json_lines(native_stderr)
     avm_stderr_normalized = strip_run_json_lines(avm_stderr)
     same_stdout = native_stdout_normalized == avm_stdout_normalized
+    same_stderr = native_stderr_normalized == avm_stderr_normalized
     same_exit = native_exit_code == avm_exit_code
     avm_run_error = None
     if isinstance(avm_run_json, dict) and isinstance(avm_run_json.get("error"), dict):
@@ -323,6 +324,7 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, nat
         "sidecar_artifact": str(obc),
         "same_source": True,
         "same_run_stdout_equal": same_stdout,
+        "same_run_stderr_equal": same_stderr,
         "same_run_exit_code_equal": same_exit,
         "native_stdout_sha256": sha256_s(native_stdout_normalized),
         "sidecar_stdout_sha256": sha256_s(avm_stdout_normalized),

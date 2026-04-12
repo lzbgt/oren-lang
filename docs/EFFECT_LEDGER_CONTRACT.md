@@ -128,28 +128,28 @@ Required entry fields:
 - The native package-policy runner can separately emit `oren.native-package-policy-run.v0`
   through `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`. That file is runner-observed
   wall/gas/heap/CPU-budget evidence for native capsule execution and can include a captured native
-	  `effect_ledger` summary when the runner enables `OREN_NATIVE_RUN_JSON=1`; native heap budgets
-	  are enforced from the captured `heap_bytes.used` live-heap scan, native CPU budgets are enforced
-	  from child process resource usage where available, and native gas budgets are enforced from the
-	  captured `native_stmt_loop_tick_v0` counter after the runner builds and runs the artifact with
-	  `OREN_NATIVE_GAS_ACCOUNTING=stmt`; that surface is explicitly backend-local and not AVM-canonical.
-	  With `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, the same runner can additionally emit
-		  package-bound `oren.avm-canonical-sidecar-gas.v0` evidence after building and running a bytecode
-		  sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
-		  `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
-		  canonical gas sidecar itself reports budget exhaustion. It records normalized stdout/stderr hashes,
-		  `certification_status`, `certification_failure_reasons`, and
-		  `package_policy_may_use_reason` while still preserving
-		  `native_runtime_conversion=false`. With
-	  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
-	  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that
-	  package-bound sidecar into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0` reports
-	  `runner_wall_avm_canonical_gas`, `enforcement="avm-canonical-sidecar"`, and
-	  `enforcement_profile="avm-sidecar"` while still preserving `native_runtime_conversion=false`.
-		  The dispatcher now defaults native runs to `auto` unless an explicit profile or env override is
-	  present. The `auto` profile chooses that same sidecar enforcement whenever the package declares
-	  `budget_gas`, and records `requested_enforcement_profile="auto"` beside the resolved profile in
-	  runner JSON.
+  `effect_ledger` summary when the runner enables `OREN_NATIVE_RUN_JSON=1`; native heap budgets
+  are enforced from the captured `heap_bytes.used` live-heap scan, native CPU budgets are enforced
+  from child process resource usage where available, and native gas budgets are enforced from the
+  captured `native_stmt_loop_tick_v0` counter after the runner builds and runs the artifact with
+  `OREN_NATIVE_GAS_ACCOUNTING=stmt`; that surface is explicitly backend-local and not AVM-canonical.
+  With `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, the same runner can additionally emit
+  package-bound `oren.avm-canonical-sidecar-gas.v0` evidence after building and running a bytecode
+  sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
+  `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
+  canonical gas sidecar itself reports budget exhaustion. It records normalized stdout/stderr hashes,
+  explicit `same_run_stderr_equal` evidence, `certification_status`,
+  `certification_failure_reasons`, and `package_policy_may_use_reason` while still preserving
+  `native_runtime_conversion=false`. With
+  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
+  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that
+  package-bound sidecar into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0`
+  reports `runner_wall_avm_canonical_gas`, `enforcement="avm-canonical-sidecar"`, and
+  `enforcement_profile="avm-sidecar"` while still preserving `native_runtime_conversion=false`.
+  The dispatcher now defaults native runs to `auto` unless an explicit profile or env override is
+  present. The `auto` profile chooses that same sidecar enforcement whenever the package declares
+  `budget_gas`, and records `requested_enforcement_profile="auto"` beside the resolved profile in
+  runner JSON.
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
   `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
   This is the first native-owned effect evidence bridge: it counts central capsule domain-gate
