@@ -420,7 +420,9 @@ gas_surface_calibration = {
     "reason": gas_surface_reason,
 }
 stdout_equal = len({backends[name]["stdout_normalized"] for name in order}) == 1
+native_obc_stdout_equal = backends["native"]["stdout_normalized"] == backends["obc"]["stdout_normalized"]
 exit_equal = len({backends[name]["exit_code"] for name in order}) == 1
+native_obc_exit_equal = backends["native"]["exit_code"] == backends["obc"]["exit_code"]
 all_ok = all(backends[name]["exit_code"] == 0 for name in order)
 expect_ok = all(backends[name]["expected_line_present"] for name in order)
 obc_run_json_ok = obc_run_json_rc == 0 and obc_run_json_schema == "avm.run.v1"
@@ -449,14 +451,20 @@ avm_canonical_sidecar_gas = {
     "native_backend": "native",
     "sidecar_backend": "obc",
     "same_source": True,
-    "same_run_stdout_equal": stdout_equal,
-    "same_run_exit_code_equal": exit_equal,
+    "same_run_stdout_equal": native_obc_stdout_equal,
+    "same_run_exit_code_equal": native_obc_exit_equal,
+    "native_stdout_sha256": backends["native"]["stdout_sha256"],
+    "sidecar_stdout_sha256": backends["obc"]["stdout_sha256"],
+    "native_stderr_sha256": backends["native"]["stderr_sha256"],
+    "sidecar_stderr_sha256": backends["obc"]["stderr_sha256"],
+    "certification_status": "stdout_exit_match" if avm_canonical_sidecar_gas_available else "unavailable",
     "gas_surface": obc_gas_surface,
     "gas_executed": obc_gas_executed,
     "native_runtime_surface_id": native_gas_surface.get("id") if isinstance(native_gas_surface, dict) else None,
     "native_runtime_gas_executed": native_gas_executed,
     "native_runtime_conversion": False,
     "package_policy_may_use": False,
+    "package_policy_may_use_reason": "semantic_diff_fixture_not_package_bound",
     "policy_scope": "semantic_diff_same_source_fixture",
     "reason": "same-source AVM canonical sidecar evidence; not a native runtime gas conversion",
 }

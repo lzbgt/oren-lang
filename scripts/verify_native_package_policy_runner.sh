@@ -234,6 +234,21 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
         fail(f"{path}: AVM sidecar must not claim native runtime conversion, got {sidecar!r}")
     if sidecar.get("package_policy_may_use") is not True:
         fail(f"{path}: package-bound AVM sidecar should be usable as an AVM canonical certificate, got {sidecar!r}")
+    expected_certification = "budget_exceeded_canonical_surface" if budget_exceeded else "stdout_exit_match"
+    if sidecar.get("certification_status") != expected_certification:
+        fail(f"{path}: AVM sidecar certification status mismatch: {sidecar!r}")
+    if not sidecar.get("native_stdout_sha256") or not sidecar.get("sidecar_stdout_sha256"):
+        fail(f"{path}: AVM sidecar should include normalized stdout hashes, got {sidecar!r}")
+    if not sidecar.get("native_stderr_sha256") or not sidecar.get("sidecar_stderr_sha256"):
+        fail(f"{path}: AVM sidecar should include normalized stderr hashes, got {sidecar!r}")
+    if budget_exceeded:
+        if sidecar.get("package_policy_may_use_reason") != "avm_canonical_gas_budget_exceeded":
+            fail(f"{path}: AVM sidecar budget-exceeded reason mismatch: {sidecar!r}")
+    else:
+        if sidecar.get("native_stdout_sha256") != sidecar.get("sidecar_stdout_sha256"):
+            fail(f"{path}: AVM sidecar stdout hashes should match for available certificate, got {sidecar!r}")
+        if sidecar.get("package_policy_may_use_reason") != "stdout_exit_match_with_avm_canonical_gas":
+            fail(f"{path}: AVM sidecar package-policy reason mismatch: {sidecar!r}")
     sidecar_surface = sidecar.get("gas_surface") or {}
     if sidecar_surface.get("id") != "avm_opcode_cost_v0" or sidecar_surface.get("unit_scope") != "avm_canonical":
         fail(f"{path}: AVM sidecar gas surface mismatch: {sidecar!r}")

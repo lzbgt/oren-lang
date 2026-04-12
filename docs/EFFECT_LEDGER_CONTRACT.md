@@ -133,10 +133,12 @@ Required entry fields:
 	  captured `native_stmt_loop_tick_v0` counter after the runner builds and runs the artifact with
 	  `OREN_NATIVE_GAS_ACCOUNTING=stmt`; that surface is explicitly backend-local and not AVM-canonical.
 	  With `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`, the same runner can additionally emit
-	  package-bound `oren.avm-canonical-sidecar-gas.v0` evidence after building and running a bytecode
-	  sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
-	  `package_policy_may_use=true` only when stdout and exit status match the native run, while still
-	  preserving `native_runtime_conversion=false`. With
+		  package-bound `oren.avm-canonical-sidecar-gas.v0` evidence after building and running a bytecode
+		  sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets
+		  `package_policy_may_use=true` when stdout and exit status match the native run, or when the AVM
+		  canonical gas sidecar itself reports budget exhaustion. It records normalized stdout/stderr hashes,
+		  `certification_status`, and `package_policy_may_use_reason` while still preserving
+		  `native_runtime_conversion=false`. With
 	  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, or the dispatcher option
 	  `scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar`, the runner turns that
 	  package-bound sidecar into explicit `budget_gas` enforcement: `oren.native-package-policy-run.v0` reports

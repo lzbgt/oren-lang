@@ -146,9 +146,11 @@ It is a language plus runtime plus artifact contract.
 	  remaining gap is broadening that profile or adding finer native instruction-equivalent gas rather
 	  than another manifest-only field.
 		  Native package policy can now opt into that package-bound sidecar path with
-		  `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`: it builds a bytecode sidecar from the same source
-		  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
-		  certificate usable only when stdout/exit matches the native run. It can now also select
+			  `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`: it builds a bytecode sidecar from the same source
+			  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
+			  certificate usable when stdout/exit matches the native run or when the sidecar reports AVM
+			  canonical gas budget exhaustion. It also records normalized stdout/stderr hashes plus an explicit
+			  `certification_status`. It can now also select
 		  `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, which uses that certificate for
 		  package `budget_gas` enforcement and reports `runner_wall_avm_canonical_gas` plus
 		  `enforcement_profile="avm-sidecar"` without claiming native runtime conversion; the shared
@@ -189,8 +191,8 @@ It is a language plus runtime plus artifact contract.
 	  includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
 	  `docs/GAS_SURFACE_REGISTRY.md` and `make verify-gas-surface-registry` now make that registry
 	  machine-checked across runtime JSON, semantic-diff, package-policy, and docs.
-			  Next work is adding instruction-equivalent native gas or tightening package-bound AVM sidecar
-		  coverage, not only expanding fixture scripts.
+			  Next work is adding instruction-equivalent native gas or tightening the package-bound AVM sidecar
+		  failure taxonomy further, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

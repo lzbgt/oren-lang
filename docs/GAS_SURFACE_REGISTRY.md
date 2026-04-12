@@ -56,7 +56,10 @@ package policy must not use it. The native package-policy runner can opt into a 
 `native_package_policy_same_source_artifact` sidecar with
 `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1`; that certificate is package-bound AVM evidence only when
 the bytecode sidecar runs with the same package budgets and matches native stdout/exit after run-JSON
-lines are removed. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher
+lines are removed, or when the sidecar itself reports AVM canonical gas budget exhaustion. Sidecar
+records include normalized stdout/stderr hashes, `certification_status`, and
+`package_policy_may_use_reason` so consumers can distinguish parity certificates from budget-exceeded
+certificates. `OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar`, dispatcher
 `--gas-profile avm-sidecar` on `--backend native`, or the dispatcher default `auto` profile for a
 gas-budgeted package makes that certificate the runner's gas enforcement profile. It still sets
 `native_runtime_conversion=false` and uses AVM canonical `avm_opcode_cost_v0` units, not native

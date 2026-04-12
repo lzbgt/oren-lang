@@ -60,6 +60,7 @@ mkdir -p build/logs build/tmp
 
 python3 - "$src" -- "$@" <<'PY'
 import json
+import hashlib
 import os
 import platform
 import shutil
@@ -192,6 +193,9 @@ def strip_run_json_lines(stdout_text):
         lines.append(raw.rstrip())
     return "\n".join(lines).strip()
 
+def sha256_s(text):
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
 def native_heap_used_from_run_json(native_run_json):
     if not native_run_json:
         return None
@@ -248,9 +252,13 @@ def avm_allow_domains_for_package(domains):
         domain_ids.add(AVM_DOMAIN_IDS[name])
     return ",".join(str(x) for x in sorted(domain_ids))
 
-def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json):
+def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json):
     avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
-    same_stdout = strip_run_json_lines(native_stdout) == strip_run_json_lines(avm_stdout)
+    native_stdout_normalized = strip_run_json_lines(native_stdout)
+    avm_stdout_normalized = strip_run_json_lines(avm_stdout)
+    native_stderr_normalized = strip_run_json_lines(native_stderr)
+    avm_stderr_normalized = strip_run_json_lines(avm_stderr)
+    same_stdout = native_stdout_normalized == avm_stdout_normalized
     same_exit = native_exit_code == avm_exit_code
     budget_exceeded = "budget exceeded (gas)" in (avm_stderr or "")
     canonical = (
@@ -269,6 +277,15 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, 
         and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
         and avm_gas_surface.get("unit_scope") == "avm_canonical"
     )
+    if available:
+        certification_status = "stdout_exit_match"
+        package_policy_may_use_reason = "stdout_exit_match_with_avm_canonical_gas"
+    elif package_policy_may_use and budget_exceeded:
+        certification_status = "budget_exceeded_canonical_surface"
+        package_policy_may_use_reason = "avm_canonical_gas_budget_exceeded"
+    else:
+        certification_status = "unavailable"
+        package_policy_may_use_reason = "sidecar_stdout_or_exit_mismatch_or_missing_canonical_gas"
     return {
         "schema": "oren.avm-canonical-sidecar-gas.v0",
         "status": "available" if available else ("budget_exceeded" if budget_exceeded else "unavailable"),
@@ -279,12 +296,18 @@ def avm_canonical_sidecar_payload(*, src, obc, native_stdout, native_exit_code, 
         "same_source": True,
         "same_run_stdout_equal": same_stdout,
         "same_run_exit_code_equal": same_exit,
+        "native_stdout_sha256": sha256_s(native_stdout_normalized),
+        "sidecar_stdout_sha256": sha256_s(avm_stdout_normalized),
+        "native_stderr_sha256": sha256_s(native_stderr_normalized),
+        "sidecar_stderr_sha256": sha256_s(avm_stderr_normalized),
+        "certification_status": certification_status,
         "gas_surface": avm_gas_surface,
         "gas_executed": avm_gas_used,
         "gas_remaining": avm_gas_remaining,
         "budget_exceeded": budget_exceeded,
         "native_runtime_conversion": False,
         "package_policy_may_use": package_policy_may_use,
+        "package_policy_may_use_reason": package_policy_may_use_reason,
         "policy_scope": "native_package_policy_same_source_artifact",
         "reason": "package-bound AVM canonical sidecar gas; not a native runtime gas conversion",
     }
@@ -646,6 +669,8 @@ try:
                 "same_source": True,
                 "native_runtime_conversion": False,
                 "package_policy_may_use": False,
+                "package_policy_may_use_reason": "avm_canonical_sidecar_timeout",
+                "certification_status": "timeout",
                 "policy_scope": "native_package_policy_same_source_artifact",
                 "reason": "AVM canonical sidecar timed out under package wall budget",
             }
@@ -668,6 +693,7 @@ try:
             src=src,
             obc=obc_sidecar,
             native_stdout=native_stdout,
+            native_stderr=p.stderr or "",
             native_exit_code=p.returncode,
             avm_stdout=avm_p.stdout or "",
             avm_exit_code=avm_p.returncode,

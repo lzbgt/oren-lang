@@ -151,6 +151,12 @@ if avm_sidecar.get("same_source") is not True:
     fail(f"AVM canonical sidecar should be explicitly same-source evidence, got {avm_sidecar!r}")
 if avm_sidecar.get("same_run_stdout_equal") is not True or avm_sidecar.get("same_run_exit_code_equal") is not True:
     fail(f"AVM canonical sidecar requires stdout/exit parity evidence, got {avm_sidecar!r}")
+if avm_sidecar.get("certification_status") != "stdout_exit_match":
+    fail(f"AVM canonical sidecar certification status mismatch: {avm_sidecar!r}")
+if avm_sidecar.get("native_stdout_sha256") != avm_sidecar.get("sidecar_stdout_sha256"):
+    fail(f"AVM canonical sidecar stdout hashes should match for semantic-diff fixtures, got {avm_sidecar!r}")
+if not avm_sidecar.get("native_stderr_sha256") or not avm_sidecar.get("sidecar_stderr_sha256"):
+    fail(f"AVM canonical sidecar should include normalized stderr hashes, got {avm_sidecar!r}")
 sidecar_surface = avm_sidecar.get("gas_surface") or {}
 if sidecar_surface.get("id") != "avm_opcode_cost_v0" or sidecar_surface.get("unit_scope") != "avm_canonical":
     fail(f"AVM canonical sidecar gas surface mismatch: {avm_sidecar!r}")
@@ -164,6 +170,8 @@ if avm_sidecar.get("native_runtime_conversion") is not False:
     fail(f"AVM canonical sidecar must not claim native runtime conversion, got {avm_sidecar!r}")
 if avm_sidecar.get("package_policy_may_use") is not False:
     fail(f"semantic-diff AVM canonical sidecar is not package-policy binding yet, got {avm_sidecar!r}")
+if avm_sidecar.get("package_policy_may_use_reason") != "semantic_diff_fixture_not_package_bound":
+    fail(f"semantic-diff AVM canonical sidecar package-policy reason mismatch, got {avm_sidecar!r}")
 if avm_sidecar.get("policy_scope") != "semantic_diff_same_source_fixture":
     fail(f"AVM canonical sidecar policy scope mismatch: {avm_sidecar!r}")
 
