@@ -83,10 +83,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  `avm_canonical=true`). Semantic diff also records `oren.gas-surface-calibration.v0` empirical
 	  ratios for the fixture, explicitly marked as not a conversion, and now emits
 	  `oren.avm-canonical-sidecar-gas.v0` as same-source OBC canonical gas evidence with
-	  `package_policy_may_use=false`, normalized stdout/stderr hashes, explicit `same_run_stderr_equal`,
-	  concrete native/sidecar exit codes, non-blocking `certification_warnings`, `certification_status`, and
-	  `certification_failure_reasons` evidence. Higher-level calibration and native instruction-surface
-	  decision reports preserve that warning-free stderr-parity and test-injection-free evidence.
+	  `package_policy_may_use=false`, source/native-artifact/sidecar-artifact SHA-256 identity hashes,
+	  normalized stdout/stderr hashes, explicit `same_run_stderr_equal`,
+		  concrete native/sidecar exit codes, non-blocking `certification_warnings`, `certification_status`, and
+		  `certification_failure_reasons` evidence. Higher-level calibration and native instruction-surface
+		  decision reports preserve that warning-free stderr-parity, test-injection-free evidence, and per-sample
+		  source/native-artifact/sidecar-artifact identity hashes.
 	  Native package-policy verification now also covers the non-certified sidecar branch with an
 	  auditable stdout-mismatch `test_injection`, requiring `budget_unavailable` rather than accidental
 	  `budget_gas` enforcement, and the stderr-mismatch warning branch with AVM sidecar gas enforcement

@@ -158,6 +158,7 @@ set -e
 python3 - "$report" "$src" "$expect_line" \
   "$run_native_json" "$run_native_json_err" "$rc_native_json" \
   "$run_obc_json" "$run_obc_json_err" "$rc_obc_json" \
+  "$out_native" "$out_obc" \
   c "$rc_c" "$run_c_out" "$run_c_err" "$build_c" \
   native "$rc_native" "$run_native_out" "$run_native_err" "$build_native" \
   obc "$rc_obc" "$run_obc_out" "$run_obc_err" "$build_obc" <<'PY'
@@ -175,7 +176,9 @@ native_run_json_rc = int(sys.argv[6])
 obc_run_json_log = sys.argv[7]
 obc_run_json_stderr_log = sys.argv[8]
 obc_run_json_rc = int(sys.argv[9])
-items = sys.argv[10:]
+out_native = sys.argv[10]
+out_obc = sys.argv[11]
+items = sys.argv[12:]
 
 def read_text(path_s):
     return Path(path_s).read_text(encoding="utf-8", errors="replace")
@@ -186,6 +189,19 @@ def normalize(text):
 
 def sha256_s(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+def sha256_file(path_s):
+    try:
+        with open(path_s, "rb") as f:
+            h = hashlib.sha256()
+            while True:
+                chunk = f.read(1024 * 1024)
+                if not chunk:
+                    break
+                h.update(chunk)
+            return h.hexdigest()
+    except OSError:
+        return None
 
 def find_last_json_obj(text):
     for line in reversed(text.splitlines()):
@@ -475,8 +491,13 @@ avm_canonical_sidecar_gas = {
     "schema": "oren.avm-canonical-sidecar-gas.v0",
     "status": "available" if avm_canonical_sidecar_gas_available else "unavailable",
     "source": src,
+    "source_sha256": sha256_file(src),
     "native_backend": "native",
     "sidecar_backend": "obc",
+    "native_artifact": out_native,
+    "native_artifact_sha256": sha256_file(out_native),
+    "sidecar_artifact": out_obc,
+    "sidecar_artifact_sha256": sha256_file(out_obc),
     "same_source": True,
     "same_run_stdout_equal": native_obc_stdout_equal,
     "same_run_stderr_equal": native_obc_stderr_equal,

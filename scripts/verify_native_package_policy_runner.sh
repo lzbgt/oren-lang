@@ -300,6 +300,20 @@ def assert_native_stmt_surface(path, surface):
     if surface.get("avm_canonical") is not False:
         fail(f"{path}: native package-policy statement gas must not claim AVM canonical units, got {surface!r}")
 
+def assert_sidecar_identity_hashes(path, sidecar, *, sidecar_artifact_required=True):
+    for key in ("source_sha256", "native_artifact_sha256"):
+        value = sidecar.get(key)
+        if not isinstance(value, str) or len(value) != 64:
+            fail(f"{path}: AVM sidecar should include {key} identity hash, got {sidecar!r}")
+    if not sidecar.get("native_artifact"):
+        fail(f"{path}: AVM sidecar should include native artifact path, got {sidecar!r}")
+    sidecar_hash = sidecar.get("sidecar_artifact_sha256")
+    if sidecar_artifact_required:
+        if not sidecar.get("sidecar_artifact") or not isinstance(sidecar_hash, str) or len(sidecar_hash) != 64:
+            fail(f"{path}: AVM sidecar should include sidecar artifact identity, got {sidecar!r}")
+    elif sidecar_hash is not None:
+        fail(f"{path}: AVM sidecar should omit sidecar artifact hash when no sidecar artifact exists, got {sidecar!r}")
+
 def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
     if sidecar.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
         fail(f"{path}: AVM canonical sidecar schema mismatch: {sidecar!r}")
@@ -310,6 +324,7 @@ def assert_avm_canonical_sidecar(path, sidecar, *, budget_exceeded=False):
         fail(f"{path}: AVM sidecar policy scope mismatch: {sidecar!r}")
     if sidecar.get("same_source") is not True:
         fail(f"{path}: AVM sidecar should certify same-source evidence, got {sidecar!r}")
+    assert_sidecar_identity_hashes(path, sidecar)
     if sidecar.get("native_runtime_conversion") is not False:
         fail(f"{path}: AVM sidecar must not claim native runtime conversion, got {sidecar!r}")
     if not isinstance(sidecar.get("native_exit_code"), int) or not isinstance(sidecar.get("sidecar_exit_code"), int):
@@ -812,6 +827,7 @@ def assert_sidecar_unavailable_run(path, expected_reasons, expected_injection):
         fail(f"{path}: AVM sidecar schema mismatch: {sidecar!r}")
     if sidecar.get("status") != "unavailable":
         fail(f"{path}: expected unavailable AVM sidecar status, got {sidecar!r}")
+    assert_sidecar_identity_hashes(path, sidecar)
     if sidecar.get("certification_status") != "unavailable":
         fail(f"{path}: expected unavailable certification status, got {sidecar!r}")
     if sidecar.get("package_policy_may_use") is not False:
@@ -846,6 +862,7 @@ if sidecar_exit_mismatch.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
     fail(f"{gas_sidecar_exit_mismatch_path}: AVM sidecar schema mismatch: {sidecar_exit_mismatch!r}")
 if sidecar_exit_mismatch.get("status") != "unavailable":
     fail(f"{gas_sidecar_exit_mismatch_path}: expected unavailable AVM sidecar status, got {sidecar_exit_mismatch!r}")
+assert_sidecar_identity_hashes(gas_sidecar_exit_mismatch_path, sidecar_exit_mismatch)
 if sidecar_exit_mismatch.get("certification_status") != "unavailable":
     fail(f"{gas_sidecar_exit_mismatch_path}: expected unavailable certification status, got {sidecar_exit_mismatch!r}")
 if sidecar_exit_mismatch.get("package_policy_may_use") is not False:
@@ -940,6 +957,7 @@ if sidecar_timeout.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
     fail(f"{gas_sidecar_timeout_path}: AVM sidecar schema mismatch: {sidecar_timeout!r}")
 if sidecar_timeout.get("status") != "timeout" or sidecar_timeout.get("certification_status") != "timeout":
     fail(f"{gas_sidecar_timeout_path}: expected timeout certification status, got {sidecar_timeout!r}")
+assert_sidecar_identity_hashes(gas_sidecar_timeout_path, sidecar_timeout)
 if sidecar_timeout.get("package_policy_may_use") is not False:
     fail(f"{gas_sidecar_timeout_path}: timed-out sidecar must not be package-policy usable, got {sidecar_timeout!r}")
 if sidecar_timeout.get("certification_failure_reasons") != ["timeout"]:
@@ -969,6 +987,7 @@ if sidecar_build_fail.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
     fail(f"{gas_sidecar_build_fail_path}: AVM sidecar schema mismatch: {sidecar_build_fail!r}")
 if sidecar_build_fail.get("status") != "build_failed" or sidecar_build_fail.get("certification_status") != "build_failed":
     fail(f"{gas_sidecar_build_fail_path}: expected build_failed certification status, got {sidecar_build_fail!r}")
+assert_sidecar_identity_hashes(gas_sidecar_build_fail_path, sidecar_build_fail, sidecar_artifact_required=False)
 if sidecar_build_fail.get("package_policy_may_use") is not False:
     fail(f"{gas_sidecar_build_fail_path}: build-failed sidecar must not be package-policy usable, got {sidecar_build_fail!r}")
 if sidecar_build_fail.get("certification_failure_reasons") != ["sidecar_build_failed"]:
@@ -1012,6 +1031,7 @@ if sidecar_native_fail.get("schema") != "oren.avm-canonical-sidecar-gas.v0":
     fail(f"{gas_sidecar_native_fail_path}: AVM sidecar schema mismatch: {sidecar_native_fail!r}")
 if sidecar_native_fail.get("status") != "not_run_native_failed" or sidecar_native_fail.get("certification_status") != "not_run_native_failed":
     fail(f"{gas_sidecar_native_fail_path}: expected not_run_native_failed certification status, got {sidecar_native_fail!r}")
+assert_sidecar_identity_hashes(gas_sidecar_native_fail_path, sidecar_native_fail)
 if sidecar_native_fail.get("certification_failure_reasons") != ["native_exit_nonzero"]:
     fail(f"{gas_sidecar_native_fail_path}: expected native_exit_nonzero failure reason, got {sidecar_native_fail!r}")
 if sidecar_native_fail.get("package_policy_may_use") is not False:

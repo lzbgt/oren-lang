@@ -145,6 +145,9 @@ def count_disasm_instructions(path):
             continue
     return count
 
+def valid_sha256(value):
+    return isinstance(value, str) and len(value) == 64
+
 samples = []
 for i in range(0, len(items), 3):
     src, semantic_report, disasm_log = items[i : i + 3]
@@ -214,6 +217,12 @@ for i in range(0, len(items), 3):
         )
     if sidecar.get("test_injection") is not None:
         raise SystemExit(f"{semantic_report}: semantic-diff sidecar should not carry verifier test injection, got {sidecar!r}")
+    if not valid_sha256(sidecar.get("source_sha256")):
+        raise SystemExit(f"{semantic_report}: AVM sidecar should preserve source identity hash, got {sidecar!r}")
+    if not sidecar.get("native_artifact") or not valid_sha256(sidecar.get("native_artifact_sha256")):
+        raise SystemExit(f"{semantic_report}: AVM sidecar should preserve native artifact identity hash, got {sidecar!r}")
+    if not sidecar.get("sidecar_artifact") or not valid_sha256(sidecar.get("sidecar_artifact_sha256")):
+        raise SystemExit(f"{semantic_report}: AVM sidecar should preserve sidecar artifact identity hash, got {sidecar!r}")
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -238,6 +247,12 @@ for i in range(0, len(items), 3):
             "avm_canonical_sidecar_sidecar_exit_code": sidecar.get("sidecar_exit_code"),
             "avm_canonical_sidecar_certification_warnings": sidecar.get("certification_warnings"),
             "avm_canonical_sidecar_test_injection": sidecar.get("test_injection"),
+            "avm_canonical_sidecar_source_sha256": sidecar.get("source_sha256"),
+            "avm_canonical_sidecar_native_artifact": sidecar.get("native_artifact"),
+            "avm_canonical_sidecar_native_artifact_sha256": sidecar.get("native_artifact_sha256"),
+            "avm_canonical_sidecar_sidecar_artifact": sidecar.get("sidecar_artifact"),
+            "avm_canonical_sidecar_sidecar_artifact_sha256": sidecar.get("sidecar_artifact_sha256"),
+            "avm_canonical_sidecar_identity_hashes_present": True,
             "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
@@ -289,6 +304,9 @@ decision = {
     "avm_canonical_sidecar_exit_code_equal_all": all(sample["avm_canonical_sidecar_exit_code_equal"] for sample in samples),
     "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
     "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
+    "avm_canonical_sidecar_identity_hashes_present_all": all(
+        sample["avm_canonical_sidecar_identity_hashes_present"] for sample in samples
+    ),
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
     "observed_sample_classes": sample_classes,

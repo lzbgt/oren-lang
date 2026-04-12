@@ -151,6 +151,12 @@ if avm_sidecar.get("native_backend") != "native" or avm_sidecar.get("sidecar_bac
     fail(f"AVM canonical sidecar backend metadata mismatch: {avm_sidecar!r}")
 if avm_sidecar.get("same_source") is not True:
     fail(f"AVM canonical sidecar should be explicitly same-source evidence, got {avm_sidecar!r}")
+for key in ("source_sha256", "native_artifact_sha256", "sidecar_artifact_sha256"):
+    value = avm_sidecar.get(key)
+    if not isinstance(value, str) or len(value) != 64:
+        fail(f"AVM canonical sidecar should include {key} identity hash, got {avm_sidecar!r}")
+if not avm_sidecar.get("native_artifact") or not avm_sidecar.get("sidecar_artifact"):
+    fail(f"AVM canonical sidecar should include native/sidecar artifact paths, got {avm_sidecar!r}")
 if avm_sidecar.get("same_run_stdout_equal") is not True or avm_sidecar.get("same_run_exit_code_equal") is not True:
     fail(f"AVM canonical sidecar requires stdout/exit parity evidence, got {avm_sidecar!r}")
 if avm_sidecar.get("native_exit_code") != 0 or avm_sidecar.get("sidecar_exit_code") != 0:

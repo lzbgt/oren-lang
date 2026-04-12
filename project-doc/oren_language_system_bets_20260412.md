@@ -150,9 +150,12 @@ It is a language plus runtime plus artifact contract.
 		  and package manifest, runs it under package AVM budgets, and marks the AVM canonical gas
 		  certificate usable when stdout/exit matches the native run or when the sidecar reports AVM
 		  canonical gas budget exhaustion through structured `avm.run.v1.error` evidence. It also records
-		  normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, concrete
-		  native/sidecar exit codes, non-blocking `certification_warnings`, and explicit
-		  `certification_status` / `certification_failure_reasons`.
+		  source/native-artifact/sidecar-artifact SHA-256 identity hashes, normalized stdout/stderr hashes,
+			  explicit `same_run_stderr_equal` evidence, concrete
+			  native/sidecar exit codes, non-blocking `certification_warnings`, and explicit
+			  `certification_status` / `certification_failure_reasons`. Calibration-set and native
+			  instruction-surface decision consumers preserve the source/native-artifact/sidecar-artifact
+			  identity hashes per sample instead of collapsing them to a boolean-only certificate.
 		  The runner guard now proves non-certified sidecar evidence fails closed with an auditable
 		  stdout-mismatch `test_injection`, so package policy cannot silently enforce gas from a sidecar
 		  whose stdout/exit certificate is unavailable.

@@ -74,6 +74,9 @@ native_target_arch = None
 native_unit_family = None
 required_next_surface = "native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas"
 
+def valid_sha256(value):
+    return isinstance(value, str) and len(value) == 64
+
 for path in report_paths:
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("schema") != "oren.semantic-diff.v0":
@@ -112,6 +115,12 @@ for path in report_paths:
         raise SystemExit(f"{path}: AVM canonical sidecar should preserve warning-free semantic-diff evidence: {sidecar!r}")
     if sidecar.get("test_injection") is not None:
         raise SystemExit(f"{path}: semantic-diff sidecar should not carry verifier test injection: {sidecar!r}")
+    if not valid_sha256(sidecar.get("source_sha256")):
+        raise SystemExit(f"{path}: AVM canonical sidecar should preserve source identity hash: {sidecar!r}")
+    if not sidecar.get("native_artifact") or not valid_sha256(sidecar.get("native_artifact_sha256")):
+        raise SystemExit(f"{path}: AVM canonical sidecar should preserve native artifact identity hash: {sidecar!r}")
+    if not sidecar.get("sidecar_artifact") or not valid_sha256(sidecar.get("sidecar_artifact_sha256")):
+        raise SystemExit(f"{path}: AVM canonical sidecar should preserve sidecar artifact identity hash: {sidecar!r}")
 
     cur_native_surface = calibration.get("native_surface_id")
     cur_obc_surface = calibration.get("obc_surface_id")
@@ -218,6 +227,12 @@ for path in report_paths:
             "avm_canonical_sidecar_sidecar_exit_code": sidecar.get("sidecar_exit_code"),
             "avm_canonical_sidecar_certification_warnings": sidecar.get("certification_warnings"),
             "avm_canonical_sidecar_test_injection": sidecar.get("test_injection"),
+            "avm_canonical_sidecar_source_sha256": sidecar.get("source_sha256"),
+            "avm_canonical_sidecar_native_artifact": sidecar.get("native_artifact"),
+            "avm_canonical_sidecar_native_artifact_sha256": sidecar.get("native_artifact_sha256"),
+            "avm_canonical_sidecar_sidecar_artifact": sidecar.get("sidecar_artifact"),
+            "avm_canonical_sidecar_sidecar_artifact_sha256": sidecar.get("sidecar_artifact_sha256"),
+            "avm_canonical_sidecar_identity_hashes_present": True,
             "native_executed": native_executed,
             "obc_executed": obc_executed,
             "native_per_obc": native_per_obc,
@@ -269,6 +284,9 @@ conversion_decision = {
     "avm_canonical_sidecar_exit_code_equal_all": all(sample["avm_canonical_sidecar_exit_code_equal"] for sample in samples),
     "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
     "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
+    "avm_canonical_sidecar_identity_hashes_present_all": all(
+        sample["avm_canonical_sidecar_identity_hashes_present"] for sample in samples
+    ),
     "forbidden_policy": "single_fixture_ratio",
     "required_next_surface": required_next_surface,
     "required_sample_classes": required_sample_classes,
@@ -301,6 +319,9 @@ out = {
         "avm_canonical_sidecar_stderr_equal_all": all(sample["avm_canonical_sidecar_stderr_equal"] for sample in samples),
         "avm_canonical_sidecar_warning_free": all(not sample["avm_canonical_sidecar_certification_warnings"] for sample in samples),
         "avm_canonical_sidecar_test_injection_free": all(sample["avm_canonical_sidecar_test_injection"] is None for sample in samples),
+        "avm_canonical_sidecar_identity_hashes_present_all": all(
+            sample["avm_canonical_sidecar_identity_hashes_present"] for sample in samples
+        ),
     },
     "sample_count": len(samples),
     "required_sample_classes": required_sample_classes,

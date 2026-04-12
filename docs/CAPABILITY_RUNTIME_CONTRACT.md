@@ -227,7 +227,8 @@ summary. When `OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1` is set, the native runn
 bytecode sidecar from the same source and package manifest, runs it under the declared package AVM
 budgets, checks stdout/exit parity with the native run after removing run-JSON lines, and records
 `oren.avm-canonical-sidecar-gas.v0` with `policy_scope="native_package_policy_same_source_artifact"`,
-normalized stdout/stderr hashes, explicit `same_run_stderr_equal` evidence, concrete
+source/native-artifact/sidecar-artifact SHA-256 identity hashes, normalized stdout/stderr hashes,
+explicit `same_run_stderr_equal` evidence, concrete
 `native_exit_code` / `sidecar_exit_code` values, an explicit
 `certification_status`, machine-readable non-blocking `certification_warnings`, and machine-readable
 `certification_failure_reasons` for non-certified sidecar outcomes. The runner verifier now has an
