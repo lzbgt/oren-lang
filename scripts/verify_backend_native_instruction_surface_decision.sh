@@ -105,7 +105,7 @@ for src in "${fixtures[@]}"; do
   disasm_log="${log_prefix}_${idx}_${safe_base}.disasm.log"
 
   echo "== native whole-binary disasm: $src ==" >&2
-  run_with_timeout "$build_timeout_secs" env OREN_NATIVE_GAS_ACCOUNTING=block-weighted "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug --no-cache --disasm -o "$out_native" >"$disasm_log" 2>&1
+  run_with_timeout "$build_timeout_secs" env OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug --no-cache --disasm -o "$out_native" >"$disasm_log" 2>&1
   test -f "$out_native" || { echo "FAIL: missing $out_native" >&2; tail -n 120 "$disasm_log" >&2 || true; exit 3; }
 
   sample_args+=("$src" "$semantic_report" "$disasm_log")
@@ -154,6 +154,10 @@ for i in range(0, len(items), 3):
     whole_binary_instruction_count = count_disasm_instructions(disasm_log)
     if native_executed <= 0 or obc_executed <= 0:
         raise SystemExit(f"{semantic_report}: expected positive semantic gas counters, got {calibration!r}")
+    if native_surface_id != "native_dynamic_emitter_tick_v0":
+        raise SystemExit(f"{semantic_report}: expected dynamic-emitter native gas surface, got {native_surface_id!r}")
+    if obc_surface_id != "avm_opcode_cost_v0":
+        raise SystemExit(f"{semantic_report}: expected AVM opcode gas surface, got {obc_surface_id!r}")
     if whole_binary_instruction_count <= 0:
         raise SystemExit(f"{disasm_log}: failed to count native disassembly instructions")
     samples.append(
@@ -163,18 +167,29 @@ for i in range(0, len(items), 3):
             "disasm_log": disasm_log,
             "native_surface_id": native_surface_id,
             "obc_surface_id": obc_surface_id,
-            "native_block_weighted_executed": native_executed,
+            "native_dynamic_emitter_executed": native_executed,
             "obc_opcode_gas_executed": obc_executed,
             "whole_binary_instruction_count": whole_binary_instruction_count,
             "whole_binary_instruction_per_obc_gas": whole_binary_instruction_count / obc_executed,
-            "whole_binary_instruction_per_native_block_weighted_tick": whole_binary_instruction_count / native_executed,
+            "whole_binary_instruction_per_native_dynamic_emitter_tick": whole_binary_instruction_count / native_executed,
         }
     )
 
-ratios = [sample["whole_binary_instruction_per_obc_gas"] for sample in samples]
-ratio_min = min(ratios)
-ratio_max = max(ratios)
+whole_binary_ratios = [sample["whole_binary_instruction_per_obc_gas"] for sample in samples]
+whole_binary_counts = [sample["whole_binary_instruction_count"] for sample in samples]
+runtime_ratios = [
+    sample["native_dynamic_emitter_executed"] / sample["obc_opcode_gas_executed"]
+    for sample in samples
+]
+ratio_min = min(whole_binary_ratios)
+ratio_max = max(whole_binary_ratios)
 ratio_spread = ratio_max / ratio_min if ratio_min > 0 else None
+runtime_ratio_min = min(runtime_ratios)
+runtime_ratio_max = max(runtime_ratios)
+runtime_ratio_spread = runtime_ratio_max / runtime_ratio_min if runtime_ratio_min > 0 else None
+count_min = min(whole_binary_counts)
+count_max = max(whole_binary_counts)
+count_spread = count_max / count_min if count_min > 0 else None
 
 decision = {
     "schema": "oren.native-instruction-surface-decision.v0",
@@ -183,8 +198,10 @@ decision = {
     "candidate_surface_id": "native_whole_binary_disasm_instruction_count_v0",
     "candidate_dynamic": False,
     "candidate_package_policy_may_convert": False,
-    "required_next_surface": "native_dynamic_emitter_instruction_ticks",
-    "notes": "Whole-binary native disassembly counts include linked runtime text and are not per-executed-path gas.",
+    "observed_runtime_surface_id": "native_dynamic_emitter_tick_v0",
+    "observed_runtime_surface_dynamic": True,
+    "required_next_surface": "validated_native_dynamic_emitter_or_instruction_equivalent_gas",
+    "notes": "Whole-binary native disassembly counts include linked runtime text and are not per-executed-path gas; runtime dynamic-emitter ticks are path-aware evidence but are not yet a conversion contract.",
 }
 
 out = {
@@ -194,9 +211,15 @@ out = {
     "sample_count": len(samples),
     "samples": samples,
     "ratio": {
+        "whole_binary_instruction_count_min": count_min,
+        "whole_binary_instruction_count_max": count_max,
+        "whole_binary_instruction_count_spread": count_spread,
         "whole_binary_instruction_per_obc_gas_min": ratio_min,
         "whole_binary_instruction_per_obc_gas_max": ratio_max,
         "whole_binary_instruction_per_obc_gas_spread": ratio_spread,
+        "native_dynamic_emitter_per_obc_gas_min": runtime_ratio_min,
+        "native_dynamic_emitter_per_obc_gas_max": runtime_ratio_max,
+        "native_dynamic_emitter_per_obc_gas_spread": runtime_ratio_spread,
     },
     "decision": decision,
 }

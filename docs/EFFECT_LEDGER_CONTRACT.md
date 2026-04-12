@@ -232,11 +232,12 @@ fixture-sensitive to promote as a conversion rule. The same report carries an
 `required_next_surface="validated_native_dynamic_emitter_or_instruction_equivalent_gas"`.
 `make verify-backend-native-instruction-surface-decision` records a second blocker:
 `oren.native-instruction-surface-decision.v0` rejects whole-binary native disassembly instruction counts
-as a runtime gas surface because they include linked runtime text and are not per-executed-path evidence.
-The first report (`build/reports/backend_native_instruction_surface_decision_20260412_075618_63812.json`)
-counted the same `470528` whole-binary native instructions for the default, loop-heavy, and branch-heavy
-fixtures while AVM opcode gas varied, so the required next surface is dynamic emitter-level instruction
-ticks, not a static binary-size proxy.
+as a runtime gas surface by cross-checking them against the current `native_dynamic_emitter_tick_v0`
+runtime surface. Whole-binary counts include linked runtime text and are not per-executed-path evidence.
+The first report (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`)
+counted the same `474624` whole-binary native instructions for the default, loop-heavy, and branch-heavy
+fixtures while AVM opcode gas varied, so the required next step is validating dynamic-emitter evidence or
+adding instruction-equivalent native gas, not promoting a static binary-size proxy.
 The first dynamic-emitter calibration set
 (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) narrowed the contract to
 runtime path-aware native evidence, but still blocked conversion: default smoke, loop-heavy, and

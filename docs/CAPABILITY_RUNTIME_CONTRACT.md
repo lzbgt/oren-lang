@@ -238,7 +238,8 @@ as the same unit. The exact `instruction-equivalent` spelling is a reserved requ
 to alias `stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter`; future backend work can add that surface without
 changing the existing field shape. The current native instruction-surface decision guard also rejects
 whole-binary disassembly instruction counts as a conversion shortcut, because that count includes linked
-runtime text instead of dynamic per-executed-path gas. Native artifact cache keys include the normalized `OREN_NATIVE_GAS_ACCOUNTING`
+runtime text instead of dynamic per-executed-path gas; the guard now cross-checks that rejected static
+proxy against the current `native_dynamic_emitter_tick_v0` runtime surface. Native artifact cache keys include the normalized `OREN_NATIVE_GAS_ACCOUNTING`
 mode, and the gas-mode verifier also uses `--no-cache`, so compile-time mode changes cannot be
 certified by stale cached artifacts.
 Package-policy JSON remains runner-observed wall/gas/heap/CPU evidence with captured runtime summaries,

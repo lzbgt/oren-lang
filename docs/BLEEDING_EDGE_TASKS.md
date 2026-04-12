@@ -83,15 +83,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) still shows
   `native_per_obc` spread from `~2.49x` to `~16.82x`, so dynamic-emitter evidence is path-aware
   but not a conversion rule. `make verify-backend-native-instruction-surface-decision`
-	  also rejects the tempting whole-binary native disassembly shortcut: that count includes linked
-	  runtime text and is not per-executed-path gas, so the next surface remains dynamic emitter-level
-	  instruction ticks. The first report
-	  (`build/reports/backend_native_instruction_surface_decision_20260412_075618_63812.json`) counted
-	  the same `470528` whole-binary native instructions for all three fixtures while OBC opcode gas
+	  also rejects the tempting whole-binary native disassembly shortcut by cross-checking it against
+	  the current `native_dynamic_emitter_tick_v0` runtime surface: whole-binary counts include linked
+	  runtime text and are not per-executed-path gas. The first static-proxy report
+	  (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`) counted
+	  the same `474624` whole-binary native instructions for all three fixtures while OBC opcode gas
 	  varied from `234` to `2328`, confirming the shortcut is runtime-insensitive. AVM `effect_ledger_summary.budgets`
   now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
-  `wall_ms.elapsed_ns`. Next capability work should define a conversion contract or finer native
-  validated dynamic-emitter conversion contract or instruction-equivalent gas rather than re-describing
+  `wall_ms.elapsed_ns`. Next capability work should define a validated dynamic-emitter conversion
+  contract or finer native instruction-equivalent gas rather than re-describing
   the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by

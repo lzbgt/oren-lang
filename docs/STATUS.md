@@ -1575,10 +1575,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`).
 	   - `make verify-backend-native-instruction-surface-decision` now records a separate
 	     `oren.native-instruction-surface-decision.v0` report and rejects whole-binary native disassembly
-	     counts as a conversion surface, because they include linked runtime text rather than dynamic
-	     per-executed-path instruction ticks. The first report
-	     (`build/reports/backend_native_instruction_surface_decision_20260412_075618_63812.json`) counted
-	     the same `470528` whole-binary native instructions for all three fixtures while OBC opcode gas
+	     counts as a conversion surface by cross-checking them against the current
+	     `native_dynamic_emitter_tick_v0` runtime surface; whole-binary counts include linked runtime
+	     text rather than dynamic per-executed-path gas. The first static-proxy report
+	     (`build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json`) counted
+	     the same `474624` whole-binary native instructions for all three fixtures while OBC opcode gas
 	     varied from `234` to `2328`.
 
 8) **W3 - Structural/SOLID debt**

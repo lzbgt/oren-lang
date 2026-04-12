@@ -154,9 +154,11 @@ It is a language plus runtime plus artifact contract.
   calibration set (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`)
   still spans `~2.49x` to `~16.82x` native ticks per AVM opcode gas, so dynamic-emitter evidence is
   path-aware but still not a conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native
-	  disassembly instruction counts as a shortcut because they include linked runtime text and are not
-	  dynamic per-executed-path gas; the first report counted the same `470528` whole-binary native
-	  instructions for all three calibration fixtures while AVM opcode gas varied from `234` to `2328`.
+	  disassembly instruction counts as a shortcut by cross-checking them against the current
+	  `native_dynamic_emitter_tick_v0` runtime surface: whole-binary counts include linked runtime text
+	  and are not dynamic per-executed-path gas. The first static-proxy report counted the same `474624`
+	  whole-binary native instructions for all three calibration fixtures while AVM opcode gas varied
+	  from `234` to `2328`.
 	  Oren also guards exact native gas mode
   spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
   lowering-block evidence, `block-weighted` selects weighted lowering-block evidence, and
