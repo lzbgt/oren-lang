@@ -124,7 +124,7 @@ Required entry fields:
   are enforced from the captured `heap_bytes.used` live-heap scan, native CPU budgets are enforced
   from child process resource usage where available, and native gas budgets are enforced from the
   captured `native_stmt_loop_tick_v0` counter after the runner builds and runs the artifact with
-  `OREN_NATIVE_GAS_ACCOUNTING=stmt`.
+  `OREN_NATIVE_GAS_ACCOUNTING=stmt`; that surface is explicitly backend-local and not AVM-canonical.
 - Native capsule runtime now exposes `oren.native-capsule-effect-gates.v0` through
   `native_capsule_effect_gate_summary_json()` and the native run JSON `domain_gates` field.
   This is the first native-owned effect evidence bridge: it counts central capsule domain-gate
@@ -224,10 +224,10 @@ loop-poll ticks. `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` reports
 charges and loop-poll ticks. `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` reports
 `kind="native_dynamic_emitter_tick_v0"`, using patchable runtime notes that charge executed backend emitter
 spans while excluding the gas-note call overhead itself. Semantic diff uses the dynamic-emitter mode so it
-has runtime path-aware native evidence, but each gas object carries an explicit `surface` object with
-`schema="oren.gas-surface.v0"`. The dynamic-emitter surface also reports
-`unit_scope="backend_local"`, `target_arch`, `unit_family`, `runtime_path_aware=true`,
-`cross_arch_comparable=false`, and `conversion_ready=false`; arm64 reports
+has runtime path-aware native evidence, but each native gas object carries an explicit `surface` object with
+`schema="oren.gas-surface.v0"`, `unit_scope="backend_local"`, `target_arch`, `unit_family`,
+`runtime_path_aware=true`, `cross_arch_comparable=false`, `conversion_ready=false`, and
+`avm_canonical=false`. For dynamic-emitter gas, arm64 reports
 `unit_family="fixed_width_instruction_span"` while x64 reports `unit_family="emitted_byte_span"`, so
 both can expose path-aware evidence without pretending the counter is architecture-neutral instruction gas. That surface keeps native
 `native_dynamic_emitter_tick_v0` distinct from AVM's canonical `avm_opcode_cost_v0`

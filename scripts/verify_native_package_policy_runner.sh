@@ -133,6 +133,20 @@ def load(path):
         fail(f"{path}: missing native runner JSON")
     return json.loads(path.read_text(encoding="utf-8"))
 
+def assert_native_stmt_surface(path, surface):
+    if surface.get("schema") != "oren.gas-surface.v0" or surface.get("id") != "native_stmt_loop_tick_v0":
+        fail(f"{path}: expected native_stmt_loop_tick_v0 gas surface, got {surface!r}")
+    if surface.get("unit_scope") != "backend_local" or surface.get("runtime_path_aware") is not True:
+        fail(f"{path}: native package-policy statement gas should be backend-local runtime-path-aware evidence, got {surface!r}")
+    if surface.get("target_arch") not in ("arm64", "x64"):
+        fail(f"{path}: native package-policy statement gas should declare target_arch, got {surface!r}")
+    if surface.get("unit_family") != "native_statement_or_op":
+        fail(f"{path}: native package-policy statement gas unit_family mismatch, got {surface!r}")
+    if surface.get("cross_arch_comparable") is not False or surface.get("conversion_ready") is not False:
+        fail(f"{path}: native package-policy statement gas must not be conversion-ready, got {surface!r}")
+    if surface.get("avm_canonical") is not False:
+        fail(f"{path}: native package-policy statement gas must not claim AVM canonical units, got {surface!r}")
+
 ok = load(ok_path)
 if ok.get("schema") != "oren.native-package-policy-run.v0":
     fail(f"{ok_path}: schema mismatch: {ok.get('schema')!r}")
@@ -270,8 +284,7 @@ if gas_ok_budget.get("limit") != 100000 or gas_ok_budget.get("enforced") is not 
 if gas_ok_budget.get("kind") != "native_stmt_loop_tick_v0":
     fail(f"{gas_ok_path}: expected native_stmt_loop_tick_v0 gas kind, got {gas_ok_budget!r}")
 gas_ok_surface = gas_ok_budget.get("surface") or {}
-if gas_ok_surface.get("schema") != "oren.gas-surface.v0" or gas_ok_surface.get("id") != "native_stmt_loop_tick_v0":
-    fail(f"{gas_ok_path}: expected native_stmt_loop_tick_v0 gas surface, got {gas_ok_budget!r}")
+assert_native_stmt_surface(gas_ok_path, gas_ok_surface)
 if gas_ok_budget.get("exceeded") is not False:
     fail(f"{gas_ok_path}: expected non-exceeded gas budget, got {gas_ok_budget!r}")
 gas_ok_used = int(gas_ok_budget.get("executed") or -1)
@@ -282,8 +295,7 @@ if gas_ok_used < 1024:
 summary_gas = (((gas_ok_summary.get("budgets") or {}).get("gas") or {}))
 if summary_gas.get("kind") != "native_stmt_loop_tick_v0":
     fail(f"{gas_ok_path}: expected native_stmt_loop_tick_v0 native gas summary, got {summary_gas!r}")
-if (summary_gas.get("surface") or {}).get("id") != "native_stmt_loop_tick_v0":
-    fail(f"{gas_ok_path}: expected native_stmt_loop_tick_v0 native gas summary surface, got {summary_gas!r}")
+assert_native_stmt_surface(gas_ok_path, summary_gas.get("surface") or {})
 if int(summary_gas.get("executed") or -1) != gas_ok_used:
     fail(f"{gas_ok_path}: runner gas used does not mirror native summary: runner={gas_ok_budget!r} summary={summary_gas!r}")
 
@@ -316,8 +328,7 @@ if gas_fail_budget.get("limit") != 1 or gas_fail_budget.get("enforced") is not T
     fail(f"{gas_fail_path}: expected enforced 1 native gas budget, got {gas_fail_budget!r}")
 if gas_fail_budget.get("kind") != "native_stmt_loop_tick_v0":
     fail(f"{gas_fail_path}: expected native_stmt_loop_tick_v0 gas kind, got {gas_fail_budget!r}")
-if (gas_fail_budget.get("surface") or {}).get("id") != "native_stmt_loop_tick_v0":
-    fail(f"{gas_fail_path}: expected native_stmt_loop_tick_v0 gas surface, got {gas_fail_budget!r}")
+assert_native_stmt_surface(gas_fail_path, gas_fail_budget.get("surface") or {})
 if gas_fail_budget.get("exceeded") is not True:
     fail(f"{gas_fail_path}: expected exceeded gas budget, got {gas_fail_budget!r}")
 if int(gas_fail_budget.get("executed") or 0) <= 1:
@@ -336,8 +347,7 @@ if gas_stmt_fail_budget.get("limit") != 8 or gas_stmt_fail_budget.get("enforced"
     fail(f"{gas_stmt_fail_path}: expected enforced 8 native gas budget, got {gas_stmt_fail_budget!r}")
 if gas_stmt_fail_budget.get("kind") != "native_stmt_loop_tick_v0":
     fail(f"{gas_stmt_fail_path}: expected native_stmt_loop_tick_v0 gas kind, got {gas_stmt_fail_budget!r}")
-if (gas_stmt_fail_budget.get("surface") or {}).get("id") != "native_stmt_loop_tick_v0":
-    fail(f"{gas_stmt_fail_path}: expected native_stmt_loop_tick_v0 gas surface, got {gas_stmt_fail_budget!r}")
+assert_native_stmt_surface(gas_stmt_fail_path, gas_stmt_fail_budget.get("surface") or {})
 if gas_stmt_fail_budget.get("exceeded") is not True:
     fail(f"{gas_stmt_fail_path}: expected exceeded statement gas budget, got {gas_stmt_fail_budget!r}")
 if int(gas_stmt_fail_budget.get("executed") or 0) <= 8:

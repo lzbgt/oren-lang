@@ -368,20 +368,24 @@ fn native_runtime_dynamic_emitter_unit_family() { return "emitted_byte_span" }
 @cfg(not_arch="arm64,x64")
 fn native_runtime_dynamic_emitter_unit_family() { return "unknown" }
 
+fn native_runtime_backend_local_gas_surface_json(id, unit, unit_family, granularity) {
+    return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"" + id + "\",\"backend\":\"native\",\"unit\":\"" + unit + "\",\"unit_scope\":\"backend_local\",\"target_arch\":\"" + native_runtime_gas_target_arch() + "\",\"unit_family\":\"" + unit_family + "\",\"granularity\":\"" + granularity + "\",\"runtime_path_aware\":true,\"cross_arch_comparable\":false,\"conversion_ready\":false,\"avm_canonical\":false}"
+}
+
 fn native_runtime_gas_surface_json() {
     if native_runtime_dynamic_emitter_gas_env_enabled() == true {
-        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_dynamic_emitter_tick_v0\",\"backend\":\"native\",\"unit\":\"dynamic_emitter_tick\",\"unit_scope\":\"backend_local\",\"target_arch\":\"" + native_runtime_gas_target_arch() + "\",\"unit_family\":\"" + native_runtime_dynamic_emitter_unit_family() + "\",\"granularity\":\"executed_backend_emitter_span_delta_excluding_runtime_note_overhead\",\"runtime_path_aware\":true,\"cross_arch_comparable\":false,\"conversion_ready\":false,\"avm_canonical\":false}"
+        return native_runtime_backend_local_gas_surface_json("native_dynamic_emitter_tick_v0", "dynamic_emitter_tick", native_runtime_dynamic_emitter_unit_family(), "executed_backend_emitter_span_delta_excluding_runtime_note_overhead")
     }
     if native_runtime_block_weighted_gas_env_enabled() == true {
-        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_block_weighted_tick_v0\",\"backend\":\"native\",\"unit\":\"block_weighted_tick\",\"granularity\":\"native_lowering_block_weight_plus_loop_condition_and_loop_poll\",\"avm_canonical\":false}"
+        return native_runtime_backend_local_gas_surface_json("native_block_weighted_tick_v0", "block_weighted_tick", "native_lowering_block_weight", "native_lowering_block_weight_plus_loop_condition_and_loop_poll")
     }
     if native_runtime_basic_block_gas_env_enabled() == true {
-        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_basic_block_tick_v0\",\"backend\":\"native\",\"unit\":\"basic_block_tick\",\"granularity\":\"native_lowering_block_entry_plus_loop_poll\",\"avm_canonical\":false}"
+        return native_runtime_backend_local_gas_surface_json("native_basic_block_tick_v0", "basic_block_tick", "native_lowering_block", "native_lowering_block_entry_plus_loop_poll")
     }
     if native_runtime_stmt_gas_env_enabled() == true {
-        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_stmt_loop_tick_v0\",\"backend\":\"native\",\"unit\":\"stmt_loop_tick\",\"granularity\":\"statement_or_native_op_plus_loop_poll\",\"avm_canonical\":false}"
+        return native_runtime_backend_local_gas_surface_json("native_stmt_loop_tick_v0", "stmt_loop_tick", "native_statement_or_op", "statement_or_native_op_plus_loop_poll")
     }
-    return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_loop_safepoint_tick_v0\",\"backend\":\"native\",\"unit\":\"loop_safepoint_tick\",\"granularity\":\"loop_poll_or_manual_safepoint\",\"avm_canonical\":false}"
+    return native_runtime_backend_local_gas_surface_json("native_loop_safepoint_tick_v0", "loop_safepoint_tick", "native_loop_safepoint", "loop_poll_or_manual_safepoint")
 }
 
 fn native_runtime_run_json_maybe_print(exit_code) {

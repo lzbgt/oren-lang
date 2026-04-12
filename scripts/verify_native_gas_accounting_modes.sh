@@ -123,16 +123,22 @@ if gas.get("kind") != expected_kind:
     raise SystemExit(f"{stdout_log}: {name} expected gas kind {expected_kind}, got {gas!r}")
 if surface.get("schema") != "oren.gas-surface.v0" or surface.get("id") != expected_kind:
     raise SystemExit(f"{stdout_log}: {name} expected gas surface {expected_kind}, got {gas!r}")
+if surface.get("backend") != "native" or surface.get("unit_scope") != "backend_local":
+    raise SystemExit(f"{stdout_log}: {name} gas surface should be native backend-local evidence, got {surface!r}")
+if surface.get("runtime_path_aware") is not True:
+    raise SystemExit(f"{stdout_log}: {name} gas surface should be runtime-path-aware, got {surface!r}")
+if surface.get("target_arch") not in ("arm64", "x64"):
+    raise SystemExit(f"{stdout_log}: {name} gas surface should declare target_arch, got {surface!r}")
+if surface.get("cross_arch_comparable") is not False or surface.get("conversion_ready") is not False:
+    raise SystemExit(f"{stdout_log}: {name} gas surface must stay non-conversion-ready, got {surface!r}")
+if surface.get("avm_canonical") is not False:
+    raise SystemExit(f"{stdout_log}: {name} gas surface must not claim AVM canonical units, got {surface!r}")
+if not surface.get("unit_family"):
+    raise SystemExit(f"{stdout_log}: {name} gas surface should declare unit_family, got {surface!r}")
 if name == "dynamic_emitter":
-    if surface.get("unit_scope") != "backend_local" or surface.get("runtime_path_aware") is not True:
-        raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface should be backend-local runtime-path-aware evidence, got {surface!r}")
-    if surface.get("target_arch") not in ("arm64", "x64"):
-        raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface should declare target_arch, got {surface!r}")
     expected_unit_family = "fixed_width_instruction_span" if surface.get("target_arch") == "arm64" else "emitted_byte_span"
     if surface.get("unit_family") != expected_unit_family:
         raise SystemExit(f"{stdout_log}: dynamic-emitter gas unit_family mismatch, expected {expected_unit_family}, got {surface!r}")
-    if surface.get("cross_arch_comparable") is not False or surface.get("conversion_ready") is not False:
-        raise SystemExit(f"{stdout_log}: dynamic-emitter gas surface must stay non-conversion-ready, got {surface!r}")
 if require_positive and int(executed or 0) <= 0:
     raise SystemExit(f"{stdout_log}: {name} expected positive gas execution, got {gas!r}")
 print(json.dumps({
@@ -140,6 +146,10 @@ print(json.dumps({
     "mode": mode if mode else "unset",
     "kind": gas.get("kind"),
     "surface_id": surface.get("id"),
+    "surface_unit_scope": surface.get("unit_scope"),
+    "surface_target_arch": surface.get("target_arch"),
+    "surface_unit_family": surface.get("unit_family"),
+    "surface_conversion_ready": surface.get("conversion_ready"),
     "executed": executed,
     "stdout_log": stdout_log,
     "stderr_log": stderr_log,

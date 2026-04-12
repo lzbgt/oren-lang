@@ -19,8 +19,8 @@ policy subset that native can enforce today:
   - budget_gas -> native-run JSON statement+loop counter check
 
 Native package-policy gas accounting is the scoped v0 native statement+loop
-surface, not full instruction-equivalent gas. The runner builds and runs gas
-budget fixtures with OREN_NATIVE_GAS_ACCOUNTING=stmt. budget_cpu_ms still fails
+surface, not full instruction-equivalent gas and not AVM-canonical opcode gas.
+The runner builds and runs gas budget fixtures with OREN_NATIVE_GAS_ACCOUNTING=stmt. budget_cpu_ms still fails
 closed when child CPU usage is not available on the host.
 Set OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path> to write runner-observed
 wall/gas/heap/CPU-budget evidence plus any captured native runtime ledger summary as JSON. Set

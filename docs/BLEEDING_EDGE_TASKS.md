@@ -67,9 +67,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   `OREN_NATIVE_GAS_ACCOUNTING=basic-block` is used, or weighted lowering-block
   `native_block_weighted_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` is used, or
   runtime path-aware `native_dynamic_emitter_tick_v0` ticks when
-  `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` is used. The dynamic-emitter surface is explicitly
+  `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` is used. Every native gas surface is explicitly
   backend-local and not conversion-ready (`unit_scope="backend_local"`,
-  `target_arch`, `unit_family`, `cross_arch_comparable=false`, `conversion_ready=false`), so
+  `target_arch`, `unit_family`, `cross_arch_comparable=false`, `conversion_ready=false`,
+  `avm_canonical=false`), so
   semantic-diff consumers cannot mistake it for architecture-neutral instruction gas or hide arm64/x64
   unit-family differences.
   The native build cache key now includes the

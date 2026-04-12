@@ -168,9 +168,10 @@ It is a language plus runtime plus artifact contract.
   spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
   lowering-block evidence, `block-weighted` selects weighted lowering-block evidence, and
   `dynamic-emitter` selects backend-local runtime path-aware emitter-span evidence rather than silently
-  aliasing statement gas. Its gas-surface metadata explicitly sets `unit_scope="backend_local"`,
-  includes `target_arch` and `unit_family`, and sets `cross_arch_comparable=false` and
-  `conversion_ready=false`, so future tooling cannot mistake it for instruction-equivalent gas or hide
+  aliasing statement gas. Native gas-surface metadata now explicitly sets `unit_scope="backend_local"`,
+  includes `target_arch` and `unit_family`, and sets `cross_arch_comparable=false`,
+  `conversion_ready=false`, and `avm_canonical=false` across all native modes, so future tooling
+  cannot mistake statement/basic/block-weighted/dynamic-emitter counters for instruction-equivalent gas or hide
   arm64/x64 unit-family differences. The native build cache key now
   includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
   Next work is validating the dynamic-emitter conversion contract or adding instruction-equivalent native

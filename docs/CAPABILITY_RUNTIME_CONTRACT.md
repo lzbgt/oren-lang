@@ -193,7 +193,9 @@ runner builds and runs gas-budgeted artifacts with `OREN_NATIVE_GAS_ACCOUNTING=s
 scoped v0 statement+loop budget: backend statement/op boundaries charge one tick, backend loop poll
 sites charge their mask interval when they fire, and direct/manual runtime safepoint arrivals still
 charge one tick. It is not an instruction-equivalent gas model, so the native run JSON gas object
-also carries `surface.schema="oren.gas-surface.v0"` with `id="native_stmt_loop_tick_v0"`. The accepted
+also carries `surface.schema="oren.gas-surface.v0"` with `id="native_stmt_loop_tick_v0"`,
+`unit_scope="backend_local"`, `target_arch`, `unit_family="native_statement_or_op"`,
+`cross_arch_comparable=false`, `conversion_ready=false`, and `avm_canonical=false`. The accepted
 package-policy fine gas spellings remain `1`, `stmt`, and `statement`. The separate
 `OREN_NATIVE_GAS_ACCOUNTING=basic-block`, `OREN_NATIVE_GAS_ACCOUNTING=block-weighted`, and
 `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` spellings are runtime evidence surfaces
@@ -232,9 +234,10 @@ basic-block entry ticks plus loop-poll ticks as a distinct non-AVM-canonical sur
 lowering-block weights plus loop-condition charges and loop-poll ticks.
 `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` reports `native_dynamic_emitter_tick_v0`, adding runtime
 path-aware backend emitter span ticks. Every native
-gas object also includes an `oren.gas-surface.v0` descriptor. The dynamic-emitter descriptor is
-explicitly `unit_scope="backend_local"` with `target_arch`, `unit_family`, `runtime_path_aware=true`,
-`cross_arch_comparable=false`, and `conversion_ready=false`. AVM run JSON marks
+gas object also includes an `oren.gas-surface.v0` descriptor with `unit_scope="backend_local"`,
+`target_arch`, `unit_family`, `runtime_path_aware=true`, `cross_arch_comparable=false`,
+`conversion_ready=false`, and `avm_canonical=false`; dynamic-emitter's `unit_family` is still
+architecture-specific (`fixed_width_instruction_span` on arm64, `emitted_byte_span` on x64). AVM run JSON marks
 `avm_opcode_cost_v0` as the canonical opcode-dispatch gas target with `unit_scope="avm_canonical"`,
 `runtime_path_aware=true`, `cross_arch_comparable=true`, `conversion_ready=true`, and
 `avm_canonical=true`; semantic diff now reports the native and AVM gas surfaces as non-comparable
@@ -287,7 +290,8 @@ while direct `OREN_NATIVE_RUN_JSON=1` is runtime-observed evidence.
   runner applies the gas/heap/wall subset to concrete AVM runtime knobs; the native runner
   applies capsule domains, wall-time process watchdogs, heap-budget checks from native-run JSON
   live-heap scans, CPU-budget checks from child process resource usage where available, and a
-  scoped `native_stmt_loop_tick_v0` gas check with explicit `oren.gas-surface.v0` metadata. They are
+  scoped `native_stmt_loop_tick_v0` gas check with explicit backend-local/non-conversion-ready
+  `oren.gas-surface.v0` metadata. They are
   not yet a complete enforcement contract across native and AVM because native package gas is still
   statement+loop-granular, and the newer `native_dynamic_emitter_tick_v0` semantic-diff surface is
   runtime path-aware emitter evidence rather than AVM-opcode-equivalent gas. Native capsule
