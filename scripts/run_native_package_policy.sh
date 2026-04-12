@@ -404,6 +404,7 @@ def avm_canonical_sidecar_not_run_native_failed_payload(*, src, native_artifact,
 
 def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, native_stderr, native_exit_code, avm_stdout, avm_stderr, avm_exit_code, avm_run_json, program_args=None, package_policy=None, test_injection=None):
     avm_gas_used, avm_gas_remaining, avm_gas_kind, avm_gas_surface = avm_gas_from_run_json(avm_run_json)
+    avm_run_json_valid = isinstance(avm_run_json, dict) and avm_run_json.get("schema") == "avm.run.v1"
     native_stdout_normalized = strip_run_json_lines(native_stdout)
     avm_stdout_normalized = strip_run_json_lines(avm_stdout)
     native_stderr_normalized = strip_run_json_lines(native_stderr)
@@ -415,7 +416,8 @@ def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, n
     if isinstance(avm_run_json, dict) and isinstance(avm_run_json.get("error"), dict):
         avm_run_error = avm_run_json.get("error")
     structured_budget_exceeded = (
-        isinstance(avm_run_error, dict)
+        avm_run_json_valid
+        and isinstance(avm_run_error, dict)
         and avm_run_error.get("code") == 9
         and avm_run_error.get("msg") == "budget exceeded (gas)"
     )
@@ -427,7 +429,8 @@ def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, n
         else ("stderr_diagnostic" if stderr_budget_exceeded else None)
     )
     canonical_surface = (
-        isinstance(avm_gas_surface, dict)
+        avm_run_json_valid
+        and isinstance(avm_gas_surface, dict)
         and avm_gas_surface.get("id") == "avm_opcode_cost_v0"
         and avm_gas_surface.get("unit_scope") == "avm_canonical"
         and avm_gas_surface.get("conversion_ready") is True
@@ -455,6 +458,8 @@ def avm_canonical_sidecar_payload(*, src, native_artifact, obc, native_stdout, n
         certification_failure_reasons.append("sidecar_exit_nonzero")
     if isinstance(avm_run_error, dict) and not budget_exceeded:
         certification_failure_reasons.append("sidecar_error")
+    if not avm_run_json_valid:
+        certification_failure_reasons.append("missing_or_noncanonical_avm_run_json")
     if not canonical_surface:
         certification_failure_reasons.append("missing_or_noncanonical_avm_gas_surface")
     elif not budget_exceeded and not canonical_positive_gas:
@@ -953,6 +958,7 @@ try:
         test_sidecar_stderr_suffix = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_STDERR_SUFFIX")
         test_sidecar_exit_code = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_EXIT_CODE")
         test_sidecar_drop_run_json = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_RUN_JSON")
+        test_sidecar_schema = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_SCHEMA")
         test_sidecar_drop_gas_surface = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_DROP_GAS_SURFACE")
         test_sidecar_zero_gas = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_ZERO_GAS")
         test_sidecar_run_error = os.environ.get("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_RUN_ERROR")
@@ -975,6 +981,12 @@ try:
         if test_sidecar_drop_run_json:
             avm_run_json_for_payload = None
             test_injection = append_test_injection(test_injection, "drop_run_json")
+        if test_sidecar_schema:
+            if not isinstance(avm_run_json_for_payload, dict):
+                fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR_SCHEMA requires AVM run JSON")
+            avm_run_json_for_payload = json.loads(json.dumps(avm_run_json_for_payload))
+            avm_run_json_for_payload["schema"] = str(test_sidecar_schema)
+            test_injection = append_test_injection(test_injection, "schema")
         if test_sidecar_drop_gas_surface or test_sidecar_zero_gas:
             if not isinstance(avm_run_json_for_payload, dict):
                 fail("OREN_NATIVE_PACKAGE_POLICY_TEST_AVM_SIDECAR gas mutation requires AVM run JSON")

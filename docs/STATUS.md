@@ -1630,8 +1630,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     `certification_warnings=["stderr_mismatch"]`, proving warnings are non-blocking.
 				     An exit-code mismatch probe now also requires `exit_code_mismatch` plus
 				     `sidecar_exit_nonzero` failure reasons and keeps the sidecar non-certified.
-				     Missing run-JSON, gas-surface, zero-gas, and timeout probes now cover the remaining
-				     non-certified AVM sidecar gas-evidence branches. A sidecar build-failure probe now
+					     Missing run-JSON, schema-mismatch, gas-surface, zero-gas, and timeout probes now cover the remaining
+					     non-certified AVM sidecar gas-evidence branches. A sidecar build-failure probe now
 				     also keeps the native package-policy run JSON structured with `sidecar_build_failed`
 				     instead of failing before report emission. A native-failure fixture now preserves
 				     the native exit with `not_run_native_failed` sidecar evidence rather than masking it

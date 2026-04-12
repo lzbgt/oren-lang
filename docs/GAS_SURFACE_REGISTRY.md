@@ -79,8 +79,8 @@ decision reports preserve aggregate test-injection-free evidence for their seman
 The native package-policy verifier covers both `stdout_suffix` as a certification failure and
 `stderr_suffix` as a non-blocking warning path. It also covers `exit_code` as a certification failure
 for nonzero sidecar exits, preserving canonical gas evidence while forbidding package-policy use.
-It also covers `drop_run_json`, `drop_gas_surface`, `zero_gas`, and `timeout` probes so missing/nonpositive
-canonical run/gas metadata and sidecar timeouts are separately non-certified. It covers `run_error`
+It also covers `drop_run_json`, `schema`, `drop_gas_surface`, `zero_gas`, and `timeout` probes so missing,
+schema-mismatched, or nonpositive canonical run/gas metadata and sidecar timeouts are separately non-certified. It covers `run_error`
 so structured non-gas AVM errors carry `sidecar_error` failure evidence instead of being flattened
 into generic exit mismatch. It also covers a `build_fail` probe so
 sidecar construction failure is reported as `certification_status="build_failed"` with
