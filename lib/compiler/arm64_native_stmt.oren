@@ -192,6 +192,7 @@ fn _arm64_native_gas_accounting_mode(ctx) {
     if v == "1" || v == "stmt" || v == "statement" { mode = "stmt" }
     else if v == "basic-block" { mode = "basic-block" }
     else if v == "block-weighted" { mode = "block-weighted" }
+    else if v == "dynamic-emitter" { mode = "dynamic-emitter" }
     ctx["native_gas_accounting_mode"] = mode
     return mode
 }
@@ -210,6 +211,24 @@ fn _arm64_native_basic_block_gas_enabled(ctx) {
 fn _arm64_native_block_weighted_gas_enabled(ctx) {
     if ctx == nil { return false }
     return _arm64_native_gas_accounting_mode(ctx) == "block-weighted"
+}
+
+fn _arm64_native_dynamic_emitter_gas_enabled(ctx) {
+    if ctx == nil { return false }
+    return _arm64_native_gas_accounting_mode(ctx) == "dynamic-emitter"
+}
+
+fn _arm64_dynamic_emitter_stmt_should_charge(ctx, stmt) {
+    if _arm64_native_dynamic_emitter_gas_enabled(ctx) != true { return false }
+    if ctx["in_function"] != true { return false }
+    if stmt == nil { return false }
+    var st = stmt["type"]
+    if st == "Block" || st == "Function" || st == "If" || st == "While" || st == "For" { return false }
+    if st == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && (e["type"] == "Function" || e["type"] == "If") { return false }
+    }
+    return true
 }
 
 fn _arm64_stmt_gas_should_charge(ctx, stmt) {
@@ -434,13 +453,22 @@ fn native_compile_stmt(ctx, stmt) {
         ctx["stmt_depth"] = depth - 1
         return false
     }
-    if _arm64_stmt_gas_should_charge(ctx, stmt) == true {
+    var dynamic_note_pos = nil
+    var dynamic_span_start = nil
+    if _arm64_dynamic_emitter_stmt_should_charge(ctx, stmt) == true {
+        dynamic_note_pos = gc.native_emit_runtime_gas_note_amount_patchable_u32(ctx)
+        dynamic_span_start = bytes_len(ctx["code"])
+    } else if _arm64_stmt_gas_should_charge(ctx, stmt) == true {
         gc.native_emit_runtime_gas_note_amount(ctx, 1)
     } else if _arm64_basic_block_gas_should_charge(ctx, stmt) == true {
         gc.native_emit_runtime_gas_note_amount(ctx, _arm64_basic_block_gas_amount(ctx, stmt))
         ctx["arm64_basic_block_entry"] = false
     }
     var r = native_compile_stmt_inner(ctx, stmt)
+    if dynamic_note_pos != nil && dynamic_span_start != nil {
+        var dynamic_amount = (bytes_len(ctx["code"]) - dynamic_span_start) / 4
+        gc.native_patch_runtime_gas_note_amount_u32(ctx, dynamic_note_pos, dynamic_amount)
+    }
     ctx["stmt_depth"] = depth - 1
     return r
 }
@@ -809,7 +837,14 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var loop_base_stack = ctx["stack_size"]
         loopm._arm64_trace_loop_stack(ctx, "for_loop", loop_base_stack, 2, 0, 16)
         var start_pos = bytes_len(ctx["code"])
-        _arm64_emit_block_weighted_loop_condition_gas(ctx)
+        var dynamic_cond_note = nil
+        var dynamic_cond_start = nil
+        if _arm64_native_dynamic_emitter_gas_enabled(ctx) == true {
+            dynamic_cond_note = gc.native_emit_runtime_gas_note_amount_patchable_u32(ctx)
+            dynamic_cond_start = bytes_len(ctx["code"])
+        } else {
+            _arm64_emit_block_weighted_loop_condition_gas(ctx)
+        }
 
         var prev_loop = ctx["loop_ctx"]
         var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": nil, "break_jumps": [], "continue_jumps": []}
@@ -830,6 +865,10 @@ fn native_compile_stmt_inner(ctx, stmt) {
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
         var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
+        if dynamic_cond_note != nil && dynamic_cond_start != nil {
+            var dynamic_cond_amount = (bytes_len(ctx["code"]) - dynamic_cond_start) / 4
+            gc.native_patch_runtime_gas_note_amount_u32(ctx, dynamic_cond_note, dynamic_cond_amount)
+        }
 
         // GC safepoint on loop entry (parity with C backend), throttled for performance.
         // Call once per 256 iterations by default.

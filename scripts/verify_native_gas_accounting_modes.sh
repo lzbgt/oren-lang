@@ -142,6 +142,7 @@ run_case "stmt" "stmt" "native_stmt_loop_tick_v0" "1"
 run_case "statement" "statement" "native_stmt_loop_tick_v0" "1"
 run_case "basic_block" "basic-block" "native_basic_block_tick_v0" "1"
 run_case "block_weighted" "block-weighted" "native_block_weighted_tick_v0" "1"
+run_case "dynamic_emitter" "dynamic-emitter" "native_dynamic_emitter_tick_v0" "1"
 run_case "instruction_equivalent_reserved" "instruction-equivalent" "native_loop_safepoint_tick_v0" "0"
 
 python3 - "$cases_file" <<'PY'
@@ -152,7 +153,7 @@ from pathlib import Path
 cases_path = Path(sys.argv[1])
 cases = [json.loads(line) for line in cases_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 seen = {case["name"]: case for case in cases}
-required = {"default", "stmt", "statement", "basic_block", "block_weighted", "instruction_equivalent_reserved"}
+required = {"default", "stmt", "statement", "basic_block", "block_weighted", "dynamic_emitter", "instruction_equivalent_reserved"}
 missing = sorted(required - set(seen))
 if missing:
     raise SystemExit(f"{cases_path}: missing mode cases: {missing}")
@@ -174,9 +175,15 @@ if int(seen["block_weighted"].get("executed") or 0) <= 0:
     raise SystemExit(f"{cases_path}: block-weighted should report positive gas, got {seen['block_weighted']!r}")
 if int(seen["block_weighted"].get("executed") or 0) <= int(seen["basic_block"].get("executed") or 0):
     raise SystemExit(f"{cases_path}: block-weighted should charge more than basic-block for this fixture, got {seen!r}")
+if seen["dynamic_emitter"]["kind"] != "native_dynamic_emitter_tick_v0":
+    raise SystemExit(f"{cases_path}: dynamic-emitter mode mismatch: {seen['dynamic_emitter']!r}")
+if seen["dynamic_emitter"]["kind"] == seen["stmt"]["kind"] or seen["dynamic_emitter"]["kind"] == seen["basic_block"]["kind"] or seen["dynamic_emitter"]["kind"] == seen["block_weighted"]["kind"]:
+    raise SystemExit(f"{cases_path}: dynamic-emitter gas must stay distinct from existing native gas surfaces, got {seen!r}")
+if int(seen["dynamic_emitter"].get("executed") or 0) <= 0:
+    raise SystemExit(f"{cases_path}: dynamic-emitter should report positive path-aware emitter ticks, got {seen['dynamic_emitter']!r}")
 if seen["instruction_equivalent_reserved"]["kind"] != seen["default"]["kind"]:
     raise SystemExit(f"{cases_path}: instruction-equivalent gas must stay reserved and fall back to default loop-safepoint gas until implemented, got {seen!r}")
-if seen["instruction_equivalent_reserved"]["kind"] == seen["stmt"]["kind"] or seen["instruction_equivalent_reserved"]["kind"] == seen["basic_block"]["kind"] or seen["instruction_equivalent_reserved"]["kind"] == seen["block_weighted"]["kind"]:
+if seen["instruction_equivalent_reserved"]["kind"] == seen["stmt"]["kind"] or seen["instruction_equivalent_reserved"]["kind"] == seen["basic_block"]["kind"] or seen["instruction_equivalent_reserved"]["kind"] == seen["block_weighted"]["kind"] or seen["instruction_equivalent_reserved"]["kind"] == seen["dynamic_emitter"]["kind"]:
     raise SystemExit(f"{cases_path}: instruction-equivalent gas must stay reserved and not alias existing fine-grained modes, got {seen!r}")
 print("native gas accounting modes verify OK")
 PY

@@ -1089,6 +1089,8 @@ fn compiler_main() {
                 cfg["native_gas_accounting"] = "basic-block"
             } else if gas_mode_env == "block-weighted" {
                 cfg["native_gas_accounting"] = "block-weighted"
+            } else if gas_mode_env == "dynamic-emitter" {
+                cfg["native_gas_accounting"] = "dynamic-emitter"
             }
         }
 

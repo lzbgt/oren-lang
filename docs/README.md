@@ -1,6 +1,6 @@
 # Start Here: Oren Docs (Canonical)
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 
 This file is the single **entry point** for the Oren docs. It merges the former root README
 orientation with the docs index so you can start in one place and branch out only when needed.
@@ -63,7 +63,7 @@ make verify-backend-semantic-diff-gas-branch-calibration  # branch-heavy semanti
 make verify-backend-gas-surface-calibration-set  # combines gas calibration fixtures and guards ratio spread
 make verify-backend-native-instruction-surface-decision  # rejects whole-binary disasm counts as runtime gas conversion evidence
 make verify-native-capsule-resource-checks  # guards native FS resource-check counters in native-run JSON
-make verify-native-gas-accounting-modes  # guards native gas mode spellings and distinct block surfaces
+make verify-native-gas-accounting-modes  # guards native gas mode spellings and distinct gas surfaces
 make verify-public-readme-positioning  # guards public README copy against single-language comparison framing
 make readiness-report  # generates build/reports/readiness_report_*.md
 make readiness-report-full  # quick + GC stress + runtime robustness

@@ -5,6 +5,7 @@ import core "arm64_core.oren"
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
 fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos, name) }
 
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
@@ -12,6 +13,7 @@ fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
 fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
 fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
 fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, rt2, rn, offset) }
+fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
 
@@ -185,6 +187,43 @@ fn native_emit_runtime_gas_note_amount(ctx, amount) {
     return nil
 }
 
+fn _arm64_dynamic_emitter_gas_enabled(ctx) {
+    if ctx == nil { return false }
+    var mode = ctx["native_gas_accounting_mode"]
+    if mode == nil {
+        var v = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
+        if v == "dynamic-emitter" { mode = "dynamic-emitter" }
+    }
+    return mode == "dynamic-emitter"
+}
+
+fn native_emit_runtime_gas_note_amount_patchable_u32(ctx) {
+    // Patchable dynamic-emitter gas note:
+    //   movz x0, lo16
+    //   movk x0, hi16, lsl #16
+    //   bl native_runtime_gas_note
+    // The caller records the emitted-code span after this note and patches the u32 amount later.
+    var mov_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], insn_movz(0, 0))
+    push_u32_le(ctx["code"], insn_movk(0, 0, 1))
+    var bl_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "native_runtime_gas_note"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_runtime_gas_note")
+    return mov_pos
+}
+
+fn native_patch_runtime_gas_note_amount_u32(ctx, mov_pos, amount) {
+    if ctx == nil { return nil }
+    if amount < 0 { amount = 0 }
+    var lo = int_mod(amount, 65536)
+    var hi = int_mod(amount / 65536, 65536)
+    set_u32_le(ctx["code"], mov_pos, insn_movz(0, lo))
+    set_u32_le(ctx["code"], mov_pos + 4, insn_movk(0, hi, 1))
+    return nil
+}
+
 fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     // PERF:
     // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
@@ -218,7 +257,9 @@ fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     var jskip_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
 
-    native_emit_runtime_gas_note_amount(ctx, tick_mask)
+    if _arm64_dynamic_emitter_gas_enabled(ctx) != true {
+        native_emit_runtime_gas_note_amount(ctx, tick_mask)
+    }
     native_emit_gc_safepoint_call(ctx)
 
     var after_call = bytes_len(ctx["code"])
@@ -247,7 +288,9 @@ fn native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, reg_pairs) {
     var jskip_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
 
-    native_emit_runtime_gas_note_amount(ctx, tick_mask)
+    if _arm64_dynamic_emitter_gas_enabled(ctx) != true {
+        native_emit_runtime_gas_note_amount(ctx, tick_mask)
+    }
     native_emit_gc_safepoint_call_pairs(ctx, reg_pairs)
     // Reset tick/mask after runtime call (caller-saved regs).
     push_u32_le(ctx["code"], insn_movz(9, 0))

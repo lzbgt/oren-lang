@@ -8,8 +8,17 @@ fn _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label
         _emit_native_gas_note_x64(ctx, 2)
     }
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
+    var dynamic_cond_note = nil
+    var dynamic_cond_start = nil
+    if _x64_native_dynamic_emitter_gas_enabled(ctx) == true {
+        dynamic_cond_note = _emit_native_gas_note_x64_patchable_u32(ctx)
+        dynamic_cond_start = bytes_len(ctx["code"])
+    }
     _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label2)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if dynamic_cond_note != nil && dynamic_cond_start != nil {
+        _patch_native_gas_note_x64_u32(ctx, dynamic_cond_note, bytes_len(ctx["code"]) - dynamic_cond_start)
+    }
 
     _emit_label(ctx, labels, body_label)
     _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)

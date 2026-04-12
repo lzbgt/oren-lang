@@ -311,6 +311,7 @@ fn native_runtime_gas_accounting_mode() {
     // - "stmt" / "statement" charge statement or native-op boundaries plus loop polls.
     // - "basic-block" charges native lowering-block entries plus loop polls.
     // - "block-weighted" charges weighted lowering blocks plus loop-condition checks/polls.
+    // - "dynamic-emitter" charges executed emitter spans with backend-local dynamic path ticks.
     if c0 == 115 { // 's'
         if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 109 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 0 { return "stmt" }
         if ptr_get_byte(iadd(v, 1)) == 116 && ptr_get_byte(iadd(v, 2)) == 97 && ptr_get_byte(iadd(v, 3)) == 116 && ptr_get_byte(iadd(v, 4)) == 101 && ptr_get_byte(iadd(v, 5)) == 109 && ptr_get_byte(iadd(v, 6)) == 101 && ptr_get_byte(iadd(v, 7)) == 110 && ptr_get_byte(iadd(v, 8)) == 116 && ptr_get_byte(iadd(v, 9)) == 0 { return "stmt" }
@@ -318,6 +319,9 @@ fn native_runtime_gas_accounting_mode() {
     if c0 == 98 { // 'b'
         if ptr_get_byte(iadd(v, 1)) == 97 && ptr_get_byte(iadd(v, 2)) == 115 && ptr_get_byte(iadd(v, 3)) == 105 && ptr_get_byte(iadd(v, 4)) == 99 && ptr_get_byte(iadd(v, 5)) == 45 && ptr_get_byte(iadd(v, 6)) == 98 && ptr_get_byte(iadd(v, 7)) == 108 && ptr_get_byte(iadd(v, 8)) == 111 && ptr_get_byte(iadd(v, 9)) == 99 && ptr_get_byte(iadd(v, 10)) == 107 && ptr_get_byte(iadd(v, 11)) == 0 { return "basic-block" }
         if ptr_get_byte(iadd(v, 1)) == 108 && ptr_get_byte(iadd(v, 2)) == 111 && ptr_get_byte(iadd(v, 3)) == 99 && ptr_get_byte(iadd(v, 4)) == 107 && ptr_get_byte(iadd(v, 5)) == 45 && ptr_get_byte(iadd(v, 6)) == 119 && ptr_get_byte(iadd(v, 7)) == 101 && ptr_get_byte(iadd(v, 8)) == 105 && ptr_get_byte(iadd(v, 9)) == 103 && ptr_get_byte(iadd(v, 10)) == 104 && ptr_get_byte(iadd(v, 11)) == 116 && ptr_get_byte(iadd(v, 12)) == 101 && ptr_get_byte(iadd(v, 13)) == 100 && ptr_get_byte(iadd(v, 14)) == 0 { return "block-weighted" }
+    }
+    if c0 == 100 { // 'd'
+        if ptr_get_byte(iadd(v, 1)) == 121 && ptr_get_byte(iadd(v, 2)) == 110 && ptr_get_byte(iadd(v, 3)) == 97 && ptr_get_byte(iadd(v, 4)) == 109 && ptr_get_byte(iadd(v, 5)) == 105 && ptr_get_byte(iadd(v, 6)) == 99 && ptr_get_byte(iadd(v, 7)) == 45 && ptr_get_byte(iadd(v, 8)) == 101 && ptr_get_byte(iadd(v, 9)) == 109 && ptr_get_byte(iadd(v, 10)) == 105 && ptr_get_byte(iadd(v, 11)) == 116 && ptr_get_byte(iadd(v, 12)) == 116 && ptr_get_byte(iadd(v, 13)) == 101 && ptr_get_byte(iadd(v, 14)) == 114 && ptr_get_byte(iadd(v, 15)) == 0 { return "dynamic-emitter" }
     }
     return "loop"
 }
@@ -334,7 +338,12 @@ fn native_runtime_block_weighted_gas_env_enabled() {
     return native_runtime_gas_accounting_mode() == "block-weighted"
 }
 
+fn native_runtime_dynamic_emitter_gas_env_enabled() {
+    return native_runtime_gas_accounting_mode() == "dynamic-emitter"
+}
+
 fn native_runtime_gas_kind_string() {
+    if native_runtime_dynamic_emitter_gas_env_enabled() == true { return "native_dynamic_emitter_tick_v0" }
     if native_runtime_block_weighted_gas_env_enabled() == true { return "native_block_weighted_tick_v0" }
     if native_runtime_basic_block_gas_env_enabled() == true { return "native_basic_block_tick_v0" }
     if native_runtime_stmt_gas_env_enabled() == true { return "native_stmt_loop_tick_v0" }
@@ -342,6 +351,9 @@ fn native_runtime_gas_kind_string() {
 }
 
 fn native_runtime_gas_surface_json() {
+    if native_runtime_dynamic_emitter_gas_env_enabled() == true {
+        return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_dynamic_emitter_tick_v0\",\"backend\":\"native\",\"unit\":\"dynamic_emitter_tick\",\"granularity\":\"executed_backend_emitter_span_delta_excluding_runtime_note_overhead\",\"avm_canonical\":false}"
+    }
     if native_runtime_block_weighted_gas_env_enabled() == true {
         return "{\"schema\":\"oren.gas-surface.v0\",\"id\":\"native_block_weighted_tick_v0\",\"backend\":\"native\",\"unit\":\"block_weighted_tick\",\"granularity\":\"native_lowering_block_weight_plus_loop_condition_and_loop_poll\",\"avm_canonical\":false}"
     }

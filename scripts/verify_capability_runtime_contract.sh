@@ -238,6 +238,7 @@ require_literal "scripts/verify_native_gas_accounting_modes.sh" "instruction-equ
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_stmt_loop_tick_v0"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_basic_block_tick_v0"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_block_weighted_tick_v0"
+require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_dynamic_emitter_tick_v0"
 require_literal "scripts/verify_native_gas_accounting_modes.sh" "native_loop_safepoint_tick_v0"
 require_literal "$native_policy_runner_guard" "oren.native-capsule-effect-gates.v0"
 require_literal "$native_policy_runner_guard" "native capsule effect gates"

@@ -65,21 +65,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   statement+loop `native_stmt_loop_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=stmt` or
   `statement` is used, distinct lowering-block `native_basic_block_tick_v0` ticks when
   `OREN_NATIVE_GAS_ACCOUNTING=basic-block` is used, or weighted lowering-block
-  `native_block_weighted_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` is used.
+  `native_block_weighted_tick_v0` ticks when `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` is used, or
+  runtime path-aware `native_dynamic_emitter_tick_v0` ticks when
+  `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` is used.
   The native build cache key now includes the
   normalized gas-accounting mode, and the mode guard forces `--no-cache`, after a verifier run showed
   cached artifacts could otherwise hide backend gas-note differences behind identical binaries.
   Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` descriptors; semantic diff
-  reports native/OBC gas as non-comparable while native semantic-diff uses `native_block_weighted_tick_v0` and AVM uses
+  reports native/OBC gas as non-comparable while native semantic-diff uses `native_dynamic_emitter_tick_v0` and AVM uses
   `avm_opcode_cost_v0`. Semantic diff also records `oren.gas-surface-calibration.v0` empirical
   ratios for the fixture, explicitly marked as not a conversion. `make verify-backend-gas-surface-calibration-set`
   now emits an `oren.gas-surface-calibration-set.v0` report across default smoke, loop-heavy, and
   branch-heavy fixtures, guards the current cross-fixture ratio spread as `single_ratio_unsafe`, and
   emits an `oren.gas-surface-conversion-decision.v0` blocker requiring
-  native instruction-equivalent gas before package policy may convert native/OBC
-	  gas. The first block-weighted calibration set (`build/reports/backend_gas_surface_calibration_set_20260412_073423_25794.json`)
-	  still shows `native_per_obc` spread from `~1.1357x` to `~13.3761x`, so block weighting is useful
-	  evidence but not a conversion rule. `make verify-backend-native-instruction-surface-decision`
+  validated dynamic-emitter or native instruction-equivalent gas before package policy may convert
+  native/OBC gas. The first dynamic-emitter calibration set
+  (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`) still shows
+  `native_per_obc` spread from `~2.49x` to `~16.82x`, so dynamic-emitter evidence is path-aware
+  but not a conversion rule. `make verify-backend-native-instruction-surface-decision`
 	  also rejects the tempting whole-binary native disassembly shortcut: that count includes linked
 	  runtime text and is not per-executed-path gas, so the next surface remains dynamic emitter-level
 	  instruction ticks. The first report
@@ -88,7 +91,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	  varied from `234` to `2328`, confirming the shortcut is runtime-insensitive. AVM `effect_ledger_summary.budgets`
   now reports gas, heap, and wall budget fields for that path, including `wall_ms.limit` and measured
   `wall_ms.elapsed_ns`. Next capability work should define a conversion contract or finer native
-  instruction-equivalent gas rather than re-describing the existing env contract.
+  validated dynamic-emitter conversion contract or instruction-equivalent gas rather than re-describing
+  the existing env contract.
   `docs/EFFECT_LEDGER_CONTRACT.md` now pins the v0 effect-ledger schema before complete runtime
   emission lands. Contract drift is guarded by
   `make verify-capability-runtime-contract`, `make verify-capability-metadata`, and
@@ -2747,15 +2751,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      on request; native runtime summary export is now `OREN_NATIVE_RUN_JSON=1`, including
      `oren.native-capsule-effect-gates.v0` central domain-gate counters when capsule mode runs.
      Gas summaries include explicit `oren.gas-surface.v0` descriptors so the report can say native
-     block-weighted native gas and AVM opcode gas are not yet the same comparable unit. The report also
+     dynamic-emitter gas and AVM opcode gas are not yet the same comparable unit. The report also
      includes empirical `oren.gas-surface-calibration.v0` ratios, but keeps them out of enforcement
      until a conversion contract exists. `make verify-backend-semantic-diff-gas-calibration` runs a
      second loop-heavy calibration point through the same report/guard path, and
      `make verify-backend-gas-surface-calibration-set` combines the smoke, loop-heavy, and branch-heavy reports to guard that the current
      native/OBC ratio spread remains evidence, not an implicit rule. `make verify-native-gas-accounting-modes`
      now guards that `stmt` and `statement` select statement+loop gas, `basic-block` selects a
-     distinct native lowering-block surface, and `block-weighted` selects weighted lowering-block
-     evidence, not a hidden alias. The set guard stays off the default test-critical path.
+     distinct native lowering-block surface, `block-weighted` selects weighted lowering-block
+     evidence, and `dynamic-emitter` selects runtime path-aware emitter-span evidence, not a hidden
+     alias. The set guard stays off the default test-critical path.
    - New (2026-03-27): bytes parity is now explicitly gated too, covering the portable
      `oren_bytes_len` / `oren_bytes_from_hex` / `oren_bytes_to_hex` / `oren_bytes_pack` surface.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).

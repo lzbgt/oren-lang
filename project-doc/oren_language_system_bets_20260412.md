@@ -134,8 +134,9 @@ It is a language plus runtime plus artifact contract.
   Native executables now have a runtime-observed
   `OREN_NATIVE_RUN_JSON=1` bridge with wall timing, capsule domain-gate counters, selected
   FS/NET/PROC resource-check counters, a scanned live tracked-heap byte count, and default
-  loop-safepoint, opt-in statement+loop, opt-in lowering-block, or opt-in weighted lowering-block
-  native gas. Native and AVM gas summaries now carry explicit `oren.gas-surface.v0` metadata, and semantic diff marks `native_block_weighted_tick_v0` and
+  loop-safepoint, opt-in statement+loop, opt-in lowering-block, opt-in weighted lowering-block, or
+  opt-in dynamic-emitter native gas. Native and AVM gas summaries now carry explicit
+  `oren.gas-surface.v0` metadata, and semantic diff marks `native_dynamic_emitter_tick_v0` and
   `avm_opcode_cost_v0` as non-comparable rather than pretending any positive counter is enough.
   The next step is a conversion contract or finer native instruction-equivalent gas rather than
   another manifest-only field.
@@ -149,18 +150,21 @@ It is a language plus runtime plus artifact contract.
   into a multi-sample report, preserving the current ratio spread as evidence that Oren needs a real
   native/AVM gas contract instead of a convenient scalar multiplier. It now also emits
   `oren.gas-surface-conversion-decision.v0` with package-policy conversion blocked until
-  native instruction-equivalent gas exists. The first block-weighted calibration set
-	  (`build/reports/backend_gas_surface_calibration_set_20260412_073423_25794.json`) still spans
-	  `~1.1357x` to `~13.3761x` native ticks per AVM opcode gas, so block weighting is evidence, not a
-	  conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native
+  validated native dynamic-emitter or instruction-equivalent gas exists. The first dynamic-emitter
+  calibration set (`build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json`)
+  still spans `~2.49x` to `~16.82x` native ticks per AVM opcode gas, so dynamic-emitter evidence is
+  path-aware but still not a conversion rule. `oren.native-instruction-surface-decision.v0` also rejects whole-binary native
 	  disassembly instruction counts as a shortcut because they include linked runtime text and are not
 	  dynamic per-executed-path gas; the first report counted the same `470528` whole-binary native
 	  instructions for all three calibration fixtures while AVM opcode gas varied from `234` to `2328`.
 	  Oren also guards exact native gas mode
-	  spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
-  lowering-block evidence, and `block-weighted` selects weighted lowering-block evidence rather than silently aliasing statement gas. The native build cache key now
+  spellings: `stmt` and `statement` mean statement+loop gas, `basic-block` selects distinct
+  lowering-block evidence, `block-weighted` selects weighted lowering-block evidence, and
+  `dynamic-emitter` selects runtime path-aware emitter-span evidence rather than silently aliasing
+  statement gas. The native build cache key now
   includes the normalized gas-accounting mode, so cached native artifacts cannot flatten those surfaces.
-  Next work is instruction-equivalent native gas or a stated conversion rule, not only expanding fixture scripts.
+  Next work is validating the dynamic-emitter conversion contract or adding instruction-equivalent native
+  gas, not only expanding fixture scripts.
 - Promote deterministic profile vocabulary in docs and metadata: determinism grade, replayability,
   scheduler policy, budget defaults, and source-required domains.
 - Keep W5 representation work tied to representation contracts, not isolated scalar scheduling

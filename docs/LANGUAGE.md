@@ -1482,7 +1482,9 @@ For the current capability domain and native runtime-profile contract, see
   for `stmt`; `OREN_NATIVE_GAS_ACCOUNTING=basic-block` selects the distinct
   `native_basic_block_tick_v0` native lowering-block evidence surface, and
   `OREN_NATIVE_GAS_ACCOUNTING=block-weighted` selects the stronger
-  `native_block_weighted_tick_v0` weighted lowering-block evidence surface, but package-policy gas
+  `native_block_weighted_tick_v0` weighted lowering-block evidence surface, and
+  `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter` selects runtime path-aware
+  `native_dynamic_emitter_tick_v0` emitter-span evidence, but package-policy gas
   budgets still use statement+loop gas until Oren has a native/AVM conversion contract. Set
   `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>` to capture runner-observed native wall-budget
   evidence plus any captured runtime ledger summary as `oren.native-package-policy-run.v0`. Set
@@ -1493,7 +1495,8 @@ For the current capability domain and native runtime-profile contract, see
   `native_loop_safepoint_tick_v0` gas ticks, `native_stmt_loop_tick_v0` when
   `OREN_NATIVE_GAS_ACCOUNTING=stmt` / `statement` is used for matching build/run invocations, or
   `native_basic_block_tick_v0` under `OREN_NATIVE_GAS_ACCOUNTING=basic-block`, or
-  `native_block_weighted_tick_v0` under `OREN_NATIVE_GAS_ACCOUNTING=block-weighted`. Native build cache
+  `native_block_weighted_tick_v0` under `OREN_NATIVE_GAS_ACCOUNTING=block-weighted`, or
+  `native_dynamic_emitter_tick_v0` under `OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter`. Native build cache
   keys include the normalized gas-accounting mode, so cached native artifacts do not cross those
   compile-time gas surfaces.
   AVM run JSON reports the applied gas, heap, and wall budget fields through
@@ -3588,10 +3591,11 @@ evidence, enforces `budget_cpu_ms` from child process resource usage where avail
 `budget_gas` from captured `native_stmt_loop_tick_v0` runtime evidence after building and running
 with `OREN_NATIVE_GAS_ACCOUNTING=stmt`; captured gas JSON includes `oren.gas-surface.v0` metadata so
 tools do not confuse native statement+loop ticks with AVM opcode gas. The fine native gas
-spellings today are exact `1`, `stmt`, `statement`, `basic-block`, and `block-weighted`;
+spellings today are exact `1`, `stmt`, `statement`, `basic-block`, `block-weighted`, and `dynamic-emitter`;
 `basic-block` is distinct native lowering-block evidence and `block-weighted` is weighted
-native lowering-block evidence, so neither aliases statement gas. The exact spelling
-`instruction-equivalent` is reserved and guarded not to alias any current fine-grained gas surface.
+native lowering-block evidence, while `dynamic-emitter` is runtime path-aware emitter-span evidence.
+The exact spelling `instruction-equivalent` is reserved and guarded not to alias any current
+fine-grained gas surface.
 When callers set
 `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=<path>`, the native runner writes
 `oren.native-package-policy-run.v0` with runner-observed wall-budget timing and captured

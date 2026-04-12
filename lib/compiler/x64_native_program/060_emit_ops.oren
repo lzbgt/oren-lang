@@ -104,6 +104,14 @@ fn _x64_native_block_weighted_gas_amount(ops, start) {
     return total
 }
 
+fn _x64_dynamic_emitter_op_should_charge(ctx, op) {
+    if _x64_native_dynamic_emitter_gas_enabled(ctx) != true { return false }
+    if op == nil { return false }
+    var k = op["op"]
+    if k == "if" || k == "while" || k == "for" { return false }
+    return true
+}
+
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var n = 0
     if ops != nil { n = oren_list_len(ops) }
@@ -142,7 +150,12 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             print("[x64_emit_ops] j=" + oren_int_to_string(j) + "/" + oren_int_to_string(n) + " op=" + opk + extra + loc)
         }
         _linetab_record_tok(ctx, op["tok"])
-        if _x64_native_stmt_gas_enabled(ctx) == true {
+        var dynamic_note_pos = nil
+        var dynamic_span_start = nil
+        if _x64_dynamic_emitter_op_should_charge(ctx, op) == true {
+            dynamic_note_pos = _emit_native_gas_note_x64_patchable_u32(ctx)
+            dynamic_span_start = bytes_len(ctx["code"])
+        } else if _x64_native_stmt_gas_enabled(ctx) == true {
             _emit_native_gas_note_x64(ctx, 1)
         } else if _x64_native_basic_block_gas_enabled(ctx) == true && charge_basic_block_next == true {
             var block_gas_amount = 1
@@ -319,8 +332,17 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 _emit_native_gas_note_x64(ctx, 2)
             }
             _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+            var dynamic_cond_note = nil
+            var dynamic_cond_start = nil
+            if _x64_native_dynamic_emitter_gas_enabled(ctx) == true {
+                dynamic_cond_note = _emit_native_gas_note_x64_patchable_u32(ctx)
+                dynamic_cond_start = bytes_len(ctx["code"])
+            }
             _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label3)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if dynamic_cond_note != nil && dynamic_cond_start != nil {
+                _patch_native_gas_note_x64_u32(ctx, dynamic_cond_note, bytes_len(ctx["code"]) - dynamic_cond_start)
+            }
 
             _emit_label(ctx, labels, body_label2)
             _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, post_label2, end_label3)
@@ -342,6 +364,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         } else {
             err(ctx, "x64 native v0: unknown op in main")
             return nil
+        }
+        if dynamic_note_pos != nil && dynamic_span_start != nil {
+            _patch_native_gas_note_x64_u32(ctx, dynamic_note_pos, bytes_len(ctx["code"]) - dynamic_span_start)
         }
         if _x64_native_basic_block_gas_enabled(ctx) == true {
             var opk_bb = op["op"]
