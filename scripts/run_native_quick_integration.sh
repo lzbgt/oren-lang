@@ -10,6 +10,9 @@ python3_bin="$(command -v python3 2>/dev/null || echo "")"
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
 build_timeout_secs=10
 run_timeout_secs=5
+runtime_seed_timeout_secs="${OREN_QI_RUNTIME_SEED_TIMEOUT_SECS:-240}"
+auto_runtime_seed="${OREN_QI_AUTO_RUNTIME_SEED:-1}"
+runtime_seed_build_compiler="${OREN_QI_RUNTIME_SEED_BUILD_COMPILER:-}"
 skip_base_run="${OREN_QI_SKIP_BASE_RUN:-0}"
 skip_green_cache="${OREN_QI_SKIP_GREEN_CACHE:-0}"
 stop_after_base="${OREN_QI_STOP_AFTER_BASE:-0}"
@@ -244,6 +247,11 @@ run_with_timeout_retry() {
   return "$rc"
 }
 
+bool_disabled() {
+  local v="${1:-}"
+  [[ "$v" == "0" || "$v" == "false" || "$v" == "FALSE" || "$v" == "False" ]]
+}
+
 uname_s="$(uname -s)"
 uname_m="$(uname -m)"
 
@@ -381,6 +389,76 @@ fi
   echo "stop_after_base=$stop_after_base"
 } >>"$log"
 
+maybe_prewarm_stage2_runtime_seeds() {
+  if [[ "$compiler_base" != *stage2* ]]; then
+    return 0
+  fi
+  if bool_disabled "$auto_runtime_seed"; then
+    echo "SKIP: stage2 runtime seed prewarm disabled (OREN_QI_AUTO_RUNTIME_SEED=$auto_runtime_seed)" >>"$log"
+    return 0
+  fi
+  if [[ ! -x ./scripts/build_rtobj_seed.sh ]]; then
+    echo "WARN: missing rtobj seed helper; skipping stage2 runtime seed prewarm" >>"$log"
+    return 0
+  fi
+
+  local seed_build_compiler="$runtime_seed_build_compiler"
+  if [[ -z "$seed_build_compiler" ]]; then
+    if [[ -x ./oren ]]; then
+      seed_build_compiler="./oren"
+    else
+      seed_build_compiler="$compiler"
+    fi
+  fi
+
+  echo "== stage2 runtime seed prewarm ==" >>"$log"
+  echo "runtime_seed_timeout_secs=$runtime_seed_timeout_secs" >>"$log"
+  echo "runtime_seed_build_compiler=$seed_build_compiler" >>"$log"
+
+  local saved_phase_path="${OREN_TRACE_BUILD_PHASES_PATH-__OREN_QI_UNSET__}"
+  local saved_rtobj_cache_dir="${OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR-__OREN_QI_UNSET__}"
+  local seed_cache_dir="build/tmp/${compiler_base}_${test_label}_runtime_seed_cache"
+  unset OREN_TRACE_BUILD_PHASES_PATH
+  rm -rf "$seed_cache_dir" 2>/dev/null || true
+  mkdir -p "$seed_cache_dir"
+
+  if [[ -x ./scripts/build_runtime_astbin_seed.sh ]]; then
+    set +e
+    run_with_timeout "$runtime_seed_timeout_secs" \
+      ./scripts/build_runtime_astbin_seed.sh --platform "$platform" --compiler "$seed_build_compiler" >>"$log" 2>&1
+    local astbin_rc=$?
+    set -e
+    if [[ "$astbin_rc" -ne 0 ]]; then
+      echo "WARN: runtime astbin seed prewarm failed (rc=$astbin_rc); continuing" >>"$log"
+    fi
+  fi
+
+  set +e
+  OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$seed_cache_dir" \
+    run_with_timeout "$runtime_seed_timeout_secs" \
+      ./scripts/build_rtobj_seed.sh --platform "$platform" --compiler "$compiler" \
+      --build-compiler "$seed_build_compiler" --debug >>"$log" 2>&1
+  local rtobj_rc=$?
+  set -e
+  if [[ "$rtobj_rc" -ne 0 ]]; then
+    echo "WARN: runtime obj seed prewarm failed (rc=$rtobj_rc); continuing" >>"$log"
+  fi
+  rm -rf "$seed_cache_dir" 2>/dev/null || true
+
+  if [[ "$saved_phase_path" == "__OREN_QI_UNSET__" ]]; then
+    unset OREN_TRACE_BUILD_PHASES_PATH
+  else
+    export OREN_TRACE_BUILD_PHASES_PATH="$saved_phase_path"
+  fi
+  if [[ "$saved_rtobj_cache_dir" == "__OREN_QI_UNSET__" ]]; then
+    unset OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR
+  else
+    export OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$saved_rtobj_cache_dir"
+  fi
+}
+
+maybe_prewarm_stage2_runtime_seeds
+
 set +e
 if [[ -n "$phases_log" ]]; then
   run_with_timeout "$build_timeout_secs" env "OREN_TRACE_BUILD_PHASES_PATH=$phases_log" \
@@ -401,6 +479,9 @@ if [[ "$build_rc" -ne 0 ]]; then
     {
       echo "== build phase log =="
       tail -n 20 "$phases_log"
+      if rg -q '^phase=rtobj\.miss\.build\.start ' "$phases_log" 2>/dev/null; then
+        echo "HINT: cold rtobj miss observed; direct stage2 quick runs rely on runtime seed prewarm to avoid slow self-hosted rebuilds."
+      fi
     } >>"$log"
   fi
   tail -n 20 "$log"

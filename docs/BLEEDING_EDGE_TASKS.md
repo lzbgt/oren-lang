@@ -4227,8 +4227,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      parity-verified under bytecode, C, and native through
      `oren_yield_exchange(yield_ch, resume_ch, v)`. On native host threads with green runtime
      already active and no background workers, `oren_yield()` now drives one cooperative green
-     scheduling step so this helper works on the default runtime path too. The remaining gap is a
-     stronger language-level coroutine/generator protocol above that explicit helper surface.
+     scheduling step so this helper works on the default runtime path too. Direct standalone
+     `./scripts/run_native_quick_integration.sh ./oren_stage2` now auto-prewarms runtime
+     astbin/rtobj seeds too, so empty seed dirs no longer fall back to a cold self-hosted
+     `rtobj.miss.build.start` path during the quick smoke. The remaining gap is a stronger
+     language-level coroutine/generator protocol above that explicit helper surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

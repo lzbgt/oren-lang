@@ -64,6 +64,10 @@ backend-shared value-helper slices landed.
   Native host threads with green runtime already active and no background workers now use
   `oren_yield()` to drive one cooperative green scheduling step, so the verifier no longer needs an
   `OREN_NO_GREEN=1` escape hatch for this helper path.
+- Fresh probe (2026-04-22): direct standalone `./scripts/run_native_quick_integration.sh ./oren_stage2`
+  no longer needs a manually refreshed runtime seed after runtime-hash changes. The quick script
+  now auto-prewarms runtime astbin + rtobj seeds for the current hash before the stage2 build,
+  so empty seed dirs do not fall back to a cold self-hosted `rtobj.miss.build.start` path.
 
 That boundary is deliberate, not accidental.
 
