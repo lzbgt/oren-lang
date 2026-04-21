@@ -4,12 +4,6 @@ fn blocked_multi_yield() {
     return 0
 }
 
-fn blocked_live_local() {
-    var acc = 1
-    yield
-    return acc
-}
-
 fn blocked_nested_literal() {
     var f = || 7
     yield
@@ -24,6 +18,6 @@ fn blocked_non_top_level() {
 }
 
 fn main() {
-    var keep = [blocked_multi_yield, blocked_live_local, blocked_nested_literal, blocked_non_top_level]
-    return oren_list_len(keep) - 4
+    var keep = [blocked_multi_yield, blocked_nested_literal, blocked_non_top_level]
+    return oren_list_len(keep) - 3
 }

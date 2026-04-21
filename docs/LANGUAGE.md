@@ -3329,7 +3329,8 @@ Rolling status:
   `locals_across_yield` list for bare-statement `yield` functions.
 - New (2026-04-22): that same `yield_lowering` object now emits a narrow v0 lowering gate:
   `lowering_v0` marks functions as `ready` only for the first safe executable subset
-  (single top-level bare `yield`, no live locals across yield, no nested function literals).
+  (single top-level bare `yield`, including top-level locals/params that remain live across the
+  yield, but still no nested function literals and no non-top-level yield sites).
 - New (2026-04-22): for `lowering_v0.ready` functions, metadata now also emits
   `yield_lowering.prepared_v0`, an explicit split-dispatch lowering shape with entry/resume
   segments, a synthetic state local name, and segment statement-type summaries.
@@ -3342,8 +3343,10 @@ Rolling status:
   artifact-cache restore so cached non-strict outputs cannot bypass the policy.
 - New (2026-04-22): the AVM bytecode backend now consumes `yield_lowering.prepared_v0` for the
   exact `lowering_v0.ready` subset and lowers it into an explicit in-function split-dispatch state
-  machine. This is the first real execution consumer of the rolling coroutine plan, but it is still
-  limited to single top-level bare `yield` with no cross-yield locals or nested function literals.
+  machine. This is the first real execution consumer of the rolling coroutine plan, and it now
+  also covers top-level locals/params that stay live across the yield because the AVM function frame
+  survives `AVM_YIELD`. Nested function literals, multiple yields, and non-top-level yields remain
+  outside the lowered subset.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)

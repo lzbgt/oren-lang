@@ -517,9 +517,6 @@ fn function_yield_lowering_v0_gate(info, locals_across_yield) {
     if info["has_nested_function_literal"] == true {
         oren_list_push(blockers, "nested_function_literal")
     }
-    if locals_across_yield != nil && oren_list_len(locals_across_yield) > 0 {
-        oren_list_push(blockers, "live_locals_across_yield")
-    }
     var ready = oren_list_len(blockers) == 0
     var status = "blocked"
     if ready { status = "ready" }

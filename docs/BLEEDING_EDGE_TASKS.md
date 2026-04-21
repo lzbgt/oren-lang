@@ -4196,6 +4196,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `oren_yield_stmt()`. The verifier now proves real backend consumption with a positive
      `OREN_TRACE_BYTECODE_YIELD_LOWERING` hit for `ready_worker` and no blocked-function lowering
      trace leaks.
+   - New (2026-04-22): `lowering_v0.ready` now also covers top-level locals/parameters that remain
+     live across a single top-level bare `yield`. That is now an executed AVM path, not just an
+     analysis claim: the verifier and AVM smoke both run ready functions whose locals survive the
+     suspension/resume boundary.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

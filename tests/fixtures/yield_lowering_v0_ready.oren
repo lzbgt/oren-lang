@@ -13,6 +13,12 @@ fn ready_worker() {
     return 1
 }
 
+fn ready_live_local(seed) {
+    var acc = seed + 1
+    yield
+    return acc
+}
+
 fn main() {
-    return ready_worker() - 1
+    return ready_worker() + ready_live_local(40) - 42
 }

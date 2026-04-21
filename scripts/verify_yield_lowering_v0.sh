@@ -63,16 +63,15 @@ run_fail "$blocked_build_log" "$compiler" build "$blocked_src" --backend bytecod
 for f in "$blocked_meta_log" "$blocked_dump_log" "$blocked_build_log"; do
   grep -q "yield lowering v0 blocked" "$f"
   grep -q "blocked_multi_yield" "$f"
-  grep -q "blocked_live_local" "$f"
   grep -q "blocked_nested_literal" "$f"
   grep -q "blocked_non_top_level" "$f"
   grep -q "multiple_yields" "$f"
-  grep -q "live_locals_across_yield" "$f"
   grep -q "nested_function_literal" "$f"
   grep -q "non_top_level_yield" "$f"
 done
 
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_worker" "$log"
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_live_local" "$log"
 if grep -q "\\[bc_yield_lowering_v0\\] lowered fn=blocked_" "$log"; then
   echo "unexpected lowering trace for blocked fixture" >>"$log"
   cat "$log"
@@ -109,6 +108,9 @@ ready_dump_details = {f["name"]: f for f in ready_dump["function_details"]}
 ready_meta_worker = ready_funcs["ready_worker"]
 ready_obc_worker = ready_obc_funcs["ready_worker"]
 ready_dump_worker = ready_dump_details["ready_worker"]
+ready_meta_live = ready_funcs["ready_live_local"]
+ready_obc_live = ready_obc_funcs["ready_live_local"]
+ready_dump_live = ready_dump_details["ready_live_local"]
 
 for payload in (ready_meta_worker, ready_obc_worker, ready_dump_worker):
     gate = payload["yield_lowering"]["lowering_v0"]
@@ -127,6 +129,23 @@ for payload in (ready_meta_worker, ready_obc_worker, ready_dump_worker):
     if segs[1]["stmt_types"] != ["ExprStmt", "Return"] or segs[1]["terminator"] != "return":
         raise SystemExit(f"unexpected resume segment: {segs[1]!r}")
 
+for payload in (ready_meta_live, ready_obc_live, ready_dump_live):
+    gate = payload["yield_lowering"]["lowering_v0"]
+    if gate["ready"] is not True:
+        raise SystemExit(f"ready_live_local should be lowering_v0.ready, got {gate!r}")
+    prepared = payload["yield_lowering"]["prepared_v0"]
+    if prepared is None:
+        raise SystemExit("ready_live_local missing prepared_v0")
+    if prepared["live_slots"] != ["acc"]:
+        raise SystemExit(f"unexpected ready_live_local live_slots: {prepared!r}")
+    segs = prepared["segments"]
+    if len(segs) != 2:
+        raise SystemExit(f"expected two prepared_v0 segments for ready_live_local, got {segs!r}")
+    if segs[0]["stmt_types"] != ["Var"] or segs[0]["terminator"] != "yield":
+        raise SystemExit(f"unexpected ready_live_local entry segment: {segs[0]!r}")
+    if segs[1]["stmt_types"] != ["Return"] or segs[1]["terminator"] != "return":
+        raise SystemExit(f"unexpected ready_live_local resume segment: {segs[1]!r}")
+
 
 def expect_blocker(name, blocker):
     func = funcs_by_name(blocked_obc_meta)[name]
@@ -140,7 +159,6 @@ def expect_blocker(name, blocker):
 
 
 expect_blocker("blocked_multi_yield", "multiple_yields")
-expect_blocker("blocked_live_local", "live_locals_across_yield")
 expect_blocker("blocked_nested_literal", "nested_function_literal")
 expect_blocker("blocked_non_top_level", "non_top_level_yield")
 

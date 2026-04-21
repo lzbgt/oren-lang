@@ -1358,6 +1358,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      machine around `oren_yield_stmt()`. `verify-yield-lowering-v0` now proves that with three
      checks together: strict metadata/dump policy, embedded `.obc` metadata, and a positive
      compiler trace for `ready_worker` with no blocked-function lowering traces.
+   - New (2026-04-22): the ready subset now also includes top-level locals/parameters that remain
+     live across a single top-level bare `yield`. The current AVM lowering already preserves the
+     function frame across `AVM_YIELD`, so these cases are no longer artificially blocked; they are
+     covered by metadata, strict verification, and runtime execution smokes.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

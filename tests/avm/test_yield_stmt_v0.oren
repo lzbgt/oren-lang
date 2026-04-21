@@ -20,9 +20,22 @@ fn worker(limit) {
     return limit
 }
 
+fn local_after_yield(seed) {
+    var acc = seed + 1
+    yield
+    return acc
+}
+
+fn param_after_yield(seed) {
+    yield
+    return seed + 1
+}
+
 fn main() {
     assert_eq(oren_yield_stmt(), nil)
     yield
+    assert_eq(local_after_yield(4), 5)
+    assert_eq(param_after_yield(7), 8)
     var h = spawn worker(3)
     assert_eq(oren_join(h), 3)
     exit(0)

@@ -26,8 +26,10 @@ syntax slice landed.
   artifact-cache restore so cached non-strict outputs cannot bypass the policy.
 - The AVM bytecode backend now consumes `prepared_v0` for the exact `lowering_v0.ready` subset and
   lowers it into an explicit in-function split-dispatch state machine around `oren_yield_stmt()`.
-  This is the first real execution consumer of the coroutine plan, but only for the narrow ready
-  subset: single top-level bare `yield`, no cross-yield locals, and no nested function literals.
+  This is the first real execution consumer of the coroutine plan, and it now covers the narrow
+  ready subset: single top-level bare `yield`, including top-level locals/parameters that remain
+  live across the yield, but still no multiple yields, no nested function literals, and no
+  non-top-level yield sites.
 
 That boundary is deliberate, not accidental.
 
@@ -180,8 +182,8 @@ infrastructure instead of more parser sugar:
 4. keep expression/result-yield rejected until the frame model exists
 
 That first lowering pass has now started in the bytecode backend for the narrow ready subset.
-The next pass should either broaden that same explicit state-machine lowering to support
-cross-yield frame slots, or carry the same prepared shape into native/C backends instead of
+The next pass should either broaden that same explicit state-machine lowering to support multiple
+top-level yield sites, or carry the same prepared shape into native/C backends instead of
 re-discovering supportability heuristics again inside each backend.
 
 That path keeps the current repo state honest:
