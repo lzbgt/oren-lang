@@ -11,6 +11,9 @@ syntax slice landed.
 - Function metadata now exposes `yield_lowering` with explicit entry/resume state ids for
   source-level bare-`yield` functions, plus conservative `locals_across_yield` frame-slot
   candidates for variables and parameters that stay in scope across a `yield` and are used later.
+- Function metadata now also exposes `yield_lowering.lowering_v0`, which marks the first safe
+  executable target explicitly: a single top-level bare `yield`, no live locals across the
+  suspension point, and no nested function literals.
 
 That boundary is deliberate, not accidental.
 
@@ -161,6 +164,9 @@ infrastructure instead of more parser sugar:
    - no `yield <value>`
    - only bare `yield`
 4. keep expression/result-yield rejected until the frame model exists
+
+That first lowering pass should consume the existing `lowering_v0.ready` gate instead of
+rediscovering supportability heuristics again inside backend code.
 
 That path keeps the current repo state honest:
 

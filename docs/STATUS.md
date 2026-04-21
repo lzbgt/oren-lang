@@ -1338,6 +1338,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      scheduler/OS return-code helper. Function metadata now also emits a rolling `yield_lowering`
      plan object with explicit entry/resume states, yield-point mappings, and conservative
      `locals_across_yield` frame-slot candidates.
+   - New (2026-04-22): `yield_lowering.lowering_v0` now classifies the first real executable
+     lowering target explicitly. Only single top-level bare-`yield` functions with no live
+     locals across yield and no nested function literals are marked `ready`; everything else now
+     carries precise blocker reasons in metadata instead of a vague “future coroutine work” bucket.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

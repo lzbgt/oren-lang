@@ -41,6 +41,7 @@ expected_names = {
     "local_across",
     "dead_local_after_block",
     "multi_local_order",
+    "yield_with_nested_fn",
 }
 if set(by_name) != expected_names:
     raise SystemExit(f"unexpected function names: {sorted(by_name)!r}")
@@ -69,6 +70,13 @@ expected = {
                 {"id": 0, "kind": "entry"},
                 {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:6:5"},
             ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "single_top_level_bare_yield_v0",
+                "ready": True,
+                "status": "ready",
+                "blockers": [],
+            },
         },
     },
     "control_yield": {
@@ -93,6 +101,13 @@ expected = {
                 {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:12:9"},
                 {"id": 2, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:15:9"},
             ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "single_top_level_bare_yield_v0",
+                "ready": False,
+                "status": "blocked",
+                "blockers": ["multiple_yields", "non_top_level_yield"],
+            },
         },
     },
     "nested_only": {
@@ -118,6 +133,13 @@ expected = {
                 {"id": 0, "kind": "entry"},
                 {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:29:5"},
             ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "single_top_level_bare_yield_v0",
+                "ready": False,
+                "status": "blocked",
+                "blockers": ["live_locals_across_yield"],
+            },
         },
     },
     "local_across": {
@@ -137,6 +159,13 @@ expected = {
                 {"id": 0, "kind": "entry"},
                 {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:35:5"},
             ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "single_top_level_bare_yield_v0",
+                "ready": False,
+                "status": "blocked",
+                "blockers": ["live_locals_across_yield"],
+            },
         },
     },
     "dead_local_after_block": {
@@ -156,6 +185,13 @@ expected = {
                 {"id": 0, "kind": "entry"},
                 {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:42:9"},
             ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "single_top_level_bare_yield_v0",
+                "ready": False,
+                "status": "blocked",
+                "blockers": ["non_top_level_yield"],
+            },
         },
     },
     "multi_local_order": {
@@ -175,6 +211,39 @@ expected = {
                 {"id": 0, "kind": "entry"},
                 {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:50:5"},
             ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "single_top_level_bare_yield_v0",
+                "ready": False,
+                "status": "blocked",
+                "blockers": ["live_locals_across_yield"],
+            },
+        },
+    },
+    "yield_with_nested_fn": {
+        "contains_yield": True,
+        "yield_stmt_count": 1,
+        "yield_stmt_sites": ["tests/fixtures/meta_yield_surface.oren:56:5"],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 2,
+            "locals_across_yield": [],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:56:5", "resume_state": 1},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:56:5"},
+            ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "single_top_level_bare_yield_v0",
+                "ready": False,
+                "status": "blocked",
+                "blockers": ["nested_function_literal"],
+            },
         },
     },
 }

@@ -303,6 +303,18 @@ fn json_yield_points(xs) {
     return out
 }
 
+fn json_yield_lowering_v0(gate) {
+    if gate == nil { return "null" }
+    var out = "{ "
+    out = out + "\"version\": " + oren_int_to_string(gate["version"]) + ", "
+    out = out + "\"target\": " + json_string(gate["target"]) + ", "
+    out = out + "\"ready\": " + json_bool(gate["ready"]) + ", "
+    out = out + "\"status\": " + json_string(gate["status"]) + ", "
+    out = out + "\"blockers\": " + json_string_array(gate["blockers"])
+    out = out + " }"
+    return out
+}
+
 fn json_yield_lowering(plan) {
     if plan == nil { return "null" }
     var out = "{ "
@@ -312,7 +324,8 @@ fn json_yield_lowering(plan) {
     out = out + "\"state_count\": " + oren_int_to_string(plan["state_count"]) + ", "
     out = out + "\"locals_across_yield\": " + json_string_array(plan["locals_across_yield"]) + ", "
     out = out + "\"yield_points\": " + json_yield_points(plan["yield_points"]) + ", "
-    out = out + "\"states\": " + json_yield_states(plan["states"])
+    out = out + "\"states\": " + json_yield_states(plan["states"]) + ", "
+    out = out + "\"lowering_v0\": " + json_yield_lowering_v0(plan["lowering_v0"])
     out = out + " }"
     return out
 }

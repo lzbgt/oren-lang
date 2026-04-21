@@ -73,15 +73,24 @@ fn yield_stmt_site(stmt) {
 }
 
 fn new_function_yield_info() {
-    return {"contains_yield": false, "yield_stmt_count": 0, "yield_stmt_sites": []}
+    return {
+        "contains_yield": false,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "non_top_level_yield_sites": [],
+        "has_nested_function_literal": false,
+    }
 }
 
-fn function_yield_info_note_stmt(info, stmt) {
+fn function_yield_info_note_stmt(info, stmt, depth) {
     if stmt == nil || stmt["yield_stmt"] != true { return nil }
     info["contains_yield"] = true
     info["yield_stmt_count"] = info["yield_stmt_count"] + 1
     var site = yield_stmt_site(stmt)
-    if site != nil { oren_list_push(info["yield_stmt_sites"], site) }
+    if site != nil {
+        oren_list_push(info["yield_stmt_sites"], site)
+        if depth > 0 { oren_list_push(info["non_top_level_yield_sites"], site) }
+    }
     return nil
 }
 
@@ -343,52 +352,136 @@ fn function_yield_locals_across(func) {
     return out
 }
 
-fn function_yield_info_walk_stmt(info, stmt) {
+fn function_yield_info_walk_expr(info, expr, depth) {
+    if info == nil || expr == nil { return nil }
+    var et = expr["type"]
+    if et == "Function" {
+        info["has_nested_function_literal"] = true
+        return nil
+    }
+    if et == "Call" {
+        function_yield_info_walk_expr(info, expr["fn"], depth)
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            function_yield_info_walk_expr(info, args[i], depth)
+            i = i + 1
+        }
+        if expr["spread"] != nil { function_yield_info_walk_expr(info, expr["spread"], depth) }
+        return nil
+    }
+    if et == "Prefix" {
+        function_yield_info_walk_expr(info, expr["right"], depth)
+        return nil
+    }
+    if et == "Infix" {
+        function_yield_info_walk_expr(info, expr["left"], depth)
+        function_yield_info_walk_expr(info, expr["right"], depth)
+        return nil
+    }
+    if et == "If" {
+        function_yield_info_walk_expr(info, expr["cond"], depth)
+        function_yield_info_walk_stmt(info, expr["consq"], depth + 1)
+        if expr["alt"] != nil { function_yield_info_walk_stmt(info, expr["alt"], depth + 1) }
+        return nil
+    }
+    if et == "Member" {
+        function_yield_info_walk_expr(info, expr["left"], depth)
+        return nil
+    }
+    if et == "Index" {
+        function_yield_info_walk_expr(info, expr["left"], depth)
+        function_yield_info_walk_expr(info, expr["index"], depth)
+        return nil
+    }
+    if et == "Array" {
+        var elems = expr["elements"]
+        var j = 0
+        while elems != nil && j < oren_list_len(elems) {
+            function_yield_info_walk_expr(info, elems[j], depth)
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var pairs = expr["pairs"]
+        var k = 0
+        while pairs != nil && k < oren_list_len(pairs) {
+            var pair = pairs[k]
+            function_yield_info_walk_expr(info, pair["key"], depth)
+            function_yield_info_walk_expr(info, pair["value"], depth)
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" {
+        function_yield_info_walk_expr(info, expr["call"], depth)
+        return nil
+    }
+    return nil
+}
+
+fn function_yield_info_walk_stmt(info, stmt, depth) {
     if info == nil || stmt == nil { return nil }
-    function_yield_info_note_stmt(info, stmt)
+    function_yield_info_note_stmt(info, stmt, depth)
 
     var ty = stmt["type"]
+    if ty == "Var" {
+        function_yield_info_walk_expr(info, stmt["value"], depth)
+        return nil
+    }
+    if ty == "Assign" {
+        function_yield_info_walk_expr(info, stmt["value"], depth)
+        return nil
+    }
+    if ty == "Set" {
+        function_yield_info_walk_expr(info, stmt["left"], depth)
+        function_yield_info_walk_expr(info, stmt["value"], depth)
+        return nil
+    }
+    if ty == "Return" {
+        function_yield_info_walk_expr(info, stmt["value"], depth)
+        return nil
+    }
+    if ty == "ExprStmt" {
+        function_yield_info_walk_expr(info, stmt["expr"], depth)
+        return nil
+    }
     if ty == "Block" || ty == "StmtList" {
         var stmts = stmt["stmts"]
         var i = 0
         while stmts != nil && i < oren_list_len(stmts) {
-            function_yield_info_walk_stmt(info, stmts[i])
+            function_yield_info_walk_stmt(info, stmts[i], depth + 1)
             i = i + 1
         }
         return nil
     }
     if ty == "If" {
-        function_yield_info_walk_stmt(info, stmt["consq"])
+        function_yield_info_walk_expr(info, stmt["cond"], depth)
+        function_yield_info_walk_stmt(info, stmt["consq"], depth + 1)
         if stmt["alt"] != nil {
-            function_yield_info_walk_stmt(info, stmt["alt"])
+            function_yield_info_walk_stmt(info, stmt["alt"], depth + 1)
         }
         return nil
     }
     if ty == "While" {
-        function_yield_info_walk_stmt(info, stmt["body"])
+        function_yield_info_walk_expr(info, stmt["cond"], depth)
+        function_yield_info_walk_stmt(info, stmt["body"], depth + 1)
         return nil
     }
     if ty == "For" {
-        if stmt["init"] != nil { function_yield_info_walk_stmt(info, stmt["init"]) }
-        if stmt["post"] != nil { function_yield_info_walk_stmt(info, stmt["post"]) }
-        function_yield_info_walk_stmt(info, stmt["body"])
+        if stmt["init"] != nil { function_yield_info_walk_stmt(info, stmt["init"], depth + 1) }
+        if stmt["cond"] != nil { function_yield_info_walk_expr(info, stmt["cond"], depth + 1) }
+        if stmt["post"] != nil { function_yield_info_walk_stmt(info, stmt["post"], depth + 1) }
+        function_yield_info_walk_stmt(info, stmt["body"], depth + 1)
         return nil
     }
-    if ty == "Function" { return nil }
-    if ty == "ExprStmt" {
-        var expr = stmt["expr"]
-        if expr != nil && expr["type"] == "Function" { return nil }
-        if expr != nil && expr["type"] == "If" {
-            function_yield_info_walk_stmt(info, expr["consq"])
-            if expr["alt"] != nil {
-                function_yield_info_walk_stmt(info, expr["alt"])
-            }
-            return nil
-        }
-        if expr != nil && expr["type"] == "Block" {
-            function_yield_info_walk_stmt(info, expr)
-            return nil
-        }
+    if ty == "Spawn" {
+        function_yield_info_walk_expr(info, stmt["call"], depth)
+        return nil
+    }
+    if ty == "Function" {
+        info["has_nested_function_literal"] = true
         return nil
     }
     return nil
@@ -397,9 +490,46 @@ fn function_yield_info_walk_stmt(info, stmt) {
 fn function_yield_info(func) {
     var info = new_function_yield_info()
     if func == nil { return info }
-    function_yield_info_walk_stmt(info, func["body"])
+    var body = func["body"]
+    if body != nil && (body["type"] == "Block" || body["type"] == "StmtList") {
+        var stmts = body["stmts"]
+        var i = 0
+        while stmts != nil && i < oren_list_len(stmts) {
+            function_yield_info_walk_stmt(info, stmts[i], 0)
+            i = i + 1
+        }
+    } else {
+        function_yield_info_walk_stmt(info, body, 0)
+    }
     info["yield_lowering"] = function_yield_lowering_plan(info, function_yield_locals_across(func))
     return info
+}
+
+fn function_yield_lowering_v0_gate(info, locals_across_yield) {
+    if info == nil || info["yield_stmt_count"] <= 0 { return nil }
+    var blockers = []
+    if info["yield_stmt_count"] != 1 {
+        oren_list_push(blockers, "multiple_yields")
+    }
+    if info["non_top_level_yield_sites"] != nil && oren_list_len(info["non_top_level_yield_sites"]) > 0 {
+        oren_list_push(blockers, "non_top_level_yield")
+    }
+    if info["has_nested_function_literal"] == true {
+        oren_list_push(blockers, "nested_function_literal")
+    }
+    if locals_across_yield != nil && oren_list_len(locals_across_yield) > 0 {
+        oren_list_push(blockers, "live_locals_across_yield")
+    }
+    var ready = oren_list_len(blockers) == 0
+    var status = "blocked"
+    if ready { status = "ready" }
+    return {
+        "version": 1,
+        "target": "single_top_level_bare_yield_v0",
+        "ready": ready,
+        "status": status,
+        "blockers": blockers,
+    }
 }
 
 fn function_yield_lowering_plan(info, locals_across_yield) {
@@ -428,5 +558,6 @@ fn function_yield_lowering_plan(info, locals_across_yield) {
         "locals_across_yield": locals_across_yield,
         "yield_points": yield_points,
         "states": states,
+        "lowering_v0": function_yield_lowering_v0_gate(info, locals_across_yield),
     }
 }

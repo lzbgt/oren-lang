@@ -4176,6 +4176,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      explicit entry state plus one resume state per yield site, and now records conservative
      `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for
      the future coroutine-lowering pass.
+   - New (2026-04-22): that plan now also emits `lowering_v0`, an explicit gate for the first
+     executable subset. Only a single top-level bare `yield` with no live locals across the yield
+     and no nested function literals is marked `ready`; other yielding functions now report exact
+     blocker strings in metadata.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

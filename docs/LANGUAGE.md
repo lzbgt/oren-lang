@@ -3327,6 +3327,9 @@ Rolling status:
 - New (2026-04-22): function metadata also carries a rolling `yield_lowering` plan object with an
   explicit entry state, resume states, yield-point -> resume-state mapping, and a conservative
   `locals_across_yield` list for bare-statement `yield` functions.
+- New (2026-04-22): that same `yield_lowering` object now emits a narrow v0 lowering gate:
+  `lowering_v0` marks functions as `ready` only for the first safe executable subset
+  (single top-level bare `yield`, no live locals across yield, no nested function literals).
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)
@@ -3603,6 +3606,8 @@ Notes:
   - `states[*]` (`entry` + one `resume` state per yield site)
   - `locals_across_yield` (conservative local/parameter names that stay in scope across at least one
     `yield` and are referenced later)
+  - `lowering_v0` (`ready`/`blocked` plus blocker strings for the first executable
+    single-top-level-bare-`yield` lowering target)
 - These fields intentionally count only source-level `yield` statement sugar. They do not infer from
   raw user-written `oren_yield()` / `oren_yield_stmt()` calls, and outer functions do not inherit
   `yield`s that appear only inside nested function literals.

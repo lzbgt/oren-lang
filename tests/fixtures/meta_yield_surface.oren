@@ -50,3 +50,9 @@ fn multi_local_order(a) {
     yield
     return y + x
 }
+
+fn yield_with_nested_fn() {
+    var f = || 7
+    yield
+    return 0
+}
