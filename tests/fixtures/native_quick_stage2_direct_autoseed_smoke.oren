@@ -1,0 +1,10 @@
+import list "std:list"
+
+fn main() {
+    var xs = [1, 2]
+    if list.len(xs) != 2 { exit(1) }
+    var add1 = |x| { return x + 1 }
+    if add1(xs[0]) != 2 { exit(2) }
+    print("stage2 direct autoseed smoke ok")
+    exit(0)
+}

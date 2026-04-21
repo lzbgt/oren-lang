@@ -538,7 +538,8 @@ verify-native-quick-base-cold-seeded: oren_stage2
 							@echo "verify-native-quick-base-cold-seeded OK"
 
 # Focused structural guard: direct standalone stage2 quick integration must auto-prewarm
-# the current runtime seed when active caches and seed dirs start empty.
+# the current runtime seed when active caches and seed dirs start empty. Keep the fixture
+# intentionally small so default verification proves the seeded-cold path cheaply.
 verify-native-quick-stage2-direct-autoseed: oren oren_stage2
 							@./scripts/verify_native_quick_stage2_direct_autoseed.sh "./$(OREN_STAGE2_BIN)"
 							@echo "verify-native-quick-stage2-direct-autoseed OK"

@@ -1398,8 +1398,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      depends on `OREN_NO_GREEN=1` verification escape hatches. Direct standalone
      `./scripts/run_native_quick_integration.sh ./oren_stage2` now also auto-prewarms runtime
      astbin/rtobj seeds for the current runtime hash, so empty seed dirs no longer fall back to a
-     cold self-hosted `rtobj.miss.build.start` path during the quick smoke. The remaining gap is
-     full source-level coroutine/generator protocol above that helper surface.
+     cold self-hosted `rtobj.miss.build.start` path during the quick smoke. The bundled structural
+     guard now proves that path with a dedicated tiny native fixture instead of the full
+     quick-integration program, so default verification keeps the seed-hit guarantee with lower
+     cost. The remaining gap is full source-level coroutine/generator protocol above that helper
+     surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

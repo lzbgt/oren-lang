@@ -67,7 +67,12 @@ backend-shared value-helper slices landed.
 - Fresh probe (2026-04-22): direct standalone `./scripts/run_native_quick_integration.sh ./oren_stage2`
   no longer needs a manually refreshed runtime seed after runtime-hash changes. The quick script
   now auto-prewarms runtime astbin + rtobj seeds for the current hash before the stage2 build,
-  so empty seed dirs do not fall back to a cold self-hosted `rtobj.miss.build.start` path.
+  so empty seed dirs do not fall back to a cold self-hosted `rtobj.miss.build.start` path. The
+  bundled verifier now proves that path with a dedicated tiny native fixture instead of the full
+  quick-integration source, which keeps the structural seed-hit guard cheaper in default `make test`.
+  Measured on the primary arm64-macos host from the phase logs:
+  - old full quick-integration fixture span: about `151837.9 ms`
+  - new tiny autoseed fixture span: about `1073.2 ms`
 
 That boundary is deliberate, not accidental.
 

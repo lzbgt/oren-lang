@@ -17,6 +17,8 @@ build_compiler="${OREN_QI_RUNTIME_SEED_BUILD_COMPILER:-./oren}"
 build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-240}"
 run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS:-120}"
 seed_timeout_secs="${OREN_QI_RUNTIME_SEED_TIMEOUT_SECS:-240}"
+src="${OREN_QI_SRC:-tests/fixtures/native_quick_stage2_direct_autoseed_smoke.oren}"
+label="${OREN_QI_LABEL:-native_quick_stage2_direct_autoseed}"
 
 if [[ ! -x "$compiler" ]]; then
   echo "ERROR: compiler not found or not executable: $compiler" >&2
@@ -81,6 +83,8 @@ mkdir -p "$obj_cache" "$astbin_cache" "$obj_seed" "$astbin_seed"
   echo "build_timeout_secs=$build_timeout_secs"
   echo "run_timeout_secs=$run_timeout_secs"
   echo "seed_timeout_secs=$seed_timeout_secs"
+  echo "src=$src"
+  echo "label=$label"
   echo "obj_cache=$obj_cache"
   echo "astbin_cache=$astbin_cache"
   echo "obj_seed=$obj_seed"
@@ -92,6 +96,8 @@ mkdir -p "$obj_cache" "$astbin_cache" "$obj_seed" "$astbin_seed"
 
 echo "== direct stage2 quick integration with empty caches + seed dirs ==" | tee -a "$log"
 run_with_timeout 720 env \
+  OREN_QI_SRC="$src" \
+  OREN_QI_LABEL="$label" \
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$obj_cache" \
   OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR="$astbin_cache" \
   OREN_NATIVE_RUNTIME_OBJ_SEED_DIR="$obj_seed" \
