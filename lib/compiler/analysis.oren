@@ -561,3 +561,52 @@ fn function_yield_lowering_plan(info, locals_across_yield) {
         "lowering_v0": function_yield_lowering_v0_gate(info, locals_across_yield),
     }
 }
+
+fn program_functions(prog) {
+    var out = []
+    if prog == nil { return out }
+    var stmts = prog["statements"]
+    var i = 0
+    while stmts != nil && i < oren_list_len(stmts) {
+        var s = stmts[i]
+        var func = nil
+        if s["type"] == "Function" {
+            func = s
+        } else if s["type"] == "ExprStmt" && s["expr"] != nil && s["expr"]["type"] == "Function" {
+            func = s["expr"]
+        }
+        if func != nil { oren_list_push(out, func) }
+        i = i + 1
+    }
+    return out
+}
+
+fn program_yield_lowering_v0_violations(prog) {
+    var out = []
+    var funcs = program_functions(prog)
+    var i = 0
+    while i < oren_list_len(funcs) {
+        var func = funcs[i]
+        var info = function_yield_info(func)
+        var plan = info["yield_lowering"]
+        if plan != nil {
+            var gate = plan["lowering_v0"]
+            if gate != nil && gate["ready"] != true {
+                var name = func["name"]
+                if name == nil || name == "" { name = "<anonymous>" }
+                var sites = info["yield_stmt_sites"]
+                var first_site = nil
+                if sites != nil && oren_list_len(sites) > 0 { first_site = sites[0] }
+                oren_list_push(out, {
+                    "name": name,
+                    "site": first_site,
+                    "blockers": gate["blockers"],
+                    "status": gate["status"],
+                    "target": gate["target"],
+                })
+            }
+        }
+        i = i + 1
+    }
+    return out
+}

@@ -1,0 +1,28 @@
+fn blocked_multi_yield() {
+    yield
+    yield
+    return 0
+}
+
+fn blocked_live_local() {
+    var acc = 1
+    yield
+    return acc
+}
+
+fn blocked_nested_literal() {
+    var f = || 7
+    yield
+    return f()
+}
+
+fn blocked_non_top_level() {
+    if true {
+        yield
+    }
+    return 0
+}
+
+fn main() {
+    return 0
+}

@@ -26,6 +26,7 @@ fn cli_add_build_opts(cmd, allow_emit_c, default_backend) {
     argparse.cmd_option_env(cmd, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
     argparse.cmd_flag_env(cmd, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
     argparse.cmd_option_env(cmd, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(cmd, "--strict-yield-lowering-v0", nil, "Reject source `yield` outside the first lowering_v0-ready subset", "OREN_STRICT_YIELD_LOWERING_V0")
     argparse.cmd_flag_env(cmd, "--capsule", nil, "(native backend) capability-safe subset: deny host effects unless allowlisted", "OREN_CAPSULE")
     argparse.cmd_option_env(cmd, "--cap-allow-domains", nil, "string", "", "CSV allow capability domains in capsule mode", "OREN_CAP_ALLOW_DOMAINS")
     argparse.cmd_flag_env(cmd, "--enforce-package-policy", nil, "Fail if @oren.package policy intent does not match selected build policy", "OREN_ENFORCE_PACKAGE_POLICY")
@@ -70,6 +71,7 @@ fn cli_spec() {
     argparse.cmd_option_env(emitc, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
     argparse.cmd_flag_env(emitc, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
     argparse.cmd_option_env(emitc, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(emitc, "--strict-yield-lowering-v0", nil, "Reject source `yield` outside the first lowering_v0-ready subset", "OREN_STRICT_YIELD_LOWERING_V0")
     argparse.cmd_flag_env(emitc, "--enforce-package-policy", nil, "Fail if @oren.package policy intent does not match selected build policy", "OREN_ENFORCE_PACKAGE_POLICY")
     argparse.cmd_flag_env(emitc, "--deterministic", nil, "Deterministic mode: emit stable artifact hashes (sha256) for reproducible builds", "OREN_DETERMINISTIC")
     argparse.cmd_flag(emitc, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed builds)")
@@ -84,6 +86,7 @@ fn cli_spec() {
     argparse.cmd_option_env(meta, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
     argparse.cmd_flag_env(meta, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
     argparse.cmd_option_env(meta, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(meta, "--strict-yield-lowering-v0", nil, "Reject source `yield` outside the first lowering_v0-ready subset", "OREN_STRICT_YIELD_LOWERING_V0")
     argparse.cmd_flag_env(meta, "--deterministic", nil, "Deterministic mode: emit stable artifact hash (sha256) for metadata output", "OREN_DETERMINISTIC")
     argparse.cmd_flag(meta, "--manifest", nil, "Write <out>.manifest.json with artifact sha256 (use with --deterministic for content-addressed metadata)")
 
@@ -107,6 +110,7 @@ fn cli_spec() {
     argparse.cmd_option_env(dumpcmd, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
     argparse.cmd_flag_env(dumpcmd, "--strict-ident-prefixes", nil, "Reject reserved identifier prefixes (oren_/sys_/__oren_)", "OREN_STRICT_IDENT_PREFIXES")
     argparse.cmd_option_env(dumpcmd, "--ident-allow-prefixes", nil, "string", "", "CSV allow identifier prefixes in strict mode", "OREN_IDENT_ALLOW_PREFIXES")
+    argparse.cmd_flag_env(dumpcmd, "--strict-yield-lowering-v0", nil, "Reject source `yield` outside the first lowering_v0-ready subset", "OREN_STRICT_YIELD_LOWERING_V0")
 
     var selftest_native = argparse.add_command(p, "selftest-native", "Fast native runtime self-test (no parsing/linking)")
 
@@ -390,6 +394,35 @@ fn _enforce_package_policy_if_requested(enforce, artifact_kind, status) {
         oren_exit(2)
     }
     return nil
+}
+
+fn _enforce_yield_lowering_v0_if_requested(enforce, artifact_kind, prog) {
+    if enforce != true { return nil }
+    var violations = analysis.program_yield_lowering_v0_violations(prog)
+    if violations == nil || oren_list_len(violations) == 0 { return nil }
+    var first = violations[0]
+    var msg = "oren build: yield lowering v0 blocked for " + artifact_kind + " artifact in function " + first["name"]
+    if first["site"] != nil { msg = msg + " at " + first["site"] }
+    emit_diag("compile", 2, msg)
+    print(msg)
+    var i = 0
+    while i < oren_list_len(violations) {
+        var v = violations[i]
+        var detail = "  - " + v["name"]
+        if v["site"] != nil { detail = detail + " @ " + v["site"] }
+        var blockers = v["blockers"]
+        var joined = ""
+        var bi = 0
+        while blockers != nil && bi < oren_list_len(blockers) {
+            if bi > 0 { joined = joined + ", " }
+            joined = joined + blockers[bi]
+            bi = bi + 1
+        }
+        detail = detail + ": " + joined
+        print(detail)
+        i = i + 1
+    }
+    oren_exit(2)
 }
 
 fn _artifact_manifest_policy_json(policy) {

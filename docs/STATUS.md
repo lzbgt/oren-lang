@@ -1342,6 +1342,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      lowering target explicitly. Only single top-level bare-`yield` functions with no live
      locals across yield and no nested function literals are marked `ready`; everything else now
      carries precise blocker reasons in metadata instead of a vague “future coroutine work” bucket.
+   - New (2026-04-22): `--strict-yield-lowering-v0` is now a real compiler policy gate for
+     `build`, `meta`, and `dump`. It validates the full parsed source program before dead-code
+     pruning, so unreachable yielding functions still block strict builds, and strict mode skips
+     artifact-cache restore to avoid cached non-strict outputs bypassing the check.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

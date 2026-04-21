@@ -3330,6 +3330,10 @@ Rolling status:
 - New (2026-04-22): that same `yield_lowering` object now emits a narrow v0 lowering gate:
   `lowering_v0` marks functions as `ready` only for the first safe executable subset
   (single top-level bare `yield`, no live locals across yield, no nested function literals).
+- New (2026-04-22): `oren build|meta|dump --strict-yield-lowering-v0` now enforces that v0 gate
+  against the full parsed source program, not just the reachable post-link graph. That keeps dead
+  top-level yielding functions from slipping through builds, and strict mode intentionally skips
+  artifact-cache restore so cached non-strict outputs cannot bypass the policy.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)

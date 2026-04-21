@@ -1,0 +1,8 @@
+fn ready_worker() {
+    yield
+    return 1
+}
+
+fn main() {
+    return 0
+}

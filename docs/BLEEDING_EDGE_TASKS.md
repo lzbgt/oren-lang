@@ -4180,6 +4180,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      executable subset. Only a single top-level bare `yield` with no live locals across the yield
      and no nested function literals is marked `ready`; other yielding functions now report exact
      blocker strings in metadata.
+   - New (2026-04-22): `verify-yield-lowering-v0` now guards the strict compiler policy directly,
+     including the cache-bypass regression case. Strict `build|meta|dump` validates the full
+     parsed source program before DCE/reachability pruning, and strict mode skips artifact-cache
+     restore so cached non-strict outputs cannot mask blocked yielding functions.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

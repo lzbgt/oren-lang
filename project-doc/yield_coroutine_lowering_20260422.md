@@ -14,6 +14,10 @@ syntax slice landed.
 - Function metadata now also exposes `yield_lowering.lowering_v0`, which marks the first safe
   executable target explicitly: a single top-level bare `yield`, no live locals across the
   suspension point, and no nested function literals.
+- `--strict-yield-lowering-v0` now enforces that gate across the full parsed source program for
+  `build`, `meta`, and `dump`. That is intentionally stricter than post-link reachability:
+  unreachable top-level yielding functions still block strict builds, and strict mode disables
+  artifact-cache restore so cached non-strict outputs cannot bypass the policy.
 
 That boundary is deliberate, not accidental.
 

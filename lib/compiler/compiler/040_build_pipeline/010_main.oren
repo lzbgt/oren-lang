@@ -431,7 +431,7 @@ fn compiler_main() {
 
         var strict = (opts["strict-attrs"] == true)
         var allow = split_csv(opts["attr-allow-prefixes"])
-
+        var strict_yield_lowering_v0_dump = (opts["strict-yield-lowering-v0"] == true)
         if kind == "tokens" {
             if dbg_flow != nil { print("DEBUG_FLOW dump tokens start") }
             var js = dump.dump_tokens_json(path, strict, allow, (opts["strict-ident-prefixes"] == true), split_csv(opts["ident-allow-prefixes"]))
@@ -487,6 +487,7 @@ fn compiler_main() {
             var backend0 = opts["backend"]
             if backend0 == nil { backend0 = "c" }
             var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0, "debug": cfg_debug, "keep_all_top_level_functions": true})
+            _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-linked", linked)
             if dbg_flow != nil { print("DEBUG_FLOW dump linked linked_ok") }
             var js2 = dump.linked_summary_json(linked)
             var rc2 = dump.write_or_print(outp, js2)
@@ -536,6 +537,7 @@ fn compiler_main() {
             var backend0g = opts["backend"]
             if backend0g == nil { backend0g = "c" }
             var linkedg = link_program(path, progg, {"target": target, "arch": arch, "backend": backend0g, "debug": cfg_debugg, "keep_all_top_level_functions": true})
+            _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-graph", linkedg)
             if dbg_flow != nil { print("DEBUG_FLOW dump graph linked_ok") }
             var graph = linkedg["module_graph"]
             var jsg = dump.module_graph_json(graph)
@@ -601,6 +603,7 @@ fn compiler_main() {
         ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
         STRICT_IDENT_PREFIXES = (opts["strict-ident-prefixes"] == true)
         IDENT_ALLOW_PREFIXES = split_csv(opts["ident-allow-prefixes"])
+        var strict_yield_lowering_v0_meta = (opts["strict-yield-lowering-v0"] == true)
         if seen["out"] == true { out_meta = opts["out"] }
 
         var rr = expand_includes_file_result(path, [])
@@ -643,6 +646,7 @@ fn compiler_main() {
         var backend0m = opts["backend"]
         if backend0m == nil { backend0m = "c" }
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0m, "debug": cfg_debugm, "keep_all_top_level_functions": true})
+        _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_meta, "meta", linked)
         var meta_json = metadata.generate_metadata(linked)
         var meta_domains = metadata.cap_required_domains(linked["statements"])
         var meta_profile = _runtime_profile_request_for_manifest("meta", false)
@@ -714,6 +718,7 @@ fn compiler_main() {
     var deterministic = false
     var emit_manifest = false
     var enforce_package_policy = false
+    var strict_yield_lowering_v0 = false
     var do_typecheck = false
     var call_depth_max = 8192
     var obc_lib = false
@@ -918,6 +923,7 @@ fn compiler_main() {
     deterministic = (opts["deterministic"] == true)
     if seen["manifest"] == true { emit_manifest = true }
     enforce_package_policy = (opts["enforce-package-policy"] == true)
+    strict_yield_lowering_v0 = (opts["strict-yield-lowering-v0"] == true)
 
     STRICT_ATTRS = (opts["strict-attrs"] == true)
     ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
@@ -1035,6 +1041,7 @@ fn compiler_main() {
     if is_shared_lib { cache_enabled = false }
     if notarize { cache_enabled = false }
     if emit_manifest { cache_enabled = false }
+    if strict_yield_lowering_v0 { cache_enabled = false }
     // Rolling perf policy:
     // Debug builds are frequently used in tests/bring-up and can be expensive to hash for
     // content-addressed caching under the native runtime. Disable build cache for debug builds
@@ -1067,6 +1074,7 @@ fn compiler_main() {
             "shared_lib": 0,
             "call_depth_max": call_depth_max,
             "capsule": 0,
+            "strict_yield_lowering_v0": 0,
             "cap_domains": CAP_ALLOW_DOMAINS,
             "test_mode": 0,
             "stdlib_mode": stdlib_mode,
@@ -1080,6 +1088,7 @@ fn compiler_main() {
         if debug_mode { cfg["debug_mode"] = 1 }
         if is_shared_lib { cfg["shared_lib"] = 1 }
         if CAPSULE { cfg["capsule"] = 1 }
+        if strict_yield_lowering_v0 { cfg["strict_yield_lowering_v0"] = 1 }
         if test_mode { cfg["test_mode"] = 1 }
         if backend == "native" {
             var gas_mode_env = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
@@ -1211,12 +1220,11 @@ fn compiler_main() {
         }
         oren_exit(1)
     }
-    
     if analyze {
         analysis.analyze_program(prog)
         return nil
     }
-
+    _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0, backend, prog)
     if backend == "bytecode" {
         var allow_undef = false
         if stdlib_mode == "obc" { allow_undef = true }
@@ -1392,14 +1400,12 @@ fn compiler_main() {
         if run_after_build { _run_test_artifact(backend, out_path) }
         return nil
     }
-
     if backend == "native" {
         if emit_c {
             emit_diag("compile", 2, "--emit-c is only supported with --backend c")
             print("--emit-c is only supported with --backend c")
             oren_exit(2)
         }
-
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib, "test_mode": test_mode})
         var native_domains = metadata.cap_required_domains(linked["statements"])
         var native_profile = _runtime_profile_request_for_manifest("native", CAPSULE)
@@ -1699,7 +1705,6 @@ fn compiler_main() {
         if run_after_build { _run_test_artifact(backend, out_path) }
         return nil
     }
-
     // For C backend, we also need to load modules to populate MODULE_ORDER.
     //
     // Note: some whole-program lowerings (like generic monomorphization) may generate

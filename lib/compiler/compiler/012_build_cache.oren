@@ -1366,6 +1366,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         s = s + "shared_lib=" + oren_int_to_string(build_cfg["shared_lib"]) + "\n"
         s = s + "call_depth_max=" + oren_int_to_string(build_cfg["call_depth_max"]) + "\n"
         s = s + "capsule=" + oren_int_to_string(build_cfg["capsule"]) + "\n"
+        s = s + "strict_yield_lowering_v0=" + oren_int_to_string(build_cfg["strict_yield_lowering_v0"]) + "\n"
         var native_gas = build_cfg["native_gas_accounting"]
         if native_gas == nil { native_gas = "loop" }
         s = s + "native_gas_accounting=" + native_gas + "\n"
