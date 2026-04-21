@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPILER="${COMPILER:-$ROOT/./oren_stage2}"
 BIN="${BIN:-$ROOT/build/tmp/alloc_churn_badlist}"
 LOG_DIR="${LOG_DIR:-$ROOT/build/logs}"
 RUNS="${RUNS:-10}"
@@ -20,7 +21,7 @@ if ! command -v rg >/dev/null 2>&1; then
 fi
 
 if [ "$BUILD" != "0" ]; then
-  env OREN_NO_CACHE=1 "$ROOT/./oren_stage2" build benchmarks/alloc_churn/alloc_churn.oren \
+  env OREN_NO_CACHE=1 "$COMPILER" build benchmarks/alloc_churn/alloc_churn.oren \
     --backend native --no-debug --no-cache -o "$BIN"
 fi
 
@@ -47,6 +48,13 @@ for ((i=0; i<RUNS; i++)); do
   set +e
   trace_extra_env=()
   crash_footer_env=()
+  ring_env=(
+    "OREN_TRACE_LIST_HDR_RING=1"
+    "OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1"
+    "OREN_TRACE_LIST_HDR_RING_CAP=2048"
+    "OREN_TRACE_LIST_HDR_RING_DUP=1"
+    "OREN_TRACE_LIST_HDR_RING_DUP_CAP=128"
+  )
   if [ "$EXTRA_TRACE" != "0" ]; then
     trace_extra_env+=("OREN_TRACE_GC_REUSE_SUMMARY=1")
     trace_extra_env+=("OREN_TRACE_GC_LIST_HDR_KIND=64")
@@ -56,27 +64,35 @@ for ((i=0; i<RUNS; i++)); do
     crash_footer_env+=("OREN_TRACE_CRASH_FOOTER=1")
   fi
 
-  env OREN_BENCH_ITERS="$iters" \
-      OREN_BENCH_LIST_LEN="$list_len" \
-      OREN_BENCH_GC_EVERY="$gc_every" \
-      OREN_BENCH_FORCE_LIST_INT="$force_int" \
-      OREN_BENCH_SMALL_INTS="$small_ints" \
-      OREN_GC_AUTO=1 \
-      OREN_GC_ALLOC_THRESHOLD="$gc_thr" \
-      OREN_GC_REUSE_BLOCKS=1 \
-      OREN_GC_REUSE_LISTS=1 \
-      OREN_GC_REUSE_LISTS_UNSAFE=1 \
-      OREN_GC_POISON_LIST_HEADERS=1 \
-      OREN_TRACE_GC_REUSE_BAD_LIST=1 \
-      OREN_TRACE_GC_REUSE_BAD_LIST_CAP=8 \
-      OREN_TRACE_GC_REUSE_BAD_LIST_SAFE=1 \
-      OREN_TRACE_GC_REUSE_BAD_LIST_RING_PRE=64 \
-      OREN_TRACE_GC_REUSE_BAD_LIST_RING_RECENT=64 \
-      OREN_TRACE_GC_RING_PRE=1 \
-      OREN_TRACE_GC_RING_RECENT=1 \
-      "${trace_extra_env[@]}" \
-      "${crash_footer_env[@]}" \
-      "$BIN" > "$log" 2>&1
+  {
+    echo "compiler=$COMPILER"
+    echo "bin=$BIN"
+    echo "run=$i/$RUNS"
+    echo "iters=$iters gc_every=$gc_every gc_thr=$gc_thr list_len=$list_len force_int=$force_int small_ints=$small_ints"
+    echo "trace_env=OREN_TRACE_GC_REUSE_BAD_LIST=1 OREN_TRACE_LIST_HDR_RING=1 OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1 OREN_TRACE_LIST_HDR_RING_DUP=1"
+    env OREN_BENCH_ITERS="$iters" \
+        OREN_BENCH_LIST_LEN="$list_len" \
+        OREN_BENCH_GC_EVERY="$gc_every" \
+        OREN_BENCH_FORCE_LIST_INT="$force_int" \
+        OREN_BENCH_SMALL_INTS="$small_ints" \
+        OREN_GC_AUTO=1 \
+        OREN_GC_ALLOC_THRESHOLD="$gc_thr" \
+        OREN_GC_REUSE_BLOCKS=1 \
+        OREN_GC_REUSE_LISTS=1 \
+        OREN_GC_REUSE_LISTS_UNSAFE=1 \
+        OREN_GC_POISON_LIST_HEADERS=1 \
+        OREN_TRACE_GC_REUSE_BAD_LIST=1 \
+        OREN_TRACE_GC_REUSE_BAD_LIST_CAP=8 \
+        OREN_TRACE_GC_REUSE_BAD_LIST_SAFE=1 \
+        OREN_TRACE_GC_REUSE_BAD_LIST_RING_PRE=64 \
+        OREN_TRACE_GC_REUSE_BAD_LIST_RING_RECENT=64 \
+        OREN_TRACE_GC_RING_PRE=1 \
+        OREN_TRACE_GC_RING_RECENT=1 \
+        "${ring_env[@]}" \
+        "${trace_extra_env[@]}" \
+        "${crash_footer_env[@]}" \
+        "$BIN"
+  } > "$log" 2>&1
   status=$?
   set -e
   if [ "$status" -ne 0 ]; then
@@ -98,7 +114,7 @@ for ((i=0; i<RUNS; i++)); do
     line="$(rg -n "\\[gc_reuse_bad_list\\]" "$log" | head -n 1)"
     ptr="$(echo "$line" | sed -E 's/.*ptr=([0-9]+).*/\\1/')"
     node="$(echo "$line" | sed -E 's/.*node=([0-9]+).*/\\1/')"
-    echo "bad-list hit: log=$log ptr=$ptr node=$node"
+    echo "bad-list hit: log=$log run=$i/$RUNS iters=$iters gc_every=$gc_every gc_thr=$gc_thr list_len=$list_len force_int=$force_int small_ints=$small_ints ptr=$ptr node=$node"
     echo "filters: OREN_TRACE_LIST_HDR_REINIT_PTR=$ptr OREN_TRACE_ALLOC_KIND_CHANGE_PTR=$ptr"
     echo "filters: OREN_TRACE_LIST_HDR_REINIT_NODE=$node OREN_TRACE_ALLOC_KIND_CHANGE_NODE=$node"
     if [ "$REPRO_BAD_LIST_CORRELATE" != "0" ] && [ -n "$PYTHON_BIN" ] && [ -f "$CORRELATE_TOOL" ]; then
@@ -109,6 +125,12 @@ for ((i=0; i<RUNS; i++)); do
         echo "correlate failed: $correlate_log" >&2
       fi
     fi
+    exit 0
+  fi
+
+  if rg -n "list_int_push on non-list|\\[list_panic_footer\\]" "$log" >/dev/null; then
+    echo "list-panic hit: log=$log run=$i/$RUNS iters=$iters gc_every=$gc_every gc_thr=$gc_thr list_len=$list_len force_int=$force_int small_ints=$small_ints"
+    rg -m 8 -n "\\[list_panic_footer\\]|\\[list_hdr_ring_recent\\]|\\[gc_reuse_bad_list\\]|Runtime Panic" "$log" || true
     exit 0
   fi
 

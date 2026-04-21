@@ -3356,11 +3356,26 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 	    `OREN_NATIVE_RUNTIME_EXPANDED`) by content, and the new
 	    `scripts/verify_build_cache_native_env_surface.sh` guard proves that the two env modes
 	    now produce distinct cached artifacts while repeated same-mode builds restore from cache.
-		  - Refresh (2026-04-21): a short current bad-list hunt
-		    (`RUNS=2 BUILD=1 EXTRA_TRACE=0 CRASH_FOOTER=1 REPRO_BAD_LIST_CORRELATE=0 bash ./scripts/repro_bad_list_alloc_churn.sh`)
-		    found no `gc_reuse_bad_list` hits on the current tree
-		    (log: `build/logs/repro_bad_list_alloc_churn_20260421_short.log`). Treat the remaining W5
-		    work as guard/hardening coverage until a wider current repro proves otherwise.
+		  - Refresh (2026-04-21): the 2-run short hunt was too weak to retire this thread.
+		    A wider current rerun
+		    (`RUNS=10 BUILD=1 EXTRA_TRACE=0 CRASH_FOOTER=1 REPRO_BAD_LIST_CORRELATE=0 bash ./scripts/repro_bad_list_alloc_churn.sh`)
+		    still produced no `[gc_reuse_bad_list]` prints, but it did reproduce a live runtime failure
+		    four times out of ten: `list_int_push on non-list`
+		    (`build/logs/repro_bad_list_alloc_churn_current_20260421_205455.log`,
+		    failing inner logs:
+		    `build/logs/alloc_churn_bad_list_auto_20260421_205513_3.log`,
+		    `build/logs/alloc_churn_bad_list_auto_20260421_205513_4.log`,
+		    `build/logs/alloc_churn_bad_list_auto_20260421_205549_8.log`,
+		    `build/logs/alloc_churn_bad_list_auto_20260421_205549_9.log`).
+		  - Fix + verify (2026-04-21): `native_list_panic_footer(...)` now honors the list-header ring env
+		    instead of only `OREN_TRACE_LIST_PANIC_FOOTER`, and `scripts/repro_bad_list_alloc_churn.sh`
+		    now always enables the ring/dup guard surface, records the concrete run parameters into each
+		    log, and treats the current `list_int_push on non-list` signature as a hit instead of
+		    incorrectly reporting only “no bad-list hits”. The focused current rerun now dumps the recent
+		    header history for the failing list pointer
+		    (`build/logs/alloc_churn_bad_list_focus_20260421_210001.log`), showing a sane `list<int>`
+		    growth chain ending at `len=64 cap=64` immediately before the panic. A dedicated entrypoint
+		    now exists at `make triage-alloc-churn-bad-list-current`.
 		  - Fix + verify (2026-04-21): the focused green join-waiter/STW tail now has two current guardrails
 		    instead of only old trace notes. `lib/runtime_native/100_time_core.oren` now collapses duplicate
 		    OS-thread registrations by recycled TID, preferring one live canonical node and marking the rest

@@ -246,6 +246,7 @@ fn native_list_panic_footer(list, node, stage, want_kind) {
     if list != 0 && list >= 4096 { magic = ptr_get(iadd(list, 24)) }
     var ring_enabled = 0
     if g_trace_list_panic_footer != 0 { ring_enabled = 1 }
+    if ring_enabled == 0 && _list_hdr_ring_enabled() == true { ring_enabled = 1 }
     print("[list_panic_footer] stage=" + oren_int_to_string(stage) +
           " list=" + oren_int_to_string(list) +
           " node=" + oren_int_to_string(node) +

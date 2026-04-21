@@ -240,10 +240,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     env surface plus content hashes for runtime override-file envs, and
 	     `scripts/verify_build_cache_native_env_surface.sh` guards that the two env modes differ
 	     while a repeated same-mode build restores from cache.
-	   - Refresh (2026-04-21): a short current bad-list hunt
-	     (`build/logs/repro_bad_list_alloc_churn_20260421_short.log`, `RUNS=2`) produced no
-	     `gc_reuse_bad_list` hits. That does not retire the older trace backlog, but it does reweight
-	     this thread toward coverage and hardening rather than a trivially reproducible current crash.
+		   - Refresh (2026-04-21): the earlier 2-run hunt was too weak to retire this thread.
+		     The wider current rerun
+		     (`build/logs/repro_bad_list_alloc_churn_current_20260421_205455.log`, `RUNS=10`) still
+		     produced no `[gc_reuse_bad_list]` prints, but it did reproduce a live runtime failure on the
+		     current tree: 4/10 runs panic with `list_int_push on non-list`
+		     (`build/logs/alloc_churn_bad_list_auto_20260421_205513_3.log`,
+		     `build/logs/alloc_churn_bad_list_auto_20260421_205513_4.log`,
+		     `build/logs/alloc_churn_bad_list_auto_20260421_205549_8.log`,
+		     `build/logs/alloc_churn_bad_list_auto_20260421_205549_9.log`).
+		   - Fix + verify (2026-04-21): `native_list_panic_footer(...)` now respects the list-header
+		     ring env itself, and `scripts/repro_bad_list_alloc_churn.sh` now always enables the ring /
+		     dup trace surface, records the concrete run parameters into each run log, and treats the
+		     current `list_int_push on non-list` panic as a hit instead of falsely ending with only
+		     “no bad-list hits”. The focused current rerun
+		     (`build/logs/alloc_churn_bad_list_focus_20260421_210001.log`) now emits
+		     `[list_hdr_ring_recent]` for the failing pointer, showing a sane `list<int>` growth sequence
+		     ending at `len=64 cap=64` immediately before the panic. There is now a stable current entry
+		     point for this thread at `make triage-alloc-churn-bad-list-current`.
 	   - Fix + verify (2026-04-21): the focused green join-waiter/STW flake now has current runtime
 	     fixes and a bundled guard instead of only historical traces. `100_time_core.oren` now
 	     collapses duplicate OS-thread nodes that share a recycled TID, prefers live nodes in
