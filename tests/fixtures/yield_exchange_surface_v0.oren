@@ -1,0 +1,69 @@
+fn add1_exchange(x) {
+    return x + 1
+}
+
+fn exchange_var(out_ch, in_ch, seed) {
+    var resumed = oren_yield_exchange(out_ch, in_ch, seed + 1)
+    return resumed + 10
+}
+
+fn exchange_return(out_ch, in_ch, seed) {
+    return oren_yield_exchange(out_ch, in_ch, seed + 2)
+}
+
+fn exchange_call_arg(out_ch, in_ch, seed) {
+    return add1_exchange(oren_yield_exchange(out_ch, in_ch, seed + 3))
+}
+
+fn exchange_stmt(out_ch, in_ch, seed) {
+    oren_yield_exchange(out_ch, in_ch, seed + 4)
+    return seed + 5
+}
+
+fn main() {
+    var out1 = oren_new_channel()
+    var in1 = oren_new_channel()
+    var h1 = spawn exchange_var(out1, in1, 40)
+    oren_yield()
+    var y1 = oren_chan_recv(out1)
+    if y1 != 41 { return 1000 + y1 }
+    oren_chan_send(in1, 7)
+    oren_yield()
+    var r1 = oren_join(h1)
+    if r1 != 17 { return 1100 + r1 }
+
+    var out2 = oren_new_channel()
+    var in2 = oren_new_channel()
+    var h2 = spawn exchange_return(out2, in2, 50)
+    oren_yield()
+    var y2 = oren_chan_recv(out2)
+    if y2 != 52 { return 1200 + y2 }
+    oren_chan_send(in2, 8)
+    oren_yield()
+    var r2 = oren_join(h2)
+    if r2 != 8 { return 1300 + r2 }
+
+    var out3 = oren_new_channel()
+    var in3 = oren_new_channel()
+    var h3 = spawn exchange_call_arg(out3, in3, 60)
+    oren_yield()
+    var y3 = oren_chan_recv(out3)
+    if y3 != 63 { return 1400 + y3 }
+    oren_chan_send(in3, 9)
+    oren_yield()
+    var r3 = oren_join(h3)
+    if r3 != 10 { return 1500 + r3 }
+
+    var out4 = oren_new_channel()
+    var in4 = oren_new_channel()
+    var h4 = spawn exchange_stmt(out4, in4, 70)
+    oren_yield()
+    var y4 = oren_chan_recv(out4)
+    if y4 != 74 { return 1600 + y4 }
+    oren_chan_send(in4, 10)
+    oren_yield()
+    var r4 = oren_join(h4)
+    if r4 != 75 { return 1700 + r4 }
+
+    return 0
+}

@@ -26,6 +26,7 @@
 #endif
 
 #include <malloc.h>
+#include <fcntl.h>
 #include <process.h>
 #include <io.h>
 #include <windows.h>

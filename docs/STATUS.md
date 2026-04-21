@@ -61,10 +61,13 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
 - **Feature set maturity**: the remaining essential language backlog is now full
-  `yield`/stackless coroutine semantics beyond the current local value-stable surface. Bare
+  `yield`/stackless coroutine semantics beyond the current helper surfaces. Bare
   `yield`, `yield <value>`, and expression/result-position `yield` are now shipped through the
-  backend-shared helpers `oren_yield_stmt()` / `oren_yield_value(v)`, but caller-visible resume
-  values and generator-style yield channels are still missing. The structured error model is already shipped as the
+  backend-shared helpers `oren_yield_stmt()` / `oren_yield_value(v)`, and explicit caller-visible
+  value exchange now also exists through `oren_yield_exchange(yield_ch, resume_ch, v)`. The
+  remaining gap is source-level coroutine/generator semantics plus a stronger default
+  scheduler-aware native green-channel protocol for that explicit exchange path. The structured
+  error model is already shipped as the
   rolling value-or-error
   convention (`oren_err` / `oren_is_err` / `std:result`), with stdlib migration breadth still
   ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
@@ -1307,10 +1310,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
 
 5) **W4 - Feature set completeness (essential modern features)**
-   - Remaining planned work: full `yield`/stackless coroutine lowering with caller-visible resume
-     values or generator-style channels. Bare `yield`, `yield <value>`, and expression/result-
-     position `yield` now ship with backend-shared local helper semantics, but that is still
-     narrower than a full resumable coroutine value model.
+   - Remaining planned work: full `yield`/stackless coroutine lowering beyond the current helper
+     surfaces. Bare `yield`, `yield <value>`, and expression/result-position `yield` now ship with
+     backend-shared helper semantics, and explicit caller-visible yielded/resumed values now also
+     exist through `oren_yield_exchange(yield_ch, resume_ch, v)`, but that is still narrower than a
+     full resumable coroutine/generator value model.
    - Implemented (rolling): the structured error model is now the shipped value-or-error
      convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
      `std:result`; remaining work is stdlib migration breadth, not core feature availability.
@@ -1328,9 +1332,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      native quick path and the curated AVM lane, including value-carrying/result-position `yield`
      through the new parity-checked helper surface.
    - New: `project-doc/yield_coroutine_lowering_20260422.md` captures the actual runtime seams
-     (`AVM_YIELD`, native `oren_ctx_switch`, green entry), the shipped `oren_yield_value(v)` helper
-     path, and the remaining gap between local value-stable yield semantics and full coroutine
-     resume channels.
+     (`AVM_YIELD`, native `oren_ctx_switch`, green entry), the shipped `oren_yield_value(v)` /
+     `oren_yield_exchange(yield_ch, resume_ch, v)` helper paths, and the remaining gap between
+     helper-level value exchange and full coroutine/generator resume channels.
    - New (2026-04-22): function metadata now carries `contains_yield`, `yield_stmt_count`, and
      `yield_stmt_sites`, counting only source-level bare `yield` statements and skipping nested
      function literals. This keeps the next coroutine-lowering pass fact-based instead of
@@ -1340,6 +1344,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `yield_value_surface`. That surface records the shipped `local_value_resume_v0` helper
      contract explicitly, including `consumer_kinds` plus per-site `context`, instead of
      overloading the older bare-statement `yield_lowering` plan.
+   - New (2026-04-22): metadata/dump/OBC introspection now also carries the explicit
+     caller-visible helper separately via `contains_yield_exchange`, `yield_exchange_count`,
+     `yield_exchange_sites`, and `yield_exchange_surface`. That surface records the shipped
+     `channel_resume_v0` contract explicitly, including the channel argument indexes plus the fact
+     that yielded values are observed and resumed values are supplied through explicit channel args.
    - New (2026-04-22): bare statement `yield` now lowers through normalized helper
      `oren_yield_stmt()` (always `nil`), value-carrying/result-position `yield` lowers through
      `oren_yield_value(v)` (yield, then resume with the same local value), and raw `oren_yield()`
@@ -1382,6 +1391,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New (2026-04-22): value-carrying `yield` is parity-verified across bytecode, C, and native
      through `oren_yield_value(v)`. This is intentionally a local value-stable resume surface, not
      yet a caller-visible coroutine/generator protocol.
+   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
+     parity-verified through `oren_yield_exchange(yield_ch, resume_ch, v)` across bytecode, C, and
+     native. The native verifier currently runs this helper path under `OREN_NO_GREEN=1`; default
+     green main-thread blocking channel orchestration is still weaker than a full scheduler-aware
+     coroutine/generator protocol.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

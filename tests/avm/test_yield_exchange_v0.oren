@@ -1,0 +1,37 @@
+fn avm_exchange_worker(out_ch, in_ch, seed) {
+    var resumed = oren_yield_exchange(out_ch, in_ch, seed + 1)
+    return resumed + 5
+}
+
+fn avm_exchange_call_arg_worker(out_ch, in_ch, seed) {
+    return oren_int_to_string(oren_yield_exchange(out_ch, in_ch, seed + 2))
+}
+
+fn test_exchange_var() {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn avm_exchange_worker(out, inp, 40)
+    oren_yield()
+    assert_eq(oren_chan_recv(out), 41)
+    oren_chan_send(inp, 7)
+    oren_yield()
+    assert_eq(oren_join(h), 12)
+}
+
+fn test_exchange_call_arg() {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn avm_exchange_call_arg_worker(out, inp, 50)
+    oren_yield()
+    assert_eq(oren_chan_recv(out), 52)
+    oren_chan_send(inp, 9)
+    oren_yield()
+    assert_eq(oren_join(h), "9")
+}
+
+fn main() {
+    test_exchange_var()
+    test_exchange_call_arg()
+    print("test_yield_exchange_v0: OK")
+    return 0
+}

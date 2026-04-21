@@ -882,6 +882,27 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_YIELD)
             return nil
         }
+        if name == "oren_yield_exchange" {
+            if oren_list_len(expr["args"]) != 3 {
+            bytecode_error(ctx, "bytecode backend: oren_yield_exchange expects (yield_ch, resume_ch, value)")
+            return nil
+            }
+            // Use an explicit channel protocol in bytecode:
+            //   1. send `value` to `yield_ch`
+            //   2. cooperatively yield
+            //   3. receive and return the resumed value from `resume_ch`
+            //
+            // Compile `resume_ch` first so it remains on-stack after CHAN_SEND pops
+            // `[yield_ch, value]`. Expression evaluation order is currently unspecified.
+            bytecode_compile_expr(ctx, expr["args"][1])
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][2])
+            emit_byte(ctx, AVM_CHAN_SEND)
+            emit_byte(ctx, AVM_POP)
+            emit_byte(ctx, AVM_YIELD)
+            emit_byte(ctx, AVM_CHAN_RECV)
+            return nil
+        }
         if name == "oren_gc_collect" {
             if oren_list_len(expr["args"]) != 0 {
             bytecode_error(ctx, "bytecode backend: oren_gc_collect expects ()")

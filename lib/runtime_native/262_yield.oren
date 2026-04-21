@@ -36,3 +36,10 @@ fn oren_yield_value(value) {
     oren_yield()
     return value
 }
+
+@oren.keep
+fn oren_yield_exchange(yield_ch, resume_ch, value) {
+    oren_chan_send(yield_ch, value)
+    oren_yield()
+    return oren_chan_recv(resume_ch)
+}

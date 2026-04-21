@@ -1198,6 +1198,18 @@ run_step_checked "parser/runtime smoke (yield value surface run)" "$yv_log" \
   ./avm "$yv_out"
 tail -n 5 "$yv_log"
 
+echo "== parser/runtime smoke (yield exchange surface) =="
+yx_src="tests/fixtures/yield_exchange_surface_v0.oren"
+yx_log="build/logs/${compiler_base}_yield_exchange_surface_v0.log"
+yx_out="build/tmp/${compiler_base}_yield_exchange_surface_v0.obc"
+rm -f "$yx_log" "$yx_out" 2>/dev/null || true
+
+run_step_checked "parser/runtime smoke (yield exchange surface)" "$yx_log" \
+  "$compiler" build "$yx_src" --backend bytecode --typecheck -o "$yx_out"
+run_step_checked "parser/runtime smoke (yield exchange surface run)" "$yx_log" \
+  ./avm "$yx_out"
+tail -n 5 "$yx_log"
+
 echo "native quick integration follow-on OK"
 echo "native quick integration follow-on OK" >>"$log"
 emit_retry_summary

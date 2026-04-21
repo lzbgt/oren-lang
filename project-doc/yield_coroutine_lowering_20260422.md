@@ -50,10 +50,19 @@ backend-shared value-helper slices landed.
   no distinct generator channel. It now also records `consumer_kinds` plus per-point `context`, so
   the metadata shows where resumed local values are consumed without pretending there is already a
   caller-visible resume channel.
+- `oren meta`, `dump linked`, and embedded OBC metadata now also expose the explicit caller-visible
+  helper separately via `contains_yield_exchange`, `yield_exchange_count`, `yield_exchange_sites`,
+  and `yield_exchange_surface`. That surface records the shipped `channel_resume_v0` contract:
+  yielded values are observed through explicit `yield_ch`, resumed values are supplied through
+  explicit `resume_ch`, and the metadata names those argument positions directly.
 - Fresh probe (2026-04-22): strict bytecode/C/native builds also execute a bare `yield` inside a
   nested function-literal body successfully. Parent-function metadata still intentionally ignores
   nested bodies when summarizing `contains_yield` / `yield_stmt_sites`; that probe result is about
   execution support, not about attributing the nested body to the enclosing function.
+- Fresh probe (2026-04-22): strict bytecode/C/native builds also execute
+  `oren_yield_exchange(yield_ch, resume_ch, v)` successfully, but the native verifier currently runs
+  that path under `OREN_NO_GREEN=1`. The remaining runtime gap is default green main-thread
+  blocking channel orchestration, not helper availability.
 
 That boundary is deliberate, not accidental.
 
@@ -213,29 +222,55 @@ Cons:
 - diverges from the documented stackless direction
 - risks creating a second coroutine model to unwind later
 
+### Option D: strengthen the explicit channel protocol on the default native green runtime
+
+Keep the shipped helper surface:
+
+- `oren_yield_stmt()`
+- `oren_yield_value(v)`
+- `oren_yield_exchange(yield_ch, resume_ch, v)`
+
+but make the default native green/runtime orchestration strong enough that the explicit channel
+protocol no longer needs `OREN_NO_GREEN=1` in verification.
+
+Pros:
+
+- attacks a real shipped runtime gap instead of inventing new syntax
+- keeps bytecode/C/native parity work grounded in the existing helper contract
+- reduces the risk that source-level coroutine syntax lands on top of a weak runtime substrate
+
+Cons:
+
+- does not by itself define final generator syntax
+- still needs a later language/design decision for caller-owned resume flow
+
 ## Recommended next step
 
-For the remaining language feature backlog, the best next slice is still **Option B**, but now on
-top of the shipped helper surface instead of in place of it:
+For the remaining language feature backlog, the best next slice is now a staged combination of
+**Option D** then **Option B**:
 
-1. detect functions that contain `yield`
-2. define an explicit internal frame/state representation
-3. lower caller-visible resumable value flow next:
-   - distinguish local `oren_yield_value(v)` helper semantics from true yielded-value channels
-   - define where a resumed function receives caller-supplied values, if the language wants them
-   - keep the backend-shared rule explicit instead of inheriting raw helper return codes
-4. extend metadata/introspection only when it can honestly model value-carrying sites too
+1. strengthen the default native green/runtime channel orchestration for
+   `oren_yield_exchange(yield_ch, resume_ch, v)` so the verifier no longer needs `OREN_NO_GREEN=1`
+2. keep the helper contracts explicit and parity-guarded across bytecode/C/native while doing that
+3. then define the explicit internal frame/state representation for source-level coroutine lowering
+4. lower caller-visible resumable value flow on top of the shipped helper semantics instead of
+   inventing a second value protocol
+5. keep extending metadata/introspection only when it can honestly model the new value-flow surface
 
 The first lowering pass already executes the current AVM bare-statement subset end-to-end, and
 backend parity for the same subset is guarded across bytecode/C/native. The helper-based value
-surface is also now parity-guarded. The next pass should stop widening syntax and instead tackle
-the real remaining boundary: true caller-visible coroutine/generator semantics beyond “yield, then
-resume with the same local value”.
+surface is also parity-guarded, and the explicit exchange protocol is now shipped plus
+introspectable. The next pass should stop widening syntax and instead tackle the real remaining
+boundaries:
+
+- make the default native green/runtime path strong enough for the shipped explicit exchange helper
+- then define true caller-visible coroutine/generator semantics beyond the current helper contracts
 
 That path keeps the current repo state honest:
 
 - `yield` statement sugar is shipped
 - local value-stable `yield <value>` / expression `yield` is shipped
+- explicit caller-visible `oren_yield_exchange(yield_ch, resume_ch, v)` is shipped
 - raw `oren_yield()` remains available as a low-level helper
 - full coroutine/generator semantics are still backlog, but the next work can start from the actual
-  runtime seams and the now-proven helper surface above instead of rediscovering them in chat
+  runtime seams and the now-proven helper surfaces above instead of rediscovering them in chat

@@ -13,6 +13,7 @@
 #include "runtime/010_prelude.inc"
 #include "runtime/060_ptr_unsafe.inc"
 #include "runtime/020_threads_gc.inc"
+#include "runtime/021_channels.inc"
 #include "runtime/025_entropy.inc"
 #include "runtime/030_ops_compare.inc"
 #include "runtime/040_lists_maps.inc"

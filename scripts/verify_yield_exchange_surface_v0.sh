@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+compiler="${1:-./oren_stage2}"
+platform="${OREN_PLATFORM:-}"
+
+if [ -z "$platform" ]; then
+  uname_s="$(uname -s)"
+  uname_m="$(uname -m)"
+  case "$uname_s:$uname_m" in
+    Darwin:arm64|Darwin:aarch64) platform="arm64-macos" ;;
+    Darwin:x86_64) platform="x64-macos" ;;
+    Linux:arm64|Linux:aarch64) platform="arm64-linux" ;;
+    Linux:x86_64|Linux:amd64) platform="x64-linux" ;;
+    MINGW*:x86_64|MSYS*:x86_64|CYGWIN*:x86_64) platform="x64-windows" ;;
+  esac
+fi
+
+if [ -z "$platform" ]; then
+  echo "verify_yield_exchange_surface_v0: could not determine host platform; set OREN_PLATFORM" >&2
+  exit 1
+fi
+
+mkdir -p build/logs build/tmp
+ts="$(date +%Y%m%d_%H%M%S)"
+tmpdir="build/tmp/yield_exchange_surface_v0_${ts}"
+log="build/logs/verify_yield_exchange_surface_v0_${ts}.log"
+mkdir -p "$tmpdir"
+
+run_ok() {
+  echo "\$ $*" >>"$log"
+  "$@" >>"$log" 2>&1
+}
+
+src="tests/fixtures/yield_exchange_surface_v0.oren"
+meta_out="$tmpdir/exchange.meta.json"
+dump_out="$tmpdir/exchange.linked.json"
+bytecode_out="$tmpdir/exchange_bytecode.obc"
+bytecode_meta_out="$tmpdir/exchange_bytecode.meta.json"
+c_out="$tmpdir/exchange_c"
+native_out="$tmpdir/exchange_native"
+
+run_ok "$compiler" meta "$src" --platform "$platform" -o "$meta_out"
+run_ok "$compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
+run_ok "$compiler" build "$src" \
+  --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
+run_ok ./avm "$bytecode_out"
+run_ok python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
+
+run_ok "$compiler" build "$src" \
+  --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
+run_ok "$c_out"
+
+run_ok "$compiler" build "$src" \
+  --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
+run_ok env OREN_NO_GREEN=1 "$native_out"
+
+META_OUT="$meta_out" \
+DUMP_OUT="$dump_out" \
+BYTECODE_META_OUT="$bytecode_meta_out" \
+python3 - >>"$log" <<'PY'
+import json
+import os
+
+
+def load(path):
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def by_name(xs):
+    return {item["name"]: item for item in xs}
+
+
+def assert_plain(name, item):
+    if item["contains_yield"] is not False or item["yield_stmt_count"] != 0 or item["yield_stmt_sites"] != []:
+        raise SystemExit(f"{name} unexpected bare yield metadata: {item!r}")
+    if item["contains_yield_value"] is not False or item["yield_value_count"] != 0 or item["yield_value_sites"] != []:
+        raise SystemExit(f"{name} unexpected value-yield metadata: {item!r}")
+    if item["contains_yield_exchange"] is not False:
+        raise SystemExit(f"{name} unexpected yield exchange metadata: {item!r}")
+    if item["yield_exchange_count"] != 0 or item["yield_exchange_sites"] != []:
+        raise SystemExit(f"{name} unexpected yield exchange site metadata: {item!r}")
+    if item["yield_value_surface"] is not None or item["yield_exchange_surface"] is not None or item["yield_lowering"] is not None:
+        raise SystemExit(f"{name} unexpected yield surface metadata: {item!r}")
+
+
+def assert_exchange(name, item, site, context):
+    if item["contains_yield"] is not False or item["yield_stmt_count"] != 0 or item["yield_stmt_sites"] != []:
+        raise SystemExit(f"{name} unexpected bare yield metadata: {item!r}")
+    if item["contains_yield_value"] is not False or item["yield_value_count"] != 0 or item["yield_value_sites"] != []:
+        raise SystemExit(f"{name} unexpected value-yield metadata: {item!r}")
+    if item["yield_value_surface"] is not None:
+        raise SystemExit(f"{name} unexpected value-yield surface: {item!r}")
+    if item["yield_lowering"] is not None:
+        raise SystemExit(f"{name} unexpected bare-yield lowering surface: {item!r}")
+    if item["contains_yield_exchange"] is not True:
+        raise SystemExit(f"{name} missing contains_yield_exchange: {item!r}")
+    if item["yield_exchange_count"] != 1:
+        raise SystemExit(f"{name} bad yield_exchange_count: {item!r}")
+    if item["yield_exchange_sites"] != [site]:
+        raise SystemExit(f"{name} bad yield_exchange_sites: {item!r}")
+    surface = item["yield_exchange_surface"]
+    if surface is None:
+        raise SystemExit(f"{name} missing yield_exchange_surface")
+    expected_surface = {
+        "version": 1,
+        "surface": "channel_resume_v0",
+        "yield_value_observer": "explicit_channel_arg",
+        "resume_value_source": "explicit_channel_arg",
+        "caller_resume_values": True,
+        "generator_channel": True,
+        "yield_channel_arg_index": 0,
+        "resume_channel_arg_index": 1,
+        "value_arg_index": 2,
+        "consumer_kinds": [context],
+        "exchange_points": [{"id": 0, "site": site, "context": context}],
+    }
+    if surface != expected_surface:
+        raise SystemExit(f"{name} bad yield_exchange_surface: expected {expected_surface!r}, got {surface!r}")
+
+
+meta = by_name(load(os.environ["META_OUT"])["functions"])
+dump = by_name(load(os.environ["DUMP_OUT"])["function_details"])
+obc = by_name(load(os.environ["BYTECODE_META_OUT"])["metadata"]["functions"])
+
+for payloads in (meta, dump, obc):
+    assert_plain("add1_exchange", payloads["add1_exchange"])
+    assert_exchange("exchange_var", payloads["exchange_var"], "tests/fixtures/yield_exchange_surface_v0.oren:6:38", "var_init")
+    assert_exchange("exchange_return", payloads["exchange_return"], "tests/fixtures/yield_exchange_surface_v0.oren:11:31", "return_value")
+    assert_exchange("exchange_call_arg", payloads["exchange_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:15:45", "call_arg")
+    assert_exchange("exchange_stmt", payloads["exchange_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:19:24", "expr_stmt")
+    assert_plain("main", payloads["main"])
+
+print("yield exchange metadata verified")
+PY
+
+echo "yield exchange surface v0 verify OK" >>"$log"
+echo "yield exchange surface v0 verify OK"

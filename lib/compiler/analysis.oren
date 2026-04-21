@@ -107,6 +107,10 @@ fn new_function_yield_info() {
         "yield_value_count": 0,
         "yield_value_sites": [],
         "yield_value_points": [],
+        "contains_yield_exchange": false,
+        "yield_exchange_count": 0,
+        "yield_exchange_sites": [],
+        "yield_exchange_points": [],
         "non_top_level_yield_sites": [],
         "loop_nested_yield_sites": [],
         "has_nested_function_literal": false,
@@ -145,6 +149,50 @@ fn function_yield_info_note_value_expr_ctx(info, expr, context) {
 
 fn function_yield_info_note_value_expr(info, expr) {
     return function_yield_info_note_value_expr_ctx(info, expr, "expr")
+}
+
+fn yield_exchange_expr_site(expr) {
+    if expr == nil { return nil }
+    var tok = expr["token"]
+    if tok == nil { return nil }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    if file != nil && file != "" {
+        if line != nil && line > 0 {
+            if col != nil && col > 0 {
+                return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+            }
+            return file + ":" + oren_int_to_string(line)
+        }
+        return file
+    }
+    if line != nil && line > 0 {
+        if col != nil && col > 0 {
+            return oren_int_to_string(line) + ":" + oren_int_to_string(col)
+        }
+        return oren_int_to_string(line)
+    }
+    return nil
+}
+
+fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
+    if info == nil || expr == nil || expr["type"] != "Call" { return nil }
+    var callee = expr["fn"]
+    if callee == nil || callee["type"] != "Identifier" { return nil }
+    if callee["value"] != "oren_yield_exchange" { return nil }
+    info["contains_yield_exchange"] = true
+    info["yield_exchange_count"] = info["yield_exchange_count"] + 1
+    var site = yield_exchange_expr_site(expr)
+    if site != nil { oren_list_push(info["yield_exchange_sites"], site) }
+    var context_name = context
+    if context_name == nil || context_name == "" { context_name = "expr" }
+    oren_list_push(info["yield_exchange_points"], {
+        "id": oren_list_len(info["yield_exchange_points"]),
+        "site": site,
+        "context": context_name,
+    })
+    return nil
 }
 
 fn new_yield_local_scope() {
@@ -414,6 +462,7 @@ fn function_yield_info_walk_expr(info, expr, depth, in_loop, context) {
     }
     if et == "Call" {
         function_yield_info_note_value_expr_ctx(info, expr, context)
+        function_yield_info_note_exchange_expr_ctx(info, expr, context)
         function_yield_info_walk_expr(info, expr["fn"], depth, in_loop, "call_callee")
         var args = expr["args"]
         var i = 0
@@ -570,6 +619,37 @@ fn function_yield_value_surface(info) {
     }
 }
 
+fn function_yield_exchange_surface(info) {
+    if info == nil || info["yield_exchange_count"] <= 0 { return nil }
+    var consumer_kinds = []
+    var seen = {}
+    var i = 0
+    var points = info["yield_exchange_points"]
+    while points != nil && i < oren_list_len(points) {
+        var point = points[i]
+        var kind = nil
+        if point != nil { kind = point["context"] }
+        if kind != nil && kind != "" && seen[kind] != true {
+            seen[kind] = true
+            oren_list_push(consumer_kinds, kind)
+        }
+        i = i + 1
+    }
+    return {
+        "version": 1,
+        "surface": "channel_resume_v0",
+        "yield_value_observer": "explicit_channel_arg",
+        "resume_value_source": "explicit_channel_arg",
+        "caller_resume_values": true,
+        "generator_channel": true,
+        "yield_channel_arg_index": 0,
+        "resume_channel_arg_index": 1,
+        "value_arg_index": 2,
+        "consumer_kinds": consumer_kinds,
+        "exchange_points": info["yield_exchange_points"],
+    }
+}
+
 fn function_yield_info(func) {
     var info = new_function_yield_info()
     if func == nil { return info }
@@ -586,6 +666,7 @@ fn function_yield_info(func) {
     }
     info["yield_lowering"] = function_yield_lowering_plan(func, info, function_yield_locals_across(func))
     info["yield_value_surface"] = function_yield_value_surface(info)
+    info["yield_exchange_surface"] = function_yield_exchange_surface(info)
     return info
 }
 

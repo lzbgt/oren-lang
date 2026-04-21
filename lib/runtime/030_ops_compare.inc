@@ -209,6 +209,12 @@ OrenValue oren_yield_value(OrenValue value) {
     return value;
 }
 
+OrenValue oren_yield_exchange(OrenValue yield_ch, OrenValue resume_ch, OrenValue value) {
+    (void)oren_chan_send(yield_ch, value);
+    (void)oren_yield();
+    return oren_chan_recv(resume_ch);
+}
+
 static OrenValue oren_time_clock_ns(clockid_t clk) {
     struct timespec ts;
     if (clock_gettime(clk, &ts) != 0) {

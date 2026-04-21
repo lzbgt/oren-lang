@@ -111,3 +111,28 @@ fn value_return(seed) {
 fn value_call_arg(seed) {
     return add1_meta(yield seed)
 }
+
+fn exchange_var(seed, out_ch, in_ch) {
+    var x = oren_yield_exchange(out_ch, in_ch, seed + 1)
+    return x
+}
+
+fn exchange_return(seed, out_ch, in_ch) {
+    return oren_yield_exchange(out_ch, in_ch, seed + 2)
+}
+
+fn exchange_stmt(seed, out_ch, in_ch) {
+    oren_yield_exchange(out_ch, in_ch, seed + 3)
+    return seed
+}
+
+fn exchange_call_arg(seed, out_ch, in_ch) {
+    return add1_meta(oren_yield_exchange(out_ch, in_ch, seed + 4))
+}
+
+fn exchange_nested_only() {
+    var f = || {
+        return oren_yield_exchange(1, 2, 3)
+    }
+    return 0
+}

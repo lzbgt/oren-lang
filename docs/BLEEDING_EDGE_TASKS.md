@@ -4146,10 +4146,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 9) **W4 feature set completeness (essential modern features)**
    - Remaining cross-backend language backlog: full `yield`/stackless coroutine semantics beyond
-     the current local value-stable surface.
+     the current helper surfaces.
    Bare `yield`, `yield <value>`, and expression/result-position `yield` are now shipped through
-     `oren_yield_stmt()` / `oren_yield_value(v)`, but caller-visible resume values and
-     generator-style yield channels are still missing.
+     `oren_yield_stmt()` / `oren_yield_value(v)`, and explicit caller-visible yielded/resumed
+     values now also exist through `oren_yield_exchange(yield_ch, resume_ch, v)`, but source-level
+     coroutine/generator semantics and a stronger default native green-channel protocol are still
+     missing.
    - Implemented (rolling): the structured error model is the shipped value-or-error convention
      (`oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, `std:result`); remaining work is
      stdlib migration breadth rather than core language/runtime availability.
@@ -4167,8 +4169,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New (2026-04-22): rolling `yield` sugar is now guarded in native quick + AVM, including the
      new value-carrying/result-position helper surface.
    - New: `project-doc/yield_coroutine_lowering_20260422.md` records the current backend seams, the
-     shipped `oren_yield_value(v)` helper path, and the remaining gap between local value-stable
-     yield semantics and full coroutine resume channels.
+     shipped `oren_yield_value(v)` / `oren_yield_exchange(yield_ch, resume_ch, v)` helper paths,
+     and the remaining gap between helper-level value exchange and full coroutine/generator resume
+     channels.
    - New (2026-04-22): `oren meta` / native `--metadata` now surface per-function `contains_yield`,
      `yield_stmt_count`, and `yield_stmt_sites`, counting only source-level `yield` statements and
      intentionally ignoring raw `oren_yield()` calls plus nested function-literal bodies.
@@ -4177,6 +4180,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      so the shipped helper-based value contract is machine-readable without pretending the older
      bare-statement `yield_lowering` plan covers it. That surface now also records
      `consumer_kinds` plus per-point `context`.
+   - New (2026-04-22): metadata/dump/OBC introspection now also surfaces the explicit channel-based
+     helper via `contains_yield_exchange`, `yield_exchange_count`, `yield_exchange_sites`, and
+     `yield_exchange_surface`, so the shipped `channel_resume_v0` protocol is machine-readable too.
    - New (2026-04-22): function metadata also emits a rolling `yield_lowering` plan object with an
      explicit entry state plus one resume state per yield site, and now records conservative
      `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for
@@ -4216,8 +4222,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      through direct `oren_yield_stmt()` execution rather than backend state-machine lowering.
    - New (2026-04-22): value-carrying `yield` is now parity-verified under bytecode, C, and native
      too. The current contract is intentionally local and helper-based: `oren_yield_value(v)`
-     yields, then resumes with `v`, but there is still no caller-visible coroutine/generator value
-     channel.
+     yields, then resumes with `v`.
+   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
+     parity-verified under bytecode, C, and native through
+     `oren_yield_exchange(yield_ch, resume_ch, v)`. The native verifier currently runs that helper
+     path under `OREN_NO_GREEN=1`; default green main-thread blocking channel orchestration is still
+     the remaining runtime gap before this can be presented as a stronger default coroutine/
+     generator protocol.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

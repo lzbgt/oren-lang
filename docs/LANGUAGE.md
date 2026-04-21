@@ -3337,6 +3337,11 @@ Rolling status:
   (`yield_points[*].context`) plus the de-duplicated `consumer_kinds` list, so the metadata records
   where resumed values are consumed instead of only counting sites. This keeps the bare-statement
   `yield_lowering` plan honest instead of pretending it also models caller-visible value flow.
+- New (2026-04-22): `oren meta` / native `--metadata` / `oren dump linked` now also expose the
+  explicit helper protocol `oren_yield_exchange(yield_ch, resume_ch, value)` separately via
+  `contains_yield_exchange`, `yield_exchange_count`, `yield_exchange_sites`, and
+  `yield_exchange_surface`. That surface records the current `channel_resume_v0` contract plus
+  per-site consumer context.
 - New (2026-04-22): function metadata also carries a rolling `yield_lowering` plan object with an
   explicit entry state, resume states, yield-point -> resume-state mapping, and a conservative
   `locals_across_yield` list for bare-statement `yield` functions.
@@ -3374,6 +3379,10 @@ Rolling status:
   - `oren_yield_value(v)` yields, then resumes with `v`
   - no caller-supplied resume value exists yet
   - no generator-style outward yielded-value channel exists yet
+- New (2026-04-22): explicit caller-visible yield/resume channels now also exist through
+  `oren_yield_exchange(yield_ch, resume_ch, value)`. That helper is parity-verified under
+  bytecode, C, and native no-green runs. It is an explicit helper contract, not yet full source
+  coroutine/generator syntax or a scheduler-aware default native green-channel protocol.
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
   semantics beyond the current local value-stable helper path.
 
@@ -3649,6 +3658,14 @@ Notes:
     (`local_value_resume_v0`, implicit-nil + explicit-value support, no caller resume value, no
     generator channel), including `consumer_kinds` plus per-point `context` for where the resumed
     value is consumed (`var_init`, `return_value`, `call_arg`, `expr_stmt`, etc.).
+- Function entries also expose the explicit channel-based helper surface separately:
+  - `contains_yield_exchange`: `true` when the function body contains
+    `oren_yield_exchange(yield_ch, resume_ch, value)` calls.
+  - `yield_exchange_count`: count of those explicit helper sites.
+  - `yield_exchange_sites`: source sites for those helper calls as `file:line:col`.
+  - `yield_exchange_surface`: machine-readable statement of the current explicit contract
+    (`channel_resume_v0`, explicit yield/resume channel arguments, caller-visible resume values,
+    outward yielded-value channel), including `consumer_kinds` plus per-point `context`.
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`
@@ -3663,6 +3680,8 @@ Notes:
   - `contains_yield` / `yield_lowering` describe bare-statement `yield`
   - `contains_yield_value` / `yield_value_surface` describe helper-based value/result-position
     `yield`
+  - `contains_yield_exchange` / `yield_exchange_surface` describe the explicit channel-based
+    yield/resume helper
 - They do not infer from raw user-written `oren_yield()` / `oren_yield_stmt()` / `oren_yield_value()`
   calls, and outer functions do not inherit `yield`s that appear only inside nested function
   literals.
@@ -5158,7 +5177,7 @@ Source of truth / guards:
   - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_os_thread_collect_scans_parked_stack`)
   - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_wakes_netpoll_blocked_threads`)
 
-### 1.1 `oren_yield()` / `oren_yield_stmt()` / `oren_yield_value()` (rolling)
+### 1.1 `oren_yield()` / `oren_yield_stmt()` / `oren_yield_value()` / `oren_yield_exchange()` (rolling)
 
 `oren_yield()` is the low-level best-effort “yield” surface used by both:
 
@@ -5174,13 +5193,19 @@ Current behavior (native runtime, rolling):
 - `oren_yield_value(v)` is the normalized value helper:
   - yields cooperatively / via OS hint using `oren_yield()`
   - always resumes with the provided local value `v`
+- `oren_yield_exchange(yield_ch, resume_ch, v)` is the explicit caller-visible helper:
+  - sends `v` to `yield_ch`
+  - yields cooperatively / via OS hint using `oren_yield()`
+  - resumes by reading and returning the next value from `resume_ch`
 - Language sugar now uses those helpers consistently:
   - `yield` statement -> `oren_yield_stmt()`
   - `(yield)` -> `oren_yield_value(nil)`
   - `yield expr` / `(yield expr)` -> `oren_yield_value(expr)`
-- This is a backend-shared local value contract, not full generator semantics:
-  - there is still no caller-provided resume value
-  - there is still no distinct yielded-value channel visible to the caller
+- The shipped helper contracts are now:
+  - `oren_yield_value(v)`: local value-stable resume
+  - `oren_yield_exchange(yield_ch, resume_ch, v)`: explicit yielded/resumed values via channel args
+- Still missing: full source-level coroutine/generator syntax and a stronger default caller-visible
+  resume protocol on native green main-thread orchestration.
 
 - If green tasks are enabled: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - Otherwise:
@@ -5200,6 +5225,8 @@ Channels exist today, but their implementation is currently a bring-up substrate
 - Native channels are platform-dependent today (rolling):
   - **macOS/Linux:** pipe pairs `[rfd, wfd]` (`oren_new_channel()` returns a list)
   - **Windows:** in-memory channels (a GC-tracked struct; `oren_new_channel()` returns a pointer)
+- C backend channels now also exist for the basic `oren_new_channel` / `oren_chan_send` /
+  `oren_chan_recv` surface, represented as same-process `[read_fd, write_fd]` pairs.
 - AVM has proper channels as VM objects.
 - `oren_select_recv` / `oren_select` exist as **functions** (not syntax) and have a shared encoding across AVM and native.
 

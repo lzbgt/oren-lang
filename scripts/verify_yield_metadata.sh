@@ -52,6 +52,11 @@ expected_names = {
     "add1_meta",
     "value_return",
     "value_call_arg",
+    "exchange_var",
+    "exchange_return",
+    "exchange_stmt",
+    "exchange_call_arg",
+    "exchange_nested_only",
 }
 if set(by_name) != expected_names:
     raise SystemExit(f"unexpected function names: {sorted(by_name)!r}")
@@ -589,6 +594,108 @@ expected = {
             ],
         },
     },
+    "exchange_var": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+        "contains_yield_exchange": True,
+        "yield_exchange_count": 1,
+        "yield_exchange_sites": ["tests/fixtures/meta_yield_surface.oren:116:32"],
+        "yield_exchange_surface": {
+            "version": 1,
+            "surface": "channel_resume_v0",
+            "yield_value_observer": "explicit_channel_arg",
+            "resume_value_source": "explicit_channel_arg",
+            "caller_resume_values": True,
+            "generator_channel": True,
+            "yield_channel_arg_index": 0,
+            "resume_channel_arg_index": 1,
+            "value_arg_index": 2,
+            "consumer_kinds": ["var_init"],
+            "exchange_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:116:32", "context": "var_init"},
+            ],
+        },
+    },
+    "exchange_return": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+        "contains_yield_exchange": True,
+        "yield_exchange_count": 1,
+        "yield_exchange_sites": ["tests/fixtures/meta_yield_surface.oren:121:31"],
+        "yield_exchange_surface": {
+            "version": 1,
+            "surface": "channel_resume_v0",
+            "yield_value_observer": "explicit_channel_arg",
+            "resume_value_source": "explicit_channel_arg",
+            "caller_resume_values": True,
+            "generator_channel": True,
+            "yield_channel_arg_index": 0,
+            "resume_channel_arg_index": 1,
+            "value_arg_index": 2,
+            "consumer_kinds": ["return_value"],
+            "exchange_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:121:31", "context": "return_value"},
+            ],
+        },
+    },
+    "exchange_stmt": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+        "contains_yield_exchange": True,
+        "yield_exchange_count": 1,
+        "yield_exchange_sites": ["tests/fixtures/meta_yield_surface.oren:125:24"],
+        "yield_exchange_surface": {
+            "version": 1,
+            "surface": "channel_resume_v0",
+            "yield_value_observer": "explicit_channel_arg",
+            "resume_value_source": "explicit_channel_arg",
+            "caller_resume_values": True,
+            "generator_channel": True,
+            "yield_channel_arg_index": 0,
+            "resume_channel_arg_index": 1,
+            "value_arg_index": 2,
+            "consumer_kinds": ["expr_stmt"],
+            "exchange_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:125:24", "context": "expr_stmt"},
+            ],
+        },
+    },
+    "exchange_call_arg": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+        "contains_yield_exchange": True,
+        "yield_exchange_count": 1,
+        "yield_exchange_sites": ["tests/fixtures/meta_yield_surface.oren:130:41"],
+        "yield_exchange_surface": {
+            "version": 1,
+            "surface": "channel_resume_v0",
+            "yield_value_observer": "explicit_channel_arg",
+            "resume_value_source": "explicit_channel_arg",
+            "caller_resume_values": True,
+            "generator_channel": True,
+            "yield_channel_arg_index": 0,
+            "resume_channel_arg_index": 1,
+            "value_arg_index": 2,
+            "consumer_kinds": ["call_arg"],
+            "exchange_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:130:41", "context": "call_arg"},
+            ],
+        },
+    },
+    "exchange_nested_only": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+    },
 }
 
 for exp in expected.values():
@@ -596,6 +703,10 @@ for exp in expected.values():
     exp.setdefault("yield_value_count", 0)
     exp.setdefault("yield_value_sites", [])
     exp.setdefault("yield_value_surface", None)
+    exp.setdefault("contains_yield_exchange", False)
+    exp.setdefault("yield_exchange_count", 0)
+    exp.setdefault("yield_exchange_sites", [])
+    exp.setdefault("yield_exchange_surface", None)
 
 for name, exp in expected.items():
     item = by_name[name]

@@ -169,6 +169,13 @@ OrenValue oren_detach(OrenValue thread);
 OrenValue oren_is_done(OrenValue thread);
 OrenValue oren_join_all();
 
+// Channels (C backend runtime; rolling):
+// - POSIX/Windows: represented as [read_fd, write_fd]
+// - payload transport is the raw OrenValue bytes within the same process/runtime
+OrenValue oren_new_channel(void);
+OrenValue oren_chan_send(OrenValue ch, OrenValue value);
+OrenValue oren_chan_recv(OrenValue ch);
+
 OrenValue oren_func(OrenFn fn, void* env);
 // Create a closure by capturing values into an environment (capture-by-value).
 // The environment is stored as a GC-managed list; the returned function value
@@ -802,6 +809,11 @@ OrenValue oren_yield(void);
 OrenValue oren_yield_stmt(void);
 // Value helper used by expression/result-position `yield`; yields then returns the provided value.
 OrenValue oren_yield_value(OrenValue value);
+// Explicit caller-visible yield/resume protocol:
+// - sends `value` to `yield_ch`
+// - yields cooperatively / via host hint
+// - waits for and returns a resume value from `resume_ch`
+OrenValue oren_yield_exchange(OrenValue yield_ch, OrenValue resume_ch, OrenValue value);
 OrenValue oren_time_now_ns();
 OrenValue oren_time_unix_ns();
 OrenValue oren_time_mono_raw();
