@@ -1220,6 +1220,7 @@ fn test_core() {
     trace("QI: test_core yield")
     // Yield is a best-effort OS scheduling hint today (future: native greenlet scheduler).
     // It must be callable and bounded on all Tier‑1 platforms.
+    yield
     var yrc = oren_yield()
     if yrc != 0 {
         print("QI: oren_yield failed rc=" + oren_int_to_string(yrc))

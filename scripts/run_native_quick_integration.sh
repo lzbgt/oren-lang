@@ -1186,6 +1186,21 @@ if ! grep -q "'pub' is only allowed on top-level declarations" "$vp_log" 2>/dev/
 fi
 tail -n 5 "$vp_log"
 
+echo "== parser smoke (yield value not yet supported) =="
+yv_src="tests/fixtures/yield_value_fail.oren"
+yv_log="build/logs/${compiler_base}_yield_value_fail.log"
+yv_out="build/tmp/${compiler_base}_yield_value_fail.obc"
+rm -f "$yv_log" "$yv_out" 2>/dev/null || true
+
+expect_compile_failure_step "parser smoke (yield value not yet supported)" "$yv_log" \
+  "$compiler" build "$yv_src" --backend bytecode --typecheck -o "$yv_out"
+if ! grep -q "'yield' does not accept a value yet" "$yv_log" 2>/dev/null; then
+  echo "FAIL: parser smoke (yield value not yet supported) missing expected diagnostic" >&2
+  tail -n 80 "$yv_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 5 "$yv_log"
+
 echo "native quick integration follow-on OK"
 echo "native quick integration follow-on OK" >>"$log"
 emit_retry_summary

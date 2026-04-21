@@ -569,6 +569,7 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_SWITCH) { return parse_switch(p) }
     if cur_is(p, token.TOK_BREAK) { return parse_break(p) }
     if cur_is(p, token.TOK_CONTINUE) { return parse_continue(p) }
+    if cur_is(p, token.TOK_YIELD) { return parse_yield(p) }
     if cur_is(p, token.TOK_IMPORT) { return parse_import(p) }
     if cur_is(p, token.TOK_STRUCT) { return parse_type_decl(p) }
     if cur_is(p, token.TOK_CLASS) { return parse_type_decl(p) }

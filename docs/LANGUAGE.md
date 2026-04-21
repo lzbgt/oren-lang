@@ -1922,14 +1922,14 @@ When this spec says “Implemented/Rolling”, the expected evidence is one of:
 ### Keywords
 Implemented today:
 
-`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `assert`, `match`, `as`, `pub`
+`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `yield`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `assert`, `match`, `as`, `pub`
 
 Planned (not implemented yet):
 
-`yield`, `defer`
+`defer`
 
-Rolling note: “planned keywords” are *design placeholders* and are not guaranteed to be reserved today.
-Until a stabilization milestone, avoid using them as identifiers if you want forward compatibility.
+Rolling note: `yield` is now reserved as a statement keyword. `defer` remains a design
+placeholder and is not guaranteed to be reserved today.
 
 Rolling note: `match` is a **contextual** keyword to preserve compatibility with code that uses
 `match` as an identifier (variable/function name). The parser treats `match` as a statement only
@@ -3305,7 +3305,9 @@ Native backend note (rolling):
 
 ## Planned (Essential Modern Language Features)
 
-This section lists **missing but essential** features for a modern, AI-first language. These are proposals and must be implemented across backends (C/native/bytecode) before being treated as stable.
+This section lists **missing but essential** features for a modern, AI-first language. These are
+proposals and must be implemented across backends (C/native/bytecode) before being treated as
+stable.
 
 ### 1) `yield` and stackless coroutines (async building block)
 
@@ -3314,9 +3316,17 @@ Motivation:
 - enables lightweight tasks and structured concurrency without requiring OS threads for every unit of work
 - makes agent pipelines (fan-out/fan-in, streaming) practical
 
-Design direction:
+Rolling status:
 
-- implement `yield` via compiler lowering to a state machine (“stackless coroutines”) first
+- Implemented (2026-04-22): bare statement `yield` now parses on the shared front-end and lowers
+  directly to `oren_yield()`. This is statement sugar only; it does **not** create resumable
+  coroutine frames or carry yielded values.
+- Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
+  (“stackless coroutines”).
+
+Design direction for the remaining backlog:
+
+- extend `yield` from statement sugar into compiler lowering to a resumable state machine first
 - later, consider `async/await` syntax as sugar on top of the same lowering
 
 ### 2) Built-in verification: `assert` and `test`
@@ -5073,6 +5083,10 @@ Source of truth / guards:
 - non-green paths (as a best-effort OS yield hint).
 
 Current behavior (native runtime, rolling):
+
+- Language sugar: bare statement `yield` lowers directly to `oren_yield()`.
+- `yield` is statement-only today. `yield <value>` is rejected until resumable coroutine lowering
+  exists.
 
 - If green tasks are enabled: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - Otherwise:

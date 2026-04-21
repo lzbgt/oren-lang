@@ -4145,7 +4145,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: list<int> fixtures + OBC perf parity.
 
 9) **W4 feature set completeness (essential modern features)**
-   - Remaining cross-backend language backlog: `yield`/stackless coroutines.
+   - Remaining cross-backend language backlog: full `yield`/stackless coroutine lowering.
+     Bare statement `yield` is now shipped as shared-front-end sugar over `oren_yield()`, but
+     resumable frames and `yield <value>` are still intentionally unsupported.
    - Implemented (rolling): the structured error model is the shipped value-or-error convention
      (`oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, `std:result`); remaining work is
      stdlib migration breadth rather than core language/runtime availability.
@@ -4160,6 +4162,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `pub` imports, private imported members/types, legacy-open modules, and nested invalid `pub`.
    - New (2026-04-22): the UI color/raster checked path now also runs on the structured error
      surface, with coverage in the Tier-1 native result smoke plus AVM UI tests.
+   - New (2026-04-22): rolling `yield` statement sugar is now guarded in native quick + AVM,
+     with a compile-failure fixture for unsupported `yield <value>` until stackless coroutine
+     lowering exists.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

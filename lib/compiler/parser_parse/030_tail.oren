@@ -171,6 +171,29 @@ fn parse_continue(p) {
     return ast.new_continue(tok)
 }
 
+fn parse_yield(p) {
+    var tok = p["cur"]
+    var cur_line = -1
+    if tok != nil && tok["line"] != nil { cur_line = tok["line"] }
+    var peek = p["peek"]
+    if peek != nil {
+        var peek_ty = peek["type"]
+        var peek_line = -2
+        if peek["line"] != nil { peek_line = peek["line"] }
+        if cur_line >= 0 && peek_line == cur_line {
+            if peek_ty != token.TOK_SEMICOLON && peek_ty != token.TOK_RBRACE && peek_ty != token.TOK_EOF {
+                parser_add_error(p, "'yield' does not accept a value yet; use plain 'yield' or explicit 'oren_yield()'")
+                return nil
+            }
+        }
+    }
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield")
+    var ident = ast.new_identifier(ident_tok)
+    var call = ast.new_call(ident_tok, ident, [])
+    return ast.new_expr_stmt(tok, call)
+}
+
 fn parse_for_init(p) {
     if cur_is(p, token.TOK_LET) { return parse_var(p) }
     if cur_is(p, token.TOK_IDENT) {

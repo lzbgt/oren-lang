@@ -258,6 +258,7 @@ endif
 		tests/avm/test_ui_patch_v0.oren \
 		tests/avm/test_ui_render_v0.oren \
 		tests/avm/test_ui_raster_v0.oren \
+		tests/avm/test_yield_stmt_v0.oren \
 		tests/avm/test_ui_ppm_v0.oren \
 		tests/avm/test_ui_cmds_validate_v0.oren
 
