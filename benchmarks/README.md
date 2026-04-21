@@ -156,6 +156,29 @@ shipped baseline over the older scalar-only toggles on today’s tree: disabling
 decision boundary: the next arm64 `dot_product` move should be a new vector/slot64-quality path,
 not another cursor/scalar promotion from the older branch family.
 
+And the exact canonical whole-list helper shortcut is now closed on the generic benchmark too. Use:
+
+```bash
+make perf-probe-arm64-fast-dot-whole-list-helper-decision
+```
+
+Latest artifact,
+`build/logs/perf-probe-arm64-fast-dot-whole-list-helper-decision-20260422_004934_99469.log`,
+shows `OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1` is materially worse than the shipped
+generic baseline on the current tree:
+
+- read-split `dot_product` `long_per_rep`: baseline `~0.002664s`, helper `~0.006172s`
+  (`+131.68%`, `3.5494x C` -> `8.0141x C`)
+- read-split repeated-work delta: `+270.80%`
+- order-balanced perf gate native median: baseline `~0.015886s`, helper `~0.019043s`
+  (`+20.08%`, `wins=0/4`)
+- order-balanced native/C ratio median: baseline `~2.9800x`, helper `~3.5403x`
+  (`+19.38%`, `wins=0/4`)
+
+So the current generic `dot_product` blocker is no longer “maybe the whole-list helper should ship.”
+That branch is closed on today’s shipped surface; the remaining credible W5 direction is a new
+vector/slot64-quality path.
+
 To measure how much of that remaining gap comes from the current `list<int>` 64-bit slot ABI itself,
 use:
 

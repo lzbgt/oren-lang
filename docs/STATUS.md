@@ -196,14 +196,29 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      NEON vector body and 6 for the de-vectorized scalar `smaddl` loop on both sources. Reweight:
      scalar loop debt is still material, but the remaining large `dot_product` gap is compounded by
      the missing vector/slot64 path, not by generic-list specialization.
-   - Scalar-core matrix refresh (2026-04-22): the current generic `dot_product` acceptance matrix
-     (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260422_002951_91189.log`) still
-     rejects the older scalar-only candidates on the shipped surface. Against baseline, disabling
-     single-pair cursor regs regresses steady/gate native medians `+3.76%` / `+4.67%`,
-     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` regresses `+0.50%` / `+2.97%`, and the
-     combined cursor-disabled + scalar row regresses `+2.90%` / `+2.96%`. That closes the old
-     scalar-toggle branch again on the current tree: the remaining arm64 hot-loop work is a new
-     vector/slot64-quality path, not another cursor/scalar promotion.
+	   - Scalar-core matrix refresh (2026-04-22): the current generic `dot_product` acceptance matrix
+	     (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260422_002951_91189.log`) still
+	     rejects the older scalar-only candidates on the shipped surface. Against baseline, disabling
+	     single-pair cursor regs regresses steady/gate native medians `+3.76%` / `+4.67%`,
+	     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` regresses `+0.50%` / `+2.97%`, and the
+	     combined cursor-disabled + scalar row regresses `+2.90%` / `+2.96%`. That closes the old
+	     scalar-toggle branch again on the current tree: the remaining arm64 hot-loop work is a new
+	     vector/slot64-quality path, not another cursor/scalar promotion.
+	   - Generic whole-list helper decision (2026-04-22): `make perf-probe-arm64-fast-dot-whole-list-helper-decision`
+	     now measures the exact canonical `dot_product` helper shortcut on the shared read-split and
+	     order-balanced gate surfaces. Latest artifact
+	     (`build/logs/perf-probe-arm64-fast-dot-whole-list-helper-decision-20260422_004934_99469.log`)
+	     rejects the branch decisively:
+	     - read-split `long_per_rep`: baseline `0.002664s` vs helper `0.006172s` (`+131.68%`,
+	       `3.5494× C` vs `8.0141× C`)
+	     - read-split repeated-work delta: `+270.80%`
+	     - order-balanced native median: baseline `0.015886s` vs helper `0.019043s`
+	       (`+20.08%`, `wins=0/4`)
+	     - order-balanced native/C ratio: baseline `2.9800×` vs helper `3.5403×`
+	       (`+19.38%`, `wins=0/4`)
+	     Result: `OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1` remains opt-in only on the
+	     current generic benchmark tree. The helper branch is closed again; the next credible move is a
+	     new vector/slot64-quality arm64 dot path.
 	   - Slot-ABI ceiling probe (2026-04-05, refreshed 2026-04-11): the new `make perf-probe-list-int-slot-abi-ceiling`
 	     measures how much vector headroom the current `list<int>` 64-bit slot ABI still has on the
 	     host compiler. Latest artifact

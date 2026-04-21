@@ -1321,6 +1321,9 @@ perf-probe-arm64-fast-dot-scalar-core-gate-stability-list-int: oren_stage2
 perf-probe-arm64-fast-dot-unroll2-scalar-core-decision-list-int: oren_stage2
 	@./scripts/run_perf_probe_arm64_fast_dot_unroll2_scalar_core_decision_list_int.sh
 
+perf-probe-arm64-fast-dot-whole-list-helper-decision: oren_stage2
+	@./scripts/run_perf_probe_arm64_fast_dot_whole_list_helper_decision.sh
+
 perf-probe-arm64-fast-dot-scalar-post-decision-list-int: oren_stage2
 	@./scripts/run_perf_probe_arm64_fast_dot_scalar_post_decision_list_int.sh
 

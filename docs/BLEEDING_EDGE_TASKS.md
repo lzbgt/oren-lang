@@ -1368,6 +1368,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     canonical `dot_product`. Scalar loop debt is still material, but the current tree is again
 			     saying “baseline beats the older scalar toggles,” so the remaining large gap is dominated by
 			     the missing vector/slot64-quality path relative to the host C baseline.
+			   - Generic whole-list-helper decision (2026-04-22):
+			     `make perf-probe-arm64-fast-dot-whole-list-helper-decision`
+			     (`build/logs/perf-probe-arm64-fast-dot-whole-list-helper-decision-20260422_004934_99469.log`)
+			     closes the remaining “maybe just call the helper” branch on the actual canonical generic
+			     `dot_product` surface. Helper-enabled loses everywhere:
+			     - read-split `long_per_rep`: `0.006172s` vs baseline `0.002664s` (`+131.68%`)
+			     - read-split repeated-work delta: `+270.80%`
+			     - order-balanced native median: `+20.08%` (`wins=0/4`)
+			     - order-balanced native/C ratio: `+19.38%` (`wins=0/4`)
+			     Reweight again: do not spend more W5 time on whole-list helper promotion for generic
+			     `dot_product`; the remaining high-leverage path is a new arm64 vector/slot64-quality kernel.
 	   - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
 	     list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
 	     `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the

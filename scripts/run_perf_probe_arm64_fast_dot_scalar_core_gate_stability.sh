@@ -82,6 +82,9 @@ case_env_desc() {
         prefix_pair_loop_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP=1"
             ;;
+        whole_list_helper_enabled)
+            printf '%s\n' "OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1"
+            ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2
             return 1
@@ -149,6 +152,9 @@ case_build_env() {
             ;;
         prefix_pair_loop_enabled)
             printf '%s\n' "OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP=1"
+            ;;
+        whole_list_helper_enabled)
+            printf '%s\n' "OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER=1"
             ;;
         *)
             printf 'unknown case: %s\n' "$1" >&2
