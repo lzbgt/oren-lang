@@ -155,6 +155,8 @@ run_with_timeout() {
 
     if [[ -n "$python3_bin" ]]; then
       "$python3_bin" - "$secs" "$timeout_kill_secs" "$@" <<'PY'
+import os
+import signal
 import subprocess
 import sys
 
@@ -167,13 +169,13 @@ def norm_rc(rc):
         return 128 + (-rc)
     return rc
 
-p = subprocess.Popen(cmd)
+p = subprocess.Popen(cmd, start_new_session=True)
 try:
     rc = p.wait(timeout=secs)
     raise SystemExit(norm_rc(rc))
 except subprocess.TimeoutExpired:
     try:
-        p.terminate()
+        os.killpg(p.pid, signal.SIGTERM)
     except ProcessLookupError:
         raise SystemExit(143)
     try:
@@ -181,7 +183,7 @@ except subprocess.TimeoutExpired:
         raise SystemExit(norm_rc(rc))
     except subprocess.TimeoutExpired:
         try:
-            p.kill()
+            os.killpg(p.pid, signal.SIGKILL)
         except ProcessLookupError:
             raise SystemExit(143)
         rc = p.wait()

@@ -28,11 +28,38 @@ mkdir -p build/logs
 current_log=""
 current_inner_src=""
 current_err_log=""
+active_child_pid=""
+kill_descendants_recursive() {
+  local pid="${1:-}"
+  local sig="${2:-TERM}"
+  if [[ -z "$pid" || "$pid" == "0" ]]; then
+    return 0
+  fi
+  local kids=""
+  kids="$(pgrep -P "$pid" 2>/dev/null || true)"
+  if [[ -n "$kids" ]]; then
+    while IFS= read -r kid; do
+      if [[ -n "$kid" ]]; then
+        kill_descendants_recursive "$kid" "$sig"
+      fi
+    done <<< "$kids"
+  fi
+  kill -s "$sig" "$pid" 2>/dev/null || true
+}
+kill_active_child_tree() {
+  local sig="${1:-TERM}"
+  if [[ -n "${active_child_pid}" && "${active_child_pid}" != "0" ]]; then
+    kill_descendants_recursive "$active_child_pid" "$sig"
+  fi
+}
 trap_cleanup() {
   local sig="$1"
   if [[ -n "${current_log}" ]]; then
     echo "INTERRUPTED: signal ${sig}" >>"$current_log"
   fi
+  kill_active_child_tree TERM
+  sleep 1
+  kill_active_child_tree KILL
   if [[ -n "${current_inner_src}" && -n "${current_err_log}" && -f "${current_inner_src}" ]]; then
     cp -f "${current_inner_src}" "${current_err_log}" 2>/dev/null || true
   fi
@@ -62,11 +89,14 @@ while [[ "$run" -le "$runs" ]]; do
   } >>"$log"
   if [[ "${#env_args[@]}" -gt 0 ]]; then
     echo "env: ${env_args[*]}" >>"$log"
-    env "${env_args[@]}" ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+    env "${env_args[@]}" ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1 &
   else
-    ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1
+    ./scripts/run_native_quick_integration.sh "$compiler" >>"$log" 2>&1 &
   fi
+  active_child_pid=$!
+  wait "$active_child_pid"
   rc=$?
+  active_child_pid=""
   set -e
   if [[ -f "build/logs/${compiler_base}_native_quick_integration.log" ]]; then
     cp -f "build/logs/${compiler_base}_native_quick_integration.log" "$inner_log"

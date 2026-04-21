@@ -3387,6 +3387,25 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 		    direct recipe is now the shipped `verify-green-world-lock-guarded` surface and is bundled
 		    into `verify-runtime-robustness` via the same traced env set, so re-open this thread only if
 		    the broader stage2 quick-integration path reproduces again.
+		  - Fix + verify (2026-04-21): the W5 runtime/triage wrappers are now interrupt-safe. The
+		    Darwin timeout path in `scripts/run_native_quick_integration.sh` starts native builds in a
+		    fresh process group and kills the full group on timeout, while
+		    `scripts/triage_native_quick_flake.sh`,
+		    `scripts/triage_native_quick_stage2_flake.sh`,
+		    `scripts/triage_stage2_quick_until_world_lock.sh`, and
+		    `scripts/verify_runtime_robustness_w5.sh` now track their active child PID, kill
+		    descendant trees on SIGTERM/SIGINT, and preserve the in-flight inner logs before exit.
+		    Direct proof: the interrupted base-only bundle in
+		    `build/logs/runtime_robustness_interrupt_cleanup_20260421_202907.log` left no lingering
+		    `verify_runtime_robustness_w5`, `triage_native_quick_base_flake`,
+		    `run_native_quick_integration.sh`, or `./oren_stage2 build ...` children after termination.
+		  - Correction + verify (2026-04-21): the earlier “pre-world-lock build hang” read was a bad
+		    diagnosis caused by interrupting the bundled W5 run mid-flight. A clean rerun now passes
+		    end-to-end (`build/logs/make_verify_runtime_robustness_20260421_cleanupfix_20260421_202922.log`,
+		    `build/logs/runtime_robustness_w5_20260421_202923.log`). That current evidence shows the
+		    guarded pre-world-lock path, the direct world-lock/entry-args leg, the stage2 native quick
+		    path, the C backend flakes, alloc-churn tracking, and the green join-waiter split guard all
+		    completing on the same tree.
 		  - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
 	    - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
     - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).

@@ -47,15 +47,17 @@ run_with_timeout() {
     set +e
     "$@" &
     local pid=$!
+    active_child_pid="$pid"
     (
       sleep "$secs"
-      kill -TERM "$pid" 2>/dev/null
+      kill_descendants_recursive "$pid" TERM
       sleep "$timeout_kill_secs"
-      kill -KILL "$pid" 2>/dev/null
+      kill_descendants_recursive "$pid" KILL
     ) &
     local watcher=$!
     wait "$pid"
     local rc=$?
+    active_child_pid=""
     kill "$watcher" 2>/dev/null
     wait "$watcher" 2>/dev/null
     set -e
@@ -149,11 +151,38 @@ mkdir -p build/tmp build/logs
 current_log=""
 current_inner_src=""
 current_err_log=""
+active_child_pid=""
+kill_descendants_recursive() {
+  local pid="${1:-}"
+  local sig="${2:-TERM}"
+  if [[ -z "$pid" || "$pid" == "0" ]]; then
+    return 0
+  fi
+  local kids=""
+  kids="$(pgrep -P "$pid" 2>/dev/null || true)"
+  if [[ -n "$kids" ]]; then
+    while IFS= read -r kid; do
+      if [[ -n "$kid" ]]; then
+        kill_descendants_recursive "$kid" "$sig"
+      fi
+    done <<< "$kids"
+  fi
+  kill -s "$sig" "$pid" 2>/dev/null || true
+}
+kill_active_child_tree() {
+  local sig="${1:-TERM}"
+  if [[ -n "${active_child_pid}" && "${active_child_pid}" != "0" ]]; then
+    kill_descendants_recursive "$active_child_pid" "$sig"
+  fi
+}
 trap_cleanup() {
   local sig="$1"
   if [[ -n "${current_log}" ]]; then
     echo "INTERRUPTED: signal ${sig}" >>"$current_log"
   fi
+  kill_active_child_tree TERM
+  sleep 1
+  kill_active_child_tree KILL
   if [[ -n "${current_inner_src}" && -n "${current_err_log}" && -f "${current_inner_src}" ]]; then
     cp -f "${current_inner_src}" "${current_err_log}" 2>/dev/null || true
   fi

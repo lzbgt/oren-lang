@@ -16,6 +16,33 @@ if [[ ! -x "$compiler" ]]; then
   exit 2
 fi
 
+active_child_pid=""
+kill_descendants_recursive() {
+  local pid="${1:-}"
+  local sig="${2:-TERM}"
+  if [[ -z "$pid" || "$pid" == "0" ]]; then
+    return 0
+  fi
+  local kids=""
+  kids="$(pgrep -P "$pid" 2>/dev/null || true)"
+  if [[ -n "$kids" ]]; then
+    while IFS= read -r kid; do
+      if [[ -n "$kid" ]]; then
+        kill_descendants_recursive "$kid" "$sig"
+      fi
+    done <<< "$kids"
+  fi
+  kill -s "$sig" "$pid" 2>/dev/null || true
+}
+kill_active_child_tree() {
+  local sig="${1:-TERM}"
+  if [[ -n "${active_child_pid}" && "${active_child_pid}" != "0" ]]; then
+    kill_descendants_recursive "$active_child_pid" "$sig"
+  fi
+}
+trap 'kill_active_child_tree TERM; sleep 1; kill_active_child_tree KILL; exit 143' TERM
+trap 'kill_active_child_tree TERM; sleep 1; kill_active_child_tree KILL; exit 130' INT
+
 run_with_timeout() {
   local secs="$1"
   shift
@@ -26,17 +53,38 @@ run_with_timeout() {
   set +e
   "$@" &
   local pid=$!
+  active_child_pid="$pid"
   (
     sleep "$secs"
-    kill -TERM "$pid" 2>/dev/null || true
+    kill_descendants_recursive "$pid" TERM
     sleep 2
-    kill -KILL "$pid" 2>/dev/null || true
+    kill_descendants_recursive "$pid" KILL
   ) &
   local killer=$!
   wait "$pid"
   local rc=$?
+  active_child_pid=""
   kill "$killer" 2>/dev/null || true
   wait "$killer" 2>/dev/null || true
+  if [[ "$had_errexit" -eq 1 ]]; then
+    set -e
+  fi
+  return "$rc"
+}
+
+run_logged_child() {
+  local step_log="$1"
+  shift
+  local had_errexit=0
+  case "$-" in
+    *e*) had_errexit=1 ;;
+  esac
+  set +e
+  "$@" >>"$step_log" 2>&1 &
+  active_child_pid=$!
+  wait "$active_child_pid"
+  local rc=$?
+  active_child_pid=""
   if [[ "$had_errexit" -eq 1 ]]; then
     set -e
   fi
@@ -138,53 +186,53 @@ if [[ "$base_runs" =~ ^[0-9]+$ ]] && [[ "$base_runs" -gt 0 ]]; then
     echo "OK: stage1/base runtime seed prewarm complete (log=$base_prewarm_log)" | tee -a "$log"
   fi
   echo "== stage1/base quick integration (runs=$base_runs) ==" | tee -a "$log"
-  OREN_NATIVE_BUILD_TIMEOUT_SECS="$base_build_timeout_secs" \
+  run_logged_child "$log" env \
+    OREN_NATIVE_BUILD_TIMEOUT_SECS="$base_build_timeout_secs" \
     ./scripts/triage_native_quick_base_flake.sh "$base_runs" "$compiler" \
-    "${trace_env_arr[@]}" "$@" \
-    >>"$log" 2>&1
+    "${trace_env_arr[@]}" "$@"
 fi
 
 if [[ "$local_ptr_runs" =~ ^[0-9]+$ ]] && [[ "$local_ptr_runs" -gt 0 ]]; then
   echo "== stage1/green-cache local-ptr mixed both-mode direct focus (runs=$local_ptr_runs) ==" | tee -a "$log"
-  ./scripts/triage_native_quick_green_local_ptr_both_direct_flake.sh "$local_ptr_runs" "$compiler" \
-    "${trace_env_arr[@]}" "$@" \
-    >>"$log" 2>&1
+  run_logged_child "$log" \
+    ./scripts/triage_native_quick_green_local_ptr_both_direct_flake.sh "$local_ptr_runs" "$compiler" \
+    "${trace_env_arr[@]}" "$@"
 fi
 
 if [[ "$preworld_runs" =~ ^[0-9]+$ ]] && [[ "$preworld_runs" -gt 0 ]]; then
   echo "== stage1/pre-world-lock guarded green-cache quick integration (runs=$preworld_runs) ==" | tee -a "$log"
-  OREN_QI_STOP_BEFORE_WORLD_LOCK=1 \
-  OREN_NATIVE_BUILD_TIMEOUT_SECS="$preworld_build_timeout_secs" \
-  OREN_NATIVE_RUN_TIMEOUT_SECS="$preworld_run_timeout_secs" \
-  OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS="$preworld_green_cache_run_timeout_secs" \
+  run_logged_child "$log" env \
+    OREN_QI_STOP_BEFORE_WORLD_LOCK=1 \
+    OREN_NATIVE_BUILD_TIMEOUT_SECS="$preworld_build_timeout_secs" \
+    OREN_NATIVE_RUN_TIMEOUT_SECS="$preworld_run_timeout_secs" \
+    OREN_NATIVE_GREEN_CACHE_RUN_TIMEOUT_SECS="$preworld_green_cache_run_timeout_secs" \
     ./scripts/triage_stage2_quick_until_world_lock.sh "$preworld_runs" "$compiler" \
-      OREN_TRACE_GREEN_RUNQ_GUARD=1 \
-      OREN_TRACE_GREEN_ARGS_STAMP=1 \
-      "${trace_env_arr[@]}" "$@" \
-      >>"$log" 2>&1
+    OREN_TRACE_GREEN_RUNQ_GUARD=1 \
+    OREN_TRACE_GREEN_ARGS_STAMP=1 \
+    "${trace_env_arr[@]}" "$@"
 fi
 
 if [[ "$world_lock_runs" =~ ^[0-9]+$ ]] && [[ "$world_lock_runs" -gt 0 ]]; then
   echo "== direct world-lock smoke with entry/list tracing (runs=$world_lock_runs) ==" | tee -a "$log"
-  OREN_WORLD_LOCK_SMOKE_TIMEOUT_SECS="$world_lock_timeout_secs" \
+  run_logged_child "$log" env \
+    OREN_WORLD_LOCK_SMOKE_TIMEOUT_SECS="$world_lock_timeout_secs" \
     ./scripts/triage_green_two_workers_world_lock_smoke.sh "$world_lock_runs" "$compiler" \
-      OREN_GREEN_POLL_CACHE=1 \
-      OREN_TRACE_GREEN_RUNQ_GUARD=1 \
-      OREN_TRACE_GREEN_ARGS_STAMP=1 \
-      OREN_TRACE_GREEN_ENTRY_ARGS=1 \
-      OREN_QI_TRACE_GREEN_LIST=1 \
-      OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1 \
-      OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50 \
-      "${trace_env_arr[@]}" "$@" \
-      >>"$log" 2>&1
+    OREN_GREEN_POLL_CACHE=1 \
+    OREN_TRACE_GREEN_RUNQ_GUARD=1 \
+    OREN_TRACE_GREEN_ARGS_STAMP=1 \
+    OREN_TRACE_GREEN_ENTRY_ARGS=1 \
+    OREN_QI_TRACE_GREEN_LIST=1 \
+    OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1 \
+    OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50 \
+    "${trace_env_arr[@]}" "$@"
 fi
 
 if [[ "$stage2_runs" =~ ^[0-9]+$ ]] && [[ "$stage2_runs" -gt 0 ]]; then
   echo "== stage2 native quick integration (runs=$stage2_runs) ==" | tee -a "$log"
-  OREN_NATIVE_BUILD_TIMEOUT_SECS="$stage2_build_timeout_secs" \
+  run_logged_child "$log" env \
+    OREN_NATIVE_BUILD_TIMEOUT_SECS="$stage2_build_timeout_secs" \
     ./scripts/triage_native_quick_stage2_flake_debug.sh "$stage2_runs" "$compiler" \
-      "${trace_env_arr[@]}" "$@" \
-      >>"$log" 2>&1
+    "${trace_env_arr[@]}" "$@"
 fi
 
 if [[ "$c_runs" =~ ^[0-9]+$ ]] && [[ "$c_runs" -gt 0 ]]; then
@@ -193,17 +241,17 @@ if [[ "$c_runs" =~ ^[0-9]+$ ]] && [[ "$c_runs" -gt 0 ]]; then
       continue
     fi
     echo "== C backend build flake (runs=$c_runs, src=$fixture) ==" | tee -a "$log"
-    OREN_TRACE_ARITH_SRC="$fixture" \
+    run_logged_child "$log" env \
+      OREN_TRACE_ARITH_SRC="$fixture" \
       ./scripts/triage_arith_div0_c_build_flake.sh "$c_runs" "$compiler" \
-        "${trace_env_arr[@]}" "$@" \
-        >>"$log" 2>&1
+      "${trace_env_arr[@]}" "$@"
   done
 fi
 
 echo "== alloc_churn tracked-header reuse smoke ==" | tee -a "$log"
-./scripts/verify_alloc_churn_tracking_smoke.sh "$compiler" >>"$log" 2>&1
+run_logged_child "$log" ./scripts/verify_alloc_churn_tracking_smoke.sh "$compiler"
 
 echo "== green join-waiter split guard ==" | tee -a "$log"
-./scripts/verify_native_quick_green_join_waiters_modes.sh 2 "$compiler" >>"$log" 2>&1
+run_logged_child "$log" ./scripts/verify_native_quick_green_join_waiters_modes.sh 2 "$compiler"
 
 echo "OK: runtime robustness W5 checks passed (log=$log)" >&2

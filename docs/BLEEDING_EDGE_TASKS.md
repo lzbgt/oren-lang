@@ -256,18 +256,32 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     proves both the green-only and OS-only stress modes under stage2; the bundled W5 runtime gate
 	     now runs it by default (`build/logs/verify_native_quick_green_join_waiters_modes_20260421_194941.log`,
 	     `build/logs/runtime_robustness_w5_20260421_193511.log`).
-	   - Refresh (2026-04-21): the direct world-lock/entry-args slice is now current evidence, not
-	     only an old March trace branch. `scripts/triage_green_two_workers_world_lock_smoke.sh`
-	     passed 3/3 with `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_ENTRY_ARGS=1`,
-	     `OREN_QI_TRACE_GREEN_LIST=1`, `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1`, and
-	     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50`
-	     (`build/logs/triage_green_world_lock_entry_args_current_20260421_200041.log`), and the
-	     inner log shows sane `green_entry_args` metadata all the way through `gc collect done`
-	     (`build/logs/oren_stage2_green_two_workers_world_lock_smoke.log`). The repo now ships that
-	     exact traced recipe in `verify-green-world-lock-guarded`, and `verify-runtime-robustness`
-	     includes a one-run direct world-lock leg with the same env set.
-	   - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
-	     reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
+		   - Refresh (2026-04-21): the direct world-lock/entry-args slice is now current evidence, not
+		     only an old March trace branch. `scripts/triage_green_two_workers_world_lock_smoke.sh`
+		     passed 3/3 with `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_ENTRY_ARGS=1`,
+		     `OREN_QI_TRACE_GREEN_LIST=1`, `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1`, and
+		     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50`
+		     (`build/logs/triage_green_world_lock_entry_args_current_20260421_200041.log`), and the
+		     inner log shows sane `green_entry_args` metadata all the way through `gc collect done`
+		     (`build/logs/oren_stage2_green_two_workers_world_lock_smoke.log`). The repo now ships that
+		     exact traced recipe in `verify-green-world-lock-guarded`, and `verify-runtime-robustness`
+		     includes a one-run direct world-lock leg with the same env set.
+		   - Fix + verify (2026-04-21): the runtime-robustness / flake wrappers no longer leak child
+		     processes when interrupted. `scripts/run_native_quick_integration.sh` now starts Darwin
+		     timeout builds in a fresh process group and kills the whole group on timeout, while the
+		     surrounding triage wrappers track the active child PID and recursively terminate descendant
+		     trees on SIGTERM/SIGINT before copying inner logs. The interrupted base-only proof run in
+		     `build/logs/runtime_robustness_interrupt_cleanup_20260421_202907.log` left no orphan
+		     `run_native_quick_integration.sh` or `./oren_stage2 build ...` processes behind.
+		   - Correction + verify (2026-04-21): the old “pre-world-lock stage2 hang” interpretation was
+		     stale. A clean current rerun now carries the same tree through the guarded pre-world-lock
+		     gate, the direct world-lock gate, stage2 native quick integration, the three C-backend
+		     flake fixtures, alloc-churn tracking, and the split green/os join-waiter guard
+		     (`build/logs/make_verify_runtime_robustness_20260421_cleanupfix_20260421_202922.log`,
+		     `build/logs/runtime_robustness_w5_20260421_202923.log`,
+		     `build/logs/verify_native_quick_green_join_waiters_modes_20260421_204329.log`).
+		   - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
+		     reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
    - Fix: green spawn/entry now re-track args_list headers on alloc-index misses when magic+len/cap look sane (2026-03-04).
    - Repro (2026-03-04): `make verify-backend-parity` failed while building
      `tests/native/fixtures/arith_div0.oren` (C backend) with
@@ -3399,7 +3413,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     active blocker. Keep the focused flake harnesses because they remain the shortest path back to
     this failure mode if future scheduler/GC changes regress it.
   - New: quick flake triage scripts capture the in-flight inner log on SIGTERM/SIGINT
-    (writes `*_interrupt.log` alongside the per-run log) for hang forensics.
+    (writes `*_interrupt.log` alongside the per-run log) for hang forensics, and as of
+    `2026-04-21` they also kill the active descendant tree first so interrupted runs do not leave
+    orphan `run_native_quick_integration.sh` / compiler processes behind.
   - New: `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` prints progress markers inside
     `test_green_two_workers_world_lock_smoke` and dumps `oren_green_last_ops_dump()`
     at key milestones (and every 10 joins) to localize hangs.
@@ -3426,7 +3442,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
     `build/logs/triage_stage2_quick_until_world_lock_trace10_20260304_013405.log`).
   - New: quick-until-world-lock harness captures the in-flight inner log on
-    SIGTERM/SIGINT (writes `native_quick_until_world_lock_*_interrupt.log`).
+    SIGTERM/SIGINT (writes `native_quick_until_world_lock_*_interrupt.log`), and on the current
+    tree it also kills the active descendant process tree before exit.
   - Trace: stage2 full quick-integration harness (5 runs) with
     `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1` +
     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50` completed cleanly (summary log:
