@@ -1,9 +1,3 @@
-fn blocked_multi_yield() {
-    yield
-    yield
-    return 0
-}
-
 fn blocked_nested_literal() {
     var f = || 7
     yield
@@ -18,6 +12,6 @@ fn blocked_non_top_level() {
 }
 
 fn main() {
-    var keep = [blocked_multi_yield, blocked_nested_literal, blocked_non_top_level]
-    return oren_list_len(keep) - 3
+    var keep = [blocked_nested_literal, blocked_non_top_level]
+    return oren_list_len(keep) - 2
 }

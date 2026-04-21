@@ -63,3 +63,11 @@ fn ready_prefix_suffix() {
     no_yield()
     return 9
 }
+
+fn multi_top_level_ready(seed) {
+    var acc = seed
+    yield
+    acc = acc + 1
+    yield
+    return acc + 1
+}

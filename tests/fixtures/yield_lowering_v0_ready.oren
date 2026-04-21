@@ -19,6 +19,14 @@ fn ready_live_local(seed) {
     return acc
 }
 
+fn ready_multi_yield(seed) {
+    var acc = seed
+    yield
+    acc = acc + 1
+    yield
+    return acc + 1
+}
+
 fn main() {
-    return ready_worker() + ready_live_local(40) - 42
+    return ready_worker() + ready_live_local(40) + ready_multi_yield(10) - 54
 }

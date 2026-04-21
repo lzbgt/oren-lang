@@ -4176,10 +4176,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      explicit entry state plus one resume state per yield site, and now records conservative
      `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for
      the future coroutine-lowering pass.
-   - New (2026-04-22): that plan now also emits `lowering_v0`, an explicit gate for the first
-     executable subset. Only a single top-level bare `yield` with no live locals across the yield
-     and no nested function literals is marked `ready`; other yielding functions now report exact
-     blocker strings in metadata.
+	   - New (2026-04-22): that plan now also emits `lowering_v0`, an explicit gate for the first
+	     executable subset. Top-level bare-`yield` dispatch is now marked `ready`, including multiple
+	     top-level yield sites and live top-level locals/params; other yielding functions now report
+	     exact blocker strings in metadata.
    - New (2026-04-22): ready functions now also emit `yield_lowering.prepared_v0`, a concrete
      compiler-generated split-dispatch lowering shape with entry/resume segments and a synthetic
      state local. That closes the gap between “metadata knows a function is ready” and “the
@@ -4196,10 +4196,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `oren_yield_stmt()`. The verifier now proves real backend consumption with a positive
      `OREN_TRACE_BYTECODE_YIELD_LOWERING` hit for `ready_worker` and no blocked-function lowering
      trace leaks.
-   - New (2026-04-22): `lowering_v0.ready` now also covers top-level locals/parameters that remain
-     live across a single top-level bare `yield`. That is now an executed AVM path, not just an
-     analysis claim: the verifier and AVM smoke both run ready functions whose locals survive the
-     suspension/resume boundary.
+	   - New (2026-04-22): `lowering_v0.ready` now also covers multiple top-level yield sites plus
+	     top-level locals/parameters that remain live across them. That is now an executed AVM path,
+	     not just an analysis claim: the verifier and AVM smoke both run ready functions whose locals
+	     survive multiple suspension/resume boundaries.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

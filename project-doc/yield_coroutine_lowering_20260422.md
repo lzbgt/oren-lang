@@ -12,8 +12,9 @@ syntax slice landed.
   source-level bare-`yield` functions, plus conservative `locals_across_yield` frame-slot
   candidates for variables and parameters that stay in scope across a `yield` and are used later.
 - Function metadata now also exposes `yield_lowering.lowering_v0`, which marks the first safe
-  executable target explicitly: a single top-level bare `yield`, no live locals across the
-  suspension point, and no nested function literals.
+  executable target explicitly: top-level bare-`yield` dispatch, including multiple top-level yield
+  sites plus live top-level locals/parameters across the suspension point, but still no nested
+  function literals and no non-top-level yield sites.
 - For `lowering_v0.ready` functions, metadata now also emits `yield_lowering.prepared_v0`, a
   compiler-generated split-dispatch lowering shape with explicit entry/resume segments and a
   synthetic state-local name.
@@ -27,9 +28,8 @@ syntax slice landed.
 - The AVM bytecode backend now consumes `prepared_v0` for the exact `lowering_v0.ready` subset and
   lowers it into an explicit in-function split-dispatch state machine around `oren_yield_stmt()`.
   This is the first real execution consumer of the coroutine plan, and it now covers the narrow
-  ready subset: single top-level bare `yield`, including top-level locals/parameters that remain
-  live across the yield, but still no multiple yields, no nested function literals, and no
-  non-top-level yield sites.
+  ready subset: multiple top-level bare `yield` sites, including top-level locals/parameters that
+  remain live across them, but still no nested function literals and no non-top-level yield sites.
 
 That boundary is deliberate, not accidental.
 
@@ -181,9 +181,9 @@ infrastructure instead of more parser sugar:
    - only bare `yield`
 4. keep expression/result-yield rejected until the frame model exists
 
-That first lowering pass has now started in the bytecode backend for the narrow ready subset.
-The next pass should either broaden that same explicit state-machine lowering to support multiple
-top-level yield sites, or carry the same prepared shape into native/C backends instead of
+That first lowering pass now executes the ready AVM subset end-to-end.
+The next pass should either carry the same prepared shape into native/C backends, or broaden the
+analysis/codegen pair to cover currently blocked non-top-level/nested-function shapes without
 re-discovering supportability heuristics again inside each backend.
 
 That path keeps the current repo state honest:

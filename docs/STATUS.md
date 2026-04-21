@@ -1338,10 +1338,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      scheduler/OS return-code helper. Function metadata now also emits a rolling `yield_lowering`
      plan object with explicit entry/resume states, yield-point mappings, and conservative
      `locals_across_yield` frame-slot candidates.
-   - New (2026-04-22): `yield_lowering.lowering_v0` now classifies the first real executable
-     lowering target explicitly. Only single top-level bare-`yield` functions with no live
-     locals across yield and no nested function literals are marked `ready`; everything else now
-     carries precise blocker reasons in metadata instead of a vague “future coroutine work” bucket.
+	   - New (2026-04-22): `yield_lowering.lowering_v0` now classifies the first real executable
+	     lowering target explicitly. Top-level bare-`yield` dispatch functions are marked `ready`,
+	     including multiple top-level yield sites and top-level locals/params that remain live across
+	     yield; blocked cases now report precise reasons instead of a vague “future coroutine work”
+	     bucket.
    - New (2026-04-22): metadata now also emits `yield_lowering.prepared_v0` for the
      `lowering_v0.ready` subset. That object is an explicit compiler-generated split-dispatch
      lowering shape with entry/resume segments and a synthetic state-local name, so the next
@@ -1358,10 +1359,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      machine around `oren_yield_stmt()`. `verify-yield-lowering-v0` now proves that with three
      checks together: strict metadata/dump policy, embedded `.obc` metadata, and a positive
      compiler trace for `ready_worker` with no blocked-function lowering traces.
-   - New (2026-04-22): the ready subset now also includes top-level locals/parameters that remain
-     live across a single top-level bare `yield`. The current AVM lowering already preserves the
-     function frame across `AVM_YIELD`, so these cases are no longer artificially blocked; they are
-     covered by metadata, strict verification, and runtime execution smokes.
+	   - New (2026-04-22): the ready subset now also includes multiple top-level yield sites plus
+	     top-level locals/parameters that remain live across them. The current AVM lowering preserves
+	     the function frame across `AVM_YIELD`, so these cases are now executed and guarded by
+	     metadata, strict verification, and runtime execution smokes.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

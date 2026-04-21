@@ -76,14 +76,33 @@ fn _bc_trace_yield_v0_lowered(name, prepared) {
     if fn_name == nil || fn_name == "" { fn_name = "<anonymous>" }
     var state_local = ""
     var resume_state = -1
+    var seg_count = 0
     if prepared != nil {
         if prepared["state_local"] != nil { state_local = prepared["state_local"] }
         if prepared["resume_state"] != nil { resume_state = prepared["resume_state"] }
+        if prepared["segments"] != nil { seg_count = oren_list_len(prepared["segments"]) }
     }
     print("[bc_yield_lowering_v0] lowered fn=" + fn_name +
           " kind=split_dispatch state_local=" + state_local +
-          " resume_state=" + oren_int_to_string(resume_state))
+          " resume_state=" + oren_int_to_string(resume_state) +
+          " segments=" + oren_int_to_string(seg_count))
     return nil
+}
+
+fn _bc_yield_v0_branch_stmts(state_local, seg) {
+    if seg == nil { return nil }
+    var branch = []
+    _bc_yield_v0_append_all(branch, seg["stmts"])
+    if seg["terminator"] == "yield" {
+        oren_list_push(branch, _bc_yield_v0_stmt_assign(state_local, _bc_yield_v0_int(seg["resume_state"])))
+        oren_list_push(branch, _bc_yield_v0_stmt_expr(_bc_yield_v0_expr_call0("oren_yield_stmt")))
+        oren_list_push(branch, _bc_yield_v0_stmt_continue())
+        return branch
+    }
+    if seg["terminator"] == "fallthrough" {
+        oren_list_push(branch, _bc_yield_v0_stmt_return_int(0))
+    }
+    return branch
 }
 
 fn _bc_yield_v0_lowered_body(stmt, prepared) {
@@ -91,36 +110,20 @@ fn _bc_yield_v0_lowered_body(stmt, prepared) {
     var state_local = prepared["state_local"]
     if state_local == nil || state_local == "" { return nil }
     var entry_state = prepared["entry_state"]
-    var resume_state = prepared["resume_state"]
-
-    var entry_branch_stmts = []
-    _bc_yield_v0_append_all(entry_branch_stmts, prepared["entry_stmts"])
-    oren_list_push(entry_branch_stmts, _bc_yield_v0_stmt_assign(state_local, _bc_yield_v0_int(resume_state)))
-    oren_list_push(entry_branch_stmts, _bc_yield_v0_stmt_expr(_bc_yield_v0_expr_call0("oren_yield_stmt")))
-    oren_list_push(entry_branch_stmts, _bc_yield_v0_stmt_continue())
-
-    var resume_branch_stmts = []
-    _bc_yield_v0_append_all(resume_branch_stmts, prepared["resume_stmts"])
-    var segs = prepared["segments"]
-    var resume_term = nil
-    if segs != nil && oren_list_len(segs) > 1 && segs[1] != nil {
-        resume_term = segs[1]["terminator"]
-    }
-    if resume_term == nil || resume_term == "fallthrough" {
-        oren_list_push(resume_branch_stmts, _bc_yield_v0_stmt_return_int(0))
-    }
+    var exec_segments = prepared["exec_segments"]
+    if exec_segments == nil || oren_list_len(exec_segments) == 0 { return nil }
 
     var loop_stmts = []
-    oren_list_push(loop_stmts, _bc_yield_v0_stmt_if(
-        _bc_yield_v0_expr_state_eq(state_local, entry_state),
-        _bc_yield_v0_stmt_block(entry_branch_stmts),
-        nil
-    ))
-    oren_list_push(loop_stmts, _bc_yield_v0_stmt_if(
-        _bc_yield_v0_expr_state_eq(state_local, resume_state),
-        _bc_yield_v0_stmt_block(resume_branch_stmts),
-        nil
-    ))
+    var i = 0
+    while i < oren_list_len(exec_segments) {
+        var seg = exec_segments[i]
+        oren_list_push(loop_stmts, _bc_yield_v0_stmt_if(
+            _bc_yield_v0_expr_state_eq(state_local, seg["state"]),
+            _bc_yield_v0_stmt_block(_bc_yield_v0_branch_stmts(state_local, seg)),
+            nil
+        ))
+        i = i + 1
+    }
     oren_list_push(loop_stmts, _bc_yield_v0_stmt_return_int(0))
 
     var top = []

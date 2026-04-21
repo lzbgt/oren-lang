@@ -508,9 +508,6 @@ fn function_yield_info(func) {
 fn function_yield_lowering_v0_gate(info, locals_across_yield) {
     if info == nil || info["yield_stmt_count"] <= 0 { return nil }
     var blockers = []
-    if info["yield_stmt_count"] != 1 {
-        oren_list_push(blockers, "multiple_yields")
-    }
     if info["non_top_level_yield_sites"] != nil && oren_list_len(info["non_top_level_yield_sites"]) > 0 {
         oren_list_push(blockers, "non_top_level_yield")
     }
@@ -522,7 +519,7 @@ fn function_yield_lowering_v0_gate(info, locals_across_yield) {
     if ready { status = "ready" }
     return {
         "version": 1,
-        "target": "single_top_level_bare_yield_v0",
+        "target": "top_level_bare_yield_dispatch_v0",
         "ready": ready,
         "status": status,
         "blockers": blockers,
@@ -566,59 +563,74 @@ fn yield_v0_resume_terminator(stmts) {
 fn function_yield_lowering_v0_prepared(func, info, locals_across_yield, gate) {
     if func == nil || info == nil || gate == nil || gate["ready"] != true { return nil }
     var stmts = function_body_top_level_stmts(func)
-    var yield_idx = -1
-    var yield_stmt = nil
+    var exec_segments = []
+    var segments = []
+    var seg_stmts = []
+    var seg_state = 0
+    var seg_kind = "entry"
+    var first_yield_site = nil
+    var first_resume_state = -1
+    var yield_count = 0
     var i = 0
     while i < oren_list_len(stmts) {
         var stmt = stmts[i]
         if stmt != nil && stmt["yield_stmt"] == true {
-            yield_idx = i
-            yield_stmt = stmt
-            i = oren_list_len(stmts)
+            var site = yield_stmt_site(stmt)
+            var resume_state = seg_state + 1
+            if first_yield_site == nil { first_yield_site = site }
+            if first_resume_state < 0 { first_resume_state = resume_state }
+            oren_list_push(exec_segments, {
+                "state": seg_state,
+                "kind": seg_kind,
+                "stmts": seg_stmts,
+                "terminator": "yield",
+                "resume_state": resume_state,
+                "yield_site": site,
+            })
+            oren_list_push(segments, {
+                "state": seg_state,
+                "kind": seg_kind,
+                "stmt_types": yield_v0_stmt_type_names(seg_stmts),
+                "terminator": "yield",
+            })
+            seg_stmts = []
+            seg_state = resume_state
+            seg_kind = "resume"
+            yield_count = yield_count + 1
         } else {
-            i = i + 1
+            oren_list_push(seg_stmts, stmt)
         }
-    }
-    if yield_idx < 0 || yield_stmt == nil { return nil }
-    var entry_stmts = []
-    i = 0
-    while i < yield_idx {
-        oren_list_push(entry_stmts, stmts[i])
         i = i + 1
     }
-    var resume_stmts = []
-    i = yield_idx + 1
-    while i < oren_list_len(stmts) {
-        oren_list_push(resume_stmts, stmts[i])
-        i = i + 1
-    }
-    var site = yield_stmt_site(yield_stmt)
+    if yield_count <= 0 || first_yield_site == nil || first_resume_state < 0 { return nil }
+    var final_term = yield_v0_resume_terminator(seg_stmts)
+    oren_list_push(exec_segments, {
+        "state": seg_state,
+        "kind": seg_kind,
+        "stmts": seg_stmts,
+        "terminator": final_term,
+        "resume_state": nil,
+        "yield_site": nil,
+    })
+    oren_list_push(segments, {
+        "state": seg_state,
+        "kind": seg_kind,
+        "stmt_types": yield_v0_stmt_type_names(seg_stmts),
+        "terminator": final_term,
+    })
     return {
         "version": 1,
         "kind": "split_dispatch",
         "state_local": "__oren_yield_state_v0",
         "entry_state": 0,
-        "resume_state": 1,
-        "yield_site": site,
+        "resume_state": first_resume_state,
+        "yield_site": first_yield_site,
+        "yield_count": yield_count,
         "live_slots": locals_across_yield,
         // Backend-only rolling fields: keep the concrete statement segments available
         // for codegen without serializing them into public metadata yet.
-        "entry_stmts": entry_stmts,
-        "resume_stmts": resume_stmts,
-        "segments": [
-            {
-                "state": 0,
-                "kind": "entry",
-                "stmt_types": yield_v0_stmt_type_names(entry_stmts),
-                "terminator": "yield",
-            },
-            {
-                "state": 1,
-                "kind": "resume",
-                "stmt_types": yield_v0_stmt_type_names(resume_stmts),
-                "terminator": yield_v0_resume_terminator(resume_stmts),
-            }
-        ],
+        "exec_segments": exec_segments,
+        "segments": segments,
     }
 }
 

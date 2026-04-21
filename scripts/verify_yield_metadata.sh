@@ -43,6 +43,7 @@ expected_names = {
     "multi_local_order",
     "yield_with_nested_fn",
     "ready_prefix_suffix",
+    "multi_top_level_ready",
 }
 if set(by_name) != expected_names:
     raise SystemExit(f"unexpected function names: {sorted(by_name)!r}")
@@ -73,7 +74,7 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": True,
                 "status": "ready",
                 "blockers": [],
@@ -117,10 +118,10 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": False,
                 "status": "blocked",
-                "blockers": ["multiple_yields", "non_top_level_yield"],
+                "blockers": ["non_top_level_yield"],
             },
             "prepared_v0": None,
         },
@@ -150,7 +151,7 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": True,
                 "status": "ready",
                 "blockers": [],
@@ -189,7 +190,7 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": True,
                 "status": "ready",
                 "blockers": [],
@@ -228,7 +229,7 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": False,
                 "status": "blocked",
                 "blockers": ["non_top_level_yield"],
@@ -255,7 +256,7 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": True,
                 "status": "ready",
                 "blockers": [],
@@ -294,7 +295,7 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": False,
                 "status": "blocked",
                 "blockers": ["nested_function_literal"],
@@ -321,7 +322,7 @@ expected = {
             ],
             "lowering_v0": {
                 "version": 1,
-                "target": "single_top_level_bare_yield_v0",
+                "target": "top_level_bare_yield_dispatch_v0",
                 "ready": True,
                 "status": "ready",
                 "blockers": [],
@@ -337,6 +338,51 @@ expected = {
                 "segments": [
                     {"state": 0, "kind": "entry", "stmt_types": ["ExprStmt"], "terminator": "yield"},
                     {"state": 1, "kind": "resume", "stmt_types": ["ExprStmt", "Return"], "terminator": "return"},
+                ],
+            },
+        },
+    },
+    "multi_top_level_ready": {
+        "contains_yield": True,
+        "yield_stmt_count": 2,
+        "yield_stmt_sites": [
+            "tests/fixtures/meta_yield_surface.oren:69:5",
+            "tests/fixtures/meta_yield_surface.oren:71:5",
+        ],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 3,
+            "locals_across_yield": ["acc"],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:69:5", "resume_state": 1},
+                {"id": 1, "site": "tests/fixtures/meta_yield_surface.oren:71:5", "resume_state": 2},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:69:5"},
+                {"id": 2, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:71:5"},
+            ],
+            "lowering_v0": {
+                "version": 1,
+                "target": "top_level_bare_yield_dispatch_v0",
+                "ready": True,
+                "status": "ready",
+                "blockers": [],
+            },
+            "prepared_v0": {
+                "version": 1,
+                "kind": "split_dispatch",
+                "state_local": "__oren_yield_state_v0",
+                "entry_state": 0,
+                "resume_state": 1,
+                "yield_site": "tests/fixtures/meta_yield_surface.oren:69:5",
+                "live_slots": ["acc"],
+                "segments": [
+                    {"state": 0, "kind": "entry", "stmt_types": ["Var"], "terminator": "yield"},
+                    {"state": 1, "kind": "resume", "stmt_types": ["Assign"], "terminator": "yield"},
+                    {"state": 2, "kind": "resume", "stmt_types": ["Return"], "terminator": "return"},
                 ],
             },
         },
