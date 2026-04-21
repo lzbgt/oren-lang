@@ -16,8 +16,7 @@ syntax slice landed.
   suspension point, and no nested function literals.
 - For `lowering_v0.ready` functions, metadata now also emits `yield_lowering.prepared_v0`, a
   compiler-generated split-dispatch lowering shape with explicit entry/resume segments and a
-  synthetic state-local name. Backends do not execute this shape yet, but the compiler no longer
-  has to rediscover the first lowered body form from scratch.
+  synthetic state-local name.
 - `dump linked` now surfaces that same `yield_lowering` object in per-function summaries, and the
   bytecode verifier now extracts `OREN_META` back out of the built `.obc` artifact so the
   compiler-prepared shape is observable both before and after bytecode emission.
@@ -25,6 +24,10 @@ syntax slice landed.
   `build`, `meta`, and `dump`. That is intentionally stricter than post-link reachability:
   unreachable top-level yielding functions still block strict builds, and strict mode disables
   artifact-cache restore so cached non-strict outputs cannot bypass the policy.
+- The AVM bytecode backend now consumes `prepared_v0` for the exact `lowering_v0.ready` subset and
+  lowers it into an explicit in-function split-dispatch state machine around `oren_yield_stmt()`.
+  This is the first real execution consumer of the coroutine plan, but only for the narrow ready
+  subset: single top-level bare `yield`, no cross-yield locals, and no nested function literals.
 
 That boundary is deliberate, not accidental.
 
@@ -176,8 +179,10 @@ infrastructure instead of more parser sugar:
    - only bare `yield`
 4. keep expression/result-yield rejected until the frame model exists
 
-That first lowering pass should consume the existing `lowering_v0.ready` gate instead of
-rediscovering supportability heuristics again inside backend code.
+That first lowering pass has now started in the bytecode backend for the narrow ready subset.
+The next pass should either broaden that same explicit state-machine lowering to support
+cross-yield frame slots, or carry the same prepared shape into native/C backends instead of
+re-discovering supportability heuristics again inside each backend.
 
 That path keeps the current repo state honest:
 

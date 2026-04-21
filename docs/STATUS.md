@@ -1353,6 +1353,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `build`, `meta`, and `dump`. It validates the full parsed source program before dead-code
      pruning, so unreachable yielding functions still block strict builds, and strict mode skips
      artifact-cache restore to avoid cached non-strict outputs bypassing the check.
+   - New (2026-04-22): the AVM bytecode backend now actually consumes `yield_lowering.prepared_v0`
+     for the ready subset and rewrites those functions into an explicit split-dispatch state
+     machine around `oren_yield_stmt()`. `verify-yield-lowering-v0` now proves that with three
+     checks together: strict metadata/dump policy, embedded `.obc` metadata, and a positive
+     compiler trace for `ready_worker` with no blocked-function lowering traces.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

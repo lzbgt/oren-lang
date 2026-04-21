@@ -8,6 +8,7 @@
 import coreir "coreir.oren"
 import intparse "int_lit.oren"
 import bytes "bytes_builder.oren"
+import analysis "analysis.oren"
 
 // @include "codegen_bytecode/000_prelude.oren"
 // @include "codegen_bytecode/010_codegen_a.oren"

@@ -1,6 +1,156 @@
 
+fn _bc_yield_v0_ident(name) {
+    return {"type": "Identifier", "value": name}
+}
+
+fn _bc_yield_v0_int(value) {
+    return {"type": "Integer", "value": oren_int_to_string(value)}
+}
+
+fn _bc_yield_v0_stmt_var(name, value) {
+    return {"type": "Var", "name": _bc_yield_v0_ident(name), "value": value}
+}
+
+fn _bc_yield_v0_stmt_assign(name, value) {
+    return {"type": "Assign", "name": _bc_yield_v0_ident(name), "value": value}
+}
+
+fn _bc_yield_v0_stmt_expr(expr) {
+    return {"type": "ExprStmt", "expr": expr}
+}
+
+fn _bc_yield_v0_stmt_block(stmts) {
+    return {"type": "Block", "stmts": stmts}
+}
+
+fn _bc_yield_v0_stmt_continue() {
+    return {"type": "Continue"}
+}
+
+fn _bc_yield_v0_stmt_return_int(value) {
+    return {"type": "Return", "value": _bc_yield_v0_int(value)}
+}
+
+fn _bc_yield_v0_expr_call0(name) {
+    return {"type": "Call", "fn": _bc_yield_v0_ident(name), "args": []}
+}
+
+fn _bc_yield_v0_expr_state_eq(name, state_id) {
+    return {
+        "type": "Infix",
+        "op": "==",
+        "left": _bc_yield_v0_ident(name),
+        "right": _bc_yield_v0_int(state_id),
+    }
+}
+
+fn _bc_yield_v0_stmt_if(cond, consq, alt) {
+    return {
+        "type": "ExprStmt",
+        "expr": {
+            "type": "If",
+            "cond": cond,
+            "consq": consq,
+            "alt": alt,
+        }
+    }
+}
+
+fn _bc_yield_v0_append_all(dst, src) {
+    if dst == nil || src == nil { return dst }
+    var i = 0
+    while i < oren_list_len(src) {
+        oren_list_push(dst, src[i])
+        i = i + 1
+    }
+    return dst
+}
+
+fn _bc_yield_v0_should_trace() {
+    return oren_env("OREN_TRACE_BYTECODE_YIELD_LOWERING") != nil
+}
+
+fn _bc_trace_yield_v0_lowered(name, prepared) {
+    if _bc_yield_v0_should_trace() != true { return nil }
+    var fn_name = name
+    if fn_name == nil || fn_name == "" { fn_name = "<anonymous>" }
+    var state_local = ""
+    var resume_state = -1
+    if prepared != nil {
+        if prepared["state_local"] != nil { state_local = prepared["state_local"] }
+        if prepared["resume_state"] != nil { resume_state = prepared["resume_state"] }
+    }
+    print("[bc_yield_lowering_v0] lowered fn=" + fn_name +
+          " kind=split_dispatch state_local=" + state_local +
+          " resume_state=" + oren_int_to_string(resume_state))
+    return nil
+}
+
+fn _bc_yield_v0_lowered_body(stmt, prepared) {
+    if stmt == nil || prepared == nil { return nil }
+    var state_local = prepared["state_local"]
+    if state_local == nil || state_local == "" { return nil }
+    var entry_state = prepared["entry_state"]
+    var resume_state = prepared["resume_state"]
+
+    var entry_branch_stmts = []
+    _bc_yield_v0_append_all(entry_branch_stmts, prepared["entry_stmts"])
+    oren_list_push(entry_branch_stmts, _bc_yield_v0_stmt_assign(state_local, _bc_yield_v0_int(resume_state)))
+    oren_list_push(entry_branch_stmts, _bc_yield_v0_stmt_expr(_bc_yield_v0_expr_call0("oren_yield_stmt")))
+    oren_list_push(entry_branch_stmts, _bc_yield_v0_stmt_continue())
+
+    var resume_branch_stmts = []
+    _bc_yield_v0_append_all(resume_branch_stmts, prepared["resume_stmts"])
+    var segs = prepared["segments"]
+    var resume_term = nil
+    if segs != nil && oren_list_len(segs) > 1 && segs[1] != nil {
+        resume_term = segs[1]["terminator"]
+    }
+    if resume_term == nil || resume_term == "fallthrough" {
+        oren_list_push(resume_branch_stmts, _bc_yield_v0_stmt_return_int(0))
+    }
+
+    var loop_stmts = []
+    oren_list_push(loop_stmts, _bc_yield_v0_stmt_if(
+        _bc_yield_v0_expr_state_eq(state_local, entry_state),
+        _bc_yield_v0_stmt_block(entry_branch_stmts),
+        nil
+    ))
+    oren_list_push(loop_stmts, _bc_yield_v0_stmt_if(
+        _bc_yield_v0_expr_state_eq(state_local, resume_state),
+        _bc_yield_v0_stmt_block(resume_branch_stmts),
+        nil
+    ))
+    oren_list_push(loop_stmts, _bc_yield_v0_stmt_return_int(0))
+
+    var top = []
+    oren_list_push(top, _bc_yield_v0_stmt_var(state_local, _bc_yield_v0_int(entry_state)))
+    oren_list_push(top, {
+        "type": "While",
+        "cond": _bc_yield_v0_int(1),
+        "body": _bc_yield_v0_stmt_block(loop_stmts),
+    })
+    return _bc_yield_v0_stmt_block(top)
+}
+
+fn _bc_function_body_for_codegen(stmt) {
+    if stmt == nil { return nil }
+    var info = analysis.function_yield_info(stmt)
+    if info == nil { return stmt["body"] }
+    var lowering = info["yield_lowering"]
+    if lowering == nil { return stmt["body"] }
+    var prepared = lowering["prepared_v0"]
+    if prepared == nil { return stmt["body"] }
+    var lowered = _bc_yield_v0_lowered_body(stmt, prepared)
+    if lowered == nil { return stmt["body"] }
+    _bc_trace_yield_v0_lowered(stmt["name"], prepared)
+    return lowered
+}
+
 fn bytecode_compile_function(ctx, stmt) {
     var name = stmt["name"]
+    var codegen_body = _bc_function_body_for_codegen(stmt)
+    if codegen_body == nil { codegen_body = stmt["body"] }
     
     emit_byte(ctx, AVM_JMP32)
     var jump_skip_idx = bytes.bytes_len(ctx["code"])
@@ -48,7 +198,7 @@ fn bytecode_compile_function(ctx, stmt) {
     // - fp points at the first argument (CALL sets fp = sp - nargs)
     // - LOAD/STORE_LOCAL index into stack[fp + idx]
     // Therefore we must ensure sp is advanced to include all locals slots up-front.
-    bytecode_collect_locals_stmt(ctx, stmt["body"])
+    bytecode_collect_locals_stmt(ctx, codegen_body)
 
     var need = ctx["local_count"] - oren_list_len(params)
     if need > 0 {
@@ -61,7 +211,7 @@ fn bytecode_compile_function(ctx, stmt) {
         }
     }
     
-    bytecode_compile_stmt(ctx, stmt["body"])
+    bytecode_compile_stmt(ctx, codegen_body)
     
     var idx = add_constant(ctx, {"type": "Integer", "value": 0})
     emit_byte(ctx, AVM_PUSH_CONST)

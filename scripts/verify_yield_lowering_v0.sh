@@ -40,13 +40,15 @@ ready_meta="$tmpdir/ready.meta.json"
 ready_dump="$tmpdir/ready.linked.json"
 ready_obc="$tmpdir/ready.obc"
 ready_obc_meta="$tmpdir/ready.obc.meta.json"
+ready_run_log="$tmpdir/ready.run.log"
 blocked_nonstrict_obc="$tmpdir/blocked.nonstrict.obc"
 blocked_nonstrict_obc_meta="$tmpdir/blocked.nonstrict.obc.meta.json"
 
 run_ok "$compiler" meta "$ready_src" -o "$ready_meta" --strict-yield-lowering-v0
 run_ok "$compiler" dump linked "$ready_src" -o "$ready_dump" --strict-yield-lowering-v0
-run_ok "$compiler" build "$ready_src" --backend bytecode -o "$ready_obc" --strict-yield-lowering-v0
-run_ok "$compiler" build "$blocked_src" --backend bytecode -o "$blocked_nonstrict_obc"
+run_ok env OREN_TRACE_BYTECODE_YIELD_LOWERING=1 "$compiler" build "$ready_src" --backend bytecode --no-cache -o "$ready_obc" --strict-yield-lowering-v0
+run_ok ./avm "$ready_obc"
+run_ok env OREN_TRACE_BYTECODE_YIELD_LOWERING=1 "$compiler" build "$blocked_src" --backend bytecode --no-cache -o "$blocked_nonstrict_obc"
 run_ok python3 scripts/extract_obc_metadata.py "$ready_obc" -o "$ready_obc_meta"
 run_ok python3 scripts/extract_obc_metadata.py "$blocked_nonstrict_obc" -o "$blocked_nonstrict_obc_meta"
 
@@ -69,6 +71,13 @@ for f in "$blocked_meta_log" "$blocked_dump_log" "$blocked_build_log"; do
   grep -q "nested_function_literal" "$f"
   grep -q "non_top_level_yield" "$f"
 done
+
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_worker" "$log"
+if grep -q "\\[bc_yield_lowering_v0\\] lowered fn=blocked_" "$log"; then
+  echo "unexpected lowering trace for blocked fixture" >>"$log"
+  cat "$log"
+  exit 1
+fi
 
 READY_META="$ready_meta" \
 READY_DUMP="$ready_dump" \

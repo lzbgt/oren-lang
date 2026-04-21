@@ -3332,8 +3332,7 @@ Rolling status:
   (single top-level bare `yield`, no live locals across yield, no nested function literals).
 - New (2026-04-22): for `lowering_v0.ready` functions, metadata now also emits
   `yield_lowering.prepared_v0`, an explicit split-dispatch lowering shape with entry/resume
-  segments, a synthetic state local name, and segment statement-type summaries. This is the first
-  compiler-generated lowered body shape for `yield`, even though backends do not execute it yet.
+  segments, a synthetic state local name, and segment statement-type summaries.
 - New (2026-04-22): `oren dump linked` now surfaces the same per-function `yield_lowering` object
   in `function_details`, and the bytecode verification path now reads `yield_lowering` back out of
   the built `.obc` metadata blob instead of trusting `oren meta` alone.
@@ -3341,6 +3340,10 @@ Rolling status:
   against the full parsed source program, not just the reachable post-link graph. That keeps dead
   top-level yielding functions from slipping through builds, and strict mode intentionally skips
   artifact-cache restore so cached non-strict outputs cannot bypass the policy.
+- New (2026-04-22): the AVM bytecode backend now consumes `yield_lowering.prepared_v0` for the
+  exact `lowering_v0.ready` subset and lowers it into an explicit in-function split-dispatch state
+  machine. This is the first real execution consumer of the rolling coroutine plan, but it is still
+  limited to single top-level bare `yield` with no cross-yield locals or nested function literals.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)

@@ -604,6 +604,10 @@ fn function_yield_lowering_v0_prepared(func, info, locals_across_yield, gate) {
         "resume_state": 1,
         "yield_site": site,
         "live_slots": locals_across_yield,
+        // Backend-only rolling fields: keep the concrete statement segments available
+        // for codegen without serializing them into public metadata yet.
+        "entry_stmts": entry_stmts,
+        "resume_stmts": resume_stmts,
         "segments": [
             {
                 "state": 0,
