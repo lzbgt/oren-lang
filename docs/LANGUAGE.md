@@ -3319,11 +3319,18 @@ Motivation:
 Rolling status:
 
 - Implemented (2026-04-22): bare statement `yield` now parses on the shared front-end and lowers
-  directly to `oren_yield_stmt()`. This is statement sugar only; it does **not** create resumable
-  coroutine frames or carry yielded values.
+  directly to `oren_yield_stmt()`.
+- New (2026-04-22): `yield <value>` and expression/result-position `yield` now lower through the
+  backend-shared helper `oren_yield_value(value)`. That helper yields cooperatively / via the host
+  hint and then resumes with the same local value, so:
+  - `yield` statement returns `nil`
+  - `(yield)` resumes as `nil`
+  - `(yield expr)` resumes as the value of `expr`
+  - `return yield expr` and `fn(x) { return add1(yield x) }` now work across bytecode, C, and
+    native
 - New (2026-04-22): `oren meta` / native `--metadata` now expose per-function `contains_yield`,
   `yield_stmt_count`, and `yield_stmt_sites` so the next lowering pass can discover real source
-  `yield` statements without guessing from lowered helper calls.
+  bare-`yield` statements without guessing from lowered helper calls.
 - New (2026-04-22): function metadata also carries a rolling `yield_lowering` plan object with an
   explicit entry state, resume states, yield-point -> resume-state mapping, and a conservative
   `locals_across_yield` list for bare-statement `yield` functions.
@@ -3331,8 +3338,9 @@ Rolling status:
   `lowering_v0` marks the currently implemented bare-statement `yield` surface as `ready`
   (`bare_yield_dispatch_v0`: top-level bare `yield`, multiple top-level yield sites, branch/block/
   loop-nested bare `yield`, and functions that also contain nested function literals, including
-  live locals/params that remain across the suspension point). The remaining unsupported surface is
-  value-carrying or expression-position `yield`, not more bare-statement control-flow shapes.
+  live locals/params that remain across the suspension point). That metadata plan is still about
+  bare-statement coroutine lowering; the remaining unsupported surface is caller-visible resume /
+  generator semantics beyond the new helper-based local value contract.
 - New (2026-04-22): for `lowering_v0.ready` functions, metadata now also emits
   `yield_lowering.prepared_v0`, either an explicit split-dispatch lowering shape with entry/resume
   segments or a direct-passthrough prepared shape for ready branch/block cases. Metadata keeps the
@@ -3355,10 +3363,13 @@ Rolling status:
   C, and native builds. AVM reaches it through explicit `prepared_v0` split-dispatch/direct
   lowering, while C/native currently execute the same ready subset through direct
   `oren_yield_stmt()` calls on their existing stackful/runtime call surfaces.
-- Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
-  (“stackless coroutines”).
-- Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)
-  until the language has a backend-shared resumable frame model.
+- New (2026-04-22): value-carrying `yield` is now parity-verified too. The shipped value model is
+  intentionally local and backend-shared:
+  - `oren_yield_value(v)` yields, then resumes with `v`
+  - no caller-supplied resume value exists yet
+  - no generator-style outward yielded-value channel exists yet
+- Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
+  semantics beyond the current local value-stable helper path.
 
 Design direction for the remaining backlog:
 
@@ -5128,7 +5139,7 @@ Source of truth / guards:
   - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_os_thread_collect_scans_parked_stack`)
   - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_wakes_netpoll_blocked_threads`)
 
-### 1.1 `oren_yield()` / `oren_yield_stmt()` (rolling)
+### 1.1 `oren_yield()` / `oren_yield_stmt()` / `oren_yield_value()` (rolling)
 
 `oren_yield()` is the low-level best-effort “yield” surface used by both:
 
@@ -5141,10 +5152,16 @@ Current behavior (native runtime, rolling):
 - `oren_yield_stmt()` is the normalized statement helper:
   - yields cooperatively / via OS hint using `oren_yield()`
   - always returns `nil`
-- `yield` is statement-only today. `yield <value>` is rejected until resumable coroutine lowering
-  exists.
-- Expression/result-position `yield` is also rejected today instead of silently inheriting the raw
-  backend-specific return value behavior of `oren_yield()`.
+- `oren_yield_value(v)` is the normalized value helper:
+  - yields cooperatively / via OS hint using `oren_yield()`
+  - always resumes with the provided local value `v`
+- Language sugar now uses those helpers consistently:
+  - `yield` statement -> `oren_yield_stmt()`
+  - `(yield)` -> `oren_yield_value(nil)`
+  - `yield expr` / `(yield expr)` -> `oren_yield_value(expr)`
+- This is a backend-shared local value contract, not full generator semantics:
+  - there is still no caller-provided resume value
+  - there is still no distinct yielded-value channel visible to the caller
 
 - If green tasks are enabled: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - Otherwise:

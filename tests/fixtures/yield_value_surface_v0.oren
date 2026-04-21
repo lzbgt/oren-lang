@@ -1,0 +1,36 @@
+fn add1(x) {
+    return x + 1
+}
+
+fn yield_nil_expr() {
+    var x = (yield)
+    if x == nil { return 0 }
+    return 100
+}
+
+fn yield_value_expr(seed) {
+    var x = yield (seed + 1)
+    return x
+}
+
+fn return_yield_value(seed) {
+    return yield (seed + 2)
+}
+
+fn call_arg_yield_value(seed) {
+    return add1(yield seed)
+}
+
+fn stmt_yield_value(seed) {
+    yield seed
+    return seed + 3
+}
+
+fn main() {
+    return yield_nil_expr()
+        + yield_value_expr(40)
+        + return_yield_value(50)
+        + call_arg_yield_value(60)
+        + stmt_yield_value(70)
+        - 227
+}

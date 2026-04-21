@@ -30,3 +30,9 @@ fn oren_yield_stmt() {
     oren_yield()
     return nil
 }
+
+@oren.keep
+fn oren_yield_value(value) {
+    oren_yield()
+    return value
+}

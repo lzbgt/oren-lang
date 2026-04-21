@@ -871,6 +871,17 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_u16(ctx, idx)
             return nil
         }
+        if name == "oren_yield_value" {
+            if oren_list_len(expr["args"]) != 1 {
+            bytecode_error(ctx, "bytecode backend: oren_yield_value expects (value)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            // AVM YIELD is stack-neutral, so the yielded value remains on-stack as the
+            // expression result after the task resumes.
+            emit_byte(ctx, AVM_YIELD)
+            return nil
+        }
         if name == "oren_gc_collect" {
             if oren_list_len(expr["args"]) != 0 {
             bytecode_error(ctx, "bytecode backend: oren_gc_collect expects ()")

@@ -4145,10 +4145,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: list<int> fixtures + OBC perf parity.
 
 9) **W4 feature set completeness (essential modern features)**
-   - Remaining cross-backend language backlog: full `yield`/stackless coroutine lowering.
-   Bare statement `yield` is now shipped as shared-front-end sugar over `oren_yield_stmt()`, but
-     resumable frames, `yield <value>`, and expression/result-position `yield` are still
-     intentionally unsupported.
+   - Remaining cross-backend language backlog: full `yield`/stackless coroutine semantics beyond
+     the current local value-stable surface.
+   Bare `yield`, `yield <value>`, and expression/result-position `yield` are now shipped through
+     `oren_yield_stmt()` / `oren_yield_value(v)`, but caller-visible resume values and
+     generator-style yield channels are still missing.
    - Implemented (rolling): the structured error model is the shipped value-or-error convention
      (`oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, `std:result`); remaining work is
      stdlib migration breadth rather than core language/runtime availability.
@@ -4163,12 +4164,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `pub` imports, private imported members/types, legacy-open modules, and nested invalid `pub`.
    - New (2026-04-22): the UI color/raster checked path now also runs on the structured error
      surface, with coverage in the Tier-1 native result smoke plus AVM UI tests.
-   - New (2026-04-22): rolling `yield` statement sugar is now guarded in native quick + AVM,
-     with compile-failure fixtures for unsupported `yield <value>` and expression/result-position
-     `yield` until stackless coroutine lowering exists.
-   - New: `project-doc/yield_coroutine_lowering_20260422.md` records the current backend seams and
-     recommends starting the real coroutine work from an explicit frame/state lowering pass rather
-     than from more parser sugar.
+   - New (2026-04-22): rolling `yield` sugar is now guarded in native quick + AVM, including the
+     new value-carrying/result-position helper surface.
+   - New: `project-doc/yield_coroutine_lowering_20260422.md` records the current backend seams, the
+     shipped `oren_yield_value(v)` helper path, and the remaining gap between local value-stable
+     yield semantics and full coroutine resume channels.
    - New (2026-04-22): `oren meta` / native `--metadata` now surface per-function `contains_yield`,
      `yield_stmt_count`, and `yield_stmt_sites`, counting only source-level `yield` statements and
      intentionally ignoring raw `oren_yield()` calls plus nested function-literal bodies.
@@ -4176,11 +4176,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      explicit entry state plus one resume state per yield site, and now records conservative
      `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for
      the future coroutine-lowering pass.
-		   - New (2026-04-22): that plan now also emits `lowering_v0`, an explicit gate for the current
-		     executable subset. `bare_yield_dispatch_v0` is now marked `ready` for the implemented
-		     bare-statement `yield` surface: top-level yields, multiple top-level yields, branch/block/
-		     loop-nested yields, and functions that also contain nested function literals, including live
-		     locals/params.
+   - New (2026-04-22): that plan now also emits `lowering_v0`, an explicit gate for the current
+     executable subset. `bare_yield_dispatch_v0` is now marked `ready` for the implemented
+     bare-statement `yield` surface: top-level yields, multiple top-level yields, branch/block/
+     loop-nested yields, and functions that also contain nested function literals, including live
+     locals/params.
    - New (2026-04-22): ready functions now also emit `yield_lowering.prepared_v0`, a concrete
      compiler-generated prepared shape: split-dispatch when top-level yield segments exist, or
      direct-passthrough for ready branch/block control flow. That closes the gap between “metadata
@@ -4205,10 +4205,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     `prepared_v0.kind=direct_passthrough`, and functions that also contain nested function
 			     literals stay ready when their own top-level yields are otherwise ordinary. The old
 			     non-top-level / loop / nested-literal blockers were stale policy, not execution limits.
-		   - New (2026-04-22): the same ready fixture is now parity-verified under bytecode, C, and
-		     native with stage2 + strict gating. AVM consumes `prepared_v0` through explicit
-		     split-dispatch or direct-passthrough execution; C/native still reach the shipped subset
-		     through direct `oren_yield_stmt()` execution rather than backend state-machine lowering.
+   - New (2026-04-22): the same ready bare-yield fixture is now parity-verified under bytecode, C,
+     and native with stage2 + strict gating. AVM consumes `prepared_v0` through explicit
+     split-dispatch or direct-passthrough execution; C/native still reach the shipped subset
+     through direct `oren_yield_stmt()` execution rather than backend state-machine lowering.
+   - New (2026-04-22): value-carrying `yield` is now parity-verified under bytecode, C, and native
+     too. The current contract is intentionally local and helper-based: `oren_yield_value(v)`
+     yields, then resumes with `v`, but there is still no caller-visible coroutine/generator value
+     channel.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

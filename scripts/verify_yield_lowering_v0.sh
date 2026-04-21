@@ -57,20 +57,12 @@ ready_meta="$tmpdir/ready.meta.json"
 ready_dump="$tmpdir/ready.linked.json"
 ready_obc="$tmpdir/ready.obc"
 ready_obc_meta="$tmpdir/ready.obc.meta.json"
-yield_value_log="$tmpdir/yield_value_fail.log"
-yield_expr_log="$tmpdir/yield_expr_fail.log"
 
 run_ok "$compiler" meta "$ready_src" --platform "$platform" -o "$ready_meta" --strict-yield-lowering-v0
 run_ok "$compiler" dump linked "$ready_src" --platform "$platform" -o "$ready_dump" --strict-yield-lowering-v0
 run_ok env OREN_TRACE_BYTECODE_YIELD_LOWERING=1 "$compiler" build "$ready_src" --backend bytecode --platform "$platform" --no-cache -o "$ready_obc" --strict-yield-lowering-v0
 run_ok ./avm "$ready_obc"
 run_ok python3 scripts/extract_obc_metadata.py "$ready_obc" -o "$ready_obc_meta"
-
-run_fail "$yield_value_log" "$compiler" build tests/fixtures/yield_value_fail.oren --backend bytecode --platform "$platform" -o "$tmpdir/yield_value_fail.obc" --strict-yield-lowering-v0
-run_fail "$yield_expr_log" "$compiler" build tests/fixtures/yield_expr_fail.oren --backend bytecode --platform "$platform" -o "$tmpdir/yield_expr_fail.obc" --strict-yield-lowering-v0
-
-grep -q "'yield' does not accept a value yet" "$yield_value_log"
-grep -q "'yield' is only supported as a bare statement today" "$yield_expr_log"
 
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_worker" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_live_local" "$log"

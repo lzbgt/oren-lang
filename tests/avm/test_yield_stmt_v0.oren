@@ -63,7 +63,11 @@ fn nested_capture_after_yield(seed) {
 
 fn main() {
     assert_eq(oren_yield_stmt(), nil)
+    assert_eq(oren_yield_value(9), 9)
     yield
+    assert_eq((yield), nil)
+    assert_eq((yield 11), 11)
+    assert_eq(assert_eq(yield 12, 12), 0)
     assert_eq(local_after_yield(4), 5)
     assert_eq(param_after_yield(7), 8)
     assert_eq(multi_after_yield(10), 12)

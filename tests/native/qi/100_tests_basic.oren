@@ -1228,6 +1228,12 @@ fn test_core() {
         print("QI: oren_yield failed rc=" + oren_int_to_string(yrc))
         fail(137)
     }
+    var yval = oren_yield_value(123)
+    if yval != 123 { fail(138) }
+    var yexpr = (yield 77)
+    if yexpr != 77 { fail(139) }
+    var ynilexpr = (yield)
+    if ynilexpr != nil { fail(140) }
     
     // Pointer byte stores/loads must work (critical for typed buffers, hashing, IO).
     var p0 = oren_ptr_alloc(16)

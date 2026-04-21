@@ -1,0 +1,41 @@
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn add1(x) {
+    return x + 1
+}
+
+fn yield_nil_expr() {
+    var x = (yield)
+    return x
+}
+
+fn yield_value_expr(seed) {
+    var x = yield (seed + 1)
+    return x
+}
+
+fn return_yield_value(seed) {
+    return yield (seed + 2)
+}
+
+fn call_arg_yield_value(seed) {
+    return add1(yield seed)
+}
+
+fn main() {
+    assert_eq(oren_yield_value(9), 9)
+    assert_eq(yield_nil_expr(), nil)
+    assert_eq(yield_value_expr(40), 41)
+    assert_eq(return_yield_value(50), 52)
+    assert_eq(call_arg_yield_value(60), 61)
+    exit(0)
+}

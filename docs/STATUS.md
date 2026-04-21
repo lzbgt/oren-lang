@@ -61,10 +61,10 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
 - **Feature set maturity**: the remaining essential language backlog is now full
-  `yield`/stackless coroutine lowering. Bare `yield` statement sugar is shipped on the shared
-  front-end and lowers to `oren_yield_stmt()`, but resumable coroutine frames / `yield <value>` are
-  still missing, and expression/result-position `yield` is intentionally rejected until the value
-  surface is normalized across backends. The structured error model is already shipped as the
+  `yield`/stackless coroutine semantics beyond the current local value-stable surface. Bare
+  `yield`, `yield <value>`, and expression/result-position `yield` are now shipped through the
+  backend-shared helpers `oren_yield_stmt()` / `oren_yield_value(v)`, but caller-visible resume
+  values and generator-style yield channels are still missing. The structured error model is already shipped as the
   rolling value-or-error
   convention (`oren_err` / `oren_is_err` / `std:result`), with stdlib migration breadth still
   ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
@@ -1307,9 +1307,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
 
 5) **W4 - Feature set completeness (essential modern features)**
-   - Remaining planned work: full `yield`/stackless coroutine lowering (`yield <value>` and
-     resumable frames). Bare statement `yield` now lowers to `oren_yield_stmt()` on the shared
-     front-end, while expression/result-position `yield` is intentionally rejected.
+   - Remaining planned work: full `yield`/stackless coroutine lowering with caller-visible resume
+     values or generator-style channels. Bare `yield`, `yield <value>`, and expression/result-
+     position `yield` now ship with backend-shared local helper semantics, but that is still
+     narrower than a full resumable coroutine value model.
    - Implemented (rolling): the structured error model is now the shipped value-or-error
      convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
      `std:result`; remaining work is stdlib migration breadth, not core feature availability.
@@ -1323,21 +1324,23 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New (2026-04-22): `std:ui/color.parse_hex` and `std:ui/raster.rasterize` now also use the
      structured error convention directly instead of ad-hoc `{ok, err}` failure maps on invalid
      color inputs, and the result smoke / AVM UI tests guard that surface.
-   - New (2026-04-22): parser/backend guards now cover rolling `yield` statement sugar in both the
-     Tier-1 native quick path and the curated AVM lane, plus compile-failure fixtures for
-     unsupported `yield <value>` and expression/result-position `yield`.
+   - New (2026-04-22): parser/backend guards now cover rolling `yield` sugar in both the Tier-1
+     native quick path and the curated AVM lane, including value-carrying/result-position `yield`
+     through the new parity-checked helper surface.
    - New: `project-doc/yield_coroutine_lowering_20260422.md` captures the actual runtime seams
-     (`AVM_YIELD`, native `oren_ctx_switch`, green entry) and why expression `yield` must stay
-     rejected until the value surface is normalized.
+     (`AVM_YIELD`, native `oren_ctx_switch`, green entry), the shipped `oren_yield_value(v)` helper
+     path, and the remaining gap between local value-stable yield semantics and full coroutine
+     resume channels.
    - New (2026-04-22): function metadata now carries `contains_yield`, `yield_stmt_count`, and
      `yield_stmt_sites`, counting only source-level bare `yield` statements and skipping nested
      function literals. This keeps the next coroutine-lowering pass fact-based instead of
      rediscovering intent from lowered raw `oren_yield()` calls.
    - New (2026-04-22): bare statement `yield` now lowers through normalized helper
-     `oren_yield_stmt()` (always `nil`), while raw `oren_yield()` remains the low-level
-     scheduler/OS return-code helper. Function metadata now also emits a rolling `yield_lowering`
-     plan object with explicit entry/resume states, yield-point mappings, and conservative
-     `locals_across_yield` frame-slot candidates.
+     `oren_yield_stmt()` (always `nil`), value-carrying/result-position `yield` lowers through
+     `oren_yield_value(v)` (yield, then resume with the same local value), and raw `oren_yield()`
+     remains the low-level scheduler/OS return-code helper. Function metadata still models the
+     rolling bare-statement `yield_lowering` plan separately with explicit entry/resume states,
+     yield-point mappings, and conservative `locals_across_yield` frame-slot candidates.
 		   - New (2026-04-22): `yield_lowering.lowering_v0` now classifies the current real executable
 		     lowering target explicitly. `bare_yield_dispatch_v0` is now marked `ready` for the
 		     currently implemented bare-statement `yield` surface: top-level yields, multiple top-level
@@ -1367,10 +1370,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     same v0 gate. Those functions get a `prepared_v0.kind=direct_passthrough` plan instead of
 			     the old blanket non-top-level / loop blocker assumptions, and functions with nested
 			     function literals plus top-level yields now stay ready as well.
-		   - New (2026-04-22): backend parity for that same ready subset is now guarded too. A dedicated
-		     verifier builds and runs the same fixture under bytecode, C, and native with stage2 +
-		     `--strict-yield-lowering-v0`, proving AVM’s explicit/direct prepared paths and the current
-		     C/native direct-call path agree on the shipped bare-`yield` subset.
+   - New (2026-04-22): backend parity for that same ready bare-yield subset is now guarded too. A
+     dedicated verifier builds and runs the same fixture under bytecode, C, and native with stage2
+     + `--strict-yield-lowering-v0`, proving AVM’s explicit/direct prepared paths and the current
+     C/native direct-call path agree on the shipped bare-`yield` subset.
+   - New (2026-04-22): value-carrying `yield` is parity-verified across bytecode, C, and native
+     through `oren_yield_value(v)`. This is intentionally a local value-stable resume surface, not
+     yet a caller-visible coroutine/generator protocol.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

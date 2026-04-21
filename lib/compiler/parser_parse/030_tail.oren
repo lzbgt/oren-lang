@@ -173,19 +173,11 @@ fn parse_continue(p) {
 
 fn parse_yield(p) {
     var tok = p["cur"]
-    var cur_line = -1
-    if tok != nil && tok["line"] != nil { cur_line = tok["line"] }
-    var peek = p["peek"]
-    if peek != nil {
-        var peek_ty = peek["type"]
-        var peek_line = -2
-        if peek["line"] != nil { peek_line = peek["line"] }
-        if cur_line >= 0 && peek_line == cur_line {
-            if peek_ty != token.TOK_SEMICOLON && peek_ty != token.TOK_RBRACE && peek_ty != token.TOK_EOF {
-                parser_add_error(p, "'yield' does not accept a value yet; use bare 'yield' as a statement. Resumable/value-yield semantics still require coroutine lowering")
-                return nil
-            }
-        }
+    if yield_has_inline_value(p, tok) {
+        var expr = parse_yield_expr(p)
+        if expr == nil { return nil }
+        if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+        return ast.new_expr_stmt(tok, expr)
     }
     if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
     var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield_stmt")
@@ -195,6 +187,45 @@ fn parse_yield(p) {
     var stmt = ast.new_expr_stmt(tok, call)
     stmt["yield_stmt"] = true
     return stmt
+}
+
+fn yield_has_inline_value(p, tok) {
+    if tok == nil { return false }
+    var cur_line = -1
+    if tok["line"] != nil { cur_line = tok["line"] }
+    if cur_line < 0 { return false }
+    var peek = p["peek"]
+    if peek == nil { return false }
+    var peek_line = -2
+    if peek["line"] != nil { peek_line = peek["line"] }
+    if peek_line != cur_line { return false }
+    var peek_ty = peek["type"]
+    if peek_ty == token.TOK_SEMICOLON { return false }
+    if peek_ty == token.TOK_COMMA { return false }
+    if peek_ty == token.TOK_RPAREN { return false }
+    if peek_ty == token.TOK_RBRACKET { return false }
+    if peek_ty == token.TOK_RBRACE { return false }
+    if peek_ty == token.TOK_EOF { return false }
+    return true
+}
+
+fn yield_value_expr_call(tok, value_expr) {
+    var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield_value")
+    var ident = ast.new_identifier(ident_tok)
+    var call = ast.new_call(ident_tok, ident, [value_expr])
+    call["yield_value_expr"] = true
+    return call
+}
+
+fn parse_yield_expr(p) {
+    var tok = p["cur"]
+    var value_expr = ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
+    if yield_has_inline_value(p, tok) {
+        parser_next_token(p)
+        value_expr = parse_expression(p, LOWEST)
+        if value_expr == nil { return nil }
+    }
+    return yield_value_expr_call(tok, value_expr)
 }
 
 fn parse_for_init(p) {

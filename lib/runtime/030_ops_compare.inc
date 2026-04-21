@@ -204,6 +204,11 @@ OrenValue oren_yield_stmt(void) {
     return OREN_NIL;
 }
 
+OrenValue oren_yield_value(OrenValue value) {
+    (void)oren_yield();
+    return value;
+}
+
 static OrenValue oren_time_clock_ns(clockid_t clk) {
     struct timespec ts;
     if (clock_gettime(clk, &ts) != 0) {

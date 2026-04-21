@@ -800,6 +800,8 @@ OrenValue oren_sleep_ns(OrenValue ns);
 OrenValue oren_yield(void);
 // Statement helper used by lowered bare `yield`; always returns nil.
 OrenValue oren_yield_stmt(void);
+// Value helper used by expression/result-position `yield`; yields then returns the provided value.
+OrenValue oren_yield_value(OrenValue value);
 OrenValue oren_time_now_ns();
 OrenValue oren_time_unix_ns();
 OrenValue oren_time_mono_raw();

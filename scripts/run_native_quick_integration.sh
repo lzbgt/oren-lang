@@ -1186,35 +1186,17 @@ if ! grep -q "'pub' is only allowed on top-level declarations" "$vp_log" 2>/dev/
 fi
 tail -n 5 "$vp_log"
 
-echo "== parser smoke (yield value not yet supported) =="
-yv_src="tests/fixtures/yield_value_fail.oren"
-yv_log="build/logs/${compiler_base}_yield_value_fail.log"
-yv_out="build/tmp/${compiler_base}_yield_value_fail.obc"
+echo "== parser/runtime smoke (yield value surface) =="
+yv_src="tests/fixtures/yield_value_surface_v0.oren"
+yv_log="build/logs/${compiler_base}_yield_value_surface_v0.log"
+yv_out="build/tmp/${compiler_base}_yield_value_surface_v0.obc"
 rm -f "$yv_log" "$yv_out" 2>/dev/null || true
 
-expect_compile_failure_step "parser smoke (yield value not yet supported)" "$yv_log" \
+run_step "parser/runtime smoke (yield value surface)" "$yv_log" \
   "$compiler" build "$yv_src" --backend bytecode --typecheck -o "$yv_out"
-if ! grep -q "'yield' does not accept a value yet" "$yv_log" 2>/dev/null; then
-  echo "FAIL: parser smoke (yield value not yet supported) missing expected diagnostic" >&2
-  tail -n 80 "$yv_log" >&2 2>/dev/null || true
-  exit 1
-fi
+run_step "parser/runtime smoke (yield value surface run)" "$yv_log" \
+  ./avm "$yv_out"
 tail -n 5 "$yv_log"
-
-echo "== parser smoke (yield expression not yet supported) =="
-ye_src="tests/fixtures/yield_expr_fail.oren"
-ye_log="build/logs/${compiler_base}_yield_expr_fail.log"
-ye_out="build/tmp/${compiler_base}_yield_expr_fail.obc"
-rm -f "$ye_log" "$ye_out" 2>/dev/null || true
-
-expect_compile_failure_step "parser smoke (yield expression not yet supported)" "$ye_log" \
-  "$compiler" build "$ye_src" --backend bytecode --typecheck -o "$ye_out"
-if ! grep -q "'yield' is only supported as a bare statement today" "$ye_log" 2>/dev/null; then
-  echo "FAIL: parser smoke (yield expression not yet supported) missing expected diagnostic" >&2
-  tail -n 80 "$ye_log" >&2 2>/dev/null || true
-  exit 1
-fi
-tail -n 5 "$ye_log"
 
 echo "native quick integration follow-on OK"
 echo "native quick integration follow-on OK" >>"$log"

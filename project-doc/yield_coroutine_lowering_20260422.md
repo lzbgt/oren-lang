@@ -1,13 +1,17 @@
 # Yield / Coroutine Lowering Notes (2026-04-22)
 
-This note records the current `yield` implementation boundary after the first shared-front-end
-syntax slice landed.
+This note records the current `yield` implementation boundary after the shared-front-end syntax and
+backend-shared value-helper slices landed.
 
 ## Current shipped state
 
 - Bare statement `yield` is now shared-front-end sugar that lowers directly to `oren_yield_stmt()`.
-- `yield <value>` is intentionally rejected.
-- Expression-position `yield` is also intentionally rejected.
+- `yield <value>` and expression/result-position `yield` now lower to `oren_yield_value(v)`.
+- The shipped value contract is intentionally local and backend-shared:
+  - `yield` statement resumes as `nil`
+  - `(yield)` resumes as `nil`
+  - `(yield expr)` resumes as the local value of `expr`
+  - there is still no caller-supplied resume value or distinct outward yielded-value channel
 - Function metadata now exposes `yield_lowering` with explicit entry/resume state ids for
   source-level bare-`yield` functions, plus conservative `locals_across_yield` frame-slot
   candidates for variables and parameters that stay in scope across a `yield` and are used later.
@@ -32,9 +36,13 @@ syntax slice landed.
   coroutine plan, and it now covers the current ready subset: multiple top-level bare `yield`
   sites, plus branch/block/loop-nested bare `yield`, including top-level locals/parameters that
   remain live across them and functions that also contain nested function literals.
-- That same ready subset is now parity-verified under bytecode, C, and native builds. Only AVM
-  currently consumes `prepared_v0` as an explicit lowering path; C/native execute the same shipped
-  subset through ordinary `oren_yield_stmt()` calls on their existing runtime surfaces.
+- That same ready bare-yield subset is now parity-verified under bytecode, C, and native builds.
+  Only AVM currently consumes `prepared_v0` as an explicit lowering path; C/native execute the same
+  shipped subset through ordinary `oren_yield_stmt()` calls on their existing runtime surfaces.
+- Value-carrying `yield` is now parity-verified under bytecode, C, and native too, but it uses the
+  normalized helper path directly instead of `yield_lowering.prepared_v0`. Metadata remains focused
+  on the rolling bare-statement coroutine plan rather than pretending to describe generator-like
+  value flow it does not yet model.
 - Fresh probe (2026-04-22): strict bytecode/C/native builds also execute a bare `yield` inside a
   nested function-literal body successfully. Parent-function metadata still intentionally ignores
   nested bodies when summarizing `contains_yield` / `yield_stmt_sites`; that probe result is about
@@ -49,13 +57,19 @@ That boundary is deliberate, not accidental.
 Source: [lib/compiler/codegen_bytecode/010_codegen_a.oren](../lib/compiler/codegen_bytecode/010_codegen_a.oren)
 
 - `oren_yield()` lowers to `AVM_YIELD`.
-- Bytecode codegen then pushes canonical `nil` so expression contexts stay stack-balanced.
+- `oren_yield_stmt()` lowers to `AVM_YIELD` plus canonical `nil`.
+- `oren_yield_value(v)` compiles `v`, emits `AVM_YIELD`, and leaves `v` on the stack.
+- `AVM_YIELD` itself is stack-neutral (`lib/avm/avm_cli_verify.c`, `lib/avm/avm_vm.c`).
 
 Implication:
 
-- In AVM, `oren_yield()` behaves like a statement-like primitive whose value surface is `nil`.
+- In AVM, the correct normalized language value surfaces are now:
+  - `oren_yield_stmt()` -> `nil`
+  - `oren_yield_value(v)` -> `v`
+  - raw `oren_yield()` stays a low-level helper surface, not the preferred language-visible value
+    path
 
-### 2. Native `oren_yield()` is a runtime helper, not the normalized language statement surface
+### 2. Native `oren_yield()` is a runtime helper, not the normalized language statement/value surface
 
 Source: [lib/runtime_native/262_yield.oren](../lib/runtime_native/262_yield.oren)
 
@@ -63,16 +77,16 @@ Source: [lib/runtime_native/262_yield.oren](../lib/runtime_native/262_yield.oren
 - Otherwise it falls back to `sys_sched_yield()`.
 - Native tests currently treat the low-level helper as returning `0` on success.
 - `oren_yield_stmt()` is the normalized statement helper and always returns `nil`.
+- `oren_yield_value(v)` is the normalized value helper and always returns `v` after yielding.
 
 Implication:
 
-- Raw `oren_yield()` is not currently cross-backend value-stable:
-  - AVM view: `nil`
-  - native view: scheduler/OS return code (`0` on success in current tests)
+- Raw `oren_yield()` is not cross-backend value-stable as a language expression:
+  - AVM-special-cased helper path should prefer `nil`/kept-value behavior
+  - native view is still scheduler/OS return code (`0` on success in current tests)
 
-This is the main reason expression-position `yield` should not be silently lowered to raw
-`oren_yield()` today. Bare statement `yield` now avoids that mismatch by lowering through
-`oren_yield_stmt()`.
+This is the main reason the language now lowers visible value surfaces through `oren_yield_stmt()`
+and `oren_yield_value(v)` instead of exposing raw `oren_yield()` semantics directly.
 
 ### 3. Native already has stackful context-switch intrinsics
 
@@ -106,9 +120,9 @@ Implication:
 - There is already a runtime abstraction for resumable task execution.
 - It is task-scheduler oriented, not function-local coroutine-frame oriented.
 
-## Why expression `yield` is not the next safe step
+## Why `oren_yield_value(v)` was the next safe step
 
-Without further work, lowering:
+The bad lowering would have been:
 
 ```oren
 var x = yield
@@ -125,14 +139,30 @@ would create a backend semantic mismatch:
 - native: `x == 0` (current low-level helper behavior)
 - AVM: `x == nil`
 
-That is worse than a loud parser error because it looks portable while being silently divergent.
+That would have been worse than a loud parser error because it looks portable while being silently
+divergent.
+
+The shipped fix was to normalize the surface instead:
+
+```oren
+var x = yield expr
+```
+
+becomes:
+
+```oren
+var x = oren_yield_value(expr)
+```
+
+That keeps bytecode/C/native aligned on a simple local rule: yield, then resume with the same local
+value.
 
 ## Credible next implementation options
 
 ### Option A: normalize a backend-shared helper first
 
-Introduce a helper whose language-visible value is always `nil` after yielding, then lower
-expression-position `yield` to that helper.
+Introduce a helper whose language-visible value is normalized across backends, then lower
+expression-position/value-carrying `yield` to that helper.
 
 Pros:
 
@@ -141,8 +171,8 @@ Pros:
 
 Cons:
 
-- still does **not** solve resumable/value-yield semantics
-- risks spending time on sugar that gets replaced once real coroutine lowering lands
+- already landed as `oren_yield_value(v)`
+- still does **not** solve caller-visible resume-value or generator semantics
 
 ### Option B: add an explicit lowering pass for resumable functions
 
@@ -155,7 +185,7 @@ Treat `yield` as a lowering trigger and rewrite a function into:
 Pros:
 
 - matches the documented long-term direction
-- solves `yield <value>` and resume semantics at the right layer
+- solves caller-visible `yield`/resume semantics at the right layer
 
 Cons:
 
@@ -178,27 +208,27 @@ Cons:
 
 ## Recommended next step
 
-For the language feature backlog, the best next slice is **Option B**, starting with compiler
-infrastructure instead of more parser sugar:
+For the remaining language feature backlog, the best next slice is still **Option B**, but now on
+top of the shipped helper surface instead of in place of it:
 
 1. detect functions that contain `yield`
 2. define an explicit internal frame/state representation
-3. lower one narrow subset first:
-   - no closures
-   - no `defer`
-   - no `yield <value>`
-   - only bare `yield`
-4. keep expression/result-yield rejected until the frame model exists
+3. lower caller-visible resumable value flow next:
+   - distinguish local `oren_yield_value(v)` helper semantics from true yielded-value channels
+   - define where a resumed function receives caller-supplied values, if the language wants them
+   - keep the backend-shared rule explicit instead of inheriting raw helper return codes
+4. extend metadata/introspection only when it can honestly model value-carrying sites too
 
-That first lowering pass now executes the current AVM bare-statement subset end-to-end, and
-backend parity for the same subset is guarded across bytecode/C/native.
-The next pass should stop widening bare-statement control-flow shapes and instead tackle the real
-remaining boundary: `yield <value>` / expression-position `yield` and the backend-shared resumable
-value semantics they require.
+The first lowering pass already executes the current AVM bare-statement subset end-to-end, and
+backend parity for the same subset is guarded across bytecode/C/native. The helper-based value
+surface is also now parity-guarded. The next pass should stop widening syntax and instead tackle
+the real remaining boundary: true caller-visible coroutine/generator semantics beyond “yield, then
+resume with the same local value”.
 
 That path keeps the current repo state honest:
 
 - `yield` statement sugar is shipped
+- local value-stable `yield <value>` / expression `yield` is shipped
 - raw `oren_yield()` remains available as a low-level helper
-- full coroutine semantics are still backlog, but the next work can start from the actual runtime
-  seams above instead of rediscovering them in chat
+- full coroutine/generator semantics are still backlog, but the next work can start from the actual
+  runtime seams and the now-proven helper surface above instead of rediscovering them in chat
