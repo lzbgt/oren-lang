@@ -104,6 +104,7 @@ preworld_runs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS:-1}"
 world_lock_runs="${OREN_RUNTIME_ROBUSTNESS_WORLD_LOCK_RUNS:-1}"
 stage2_runs="${OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS:-1}"
 c_runs="${OREN_RUNTIME_ROBUSTNESS_C_RUNS:-$runs}"
+alloc_churn_runs="${OREN_RUNTIME_ROBUSTNESS_ALLOC_CHURN_RUNS:-1}"
 fixtures="${OREN_RUNTIME_ROBUSTNESS_C_FIXTURES:-tests/native/fixtures/arith_div0.oren,tests/native/fixtures/arith_div_overflow.oren,tests/native/fixtures/index_set_negative.oren}"
 base_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS:-720}"
 preworld_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS:-240}"
@@ -137,6 +138,7 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "world_lock_runs=$world_lock_runs"
   echo "stage2_runs=$stage2_runs"
   echo "c_runs=$c_runs"
+  echo "alloc_churn_runs=$alloc_churn_runs"
   echo "compiler=$compiler"
   echo "cwd=$(pwd)"
   echo "uname=$uname_out"
@@ -233,6 +235,17 @@ if [[ "$stage2_runs" =~ ^[0-9]+$ ]] && [[ "$stage2_runs" -gt 0 ]]; then
     OREN_NATIVE_BUILD_TIMEOUT_SECS="$stage2_build_timeout_secs" \
     ./scripts/triage_native_quick_stage2_flake_debug.sh "$stage2_runs" "$compiler" \
     "${trace_env_arr[@]}" "$@"
+fi
+
+if [[ "$alloc_churn_runs" =~ ^[0-9]+$ ]] && [[ "$alloc_churn_runs" -gt 0 ]]; then
+  echo "== alloc_churn broad current regression (runs=$alloc_churn_runs) ==" | tee -a "$log"
+  run_logged_child "$log" env \
+    RUNS="$alloc_churn_runs" \
+    BUILD=1 \
+    EXTRA_TRACE=0 \
+    CRASH_FOOTER=1 \
+    REPRO_BAD_LIST_CORRELATE=0 \
+    ./scripts/verify_alloc_churn_broad_current.sh "$compiler"
 fi
 
 if [[ "$c_runs" =~ ^[0-9]+$ ]] && [[ "$c_runs" -gt 0 ]]; then

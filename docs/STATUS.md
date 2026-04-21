@@ -3399,23 +3399,20 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 		    `build/logs/gc_collect_list_int_len128_loop_live_stage2_probe2.run.log`), and the current
 		    compact alloc-churn smoke is green again under stage2
 		    (`build/logs/verify_alloc_churn_tracking_20260421_stage2_after_overlap_guard.log`).
-		  - Refresh (2026-04-21): that does not retire the broader current triage thread yet. The bounded
-		    benchmark-sized rerun (`build/logs/make_triage_alloc_churn_bad_list_current_20260421_215541_after_overlap_fix.log`)
-		    still fails on `run=3/10`, but the signature moved again: the current hit is a `stage=1`
-		    `list_int_push on non-list` and the follow-up `list_debug` dump in
-		    `build/logs/alloc_churn_bad_list_auto_20260421_215623_3.log` shows the same pointer resolving
-		    to a live tracking node with `kind=1` and `size=32`. A temporary experiment that forced the
-		    arm64 whole-loop/intrinsic fast-push paths off by default did not retire this broader benchmark
-		    failure and also blew up the perf-gate surface (`build/logs/perf-gate-native-20260421_215805_34593.summary.log`),
-		    so that detour is not shipped. The remaining task is the real retrack / kind-flip issue on the
-		    full alloc_churn surface, not another blanket fast-path shutdown.
-		  - Gate trim (2026-04-21): `tests/native/test_gc_collect_alloc_churn_debug_shape.oren` is still
-		    useful as a manual repro, but it remains part of that broader benchmark-sized instability and is
-		    not suitable as a Tier-1 “quick” smoke. The fixture was trimmed from `n=256` to `n=64` to keep
-		    manual repro cost down, and `scripts/verify_alloc_churn_tracking_smoke.sh` now gates only the
-		    compact current cases that are actually fixed. The reduced debug-shape fixture still crashes when
-		    run directly (`build/logs/gc_collect_alloc_churn_debug_shape.run.log`), so it stays documented as
-		    open triage rather than a green guard.
+		  - Refresh + verify (2026-04-22): that broader benchmark-sized alloc_churn thread is no longer
+		    reproducing on the current tree. The reduced explicit-collect fixture
+		    `tests/native/test_gc_collect_alloc_churn_debug_shape.oren` is now clean again on fresh stage2
+		    (`build/logs/gc_collect_alloc_churn_debug_shape_runs_default.log`, 20/20 direct runs), and the
+		    bounded benchmark hunt now ends with `no bad-list hits in 10 runs`
+		    (`build/logs/make_triage_alloc_churn_bad_list_current_20260422_post42713c00.log`). The old
+		    nonzero `make` status there came only from the triage harness intentionally returning failure
+		    when no hit is found, not from a live runtime fault.
+		  - Guard restore (2026-04-22): the reduced debug-shape fixture stays out of the Tier-1 quick smoke
+		    because the full stress env makes it too expensive there, but the repo now ships
+		    `verify-alloc-churn-broad-current` plus a matching `verify-runtime-robustness` leg. That verifier
+		    first runs `tests/native/test_gc_collect_alloc_churn_debug_shape.oren` directly on fresh stage2
+		    and then inverts the hunt-script exit convention into a bounded success check, so the previously
+		    open full-surface alloc_churn regression remains covered without treating a hunt tool as a verifier.
 		  - Fix + verify (2026-04-21): the focused green join-waiter/STW tail now has two current guardrails
 		    instead of only old trace notes. `lib/runtime_native/100_time_core.oren` now collapses duplicate
 		    OS-thread registrations by recycled TID, preferring one live canonical node and marking the rest

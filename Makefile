@@ -594,9 +594,14 @@ verify-alloc-churn-tracking: oren_stage2
 
 # Current triage surface: aggressive alloc_churn GC-reuse / list-header instability reproducer.
 triage-alloc-churn-bad-list-current: oren_stage2
-		@RUNS="$${RUNS:-10}" BUILD="$${BUILD:-1}" EXTRA_TRACE="$${EXTRA_TRACE:-0}" CRASH_FOOTER="$${CRASH_FOOTER:-1}" \
-			REPRO_BAD_LIST_CORRELATE="$${REPRO_BAD_LIST_CORRELATE:-0}" COMPILER="./$(OREN_STAGE2_BIN)" \
-			bash ./scripts/repro_bad_list_alloc_churn.sh
+			@RUNS="$${RUNS:-10}" BUILD="$${BUILD:-1}" EXTRA_TRACE="$${EXTRA_TRACE:-0}" CRASH_FOOTER="$${CRASH_FOOTER:-1}" \
+				REPRO_BAD_LIST_CORRELATE="$${REPRO_BAD_LIST_CORRELATE:-0}" COMPILER="./$(OREN_STAGE2_BIN)" \
+				bash ./scripts/repro_bad_list_alloc_churn.sh
+
+# Runtime robustness guard: current alloc_churn broad triage surface must stay clean for the bounded run set.
+verify-alloc-churn-broad-current: oren_stage2
+			@RUNS="$${RUNS:-10}" BUILD="$${BUILD:-1}" EXTRA_TRACE="$${EXTRA_TRACE:-0}" CRASH_FOOTER="$${CRASH_FOOTER:-1}" \
+				REPRO_BAD_LIST_CORRELATE="$${REPRO_BAD_LIST_CORRELATE:-0}" ./scripts/verify_alloc_churn_broad_current.sh "./$(OREN_STAGE2_BIN)"
 
 # Native build cache smoke: build-affecting arm64 fast-list env toggles must invalidate cached artifacts.
 verify-build-cache-native-env-surface: oren_stage2
