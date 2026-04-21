@@ -12,7 +12,7 @@ Default:
     Runs the stage1 native quick smoke (`make test-native-quick`).
 
 Optional suites:
-  --full          Run quick + selfhost + forced-GC quick + backend parity + AVM + readiness pipeline.
+  --full          Run the full curated suite: forced-GC quick (covers quick + selfhost) + backend parity + AVM + readiness pipeline.
   --quick         Run only the default stage1 native quick smoke.
   --selfhost      Run the stage2/capsule/optimizer self-host bundle.
   --stage2        Run `make test-native-quick-stage2`.
@@ -73,6 +73,17 @@ mark_explicit_suite() {
   fi
 }
 
+enable_full_suite() {
+  explicit_suite=1
+  run_quick=0
+  run_selfhost=0
+  # `verify-native-quick-gc` already includes the quick + selfhost bundle.
+  run_gc=1
+  run_parity=1
+  run_avm=1
+  run_docs=1
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --help|-h)
@@ -80,12 +91,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     --full)
-      explicit_suite=1
-      run_quick=1
-      run_gc=1
-      run_parity=1
-      run_avm=1
-      run_docs=1
+      enable_full_suite
       ;;
     --quick)
       mark_explicit_suite
@@ -154,13 +160,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$full_from_env" == "1" && "$explicit_suite" == "0" ]]; then
-  explicit_suite=1
-  run_quick=1
-  run_selfhost=1
-  run_gc=1
-  run_parity=1
-  run_avm=1
-  run_docs=1
+  enable_full_suite
 fi
 
 if [[ -n "$jobs" ]] && ! is_uint "$jobs"; then

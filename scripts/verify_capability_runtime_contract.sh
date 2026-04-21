@@ -389,6 +389,6 @@ require_literal Makefile "./scripts/verify_native_capsule_resource_checks.sh"
 require_literal Makefile "test-native-capsule-smoke-stage2:"
 require_literal Makefile "test-avm: oren avm"
 require_literal Makefile "verify-backend-parity:"
-require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-native-capsule-resource-checks verify-native-gas-accounting-modes verify-gas-surface-registry verify-public-readme-positioning verify-avm-spawn-channel-args test-native-quick"
+require_literal Makefile "test: verify-capability-runtime-contract verify-capability-metadata verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-native-capsule-resource-checks verify-native-gas-accounting-modes verify-gas-surface-registry verify-public-readme-positioning verify-avm-spawn-channel-args verify-oretest test-native-quick"
 
 echo "capability runtime contract verify OK"
