@@ -14,6 +14,10 @@ syntax slice landed.
 - Function metadata now also exposes `yield_lowering.lowering_v0`, which marks the first safe
   executable target explicitly: a single top-level bare `yield`, no live locals across the
   suspension point, and no nested function literals.
+- For `lowering_v0.ready` functions, metadata now also emits `yield_lowering.prepared_v0`, a
+  compiler-generated split-dispatch lowering shape with explicit entry/resume segments and a
+  synthetic state-local name. Backends do not execute this shape yet, but the compiler no longer
+  has to rediscover the first lowered body form from scratch.
 - `--strict-yield-lowering-v0` now enforces that gate across the full parsed source program for
   `build`, `meta`, and `dump`. That is intentionally stricter than post-link reachability:
   unreachable top-level yielding functions still block strict builds, and strict mode disables

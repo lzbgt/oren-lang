@@ -56,3 +56,10 @@ fn yield_with_nested_fn() {
     yield
     return 0
 }
+
+fn ready_prefix_suffix() {
+    no_yield()
+    yield
+    no_yield()
+    return 9
+}

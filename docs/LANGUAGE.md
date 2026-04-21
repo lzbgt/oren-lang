@@ -3330,6 +3330,10 @@ Rolling status:
 - New (2026-04-22): that same `yield_lowering` object now emits a narrow v0 lowering gate:
   `lowering_v0` marks functions as `ready` only for the first safe executable subset
   (single top-level bare `yield`, no live locals across yield, no nested function literals).
+- New (2026-04-22): for `lowering_v0.ready` functions, metadata now also emits
+  `yield_lowering.prepared_v0`, an explicit split-dispatch lowering shape with entry/resume
+  segments, a synthetic state local name, and segment statement-type summaries. This is the first
+  compiler-generated lowered body shape for `yield`, even though backends do not execute it yet.
 - New (2026-04-22): `oren build|meta|dump --strict-yield-lowering-v0` now enforces that v0 gate
   against the full parsed source program, not just the reachable post-link graph. That keeps dead
   top-level yielding functions from slipping through builds, and strict mode intentionally skips

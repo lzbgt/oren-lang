@@ -1342,6 +1342,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      lowering target explicitly. Only single top-level bare-`yield` functions with no live
      locals across yield and no nested function literals are marked `ready`; everything else now
      carries precise blocker reasons in metadata instead of a vague “future coroutine work” bucket.
+   - New (2026-04-22): metadata now also emits `yield_lowering.prepared_v0` for the
+     `lowering_v0.ready` subset. That object is an explicit compiler-generated split-dispatch
+     lowering shape with entry/resume segments and a synthetic state-local name, so the next
+     backend pass can consume a real lowered body plan instead of reconstructing it from raw AST.
    - New (2026-04-22): `--strict-yield-lowering-v0` is now a real compiler policy gate for
      `build`, `meta`, and `dump`. It validates the full parsed source program before dead-code
      pruning, so unreachable yielding functions still block strict builds, and strict mode skips

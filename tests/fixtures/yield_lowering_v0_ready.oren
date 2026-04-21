@@ -1,5 +1,15 @@
+fn before_ready() {
+    return 0
+}
+
+fn after_ready() {
+    return 0
+}
+
 fn ready_worker() {
+    before_ready()
     yield
+    after_ready()
     return 1
 }
 
