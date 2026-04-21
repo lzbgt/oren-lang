@@ -4145,10 +4145,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: list<int> fixtures + OBC perf parity.
 
 9) **W4 feature set completeness (essential modern features)**
-   - Implement across backends (C/native/OBC): `yield`/stackless coroutines, structured error model,
-     visibility boundaries, bytes + typed buffers.
+   - Remaining cross-backend language backlog: `yield`/stackless coroutines and the structured
+     error model.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
+   - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
+     `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
+   - Migration rule: a module that declares any `pub` member becomes closed-by-default to imports;
+     modules with no `pub` members remain legacy-open so the current stdlib and repo fixtures do
+     not need a flag day.
+   - Guarded by native quick integration with both success and compile-failure fixtures for
+     `pub` imports, private imported members/types, legacy-open modules, and nested invalid `pub`.
+   - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
+     reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
    - New: `std:result` smoke fixture in native quick integration
      (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).

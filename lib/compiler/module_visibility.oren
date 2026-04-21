@@ -1,0 +1,444 @@
+// Module visibility pass (rolling).
+//
+// Purpose:
+// - add a real `pub` surface for top-level module members
+// - keep legacy modules working during migration
+//
+// Rolling rule:
+// - modules with no `pub` declarations remain legacy-open to existing imports
+// - once a module declares at least one `pub`, imported access is restricted to its public members
+
+fn _mv_str_starts_with(s, pref) {
+    if s == nil || pref == nil { return false }
+    var plen = oren_string_len(pref)
+    if oren_string_len(s) < plen { return false }
+    return oren_string_slice(s, 0, plen) == pref
+}
+
+fn _mv_token_loc(tok) {
+    if tok == nil { return "<unknown>" }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    if file == nil { file = "<unknown>" }
+    if line == nil { line = 0 }
+    if col == nil { col = 0 }
+    return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+}
+
+fn _mv_stmt_symbol_name(stmt) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" {
+        if stmt["name"] != nil { return stmt["name"]["value"] }
+        return nil
+    }
+    if t == "Type" {
+        if stmt["name"] != nil { return stmt["name"]["value"] }
+        return nil
+    }
+    if t == "FFI" {
+        if stmt["name"] != nil { return stmt["name"]["value"] }
+        return nil
+    }
+    if t == "Function" { return stmt["name"] }
+    if t == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" {
+            return expr["name"]
+        }
+    }
+    return nil
+}
+
+fn _mv_stmt_is_pub(stmt) {
+    if stmt == nil { return false }
+    if stmt["is_pub"] == true { return true }
+    if stmt["type"] == "Function" && stmt["is_pub"] == true { return true }
+    if stmt["type"] == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" && expr["is_pub"] == true {
+            return true
+        }
+    }
+    return false
+}
+
+fn _mv_find_module_prefix(name, module_prefixes) {
+    if name == nil || module_prefixes == nil { return nil }
+    var i = 0
+    while i < oren_list_len(module_prefixes) {
+        var pref = module_prefixes[i]
+        if _mv_str_starts_with(name, pref) { return pref }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _mv_collect_state(linked) {
+    var module_prefixes = []
+    var prefix_paths = {}
+    var alias_display = {}
+    var module_graph = linked["module_graph"]
+    if module_graph != nil && module_graph["imports"] != nil {
+        var root_imports = module_graph["imports"]
+        var ri = 0
+        while ri < oren_list_len(root_imports) {
+            var imp0 = root_imports[ri]
+            if imp0 != nil && imp0["alias_ns"] != nil && imp0["alias"] != nil {
+                alias_display[imp0["alias_ns"]] = imp0["alias"]
+            }
+            ri = ri + 1
+        }
+    }
+    if module_graph != nil && module_graph["modules"] != nil {
+        var mods = module_graph["modules"]
+        var mi = 0
+        while mi < oren_list_len(mods) {
+            var mod = mods[mi]
+            if mod != nil && mod["prefix"] != nil {
+                oren_list_push(module_prefixes, mod["prefix"])
+                prefix_paths[mod["prefix"]] = mod["path"]
+                if mod["imports"] != nil {
+                    var ii = 0
+                    while ii < oren_list_len(mod["imports"]) {
+                        var imp = mod["imports"][ii]
+                        if imp != nil && imp["alias_ns"] != nil && imp["alias"] != nil {
+                            alias_display[imp["alias_ns"]] = imp["alias"]
+                        }
+                        ii = ii + 1
+                    }
+                }
+            }
+            mi = mi + 1
+        }
+    }
+
+    var public_ns = {}
+    var declared_ns = {}
+    var module_pub_mode = {}
+    var stmts = linked["statements"]
+    if stmts == nil { stmts = [] }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var stmt = stmts[i]
+        var name = _mv_stmt_symbol_name(stmt)
+        if name != nil && name != "" {
+            declared_ns[name] = true
+            var pref = _mv_find_module_prefix(name, module_prefixes)
+            if pref != nil && _mv_stmt_is_pub(stmt) == true {
+                public_ns[name] = true
+                module_pub_mode[pref] = true
+            }
+        }
+        i = i + 1
+    }
+
+    return {
+        "module_prefixes": module_prefixes,
+        "prefix_paths": prefix_paths,
+        "alias_display": alias_display,
+        "public_ns": public_ns,
+        "declared_ns": declared_ns,
+        "module_pub_mode": module_pub_mode,
+    }
+}
+
+fn _mv_import_ann_info(ann, aliases) {
+    if ann == nil || ann == "" { return nil }
+
+    while oren_string_len(ann) > 0 && oren_string_char_at(ann, 0) == "*" {
+        ann = oren_string_slice(ann, 1, oren_string_len(ann))
+    }
+    while oren_string_len(ann) >= 2 && oren_string_char_at(ann, 0) == "[" && oren_string_char_at(ann, 1) == "]" {
+        ann = oren_string_slice(ann, 2, oren_string_len(ann))
+    }
+
+    var base = ann
+    var i = 0
+    while i < oren_string_len(ann) {
+        if oren_string_char_at(ann, i) == "[" {
+            base = oren_string_slice(ann, 0, i)
+            break
+        }
+        i = i + 1
+    }
+
+    var dot = -1
+    i = 0
+    while i < oren_string_len(base) {
+        if oren_string_char_at(base, i) == "." {
+            dot = i
+            break
+        }
+        i = i + 1
+    }
+    if dot < 0 { return nil }
+
+    var head = oren_string_slice(base, 0, dot)
+    var tail = oren_string_slice(base, dot + 1, oren_string_len(base))
+    if head == nil || head == "" || tail == nil || tail == "" { return nil }
+    var dep_prefix = aliases[head]
+    if dep_prefix == nil { return nil }
+    var display_head = head
+    var alias_display = aliases["_mv_alias_display"]
+    if alias_display != nil && alias_display[head] != nil {
+        display_head = alias_display[head]
+    }
+    return {
+        "imported": display_head + "." + tail,
+        "member": tail,
+        "dep_prefix": dep_prefix,
+        "resolved": dep_prefix + tail,
+    }
+}
+
+fn _mv_check_ann_type(ann, tok, aliases, state, errors) {
+    var info = _mv_import_ann_info(ann, aliases)
+    if info == nil { return nil }
+    var dep_prefix = info["dep_prefix"]
+    if state["module_pub_mode"][dep_prefix] != true { return nil }
+    var resolved = info["resolved"]
+    if state["declared_ns"][resolved] != true { return nil }
+    if state["public_ns"][resolved] == true { return nil }
+    var msg = _mv_token_loc(tok) + ": private imported type '" + info["imported"] + "' is not exported"
+    var path = state["prefix_paths"][dep_prefix]
+    if path != nil { msg = msg + " from module '" + path + "'" }
+    oren_list_push(errors, msg)
+    return nil
+}
+
+fn _mv_check_member_expr(expr, aliases, state, errors) {
+    if expr == nil || expr["type"] != "Member" { return nil }
+    var left = expr["left"]
+    var prop = expr["prop"]
+    if left == nil || left["type"] != "Identifier" { return nil }
+    if prop == nil || prop["type"] != "Identifier" { return nil }
+    var dep_prefix = aliases[left["value"]]
+    if dep_prefix == nil { return nil }
+    if state["module_pub_mode"][dep_prefix] != true { return nil }
+    var resolved = dep_prefix + prop["value"]
+    if state["declared_ns"][resolved] != true { return nil }
+    if state["public_ns"][resolved] == true { return nil }
+    var msg = _mv_token_loc(prop["token"]) + ": private module member '" + prop["value"] + "' is not exported"
+    var path = state["prefix_paths"][dep_prefix]
+    if path != nil { msg = msg + " from module '" + path + "'" }
+    oren_list_push(errors, msg)
+    return nil
+}
+
+fn _mv_walk_expr(expr, aliases, state, errors) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Function" {
+        var params = expr["params"]
+        if params == nil { params = [] }
+        var pi = 0
+        while pi < oren_list_len(params) {
+            var p = params[pi]
+            if p != nil && p["ann_type"] != nil {
+                _mv_check_ann_type(p["ann_type"], p["token"], aliases, state, errors)
+            }
+            pi = pi + 1
+        }
+        if expr["ret_ann_type"] != nil {
+            _mv_check_ann_type(expr["ret_ann_type"], expr["token"], aliases, state, errors)
+        }
+        if expr["impl_type"] != nil {
+            _mv_check_ann_type(expr["impl_type"], expr["token"], aliases, state, errors)
+        }
+        _mv_walk_stmt(expr["body"], aliases, state, errors)
+        return nil
+    }
+    if t == "Call" {
+        _mv_walk_expr(expr["fn"], aliases, state, errors)
+        var args = expr["args"]
+        if args == nil { args = [] }
+        var ai = 0
+        while ai < oren_list_len(args) {
+            _mv_walk_expr(args[ai], aliases, state, errors)
+            ai = ai + 1
+        }
+        if expr["spread"] != nil { _mv_walk_expr(expr["spread"], aliases, state, errors) }
+        return nil
+    }
+    if t == "Prefix" {
+        _mv_walk_expr(expr["right"], aliases, state, errors)
+        return nil
+    }
+    if t == "Infix" {
+        _mv_walk_expr(expr["left"], aliases, state, errors)
+        _mv_walk_expr(expr["right"], aliases, state, errors)
+        return nil
+    }
+    if t == "If" {
+        _mv_walk_expr(expr["cond"], aliases, state, errors)
+        _mv_walk_stmt(expr["consq"], aliases, state, errors)
+        if expr["alt"] != nil { _mv_walk_stmt(expr["alt"], aliases, state, errors) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        if xs == nil { xs = [] }
+        var xi = 0
+        while xi < oren_list_len(xs) {
+            _mv_walk_expr(xs[xi], aliases, state, errors)
+            xi = xi + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        if pairs == nil { pairs = [] }
+        var hi = 0
+        while hi < oren_list_len(pairs) {
+            _mv_walk_expr(pairs[hi]["key"], aliases, state, errors)
+            _mv_walk_expr(pairs[hi]["value"], aliases, state, errors)
+            hi = hi + 1
+        }
+        return nil
+    }
+    if t == "Member" {
+        _mv_walk_expr(expr["left"], aliases, state, errors)
+        _mv_check_member_expr(expr, aliases, state, errors)
+        return nil
+    }
+    if t == "Index" {
+        _mv_walk_expr(expr["left"], aliases, state, errors)
+        _mv_walk_expr(expr["index"], aliases, state, errors)
+        return nil
+    }
+    if t == "SpawnExpr" {
+        _mv_walk_expr(expr["call"], aliases, state, errors)
+        return nil
+    }
+    return nil
+}
+
+fn _mv_walk_stmt(stmt, aliases, state, errors) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { xs = stmt["statements"] }
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            _mv_walk_stmt(xs[i], aliases, state, errors)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        if stmt["name"] != nil && stmt["name"]["ann_type"] != nil {
+            _mv_check_ann_type(stmt["name"]["ann_type"], stmt["name"]["token"], aliases, state, errors)
+        }
+        _mv_walk_expr(stmt["value"], aliases, state, errors)
+        return nil
+    }
+    if t == "Assign" {
+        _mv_walk_expr(stmt["value"], aliases, state, errors)
+        return nil
+    }
+    if t == "Set" {
+        _mv_walk_expr(stmt["left"], aliases, state, errors)
+        _mv_walk_expr(stmt["value"], aliases, state, errors)
+        return nil
+    }
+    if t == "Return" {
+        _mv_walk_expr(stmt["value"], aliases, state, errors)
+        return nil
+    }
+    if t == "ExprStmt" {
+        _mv_walk_expr(stmt["expr"], aliases, state, errors)
+        return nil
+    }
+    if t == "If" {
+        _mv_walk_expr(stmt["cond"], aliases, state, errors)
+        _mv_walk_stmt(stmt["consq"], aliases, state, errors)
+        if stmt["alt"] != nil { _mv_walk_stmt(stmt["alt"], aliases, state, errors) }
+        return nil
+    }
+    if t == "While" {
+        _mv_walk_expr(stmt["cond"], aliases, state, errors)
+        _mv_walk_stmt(stmt["body"], aliases, state, errors)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _mv_walk_stmt(stmt["init"], aliases, state, errors) }
+        if stmt["cond"] != nil { _mv_walk_expr(stmt["cond"], aliases, state, errors) }
+        if stmt["post"] != nil { _mv_walk_stmt(stmt["post"], aliases, state, errors) }
+        _mv_walk_stmt(stmt["body"], aliases, state, errors)
+        return nil
+    }
+    if t == "Function" {
+        _mv_walk_expr(stmt, aliases, state, errors)
+        return nil
+    }
+    if t == "Type" {
+        var fields = stmt["fields"]
+        if fields == nil { fields = [] }
+        var fi = 0
+        while fi < oren_list_len(fields) {
+            var field = fields[fi]
+            if field != nil && field["ann_type"] != nil {
+                _mv_check_ann_type(field["ann_type"], field["token"], aliases, state, errors)
+            }
+            fi = fi + 1
+        }
+        return nil
+    }
+    if t == "Spawn" {
+        _mv_walk_expr(stmt["call"], aliases, state, errors)
+        return nil
+    }
+    if t == "Assert" {
+        _mv_walk_expr(stmt["value"], aliases, state, errors)
+        return nil
+    }
+    if t == "Switch" {
+        _mv_walk_expr(stmt["value"], aliases, state, errors)
+        var cases = stmt["cases"]
+        if cases == nil { cases = [] }
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            var vals = cases[ci]["values"]
+            if vals != nil {
+                var vi = 0
+                while vi < oren_list_len(vals) {
+                    _mv_walk_expr(vals[vi], aliases, state, errors)
+                    vi = vi + 1
+                }
+            }
+            _mv_walk_stmt(cases[ci]["body"], aliases, state, errors)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { _mv_walk_stmt(stmt["default"], aliases, state, errors) }
+        return nil
+    }
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    if linked == nil { return nil }
+    var aliases = linked["aliases"]
+    if aliases == nil { aliases = {} }
+    var errors = []
+    var state = _mv_collect_state(linked)
+    aliases["_mv_alias_display"] = state["alias_display"]
+    linked["public_ns"] = state["public_ns"]
+    linked["module_pub_mode"] = state["module_pub_mode"]
+    var stmts = linked["statements"]
+    if stmts == nil { stmts = [] }
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _mv_walk_stmt(stmts[i], aliases, state, errors)
+        i = i + 1
+    }
+    aliases["_mv_alias_display"] = nil
+    linked["visibility_errors"] = nil
+    if oren_list_len(errors) > 0 {
+        linked["visibility_errors"] = errors
+    }
+    return nil
+}

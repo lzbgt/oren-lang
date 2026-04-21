@@ -1,0 +1,8 @@
+import legacy "legacy_open_module.oren"
+
+fn take_open(x: legacy.OpenBox): i32 {
+    return x.inner + legacy.open_value
+}
+
+var b = legacy.make_open_box(9)
+print(take_open(b) + legacy.open_add(1))

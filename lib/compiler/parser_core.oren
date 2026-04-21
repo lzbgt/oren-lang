@@ -100,6 +100,7 @@ fn new_parser(l) {
     p["type_scopes"] = type_scopes
     p["type_depth"] = 0
     p["_pending_scope_types"] = nil
+    p["block_depth"] = 0
 
     // Attribute validation knobs (set by the compiler front-end).
     // Defaults are permissive (rolling mode).

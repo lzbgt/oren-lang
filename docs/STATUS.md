@@ -60,9 +60,10 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
-- **Feature set maturity**: essential modern features are still planned (see `docs/LANGUAGE.md`):
-  `yield`/stackless coroutines, structured error model, visibility boundaries,
-  first-class bytes + typed buffers; dynamic module loading and user-defined methods remain unimplemented.
+- **Feature set maturity**: the remaining essential language backlog is `yield`/stackless coroutines
+  plus the structured error model (see `docs/LANGUAGE.md`). Rolling module visibility now exists via
+  `pub`, and bytes/typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
+  dynamic module loading and user-defined methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
   for typed-buffer callers that want to stay on the portable stdlib surface:
   `try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_slice_copy_from_string_slice`,
@@ -1300,9 +1301,17 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
 
 5) **W4 - Feature set completeness (essential modern features)**
-   - Planned (not yet implemented): `yield`/stackless coroutines, structured error model,
-     visibility boundaries, bytes + typed buffers
+   - Remaining planned work: `yield`/stackless coroutines and the structured error model
      (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
+   - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
+     `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
+   - Migration rule: modules with any `pub` declaration become closed-by-default to imports,
+     while modules with no `pub` declarations remain legacy-open until they opt in.
+   - New: native quick integration now guards both success and failure paths for module visibility:
+     `pub` imports, legacy-open imports, private imported members/types, and nested non-top-level
+     `pub`.
+   - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
+     remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
    - New: `std:result` smoke fixture wired into native quick integration
      (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).

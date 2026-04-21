@@ -1,0 +1,6 @@
+fn main() {
+    pub var x = 1
+    print(x)
+}
+
+main()

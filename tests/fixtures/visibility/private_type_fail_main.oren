@@ -1,0 +1,7 @@
+import vis "module_pub_surface.oren"
+
+fn take_hidden(x: vis.Hidden): i32 {
+    return x.inner
+}
+
+print(0)

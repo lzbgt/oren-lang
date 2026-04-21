@@ -196,6 +196,7 @@ fn parse_if(p) {
 
 fn parse_block(p) {
     type_env_push(p)
+    p["block_depth"] = p["block_depth"] + 1
     var block = ast.new_block(p["cur"])
     var gcroot = p["_gc_root"]
     var frame = nil
@@ -337,6 +338,7 @@ fn parse_block(p) {
         }
     }
     type_env_pop(p)
+    p["block_depth"] = p["block_depth"] - 1
     if frame != nil {
         var block_frames2 = gcroot["block_frames"]
         if block_frames2 != nil {

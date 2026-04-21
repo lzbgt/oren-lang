@@ -1922,11 +1922,11 @@ When this spec says “Implemented/Rolling”, the expected evidence is one of:
 ### Keywords
 Implemented today:
 
-`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `match`, `as`
+`fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `assert`, `match`, `as`, `pub`
 
 Planned (not implemented yet):
 
-`yield`, `defer`, `assert`, `pub`
+`yield`, `defer`
 
 Rolling note: “planned keywords” are *design placeholders* and are not guaranteed to be reserved today.
 Until a stabilization milestone, avoid using them as identifiers if you want forward compatibility.
@@ -3373,6 +3373,16 @@ Planned direction:
 
 - `pub`/private visibility for module members
 - avoid leaking internals across imports
+
+Rolling status:
+
+- `pub` now works on top-level `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and
+  `ffi` declarations.
+- Modules that declare at least one `pub` member are closed-by-default to imports: cross-module
+  `alias.member` access only succeeds for exported members.
+- Modules with no `pub` members remain legacy-open during the rolling migration, so existing stdlib
+  and repo-local imports keep compiling until each module opts into an explicit surface.
+- Same-module direct access is unchanged; visibility is enforced only across imports.
 
 ### 5) Bytes + typed buffers (for ML-ish workloads)
 

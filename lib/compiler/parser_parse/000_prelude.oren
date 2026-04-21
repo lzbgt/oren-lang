@@ -487,7 +487,81 @@ fn attach_attrs_to_stmt(p, stmt, attrs) {
     return nil
 }
 
+fn _stmt_supports_pub(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Var" || t == "Type" || t == "FFI" { return true }
+    if t == "ExprStmt" {
+        var exp = stmt["expr"]
+        if exp != nil && exp["type"] == "Function" { return true }
+        return false
+    }
+    if t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil || oren_list_len(xs) == 0 { return false }
+        var saw_decl = false
+        var i = 0
+        while i < oren_list_len(xs) {
+            if _stmt_supports_pub(xs[i]) != true {
+                return false
+            }
+            saw_decl = true
+            i = i + 1
+        }
+        return saw_decl
+    }
+    return false
+}
+
+fn _mark_stmt_public(stmt) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" || t == "Type" || t == "FFI" {
+        stmt["is_pub"] = true
+        return nil
+    }
+    if t == "ExprStmt" {
+        var exp = stmt["expr"]
+        if exp != nil && exp["type"] == "Function" {
+            stmt["is_pub"] = true
+            exp["is_pub"] = true
+        }
+        return nil
+    }
+    if t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            _mark_stmt_public(xs[i])
+            i = i + 1
+        }
+    }
+    return nil
+}
+
+fn parse_pub_stmt(p) {
+    parser_next_token(p)
+    if cur_is(p, token.TOK_EOF) {
+        parser_add_error(p, "'pub' expects a declaration")
+        return nil
+    }
+    var stmt = parse_statement(p)
+    if stmt == nil { return nil }
+    if p["block_depth"] > 0 {
+        parser_add_error(p, "'pub' is only allowed on top-level declarations")
+        return stmt
+    }
+    if _stmt_supports_pub(stmt) != true {
+        parser_add_error(p, "'pub' may only precede top-level declarations (fn/var/struct/class/enum/ffi)")
+        return stmt
+    }
+    _mark_stmt_public(stmt)
+    return stmt
+}
+
 fn parse_statement(p) {
+    if cur_is(p, token.TOK_PUB) { return parse_pub_stmt(p) }
     if cur_is(p, token.TOK_LET) { return parse_var(p) }
     if cur_is(p, token.TOK_RETURN) { return parse_return(p) }
     if cur_is(p, token.TOK_WHILE) { return parse_while(p) }

@@ -549,6 +549,44 @@ if [[ "${OREN_QI_SKIP_RESULT_SMOKE:-0}" != "1" ]]; then
   tail -n 3 "$rs_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_VISIBILITY_SMOKE:-0}" != "1" ]]; then
+  echo "== module visibility pub smoke ==" >>"$log"
+  vis_pub_src="tests/fixtures/visibility/pub_ok_main.oren"
+  vis_pub_out="build/tmp/${compiler_base}_visibility_pub_smoke${exe_ext}"
+  vis_pub_log="build/logs/${compiler_base}_visibility_pub_smoke.log"
+  rm -f "$vis_pub_out" "$vis_pub_log" 2>/dev/null || true
+  build_step_checked "module visibility pub smoke" "$vis_pub_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$vis_pub_src" \
+    --backend native --platform "$platform" --debug -o "$vis_pub_out"
+  run_step_checked "module visibility pub smoke" "$vis_pub_log" \
+    run_with_timeout_retry "$run_timeout_secs" "$vis_pub_out"
+  if [[ "$(tail -n 1 "$vis_pub_log" | tr -d '\r')" != "31" ]]; then
+    echo "ERROR: module visibility pub smoke expected final output 31" >&2
+    tail -n 80 "$vis_pub_log" >&2 2>/dev/null || true
+    exit 1
+  fi
+  echo "ok: module visibility pub smoke" >>"$vis_pub_log"
+  tail -n 4 "$vis_pub_log" >>"$log"
+
+  echo "== module visibility legacy-open smoke ==" >>"$log"
+  vis_legacy_src="tests/fixtures/visibility/legacy_open_ok_main.oren"
+  vis_legacy_out="build/tmp/${compiler_base}_visibility_legacy_open_smoke${exe_ext}"
+  vis_legacy_log="build/logs/${compiler_base}_visibility_legacy_open_smoke.log"
+  rm -f "$vis_legacy_out" "$vis_legacy_log" 2>/dev/null || true
+  build_step_checked "module visibility legacy-open smoke" "$vis_legacy_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" build "$vis_legacy_src" \
+    --backend native --platform "$platform" --debug -o "$vis_legacy_out"
+  run_step_checked "module visibility legacy-open smoke" "$vis_legacy_log" \
+    run_with_timeout_retry "$run_timeout_secs" "$vis_legacy_out"
+  if [[ "$(tail -n 1 "$vis_legacy_log" | tr -d '\r')" != "18" ]]; then
+    echo "ERROR: module visibility legacy-open smoke expected final output 18" >&2
+    tail -n 80 "$vis_legacy_log" >&2 2>/dev/null || true
+    exit 1
+  fi
+  echo "ok: module visibility legacy-open smoke" >>"$vis_legacy_log"
+  tail -n 4 "$vis_legacy_log" >>"$log"
+fi
+
 echo "== ulock timeout portable smoke ==" >>"$log"
 ul_src="tests/native/test_ulock_timeout_portable.oren"
 ul_out="build/tmp/${compiler_base}_ulock_timeout_portable${exe_ext}"
@@ -1102,6 +1140,51 @@ rm -f "$rs_log" "$rs_out" 2>/dev/null || true
 expect_compile_failure_step "parser smoke (reserved struct field __oren_type)" "$rs_log" \
   "$compiler" build "$rs_src" --backend bytecode --typecheck -o "$rs_out"
 tail -n 5 "$rs_log"
+
+echo "== visibility smoke (private imported member) =="
+vm_src="tests/fixtures/visibility/private_member_fail_main.oren"
+vm_log="build/logs/${compiler_base}_visibility_private_member_fail.log"
+vm_out="build/tmp/${compiler_base}_visibility_private_member_fail.obc"
+rm -f "$vm_log" "$vm_out" 2>/dev/null || true
+
+expect_compile_failure_step "visibility smoke (private imported member)" "$vm_log" \
+  "$compiler" build "$vm_src" --backend bytecode --typecheck -o "$vm_out"
+if ! grep -q "private module member 'hidden_add' is not exported" "$vm_log" 2>/dev/null; then
+  echo "FAIL: visibility smoke (private imported member) missing expected diagnostic" >&2
+  tail -n 80 "$vm_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 5 "$vm_log"
+
+echo "== visibility smoke (private imported type) =="
+vt_src="tests/fixtures/visibility/private_type_fail_main.oren"
+vt_log="build/logs/${compiler_base}_visibility_private_type_fail.log"
+vt_out="build/tmp/${compiler_base}_visibility_private_type_fail.obc"
+rm -f "$vt_log" "$vt_out" 2>/dev/null || true
+
+expect_compile_failure_step "visibility smoke (private imported type)" "$vt_log" \
+  "$compiler" build "$vt_src" --backend bytecode --typecheck -o "$vt_out"
+if ! grep -q "private imported type 'vis.Hidden' is not exported" "$vt_log" 2>/dev/null; then
+  echo "FAIL: visibility smoke (private imported type) missing expected diagnostic" >&2
+  tail -n 80 "$vt_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 5 "$vt_log"
+
+echo "== parser smoke (nested pub declaration) =="
+vp_src="tests/fixtures/visibility/nested_pub_fail_main.oren"
+vp_log="build/logs/${compiler_base}_visibility_nested_pub_fail.log"
+vp_out="build/tmp/${compiler_base}_visibility_nested_pub_fail.obc"
+rm -f "$vp_log" "$vp_out" 2>/dev/null || true
+
+expect_compile_failure_step "parser smoke (nested pub declaration)" "$vp_log" \
+  "$compiler" build "$vp_src" --backend bytecode --typecheck -o "$vp_out"
+if ! grep -q "'pub' is only allowed on top-level declarations" "$vp_log" 2>/dev/null; then
+  echo "FAIL: parser smoke (nested pub declaration) missing expected diagnostic" >&2
+  tail -n 80 "$vp_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 5 "$vp_log"
 
 echo "native quick integration follow-on OK"
 echo "native quick integration follow-on OK" >>"$log"

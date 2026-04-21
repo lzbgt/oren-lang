@@ -616,6 +616,23 @@ fn link_program(entry_path, root_prog, config) {
         oren_exit(1)
     }
 
+    // Rolling module visibility:
+    // - modules with any `pub` declaration become closed-by-default to imports
+    // - modules without `pub` remain legacy-open during migration
+    if trace_passes { print("[trace] pass: module_visibility") }
+    module_visibility.lower_linked_program_in_place(linked)
+    if linked["visibility_errors"] != nil && oren_list_len(linked["visibility_errors"]) > 0 {
+        var first_vis = linked["visibility_errors"][0]
+        emit_diag("compile", 1, first_vis)
+        print("Module visibility errors:")
+        var vei = 0
+        while vei < oren_list_len(linked["visibility_errors"]) {
+            print(linked["visibility_errors"][vei])
+            vei = vei + 1
+        }
+        oren_exit(1)
+    }
+
     // Normalize cross-module type annotation spellings:
     //   <alias_ns>.Type -> <dep_prefix>Type
     //

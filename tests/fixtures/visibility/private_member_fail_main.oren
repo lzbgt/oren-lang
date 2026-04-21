@@ -1,0 +1,3 @@
+import vis "module_pub_surface.oren"
+
+print(vis.hidden_add(1))

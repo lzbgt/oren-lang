@@ -1,0 +1,22 @@
+var hidden_value = 11
+pub var exposed_value = 7
+
+fn hidden_add(x) {
+    return x + hidden_value
+}
+
+pub fn exported_add(x) {
+    return hidden_add(x) + exposed_value
+}
+
+pub fn make_boxed(x): Boxed {
+    return {"__oren_type": "Boxed", "inner": x}
+}
+
+struct Hidden {
+    inner: i32
+}
+
+pub struct Boxed {
+    inner: i32
+}

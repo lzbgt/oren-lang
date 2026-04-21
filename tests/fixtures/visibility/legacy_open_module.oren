@@ -1,0 +1,13 @@
+var open_value = 4
+
+fn open_add(x) {
+    return x + open_value
+}
+
+fn make_open_box(x): OpenBox {
+    return {"__oren_type": "OpenBox", "inner": x}
+}
+
+struct OpenBox {
+    inner: i32
+}

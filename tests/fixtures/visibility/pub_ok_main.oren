@@ -1,0 +1,8 @@
+import vis "module_pub_surface.oren"
+
+fn take_box(x: vis.Boxed): i32 {
+    return x.inner + vis.exposed_value
+}
+
+var b = vis.make_boxed(5)
+print(take_box(b) + vis.exported_add(1))
