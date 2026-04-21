@@ -3321,6 +3321,9 @@ Rolling status:
 - Implemented (2026-04-22): bare statement `yield` now parses on the shared front-end and lowers
   directly to `oren_yield()`. This is statement sugar only; it does **not** create resumable
   coroutine frames or carry yielded values.
+- New (2026-04-22): `oren meta` / native `--metadata` now expose per-function `contains_yield`,
+  `yield_stmt_count`, and `yield_stmt_sites` so the next lowering pass can discover real source
+  `yield` statements without guessing from lowered `oren_yield()` calls.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)
@@ -3585,6 +3588,13 @@ Notes:
 
 - `args[*].key` is `null` for positional arguments; keyword args (future) would fill `key`.
 - argument values are literal-only in v0.
+- Function entries also expose rolling coroutine-discovery fields:
+  - `contains_yield`: `true` when the function body contains source-level bare `yield` statements.
+  - `yield_stmt_count`: count of those source-level `yield` statements in the function body.
+  - `yield_stmt_sites`: source sites for those `yield` statements as `file:line:col`.
+- These fields intentionally count only source-level `yield` statement sugar. They do not infer from
+  raw user-written `oren_yield()` calls, and outer functions do not inherit `yield`s that appear
+  only inside nested function literals.
 
 ### 2.2 Normalized capability manifest
 

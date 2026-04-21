@@ -1,3 +1,4 @@
+import analysis "analysis.oren"
 import token "token.oren"
 
 fn str_starts_with(s, prefix) {
@@ -751,6 +752,7 @@ fn generate_metadata(prog) {
         
         if func != nil {
             if !first { json = json + ",\n" }
+            var yield_info = analysis.function_yield_info(func)
             json = json + "    {\n"
             json = json + "      \"name\": " + json_string(func["name"]) + ",\n"
 
@@ -761,7 +763,10 @@ fn generate_metadata(prog) {
             // New: rich params and function-level attrs.
             json = json + "      \"params\": " + json_named_list(params) + ",\n"
             json = json + "      \"attrs\": " + json_attrs(func["attrs"]) + ",\n"
-            json = json + "      \"doc\": " + json_string(func["doc"]) + "\n"
+            json = json + "      \"doc\": " + json_string(func["doc"]) + ",\n"
+            json = json + "      \"contains_yield\": " + json_bool(yield_info["contains_yield"]) + ",\n"
+            json = json + "      \"yield_stmt_count\": " + oren_int_to_string(yield_info["yield_stmt_count"]) + ",\n"
+            json = json + "      \"yield_stmt_sites\": " + json_string_array(yield_info["yield_stmt_sites"]) + "\n"
             json = json + "    }"
             first = false
         }

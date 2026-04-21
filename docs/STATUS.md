@@ -1329,6 +1329,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: `project-doc/yield_coroutine_lowering_20260422.md` captures the actual runtime seams
      (`AVM_YIELD`, native `oren_ctx_switch`, green entry) and why expression `yield` must stay
      rejected until the value surface is normalized.
+   - New (2026-04-22): function metadata now carries `contains_yield`, `yield_stmt_count`, and
+     `yield_stmt_sites`, counting only source-level bare `yield` statements and skipping nested
+     function literals. This keeps the next coroutine-lowering pass fact-based instead of
+     rediscovering intent from lowered raw `oren_yield()` calls.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

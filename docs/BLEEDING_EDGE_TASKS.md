@@ -4169,6 +4169,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `project-doc/yield_coroutine_lowering_20260422.md` records the current backend seams and
      recommends starting the real coroutine work from an explicit frame/state lowering pass rather
      than from more parser sugar.
+   - New (2026-04-22): `oren meta` / native `--metadata` now surface per-function `contains_yield`,
+     `yield_stmt_count`, and `yield_stmt_sites`, counting only source-level `yield` statements and
+     intentionally ignoring raw `oren_yield()` calls plus nested function-literal bodies.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

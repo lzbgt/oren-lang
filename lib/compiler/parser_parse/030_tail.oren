@@ -191,7 +191,10 @@ fn parse_yield(p) {
     var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield")
     var ident = ast.new_identifier(ident_tok)
     var call = ast.new_call(ident_tok, ident, [])
-    return ast.new_expr_stmt(tok, call)
+    call["yield_stmt"] = true
+    var stmt = ast.new_expr_stmt(tok, call)
+    stmt["yield_stmt"] = true
+    return stmt
 }
 
 fn parse_for_init(p) {

@@ -1,0 +1,26 @@
+fn no_yield() {
+    return 1
+}
+
+fn one_yield() {
+    yield
+    return 0
+}
+
+fn control_yield() {
+    if true {
+        yield
+    }
+    while false {
+        yield
+    }
+    return 0
+}
+
+fn nested_only() {
+    var f = || {
+        yield
+        return 7
+    }
+    return 0
+}

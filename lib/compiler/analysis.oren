@@ -46,3 +46,99 @@ fn analyze_stmt(stmt, depth) {
         }
     }
 }
+
+fn yield_stmt_site(stmt) {
+    if stmt == nil { return nil }
+    var tok = stmt["token"]
+    if tok == nil { return nil }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    if file != nil && file != "" {
+        if line != nil && line > 0 {
+            if col != nil && col > 0 {
+                return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+            }
+            return file + ":" + oren_int_to_string(line)
+        }
+        return file
+    }
+    if line != nil && line > 0 {
+        if col != nil && col > 0 {
+            return oren_int_to_string(line) + ":" + oren_int_to_string(col)
+        }
+        return oren_int_to_string(line)
+    }
+    return nil
+}
+
+fn new_function_yield_info() {
+    return {"contains_yield": false, "yield_stmt_count": 0, "yield_stmt_sites": []}
+}
+
+fn function_yield_info_note_stmt(info, stmt) {
+    if stmt == nil || stmt["yield_stmt"] != true { return nil }
+    info["contains_yield"] = true
+    info["yield_stmt_count"] = info["yield_stmt_count"] + 1
+    var site = yield_stmt_site(stmt)
+    if site != nil { oren_list_push(info["yield_stmt_sites"], site) }
+    return nil
+}
+
+fn function_yield_info_walk_stmt(info, stmt) {
+    if info == nil || stmt == nil { return nil }
+    function_yield_info_note_stmt(info, stmt)
+
+    var ty = stmt["type"]
+    if ty == "Block" || ty == "StmtList" {
+        var stmts = stmt["stmts"]
+        var i = 0
+        while stmts != nil && i < oren_list_len(stmts) {
+            function_yield_info_walk_stmt(info, stmts[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if ty == "If" {
+        function_yield_info_walk_stmt(info, stmt["consq"])
+        if stmt["alt"] != nil {
+            function_yield_info_walk_stmt(info, stmt["alt"])
+        }
+        return nil
+    }
+    if ty == "While" {
+        function_yield_info_walk_stmt(info, stmt["body"])
+        return nil
+    }
+    if ty == "For" {
+        if stmt["init"] != nil { function_yield_info_walk_stmt(info, stmt["init"]) }
+        if stmt["post"] != nil { function_yield_info_walk_stmt(info, stmt["post"]) }
+        function_yield_info_walk_stmt(info, stmt["body"])
+        return nil
+    }
+    if ty == "Function" { return nil }
+    if ty == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" { return nil }
+        if expr != nil && expr["type"] == "If" {
+            function_yield_info_walk_stmt(info, expr["consq"])
+            if expr["alt"] != nil {
+                function_yield_info_walk_stmt(info, expr["alt"])
+            }
+            return nil
+        }
+        if expr != nil && expr["type"] == "Block" {
+            function_yield_info_walk_stmt(info, expr)
+            return nil
+        }
+        return nil
+    }
+    return nil
+}
+
+fn function_yield_info(func) {
+    var info = new_function_yield_info()
+    if func == nil { return info }
+    function_yield_info_walk_stmt(info, func["body"])
+    return info
+}
