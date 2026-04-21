@@ -11,16 +11,46 @@ programs="${OREN_BENCH_PROGRAMS:-loop_sum,dot_product,alloc_churn,alloc_drop}"
 runs="${OREN_BENCH_RUNS:-5}"
 warmups="${OREN_BENCH_WARMUPS:-1}"
 cov_warn="${OREN_BENCH_COV_WARN:-0.10}"
+update_latest="${OREN_BENCH_UPDATE_LATEST:-0}"
+update_latest_prune="${OREN_BENCH_UPDATE_LATEST_PRUNE:-0}"
 
 export OREN_BENCH_PROGRAMS="$programs"
 export OREN_BENCH_RUNS="$runs"
 export OREN_BENCH_WARMUPS="$warmups"
 export OREN_BENCH_SKIP_OBC="${OREN_BENCH_SKIP_OBC:-1}"
 export OREN_BENCH_SKIP_OREN_C="${OREN_BENCH_SKIP_OREN_C:-1}"
-export OREN_BENCH_UPDATE_LATEST="${OREN_BENCH_UPDATE_LATEST:-0}"
-export OREN_BENCH_UPDATE_LATEST_PRUNE="${OREN_BENCH_UPDATE_LATEST_PRUNE:-0}"
+export OREN_BENCH_UPDATE_LATEST=0
+export OREN_BENCH_UPDATE_LATEST_PRUNE=0
 
 python3 benchmarks/run_benchmarks.py >"$bench_log" 2>&1
+
+if [[ "$update_latest" == "1" ]]; then
+	BENCH_LOG="$bench_log" OREN_BENCH_PROGRAMS="$programs" python3 - <<'PY' >"$log_dir/perf-gate-native-${ts}.latest.paths"
+import os
+
+programs = [p for p in os.environ["OREN_BENCH_PROGRAMS"].replace(",", " ").split() if p]
+paths = {}
+with open(os.environ["BENCH_LOG"], "r", encoding="utf-8") as f:
+    for raw in f:
+        line = raw.strip()
+        if not line.endswith(".json"):
+            continue
+        base = os.path.basename(line)
+        for program in programs:
+            if base.startswith(program + "_") and program not in paths:
+                paths[program] = line
+for program in programs:
+    path = paths.get(program)
+    if path is not None:
+        print(path)
+PY
+	mapfile -t latest_paths <"$log_dir/perf-gate-native-${ts}.latest.paths"
+	update_cmd=(python3 benchmarks/update_latest.py "${latest_paths[@]}")
+	if [[ "$update_latest_prune" == "1" ]]; then
+		update_cmd+=(--prune)
+	fi
+	"${update_cmd[@]}"
+fi
 
 BENCH_LOG="$bench_log" OREN_BENCH_COV_WARN="$cov_warn" python3 - <<'PY' >"$summary_log"
 import json, os

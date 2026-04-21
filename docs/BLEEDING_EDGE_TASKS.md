@@ -160,10 +160,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-04-04): `alloc_churn` 5.42× C, `alloc_drop` 1.76× C.
-   - New run (arm64, 2026-04-04, runs=5, warmups=1; via `make perf-gate-native`):
-     - alloc_churn: C 0.003716s, native 0.020157s (5.42× C).
-     - alloc_drop: C 0.003441s, native 0.006068s (1.76× C).
+   - Baseline (arm64 native, 2026-04-22): `alloc_churn` 5.76× C, `alloc_drop` 1.83× C.
+   - New run (arm64, 2026-04-22, runs=5, warmups=1; via `make perf-gate-native-refresh-latest`):
+     - alloc_churn: C 0.002945s, native 0.016951s (5.76× C).
+     - alloc_drop: C 0.002961s, native 0.005433s (1.83× C).
    - Bytecode note: `oren_gc_collect()` now lowers to a no-op in the bytecode backend so alloc_churn/alloc_drop OBC builds succeed (2026-03-04).
    - New: latest focused perf-gate snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
@@ -1262,9 +1262,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 3) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
-   - New run (arm64, 2026-04-04, runs=5, warmups=1; via `make perf-gate-native`):
-     - loop_sum: C 0.069604s, native 0.075902s (1.09× C).
-     - dot_product: C 0.005108s, native 0.014420s (2.82× C).
+   - New run (arm64, 2026-04-22, runs=5, warmups=1; via `make perf-gate-native-refresh-latest`):
+     - loop_sum: C 0.066952s, native 0.073464s (1.10× C).
+     - dot_product: C 0.005423s, native 0.015320s (2.83× C).
    - Fix: shared arm64 `UMULH` opcode encoding was wrong; correcting it restores the intended
      reciprocal-mod lowering used by the arm64 fast LCG loop (2026-03-20).
 	   - New: `benchmarks/loop_sum/loop_sum.oren` now preserves inty CLI args via `oren_trunc_int(...)`,
@@ -1272,9 +1272,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		   - New focused canonical split runner (2026-04-04): `array_sum` / `dot_product` now accept
 		     optional `n` + `reps` CLI args, and `make perf-gate-native-read-split` measures the same
 		     split workload across C/native variants.
-		   - Reweight: loop_sum is now within the <=2× gate on arm64; the remaining canonical gap is still
-		     centered on `dot_product`, but the new attribution is narrower than “the kept list<int> fast loop
-		     body is the whole problem”.
+		   - Reweight: loop_sum is still within the <=2× gate on arm64; the remaining canonical gap is
+		     centered on `dot_product`, but the fresh 2026-04-22 attribution is narrower than “some old
+		     scalar-core toggle probably fixes it”. The latest read-split repeated-work view is still
+		     3.47× C (`build/logs/perf-gate-native-read-split-20260422_002728_90701.log`), the refreshed
+		     scalar-ceiling probe is still 1.8452× slower than scalar host C
+		     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260422_002728_90743.log`), and the
+		     current scalar-core matrix keeps baseline over cursor/scalar variants
+		     (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260422_002951_91189.log`).
 		   - Fix + rerun (2026-04-05): `make perf-probe-list-int-specialization-gap` now sends the right
 		     steady-runner knobs to each side (`OREN_BENCH_NATIVE_STEADY_*` for generic,
 		     `OREN_BENCH_LIST_INT_STEADY_*` for specialized). The earlier artifact
@@ -1323,38 +1328,46 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     The remaining boxed `list_reserve=1` / `list_push_unchecked=1` counts come from shared
 		     helper functions, not from the benchmark fill loops.
 			   - New scalar-ceiling probe + env-parse fix (2026-04-05, extractor refreshed 2026-04-11):
-			     `make perf-probe-arm64-dot-vs-c-loop-compare` now forwards comma-separated
-			     `OREN_BENCH_ENV_BUILD_OREN` correctly and finds C loop blocks by instruction shape
-			     (`smlal*` for vector blocks, `smaddl` for the scalar tail) instead of hardcoded Clang
-			     `LBB0_*` labels. Latest loop-compare rerun
-			     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`)
-			     shows the current shipped Oren dot window as a 21-instruction traced range, and now
-			     separates the 7-instruction skipped cold GC-call block from the 14-instruction
-			     range-without-cold-tick count. Host C still has vector/mid/tail blocks (`28` / `12` /
-			     `6` extracted-block instructions), and
-			     the new explicit-list counterpart
-			     `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`
-			     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log`)
-			     shows the same 21-instruction `dot_product_int` Oren traced range, the same
-			     14-instruction range without the cold GC-call block, and the same C vector/mid/tail
+				   `make perf-probe-arm64-dot-vs-c-loop-compare` now forwards comma-separated
+				     `OREN_BENCH_ENV_BUILD_OREN` correctly and finds C loop blocks by instruction shape
+				     (`smlal*` for vector blocks, `smaddl` for the scalar tail) instead of hardcoded Clang
+				     `LBB0_*` labels. Latest loop-compare rerun
+				     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260422_002728_90700.log`)
+				     shows the current shipped Oren generic `dot_product` window as a 20-instruction
+				     traced range, with the skipped cold GC-call block now split out as `8`
+				     instructions and the hot range-without-cold-tick at `12` instructions. Host C still
+				     has vector/mid/tail blocks (`28` / `12` / `6` extracted-block instructions), and
+				     the new explicit-list counterpart
+				     `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`
+				     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log`)
+				     shows the same 21-instruction `dot_product_int` Oren traced range, the same
+				     14-instruction range without the cold GC-call block, and the same C vector/mid/tail
 			     shape. Both probes now resolve C labels by instruction pattern rather than assumed
 			     block numbers, and
 			     `make perf-probe-arm64-dot-vs-c-scalar-ceiling` now compares exact Oren native `dot_product`
 			     against both vectorized and de-vectorized host-C builds. The scalar-ceiling runner is now
 			     parameterized too, with explicit `dot_product_int` coverage via
 			     `make perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int`. Latest artifacts:
-		     - generic `dot_product`
-		       (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260411_164306_40858.log`):
-		       scalar/vector C `~2.9248×`, Oren/scalar `~1.7812×`, Oren/vector `~5.2097×`
-		     - explicit `dot_product_int`
-		       (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int-20260411_164309_41086.log`):
-		       scalar/vector C `~3.0352×`, Oren/scalar `~1.7130×`, Oren/vector `~5.1992×`
-		     The corrected scalar-ceiling extractor now reports the precise inner C loops too: 28
-		     instructions for the NEON vector body and 6 for the de-vectorized scalar `smaddl` loop
-		     on both sources.
-		   - Reweight accordingly: generic-list specialization is not the dominant remaining blocker for
-		     canonical `dot_product`. Scalar loop debt is still material, but the remaining large gap is
-		     compounded by the missing vector/slot64 path relative to the host C baseline.
+			     - generic `dot_product`
+			       (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260422_002728_90743.log`):
+			       scalar/vector C `~2.9275×`, Oren/scalar `~1.8452×`, Oren/vector `~5.4018×`
+			     - explicit `dot_product_int`
+			       (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int-20260411_164309_41086.log`):
+			       scalar/vector C `~3.0352×`, Oren/scalar `~1.7130×`, Oren/vector `~5.1992×`
+			     The corrected scalar-ceiling extractor now reports the precise inner C loops too: 28
+			     instructions for the NEON vector body and 6 for the de-vectorized scalar `smaddl` loop
+			     on both sources.
+			   - Scalar-core matrix refresh (2026-04-22):
+			     `make perf-probe-arm64-fast-dot-scalar-core-matrix`
+			     (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260422_002951_91189.log`)
+			     keeps the shipped baseline over the older generic cursor/scalar candidates. Relative to
+			     baseline, `SINGLE_PAIR_CURSOR_REGS=0` regresses steady/gate native medians
+			     `+3.76%` / `+4.67%`, `MADD_EXACT_SCALAR=1` regresses `+0.50%` / `+2.97%`, and the
+			     combined row regresses `+2.90%` / `+2.96%`.
+			   - Reweight accordingly: generic-list specialization is not the dominant remaining blocker for
+			     canonical `dot_product`. Scalar loop debt is still material, but the current tree is again
+			     saying “baseline beats the older scalar toggles,” so the remaining large gap is dominated by
+			     the missing vector/slot64-quality path relative to the host C baseline.
 	   - Trace (2026-03-20): a targeted arm64 `dot_product` experiment that hoisted the single-pair
 	     list<int> cursors fully into callee-saved regs did not help; the fresh perf gate moved
 	     `dot_product` from about 2.51× C to about 2.55× C, so cursor stack traffic is not the

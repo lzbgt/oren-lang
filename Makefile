@@ -1073,6 +1073,10 @@ benchmarks: oren_stage2
 perf-gate-native: oren_stage2
 		@./scripts/run_perf_gate_native.sh
 
+# Focused W5 perf gate sweep + refresh benchmarks/RESULTS_LATEST.md from the resulting JSONs.
+perf-gate-native-refresh-latest: oren_stage2
+		@OREN_BENCH_UPDATE_LATEST=1 OREN_BENCH_UPDATE_LATEST_PRUNE=0 ./scripts/run_perf_gate_native.sh
+
 # Focused native read split: estimate fill/setup vs repeated read-loop cost for array_sum/dot_product.
 perf-gate-native-read-split: oren_stage2
 		@./scripts/run_perf_gate_native_read_split.sh

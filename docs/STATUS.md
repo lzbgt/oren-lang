@@ -167,26 +167,27 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      specialization is missing.” After the corrected probe and trace, the remaining gap is back in
      the steady-state hot path and the C-side vectorized baseline, not in a silent boxed-list
      fallback for the generic benchmarks.
-   - Scalar-ceiling probe + env-parse fix (2026-04-05, refreshed 2026-04-11): `make perf-probe-arm64-dot-vs-c-loop-compare`
+   - Scalar-ceiling probe + env-parse fix (2026-04-05, refreshed 2026-04-22): `make perf-probe-arm64-dot-vs-c-loop-compare`
      now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, and the new
      `make perf-probe-arm64-dot-vs-c-scalar-ceiling` times the exact Oren native `dot_product`
      benchmark binary against both vectorized and de-vectorized host-C builds of the same source.
      The loop-compare extractor no longer depends on hardcoded Clang `LBB0_*` labels; it now selects
      C vector loops by `smlal*` blocks and the scalar tail by `smaddl`. Latest loop-compare rerun
-     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`) shows the current
-     shipped Oren dot window as a 21-instruction traced range, and now separates the 7-instruction
-     skipped cold GC-call block from the 14-instruction range-without-cold-tick count. Host C still
-     exposes vector/mid/tail blocks (`28` / `12` / `6` instructions).
+     (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260422_002728_90700.log`) shows the current
+     shipped Oren generic `dot_product` window as a 20-instruction traced range, with the skipped
+     cold GC-call block now split out as `8` instructions and the hot range-without-cold-tick at
+     `12` instructions. Host C still exposes vector/mid/tail blocks (`28` / `12` / `6`
+     instructions).
      New explicit-list counterpart:
      `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`. Latest artifact
      (`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log`) shows
      the same 21-instruction `dot_product_int` Oren traced range, the same 14-instruction range
      without the cold GC-call block, and the same host C vector/mid/tail shape, with labels resolved
      by instruction pattern rather than hardcoded names.
-     The scalar-ceiling runner is now parameterized too; the generic artifact
-     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260411_164306_40858.log`) shows
-     vectorized C `~0.000249s`, scalar C `~0.000728s`, and Oren native `~0.001297s` per rep
-     (`scalar/vector ~2.9248×`, `Oren/scalar ~1.7812×`, `Oren/vector ~5.2097×`), while the
+     The scalar-ceiling runner is now parameterized too; the latest generic artifact
+     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260422_002728_90743.log`) shows
+     vectorized C `~0.000253s`, scalar C `~0.000741s`, and Oren native `~0.001368s` per rep
+     (`scalar/vector ~2.9275×`, `Oren/scalar ~1.8452×`, `Oren/vector ~5.4018×`), while the
      explicit-list artifact
      (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int-20260411_164309_41086.log`)
      shows vectorized C `~0.000250s`, scalar C `~0.000759s`, and Oren native `~0.001301s` per rep
@@ -195,6 +196,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      NEON vector body and 6 for the de-vectorized scalar `smaddl` loop on both sources. Reweight:
      scalar loop debt is still material, but the remaining large `dot_product` gap is compounded by
      the missing vector/slot64 path, not by generic-list specialization.
+   - Scalar-core matrix refresh (2026-04-22): the current generic `dot_product` acceptance matrix
+     (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260422_002951_91189.log`) still
+     rejects the older scalar-only candidates on the shipped surface. Against baseline, disabling
+     single-pair cursor regs regresses steady/gate native medians `+3.76%` / `+4.67%`,
+     `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` regresses `+0.50%` / `+2.97%`, and the
+     combined cursor-disabled + scalar row regresses `+2.90%` / `+2.96%`. That closes the old
+     scalar-toggle branch again on the current tree: the remaining arm64 hot-loop work is a new
+     vector/slot64-quality path, not another cursor/scalar promotion.
 	   - Slot-ABI ceiling probe (2026-04-05, refreshed 2026-04-11): the new `make perf-probe-list-int-slot-abi-ceiling`
 	     measures how much vector headroom the current `list<int>` 64-bit slot ABI still has on the
 	     host compiler. Latest artifact
@@ -3287,9 +3296,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
    - Update (2026-03-04): alloc_churn regression resolved by splitting loop-invariant list_int temps into
      an outer `if` and fast-path `while` so `fast_list_int_push_while` can match again.
-   - Refresh (2026-04-04): `make perf-gate-native` now records the focused W5 gate sweep directly.
-     Latest arm64 run stays within gate: alloc_churn 5.42× C and alloc_drop 1.76× C
-     (summary: `benchmarks/RESULTS_LATEST.md`; log: `build/logs/perf-gate-native-20260404_202225.log`).
+   - Refresh (2026-04-22): `make perf-gate-native-refresh-latest` now records the focused W5 gate
+     sweep directly and refreshes `benchmarks/RESULTS_LATEST.md` from the exact four gate JSONs.
+     Latest arm64 run stays within gate: alloc_churn 5.76× C and alloc_drop 1.83× C
+     (summary: `build/logs/perf-gate-native-20260422_003657_93539.summary.log`; log:
+     `build/logs/perf-gate-native-20260422_003657_93539.log`).
    - Fix (2026-03-04): list_int safe-int dataflow now preserves local temps across nested blocks;
      alloc_churn compile trace shows list_push call sites include `v`/`v2` in safe keys
      (log: `build/logs/bench_build_oren_native_alloc_churn_20260304_232251.log`).
@@ -3305,14 +3316,19 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 
 2) **Perf parity W5: native hot loops** (L, W5)
    - Execute item 1 in the performance tracker (loop_sum + dot_product).
-   - Refresh (2026-04-21): `make perf-gate-native` is back within the arm64 gate for both tracked
-     hot loops: `loop_sum` 1.09× C and `dot_product` 1.93× C
-     (summary: `build/logs/perf-gate-native-20260421_154158_16010.summary.log`; log:
-     `build/logs/perf-gate-native-20260421_154158_16010.log`). The two shipped fixes in this rerun
-     were (1) inline safepoint countdown seeding for low-bit tick masks on the native hot-loop
-     paths and (2) restricting arm64 fast push idx-expression constant folding to integer literals
-     only, which avoids freezing an outer induction variable to its pre-loop `locals_int_const`
-     value inside nested `fast_list_int_push_while` lowering.
+   - Refresh (2026-04-22): `make perf-gate-native-refresh-latest` still keeps `loop_sum` within the
+     arm64 gate at 1.10× C, but `dot_product` is open again at 2.83× C on the current shipped
+     surface (summary: `build/logs/perf-gate-native-20260422_003657_93539.summary.log`; log:
+     `build/logs/perf-gate-native-20260422_003657_93539.log`). The fresh `dot_product`
+     decomposition is no longer pointing at setup/init cost or the old cursor/scalar toggle branch:
+     read-split repeated work is still 3.47× C
+     (`build/logs/perf-gate-native-read-split-20260422_002728_90701.log`), the scalar-ceiling probe
+     still measures Oren/scalar host C at 1.8452×
+     (`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260422_002728_90743.log`), and the
+     current scalar-core matrix keeps baseline over the old cursor/scalar candidates
+     (`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260422_002951_91189.log`). Reweight
+     the next hot-loop work toward a new vector/slot64-quality path rather than more scalar-toggle
+     churn.
    - Refresh (2026-04-04): `make perf-gate-native` now shows loop_sum within gate at 1.09× C,
      while dot_product remains open at 2.82× C on arm64 (summary: `benchmarks/RESULTS_LATEST.md`;
      log: `build/logs/perf-gate-native-20260404_202225.log`).

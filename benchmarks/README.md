@@ -90,14 +90,14 @@ extracts the Oren dot window plus the host C vector loop, mid loop, and scalar t
 summary. The C loop extractor is label-agnostic now: it chooses the vector loops by `smlal*`
 blocks and the scalar tail by `smaddl`, so Clang basic-block renumbering no longer breaks the
 diagnostic. The latest artifact,
-`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260411_165929_79776.log`, shows the kept Oren
-path as a 21-instruction traced range, but the updated Oren extractor now separates the skipped cold
-GC-call block: the range-without-cold-tick count is 14 instructions, with 7 instructions in the cold
-`stp/stp/bl/ldp/ldp/mov/mov` block. The host C reference still uses a NEON vector loop (`ldp q*`,
-`smlal.2d`, `smlal2.2d`), vector mid loop, and scalar `smaddl` tail (`28` / `12` / `6` instructions
-in the extracted blocks). That is the right current baseline when judging future arm64 dot work: the
-remaining gap is versus a vectorized C loop and a measured slot64 scalar ceiling, not just the cold
-safepoint save/restore block in the traced range.
+`build/logs/perf-probe-arm64-dot-vs-c-loop-compare-20260422_002728_90700.log`, shows the kept Oren
+generic `dot_product` path as a 20-instruction traced range. The updated Oren extractor also
+separates the skipped cold GC-call block on the current tree: the range-without-cold-tick count is
+12 instructions, with 8 instructions in the cold block. The host C reference still uses a NEON
+vector loop (`ldp q*`, `smlal.2d`, `smlal2.2d`), vector mid loop, and scalar `smaddl` tail
+(`28` / `12` / `6` instructions in the extracted blocks). That is the right current baseline when
+judging future arm64 dot work: the remaining gap is versus a vectorized C loop and a measured slot64
+scalar ceiling, not just the cold safepoint save/restore block in the traced range.
 For the explicit `list<int>` counterpart, use
 `make perf-probe-arm64-dot-vs-c-loop-compare-list-int`; latest artifact
 `build/logs/perf-probe-arm64-dot-vs-c-loop-compare-list-int-20260411_165935_82064.log` shows the same
@@ -132,11 +132,11 @@ and [dot_product_int.oren](/Users/zongbaolu/work/compiler-mini/benchmarks/dot_pr
 through the same runner.
 
 The current precise-label artifacts,
-`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260411_164306_40858.log` and
+`build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-20260422_002728_90743.log` and
 `build/logs/perf-probe-arm64-dot-vs-c-scalar-ceiling-list-int-20260411_164309_41086.log`, show:
 
-- generic `dot_product`: vectorized C `~0.000249s`, scalar C `~0.000728s`, Oren native `~0.001297s`
-  per rep; scalar/vector `~2.9248x`, Oren/scalar `~1.7812x`, Oren/vector `~5.2097x`
+- generic `dot_product`: vectorized C `~0.000253s`, scalar C `~0.000741s`, Oren native `~0.001368s`
+  per rep; scalar/vector `~2.9275x`, Oren/scalar `~1.8452x`, Oren/vector `~5.4018x`
 - explicit `dot_product_int`: vectorized C `~0.000250s`, scalar C `~0.000759s`, Oren native
   `~0.001301s` per rep; scalar/vector `~3.0352x`, Oren/scalar `~1.7130x`, Oren/vector `~5.1992x`
 - both C sources extract the same precise inner-loop shapes: 28 instructions for the host NEON
@@ -146,6 +146,15 @@ That refresh changes the scalar-ceiling attribution: the current Oren loop still
 debt versus de-vectorized C, but the host C vector body is another roughly 3x faster than scalar C.
 The next dot-parity work should therefore stay focused on vector/slot64 parity while keeping scalar
 loop scheduling visible, not on generic-list specialization guesses.
+
+The current generic scalar-core acceptance matrix,
+`build/logs/perf-probe-arm64-fast-dot-scalar-core-matrix-20260422_002951_91189.log`, keeps the
+shipped baseline over the older scalar-only toggles on today’s tree: disabling
+`OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS` regresses steady/gate native medians
+`+3.76%` / `+4.67%`, `OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR=1` regresses
+`+0.50%` / `+2.97%`, and the combined row regresses `+2.90%` / `+2.96%`. Treat that as a current
+decision boundary: the next arm64 `dot_product` move should be a new vector/slot64-quality path,
+not another cursor/scalar promotion from the older branch family.
 
 To measure how much of that remaining gap comes from the current `list<int>` 64-bit slot ABI itself,
 use:
@@ -1527,11 +1536,15 @@ Result JSON timing entries now also keep:
 
 Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 
-Update the canonical snapshot table after a batch run:
+Update the canonical snapshot table after a canonical native-gate rerun:
 
 ```bash
-python3 benchmarks/update_latest.py --prune
+make perf-gate-native-refresh-latest
 ```
+
+That target refreshes `benchmarks/RESULTS_LATEST.md` from the exact JSONs emitted by the focused
+native gate run. For wider or ad-hoc benchmark batches, `python3 benchmarks/update_latest.py ...`
+still works when you pass the specific result JSON paths you want reflected in the snapshot.
 
 Repo policy (rolling): benchmark result JSON/markdown are derived artifacts and should not be
 committed. Keep them under `build/benchmarks/results/`, and commit only stable summaries such as

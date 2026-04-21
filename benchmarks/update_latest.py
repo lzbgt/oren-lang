@@ -11,10 +11,12 @@ LATEST_PATH = ROOT / "benchmarks" / "RESULTS_LATEST.md"
 
 
 def _parse_timestamp(value):
-    try:
-        return datetime.strptime(value, "%Y%m%d_%H%M%S")
-    except Exception:
-        return None
+    for fmt in ("%Y%m%d_%H%M%S", "%Y%m%d_%H%M%S_%f"):
+        try:
+            return datetime.strptime(value, fmt)
+        except Exception:
+            pass
+    return None
 
 
 def _load_result(path: Path):
