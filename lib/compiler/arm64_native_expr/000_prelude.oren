@@ -228,7 +228,7 @@ fn insn_fcvtzs(rd, rn) { return core.insn_fcvtzs(rd, rn) }
 fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
 fn insn_add_4s(vd, vn, vm) { return core.insn_add_4s(vd, vn, vm) }
 
-fn native_emit_gc_safepoint_call_expr(ctx) {
+fn native_emit_gc_visible_call_expr(ctx, callee_name) {
     // Spill callee-saved regs so conservative GC sees register-held pointers.
     push_u32_le(ctx["code"], insn_stp_pair_pre(19, 20, 31, -16))
     push_u32_le(ctx["code"], insn_stp_pair_pre(21, 22, 31, -16))
@@ -238,9 +238,9 @@ fn native_emit_gc_safepoint_call_expr(ctx) {
 
     var bl_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_gc_safepoint"})
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": callee_name})
     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_gc_safepoint")
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], callee_name)
 
     push_u32_le(ctx["code"], insn_ldp_pair_post(27, 28, 31, 16))
     push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 31, 16))
@@ -248,6 +248,14 @@ fn native_emit_gc_safepoint_call_expr(ctx) {
     push_u32_le(ctx["code"], insn_ldp_pair_post(21, 22, 31, 16))
     push_u32_le(ctx["code"], insn_ldp_pair_post(19, 20, 31, 16))
     return nil
+}
+
+fn native_emit_gc_safepoint_call_expr(ctx) {
+    return native_emit_gc_visible_call_expr(ctx, "oren_gc_safepoint")
+}
+
+fn native_emit_gc_collect_call_expr(ctx) {
+    return native_emit_gc_visible_call_expr(ctx, "oren_gc_collect")
 }
 
 fn native_emit_gc_safepoint_call_expr_pairs(ctx, reg_pairs) {

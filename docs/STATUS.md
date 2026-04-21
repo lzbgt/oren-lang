@@ -3376,6 +3376,25 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 		    (`build/logs/alloc_churn_bad_list_focus_20260421_210001.log`), showing a sane `list<int>`
 		    growth chain ending at `len=64 cap=64` immediately before the panic. A dedicated entrypoint
 		    now exists at `make triage-alloc-churn-bad-list-current`.
+		  - Fix + verify (2026-04-21): the explicit-collect alloc-churn shape is no longer failing on
+		    overlapping reused blocks. `lib/runtime_native/100_time_gc_alloc_core_scan_reuse.oren` now
+		    rejects free-list candidates whose tracked range overlaps any live alloc range, and the
+		    existing “free node still in allocs” / alloc-index-dup checks are now always enforced instead
+		    of being trace-only. In the same slice, arm64/x64 explicit `oren_gc_collect()` calls now spill
+		    callee-saved registers just like `oren_gc_safepoint()`, conservative mark no longer panics on
+		    stale aliased list headers, and `scripts/verify_alloc_churn_tracking_smoke.sh` gained the new
+		    `tests/native/test_gc_collect_alloc_churn_debug_shape.oren` fixture. Current proof:
+		    `build/logs/verify_alloc_churn_tracking_20260421_220046_gates_restored.log`.
+		  - Refresh (2026-04-21): that does not retire the broader current triage thread yet. The bounded
+		    benchmark-sized rerun (`build/logs/make_triage_alloc_churn_bad_list_current_20260421_215541_after_overlap_fix.log`)
+		    still fails on `run=3/10`, but the signature moved again: the current hit is a `stage=1`
+		    `list_int_push on non-list` and the follow-up `list_debug` dump in
+		    `build/logs/alloc_churn_bad_list_auto_20260421_215623_3.log` shows the same pointer resolving
+		    to a live tracking node with `kind=1` and `size=32`. A temporary experiment that forced the
+		    arm64 whole-loop/intrinsic fast-push paths off by default did not retire this broader benchmark
+		    failure and also blew up the perf-gate surface (`build/logs/perf-gate-native-20260421_215805_34593.summary.log`),
+		    so that detour is not shipped. The remaining task is the real retrack / kind-flip issue on the
+		    full alloc_churn surface, not another blanket fast-path shutdown.
 		  - Fix + verify (2026-04-21): the focused green join-waiter/STW tail now has two current guardrails
 		    instead of only old trace notes. `lib/runtime_native/100_time_core.oren` now collapses duplicate
 		    OS-thread registrations by recycled TID, preferring one live canonical node and marking the rest

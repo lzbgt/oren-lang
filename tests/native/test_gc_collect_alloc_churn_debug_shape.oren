@@ -1,0 +1,54 @@
+fn alloc_churn_list_int_debug_shape(n, gc_every, clear_list, small_ints, list_len) {
+    var acc = 0
+    if clear_list != 0 {
+        var gc_count = 0
+        var i = 0
+        while i < n {
+            var xs = oren_new_list_int(0)
+            var j = 0
+            while j < list_len {
+                var v = i + j
+                if small_ints != 0 { v = j }
+                oren_list_int_push(xs, v)
+                j = j + 1
+            }
+            acc = acc + oren_list_int_get(xs, 0)
+            if gc_every > 0 && i > 0 {
+                gc_count = gc_count + 1
+                if gc_count == gc_every {
+                    gc_count = 0
+                    oren_gc_collect()
+                }
+            }
+            xs = nil
+            i = i + 1
+        }
+    } else {
+        var gc_count2 = 0
+        var i2 = 0
+        while i2 < n {
+            var xs2 = oren_new_list_int(0)
+            var j2 = 0
+            while j2 < list_len {
+                var v2 = i2 + j2
+                if small_ints != 0 { v2 = j2 }
+                oren_list_int_push(xs2, v2)
+                j2 = j2 + 1
+            }
+            acc = acc + oren_list_int_get(xs2, 0)
+            if gc_every > 0 && i2 > 0 {
+                gc_count2 = gc_count2 + 1
+                if gc_count2 == gc_every {
+                    gc_count2 = 0
+                    oren_gc_collect()
+                }
+            }
+            i2 = i2 + 1
+        }
+    }
+    return acc
+}
+
+fn main() {
+    print(alloc_churn_list_int_debug_shape(256, 2, 1, 1, 128))
+}

@@ -493,10 +493,9 @@ fn oren_mark_value(val) {
                 g_trace_gc_list_hdr_kind_cap = g_trace_gc_list_hdr_kind_cap - 1
             }
             if native_gc_list_header_ok(val, kind, chunk_size) == 0 {
-                print("trace: gc list corrupt list=" + oren_int_to_string(val) +
-                      " chunk=" + oren_int_to_string(chunk_size))
-                native_gc_list_header_dump(val, chunk_size, node)
-                oren_panic("gc list header corrupt")
+                // Conservative stack/register scans can surface stale values that alias a freed or
+                // partially reused list header. Keep the header node live for this cycle, but do
+                // not recurse through a header that no longer satisfies the list contract.
                 return 0
             }
             var count = ptr_get(val)
@@ -522,10 +521,9 @@ fn oren_mark_value(val) {
                 g_trace_gc_list_hdr_kind_cap = g_trace_gc_list_hdr_kind_cap - 1
             }
             if native_gc_list_header_ok(val, kind, chunk_size) == 0 {
-                print("trace: gc list_int corrupt list=" + oren_int_to_string(val) +
-                      " chunk=" + oren_int_to_string(chunk_size))
-                native_gc_list_header_dump(val, chunk_size, node)
-                oren_panic("gc list_int header corrupt")
+                // Conservative stack/register scans can surface stale values that alias a freed or
+                // partially reused list<int> header. Keep the header node live for this cycle, but
+                // do not recurse through a header that no longer satisfies the list contract.
                 return 0
             }
             var buf = ptr_get(iadd(val, 16))

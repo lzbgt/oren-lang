@@ -706,6 +706,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 }
             }
         }
+        if nm == "oren_gc_collect" {
+            if args == nil || oren_list_len(args) == 0 {
+                if expr["spread"] == nil {
+                    _emit_gc_collect_call_x64(ctx)
+                    return nil
+                }
+            }
+        }
 
         // PERF (x64 self-host builds):
         // Most compiler-internal calls (encoder helpers, backend emitters, etc) are *not* `oren_*`.

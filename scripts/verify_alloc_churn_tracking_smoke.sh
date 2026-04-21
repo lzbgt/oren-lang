@@ -13,12 +13,13 @@ fi
 build_case() {
   local name="$1"
   local src="$2"
-  shift 2
+  local mode_flag="$3"
+  shift 3
   local out="$ROOT/build/tmp/${name}"
   local log="$ROOT/build/logs/${name}.build.log"
   rm -f "$out" "$log" 2>/dev/null || true
   env OREN_NO_CACHE=1 "$@" "$COMPILER" build "$ROOT/$src" \
-    --backend native --no-debug --no-cache -o "$out" >"$log" 2>&1
+    --backend native "$mode_flag" --no-cache -o "$out" >"$log" 2>&1
   printf '%s\n' "$out"
 }
 
@@ -63,16 +64,19 @@ run_case() {
   echo "ok: $name (log=$log)"
 }
 
-min_bin="$(build_case gc_reuse_alloc_churn_min tests/native/test_gc_reuse_alloc_churn_min.oren OREN_ARENA_AUTO_LOOP=0)"
+min_bin="$(build_case gc_reuse_alloc_churn_min tests/native/test_gc_reuse_alloc_churn_min.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
 run_case gc_reuse_alloc_churn_min 0 "$min_bin"
 
-generic_bin="$(build_case gc_reuse_alloc_churn_generic tests/native/test_gc_reuse_alloc_churn_generic.oren OREN_ARENA_AUTO_LOOP=0)"
+generic_bin="$(build_case gc_reuse_alloc_churn_generic tests/native/test_gc_reuse_alloc_churn_generic.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
 run_case gc_reuse_alloc_churn_generic 0 "$generic_bin"
 
-collect_bin="$(build_case gc_collect_list_int_live tests/native/test_gc_collect_list_int_live.oren OREN_ARENA_AUTO_LOOP=0)"
+collect_bin="$(build_case gc_collect_list_int_live tests/native/test_gc_collect_list_int_live.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
 run_case gc_collect_list_int_live 999 "$collect_bin"
 
-auto_bin="$(build_case gc_auto_list_int_live tests/native/test_gc_auto_list_int_live.oren OREN_ARENA_AUTO_LOOP=0)"
+auto_bin="$(build_case gc_auto_list_int_live tests/native/test_gc_auto_list_int_live.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
 run_case gc_auto_list_int_live 127 "$auto_bin"
+
+alloc_churn_shape_bin="$(build_case gc_collect_alloc_churn_debug_shape tests/native/test_gc_collect_alloc_churn_debug_shape.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
+run_case gc_collect_alloc_churn_debug_shape 0 "$alloc_churn_shape_bin"
 
 echo "OK: alloc_churn tracking smoke passed"

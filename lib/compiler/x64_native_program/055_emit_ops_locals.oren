@@ -86,7 +86,7 @@ fn _linetab_record_tok(ctx, tok) {
     return nil
 }
 
-fn _emit_gc_safepoint_call_x64(ctx) {
+fn _emit_gc_visible_call_x64(ctx, callee_name) {
     // Spill callee-saved regs so conservative GC sees register-held pointers.
     // Includes Win64 non-volatiles (rdi/rsi) for parity.
     bytes_extend(ctx["code"], insn_push_r64(3))  // rbx
@@ -97,7 +97,7 @@ fn _emit_gc_safepoint_call_x64(ctx) {
     bytes_extend(ctx["code"], insn_push_r64(13)) // r13
     bytes_extend(ctx["code"], insn_push_r64(14)) // r14
     bytes_extend(ctx["code"], insn_push_r64(15)) // r15
-    _emit_call_rel32_named_x64(ctx, "oren_gc_safepoint")
+    _emit_call_rel32_named_x64(ctx, callee_name)
     bytes_extend(ctx["code"], insn_pop_r64(15))
     bytes_extend(ctx["code"], insn_pop_r64(14))
     bytes_extend(ctx["code"], insn_pop_r64(13))
@@ -107,6 +107,14 @@ fn _emit_gc_safepoint_call_x64(ctx) {
     bytes_extend(ctx["code"], insn_pop_r64(5))
     bytes_extend(ctx["code"], insn_pop_r64(3))
     return nil
+}
+
+fn _emit_gc_safepoint_call_x64(ctx) {
+    return _emit_gc_visible_call_x64(ctx, "oren_gc_safepoint")
+}
+
+fn _emit_gc_collect_call_x64(ctx) {
+    return _emit_gc_visible_call_x64(ctx, "oren_gc_collect")
 }
 
 fn _emit_native_gas_note_x64(ctx, amount) {
