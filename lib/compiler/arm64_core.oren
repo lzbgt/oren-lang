@@ -131,6 +131,20 @@ fn ceil_div(a, b) {
 
 fn int_mod(a, b) { return a - (a / b) * b }
 
+fn arm64_tick_period_from_mask(tick_mask) {
+    // Fast countdown tick path is only equivalent to the historical mask gate when the mask is
+    // a low-bits form (2^k - 1): e.g. 4095 -> call every 4096 iterations.
+    if tick_mask < 0 { return 0 }
+    var period = tick_mask + 1
+    if period <= 0 { return 0 }
+    var pow2 = 1
+    while pow2 < period {
+        pow2 = pow2 * 2
+    }
+    if pow2 != period { return 0 }
+    return period
+}
+
 fn arm64_ctx_fixups_local_compact_ensure(ctx) {
     if ctx == nil { return nil }
     var fx = ctx["fixups_local_compact"]
@@ -392,6 +406,11 @@ fn insn_ldr_x0_sp(offset) {
 fn insn_sub_imm(rd, rn, imm) {
     // SUB Xrd, Xrn, #imm (imm12, shift=0)
     return 3506438144 + (imm * 1024) + (rn * 32) + rd // base 0xD1000000
+}
+
+fn insn_subs_imm(rd, rn, imm) {
+    // SUBS Xrd, Xrn, #imm (imm12, shift=0)
+    return 4043309056 + (imm * 1024) + (rn * 32) + rd // base 0xF1000000
 }
 
 fn insn_stur_reg(rt, rn, offset) {

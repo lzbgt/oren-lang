@@ -64,6 +64,7 @@ fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
 fn align_up(n, align) { return core.align_up(n, align) }
 fn ceil_div(a, b) { return core.ceil_div(a, b) }
 fn int_mod(a, b) { return core.int_mod(a, b) }
+fn arm64_tick_period_from_mask(tick_mask) { return core.arm64_tick_period_from_mask(tick_mask) }
 fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
 fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
 fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
@@ -158,6 +159,7 @@ fn native_ns_resolve(ctx, exp) {
 fn insn_ret() { return core.insn_ret() }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_subs_imm(rd, rn, imm) { return core.insn_subs_imm(rd, rn, imm) }
 fn insn_sxtw(rd, rn) { return core.insn_sxtw(rd, rn) }
 fn insn_uxtw(rd, rn) { return core.insn_uxtw(rd, rn) }
 fn insn_movn(rd, imm) { return core.insn_movn(rd, imm) }

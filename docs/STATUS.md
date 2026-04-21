@@ -3304,6 +3304,14 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 
 2) **Perf parity W5: native hot loops** (L, W5)
    - Execute item 1 in the performance tracker (loop_sum + dot_product).
+   - Refresh (2026-04-21): `make perf-gate-native` is back within the arm64 gate for both tracked
+     hot loops: `loop_sum` 1.09× C and `dot_product` 1.93× C
+     (summary: `build/logs/perf-gate-native-20260421_154158_16010.summary.log`; log:
+     `build/logs/perf-gate-native-20260421_154158_16010.log`). The two shipped fixes in this rerun
+     were (1) inline safepoint countdown seeding for low-bit tick masks on the native hot-loop
+     paths and (2) restricting arm64 fast push idx-expression constant folding to integer literals
+     only, which avoids freezing an outer induction variable to its pre-loop `locals_int_const`
+     value inside nested `fast_list_int_push_while` lowering.
    - Refresh (2026-04-04): `make perf-gate-native` now shows loop_sum within gate at 1.09× C,
      while dot_product remains open at 2.82× C on arm64 (summary: `benchmarks/RESULTS_LATEST.md`;
      log: `build/logs/perf-gate-native-20260404_202225.log`).

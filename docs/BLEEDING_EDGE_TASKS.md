@@ -2735,7 +2735,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      globals. Removing those last generic tick slots would require a backend-wide register-policy
      redesign or a different generic safepoint scheme.
    - Status: no further per-loop arm64 tick-slot toggles remain in this W5 thread.
-   - Next: shift hot-loop work away from tick-slot cleanup and toward generic integer-loop/runtime overhead; the fresh arm64 perf-gate run still misses the 2× target.
+   - Update (2026-04-21): the fresh arm64 perf gate is now back within the Tier-1 hot-loop gate
+     (`build/logs/perf-gate-native-20260421_154158_16010.summary.log`: `loop_sum` 1.0926× C,
+     `dot_product` 1.9281× C). The closing fixes were inline countdown seeding for low-bit
+     safepoint masks plus a literal-only guard on fast push idx-expression constant folding, which
+     stopped nested `fast_list_int_push_while` from freezing an outer induction variable to its
+     stale pre-loop `locals_int_const` value.
+   - Next: keep arm64 hot-loop work off the old tick-slot cleanup thread and move W5 effort toward
+     runtime robustness / allocation-heavy workloads and the remaining non-arm64 parity gaps.
    - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
     - New: `OREN_TRACE_GC_REGISTER_ROOT_NAMES=1` (compile-time env) emits per-root
@@ -3914,6 +3921,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
+   - Update (2026-04-21): the canonical arm64 path is back under the production gate on the shipped
+     perf surface. `make perf-gate-native`
+     (`build/logs/perf-gate-native-20260421_154158_16010.summary.log`) now records `loop_sum`
+     1.0926× C and `dot_product` 1.9281× C, while `alloc_churn` remains inside its separate gate at
+     5.0596× C. The fixes that closed the dot gap were not another packed/SIMD bridge experiment;
+     they were backend lowering fixes on the canonical path: low-bit inline safepoint countdown
+     seeding and literal-only integer-constant handling for nested fast push idx expressions. The
+     len128 specialized benchmark path is now guarded by `scripts/verify_alloc_churn_len128_smoke.sh`
+     so this exact correctness regression cannot silently return.
    - Baseline (arm64 native, 2026-04-04 latest clean focused list<int> rerun): `array_sum_int` 2.07× C,
      `dot_product_int` 2.59× C, `multi_list_push_int` 2.24× C.
    - Steady-state baseline (arm64 native, 2026-04-04, `reps=100`): `array_sum_int` ~2.43× C,

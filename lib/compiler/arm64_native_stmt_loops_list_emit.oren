@@ -56,6 +56,7 @@ fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offse
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
 fn insn_sub_imm(rd, rn, imm) { return core.insn_sub_imm(rd, rn, imm) }
+fn insn_subs_imm(rd, rn, imm) { return core.insn_subs_imm(rd, rn, imm) }
 fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
 fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
@@ -76,6 +77,7 @@ fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) 
 // Helpers from list matchers module.
 fn _arm64_local_fp_off(ctx, name) { return listm._arm64_local_fp_off(ctx, name) }
 fn _arm64_str_eq_bytes(a, b) { return listm._arm64_str_eq_bytes(a, b) }
+fn _arm64_fast_loop_int_lit_const(expr) { return listm._arm64_fast_loop_int_lit_const(expr) }
 fn _arm64_emit_while_generic(ctx, stmt) { return listm._arm64_emit_while_generic(ctx, stmt) }
 fn _arm64_restore_stack_to(ctx, base_stack) { return listm._arm64_restore_stack_to(ctx, base_stack) }
 
@@ -123,7 +125,7 @@ fn _arm64_env_enabled_default_true(name) {
 
 fn _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr, idx_name, idx_reg) {
     if ctx == nil || expr == nil || idx_name == nil { return false }
-    var int_const = exprm.native_expr_int_const(ctx, expr)
+    var int_const = _arm64_fast_loop_int_lit_const(expr)
     if int_const != nil {
         emit_load_i64_imm(ctx, 0, int_const)
         return true
@@ -172,7 +174,7 @@ fn _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr, idx_name, idx_reg) {
         return true
     }
 
-    var rhs_const = exprm.native_expr_int_const(ctx, expr["right"])
+    var rhs_const = _arm64_fast_loop_int_lit_const(expr["right"])
     if rhs_const == nil || rhs_const == 0 || rhs_const == -1 { return false }
     push_u32_le(ctx["code"], insn_sdiv(2, 1, 0))
     push_u32_le(ctx["code"], insn_mul(2, 2, 0))
@@ -292,8 +294,7 @@ fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
     oren_list_push(slow_jumps, {"pos": jpos_count_small, "cond": 11}) // LT
 
     emit_load_ptr_from_base_plus(ctx, 19, 19, 16) // X19 = ptr
-    push_u32_le(ctx["code"], insn_movz(9, 0))
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
 
     var loop_cond_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
@@ -445,8 +446,7 @@ fn _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) {
     oren_list_push(slow_jumps, {"pos": jpos_right_count_small, "cond": 11}) // LT
 
     emit_load_ptr_from_base_plus(ctx, 20, 20, 16) // X20 = pb
-    push_u32_le(ctx["code"], insn_movz(9, 0))
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
 
     var loop_cond_pos = bytes_len(ctx["code"])
     var jpos_fast_end = nil
@@ -552,6 +552,7 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LIST_GET_SUM_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_GET_SUM_TICK_MASK", 255)
+    var tick_period = gc.native_arm64_inline_tick_period(tick_mask)
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
@@ -573,10 +574,9 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var list_base_off = slot0 + 24
     listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
-    // init tick=0 and safepoint mask (keep tick in X9; spill only on safepoint)
-    push_u32_le(ctx["code"], insn_movz(9, 0))
+    // init inline tick state (keep tick in X9; spill only on safepoint comparison/debug paths)
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -704,14 +704,17 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
     // Inline throttled safepoint without per-iter tick loads/stores.
-    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
-    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
-    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    if tick_period > 0 {
+        push_u32_le(ctx["code"], insn_subs_imm(9, 9, 1))
+    } else {
+        push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+        push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+        push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    }
     var jpos_tick_skip = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
     gc.native_emit_gc_safepoint_call(ctx)
-    push_u32_le(ctx["code"], insn_movz(9, 0)) // reset tick after safepoint
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
     var tick_skip_pos = bytes_len(ctx["code"])
     var tick_skip_off = (tick_skip_pos - jpos_tick_skip) / 4
     set_u32_le(ctx["code"], jpos_tick_skip, insn_b_cond(tick_skip_off, 1)) // NE
@@ -940,11 +943,8 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     var list_base_off = slot0 + 24
     listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
-    // init tick=0
-    push_u32_le(ctx["code"], insn_movz(9, 0))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1484,11 +1484,8 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     var list_base_off = slot0 + 24
     listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
-    // init tick=0
-    push_u32_le(ctx["code"], insn_movz(9, 0))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -2110,11 +2107,8 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     var list_base_off = slot0 + 24
     listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
-    // init tick=0
-    push_u32_le(ctx["code"], insn_movz(9, 0))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -2409,11 +2403,6 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         idx_int_expr_cursor_regs = true
     }
 
-    // init tick=0
-    push_u32_le(ctx["code"], insn_movz(9, 0))
-    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
-
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
     emit_str_reg_sp_any(ctx, 0, i_off)
@@ -2550,6 +2539,11 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
 
         li = li + 1
     }
+
+    // Seed the inline tick after preheader reserve/capacity calls so the fast loop always starts
+    // from a known countdown state on the no-slot path too.
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
+    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
 
     if single_list_cursor {
         // Keep the active list<int> cursor in the existing buf stack slot. We deliberately do not
@@ -2750,12 +2744,6 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     var list_base_off = slot0 + 16
     listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
-    // init tick=0
-    push_u32_le(ctx["code"], insn_movz(9, 0))
-    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
-
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
     emit_str_reg_sp_any(ctx, 0, i_off)
@@ -2861,6 +2849,11 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
 
         li = li + 1
     }
+
+    // Seed the inline tick after preheader reserve/capacity calls so the fast loop always starts
+    // from a known countdown state on the no-slot path too.
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
+    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
 
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])

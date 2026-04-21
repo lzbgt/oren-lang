@@ -73,6 +73,13 @@ fn _arm64_trace_loop_range(ctx, kind, start_pos, end_pos) {
     return basem._arm64_trace_loop_range(ctx, kind, start_pos, end_pos)
 }
 
+fn _arm64_fast_loop_int_lit_const(expr) {
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    var v = intparse.parse_int_lit(expr["value"])
+    if oren_is_err(v) { return nil }
+    return v
+}
+
 
 
 fn _arm64_str_eq_bytes(a, b) {
@@ -204,7 +211,7 @@ fn _arm64_expr_is_fast_loop_call_free(exp) {
 
 fn _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp, idx_name) {
     if exp == nil || idx_name == nil { return false }
-    if exprm.native_expr_int_const(ctx, exp) != nil { return true }
+    if _arm64_fast_loop_int_lit_const(exp) != nil { return true }
     var et = exp["type"]
     if et == "Identifier" {
         return _arm64_str_eq_bytes(exp["value"], idx_name)
@@ -219,7 +226,7 @@ fn _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp, idx_name) {
         if _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp["left"], idx_name) != true { return false }
         if _arm64_expr_is_fast_loop_idx_int_arith(ctx, exp["right"], idx_name) != true { return false }
         if op == "%" {
-            var rhs_const = exprm.native_expr_int_const(ctx, exp["right"])
+            var rhs_const = _arm64_fast_loop_int_lit_const(exp["right"])
             if rhs_const == nil || rhs_const == 0 || rhs_const == -1 { return false }
         }
         return true

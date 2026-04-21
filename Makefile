@@ -578,8 +578,12 @@ test-native-capsule-smoke-stage2: oren_stage2 rtobj-seed astbin-seed
 verify-optimizer-list-reserve-branchy: oren_stage2
 		@./scripts/verify_optimizer_list_reserve_branchy.sh
 
+# Native benchmark smoke: alloc_churn len128 specialized entrypoints must agree with the override path.
+verify-alloc-churn-len128: oren_stage2
+		@./scripts/verify_alloc_churn_len128_smoke.sh
+
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
-verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-optimizer-list-reserve-branchy
+verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-optimizer-list-reserve-branchy verify-alloc-churn-len128
 	@echo "verify-native-quick OK"
 
 # Wrapper smoke: keep ./oretest target mapping aligned with the documented fast/full flows.

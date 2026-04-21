@@ -76,6 +76,7 @@ fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
 fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_subs_imm(rd, rn, imm) { return core.insn_subs_imm(rd, rn, imm) }
 fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
 fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
@@ -468,6 +469,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var keep_tick_slot = false
     if oren_env("OREN_ARM64_FAST_LCG_SUM_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
     var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LCG_SUM_TICK_MASK", 4095)
+    var tick_period = gc.native_arm64_inline_tick_period(tick_mask)
     var slots = 6 // tick + i + n + x + sum + mod
     if !keep_tick_slot { slots = 5 }
     var total_bytes = align_up(slots * 8, 16)
@@ -490,11 +492,8 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var mod_off = slot0 + 32
     _arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
-    // init tick=0
-    push_u32_le(ctx["code"], insn_movz(9, 0))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
-    // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
 
     // load i/n/x/sum/mod locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -584,17 +583,20 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
     // Inline throttled safepoint without per-iter tick loads/stores.
-    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
-    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
-    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    if tick_period > 0 {
+        push_u32_le(ctx["code"], insn_subs_imm(9, 9, 1))
+    } else {
+        push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+        push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+        push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    }
     var jpos_tick_skip_slow = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
     // The runtime safepoint call may clobber caller-saved regs, so spill i_mod across it.
     emit_str_reg_sp_any(ctx, 2, i_off)
     gc.native_emit_gc_safepoint_call(ctx)
     emit_ldr_reg_sp_any(ctx, 2, i_off)
-    push_u32_le(ctx["code"], insn_movz(9, 0)) // reset tick after safepoint
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
     var tick_skip_pos_slow = bytes_len(ctx["code"])
     var tick_skip_off_slow = (tick_skip_pos_slow - jpos_tick_skip_slow) / 4
     set_u32_le(ctx["code"], jpos_tick_skip_slow, insn_b_cond(tick_skip_off_slow, 1)) // NE

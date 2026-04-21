@@ -16,6 +16,7 @@ fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, 
 fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
+fn insn_subs_imm(rd, rn, imm) { return core.insn_subs_imm(rd, rn, imm) }
 
 fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
@@ -138,6 +139,21 @@ fn _arm64_parse_tick_mask_decimal(v, default_mask) {
 fn native_arm64_fast_loop_tick_mask(env_name, default_mask) {
     if env_name == nil || env_name == "" { return default_mask }
     return _arm64_parse_tick_mask_decimal(oren_env(env_name), default_mask)
+}
+
+fn native_arm64_inline_tick_period(tick_mask) {
+    return core.arm64_tick_period_from_mask(tick_mask)
+}
+
+fn native_emit_gc_inline_tick_init(ctx, tick_mask) {
+    var period = native_arm64_inline_tick_period(tick_mask)
+    if period > 0 {
+        emit_load_u64_imm(ctx, 9, period)
+        return nil
+    }
+    push_u32_le(ctx["code"], insn_movz(9, 0))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    return nil
 }
 
 fn native_emit_gc_safepoint_call(ctx) {
@@ -278,13 +294,20 @@ fn native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, reg_pairs) {
     // Inline tick update for hot loops that do not allocate inside the body.
     //
     // Contract:
-    // - Caller initializes X9=0 and X10=tick_mask before entering the loop.
-    // - Uses X11 as scratch (caller-saved).
+    // - Caller seeds the inline tick state via native_emit_gc_inline_tick_init(...).
+    // - Uses X11 as scratch only on the fallback mask-gate path.
     //
-    // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
-    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
-    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
-    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    // Common case (low-bits mask, e.g. 4095): countdown to zero and branch on NZ.
+    // Fallback: tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
+    var period = native_arm64_inline_tick_period(tick_mask)
+    if period > 0 {
+        // Common shipped path: countdown avoids the per-iteration mask materialization/and/cmp trio.
+        push_u32_le(ctx["code"], insn_subs_imm(9, 9, 1))
+    } else {
+        push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+        push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+        push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    }
     var jskip_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
 
@@ -293,8 +316,7 @@ fn native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, reg_pairs) {
     }
     native_emit_gc_safepoint_call_pairs(ctx, reg_pairs)
     // Reset tick/mask after runtime call (caller-saved regs).
-    push_u32_le(ctx["code"], insn_movz(9, 0))
-    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    native_emit_gc_inline_tick_init(ctx, tick_mask)
 
     var after_call = bytes_len(ctx["code"])
     var off = (after_call - jskip_pos) / 4
