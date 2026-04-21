@@ -3319,8 +3319,21 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 3) **Runtime robustness W5: GC reuse + list header integrity** (L, W5)
-   - Root-cause list header corruption (alloc_churn/alloc_drop traces point to pre-reuse corruption).
-  - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
+	   - Root-cause list header corruption (alloc_churn/alloc_drop traces point to pre-reuse corruption).
+	  - Update (2026-04-21): native quick integration now includes an explicit GC reuse tracking smoke
+	    via `tests/native/test_gc_reuse_tracking.oren`. The fixture was tightened to force tracked
+	    list-header allocations through `oren_new_list(0)` and a real escaping aggregate, then the
+	    shared quick runner builds it with `OREN_ARENA_AUTO_LOOP=0` and runs it under
+	    `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=1`,
+	    `OREN_GC_REUSE_LISTS_UNSAFE=1`, `OREN_TRACE_GC_REUSE_SUMMARY=1`, asserting nonzero reuse
+	    hits. Current quick log shows `[gc_reuse_summary] ... hits=4` before `gc reuse tracking OK`
+	    (log: `build/logs/oren_native_quick_integration.log`).
+	  - Refresh (2026-04-21): a short current bad-list hunt
+	    (`RUNS=2 BUILD=1 EXTRA_TRACE=0 CRASH_FOOTER=1 REPRO_BAD_LIST_CORRELATE=0 bash ./scripts/repro_bad_list_alloc_churn.sh`)
+	    found no `gc_reuse_bad_list` hits on the current tree
+	    (log: `build/logs/repro_bad_list_alloc_churn_20260421_short.log`). Treat the remaining W5
+	    work as guard/hardening coverage until a wider current repro proves otherwise.
+	  - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
     - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
     - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
     - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.

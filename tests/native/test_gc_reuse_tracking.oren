@@ -2,36 +2,59 @@
 //
 // If re-tracking is broken, an object that is only reachable through a reused
 // container may be collected, causing memory corruption / wrong results later.
+//
+// The helpers below deliberately move the dead lists out of the caller's frame
+// before `native_gc_collect()` so the runtime can actually recycle those headers.
+
+fn _make_dead_headers(n) {
+    var keep = oren_new_list(0)
+    var i = 0
+    while i < n {
+        var tmp = oren_new_list(0)
+        oren_list_push(tmp, i)
+        oren_list_push(keep, tmp)
+        i = i + 1
+    }
+    return keep
+}
+
+fn _make_outer_with_inner() {
+    var inner = oren_new_list(0)
+    oren_list_push(inner, 777)
+    var outer = oren_new_list(0)
+    oren_list_push(outer, inner)
+    return outer
+}
+
+fn _clobber_stack(n) {
+    var i = 0
+    var acc = 0
+    while i < n {
+        acc = acc + i
+        i = i + 1
+    }
+    return acc
+}
 
 fn main() {
-    // 1) Create a list and drop it so its list-header allocation can enter the free list.
-    var tmp = []
-    oren_list_push(tmp, 1)
-    tmp = 0
+    // 1) Create dead list headers in a helper frame, then collect.
+    var dead = _make_dead_headers(256)
+    dead = 0
+    _clobber_stack(1024)
     native_gc_collect()
 
     // 2) Build nested structure where `inner` is only reachable via `outer`.
-    var inner = []
-    oren_list_push(inner, 777)
-    var outer = []
-    oren_list_push(outer, inner)
-
-    // Drop the direct reference: after this, `inner` must remain alive only via `outer`.
-    inner = 0
+    var outer = _make_outer_with_inner()
 
     // 3) Collect. If `outer` was allocated via reuse but not re-tracked, GC will not
     // traverse `outer` -> `inner`, and `inner` may be collected.
+    _clobber_stack(1024)
     native_gc_collect()
 
-    // 4) Force some allocations that would likely reuse freed blocks if `inner` was freed.
-    var i = 0
-    while i < 2000 {
-        var g = []
-        oren_list_push(g, i)
-        // Drop it immediately.
-        g = 0
-        i = i + 1
-    }
+    // 4) Force additional allocations after the collect so a wrongly freed `inner`
+    // is more likely to be overwritten before we read it back.
+    var churn = _make_dead_headers(2048)
+    churn = 0
 
     // 5) `inner` must still be reachable and correct.
     var inner2 = oren_list_get(outer, 0)

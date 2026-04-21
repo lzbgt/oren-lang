@@ -909,6 +909,33 @@ run_step_checked "loop list reuse escape smoke" "$reuse_log" \
 echo "ok: loop list reuse escape smoke" >>"$reuse_log"
 tail -n 3 "$reuse_log" >>"$log"
 
+echo "== gc reuse tracking smoke ==" >>"$log"
+gc_reuse_src="tests/native/test_gc_reuse_tracking.oren"
+gc_reuse_out="build/tmp/${compiler_base}_gc_reuse_tracking_smoke${exe_ext}"
+gc_reuse_log="build/logs/${compiler_base}_gc_reuse_tracking_smoke.log"
+rm -f "$gc_reuse_log" "$gc_reuse_out" 2>/dev/null || true
+OREN_ARENA_AUTO_LOOP=0 build_step_checked "gc reuse tracking smoke" "$gc_reuse_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$gc_reuse_src" \
+  --backend native --platform "$platform" --debug -o "$gc_reuse_out"
+OREN_GC_REUSE_BLOCKS=1 \
+OREN_GC_REUSE_LISTS=1 \
+OREN_GC_REUSE_LISTS_UNSAFE=1 \
+OREN_TRACE_GC_REUSE_SUMMARY=1 \
+run_step_checked "gc reuse tracking smoke" "$gc_reuse_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$gc_reuse_out"
+if ! grep -q "gc reuse tracking OK" "$gc_reuse_log" 2>/dev/null; then
+  echo "ERROR: gc reuse tracking smoke missing success marker" >&2
+  tail -n 80 "$gc_reuse_log" >&2 2>/dev/null || true
+  exit 1
+fi
+if ! grep -Eq "\\[gc_reuse_summary\\].*hits=[1-9]" "$gc_reuse_log" 2>/dev/null; then
+  echo "ERROR: gc reuse tracking smoke did not observe any reuse hits" >&2
+  tail -n 80 "$gc_reuse_log" >&2 2>/dev/null || true
+  exit 1
+fi
+echo "ok: gc reuse tracking smoke" >>"$gc_reuse_log"
+tail -n 4 "$gc_reuse_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.
