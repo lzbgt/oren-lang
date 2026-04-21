@@ -256,6 +256,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     proves both the green-only and OS-only stress modes under stage2; the bundled W5 runtime gate
 	     now runs it by default (`build/logs/verify_native_quick_green_join_waiters_modes_20260421_194941.log`,
 	     `build/logs/runtime_robustness_w5_20260421_193511.log`).
+	   - Refresh (2026-04-21): the direct world-lock/entry-args slice is now current evidence, not
+	     only an old March trace branch. `scripts/triage_green_two_workers_world_lock_smoke.sh`
+	     passed 3/3 with `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_ENTRY_ARGS=1`,
+	     `OREN_QI_TRACE_GREEN_LIST=1`, `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1`, and
+	     `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50`
+	     (`build/logs/triage_green_world_lock_entry_args_current_20260421_200041.log`), and the
+	     inner log shows sane `green_entry_args` metadata all the way through `gc collect done`
+	     (`build/logs/oren_stage2_green_two_workers_world_lock_smoke.log`). The repo now ships that
+	     exact traced recipe in `verify-green-world-lock-guarded`, and `verify-runtime-robustness`
+	     includes a one-run direct world-lock leg with the same env set.
 	   - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
 	     reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
    - Fix: green spawn/entry now re-track args_list headers on alloc-index misses when magic+len/cap look sane (2026-03-04).

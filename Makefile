@@ -612,9 +612,9 @@ verify-native-quick-simd: verify-native-quick verify-simd-determinism
 verify-native-quick-gc: verify-native-quick test-native-quick-gc-stress-stage2
 	@echo "verify-native-quick-gc OK"
 
-# Guarded scheduler smoke: standalone world-lock repro with poll cache + args-list guards.
+# Guarded scheduler smoke: standalone world-lock repro with poll cache + entry/list tracing.
 verify-green-world-lock-guarded: oren_stage2
-	@./scripts/triage_green_two_workers_world_lock_smoke.sh 3 "./$(OREN_STAGE2_BIN)" OREN_GREEN_POLL_CACHE=1 OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1
+	@./scripts/triage_green_two_workers_world_lock_smoke.sh 3 "./$(OREN_STAGE2_BIN)" OREN_GREEN_POLL_CACHE=1 OREN_TRACE_GREEN_RUNQ_GUARD=1 OREN_TRACE_GREEN_ARGS_STAMP=1 OREN_TRACE_GREEN_ENTRY_ARGS=1 OREN_QI_TRACE_GREEN_LIST=1 OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1 OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50
 	@echo "verify-green-world-lock-guarded OK"
 
 # Guarded scheduler smoke: pre-world-lock quick integration / green-cache path only.

@@ -53,6 +53,7 @@ fi
 base_runs="${OREN_RUNTIME_ROBUSTNESS_BASE_RUNS:-1}"
 local_ptr_runs="${OREN_RUNTIME_ROBUSTNESS_LOCAL_PTR_RUNS:-1}"
 preworld_runs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUNS:-1}"
+world_lock_runs="${OREN_RUNTIME_ROBUSTNESS_WORLD_LOCK_RUNS:-1}"
 stage2_runs="${OREN_RUNTIME_ROBUSTNESS_STAGE2_RUNS:-1}"
 c_runs="${OREN_RUNTIME_ROBUSTNESS_C_RUNS:-$runs}"
 fixtures="${OREN_RUNTIME_ROBUSTNESS_C_FIXTURES:-tests/native/fixtures/arith_div0.oren,tests/native/fixtures/arith_div_overflow.oren,tests/native/fixtures/index_set_negative.oren}"
@@ -60,6 +61,7 @@ base_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_BASE_BUILD_TIMEOUT_SECS:-720}
 preworld_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_BUILD_TIMEOUT_SECS:-240}"
 preworld_run_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_RUN_TIMEOUT_SECS:-30}"
 preworld_green_cache_run_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_PREWORLD_GREEN_CACHE_RUN_TIMEOUT_SECS:-30}"
+world_lock_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_WORLD_LOCK_TIMEOUT_SECS:-120}"
 stage2_build_timeout_secs="${OREN_RUNTIME_ROBUSTNESS_STAGE2_BUILD_TIMEOUT_SECS:-240}"
 
 # Optional runtime tracing knobs (forwarded to child scripts).
@@ -84,6 +86,7 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "base_runs=$base_runs"
   echo "local_ptr_runs=$local_ptr_runs"
   echo "preworld_runs=$preworld_runs"
+  echo "world_lock_runs=$world_lock_runs"
   echo "stage2_runs=$stage2_runs"
   echo "c_runs=$c_runs"
   echo "compiler=$compiler"
@@ -98,6 +101,7 @@ git_rev="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "preworld_build_timeout_secs=$preworld_build_timeout_secs"
   echo "preworld_run_timeout_secs=$preworld_run_timeout_secs"
   echo "preworld_green_cache_run_timeout_secs=$preworld_green_cache_run_timeout_secs"
+  echo "world_lock_timeout_secs=$world_lock_timeout_secs"
   echo "stage2_build_timeout_secs=$stage2_build_timeout_secs"
   echo "trace_env=$trace_env"
 } >"$log"
@@ -156,6 +160,21 @@ if [[ "$preworld_runs" =~ ^[0-9]+$ ]] && [[ "$preworld_runs" -gt 0 ]]; then
     ./scripts/triage_stage2_quick_until_world_lock.sh "$preworld_runs" "$compiler" \
       OREN_TRACE_GREEN_RUNQ_GUARD=1 \
       OREN_TRACE_GREEN_ARGS_STAMP=1 \
+      "${trace_env_arr[@]}" "$@" \
+      >>"$log" 2>&1
+fi
+
+if [[ "$world_lock_runs" =~ ^[0-9]+$ ]] && [[ "$world_lock_runs" -gt 0 ]]; then
+  echo "== direct world-lock smoke with entry/list tracing (runs=$world_lock_runs) ==" | tee -a "$log"
+  OREN_WORLD_LOCK_SMOKE_TIMEOUT_SECS="$world_lock_timeout_secs" \
+    ./scripts/triage_green_two_workers_world_lock_smoke.sh "$world_lock_runs" "$compiler" \
+      OREN_GREEN_POLL_CACHE=1 \
+      OREN_TRACE_GREEN_RUNQ_GUARD=1 \
+      OREN_TRACE_GREEN_ARGS_STAMP=1 \
+      OREN_TRACE_GREEN_ENTRY_ARGS=1 \
+      OREN_QI_TRACE_GREEN_LIST=1 \
+      OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1 \
+      OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50 \
       "${trace_env_arr[@]}" "$@" \
       >>"$log" 2>&1
 fi

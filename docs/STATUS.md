@@ -3376,6 +3376,17 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 		    `build/logs/verify_native_quick_green_join_waiters_modes_20260421_194941.log`,
 		    `build/logs/runtime_robustness_w5_20260421_193511.log`, and
 		    `build/logs/make_verify_green_join_waiters_guarded_20260421_stw_renudge.log`.
+		  - Refresh (2026-04-21): the older stage2 world-lock/entry-args panic thread no longer needs to
+		    sit as a bare March TODO. The direct traced slice now has current proof and a stronger guard:
+		    `scripts/triage_green_two_workers_world_lock_smoke.sh` passed 3/3 under
+		    `OREN_GREEN_POLL_CACHE=1`, `OREN_TRACE_GREEN_ENTRY_ARGS=1`, `OREN_QI_TRACE_GREEN_LIST=1`,
+		    `OREN_TRACE_GREEN_WORLD_LOCK_SMOKE=1`, and `OREN_TRACE_GREEN_LAST_OPS_EVERY_TICKS=50`
+		    (`build/logs/triage_green_world_lock_entry_args_current_20260421_200041.log`), while the
+		    inner log shows the historical `green_entry_args` path staying sane through joins and
+		    `gc collect done` (`build/logs/oren_stage2_green_two_workers_world_lock_smoke.log`). The
+		    direct recipe is now the shipped `verify-green-world-lock-guarded` surface and is bundled
+		    into `verify-runtime-robustness` via the same traced env set, so re-open this thread only if
+		    the broader stage2 quick-integration path reproduces again.
 		  - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
 	    - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
     - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
