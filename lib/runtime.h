@@ -793,6 +793,13 @@ OrenValue oren_bytes_unpack(OrenValue bytes);
 // - time returns nanoseconds in an int (best-effort)
 OrenValue oren_sleep_ms(OrenValue ms);
 OrenValue oren_sleep_ns(OrenValue ns);
+// Best-effort host yield hint used by the rolling language/runtime surface.
+// - Linux: sched_yield()
+// - Windows: Sleep(0)
+// - macOS/other POSIX: currently a no-op that returns 0
+OrenValue oren_yield(void);
+// Statement helper used by lowered bare `yield`; always returns nil.
+OrenValue oren_yield_stmt(void);
 OrenValue oren_time_now_ns();
 OrenValue oren_time_unix_ns();
 OrenValue oren_time_mono_raw();

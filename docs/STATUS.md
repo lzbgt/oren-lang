@@ -1363,6 +1363,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     top-level locals/parameters that remain live across them. The current AVM lowering preserves
 	     the function frame across `AVM_YIELD`, so these cases are now executed and guarded by
 	     metadata, strict verification, and runtime execution smokes.
+	   - New (2026-04-22): backend parity for that same ready subset is now guarded too. A dedicated
+	     verifier builds and runs the same fixture under bytecode, C, and native with stage2 +
+	     `--strict-yield-lowering-v0`, proving AVM’s explicit state-machine path and the current
+	     C/native direct-call path agree on the shipped top-level bare-`yield` subset.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

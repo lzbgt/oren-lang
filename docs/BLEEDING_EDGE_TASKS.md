@@ -4200,6 +4200,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     top-level locals/parameters that remain live across them. That is now an executed AVM path,
 	     not just an analysis claim: the verifier and AVM smoke both run ready functions whose locals
 	     survive multiple suspension/resume boundaries.
+	   - New (2026-04-22): the same ready fixture is now parity-verified under bytecode, C, and
+	     native with stage2 + strict gating. AVM consumes `prepared_v0` explicitly; C/native still
+	     reach the shipped subset through direct `oren_yield_stmt()` execution rather than backend
+	     state-machine lowering.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

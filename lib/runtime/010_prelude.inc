@@ -10,6 +10,9 @@
 
 #if !defined(_WIN32)
 #include <dirent.h>
+#if defined(__linux__)
+#include <sched.h>
+#endif
 #include <unistd.h>
 #endif
 

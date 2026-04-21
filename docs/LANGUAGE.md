@@ -3349,6 +3349,10 @@ Rolling status:
   yield because the AVM function frame survives `AVM_YIELD`. Nested function literals and
   non-top-level yields remain outside the lowered subset, and native/C backends do not yet consume
   `prepared_v0` as an explicit lowering path.
+- New (2026-04-22): the same `lowering_v0.ready` fixture is now parity-verified under bytecode,
+  C, and native builds. AVM reaches it through explicit `prepared_v0` split-dispatch lowering,
+  while C/native currently execute the same ready subset through direct `oren_yield_stmt()` calls
+  on their existing stackful/runtime call surfaces.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)

@@ -184,6 +184,26 @@ OrenValue oren_sleep_ms(OrenValue ms) {
     return oren_sleep_ns(oren_int(msv * 1000000LL));
 }
 
+OrenValue oren_yield(void) {
+#if defined(_WIN32)
+    Sleep(0);
+    return oren_int(0);
+#elif defined(__linux__)
+    int rc = sched_yield();
+    if (rc == 0) return oren_int(0);
+    return oren_int(0 - (long long)errno);
+#else
+    // Keep parity with the rolling native runtime surface on macOS/other POSIX hosts:
+    // `yield` is currently a best-effort no-op when no stronger scheduler hook exists.
+    return oren_int(0);
+#endif
+}
+
+OrenValue oren_yield_stmt(void) {
+    (void)oren_yield();
+    return OREN_NIL;
+}
+
 static OrenValue oren_time_clock_ns(clockid_t clk) {
     struct timespec ts;
     if (clock_gettime(clk, &ts) != 0) {

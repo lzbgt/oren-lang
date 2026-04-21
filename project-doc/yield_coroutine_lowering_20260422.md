@@ -30,6 +30,9 @@ syntax slice landed.
   This is the first real execution consumer of the coroutine plan, and it now covers the narrow
   ready subset: multiple top-level bare `yield` sites, including top-level locals/parameters that
   remain live across them, but still no nested function literals and no non-top-level yield sites.
+- That same ready subset is now parity-verified under bytecode, C, and native builds. Only AVM
+  currently consumes `prepared_v0` as an explicit lowering path; C/native execute the same shipped
+  subset through ordinary `oren_yield_stmt()` calls on their existing runtime surfaces.
 
 That boundary is deliberate, not accidental.
 
@@ -181,10 +184,10 @@ infrastructure instead of more parser sugar:
    - only bare `yield`
 4. keep expression/result-yield rejected until the frame model exists
 
-That first lowering pass now executes the ready AVM subset end-to-end.
-The next pass should either carry the same prepared shape into native/C backends, or broaden the
-analysis/codegen pair to cover currently blocked non-top-level/nested-function shapes without
-re-discovering supportability heuristics again inside each backend.
+That first lowering pass now executes the ready AVM subset end-to-end, and backend parity for the
+same subset is guarded across bytecode/C/native.
+The next pass should broaden the analysis/codegen pair to cover currently blocked non-top-level or
+nested-function shapes without re-discovering supportability heuristics again inside each backend.
 
 That path keeps the current repo state honest:
 
