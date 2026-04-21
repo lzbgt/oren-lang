@@ -857,16 +857,15 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_JOIN_TIMEOUT)
             return nil
         }
-        if name == "oren_yield" {
+        if name == "oren_yield" || name == "oren_yield_stmt" {
             if oren_list_len(expr["args"]) != 0 {
-            bytecode_error(ctx, "bytecode backend: oren_yield expects ()")
+            bytecode_error(ctx, "bytecode backend: " + name + " expects ()")
             return nil
             }
             emit_byte(ctx, AVM_YIELD)
-            // `oren_yield()` is a statement-like primitive, but the bytecode expression
-            // model expects every expression to leave exactly one value on the stack.
-            // Return a canonical `nil` so surrounding contexts (ExprStmt -> POP, Assign, etc.)
-            // remain stack-balanced.
+            // Keep the stack-balanced expression contract for both helpers.
+            // - `oren_yield()` remains the low-level yield primitive.
+            // - `oren_yield_stmt()` is the normalized statement helper used by bare `yield`.
             var idx = add_constant(ctx, {"type": "Nil"})
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, idx)

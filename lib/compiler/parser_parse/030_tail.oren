@@ -188,7 +188,7 @@ fn parse_yield(p) {
         }
     }
     if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
-    var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield")
+    var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield_stmt")
     var ident = ast.new_identifier(ident_tok)
     var call = ast.new_call(ident_tok, ident, [])
     call["yield_stmt"] = true

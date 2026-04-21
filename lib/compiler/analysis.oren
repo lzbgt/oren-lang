@@ -140,5 +140,35 @@ fn function_yield_info(func) {
     var info = new_function_yield_info()
     if func == nil { return info }
     function_yield_info_walk_stmt(info, func["body"])
+    info["yield_lowering"] = function_yield_lowering_plan(info)
     return info
+}
+
+fn function_yield_lowering_plan(info) {
+    if info == nil { return nil }
+    var sites = info["yield_stmt_sites"]
+    if sites == nil || oren_list_len(sites) == 0 { return nil }
+
+    var yield_points = []
+    var states = []
+    oren_list_push(states, {"id": 0, "kind": "entry"})
+
+    var i = 0
+    while i < oren_list_len(sites) {
+        var site = sites[i]
+        var resume_state = i + 1
+        oren_list_push(yield_points, {"id": i, "site": site, "resume_state": resume_state})
+        oren_list_push(states, {"id": resume_state, "kind": "resume", "after_yield_site": site})
+        i = i + 1
+    }
+
+    return {
+        "version": 1,
+        "surface": "bare_statement_only",
+        "entry_state": 0,
+        "state_count": oren_list_len(states),
+        "locals_across_yield": [],
+        "yield_points": yield_points,
+        "states": states,
+    }
 }

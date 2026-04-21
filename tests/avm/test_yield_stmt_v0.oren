@@ -1,4 +1,4 @@
-// AVM smoke: `yield` statement sugar lowers to `oren_yield()`.
+// AVM smoke: `yield` statement sugar lowers to `oren_yield_stmt()`.
 
 fn fail() {
     var a = [1]
@@ -21,6 +21,7 @@ fn worker(limit) {
 }
 
 fn main() {
+    assert_eq(oren_yield_stmt(), nil)
     yield
     var h = spawn worker(3)
     assert_eq(oren_join(h), 3)

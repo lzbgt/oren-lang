@@ -3319,11 +3319,14 @@ Motivation:
 Rolling status:
 
 - Implemented (2026-04-22): bare statement `yield` now parses on the shared front-end and lowers
-  directly to `oren_yield()`. This is statement sugar only; it does **not** create resumable
+  directly to `oren_yield_stmt()`. This is statement sugar only; it does **not** create resumable
   coroutine frames or carry yielded values.
 - New (2026-04-22): `oren meta` / native `--metadata` now expose per-function `contains_yield`,
   `yield_stmt_count`, and `yield_stmt_sites` so the next lowering pass can discover real source
-  `yield` statements without guessing from lowered `oren_yield()` calls.
+  `yield` statements without guessing from lowered helper calls.
+- New (2026-04-22): function metadata also carries a rolling `yield_lowering` plan object with an
+  explicit entry state, resume states, and yield-point -> resume-state mapping for bare-statement
+  `yield` functions.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)
@@ -3592,9 +3595,16 @@ Notes:
   - `contains_yield`: `true` when the function body contains source-level bare `yield` statements.
   - `yield_stmt_count`: count of those source-level `yield` statements in the function body.
   - `yield_stmt_sites`: source sites for those `yield` statements as `file:line:col`.
+- Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
+  object with:
+  - `entry_state`
+  - `state_count`
+  - `yield_points[*]` (`site`, `resume_state`)
+  - `states[*]` (`entry` + one `resume` state per yield site)
+  - `locals_across_yield` (currently empty until liveness lowering lands)
 - These fields intentionally count only source-level `yield` statement sugar. They do not infer from
-  raw user-written `oren_yield()` calls, and outer functions do not inherit `yield`s that appear
-  only inside nested function literals.
+  raw user-written `oren_yield()` / `oren_yield_stmt()` calls, and outer functions do not inherit
+  `yield`s that appear only inside nested function literals.
 
 ### 2.2 Normalized capability manifest
 
@@ -5087,16 +5097,19 @@ Source of truth / guards:
   - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_os_thread_collect_scans_parked_stack`)
   - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_wakes_netpoll_blocked_threads`)
 
-### 1.1 `oren_yield()` (rolling: green-yield when available; OS yield otherwise)
+### 1.1 `oren_yield()` / `oren_yield_stmt()` (rolling)
 
-`oren_yield()` is the best-effort “yield” surface used by both:
+`oren_yield()` is the low-level best-effort “yield” surface used by both:
 
 - the Stage N1 green-task runtime (as a cooperative scheduler yield), and
 - non-green paths (as a best-effort OS yield hint).
 
 Current behavior (native runtime, rolling):
 
-- Language sugar: bare statement `yield` lowers directly to `oren_yield()`.
+- Language sugar: bare statement `yield` lowers directly to `oren_yield_stmt()`.
+- `oren_yield_stmt()` is the normalized statement helper:
+  - yields cooperatively / via OS hint using `oren_yield()`
+  - always returns `nil`
 - `yield` is statement-only today. `yield <value>` is rejected until resumable coroutine lowering
   exists.
 - Expression/result-position `yield` is also rejected today instead of silently inheriting the raw

@@ -62,7 +62,7 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
 - **Feature set maturity**: the remaining essential language backlog is now full
   `yield`/stackless coroutine lowering. Bare `yield` statement sugar is shipped on the shared
-  front-end and lowers to `oren_yield()`, but resumable coroutine frames / `yield <value>` are
+  front-end and lowers to `oren_yield_stmt()`, but resumable coroutine frames / `yield <value>` are
   still missing, and expression/result-position `yield` is intentionally rejected until the value
   surface is normalized across backends. The structured error model is already shipped as the
   rolling value-or-error
@@ -1308,7 +1308,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 5) **W4 - Feature set completeness (essential modern features)**
    - Remaining planned work: full `yield`/stackless coroutine lowering (`yield <value>` and
-     resumable frames). Bare statement `yield` now lowers to `oren_yield()` on the shared
+     resumable frames). Bare statement `yield` now lowers to `oren_yield_stmt()` on the shared
      front-end, while expression/result-position `yield` is intentionally rejected.
    - Implemented (rolling): the structured error model is now the shipped value-or-error
      convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
@@ -1333,6 +1333,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `yield_stmt_sites`, counting only source-level bare `yield` statements and skipping nested
      function literals. This keeps the next coroutine-lowering pass fact-based instead of
      rediscovering intent from lowered raw `oren_yield()` calls.
+   - New (2026-04-22): bare statement `yield` now lowers through normalized helper
+     `oren_yield_stmt()` (always `nil`), while raw `oren_yield()` remains the low-level
+     scheduler/OS return-code helper. Function metadata now also emits a rolling `yield_lowering`
+     plan object with explicit entry/resume states and yield-point mappings.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

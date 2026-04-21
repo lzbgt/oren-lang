@@ -41,11 +41,26 @@ expected = {
         "contains_yield": False,
         "yield_stmt_count": 0,
         "yield_stmt_sites": [],
+        "yield_lowering": None,
     },
     "one_yield": {
         "contains_yield": True,
         "yield_stmt_count": 1,
         "yield_stmt_sites": ["tests/fixtures/meta_yield_surface.oren:6:5"],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 2,
+            "locals_across_yield": [],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:6:5", "resume_state": 1},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:6:5"},
+            ],
+        },
     },
     "control_yield": {
         "contains_yield": True,
@@ -54,11 +69,28 @@ expected = {
             "tests/fixtures/meta_yield_surface.oren:12:9",
             "tests/fixtures/meta_yield_surface.oren:15:9",
         ],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 3,
+            "locals_across_yield": [],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:12:9", "resume_state": 1},
+                {"id": 1, "site": "tests/fixtures/meta_yield_surface.oren:15:9", "resume_state": 2},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:12:9"},
+                {"id": 2, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:15:9"},
+            ],
+        },
     },
     "nested_only": {
         "contains_yield": False,
         "yield_stmt_count": 0,
         "yield_stmt_sites": [],
+        "yield_lowering": None,
     },
 }
 

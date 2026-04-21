@@ -4146,7 +4146,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 9) **W4 feature set completeness (essential modern features)**
    - Remaining cross-backend language backlog: full `yield`/stackless coroutine lowering.
-   Bare statement `yield` is now shipped as shared-front-end sugar over `oren_yield()`, but
+   Bare statement `yield` is now shipped as shared-front-end sugar over `oren_yield_stmt()`, but
      resumable frames, `yield <value>`, and expression/result-position `yield` are still
      intentionally unsupported.
    - Implemented (rolling): the structured error model is the shipped value-or-error convention
@@ -4172,6 +4172,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New (2026-04-22): `oren meta` / native `--metadata` now surface per-function `contains_yield`,
      `yield_stmt_count`, and `yield_stmt_sites`, counting only source-level `yield` statements and
      intentionally ignoring raw `oren_yield()` calls plus nested function-literal bodies.
+   - New (2026-04-22): function metadata also emits a rolling `yield_lowering` plan object with an
+     explicit entry state plus one resume state per yield site; this is the first concrete frame/state
+     model for the future coroutine-lowering pass.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

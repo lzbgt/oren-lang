@@ -5,9 +5,11 @@ syntax slice landed.
 
 ## Current shipped state
 
-- Bare statement `yield` is now shared-front-end sugar that lowers directly to `oren_yield()`.
+- Bare statement `yield` is now shared-front-end sugar that lowers directly to `oren_yield_stmt()`.
 - `yield <value>` is intentionally rejected.
 - Expression-position `yield` is also intentionally rejected.
+- Function metadata now exposes `yield_lowering` with explicit entry/resume state ids for
+  source-level bare-`yield` functions.
 
 That boundary is deliberate, not accidental.
 
@@ -24,13 +26,14 @@ Implication:
 
 - In AVM, `oren_yield()` behaves like a statement-like primitive whose value surface is `nil`.
 
-### 2. Native `oren_yield()` is a runtime helper, not a normalized language value surface
+### 2. Native `oren_yield()` is a runtime helper, not the normalized language statement surface
 
 Source: [lib/runtime_native/262_yield.oren](../lib/runtime_native/262_yield.oren)
 
 - Native `oren_yield()` routes to `oren_green_yield()` when inside a green task.
 - Otherwise it falls back to `sys_sched_yield()`.
 - Native tests currently treat the low-level helper as returning `0` on success.
+- `oren_yield_stmt()` is the normalized statement helper and always returns `nil`.
 
 Implication:
 
@@ -39,7 +42,8 @@ Implication:
   - native view: scheduler/OS return code (`0` on success in current tests)
 
 This is the main reason expression-position `yield` should not be silently lowered to raw
-`oren_yield()` today.
+`oren_yield()` today. Bare statement `yield` now avoids that mismatch by lowering through
+`oren_yield_stmt()`.
 
 ### 3. Native already has stackful context-switch intrinsics
 

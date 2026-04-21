@@ -24,3 +24,9 @@ fn oren_yield() {
     }
     return sys_sched_yield()
 }
+
+@oren.keep
+fn oren_yield_stmt() {
+    oren_yield()
+    return nil
+}
