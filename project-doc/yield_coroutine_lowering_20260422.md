@@ -60,9 +60,10 @@ backend-shared value-helper slices landed.
   nested bodies when summarizing `contains_yield` / `yield_stmt_sites`; that probe result is about
   execution support, not about attributing the nested body to the enclosing function.
 - Fresh probe (2026-04-22): strict bytecode/C/native builds also execute
-  `oren_yield_exchange(yield_ch, resume_ch, v)` successfully, but the native verifier currently runs
-  that path under `OREN_NO_GREEN=1`. The remaining runtime gap is default green main-thread
-  blocking channel orchestration, not helper availability.
+  `oren_yield_exchange(yield_ch, resume_ch, v)` successfully on the default native runtime too.
+  Native host threads with green runtime already active and no background workers now use
+  `oren_yield()` to drive one cooperative green scheduling step, so the verifier no longer needs an
+  `OREN_NO_GREEN=1` escape hatch for this helper path.
 
 That boundary is deliberate, not accidental.
 
@@ -230,8 +231,8 @@ Keep the shipped helper surface:
 - `oren_yield_value(v)`
 - `oren_yield_exchange(yield_ch, resume_ch, v)`
 
-but make the default native green/runtime orchestration strong enough that the explicit channel
-protocol no longer needs `OREN_NO_GREEN=1` in verification.
+and make the default native green/runtime orchestration strong enough that the explicit channel
+protocol works without special verifier escape hatches.
 
 Pros:
 
@@ -246,25 +247,21 @@ Cons:
 
 ## Recommended next step
 
-For the remaining language feature backlog, the best next slice is now a staged combination of
-**Option D** then **Option B**:
+With the default native runtime gap closed for the shipped explicit helper, the best next slice is
+now back to **Option B** on top of the current helper surfaces:
 
-1. strengthen the default native green/runtime channel orchestration for
-   `oren_yield_exchange(yield_ch, resume_ch, v)` so the verifier no longer needs `OREN_NO_GREEN=1`
-2. keep the helper contracts explicit and parity-guarded across bytecode/C/native while doing that
-3. then define the explicit internal frame/state representation for source-level coroutine lowering
-4. lower caller-visible resumable value flow on top of the shipped helper semantics instead of
+1. keep the helper contracts explicit and parity-guarded across bytecode/C/native
+2. define the explicit internal frame/state representation for source-level coroutine lowering
+3. lower caller-visible resumable value flow on top of the shipped helper semantics instead of
    inventing a second value protocol
-5. keep extending metadata/introspection only when it can honestly model the new value-flow surface
+4. keep extending metadata/introspection only when it can honestly model the new value-flow surface
 
 The first lowering pass already executes the current AVM bare-statement subset end-to-end, and
 backend parity for the same subset is guarded across bytecode/C/native. The helper-based value
-surface is also parity-guarded, and the explicit exchange protocol is now shipped plus
-introspectable. The next pass should stop widening syntax and instead tackle the real remaining
-boundaries:
-
-- make the default native green/runtime path strong enough for the shipped explicit exchange helper
-- then define true caller-visible coroutine/generator semantics beyond the current helper contracts
+surface is parity-guarded, and the explicit exchange protocol is now shipped plus introspectable on
+the default native runtime too. The next pass should stop widening helper mechanics and instead
+tackle the real remaining boundary: true caller-visible coroutine/generator semantics beyond the
+current helper contracts.
 
 That path keeps the current repo state honest:
 

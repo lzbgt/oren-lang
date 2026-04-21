@@ -1393,9 +1393,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      yet a caller-visible coroutine/generator protocol.
    - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
      parity-verified through `oren_yield_exchange(yield_ch, resume_ch, v)` across bytecode, C, and
-     native. The native verifier currently runs this helper path under `OREN_NO_GREEN=1`; default
-     green main-thread blocking channel orchestration is still weaker than a full scheduler-aware
-     coroutine/generator protocol.
+     native. On native host threads with green runtime already active and no background workers,
+     `oren_yield()` now drives one cooperative green scheduling step so this helper no longer
+     depends on `OREN_NO_GREEN=1` verification escape hatches. The remaining gap is full
+     source-level coroutine/generator protocol above that helper surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

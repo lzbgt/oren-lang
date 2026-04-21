@@ -4,24 +4,33 @@
 // “yield to other runnable work”.
 //
 // Native runtime reality today:
-// - macOS/Linux: language `spawn` is fork+pipe (process-based), so there is no shared scheduler.
-// - Windows: language `spawn` is CreateThread (shared memory), so OS-thread yield is meaningful.
+// - language `spawn` prefers the in-process green scheduler when it is enabled
+// - fallback remains OS/process/thread substrate specific
 //
-// This function is a **best-effort OS yield hint**:
-// - Linux: calls sched_yield(2) via syscall-first `sys_sched_yield()`.
-// - Windows: calls Sleep(0) via `sys_sched_yield()` shim.
-// - macOS: currently a no-op (returns 0); a future native greenlet scheduler will provide a
-//   stronger yield contract.
+// This function is now a tiered yield hook:
+// - inside a green task: yield directly to the green scheduler
+// - on a host thread with green runtime already active and no background workers:
+//   drive one cooperative green scheduling step
+// - otherwise: fall back to the OS yield hint (`sched_yield`, `Sleep(0)`, or best-effort no-op)
 //
 // Contract:
 // - returns 0 on success; may return -errno on failed syscall paths.
 @oren.keep
 fn oren_yield() {
-    // If we are running inside a native green task, yield to the scheduler (in-process).
-    // Otherwise, fall back to the OS yield hint.
+    // Green-task path: switch directly back to the scheduler.
     if oren_green_current_g_or0() != 0 {
         return oren_green_yield()
     }
+
+    // Host-thread path:
+    // If the green runtime is already active and background workers are not owning scheduling,
+    // drive one cooperative step here. This keeps default native host/green orchestration aligned
+    // with the shipped `spawn` semantics without initializing green state for unrelated callers.
+    if g_green_inited != 0 && _green_enabled() == true && g_green_workers_started == 0 {
+        var rc = oren_green_poll_steps(1)
+        if rc == 0 { return 0 }
+    }
+
     return sys_sched_yield()
 }
 

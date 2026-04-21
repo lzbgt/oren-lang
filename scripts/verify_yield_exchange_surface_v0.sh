@@ -56,7 +56,7 @@ run_ok "$c_out"
 
 run_ok "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
-run_ok env OREN_NO_GREEN=1 "$native_out"
+run_ok "$native_out"
 
 META_OUT="$meta_out" \
 DUMP_OUT="$dump_out" \

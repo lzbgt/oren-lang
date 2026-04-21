@@ -4225,10 +4225,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      yields, then resumes with `v`.
    - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
      parity-verified under bytecode, C, and native through
-     `oren_yield_exchange(yield_ch, resume_ch, v)`. The native verifier currently runs that helper
-     path under `OREN_NO_GREEN=1`; default green main-thread blocking channel orchestration is still
-     the remaining runtime gap before this can be presented as a stronger default coroutine/
-     generator protocol.
+     `oren_yield_exchange(yield_ch, resume_ch, v)`. On native host threads with green runtime
+     already active and no background workers, `oren_yield()` now drives one cooperative green
+     scheduling step so this helper works on the default runtime path too. The remaining gap is a
+     stronger language-level coroutine/generator protocol above that explicit helper surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

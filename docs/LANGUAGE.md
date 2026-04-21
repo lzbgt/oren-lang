@@ -3381,8 +3381,10 @@ Rolling status:
   - no generator-style outward yielded-value channel exists yet
 - New (2026-04-22): explicit caller-visible yield/resume channels now also exist through
   `oren_yield_exchange(yield_ch, resume_ch, value)`. That helper is parity-verified under
-  bytecode, C, and native no-green runs. It is an explicit helper contract, not yet full source
-  coroutine/generator syntax or a scheduler-aware default native green-channel protocol.
+  bytecode, C, and the default native green/runtime path. On native host threads with green runtime
+  already active and no background workers, `oren_yield()` now drives one cooperative green
+  scheduling step before falling back to the OS yield hint. This is still an explicit helper
+  contract, not yet full source coroutine/generator syntax.
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
   semantics beyond the current local value-stable helper path.
 
@@ -5204,10 +5206,12 @@ Current behavior (native runtime, rolling):
 - The shipped helper contracts are now:
   - `oren_yield_value(v)`: local value-stable resume
   - `oren_yield_exchange(yield_ch, resume_ch, v)`: explicit yielded/resumed values via channel args
-- Still missing: full source-level coroutine/generator syntax and a stronger default caller-visible
-  resume protocol on native green main-thread orchestration.
+- Still missing: full source-level coroutine/generator syntax and a stronger language-level caller
+  resume/yield protocol above the shipped helpers.
 
-- If green tasks are enabled: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
+- If running inside a green task: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
+- If green runtime is already active on a host thread and background workers are not running:
+  `oren_yield()` drives one cooperative host-side green polling step.
 - Otherwise:
   - **Linux:** calls `sched_yield(2)` via syscall-first `sys_sched_yield()`.
   - **Windows:** calls `Sleep(0)` via `sys_sched_yield()` shim.
