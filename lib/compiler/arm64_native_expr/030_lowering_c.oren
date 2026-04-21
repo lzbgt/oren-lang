@@ -745,12 +745,22 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_g, "name": "_list_find_node_known_kind"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node_g)
                 oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+                push_u32_le(ctx["code"], insn_mov_reg(21, 0)) // X21 = node
 
                 // node == 0 => panic
                 push_u32_le(ctx["code"], insn_movz(2, 0))
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
                 var br_node_nonzero_g = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+                push_u32_le(ctx["code"], insn_mov_reg(1, 21)) // X1 = node (0)
+                emit_load_i64_imm(ctx, 2, 5)
+                emit_load_i64_imm(ctx, 3, 8) // LIST_INT
+                var bl_list_get_panic1 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_get_panic1, "name": "native_list_panic_footer"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_get_panic1)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_panic_footer")
                 native_emit_panic(ctx, "list_int_get on non-list")
                 var node_ok_pos_g = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_node_nonzero_g, insn_b_cond((node_ok_pos_g - br_node_nonzero_g) / 4, 1)) // NE
@@ -761,6 +771,15 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
                 var br_kind_ok_g = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+                push_u32_le(ctx["code"], insn_mov_reg(1, 21)) // X1 = node
+                emit_load_i64_imm(ctx, 2, 6)
+                emit_load_i64_imm(ctx, 3, 8) // LIST_INT
+                var bl_list_get_panic2 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_get_panic2, "name": "native_list_panic_footer"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_get_panic2)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_panic_footer")
                 native_emit_panic(ctx, "list_int_get on non-list")
                 var kind_ok_pos_g = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_kind_ok_g, insn_b_cond((kind_ok_pos_g - br_kind_ok_g) / 4, 0)) // EQ
@@ -772,6 +791,15 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
                 var br_is_list_g = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+                push_u32_le(ctx["code"], insn_mov_reg(1, 21)) // X1 = node
+                emit_load_i64_imm(ctx, 2, 7)
+                emit_load_i64_imm(ctx, 3, 8) // LIST_INT
+                var bl_list_get_panic3 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_get_panic3, "name": "native_list_panic_footer"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_get_panic3)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_panic_footer")
                 native_emit_panic(ctx, "list_int_get on non-list")
                 var is_list_pos_g = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_is_list_g, insn_b_cond((is_list_pos_g - br_is_list_g) / 4, 0)) // EQ

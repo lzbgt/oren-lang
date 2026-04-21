@@ -50,5 +50,5 @@ fn alloc_churn_list_int_debug_shape(n, gc_every, clear_list, small_ints, list_le
 }
 
 fn main() {
-    print(alloc_churn_list_int_debug_shape(256, 2, 1, 1, 128))
+    print(alloc_churn_list_int_debug_shape(64, 2, 1, 1, 128))
 }

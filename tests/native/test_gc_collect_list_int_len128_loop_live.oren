@@ -1,0 +1,30 @@
+fn keep_int(x) {
+    return x
+}
+
+fn fill_collect_then_push_loop(n, rounds) {
+    var acc = 0
+    var r = 0
+    while r < rounds {
+        var xs = oren_new_list_int(0)
+        var i = 0
+        while i < n {
+            oren_list_int_push(xs, keep_int(i))
+            i = i + 1
+        }
+        acc = acc + oren_list_int_get(xs, 0)
+        if r > 0 {
+            oren_gc_collect()
+            var tail = 1000 + r
+            oren_list_int_push(xs, tail)
+            acc = acc + keep_int(oren_list_int_get(xs, n))
+        }
+        xs = nil
+        r = r + 1
+    }
+    return acc
+}
+
+fn main() {
+    print(fill_collect_then_push_loop(128, 8))
+}

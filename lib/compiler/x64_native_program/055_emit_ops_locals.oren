@@ -109,12 +109,118 @@ fn _emit_gc_visible_call_x64(ctx, callee_name) {
     return nil
 }
 
+fn _collect_gc_root_local_offsets_x64(locals) {
+    var offs = []
+    if locals == nil { return offs }
+    var seen = {}
+    for name in locals {
+        var off = locals[name]
+        if oren_type_tag(off) != 0 {
+            if seen[off] != true {
+                seen[off] = true
+                var insert_at = oren_list_len(offs)
+                var i = 0
+                while i < oren_list_len(offs) {
+                    if off < offs[i] {
+                        insert_at = i
+                        break
+                    }
+                    i = i + 1
+                }
+                oren_list_push(offs, 0)
+                var j = oren_list_len(offs) - 1
+                while j > insert_at {
+                    offs[j] = offs[j - 1]
+                    j = j - 1
+                }
+                offs[insert_at] = off
+            }
+        }
+    }
+    return offs
+}
+
+fn _emit_gc_root_push_locals_x64(ctx, locals) {
+    var offs = _collect_gc_root_local_offsets_x64(locals)
+    if offs == nil { return 0 }
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    if oren_type_tag(a0_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg reg for native_gc_root_push")
+        return 0
+    }
+    var a0 = a0_enc - 1
+    var i = 0
+    var count = 0
+    while i < oren_list_len(offs) {
+        _emit_mov_r64_mrbp(ctx, a0, 0 - offs[i])
+        _emit_call_rel32_named_x64(ctx, "native_gc_root_push")
+        count = count + 1
+        i = i + 1
+    }
+    return count
+}
+
+fn _emit_gc_root_pop_count_x64(ctx, count) {
+    if count == nil || count <= 0 { return nil }
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    if oren_type_tag(a0_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg reg for native_gc_root_pop")
+        return nil
+    }
+    var a0 = a0_enc - 1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(a0, count))
+    _emit_call_rel32_named_x64(ctx, "native_gc_root_pop")
+    return nil
+}
+
+fn _emit_gc_collect_visible_call_x64(ctx, callee_name) {
+    // Explicit collection is rare. Spill the full GPR root surface so conservative GC can see
+    // caller-saved temporaries that have not been materialized into the frame yet.
+    bytes_extend(ctx["code"], insn_sub_rsp_imm8(8))
+    bytes_extend(ctx["code"], insn_push_r64(0))  // rax
+    bytes_extend(ctx["code"], insn_push_r64(1))  // rcx
+    bytes_extend(ctx["code"], insn_push_r64(2))  // rdx
+    bytes_extend(ctx["code"], insn_push_r64(3))  // rbx
+    bytes_extend(ctx["code"], insn_push_r64(5))  // rbp
+    bytes_extend(ctx["code"], insn_push_r64(6))  // rsi
+    bytes_extend(ctx["code"], insn_push_r64(7))  // rdi
+    bytes_extend(ctx["code"], insn_push_r64(8))  // r8
+    bytes_extend(ctx["code"], insn_push_r64(9))  // r9
+    bytes_extend(ctx["code"], insn_push_r64(10)) // r10
+    bytes_extend(ctx["code"], insn_push_r64(11)) // r11
+    bytes_extend(ctx["code"], insn_push_r64(12)) // r12
+    bytes_extend(ctx["code"], insn_push_r64(13)) // r13
+    bytes_extend(ctx["code"], insn_push_r64(14)) // r14
+    bytes_extend(ctx["code"], insn_push_r64(15)) // r15
+    _emit_call_rel32_named_x64(ctx, callee_name)
+    bytes_extend(ctx["code"], insn_pop_r64(15))
+    bytes_extend(ctx["code"], insn_pop_r64(14))
+    bytes_extend(ctx["code"], insn_pop_r64(13))
+    bytes_extend(ctx["code"], insn_pop_r64(12))
+    bytes_extend(ctx["code"], insn_pop_r64(11))
+    bytes_extend(ctx["code"], insn_pop_r64(10))
+    bytes_extend(ctx["code"], insn_pop_r64(9))
+    bytes_extend(ctx["code"], insn_pop_r64(8))
+    bytes_extend(ctx["code"], insn_pop_r64(7))
+    bytes_extend(ctx["code"], insn_pop_r64(6))
+    bytes_extend(ctx["code"], insn_pop_r64(5))
+    bytes_extend(ctx["code"], insn_pop_r64(3))
+    bytes_extend(ctx["code"], insn_pop_r64(2))
+    bytes_extend(ctx["code"], insn_pop_r64(1))
+    bytes_extend(ctx["code"], insn_pop_r64(0))
+    bytes_extend(ctx["code"], insn_add_rsp_imm8(8))
+    return nil
+}
+
 fn _emit_gc_safepoint_call_x64(ctx) {
     return _emit_gc_visible_call_x64(ctx, "oren_gc_safepoint")
 }
 
-fn _emit_gc_collect_call_x64(ctx) {
-    return _emit_gc_visible_call_x64(ctx, "oren_gc_collect")
+fn _emit_gc_collect_call_x64(ctx, locals) {
+    var root_count = _emit_gc_root_push_locals_x64(ctx, locals)
+    _emit_gc_collect_visible_call_x64(ctx, "oren_gc_collect")
+    _emit_gc_root_pop_count_x64(ctx, root_count)
+    return nil
 }
 
 fn _emit_native_gas_note_x64(ctx, amount) {

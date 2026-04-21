@@ -1279,9 +1279,18 @@ fn _list_trace_dump(list) {
 }
 
 fn _list_alloc_buf(list, bytes, new_cap, kind, alloc_site, err_code) {
+    var arena_node = native_arena_find_node_nolock(list)
     var use_arena = false
-    if native_arena_find_node_nolock(list) != 0 { use_arena = true }
+    if arena_node != 0 { use_arena = true }
     _list_buf_req_trace_emit(list, kind, new_cap, bytes, use_arena)
+    var root_count = 0
+    if list != 0 && list >= 4096 {
+        // Buffer growth can allocate and trigger auto-GC before the caller stores the new
+        // payload pointer back into the header. Keep the live list header visible across that
+        // allocation so sweep cannot poison it while the growth path still owns it.
+        native_gc_root_push(list)
+        root_count = 1
+    }
     var new_buf = 0
     if use_arena == true {
         new_buf = native_arena_alloc_raw(bytes)
@@ -1296,21 +1305,53 @@ fn _list_alloc_buf(list, bytes, new_cap, kind, alloc_site, err_code) {
     }
     if new_buf == 0 { exit(err_code) }
     if new_buf == -1 { exit(err_code) }
+    if list != 0 && list >= 4096 && bytes > 0 {
+        var header_end = iadd(list, 32)
+        var buf_end = iadd(new_buf, bytes)
+        if buf_end < new_buf { exit(err_code) }
+        if new_buf < header_end && list < buf_end {
+            native_reuse_release_live_ptr(new_buf)
+            new_buf = native_malloc_raw_or_mmap(bytes)
+            if new_buf == 0 { exit(err_code) }
+            oren_track_alloc_new(new_buf, bytes, 0)
+        }
+    }
     if _list_buf_trace_enabled() == true {
         if g_trace_list_buf_cap > 0 {
             g_trace_list_buf_cap = g_trace_list_buf_cap - 1
-            var kind = 0
+            var want_kind = kind
+            var got_kind = 0
             if list != 0 && list >= 4096 {
                 var node = _list_find_node(list)
-                if node != 0 { kind = ptr_get(iadd(node, 16)) }
+                if node != 0 { got_kind = ptr_get(iadd(node, 16)) }
+            }
+            var arena_flag = 0
+            if use_arena == true { arena_flag = 1 }
+            var overlap_node = native_gc_find_overlapping_alloc(new_buf, bytes)
+            var overlap_ptr = 0
+            var overlap_size = 0
+            var overlap_kind = 0
+            if overlap_node > 0 {
+                overlap_ptr = ptr_get(overlap_node)
+                overlap_size = ptr_get(iadd(overlap_node, 8))
+                overlap_kind = ptr_get(iadd(overlap_node, 16))
             }
             print("[list_buf] list=" + oren_int_to_string(list) +
-                  " kind=" + oren_int_to_string(kind) +
+                  " want_kind=" + oren_int_to_string(want_kind) +
+                  " kind=" + oren_int_to_string(got_kind) +
                   " bytes=" + oren_int_to_string(bytes) +
                   " site=" + oren_int_to_string(alloc_site) +
-                  " arena=" + oren_int_to_string(use_arena) +
-                  " buf=" + oren_int_to_string(new_buf))
+                  " arena=" + oren_int_to_string(arena_flag) +
+                  " arena_node=" + oren_int_to_string(arena_node) +
+                  " buf=" + oren_int_to_string(new_buf) +
+                  " overlap_node=" + oren_int_to_string(overlap_node) +
+                  " overlap_ptr=" + oren_int_to_string(overlap_ptr) +
+                  " overlap_size=" + oren_int_to_string(overlap_size) +
+                  " overlap_kind=" + oren_int_to_string(overlap_kind))
         }
+    }
+    if root_count > 0 {
+        native_gc_root_pop(root_count)
     }
     return new_buf
 }

@@ -458,6 +458,21 @@ fn native_gc_find_node_nolock(ptr) {
             if ptr_get(cur) - ptr == 0 { return cur }
             cur = ptr_get(iadd(cur, 32))
         }
+        return 0
+    }
+    // Reuse-mode correctness: the alloc index can transiently miss a live node during
+    // GC/retracking windows. Collector-side marking must recover that node rather than
+    // treating the rooted pointer as dead, otherwise sweep can poison a still-live list
+    // header immediately after an explicit `oren_gc_collect()`.
+    if g_gc_reuse_blocks != 0 {
+        var cur_recover = global_get_allocs()
+        while cur_recover != 0 {
+            if ptr_get(cur_recover) - ptr == 0 {
+                native_alloc_index_put_node(cur_recover)
+                return cur_recover
+            }
+            cur_recover = ptr_get(iadd(cur_recover, 32))
+        }
     }
     return 0
 }
@@ -580,6 +595,24 @@ fn oren_mark_value(val) {
 fn native_gc_collect() {
     if g_gc_enabled == 0 { return 0 }
     native_find_cache_clear()
+    var trace_runtime_roots = native_envp_get_value_ptr("OREN_TRACE_GC_COLLECT_RUNTIME_ROOTS")
+    if trace_runtime_roots != 0 && ptr_get_byte(trace_runtime_roots) != 0 && ptr_get_byte(trace_runtime_roots) != 48 {
+        var trace_cap = 8
+        var v_cap = native_envp_get_value_ptr("OREN_TRACE_GC_COLLECT_RUNTIME_ROOTS_CAP")
+        if v_cap != 0 {
+            var parsed_cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+            if parsed_cap > 0 { trace_cap = parsed_cap }
+        }
+        print("[gc_collect_runtime_roots] len=" + oren_int_to_string(g_runtime_root_len))
+        if g_runtime_root_slots != 0 && g_runtime_root_len > 0 {
+            var tri = 0
+            while tri < g_runtime_root_len && tri < trace_cap {
+                print("[gc_collect_runtime_roots] i=" + oren_int_to_string(tri) +
+                    " ptr=" + oren_int_to_string(ptr_get(g_runtime_root_slots + tri * 8)))
+                tri = tri + 1
+            }
+        }
+    }
     var trace_sweep = native_envp_get_value_ptr("OREN_TRACE_GC_SWEEP")
     var trace_on = trace_sweep != 0
     var sweep_t0 = 0

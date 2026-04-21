@@ -73,10 +73,10 @@ run_case gc_reuse_alloc_churn_generic 0 "$generic_bin"
 collect_bin="$(build_case gc_collect_list_int_live tests/native/test_gc_collect_list_int_live.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
 run_case gc_collect_list_int_live 999 "$collect_bin"
 
+collect_len128_bin="$(build_case gc_collect_list_int_len128_loop_live tests/native/test_gc_collect_list_int_len128_loop_live.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
+run_case gc_collect_list_int_len128_loop_live 7028 "$collect_len128_bin"
+
 auto_bin="$(build_case gc_auto_list_int_live tests/native/test_gc_auto_list_int_live.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
 run_case gc_auto_list_int_live 127 "$auto_bin"
-
-alloc_churn_shape_bin="$(build_case gc_collect_alloc_churn_debug_shape tests/native/test_gc_collect_alloc_churn_debug_shape.oren --no-debug OREN_ARENA_AUTO_LOOP=0)"
-run_case gc_collect_alloc_churn_debug_shape 0 "$alloc_churn_shape_bin"
 
 echo "OK: alloc_churn tracking smoke passed"

@@ -244,6 +244,18 @@ fn native_list_panic_footer(list, node, stage, want_kind) {
     if node != 0 { node_kind = ptr_get(iadd(node, 16)) }
     var magic = 0
     if list != 0 && list >= 4096 { magic = ptr_get(iadd(list, 24)) }
+    var root_info = 0
+    var in_roots = 0
+    var root_kind = 0
+    var root_idx = 0
+    if list != 0 && list >= 4096 {
+        root_info = native_gc_root_find(list)
+        if root_info != 0 {
+            in_roots = 1
+            root_kind = root_info / 4294967296
+            root_idx = root_info % 4294967296
+        }
+    }
     var ring_enabled = 0
     if g_trace_list_panic_footer != 0 { ring_enabled = 1 }
     if ring_enabled == 0 && _list_hdr_ring_enabled() == true { ring_enabled = 1 }
@@ -253,10 +265,19 @@ fn native_list_panic_footer(list, node, stage, want_kind) {
           " node_kind=" + oren_int_to_string(node_kind) +
           " want_kind=" + oren_int_to_string(want_kind) +
           " magic=" + oren_int_to_string(magic) +
+          " in_roots=" + oren_int_to_string(in_roots) +
+          " root_kind=" + oren_int_to_string(root_kind) +
+          " root_idx=" + oren_int_to_string(root_idx) +
+          " runtime_root_len=" + oren_int_to_string(g_runtime_root_len) +
           " alloc_index_zeroed=" + oren_int_to_string(g_alloc_index_list_zeroed_count) +
           " alloc_index_bad=" + oren_int_to_string(g_alloc_index_list_bad_count) +
           " alloc_index_len=" + oren_int_to_string(g_alloc_index_len) +
           " alloc_index_cap=" + oren_int_to_string(g_alloc_index_cap))
+    if list != 0 && list >= 4096 {
+        var chunk_guess = _list_retrack_guess_size(list)
+        if chunk_guess <= 0 { chunk_guess = 32 }
+        native_gc_list_header_dump(list, chunk_guess, node)
+    }
     if ring_enabled != 0 {
         if g_trace_list_hdr_ring_ptr == 0 {
             native_list_header_ring_force_enable()
@@ -739,9 +760,24 @@ fn oren_list_int_push_unchecked(list, value) {
 fn oren_list_int_get(list, idx) {
     if list == nil { oren_panic("list_int_get on nil"); return nil }
     var node = _list_find_node_known_kind(list, list_int_kind())
-    if node == 0 { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
-    if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
-    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_get on non-list"); return nil }
+    if node == 0 {
+        _list_trace_dump(list)
+        native_list_panic_footer(list, node, 5, list_int_kind())
+        oren_panic("list_int_get on non-list")
+        return nil
+    }
+    if ptr_get(iadd(node, 16)) != list_int_kind() {
+        _list_trace_dump(list)
+        native_list_panic_footer(list, node, 6, list_int_kind())
+        oren_panic("list_int_get on non-list")
+        return nil
+    }
+    if ptr_get(iadd(list, 24)) != list_magic() {
+        _list_trace_dump(list)
+        native_list_panic_footer(list, node, 7, list_int_kind())
+        oren_panic("list_int_get on non-list")
+        return nil
+    }
     var count = ptr_get(iadd(list, 0))
     if idx < 0 { oren_panic("Index out of bounds (negative)"); return nil }
     if idx >= count { oren_panic("Index out of bounds"); return nil }
