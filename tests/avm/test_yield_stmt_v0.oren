@@ -1,4 +1,4 @@
-// AVM smoke: bare `yield` now covers top-level split-dispatch plus branch/block passthrough cases.
+// AVM smoke: bare `yield` now covers top-level split-dispatch plus branch/block/loop passthrough cases.
 
 fn fail() {
     var a = [1]
@@ -54,6 +54,13 @@ fn block_after_yield(seed) {
     return seed + 1
 }
 
+fn nested_capture_after_yield(seed) {
+    var x = seed + 1
+    var f = || x + 1
+    yield
+    return f()
+}
+
 fn main() {
     assert_eq(oren_yield_stmt(), nil)
     yield
@@ -62,6 +69,8 @@ fn main() {
     assert_eq(multi_after_yield(10), 12)
     assert_eq(branch_after_yield(20), 21)
     assert_eq(block_after_yield(30), 31)
+    assert_eq(worker(2), 2)
+    assert_eq(nested_capture_after_yield(5), 7)
     var h = spawn worker(3)
     assert_eq(oren_join(h), 3)
     exit(0)

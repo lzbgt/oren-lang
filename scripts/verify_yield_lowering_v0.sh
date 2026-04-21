@@ -52,55 +52,37 @@ run_fail() {
 }
 
 ready_src="tests/fixtures/yield_lowering_v0_ready.oren"
-blocked_src="tests/fixtures/yield_lowering_v0_blocked.oren"
 
 ready_meta="$tmpdir/ready.meta.json"
 ready_dump="$tmpdir/ready.linked.json"
 ready_obc="$tmpdir/ready.obc"
 ready_obc_meta="$tmpdir/ready.obc.meta.json"
-ready_run_log="$tmpdir/ready.run.log"
-blocked_nonstrict_obc="$tmpdir/blocked.nonstrict.obc"
-blocked_nonstrict_obc_meta="$tmpdir/blocked.nonstrict.obc.meta.json"
+yield_value_log="$tmpdir/yield_value_fail.log"
+yield_expr_log="$tmpdir/yield_expr_fail.log"
 
 run_ok "$compiler" meta "$ready_src" --platform "$platform" -o "$ready_meta" --strict-yield-lowering-v0
 run_ok "$compiler" dump linked "$ready_src" --platform "$platform" -o "$ready_dump" --strict-yield-lowering-v0
 run_ok env OREN_TRACE_BYTECODE_YIELD_LOWERING=1 "$compiler" build "$ready_src" --backend bytecode --platform "$platform" --no-cache -o "$ready_obc" --strict-yield-lowering-v0
 run_ok ./avm "$ready_obc"
-run_ok env OREN_TRACE_BYTECODE_YIELD_LOWERING=1 "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$blocked_nonstrict_obc"
 run_ok python3 scripts/extract_obc_metadata.py "$ready_obc" -o "$ready_obc_meta"
-run_ok python3 scripts/extract_obc_metadata.py "$blocked_nonstrict_obc" -o "$blocked_nonstrict_obc_meta"
 
-blocked_meta_log="$tmpdir/blocked.meta.log"
-blocked_dump_log="$tmpdir/blocked.dump.log"
-blocked_build_log="$tmpdir/blocked.build.log"
+run_fail "$yield_value_log" "$compiler" build tests/fixtures/yield_value_fail.oren --backend bytecode --platform "$platform" -o "$tmpdir/yield_value_fail.obc" --strict-yield-lowering-v0
+run_fail "$yield_expr_log" "$compiler" build tests/fixtures/yield_expr_fail.oren --backend bytecode --platform "$platform" -o "$tmpdir/yield_expr_fail.obc" --strict-yield-lowering-v0
 
-run_fail "$blocked_meta_log" "$compiler" meta "$blocked_src" --platform "$platform" -o "$tmpdir/blocked.meta.json" --strict-yield-lowering-v0
-run_fail "$blocked_dump_log" "$compiler" dump linked "$blocked_src" --platform "$platform" -o "$tmpdir/blocked.linked.json" --strict-yield-lowering-v0
-run_fail "$blocked_build_log" "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" -o "$tmpdir/blocked.obc" --strict-yield-lowering-v0
-
-for f in "$blocked_meta_log" "$blocked_dump_log" "$blocked_build_log"; do
-  grep -q "yield lowering v0 blocked" "$f"
-  grep -q "blocked_nested_literal" "$f"
-  grep -q "blocked_loop_yield" "$f"
-  grep -q "nested_function_literal" "$f"
-  grep -q "loop_nested_yield" "$f"
-done
+grep -q "'yield' does not accept a value yet" "$yield_value_log"
+grep -q "'yield' is only supported as a bare statement today" "$yield_expr_log"
 
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_worker" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_live_local" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_multi_yield" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_branch_yield kind=direct_passthrough" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_block_yield kind=direct_passthrough" "$log"
-if grep -q "\\[bc_yield_lowering_v0\\] lowered fn=blocked_" "$log"; then
-  echo "unexpected lowering trace for blocked fixture" >>"$log"
-  cat "$log"
-  exit 1
-fi
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_loop_yield kind=direct_passthrough" "$log"
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_nested_capture" "$log"
 
 READY_META="$ready_meta" \
 READY_DUMP="$ready_dump" \
 READY_OBC_META="$ready_obc_meta" \
-BLOCKED_OBC_META="$blocked_nonstrict_obc_meta" \
 python3 - >>"$log" <<'PY'
 import json
 import os
@@ -118,7 +100,6 @@ def funcs_by_name(payload):
 ready_meta = load("READY_META")
 ready_dump = load("READY_DUMP")
 ready_obc_meta = load("READY_OBC_META")["metadata"]
-blocked_obc_meta = load("BLOCKED_OBC_META")["metadata"]
 
 ready_funcs = funcs_by_name(ready_meta)
 ready_obc_funcs = funcs_by_name(ready_obc_meta)
@@ -139,6 +120,12 @@ ready_dump_branch = ready_dump_details["ready_branch_yield"]
 ready_meta_block = ready_funcs["ready_block_yield"]
 ready_obc_block = ready_obc_funcs["ready_block_yield"]
 ready_dump_block = ready_dump_details["ready_block_yield"]
+ready_meta_loop = ready_funcs["ready_loop_yield"]
+ready_obc_loop = ready_obc_funcs["ready_loop_yield"]
+ready_dump_loop = ready_dump_details["ready_loop_yield"]
+ready_meta_nested = ready_funcs["ready_nested_capture"]
+ready_obc_nested = ready_obc_funcs["ready_nested_capture"]
+ready_dump_nested = ready_dump_details["ready_nested_capture"]
 
 for payload in (ready_meta_worker, ready_obc_worker, ready_dump_worker):
     gate = payload["yield_lowering"]["lowering_v0"]
@@ -229,20 +216,41 @@ for payload in (ready_meta_block, ready_obc_block, ready_dump_block):
     if segs[0]["stmt_types"] != ["Block", "Return"] or segs[0]["terminator"] != "return":
         raise SystemExit(f"unexpected ready_block_yield segment: {segs[0]!r}")
 
+for payload in (ready_meta_loop, ready_obc_loop, ready_dump_loop):
+    gate = payload["yield_lowering"]["lowering_v0"]
+    if gate["ready"] is not True:
+        raise SystemExit(f"ready_loop_yield should be lowering_v0.ready, got {gate!r}")
+    prepared = payload["yield_lowering"]["prepared_v0"]
+    if prepared is None:
+        raise SystemExit("ready_loop_yield missing prepared_v0")
+    if prepared["kind"] != "direct_passthrough":
+        raise SystemExit(f"expected direct_passthrough for ready_loop_yield, got {prepared!r}")
+    if prepared["live_slots"] != ["i"]:
+        raise SystemExit(f"unexpected ready_loop_yield live_slots: {prepared!r}")
+    segs = prepared["segments"]
+    if len(segs) != 1:
+        raise SystemExit(f"expected one prepared_v0 segment for ready_loop_yield, got {segs!r}")
+    if segs[0]["stmt_types"] != ["Var", "While", "Return"] or segs[0]["terminator"] != "return":
+        raise SystemExit(f"unexpected ready_loop_yield segment: {segs[0]!r}")
 
-def expect_blocker(name, blocker):
-    func = funcs_by_name(blocked_obc_meta)[name]
-    gate = func["yield_lowering"]["lowering_v0"]
-    if gate["ready"] is not False:
-        raise SystemExit(f"{name} should remain blocked in embedded metadata, got {gate!r}")
-    if blocker not in gate["blockers"]:
-        raise SystemExit(f"{name} missing blocker {blocker!r}: {gate!r}")
-    if func["yield_lowering"]["prepared_v0"] is not None:
-        raise SystemExit(f"{name} should not have prepared_v0 in embedded metadata")
-
-
-expect_blocker("blocked_nested_literal", "nested_function_literal")
-expect_blocker("blocked_loop_yield", "loop_nested_yield")
+for payload in (ready_meta_nested, ready_obc_nested, ready_dump_nested):
+    gate = payload["yield_lowering"]["lowering_v0"]
+    if gate["ready"] is not True:
+        raise SystemExit(f"ready_nested_capture should be lowering_v0.ready, got {gate!r}")
+    prepared = payload["yield_lowering"]["prepared_v0"]
+    if prepared is None:
+        raise SystemExit("ready_nested_capture missing prepared_v0")
+    if prepared["kind"] != "split_dispatch":
+        raise SystemExit(f"expected split_dispatch for ready_nested_capture, got {prepared!r}")
+    if prepared["live_slots"] != ["f"]:
+        raise SystemExit(f"unexpected ready_nested_capture live_slots: {prepared!r}")
+    segs = prepared["segments"]
+    if len(segs) != 2:
+        raise SystemExit(f"expected two prepared_v0 segments for ready_nested_capture, got {segs!r}")
+    if segs[0]["stmt_types"] != ["Var", "Var"] or segs[0]["terminator"] != "yield":
+        raise SystemExit(f"unexpected ready_nested_capture entry segment: {segs[0]!r}")
+    if segs[1]["stmt_types"] != ["Return"] or segs[1]["terminator"] != "return":
+        raise SystemExit(f"unexpected ready_nested_capture resume segment: {segs[1]!r}")
 
 print("yield lowering v0 linked/OBC metadata verified")
 PY

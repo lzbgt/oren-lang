@@ -1338,11 +1338,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      scheduler/OS return-code helper. Function metadata now also emits a rolling `yield_lowering`
      plan object with explicit entry/resume states, yield-point mappings, and conservative
      `locals_across_yield` frame-slot candidates.
-	   - New (2026-04-22): `yield_lowering.lowering_v0` now classifies the first real executable
-	     lowering target explicitly. `bare_yield_dispatch_v0` is now marked `ready` for top-level
-	     bare `yield` plus branch/block-nested bare `yield` outside loops, including multiple
-	     top-level yield sites and top-level locals/params that remain live across yield; blocked
-	     cases now report precise reasons instead of a vague “future coroutine work” bucket.
+		   - New (2026-04-22): `yield_lowering.lowering_v0` now classifies the current real executable
+		     lowering target explicitly. `bare_yield_dispatch_v0` is now marked `ready` for the
+		     currently implemented bare-statement `yield` surface: top-level yields, multiple top-level
+		     yields, branch/block/loop-nested yields, and functions that also contain nested function
+		     literals, including locals/params that remain live across suspension points.
    - New (2026-04-22): metadata now also emits `yield_lowering.prepared_v0` for the
      `lowering_v0.ready` subset. That object is now either an explicit compiler-generated
      split-dispatch lowering shape with entry/resume segments and a synthetic state-local name, or a
@@ -1363,10 +1363,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     top-level locals/parameters that remain live across them. The current AVM lowering preserves
 		     the function frame across `AVM_YIELD`, so these cases are now executed and guarded by
 		     metadata, strict verification, and runtime execution smokes.
-		   - New (2026-04-22): ready branch/block-nested bare `yield` now ships too through the same
-		     v0 gate. Those functions get a `prepared_v0.kind=direct_passthrough` plan instead of the
-		     old blanket `non_top_level_yield` block, while loop-nested yields remain the precise
-		     blocked control-flow subset.
+			   - New (2026-04-22): ready branch/block/loop-nested bare `yield` now ships too through the
+			     same v0 gate. Those functions get a `prepared_v0.kind=direct_passthrough` plan instead of
+			     the old blanket non-top-level / loop blocker assumptions, and functions with nested
+			     function literals plus top-level yields now stay ready as well.
 		   - New (2026-04-22): backend parity for that same ready subset is now guarded too. A dedicated
 		     verifier builds and runs the same fixture under bytecode, C, and native with stage2 +
 		     `--strict-yield-lowering-v0`, proving AVM’s explicit/direct prepared paths and the current

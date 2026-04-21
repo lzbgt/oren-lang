@@ -13,9 +13,9 @@ syntax slice landed.
   candidates for variables and parameters that stay in scope across a `yield` and are used later.
 - Function metadata now also exposes `yield_lowering.lowering_v0`, which marks the first safe
   executable target explicitly: `bare_yield_dispatch_v0`, including top-level bare `yield`,
-  multiple top-level yield sites, and branch/block-nested bare `yield` outside loops, plus live
-  top-level locals/parameters across the suspension point, but still no nested function literals
-  and no loop-nested yield sites.
+  multiple top-level yield sites, branch/block/loop-nested bare `yield`, and functions that also
+  contain nested function literals, plus live top-level locals/parameters across the suspension
+  point.
 - For `lowering_v0.ready` functions, metadata now also emits `yield_lowering.prepared_v0`, a
   compiler-generated prepared shape: split-dispatch with explicit entry/resume segments when
   top-level yields exist, or direct-passthrough for ready branch/block control-flow cases.
@@ -29,13 +29,16 @@ syntax slice landed.
 - The AVM bytecode backend now consumes `prepared_v0` for the exact `lowering_v0.ready` subset and
   lowers it into either an explicit in-function split-dispatch state machine or a direct prepared
   passthrough around `oren_yield_stmt()`. This is the first real execution consumer of the
-  coroutine plan, and it now covers the narrow ready subset: multiple top-level bare `yield`
-  sites, plus branch/block-nested bare `yield` outside loops, including top-level
-  locals/parameters that remain live across them, but still no nested function literals and no
-  loop-nested yield sites.
+  coroutine plan, and it now covers the current ready subset: multiple top-level bare `yield`
+  sites, plus branch/block/loop-nested bare `yield`, including top-level locals/parameters that
+  remain live across them and functions that also contain nested function literals.
 - That same ready subset is now parity-verified under bytecode, C, and native builds. Only AVM
   currently consumes `prepared_v0` as an explicit lowering path; C/native execute the same shipped
   subset through ordinary `oren_yield_stmt()` calls on their existing runtime surfaces.
+- Fresh probe (2026-04-22): strict bytecode/C/native builds also execute a bare `yield` inside a
+  nested function-literal body successfully. Parent-function metadata still intentionally ignores
+  nested bodies when summarizing `contains_yield` / `yield_stmt_sites`; that probe result is about
+  execution support, not about attributing the nested body to the enclosing function.
 
 That boundary is deliberate, not accidental.
 
@@ -187,10 +190,11 @@ infrastructure instead of more parser sugar:
    - only bare `yield`
 4. keep expression/result-yield rejected until the frame model exists
 
-That first lowering pass now executes the ready AVM subset end-to-end, and backend parity for the
-same subset is guarded across bytecode/C/native.
-The next pass should broaden the analysis/codegen pair to cover the still-blocked loop-nested or
-nested-function shapes without re-discovering supportability heuristics again inside each backend.
+That first lowering pass now executes the current AVM bare-statement subset end-to-end, and
+backend parity for the same subset is guarded across bytecode/C/native.
+The next pass should stop widening bare-statement control-flow shapes and instead tackle the real
+remaining boundary: `yield <value>` / expression-position `yield` and the backend-shared resumable
+value semantics they require.
 
 That path keeps the current repo state honest:
 

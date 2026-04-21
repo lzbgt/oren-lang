@@ -3328,10 +3328,11 @@ Rolling status:
   explicit entry state, resume states, yield-point -> resume-state mapping, and a conservative
   `locals_across_yield` list for bare-statement `yield` functions.
 - New (2026-04-22): that same `yield_lowering` object now emits a narrow v0 lowering gate:
-  `lowering_v0` marks functions as `ready` only for the first safe executable subset
-  (`bare_yield_dispatch_v0`: top-level bare `yield`, plus branch/block-nested bare `yield`
-  outside loops, including multiple top-level yield sites and top-level locals/params that remain
-  live across the yield, but still no nested function literals and no loop-nested yield sites).
+  `lowering_v0` marks the currently implemented bare-statement `yield` surface as `ready`
+  (`bare_yield_dispatch_v0`: top-level bare `yield`, multiple top-level yield sites, branch/block/
+  loop-nested bare `yield`, and functions that also contain nested function literals, including
+  live locals/params that remain across the suspension point). The remaining unsupported surface is
+  value-carrying or expression-position `yield`, not more bare-statement control-flow shapes.
 - New (2026-04-22): for `lowering_v0.ready` functions, metadata now also emits
   `yield_lowering.prepared_v0`, either an explicit split-dispatch lowering shape with entry/resume
   segments or a direct-passthrough prepared shape for ready branch/block cases. Metadata keeps the
@@ -3346,14 +3347,14 @@ Rolling status:
 - New (2026-04-22): the AVM bytecode backend now consumes `yield_lowering.prepared_v0` for the
   exact `lowering_v0.ready` subset and lowers it into an explicit in-function split-dispatch state
   machine when top-level yield segments exist, or a direct prepared passthrough when the function
-  only contains branch/block-nested yields. This now covers multiple top-level yield sites, live
-  top-level locals/params, and ready branch/block cases because the AVM function frame survives
-  `AVM_YIELD`. Nested function literals and loop-nested yields remain outside the lowered subset,
-  and native/C backends do not yet consume `prepared_v0` as an explicit lowering path.
+  only contains control-flow-nested yields. This now covers multiple top-level yield sites, live
+  top-level locals/params, loop/branch/block control flow, and functions that also contain nested
+  function literals because the AVM function frame survives `AVM_YIELD`. Native/C backends do not
+  yet consume `prepared_v0` as an explicit lowering path.
 - New (2026-04-22): the same `lowering_v0.ready` fixture is now parity-verified under bytecode,
-  C, and native builds. AVM reaches it through explicit `prepared_v0` split-dispatch lowering,
-  while C/native currently execute the same ready subset through direct `oren_yield_stmt()` calls
-  on their existing stackful/runtime call surfaces.
+  C, and native builds. AVM reaches it through explicit `prepared_v0` split-dispatch/direct
+  lowering, while C/native currently execute the same ready subset through direct
+  `oren_yield_stmt()` calls on their existing stackful/runtime call surfaces.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)

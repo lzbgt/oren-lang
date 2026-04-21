@@ -54,7 +54,7 @@ fn multi_local_order(a) {
 fn yield_with_nested_fn() {
     var f = || 7
     yield
-    return 0
+    return f()
 }
 
 fn ready_prefix_suffix() {

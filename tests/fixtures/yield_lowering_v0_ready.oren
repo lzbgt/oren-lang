@@ -42,6 +42,29 @@ fn ready_block_yield(seed) {
     return seed + 1
 }
 
+fn ready_loop_yield(limit) {
+    var i = 0
+    while i < limit {
+        yield
+        i = i + 1
+    }
+    return i
+}
+
+fn ready_nested_capture(seed) {
+    var x = seed + 1
+    var f = || x + 1
+    yield
+    return f()
+}
+
 fn main() {
-    return ready_worker() + ready_live_local(40) + ready_multi_yield(10) + ready_branch_yield(20) + ready_block_yield(30) - 106
+    return ready_worker()
+        + ready_live_local(40)
+        + ready_multi_yield(10)
+        + ready_branch_yield(20)
+        + ready_block_yield(30)
+        + ready_loop_yield(3)
+        + ready_nested_capture(5)
+        - 116
 }

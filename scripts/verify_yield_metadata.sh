@@ -120,11 +120,22 @@ expected = {
             "lowering_v0": {
                 "version": 1,
                 "target": "bare_yield_dispatch_v0",
-                "ready": False,
-                "status": "blocked",
-                "blockers": ["loop_nested_yield"],
+                "ready": True,
+                "status": "ready",
+                "blockers": [],
             },
-            "prepared_v0": None,
+            "prepared_v0": {
+                "version": 1,
+                "kind": "direct_passthrough",
+                "state_local": "",
+                "entry_state": 0,
+                "resume_state": -1,
+                "yield_site": "tests/fixtures/meta_yield_surface.oren:12:9",
+                "live_slots": [],
+                "segments": [
+                    {"state": 0, "kind": "entry", "stmt_types": ["ExprStmt", "While", "Return"], "terminator": "return"},
+                ],
+            },
         },
     },
     "nested_only": {
@@ -297,7 +308,7 @@ expected = {
             "surface": "bare_statement_only",
             "entry_state": 0,
             "state_count": 2,
-            "locals_across_yield": [],
+            "locals_across_yield": ["f"],
             "yield_points": [
                 {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:56:5", "resume_state": 1},
             ],
@@ -308,11 +319,23 @@ expected = {
             "lowering_v0": {
                 "version": 1,
                 "target": "bare_yield_dispatch_v0",
-                "ready": False,
-                "status": "blocked",
-                "blockers": ["nested_function_literal"],
+                "ready": True,
+                "status": "ready",
+                "blockers": [],
             },
-            "prepared_v0": None,
+            "prepared_v0": {
+                "version": 1,
+                "kind": "split_dispatch",
+                "state_local": "__oren_yield_state_v0",
+                "entry_state": 0,
+                "resume_state": 1,
+                "yield_site": "tests/fixtures/meta_yield_surface.oren:56:5",
+                "live_slots": ["f"],
+                "segments": [
+                    {"state": 0, "kind": "entry", "stmt_types": ["Var"], "terminator": "yield"},
+                    {"state": 1, "kind": "resume", "stmt_types": ["Return"], "terminator": "return"},
+                ],
+            },
         },
     },
     "ready_prefix_suffix": {

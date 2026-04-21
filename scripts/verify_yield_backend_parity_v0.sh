@@ -57,6 +57,8 @@ grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_live_local" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_multi_yield" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_branch_yield kind=direct_passthrough" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_block_yield kind=direct_passthrough" "$log"
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_loop_yield kind=direct_passthrough" "$log"
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_nested_capture" "$log"
 
 echo "yield backend parity v0 verify OK" >>"$log"
 echo "yield backend parity v0 verify OK"
