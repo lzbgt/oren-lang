@@ -43,6 +43,11 @@ backend-shared value-helper slices landed.
   normalized helper path directly instead of `yield_lowering.prepared_v0`. Metadata remains focused
   on the rolling bare-statement coroutine plan rather than pretending to describe generator-like
   value flow it does not yet model.
+- `oren meta`, `dump linked`, and embedded OBC metadata now expose that value-yield helper surface
+  separately via `contains_yield_value`, `yield_value_count`, `yield_value_sites`, and
+  `yield_value_surface`. The encoded surface is intentionally narrow and factual:
+  `local_value_resume_v0` with implicit-nil + explicit-value support, but no caller resume value and
+  no distinct generator channel.
 - Fresh probe (2026-04-22): strict bytecode/C/native builds also execute a bare `yield` inside a
   nested function-literal body successfully. Parent-function metadata still intentionally ignores
   nested bodies when summarizing `contains_yield` / `yield_stmt_sites`; that probe result is about

@@ -3331,6 +3331,10 @@ Rolling status:
 - New (2026-04-22): `oren meta` / native `--metadata` now expose per-function `contains_yield`,
   `yield_stmt_count`, and `yield_stmt_sites` so the next lowering pass can discover real source
   bare-`yield` statements without guessing from lowered helper calls.
+- New (2026-04-22): `oren meta` / native `--metadata` now also expose the shipped value-yield
+  helper surface separately via `contains_yield_value`, `yield_value_count`, `yield_value_sites`,
+  and `yield_value_surface`. This keeps the bare-statement `yield_lowering` plan honest instead of
+  pretending it also models caller-visible value flow.
 - New (2026-04-22): function metadata also carries a rolling `yield_lowering` plan object with an
   explicit entry state, resume states, yield-point -> resume-state mapping, and a conservative
   `locals_across_yield` list for bare-statement `yield` functions.
@@ -3634,6 +3638,14 @@ Notes:
   - `contains_yield`: `true` when the function body contains source-level bare `yield` statements.
   - `yield_stmt_count`: count of those source-level `yield` statements in the function body.
   - `yield_stmt_sites`: source sites for those `yield` statements as `file:line:col`.
+- Function entries also expose the shipped value-yield helper surface separately:
+  - `contains_yield_value`: `true` when the function body contains source-level value/result-position
+    `yield` that lowers through `oren_yield_value(v)`.
+  - `yield_value_count`: count of those source-level value-yield sites.
+  - `yield_value_sites`: source sites for those value-yield sites as `file:line:col`.
+  - `yield_value_surface`: machine-readable statement of the current contract
+    (`local_value_resume_v0`, implicit-nil + explicit-value support, no caller resume value, no
+    generator channel).
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`
@@ -3644,9 +3656,13 @@ Notes:
     `yield` and are referenced later)
   - `lowering_v0` (`ready`/`blocked` plus blocker strings for the first executable
     bare-statement-yield lowering target)
-- These fields intentionally count only source-level `yield` statement sugar. They do not infer from
-  raw user-written `oren_yield()` / `oren_yield_stmt()` calls, and outer functions do not inherit
-  `yield`s that appear only inside nested function literals.
+- These fields intentionally split the two shipped surfaces:
+  - `contains_yield` / `yield_lowering` describe bare-statement `yield`
+  - `contains_yield_value` / `yield_value_surface` describe helper-based value/result-position
+    `yield`
+- They do not infer from raw user-written `oren_yield()` / `oren_yield_stmt()` / `oren_yield_value()`
+  calls, and outer functions do not inherit `yield`s that appear only inside nested function
+  literals.
 
 ### 2.2 Normalized capability manifest
 

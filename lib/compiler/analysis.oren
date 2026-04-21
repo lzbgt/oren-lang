@@ -72,11 +72,41 @@ fn yield_stmt_site(stmt) {
     return nil
 }
 
+fn yield_value_expr_site(expr) {
+    if expr == nil { return nil }
+    var tok = expr["yield_token"]
+    if tok == nil { tok = expr["token"] }
+    if tok == nil { return nil }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    if file != nil && file != "" {
+        if line != nil && line > 0 {
+            if col != nil && col > 0 {
+                return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+            }
+            return file + ":" + oren_int_to_string(line)
+        }
+        return file
+    }
+    if line != nil && line > 0 {
+        if col != nil && col > 0 {
+            return oren_int_to_string(line) + ":" + oren_int_to_string(col)
+        }
+        return oren_int_to_string(line)
+    }
+    return nil
+}
+
 fn new_function_yield_info() {
     return {
         "contains_yield": false,
         "yield_stmt_count": 0,
         "yield_stmt_sites": [],
+        "contains_yield_value": false,
+        "yield_value_count": 0,
+        "yield_value_sites": [],
+        "yield_value_points": [],
         "non_top_level_yield_sites": [],
         "loop_nested_yield_sites": [],
         "has_nested_function_literal": false,
@@ -93,6 +123,20 @@ fn function_yield_info_note_stmt(info, stmt, depth, in_loop) {
         if depth > 0 { oren_list_push(info["non_top_level_yield_sites"], site) }
         if in_loop == true { oren_list_push(info["loop_nested_yield_sites"], site) }
     }
+    return nil
+}
+
+fn function_yield_info_note_value_expr(info, expr) {
+    if info == nil || expr == nil || expr["yield_value_expr"] != true { return nil }
+    info["contains_yield_value"] = true
+    info["yield_value_count"] = info["yield_value_count"] + 1
+    var site = yield_value_expr_site(expr)
+    if site != nil { oren_list_push(info["yield_value_sites"], site) }
+    oren_list_push(info["yield_value_points"], {
+        "id": oren_list_len(info["yield_value_points"]),
+        "site": site,
+        "explicit_value": (expr["yield_value_explicit"] == true),
+    })
     return nil
 }
 
@@ -362,6 +406,7 @@ fn function_yield_info_walk_expr(info, expr, depth, in_loop) {
         return nil
     }
     if et == "Call" {
+        function_yield_info_note_value_expr(info, expr)
         function_yield_info_walk_expr(info, expr["fn"], depth, in_loop)
         var args = expr["args"]
         var i = 0
@@ -489,6 +534,20 @@ fn function_yield_info_walk_stmt(info, stmt, depth, in_loop) {
     return nil
 }
 
+fn function_yield_value_surface(info) {
+    if info == nil || info["yield_value_count"] <= 0 { return nil }
+    return {
+        "version": 1,
+        "surface": "local_value_resume_v0",
+        "resume_value_source": "local_expression",
+        "supports_implicit_nil": true,
+        "supports_explicit_value": true,
+        "caller_resume_values": false,
+        "generator_channel": false,
+        "yield_points": info["yield_value_points"],
+    }
+}
+
 fn function_yield_info(func) {
     var info = new_function_yield_info()
     if func == nil { return info }
@@ -504,6 +563,7 @@ fn function_yield_info(func) {
         function_yield_info_walk_stmt(info, body, 0, false)
     }
     info["yield_lowering"] = function_yield_lowering_plan(func, info, function_yield_locals_across(func))
+    info["yield_value_surface"] = function_yield_value_surface(info)
     return info
 }
 

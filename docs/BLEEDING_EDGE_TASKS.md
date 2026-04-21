@@ -4172,6 +4172,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New (2026-04-22): `oren meta` / native `--metadata` now surface per-function `contains_yield`,
      `yield_stmt_count`, and `yield_stmt_sites`, counting only source-level `yield` statements and
      intentionally ignoring raw `oren_yield()` calls plus nested function-literal bodies.
+   - New (2026-04-22): metadata/dump/OBC introspection now also surfaces value-yield separately via
+     `contains_yield_value`, `yield_value_count`, `yield_value_sites`, and `yield_value_surface`,
+     so the shipped helper-based value contract is machine-readable without pretending the older
+     bare-statement `yield_lowering` plan covers it.
    - New (2026-04-22): function metadata also emits a rolling `yield_lowering` plan object with an
      explicit entry state plus one resume state per yield site, and now records conservative
      `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for

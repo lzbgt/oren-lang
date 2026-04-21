@@ -78,3 +78,24 @@ fn branch_only_yield() {
     }
     return 0
 }
+
+fn value_nil_expr() {
+    return yield
+}
+
+fn value_expr(seed) {
+    var x = yield (seed + 1)
+    return x
+}
+
+fn value_stmt(seed) {
+    yield seed
+    return seed + 3
+}
+
+fn nested_value_only() {
+    var f = || {
+        return yield 7
+    }
+    return 0
+}

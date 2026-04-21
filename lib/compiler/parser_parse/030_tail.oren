@@ -209,23 +209,27 @@ fn yield_has_inline_value(p, tok) {
     return true
 }
 
-fn yield_value_expr_call(tok, value_expr) {
+fn yield_value_expr_call(tok, value_expr, explicit_value) {
     var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield_value")
     var ident = ast.new_identifier(ident_tok)
     var call = ast.new_call(ident_tok, ident, [value_expr])
     call["yield_value_expr"] = true
+    call["yield_token"] = tok
+    call["yield_value_explicit"] = explicit_value
     return call
 }
 
 fn parse_yield_expr(p) {
     var tok = p["cur"]
     var value_expr = ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
+    var explicit_value = false
     if yield_has_inline_value(p, tok) {
         parser_next_token(p)
         value_expr = parse_expression(p, LOWEST)
         if value_expr == nil { return nil }
+        explicit_value = true
     }
-    return yield_value_expr_call(tok, value_expr)
+    return yield_value_expr_call(tok, value_expr, explicit_value)
 }
 
 fn parse_for_init(p) {

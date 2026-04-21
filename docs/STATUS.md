@@ -1335,6 +1335,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `yield_stmt_sites`, counting only source-level bare `yield` statements and skipping nested
      function literals. This keeps the next coroutine-lowering pass fact-based instead of
      rediscovering intent from lowered raw `oren_yield()` calls.
+   - New (2026-04-22): metadata/dump/OBC introspection now also carries value-yield fields
+     separately: `contains_yield_value`, `yield_value_count`, `yield_value_sites`, and
+     `yield_value_surface`. That surface records the shipped `local_value_resume_v0` helper
+     contract explicitly instead of overloading the older bare-statement `yield_lowering` plan.
    - New (2026-04-22): bare statement `yield` now lowers through normalized helper
      `oren_yield_stmt()` (always `nil`), value-carrying/result-position `yield` lowers through
      `oren_yield_value(v)` (yield, then resume with the same local value), and raw `oren_yield()`
