@@ -4177,13 +4177,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for
      the future coroutine-lowering pass.
 	   - New (2026-04-22): that plan now also emits `lowering_v0`, an explicit gate for the first
-	     executable subset. Top-level bare-`yield` dispatch is now marked `ready`, including multiple
-	     top-level yield sites and live top-level locals/params; other yielding functions now report
-	     exact blocker strings in metadata.
+	     executable subset. `bare_yield_dispatch_v0` is now marked `ready` for top-level bare
+	     `yield`, plus branch/block-nested bare `yield` outside loops, including multiple top-level
+	     yield sites and live top-level locals/params; other yielding functions now report exact
+	     blocker strings in metadata.
    - New (2026-04-22): ready functions now also emit `yield_lowering.prepared_v0`, a concrete
-     compiler-generated split-dispatch lowering shape with entry/resume segments and a synthetic
-     state local. That closes the gap between “metadata knows a function is ready” and “the
-     compiler has no explicit lowered body shape yet”.
+     compiler-generated prepared shape: split-dispatch when top-level yield segments exist, or
+     direct-passthrough for ready branch/block control flow. That closes the gap between “metadata
+     knows a function is ready” and “the compiler has no explicit lowered body shape yet”.
    - New (2026-04-22): `dump linked` now exposes the same per-function `yield_lowering` object in
      `function_details`, and `verify-yield-lowering-v0` now extracts embedded `OREN_META` from the
      built `.obc` so the backend artifact itself is guarded, not just the standalone `meta` path.
@@ -4200,10 +4201,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     top-level locals/parameters that remain live across them. That is now an executed AVM path,
 	     not just an analysis claim: the verifier and AVM smoke both run ready functions whose locals
 	     survive multiple suspension/resume boundaries.
-	   - New (2026-04-22): the same ready fixture is now parity-verified under bytecode, C, and
-	     native with stage2 + strict gating. AVM consumes `prepared_v0` explicitly; C/native still
-	     reach the shipped subset through direct `oren_yield_stmt()` execution rather than backend
-	     state-machine lowering.
+		   - New (2026-04-22): ready branch/block-nested bare `yield` now ships too through
+		     `prepared_v0.kind=direct_passthrough`. The blanket `non_top_level_yield` blocker is gone;
+		     loop-nested yields are now the remaining precise control-flow blocker.
+		   - New (2026-04-22): the same ready fixture is now parity-verified under bytecode, C, and
+		     native with stage2 + strict gating. AVM consumes `prepared_v0` through explicit
+		     split-dispatch or direct-passthrough execution; C/native still reach the shipped subset
+		     through direct `oren_yield_stmt()` execution rather than backend state-machine lowering.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

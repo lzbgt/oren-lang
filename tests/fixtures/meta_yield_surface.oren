@@ -71,3 +71,10 @@ fn multi_top_level_ready(seed) {
     yield
     return acc + 1
 }
+
+fn branch_only_yield() {
+    if true {
+        yield
+    }
+    return 0
+}

@@ -3329,12 +3329,13 @@ Rolling status:
   `locals_across_yield` list for bare-statement `yield` functions.
 - New (2026-04-22): that same `yield_lowering` object now emits a narrow v0 lowering gate:
   `lowering_v0` marks functions as `ready` only for the first safe executable subset
-  (top-level bare-`yield` dispatch, including multiple top-level yield sites plus top-level
-  locals/params that remain live across the yield, but still no nested function literals and no
-  non-top-level yield sites).
+  (`bare_yield_dispatch_v0`: top-level bare `yield`, plus branch/block-nested bare `yield`
+  outside loops, including multiple top-level yield sites and top-level locals/params that remain
+  live across the yield, but still no nested function literals and no loop-nested yield sites).
 - New (2026-04-22): for `lowering_v0.ready` functions, metadata now also emits
-  `yield_lowering.prepared_v0`, an explicit split-dispatch lowering shape with entry/resume
-  segments, a synthetic state local name, and segment statement-type summaries.
+  `yield_lowering.prepared_v0`, either an explicit split-dispatch lowering shape with entry/resume
+  segments or a direct-passthrough prepared shape for ready branch/block cases. Metadata keeps the
+  same segment summaries for both so backend verifiers can assert the exact path taken.
 - New (2026-04-22): `oren dump linked` now surfaces the same per-function `yield_lowering` object
   in `function_details`, and the bytecode verification path now reads `yield_lowering` back out of
   the built `.obc` metadata blob instead of trusting `oren meta` alone.
@@ -3344,11 +3345,11 @@ Rolling status:
   artifact-cache restore so cached non-strict outputs cannot bypass the policy.
 - New (2026-04-22): the AVM bytecode backend now consumes `yield_lowering.prepared_v0` for the
   exact `lowering_v0.ready` subset and lowers it into an explicit in-function split-dispatch state
-  machine. This is the first real execution consumer of the rolling coroutine plan, and it now
-  covers multiple top-level yield sites plus top-level locals/params that stay live across the
-  yield because the AVM function frame survives `AVM_YIELD`. Nested function literals and
-  non-top-level yields remain outside the lowered subset, and native/C backends do not yet consume
-  `prepared_v0` as an explicit lowering path.
+  machine when top-level yield segments exist, or a direct prepared passthrough when the function
+  only contains branch/block-nested yields. This now covers multiple top-level yield sites, live
+  top-level locals/params, and ready branch/block cases because the AVM function frame survives
+  `AVM_YIELD`. Nested function literals and loop-nested yields remain outside the lowered subset,
+  and native/C backends do not yet consume `prepared_v0` as an explicit lowering path.
 - New (2026-04-22): the same `lowering_v0.ready` fixture is now parity-verified under bytecode,
   C, and native builds. AVM reaches it through explicit `prepared_v0` split-dispatch lowering,
   while C/native currently execute the same ready subset through direct `oren_yield_stmt()` calls
@@ -3630,7 +3631,7 @@ Notes:
   - `locals_across_yield` (conservative local/parameter names that stay in scope across at least one
     `yield` and are referenced later)
   - `lowering_v0` (`ready`/`blocked` plus blocker strings for the first executable
-    single-top-level-bare-`yield` lowering target)
+    bare-statement-yield lowering target)
 - These fields intentionally count only source-level `yield` statement sugar. They do not infer from
   raw user-written `oren_yield()` / `oren_yield_stmt()` calls, and outer functions do not inherit
   `yield`s that appear only inside nested function literals.

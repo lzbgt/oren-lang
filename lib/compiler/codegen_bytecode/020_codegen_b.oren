@@ -74,16 +74,18 @@ fn _bc_trace_yield_v0_lowered(name, prepared) {
     if _bc_yield_v0_should_trace() != true { return nil }
     var fn_name = name
     if fn_name == nil || fn_name == "" { fn_name = "<anonymous>" }
+    var kind = "split_dispatch"
     var state_local = ""
     var resume_state = -1
     var seg_count = 0
     if prepared != nil {
+        if prepared["kind"] != nil { kind = prepared["kind"] }
         if prepared["state_local"] != nil { state_local = prepared["state_local"] }
         if prepared["resume_state"] != nil { resume_state = prepared["resume_state"] }
         if prepared["segments"] != nil { seg_count = oren_list_len(prepared["segments"]) }
     }
     print("[bc_yield_lowering_v0] lowered fn=" + fn_name +
-          " kind=split_dispatch state_local=" + state_local +
+          " kind=" + kind + " state_local=" + state_local +
           " resume_state=" + oren_int_to_string(resume_state) +
           " segments=" + oren_int_to_string(seg_count))
     return nil
@@ -107,6 +109,9 @@ fn _bc_yield_v0_branch_stmts(state_local, seg) {
 
 fn _bc_yield_v0_lowered_body(stmt, prepared) {
     if stmt == nil || prepared == nil { return nil }
+    if prepared["kind"] == "direct_passthrough" {
+        return stmt["body"]
+    }
     var state_local = prepared["state_local"]
     if state_local == nil || state_local == "" { return nil }
     var entry_state = prepared["entry_state"]

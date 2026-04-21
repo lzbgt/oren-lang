@@ -1339,14 +1339,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      plan object with explicit entry/resume states, yield-point mappings, and conservative
      `locals_across_yield` frame-slot candidates.
 	   - New (2026-04-22): `yield_lowering.lowering_v0` now classifies the first real executable
-	     lowering target explicitly. Top-level bare-`yield` dispatch functions are marked `ready`,
-	     including multiple top-level yield sites and top-level locals/params that remain live across
-	     yield; blocked cases now report precise reasons instead of a vague “future coroutine work”
-	     bucket.
+	     lowering target explicitly. `bare_yield_dispatch_v0` is now marked `ready` for top-level
+	     bare `yield` plus branch/block-nested bare `yield` outside loops, including multiple
+	     top-level yield sites and top-level locals/params that remain live across yield; blocked
+	     cases now report precise reasons instead of a vague “future coroutine work” bucket.
    - New (2026-04-22): metadata now also emits `yield_lowering.prepared_v0` for the
-     `lowering_v0.ready` subset. That object is an explicit compiler-generated split-dispatch
-     lowering shape with entry/resume segments and a synthetic state-local name, so the next
-     backend pass can consume a real lowered body plan instead of reconstructing it from raw AST.
+     `lowering_v0.ready` subset. That object is now either an explicit compiler-generated
+     split-dispatch lowering shape with entry/resume segments and a synthetic state-local name, or a
+     direct-passthrough prepared shape for ready branch/block control-flow cases.
    - New (2026-04-22): `dump linked` now surfaces per-function `yield_lowering` details directly,
      and the strict verifier now extracts `OREN_META` back out of the built `.obc` artifact to
      prove the backend output carries the same `prepared_v0` shape and blocker metadata.
@@ -1354,19 +1354,23 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `build`, `meta`, and `dump`. It validates the full parsed source program before dead-code
      pruning, so unreachable yielding functions still block strict builds, and strict mode skips
      artifact-cache restore to avoid cached non-strict outputs bypassing the check.
-   - New (2026-04-22): the AVM bytecode backend now actually consumes `yield_lowering.prepared_v0`
-     for the ready subset and rewrites those functions into an explicit split-dispatch state
-     machine around `oren_yield_stmt()`. `verify-yield-lowering-v0` now proves that with three
-     checks together: strict metadata/dump policy, embedded `.obc` metadata, and a positive
-     compiler trace for `ready_worker` with no blocked-function lowering traces.
-	   - New (2026-04-22): the ready subset now also includes multiple top-level yield sites plus
-	     top-level locals/parameters that remain live across them. The current AVM lowering preserves
-	     the function frame across `AVM_YIELD`, so these cases are now executed and guarded by
-	     metadata, strict verification, and runtime execution smokes.
-	   - New (2026-04-22): backend parity for that same ready subset is now guarded too. A dedicated
-	     verifier builds and runs the same fixture under bytecode, C, and native with stage2 +
-	     `--strict-yield-lowering-v0`, proving AVM’s explicit state-machine path and the current
-	     C/native direct-call path agree on the shipped top-level bare-`yield` subset.
+	   - New (2026-04-22): the AVM bytecode backend now actually consumes `yield_lowering.prepared_v0`
+	     for the ready subset and rewrites those functions into either explicit split-dispatch state
+	     machines or direct prepared passthrough around `oren_yield_stmt()`. `verify-yield-lowering-v0` now proves that with three
+	     checks together: strict metadata/dump policy, embedded `.obc` metadata, and a positive
+	     compiler trace for `ready_worker` with no blocked-function lowering traces.
+		   - New (2026-04-22): the ready subset now also includes multiple top-level yield sites plus
+		     top-level locals/parameters that remain live across them. The current AVM lowering preserves
+		     the function frame across `AVM_YIELD`, so these cases are now executed and guarded by
+		     metadata, strict verification, and runtime execution smokes.
+		   - New (2026-04-22): ready branch/block-nested bare `yield` now ships too through the same
+		     v0 gate. Those functions get a `prepared_v0.kind=direct_passthrough` plan instead of the
+		     old blanket `non_top_level_yield` block, while loop-nested yields remain the precise
+		     blocked control-flow subset.
+		   - New (2026-04-22): backend parity for that same ready subset is now guarded too. A dedicated
+		     verifier builds and runs the same fixture under bytecode, C, and native with stage2 +
+		     `--strict-yield-lowering-v0`, proving AVM’s explicit/direct prepared paths and the current
+		     C/native direct-call path agree on the shipped bare-`yield` subset.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

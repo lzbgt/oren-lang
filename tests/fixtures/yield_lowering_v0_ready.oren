@@ -27,6 +27,21 @@ fn ready_multi_yield(seed) {
     return acc + 1
 }
 
+fn ready_branch_yield(seed) {
+    if true {
+        yield
+    }
+    return seed + 1
+}
+
+fn ready_block_yield(seed) {
+    {
+        var tmp = seed + 1
+        yield
+    }
+    return seed + 1
+}
+
 fn main() {
-    return ready_worker() + ready_live_local(40) + ready_multi_yield(10) - 54
+    return ready_worker() + ready_live_local(40) + ready_multi_yield(10) + ready_branch_yield(20) + ready_block_yield(30) - 106
 }

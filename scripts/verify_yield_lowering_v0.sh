@@ -81,14 +81,16 @@ run_fail "$blocked_build_log" "$compiler" build "$blocked_src" --backend bytecod
 for f in "$blocked_meta_log" "$blocked_dump_log" "$blocked_build_log"; do
   grep -q "yield lowering v0 blocked" "$f"
   grep -q "blocked_nested_literal" "$f"
-  grep -q "blocked_non_top_level" "$f"
+  grep -q "blocked_loop_yield" "$f"
   grep -q "nested_function_literal" "$f"
-  grep -q "non_top_level_yield" "$f"
+  grep -q "loop_nested_yield" "$f"
 done
 
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_worker" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_live_local" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_multi_yield" "$log"
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_branch_yield kind=direct_passthrough" "$log"
+grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_block_yield kind=direct_passthrough" "$log"
 if grep -q "\\[bc_yield_lowering_v0\\] lowered fn=blocked_" "$log"; then
   echo "unexpected lowering trace for blocked fixture" >>"$log"
   cat "$log"
@@ -131,6 +133,12 @@ ready_dump_live = ready_dump_details["ready_live_local"]
 ready_meta_multi = ready_funcs["ready_multi_yield"]
 ready_obc_multi = ready_obc_funcs["ready_multi_yield"]
 ready_dump_multi = ready_dump_details["ready_multi_yield"]
+ready_meta_branch = ready_funcs["ready_branch_yield"]
+ready_obc_branch = ready_obc_funcs["ready_branch_yield"]
+ready_dump_branch = ready_dump_details["ready_branch_yield"]
+ready_meta_block = ready_funcs["ready_block_yield"]
+ready_obc_block = ready_obc_funcs["ready_block_yield"]
+ready_dump_block = ready_dump_details["ready_block_yield"]
 
 for payload in (ready_meta_worker, ready_obc_worker, ready_dump_worker):
     gate = payload["yield_lowering"]["lowering_v0"]
@@ -187,6 +195,40 @@ for payload in (ready_meta_multi, ready_obc_multi, ready_dump_multi):
     if segs[2]["stmt_types"] != ["Return"] or segs[2]["terminator"] != "return":
         raise SystemExit(f"unexpected ready_multi_yield resume segment: {segs[2]!r}")
 
+for payload in (ready_meta_branch, ready_obc_branch, ready_dump_branch):
+    gate = payload["yield_lowering"]["lowering_v0"]
+    if gate["ready"] is not True:
+        raise SystemExit(f"ready_branch_yield should be lowering_v0.ready, got {gate!r}")
+    prepared = payload["yield_lowering"]["prepared_v0"]
+    if prepared is None:
+        raise SystemExit("ready_branch_yield missing prepared_v0")
+    if prepared["kind"] != "direct_passthrough":
+        raise SystemExit(f"expected direct_passthrough for ready_branch_yield, got {prepared!r}")
+    if prepared["resume_state"] != -1:
+        raise SystemExit(f"unexpected ready_branch_yield resume_state: {prepared!r}")
+    segs = prepared["segments"]
+    if len(segs) != 1:
+        raise SystemExit(f"expected one prepared_v0 segment for ready_branch_yield, got {segs!r}")
+    if segs[0]["stmt_types"] != ["ExprStmt", "Return"] or segs[0]["terminator"] != "return":
+        raise SystemExit(f"unexpected ready_branch_yield segment: {segs[0]!r}")
+
+for payload in (ready_meta_block, ready_obc_block, ready_dump_block):
+    gate = payload["yield_lowering"]["lowering_v0"]
+    if gate["ready"] is not True:
+        raise SystemExit(f"ready_block_yield should be lowering_v0.ready, got {gate!r}")
+    prepared = payload["yield_lowering"]["prepared_v0"]
+    if prepared is None:
+        raise SystemExit("ready_block_yield missing prepared_v0")
+    if prepared["kind"] != "direct_passthrough":
+        raise SystemExit(f"expected direct_passthrough for ready_block_yield, got {prepared!r}")
+    if prepared["resume_state"] != -1:
+        raise SystemExit(f"unexpected ready_block_yield resume_state: {prepared!r}")
+    segs = prepared["segments"]
+    if len(segs) != 1:
+        raise SystemExit(f"expected one prepared_v0 segment for ready_block_yield, got {segs!r}")
+    if segs[0]["stmt_types"] != ["Block", "Return"] or segs[0]["terminator"] != "return":
+        raise SystemExit(f"unexpected ready_block_yield segment: {segs[0]!r}")
+
 
 def expect_blocker(name, blocker):
     func = funcs_by_name(blocked_obc_meta)[name]
@@ -200,7 +242,7 @@ def expect_blocker(name, blocker):
 
 
 expect_blocker("blocked_nested_literal", "nested_function_literal")
-expect_blocker("blocked_non_top_level", "non_top_level_yield")
+expect_blocker("blocked_loop_yield", "loop_nested_yield")
 
 print("yield lowering v0 linked/OBC metadata verified")
 PY

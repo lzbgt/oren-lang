@@ -1,4 +1,4 @@
-// AVM smoke: top-level bare `yield` lowers through `oren_yield_stmt()` and split-dispatch resume states.
+// AVM smoke: bare `yield` now covers top-level split-dispatch plus branch/block passthrough cases.
 
 fn fail() {
     var a = [1]
@@ -39,12 +39,29 @@ fn multi_after_yield(seed) {
     return acc + 1
 }
 
+fn branch_after_yield(seed) {
+    if true {
+        yield
+    }
+    return seed + 1
+}
+
+fn block_after_yield(seed) {
+    {
+        var tmp = seed + 1
+        yield
+    }
+    return seed + 1
+}
+
 fn main() {
     assert_eq(oren_yield_stmt(), nil)
     yield
     assert_eq(local_after_yield(4), 5)
     assert_eq(param_after_yield(7), 8)
     assert_eq(multi_after_yield(10), 12)
+    assert_eq(branch_after_yield(20), 21)
+    assert_eq(block_after_yield(30), 31)
     var h = spawn worker(3)
     assert_eq(oren_join(h), 3)
     exit(0)
