@@ -315,7 +315,8 @@ fn json_yield_value_points(xs) {
             out = out + "{ "
             out = out + "\"id\": " + oren_int_to_string(x["id"]) + ", "
             out = out + "\"site\": " + json_string(x["site"]) + ", "
-            out = out + "\"explicit_value\": " + json_bool(x["explicit_value"])
+            out = out + "\"explicit_value\": " + json_bool(x["explicit_value"]) + ", "
+            out = out + "\"context\": " + json_string(x["context"])
             out = out + " }"
             first = false
         }
@@ -347,6 +348,7 @@ fn json_yield_value_surface(surface) {
     out = out + "\"supports_explicit_value\": " + json_bool(surface["supports_explicit_value"]) + ", "
     out = out + "\"caller_resume_values\": " + json_bool(surface["caller_resume_values"]) + ", "
     out = out + "\"generator_channel\": " + json_bool(surface["generator_channel"]) + ", "
+    out = out + "\"consumer_kinds\": " + json_string_array(surface["consumer_kinds"]) + ", "
     out = out + "\"yield_points\": " + json_yield_value_points(surface["yield_points"])
     out = out + " }"
     return out

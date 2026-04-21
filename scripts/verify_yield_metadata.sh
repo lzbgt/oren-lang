@@ -49,6 +49,9 @@ expected_names = {
     "value_expr",
     "value_stmt",
     "nested_value_only",
+    "add1_meta",
+    "value_return",
+    "value_call_arg",
 }
 if set(by_name) != expected_names:
     raise SystemExit(f"unexpected function names: {sorted(by_name)!r}")
@@ -471,7 +474,7 @@ expected = {
         "yield_lowering": None,
         "contains_yield_value": True,
         "yield_value_count": 1,
-        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:82:12"],
+        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:83:12"],
         "yield_value_surface": {
             "version": 1,
             "surface": "local_value_resume_v0",
@@ -480,8 +483,9 @@ expected = {
             "supports_explicit_value": True,
             "caller_resume_values": False,
             "generator_channel": False,
+            "consumer_kinds": ["return_value"],
             "yield_points": [
-                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:82:12", "explicit_value": False},
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:83:12", "explicit_value": False, "context": "return_value"},
             ],
         },
     },
@@ -492,7 +496,7 @@ expected = {
         "yield_lowering": None,
         "contains_yield_value": True,
         "yield_value_count": 1,
-        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:86:13"],
+        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:87:13"],
         "yield_value_surface": {
             "version": 1,
             "surface": "local_value_resume_v0",
@@ -501,8 +505,9 @@ expected = {
             "supports_explicit_value": True,
             "caller_resume_values": False,
             "generator_channel": False,
+            "consumer_kinds": ["var_init"],
             "yield_points": [
-                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:86:13", "explicit_value": True},
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:87:13", "explicit_value": True, "context": "var_init"},
             ],
         },
     },
@@ -513,7 +518,7 @@ expected = {
         "yield_lowering": None,
         "contains_yield_value": True,
         "yield_value_count": 1,
-        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:91:5"],
+        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:92:5"],
         "yield_value_surface": {
             "version": 1,
             "surface": "local_value_resume_v0",
@@ -522,8 +527,9 @@ expected = {
             "supports_explicit_value": True,
             "caller_resume_values": False,
             "generator_channel": False,
+            "consumer_kinds": ["expr_stmt"],
             "yield_points": [
-                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:91:5", "explicit_value": True},
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:92:5", "explicit_value": True, "context": "expr_stmt"},
             ],
         },
     },
@@ -532,6 +538,56 @@ expected = {
         "yield_stmt_count": 0,
         "yield_stmt_sites": [],
         "yield_lowering": None,
+    },
+    "add1_meta": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+    },
+    "value_return": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+        "contains_yield_value": True,
+        "yield_value_count": 1,
+        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:108:12"],
+        "yield_value_surface": {
+            "version": 1,
+            "surface": "local_value_resume_v0",
+            "resume_value_source": "local_expression",
+            "supports_implicit_nil": True,
+            "supports_explicit_value": True,
+            "caller_resume_values": False,
+            "generator_channel": False,
+            "consumer_kinds": ["return_value"],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:108:12", "explicit_value": True, "context": "return_value"},
+            ],
+        },
+    },
+    "value_call_arg": {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+        "contains_yield_value": True,
+        "yield_value_count": 1,
+        "yield_value_sites": ["tests/fixtures/meta_yield_surface.oren:112:22"],
+        "yield_value_surface": {
+            "version": 1,
+            "surface": "local_value_resume_v0",
+            "resume_value_source": "local_expression",
+            "supports_implicit_nil": True,
+            "supports_explicit_value": True,
+            "caller_resume_values": False,
+            "generator_channel": False,
+            "consumer_kinds": ["call_arg"],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:112:22", "explicit_value": True, "context": "call_arg"},
+            ],
+        },
     },
 }
 

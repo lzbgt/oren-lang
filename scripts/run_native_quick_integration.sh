@@ -1192,9 +1192,9 @@ yv_log="build/logs/${compiler_base}_yield_value_surface_v0.log"
 yv_out="build/tmp/${compiler_base}_yield_value_surface_v0.obc"
 rm -f "$yv_log" "$yv_out" 2>/dev/null || true
 
-run_step "parser/runtime smoke (yield value surface)" "$yv_log" \
+run_step_checked "parser/runtime smoke (yield value surface)" "$yv_log" \
   "$compiler" build "$yv_src" --backend bytecode --typecheck -o "$yv_out"
-run_step "parser/runtime smoke (yield value surface run)" "$yv_log" \
+run_step_checked "parser/runtime smoke (yield value surface run)" "$yv_log" \
   ./avm "$yv_out"
 tail -n 5 "$yv_log"
 

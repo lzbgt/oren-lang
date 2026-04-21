@@ -99,3 +99,15 @@ fn nested_value_only() {
     }
     return 0
 }
+
+fn add1_meta(x) {
+    return x + 1
+}
+
+fn value_return(seed) {
+    return yield (seed + 2)
+}
+
+fn value_call_arg(seed) {
+    return add1_meta(yield seed)
+}

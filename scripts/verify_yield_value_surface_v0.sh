@@ -90,7 +90,7 @@ def assert_plain(name, item):
         raise SystemExit(f"{name} should not expose yield_lowering: {item!r}")
 
 
-def assert_value(name, item, site, explicit_value):
+def assert_value(name, item, site, explicit_value, context):
     if item["contains_yield"] is not False:
         raise SystemExit(f"{name} should not contain bare yield: {item!r}")
     if item["yield_stmt_count"] != 0 or item["yield_stmt_sites"] != []:
@@ -114,7 +114,8 @@ def assert_value(name, item, site, explicit_value):
         "supports_explicit_value": True,
         "caller_resume_values": False,
         "generator_channel": False,
-        "yield_points": [{"id": 0, "site": site, "explicit_value": explicit_value}],
+        "consumer_kinds": [context],
+        "yield_points": [{"id": 0, "site": site, "explicit_value": explicit_value, "context": context}],
     }
     if surface != expected_surface:
         raise SystemExit(f"{name} bad yield_value_surface: expected {expected_surface!r}, got {surface!r}")
@@ -126,11 +127,11 @@ obc = by_name(load(os.environ["BYTECODE_META_OUT"])["metadata"]["functions"])
 
 for payloads in (meta, dump, obc):
     assert_plain("add1", payloads["add1"])
-    assert_value("yield_nil_expr", payloads["yield_nil_expr"], "tests/fixtures/yield_value_surface_v0.oren:6:14", False)
-    assert_value("yield_value_expr", payloads["yield_value_expr"], "tests/fixtures/yield_value_surface_v0.oren:12:13", True)
-    assert_value("return_yield_value", payloads["return_yield_value"], "tests/fixtures/yield_value_surface_v0.oren:17:12", True)
-    assert_value("call_arg_yield_value", payloads["call_arg_yield_value"], "tests/fixtures/yield_value_surface_v0.oren:21:17", True)
-    assert_value("stmt_yield_value", payloads["stmt_yield_value"], "tests/fixtures/yield_value_surface_v0.oren:25:5", True)
+    assert_value("yield_nil_expr", payloads["yield_nil_expr"], "tests/fixtures/yield_value_surface_v0.oren:6:14", False, "var_init")
+    assert_value("yield_value_expr", payloads["yield_value_expr"], "tests/fixtures/yield_value_surface_v0.oren:12:13", True, "var_init")
+    assert_value("return_yield_value", payloads["return_yield_value"], "tests/fixtures/yield_value_surface_v0.oren:17:12", True, "return_value")
+    assert_value("call_arg_yield_value", payloads["call_arg_yield_value"], "tests/fixtures/yield_value_surface_v0.oren:21:17", True, "call_arg")
+    assert_value("stmt_yield_value", payloads["stmt_yield_value"], "tests/fixtures/yield_value_surface_v0.oren:25:5", True, "expr_stmt")
     assert_plain("main", payloads["main"])
 
 print("yield value metadata verified")

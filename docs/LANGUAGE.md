@@ -3333,8 +3333,10 @@ Rolling status:
   bare-`yield` statements without guessing from lowered helper calls.
 - New (2026-04-22): `oren meta` / native `--metadata` now also expose the shipped value-yield
   helper surface separately via `contains_yield_value`, `yield_value_count`, `yield_value_sites`,
-  and `yield_value_surface`. This keeps the bare-statement `yield_lowering` plan honest instead of
-  pretending it also models caller-visible value flow.
+  and `yield_value_surface`. That surface now also carries per-site consumer context
+  (`yield_points[*].context`) plus the de-duplicated `consumer_kinds` list, so the metadata records
+  where resumed values are consumed instead of only counting sites. This keeps the bare-statement
+  `yield_lowering` plan honest instead of pretending it also models caller-visible value flow.
 - New (2026-04-22): function metadata also carries a rolling `yield_lowering` plan object with an
   explicit entry state, resume states, yield-point -> resume-state mapping, and a conservative
   `locals_across_yield` list for bare-statement `yield` functions.
@@ -3645,7 +3647,8 @@ Notes:
   - `yield_value_sites`: source sites for those value-yield sites as `file:line:col`.
   - `yield_value_surface`: machine-readable statement of the current contract
     (`local_value_resume_v0`, implicit-nil + explicit-value support, no caller resume value, no
-    generator channel).
+    generator channel), including `consumer_kinds` plus per-point `context` for where the resumed
+    value is consumed (`var_init`, `return_value`, `call_arg`, `expr_stmt`, etc.).
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`

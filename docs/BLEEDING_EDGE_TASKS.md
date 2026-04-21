@@ -4175,7 +4175,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New (2026-04-22): metadata/dump/OBC introspection now also surfaces value-yield separately via
      `contains_yield_value`, `yield_value_count`, `yield_value_sites`, and `yield_value_surface`,
      so the shipped helper-based value contract is machine-readable without pretending the older
-     bare-statement `yield_lowering` plan covers it.
+     bare-statement `yield_lowering` plan covers it. That surface now also records
+     `consumer_kinds` plus per-point `context`.
    - New (2026-04-22): function metadata also emits a rolling `yield_lowering` plan object with an
      explicit entry state plus one resume state per yield site, and now records conservative
      `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for
