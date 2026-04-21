@@ -11,38 +11,39 @@
 // - deterministic headless rasterizer (`std:ui/raster`)
 // - future platform shims (Skia/CoreGraphics/D2D/etc)
 
+import result "std:result"
+
 fn parse_hex(s) {
-    // Returns:
-    // - {"ok":1,"r":u8,"g":u8,"b":u8,"a":u8}
-    // - {"ok":0,"err":string}
-    if s == nil { return {"ok": 0, "err": "color is nil"} }
+    // Returns either:
+    // - {"r":u8,"g":u8,"b":u8,"a":u8}
+    // - structured err(code=4, msg=...)
+    if s == nil { return oren_err(4, "color is nil") }
     var n = oren_string_len(s)
-    if oren_is_err(n) { return {"ok": 0, "err": "color must be string"} }
-    if n != 7 && n != 9 { return {"ok": 0, "err": "color must be #RRGGBB or #RRGGBBAA"} }
-    if oren_string_slice(s, 0, 1) != "#" { return {"ok": 0, "err": "color must start with #"} }
+    if oren_is_err(n) { return oren_err(4, "color must be string") }
+    if n != 7 && n != 9 { return oren_err(4, "color must be #RRGGBB or #RRGGBBAA") }
+    if oren_string_slice(s, 0, 1) != "#" { return oren_err(4, "color must start with #") }
 
     // Use std bytes helpers so this works under AVM bytecode too.
     var hex = oren_string_slice(s, 1, n)
     var bb = oren_bytes_from_hex(hex)
-    if oren_is_err(bb) { return {"ok": 0, "err": "invalid hex digits"} }
+    if oren_is_err(bb) { return oren_err(4, "invalid hex digits") }
     var bl = oren_bytes_len(bb)
-    if oren_is_err(bl) { return {"ok": 0, "err": "invalid bytes"} }
-    if bl != 3 && bl != 4 { return {"ok": 0, "err": "color hex must decode to 3 or 4 bytes"} }
+    if oren_is_err(bl) { return oren_err(4, "invalid bytes") }
+    if bl != 3 && bl != 4 { return oren_err(4, "color hex must decode to 3 or 4 bytes") }
 
     var r = oren_bytes_get_u8(bb, 0)
     var g = oren_bytes_get_u8(bb, 1)
     var b = oren_bytes_get_u8(bb, 2)
-    if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return {"ok": 0, "err": "invalid bytes"} }
+    if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return oren_err(4, "invalid bytes") }
     var a = 255
     if bl == 4 {
         a = oren_bytes_get_u8(bb, 3)
-        if oren_is_err(a) { return {"ok": 0, "err": "invalid alpha byte"} }
+        if oren_is_err(a) { return oren_err(4, "invalid alpha byte") }
     }
-    return {"ok": 1, "r": r, "g": g, "b": b, "a": a}
+    return {"r": r, "g": g, "b": b, "a": a}
 }
 
 fn is_hex(s) {
     var r = parse_hex(s)
-    return r["ok"] == 1
+    return result.is_err(r) == false
 }
-

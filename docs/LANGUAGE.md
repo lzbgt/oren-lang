@@ -3353,15 +3353,26 @@ Run:
 
 ### 3) Structured error model (self-healing support)
 
-Current v0 behavior:
+Rolling status:
 
-- many failures are runtime panics
+- The core value-or-error convention is already shipped:
+  - `oren_err(code, msg)`
+  - `oren_is_err(v)`
+  - `oren_err_code(v)`
+  - `oren_err_msg(v)`
+  - `std:result` helpers such as `is_err`, `is_ok`, `unwrap`, `expect`, `unwrap_or`,
+    `ok_or_errno`, and `with_context`
+- Checked stdlib surfaces already use that convention on current rolling builds, including
+  `std:list`, `std:bytes`, `std:buffer`, `std:crypto/rand`, `std:ui/commands`,
+  `std:ui/color`, and `std:ui/raster`.
+- Remaining migration work is mostly library cleanup: several older codec/network modules still
+  return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
+- Design + migration notes: `docs/design/structured_error_model.md`
 
-Planned direction:
+Planned direction (later, optional):
 
-- add a standardized `Result`-style convention (or explicit `try`/`catch`) so libraries can recover
-- define a stable error value shape (code/message/context)
- - design spec: `docs/design/structured_error_model.md`
+- add sugar such as `try expr` / local recovery forms after the plain value-or-error convention is
+  fully settled across backends and stdlib surfaces
 
 ### 4) Visibility and module boundaries
 

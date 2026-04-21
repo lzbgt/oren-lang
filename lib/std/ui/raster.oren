@@ -20,6 +20,7 @@
 
 import ui_cmds "std:ui/commands"
 import ui_color "std:ui/color"
+import result "std:result"
 
 fn _set_px_rgba(buf, w, h, x, y, r, g, b, a) {
     if x < 0 || y < 0 || x >= w || y >= h { return 0 }
@@ -58,7 +59,7 @@ fn rasterize(cmds, w, h, opts) {
     var bg = opts["clear_color"]
     if bg != nil {
         var c0 = ui_color.parse_hex(bg)
-        if c0["ok"] != 1 { return oren_err(4, "rasterize: invalid clear_color") }
+        if oren_is_err(c0) { return result.with_context(c0, "rasterize: clear_color") }
         var y = 0
         while y < h {
             var x = 0
@@ -78,7 +79,7 @@ fn rasterize(cmds, w, h, opts) {
         var op = opm["op"]
         if op == "fill_rect" {
             var c = ui_color.parse_hex(opm["color"])
-            if c["ok"] != 1 { return oren_err(4, "rasterize: invalid fill_rect color") }
+            if oren_is_err(c) { return result.with_context(c, "rasterize: fill_rect color") }
             var rx = opm["x"]
             var ry = opm["y"]
             var rw = opm["w"]
@@ -96,7 +97,7 @@ fn rasterize(cmds, w, h, opts) {
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.
             var c2 = ui_color.parse_hex(opm["color"])
-            if c2["ok"] != 1 { return oren_err(4, "rasterize: invalid text color") }
+            if oren_is_err(c2) { return result.with_context(c2, "rasterize: text color") }
             var tx = opm["x"]
             var ty = opm["y"]
             var s = opm["text"]

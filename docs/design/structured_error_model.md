@@ -2,7 +2,8 @@
 
 Last updated: 2026-03-05
 
-Status: Design (rolling). This is a proposal intended to align cross-backend behavior.
+Status: Rolling v0 implementation guide. Core primitives + `std:result` are already shipped;
+stdlib migration to the same convention is ongoing.
 
 ## Goals
 
@@ -28,7 +29,7 @@ Status: Design (rolling). This is a proposal intended to align cross-backend beh
 These primitives are already used by the compiler toolchain and stdlib; the design
 formalizes their behavior and usage.
 
-## Proposed model (v0)
+## Current rolling model (v0)
 
 ### 1) Result-style convention (value-or-error)
 
@@ -83,15 +84,19 @@ The sugar should lower to plain value-or-error checks so it remains backend-neut
 
 ## Migration plan (rolling)
 
-1) **Document and stabilize** the error convention (this doc + `docs/LANGUAGE.md`).
+1) **Document and stabilize** the error convention.
+   - Done: this doc + `docs/LANGUAGE.md` now describe the shipped v0 surface.
 2) **Audit stdlib** and ensure functions either:
    - return structured errors, or
    - document explicit panic behavior.
-3) **Add fixtures**:
-   - A small `std:result` smoke that validates `ok_or_errno`, `unwrap`, and `expect`.
-4) **Gradual adoption**:
-   - Convert a few high-signal stdlib modules (e.g., `std:list`, `std:buffer`) to
-     use the convention consistently.
+   - Ongoing: many checked modules already do this; older `{ok, err}` map APIs are still being
+     migrated.
+3) **Add fixtures**.
+   - Done: `tests/modules/test_result.oren` plus the Tier-1 native result smoke validate
+     `ok_or_errno`, `unwrap_or`, and stdlib checked helpers on real backend paths.
+4) **Gradual adoption**.
+   - In progress: high-signal checked modules such as `std:list`, `std:buffer`, `std:bytes`,
+     `std:ui/color`, and `std:ui/raster` already use the value-or-error convention.
 
 ## Open questions
 
@@ -104,3 +109,5 @@ The sugar should lower to plain value-or-error checks so it remains backend-neut
 - The convention is documented in `docs/LANGUAGE.md`.
 - At least one stdlib module and one fixture validate the error helpers.
 - No backend-specific divergence in `oren_err` or `oren_is_err` semantics.
+- Current status: met on the rolling surface; remaining work is stdlib migration breadth, not core
+  primitive availability.

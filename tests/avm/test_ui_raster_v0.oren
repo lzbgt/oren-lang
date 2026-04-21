@@ -85,7 +85,15 @@ fn test_raster_simple() {
     assert_eq(_px(buf, w, 2, 4, 3), 0)
 }
 
+fn test_raster_err_context() {
+    var bad_bg = ui_raster.rasterize([], 1, 1, {"clear_color": "red"})
+    assert_true(oren_is_err(bad_bg) == true)
+    assert_eq(oren_err_code(bad_bg), 4)
+    assert_eq(oren_err_msg(bad_bg), "rasterize: clear_color: color must be #RRGGBB or #RRGGBBAA")
+}
+
 fn main() {
     test_raster_simple()
+    test_raster_err_context()
     exit(0)
 }

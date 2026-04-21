@@ -4145,8 +4145,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: list<int> fixtures + OBC perf parity.
 
 9) **W4 feature set completeness (essential modern features)**
-   - Remaining cross-backend language backlog: `yield`/stackless coroutines and the structured
-     error model.
+   - Remaining cross-backend language backlog: `yield`/stackless coroutines.
+   - Implemented (rolling): the structured error model is the shipped value-or-error convention
+     (`oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, `std:result`); remaining work is
+     stdlib migration breadth rather than core language/runtime availability.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
@@ -4156,6 +4158,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      not need a flag day.
    - Guarded by native quick integration with both success and compile-failure fixtures for
      `pub` imports, private imported members/types, legacy-open modules, and nested invalid `pub`.
+   - New (2026-04-22): the UI color/raster checked path now also runs on the structured error
+     surface, with coverage in the Tier-1 native result smoke plus AVM UI tests.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

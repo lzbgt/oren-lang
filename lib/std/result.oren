@@ -38,6 +38,16 @@ fn expect(v, message) {
     return v
 }
 
+fn with_context(v, context) {
+    if oren_is_err(v) == false { return v }
+    var ctx = context
+    if ctx == nil || ctx == "" { return v }
+    var code = oren_err_code(v)
+    var msg = oren_err_msg(v)
+    if msg == nil || msg == "" { return oren_err(code, ctx) }
+    return oren_err(code, ctx + ": " + msg)
+}
+
 // --- errno / syscall helpers (rolling) ---
 //
 // Many syscall-first runtime APIs return:

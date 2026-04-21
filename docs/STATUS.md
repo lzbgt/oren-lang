@@ -60,10 +60,12 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
-- **Feature set maturity**: the remaining essential language backlog is `yield`/stackless coroutines
-  plus the structured error model (see `docs/LANGUAGE.md`). Rolling module visibility now exists via
-  `pub`, and bytes/typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
-  dynamic module loading and user-defined methods remain unimplemented.
+- **Feature set maturity**: the remaining essential language backlog is now `yield`/stackless
+  coroutines. The structured error model is already shipped as the rolling value-or-error
+  convention (`oren_err` / `oren_is_err` / `std:result`), with stdlib migration breadth still
+  ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
+  partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
+  methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
   for typed-buffer callers that want to stay on the portable stdlib surface:
   `try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_slice_copy_from_string_slice`,
@@ -1301,8 +1303,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
 
 5) **W4 - Feature set completeness (essential modern features)**
-   - Remaining planned work: `yield`/stackless coroutines and the structured error model
-     (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
+   - Remaining planned work: `yield`/stackless coroutines.
+   - Implemented (rolling): the structured error model is now the shipped value-or-error
+     convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
+     `std:result`; remaining work is stdlib migration breadth, not core feature availability.
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
      `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
    - Migration rule: modules with any `pub` declaration become closed-by-default to imports,
@@ -1310,6 +1314,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: native quick integration now guards both success and failure paths for module visibility:
      `pub` imports, legacy-open imports, private imported members/types, and nested non-top-level
      `pub`.
+   - New (2026-04-22): `std:ui/color.parse_hex` and `std:ui/raster.rasterize` now also use the
+     structured error convention directly instead of ad-hoc `{ok, err}` failure maps on invalid
+     color inputs, and the result smoke / AVM UI tests guard that surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

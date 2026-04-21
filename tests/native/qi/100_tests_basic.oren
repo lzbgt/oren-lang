@@ -1894,6 +1894,10 @@ fn test_ui_headless() {
     var vr = ui_cmds.validate(cmds, w, h, {"strict_bounds": 1})
     assert_true(vr == 0, 311)
     assert_true(oren_is_err(ui_cmds.validate(cmds, "x", h, {"strict_bounds": 1})), 323)
+    var bad_bg = ui_raster.rasterize([], 1, 1, {"clear_color": "red"})
+    assert_true(oren_is_err(bad_bg) == true, 324)
+    assert_eq(oren_err_code(bad_bg), 4, 325)
+    assert_streq(oren_err_msg(bad_bg), "rasterize: clear_color: color must be #RRGGBB or #RRGGBBAA", 326)
 
     var img = ui_raster.rasterize(cmds, w, h, {"strict_bounds": 1})
     assert_true(oren_is_err(img) == false, 312)

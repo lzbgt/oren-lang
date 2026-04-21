@@ -10,6 +10,8 @@ import strings "std:strings"
 import bytes "std:bytes"
 import pem "std:crypto/pem"
 import ui_cmds "std:ui/commands"
+import ui_color "std:ui/color"
+import ui_raster "std:ui/raster"
 import linalg "std:linalg"
 
 fn smoke_buffer_slice_views(i32b) {
@@ -1111,6 +1113,21 @@ fn smoke_bytes_tail_and_bridge() {
     return 0
 }
 
+fn smoke_ui_result_surface() {
+    var okc = ui_color.parse_hex("#010203")
+    if r.is_err(okc) { return 1300 }
+    if okc["r"] != 1 || okc["g"] != 2 || okc["b"] != 3 || okc["a"] != 255 { return 1301 }
+    var badc = ui_color.parse_hex("red")
+    if r.is_err(badc) != true { return 1302 }
+    if oren_err_code(badc) != 4 { return 1303 }
+    if oren_err_msg(badc) != "color must be #RRGGBB or #RRGGBBAA" { return 1304 }
+    var bad_bg = ui_raster.rasterize([], 1, 1, {"clear_color": "red"})
+    if r.is_err(bad_bg) != true { return 1305 }
+    if oren_err_code(bad_bg) != 4 { return 1306 }
+    if oren_err_msg(bad_bg) != "rasterize: clear_color: color must be #RRGGBB or #RRGGBBAA" { return 1307 }
+    return 0
+}
+
 fn main() {
     // Non-existent file => error
     var v = oren_read_file("__oren_result_smoke_missing__.txt")
@@ -1155,6 +1172,9 @@ fn main() {
     var empty = []
     var empty_last = list.try_last(empty)
     if r.is_err(empty_last) != true { return 11 }
+
+    var ui_smoke = smoke_ui_result_surface()
+    if ui_smoke != 0 { return ui_smoke }
 
     // std:buffer structured errors
     var b = buffer.u8_new(4)

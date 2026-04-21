@@ -1,4 +1,5 @@
 import r "../../lib/std/result.oren"
+import ui_color "std:ui/color"
 
 var v = oren_read_file("__definitely_not_a_real_file__.txt")
 var s = r.unwrap_or(v, "fallback")
@@ -17,6 +18,16 @@ if s == "fallback" {
     var okv = r.ok_or_errno(5, "read")
     if okv != 5 {
         print("Result FAIL (ok passthrough)")
+        exit(1)
+    }
+
+    var c = ui_color.parse_hex("red")
+    if r.is_err(c) != true {
+        print("Result FAIL (ui color err expected)")
+        exit(1)
+    }
+    if oren_err_code(c) != 4 {
+        print("Result FAIL (ui color code)")
         exit(1)
     }
 
