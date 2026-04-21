@@ -7,9 +7,11 @@
 //
 // Current scope (v0):
 // - caches the *final artifact* only (native/c/bytecode) keyed by:
-//   - compiler executable sha256 (argv[0] when available)
+//   - compiler executable signature (argv[0] when available; strong hash in deterministic mode,
+//     fast metadata signature in rolling mode)
 //   - build options that affect output
-//   - transitive source closure sha256 (imports + @include expansion)
+//   - curated native codegen env surface (for build-affecting fast-path/runtime overrides)
+//   - transitive source closure hash (imports + @include expansion)
 //
 // This intentionally does not attempt fine-grained incremental compilation yet.
 
@@ -21,9 +23,10 @@ import token "token.oren"
 // Under the native runtime, pure-Oren sha256 can dominate `oren build` wall time because
 // cache key computation happens before any compilation work.
 //
-// v2 uses a fast non-cryptographic fingerprint by default, while keeping sha256 for
-// deterministic/reproducible build modes.
-var BUILD_CACHE_SCHEMA = 2
+// v3 keeps the fast non-cryptographic fingerprint for source closure hashing, but also
+// folds build-affecting native env toggles into the final artifact key so cached native
+// outputs cannot be reused across incompatible codegen modes.
+var BUILD_CACHE_SCHEMA = 3
 var SCAN_CACHE_SCHEMA = 3
 
 fn _cache_force_sha256(build_cfg) {
@@ -116,6 +119,115 @@ fn _cache_sort_strings(xs) {
         i = i + 1
     }
     return xs
+}
+
+fn _cache_env_value_for_key(name) {
+    var v = oren_env(name)
+    if v == nil { return "<unset>" }
+    return v
+}
+
+fn _cache_append_env_key_field(s, name) {
+    return s + "env " + name + "=" + _cache_env_value_for_key(name) + "\n"
+}
+
+fn _cache_native_build_env_names(build_cfg) {
+    var names = [
+        "OREN_NATIVE_ASSUME_LIST_INDEX",
+        "OREN_NATIVE_FAST_LIST_INT_GET_SUM_WHOLE_LIST_HELPER",
+        "OREN_NATIVE_FAST_LIST_INT_DOT_WHOLE_LIST_HELPER",
+        "OREN_NATIVE_RUNTIME_PROFILE",
+        "OREN_NATIVE_RUNTIME_ASTBIN",
+        "OREN_NATIVE_RUNTIME_EXPANDED",
+        "OREN_NATIVE_RESOLVE_SYMBOL"
+    ]
+    if build_cfg == nil { return names }
+    var arch = build_cfg["arch"]
+    if arch == "arm64" {
+        var arm64_names = [
+            "OREN_ARM64_LIST_INT_SLOT_DIRECT_FAST_TICK",
+            "OREN_ARM64_LIST_INT_SLOT_DIRECT_PAIR_LOOP",
+            "OREN_ARM64_LIST_INT_SLOT_DIRECT_TICK_MASK",
+            "OREN_ARM64_FAST_LCG_SUM_KEEP_TICK_SLOT",
+            "OREN_ARM64_FAST_LCG_SUM_TICK_MASK",
+            "OREN_ARM64_FAST_LIST_GET_SUM_KEEP_TICK_SLOT",
+            "OREN_ARM64_FAST_LIST_GET_SUM_TICK_MASK",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_PREFIX_ZERO",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_TICK_MASK",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_SINGLE_LIST_CURSOR_REGS",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_UNROLL2",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_DUAL_ACCUM",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_PAIR_POST",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_VECTOR_2D",
+            "OREN_ARM64_FAST_LIST_INT_GET_SUM_KEEP_TICK_SLOT",
+            "OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO",
+            "OREN_ARM64_FAST_LIST_INT_DOT_PREFIX_ZERO_PAIR_LOOP",
+            "OREN_ARM64_FAST_LIST_INT_DOT_TICK_MASK",
+            "OREN_ARM64_FAST_LIST_INT_DOT_SINGLE_PAIR_CURSOR_REGS",
+            "OREN_ARM64_FAST_LIST_INT_DOT_LOW32_LOADS",
+            "OREN_ARM64_FAST_LIST_INT_DOT_DUAL_ACCUM",
+            "OREN_ARM64_FAST_LIST_INT_DOT_DUAL_MADD",
+            "OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT",
+            "OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_QUAD",
+            "OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_DOUBLE",
+            "OREN_ARM64_FAST_LIST_INT_DOT_MADD_EXACT_SCALAR",
+            "OREN_ARM64_FAST_LIST_INT_DOT_SCALAR_POST",
+            "OREN_ARM64_FAST_LIST_INT_DOT_PAIR_POST",
+            "OREN_ARM64_FAST_LIST_INT_DOT_UNROLL2",
+            "OREN_ARM64_FAST_LIST_INT_DOT_KEEP_TICK_SLOT",
+            "OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT",
+            "OREN_ARM64_FAST_LIST_DOT_TICK_MASK",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_KEEP_TICK_SLOT",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_SINGLE_LIST_CURSOR",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST",
+            "OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS",
+            "OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT",
+            "OREN_ARM64_FAST_LIST_PUSH_TICK_MASK"
+        ]
+        var i = 0
+        while i < oren_list_len(arm64_names) {
+            oren_list_push(names, arm64_names[i])
+            i = i + 1
+        }
+    } else if arch == "x64" {
+        var x64_names = [
+            "OREN_X64_RT_OBJ_MERGE_CSTR0_OFFS",
+            "OREN_X64_SKIP_RTOBJ"
+        ]
+        var j = 0
+        while j < oren_list_len(x64_names) {
+            oren_list_push(names, x64_names[j])
+            j = j + 1
+        }
+    }
+    return names
+}
+
+fn _cache_hash_native_override_env_inputs(inputs, build_cfg, scan_state) {
+    if build_cfg == nil || build_cfg["backend"] != "native" { return {"ok": true} }
+    var astbin_override = oren_env("OREN_NATIVE_RUNTIME_ASTBIN")
+    if astbin_override != nil && astbin_override != "" {
+        var ast_path = path_norm(astbin_override)
+        var ast_bytes = oren_read_u8_buf(ast_path)
+        if oren_is_err(ast_bytes) {
+            return {"ok": false, "err": "failed to read OREN_NATIVE_RUNTIME_ASTBIN=" + ast_path}
+        }
+        inputs["ENV_FILE:OREN_NATIVE_RUNTIME_ASTBIN:" + ast_path] = _cache_hash_u8_buf(ast_bytes, build_cfg)
+    }
+    var expanded_override = oren_env("OREN_NATIVE_RUNTIME_EXPANDED")
+    if expanded_override != nil && expanded_override != "" {
+        var exp_path = path_norm(expanded_override)
+        var exp_hash = _cache_hash_expanded_includes(exp_path, build_cfg, scan_state)
+        if exp_hash["ok"] != true {
+            return {"ok": false, "err": "failed to read OREN_NATIVE_RUNTIME_EXPANDED=" + exp_path + " (" + exp_hash["err"] + ")"}
+        }
+        inputs["ENV_FILE:OREN_NATIVE_RUNTIME_EXPANDED:" + exp_path] = exp_hash["hash"]
+    }
+    return {"ok": true}
 }
 
 fn _cache_default_dir() {
@@ -1068,6 +1180,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     // build_cfg fields used (expected):
     // - backend, target, arch, cc, emit_c, no_gc, capsule, cap_domains, call_depth_max
     // - stdlib_mode, stdlib_obc, link_obc, link_libs, enable_python, debug_mode, shared_lib
+    // - plus a curated native env surface captured below for build-affecting codegen toggles
     //
     // Returns {"ok":bool, "key":hex, "err":string, "inputs":map(path->hash)}
     var tv = oren_env("OREN_TRACE_BUILD")
@@ -1195,6 +1308,11 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         }
     }
 
+    var rr_native_env_inputs = _cache_hash_native_override_env_inputs(inputs, build_cfg, scan_state)
+    if rr_native_env_inputs["ok"] != true {
+        return {"ok": false, "err": rr_native_env_inputs["err"]}
+    }
+
     if build_cfg != nil && build_cfg["backend"] == "c" {
         var rr_c = _cache_hash_c_runtime_inputs(inputs, build_cfg, scan_state)
         if rr_c["ok"] != true {
@@ -1271,6 +1389,14 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         }
         s = s + "\n"
         s = s + "stdlib_mode=" + build_cfg["stdlib_mode"] + "\n"
+        if build_cfg["backend"] == "native" {
+            var env_names = _cache_native_build_env_names(build_cfg)
+            var ei = 0
+            while ei < oren_list_len(env_names) {
+                s = _cache_append_env_key_field(s, env_names[ei])
+                ei = ei + 1
+            }
+        }
     }
 
     // Input file hashes, stable sorted by key.

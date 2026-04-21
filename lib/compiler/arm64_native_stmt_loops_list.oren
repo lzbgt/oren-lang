@@ -304,7 +304,11 @@ fn _arm64_nonneg_linear_safe_n_limit(linear) {
     var max_i64 = 9223372036854775807
     if add > max_i64 { return nil }
     var room = max_i64 - add
-    return (room / mul) + 1
+    var max_idx = room / mul
+    // The preheader checks `n <= limit` while the loop body evaluates the linear form for
+    // `i in [0, n-1]`. Saturate instead of overflowing the `+1` adjustment on identity shapes.
+    if max_idx >= max_i64 - 1 { return max_i64 }
+    return max_idx + 1
 }
 
 fn _arm64_cap_expr_matches_fast_n(cap_expr, n_name, n_const) {

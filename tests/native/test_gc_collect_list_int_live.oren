@@ -1,0 +1,15 @@
+fn fill_then_collect_then_push(n) {
+    var xs = oren_new_list_int(0)
+    var i = 0
+    while i < n {
+        oren_list_int_push(xs, i)
+        i = i + 1
+    }
+    oren_gc_collect()
+    oren_list_int_push(xs, 999)
+    return oren_list_int_get(xs, n)
+}
+
+fn main() {
+    print(fill_then_collect_then_push(128))
+}

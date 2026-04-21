@@ -1,0 +1,13 @@
+fn fill_with_auto_gc(n) {
+    var xs = oren_new_list_int(0)
+    var i = 0
+    while i < n {
+        oren_list_int_push(xs, i)
+        i = i + 1
+    }
+    return oren_list_int_get(xs, n - 1)
+}
+
+fn main() {
+    print(fill_with_auto_gc(128))
+}

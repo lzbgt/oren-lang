@@ -582,8 +582,16 @@ verify-optimizer-list-reserve-branchy: oren_stage2
 verify-alloc-churn-len128: oren_stage2
 		@./scripts/verify_alloc_churn_len128_smoke.sh
 
+# Runtime robustness smoke: reused alloc_churn list headers must stay tracked across checked ops.
+verify-alloc-churn-tracking: oren_stage2
+		@./scripts/verify_alloc_churn_tracking_smoke.sh "./$(OREN_STAGE2_BIN)"
+
+# Native build cache smoke: build-affecting arm64 fast-list env toggles must invalidate cached artifacts.
+verify-build-cache-native-env-surface: oren_stage2
+		@./scripts/verify_build_cache_native_env_surface.sh "./$(OREN_STAGE2_BIN)"
+
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
-verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-optimizer-list-reserve-branchy verify-alloc-churn-len128
+verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-optimizer-list-reserve-branchy verify-alloc-churn-len128 verify-alloc-churn-tracking verify-build-cache-native-env-surface
 	@echo "verify-native-quick OK"
 
 # Wrapper smoke: keep ./oretest target mapping aligned with the documented fast/full flows.

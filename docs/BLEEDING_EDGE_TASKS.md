@@ -210,18 +210,40 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 2) **W5 runtime robustness: GC reuse + list header integrity**
    - Root-cause list header corruption before enabling reuse paths.
-   - Update (2026-04-21): the shared native quick path now carries an explicit GC reuse tracking
-     smoke. `tests/native/test_gc_reuse_tracking.oren` was tightened so the dead headers are
-     created through `oren_new_list(0)` and an escaping aggregate, then
-     `scripts/run_native_quick_integration.sh` builds it with `OREN_ARENA_AUTO_LOOP=0` and runs it
-     under `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=1`,
-     `OREN_GC_REUSE_LISTS_UNSAFE=1`, `OREN_TRACE_GC_REUSE_SUMMARY=1`, failing if the run does not
-     emit a nonzero `[gc_reuse_summary] ... hits=...`. Current quick log shows `hits=4` followed by
-     `gc reuse tracking OK` (`build/logs/oren_native_quick_integration.log`).
-   - Refresh (2026-04-21): a short current bad-list hunt
-     (`build/logs/repro_bad_list_alloc_churn_20260421_short.log`, `RUNS=2`) produced no
-     `gc_reuse_bad_list` hits. That does not retire the older trace backlog, but it does reweight
-     this thread toward coverage and hardening rather than a trivially reproducible current crash.
+   - Fix + verify (2026-04-21): the current reduced aggressive-GC `list<int>` churn repro
+     (`tests/native/test_gc_reuse_alloc_churn_min.oren`) now passes again on shipped defaults.
+     The concrete arm64 fix was saturating `_arm64_nonneg_linear_safe_n_limit(...)` so the
+     identity nonnegative-linear shape no longer overflows the fast-loop preheader ceiling to
+     `0x8000000000000000`. Native quick now runs that reducer directly, and the dedicated W5
+     tracking smoke uses the reduced fixtures (`test_gc_reuse_alloc_churn_min`,
+     `test_gc_collect_list_int_live`, `test_gc_auto_list_int_live`, and the generic control)
+     instead of the heavier benchmark build. The same-day self-host check forced
+     `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` back to opt-in only:
+     `./oren_stage2_nonneg0` (built with the flag off) compiles and runs native quick cleanly
+     while the default-on self-hosted build stalls. A direct arm64 `oren_gc_collect()` shortcut was
+     tried during the same investigation and then removed after it deadlocked the native quick
+     green join-waiter fixture; shipped code stays on the normal direct-call lowering there.
+	   - Update (2026-04-21): the shared native quick path now carries an explicit GC reuse tracking
+	     smoke. `tests/native/test_gc_reuse_tracking.oren` was tightened so the dead headers are
+	     created through `oren_new_list(0)` and an escaping aggregate, then
+	     `scripts/run_native_quick_integration.sh` builds it with `OREN_ARENA_AUTO_LOOP=0` and runs it
+	     under `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=1`,
+	     `OREN_GC_REUSE_LISTS_UNSAFE=1`, `OREN_TRACE_GC_REUSE_SUMMARY=1`, failing if the run does not
+	     emit a nonzero `[gc_reuse_summary] ... hits=...`. Current quick log shows `hits=4` followed by
+	     `gc reuse tracking OK` (`build/logs/oren_native_quick_integration.log`).
+	   - Fix + verify (2026-04-21): the native build cache now includes a curated build-affecting
+	     native env surface instead of reusing the same artifact across incompatible fast-path modes.
+	     The concrete regression was a sequential same-cache build of
+	     `tests/native/test_gc_reuse_alloc_churn_min.oren`: with the old key,
+	     `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=1` restored the cached `...=0` artifact. The
+	     cache key in `lib/compiler/compiler/012_build_cache.oren` now carries the native fast-loop
+	     env surface plus content hashes for runtime override-file envs, and
+	     `scripts/verify_build_cache_native_env_surface.sh` guards that the two env modes differ
+	     while a repeated same-mode build restores from cache.
+	   - Refresh (2026-04-21): a short current bad-list hunt
+	     (`build/logs/repro_bad_list_alloc_churn_20260421_short.log`, `RUNS=2`) produced no
+	     `gc_reuse_bad_list` hits. That does not retire the older trace backlog, but it does reweight
+	     this thread toward coverage and hardening rather than a trivially reproducible current crash.
    - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
      reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
    - Fix: green spawn/entry now re-track args_list headers on alloc-index misses when magic+len/cap look sane (2026-03-04).
@@ -2226,6 +2248,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      (`default_dot_ratio_median ~1.7910×` vs disabled `~1.8065×`).
 										      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` therefore now ships on by default on
 										      the current tree.
+										      Fix + verify (2026-04-21): reduced aggressive-GC churn exposed a current overflow
+										      in `_arm64_nonneg_linear_safe_n_limit(...)` on the identity shape, which emitted a
+										      signed preheader compare against `0x8000000000000000`. Saturating that bound fixed
+										      the reducer, but the self-host decision surface still failed: a stage2 compiler
+										      built with the default-on branch stalled in native quick while
+										      `./oren_stage2_nonneg0` completed cleanly. This branch is therefore back to opt-in
+										      until it is self-host-safe, and native quick now carries
+										      `tests/native/test_gc_reuse_alloc_churn_min.oren` as a direct guardrail.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

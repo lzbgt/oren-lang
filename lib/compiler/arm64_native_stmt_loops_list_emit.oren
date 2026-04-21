@@ -96,16 +96,18 @@ fn _arm64_emit_list_int_dot_slot_load(ctx, dst, base, offset, low32_loads) {
     }
 }
 
-// Keep arm64 list fast-loop validation on the same alloc-index lookup x64 already uses.
+// Keep arm64 list fast-loop validation on the same resilient runtime contract as the
+// native list helpers: recover/retrack valid list headers before rejecting the pointer.
 // Call sites still do explicit kind/magic checks after this helper returns a tracked node or 0.
-fn _arm64_emit_find_tracked_node(ctx, ptr_reg, dst_reg) {
+fn _arm64_emit_find_list_node_known_kind(ctx, ptr_reg, dst_reg, want_kind) {
     if ctx == nil { return nil }
     if ptr_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, ptr_reg)) }
+    emit_load_i64_imm(ctx, 1, want_kind)
     var bl_find = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "native_alloc_index_get"})
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "_list_find_node_known_kind"})
     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_alloc_index_get")
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
     if dst_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(dst_reg, 0)) }
     return nil
 }
@@ -195,19 +197,21 @@ fn _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, linear, idx_reg) {
     } else {
         if idx_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, idx_reg)) }
         if mul != 1 {
-            emit_load_i64_imm(ctx, 24, mul)
-            push_u32_le(ctx["code"], insn_mul(0, 0, 24))
+            emit_load_i64_imm(ctx, 9, mul)
+            push_u32_le(ctx["code"], insn_mul(0, 0, 9))
         }
         if add != 0 {
-            emit_load_i64_imm(ctx, 24, add)
-            push_u32_le(ctx["code"], insn_add_reg(0, 0, 24))
+            emit_load_i64_imm(ctx, 9, add)
+            push_u32_le(ctx["code"], insn_add_reg(0, 0, 9))
         }
     }
     if mod > 0 {
-        emit_load_i64_imm(ctx, 24, mod)
-        push_u32_le(ctx["code"], insn_udiv(25, 0, 24))
-        push_u32_le(ctx["code"], insn_mul(25, 25, 24))
-        push_u32_le(ctx["code"], insn_sub_reg(0, 0, 25))
+        // Keep this helper on caller-saved scratch regs. X19..X26 are the backend's
+        // preserved/root-carrying temp set inside hot loops and must not be clobbered here.
+        emit_load_i64_imm(ctx, 9, mod)
+        push_u32_le(ctx["code"], insn_udiv(10, 0, 9))
+        push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+        push_u32_le(ctx["code"], insn_sub_reg(0, 0, 10))
     }
     return true
 }
@@ -266,7 +270,7 @@ fn _arm64_emit_fast_list_int_get_sum_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-    _arm64_emit_find_tracked_node(ctx, 19, 0)
+    _arm64_emit_find_list_node_known_kind(ctx, 19, 0, 8)
 
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
     var jpos_node_nil = bytes_len(ctx["code"])
@@ -383,7 +387,7 @@ fn _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_left_nil, "cond": 0}) // EQ
 
-    _arm64_emit_find_tracked_node(ctx, 19, 0)
+    _arm64_emit_find_list_node_known_kind(ctx, 19, 0, 8)
 
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
     var jpos_left_node_nil = bytes_len(ctx["code"])
@@ -418,7 +422,7 @@ fn _arm64_emit_fast_list_int_dot_prefix_zero_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_right_nil, "cond": 0}) // EQ
 
-    _arm64_emit_find_tracked_node(ctx, 20, 0)
+    _arm64_emit_find_list_node_known_kind(ctx, 20, 0, 8)
 
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
     var jpos_right_node_nil = bytes_len(ctx["code"])
@@ -620,8 +624,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = native_alloc_index_get(list)
-        _arm64_emit_find_tracked_node(ctx, 0, 0)
+        // node = _list_find_node_known_kind(list, LIST)
+        _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 2)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -988,8 +992,8 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = native_alloc_index_get(list)
-        _arm64_emit_find_tracked_node(ctx, 0, 0)
+        // node = _list_find_node_known_kind(list, LIST_INT)
+        _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 8)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -1529,8 +1533,8 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = native_alloc_index_get(list)
-        _arm64_emit_find_tracked_node(ctx, 0, 0)
+        // node = _list_find_node_known_kind(list, LIST_INT)
+        _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 8)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -2152,8 +2156,8 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = native_alloc_index_get(list)
-        _arm64_emit_find_tracked_node(ctx, 0, 0)
+        // node = _list_find_node_known_kind(list, LIST)
+        _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 2)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -2375,7 +2379,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var idx_nonneg_linear_fast = false
     if all_push_values_nonneg_linear_safe == true &&
         nonneg_linear_safe_n_limit != nil &&
-        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR") == true {
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR") == true {
         // This path only handles nonnegative affine/mod shapes with a proven loop-bound ceiling, so
         // the direct mul/add/(u)div sequence stays semantically aligned with the generic int path.
         idx_nonneg_linear_fast = true
@@ -2468,8 +2472,8 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
             push_u32_le(ctx["code"], 0)
             oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-            // node = native_alloc_index_get(list)
-            _arm64_emit_find_tracked_node(ctx, 0, 0)
+            // node = _list_find_node_known_kind(list, LIST_INT)
+            _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 8)
 
             // node == 0 => slow
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -2538,8 +2542,8 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         }
 
         li = li + 1
-    }
-
+	    }
+	
     // Seed the inline tick after preheader reserve/capacity calls so the fast loop always starts
     // from a known countdown state on the no-slot path too.
     gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
@@ -2677,8 +2681,8 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], insn_str_ptr(20, 21))
         _arm64_emit_trace_list_header_if_enabled(ctx, 21)
         li2 = li2 + 1
-    }
-
+	    }
+	
     // Update idx local after loop exit.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
 
@@ -2789,8 +2793,8 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
 
-        // node = native_alloc_index_get(list)
-        _arm64_emit_find_tracked_node(ctx, 0, 0)
+        // node = _list_find_node_known_kind(list, LIST)
+        _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 2)
 
         // node == 0 => slow
         push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
@@ -2848,8 +2852,8 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
         emit_str_reg_sp_any(ctx, 1, buf_slot)
 
         li = li + 1
-    }
-
+	    }
+	
     // Seed the inline tick after preheader reserve/capacity calls so the fast loop always starts
     // from a known countdown state on the no-slot path too.
     gc.native_emit_gc_inline_tick_init(ctx, tick_mask)

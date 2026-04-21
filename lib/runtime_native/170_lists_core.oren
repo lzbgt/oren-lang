@@ -220,10 +220,75 @@ fn _list_find_node_resilient(list) {
     return native_alloc_index_recover_ptr(list)
 }
 
+fn _list_retrack_guess_size(list) {
+    if list == 0 || list < 4096 { return 0 }
+    var cap = ptr_get(iadd(list, 8))
+    if cap < 0 || cap > list_max_cap() { return 0 }
+    var buf = ptr_get(iadd(list, 16))
+    if cap == 0 {
+        if buf != 0 { return 0 }
+        return 32
+    }
+    if buf == 0 || buf < 4096 { return 0 }
+    if buf == iadd(list, 32) {
+        // Preserve inline header sizes when the buffer still lives in the same allocation.
+        var need = 32 + _list_bytes_for_cap(cap)
+        return ((need + 15) / 16) * 16
+    }
+    return 32
+}
+
+fn _list_try_retrack_valid_header(list, want_kind) {
+    if list == 0 || list < 4096 { return 0 }
+    if g_gc_reuse_blocks == 0 || g_gc_reuse_lists == 0 { return 0 }
+    if want_kind != list_int_kind() { return 0 }
+    var trace_retrack = native_envp_get_value_ptr("OREN_TRACE_LIST_RETRACK_MISS")
+    var guess_size = _list_retrack_guess_size(list)
+    if guess_size != 32 { return 0 }
+    if native_gc_list_header_ok(list, want_kind, guess_size) == 0 { return 0 }
+    if trace_retrack != 0 && ptr_get_byte(trace_retrack) != 0 && ptr_get_byte(trace_retrack) != 48 {
+        var idx_before = native_alloc_index_get(list)
+        var allocs = native_gc_ptr_in_allocs(list)
+        var free64 = native_free_blocks_count_ptr_in_list(global_free_blocks_64_ptr(), list)
+        var free256 = native_free_blocks_count_ptr_in_list(global_free_blocks_256_ptr(), list)
+        var free1024 = native_free_blocks_count_ptr_in_list(global_free_blocks_1024_ptr(), list)
+        var free_other = native_free_blocks_count_ptr_in_list(global_free_blocks_ptr(), list)
+        print("[list_retrack_miss] ptr=" + oren_int_to_string(list) +
+            " kind=" + oren_int_to_string(want_kind) +
+            " guess=" + oren_int_to_string(guess_size) +
+            " idx_before=" + oren_int_to_string(idx_before) +
+            " allocs=" + oren_int_to_string(allocs) +
+            " free64=" + oren_int_to_string(free64) +
+            " free256=" + oren_int_to_string(free256) +
+                " free1024=" + oren_int_to_string(free1024) +
+                " free_other=" + oren_int_to_string(free_other))
+    }
+    oren_track_alloc(list, guess_size, want_kind)
+    var node = native_alloc_index_get(list)
+    if node == 0 { node = native_alloc_index_recover_ptr(list) }
+    if node == 0 {
+        native_alloc_index_rebuild_live()
+        node = native_alloc_index_get(list)
+    }
+    if node == 0 && trace_retrack != 0 && ptr_get_byte(trace_retrack) != 0 && ptr_get_byte(trace_retrack) != 48 {
+        print("[list_retrack_miss] ptr=" + oren_int_to_string(list) +
+            " result=0 idx_after=" + oren_int_to_string(native_alloc_index_get(list)) +
+            " allocs=" + oren_int_to_string(native_gc_ptr_in_allocs(list)))
+    } else if node != 0 && trace_retrack != 0 && ptr_get_byte(trace_retrack) != 0 && ptr_get_byte(trace_retrack) != 48 {
+        print("[list_retrack_miss] ptr=" + oren_int_to_string(list) +
+            " result=" + oren_int_to_string(node) +
+            " idx_after=" + oren_int_to_string(native_alloc_index_get(list)) +
+            " allocs=" + oren_int_to_string(native_gc_ptr_in_allocs(list)))
+    }
+    return node
+}
+
 fn _list_find_node_known_kind(list, want_kind) {
     if list == 0 { return 0 }
     if list < 4096 { return 0 }
-    return _list_find_node_resilient(list)
+    var node = _list_find_node_resilient(list)
+    if node != 0 { return node }
+    return _list_try_retrack_valid_header(list, want_kind)
 }
 
 fn _list_trace_enabled() {

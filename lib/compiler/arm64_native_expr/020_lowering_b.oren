@@ -164,15 +164,15 @@ fn native_expr_chunk_call(ctx, expr) {
                     is_fn = true
                 }
             }
-            if is_fn == true && fn_name == "oren_gc_safepoint" {
-                if args == nil || oren_list_len(args) == 0 {
-                    if expr["spread"] == nil {
-                        native_emit_gc_safepoint_call_expr(ctx)
-                        return true
-                    }
-                }
-            }
-            if ctx["locals"][fn_name] != nil || (ctx["globals"][fn_name] != nil && is_fn != true) {
+	            if is_fn == true && fn_name == "oren_gc_safepoint" {
+	                if args == nil || oren_list_len(args) == 0 {
+	                    if expr["spread"] == nil {
+	                        native_emit_gc_safepoint_call_expr(ctx)
+	                        return true
+	                    }
+	                }
+	            }
+	            if ctx["locals"][fn_name] != nil || (ctx["globals"][fn_name] != nil && is_fn != true) {
                 // args_list = oren_new_list(0)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
                 var bl_new_list_ind2 = bytes_len(ctx["code"])

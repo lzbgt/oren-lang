@@ -1,0 +1,27 @@
+fn keep_int(x) {
+    return x
+}
+
+fn churn(n) {
+    var acc = 0
+    var i = 0
+    while i < n {
+        var xs = oren_new_list_int(0)
+        var j = 0
+        while j < 128 {
+            oren_list_int_push(xs, keep_int(j))
+            j = j + 1
+        }
+        acc = acc + oren_list_int_get(xs, 0)
+        if i > 0 {
+            oren_gc_collect()
+        }
+        xs = nil
+        i = i + 1
+    }
+    return acc
+}
+
+fn main() {
+    print(churn(64))
+}

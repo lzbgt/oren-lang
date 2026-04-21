@@ -936,6 +936,37 @@ fi
 echo "ok: gc reuse tracking smoke" >>"$gc_reuse_log"
 tail -n 4 "$gc_reuse_log" >>"$log"
 
+echo "== alloc_churn list<int> tracking smoke ==" >>"$log"
+alloc_churn_track_src="tests/native/test_gc_reuse_alloc_churn_min.oren"
+alloc_churn_track_out="build/tmp/${compiler_base}_gc_reuse_alloc_churn_min${exe_ext}"
+alloc_churn_track_log="build/logs/${compiler_base}_gc_reuse_alloc_churn_min.log"
+rm -f "$alloc_churn_track_log" "$alloc_churn_track_out" 2>/dev/null || true
+OREN_ARENA_AUTO_LOOP=0 build_step_checked "alloc_churn list<int> tracking smoke" "$alloc_churn_track_log" \
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$alloc_churn_track_src" \
+  --backend native --platform "$platform" --debug -o "$alloc_churn_track_out"
+OREN_GC_AUTO=1 \
+OREN_GC_ALLOC_THRESHOLD=10 \
+OREN_GC_REUSE_BLOCKS=1 \
+OREN_GC_REUSE_LISTS=1 \
+OREN_GC_REUSE_LISTS_UNSAFE=1 \
+OREN_GC_POISON_LIST_HEADERS=1 \
+OREN_TRACE_CRASH_FOOTER=1 \
+OREN_TRACE_LIST_PANIC_FOOTER=1 \
+run_step_checked "alloc_churn list<int> tracking smoke" "$alloc_churn_track_log" \
+  run_with_timeout_retry "$run_timeout_secs" "$alloc_churn_track_out"
+if grep -Eq "on non-list|\\[gc_reuse_bad_list\\]" "$alloc_churn_track_log" 2>/dev/null; then
+  echo "ERROR: alloc_churn list<int> tracking smoke emitted a list tracking failure" >&2
+  tail -n 80 "$alloc_churn_track_log" >&2 2>/dev/null || true
+  exit 1
+fi
+if [[ "$(tail -n 1 "$alloc_churn_track_log" | tr -d '\r')" != "0" ]]; then
+  echo "ERROR: alloc_churn list<int> tracking smoke expected final output 0" >&2
+  tail -n 80 "$alloc_churn_track_log" >&2 2>/dev/null || true
+  exit 1
+fi
+echo "ok: alloc_churn list<int> tracking smoke" >>"$alloc_churn_track_log"
+tail -n 4 "$alloc_churn_track_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.
