@@ -146,22 +146,28 @@ fn native_time_current_thread_node_or0() {
     // - stacks mapped close together (false positives/negatives).
     var tid = sys_gettid()
     if tid != 0 {
-				    var THREAD_NODE_FLAG_OS_THREAD = 1
+        var THREAD_NODE_FLAG_OS_THREAD = 1
+        var THREAD_NODE_FLAG_DEAD = 4
         // In multi-OS-thread mode, the global thread list is mutated under `acquire_lock()`.
         // Traverse under the same lock to avoid seeing partially-published nodes.
         if g_runtime_single_threaded == 0 { acquire_lock() }
         var node0 = global_get_threads()
+        var dead_match = 0
         while node0 != 0 {
             var flags = ptr_get(iadd(node0, 48))
             if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
                 if ptr_get(iadd(node0, 56)) == tid {
-                    if g_runtime_single_threaded == 0 { release_lock() }
-                    return node0
+                    if (flags & THREAD_NODE_FLAG_DEAD) == 0 {
+                        if g_runtime_single_threaded == 0 { release_lock() }
+                        return node0
+                    }
+                    if dead_match == 0 { dead_match = node0 }
                 }
             }
             node0 = ptr_get(iadd(node0, 16))
         }
         if g_runtime_single_threaded == 0 { release_lock() }
+        if dead_match != 0 { return dead_match }
     }
 
     // Fallback: stack-window heuristic (works for green stacks registered via `oren_register_stack`).
@@ -179,6 +185,58 @@ fn native_time_current_thread_node_or0() {
             }
         }
         node = ptr_get(iadd(node, 16))
+    }
+    if g_runtime_single_threaded == 0 { release_lock() }
+    return 0
+}
+
+fn native_time_thread_node_clear_runtime_state(node) {
+    if node == 0 { return 0 }
+    var saved_ptr = iadd(node, 8)
+    while true {
+        var old_saved = ptr_get(saved_ptr)
+        if atomic_cas(saved_ptr, old_saved, 0) == old_saved { break }
+    }
+    ptr_set(iadd(node, 64), 0) // green_state
+    ptr_set(iadd(node, 72), 0) // sched_saved_sp
+    var stw_ptr = iadd(node, 80)
+    while true {
+        var old_stw = ptr_get(stw_ptr)
+        if atomic_cas(stw_ptr, old_stw, 0) == old_stw { break }
+    }
+    ptr_set(iadd(node, 88), 0) // stack_size
+    return 0
+}
+
+fn native_time_mark_thread_node_dead(node) {
+    if node == 0 { return 0 }
+    var THREAD_NODE_FLAG_STW_PARKED = 2
+    var THREAD_NODE_FLAG_DEAD = 4
+    var flags_ptr = iadd(node, 48)
+    while true {
+        var old_flags = ptr_get(flags_ptr)
+        var new_flags = (old_flags | THREAD_NODE_FLAG_DEAD) & -3
+        if atomic_cas(flags_ptr, old_flags, new_flags) == old_flags { break }
+    }
+    native_time_thread_node_clear_runtime_state(node)
+    return 0
+}
+
+fn native_time_mark_thread_dead_matches_tid(tid) {
+    if oren_globals() == 0 { return 0 }
+    if tid == 0 { return 0 }
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+
+    if g_runtime_single_threaded == 0 { acquire_lock() }
+    var cur = global_get_threads()
+    while cur != 0 {
+        var flags = ptr_get(iadd(cur, 48))
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+            if ptr_get(iadd(cur, 56)) == tid {
+                native_time_mark_thread_node_dead(cur)
+            }
+        }
+        cur = ptr_get(iadd(cur, 16))
     }
     if g_runtime_single_threaded == 0 { release_lock() }
     return 0
@@ -502,46 +560,63 @@ fn oren_register_thread(top) {
 				    // - Without dedupe, we would double-count OS threads and create duplicate nodes,
 				    //   which breaks stop-the-world GC waiting (and inflates stack scans).
 				   //
-				    // Use `sys_gettid()` to dedupe per OS thread, and return an existing node if present.
-			    var tid = sys_gettid()
-			    if tid != 0 && oren_globals() != 0 {
+			    // Use `sys_gettid()` to dedupe per OS thread, and return an existing node if present.
+				    var tid = sys_gettid()
+				    if tid != 0 && oren_globals() != 0 {
 					        // In multi-OS-thread mode, traverse the shared thread list under the runtime lock
 					        // (the list is mutated under `acquire_lock()` by stack nodes and OS-thread nodes).
+					        //
+					        // TIDs can be recycled after short-lived helper threads exit. If stale duplicate nodes
+					        // survive, STW GC can over-count parked threads and deadlock waiting for impossible
+					        // participants. Collapse every matching tid down to one canonical node here.
+					        var THREAD_NODE_FLAG_DEAD = 4
 					        if g_runtime_single_threaded == 0 { acquire_lock() }
 					        var cur0 = global_get_threads()
+					        var reuse0 = 0
+					        var reuse_flags0 = 0
 					        while cur0 != 0 {
 					            var flags0 = ptr_get(iadd(cur0, 48))
 					            if (flags0 & THREAD_NODE_FLAG_OS_THREAD) != 0 {
 					                var t0 = ptr_get(iadd(cur0, 56))
 					                if t0 == tid {
-					                    if g_runtime_single_threaded == 0 { release_lock() }
-					                    // Reuse existing node (dedupe per OS tid).
-					                    //
-                    // If the node was previously marked dead (thread exited), revive it.
-                    // NOTE: do NOT clear saved_sp for STW_PARKED live threads; that can
-                    // race with GC parking via green-aware `oren_wait_on_addr`.
-                    var THREAD_NODE_FLAG_STW_PARKED = 2
-                    var THREAD_NODE_FLAG_DEAD = 4
-                    if (flags0 & THREAD_NODE_FLAG_DEAD) != 0 {
-                        ptr_set(iadd(cur0, 48), flags0 & -3 & -5)
-                        ptr_set(cur0, top)
-                        ptr_set(iadd(cur0, 8), 0) // saved_sp
-                        ptr_set(iadd(cur0, 72), 0) // sched_saved_sp
-                        ptr_set(iadd(cur0, 80), 0) // stw_saved_sp
-                        ptr_set(iadd(cur0, 88), 0) // stack_size
-                    }
-								                    // Keep existing top for live threads (do not shrink scan window).
-								                    // If we have a better OS-provided top, update it (grow-only).
-								                    var old_top = ptr_get(cur0)
-								                    if top > old_top { ptr_set(cur0, top) }
-								                    if os_size > 0 { ptr_set(iadd(cur0, 88), os_size) }
-								                    return cur0
-						                }
+					                    if reuse0 == 0 {
+					                        reuse0 = cur0
+					                        reuse_flags0 = flags0
+					                    } else {
+					                        if (reuse_flags0 & THREAD_NODE_FLAG_DEAD) != 0 &&
+					                           (flags0 & THREAD_NODE_FLAG_DEAD) == 0 {
+					                            reuse0 = cur0
+					                            reuse_flags0 = flags0
+					                        } else {
+					                            native_time_mark_thread_node_dead(cur0)
+					                        }
+					                    }
+					                }
 					            }
 					            cur0 = ptr_get(iadd(cur0, 16))
-				        }
-				        if g_runtime_single_threaded == 0 { release_lock() }
-				    }
+					        }
+					        if reuse0 != 0 {
+					            var reuse_flags = ptr_get(iadd(reuse0, 48))
+					            if (reuse_flags & THREAD_NODE_FLAG_DEAD) != 0 {
+					                native_time_thread_node_clear_runtime_state(reuse0)
+					                ptr_set(reuse0, top)
+					                var flags_ptr0 = iadd(reuse0, 48)
+					                while true {
+					                    var old_flags0 = ptr_get(flags_ptr0)
+					                    var new_flags0 = (old_flags0 & -3 & -5) | THREAD_NODE_FLAG_OS_THREAD
+					                    if atomic_cas(flags_ptr0, old_flags0, new_flags0) == old_flags0 { break }
+					                }
+					            }
+					            // Keep existing top for live threads (do not shrink scan window).
+					            // If we have a better OS-provided top, update it (grow-only).
+					            var old_top = ptr_get(reuse0)
+					            if top > old_top { ptr_set(reuse0, top) }
+					            if os_size > 0 { ptr_set(iadd(reuse0, 88), os_size) }
+					            if g_runtime_single_threaded == 0 { release_lock() }
+					            return reuse0
+					        }
+					        if g_runtime_single_threaded == 0 { release_lock() }
+					    }
 
 			    var node = sys_mmap_private_anon(4096)
 				    if node != 0 && node != -1 && node >= 4096 {
@@ -549,12 +624,13 @@ fn oren_register_thread(top) {
 				        ptr_set(iadd(node, 8), 0) // saved_sp
 				        ptr_set(iadd(node, 24), 0) // call_depth
 				        ptr_set(iadd(node, 32), 0) // time_tv_buf
-	        ptr_set(iadd(node, 40), 0) // time_abs_buf
-	        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
-	        ptr_set(iadd(node, 56), tid)
-			        ptr_set(iadd(node, 72), 0) // sched_saved_sp
-			        ptr_set(iadd(node, 80), 0) // stw_saved_sp
-			        if os_size > 0 { ptr_set(iadd(node, 88), os_size) }
+		        ptr_set(iadd(node, 40), 0) // time_abs_buf
+		        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
+		        ptr_set(iadd(node, 56), tid)
+		        ptr_set(iadd(node, 64), 0) // green_state
+				        ptr_set(iadd(node, 72), 0) // sched_saved_sp
+				        ptr_set(iadd(node, 80), 0) // stw_saved_sp
+				        if os_size > 0 { ptr_set(iadd(node, 88), os_size) }
 		        
 			        // Publish the node:
 			        //
@@ -604,62 +680,13 @@ fn oren_register_thread(top) {
 fn native_time_mark_thread_dead_current() {
     // Mark the current OS thread's node as "dead" so STW GC does not wait for it in future collections.
     // This is best-effort: safe to call multiple times and safe if the thread was never registered.
-    if oren_globals() == 0 { return 0 }
-    var node = native_time_current_thread_node_or0()
-    if node == 0 { return 0 }
-    var flags_ptr = iadd(node, 48)
-    var f = ptr_get(flags_ptr)
-    var THREAD_NODE_FLAG_DEAD = 4
-    ptr_set(flags_ptr, f | THREAD_NODE_FLAG_DEAD)
-    // Clear saved_sp so GC never tries to scan a stale stack range.
-    var saved_ptr = iadd(node, 8)
-    while true {
-        var old_saved = ptr_get(saved_ptr)
-        if atomic_cas(saved_ptr, old_saved, 0) == old_saved { break }
-    }
-    var stw_ptr = iadd(node, 80)
-    while true {
-        var old_stw = ptr_get(stw_ptr)
-        if atomic_cas(stw_ptr, old_stw, 0) == old_stw { break }
-    }
-    ptr_set(iadd(node, 72), 0) // sched_saved_sp
-    return 0
+    return native_time_mark_thread_dead_matches_tid(sys_gettid())
 }
 
 fn native_time_mark_thread_dead_by_tid(tid) {
     // Best-effort: mark an OS-thread node as DEAD given its `sys_gettid()` value.
     // Used by join paths on platforms where the child entry does not mark itself dead.
-    if oren_globals() == 0 { return 0 }
-    if tid == 0 { return 0 }
-    var THREAD_NODE_FLAG_OS_THREAD = 1
-    var THREAD_NODE_FLAG_STW_PARKED = 2
-    var THREAD_NODE_FLAG_DEAD = 4
-
-    if g_runtime_single_threaded == 0 { acquire_lock() }
-    var cur = global_get_threads()
-    while cur != 0 {
-        var flags = ptr_get(iadd(cur, 48))
-        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
-            if ptr_get(iadd(cur, 56)) == tid {
-                ptr_set(iadd(cur, 48), (flags | THREAD_NODE_FLAG_DEAD) & -3)
-                var saved_ptr0 = iadd(cur, 8)
-                while true {
-                    var old_saved0 = ptr_get(saved_ptr0)
-                    if atomic_cas(saved_ptr0, old_saved0, 0) == old_saved0 { break }
-                }
-                var stw_ptr0 = iadd(cur, 80)
-                while true {
-                    var old_stw0 = ptr_get(stw_ptr0)
-                    if atomic_cas(stw_ptr0, old_stw0, 0) == old_stw0 { break }
-                }
-                ptr_set(iadd(cur, 72), 0) // sched_saved_sp
-                break
-            }
-        }
-        cur = ptr_get(iadd(cur, 16))
-    }
-    if g_runtime_single_threaded == 0 { release_lock() }
-    return 0
+    return native_time_mark_thread_dead_matches_tid(tid)
 }
 
 // Register a non-OS stack node for GC scanning (native green tasks Stage N1).

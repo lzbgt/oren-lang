@@ -244,8 +244,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     (`build/logs/repro_bad_list_alloc_churn_20260421_short.log`, `RUNS=2`) produced no
 	     `gc_reuse_bad_list` hits. That does not retire the older trace backlog, but it does reweight
 	     this thread toward coverage and hardening rather than a trivially reproducible current crash.
-   - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
-     reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
+	   - Fix + verify (2026-04-21): the focused green join-waiter/STW flake now has current runtime
+	     fixes and a bundled guard instead of only historical traces. `100_time_core.oren` now
+	     collapses duplicate OS-thread nodes that share a recycled TID, prefers live nodes in
+	     `native_time_current_thread_node_or0()`, and marks all same-TID nodes DEAD during exit/join
+	     cleanup so STW parked-count math cannot accumulate phantom threads. A second current trace
+	     then narrowed the remaining stall to a lost-wake window around netpoll-blocked threads, so
+	     `100_time_gc_stw.oren` now reissues `native_netpoll_wake()` while STW is still short on
+	     parked threads and waits in bounded 10ms slices instead of long sleeps. The new split guard
+	     `scripts/verify_native_quick_green_join_waiters_modes.sh` prewarms the debug rtobj seed and
+	     proves both the green-only and OS-only stress modes under stage2; the bundled W5 runtime gate
+	     now runs it by default (`build/logs/verify_native_quick_green_join_waiters_modes_20260421_194941.log`,
+	     `build/logs/runtime_robustness_w5_20260421_193511.log`).
+	   - Done: free-node reuse now enforces canonical node headers (48 bytes + magic) and raw-node
+	     reuse is re-enabled with integrity guards for `malloc_raw` paths (`native_try_reuse_node`).
    - Fix: green spawn/entry now re-track args_list headers on alloc-index misses when magic+len/cap look sane (2026-03-04).
    - Repro (2026-03-04): `make verify-backend-parity` failed while building
      `tests/native/fixtures/arith_div0.oren` (C backend) with

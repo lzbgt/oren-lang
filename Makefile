@@ -554,6 +554,12 @@ test-native-quick-green-tail-flake: oren
 test-native-quick-green-join-waiters-stress-flake: oren
 	@./scripts/triage_native_quick_green_join_waiters_stress_flake.sh 5 "./$(OREN_BIN)"
 
+# Focused runtime guard (stage2): keep the green-only join-waiter repro and the OS-thread control
+# split, so STW parked-count regressions cannot hide behind the combined quick-integration bundle.
+verify-green-join-waiters-guarded: oren_stage2
+	@./scripts/verify_native_quick_green_join_waiters_modes.sh 2 "./$(OREN_STAGE2_BIN)"
+	@echo "verify-green-join-waiters-guarded OK"
+
 # Debug flake triage (stage2): run the stage2 quick integration loop with spawn ring
 # + list header ring guardrails enabled. Not part of default verify/test.
 test-native-quick-stage2-flake-debug: oren_stage2

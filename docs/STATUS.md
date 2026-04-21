@@ -3356,13 +3356,28 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 	    `OREN_NATIVE_RUNTIME_EXPANDED`) by content, and the new
 	    `scripts/verify_build_cache_native_env_surface.sh` guard proves that the two env modes
 	    now produce distinct cached artifacts while repeated same-mode builds restore from cache.
-	  - Refresh (2026-04-21): a short current bad-list hunt
-	    (`RUNS=2 BUILD=1 EXTRA_TRACE=0 CRASH_FOOTER=1 REPRO_BAD_LIST_CORRELATE=0 bash ./scripts/repro_bad_list_alloc_churn.sh`)
-	    found no `gc_reuse_bad_list` hits on the current tree
-	    (log: `build/logs/repro_bad_list_alloc_churn_20260421_short.log`). Treat the remaining W5
-	    work as guard/hardening coverage until a wider current repro proves otherwise.
-	  - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
-    - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
+		  - Refresh (2026-04-21): a short current bad-list hunt
+		    (`RUNS=2 BUILD=1 EXTRA_TRACE=0 CRASH_FOOTER=1 REPRO_BAD_LIST_CORRELATE=0 bash ./scripts/repro_bad_list_alloc_churn.sh`)
+		    found no `gc_reuse_bad_list` hits on the current tree
+		    (log: `build/logs/repro_bad_list_alloc_churn_20260421_short.log`). Treat the remaining W5
+		    work as guard/hardening coverage until a wider current repro proves otherwise.
+		  - Fix + verify (2026-04-21): the focused green join-waiter/STW tail now has two current guardrails
+		    instead of only old trace notes. `lib/runtime_native/100_time_core.oren` now collapses duplicate
+		    OS-thread registrations by recycled TID, preferring one live canonical node and marking the rest
+		    DEAD so STW parked-count math cannot drift upward on short-lived helper threads. The same pass
+		    now makes `native_time_current_thread_node_or0()` prefer live matches and marks all same-TID
+		    nodes dead on exit/join cleanup instead of only the first match. After the duplicate-TID fix
+		    exposed a second lost-wake window in `test_gc_stw_wakes_netpoll_blocked_threads`, STW now
+		    reissues `native_netpoll_wake()` while parked threads are still short and waits in bounded
+		    10ms slices instead of one long sleep (`lib/runtime_native/100_time_gc_stw.oren`). The new
+		    split guard `scripts/verify_native_quick_green_join_waiters_modes.sh` runs the focused
+		    stage2 green-only and OS-only join-waiter stress modes after seed prewarm, and
+		    `verify-runtime-robustness` now includes it. Current evidence:
+		    `build/logs/verify_native_quick_green_join_waiters_modes_20260421_194941.log`,
+		    `build/logs/runtime_robustness_w5_20260421_193511.log`, and
+		    `build/logs/make_verify_green_join_waiters_guarded_20260421_stw_renudge.log`.
+		  - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
+	    - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
     - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
     - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
     - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).

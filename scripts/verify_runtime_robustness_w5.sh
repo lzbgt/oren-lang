@@ -184,4 +184,7 @@ fi
 echo "== alloc_churn tracked-header reuse smoke ==" | tee -a "$log"
 ./scripts/verify_alloc_churn_tracking_smoke.sh "$compiler" >>"$log" 2>&1
 
+echo "== green join-waiter split guard ==" | tee -a "$log"
+./scripts/verify_native_quick_green_join_waiters_modes.sh 2 "$compiler" >>"$log" 2>&1
+
 echo "OK: runtime robustness W5 checks passed (log=$log)" >&2

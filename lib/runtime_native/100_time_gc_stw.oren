@@ -116,8 +116,15 @@ fn native_gc_stw_begin() {
     while expected > 0 {
         var cur = native_atomic_load_u64(parked_ptr)
         if cur >= expected { break }
+        // Lost-wake robustness:
+        // a thread can observe "no STW" at the safepoint just before a blocking netpoll wait,
+        // then enter the kernel wait after the collector's first `native_netpoll_wake()`.
+        // Re-issue the wake while we are still short on parked threads so blocked pollers cannot
+        // miss the stop request forever due to that narrow race.
+        native_netpoll_wake()
         // Wait until parked count changes (threads wake us when they park).
-        oren_wait_on_addr(parked_ptr, cur, 1000000)
+        // Keep this bounded so we can re-nudge pollers promptly instead of sleeping in 1s chunks.
+        oren_wait_on_addr(parked_ptr, cur, 10000)
         waits = waits + 1
         if trace_waiters_on != 0 {
             var cur2 = native_atomic_load_u64(parked_ptr)
