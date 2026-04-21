@@ -63,7 +63,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Feature set maturity**: the remaining essential language backlog is now full
   `yield`/stackless coroutine lowering. Bare `yield` statement sugar is shipped on the shared
   front-end and lowers to `oren_yield()`, but resumable coroutine frames / `yield <value>` are
-  still missing. The structured error model is already shipped as the rolling value-or-error
+  still missing, and expression/result-position `yield` is intentionally rejected until the value
+  surface is normalized across backends. The structured error model is already shipped as the
+  rolling value-or-error
   convention (`oren_err` / `oren_is_err` / `std:result`), with stdlib migration breadth still
   ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
   partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
@@ -1307,7 +1309,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 5) **W4 - Feature set completeness (essential modern features)**
    - Remaining planned work: full `yield`/stackless coroutine lowering (`yield <value>` and
      resumable frames). Bare statement `yield` now lowers to `oren_yield()` on the shared
-     front-end.
+     front-end, while expression/result-position `yield` is intentionally rejected.
    - Implemented (rolling): the structured error model is now the shipped value-or-error
      convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
      `std:result`; remaining work is stdlib migration breadth, not core feature availability.
@@ -1322,8 +1324,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      structured error convention directly instead of ad-hoc `{ok, err}` failure maps on invalid
      color inputs, and the result smoke / AVM UI tests guard that surface.
    - New (2026-04-22): parser/backend guards now cover rolling `yield` statement sugar in both the
-     Tier-1 native quick path and the curated AVM lane, plus a compile-failure fixture for
-     unsupported `yield <value>`.
+     Tier-1 native quick path and the curated AVM lane, plus compile-failure fixtures for
+     unsupported `yield <value>` and expression/result-position `yield`.
+   - New: `project-doc/yield_coroutine_lowering_20260422.md` captures the actual runtime seams
+     (`AVM_YIELD`, native `oren_ctx_switch`, green entry) and why expression `yield` must stay
+     rejected until the value surface is normalized.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

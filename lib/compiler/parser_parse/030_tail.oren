@@ -182,7 +182,7 @@ fn parse_yield(p) {
         if peek["line"] != nil { peek_line = peek["line"] }
         if cur_line >= 0 && peek_line == cur_line {
             if peek_ty != token.TOK_SEMICOLON && peek_ty != token.TOK_RBRACE && peek_ty != token.TOK_EOF {
-                parser_add_error(p, "'yield' does not accept a value yet; use plain 'yield' or explicit 'oren_yield()'")
+                parser_add_error(p, "'yield' does not accept a value yet; use bare 'yield' as a statement. Resumable/value-yield semantics still require coroutine lowering")
                 return nil
             }
         }

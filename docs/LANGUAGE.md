@@ -3323,6 +3323,8 @@ Rolling status:
   coroutine frames or carry yielded values.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
+- Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)
+  until the language has a backend-shared resumable frame model.
 
 Design direction for the remaining backlog:
 
@@ -5087,6 +5089,8 @@ Current behavior (native runtime, rolling):
 - Language sugar: bare statement `yield` lowers directly to `oren_yield()`.
 - `yield` is statement-only today. `yield <value>` is rejected until resumable coroutine lowering
   exists.
+- Expression/result-position `yield` is also rejected today instead of silently inheriting the raw
+  backend-specific return value behavior of `oren_yield()`.
 
 - If green tasks are enabled: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - Otherwise:

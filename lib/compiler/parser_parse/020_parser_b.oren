@@ -35,6 +35,10 @@ fn parse_prefix(p) {
     if t == token.TOK_FUNCTION { return parse_function(p) }
     if t == token.TOK_BITOR { return parse_lambda(p) }
     if t == token.TOK_OR { return parse_lambda(p) } // allow empty-params lambda: || expr
+    if t == token.TOK_YIELD {
+        parser_add_error(p, "'yield' is only supported as a bare statement today; expression/result yield requires resumable coroutine lowering")
+        return nil
+    }
     if t == token.TOK_SPAWN { return parse_spawn_expr(p) }
     if t == token.TOK_LBRACKET { return parse_array(p) }
     if t == token.TOK_LBRACE { return parse_hash(p) }

@@ -1201,6 +1201,21 @@ if ! grep -q "'yield' does not accept a value yet" "$yv_log" 2>/dev/null; then
 fi
 tail -n 5 "$yv_log"
 
+echo "== parser smoke (yield expression not yet supported) =="
+ye_src="tests/fixtures/yield_expr_fail.oren"
+ye_log="build/logs/${compiler_base}_yield_expr_fail.log"
+ye_out="build/tmp/${compiler_base}_yield_expr_fail.obc"
+rm -f "$ye_log" "$ye_out" 2>/dev/null || true
+
+expect_compile_failure_step "parser smoke (yield expression not yet supported)" "$ye_log" \
+  "$compiler" build "$ye_src" --backend bytecode --typecheck -o "$ye_out"
+if ! grep -q "'yield' is only supported as a bare statement today" "$ye_log" 2>/dev/null; then
+  echo "FAIL: parser smoke (yield expression not yet supported) missing expected diagnostic" >&2
+  tail -n 80 "$ye_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 5 "$ye_log"
+
 echo "native quick integration follow-on OK"
 echo "native quick integration follow-on OK" >>"$log"
 emit_retry_summary
