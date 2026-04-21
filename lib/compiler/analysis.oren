@@ -85,6 +85,264 @@ fn function_yield_info_note_stmt(info, stmt) {
     return nil
 }
 
+fn new_yield_local_scope() {
+    return {"locals": {}, "local_names": [], "yielded": {}}
+}
+
+fn yield_locals_push_scope(ctx) {
+    if ctx == nil { return nil }
+    oren_list_push(ctx["frames"], new_yield_local_scope())
+    return nil
+}
+
+fn yield_locals_pop_scope(ctx) {
+    if ctx == nil { return nil }
+    var frames = ctx["frames"]
+    if frames == nil || oren_list_len(frames) == 0 { return nil }
+    var kept = []
+    var i = 0
+    var n = oren_list_len(frames)
+    while i + 1 < n {
+        oren_list_push(kept, frames[i])
+        i = i + 1
+    }
+    ctx["frames"] = kept
+    return nil
+}
+
+fn yield_locals_current_scope(ctx) {
+    if ctx == nil { return nil }
+    var frames = ctx["frames"]
+    if frames == nil || oren_list_len(frames) == 0 { return nil }
+    return frames[oren_list_len(frames) - 1]
+}
+
+fn yield_locals_declare(ctx, name) {
+    if ctx == nil || name == nil || name == "" { return nil }
+    var scope = yield_locals_current_scope(ctx)
+    if scope == nil { return nil }
+    if scope["locals"][name] == true { return nil }
+    scope["locals"][name] = true
+    oren_list_push(scope["local_names"], name)
+    return nil
+}
+
+fn yield_locals_mark_active_pending(ctx) {
+    if ctx == nil { return nil }
+    var frames = ctx["frames"]
+    if frames == nil { return nil }
+    var fi = 0
+    while fi < oren_list_len(frames) {
+        var frame = frames[fi]
+        var names = frame["local_names"]
+        var ni = 0
+        while names != nil && ni < oren_list_len(names) {
+            frame["yielded"][names[ni]] = true
+            ni = ni + 1
+        }
+        fi = fi + 1
+    }
+    return nil
+}
+
+fn yield_locals_resolve_scope(ctx, name) {
+    if ctx == nil || name == nil || name == "" { return nil }
+    var frames = ctx["frames"]
+    if frames == nil { return nil }
+    var i = oren_list_len(frames) - 1
+    while i >= 0 {
+        var frame = frames[i]
+        if frame["locals"][name] == true { return frame }
+        i = i - 1
+    }
+    return nil
+}
+
+fn yield_locals_note_cross(ctx, name) {
+    if ctx == nil || name == nil || name == "" { return nil }
+    var frame = yield_locals_resolve_scope(ctx, name)
+    if frame == nil || frame["yielded"][name] != true { return nil }
+    if ctx["seen"][name] == true { return nil }
+    ctx["seen"][name] = true
+    oren_list_push(ctx["locals_across_yield"], name)
+    return nil
+}
+
+fn yield_locals_walk_expr(ctx, expr) {
+    if ctx == nil || expr == nil { return nil }
+    var et = expr["type"]
+    if et == "Identifier" {
+        yield_locals_note_cross(ctx, expr["value"])
+        return nil
+    }
+    if et == "Function" {
+        // Nested functions are their own resumable-frame domains.
+        return nil
+    }
+    if et == "Call" {
+        yield_locals_walk_expr(ctx, expr["fn"])
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            yield_locals_walk_expr(ctx, args[i])
+            i = i + 1
+        }
+        if expr["spread"] != nil { yield_locals_walk_expr(ctx, expr["spread"]) }
+        return nil
+    }
+    if et == "Prefix" {
+        yield_locals_walk_expr(ctx, expr["right"])
+        return nil
+    }
+    if et == "Infix" {
+        yield_locals_walk_expr(ctx, expr["left"])
+        yield_locals_walk_expr(ctx, expr["right"])
+        return nil
+    }
+    if et == "If" {
+        yield_locals_walk_expr(ctx, expr["cond"])
+        yield_locals_walk_stmt(ctx, expr["consq"])
+        if expr["alt"] != nil { yield_locals_walk_stmt(ctx, expr["alt"]) }
+        return nil
+    }
+    if et == "Member" {
+        yield_locals_walk_expr(ctx, expr["left"])
+        return nil
+    }
+    if et == "Index" {
+        yield_locals_walk_expr(ctx, expr["left"])
+        yield_locals_walk_expr(ctx, expr["index"])
+        return nil
+    }
+    if et == "Array" {
+        var elems = expr["elements"]
+        var j = 0
+        while elems != nil && j < oren_list_len(elems) {
+            yield_locals_walk_expr(ctx, elems[j])
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var pairs = expr["pairs"]
+        var k = 0
+        while pairs != nil && k < oren_list_len(pairs) {
+            var pair = pairs[k]
+            yield_locals_walk_expr(ctx, pair["key"])
+            yield_locals_walk_expr(ctx, pair["value"])
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" {
+        yield_locals_walk_expr(ctx, expr["call"])
+        return nil
+    }
+    return nil
+}
+
+fn yield_locals_walk_stmt(ctx, stmt) {
+    if ctx == nil || stmt == nil { return nil }
+
+    if stmt["yield_stmt"] == true {
+        yield_locals_mark_active_pending(ctx)
+    }
+
+    var st = stmt["type"]
+    if st == "Var" {
+        if stmt["name"] != nil { yield_locals_declare(ctx, stmt["name"]["value"]) }
+        yield_locals_walk_expr(ctx, stmt["value"])
+        return nil
+    }
+    if st == "Assign" {
+        if stmt["name"] != nil { yield_locals_note_cross(ctx, stmt["name"]["value"]) }
+        yield_locals_walk_expr(ctx, stmt["value"])
+        return nil
+    }
+    if st == "Set" {
+        if stmt["left"] != nil && stmt["left"]["type"] == "Identifier" {
+            yield_locals_note_cross(ctx, stmt["left"]["value"])
+        } else {
+            yield_locals_walk_expr(ctx, stmt["left"])
+        }
+        yield_locals_walk_expr(ctx, stmt["value"])
+        return nil
+    }
+    if st == "Return" {
+        yield_locals_walk_expr(ctx, stmt["value"])
+        return nil
+    }
+    if st == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" {
+            if expr["name"] != nil && expr["name"] != "" {
+                yield_locals_declare(ctx, expr["name"])
+            }
+            return nil
+        }
+        yield_locals_walk_expr(ctx, expr)
+        return nil
+    }
+    if st == "Block" || st == "StmtList" {
+        yield_locals_push_scope(ctx)
+        var stmts = stmt["stmts"]
+        var i = 0
+        while stmts != nil && i < oren_list_len(stmts) {
+            yield_locals_walk_stmt(ctx, stmts[i])
+            i = i + 1
+        }
+        yield_locals_pop_scope(ctx)
+        return nil
+    }
+    if st == "If" {
+        yield_locals_walk_expr(ctx, stmt["cond"])
+        yield_locals_walk_stmt(ctx, stmt["consq"])
+        if stmt["alt"] != nil { yield_locals_walk_stmt(ctx, stmt["alt"]) }
+        return nil
+    }
+    if st == "While" {
+        yield_locals_walk_expr(ctx, stmt["cond"])
+        yield_locals_walk_stmt(ctx, stmt["body"])
+        return nil
+    }
+    if st == "For" {
+        yield_locals_push_scope(ctx)
+        if stmt["init"] != nil { yield_locals_walk_stmt(ctx, stmt["init"]) }
+        if stmt["cond"] != nil { yield_locals_walk_expr(ctx, stmt["cond"]) }
+        yield_locals_walk_stmt(ctx, stmt["body"])
+        if stmt["post"] != nil { yield_locals_walk_stmt(ctx, stmt["post"]) }
+        yield_locals_pop_scope(ctx)
+        return nil
+    }
+    if st == "Spawn" {
+        yield_locals_walk_expr(ctx, stmt["call"])
+        return nil
+    }
+    if st == "Function" {
+        return nil
+    }
+    return nil
+}
+
+fn function_yield_locals_across(func) {
+    var out = []
+    if func == nil { return out }
+    var ctx = {"frames": [], "locals_across_yield": out, "seen": {}}
+    yield_locals_push_scope(ctx)
+    var params = func["params"]
+    var i = 0
+    while params != nil && i < oren_list_len(params) {
+        var p = params[i]
+        if p != nil && p["value"] != nil && p["value"] != "" {
+            yield_locals_declare(ctx, p["value"])
+        }
+        i = i + 1
+    }
+    yield_locals_walk_stmt(ctx, func["body"])
+    yield_locals_pop_scope(ctx)
+    return out
+}
+
 fn function_yield_info_walk_stmt(info, stmt) {
     if info == nil || stmt == nil { return nil }
     function_yield_info_note_stmt(info, stmt)
@@ -140,11 +398,11 @@ fn function_yield_info(func) {
     var info = new_function_yield_info()
     if func == nil { return info }
     function_yield_info_walk_stmt(info, func["body"])
-    info["yield_lowering"] = function_yield_lowering_plan(info)
+    info["yield_lowering"] = function_yield_lowering_plan(info, function_yield_locals_across(func))
     return info
 }
 
-fn function_yield_lowering_plan(info) {
+fn function_yield_lowering_plan(info, locals_across_yield) {
     if info == nil { return nil }
     var sites = info["yield_stmt_sites"]
     if sites == nil || oren_list_len(sites) == 0 { return nil }
@@ -167,7 +425,7 @@ fn function_yield_lowering_plan(info) {
         "surface": "bare_statement_only",
         "entry_state": 0,
         "state_count": oren_list_len(states),
-        "locals_across_yield": [],
+        "locals_across_yield": locals_across_yield,
         "yield_points": yield_points,
         "states": states,
     }

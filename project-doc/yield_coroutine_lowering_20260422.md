@@ -9,7 +9,8 @@ syntax slice landed.
 - `yield <value>` is intentionally rejected.
 - Expression-position `yield` is also intentionally rejected.
 - Function metadata now exposes `yield_lowering` with explicit entry/resume state ids for
-  source-level bare-`yield` functions.
+  source-level bare-`yield` functions, plus conservative `locals_across_yield` frame-slot
+  candidates for variables and parameters that stay in scope across a `yield` and are used later.
 
 That boundary is deliberate, not accidental.
 

@@ -4173,8 +4173,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `yield_stmt_count`, and `yield_stmt_sites`, counting only source-level `yield` statements and
      intentionally ignoring raw `oren_yield()` calls plus nested function-literal bodies.
    - New (2026-04-22): function metadata also emits a rolling `yield_lowering` plan object with an
-     explicit entry state plus one resume state per yield site; this is the first concrete frame/state
-     model for the future coroutine-lowering pass.
+     explicit entry state plus one resume state per yield site, and now records conservative
+     `locals_across_yield` frame-slot candidates; this is the first concrete frame/state model for
+     the future coroutine-lowering pass.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

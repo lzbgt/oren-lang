@@ -24,3 +24,29 @@ fn nested_only() {
     }
     return 0
 }
+
+fn param_across(arg) {
+    yield
+    return arg
+}
+
+fn local_across() {
+    var acc = 1
+    yield
+    return acc
+}
+
+fn dead_local_after_block() {
+    {
+        var tmp = 1
+        yield
+    }
+    return 0
+}
+
+fn multi_local_order(a) {
+    var x = a
+    var y = x + 1
+    yield
+    return y + x
+}

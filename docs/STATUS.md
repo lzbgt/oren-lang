@@ -1336,7 +1336,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New (2026-04-22): bare statement `yield` now lowers through normalized helper
      `oren_yield_stmt()` (always `nil`), while raw `oren_yield()` remains the low-level
      scheduler/OS return-code helper. Function metadata now also emits a rolling `yield_lowering`
-     plan object with explicit entry/resume states and yield-point mappings.
+     plan object with explicit entry/resume states, yield-point mappings, and conservative
+     `locals_across_yield` frame-slot candidates.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

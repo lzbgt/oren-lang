@@ -3325,8 +3325,8 @@ Rolling status:
   `yield_stmt_count`, and `yield_stmt_sites` so the next lowering pass can discover real source
   `yield` statements without guessing from lowered helper calls.
 - New (2026-04-22): function metadata also carries a rolling `yield_lowering` plan object with an
-  explicit entry state, resume states, and yield-point -> resume-state mapping for bare-statement
-  `yield` functions.
+  explicit entry state, resume states, yield-point -> resume-state mapping, and a conservative
+  `locals_across_yield` list for bare-statement `yield` functions.
 - Not implemented yet: `yield <value>` and compiler lowering to resumable state machines
   (“stackless coroutines”).
 - Intentionally rejected today: expression/result-position `yield` (`var x = yield`, `return yield`)
@@ -3601,7 +3601,8 @@ Notes:
   - `state_count`
   - `yield_points[*]` (`site`, `resume_state`)
   - `states[*]` (`entry` + one `resume` state per yield site)
-  - `locals_across_yield` (currently empty until liveness lowering lands)
+  - `locals_across_yield` (conservative local/parameter names that stay in scope across at least one
+    `yield` and are referenced later)
 - These fields intentionally count only source-level `yield` statement sugar. They do not infer from
   raw user-written `oren_yield()` / `oren_yield_stmt()` calls, and outer functions do not inherit
   `yield`s that appear only inside nested function literals.

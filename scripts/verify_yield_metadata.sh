@@ -32,7 +32,16 @@ for item in funcs:
         raise SystemExit(f"function entry missing string name: {item!r}")
     by_name[name] = item
 
-expected_names = {"no_yield", "one_yield", "control_yield", "nested_only"}
+expected_names = {
+    "no_yield",
+    "one_yield",
+    "control_yield",
+    "nested_only",
+    "param_across",
+    "local_across",
+    "dead_local_after_block",
+    "multi_local_order",
+}
 if set(by_name) != expected_names:
     raise SystemExit(f"unexpected function names: {sorted(by_name)!r}")
 
@@ -91,6 +100,82 @@ expected = {
         "yield_stmt_count": 0,
         "yield_stmt_sites": [],
         "yield_lowering": None,
+    },
+    "param_across": {
+        "contains_yield": True,
+        "yield_stmt_count": 1,
+        "yield_stmt_sites": ["tests/fixtures/meta_yield_surface.oren:29:5"],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 2,
+            "locals_across_yield": ["arg"],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:29:5", "resume_state": 1},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:29:5"},
+            ],
+        },
+    },
+    "local_across": {
+        "contains_yield": True,
+        "yield_stmt_count": 1,
+        "yield_stmt_sites": ["tests/fixtures/meta_yield_surface.oren:35:5"],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 2,
+            "locals_across_yield": ["acc"],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:35:5", "resume_state": 1},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:35:5"},
+            ],
+        },
+    },
+    "dead_local_after_block": {
+        "contains_yield": True,
+        "yield_stmt_count": 1,
+        "yield_stmt_sites": ["tests/fixtures/meta_yield_surface.oren:42:9"],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 2,
+            "locals_across_yield": [],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:42:9", "resume_state": 1},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:42:9"},
+            ],
+        },
+    },
+    "multi_local_order": {
+        "contains_yield": True,
+        "yield_stmt_count": 1,
+        "yield_stmt_sites": ["tests/fixtures/meta_yield_surface.oren:50:5"],
+        "yield_lowering": {
+            "version": 1,
+            "surface": "bare_statement_only",
+            "entry_state": 0,
+            "state_count": 2,
+            "locals_across_yield": ["y", "x"],
+            "yield_points": [
+                {"id": 0, "site": "tests/fixtures/meta_yield_surface.oren:50:5", "resume_state": 1},
+            ],
+            "states": [
+                {"id": 0, "kind": "entry"},
+                {"id": 1, "kind": "resume", "after_yield_site": "tests/fixtures/meta_yield_surface.oren:50:5"},
+            ],
+        },
     },
 }
 
