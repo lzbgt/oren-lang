@@ -14,5 +14,6 @@ fn ready_worker() {
 }
 
 fn main() {
-    return 0
+    var keep = [before_ready, after_ready, ready_worker]
+    return oren_list_len(keep) - 3
 }

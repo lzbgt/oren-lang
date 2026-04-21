@@ -4184,6 +4184,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      compiler-generated split-dispatch lowering shape with entry/resume segments and a synthetic
      state local. That closes the gap between “metadata knows a function is ready” and “the
      compiler has no explicit lowered body shape yet”.
+   - New (2026-04-22): `dump linked` now exposes the same per-function `yield_lowering` object in
+     `function_details`, and `verify-yield-lowering-v0` now extracts embedded `OREN_META` from the
+     built `.obc` so the backend artifact itself is guarded, not just the standalone `meta` path.
    - New (2026-04-22): `verify-yield-lowering-v0` now guards the strict compiler policy directly,
      including the cache-bypass regression case. Strict `build|meta|dump` validates the full
      parsed source program before DCE/reachability pruning, and strict mode skips artifact-cache

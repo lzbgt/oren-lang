@@ -18,6 +18,9 @@ syntax slice landed.
   compiler-generated split-dispatch lowering shape with explicit entry/resume segments and a
   synthetic state-local name. Backends do not execute this shape yet, but the compiler no longer
   has to rediscover the first lowered body form from scratch.
+- `dump linked` now surfaces that same `yield_lowering` object in per-function summaries, and the
+  bytecode verifier now extracts `OREN_META` back out of the built `.obc` artifact so the
+  compiler-prepared shape is observable both before and after bytecode emission.
 - `--strict-yield-lowering-v0` now enforces that gate across the full parsed source program for
   `build`, `meta`, and `dump`. That is intentionally stricter than post-link reachability:
   unreachable top-level yielding functions still block strict builds, and strict mode disables

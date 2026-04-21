@@ -3334,6 +3334,9 @@ Rolling status:
   `yield_lowering.prepared_v0`, an explicit split-dispatch lowering shape with entry/resume
   segments, a synthetic state local name, and segment statement-type summaries. This is the first
   compiler-generated lowered body shape for `yield`, even though backends do not execute it yet.
+- New (2026-04-22): `oren dump linked` now surfaces the same per-function `yield_lowering` object
+  in `function_details`, and the bytecode verification path now reads `yield_lowering` back out of
+  the built `.obc` metadata blob instead of trusting `oren meta` alone.
 - New (2026-04-22): `oren build|meta|dump --strict-yield-lowering-v0` now enforces that v0 gate
   against the full parsed source program, not just the reachable post-link graph. That keeps dead
   top-level yielding functions from slipping through builds, and strict mode intentionally skips

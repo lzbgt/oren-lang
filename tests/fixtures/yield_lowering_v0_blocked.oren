@@ -24,5 +24,6 @@ fn blocked_non_top_level() {
 }
 
 fn main() {
-    return 0
+    var keep = [blocked_multi_yield, blocked_live_local, blocked_nested_literal, blocked_non_top_level]
+    return oren_list_len(keep) - 4
 }
