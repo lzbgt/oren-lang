@@ -1,0 +1,16 @@
+import gen "std:generator"
+
+fn worker(co, args) {
+    var seed = args[0]
+    var resumed = yield (seed + 1) in co
+    return resumed + 5
+}
+
+fn main() {
+    var g = gen.start(worker, [40])
+    var first = gen.next(g)
+    if oren_is_err(first) == true { return 10 }
+    var closed = gen.close(g)
+    if oren_is_err(closed) == true { return 11 }
+    return 0
+}

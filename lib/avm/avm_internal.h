@@ -35,6 +35,7 @@ typedef struct {
     int used;
     int done;
     int blocked;
+    int detached;
 
     int wait_kind;      // 0 none, 1 join, 2 recv, 3 select, 4 join_timeout
     int wait_id;        // join target task id

@@ -272,11 +272,13 @@ backend-shared value-helper slices landed.
     - `from` is contextual after `yield`; it was intentionally *not* added as a reserved keyword,
       because repo/runtime code already uses identifiers named `from`
   - new metadata surface for generator declarations:
-    - `version = 11`
-    - `resume_surface = "next_send_delegate_yield_from_v2"`
+    - `version = 13`
+    - `resume_surface = "next_send_close_delegate_yield_from_v4"`
     - `delegate_api = "oren_generator_delegate_v1"`
     - `delegate_step_api = "oren_generator_delegate_step_v1"`
     - `delegate_source_syntaxes = ["yield_from_v0", "yield_from_in_context_v0"]`
+    - `close_api = "oren_generator_close_v1"`
+    - `close_mode = "mark_done_detach_live_task_v2"`
     - `delegate_mode = "inline_fresh_or_cached_started_step_v2"`
   - new positive coverage:
     - runtime/source surface:
@@ -287,6 +289,30 @@ backend-shared value-helper slices landed.
       - `tests/fixtures/generator_import_yield_from_regression_v0.oren`
     - negative parser boundary:
       - `tests/fixtures/generator_yield_from_blocked_missing_context_v0.oren`
+
+- Fresh landing (2026-04-22): explicit generator close/finalization now ships on top of the same
+  handle/runtime seam.
+  - the compiler-injected generator core now exposes `oren_generator_close(gen)`
+  - `std:generator` now exposes `close(gen)` as a thin facade over that helper
+  - current contract:
+    - already-finished generators preserve and return their cached final value
+    - unfinished generators are sealed done deterministically at the handle surface with
+      `return_value == nil`
+    - started generators now detach the live worker handle instead of resuming user code with an
+      internal close value; this avoids backend-specific deadlocks when a worker would otherwise
+      yield again after `close()`
+  - this is intentionally documented as a deterministic handle-sealing contract, not a portable
+    hard-kill/finalization guarantee: detached workers may still exist on some substrates until the
+    process/runtime exits
+  - metadata for `@oren.generator` declarations now records:
+    - `version = 13`
+    - `resume_surface = "next_send_close_delegate_yield_from_v4"`
+    - `close_api = "oren_generator_close_v1"`
+    - `close_mode = "mark_done_detach_live_task_v2"`
+  - new runtime coverage lives in:
+    - `tests/fixtures/generator_surface_v0.oren`
+    - `tests/modules/test_generator_std.oren`
+    - `tests/avm/test_generator_v0.oren`
 
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:

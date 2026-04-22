@@ -857,6 +857,18 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_JOIN_TIMEOUT)
             return nil
         }
+        if name == "oren_detach" {
+            if oren_list_len(expr["args"]) != 1 {
+            bytecode_error(ctx, "bytecode backend: oren_detach expects (handle)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_DETACH)
+            var nil_idx_detach = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, nil_idx_detach)
+            return nil
+        }
         if name == "oren_yield" || name == "oren_yield_stmt" {
             if oren_list_len(expr["args"]) != 0 {
             bytecode_error(ctx, "bytecode backend: " + name + " expects ()")

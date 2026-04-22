@@ -78,7 +78,7 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 11,
+    "version": 13,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -88,11 +88,13 @@ expected_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_delegate_yield_from_v2",
+    "resume_surface": "next_send_close_delegate_yield_from_v4",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
+    "close_api": "oren_generator_close_v1",
     "delegate_api": "oren_generator_delegate_v1",
     "delegate_step_api": "oren_generator_delegate_step_v1",
+    "close_mode": "mark_done_detach_live_task_v2",
     "delegate_mode": "inline_fresh_or_cached_started_step_v2",
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
     "state_layout": "hidden_list_capsule_v2",

@@ -234,6 +234,7 @@ int sched_new_task(AvmVM* vm, AvmSched* s, AvmValue fn, AvmValue args_list) {
     t->used = 1;
     t->done = 0;
     t->blocked = 0;
+    t->detached = 0;
     t->wait_kind = 0;
     t->wait_id = 0;
     t->wait_chan = 0;

@@ -76,6 +76,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x4B: return "YIELD";
         case 0x4C: return "JOIN_TIMEOUT";
         case 0x4D: return "SELECT";
+        case 0x62: return "DETACH";
         default: return "OP?";
     }
 }

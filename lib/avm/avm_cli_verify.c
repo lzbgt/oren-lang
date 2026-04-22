@@ -431,6 +431,10 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 1;  // list<case>
             push = 1; // [idx, payload]
+        } else if (op == 0x62) { // DETACH
+            len = 1;
+            pop = 1;  // handle
+            push = 0;
         } else {
             free(depth_at); free(queue); free(qdepth);
             return err_result("verify: unknown opcode");

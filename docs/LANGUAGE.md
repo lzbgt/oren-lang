@@ -3391,7 +3391,7 @@ Rolling status:
   On native host threads with green runtime already active and no background workers, `oren_yield()`
   now drives one cooperative green scheduling step before falling back to the OS yield hint. The
   first reusable source-level abstraction above it is now `std:generator`, whose
-  `start/next/send/delegate/collect` surface is now a thin facade over compiler-injected
+  `start/next/send/close/delegate/collect` surface is now a thin facade over compiler-injected
   `oren_generator_*` helpers and a compiler-managed `generator` handle. That handle is intentionally
   opaque at the language contract level: workers use `yield ... in co`, helpers validate generator
   handles / generator contexts, and the generator substrate no longer depends on map semantics at
@@ -3417,9 +3417,11 @@ Rolling status:
     `generator_handle_v2`, `hidden_list_capsule_v2`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
-    metadata through `resume_surface=next_send_delegate_yield_from_v2`,
+    metadata through `resume_surface=next_send_close_delegate_yield_from_v4`,
     `delegate_api=oren_generator_delegate_v1`,
+    `close_api=oren_generator_close_v1`,
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`, plus
+    `close_mode=mark_done_detach_live_task_v2`, plus
     `delegate_mode=inline_fresh_or_cached_started_step_v2`
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
@@ -3718,11 +3720,13 @@ Notes:
     (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
     underlying yield surface `generator_context_v0`, iterable surface `for_in_v0` with
-    implicit-`nil` resume, explicit resume/delegation surface `next_send_delegate_yield_from_v2`
+    implicit-`nil` resume, explicit resume/delegation surface `next_send_close_delegate_yield_from_v4`
     (`next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
+    `close_api=oren_generator_close_v1`,
     `delegate_api=oren_generator_delegate_v1`,
     `delegate_step_api=oren_generator_delegate_step_v1`,
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
+    `close_mode=mark_done_detach_live_task_v2`,
     `delegate_mode=inline_fresh_or_cached_started_step_v2`),
     state layout `hidden_list_capsule_v2`,
     worker context type `generator_context`, declaration forms
@@ -5273,6 +5277,12 @@ Current behavior (native runtime, rolling):
   - `gen.next(gen)` resumes with `nil`
   - `gen.send(gen, value)` resumes with `value`
   - `gen.collect(gen)` drains yielded values into a list
+  - `gen.close(gen)` explicitly seals a generator handle done
+    - if the generator already finished, it returns the cached final return value
+    - if it has not finished yet, it marks the handle done with `return_value == nil`
+    - for started generators it detaches the live worker handle instead of trying to resume user
+      code with a hidden close sentinel; this keeps `close()` deterministic across bytecode, C, and
+      native even when the worker would otherwise yield again
   - `gen.delegate(co, inner)` delegates through the outer `generator_context`, yielding directly on
     that outer context and returning the inner generator’s final return value
   - fresh inner generators inline directly
@@ -5315,9 +5325,11 @@ Current behavior (native runtime, rolling):
     `delegate_mode=inline_fresh_or_cached_started_step_v2`
   - `oren_generator_delegate_step(co, inner, step)`: resumes a partially-started inner generator from
     its current yielded `step`, exposed as `gen.delegate_step(co, inner, step)`
+  - `oren_generator_close(gen)`: explicit handle finalization, exposed as `gen.close(gen)`, with
+    `close_mode=mark_done_detach_live_task_v2`
 - Still missing: broader coroutine protocol above these shipped source/helper/library forms
-  (for example, delegation beyond the current handle/step protocol and richer coroutine lifecycle
-  affordances).
+  (for example, stronger hard-cancellation/finalization semantics beyond the current explicit
+  close+detach contract and richer coroutine lifecycle affordances).
 
 - If running inside a green task: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - If green runtime is already active on a host thread and background workers are not running:

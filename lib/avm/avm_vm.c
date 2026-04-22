@@ -6,6 +6,7 @@
 #include "avm_vm_values.h"
 
 #include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 
 // --- Cooperative Tasks (rolling, AVM v1 direction) ---
@@ -33,6 +34,7 @@ enum {
     AVM_OP_YIELD           = 0x4B   // stack: [...] -> [...] (yield to another runnable task)
     ,AVM_OP_JOIN_TIMEOUT   = 0x4C   // stack: [... handle timeout_ms] -> [... ret_or_timeout]
     ,AVM_OP_SELECT         = 0x4D   // stack: [... list<case>] -> [... [idx,payload]] (recv or send)
+    ,AVM_OP_DETACH         = 0x62   // stack: [... handle_int] -> [...]
 };
 
 static int select_case_parse(AvmValue v, int* out_kind, int64_t* out_chid, AvmValue* out_sendv) {
@@ -252,6 +254,13 @@ void avm_run(AvmVM* vm) {
                             w->wake_value = t->ret;
                             (void)sched_ready_push(sched, wi);
                         }
+                    }
+                    if (t->detached) {
+                        free(t->frames);
+                        free(t->stack);
+                        t->frames = NULL;
+                        t->stack = NULL;
+                        t->used = 0;
                     }
 
                     // Switch to next runnable task.
@@ -726,6 +735,13 @@ void avm_run(AvmVM* vm) {
                                 (void)sched_ready_push(sched, wi);
                             }
                         }
+                        if (t->detached) {
+                            free(t->frames);
+                            free(t->stack);
+                            t->frames = NULL;
+                            t->stack = NULL;
+                            t->used = 0;
+                        }
 
                         int next = -1;
                         if (sched_ready_pop(sched, &next)) {
@@ -1055,6 +1071,10 @@ void avm_run(AvmVM* vm) {
                 }
                 if (tid == sched->current_tid) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN self")); break; }
                 AvmTask* tgt = &sched->tasks[tid];
+                if (tgt->detached) {
+                    vm->stack[vm->sp++] = avm_nil();
+                    break;
+                }
                 if (tgt->done) {
                     vm->stack[vm->sp++] = tgt->has_ret ? tgt->ret : avm_nil();
                     break;
@@ -1099,6 +1119,10 @@ void avm_run(AvmVM* vm) {
                 if (tid == sched->current_tid) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN_TIMEOUT self")); break; }
 
                 AvmTask* tgt = &sched->tasks[tid];
+                if (tgt->detached) {
+                    vm->stack[vm->sp++] = avm_nil();
+                    break;
+                }
                 if (tgt->done) {
                     vm->stack[vm->sp++] = tgt->has_ret ? tgt->ret : avm_nil();
                     break;
@@ -1160,6 +1184,30 @@ void avm_run(AvmVM* vm) {
                 }
                 sched_switch(vm, sched, next);
                 continue;
+            }
+            case AVM_OP_DETACH: { // DETACH
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
+                if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on DETACH")); break; }
+                AvmValue hv = vm->stack[--vm->sp];
+                if (hv.type != AVM_VAL_INT) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "DETACH expects int handle")); break; }
+                int tid = (int)hv.as.i - 1;
+                if (tid < 0 || tid >= sched->task_cap || !sched->tasks[tid].used) {
+                    avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "DETACH invalid handle"));
+                    break;
+                }
+                AvmTask* tgt = &sched->tasks[tid];
+                tgt->detached = 1;
+                if (tgt->done) {
+                    free(tgt->frames);
+                    free(tgt->stack);
+                    tgt->frames = NULL;
+                    tgt->stack = NULL;
+                    tgt->used = 0;
+                }
+                break;
             }
             case AVM_OP_CHAN_NEW: { // CHAN_NEW
                 if (!sched) {

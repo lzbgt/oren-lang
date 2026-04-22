@@ -4239,7 +4239,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     stronger language-level coroutine/generator protocol above that explicit channel surface.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
-		     `start/next/send/delegate/collect` surface is now a thin facade over compiler-injected
+		     `start/next/send/close/delegate/collect` surface is now a thin facade over compiler-injected
 		     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
 		     use `yield ... in co` as the normalized generator-context surface instead of spelling out
 		     raw channel fields.
@@ -4248,9 +4248,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.
 		     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 		     wrapper”, and the shipped handle contract is now also opaque by default
-			     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
-			     `generator_context`, declaration-form metadata, `delegate_mode=inline_fresh_or_cached_started_step_v2`, and
-			     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
+				     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
+				     `generator_context`, declaration-form metadata, `close_mode=mark_done_detach_live_task_v2`,
+				     `delegate_mode=inline_fresh_or_cached_started_step_v2`, and
+				     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
 			     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     fuller coroutine language affordances without manual channel semantics leaking through).
@@ -4281,8 +4282,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			       - explicit workers: `yield from inner in co`
 			       - `@oren.generator` declarations: `yield from inner`
 			       - `from` is contextual after `yield`, so existing identifiers named `from` are preserved
-			     - the shipped mode is `inline_fresh_or_cached_started_step_v2`
-			     - imported stage2 bytecode coverage now includes
+				     - the shipped mode is `inline_fresh_or_cached_started_step_v2`
+					   - explicit close/finalization now ships too through
+					       `oren_generator_close(gen)` / `std:generator.close(gen)`, with
+					       `close_mode=mark_done_detach_live_task_v2`
+					       and deterministic handle sealing by detaching live workers instead of resuming them
+					       with a hidden close sentinel
+				     - imported stage2 bytecode coverage now includes
 			       `tests/fixtures/generator_import_delegate_step_regression_v0.oren` and
 			       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
 				   - New (2026-04-22): the native nested-green scheduler seam is no longer a blocked repro.

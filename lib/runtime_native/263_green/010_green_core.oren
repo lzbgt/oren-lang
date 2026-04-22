@@ -1425,49 +1425,61 @@ fn _green_runq_push_local_locked(p, g) {
 
 fn _green_runq_pop_local_locked(p) {
     if p == 0 { return 0 }
+    var s = _green_get_state()
     var buf = _green_p_runq_buf(p)
     var mask = _green_p_runq_mask(p)
     if buf == 0 || mask == 0 { return 0 }
 
-    var head = _green_p_runq_head(p)
-    var tail = _green_p_runq_tail(p)
-    if head == tail { return 0 }
+    while 1 {
+        var head = _green_p_runq_head(p)
+        var tail = _green_p_runq_tail(p)
+        if head == tail { return 0 }
 
-    // Owner pop from tail (LIFO).
-    tail = tail - 1
-    var idx = tail & mask
-    var g = ptr_get(buf + idx * 8)
-    ptr_set(buf + idx * 8, 0)
-    _green_p_set_runq_tail(p, tail)
-    _green_runq_guard("pop_local", g)
-    if g != 0 {
+        // Owner pop from tail (LIFO).
+        tail = tail - 1
+        var idx = tail & mask
+        var g = ptr_get(buf + idx * 8)
+        ptr_set(buf + idx * 8, 0)
+        _green_p_set_runq_tail(p, tail)
+        _green_runq_guard("pop_local", g)
+        if g == 0 { continue }
+        if ptr_get(g + green_g_off_detached()) != 0 {
+            if s != 0 { _green_zombie_push_locked(s, g) }
+            continue
+        }
         _green_trace_runq_event("pop_local", g)
         _green_last_ops_put(2, g, p, 0)
+        return g
     }
-    return g
 }
 
 fn _green_runq_steal_one_from_locked(victim_p) {
     if victim_p == 0 { return 0 }
+    var s = _green_get_state()
     var buf = _green_p_runq_buf(victim_p)
     var mask = _green_p_runq_mask(victim_p)
     if buf == 0 || mask == 0 { return 0 }
 
-    var head = _green_p_runq_head(victim_p)
-    var tail = _green_p_runq_tail(victim_p)
-    if head == tail { return 0 }
+    while 1 {
+        var head = _green_p_runq_head(victim_p)
+        var tail = _green_p_runq_tail(victim_p)
+        if head == tail { return 0 }
 
-    // Steal from head (FIFO).
-    var idx = head & mask
-    var g = ptr_get(buf + idx * 8)
-    ptr_set(buf + idx * 8, 0)
-    _green_p_set_runq_head(victim_p, head + 1)
-    _green_runq_guard("steal_one", g)
-    if g != 0 {
+        // Steal from head (FIFO).
+        var idx = head & mask
+        var g = ptr_get(buf + idx * 8)
+        ptr_set(buf + idx * 8, 0)
+        _green_p_set_runq_head(victim_p, head + 1)
+        _green_runq_guard("steal_one", g)
+        if g == 0 { continue }
+        if ptr_get(g + green_g_off_detached()) != 0 {
+            if s != 0 { _green_zombie_push_locked(s, g) }
+            continue
+        }
         _green_trace_runq_event("steal_one", g)
         _green_last_ops_put(3, g, victim_p, 0)
+        return g
     }
-    return g
 }
 
 fn _green_runq_push_locked(p, s, g) {
@@ -1507,18 +1519,24 @@ fn _green_global_runq_push_locked(s, g) {
 
 fn _green_global_runq_pop_locked(s) {
     if s == 0 { return 0 }
-    var head = _green_state_glob_run_head(s)
-    if head == 0 { return 0 }
-    var next = _green_g_next(head)
-    _green_state_set_glob_run_head(s, next)
-    if next == 0 {
-        _green_state_set_glob_run_tail(s, 0)
+    while 1 {
+        var head = _green_state_glob_run_head(s)
+        if head == 0 { return 0 }
+        var next = _green_g_next(head)
+        _green_state_set_glob_run_head(s, next)
+        if next == 0 {
+            _green_state_set_glob_run_tail(s, 0)
+        }
+        _green_g_set_next(head, 0)
+        _green_runq_guard("pop_global", head)
+        if ptr_get(head + green_g_off_detached()) != 0 {
+            _green_zombie_push_locked(s, head)
+            continue
+        }
+        _green_trace_runq_event("pop_global", head)
+        _green_last_ops_put(5, head, s, 0)
+        return head
     }
-    _green_g_set_next(head, 0)
-    _green_runq_guard("pop_global", head)
-    _green_trace_runq_event("pop_global", head)
-    _green_last_ops_put(5, head, s, 0)
-    return head
 }
 
 fn _green_global_runq_push(g) {
@@ -1598,14 +1616,22 @@ fn _green_sleepq_push(g) {
     return _green_sleepq_push_p(p, g)
 }
 
+fn _green_zombie_push_locked(s, g) {
+    if s == 0 || g == 0 { return 0 }
+    var detached = ptr_get(g + green_g_off_detached())
+    if detached == 2 { return 0 }
+    ptr_set(g + green_g_off_detached(), 2)
+    var head = _green_state_zomb_head(s)
+    _green_g_set_next(g, head)
+    _green_state_set_zomb_head(s, g)
+    return 0
+}
+
 fn _green_zombie_push(g) {
     var s = _green_get_state()
     if s == 0 || g == 0 { return 0 }
     _green_lock_acquire()
-    // Simple LIFO for zombies.
-    var head = _green_state_zomb_head(s)
-    _green_g_set_next(g, head)
-    _green_state_set_zomb_head(s, g)
+    _green_zombie_push_locked(s, g)
     _green_lock_release()
     return 0
 }

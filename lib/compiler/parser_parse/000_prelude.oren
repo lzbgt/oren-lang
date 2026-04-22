@@ -494,6 +494,7 @@ fn _generator_helper_name_used(name) {
     if name == "oren_generator_next" { return true }
     if name == "oren_generator_send" { return true }
     if name == "oren_generator_delegate" { return true }
+    if name == "oren_generator_close" { return true }
     if name == "oren_generator_is_done" { return true }
     if name == "oren_generator_return_value" { return true }
     if name == "oren_generator_collect" { return true }
@@ -676,10 +677,14 @@ fn _generator_core_src() {
     src = src + "    if step[\"ok\"] == true { return nil }\n"
     src = src + "    return _oren_generator_err(op, \"expected generator step\")\n"
     src = src + "}\n"
-    src = src + "fn _oren_generator_finish(gen, retv) {\n"
+    src = src + "fn _oren_generator_mark_done(gen, retv) {\n"
     src = src + "    _oren_generator_set(gen, 8, true)\n"
     src = src + "    _oren_generator_set(gen, 9, retv)\n"
     src = src + "    _oren_generator_set(gen, 10, nil)\n"
+    src = src + "    return retv\n"
+    src = src + "}\n"
+    src = src + "fn _oren_generator_finish(gen, retv) {\n"
+    src = src + "    _oren_generator_mark_done(gen, retv)\n"
     src = src + "    var task = _oren_generator_get(gen, 6)\n"
     src = src + "    if task != nil && task != 0 { oren_join(task) }\n"
     src = src + "    _oren_generator_set(gen, 6, nil)\n"
@@ -755,6 +760,24 @@ fn _generator_core_src() {
     src = src + "        return _oren_generator_err(\"generator.send\", \"initial send expects nil; use generator.next(gen) first\")\n"
     src = src + "    }\n"
     src = src + "    return _oren_generator_resume(gen, value)\n"
+    src = src + "}\n"
+    src = src + "@oren.keep\n"
+    src = src + "fn oren_generator_close(gen) {\n"
+    src = src + "    var bad = _oren_generator_expect_handle(gen, \"generator.close\")\n"
+    src = src + "    if bad != nil { return bad }\n"
+    src = src + "    if _oren_generator_get(gen, 8) == true {\n"
+    src = src + "        _oren_generator_trace(\"close.already_done\")\n"
+    src = src + "        return _oren_generator_get(gen, 9)\n"
+    src = src + "    }\n"
+    src = src + "    var task = _oren_generator_get(gen, 6)\n"
+    src = src + "    if _oren_generator_get(gen, 7) == true && task != nil && task != 0 {\n"
+    src = src + "        _oren_generator_trace(\"close.detach_live_task\")\n"
+    src = src + "        oren_detach(task)\n"
+    src = src + "    }\n"
+    src = src + "    _oren_generator_trace(\"close.mark_done\")\n"
+    src = src + "    _oren_generator_set(gen, 6, nil)\n"
+    src = src + "    _oren_generator_mark_done(gen, nil)\n"
+    src = src + "    return nil\n"
     src = src + "}\n"
     src = src + "@oren.keep\n"
     src = src + "fn oren_generator_delegate(co, inner) {\n"

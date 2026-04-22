@@ -231,6 +231,60 @@ fn main() {
     if oren_is_err(bad_collect) != true { return 171 }
     if oren_generator_is_done(123) != false { return 172 }
     if oren_generator_return_value(123) != nil { return 173 }
+    if oren_is_err(gen.close(123)) != true { return 1731 }
+    if oren_is_err(oren_generator_close(123)) != true { return 1732 }
+
+    var gc0 = gen.start(counter_worker, [15])
+    var close0 = gen.close(gc0)
+    if oren_is_err(close0) == true { return 1733 }
+    if close0 != nil { return 1734 }
+    if gen.is_done(gc0) != true || gen.return_value(gc0) != nil { return 1735 }
+    var close0step = gen.next(gc0)
+    if oren_is_err(close0step) == true { return 1736 }
+    if close0step["done"] != true || close0step["return"] != nil { return 1737 }
+    var close0xs = gen.collect(gc0)
+    if oren_is_err(close0xs) == true { return 1738 }
+    if oren_list_len(close0xs) != 0 { return 1739 }
+
+    var gc1 = gen.start(counter_worker, [25])
+    var close1step = gen.next(gc1)
+    if oren_is_err(close1step) == true { return 1740 }
+    if close1step["ok"] != true || close1step["value"] != 26 { return 1741 }
+    var close1 = gen.close(gc1)
+    if oren_is_err(close1) == true { return 1742 }
+    if close1 != nil { return 1743 }
+    if gen.is_done(gc1) != true || gen.return_value(gc1) != nil { return 1744 }
+    var close1done = gen.send(gc1, 99)
+    if oren_is_err(close1done) == true { return 1745 }
+    if close1done["done"] != true || close1done["return"] != nil { return 1746 }
+
+    var gc2 = gen.start(counter_worker, [35])
+    var gc2s0 = gen.next(gc2)
+    if oren_is_err(gc2s0) == true { return 1747 }
+    var gc2s1 = gen.send(gc2, 4)
+    if oren_is_err(gc2s1) == true { return 1748 }
+    var gc2s2 = gen.send(gc2, 9)
+    if oren_is_err(gc2s2) == true { return 1749 }
+    if gc2s2["done"] != true || gc2s2["return"] != 14 { return 1750 }
+    var close2 = gen.close(gc2)
+    if oren_is_err(close2) == true { return 1751 }
+    if close2 != 14 { return 1752 }
+    if gen.return_value(gc2) != 14 { return 1753 }
+
+    var gc3 = oren_generator_start(counter_worker, [18])
+    var close3 = oren_generator_close(gc3)
+    if oren_is_err(close3) == true { return 1754 }
+    if close3 != nil { return 1755 }
+    if oren_generator_is_done(gc3) != true || oren_generator_return_value(gc3) != nil { return 1756 }
+
+    var gc4 = decl_delegate(45)
+    var gc4s0 = gen.next(gc4)
+    if oren_is_err(gc4s0) == true { return 1757 }
+    if gc4s0["ok"] != true || gc4s0["value"] != 46 { return 1758 }
+    var close4 = gen.close(gc4)
+    if oren_is_err(close4) == true { return 1759 }
+    if close4 != nil { return 1760 }
+    if gen.is_done(gc4) != true || gen.return_value(gc4) != nil { return 1761 }
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
