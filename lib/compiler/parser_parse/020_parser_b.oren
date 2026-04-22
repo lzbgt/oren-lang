@@ -288,9 +288,10 @@ fn parse_block(p) {
 	                                    s["doc"] = pending
 	                                }
 	                            }
-	                            s = maybe_lower_generator_decl_stmt(p, s)
-	                            s = maybe_lower_local_fn_decl_stmt(p, s)
-		                            oren_list_push(block["stmts"], s)
+                            s = maybe_lower_generator_decl_stmt(p, s)
+                            s = maybe_lower_local_fn_decl_stmt(p, s)
+                            s = validate_stmt_yield_delegate_syntax(p, s)
+                            oren_list_push(block["stmts"], s)
 		                            si = si + 1
 		                        }
                     } else {
@@ -328,9 +329,10 @@ fn parse_block(p) {
                             }
 	                        }
 	                    }
-	                    stmt = maybe_lower_generator_decl_stmt(p, stmt)
-	                    stmt = maybe_lower_local_fn_decl_stmt(p, stmt)
-		                    oren_list_push(block["stmts"], stmt)
+                    stmt = maybe_lower_generator_decl_stmt(p, stmt)
+                    stmt = maybe_lower_local_fn_decl_stmt(p, stmt)
+                    stmt = validate_stmt_yield_delegate_syntax(p, stmt)
+                    oren_list_push(block["stmts"], stmt)
 		                }
             }
             if frame != nil {
@@ -479,7 +481,10 @@ fn parse_function(p) {
     }
     var trace_fn_active = trace_fn && trace_stmt_i >= trace_fn_from
     if trace_fn_active { p["_trace_fn_active"] = true; p["_trace_fn_name"] = name }
+    var prev_defer_yield_delegate_validate = p["_defer_yield_delegate_validate"]
+    p["_defer_yield_delegate_validate"] = true
     var body = parse_block(p)
+    p["_defer_yield_delegate_validate"] = prev_defer_yield_delegate_validate
     if trace_fn_active { p["_trace_fn_active"] = nil; p["_trace_fn_name"] = nil }
     var fnn = ast.new_function(tok, name, params, body)
     if type_params != nil { fnn["type_params"] = type_params }

@@ -3408,12 +3408,19 @@ Rolling status:
   - the declaration lowers to a wrapper that returns `oren_generator_start(...)`
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
     `generator_context_v0` exchange contract (`yield ... in co`)
+  - source-level delegation now also ships on top of the same handle/context contract:
+    - inside explicit generator workers: `yield from inner in co`
+    - inside `@oren.generator` declarations: `yield from inner`
+    - the `from` surface is contextual after `yield`; it is not a reserved identifier in the
+      general language
   - metadata now reports that object contract as `compiler_generator_object_v2` with
     `generator_handle_v2`, `hidden_list_capsule_v2`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
-    metadata through `resume_surface=next_send_delegate_step_v1` plus
-    `delegate_mode=inline_fresh_handle_or_started_step_v1`
+    metadata through `resume_surface=next_send_delegate_yield_from_v2`,
+    `delegate_api=oren_generator_delegate_v1`,
+    `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`, plus
+    `delegate_mode=inline_fresh_or_cached_started_step_v2`
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
@@ -3711,11 +3718,12 @@ Notes:
     (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
     underlying yield surface `generator_context_v0`, iterable surface `for_in_v0` with
-    implicit-`nil` resume, explicit resume/delegation surface `next_send_delegate_step_v1`
+    implicit-`nil` resume, explicit resume/delegation surface `next_send_delegate_yield_from_v2`
     (`next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
-    `delegate_api=oren_generator_delegate_v0`,
+    `delegate_api=oren_generator_delegate_v1`,
     `delegate_step_api=oren_generator_delegate_step_v1`,
-    `delegate_mode=inline_fresh_handle_or_started_step_v1`),
+    `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
+    `delegate_mode=inline_fresh_or_cached_started_step_v2`),
     state layout `hidden_list_capsule_v2`,
     worker context type `generator_context`, declaration forms
     `["named_function_decl", "function_valued_var"]`)
@@ -5265,11 +5273,12 @@ Current behavior (native runtime, rolling):
   - `gen.next(gen)` resumes with `nil`
   - `gen.send(gen, value)` resumes with `value`
   - `gen.collect(gen)` drains yielded values into a list
-  - `gen.delegate(co, inner)` delegates a fresh inner generator handle inline through the outer
-    `generator_context`, yielding directly on that outer context and returning the inner
-    generator’s final return value
-  - partially-started inner generator handles are rejected in v0; repeated delegation of an already
-    completed inner handle just returns its cached final value
+  - `gen.delegate(co, inner)` delegates through the outer `generator_context`, yielding directly on
+    that outer context and returning the inner generator’s final return value
+  - fresh inner generators inline directly
+  - already-started generators now also delegate without manual step maps when the handle still
+    carries its current cached yielded step
+  - already-completed inner handles return their cached final value
   - `for x in gen { ... }` now also works directly for generator handles, using the same yielded
     values while resuming each step with implicit `nil`
   - under the C backend this now depends on the shared POSIX `oren_select` / `oren_select_recv`
@@ -5281,6 +5290,8 @@ Current behavior (native runtime, rolling):
   - calling `counter(seed)` returns the same tagged `generator` handle shape as `gen.start(...)`
   - plain `yield` / `yield expr` inside the declaration are lowered to the shared
     `yield ... in co` contract, so `gen.send(...)` supplies the resumed value
+  - declaration bodies may now also use `yield from inner` for generator delegation without
+    spelling `delegate(...)` or passing explicit step maps
   - v0 boundary: generator declarations require a named binding site (named function declaration
     or function-valued `var` binding); bare anonymous function literals and arbitrary non-function
     statements are rejected
@@ -5292,6 +5303,8 @@ Current behavior (native runtime, rolling):
   - `yield in (yield_ch, resume_ch)` -> `oren_yield_exchange(yield_ch, resume_ch, nil)`
   - `yield expr in co` -> `_oren_generator_context_exchange(co, expr)`
   - `yield in co` -> `_oren_generator_context_exchange(co, nil)`
+  - `yield from inner in co` -> `oren_generator_delegate(co, inner)`
+  - `yield from inner` inside `@oren.generator` -> `oren_generator_delegate(co, inner)`
 - The shipped helper contracts are now:
   - `oren_yield_value(v)`: local value-stable resume
   - `oren_yield_exchange(yield_ch, resume_ch, v)`: explicit yielded/resumed values via channel args
@@ -5299,11 +5312,12 @@ Current behavior (native runtime, rolling):
     same underlying explicit channel protocol
   - `oren_generator_delegate(co, inner)`: manual generator composition over the same
     `generator_context` protocol, exposed as `gen.delegate(co, inner)`, with
-    `delegate_mode=inline_fresh_handle_or_started_step_v1`
+    `delegate_mode=inline_fresh_or_cached_started_step_v2`
   - `oren_generator_delegate_step(co, inner, step)`: resumes a partially-started inner generator from
     its current yielded `step`, exposed as `gen.delegate_step(co, inner, step)`
-- Still missing: fuller generator delegation syntax and broader coroutine protocol above these
-  shipped source/helper/library forms.
+- Still missing: broader coroutine protocol above these shipped source/helper/library forms
+  (for example, delegation beyond the current handle/step protocol and richer coroutine lifecycle
+  affordances).
 
 - If running inside a green task: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - If green runtime is already active on a host thread and background workers are not running:

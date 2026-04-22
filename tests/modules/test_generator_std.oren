@@ -52,6 +52,26 @@ fn delegate_outer_direct_worker(co, args) {
     return retv + 9
 }
 
+fn delegate_syntax_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -939 }
+    var inner = gen.start(delegate_inner_worker, [args[0]])
+    var retv = yield from inner in co
+    if oren_is_err(retv) == true { return -940 }
+    return retv + 17
+}
+
+fn delegate_syntax_started_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -941 }
+    var inner = gen.start(delegate_inner_worker, [args[0]])
+    var step0 = gen.next(inner)
+    if oren_is_err(step0) == true { return -942 }
+    assert_true(step0["ok"] == true, 6815)
+    assert_eq(step0["value"], args[0] + 1, 6816)
+    var retv = yield from inner in co
+    if oren_is_err(retv) == true { return -943 }
+    return retv + 19
+}
+
 fn delegate_step_outer_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -933 }
     var inner = gen.start(delegate_inner_worker, [args[0]])
@@ -110,6 +130,25 @@ var decl_var_counter = fn(seed) {
 var decl_var_lambda = |seed| {
     var resumed = yield (seed + 2)
     return resumed + 9
+}
+
+@oren.generator
+fn decl_delegate(seed) {
+    var inner = gen.start(delegate_inner_worker, [seed])
+    var retv = yield from inner
+    return retv + 21
+}
+
+@oren.generator
+fn decl_delegate_started(seed) {
+    var inner = gen.start(delegate_inner_worker, [seed])
+    var step0 = gen.next(inner)
+    if oren_is_err(step0) == true { return -944 }
+    assert_true(step0["ok"] == true, 6817)
+    assert_eq(step0["value"], seed + 1, 6818)
+    var retv = yield from inner
+    if oren_is_err(retv) == true { return -945 }
+    return retv + 23
 }
 
 fn main() {
@@ -220,6 +259,28 @@ fn main() {
     var dd2 = gen.send(g5e, 8)
     if oren_is_err(dd2) == true { fail(677) }
     assert_eq(dd2["return"], 67, 678)
+
+    var g5es = gen.start(delegate_syntax_outer_worker, [20])
+    var dys0 = gen.next(g5es)
+    if oren_is_err(dys0) == true { fail(6781) }
+    assert_eq(dys0["value"], 21, 6782)
+    var dys1 = gen.send(g5es, 2)
+    if oren_is_err(dys1) == true { fail(6783) }
+    assert_eq(dys1["value"], 22, 6784)
+    var dys2 = gen.send(g5es, 7)
+    if oren_is_err(dys2) == true { fail(6785) }
+    assert_eq(dys2["return"], 74, 6786)
+
+    var g5et = gen.start(delegate_syntax_started_outer_worker, [25])
+    var dyt0 = gen.next(g5et)
+    if oren_is_err(dyt0) == true { fail(6787) }
+    assert_eq(dyt0["value"], 26, 6788)
+    var dyt1 = gen.send(g5et, 3)
+    if oren_is_err(dyt1) == true { fail(6789) }
+    assert_eq(dyt1["value"], 28, 6790)
+    var dyt2 = gen.send(g5et, 8)
+    if oren_is_err(dyt2) == true { fail(6791) }
+    assert_eq(dyt2["return"], 77, 6792)
 
     var g5f = gen.start(delegate_step_outer_worker, [50])
     var dstep0 = gen.next(g5f)
@@ -337,6 +398,28 @@ fn main() {
     var dl1 = gen.send(g10, 4)
     if oren_is_err(dl1) == true { fail(99) }
     assert_eq(dl1["return"], 13, 100)
+
+    var g10b = decl_delegate(30)
+    var yd0 = gen.next(g10b)
+    if oren_is_err(yd0) == true { fail(1001) }
+    assert_eq(yd0["value"], 31, 1002)
+    var yd1 = gen.send(g10b, 4)
+    if oren_is_err(yd1) == true { fail(1003) }
+    assert_eq(yd1["value"], 34, 1004)
+    var yd2 = gen.send(g10b, 9)
+    if oren_is_err(yd2) == true { fail(1005) }
+    assert_eq(yd2["return"], 80, 1006)
+
+    var g10c = decl_delegate_started(35)
+    var yz0 = gen.next(g10c)
+    if oren_is_err(yz0) == true { fail(1007) }
+    assert_eq(yz0["value"], 36, 1008)
+    var yz1 = gen.send(g10c, 5)
+    if oren_is_err(yz1) == true { fail(1009) }
+    assert_eq(yz1["value"], 40, 1010)
+    var yz2 = gen.send(g10c, 10)
+    if oren_is_err(yz2) == true { fail(1011) }
+    assert_eq(yz2["return"], 83, 1012)
 
     var local_var_bias = 30
     @oren.generator

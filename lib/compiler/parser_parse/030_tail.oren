@@ -241,6 +241,26 @@ fn yield_exchange_context_expr_call(tok, ctx_expr, value_expr, explicit_value) {
     return call
 }
 
+fn yield_delegate_expr_call(tok, ctx_expr, inner_expr, has_context) {
+    var ident_tok = token.new_token(token.TOK_IDENT, "oren_generator_delegate")
+    var ident = ast.new_identifier(ident_tok)
+    var ctx_arg = ctx_expr
+    if has_context != true {
+        ctx_arg = ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
+    }
+    var call = ast.new_call(ident_tok, ident, [ctx_arg, inner_expr])
+    call["yield_delegate_expr"] = true
+    call["yield_token"] = tok
+    call["yield_delegate_source_syntax"] = true
+    call["yield_delegate_missing_context"] = (has_context != true)
+    if has_context == true {
+        call["yield_delegate_syntax_kind"] = "yield_from_in_context"
+    } else {
+        call["yield_delegate_syntax_kind"] = "yield_from"
+    }
+    return call
+}
+
 fn yield_has_exchange_clause(p, tok) {
     if tok == nil { return false }
     var cur_line = -1
@@ -249,6 +269,21 @@ fn yield_has_exchange_clause(p, tok) {
     var peek = p["peek"]
     if peek == nil { return false }
     if peek["type"] != token.TOK_IN { return false }
+    var peek_line = -2
+    if peek["line"] != nil { peek_line = peek["line"] }
+    if peek_line != cur_line { return false }
+    return true
+}
+
+fn yield_has_delegate_clause(p, tok) {
+    if tok == nil { return false }
+    var cur_line = -1
+    if tok["line"] != nil { cur_line = tok["line"] }
+    if cur_line < 0 { return false }
+    var peek = p["peek"]
+    if peek == nil { return false }
+    if peek["type"] != token.TOK_IDENT { return false }
+    if peek["literal"] != "from" { return false }
     var peek_line = -2
     if peek["line"] != nil { peek_line = peek["line"] }
     if peek_line != cur_line { return false }
@@ -281,10 +316,28 @@ fn parse_yield_exchange_clause(p, tok, value_expr, explicit_value) {
     return yield_exchange_context_expr_call(tok, ctx_expr, value_expr, explicit_value)
 }
 
+fn parse_yield_delegate_clause(p, tok) {
+    parser_next_token(p) // 'from'
+    parser_next_token(p)
+    var inner_expr = parse_expression(p, LOWEST)
+    if inner_expr == nil { return nil }
+    if yield_has_exchange_clause(p, tok) != true {
+        return yield_delegate_expr_call(tok, nil, inner_expr, false)
+    }
+    parser_next_token(p) // 'in'
+    parser_next_token(p)
+    var ctx_expr = parse_expression(p, LOWEST)
+    if ctx_expr == nil { return nil }
+    return yield_delegate_expr_call(tok, ctx_expr, inner_expr, true)
+}
+
 fn parse_yield_expr(p) {
     var tok = p["cur"]
     var value_expr = ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
     var explicit_value = false
+    if yield_has_delegate_clause(p, tok) {
+        return parse_yield_delegate_clause(p, tok)
+    }
     if yield_has_exchange_clause(p, tok) {
         return parse_yield_exchange_clause(p, tok, value_expr, explicit_value)
     }

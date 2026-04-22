@@ -59,6 +59,25 @@ fn avm_delegate_outer_direct_worker(co, args) {
     return retv + 9
 }
 
+fn avm_delegate_syntax_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -935 }
+    var inner = gen.start(avm_delegate_inner_worker, [args[0]])
+    var retv = yield from inner in co
+    assert_true(oren_is_err(retv) == false, 3087)
+    return retv + 17
+}
+
+fn avm_delegate_syntax_started_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -936 }
+    var inner = gen.start(avm_delegate_inner_worker, [args[0]])
+    var step0 = gen.next(inner)
+    assert_true(oren_is_err(step0) == false, 3088)
+    assert_eq(step0["value"], args[0] + 1, 3089)
+    var retv = yield from inner in co
+    assert_true(oren_is_err(retv) == false, 3090)
+    return retv + 19
+}
+
 fn avm_delegate_step_outer_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -933 }
     var inner = gen.start(avm_delegate_inner_worker, [args[0]])
@@ -115,6 +134,24 @@ var avm_decl_var_counter = fn(seed) {
 var avm_decl_var_lambda = |seed| {
     var resumed = yield (seed + 2)
     return resumed + 9
+}
+
+@oren.generator
+fn avm_decl_delegate(seed) {
+    var inner = gen.start(avm_delegate_inner_worker, [seed])
+    var retv = yield from inner
+    return retv + 21
+}
+
+@oren.generator
+fn avm_decl_delegate_started(seed) {
+    var inner = gen.start(avm_delegate_inner_worker, [seed])
+    var step0 = gen.next(inner)
+    assert_true(oren_is_err(step0) == false, 3091)
+    assert_eq(step0["value"], seed + 1, 3092)
+    var retv = yield from inner
+    assert_true(oren_is_err(retv) == false, 3093)
+    return retv + 23
 }
 
 fn test_step_protocol() {
@@ -184,6 +221,28 @@ fn test_nil_and_collect() {
     var dd2 = gen.send(g4, 8)
     assert_true(oren_is_err(dd2) == false, 307)
     assert_eq(dd2["return"], 67, 308)
+
+    var g4s = gen.start(avm_delegate_syntax_outer_worker, [20])
+    var dys0 = gen.next(g4s)
+    assert_true(oren_is_err(dys0) == false, 30801)
+    assert_eq(dys0["value"], 21, 30802)
+    var dys1 = gen.send(g4s, 2)
+    assert_true(oren_is_err(dys1) == false, 30803)
+    assert_eq(dys1["value"], 22, 30804)
+    var dys2 = gen.send(g4s, 7)
+    assert_true(oren_is_err(dys2) == false, 30805)
+    assert_eq(dys2["return"], 74, 30806)
+
+    var g4t = gen.start(avm_delegate_syntax_started_outer_worker, [25])
+    var dyt0 = gen.next(g4t)
+    assert_true(oren_is_err(dyt0) == false, 30807)
+    assert_eq(dyt0["value"], 26, 30808)
+    var dyt1 = gen.send(g4t, 3)
+    assert_true(oren_is_err(dyt1) == false, 30809)
+    assert_eq(dyt1["value"], 28, 30810)
+    var dyt2 = gen.send(g4t, 8)
+    assert_true(oren_is_err(dyt2) == false, 30811)
+    assert_eq(dyt2["return"], 77, 30812)
 
     var g5 = gen.start(avm_delegate_step_outer_worker, [50])
     var ds0 = gen.next(g5)
@@ -270,6 +329,28 @@ fn test_generator_decl_syntax() {
     assert_eq(dsum, 27, 551)
     assert_true(gen.is_done(g3) == true, 552)
     assert_eq(gen.return_value(g3), 38, 553)
+
+    var g4 = avm_decl_delegate(30)
+    var y0 = gen.next(g4)
+    assert_true(oren_is_err(y0) == false, 554)
+    assert_eq(y0["value"], 31, 555)
+    var y1 = gen.send(g4, 4)
+    assert_true(oren_is_err(y1) == false, 556)
+    assert_eq(y1["value"], 34, 557)
+    var y2 = gen.send(g4, 9)
+    assert_true(oren_is_err(y2) == false, 558)
+    assert_eq(y2["return"], 80, 559)
+
+    var g5 = avm_decl_delegate_started(35)
+    var z0 = gen.next(g5)
+    assert_true(oren_is_err(z0) == false, 560)
+    assert_eq(z0["value"], 36, 561)
+    var z1 = gen.send(g5, 5)
+    assert_true(oren_is_err(z1) == false, 562)
+    assert_eq(z1["value"], 40, 563)
+    var z2 = gen.send(g5, 10)
+    assert_true(oren_is_err(z2) == false, 564)
+    assert_eq(z2["return"], 83, 565)
 
 }
 

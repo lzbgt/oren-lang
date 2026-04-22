@@ -4243,15 +4243,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
 		     use `yield ... in co` as the normalized generator-context surface instead of spelling out
 		     raw channel fields.
-	   - New (2026-04-22): top-level and block-local `@oren.generator` now lower to that same
-	     compiler-managed handle surface for both named `fn ...` declarations and function-valued
-	     `var` bindings instead of a hidden `std:generator.start(...)` import.
-	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
-	     wrapper”, and the shipped handle contract is now also opaque by default
-		     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
-		     `generator_context`, declaration-form metadata, `delegate_mode=inline_fresh_handle_or_started_step_v1`, and
-		     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
-		     `generator` handle
+		   - New (2026-04-22): top-level and block-local `@oren.generator` now lower to that same
+		     compiler-managed handle surface for both named `fn ...` declarations and function-valued
+		     `var` bindings instead of a hidden `std:generator.start(...)` import.
+		     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
+		     wrapper”, and the shipped handle contract is now also opaque by default
+			     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
+			     `generator_context`, declaration-form metadata, `delegate_mode=inline_fresh_or_cached_started_step_v2`, and
+			     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
+			     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     fuller coroutine language affordances without manual channel semantics leaking through).
 	   - New (2026-04-22): generator handles now participate in generic `for x in iterable`
@@ -4270,16 +4270,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			       `tests/fixtures/generator_import_*` cases plus delegated imported composition compile under
 			       `./oren_stage2 build --backend bytecode`
 			     - the probe is pinned in `make test` through `verify-generator-import-yield-regression`
-				   - New (2026-04-22): the next abstraction layer above plain `next/send` is now actually
-				     widened and shipped.
-					     - `oren_generator_delegate(co, inner)` / `std:generator.delegate(co, inner)` still cover
-					       fresh-handle inlining
-					     - `oren_generator_delegate_step(co, inner, step)` /
-					       `std:generator.delegate_step(co, inner, step)` now cover partially-started inner
-					       generators when the current yielded step is provided explicitly
-					     - the shipped mode is `inline_fresh_handle_or_started_step_v1`
-					     - imported stage2 bytecode coverage now includes
-					       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`
+		   - New (2026-04-22): the next abstraction layer above plain `next/send` is now widened and
+		     source-visible too.
+			     - `oren_generator_delegate(co, inner)` / `std:generator.delegate(co, inner)` now cover both
+			       fresh-handle inlining and already-started handles that still carry a cached current step
+			     - `oren_generator_delegate_step(co, inner, step)` /
+			       `std:generator.delegate_step(co, inner, step)` remain available for explicit step-driven
+			       control
+			     - source syntax now ships:
+			       - explicit workers: `yield from inner in co`
+			       - `@oren.generator` declarations: `yield from inner`
+			       - `from` is contextual after `yield`, so existing identifiers named `from` are preserved
+			     - the shipped mode is `inline_fresh_or_cached_started_step_v2`
+			     - imported stage2 bytecode coverage now includes
+			       `tests/fixtures/generator_import_delegate_step_regression_v0.oren` and
+			       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
 				   - New (2026-04-22): the native nested-green scheduler seam is no longer a blocked repro.
 					     - `scripts/verify_generator_nested_green_resume_v0.sh` now proves the fixed path instead of
 					       a timeout-only failure

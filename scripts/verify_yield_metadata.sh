@@ -151,7 +151,7 @@ def exchange_expect(site, context, syntax, explicit_value, binding):
     }
 
 expected_generator_decl_surface = {
-    "version": 10,
+    "version": 11,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -161,12 +161,13 @@ expected_generator_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_delegate_step_v1",
+    "resume_surface": "next_send_delegate_yield_from_v2",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
-    "delegate_api": "oren_generator_delegate_v0",
+    "delegate_api": "oren_generator_delegate_v1",
     "delegate_step_api": "oren_generator_delegate_step_v1",
-    "delegate_mode": "inline_fresh_handle_or_started_step_v1",
+    "delegate_mode": "inline_fresh_or_cached_started_step_v2",
+    "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
     "state_layout": "hidden_list_capsule_v2",
     "worker_context_type": "generator_context",
     "decl_forms": ["named_function_decl", "function_valued_var"],

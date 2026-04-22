@@ -1,0 +1,15 @@
+import gen "std:generator"
+
+fn inner_worker(co, args) {
+    yield (args[0] + 1) in co
+    return args[0] + 2
+}
+
+fn bad_delegate(seed) {
+    var inner = gen.start(inner_worker, [seed])
+    return yield from inner
+}
+
+fn main() {
+    return bad_delegate(3)
+}

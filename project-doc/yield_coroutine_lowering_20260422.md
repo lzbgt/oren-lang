@@ -256,6 +256,38 @@ backend-shared value-helper slices landed.
   - the stage2 import/yield matrix now also pins started-step imported composition through
     `tests/fixtures/generator_import_delegate_step_regression_v0.oren`
 
+- Fresh landing (2026-04-22): source-level delegation now ships on top of the helper/runtime seam,
+  and plain delegation no longer forces manual step maps for already-started handles.
+  - `oren_generator_delegate(co, inner)` now keeps the current yielded step cached on the handle, so
+    it can absorb:
+    - fresh inner handles
+    - already-started handles whose current yielded step is still cached on the handle
+    - already-completed handles (stable cached return value)
+  - explicit step-driven control is still available through
+    `oren_generator_delegate_step(co, inner, step)`
+  - new source syntax:
+    - explicit workers: `yield from inner in co`
+    - `@oren.generator` declarations: `yield from inner`
+  - important parser constraint:
+    - `from` is contextual after `yield`; it was intentionally *not* added as a reserved keyword,
+      because repo/runtime code already uses identifiers named `from`
+  - new metadata surface for generator declarations:
+    - `version = 11`
+    - `resume_surface = "next_send_delegate_yield_from_v2"`
+    - `delegate_api = "oren_generator_delegate_v1"`
+    - `delegate_step_api = "oren_generator_delegate_step_v1"`
+    - `delegate_source_syntaxes = ["yield_from_v0", "yield_from_in_context_v0"]`
+    - `delegate_mode = "inline_fresh_or_cached_started_step_v2"`
+  - new positive coverage:
+    - runtime/source surface:
+      - `tests/fixtures/generator_surface_v0.oren`
+      - `tests/modules/test_generator_std.oren`
+      - `tests/avm/test_generator_v0.oren`
+    - imported stage2 bytecode compile matrix:
+      - `tests/fixtures/generator_import_yield_from_regression_v0.oren`
+    - negative parser boundary:
+      - `tests/fixtures/generator_yield_from_blocked_missing_context_v0.oren`
+
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:
   - `yield expr in co`

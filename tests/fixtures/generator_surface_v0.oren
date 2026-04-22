@@ -48,6 +48,24 @@ fn delegate_outer_direct_worker(co, args) {
     return retv + 9
 }
 
+fn delegate_syntax_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -943 }
+    var inner = gen.start(delegate_inner_worker, [args[0]])
+    var retv = yield from inner in co
+    return retv + 17
+}
+
+fn delegate_syntax_started_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -944 }
+    var inner = gen.start(delegate_inner_worker, [args[0]])
+    var step0 = gen.next(inner)
+    if oren_is_err(step0) == true { return -945 }
+    if step0["ok"] != true || step0["value"] != args[0] + 1 { return -946 }
+    var retv = yield from inner in co
+    if oren_is_err(retv) == true { return -947 }
+    return retv + 19
+}
+
 fn delegate_step_outer_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -935 }
     var inner = gen.start(delegate_inner_worker, [args[0]])
@@ -126,6 +144,24 @@ var decl_var_counter = fn(seed) {
 var decl_var_lambda = |seed| {
     var resumed = yield (seed + 2)
     return resumed + 9
+}
+
+@oren.generator
+fn decl_delegate(seed) {
+    var inner = gen.start(delegate_inner_worker, [seed])
+    var retv = yield from inner
+    return retv + 21
+}
+
+@oren.generator
+fn decl_delegate_started(seed) {
+    var inner = gen.start(delegate_inner_worker, [seed])
+    var step0 = gen.next(inner)
+    if oren_is_err(step0) == true { return -948 }
+    if step0["ok"] != true || step0["value"] != seed + 1 { return -949 }
+    var retv = yield from inner
+    if oren_is_err(retv) == true { return -950 }
+    return retv + 23
 }
 
 fn main() {
@@ -245,6 +281,28 @@ fn main() {
     if oren_is_err(dd2) == true { return 1372 }
     if dd2["done"] != true || dd2["return"] != 67 { return 1373 }
 
+    var g4ds = gen.start(delegate_syntax_outer_worker, [20])
+    var dsy0 = gen.next(g4ds)
+    if oren_is_err(dsy0) == true { return 13731 }
+    if dsy0["ok"] != true || dsy0["value"] != 21 { return 13732 }
+    var dsy1 = gen.send(g4ds, 2)
+    if oren_is_err(dsy1) == true { return 13733 }
+    if dsy1["ok"] != true || dsy1["value"] != 22 { return 13734 }
+    var dsy2 = gen.send(g4ds, 7)
+    if oren_is_err(dsy2) == true { return 13735 }
+    if dsy2["done"] != true || dsy2["return"] != 74 { return 13736 }
+
+    var g4dt = gen.start(delegate_syntax_started_outer_worker, [25])
+    var dst0 = gen.next(g4dt)
+    if oren_is_err(dst0) == true { return 13737 }
+    if dst0["ok"] != true || dst0["value"] != 26 { return 13738 }
+    var dst1 = gen.send(g4dt, 3)
+    if oren_is_err(dst1) == true { return 13739 }
+    if dst1["ok"] != true || dst1["value"] != 28 { return 13740 }
+    var dst2 = gen.send(g4dt, 8)
+    if oren_is_err(dst2) == true { return 13741 }
+    if dst2["done"] != true || dst2["return"] != 77 { return 13742 }
+
     var g4e = gen.start(delegate_step_outer_worker, [50])
     var de0 = gen.next(g4e)
     if oren_is_err(de0) == true { return 1374 }
@@ -348,12 +406,34 @@ fn main() {
     if oren_is_err(dl1) == true { return 184 }
     if dl1["done"] != true || dl1["return"] != 13 { return 185 }
 
+    var g7e = decl_delegate(30)
+    var dy0 = gen.next(g7e)
+    if oren_is_err(dy0) == true { return 1851 }
+    if dy0["ok"] != true || dy0["value"] != 31 { return 1852 }
+    var dy1 = gen.send(g7e, 4)
+    if oren_is_err(dy1) == true { return 1853 }
+    if dy1["ok"] != true || dy1["value"] != 34 { return 1854 }
+    var dy2 = gen.send(g7e, 9)
+    if oren_is_err(dy2) == true { return 1855 }
+    if dy2["done"] != true || dy2["return"] != 80 { return 1856 }
+
+    var g7f = decl_delegate_started(35)
+    var dz0 = gen.next(g7f)
+    if oren_is_err(dz0) == true { return 1857 }
+    if dz0["ok"] != true || dz0["value"] != 36 { return 1858 }
+    var dz1 = gen.send(g7f, 5)
+    if oren_is_err(dz1) == true { return 1859 }
+    if dz1["ok"] != true || dz1["value"] != 40 { return 1860 }
+    var dz2 = gen.send(g7f, 10)
+    if oren_is_err(dz2) == true { return 1861 }
+    if dz2["done"] != true || dz2["return"] != 83 { return 1862 }
+
     var bad_delegate_ctx = gen.delegate(123, g1)
-    if oren_is_err(bad_delegate_ctx) != true { return 186 }
+    if oren_is_err(bad_delegate_ctx) != true { return 1863 }
     var bad_delegate_inner = gen.delegate(123, 456)
-    if oren_is_err(bad_delegate_inner) != true { return 187 }
+    if oren_is_err(bad_delegate_inner) != true { return 1864 }
     var bad_delegate_direct = oren_generator_delegate(123, 456)
-    if oren_is_err(bad_delegate_direct) != true { return 188 }
+    if oren_is_err(bad_delegate_direct) != true { return 1865 }
 
     var local_bias = 7
     fn local_add(a, b) {

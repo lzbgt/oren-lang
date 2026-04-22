@@ -1412,23 +1412,24 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `generator` instead of being exposed only as an ad hoc stdlib map. Worker bodies now use
 	     `yield ... in co` as the normalized generator-context contract, while the same explicit
 	     channel protocol still exists underneath.
-	   - New (2026-04-22): top-level and block-local `@oren.generator` generator sugar now covers
-	     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
-	     lowering to that same compiler-managed generator-handle surface instead of a hidden
-	     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
-	     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v2`, so tools can
+		   - New (2026-04-22): top-level and block-local `@oren.generator` generator sugar now covers
+		     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
+		     lowering to that same compiler-managed generator-handle surface instead of a hidden
+		     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
+		     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v2`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 		     `generator_context_v0` worker-facing yield contract and binding-sensitive
 		     `yield_exchange_surface`. That v2 surface now explicitly records
 		     `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`,
-		     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
-		     `resume_surface=next_send_delegate_step_v1`, `next_api=oren_generator_next_v2`,
-		     `send_api=oren_generator_send_v2`, `delegate_api=oren_generator_delegate_v0`,
-		     `delegate_step_api=oren_generator_delegate_step_v1`,
-		     `delegate_mode=inline_fresh_handle_or_started_step_v1`, and
-		     `decl_forms=["named_function_decl","function_valued_var"]`, and the
-		     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
-		     lifecycle fields.
+			     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
+			     `resume_surface=next_send_delegate_yield_from_v2`, `next_api=oren_generator_next_v2`,
+			     `send_api=oren_generator_send_v2`, `delegate_api=oren_generator_delegate_v1`,
+			     `delegate_step_api=oren_generator_delegate_step_v1`,
+			     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
+			     `delegate_mode=inline_fresh_or_cached_started_step_v2`, and
+			     `decl_forms=["named_function_decl","function_valued_var"]`, and the
+			     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
+			     lifecycle fields.
 	   - New (2026-04-22): generator handles are now iterable too. `for x in gen { ... }` works
 	     across bytecode, C, and native by routing generator handles through the compiler-managed
 	     generator bridge while resuming each step with implicit `nil`. This gives language-level
@@ -1448,21 +1449,25 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	       cases under `./oren_stage2 build --backend bytecode`
 	     - `scripts/probe_generator_import_yield_regression.sh` is now a positive guard and is
 	       wired into `make test` through `verify-generator-import-yield-regression`
-			   - New (2026-04-22): generator delegation is now widened and cross-backend verified.
-			     - fresh-handle delegation remains available through `oren_generator_delegate(co, inner)` /
-			       `std:generator.delegate(co, inner)`
-			     - partially-started delegation is now shipped through
-			       `oren_generator_delegate_step(co, inner, step)` /
-			       `std:generator.delegate_step(co, inner, step)`
-			     - the shipped v1 mode is `inline_fresh_handle_or_started_step_v1`: fresh handles still inline
-			       directly into the current `generator_context`, and already-started handles can delegate the
-			       remaining sequence when the currently yielded `step` is supplied explicitly
-			     - the native nested-green scheduler seam that previously blocked `gen.next(inner)` from inside
-			       an active outer generator is fixed and pinned by
-			       `scripts/verify_generator_nested_green_resume_v0.sh` plus
-			       `tests/fixtures/generator_nested_green_resume_v0.oren`
-			     - the stage2 imported-generator matrix now also covers started-step delegation through
-			       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`
+		   - New (2026-04-22): generator delegation is now widened and cross-backend verified.
+		     - `oren_generator_delegate(co, inner)` / `std:generator.delegate(co, inner)` no longer stop at
+		       fresh handles; they also absorb already-started handles when the handle still carries its
+		       current cached yielded step
+		     - explicit started-step delegation remains available through
+		       `oren_generator_delegate_step(co, inner, step)` /
+		       `std:generator.delegate_step(co, inner, step)`
+		     - real source-level delegation now ships too:
+		       - explicit workers: `yield from inner in co`
+		       - `@oren.generator` declarations: `yield from inner`
+		       - `from` is contextual after `yield`, not a globally reserved identifier
+		     - the shipped v2 mode is `inline_fresh_or_cached_started_step_v2`
+		     - the native nested-green scheduler seam that previously blocked `gen.next(inner)` from inside
+		       an active outer generator is fixed and pinned by
+		       `scripts/verify_generator_nested_green_resume_v0.sh` plus
+		       `tests/fixtures/generator_nested_green_resume_v0.oren`
+		     - the stage2 imported-generator matrix now also covers delegation helpers and source syntax
+		       through `tests/fixtures/generator_import_delegate_step_regression_v0.oren` and
+		       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
 	   - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
 	     remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

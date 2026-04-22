@@ -218,7 +218,8 @@ fn parse_program(p) {
 	                            }
 	                        }
                             s = maybe_lower_generator_decl_stmt(p, s)
-	                        oren_list_push(prog["statements"], s)
+                            s = validate_stmt_yield_delegate_syntax(p, s)
+                            oren_list_push(prog["statements"], s)
 	                        si = si + 1
 	                    }
                 } else {
@@ -256,7 +257,8 @@ fn parse_program(p) {
 	                    }
 	                }
                     stmt = maybe_lower_generator_decl_stmt(p, stmt)
-	                oren_list_push(prog["statements"], stmt)
+                    stmt = validate_stmt_yield_delegate_syntax(p, stmt)
+                    oren_list_push(prog["statements"], stmt)
 	            }
 	        }
         // If no statement consumed the doc, clear it to avoid leakage.
@@ -677,6 +679,7 @@ fn _generator_core_src() {
     src = src + "fn _oren_generator_finish(gen, retv) {\n"
     src = src + "    _oren_generator_set(gen, 8, true)\n"
     src = src + "    _oren_generator_set(gen, 9, retv)\n"
+    src = src + "    _oren_generator_set(gen, 10, nil)\n"
     src = src + "    var task = _oren_generator_get(gen, 6)\n"
     src = src + "    if task != nil && task != 0 { oren_join(task) }\n"
     src = src + "    _oren_generator_set(gen, 6, nil)\n"
@@ -702,6 +705,7 @@ fn _generator_core_src() {
     src = src + "}\n"
     src = src + "fn _oren_generator_resume(gen, value) {\n"
     src = src + "    _oren_generator_trace(\"resume.start\")\n"
+    src = src + "    _oren_generator_set(gen, 10, nil)\n"
     src = src + "    _oren_generator_ensure_task(gen)\n"
     src = src + "    _oren_generator_trace(\"resume.after_ensure\")\n"
     src = src + "    if _oren_generator_get(gen, 7) == true {\n"
@@ -719,11 +723,13 @@ fn _generator_core_src() {
     src = src + "    var payload = sel[1]\n"
     src = src + "    if idx == 0 {\n"
     src = src + "        _oren_generator_trace(\"resume.done_slot\")\n"
-    src = src + "        _oren_generator_finish(gen, payload)\n"
+        src = src + "        _oren_generator_finish(gen, payload)\n"
     src = src + "        return _oren_generator_done_step(payload)\n"
     src = src + "    }\n"
     src = src + "    _oren_generator_trace(\"resume.yield_slot\")\n"
-    src = src + "    return _oren_generator_yield_step(payload)\n"
+    src = src + "    var step = _oren_generator_yield_step(payload)\n"
+    src = src + "    _oren_generator_set(gen, 10, step)\n"
+    src = src + "    return step\n"
     src = src + "}\n"
     src = src + "@oren.keep\n"
     src = src + "fn oren_generator_start(worker, args_list) {\n"
@@ -731,7 +737,7 @@ fn _generator_core_src() {
     src = src + "    var yield_ch = oren_new_channel()\n"
     src = src + "    var resume_ch = oren_new_channel()\n"
     src = src + "    var done_ch = oren_new_channel()\n"
-    src = src + "    return [\"__oren_generator_handle_v2\", worker, args_list, yield_ch, resume_ch, done_ch, nil, false, false, nil]\n"
+    src = src + "    return [\"__oren_generator_handle_v2\", worker, args_list, yield_ch, resume_ch, done_ch, nil, false, false, nil, nil]\n"
     src = src + "}\n"
     src = src + "@oren.keep\n"
     src = src + "fn oren_generator_next(gen) {\n"
@@ -762,7 +768,12 @@ fn _generator_core_src() {
     src = src + "        return _oren_generator_get(inner, 9)\n"
     src = src + "    }\n"
     src = src + "    if _oren_generator_get(inner, 7) == true {\n"
-    src = src + "        return _oren_generator_err(\"generator.delegate\", \"expected fresh generator handle\")\n"
+    src = src + "        var step = _oren_generator_get(inner, 10)\n"
+    src = src + "        if step == nil {\n"
+    src = src + "            return _oren_generator_err(\"generator.delegate\", \"expected cached yielded step for started generator handle\")\n"
+    src = src + "        }\n"
+    src = src + "        _oren_generator_trace(\"delegate.cached_step\")\n"
+    src = src + "        return oren_generator_delegate_step(co, inner, step)\n"
     src = src + "    }\n"
     src = src + "    _oren_generator_set(inner, 7, true)\n"
     src = src + "    _oren_generator_trace(\"delegate.inline\")\n"
@@ -1034,6 +1045,21 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
         return expr
     }
     if t == "Call" {
+        if expr["yield_delegate_expr"] == true {
+            var argsd = expr["args"]
+            if argsd != nil && oren_list_len(argsd) > 1 {
+                argsd[1] = _generator_rewrite_yield_expr(argsd[1], co_name)
+            }
+            if expr["yield_delegate_missing_context"] == true {
+                var ctx_tok2 = token.new_token(token.TOK_IDENT, co_name)
+                argsd[0] = ast.new_identifier(ctx_tok2)
+                expr["yield_delegate_missing_context"] = false
+                expr["yield_delegate_syntax_kind"] = "generator_decl_yield_from"
+            } else if argsd != nil && oren_list_len(argsd) > 0 {
+                argsd[0] = _generator_rewrite_yield_expr(argsd[0], co_name)
+            }
+            return expr
+        }
         if expr["yield_value_expr"] == true {
             var tok = expr["yield_token"]
             if tok == nil { tok = expr["token"] }
@@ -1100,6 +1126,175 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
     }
 
     return expr
+}
+
+fn _yield_delegate_source_site(expr) {
+    if expr == nil { return "yield from" }
+    var tok = expr["yield_token"]
+    if tok == nil { tok = expr["token"] }
+    if tok == nil { return "yield from" }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    var out = "yield from"
+    if file != nil && file != "" { out = out + " at " + file }
+    if line != nil && line > 0 {
+        out = out + ":" + oren_int_to_string(line)
+        if col != nil && col > 0 { out = out + ":" + oren_int_to_string(col) }
+    }
+    return out
+}
+
+fn _stmt_validate_yield_delegate_expr(p, expr) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Function" || t == "Lambda" { return nil }
+    if t == "Prefix" {
+        return _stmt_validate_yield_delegate_expr(p, expr["right"])
+    }
+    if t == "Infix" {
+        _stmt_validate_yield_delegate_expr(p, expr["left"])
+        _stmt_validate_yield_delegate_expr(p, expr["right"])
+        return nil
+    }
+    if t == "If" {
+        _stmt_validate_yield_delegate_expr(p, expr["cond"])
+        _stmt_validate_yield_delegate_stmt(p, expr["consq"])
+        if expr["alt"] != nil { _stmt_validate_yield_delegate_stmt(p, expr["alt"]) }
+        return nil
+    }
+    if t == "Call" {
+        if expr["yield_delegate_expr"] == true && expr["yield_delegate_missing_context"] == true {
+            parser_add_error(p, _yield_delegate_source_site(expr) + " requires 'in co' outside @oren.generator declarations")
+            return nil
+        }
+        _stmt_validate_yield_delegate_expr(p, expr["fn"])
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            _stmt_validate_yield_delegate_expr(p, args[i])
+            i = i + 1
+        }
+        if expr["spread"] != nil { _stmt_validate_yield_delegate_expr(p, expr["spread"]) }
+        return nil
+    }
+    if t == "Member" {
+        _stmt_validate_yield_delegate_expr(p, expr["left"])
+        _stmt_validate_yield_delegate_expr(p, expr["prop"])
+        return nil
+    }
+    if t == "Index" {
+        _stmt_validate_yield_delegate_expr(p, expr["left"])
+        _stmt_validate_yield_delegate_expr(p, expr["index"])
+        return nil
+    }
+    if t == "Array" {
+        var elems = expr["elements"]
+        var ei = 0
+        while elems != nil && ei < oren_list_len(elems) {
+            _stmt_validate_yield_delegate_expr(p, elems[ei])
+            ei = ei + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var pi = 0
+        while pairs != nil && pi < oren_list_len(pairs) {
+            var pair = pairs[pi]
+            if pair["key"] != nil { _stmt_validate_yield_delegate_expr(p, pair["key"]) }
+            if pair["value"] != nil { _stmt_validate_yield_delegate_expr(p, pair["value"]) }
+            if pair["k"] != nil { _stmt_validate_yield_delegate_expr(p, pair["k"]) }
+            if pair["v"] != nil { _stmt_validate_yield_delegate_expr(p, pair["v"]) }
+            pi = pi + 1
+        }
+        return nil
+    }
+    if t == "SpawnExpr" {
+        _stmt_validate_yield_delegate_expr(p, expr["call"])
+        return nil
+    }
+    return nil
+}
+
+fn _stmt_validate_yield_delegate_stmt(p, stmt) {
+    if stmt == nil { return nil }
+    if stmt["yield_stmt"] == true { return nil }
+    var t = stmt["type"]
+    if t == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" {
+            return _stmt_validate_yield_delegate_stmt(p, expr["body"])
+        }
+        return _stmt_validate_yield_delegate_expr(p, expr)
+    }
+    if t == "Var" {
+        var value = stmt["value"]
+        if value != nil && value["type"] == "Function" {
+            return _stmt_validate_yield_delegate_stmt(p, value["body"])
+        }
+        return _stmt_validate_yield_delegate_expr(p, value)
+    }
+    if t == "Assign" {
+        return _stmt_validate_yield_delegate_expr(p, stmt["value"])
+    }
+    if t == "Set" {
+        _stmt_validate_yield_delegate_expr(p, stmt["left"])
+        _stmt_validate_yield_delegate_expr(p, stmt["value"])
+        return nil
+    }
+    if t == "Return" { return _stmt_validate_yield_delegate_expr(p, stmt["value"]) }
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            _stmt_validate_yield_delegate_stmt(p, xs[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "While" {
+        _stmt_validate_yield_delegate_expr(p, stmt["cond"])
+        return _stmt_validate_yield_delegate_stmt(p, stmt["body"])
+    }
+    if t == "For" {
+        _stmt_validate_yield_delegate_stmt(p, stmt["init"])
+        _stmt_validate_yield_delegate_expr(p, stmt["cond"])
+        _stmt_validate_yield_delegate_stmt(p, stmt["post"])
+        return _stmt_validate_yield_delegate_stmt(p, stmt["body"])
+    }
+    if t == "If" {
+        _stmt_validate_yield_delegate_expr(p, stmt["cond"])
+        _stmt_validate_yield_delegate_stmt(p, stmt["consq"])
+        if stmt["alt"] != nil { _stmt_validate_yield_delegate_stmt(p, stmt["alt"]) }
+        return nil
+    }
+    if t == "Spawn" { return _stmt_validate_yield_delegate_expr(p, stmt["call"]) }
+    if t == "Switch" {
+        _stmt_validate_yield_delegate_expr(p, stmt["value"])
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            var vals = c["values"]
+            var vi = 0
+            while vals != nil && vi < oren_list_len(vals) {
+                _stmt_validate_yield_delegate_expr(p, vals[vi])
+                vi = vi + 1
+            }
+            _stmt_validate_yield_delegate_stmt(p, c["body"])
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { _stmt_validate_yield_delegate_stmt(p, stmt["default"]) }
+        return nil
+    }
+    return nil
+}
+
+fn validate_stmt_yield_delegate_syntax(p, stmt) {
+    if p["_defer_yield_delegate_validate"] == true { return stmt }
+    _stmt_validate_yield_delegate_stmt(p, stmt)
+    return stmt
 }
 
 fn _generator_rewrite_yield_stmt(stmt, co_name) {

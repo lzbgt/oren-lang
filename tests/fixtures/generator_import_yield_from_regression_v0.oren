@@ -1,0 +1,24 @@
+import gen "std:generator"
+
+fn import_delegate_inner_worker(co, args) {
+    var seed = args[0]
+    var resumed = yield (seed + 1) in co
+    return resumed + seed + 20
+}
+
+@oren.generator
+fn import_delegate_outer(seed) {
+    var inner = gen.start(import_delegate_inner_worker, [seed])
+    return yield from inner
+}
+
+fn main() {
+    var g = import_delegate_outer(4)
+    var s0 = gen.next(g)
+    if oren_is_err(s0) == true { return 1 }
+    if s0["value"] != 5 { return 2 }
+    var s1 = gen.send(g, 7)
+    if oren_is_err(s1) == true { return 3 }
+    if s1["done"] != true || s1["return"] != 31 { return 4 }
+    return 0
+}

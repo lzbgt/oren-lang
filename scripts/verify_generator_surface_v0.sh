@@ -38,6 +38,7 @@ run_ok() {
 
 src="tests/fixtures/generator_surface_v0.oren"
 blocked_src="tests/fixtures/generator_decl_blocked_nonfunction_var_v0.oren"
+blocked_yield_from_src="tests/fixtures/generator_yield_from_blocked_missing_context_v0.oren"
 bytecode_out="$tmpdir/generator_bytecode.obc"
 meta_out="$tmpdir/generator_meta.json"
 dump_out="$tmpdir/generator_dump.json"
@@ -77,7 +78,7 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 10,
+    "version": 11,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -87,12 +88,13 @@ expected_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_delegate_step_v1",
+    "resume_surface": "next_send_delegate_yield_from_v2",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
-    "delegate_api": "oren_generator_delegate_v0",
+    "delegate_api": "oren_generator_delegate_v1",
     "delegate_step_api": "oren_generator_delegate_step_v1",
-    "delegate_mode": "inline_fresh_handle_or_started_step_v1",
+    "delegate_mode": "inline_fresh_or_cached_started_step_v2",
+    "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
     "state_layout": "hidden_list_capsule_v2",
     "worker_context_type": "generator_context",
     "decl_forms": ["named_function_decl", "function_valued_var"],
@@ -139,8 +141,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:97:20",
-            "tests/fixtures/generator_surface_v0.oren:98:20",
+            "tests/fixtures/generator_surface_v0.oren:115:20",
+            "tests/fixtures/generator_surface_v0.oren:116:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -148,14 +150,14 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_nil", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:104:5"],
+        sites=["tests/fixtures/generator_surface_v0.oren:122:5"],
         context="expr_stmt",
         explicit_value=False,
     )
     assert_decl(
         get_func(payload, "decl_collect", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:112:9"],
+        sites=["tests/fixtures/generator_surface_v0.oren:130:9"],
         context="expr_stmt",
         explicit_value=True,
     )
@@ -163,8 +165,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_var_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:120:20",
-            "tests/fixtures/generator_surface_v0.oren:121:20",
+            "tests/fixtures/generator_surface_v0.oren:138:20",
+            "tests/fixtures/generator_surface_v0.oren:139:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -172,7 +174,7 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_var_lambda", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:127:19"],
+        sites=["tests/fixtures/generator_surface_v0.oren:145:19"],
         context="var_init",
         explicit_value=True,
     )
@@ -194,6 +196,17 @@ if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --
 fi
 cat "$blocked_log" >>"$log"
 grep -F "@oren.generator on var requires function value" "$blocked_log" >/dev/null
+
+blocked_yield_from_log="$tmpdir/generator_yield_from_blocked_missing_context.log"
+echo "\$ $compiler build $blocked_yield_from_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_yield_from.obc" >>"$log"
+if "$compiler" build "$blocked_yield_from_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_yield_from.obc" >>"$blocked_yield_from_log" 2>&1; then
+  cat "$blocked_yield_from_log" >>"$log"
+  echo "verify_generator_surface_v0: expected plain yield from without context to fail" >&2
+  exit 1
+fi
+cat "$blocked_yield_from_log" >>"$log"
+grep -F "yield from" "$blocked_yield_from_log" >/dev/null
+grep -F "requires 'in co' outside @oren.generator declarations" "$blocked_yield_from_log" >/dev/null
 
 echo "generator surface v0 verify OK" >>"$log"
 echo "generator surface v0 verify OK"
