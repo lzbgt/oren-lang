@@ -409,7 +409,9 @@ fn json_generator_decl_surface(surface) {
     out = out + "\"helper_api\": " + json_string(surface["helper_api"]) + ", "
     out = out + "\"caller_api\": " + json_string(surface["caller_api"]) + ", "
     out = out + "\"object_type\": " + json_string(surface["object_type"]) + ", "
-    out = out + "\"yield_surface\": " + json_string(surface["yield_surface"])
+    out = out + "\"yield_surface\": " + json_string(surface["yield_surface"]) + ", "
+    out = out + "\"state_layout\": " + json_string(surface["state_layout"]) + ", "
+    out = out + "\"worker_context_type\": " + json_string(surface["worker_context_type"])
     out = out + " }"
     return out
 }

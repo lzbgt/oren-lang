@@ -12,6 +12,8 @@ fn assert_true(x, code) {
 }
 
 fn avm_counter_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -900 }
+    if co["yield_ch"] != nil || co["resume_ch"] != nil { return -901 }
     var seed = args[0]
     var resumed0 = yield (seed + 1) in co
     var resumed1 = yield (seed + resumed0) in co
@@ -19,12 +21,16 @@ fn avm_counter_worker(co, args) {
 }
 
 fn avm_nil_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -910 }
+    if co["yield_ch"] != nil || co["resume_ch"] != nil { return -911 }
     var seed = args[0]
     yield in co
     return seed + 7
 }
 
 fn avm_collect_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -920 }
+    if co["yield_ch"] != nil || co["resume_ch"] != nil { return -921 }
     var seed = args[0]
     var i = 0
     while i < 3 {
@@ -60,6 +66,9 @@ fn avm_decl_collect(seed) {
 fn test_step_protocol() {
     var g = gen.start(avm_counter_worker, [40])
     assert_eq(oren_type_name(g), "generator", 9)
+    assert_eq(g["yield_ch"], nil, 61)
+    assert_eq(g["resume_ch"], nil, 62)
+    assert_eq(g["done_ch"], nil, 63)
     var s0 = gen.next(g)
     assert_true(oren_is_err(s0) == false, 10)
     assert_true(s0["ok"] == true, 11)
@@ -98,6 +107,11 @@ fn test_initial_send_err() {
     var g = gen.start(avm_counter_worker, [10])
     var bad = gen.send(g, 99)
     assert_true(oren_is_err(bad) == true, 30)
+    assert_true(oren_is_err(gen.next(123)) == true, 31)
+    assert_true(oren_is_err(gen.send(123, 1)) == true, 32)
+    assert_true(oren_is_err(gen.collect(123)) == true, 33)
+    assert_true(gen.is_done(123) == false, 34)
+    assert_true(gen.return_value(123) == nil, 35)
 }
 
 fn test_generator_decl_syntax() {

@@ -4246,7 +4246,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` now lower to that same
 	     compiler-managed handle surface instead of a hidden `std:generator.start(...)` import.
 	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
-	     wrapper”, it is the next abstraction layer above the shipped `generator` handle
+	     wrapper”, and the shipped handle contract is now also opaque by default
+	     (`compiler_generator_object_v1` with `hidden_internal_keys_v1` plus validated
+	     `generator_context`). The remaining work is the next abstraction layer above the shipped
+	     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     iterable/coroutine language affordances without manual channel semantics leaking through).
 	     verified across bytecode, C, and native.

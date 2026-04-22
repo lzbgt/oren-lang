@@ -125,6 +125,19 @@ backend-shared value-helper slices landed.
   returns `"generator"` across bytecode, C, and native. `std:generator` is now a thin facade over
   those helpers instead of owning the state layout itself.
 
+- Fresh landing (2026-04-22): the first compiler-managed handle is now intentionally opaque at the
+  language contract level instead of merely “not documented”. The injected core now uses hidden
+  internal lifecycle keys (`hidden_internal_keys_v1`) and validates both generator handles and
+  generator contexts before `next/send/collect` or `yield ... in co` proceed.
+  Concretely:
+  - old public lifecycle map fields like `yield_ch`, `resume_ch`, `done_ch`, `worker`, `args_list`,
+    `task`, `started`, `done`, and `return` are no longer part of the supported generator surface
+  - worker bodies should treat `co` purely as a `generator_context`; `yield ... in co` is the only
+    supported worker-facing exchange API
+  - metadata now reports this as `compiler_generator_object_v1` with
+    `helper_api=oren_generator_start_v1`, `caller_api=generator_handle_v1`,
+    `state_layout=hidden_internal_keys_v1`, and `worker_context_type=generator_context`
+
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:
   - `yield expr in co`
