@@ -2663,16 +2663,41 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      per-output-element category mix only changes in arithmetic
 										      (`2.75 -> 2.50`) while `stores 1.00`, `moves 1.25`, `compare/tick 1.75`,
 										      and `branches 2.00` stay flat. The actual same-tree decision surface
-										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-remaining-decision-20260423_065955_98963.log`)
-										      still does not justify keeping it: fill/share and exact `array_sum_int`
-										      improve slightly (`default_fill_vs_c_vector ~2.2233×` vs enabled
-										      `~2.1710×`, `default_array_ratio_median ~2.1913×` vs enabled `~2.1894×`),
-										      but exact `dot_product_int` regresses (`default_dot_ratio_median
-										      ~1.7179×` vs enabled `~1.7739×`, `decision_surface_alignment: agree`).
-										      Reweight again: the remaining blocker is not an `n - i` bookkeeping seam
-										      by itself; future retries need a bigger control/store reduction or a
-										      stronger whole-program dot win.
-										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
+											      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-remaining-decision-20260423_065955_98963.log`)
+											      still does not justify keeping it: fill/share and exact `array_sum_int`
+											      improve slightly (`default_fill_vs_c_vector ~2.2233×` vs enabled
+											      `~2.1710×`, `default_array_ratio_median ~2.1913×` vs enabled `~2.1894×`),
+											      but exact `dot_product_int` regresses (`default_dot_ratio_median
+											      ~1.7179×` vs enabled `~1.7739×`, `decision_surface_alignment: agree`).
+											      Reweight again: the remaining blocker is not an `n - i` bookkeeping seam
+											      by itself; future retries need a bigger control/store reduction or a
+											      stronger whole-program dot win.
+											    - Arm64 explicit push nonnegative-linear peeled-tail follow-up (2026-04-23):
+											      the next narrower control-shape retry under that same shipped four-wide
+											      body is now closed negative on correctness before it even reaches the
+											      normal ranking surface. A temporary rerun enabled
+											      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_PEELED_TAIL=1`
+											      and peeled the scalar remainder out of the wide body so the main
+											      iteration no longer paid the per-trip `< 4 left?` check, but the
+											      enabled fill-share wrapper log
+											      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-peeled-tail-decision-20260423_071903_4101.enabled-fill.log`)
+											      failed because the generated `fill_list_int_oren_native` exits
+											      nonzero. The dedicated repro log
+											      (`build/logs/verify_fill_list_int_repeat_stability_20260423_peeled_tail_repro_v1.log`)
+											      shows the branch is repeated-invocation unsafe: `n=2000000 reps=1`
+											      still returns `11`, but `n=2000000 reps=2` panics with `Index out
+											      of bounds`. Reweight again: reject the peeled-tail branch on
+											      correctness, and keep future retries honest with the shipped
+											      repeat-stability verifier instead of only disasm/perf probes.
+											    - Native list<int> fast-lowering verifier repeat/runtime refresh (2026-04-23):
+											      `make verify-native-list-int-fast-lowering` now honors
+											      `OREN_BENCH_ENV_BUILD_OREN` for its arm64 builds and also runs the
+											      generated `fill_list_int` benchmark binary with `2000000 2` as a
+											      repeat-stability runtime guard. That closes the verification hole the
+											      peeled-tail branch exposed: experimental fast-push variants now have
+											      to survive repeated invocation before they can be treated as serious
+											      performance candidates.
+											    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface
 										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-recurrence-decision-20260410_001827_33770.log`)

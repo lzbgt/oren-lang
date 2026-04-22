@@ -755,6 +755,25 @@ vs enabled `~2.1710x`, `default_array_ratio_median ~2.1913x` vs enabled `~2.1894
 trip is not enough if the carried-control rewrite leaves the dominant compare/branch/store shape
 unchanged and still hurts the exact whole-program dot surface.
 
+A narrower peeled-tail follow-up under that same shipped four-wide body also stays rejected, but
+this time on correctness before it even reaches the ranking surface. The temporary rerun enabled
+`OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_PEELED_TAIL=1` and peeled the scalar
+remainder out of the wide body so the main iteration no longer paid the per-trip `< 4 left?`
+precheck. The enabled fill-share wrapper log
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-peeled-tail-decision-20260423_071903_4101.enabled-fill.log`
+shows the branch failing before summary generation because the generated `fill_list_int_oren_native`
+binary exits nonzero. The dedicated repro log
+`build/logs/verify_fill_list_int_repeat_stability_20260423_peeled_tail_repro_v1.log` pins the bug
+more sharply: `n=2000000 reps=1` still returns `11`, but `n=2000000 reps=2` panics with
+`Index out of bounds`. Reweight again: reject the peeled-tail branch on repeat-invocation
+correctness, not merely on incomplete perf data.
+
+That peeled-tail failure also exposed a verifier gap worth fixing permanently. The shipped
+`make verify-native-list-int-fast-lowering` lane now honors `OREN_BENCH_ENV_BUILD_OREN` for its
+arm64 builds and runs the generated `fill_list_int` benchmark binary with `2000000 2` as a repeat
+stability guard, so future experimental fast-push branches have to survive repeated invocation
+before they count as viable perf candidates.
+
 To keep the next branch fact-based, the arm64 fill-vs-C probe now emits category counts for the
 shipped wide body itself:
 `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_064855_96771.log` and

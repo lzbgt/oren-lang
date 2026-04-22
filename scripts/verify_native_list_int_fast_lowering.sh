@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+source "$ROOT/scripts/perf_build_env_lib.sh"
 
 ts="$(date +%Y%m%d_%H%M%S)_$$"
 log_dir="build/logs"
@@ -11,6 +12,9 @@ mkdir -p "$log_dir" "$tmp_dir"
 log_path="$log_dir/verify_native_list_int_fast_lowering_${ts}.log"
 build_seq=0
 last_build_log=""
+build_env_raw="${OREN_BENCH_ENV_BUILD_OREN:-}"
+perf_build_env_read_array "$build_env_raw"
+build_env_parts=("${PERF_BUILD_ENV_PARTS[@]}")
 
 run_build() {
   local label="$1"
@@ -24,7 +28,14 @@ run_build() {
     echo "== ${label} =="
     echo "src=${src}"
     echo "out=${out}"
-    "$@"
+    if [[ -n "$build_env_raw" ]]; then
+      echo "build_env=${build_env_raw}"
+    fi
+    if [[ ${#build_env_parts[@]} -gt 0 ]]; then
+      env "${build_env_parts[@]}" "$@"
+    else
+      "$@"
+    fi
   } >"$last_build_log" 2>&1
   cat "$last_build_log" >>"$log_path"
 }
@@ -303,6 +314,21 @@ run_build \
   env OREN_TRACE_ARM64_LOOP_STACK=1 OREN_TRACE_ARM64_LOOP_RANGES=1 ./oren_stage2 build benchmarks/array_sum_int/array_sum_int.oren --backend native --no-debug --no-cache --disasm -o "${tmp_dir}/array_sum_int_arm64_disasm"
 check_expect "arm64 array_sum_int push lowering disasm tick-reg contract" 'fast_list_int_push_while(_no_tick)?'
 check_push_tick_reg_contract "arm64 array_sum_int push lowering disasm tick-reg contract" 'fast_list_int_push_while'
+
+run_build \
+  "arm64 fill_list_int repeat stability" \
+  "benchmarks/fill_list_int/fill_list_int.oren" \
+  "${tmp_dir}/fill_list_int_arm64" \
+  ./oren_stage2 build benchmarks/fill_list_int/fill_list_int.oren --backend native --no-debug --no-cache -o "${tmp_dir}/fill_list_int_arm64"
+{
+  echo "== arm64 fill_list_int repeat runtime =="
+  echo "bin=${tmp_dir}/fill_list_int_arm64"
+  echo "args=2000000 2"
+  "${tmp_dir}/fill_list_int_arm64" 2000000 2
+} >>"$log_path" 2>&1 || {
+  echo "verify_native_list_int_fast_lowering: fill_list_int repeat runtime failed" | tee -a "$log_path" >&2
+  exit 1
+}
 
 run_build \
   "x64 temp-normalized list<int> fast lowerings" \
