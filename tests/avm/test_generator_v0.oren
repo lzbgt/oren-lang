@@ -60,6 +60,19 @@ fn avm_decl_collect(seed) {
     return seed + 30
 }
 
+@oren.generator
+var avm_decl_var_counter = fn(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+@oren.generator
+var avm_decl_var_lambda = |seed| {
+    var resumed = yield (seed + 2)
+    return resumed + 9
+}
+
 fn test_step_protocol() {
     var g = gen.start(avm_counter_worker, [40])
     assert_eq(oren_type_name(g), "generator", 9)
@@ -164,12 +177,51 @@ fn test_local_generator_decl_syntax() {
     assert_eq(s1["return"], 104, 60)
 }
 
+fn test_generator_var_decl_syntax() {
+    var g0 = avm_decl_var_counter(40)
+    assert_eq(oren_type_name(g0), "generator", 61)
+    var s0 = gen.next(g0)
+    assert_true(oren_is_err(s0) == false, 62)
+    assert_eq(s0["value"], 41, 63)
+    var s1 = gen.send(g0, 2)
+    assert_true(oren_is_err(s1) == false, 64)
+    assert_eq(s1["value"], 42, 65)
+    var s2 = gen.send(g0, 7)
+    assert_true(oren_is_err(s2) == false, 66)
+    assert_eq(s2["return"], 12, 67)
+
+    var g1 = avm_decl_var_lambda(30)
+    assert_eq(oren_type_name(g1), "generator", 68)
+    var l0 = gen.next(g1)
+    assert_true(oren_is_err(l0) == false, 69)
+    assert_eq(l0["value"], 32, 70)
+    var l1 = gen.send(g1, 4)
+    assert_true(oren_is_err(l1) == false, 71)
+    assert_eq(l1["return"], 13, 72)
+
+    var local_var_bias = 30
+    @oren.generator
+    var local_var_decl = fn(seed) {
+        var resumed = yield (seed + local_var_bias)
+        return resumed + local_var_bias
+    }
+    local_var_bias = 999
+    var g2 = local_var_decl(5)
+    var v0 = gen.next(g2)
+    assert_true(oren_is_err(v0) == false, 73)
+    assert_eq(v0["value"], 35, 74)
+    var v1 = gen.send(g2, 4)
+    assert_true(oren_is_err(v1) == false, 75)
+    assert_eq(v1["return"], 34, 76)
+}
+
 fn main() {
     test_step_protocol()
     test_nil_and_collect()
     test_initial_send_err()
     test_generator_decl_syntax()
     test_local_generator_decl_syntax()
+    test_generator_var_decl_syntax()
     print("test_generator_v0: OK")
     oren_exit(0)
 }

@@ -1412,18 +1412,20 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `generator` instead of being exposed only as an ad hoc stdlib map. Worker bodies now use
 	     `yield ... in co` as the normalized generator-context contract, while the same explicit
 	     channel protocol still exists underneath.
-	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` declaration sugar now
-	     lowers to that same compiler-managed generator-handle surface instead of a hidden
+	   - New (2026-04-22): top-level and block-local `@oren.generator` generator sugar now covers
+	     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
+	     lowering to that same compiler-managed generator-handle surface instead of a hidden
 	     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
 	     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v2`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 	     `generator_context_v0` worker-facing yield contract and binding-sensitive
 	     `yield_exchange_surface`. That v2 surface now explicitly records
-	     `state_layout=hidden_list_capsule_v2` and `worker_context_type=generator_context`, and the
+	     `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`, and
+	     `decl_forms=["named_function_decl","function_valued_var"]`, and the
 	     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
 	     lifecycle fields.
-	     The remaining boundary is now declaration shape, not scope: `@oren.generator` still requires
-	     a named function declaration.
+	     The remaining boundary is now binding shape, not scope: `@oren.generator` still requires a
+	     named binding site, not an arbitrary non-function statement.
 	   - New (2026-04-22): the focused exchange/generator verifiers now read source-side
 	     `meta`/`dump linked` through `./oren` and cross-check target-compiler artifact metadata from
 	     the stage2-built `.obc`, keeping the default verification lane fast without dropping

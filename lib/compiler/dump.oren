@@ -129,25 +129,16 @@ fn linked_summary_json(linked) {
     while i < oren_list_len(ss) {
         var s = ss[i]
         if s == nil { i = i + 1; continue }
-        if s["type"] == "ExprStmt" {
-            var e = s["expr"]
-            if e != nil {
-                if e["type"] == "Function" {
-                    oren_list_push(functions, e["name"])
-                    oren_list_push(function_details, e)
-                }
-            }
-        } else {
-            if s["type"] == "Function" {
-                oren_list_push(functions, s["name"])
-                oren_list_push(function_details, s)
-            }
-            if s["type"] == "Type" {
-                oren_list_push(structs, s["name"]["value"])
-            }
-            if s["type"] == "Enum" {
-                oren_list_push(enums, s["name"]["value"])
-            }
+        var entry = analysis.top_level_function_surface_entry(s)
+        if entry != nil {
+            oren_list_push(functions, entry["name"])
+            oren_list_push(function_details, entry["func"])
+        }
+        if s["type"] == "Type" {
+            oren_list_push(structs, s["name"]["value"])
+        }
+        if s["type"] == "Enum" {
+            oren_list_push(enums, s["name"]["value"])
         }
         i = i + 1
     }
@@ -166,10 +157,11 @@ fn linked_summary_json(linked) {
     i = 0
     while i < oren_list_len(function_details) {
         var func = function_details[i]
+        var name = analysis.function_surface_name(func, functions[i])
         var yield_info = analysis.function_yield_info(func)
         if i != 0 { out = out + ",\n" }
         out = out + "    { "
-        out = out + json_kv_str("name", func["name"]) + ", "
+        out = out + json_kv_str("name", name) + ", "
         out = out + json_kv_bool("contains_yield", yield_info["contains_yield"]) + ", "
         out = out + json_kv_int("yield_stmt_count", yield_info["yield_stmt_count"]) + ", "
         out = out + "\"yield_stmt_sites\": " + metadata.json_string_array(yield_info["yield_stmt_sites"]) + ", "

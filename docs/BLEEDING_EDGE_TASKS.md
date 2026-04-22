@@ -4243,12 +4243,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
 	     use `yield ... in co` as the normalized generator-context surface instead of spelling out
 	     raw channel fields.
-	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` now lower to that same
-	     compiler-managed handle surface instead of a hidden `std:generator.start(...)` import.
+	   - New (2026-04-22): top-level and block-local `@oren.generator` now lower to that same
+	     compiler-managed handle surface for both named `fn ...` declarations and function-valued
+	     `var` bindings instead of a hidden `std:generator.start(...)` import.
 	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 	     wrapper”, and the shipped handle contract is now also opaque by default
 	     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
-	     `generator_context`). The remaining work is the next abstraction layer above the shipped
+	     `generator_context` and declaration-form metadata). The remaining work is the next abstraction layer above the shipped
 	     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     iterable/coroutine language affordances without manual channel semantics leaking through).

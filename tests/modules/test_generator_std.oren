@@ -53,6 +53,19 @@ fn decl_collect(seed) {
     return seed + 30
 }
 
+@oren.generator
+var decl_var_counter = fn(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+@oren.generator
+var decl_var_lambda = |seed| {
+    var resumed = yield (seed + 2)
+    return resumed + 9
+}
+
 fn main() {
     var g = gen.start(counter_worker, [40])
     assert_eq(oren_type_name(g), "generator", 9)
@@ -180,6 +193,42 @@ fn main() {
     assert_eq(dxs[1], 6, 85)
     assert_eq(dxs[2], 7, 86)
     assert_eq(gen.return_value(g8), 35, 87)
+
+    var g9 = decl_var_counter(40)
+    assert_eq(oren_type_name(g9), "generator", 89)
+    var dv0 = gen.next(g9)
+    if oren_is_err(dv0) == true { fail(90) }
+    assert_eq(dv0["value"], 41, 91)
+    var dv1 = gen.send(g9, 2)
+    if oren_is_err(dv1) == true { fail(92) }
+    assert_eq(dv1["value"], 42, 93)
+    var dv2 = gen.send(g9, 7)
+    if oren_is_err(dv2) == true { fail(94) }
+    assert_eq(dv2["return"], 12, 95)
+
+    var g10 = decl_var_lambda(30)
+    assert_eq(oren_type_name(g10), "generator", 96)
+    var dl0 = gen.next(g10)
+    if oren_is_err(dl0) == true { fail(97) }
+    assert_eq(dl0["value"], 32, 98)
+    var dl1 = gen.send(g10, 4)
+    if oren_is_err(dl1) == true { fail(99) }
+    assert_eq(dl1["return"], 13, 100)
+
+    var local_var_bias = 30
+    @oren.generator
+    var local_var_decl = fn(seed) {
+        var resumed = yield (seed + local_var_bias)
+        return resumed + local_var_bias
+    }
+    local_var_bias = 999
+    var g11 = local_var_decl(5)
+    var lv0 = gen.next(g11)
+    if oren_is_err(lv0) == true { fail(101) }
+    assert_eq(lv0["value"], 35, 102)
+    var lv1 = gen.send(g11, 4)
+    if oren_is_err(lv1) == true { fail(103) }
+    assert_eq(lv1["return"], 34, 104)
 
     print("module generator_std OK")
     exit(0)

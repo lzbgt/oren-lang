@@ -182,3 +182,15 @@ fn exchange_nested_only() {
     }
     return 0
 }
+
+@oren.generator
+var meta_decl_var = fn(seed) {
+    var resumed = yield (seed + 13)
+    return resumed + seed
+}
+
+@oren.generator
+var meta_decl_lambda = |seed| {
+    yield
+    return seed + 14
+}

@@ -3402,16 +3402,20 @@ Rolling status:
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
   on top of that same protocol:
   - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
+  - `@oren.generator var counter = fn(seed) { var r = yield (seed + 1); return r + 5 }`
+  - `@oren.generator var counter = |seed| { var r = yield (seed + 1); return r + 5 }`
   - the declaration lowers to a wrapper that returns `oren_generator_start(...)`
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
     `generator_context_v0` exchange contract (`yield ... in co`)
   - metadata now reports that object contract as `compiler_generator_object_v2` with
-    `generator_handle_v2` and `hidden_list_capsule_v2`
-  - the same v0 surface is now verified for both top-level and block-local declarations across
+    `generator_handle_v2`, `hidden_list_capsule_v2`, and declaration-form metadata via
+    `generator_decl_surface.decl_forms`
+  - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
-  - the remaining boundary is narrower: `@oren.generator` still requires a named function
-    declaration; it does not apply to anonymous function literals or arbitrary statements
+  - the remaining boundary is narrower: `@oren.generator` now requires a named binding site
+    (named function declaration or function-valued `var` binding); it does not apply to
+    bare anonymous function literals or arbitrary non-function statements
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
   semantics beyond the current local value-stable helper path.
 
@@ -3703,7 +3707,8 @@ Notes:
     (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
     underlying yield surface `generator_context_v0`, state layout `hidden_list_capsule_v2`,
-    worker context type `generator_context`)
+    worker context type `generator_context`, declaration forms `["named_function_decl",
+    "function_valued_var"]`)
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`
@@ -5254,11 +5259,14 @@ Current behavior (native runtime, rolling):
     surface over pipe-backed channels instead of a generator-specific workaround
 - First language-level declaration sugar now also ships on top of that same generator handle:
   - `@oren.generator fn counter(seed) { ... }`
+  - `@oren.generator var counter = fn(seed) { ... }`
+  - `@oren.generator var counter = |seed| { ... }`
   - calling `counter(seed)` returns the same tagged `generator` handle shape as `gen.start(...)`
   - plain `yield` / `yield expr` inside the declaration are lowered to the shared
     `yield ... in co` contract, so `gen.send(...)` supplies the resumed value
-  - v0 boundary: generator declarations still require a named function declaration; anonymous
-    function literals and arbitrary statements are rejected
+  - v0 boundary: generator declarations require a named binding site (named function declaration
+    or function-valued `var` binding); bare anonymous function literals and arbitrary non-function
+    statements are rejected
 - Language sugar now uses those helpers consistently:
   - `yield` statement -> `oren_yield_stmt()`
   - `(yield)` -> `oren_yield_value(nil)`

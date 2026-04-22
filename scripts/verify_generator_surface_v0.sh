@@ -37,7 +37,7 @@ run_ok() {
 }
 
 src="tests/fixtures/generator_surface_v0.oren"
-blocked_src="tests/fixtures/generator_decl_blocked_unnamed_v0.oren"
+blocked_src="tests/fixtures/generator_decl_blocked_nonfunction_var_v0.oren"
 bytecode_out="$tmpdir/generator_bytecode.obc"
 meta_out="$tmpdir/generator_meta.json"
 dump_out="$tmpdir/generator_dump.json"
@@ -77,7 +77,7 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 5,
+    "version": 6,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -86,6 +86,7 @@ expected_decl_surface = {
     "yield_surface": "generator_context_v0",
     "state_layout": "hidden_list_capsule_v2",
     "worker_context_type": "generator_context",
+    "decl_forms": ["named_function_decl", "function_valued_var"],
 }
 
 def assert_decl(item, *, count, sites, context, explicit_value):
@@ -149,6 +150,23 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         context="expr_stmt",
         explicit_value=True,
     )
+    assert_decl(
+        get_func(payload, "decl_var_counter", detail_key),
+        count=2,
+        sites=[
+            "tests/fixtures/generator_surface_v0.oren:58:20",
+            "tests/fixtures/generator_surface_v0.oren:59:20",
+        ],
+        context="var_init",
+        explicit_value=True,
+    )
+    assert_decl(
+        get_func(payload, "decl_var_lambda", detail_key),
+        count=1,
+        sites=["tests/fixtures/generator_surface_v0.oren:65:19"],
+        context="var_init",
+        explicit_value=True,
+    )
     worker = get_func(payload, "counter_worker", detail_key)
     if worker["is_generator_decl"] is not False or worker["generator_decl_surface"] is not None:
         raise SystemExit(f"counter_worker should not be generator decl: {worker!r}")
@@ -158,15 +176,15 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         raise SystemExit(f"counter_worker should use yield_in_context syntax: {worker!r}")
 PY
 
-blocked_log="$tmpdir/generator_decl_blocked_unnamed.log"
-echo "\$ $compiler build $blocked_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_unnamed.obc" >>"$log"
-if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_unnamed.obc" >>"$blocked_log" 2>&1; then
+blocked_log="$tmpdir/generator_decl_blocked_nonfunction_var.log"
+echo "\$ $compiler build $blocked_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_nonfunction_var.obc" >>"$log"
+if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_nonfunction_var.obc" >>"$blocked_log" 2>&1; then
   cat "$blocked_log" >>"$log"
-  echo "verify_generator_surface_v0: expected unnamed generator declaration to fail" >&2
+  echo "verify_generator_surface_v0: expected non-function generator var binding to fail" >&2
   exit 1
 fi
 cat "$blocked_log" >>"$log"
-grep -F "@oren.generator may only precede named function declarations" "$blocked_log" >/dev/null
+grep -F "@oren.generator on var requires function value" "$blocked_log" >/dev/null
 
 echo "generator surface v0 verify OK" >>"$log"
 echo "generator surface v0 verify OK"

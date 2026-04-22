@@ -112,6 +112,11 @@ backend-shared value-helper slices landed.
   `fn name(...) { ... } -> var name = fn (...) { ... }`, and the closure analyzers for bytecode, C,
   and native now propagate nested-lambda free vars outward so local generator wrappers can capture
   enclosing locals correctly.
+  The same sugar now also applies to function-valued `var` bindings:
+  - `@oren.generator var counter = fn(seed) { ... }`
+  - `@oren.generator var counter = |seed| { ... }`
+  Those bindings lower in place to generator-returning function values and surface through
+  metadata/dump/OBC under the variable name instead of being hidden as anonymous wrappers.
 
 - Fresh landing (2026-04-22): the “replace the stdlib-map wrapper” slice is now done. The parser
   injects a hidden generator core into only the modules that need it, exposing:
@@ -137,7 +142,8 @@ backend-shared value-helper slices landed.
     supported worker-facing exchange API
   - metadata now reports this as `compiler_generator_object_v2` with
     `helper_api=oren_generator_start_v2`, `caller_api=generator_handle_v2`,
-    `state_layout=hidden_list_capsule_v2`, and `worker_context_type=generator_context`
+    `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`, and
+    `decl_forms=["named_function_decl","function_valued_var"]`
 
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:
@@ -163,7 +169,8 @@ backend-shared value-helper slices landed.
   stage1 on the same fixtures.
 
 The remaining boundary is narrower and still deliberate: `@oren.generator` applies only to named
-function declarations, not anonymous function literals or arbitrary statements.
+binding sites (named function declarations or function-valued `var` bindings), not bare anonymous
+function literals or arbitrary non-function statements.
 
 ## Existing runtime / backend seams
 

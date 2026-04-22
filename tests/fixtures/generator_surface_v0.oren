@@ -53,6 +53,19 @@ fn decl_collect(seed) {
     return seed + 30
 }
 
+@oren.generator
+var decl_var_counter = fn(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+@oren.generator
+var decl_var_lambda = |seed| {
+    var resumed = yield (seed + 2)
+    return resumed + 9
+}
+
 fn main() {
     var c1 = oren_new_channel()
     var c2 = oren_new_channel()
@@ -167,6 +180,27 @@ fn main() {
     if dxs[0] != 5 || dxs[1] != 6 || dxs[2] != 7 { return 152 }
     if gen.return_value(g7) != 35 { return 153 }
 
+    var g7b = decl_var_counter(40)
+    if oren_type_name(g7b) != "generator" { return 174 }
+    var dv0 = gen.next(g7b)
+    if oren_is_err(dv0) == true { return 175 }
+    if dv0["ok"] != true || dv0["done"] != false || dv0["value"] != 41 { return 176 }
+    var dv1 = gen.send(g7b, 2)
+    if oren_is_err(dv1) == true { return 177 }
+    if dv1["ok"] != true || dv1["value"] != 42 { return 178 }
+    var dv2 = gen.send(g7b, 7)
+    if oren_is_err(dv2) == true { return 179 }
+    if dv2["done"] != true || dv2["return"] != 12 { return 180 }
+
+    var g7c = decl_var_lambda(30)
+    if oren_type_name(g7c) != "generator" { return 181 }
+    var dl0 = gen.next(g7c)
+    if oren_is_err(dl0) == true { return 182 }
+    if dl0["ok"] != true || dl0["done"] != false || dl0["value"] != 32 { return 183 }
+    var dl1 = gen.send(g7c, 4)
+    if oren_is_err(dl1) == true { return 184 }
+    if dl1["done"] != true || dl1["return"] != 13 { return 185 }
+
     var local_bias = 7
     fn local_add(a, b) {
         return a + b + local_bias
@@ -188,6 +222,21 @@ fn main() {
     var l1 = gen.send(g8, 4)
     if oren_is_err(l1) == true { return 157 }
     if l1["done"] != true || l1["return"] != 104 { return 158 }
+
+    var local_var_bias = 30
+    @oren.generator
+    var local_var_decl = fn(seed) {
+        var resumed = yield (seed + local_var_bias)
+        return resumed + local_var_bias
+    }
+    local_var_bias = 999
+    var g9 = local_var_decl(5)
+    var lv0 = gen.next(g9)
+    if oren_is_err(lv0) == true { return 186 }
+    if lv0["ok"] != true || lv0["done"] != false || lv0["value"] != 35 { return 187 }
+    var lv1 = gen.send(g9, 4)
+    if oren_is_err(lv1) == true { return 188 }
+    if lv1["done"] != true || lv1["return"] != 34 { return 189 }
 
     return 0
 }

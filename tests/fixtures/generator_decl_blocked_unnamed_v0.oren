@@ -1,9 +1,0 @@
-@oren.generator
-var bad = fn(seed) {
-    yield seed
-    return seed
-}
-
-fn main() {
-    return 0
-}

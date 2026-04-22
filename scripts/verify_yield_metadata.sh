@@ -67,6 +67,8 @@ expected_names = {
     "exchange_context_stmt",
     "exchange_context_call_arg",
     "exchange_nested_only",
+    "meta_decl_var",
+    "meta_decl_lambda",
 }
 expected_hidden_names = {
     "_oren_generator_context_exchange",
@@ -143,6 +145,25 @@ def exchange_expect(site, context, syntax, explicit_value, binding):
         "yield_exchange_sites": [site],
         "yield_exchange_surface": exchange_surface(site, context, syntax, explicit_value, binding),
     }
+
+expected_generator_decl_surface = {
+    "version": 6,
+    "surface": "compiler_generator_object_v2",
+    "syntax": "attr_oren.generator",
+    "helper_api": "oren_generator_start_v2",
+    "caller_api": "generator_handle_v2",
+    "object_type": "generator",
+    "yield_surface": "generator_context_v0",
+    "state_layout": "hidden_list_capsule_v2",
+    "worker_context_type": "generator_context",
+    "decl_forms": ["named_function_decl", "function_valued_var"],
+}
+
+def generator_expect(site, context, explicit_value):
+    out = exchange_expect(site, context, "generator_decl", explicit_value, "generator_context")
+    out["is_generator_decl"] = True
+    out["generator_decl_surface"] = expected_generator_decl_surface
+    return out
 
 expected = {
     "no_yield": {
@@ -697,6 +718,8 @@ expected = {
         "yield_stmt_sites": [],
         "yield_lowering": None,
     },
+    "meta_decl_var": generator_expect("tests/fixtures/meta_yield_surface.oren:188:19", "var_init", True),
+    "meta_decl_lambda": generator_expect("tests/fixtures/meta_yield_surface.oren:194:5", "expr_stmt", False),
 }
 
 for exp in expected.values():
@@ -708,6 +731,8 @@ for exp in expected.values():
     exp.setdefault("yield_exchange_count", 0)
     exp.setdefault("yield_exchange_sites", [])
     exp.setdefault("yield_exchange_surface", None)
+    exp.setdefault("is_generator_decl", False)
+    exp.setdefault("generator_decl_surface", None)
 
 for name, exp in expected.items():
     item = by_name[name]

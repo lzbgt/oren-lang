@@ -453,6 +453,20 @@ fn _attrs_filter_out_name(attrs, nm) {
     return out
 }
 
+fn _attrs_only_name(attrs, nm) {
+    if attrs == nil { return attrs }
+    var out = []
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["type"] == "Attr" && a["name"] == nm {
+            oren_list_push(out, a)
+        }
+        i = i + 1
+    }
+    return out
+}
+
 fn _prepend_stmts(stmts, prefix_stmts) {
     if prefix_stmts == nil || oren_list_len(prefix_stmts) == 0 { return stmts }
     if stmts == nil { return prefix_stmts }
@@ -780,6 +794,20 @@ fn _local_fn_decl_name_ident(fun) {
     return ast.new_identifier(tok)
 }
 
+fn _generator_var_decl_name_ident(stmt) {
+    if stmt == nil || stmt["type"] != "Var" { return nil }
+    var name = stmt["name"]
+    if name == nil || name["type"] != "Identifier" { return nil }
+    return name
+}
+
+fn _generator_var_decl_function(stmt) {
+    if stmt == nil || stmt["type"] != "Var" { return nil }
+    var value = stmt["value"]
+    if value == nil || value["type"] != "Function" { return nil }
+    return value
+}
+
 fn maybe_lower_local_fn_decl_stmt(p, stmt) {
     if stmt == nil || stmt["type"] != "ExprStmt" { return stmt }
     if p["block_depth"] <= 0 { return stmt }
@@ -972,13 +1000,31 @@ fn _generator_rewrite_yield_stmt(stmt, co_name) {
 }
 
 fn maybe_lower_generator_decl_stmt(p, stmt) {
-    if stmt == nil || stmt["type"] != "ExprStmt" { return stmt }
-    var func = stmt["expr"]
-    if func == nil || func["type"] != "Function" { return stmt }
-    if _attrs_has_name(func["attrs"], "oren.generator") != true { return stmt }
-    if func["name"] == nil || func["name"] == "" {
-        parser_add_error(p, "@oren.generator may only precede named function declarations")
-        return stmt
+    if stmt == nil { return stmt }
+    var func = nil
+    var decl_name = nil
+    var is_decl_stmt = false
+    if stmt["type"] == "ExprStmt" {
+        func = stmt["expr"]
+        if func == nil || func["type"] != "Function" { return stmt }
+        if _attrs_has_name(func["attrs"], "oren.generator") != true { return stmt }
+        decl_name = func["name"]
+        is_decl_stmt = true
+        if decl_name == nil || decl_name == "" {
+            parser_add_error(p, "@oren.generator may only precede named function declarations or function-valued var bindings")
+            return stmt
+        }
+    } else {
+        if stmt["type"] != "Var" { return stmt }
+        func = _generator_var_decl_function(stmt)
+        if func == nil { return stmt }
+        var name_ident = _generator_var_decl_name_ident(stmt)
+        if name_ident == nil || _attrs_has_name(name_ident["attrs"], "oren.generator") != true { return stmt }
+        decl_name = name_ident["value"]
+        if decl_name == nil || decl_name == "" {
+            parser_add_error(p, "@oren.generator on var requires named identifier")
+            return stmt
+        }
     }
     var co_name = parser_gensym(p, "@generator_co_")
     var args_name = parser_gensym(p, "@generator_args_")
@@ -998,16 +1044,18 @@ fn maybe_lower_generator_decl_stmt(p, stmt) {
     var body_tok = token.new_token(token.TOK_LBRACE, "{")
     var wrapper_body = ast.new_block(body_tok)
     oren_list_push(wrapper_body["stmts"], ast.new_return(token.new_token(token.TOK_RETURN, "return"), start_call))
-    if p["block_depth"] > 0 {
+    if is_decl_stmt == true && p["block_depth"] > 0 {
         var name_ident = _local_fn_decl_name_ident(func)
         func["body"] = wrapper_body
         func["generator_decl"] = true
-        func["decl_name"] = func["name"]
+        func["decl_name"] = decl_name
         func["name"] = ""
         return ast.new_var(func["token"], name_ident, func)
     }
     func["body"] = wrapper_body
     func["generator_decl"] = true
+    func["decl_name"] = decl_name
+    if is_decl_stmt != true { func["name"] = "" }
     return stmt
 }
 
@@ -1023,9 +1071,21 @@ fn attach_attrs_to_stmt(p, stmt, attrs) {
                 return nil
             }
         }
-        parser_add_error(p, "@oren.generator may only precede named function declarations")
-        attrs = _attrs_filter_out_name(attrs, "oren.generator")
-        if attrs == nil || oren_list_len(attrs) == 0 { return nil }
+        if stmt["type"] == "Var" {
+            var generator_var_exp = _generator_var_decl_function(stmt)
+            if generator_var_exp != nil {
+                var generator_attrs = _attrs_only_name(attrs, "oren.generator")
+                generator_var_exp["attrs"] = _merge_attrs(generator_var_exp["attrs"], generator_attrs)
+            } else {
+                parser_add_error(p, "@oren.generator on var requires function value")
+                attrs = _attrs_filter_out_name(attrs, "oren.generator")
+                if attrs == nil || oren_list_len(attrs) == 0 { return nil }
+            }
+        } else {
+            parser_add_error(p, "@oren.generator may only precede named function declarations or function-valued var bindings")
+            attrs = _attrs_filter_out_name(attrs, "oren.generator")
+            if attrs == nil || oren_list_len(attrs) == 0 { return nil }
+        }
     }
 
     // Allowed targets (M1): declarations + local/global vars.
