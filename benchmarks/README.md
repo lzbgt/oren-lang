@@ -546,19 +546,25 @@ This compares the shipped `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` behavio
 explicit push loop only; higher masks need agreement across both surfaces before changing the
 shipped default.
 
-Current cached rerun
-(`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260411_161037_18451.log`)
-does not support a shipped default change:
+The current-tree refresh split into a tempting candidate and a rejected promoted-default rerun:
 
-- fill/share preferred the shipped default (`default_fill_vs_c_vector ~2.6362x` vs `16383`
-  `~2.8750x` and `65535` `~2.8309x`)
-- exact `array_sum_int` preferred `65535` by median (`default_array_ratio_median ~2.2996x`,
-  `16383 ~2.2720x`, `65535 ~2.1974x`, `array_mask_65535_wins: 2/3`)
-- exact `dot_product_int` preferred the shipped default by median (`default_dot_ratio_median
-  ~1.7705x`, `16383 ~1.7852x`, `65535 ~1.7837x`) while per-sweep wins split `1/3` each
-- `decision_surface_alignment: disagree`
+- candidate rerun
+  (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
+  looked good enough to try: fill/share preferred `65535` (`default_fill_vs_c_vector ~1.8155x`,
+  `mask_16383 ~1.8369x`, `mask_65535 ~1.7173x`), exact `array_sum_int` median also preferred
+  `65535` (`default ~2.2131x`, `mask_16383 ~2.1760x`, `mask_65535 ~2.1398x`), exact
+  `dot_product_int` median preferred `65535` too (`default ~1.4062x`, `mask_16383 ~1.4727x`,
+  `mask_65535 ~1.3362x`), and `decision_surface_alignment: agree`
+- immediate promoted-default rerun
+  (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032751_32000.log`) did not
+  hold: fill/share flipped toward the lower masks (`default_fill_vs_c_vector ~1.8792x`,
+  `mask_4095 ~1.7483x`, `mask_16383 ~1.7535x`), while exact `array_sum_int` and
+  `dot_product_int` medians both preferred `16383` (`default_array_ratio_median ~2.1792x`,
+  `mask_4095 ~2.1950x`, `mask_16383 ~2.1736x`; `default_dot_ratio_median ~1.7445x`,
+  `mask_4095 ~1.7506x`, `mask_16383 ~1.7229x`), leaving `decision_surface_alignment: disagree`
 
-Keep `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` for now; the higher masks are still probe-only.
+Keep `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` shipped for now; the higher masks are still
+probe-only because the promoted-default rerun was not stable enough to keep.
 
 One more narrower fast-loop follow-up on the same shipped fill surface is now also closed. The exact
 same-tree baseline remains

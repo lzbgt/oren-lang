@@ -207,6 +207,14 @@ backend-shared value-helper slices landed.
     (`default_fill_vs_c_vector ~1.7572×` vs disabled `~2.3562×`) and exact `array_sum_int`
     (`default_array_ratio_median ~2.2127×` vs disabled `~2.2219×`), with exact
     `dot_product_int` median lower on the shipped default too
+  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
+    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
+    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
+    aligned in favor of `65535`, but the immediate promoted-default rerun
+    (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032751_32000.log`) did not
+    hold, flipping fill/share toward the lower masks and exact `array_sum_int` /
+    `dot_product_int` medians toward `16383`; `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK` therefore
+    stays shipped at `4095` for now
   - the next runtime constructor micro-hypothesis on that same shipped fill surface is now also
     settled negative: compared with the current baseline
     (`build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`,
