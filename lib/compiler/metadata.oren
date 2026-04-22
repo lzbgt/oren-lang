@@ -949,10 +949,9 @@ fn json_serde_schema_for_struct(type_stmt) {
 }
 
 fn generate_metadata(prog) {
-    var json = "{\n"
-    json = json + "  \"functions\": [\n"
-    
+    var trace_meta_funcs = oren_env("OREN_TRACE_METADATA_FUNCTIONS") != nil
     var stmts = prog["statements"]
+    var parts = ["{\n", "  \"functions\": [\n"]
     var i = 0
     var first = true
     while i < oren_list_len(stmts) {
@@ -960,83 +959,94 @@ fn generate_metadata(prog) {
         var entry = analysis.top_level_function_surface_entry(s)
         if entry != nil {
             var func = entry["func"]
-            if !first { json = json + ",\n" }
+            if trace_meta_funcs {
+                print("[trace] metadata function start " + entry["name"])
+            }
             var yield_info = analysis.function_yield_info(func)
-            json = json + "    {\n"
-            json = json + "      \"name\": " + json_string(entry["name"]) + ",\n"
+            if trace_meta_funcs {
+                print("[trace] metadata function done " + entry["name"])
+            }
+            if !first { oren_list_push(parts, ",\n") }
+            var func_parts = ["    {\n"]
+            oren_list_push(func_parts, "      \"name\": " + json_string(entry["name"]) + ",\n")
 
             // Backwards-compatible: keep the old `args` list (just names).
             var params = func["params"]
-            json = json + "      \"args\": " + json_string_list(params) + ",\n"
+            oren_list_push(func_parts, "      \"args\": " + json_string_list(params) + ",\n")
 
             // New: rich params and function-level attrs.
-            json = json + "      \"params\": " + json_named_list(params) + ",\n"
-            json = json + "      \"attrs\": " + json_attrs(func["attrs"]) + ",\n"
-            json = json + "      \"doc\": " + json_string(func["doc"]) + ",\n"
-            json = json + "      \"contains_yield\": " + json_bool(yield_info["contains_yield"]) + ",\n"
-            json = json + "      \"yield_stmt_count\": " + oren_int_to_string(yield_info["yield_stmt_count"]) + ",\n"
-            json = json + "      \"yield_stmt_sites\": " + json_string_array(yield_info["yield_stmt_sites"]) + ",\n"
-            json = json + "      \"contains_yield_value\": " + json_bool(yield_info["contains_yield_value"]) + ",\n"
-            json = json + "      \"yield_value_count\": " + oren_int_to_string(yield_info["yield_value_count"]) + ",\n"
-            json = json + "      \"yield_value_sites\": " + json_string_array(yield_info["yield_value_sites"]) + ",\n"
-            json = json + "      \"yield_value_surface\": " + json_yield_value_surface(yield_info["yield_value_surface"]) + ",\n"
-            json = json + "      \"contains_yield_exchange\": " + json_bool(yield_info["contains_yield_exchange"]) + ",\n"
-            json = json + "      \"yield_exchange_count\": " + oren_int_to_string(yield_info["yield_exchange_count"]) + ",\n"
-            json = json + "      \"yield_exchange_sites\": " + json_string_array(yield_info["yield_exchange_sites"]) + ",\n"
-            json = json + "      \"yield_exchange_surface\": " + json_yield_exchange_surface(yield_info["yield_exchange_surface"]) + ",\n"
-            json = json + "      \"is_generator_decl\": " + json_bool(yield_info["is_generator_decl"]) + ",\n"
-            json = json + "      \"generator_decl_surface\": " + json_generator_decl_surface(yield_info["generator_decl_surface"]) + ",\n"
-            json = json + "      \"yield_lowering\": " + json_yield_lowering(yield_info["yield_lowering"]) + "\n"
-            json = json + "    }"
+            oren_list_push(func_parts, "      \"params\": " + json_named_list(params) + ",\n")
+            oren_list_push(func_parts, "      \"attrs\": " + json_attrs(func["attrs"]) + ",\n")
+            oren_list_push(func_parts, "      \"doc\": " + json_string(func["doc"]) + ",\n")
+            oren_list_push(func_parts, "      \"contains_yield\": " + json_bool(yield_info["contains_yield"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_stmt_count\": " + oren_int_to_string(yield_info["yield_stmt_count"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_stmt_sites\": " + json_string_array(yield_info["yield_stmt_sites"]) + ",\n")
+            oren_list_push(func_parts, "      \"contains_yield_value\": " + json_bool(yield_info["contains_yield_value"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_value_count\": " + oren_int_to_string(yield_info["yield_value_count"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_value_sites\": " + json_string_array(yield_info["yield_value_sites"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_value_surface\": " + json_yield_value_surface(yield_info["yield_value_surface"]) + ",\n")
+            oren_list_push(func_parts, "      \"contains_yield_exchange\": " + json_bool(yield_info["contains_yield_exchange"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_exchange_count\": " + oren_int_to_string(yield_info["yield_exchange_count"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_exchange_sites\": " + json_string_array(yield_info["yield_exchange_sites"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_exchange_surface\": " + json_yield_exchange_surface(yield_info["yield_exchange_surface"]) + ",\n")
+            oren_list_push(func_parts, "      \"is_generator_decl\": " + json_bool(yield_info["is_generator_decl"]) + ",\n")
+            oren_list_push(func_parts, "      \"generator_decl_surface\": " + json_generator_decl_surface(yield_info["generator_decl_surface"]) + ",\n")
+            oren_list_push(func_parts, "      \"yield_lowering\": " + json_yield_lowering(yield_info["yield_lowering"]) + "\n")
+            oren_list_push(func_parts, "    }")
+            oren_list_push(parts, oren_string_join(func_parts))
             first = false
         }
         i = i + 1
     }
-    json = json + "\n  ],\n"
+    oren_list_push(parts, "\n  ],\n")
 
     // Normalized package/capability manifests for source-level tooling.
     // Raw attrs remain on declarations; these views are the stable contract surface.
-    json = json + "  \"package\": " + json_package_manifest(stmts) + ",\n"
-    json = json + "  \"capabilities\": " + json_capability_manifest(stmts) + ",\n"
+    oren_list_push(parts, "  \"package\": " + json_package_manifest(stmts) + ",\n")
+    oren_list_push(parts, "  \"capabilities\": " + json_capability_manifest(stmts) + ",\n")
 
     // Trait declarations (rolling, metadata-only for now).
     // Backends ignore these until a stabilized trait model is implemented.
-    json = json + "  \"traits\": [\n"
+    oren_list_push(parts, "  \"traits\": [\n")
     var traits = prog["traits"]
     i = 0
     first = true
     while traits != nil && i < oren_list_len(traits) {
         var t = traits[i]
         if t != nil {
-            if !first { json = json + ",\n" }
-            json = json + "    {\n"
-            json = json + "      \"name\": " + json_string(t["name"]) + ",\n"
-            json = json + "      \"doc\": " + json_string(t["doc"]) + ",\n"
+            if !first { oren_list_push(parts, ",\n") }
+            var trait_parts = ["    {\n"]
+            oren_list_push(trait_parts, "      \"name\": " + json_string(t["name"]) + ",\n")
+            oren_list_push(trait_parts, "      \"doc\": " + json_string(t["doc"]) + ",\n")
             // Methods are recorded as a list of name + params (params reuse the Named/attr shape).
-            json = json + "      \"methods\": [\n"
+            oren_list_push(trait_parts, "      \"methods\": [\n")
             var ms = t["methods"]
             var mi = 0
             var mfirst = true
+            var method_parts = []
             while ms != nil && mi < oren_list_len(ms) {
                 var m = ms[mi]
                 if m != nil {
-                    if !mfirst { json = json + ",\n" }
-                    json = json + "        { \"name\": " + json_string(m["name"]) + ", \"params\": " + json_named_list(m["params"])
+                    if !mfirst { oren_list_push(method_parts, ",\n") }
+                    var method_json = "        { \"name\": " + json_string(m["name"]) + ", \"params\": " + json_named_list(m["params"])
                     if m["ret_ann_type"] != nil {
-                        json = json + ", \"ret_ann_type\": " + json_string(m["ret_ann_type"])
+                        method_json = method_json + ", \"ret_ann_type\": " + json_string(m["ret_ann_type"])
                     }
-                    json = json + " }"
+                    method_json = method_json + " }"
+                    oren_list_push(method_parts, method_json)
                     mfirst = false
                 }
                 mi = mi + 1
             }
-            json = json + "\n      ]\n"
-            json = json + "    }"
+            oren_list_push(trait_parts, oren_string_join(method_parts))
+            oren_list_push(trait_parts, "\n      ]\n")
+            oren_list_push(trait_parts, "    }")
+            oren_list_push(parts, oren_string_join(trait_parts))
             first = false
         }
         i = i + 1
     }
-    json = json + "\n  ],\n"
+    oren_list_push(parts, "\n  ],\n")
 
     // Global vars (rolling, metadata-only).
     //
@@ -1044,13 +1054,13 @@ fn generate_metadata(prog) {
     // - Locals are intentionally not included in v0 metadata (keeps meta stable and
     //   avoids coupling to statement-level lowering details).
     // - We include attrs on the identifier node (consistent with params/fields).
-    json = json + "  \"globals\": [\n"
+    oren_list_push(parts, "  \"globals\": [\n")
     i = 0
     first = true
     while i < oren_list_len(stmts) {
         var s = stmts[i]
         if s != nil && s["type"] == "Var" {
-            if !first { json = json + ",\n" }
+            if !first { oren_list_push(parts, ",\n") }
             var nm = nil
             var ann = nil
             var attrs = nil
@@ -1059,46 +1069,47 @@ fn generate_metadata(prog) {
                 ann = s["name"]["ann_type"]
                 attrs = s["name"]["attrs"]
             }
-            json = json + "    {"
-            json = json + "\"name\": " + json_string(nm) + ", "
-            json = json + "\"ann_type\": " + json_string(ann) + ", "
-            json = json + "\"attrs\": " + json_attrs(attrs)
-            json = json + "}"
+            var global_parts = ["    {"]
+            oren_list_push(global_parts, "\"name\": " + json_string(nm) + ", ")
+            oren_list_push(global_parts, "\"ann_type\": " + json_string(ann) + ", ")
+            oren_list_push(global_parts, "\"attrs\": " + json_attrs(attrs))
+            oren_list_push(global_parts, "}")
+            oren_list_push(parts, oren_string_join(global_parts))
             first = false
         }
         i = i + 1
     }
-    json = json + "\n  ],\n"
+    oren_list_push(parts, "\n  ],\n")
 
-    json = json + "  \"structs\": [\n"
+    oren_list_push(parts, "  \"structs\": [\n")
     i = 0
     first = true
     while i < oren_list_len(stmts) {
         var s = stmts[i]
         if s["type"] == "Type" {
-            if !first { json = json + ",\n" }
-            json = json + "    {\n"
-            json = json + "      \"name\": " + json_string(s["name"]["value"]) + ",\n"
-            json = json + "      \"attrs\": " + json_attrs(s["attrs"]) + ",\n"
-            json = json + "      \"doc\": " + json_string(s["doc"]) + ",\n"
+            if !first { oren_list_push(parts, ",\n") }
+            var struct_parts = ["    {\n"]
+            oren_list_push(struct_parts, "      \"name\": " + json_string(s["name"]["value"]) + ",\n")
+            oren_list_push(struct_parts, "      \"attrs\": " + json_attrs(s["attrs"]) + ",\n")
+            oren_list_push(struct_parts, "      \"doc\": " + json_string(s["doc"]) + ",\n")
 
             // Backwards-compatible: keep a flat list of names.
             var fields = s["fields"]
-            json = json + "      \"field_names\": " + json_string_list(fields) + ",\n"
+            oren_list_push(struct_parts, "      \"field_names\": " + json_string_list(fields) + ",\n")
 
             // New: rich field list including attrs.
-            json = json + "      \"fields\": " + json_named_list(fields) + ",\n"
+            oren_list_push(struct_parts, "      \"fields\": " + json_named_list(fields) + ",\n")
 
             // New (rolling): normalized serde schema so libraries can implement multi-format serdes
             // without depending on compiler internals.
-            json = json + "      \"serde\": " + json_serde_schema_for_struct(s) + "\n"
-            json = json + "    }"
+            oren_list_push(struct_parts, "      \"serde\": " + json_serde_schema_for_struct(s) + "\n")
+            oren_list_push(struct_parts, "    }")
+            oren_list_push(parts, oren_string_join(struct_parts))
             first = false
         }
         i = i + 1
     }
-    json = json + "\n  ]\n"
-    
-    json = json + "}\n"
-    return json
+    oren_list_push(parts, "\n  ]\n")
+    oren_list_push(parts, "}\n")
+    return oren_string_join(parts)
 }

@@ -1436,15 +1436,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `meta`/`dump linked` through `./oren` and cross-check target-compiler artifact metadata from
 	     the stage2-built `.obc`, keeping the default verification lane fast without dropping
 	     bytecode/C/native generator-context proof coverage.
-	   - New (2026-04-22): the remaining blocked generator-composition/compiler issue is now narrowed
-	     to a committed reduced repro instead of broad delegation notes. The current stage2 failure
-	     shape is:
-	     - `import gen "std:generator"` + `gen.start(...)` + worker `yield ... in co`
-	       => times out after `global_dce` and `link: done`, before bytecode emission
-	     - nearby controls still compile for both no-import value-resume workers and imported
-	       no-yield workers
-	     Repro assets live in `tests/fixtures/generator_import_*` with
-	     `scripts/probe_generator_import_yield_regression.sh`.
+	   - New (2026-04-22): the stage2 bytecode compiler regression for imported generator workers
+	     with `yield ... in co` is fixed and pinned by a committed four-case matrix.
+	     - the fix refactors top-level metadata emission away from repeated whole-document
+	       string concatenation and onto chunked `oren_string_join(...)` assembly
+	     - the committed matrix in `tests/fixtures/generator_import_*` now compiles in all four
+	       cases under `./oren_stage2 build --backend bytecode`
+	     - `scripts/probe_generator_import_yield_regression.sh` is now a positive guard and is
+	       wired into `make test` through `verify-generator-import-yield-regression`
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

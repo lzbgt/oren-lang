@@ -183,6 +183,24 @@ backend-shared value-helper slices landed.
   This remains the next real resume/composition task above the shipped `for-in` / `next` / `send`
   surface, but it is intentionally not documented as available until the compiler path is fixed.
 
+- Follow-up fix (2026-04-22): the reduced stage2 bytecode regression above is now fixed.
+  Facts from the successful re-run:
+  - `tests/fixtures/generator_import_yield_regression_stmt_v0.oren`
+    now compiles under `./oren_stage2 build --backend bytecode`
+  - `tests/fixtures/generator_import_resume_regression_v0.oren`
+    now compiles under `./oren_stage2 build --backend bytecode`
+  - the nearby controls still compile, so the committed four-case matrix remains the right guard
+  - the fix was a metadata-emitter refactor: `generate_metadata(...)` now assembles the top-level
+    JSON through chunked `oren_string_join(...)` output instead of repeated whole-document
+    concatenation, which clears the self-hosted stage2 timeout after `global_dce` / `link: done`
+  - trace hooks were kept for future compiler debugging:
+    - `OREN_TRACE_BUILD_PHASES_PATH` around bytecode build stages
+    - `OREN_TRACE_METADATA_FUNCTIONS` around per-function metadata generation
+  - `scripts/probe_generator_import_yield_regression.sh` is now a positive guard, and
+    `make test` pins it through `verify-generator-import-yield-regression`
+  This clears the compiler blocker for reopening richer generator delegation/resume work, but
+  delegation syntax itself is still intentionally unshipped until a real surface is re-landed.
+
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:
   - `yield expr in co`

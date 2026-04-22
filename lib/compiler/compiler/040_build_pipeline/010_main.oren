@@ -1225,23 +1225,40 @@ fn compiler_main() {
         return nil
     }
     _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0, backend, prog)
-    if backend == "bytecode" {
-        var allow_undef = false
-        if stdlib_mode == "obc" { allow_undef = true }
-        if oren_list_len(link_obc) > 0 { allow_undef = true }
+	    if backend == "bytecode" {
+	        var allow_undef = false
+	        if stdlib_mode == "obc" { allow_undef = true }
+	        if oren_list_len(link_obc) > 0 { allow_undef = true }
 
-        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
-        var bytecode_domains = metadata.cap_required_domains(linked_bc["statements"])
-        var bytecode_profile = _runtime_profile_request_for_manifest("bytecode", CAPSULE)
-        var bytecode_policy_check = metadata.json_package_policy_check(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS)
-        var bytecode_policy_status = metadata.package_policy_check_status(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS)
-        _enforce_package_policy_if_requested(enforce_package_policy, "bytecode", bytecode_policy_status)
-        var bytecode_policy = _artifact_manifest_policy_with_package("bytecode", CAPSULE, CAP_ALLOW_DOMAINS, bytecode_domains, metadata.json_package_manifest(linked_bc["statements"]), bytecode_policy_check)
+	        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
+	        if trace_phase_path != nil {
+	            var linked_bc_stmts = 0
+	            if linked_bc != nil && linked_bc["statements"] != nil { linked_bc_stmts = oren_list_len(linked_bc["statements"]) }
+	            _build_phase_log_append(trace_phase_path, "build.bytecode.link.done", "stmts=" + oren_int_to_string(linked_bc_stmts), t_sum0)
+	        }
+	        var bytecode_domains = metadata.cap_required_domains(linked_bc["statements"])
+	        var bytecode_profile = _runtime_profile_request_for_manifest("bytecode", CAPSULE)
+	        var bytecode_policy_check = metadata.json_package_policy_check(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS)
+	        var bytecode_policy_status = metadata.package_policy_check_status(linked_bc["statements"], bytecode_profile, CAP_ALLOW_DOMAINS)
+	        _enforce_package_policy_if_requested(enforce_package_policy, "bytecode", bytecode_policy_status)
+	        var bytecode_policy = _artifact_manifest_policy_with_package("bytecode", CAPSULE, CAP_ALLOW_DOMAINS, bytecode_domains, metadata.json_package_manifest(linked_bc["statements"]), bytecode_policy_check)
 
-        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
-        if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-            var first_err = ctx["errors"][0]
-            emit_diag("codegen", 1, first_err)
+	        if trace_phase_path != nil {
+	            var allow_undef_s = "false"
+	            if allow_undef == true { allow_undef_s = "true" }
+	            _build_phase_log_append(trace_phase_path, "build.bytecode.codegen.start", "allow_undef=" + allow_undef_s, t_sum0)
+	        }
+	        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
+	        if trace_phase_path != nil {
+	            var n_consts_bc = 0
+	            var n_code_bc = 0
+	            if ctx != nil && ctx["constants"] != nil { n_consts_bc = oren_list_len(ctx["constants"]) }
+	            if ctx != nil && ctx["code"] != nil { n_code_bc = oren_list_len(ctx["code"]) }
+	            _build_phase_log_append(trace_phase_path, "build.bytecode.codegen.done", "constants=" + oren_int_to_string(n_consts_bc) + " code=" + oren_int_to_string(n_code_bc), t_sum0)
+	        }
+	        if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+	            var first_err = ctx["errors"][0]
+	            emit_diag("codegen", 1, first_err)
             print("Bytecode codegen errors:")
             var ei = 0
             while ei < oren_list_len(ctx["errors"]) {
@@ -1256,11 +1273,17 @@ fn compiler_main() {
         // - tooling can discover attrs/types/fields without a sidecar file
         // - execution semantics remain unchanged (metadata is not referenced by code)
         //
-        // Format (rolling, v0):
-        //   bytes = "OREN_META\n1\n" + <meta_json_utf8_bytes>
-        var meta_json = metadata.generate_metadata(linked_bc)
-        var hdr = oren_bytes_from_string("OREN_META\n1\n")
-        var payload = oren_bytes_from_string(meta_json)
+	        // Format (rolling, v0):
+	        //   bytes = "OREN_META\n1\n" + <meta_json_utf8_bytes>
+	        if trace_phase_path != nil {
+	            _build_phase_log_append(trace_phase_path, "build.bytecode.meta.start", "", t_sum0)
+	        }
+	        var meta_json = metadata.generate_metadata(linked_bc)
+	        if trace_phase_path != nil {
+	            _build_phase_log_append(trace_phase_path, "build.bytecode.meta.done", "bytes=" + oren_int_to_string(oren_string_len(meta_json)), t_sum0)
+	        }
+	        var hdr = oren_bytes_from_string("OREN_META\n1\n")
+	        var payload = oren_bytes_from_string(meta_json)
         var meta_bytes = []
         var hi = 0
         while hi < oren_list_len(hdr) {
@@ -1301,7 +1324,7 @@ fn compiler_main() {
         var need_link = false
         if stdlib_mode == "obc" { need_link = true }
         if oren_list_len(link_obc) > 0 { need_link = true }
-        if need_link {
+	        if need_link {
             var libs = []
             if stdlib_mode == "obc" {
                 if stdlib_obc == "" {
@@ -1357,13 +1380,19 @@ fn compiler_main() {
             var main_obc = {"constants": consts2, "code": ctx["code"], "obx": main_obx, "global_count": ctx["global_count"]}
             oren_list_push(parsed, main_obc)
 
-            var linked = obc_link.obc_link(parsed)
-            if linked["error"] != nil {
+	            if trace_phase_path != nil {
+	                _build_phase_log_append(trace_phase_path, "build.bytecode.link_obc.start", "libs=" + oren_int_to_string(oren_list_len(libs)), t_sum0)
+	            }
+	            var linked = obc_link.obc_link(parsed)
+	            if linked["error"] != nil {
                 emit_diag("compile", 2, "OBC link failed: " + linked["error"])
                 print("OBC link failed: " + linked["error"])
                 oren_exit(2)
-            }
-            var wr = obc_link.obc_write_file(out_path, linked)
+	            }
+	            if trace_phase_path != nil {
+	                _build_phase_log_append(trace_phase_path, "build.bytecode.emit.start", "mode=obc_link", t_sum0)
+	            }
+	            var wr = obc_link.obc_write_file(out_path, linked)
             if oren_is_err(wr["write"]) {
                 var emsgW = "Failed to write bytecode: " + out_path
                 var msgW = oren_err_msg(wr["write"])
@@ -1372,8 +1401,11 @@ fn compiler_main() {
                 print(emsgW)
                 oren_exit(2)
             }
-            var out_bytes = wr["bytes"]
-            print("Bytecode emitted: " + out_path)
+	            var out_bytes = wr["bytes"]
+	            if trace_phase_path != nil {
+	                _build_phase_log_append(trace_phase_path, "build.bytecode.emit.done", "mode=obc_link bytes=" + oren_int_to_string(_bytes_len_any(out_bytes)), t_sum0)
+	            }
+	            print("Bytecode emitted: " + out_path)
             if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes) }
             if emit_manifest {
                 var h = _sha256_hex(out_bytes)
@@ -1384,11 +1416,17 @@ fn compiler_main() {
             }
             if run_after_build { _run_test_artifact(backend, out_path) }
             return nil
-        }
+	        }
 
-        // Default: no linking required, emit directly.
-        var out_bytes2 = codegen_bytecode.bytecode_emit_program(out_path, ctx)
-        print("Bytecode emitted: " + out_path)
+	        // Default: no linking required, emit directly.
+	        if trace_phase_path != nil {
+	            _build_phase_log_append(trace_phase_path, "build.bytecode.emit.start", "mode=direct", t_sum0)
+	        }
+	        var out_bytes2 = codegen_bytecode.bytecode_emit_program(out_path, ctx)
+	        if trace_phase_path != nil {
+	            _build_phase_log_append(trace_phase_path, "build.bytecode.emit.done", "mode=direct bytes=" + oren_int_to_string(_bytes_len_any(out_bytes2)), t_sum0)
+	        }
+	        print("Bytecode emitted: " + out_path)
         if deterministic { _emit_artifact_hash("bytecode", out_path, out_bytes2) }
         if emit_manifest {
             var h2 = _sha256_hex(out_bytes2)

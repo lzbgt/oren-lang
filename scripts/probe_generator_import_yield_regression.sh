@@ -37,53 +37,16 @@ run_success_case() {
   echo "ok ${name} log=${log}"
 }
 
-run_timeout_after_global_dce_case() {
-  local name="$1"
-  local src="$2"
-  local log="$log_dir/${name}_${stamp}.log"
-  local out="$tmp_dir/${name}.obc"
-  local rc=0
-
-  OREN_TRACE_PHASES=1 OREN_TRACE_PASSES=1 timeout 12s \
-    "$compiler" build "$src" -o "$out" --backend bytecode >"$log" 2>&1 || rc=$?
-
-  if [[ "$rc" -ne 124 ]]; then
-    echo "expected timeout rc=124 for ${name}, got rc=${rc}" >&2
-    echo "log: $log" >&2
-    return 1
-  fi
-  if ! rg -q '\[phase\] pass global_dce' "$log"; then
-    echo "timeout log for ${name} did not reach global_dce" >&2
-    echo "log: $log" >&2
-    return 1
-  fi
-  if ! rg -q '\[trace\] link: done' "$log"; then
-    echo "timeout log for ${name} did not complete the link pass" >&2
-    echo "log: $log" >&2
-    return 1
-  fi
-  if rg -q 'Bytecode emitted|Bytecode size' "$log"; then
-    echo "timeout log for ${name} unexpectedly emitted bytecode" >&2
-    echo "log: $log" >&2
-    return 1
-  fi
-  if [[ -f "$out" ]]; then
-    echo "timeout case ${name} unexpectedly wrote bytecode: $out" >&2
-    return 1
-  fi
-  echo "blocked ${name} log=${log}"
-}
-
 run_success_case \
   "generator_import_resume_control_no_import_v0" \
   "tests/fixtures/generator_import_resume_control_no_import_v0.oren"
 run_success_case \
   "generator_import_yield_control_import_no_yield_v0" \
   "tests/fixtures/generator_import_yield_control_import_no_yield_v0.oren"
-run_timeout_after_global_dce_case \
+run_success_case \
   "generator_import_yield_regression_stmt_v0" \
   "tests/fixtures/generator_import_yield_regression_stmt_v0.oren"
-run_timeout_after_global_dce_case \
+run_success_case \
   "generator_import_resume_regression_v0" \
   "tests/fixtures/generator_import_resume_regression_v0.oren"
 

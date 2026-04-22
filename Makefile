@@ -944,6 +944,9 @@ verify-yield-exchange-surface-v0: oren_stage2 avm
 verify-generator-surface-v0: oren_stage2 avm
 	@./scripts/verify_generator_surface_v0.sh "./$(OREN_STAGE2_BIN)"
 
+verify-generator-import-yield-regression: oren_stage2
+	@./scripts/probe_generator_import_yield_regression.sh "./$(OREN_STAGE2_BIN)"
+
 verify-capability-manifest-policy: oren
 	@./scripts/verify_capability_manifest_policy.sh
 
@@ -1487,7 +1490,7 @@ perf-guard-native-hit: oren_stage2
 # Keep the heavier self-host bundle explicit so the common local gate stays aligned with the
 # repo's <3 minute contract. Use `make test-selfhost` or `make verify-native-quick` when the
 # stage2/capsule/optimizer coverage is desired.
-test: verify-capability-runtime-contract verify-capability-metadata verify-yield-metadata verify-yield-lowering-v0 verify-yield-backend-parity-v0 verify-yield-value-surface-v0 verify-yield-exchange-surface-v0 verify-generator-surface-v0 verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-native-capsule-resource-checks verify-native-gas-accounting-modes verify-gas-surface-registry verify-public-readme-positioning verify-avm-spawn-channel-args verify-oretest verify-native-quick-stage2-direct-autoseed test-native-quick
+test: verify-capability-runtime-contract verify-capability-metadata verify-yield-metadata verify-yield-lowering-v0 verify-yield-backend-parity-v0 verify-yield-value-surface-v0 verify-yield-exchange-surface-v0 verify-generator-surface-v0 verify-generator-import-yield-regression verify-capability-manifest-policy verify-effect-ledger-contract verify-avm-package-policy-runner verify-native-package-policy-runner verify-native-capsule-resource-checks verify-native-gas-accounting-modes verify-gas-surface-registry verify-public-readme-positioning verify-avm-spawn-channel-args verify-oretest verify-native-quick-stage2-direct-autoseed test-native-quick
 
 # Heavier self-host/local production smoke bundle.
 test-selfhost: verify-native-quick
