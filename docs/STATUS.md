@@ -1474,13 +1474,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					       `130_tests_basic_core_runtime.oren`, and `140_tests_basic_select_arena.oren`,
 					       so the tracked `.oren` / `.c` / `.h` / `.inc` source scan is back under the
 					       rolling 2000-line threshold across production code and Tier-1 test bundles.
-		   - New (2026-04-22): the default verification lane is back to green after aligning
-		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
-		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining
-		     compiler-performance seam is narrower and explicit now: `./oren_stage2 dump linked
-		     tests/fixtures/generator_finalize_surface_v0.oren` is still slower than the default test-lane
-		     budget and remains the next dump-tooling optimization target rather than a user-facing
-		     generator correctness blocker.
+		   - New (2026-04-23): the stage2 generator-finalize introspection seam is fixed.
+		     `dump linked` / `dump graph` / `meta` now parse generator-using sources with
+		     `_skip_generator_core_inject`, so those tooling commands stop reparsing the hidden
+		     compiler-injected generator helper program and stop leaking `oren_generator_*` /
+		     `_oren_generator_*` helper declarations into source-level metadata output.
+		     On `tests/fixtures/generator_finalize_surface_v0.oren`, `./oren_stage2 dump linked`
+		     dropped from about `1.53s` to `0.18s` after that cut, with the new
+		     `OREN_TRACE_INTROSPECTION_PHASES=1` timing surface showing parse+link+summary explicitly.
 	   - New (2026-04-22): generator handles are now iterable too. `for x in gen { ... }` works
 	     across bytecode, C, and native by routing generator handles through the compiler-managed
 	     generator bridge while resuming each step with implicit `nil`. This gives language-level

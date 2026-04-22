@@ -4287,11 +4287,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						     everywhere. Reweight the next task away from file-size cleanup and toward
 						     higher-leverage runtime/compiler seams like the stage2 `dump linked`
 						     throughput path.
-					   - New (2026-04-22): the repo-default verification lane is green again after moving the
-					     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
-					     broader generator surface verifier. Reweight the next task above correctness: optimize the
-				     stage2 `dump linked` hot path on `tests/fixtures/generator_finalize_surface_v0.oren`
-				     without widening the shipped generator surface.
+						   - New (2026-04-23): the stage2 generator-finalize introspection hotspot is fixed without
+						     widening the shipped generator surface. `dump linked` / `dump graph` / `meta` now skip
+						     compiler-injected generator-core helper parsing on the source-introspection path, and the
+						     metadata guards now pin the cleaner visible-only function surface instead of expecting
+						     hidden `oren_generator_*` / `_oren_generator_*` helpers in `meta`.
 			     resume/close/delegate path.
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     fuller coroutine language affordances without manual channel semantics leaking through).

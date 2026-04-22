@@ -78,6 +78,13 @@ def get_func(payload, name, detail_key=False):
             return item
     raise SystemExit(f"missing function {name} in {key}")
 
+def assert_no_hidden_generator_helpers(payload, detail_key=False):
+    key = "function_details" if detail_key else "functions"
+    for item in payload[key]:
+        name = item["name"]
+        if name.startswith("_oren_generator_") or name.startswith("oren_generator_"):
+            raise SystemExit(f"unexpected hidden generator helper in {key}: {name!r}")
+
 expected_decl_surface = {
     "version": 19,
     "surface": "compiler_generator_object_v3",
@@ -182,6 +189,7 @@ def assert_finalize(item, *, points, context):
             raise SystemExit(f"{item['name']} bad finalize point: {point!r}")
 
 for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
+    assert_no_hidden_generator_helpers(payload, detail_key)
     assert_decl(
         get_func(payload, "decl_counter", detail_key),
         count=2,

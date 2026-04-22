@@ -184,9 +184,12 @@ backend-shared value-helper slices landed.
       thin include facade over four focused shards. The rolling tracked source scan is back under
       the 2000-line threshold across compiler/runtime code and Tier-1 test bundles
   - the default repo verification lane stays green by using the stage1 `./oren` tool path for
-    generator finalize `meta` / `dump linked` parity, matching the broader generator surface verifier;
-    the remaining narrow tooling issue is stage2 `dump linked` throughput on
-    `tests/fixtures/generator_finalize_surface_v0.oren`, not generator semantics or backend parity
+    generator finalize `meta` / `dump linked` parity, matching the broader generator surface verifier
+  - the remaining stage2 tooling seam above that verifier is now fixed too:
+    `dump linked` / `dump graph` / `meta` skip hidden generator-core injection on the
+    introspection path, which both cleans the metadata surface and drops
+    `./oren_stage2 dump linked tests/fixtures/generator_finalize_surface_v0.oren`
+    from about `1.53s` to `0.18s`
 
 - Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
   sugar too, without changing the public handle layout again. The compiler-generated bridge:

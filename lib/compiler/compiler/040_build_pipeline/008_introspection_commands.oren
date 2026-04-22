@@ -267,6 +267,45 @@ fn _compiler_run_scan_cmd(pos) {
     return nil
 }
 
+fn _trace_introspection_enabled() {
+    var v = oren_env("OREN_TRACE_INTROSPECTION_PHASES")
+    return v != nil && v != "" && v != "0" && v != "false"
+}
+
+fn _trace_introspection_phase(enabled, label, t0) {
+    if enabled != true { return nil }
+    var dt = oren_time_now_ns() - t0
+    print("[phase] introspection " + label + " +" + oren_int_to_string(dt / 1000000) + "ms")
+    return nil
+}
+
+fn _parse_introspection_program_or_die(path, src, strict_attrs, attr_allow_prefixes, strict_ident_prefixes, ident_allow_prefixes) {
+    var l = lexer.new_lexer(src)
+    l["file"] = path
+    var p = parser.new_parser(l)
+    p["strict_attrs"] = strict_attrs
+    p["attr_allow_prefixes"] = attr_allow_prefixes
+    p["strict_ident_prefixes"] = strict_ident_prefixes
+    p["ident_allow_prefixes"] = ident_allow_prefixes
+    // Introspection commands should describe user-authored source surfaces rather
+    // than compiler-injected generator helper declarations.
+    p["_skip_generator_core_inject"] = true
+    var prog = parser.parse_program(p)
+    if oren_list_len(p["errors"]) > 0 {
+        var first_err = nil
+        if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+        emit_diag("parse", 1, first_err)
+        print("Parse errors:")
+        var ei = 0
+        while ei < oren_list_len(p["errors"]) {
+            print(p["errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    return prog
+}
+
 fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
     if dbg_flow != nil { print("DEBUG_FLOW enter dump") }
     var kind = pos[0]
@@ -313,9 +352,11 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
     var strict = (opts["strict-attrs"] == true)
     var allow = split_csv(opts["attr-allow-prefixes"])
     var strict_yield_lowering_v0_dump = (opts["strict-yield-lowering-v0"] == true)
+    var strict_ident = (opts["strict-ident-prefixes"] == true)
+    var ident_allow = split_csv(opts["ident-allow-prefixes"])
     if kind == "tokens" {
         if dbg_flow != nil { print("DEBUG_FLOW dump tokens start") }
-        var js = dump.dump_tokens_json(path, strict, allow, (opts["strict-ident-prefixes"] == true), split_csv(opts["ident-allow-prefixes"]))
+        var js = dump.dump_tokens_json(path, strict, allow, strict_ident, ident_allow)
         if js == nil {
             emit_diag("compile", 2, "dump tokens failed: " + path)
             oren_exit(1)
@@ -330,6 +371,9 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
     }
     if kind == "linked" {
         if dbg_flow != nil { print("DEBUG_FLOW dump linked start") }
+        var trace_intro = _trace_introspection_enabled()
+        var t0 = 0
+        if trace_intro == true { t0 = oren_time_now_ns() }
         var rr = expand_includes_file_result(path, [])
         if rr["ok"] != true {
             var emsg = "Failed to read file: " + path
@@ -341,27 +385,10 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
             oren_exit(2)
         }
         var src = rr["src"]
+        _trace_introspection_phase(trace_intro, "dump-linked read", t0)
         if dbg_flow != nil { print("DEBUG_FLOW dump linked got_src") }
-        var l = lexer.new_lexer(src)
-        l["file"] = path
-        var p = parser.new_parser(l)
-        p["strict_attrs"] = strict
-        p["attr_allow_prefixes"] = allow
-        p["strict_ident_prefixes"] = (opts["strict-ident-prefixes"] == true)
-        p["ident_allow_prefixes"] = split_csv(opts["ident-allow-prefixes"])
-        var prog = parser.parse_program(p)
-        if oren_list_len(p["errors"]) > 0 {
-            var first_err = nil
-            if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
-            emit_diag("parse", 1, first_err)
-            print("Parse errors:")
-            var ei = 0
-            while ei < oren_list_len(p["errors"]) {
-                print(p["errors"][ei])
-                ei = ei + 1
-            }
-            oren_exit(1)
-        }
+        var prog = _parse_introspection_program_or_die(path, src, strict, allow, strict_ident, ident_allow)
+        _trace_introspection_phase(trace_intro, "dump-linked parse", t0)
         var cfg_debug = true
         var v_nd = oren_env("OREN_NATIVE_NO_DEBUG")
         if v_nd != nil && v_nd != "" && v_nd != "0" && v_nd != "false" { cfg_debug = false }
@@ -369,17 +396,23 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
         if backend0 == nil { backend0 = "c" }
         var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0, "debug": cfg_debug, "keep_all_top_level_functions": true})
         _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-linked", linked)
+        _trace_introspection_phase(trace_intro, "dump-linked link", t0)
         if dbg_flow != nil { print("DEBUG_FLOW dump linked linked_ok") }
         var js2 = dump.linked_summary_json(linked, path)
+        _trace_introspection_phase(trace_intro, "dump-linked summary", t0)
         var rc2 = dump.write_or_print(outp, js2)
         if rc2 != 0 {
             emit_diag("compile", 2, "Failed to write dump output: " + outp)
             oren_exit(rc2)
         }
+        _trace_introspection_phase(trace_intro, "dump-linked write", t0)
         return nil
     }
     if kind == "graph" {
         if dbg_flow != nil { print("DEBUG_FLOW dump graph start") }
+        var trace_intro_g = _trace_introspection_enabled()
+        var t0g = 0
+        if trace_intro_g == true { t0g = oren_time_now_ns() }
         var rrg = expand_includes_file_result(path, [])
         if rrg["ok"] != true {
             var emsgg = "Failed to read file: " + path
@@ -391,27 +424,10 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
             oren_exit(2)
         }
         var srcg = rrg["src"]
+        _trace_introspection_phase(trace_intro_g, "dump-graph read", t0g)
         if dbg_flow != nil { print("DEBUG_FLOW dump graph got_src") }
-        var lg = lexer.new_lexer(srcg)
-        lg["file"] = path
-        var pg = parser.new_parser(lg)
-        pg["strict_attrs"] = strict
-        pg["attr_allow_prefixes"] = allow
-        pg["strict_ident_prefixes"] = (opts["strict-ident-prefixes"] == true)
-        pg["ident_allow_prefixes"] = split_csv(opts["ident-allow-prefixes"])
-        var progg = parser.parse_program(pg)
-        if oren_list_len(pg["errors"]) > 0 {
-            var first_err = nil
-            if oren_list_len(pg["errors"]) > 0 { first_err = pg["errors"][0] }
-            emit_diag("parse", 1, first_err)
-            print("Parse errors:")
-            var eig = 0
-            while eig < oren_list_len(pg["errors"]) {
-                print(pg["errors"][eig])
-                eig = eig + 1
-            }
-            oren_exit(1)
-        }
+        var progg = _parse_introspection_program_or_die(path, srcg, strict, allow, strict_ident, ident_allow)
+        _trace_introspection_phase(trace_intro_g, "dump-graph parse", t0g)
         var cfg_debugg = true
         var v_ndg = oren_env("OREN_NATIVE_NO_DEBUG")
         if v_ndg != nil && v_ndg != "" && v_ndg != "0" && v_ndg != "false" { cfg_debugg = false }
@@ -419,14 +435,17 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
         if backend0g == nil { backend0g = "c" }
         var linkedg = link_program(path, progg, {"target": target, "arch": arch, "backend": backend0g, "debug": cfg_debugg, "keep_all_top_level_functions": true})
         _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-graph", linkedg)
+        _trace_introspection_phase(trace_intro_g, "dump-graph link", t0g)
         if dbg_flow != nil { print("DEBUG_FLOW dump graph linked_ok") }
         var graph = linkedg["module_graph"]
         var jsg = dump.module_graph_json(graph)
+        _trace_introspection_phase(trace_intro_g, "dump-graph summary", t0g)
         var rcg = dump.write_or_print(outp, jsg)
         if rcg != 0 {
             emit_diag("compile", 2, "Failed to write dump output: " + outp)
             oren_exit(rcg)
         }
+        _trace_introspection_phase(trace_intro_g, "dump-graph write", t0g)
         return nil
     }
 
@@ -487,6 +506,9 @@ fn _compiler_run_meta_cmd(pos, opts, seen, dbg_flow) {
     var strict_yield_lowering_v0_meta = (opts["strict-yield-lowering-v0"] == true)
     if seen["out"] == true { out_meta = opts["out"] }
 
+    var trace_intro_meta = _trace_introspection_enabled()
+    var t0m = 0
+    if trace_intro_meta == true { t0m = oren_time_now_ns() }
     var rr = expand_includes_file_result(path, [])
     if rr["ok"] != true {
         var emsg = "Failed to read file: " + path
@@ -498,26 +520,9 @@ fn _compiler_run_meta_cmd(pos, opts, seen, dbg_flow) {
         oren_exit(2)
     }
     var src = rr["src"]
-    var l = lexer.new_lexer(src)
-    l["file"] = path
-    var p = parser.new_parser(l)
-    p["strict_attrs"] = STRICT_ATTRS
-    p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
-    p["strict_ident_prefixes"] = STRICT_IDENT_PREFIXES
-    p["ident_allow_prefixes"] = IDENT_ALLOW_PREFIXES
-    var prog = parser.parse_program(p)
-    if oren_list_len(p["errors"]) > 0 {
-        var first_err = nil
-        if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
-        emit_diag("parse", 1, first_err)
-        print("Parse errors:")
-        var ei = 0
-        while ei < oren_list_len(p["errors"]) {
-            print(p["errors"][ei])
-            ei = ei + 1
-        }
-        oren_exit(1)
-    }
+    _trace_introspection_phase(trace_intro_meta, "meta read", t0m)
+    var prog = _parse_introspection_program_or_die(path, src, STRICT_ATTRS, ATTR_ALLOW_PREFIXES, STRICT_IDENT_PREFIXES, IDENT_ALLOW_PREFIXES)
+    _trace_introspection_phase(trace_intro_meta, "meta parse", t0m)
 
     // `oren meta` is an introspection command; it should include metadata for all
     // declared symbols, not only those reachable from `main`.
@@ -528,7 +533,9 @@ fn _compiler_run_meta_cmd(pos, opts, seen, dbg_flow) {
     if backend0m == nil { backend0m = "c" }
     var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0m, "debug": cfg_debugm, "keep_all_top_level_functions": true})
     _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_meta, "meta", linked)
+    _trace_introspection_phase(trace_intro_meta, "meta link", t0m)
     var meta_json = metadata.generate_metadata(linked)
+    _trace_introspection_phase(trace_intro_meta, "meta summary", t0m)
     var meta_domains = metadata.cap_required_domains(linked["statements"])
     var meta_profile = _runtime_profile_request_for_manifest("meta", false)
     var meta_policy = _artifact_manifest_policy_with_package("meta", false, [], meta_domains, metadata.json_package_manifest(linked["statements"]), metadata.json_package_policy_check(linked["statements"], meta_profile, []))
@@ -544,6 +551,7 @@ fn _compiler_run_meta_cmd(pos, opts, seen, dbg_flow) {
         oren_exit(1)
     }
     print("Wrote metadata: " + out_meta)
+    _trace_introspection_phase(trace_intro_meta, "meta write", t0m)
     if deterministic || emit_manifest {
         var bs = oren_read_u8_buf(out_meta)
         if oren_is_err(bs) {

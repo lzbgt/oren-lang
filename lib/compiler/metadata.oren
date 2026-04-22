@@ -9,6 +9,12 @@ fn str_starts_with(s, prefix) {
     return oren_string_slice(s, 0, lp) == prefix
 }
 
+fn is_hidden_generator_helper_name(name) {
+    if str_starts_with(name, "_oren_generator_") == true { return true }
+    if str_starts_with(name, "oren_generator_") == true { return true }
+    return false
+}
+
 fn escape_json_string(s) {
     // Minimal JSON escaping for strings we emit in metadata.
     // Keep it deterministic and avoid allocations beyond concatenation.
@@ -1012,6 +1018,10 @@ fn generate_metadata(prog) {
         var s = stmts[i]
         var entry = analysis.top_level_function_surface_entry(s)
         if entry != nil {
+            if is_hidden_generator_helper_name(entry["name"]) == true {
+                i = i + 1
+                continue
+            }
             var func = entry["func"]
             if trace_meta_funcs {
                 print("[trace] metadata function start " + entry["name"])
