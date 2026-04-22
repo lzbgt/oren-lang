@@ -1451,12 +1451,19 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				       `lib/avm/avm_state.inc` is back under that threshold too after splitting record/replay
 				       and snapshot/restore helpers into `lib/avm/avm_state_rr.inc` and
 				       `lib/avm/avm_state_snapshot.inc`
-				     - the remaining large-file debt is now concentrated even more narrowly in older generic
-				       AVM hosts such as `lib/avm/avm_native.inc`; the universe/VFS helper cluster now lives in
-				       `lib/avm/avm_native_fs_universe_helpers.inc`, the clone/value helper cluster now lives in
-				       `lib/avm/avm_native_clone_helpers.inc`, and the capability-domain dispatch body is now
-				       split into `lib/avm/avm_native_capability_domain_fs.inc` plus
-				       `lib/avm/avm_native_capability_domains_misc.inc` instead of remaining fully inline
+					     - the remaining large-file debt is now reweighted again after the AVM native host split:
+					       `lib/avm/avm_native.inc` is back under the repo’s 2000-line red line too, while its
+					       former inline islands now live in `lib/avm/avm_native_fs_universe_helpers.inc`,
+					       `lib/avm/avm_native_clone_helpers.inc`,
+					       `lib/avm/avm_native_object_buffer_cases_a.inc`,
+					       `lib/avm/avm_native_buffer_cases_b.inc`,
+					       `lib/avm/avm_native_buffer_cases_c.inc`,
+					       `lib/avm/avm_native_buffer_cases_d.inc`,
+					       `lib/avm/avm_native_capability_domain_fs.inc`, and
+					       `lib/avm/avm_native_capability_domains_misc.inc`. The remaining oversized code-file
+					       debt is now outside this host: `lib/compiler/arm64_native_stmt_loops_list_emit.oren`,
+					       `lib/compiler/arm64_native_stmt.oren`,
+					       `lib/compiler/compiler/040_build_pipeline/010_main.oren`, and `lib/avm/main.c`.
 		   - New (2026-04-22): the default verification lane is back to green after aligning
 		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
 		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining
