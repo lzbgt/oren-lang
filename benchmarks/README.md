@@ -716,6 +716,26 @@ spills are mechanically cleaner, but not enough to keep on the shipped tree by t
 future retry has to pair that narrower spill contract with a stronger recurrence/control win or a
 correctness need.
 
+A narrower two-stream recurrence follow-up under that same shipped four-wide body also stays
+rejected. This rerun kept the shipped safepoint spill width unchanged and only split the carried
+values into two live streams (`x24/x25`) plus a shared `2*step mod` delta in `x26`, so it avoids
+the wider spill/reset tax that killed the earlier four-stream attempt. The emitted loop still only
+improved slightly:
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_063816_94224.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_063815_94203.log` show the wide main
+iteration dropping from `35` hot instructions for `4` outputs (`8.75` per element) to `34`
+(`8.50` per element), while the cold GC-tick side blocks stay at the shipped `16` instructions.
+
+That spill-neutral retry still loses cleanly on the real current-tree ranking surface:
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-two-stream-decision-20260423_063427_92506.log`
+prefers the shipped default on every tracked metric. Fill/share regressed
+(`default_fill_vs_c_vector ~2.1431x` vs enabled `~2.2392x`), exact `array_sum_int` median also
+preferred default (`default_array_ratio_median ~2.2033x` vs enabled `~2.2142x`), and exact
+`dot_product_int` median preferred default too (`default_dot_ratio_median ~1.5928x` vs enabled
+`~1.6949x`, `decision_surface_alignment: agree`). Reweight again: the open gap is no longer just
+"multi-stream, but without wider safepoints"; even the spill-neutral two-stream recurrence split
+stays worse than the shipped serial wide body.
+
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 
 ```bash

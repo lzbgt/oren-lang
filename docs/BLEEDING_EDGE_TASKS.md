@@ -2607,6 +2607,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      enough to ship as a standalone perf move; any future retry has to be paired
 										      with a stronger recurrence/control improvement or justified by a correctness
 										      need.
+										    - Arm64 explicit push nonnegative-linear two-stream recurrence follow-up (2026-04-23):
+										      the next spill-neutral multi-stream retry under that same shipped four-wide
+										      body is now also closed negative. A temporary rerun kept the shipped
+										      safepoint spill width unchanged and only split the carried values into two
+										      live streams (`x24/x25`) plus a shared `2*step mod` delta in `x26`. The
+										      emitted loop still improved slightly:
+										      `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_063816_94224.log`
+										      and
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_063815_94203.log`
+										      show the wide main iteration dropping from `35` hot instructions for `4`
+										      outputs (`8.75` per element) to `34` (`8.50` per element), while the cold
+										      GC-tick side blocks stay at the shipped `16`. The actual same-tree decision
+										      surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-two-stream-decision-20260423_063427_92506.log`)
+										      still rejected promotion cleanly on every tracked metric: fill/share
+										      preferred the shipped default (`default_fill_vs_c_vector ~2.1431×` vs
+										      enabled `~2.2392×`), exact `array_sum_int` median also preferred default
+										      (`default_array_ratio_median ~2.2033×` vs enabled `~2.2142×`), and exact
+										      `dot_product_int` median preferred default too (`default_dot_ratio_median
+										      ~1.5928×` vs enabled `~1.6949×`, `decision_surface_alignment: agree`).
+										      Reweight again: the remaining blocker is no longer just “multi-stream
+										      without a wider safepoint spill tax”; even that narrower recurrence split
+										      loses to the shipped serial four-wide body.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface
