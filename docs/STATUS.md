@@ -1452,8 +1452,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				       and snapshot/restore helpers into `lib/avm/avm_state_rr.inc` and
 				       `lib/avm/avm_state_snapshot.inc`
 				     - the remaining large-file debt is now concentrated even more narrowly in older generic
-				       AVM hosts such as `lib/avm/avm_native.inc`, with the universe/VFS helper cluster now
-				       extracted into `lib/avm/avm_native_fs_universe_helpers.inc` instead of staying inline
+				       AVM hosts such as `lib/avm/avm_native.inc`; the universe/VFS helper cluster now lives in
+				       `lib/avm/avm_native_fs_universe_helpers.inc`, the clone/value helper cluster now lives in
+				       `lib/avm/avm_native_clone_helpers.inc`, and the capability-domain dispatch body is now
+				       split into `lib/avm/avm_native_capability_domain_fs.inc` plus
+				       `lib/avm/avm_native_capability_domains_misc.inc` instead of remaining fully inline
 		   - New (2026-04-22): the default verification lane is back to green after aligning
 		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
 		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining

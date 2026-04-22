@@ -4262,11 +4262,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						     print/iter/string reflection helpers now live in `lib/runtime/043_print_iter_string.inc`.
 						     `lib/runtime/010_prelude.inc`, `lib/runtime/040_lists_maps.inc`, and
 						     `lib/avm/avm_state.inc` are all back under the 2000-line threshold; the AVM state host
-						     split now lives in `lib/avm/avm_state_rr.inc` and `lib/avm/avm_state_snapshot.inc`, and
-						     the universe/VFS/native helper cluster now lives in
-						     `lib/avm/avm_native_fs_universe_helpers.inc`. Reweight the next debt payoff toward the
-						     remaining generic oversized AVM host `lib/avm/avm_native.inc` instead of reopening
-						     settled generator semantics.
+						     split now lives in `lib/avm/avm_state_rr.inc` and `lib/avm/avm_state_snapshot.inc`, the
+						     universe/VFS/native helper cluster now lives in
+						     `lib/avm/avm_native_fs_universe_helpers.inc`, the clone/value helper cluster now lives in
+						     `lib/avm/avm_native_clone_helpers.inc`, and the capability-domain dispatcher body now
+						     lives in `lib/avm/avm_native_capability_domain_fs.inc` plus
+						     `lib/avm/avm_native_capability_domains_misc.inc`. Reweight the next debt payoff toward
+						     the remaining generic oversized legacy-native host logic inside `lib/avm/avm_native.inc`
+						     instead of reopening settled generator semantics.
 					   - New (2026-04-22): the repo-default verification lane is green again after moving the
 					     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
 					     broader generator surface verifier. Reweight the next task above correctness: optimize the

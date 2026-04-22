@@ -162,9 +162,13 @@ backend-shared value-helper slices landed.
       `lib/avm/avm_state_snapshot.inc`
     - the universe/VFS/native helper cluster is now split out of `lib/avm/avm_native.inc` into
       `lib/avm/avm_native_fs_universe_helpers.inc`
+    - the clone/value helper cluster now lives in `lib/avm/avm_native_clone_helpers.inc`
+    - the capability-domain dispatcher body now lives in
+      `lib/avm/avm_native_capability_domain_fs.inc` and
+      `lib/avm/avm_native_capability_domains_misc.inc`
     - `lib/runtime/010_prelude.inc` and `lib/runtime/040_lists_maps.inc` stay back under the red
-      line, so the remaining oversized debt is now dominated by the older generic AVM host
-      `lib/avm/avm_native.inc`
+      line, so the remaining oversized debt is now dominated by the older generic legacy-native
+      switch logic still inside `lib/avm/avm_native.inc`
   - the default repo verification lane stays green by using the stage1 `./oren` tool path for
     generator finalize `meta` / `dump linked` parity, matching the broader generator surface verifier;
     the remaining narrow tooling issue is stage2 `dump linked` throughput on
