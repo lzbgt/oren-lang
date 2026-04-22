@@ -237,6 +237,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `make test` (`build/logs/make_test_20260423_012704_default_on_promote_v2.log`) both pass with
      the default-on branch. Reweight next work away from more branch-isolation experiments and
      toward the residual list build/fill lifetime cost on this now-revalidated shipped surface.
+   - Update (2026-04-23): the next constructor-path runtime micro-branch is now rejected on that
+     same shipped surface too. The exact same-tree baseline remains
+     `build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`
+     (`default_fill_vs_c_vector ~2.3103×`, fill `per_rep_s ~0.003096`). A first rerun that gated
+     arena/non-arena constructor trace/index work behind active ctor tracing
+     (`build/logs/perf-probe-list-int-fill-share-decision-20260423_015415_6018.log`) regressed to
+     `~2.3671×` / `~0.003145`, and the follow-up that also short-circuited the immediate
+     arena-retag lookup (`build/logs/perf-probe-list-int-fill-share-decision-20260423_015936_6969.log`)
+     regressed further to `~2.3970×` / `~0.003188`. Do not reopen that constructor trace/retag
+     seam without new evidence; the remaining blocker is below the constructor boundary.
 	   - Update (2026-04-21): the shared native quick path now carries an explicit GC reuse tracking
 	     smoke. `tests/native/test_gc_reuse_tracking.oren` was tightened so the dead headers are
 	     created through `oren_new_list(0)` and an escaping aggregate, then

@@ -199,6 +199,15 @@ backend-shared value-helper slices landed.
     (`build/logs/make_verify_native_quick_20260423_011547_default_on_promote_v1.log`)
     plus the full repo lane
     (`build/logs/make_test_20260423_012704_default_on_promote_v2.log`)
+  - the next runtime constructor micro-hypothesis on that same shipped fill surface is now also
+    settled negative: compared with the current baseline
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`,
+    fill `per_rep_s ~0.003096`, `fill_vs_c_vector ~2.3103×`), a rerun that gated constructor
+    trace/index bookkeeping behind active ctor tracing
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_015415_6018.log`) regressed to
+    `~0.003145` / `~2.3671×`, and the follow-up that also bypassed the immediate arena retag table
+    lookup (`build/logs/perf-probe-list-int-fill-share-decision-20260423_015936_6969.log`)
+    regressed again to `~0.003188` / `~2.3970×`
 
 - Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
   sugar too, without changing the public handle layout again. The compiler-generated bridge:
