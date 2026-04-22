@@ -3393,19 +3393,20 @@ Rolling status:
   `start/next/send/collect` surface is now a thin facade over compiler-injected
   `oren_generator_*` helpers and a compiler-managed `generator` handle. That handle is intentionally
   opaque at the language contract level: workers use `yield ... in co`, helpers validate generator
-  handles / generator contexts, and the old public map lifecycle fields such as `yield_ch`,
-  `resume_ch`, `done_ch`, `worker`, `task`, `started`, `done`, and `return` are no longer part of
-  the supported surface. The shared channel/select runtime still carries the underlying exchange,
-  but the remaining gap is broader coroutine/generator protocol above that first compiler-managed
-  handle, not first availability of source syntax or reusable generator helpers.
+  handles / generator contexts, and the generator substrate no longer depends on map semantics at
+  all. The shipped handle/context now ride on hidden list capsules rather than public map fields
+  like `yield_ch`, `resume_ch`, `done_ch`, `worker`, `task`, `started`, `done`, and `return`. The
+  shared channel/select runtime still carries the underlying exchange, but the remaining gap is
+  broader coroutine/generator protocol above that first compiler-managed handle, not first
+  availability of source syntax or reusable generator helpers.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
   on top of that same protocol:
   - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
   - the declaration lowers to a wrapper that returns `oren_generator_start(...)`
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
     `generator_context_v0` exchange contract (`yield ... in co`)
-  - metadata now reports that object contract as `compiler_generator_object_v1` with
-    `generator_handle_v1` and `hidden_internal_keys_v1`
+  - metadata now reports that object contract as `compiler_generator_object_v2` with
+    `generator_handle_v2` and `hidden_list_capsule_v2`
   - the same v0 surface is now verified for both top-level and block-local declarations across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
@@ -3699,9 +3700,9 @@ Notes:
 - Generator declaration sugar is exposed separately too:
   - `is_generator_decl`: `true` for functions declared with `@oren.generator`
   - `generator_decl_surface`: machine-readable statement of the current generator object protocol
-    (`compiler_generator_object_v1`, syntax `attr_oren.generator`, helper API
-    `oren_generator_start_v1`, caller handle `generator_handle_v1`, object type `generator`,
-    underlying yield surface `generator_context_v0`, state layout `hidden_internal_keys_v1`,
+    (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
+    `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
+    underlying yield surface `generator_context_v0`, state layout `hidden_list_capsule_v2`,
     worker context type `generator_context`)
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:

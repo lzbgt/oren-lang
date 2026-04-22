@@ -743,14 +743,14 @@ fn function_generator_decl_surface(func) {
         return nil
     }
     return {
-        "version": 4,
-        "surface": "compiler_generator_object_v1",
+        "version": 5,
+        "surface": "compiler_generator_object_v2",
         "syntax": "attr_oren.generator",
-        "helper_api": "oren_generator_start_v1",
-        "caller_api": "generator_handle_v1",
+        "helper_api": "oren_generator_start_v2",
+        "caller_api": "generator_handle_v2",
         "object_type": "generator",
         "yield_surface": "generator_context_v0",
-        "state_layout": "hidden_internal_keys_v1",
+        "state_layout": "hidden_list_capsule_v2",
         "worker_context_type": "generator_context",
     }
 }

@@ -44,28 +44,33 @@ fn exchange_syntax_nil(out_ch, in_ch, seed) {
 }
 
 fn exchange_context_var(co, args) {
+    if oren_type_name(co) != "generator_context" { return -3000 }
     var seed = args[0]
     var resumed = yield (seed + 9) in co
     return resumed + 16
 }
 
 fn exchange_context_return(co, args) {
+    if oren_type_name(co) != "generator_context" { return -3010 }
     var seed = args[0]
     return yield (seed + 10) in co
 }
 
 fn exchange_context_call_arg(co, args) {
+    if oren_type_name(co) != "generator_context" { return -3020 }
     var seed = args[0]
     return add1_exchange(yield (seed + 11) in co)
 }
 
 fn exchange_context_stmt(co, args) {
+    if oren_type_name(co) != "generator_context" { return -3030 }
     var seed = args[0]
     yield (seed + 12) in co
     return seed + 13
 }
 
 fn exchange_context_nil(co, args) {
+    if oren_type_name(co) != "generator_context" { return -3040 }
     var seed = args[0]
     var resumed = yield in co
     return resumed + seed

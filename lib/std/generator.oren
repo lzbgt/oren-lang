@@ -1,8 +1,9 @@
 // std/generator.oren
 //
 // Thin stdlib facade over the compiler-injected generator core surface.
-// The underlying handle is now a dedicated tagged object (`oren_type_name(gen) == "generator"`),
-// and worker bodies should treat `co` as an opaque generator context:
+// The underlying handle is now a compiler-managed hidden list capsule
+// (`oren_type_name(gen) == "generator"`), and worker bodies should treat `co`
+// as an opaque generator context rather than a map of channels:
 // - `start(worker, args_list)` expects `worker(co, args_list)`
 // - `yield [expr] in co` is the shared source-level yield/resume contract inside that worker
 // - `next/send/is_done/return_value/collect` delegate to the shared runtime/compiler helpers

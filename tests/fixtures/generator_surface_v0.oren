@@ -2,7 +2,6 @@ import gen "std:generator"
 
 fn counter_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -900 }
-    if co["yield_ch"] != nil || co["resume_ch"] != nil { return -901 }
     var seed = args[0]
     var resumed0 = yield (seed + 1) in co
     var resumed1 = yield (seed + resumed0) in co
@@ -11,7 +10,6 @@ fn counter_worker(co, args) {
 
 fn nil_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -910 }
-    if co["yield_ch"] != nil || co["resume_ch"] != nil { return -911 }
     var seed = args[0]
     yield in co
     return seed + 7
@@ -19,7 +17,6 @@ fn nil_worker(co, args) {
 
 fn collect_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -920 }
-    if co["yield_ch"] != nil || co["resume_ch"] != nil { return -921 }
     var seed = args[0]
     var i = 0
     while i < 3 {
@@ -90,9 +87,6 @@ fn main() {
 
     var g1 = gen.start(counter_worker, [40])
     if oren_type_name(g1) != "generator" { return 93 }
-    if g1["yield_ch"] != nil || g1["resume_ch"] != nil || g1["done_ch"] != nil { return 94 }
-    if g1["worker"] != nil || g1["args_list"] != nil || g1["task"] != nil { return 95 }
-    if g1["started"] != nil || g1["done"] != nil || g1["return"] != nil { return 96 }
     var s0 = gen.next(g1)
     if oren_is_err(s0) == true { return 100 }
     if s0["ok"] != true || s0["done"] != false || s0["value"] != 41 { return 101 }
@@ -148,7 +142,6 @@ fn main() {
 
     var g5 = decl_counter(40)
     if oren_type_name(g5) != "generator" { return 139 }
-    if g5["yield_ch"] != nil || g5["resume_ch"] != nil || g5["done_ch"] != nil { return 174 }
     var d0 = gen.next(g5)
     if oren_is_err(d0) == true { return 140 }
     if d0["ok"] != true || d0["done"] != false || d0["value"] != 41 { return 141 }

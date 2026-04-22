@@ -2507,7 +2507,21 @@ OrenValue oren_type_name(OrenValue v) {
         case OREN_TYPE_BOOL: return oren_string_const("bool");
         case OREN_TYPE_STRING: return oren_string_const("string");
         case OREN_TYPE_PY_OBJ: return oren_string_const("py_obj");
-        case OREN_TYPE_LIST: return oren_string_const("list");
+        case OREN_TYPE_LIST: {
+            OrenList* l = v.as.list_val;
+            if (l) {
+                pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+                oren_obj_lock(mu);
+                OrenValue tag = OREN_NIL;
+                if (l->count > 0) tag = l->items[0];
+                oren_obj_unlock(mu);
+                if (tag.type == OREN_TYPE_STRING && tag.as.string_val) {
+                    if (strcmp(tag.as.string_val, "__oren_generator_handle_v2") == 0) return oren_string_const("generator");
+                    if (strcmp(tag.as.string_val, "__oren_generator_context_v2") == 0) return oren_string_const("generator_context");
+                }
+            }
+            return oren_string_const("list");
+        }
         case OREN_TYPE_MAP: {
             // Rolling reflection v0: type constructor values are map-shaped and tagged with:
             //   {"__oren_type":"User", ...}

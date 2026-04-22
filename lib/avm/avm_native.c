@@ -1,4 +1,5 @@
 #include "avm_internal.h"
+#include "avm_vm_values.h"
 
 #include <errno.h>
 #include <stdio.h>

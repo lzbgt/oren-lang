@@ -4247,7 +4247,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     compiler-managed handle surface instead of a hidden `std:generator.start(...)` import.
 	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 	     wrapper”, and the shipped handle contract is now also opaque by default
-	     (`compiler_generator_object_v1` with `hidden_internal_keys_v1` plus validated
+	     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
 	     `generator_context`). The remaining work is the next abstraction layer above the shipped
 	     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually

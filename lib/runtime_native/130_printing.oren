@@ -390,7 +390,16 @@ fn oren_type_name(v) {
     if t == 3 { return "bool" }
     if t == 4 { return "string" }
     if t == 5 { return "py_obj" }
-    if t == 6 { return "list" }
+    if t == 6 {
+        if oren_list_len(v) > 0 {
+            var tag0 = oren_list_get(v, 0)
+            if oren_is_string(tag0) == true {
+                if tag0 == "__oren_generator_handle_v2" { return "generator" }
+                if tag0 == "__oren_generator_context_v2" { return "generator_context" }
+            }
+        }
+        return "list"
+    }
     if t == 7 {
         // Rolling reflection v0:
         // Type constructors are map-shaped values tagged with `__oren_type`.

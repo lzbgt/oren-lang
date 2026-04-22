@@ -77,14 +77,14 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 4,
-    "surface": "compiler_generator_object_v1",
+    "version": 5,
+    "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
-    "helper_api": "oren_generator_start_v1",
-    "caller_api": "generator_handle_v1",
+    "helper_api": "oren_generator_start_v2",
+    "caller_api": "generator_handle_v2",
     "object_type": "generator",
     "yield_surface": "generator_context_v0",
-    "state_layout": "hidden_internal_keys_v1",
+    "state_layout": "hidden_list_capsule_v2",
     "worker_context_type": "generator_context",
 }
 
@@ -129,8 +129,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:38:20",
-            "tests/fixtures/generator_surface_v0.oren:39:20",
+            "tests/fixtures/generator_surface_v0.oren:35:20",
+            "tests/fixtures/generator_surface_v0.oren:36:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -138,14 +138,14 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_nil", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:45:5"],
+        sites=["tests/fixtures/generator_surface_v0.oren:42:5"],
         context="expr_stmt",
         explicit_value=False,
     )
     assert_decl(
         get_func(payload, "decl_collect", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:53:9"],
+        sites=["tests/fixtures/generator_surface_v0.oren:50:9"],
         context="expr_stmt",
         explicit_value=True,
     )

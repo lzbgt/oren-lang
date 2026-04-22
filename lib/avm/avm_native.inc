@@ -2407,7 +2407,15 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         case 150: { // oren_type_name(v) -> string
             if (nargs > 0) {
                 AvmValue v = args[0];
-                if (v.type == AVM_VAL_MAP) {
+                if (v.type == AVM_VAL_LIST) {
+                    AvmValue tag = avm_list_get_value(v, avm_int(0));
+                    if (tag.type == AVM_VAL_STRING) {
+                        const char* s = (const char*)tag.as.p;
+                        if (s && strcmp(s, "__oren_generator_handle_v2") == 0) { res = avm_string("generator"); break; }
+                        if (s && strcmp(s, "__oren_generator_context_v2") == 0) { res = avm_string("generator_context"); break; }
+                    }
+                    res = avm_string("list");
+                } else if (v.type == AVM_VAL_MAP) {
                     AvmValue outv;
                     if (avm_map_get_key(v, "__oren_type", &outv)) {
                         if (outv.type == AVM_VAL_STRING) { res = outv; break; }

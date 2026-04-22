@@ -1415,12 +1415,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` declaration sugar now
 	     lowers to that same compiler-managed generator-handle surface instead of a hidden
 	     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
-	     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v1`, so tools can
+	     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v2`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 	     `generator_context_v0` worker-facing yield contract and binding-sensitive
-	     `yield_exchange_surface`. That v1 surface now explicitly records
-	     `state_layout=hidden_internal_keys_v1` and `worker_context_type=generator_context`, and the
-	     helper APIs validate bad handles/contexts instead of depending on exposed public map fields.
+	     `yield_exchange_surface`. That v2 surface now explicitly records
+	     `state_layout=hidden_list_capsule_v2` and `worker_context_type=generator_context`, and the
+	     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
+	     lifecycle fields.
 	     The remaining boundary is now declaration shape, not scope: `@oren.generator` still requires
 	     a named function declaration.
 	   - New (2026-04-22): the focused exchange/generator verifiers now read source-side
