@@ -86,8 +86,10 @@ expected_hidden_names = {
     "_oren_generator_resume",
     "_oren_generator_set",
     "_oren_generator_step_value",
+    "_oren_generator_trace",
     "_oren_generator_yield_step",
     "oren_generator_collect",
+    "oren_generator_delegate",
     "oren_generator_is_done",
     "oren_generator_next",
     "oren_generator_return_value",
@@ -147,7 +149,7 @@ def exchange_expect(site, context, syntax, explicit_value, binding):
     }
 
 expected_generator_decl_surface = {
-    "version": 7,
+    "version": 9,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -157,6 +159,11 @@ expected_generator_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
+    "resume_surface": "next_send_delegate_v0",
+    "next_api": "oren_generator_next_v2",
+    "send_api": "oren_generator_send_v2",
+    "delegate_api": "oren_generator_delegate_v0",
+    "delegate_mode": "inline_fresh_handle_v0",
     "state_layout": "hidden_list_capsule_v2",
     "worker_context_type": "generator_context",
     "decl_forms": ["named_function_decl", "function_valued_var"],

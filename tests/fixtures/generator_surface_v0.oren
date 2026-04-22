@@ -26,6 +26,46 @@ fn collect_worker(co, args) {
     return seed + 30
 }
 
+fn delegate_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -930 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 50
+}
+
+fn delegate_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -931 }
+    var inner = gen.start(delegate_inner_worker, [args[0]])
+    var retv = gen.delegate(co, inner)
+    return retv + 7
+}
+
+fn delegate_outer_direct_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -932 }
+    var inner = oren_generator_start(delegate_inner_worker, [args[0]])
+    var retv = oren_generator_delegate(co, inner)
+    return retv + 9
+}
+
+fn delegate_collect_inner(co, args) {
+    if oren_type_name(co) != "generator_context" { return -933 }
+    var seed = args[0]
+    var i = 0
+    while i < 3 {
+        yield (seed + i) in co
+        i = i + 1
+    }
+    return seed + 30
+}
+
+fn delegate_collect_outer(co, args) {
+    if oren_type_name(co) != "generator_context" { return -934 }
+    var inner = gen.start(delegate_collect_inner, [args[0]])
+    var retv = gen.delegate(co, inner)
+    return retv + 11
+}
+
 fn exchange_bad_context(seed) {
     return yield (seed + 99) in 123
 }
@@ -160,6 +200,42 @@ fn main() {
     if ys[0] != 9 || ys[1] != 10 || ys[2] != 11 { return 135 }
     if gen.is_done(g4b) != true || gen.return_value(g4b) != 39 { return 136 }
 
+    var g4c = gen.start(delegate_outer_worker, [30])
+    var dg0 = gen.next(g4c)
+    if oren_is_err(dg0) == true { return 1361 }
+    if dg0["ok"] != true || dg0["value"] != 31 { return 1362 }
+    var dg1 = gen.send(g4c, 2)
+    if oren_is_err(dg1) == true { return 1363 }
+    if dg1["ok"] != true || dg1["value"] != 32 { return 1364 }
+    var dg2 = gen.send(g4c, 7)
+    if oren_is_err(dg2) == true { return 1365 }
+    if dg2["done"] != true || dg2["return"] != 64 { return 1366 }
+    if gen.is_done(g4c) != true || gen.return_value(g4c) != 64 { return 1367 }
+
+    var g4d = gen.start(delegate_outer_direct_worker, [40])
+    var dd0 = gen.next(g4d)
+    if oren_is_err(dd0) == true { return 1368 }
+    if dd0["ok"] != true || dd0["value"] != 41 { return 1369 }
+    var dd1 = gen.send(g4d, 3)
+    if oren_is_err(dd1) == true { return 1370 }
+    if dd1["ok"] != true || dd1["value"] != 43 { return 1371 }
+    var dd2 = gen.send(g4d, 8)
+    if oren_is_err(dd2) == true { return 1372 }
+    if dd2["done"] != true || dd2["return"] != 67 { return 1373 }
+
+    var g4e = gen.start(delegate_collect_outer, [5])
+    var dxs2 = gen.collect(g4e)
+    if oren_is_err(dxs2) == true { return 1374 }
+    if oren_list_len(dxs2) != 3 { return 1375 }
+    if dxs2[0] != 5 || dxs2[1] != 6 || dxs2[2] != 7 { return 1376 }
+    if gen.return_value(g4e) != 46 { return 1377 }
+
+    var g4f = gen.start(delegate_collect_outer, [9])
+    var dsum2 = 0
+    for dv2 in g4f { dsum2 = dsum2 + dv2 }
+    if dsum2 != 30 { return 1378 }
+    if gen.is_done(g4f) != true || gen.return_value(g4f) != 50 { return 1379 }
+
     var g5 = decl_counter(40)
     if oren_type_name(g5) != "generator" { return 139 }
     var d0 = gen.next(g5)
@@ -213,6 +289,13 @@ fn main() {
     var dl1 = gen.send(g7c, 4)
     if oren_is_err(dl1) == true { return 184 }
     if dl1["done"] != true || dl1["return"] != 13 { return 185 }
+
+    var bad_delegate_ctx = gen.delegate(123, g1)
+    if oren_is_err(bad_delegate_ctx) != true { return 186 }
+    var bad_delegate_inner = gen.delegate(123, 456)
+    if oren_is_err(bad_delegate_inner) != true { return 187 }
+    var bad_delegate_direct = oren_generator_delegate(123, 456)
+    if oren_is_err(bad_delegate_direct) != true { return 188 }
 
     var local_bias = 7
     fn local_add(a, b) {

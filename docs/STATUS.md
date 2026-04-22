@@ -1407,7 +1407,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `syntax_kinds` plus per-point `syntax` / `explicit_value`. The remaining gap is fuller
 	     coroutine/generator protocol above that explicit channel surface.
 	   - New (2026-04-22): the first reusable source-level generator abstraction now ships as
-	     `std:generator`. Its `start/next/send/collect` API is now a thin facade over
+	     `std:generator`. Its `start/next/send/delegate/collect` API is now a thin facade over
 	     compiler-injected `oren_generator_*` helpers, so the shipped handle is tagged as
 	     `generator` instead of being exposed only as an ad hoc stdlib map. Worker bodies now use
 	     `yield ... in co` as the normalized generator-context contract, while the same explicit
@@ -1418,13 +1418,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
 	     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v2`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
-	     `generator_context_v0` worker-facing yield contract and binding-sensitive
-	     `yield_exchange_surface`. That v2 surface now explicitly records
-	     `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`,
-	     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and
-	     `decl_forms=["named_function_decl","function_valued_var"]`, and the
-	     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
-	     lifecycle fields.
+		     `generator_context_v0` worker-facing yield contract and binding-sensitive
+		     `yield_exchange_surface`. That v2 surface now explicitly records
+		     `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`,
+		     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
+		     `resume_surface=next_send_delegate_v0`, `next_api=oren_generator_next_v2`,
+		     `send_api=oren_generator_send_v2`, `delegate_api=oren_generator_delegate_v0`,
+		     `delegate_mode=inline_fresh_handle_v0`, and
+		     `decl_forms=["named_function_decl","function_valued_var"]`, and the
+		     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
+		     lifecycle fields.
 	   - New (2026-04-22): generator handles are now iterable too. `for x in gen { ... }` works
 	     across bytecode, C, and native by routing generator handles through the compiler-managed
 	     generator bridge while resuming each step with implicit `nil`. This gives language-level
@@ -1444,6 +1447,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	       cases under `./oren_stage2 build --backend bytecode`
 	     - `scripts/probe_generator_import_yield_regression.sh` is now a positive guard and is
 	       wired into `make test` through `verify-generator-import-yield-regression`
+		   - New (2026-04-22): generator delegation is now re-opened on top of that fixed stage2 path via
+		     `oren_generator_delegate(co, inner)` and the `std:generator.delegate(co, inner)` facade.
+		     The shipped v0 mode is `inline_fresh_handle_v0`: it inlines a fresh inner generator handle
+		     into the current outer `generator_context`, returns the inner generator’s final return value,
+		     rejects partially-started inner handles, and still keeps imported delegated composition covered
+		     across bytecode/C/native plus the stage2 imported-generator probe.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

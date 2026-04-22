@@ -4237,20 +4237,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     `yield in (yield_ch, resume_ch)`), with metadata distinguishing source syntax from raw helper
 	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`. The remaining gap is a
 	     stronger language-level coroutine/generator protocol above that explicit channel surface.
-	   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
-	     top of that explicit exchange contract, but it is no longer the storage owner. Its
-	     `start/next/send/collect` surface is now a thin facade over compiler-injected
-	     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
-	     use `yield ... in co` as the normalized generator-context surface instead of spelling out
-	     raw channel fields.
+		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
+		     top of that explicit exchange contract, but it is no longer the storage owner. Its
+		     `start/next/send/delegate/collect` surface is now a thin facade over compiler-injected
+		     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
+		     use `yield ... in co` as the normalized generator-context surface instead of spelling out
+		     raw channel fields.
 	   - New (2026-04-22): top-level and block-local `@oren.generator` now lower to that same
 	     compiler-managed handle surface for both named `fn ...` declarations and function-valued
 	     `var` bindings instead of a hidden `std:generator.start(...)` import.
 	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 	     wrapper”, and the shipped handle contract is now also opaque by default
-	     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
-	     `generator_context`, declaration-form metadata, and `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
-	     `generator` handle
+		     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
+		     `generator_context`, declaration-form metadata, `delegate_mode=inline_fresh_handle_v0`, and
+		     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
+		     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     fuller coroutine language affordances without manual channel semantics leaking through).
 	   - New (2026-04-22): generator handles now participate in generic `for x in iterable`
@@ -4265,9 +4266,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     guarded by a committed four-case matrix instead of living only as a rollback note.
 	     - the metadata emitter path was refactored away from repeated whole-document string
 	       concatenation and onto chunked `oren_string_join(...)` assembly
-	     - `scripts/probe_generator_import_yield_regression.sh` now proves all four committed
-	       `tests/fixtures/generator_import_*` cases compile under `./oren_stage2 build --backend bytecode`
-	     - the probe is pinned in `make test` through `verify-generator-import-yield-regression`
+		     - `scripts/probe_generator_import_yield_regression.sh` now proves all four committed
+		       `tests/fixtures/generator_import_*` cases plus delegated imported composition compile under
+		       `./oren_stage2 build --backend bytecode`
+		     - the probe is pinned in `make test` through `verify-generator-import-yield-regression`
+			   - New (2026-04-22): the next abstraction layer above plain `next/send` is now partially
+			     shipped instead of remaining only a note: `oren_generator_delegate(co, inner)` and
+			     `std:generator.delegate(co, inner)` provide manual generator composition over the same
+			     cross-backend `generator_context` protocol. The shipped v0 mode is
+			     `inline_fresh_handle_v0`: fresh inner handles inline into the current context, completed
+			     handles return cached final values, and partially-started inner handles are rejected. That
+			     makes imported delegated composition a concrete, verified surface while fuller delegation
+			     syntax remains future work.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

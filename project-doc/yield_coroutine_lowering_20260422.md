@@ -156,8 +156,8 @@ backend-shared value-helper slices landed.
   non-`nil` caller input between yields, while `gen.send(...)` remains the richer manual protocol.
 
 - Reverted landing (2026-04-22): attempted richer generator composition through
-  `oren_generator_delegate(...)` is not shipped after stage2 repro reduction exposed a self-hosted
-  bytecode compile regression. Facts from the reduced probes:
+  `oren_generator_delegate(...)` was temporarily unshipped after stage2 repro reduction exposed a
+  self-hosted bytecode compile regression. Facts from the reduced probes were:
   - no-import declaration-only composition compiled under stage2
   - importing `std:generator` in the same module as delegated generator composition triggered the
     stage2 bytecode build regression again, even after removing the worker-style `gen.delegate(...)`
@@ -180,8 +180,8 @@ backend-shared value-helper slices landed.
     separately through metadata inspection, but that did not remove the import-side compile stall
   - because the surface was not robust under the self-hosted compiler, the public delegation syntax
     and metadata claims were rolled back in this turn
-  This remains the next real resume/composition task above the shipped `for-in` / `next` / `send`
-  surface, but it is intentionally not documented as available until the compiler path is fixed.
+  This was the next real resume/composition task above the shipped `for-in` / `next` / `send`
+  surface, but it was intentionally not documented as available until the compiler path was fixed.
 
 - Follow-up fix (2026-04-22): the reduced stage2 bytecode regression above is now fixed.
   Facts from the successful re-run:
@@ -198,8 +198,34 @@ backend-shared value-helper slices landed.
     - `OREN_TRACE_METADATA_FUNCTIONS` around per-function metadata generation
   - `scripts/probe_generator_import_yield_regression.sh` is now a positive guard, and
     `make test` pins it through `verify-generator-import-yield-regression`
-  This clears the compiler blocker for reopening richer generator delegation/resume work, but
-  delegation syntax itself is still intentionally unshipped until a real surface is re-landed.
+  This cleared the compiler blocker for reopening richer generator delegation/resume work.
+
+- Fresh landing (2026-04-22): manual generator delegation is now re-landed on top of the fixed
+  stage2 path.
+  - the compiler-injected generator core now exposes `oren_generator_delegate(co, inner)`
+  - `std:generator` now exposes `delegate(co, inner)` as a thin facade over that helper
+  - the final shipped v0 mode is `inline_fresh_handle_v0`
+  - the helper validates both `co` and `inner`, inlines a fresh inner generator handle directly into
+    the current outer `generator_context`, returns the inner generator’s final return value when
+    delegation completes, and rejects partially-started inner handles
+  - already-completed inner handles are treated as stable values and return their cached final value
+  - this means imported delegated composition is now a real shipped surface again, not only a note:
+    explicit workers can compose generators without re-exposing channel fields or depending on map
+    semantics
+  - the stage2 compile probe now includes delegated imported composition in
+    `tests/fixtures/generator_import_delegate_regression_v0.oren`
+  - runtime coverage lives in:
+    - `tests/fixtures/generator_surface_v0.oren`
+    - `tests/modules/test_generator_std.oren`
+    - `tests/avm/test_generator_v0.oren`
+  - metadata for `@oren.generator` declarations now records the widened manual resume surface as:
+    - `resume_surface = "next_send_delegate_v0"`
+    - `next_api = "oren_generator_next_v2"`
+    - `send_api = "oren_generator_send_v2"`
+    - `delegate_api = "oren_generator_delegate_v0"`
+    - `delegate_mode = "inline_fresh_handle_v0"`
+  Delegation syntax itself is still not reintroduced in this turn; the shipped surface is helper and
+  stdlib based, with the regression floor preserved by the committed stage2 matrix.
 
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:

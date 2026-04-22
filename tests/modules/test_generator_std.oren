@@ -30,6 +30,28 @@ fn nil_worker(co, args) {
     return seed + 7
 }
 
+fn delegate_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -930 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 50
+}
+
+fn delegate_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -931 }
+    var inner = gen.start(delegate_inner_worker, [args[0]])
+    var retv = gen.delegate(co, inner)
+    return retv + 7
+}
+
+fn delegate_outer_direct_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -932 }
+    var inner = oren_generator_start(delegate_inner_worker, [args[0]])
+    var retv = oren_generator_delegate(co, inner)
+    return retv + 9
+}
+
 @oren.generator
 fn decl_counter(seed) {
     var resumed0 = yield (seed + 1)
@@ -152,6 +174,32 @@ fn main() {
     assert_eq(ys[2], 11, 664)
     assert_true(gen.is_done(g5i) == true, 665)
     assert_eq(gen.return_value(g5i), 39, 666)
+
+    var g5d = gen.start(delegate_outer_worker, [30])
+    var ds0 = gen.next(g5d)
+    if oren_is_err(ds0) == true { fail(667) }
+    assert_eq(ds0["value"], 31, 668)
+    var ds1 = gen.send(g5d, 2)
+    if oren_is_err(ds1) == true { fail(669) }
+    assert_eq(ds1["value"], 32, 670)
+    var ds2 = gen.send(g5d, 7)
+    if oren_is_err(ds2) == true { fail(671) }
+    assert_eq(ds2["return"], 64, 672)
+
+    var g5e = gen.start(delegate_outer_direct_worker, [40])
+    var dd0 = gen.next(g5e)
+    if oren_is_err(dd0) == true { fail(673) }
+    assert_eq(dd0["value"], 41, 674)
+    var dd1 = gen.send(g5e, 3)
+    if oren_is_err(dd1) == true { fail(675) }
+    assert_eq(dd1["value"], 43, 676)
+    var dd2 = gen.send(g5e, 8)
+    if oren_is_err(dd2) == true { fail(677) }
+    assert_eq(dd2["return"], 67, 678)
+
+    assert_true(oren_is_err(gen.delegate(123, g5)) == true, 679)
+    assert_true(oren_is_err(gen.delegate(123, 456)) == true, 680)
+    assert_true(oren_is_err(oren_generator_delegate(123, 456)) == true, 681)
 
     var local_bias = 7
     fn local_add(a, b) {
