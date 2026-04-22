@@ -498,22 +498,30 @@ make perf-probe-arm64-fast-push-nonneg-linear-decision
 
 This compares the shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=0` after
 teaching the arm64 explicit `fast_list_int_push_while` lowering to recognize nonnegative
-affine/mod index expressions with a proven safe loop-bound ceiling. Current widened decision
-artifact `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`
-keeps that branch shipped on by default:
+affine/mod index expressions with a proven safe loop-bound ceiling. The current-tree widened
+decision artifact `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_034811_37016.log`
+still keeps that branch shipped on by default:
 
 - fill/share surface strongly preferred the shipped default
-  - default `oren_fill_list_int / c_fill_slot64_vector ~2.8909x`
-  - disabled `~4.3823x`
+  - default `oren_fill_list_int / c_fill_slot64_vector ~2.4026x`
+  - disabled `~5.0016x`
   - `fill_pref: default`
 - exact same-tree whole-operation C ceiling also preferred the shipped default
-  - `default_array_ratio_median ~2.2540x` vs disabled `~2.2740x` (`exact_array_pref: default`)
-  - `default_dot_ratio_median ~1.7910x` vs disabled `~1.8065x` (`exact_dot_pref: default`)
+  - `default_array_ratio_median ~2.2189x` vs disabled `~2.2980x` (`exact_array_pref: default`)
+  - `default_dot_ratio_median ~1.5522x` vs disabled `~1.6406x` (`exact_dot_pref: default`)
   - `decision_surface_alignment: agree`
 
 Keep `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` shipped on. This is the next current-tree
 fill-side improvement after `PUSH_IDX_EXPR` that wins on both the fill attribution surface and the
 exact same-tree whole-operation surface instead of only one of them.
+
+The emitted-code contract under that shipped branch is now guarded too. Disassembly of the real
+`array_sum_int` push loop showed `_arm64_emit_fast_loop_nonneg_linear_to_x0(...)` was reusing `x9`
+for mul/add/mod immediates even though inline GC countdown uses `x9` as the tick register. The
+helper now keeps `x9` reserved and uses `x11`/`x10` scratch instead, push loops now publish
+`[arm64_loop_range]` traces, and `make verify-native-list-int-fast-lowering`
+(`build/logs/verify_native_list_int_fast_lowering_20260423_034642_36487.log`) now disassembles the
+`array_sum_int` push loop and rejects any hot-loop `x9` use other than `subs x9, x9, #0x1`.
 
 One narrower follow-up under that same family was tested and then pruned immediately instead of
 being left behind as another dead branch. The recurrence variant tried to replace the per-iteration

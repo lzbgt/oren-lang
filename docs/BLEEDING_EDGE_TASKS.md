@@ -2435,13 +2435,31 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 											      (`default_array_ratio_median ~2.1964×` vs disabled `~2.3212×`), and exact
 											      `dot_product_int` only moves slightly toward the disabled branch
 											      (`default_dot_ratio_median ~1.3884×` vs disabled `~1.3578×`).
-											      The real shipped safety lane is now green too:
-											      `build/logs/make_verify_native_quick_20260423_011547_default_on_promote_v1.log`
-											      and `build/logs/make_test_20260423_012704_default_on_promote_v2.log` both pass
-											      with the default-on branch. Reweight accordingly: keep the broad
-											      nonnegative-linear path shipped, do not revive the narrower fresh-single-list
-											      isolation, and attack the residual lifetime/setup cost on this exact same-tree
-											      default surface.
+										      The real shipped safety lane is now green too:
+										      `build/logs/make_verify_native_quick_20260423_011547_default_on_promote_v1.log`
+										      and `build/logs/make_test_20260423_012704_default_on_promote_v2.log` both pass
+										      with the default-on branch. Reweight accordingly: keep the broad
+										      nonnegative-linear path shipped, do not revive the narrower fresh-single-list
+										      isolation, and attack the residual lifetime/setup cost on this exact same-tree
+										      default surface.
+										      Emitted-code contract fix (2026-04-23): disassembly of the shipped
+										      `array_sum_int` push loop found `_arm64_emit_fast_loop_nonneg_linear_to_x0(...)`
+										      clobbering `x9` for mul/add/mod immediates even though inline GC countdown uses
+										      `x9` as the tick register inside `fast_list_int_push_while`. The helper now keeps
+										      `x9` reserved and uses `x11`/`x10` scratch instead, both push emitters now publish
+										      `[arm64_loop_range]` traces, and
+										      `build/logs/verify_native_list_int_fast_lowering_20260423_034642_36487.log`
+										      now disassembles `array_sum_int` and rejects any hot-loop `x9` use beyond
+										      `subs x9, x9, #0x1`. The refreshed shipped-vs-disabled rerun
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_034811_37016.log`)
+										      still keeps the broad branch shipped on (`default_fill_vs_c_vector ~2.4026×`
+										      vs disabled `~5.0016×`, `default_array_ratio_median ~2.2189×` vs disabled
+										      `~2.2980×`, `default_dot_ratio_median ~1.5522×` vs disabled `~1.6406×`,
+										      `decision_surface_alignment: agree`), and the widened safety lanes remain green
+										      (`build/logs/make_verify_native_quick_20260423_tick_reg_fix_v1.log`,
+										      `build/logs/make_test_20260423_tick_reg_fix_v1.log`). Reweight again: the inline
+										      tick-register correctness hole is closed; keep the shipped branch, and continue
+										      attacking the residual slot-write / count-update / safepoint-reset cost below it.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

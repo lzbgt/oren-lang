@@ -197,20 +197,20 @@ fn _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, linear, idx_reg) {
     } else {
         if idx_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, idx_reg)) }
         if mul != 1 {
-            emit_load_i64_imm(ctx, 9, mul)
-            push_u32_le(ctx["code"], insn_mul(0, 0, 9))
+            emit_load_i64_imm(ctx, 11, mul)
+            push_u32_le(ctx["code"], insn_mul(0, 0, 11))
         }
         if add != 0 {
-            emit_load_i64_imm(ctx, 9, add)
-            push_u32_le(ctx["code"], insn_add_reg(0, 0, 9))
+            emit_load_i64_imm(ctx, 11, add)
+            push_u32_le(ctx["code"], insn_add_reg(0, 0, 11))
         }
     }
     if mod > 0 {
-        // Keep this helper on caller-saved scratch regs. X19..X26 are the backend's
-        // preserved/root-carrying temp set inside hot loops and must not be clobbered here.
-        emit_load_i64_imm(ctx, 9, mod)
-        push_u32_le(ctx["code"], insn_udiv(10, 0, 9))
-        push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+        // Keep this helper on caller-saved scratch regs. X9 is the inline GC tick register in
+        // fast loops, while X19..X26 are the backend's preserved/root-carrying temp set.
+        emit_load_i64_imm(ctx, 11, mod)
+        push_u32_le(ctx["code"], insn_udiv(10, 0, 11))
+        push_u32_le(ctx["code"], insn_mul(10, 10, 11))
         push_u32_le(ctx["code"], insn_sub_reg(0, 0, 10))
     }
     return true
@@ -833,6 +833,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var fast_end_pos = bytes_len(ctx["code"])
     var end_off = (fast_end_pos - jpos_fast_end) / 4
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+    listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
 
     // Update list counts after loop exit.
     if idx_int_expr_cursor_regs != true {
@@ -1076,6 +1077,7 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     var fast_end_pos = bytes_len(ctx["code"])
     var end_off = (fast_end_pos - jpos_fast_end) / 4
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+    listm._arm64_trace_loop_range(ctx, trace_kind, loop_cond_pos, fast_end_pos)
 
     // Update list counts after loop exit.
     emit_ldr_reg_sp_any(ctx, 20, i_off)

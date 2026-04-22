@@ -40,6 +40,127 @@ check_expect() {
   fi
 }
 
+check_push_tick_reg_contract() {
+  local label="$1"
+  local prefix="$2"
+
+  python3 - "$last_build_log" "$prefix" <<'PY'
+import re
+import sys
+
+path, prefix = sys.argv[1], sys.argv[2]
+range_re = re.compile(r"\[arm64_loop_range\] kind=([^\s]+) start=(\d+) end=(\d+) bytes=(\d+)")
+addr_re = re.compile(r"^([0-9a-fA-F]{16})\b")
+branch_target_re = re.compile(r"\b0x([0-9a-fA-F]+)\b")
+allowed_tick_re = re.compile(r"\bsubs\s+x9,\s*x9,\s*#(?:0x)?1\b")
+
+
+def load_lines(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.rstrip("\n") for line in f]
+
+
+def first_text_addr(lines):
+    for line in lines:
+        m = addr_re.match(line)
+        if m:
+            return int(m.group(1), 16)
+    return None
+
+
+def find_range(lines, prefix):
+    matches = []
+    for line in lines:
+        m = range_re.search(line)
+        if not m:
+            continue
+        kind = m.group(1)
+        if kind == prefix or kind.startswith(prefix + "_"):
+            matches.append((kind, int(m.group(2)), int(m.group(3))))
+    if not matches:
+        return None
+    return matches[-1]
+
+
+def collect_range_insns(lines, base_addr, start_off, end_off):
+    start_abs = base_addr + start_off
+    end_abs = base_addr + end_off
+    insns = []
+    for line in lines:
+        m = addr_re.match(line)
+        if not m:
+            continue
+        addr = int(m.group(1), 16)
+        if not (start_abs <= addr < end_abs):
+            continue
+        parts = line.split(None, 2)
+        if len(parts) < 2:
+            continue
+        mnemonic = parts[1]
+        target = None
+        if len(parts) >= 3:
+            tm = branch_target_re.search(parts[2])
+            if tm:
+                target = int(tm.group(1), 16)
+        insns.append({"addr": addr, "mnemonic": mnemonic, "line": line, "target": target})
+    return insns
+
+
+def collect_cold_gc_tick_blocks(insns):
+    cold_addrs = set()
+    for insn in insns:
+        if insn["mnemonic"] != "b.ne" or insn["target"] is None or insn["target"] <= insn["addr"]:
+            continue
+        skipped = [cand for cand in insns if insn["addr"] < cand["addr"] < insn["target"]]
+        if not any(cand["mnemonic"] == "bl" for cand in skipped):
+            continue
+        for cand in skipped:
+            cold_addrs.add(cand["addr"])
+    return cold_addrs
+
+
+lines = load_lines(path)
+base = first_text_addr(lines)
+if base is None:
+    print(f"verify_native_list_int_fast_lowering: no disassembly addresses found in {path}", file=sys.stderr)
+    sys.exit(1)
+
+found = find_range(lines, prefix)
+if found is None:
+    print(f"verify_native_list_int_fast_lowering: no arm64 loop range found for {prefix}", file=sys.stderr)
+    sys.exit(1)
+
+_, start_off, end_off = found
+insns = collect_range_insns(lines, base, start_off, end_off)
+if not insns:
+    print(f"verify_native_list_int_fast_lowering: no disassembly instructions found inside {prefix}", file=sys.stderr)
+    sys.exit(1)
+
+cold_addrs = collect_cold_gc_tick_blocks(insns)
+hot_insns = [insn for insn in insns if insn["addr"] not in cold_addrs]
+offenders = []
+allowed_tick_seen = False
+for insn in hot_insns:
+    line = insn["line"]
+    if not re.search(r"\bx9\b", line):
+        continue
+    if allowed_tick_re.search(line):
+        allowed_tick_seen = True
+        continue
+    offenders.append(line)
+
+if not allowed_tick_seen:
+    print(f"verify_native_list_int_fast_lowering: missing hot-loop x9 countdown in {prefix}", file=sys.stderr)
+    sys.exit(1)
+
+if offenders:
+    print(f"verify_native_list_int_fast_lowering: unexpected hot-loop x9 use in {prefix}", file=sys.stderr)
+    for line in offenders:
+        print(line, file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 build_and_check() {
   local label="$1"
   local src="$2"
@@ -144,6 +265,14 @@ run_build \
   env OREN_TRACE_ARM64_LOOP_STACK=1 ./oren_stage2 build tests/fixtures/list_int_fast_lowering_temp.oren --backend native --no-debug --no-cache -o "${tmp_dir}/list_int_fast_lowering_temp_arm64"
 check_expect "arm64 temp-normalized list<int> get-sum lowering" 'fast_list_int_get_sum_while(_no_tick)?'
 check_expect "arm64 temp-normalized list<int> dot lowering" 'fast_list_int_dot_while(_no_tick)?'
+
+run_build \
+  "arm64 array_sum_int push lowering disasm tick-reg contract" \
+  "benchmarks/array_sum_int/array_sum_int.oren" \
+  "${tmp_dir}/array_sum_int_arm64_disasm" \
+  env OREN_TRACE_ARM64_LOOP_STACK=1 OREN_TRACE_ARM64_LOOP_RANGES=1 ./oren_stage2 build benchmarks/array_sum_int/array_sum_int.oren --backend native --no-debug --no-cache --disasm -o "${tmp_dir}/array_sum_int_arm64_disasm"
+check_expect "arm64 array_sum_int push lowering disasm tick-reg contract" 'fast_list_int_push_while(_no_tick)?'
+check_push_tick_reg_contract "arm64 array_sum_int push lowering disasm tick-reg contract" 'fast_list_int_push_while'
 
 run_build \
   "x64 temp-normalized list<int> fast lowerings" \

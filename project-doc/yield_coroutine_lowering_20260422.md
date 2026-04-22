@@ -207,6 +207,21 @@ backend-shared value-helper slices landed.
     (`default_fill_vs_c_vector ~1.7572×` vs disabled `~2.3562×`) and exact `array_sum_int`
     (`default_array_ratio_median ~2.2127×` vs disabled `~2.2219×`), with exact
     `dot_product_int` median lower on the shipped default too
+  - emitted-code inspection then found a real correctness seam under that same shipped push family:
+    `_arm64_emit_fast_loop_nonneg_linear_to_x0(...)` was reusing `x9` for mul/add/mod immediates
+    even though inline GC countdown uses `x9` as the tick register inside
+    `fast_list_int_push_while`. The helper now keeps `x9` reserved and uses `x11`/`x10` scratch
+    instead, both push emitters now publish `[arm64_loop_range]` traces, and
+    `build/logs/verify_native_list_int_fast_lowering_20260423_034642_36487.log` now disassembles
+    `array_sum_int` and rejects any hot-loop `x9` use beyond `subs x9, x9, #0x1`. The refreshed
+    shipped-vs-disabled rerun
+    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_034811_37016.log`)
+    still keeps the broad nonnegative-linear branch shipped on, with fill/share strongly preferring
+    default (`default_fill_vs_c_vector ~2.4026×` vs disabled `~5.0016×`) and exact medians also
+    lower on the shipped default (`array ~2.2189×` vs `~2.2980×`, `dot ~1.5522×` vs `~1.6406×`).
+    The widened safety lanes stayed green too:
+    `build/logs/make_verify_native_quick_20260423_tick_reg_fix_v1.log` and
+    `build/logs/make_test_20260423_tick_reg_fix_v1.log`
   - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
     promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
     tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
