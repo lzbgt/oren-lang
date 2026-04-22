@@ -208,6 +208,14 @@ backend-shared value-helper slices landed.
     `~0.003145` / `~2.3671×`, and the follow-up that also bypassed the immediate arena retag table
     lookup (`build/logs/perf-probe-list-int-fill-share-decision-20260423_015936_6969.log`)
     regressed again to `~0.003188` / `~2.3970×`
+  - the first narrower compiler-side reload/spill trim under that same constructor boundary is now
+    settled negative too: compared with the same baseline
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`), a rerun that
+    stopped spilling the generic `idx` local on the nonnegative-linear path and tried to keep `i`
+    live across the direct arithmetic helper path
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_021057_8800.log`) regressed hard
+    to `fill per_rep_s ~0.005534` / `fill_vs_c_vector ~4.2125×`, so the next work should look
+    below that narrow `X20` live-range assumption rather than reopening this trim branch
 
 - Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
   sugar too, without changing the public handle layout again. The compiler-generated bridge:
