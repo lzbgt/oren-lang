@@ -251,9 +251,24 @@ backend-shared value-helper slices landed.
     `dot_product_int` median (`default_dot_ratio_median ~1.7420×` vs `~1.7574×`). That shifts the
     remaining backend work away from “add width” and toward the arithmetic / store / tail /
     safepoint cost inside the now-landed four-wide body
-  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
-    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
-    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
+  - the next narrower store-shape follow-up under that shipped four-wide body is now closed
+    negative too. A temporary rerun replaced the four scalar stores plus pointer bump with two
+    post-index `stp` stores. The emitted loop did improve:
+    `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_053204_75573.log` and
+    `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_053209_75659.log` show the wide
+    main iteration dropping from `35` hot instructions for `4` outputs (`8.75` per element) to
+    `32` (`8.00` per element). But the actual shipped-vs-enabled decision surface
+    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-stp-decision-20260423_053014_74064.log`)
+    still rejected promotion: fill/share preferred the shipped default
+    (`default_fill_vs_c_vector ~2.0548×` vs enabled `~2.1867×`), exact `array_sum_int` median
+    also slightly preferred default (`~2.1822×` vs `~2.1860×`), and only exact
+    `dot_product_int` median moved toward the pair-store branch
+    (`default_dot_ratio_median ~1.7285×` vs enabled `~1.6796×`). That narrows the remaining
+    backend work further: the open gap is no longer mainly the slot-store shape, but the carried
+    recurrence arithmetic and compare/branch density inside the shipped wide body
+	  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
+	    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
+	    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
     aligned in favor of `65535`, but the immediate promoted-default rerun
     (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032751_32000.log`) did not
     hold, flipping fill/share toward the lower masks and exact `array_sum_int` /

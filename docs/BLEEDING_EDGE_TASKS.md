@@ -2501,6 +2501,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      now closed positive and shipped; the remaining fill-side work is the arithmetic /
 										      store / tail / safepoint overhead inside that landed wide body, not another
 										      request to add width in the abstract.
+										    - Arm64 explicit push nonnegative-linear pair-store follow-up (2026-04-23):
+										      the next narrower store-shape hypothesis under that shipped four-wide body is
+										      now also closed negative. A temporary rerun replaced the four scalar stores plus
+										      pointer bump with two post-index `stp` stores. The emitted loop improved:
+										      `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_053204_75573.log`
+										      and
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_053209_75659.log`
+										      show the wide main iteration dropping from `35` hot instructions for `4`
+										      outputs (`8.75` per element) to `32` (`8.00` per element). But the actual
+										      same-tree shipped-vs-enabled decision surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-stp-decision-20260423_053014_74064.log`)
+										      still rejected promotion: fill/share preferred the shipped default
+										      (`default_fill_vs_c_vector ~2.0548×` vs enabled `~2.1867×`), exact
+										      `array_sum_int` median also slightly preferred default (`~2.1822×` vs
+										      `~2.1860×`), and only exact `dot_product_int` median moved toward the
+										      pair-store branch (`default_dot_ratio_median ~1.7285×` vs enabled `~1.6796×`).
+										      Reweight again: stop treating slot-store shape as the primary blocker; the
+										      remaining fill-side gap is now more likely in the carried recurrence arithmetic
+										      and compare/branch density inside the shipped wide body.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

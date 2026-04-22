@@ -626,6 +626,22 @@ So the next fill-side backend work should no longer be framed as “add a wide s
 landed. The remaining gap is the arithmetic/store/tail/safepoint overhead inside the shipped wide
 body versus the host C four-lane recurrence ceiling.
 
+A narrower pair-store follow-up under that same shipped wide body did improve the emitted Oren loop
+shape, but it still lost on the actual decision surface and stays rejected. The temporary
+`OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_STP=1` rerun shrank the wide main iteration
+to `32` hot instructions for `4` output elements (`8.00` per element) with two post-index `stp`
+stores in `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_053204_75573.log`
+and `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_053209_75659.log`. But the
+same-tree shipped-vs-enabled ranking in
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-stp-decision-20260423_053014_74064.log`
+still preferred the current shipped default on fill/share
+(`default_fill_vs_c_vector ~2.0548x` vs enabled `~2.1867x`) and by a hair on exact
+`array_sum_int` median (`default_array_ratio_median ~2.1822x` vs enabled `~2.1860x`), even though
+exact `dot_product_int` median moved toward the pair-store branch (`default_dot_ratio_median
+~1.7285x` vs enabled `~1.6796x`). Reweight again: the remaining gap is no longer mainly “four
+scalar stores versus two pair stores”; it is now centered on the carried recurrence arithmetic and
+branch/compare density inside the shipped four-wide body.
+
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 
 ```bash
