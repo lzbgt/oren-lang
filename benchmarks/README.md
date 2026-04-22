@@ -572,6 +572,29 @@ wrong way (`~2.3697x`, fill `per_rep_s ~0.003107`). Reweight again: the remainin
 cost is not solved by just narrowing the safepoint spill pairs on the explicit push loop, so the
 next pass should stay below that branch too.
 
+One more emitted-code-grounded follow-up on that same baseline is now closed too. The first naive
+reciprocal-fastmod rewrite lost because it replaced the `udiv` with an `umulh` path but also
+materialized the 64-bit reciprocal constant inside the hot loop each iteration; the disassembly in
+`build/logs/otool_fill_list_int_oren_inspect_fastmod_full_20260423_v1.log` shows that four-instruction
+`movz/movk` literal sequence immediately before the loop `umulh`. A narrower rerun then hoisted the
+shared `% 1000` divisor and reciprocal into preheader regs and kept the reciprocal path only on the
+shipped nonnegative-linear `fast_list_int_push_while` surface. That mechanical fix was real, but it
+still lost on the actual shipped decision surface:
+
+- exact same-tree rerun
+  (`build/logs/perf-probe-list-int-fill-share-decision-20260423_024106_13895.log`) regressed from
+  baseline `~2.3103x` / `~0.003096` to `~2.8408x` / `~0.003746`
+- emitted code after the hoist
+  (`build/logs/otool_fill_list_int_oren_inspect_fastmod_hoist_full_20260423_v1.log`) shows
+  `x24=#1000` and `x25=<reciprocal>` loaded once in the preheader and the hot loop using
+  `umulh x10, x0, x25`, so the loss is no longer explained by reciprocal literal materialization
+  alone
+
+Reweight again: the remaining shipped fill-side blocker is now below both the safepoint-pair trim
+and the reciprocal-hoist explanation. The next emitted-code pass should inspect the surviving loop
+body around slot writes, count/cursor updates, and safepoint reset scaffolding instead of reopening
+either rejected reciprocal branch.
+
 One more aggressive follow-up on that same baseline was tested and then removed from the tree: a
 single-list whole-fill runtime helper that replaced the explicit push loop with one
 `native_list_int_try_fill_nonneg_linear_exact(...)` call. It did trigger on

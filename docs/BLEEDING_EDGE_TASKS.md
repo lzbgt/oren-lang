@@ -267,6 +267,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     regressed slightly to `~2.3697×` / `~0.003107`. Reweight again: the remaining fill-side cost
 	     is not solved by just narrowing the safepoint spill pairs on the shipped loop, so the next
 	     exact same-tree work should stay below that branch too.
+	   - Update (2026-04-23): the next reciprocal-fastmod follow-up under that same shipped fill
+	     surface is now rejected too. The earlier naive reciprocal path had already shown why the
+	     first idea lost: `build/logs/otool_fill_list_int_oren_inspect_fastmod_full_20260423_v1.log`
+	     materialized the reciprocal constant inside the hot loop each iteration. A narrower rerun
+	     then hoisted the shared `% 1000` divisor and reciprocal into preheader regs and kept the
+	     reciprocal lowering only on the shipped nonnegative-linear `fast_list_int_push_while`
+	     surface, but the exact same-tree probe still regressed hard:
+	     `build/logs/perf-probe-list-int-fill-share-decision-20260423_024106_13895.log` moved from the
+	     current baseline `~2.3103×` / `~0.003096` to `~2.8408×` / `~0.003746`. The emitted code proves
+	     the hoist itself worked: `build/logs/otool_fill_list_int_oren_inspect_fastmod_hoist_full_20260423_v1.log`
+	     preloads `x24=#1000` and `x25=<reciprocal>` once before the loop and uses `umulh` in the hot
+	     body. Reweight again: the remaining shipped fill-side blocker is not just the reciprocal
+	     literal materialization; the next pass should inspect the surviving loop body around slot
+	     writes, count/cursor updates, and safepoint-reset scaffolding instead of reopening this
+	     reciprocal branch.
 	   - Update (2026-04-21): the shared native quick path now carries an explicit GC reuse tracking
 	     smoke. `tests/native/test_gc_reuse_tracking.oren` was tightened so the dead headers are
 	     created through `oren_new_list(0)` and an escaping aggregate, then

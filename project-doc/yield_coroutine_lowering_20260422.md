@@ -224,6 +224,19 @@ backend-shared value-helper slices landed.
     (`build/logs/perf-probe-list-int-fill-share-decision-20260423_022302_10735.log`) still
     regressed slightly to `fill per_rep_s ~0.003107` / `fill_vs_c_vector ~2.3697×`, so the next
     work should not reopen that safepoint-pair branch without stronger emitted-code evidence
+  - the next reciprocal-fastmod follow-up on that same shipped fill surface is now settled
+    negative too: compared with the same baseline
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`), a narrower
+    rerun hoisted the shared `% 1000` divisor and reciprocal into preheader regs and kept the
+    reciprocal lowering only on the shipped nonnegative-linear `fast_list_int_push_while` surface,
+    but the exact same-tree probe
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_024106_13895.log`) still
+    regressed hard to `fill per_rep_s ~0.003746` / `fill_vs_c_vector ~2.8408×`
+  - emitted-code follow-up confirms that the hoist itself worked mechanically:
+    `build/logs/otool_fill_list_int_oren_inspect_fastmod_hoist_full_20260423_v1.log` preloads
+    `x24=#1000` and `x25=<reciprocal>` before the hot loop and then uses `umulh` inside the loop,
+    so the remaining blocker is now below that earlier “reciprocal literal materialized each
+    iteration” explanation
 
 - Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
   sugar too, without changing the public handle layout again. The compiler-generated bridge:
