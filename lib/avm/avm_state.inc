@@ -7,6 +7,15 @@ typedef struct {
 } ObjTable;
 
 static void collect_value_objects(ObjTable* t, AvmValue v);
+static int objtable_find(ObjTable* t, void* ptr);
+static uint32_t objtable_add(ObjTable* t, void* ptr, uint8_t type, uint32_t aux);
+static int encode_value(FILE* f, ObjTable* objs, AvmValue v);
+static int encode_value_mem(AvmBytes* out, uint32_t* pos, ObjTable* objs, AvmValue v);
+static int decode_value_mem(const AvmBytes* in, uint32_t* pos, const uint8_t* obj_types, void* const* obj_ptrs, uint32_t obj_count, AvmValue* out);
+static int encode_value_for_hash(AvmSha256Ctx* h, ObjTable* objs, AvmValue v);
+static int decode_value(FILE* f, uint8_t* obj_types, void** obj_ptrs, uint32_t obj_count, AvmValue* out);
+
+#include "avm_state_generator.inc"
 
 static void objtable_free(ObjTable* t) {
     if (!t) return;
@@ -48,10 +57,8 @@ static void avm_free_object_table_objects(ObjTable* t) {
             AvmBuf* b = (AvmBuf*)ptr;
             if (b && b->data) avm_heap_free(b->data);
             if (b) avm_heap_free(b);
-        } else if (ty == 11) {
-            avm_heap_free(ptr);
-        } else if (ty == 12) {
-            avm_heap_free(ptr);
+        } else if (avm_generator_free_object(ty, ptr)) {
+            // handled
         }
         t->ptrs[id] = NULL;
     }
@@ -194,18 +201,7 @@ static void collect_value_objects(ObjTable* t, AvmValue v) {
         objtable_add(t, v.as.buf, ot, len);
         return;
     }
-    if (v.type == AVM_VAL_GENERATOR && v.as.gen) {
-        if (objtable_find(t, v.as.gen) >= 0) return;
-        objtable_add(t, v.as.gen, 11, 14);
-        for (int i = 0; i < 14; i++) collect_value_objects(t, v.as.gen->slots[i]);
-        return;
-    }
-    if (v.type == AVM_VAL_GENERATOR_CONTEXT && v.as.gctx) {
-        if (objtable_find(t, v.as.gctx) >= 0) return;
-        objtable_add(t, v.as.gctx, 12, 4);
-        for (int i = 0; i < 4; i++) collect_value_objects(t, v.as.gctx->slots[i]);
-        return;
-    }
+    if (avm_generator_collect_value_object(t, v)) return;
 }
 
 static int encode_value(FILE* f, ObjTable* objs, AvmValue v) {
@@ -377,8 +373,7 @@ static int decode_value_mem(const AvmBytes* in, uint32_t* pos, const uint8_t* ob
         if (ot == 8) { out->type = AVM_VAL_F32_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
         if (ot == 9) { out->type = AVM_VAL_F64_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
         if (ot == 10) { out->type = AVM_VAL_LIST_INT; out->as.li = (AvmListInt*)obj_ptrs[id]; return 1; }
-        if (ot == 11) { out->type = AVM_VAL_GENERATOR; out->as.gen = (AvmGeneratorHandle*)obj_ptrs[id]; return 1; }
-        if (ot == 12) { out->type = AVM_VAL_GENERATOR_CONTEXT; out->as.gctx = (AvmGeneratorContext*)obj_ptrs[id]; return 1; }
+        if (avm_generator_decode_object_ref(id, obj_types, obj_ptrs, obj_count, out)) return 1;
         return 0;
     }
     return 0;
@@ -548,18 +543,8 @@ static int avm_value_hash(AvmValue v, uint8_t out[32]) {
             for (uint32_t i = 0; i < aux; i++) {
                 if (!encode_value_for_hash(&h, &objs, avm_int(list->items[i]))) { objtable_free(&objs); return 0; }
             }
-        } else if (t == 11) { // GENERATOR
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)objs.ptrs[id];
-            if (!gen || aux != 14) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value_for_hash(&h, &objs, gen->slots[i])) { objtable_free(&objs); return 0; }
-            }
-        } else if (t == 12) { // GENERATOR_CONTEXT
-            AvmGeneratorContext* co = (AvmGeneratorContext*)objs.ptrs[id];
-            if (!co || aux != 4) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value_for_hash(&h, &objs, co->slots[i])) { objtable_free(&objs); return 0; }
-            }
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_hash_object_payload(&h, &objs, t, aux, objs.ptrs[id])) { objtable_free(&objs); return 0; }
         } else if (t == 3) { // MAP (canonicalize by key)
             AvmMap* map = (AvmMap*)objs.ptrs[id];
             if (aux == 0) continue;
@@ -707,18 +692,8 @@ static int rr_write_value(FILE* f, AvmValue v) {
             for (uint32_t i = 0; i < aux; i++) {
                 if (!encode_value(f, &objs, avm_int(list->items[i]))) { objtable_free(&objs); return 0; }
             }
-        } else if (t == 11) { // GENERATOR
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)objs.ptrs[id];
-            if (!gen || aux != 14) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value(f, &objs, gen->slots[i])) { objtable_free(&objs); return 0; }
-            }
-        } else if (t == 12) { // GENERATOR_CONTEXT
-            AvmGeneratorContext* co = (AvmGeneratorContext*)objs.ptrs[id];
-            if (!co || aux != 4) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value(f, &objs, co->slots[i])) { objtable_free(&objs); return 0; }
-            }
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_write_object_payload(f, &objs, t, aux, objs.ptrs[id])) { objtable_free(&objs); return 0; }
         } else if (t == 3) { // MAP
             AvmMap* map = (AvmMap*)objs.ptrs[id];
             if (!map || (uint32_t)map->count != aux) { objtable_free(&objs); return 0; }
@@ -1017,18 +992,8 @@ static int rr_write_value_mem(AvmBytes* out, uint32_t* pos, AvmValue v) {
             for (uint32_t i = 0; i < aux; i++) {
                 if (!encode_value_mem(out, pos, &objs, avm_int(list->items[i]))) { objtable_free(&objs); return 0; }
             }
-        } else if (t == 11) { // GENERATOR
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)objs.ptrs[id];
-            if (!gen || aux != 14) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value_mem(out, pos, &objs, gen->slots[i])) { objtable_free(&objs); return 0; }
-            }
-        } else if (t == 12) { // GENERATOR_CONTEXT
-            AvmGeneratorContext* co = (AvmGeneratorContext*)objs.ptrs[id];
-            if (!co || aux != 4) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value_mem(out, pos, &objs, co->slots[i])) { objtable_free(&objs); return 0; }
-            }
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_write_object_payload_mem(out, pos, &objs, t, aux, objs.ptrs[id])) { objtable_free(&objs); return 0; }
         } else if (t == 3) { // MAP
             AvmMap* map = (AvmMap*)objs.ptrs[id];
             if (!map || (uint32_t)map->count != aux) { objtable_free(&objs); return 0; }
@@ -1103,7 +1068,10 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
         if (t == 1) payload_len = aux;
         else if (t == 2) payload_len = (uint64_t)aux * 9ull;
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull;
-        else if (t == 10 || t == 11 || t == 12) payload_len = (uint64_t)aux * 9ull;
+        else if (t == 10) payload_len = (uint64_t)aux * 9ull;
+        else if (avm_generator_object_type(t)) {
+            if (!avm_generator_payload_len(t, aux, &payload_len)) { ok = 0; break; }
+        }
         else if (t == 4) payload_len = aux;
         else if (t == 5) payload_len = 9ull;
         else if (t == 6 || t == 8) payload_len = (uint64_t)aux * 4ull;
@@ -1149,18 +1117,8 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
                 if (!list->items) { free(list); ok = 0; break; }
             }
             obj_ptrs[id] = list;
-        } else if (t == 11) {
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)malloc(sizeof(AvmGeneratorHandle));
-            if (!gen) { ok = 0; break; }
-            gen->magic = AVM_GENERATOR_HANDLE_MAGIC;
-            for (int i = 0; i < 14; i++) gen->slots[i] = avm_nil();
-            obj_ptrs[id] = gen;
-        } else if (t == 12) {
-            AvmGeneratorContext* co = (AvmGeneratorContext*)malloc(sizeof(AvmGeneratorContext));
-            if (!co) { ok = 0; break; }
-            co->magic = AVM_GENERATOR_CONTEXT_MAGIC;
-            for (int i = 0; i < 4; i++) co->slots[i] = avm_nil();
-            obj_ptrs[id] = co;
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_alloc_object(t, aux, &obj_ptrs[id])) { ok = 0; break; }
         } else if (t == 3) {
             AvmMap* map = (AvmMap*)malloc(sizeof(AvmMap));
             if (!map) { ok = 0; break; }
@@ -1247,20 +1205,8 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
                 list->items[i] = v.as.i;
             }
             if (!ok) break;
-        } else if (t == 11) {
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)obj_ptrs[id];
-            if (!gen || aux != 14) { ok = 0; break; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!decode_value_mem(in, &cur, obj_types, obj_ptrs, obj_count, &gen->slots[i])) { ok = 0; break; }
-            }
-            if (!ok) break;
-        } else if (t == 12) {
-            AvmGeneratorContext* co = (AvmGeneratorContext*)obj_ptrs[id];
-            if (!co || aux != 4) { ok = 0; break; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!decode_value_mem(in, &cur, obj_types, obj_ptrs, obj_count, &co->slots[i])) { ok = 0; break; }
-            }
-            if (!ok) break;
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_fill_object_mem(in, &cur, obj_types, obj_ptrs, obj_count, t, aux, obj_ptrs[id])) { ok = 0; break; }
         } else if (t == 3) {
             AvmMap* map = (AvmMap*)obj_ptrs[id];
             for (uint32_t i = 0; i < aux; i++) {
@@ -1333,7 +1279,10 @@ static int rr_value_wire_size(AvmValue v, uint64_t* out_bytes) {
         if (t == 1) payload_len = aux;                    // STRING bytes
         else if (t == 2) payload_len = (uint64_t)aux * 9;  // LIST values
         else if (t == 3) payload_len = (uint64_t)aux * 2ull * 9ull; // MAP key/value pairs
-        else if (t == 10 || t == 11 || t == 12) payload_len = (uint64_t)aux * 9ull;       // LIST_INT / generator values
+        else if (t == 10) payload_len = (uint64_t)aux * 9ull;       // LIST_INT values
+        else if (avm_generator_object_type(t)) {
+            if (!avm_generator_payload_len(t, aux, &payload_len)) { objtable_free(&objs); return 0; }
+        }
         else if (t == 4) payload_len = aux;                // BYTES bytes
         else if (t == 5) payload_len = 9ull;               // FUNC env value
         else if (t == 6 || t == 8) payload_len = (uint64_t)aux * 4ull; // typed buf bytes
@@ -1555,18 +1504,8 @@ int avm_state_hash(AvmVM* vm, uint8_t out[32]) {
             for (uint32_t i = 0; i < aux; i++) {
                 if (!encode_value_for_hash(&h, &objs, avm_int(list->items[i]))) { objtable_free(&objs); return 0; }
             }
-        } else if (t == 11) { // GENERATOR
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)objs.ptrs[id];
-            if (!gen || aux != 14) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value_for_hash(&h, &objs, gen->slots[i])) { objtable_free(&objs); return 0; }
-            }
-        } else if (t == 12) { // GENERATOR_CONTEXT
-            AvmGeneratorContext* co = (AvmGeneratorContext*)objs.ptrs[id];
-            if (!co || aux != 4) { objtable_free(&objs); return 0; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value_for_hash(&h, &objs, co->slots[i])) { objtable_free(&objs); return 0; }
-            }
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_hash_object_payload(&h, &objs, t, aux, objs.ptrs[id])) { objtable_free(&objs); return 0; }
         } else if (t == 3) { // MAP (canonicalize by key)
             AvmMap* map = (AvmMap*)objs.ptrs[id];
             if (aux == 0) continue;
@@ -2073,8 +2012,7 @@ static int decode_value(FILE* f, uint8_t* obj_types, void** obj_ptrs, uint32_t o
         if (ot == 8) { out->type = AVM_VAL_F32_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
         if (ot == 9) { out->type = AVM_VAL_F64_BUF; out->as.buf = (AvmBuf*)obj_ptrs[id]; return 1; }
         if (ot == 10) { out->type = AVM_VAL_LIST_INT; out->as.li = (AvmListInt*)obj_ptrs[id]; return 1; }
-        if (ot == 11) { out->type = AVM_VAL_GENERATOR; out->as.gen = (AvmGeneratorHandle*)obj_ptrs[id]; return 1; }
-        if (ot == 12) { out->type = AVM_VAL_GENERATOR_CONTEXT; out->as.gctx = (AvmGeneratorContext*)obj_ptrs[id]; return 1; }
+        if (avm_generator_decode_object_ref(id, obj_types, obj_ptrs, obj_count, out)) return 1;
         return 0;
     }
     return 0;
@@ -2249,18 +2187,8 @@ int avm_snapshot(AvmVM* vm, const char* path) {
             for (uint32_t i = 0; i < aux; i++) {
                 if (!encode_value(f, &objs, avm_int(list->items[i]))) { fclose(f); objtable_free(&objs); return 1; }
             }
-        } else if (t == 11) { // GENERATOR
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)objs.ptrs[id];
-            if (!gen || aux != 14) { fclose(f); objtable_free(&objs); return 1; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value(f, &objs, gen->slots[i])) { fclose(f); objtable_free(&objs); return 1; }
-            }
-        } else if (t == 12) { // GENERATOR_CONTEXT
-            AvmGeneratorContext* co = (AvmGeneratorContext*)objs.ptrs[id];
-            if (!co || aux != 4) { fclose(f); objtable_free(&objs); return 1; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!encode_value(f, &objs, co->slots[i])) { fclose(f); objtable_free(&objs); return 1; }
-            }
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_write_object_payload(f, &objs, t, aux, objs.ptrs[id])) { fclose(f); objtable_free(&objs); return 1; }
         } else if (t == 3) { // MAP
             AvmMap* map = (AvmMap*)objs.ptrs[id];
             if (!map || (uint32_t)map->count != aux) { fclose(f); objtable_free(&objs); return 1; }
@@ -2692,18 +2620,8 @@ int avm_restore(AvmVM* vm, const char* path) {
                 if (!list->items) { free(list); ok = 0; break; }
             }
             obj_ptrs[id] = list;
-        } else if (t == 11) {
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)malloc(sizeof(AvmGeneratorHandle));
-            if (!gen) { ok = 0; break; }
-            gen->magic = AVM_GENERATOR_HANDLE_MAGIC;
-            for (int i = 0; i < 14; i++) gen->slots[i] = avm_nil();
-            obj_ptrs[id] = gen;
-        } else if (t == 12) {
-            AvmGeneratorContext* co = (AvmGeneratorContext*)malloc(sizeof(AvmGeneratorContext));
-            if (!co) { ok = 0; break; }
-            co->magic = AVM_GENERATOR_CONTEXT_MAGIC;
-            for (int i = 0; i < 4; i++) co->slots[i] = avm_nil();
-            obj_ptrs[id] = co;
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_alloc_object(t, aux, &obj_ptrs[id])) { ok = 0; break; }
         } else if (t == 3) {
             AvmMap* map = (AvmMap*)malloc(sizeof(AvmMap));
             if (!map) { ok = 0; break; }
@@ -2789,20 +2707,8 @@ int avm_restore(AvmVM* vm, const char* path) {
                 list->items[i] = v.as.i;
             }
             if (!ok) break;
-        } else if (t == 11) {
-            AvmGeneratorHandle* gen = (AvmGeneratorHandle*)obj_ptrs[id];
-            if (!gen || aux != 14) { ok = 0; break; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!decode_value(f, obj_types, obj_ptrs, obj_count, &gen->slots[i])) { ok = 0; break; }
-            }
-            if (!ok) break;
-        } else if (t == 12) {
-            AvmGeneratorContext* co = (AvmGeneratorContext*)obj_ptrs[id];
-            if (!co || aux != 4) { ok = 0; break; }
-            for (uint32_t i = 0; i < aux; i++) {
-                if (!decode_value(f, obj_types, obj_ptrs, obj_count, &co->slots[i])) { ok = 0; break; }
-            }
-            if (!ok) break;
+        } else if (avm_generator_object_type(t)) {
+            if (!avm_generator_fill_object_file(f, obj_types, obj_ptrs, obj_count, t, aux, obj_ptrs[id])) { ok = 0; break; }
         } else if (t == 3) {
             AvmMap* map = (AvmMap*)obj_ptrs[id];
             for (uint32_t i = 0; i < aux; i++) {

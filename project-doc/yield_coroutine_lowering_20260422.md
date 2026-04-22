@@ -148,6 +148,14 @@ backend-shared value-helper slices landed.
     `state_layout=dedicated_generator_object_kind_v1`, `worker_context_type=generator_context`,
     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and
     `decl_forms=["named_function_decl","function_valued_var"]`
+  - the immediate structural cleanup above that substrate is also now started:
+    - generator-specific AVM helper logic is split into dedicated includes instead of living only as
+      inline islands inside `lib/avm/avm_native.inc` / `lib/avm/avm_state.inc`
+    - generator-specific C runtime GC/printing/type-name glue is centralized in
+      `lib/runtime/042_generator_objects.inc`
+    - `lib/runtime/010_prelude.inc` is back under the repo’s 2000-line red line, while the remaining
+      oversized debt is now clearly isolated to older generic hosts like
+      `lib/avm/avm_native.inc`, `lib/avm/avm_state.inc`, and `lib/runtime/040_lists_maps.inc`
   - the default repo verification lane stays green by using the stage1 `./oren` tool path for
     generator finalize `meta` / `dump linked` parity, matching the broader generator surface verifier;
     the remaining narrow tooling issue is stage2 `dump linked` throughput on

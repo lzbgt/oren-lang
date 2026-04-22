@@ -1445,6 +1445,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       internal accessors/constructors in `lib/compiler/parser_parse/005_generator_core.oren`
 		     - the machine-readable layout marker is now `state_layout=dedicated_generator_object_kind_v1`
 		       to reflect that dedicated object-kind ABI
+		     - the follow-on refactor slice is now started too: generator-specific AVM/native/runtime glue
+		       has been extracted into dedicated helper includes, `lib/runtime/010_prelude.inc` is back
+		       under the 2000-line red line, and the remaining large-file debt is concentrated in older
+		       generic hosts such as `lib/avm/avm_native.inc`, `lib/avm/avm_state.inc`, and
+		       `lib/runtime/040_lists_maps.inc` rather than new generator substrate code being spread
+		       through them
 		   - New (2026-04-22): the default verification lane is back to green after aligning
 		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
 		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining

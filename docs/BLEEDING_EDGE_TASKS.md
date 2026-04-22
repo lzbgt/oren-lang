@@ -4250,15 +4250,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     wrapper”, and the shipped handle contract is now also opaque by default
 						     (`compiler_generator_object_v3` with `dedicated_generator_object_kind_v1` plus validated
 					     `generator_context`, declaration-form metadata, `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
-					     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
-					     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
-				     `generator` handle
-				   - New (2026-04-22): raw generator slot numbering is now isolated to named injected helper
-				     accessors in `lib/compiler/parser_parse/005_generator_core.oren`, so the new dedicated
-				     generator object-kind substrate stays localized instead of rewriting every
-				   - New (2026-04-22): the repo-default verification lane is green again after moving the
-				     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
-				     broader generator surface verifier. Reweight the next task above correctness: optimize the
+						     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
+						     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
+					     `generator` handle
+					   - New (2026-04-22): raw generator slot numbering is now isolated to named injected helper
+					     accessors in `lib/compiler/parser_parse/005_generator_core.oren`, so the new dedicated
+					     generator object-kind substrate stays localized instead of rewriting every
+					   - New (2026-04-22): the first large-file cleanup pass above that substrate is now in place too:
+					     generator-specific AVM/runtime glue lives in dedicated helper includes, and
+					     `lib/runtime/010_prelude.inc` is back under the 2000-line threshold. Reweight the next debt
+					     payoff toward the remaining generic oversized hosts (`lib/avm/avm_native.inc`,
+					     `lib/avm/avm_state.inc`, `lib/runtime/040_lists_maps.inc`) instead of reopening settled
+					     generator semantics.
+					   - New (2026-04-22): the repo-default verification lane is green again after moving the
+					     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
+					     broader generator surface verifier. Reweight the next task above correctness: optimize the
 				     stage2 `dump linked` hot path on `tests/fixtures/generator_finalize_surface_v0.oren`
 				     without widening the shipped generator surface.
 			     resume/close/delegate path.

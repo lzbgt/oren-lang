@@ -40,6 +40,86 @@ static inline OrenValue* oren_generator_slot_ptr_internal(OrenValue obj, OrenVal
     return NULL;
 }
 
+static int oren_generator_mark_value_internal(OrenValue v) {
+    OrenGeneratorHandle* gen = oren_generator_handle_ptr(v);
+    if (gen) {
+        OrenAllocNode* n = oren_find_node(gen);
+        if (n && n->freed == 0 && n->kind == OREN_ALLOC_GENERATOR) {
+            n->freed = -1;
+            for (int i = 0; i < oren_generator_handle_slot_count(); i++) {
+                oren_mark_value(gen->slots[i]);
+            }
+        }
+        return 1;
+    }
+    OrenGeneratorContext* co = oren_generator_context_ptr(v);
+    if (co) {
+        OrenAllocNode* n = oren_find_node(co);
+        if (n && n->freed == 0 && n->kind == OREN_ALLOC_GENERATOR_CONTEXT) {
+            n->freed = -1;
+            for (int i = 0; i < oren_generator_context_slot_count(); i++) {
+                oren_mark_value(co->slots[i]);
+            }
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static int oren_generator_mark_alloc_internal(OrenAllocNode* n, void* ptr) {
+    if (!n) return 0;
+    if (n->kind == OREN_ALLOC_GENERATOR) {
+        OrenGeneratorHandle* gen = (OrenGeneratorHandle*)ptr;
+        if (!gen) return 1;
+        n->freed = -1;
+        for (int i = 0; i < oren_generator_handle_slot_count(); i++) {
+            oren_mark_value(gen->slots[i]);
+        }
+        return 1;
+    }
+    if (n->kind == OREN_ALLOC_GENERATOR_CONTEXT) {
+        OrenGeneratorContext* co = (OrenGeneratorContext*)ptr;
+        if (!co) return 1;
+        n->freed = -1;
+        for (int i = 0; i < oren_generator_context_slot_count(); i++) {
+            oren_mark_value(co->slots[i]);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static int oren_generator_ptr_from_value_internal(OrenValue v, uintptr_t* out_ptr) {
+    if (!out_ptr) return 0;
+    if (v.type == OREN_TYPE_GENERATOR) {
+        *out_ptr = (uintptr_t)v.as.generator_val;
+        return 1;
+    }
+    if (v.type == OREN_TYPE_GENERATOR_CONTEXT) {
+        *out_ptr = (uintptr_t)v.as.generator_context_val;
+        return 1;
+    }
+    return 0;
+}
+
+static int oren_generator_print_internal(OrenValue v) {
+    if (v.type == OREN_TYPE_GENERATOR) {
+        printf("<generator %p>", (void*)v.as.generator_val);
+        return 1;
+    }
+    if (v.type == OREN_TYPE_GENERATOR_CONTEXT) {
+        printf("<generator_context %p>", (void*)v.as.generator_context_val);
+        return 1;
+    }
+    return 0;
+}
+
+static OrenValue oren_generator_type_name_internal(OrenValue v) {
+    if (v.type == OREN_TYPE_GENERATOR) return oren_string_const("generator");
+    if (v.type == OREN_TYPE_GENERATOR_CONTEXT) return oren_string_const("generator_context");
+    return OREN_NIL;
+}
+
 OrenValue oren_generator_handle_new_internal(
     OrenValue worker,
     OrenValue args_list,

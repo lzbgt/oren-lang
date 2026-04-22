@@ -2062,10 +2062,8 @@ static void print_value_no_newline(OrenValue v) {
             printf("<f64_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
             break;
         case OREN_TYPE_GENERATOR:
-            printf("<generator %p>", (void*)v.as.generator_val);
-            break;
         case OREN_TYPE_GENERATOR_CONTEXT:
-            printf("<generator_context %p>", (void*)v.as.generator_context_val);
+            if (oren_generator_print_internal(v)) break;
             break;
         case OREN_TYPE_PY_OBJ: {
 #ifdef OREN_ENABLE_PYTHON
@@ -2527,8 +2525,9 @@ OrenValue oren_type_name(OrenValue v) {
         case OREN_TYPE_I64_BUF: return oren_string_const("i64_buf");
         case OREN_TYPE_F32_BUF: return oren_string_const("f32_buf");
         case OREN_TYPE_F64_BUF: return oren_string_const("f64_buf");
-        case OREN_TYPE_GENERATOR: return oren_string_const("generator");
-        case OREN_TYPE_GENERATOR_CONTEXT: return oren_string_const("generator_context");
+        case OREN_TYPE_GENERATOR:
+        case OREN_TYPE_GENERATOR_CONTEXT:
+            return oren_generator_type_name_internal(v);
         default: return oren_string_const("unknown");
     }
 }
