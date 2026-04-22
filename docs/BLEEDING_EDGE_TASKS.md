@@ -223,6 +223,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      while the default-on self-hosted build stalls. A direct arm64 `oren_gc_collect()` shortcut was
      tried during the same investigation and then removed after it deadlocked the native quick
      green join-waiter fixture; shipped code stays on the normal direct-call lowering there.
+   - Update (2026-04-23): the broad nonnegative-linear branch is still the strongest current
+     fill-side performance candidate, but it is still not self-host-safe enough to ship by
+     default. The refreshed current-tree rerun
+     (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_002542_70401.log`)
+     again preferred `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=1` on both surfaces
+     (`default_fill_vs_c_vector ~5.7432×` vs enabled `~2.3262×`,
+     `default_array_ratio_median ~2.1543×` vs enabled `~2.0482×`,
+     `default_dot_ratio_median ~1.8061×` vs enabled `~1.7963×`). The reduced W5 tracking guard
+     now also passes under that opt-in branch
+     (`build/logs/verify_alloc_churn_tracking_smoke_nonneg_linear_20260423_002715.log`), so the
+     remaining blocker is the broader self-host/native-quick safety surface, not the reduced
+     alloc-churn smoke itself. A narrower attempted exact-shape isolation was tested and reverted
+     in the same turn: `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_003345_74555.log`
+     only improved exact `array_sum_int`, while fill/share and exact `dot_product_int` still
+     preferred the disabled branch. Reweight next work toward root-causing or fencing the
+     broad-branch self-host stall instead of promoting another partial fill-only default.
 	   - Update (2026-04-21): the shared native quick path now carries an explicit GC reuse tracking
 	     smoke. `tests/native/test_gc_reuse_tracking.oren` was tightened so the dead headers are
 	     created through `oren_new_list(0)` and an escaping aggregate, then
@@ -2345,10 +2361,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      `default_dot_ratio_median ~1.8327×` vs enabled `~1.8585×`).
 									      Reweight: do not ship `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS`
 									      by default; it joins the other “local surface win, exact surface loss” branches.
-									    - Arm64 explicit push nonnegative-linear fill follow-up (2026-04-09): new ranking
+									    - Arm64 explicit push nonnegative-linear fill follow-up (2026-04-09): ranking
 									      surface `make perf-probe-arm64-fast-push-nonneg-linear-decision` now compares the
-									      shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=0` on the same
-									      fill/share attribution probe plus same-tree exact whole-operation C-ceiling reruns.
+									      current shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=1`
+									      on the same fill/share attribution probe plus same-tree exact whole-operation
+									      C-ceiling reruns.
 									      The widened rerun
 										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`)
 										      closes this branch as the next real shipped fill-side win: fill/share strongly
@@ -2367,6 +2384,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      `./oren_stage2_nonneg0` completed cleanly. This branch is therefore back to opt-in
 										      until it is self-host-safe, and native quick now carries
 										      `tests/native/test_gc_reuse_alloc_churn_min.oren` as a direct guardrail.
+										      Refresh (2026-04-23): the current-tree rerun still says the broad branch is the
+										      right performance candidate even though it is not yet safe to ship by default.
+										      `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_002542_70401.log`
+										      again preferred `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=1` across both
+										      surfaces (`default_fill_vs_c_vector ~5.7432×` vs enabled `~2.3262×`,
+										      `default_array_ratio_median ~2.1543×` vs enabled `~2.0482×`,
+										      `default_dot_ratio_median ~1.8061×` vs enabled `~1.7963×`), and the reduced
+										      alloc-churn tracking smoke now passes under that opt-in branch
+										      (`build/logs/verify_alloc_churn_tracking_smoke_nonneg_linear_20260423_002715.log`).
+										      A narrower attempted fresh-single-list default-on isolation was tested and then
+										      reverted instead of being left around as another mixed branch:
+										      `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_003345_74555.log`
+										      improved exact `array_sum_int` only, while fill/share and exact `dot_product_int`
+										      still preferred the disabled branch. Reweight next work toward root-causing or
+										      fencing the broad self-host/native-quick blocker, not toward shipping another
+										      partial isolation.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface
