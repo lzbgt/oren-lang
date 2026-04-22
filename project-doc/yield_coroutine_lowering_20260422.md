@@ -351,6 +351,18 @@ backend-shared value-helper slices landed.
     vs enabled `~1.6949×`, `decision_surface_alignment: agree`). That narrows the remaining backend
     work further again: the open gap is no longer just “multi-stream without a wider safepoint
     spill tax”; even that narrower recurrence split loses to the shipped serial four-wide body.
+  - the fill-vs-C disasm probe now emits per-category counts for the shipped four-wide body
+    itself, so the next backend branch can be chosen from actual instruction mix instead of total
+    counts alone. `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_064855_96771.log`
+    and `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_064900_96827.log` still show
+    the landed Oren main iteration at `35` hot instructions for `4` outputs (`8.75` per element),
+    but now quantify the per-output-element category mix too: Oren spends `stores 1.00`,
+    `arith 2.75`, `moves 1.25`, `compare/tick 1.75`, and `branches 2.00`, while the host C vector
+    ceiling through `LBB0_15` spends `stores 0.50`, `arith 5.00`, `moves 0.25`,
+    `compare/tick 0.50`, and `branches 0.50` at `6.75` instructions per element. That sharpens the
+    remaining backend work again: the gap is not “not enough arithmetic” by itself; it is the
+    extra control/move/store overhead around Oren's serial recurrence, so future retries should
+    only ship if they trade that control-state maintenance for more independent arithmetic work.
 	  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
 	    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
 	    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)

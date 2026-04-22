@@ -135,6 +135,37 @@ def count_mnemonics(lines):
     return total, counts
 
 
+def categorize_counts(counts):
+    categories = {
+        "loads": 0,
+        "stores": 0,
+        "arith": 0,
+        "moves": 0,
+        "compare_tick": 0,
+        "branches": 0,
+        "calls": 0,
+        "other": 0,
+    }
+    for mnemonic, count in counts.items():
+        if mnemonic in {"ldr", "ldp", "ldur"}:
+            categories["loads"] += count
+        elif mnemonic in {"str", "stp", "stur"}:
+            categories["stores"] += count
+        elif mnemonic in {"add", "sub", "mul", "madd", "msub", "udiv", "umulh", "lsr", "csel"}:
+            categories["arith"] += count
+        elif mnemonic == "mov":
+            categories["moves"] += count
+        elif mnemonic in {"cmp", "subs"}:
+            categories["compare_tick"] += count
+        elif mnemonic == "bl":
+            categories["calls"] += count
+        elif mnemonic == "b" or mnemonic.startswith("b."):
+            categories["branches"] += count
+        else:
+            categories["other"] += count
+    return categories
+
+
 def format_counts(counts, interesting):
     parts = []
     for mnemonic in interesting:
@@ -145,6 +176,11 @@ def format_counts(counts, interesting):
             continue
         parts.append(f"{mnemonic}={counts[mnemonic]}")
     return " ".join(parts)
+
+
+def format_category_counts(counts):
+    order = ["loads", "stores", "arith", "moves", "compare_tick", "branches", "calls", "other"]
+    return " ".join(f"{key}={counts[key]}" for key in order if counts.get(key))
 
 
 def find_c_fill_loops(c_lines):
@@ -179,10 +215,18 @@ c_lines = read_lines(os.environ["C_ASM_LOG"])
 
 vec_total, vec_counts = count_mnemonics(c_vec)
 tail_total, tail_counts = count_mnemonics(c_tail)
+vec_category_counts = categorize_counts(vec_counts)
+tail_category_counts = categorize_counts(tail_counts)
 oren_hot = int(oren["hot_instruction_count"])
 oren_main_iter_elems = int(oren.get("main_iter_output_elements", "1"))
 oren_main_iter_hot = int(oren.get("main_iter_hot_instruction_count", str(oren_hot)))
 oren_main_iter_per_elem = float(oren.get("main_iter_hot_instructions_per_output_elem", str(float(oren_hot))))
+oren_main_iter_category_counts = {}
+main_iter_category_value = oren.get("main_iter_category_counts", "")
+if main_iter_category_value:
+    for part in main_iter_category_value.split():
+        key, value = part.split("=", 1)
+        oren_main_iter_category_counts[key] = int(value)
 
 print(os.environ["TITLE"])
 print("")
@@ -218,6 +262,7 @@ print(
     "c_vector_loop_counts: "
     + format_counts(vec_counts, ["lsr", "umulh", "msub", "stp", "add", "subs", "b.ne"])
 )
+print(f"c_vector_loop_category_counts: {format_category_counts(vec_category_counts)}")
 print(f"c_tail_loop_label: {tail_label}")
 print(f"c_tail_loop_insns: {tail_total}")
 print(f"c_tail_loop_insns_per_elem: {fmt_float(float(tail_total))}")
@@ -225,6 +270,7 @@ print(
     "c_tail_loop_counts: "
     + format_counts(tail_counts, ["lsr", "umulh", "msub", "str", "add", "subs", "b.ne"])
 )
+print(f"c_tail_loop_category_counts: {format_category_counts(tail_category_counts)}")
 print("")
 print("c_vector_loop:")
 for line in c_vec:
@@ -241,6 +287,24 @@ print("")
 print("comparison_notes:")
 print(
     f"  Oren hot main iteration is {oren_main_iter_hot} insns for {oren_main_iter_elems} output element(s), or {fmt_float(oren_main_iter_per_elem)} per element; C vector body is {fmt_float(vec_total / 4.0)} insns per element before scalar tail cleanup"
+)
+if oren_main_iter_category_counts:
+    per_elem = lambda count: fmt_float(float(count) / float(oren_main_iter_elems))
+    print(
+        "  Oren main-iteration categories per output element: "
+        f"stores {per_elem(oren_main_iter_category_counts.get('stores', 0))}, "
+        f"arith {per_elem(oren_main_iter_category_counts.get('arith', 0))}, "
+        f"moves {per_elem(oren_main_iter_category_counts.get('moves', 0))}, "
+        f"compare/tick {per_elem(oren_main_iter_category_counts.get('compare_tick', 0))}, "
+        f"branches {per_elem(oren_main_iter_category_counts.get('branches', 0))}"
+    )
+print(
+    "  C vector categories per output element: "
+    f"stores {fmt_float(vec_category_counts.get('stores', 0) / 4.0)}, "
+    f"arith {fmt_float(vec_category_counts.get('arith', 0) / 4.0)}, "
+    f"moves {fmt_float(vec_category_counts.get('moves', 0) / 4.0)}, "
+    f"compare/tick {fmt_float(vec_category_counts.get('compare_tick', 0) / 4.0)}, "
+    f"branches {fmt_float(vec_category_counts.get('branches', 0) / 4.0)}"
 )
 print(
     f"  Oren still performs one value recurrence, one slot store, and one loop tick check per element; C carries four independent recurrence streams through {vec_label}"

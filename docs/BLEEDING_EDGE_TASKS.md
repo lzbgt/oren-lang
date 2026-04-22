@@ -2630,6 +2630,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      Reweight again: the remaining blocker is no longer just “multi-stream
 										      without a wider safepoint spill tax”; even that narrower recurrence split
 										      loses to the shipped serial four-wide body.
+										    - Arm64 explicit push nonnegative-linear category breakdown refresh (2026-04-23):
+										      the fill-vs-C disasm probe now emits per-category counts for the shipped
+										      four-wide body itself, so the next branch can be chosen from actual
+										      instruction mix rather than total counts alone. The refreshed shipped logs
+										      `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_064855_96771.log`
+										      and
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_064900_96827.log`
+										      still show the landed Oren main iteration at `35` hot instructions for `4`
+										      outputs (`8.75` per element), but now quantify the per-element category
+										      mix: Oren spends `stores 1.00`, `arith 2.75`, `moves 1.25`,
+										      `compare/tick 1.75`, and `branches 2.00`, while the host C vector ceiling
+										      through `LBB0_15` spends `stores 0.50`, `arith 5.00`, `moves 0.25`,
+										      `compare/tick 0.50`, and `branches 0.50` at `6.75` instructions per
+										      element. Reweight again: the remaining blocker is not “not enough
+										      arithmetic” by itself; it is the extra control/move/store overhead around
+										      Oren's serial recurrence. Future retries should only ship if they trade
+										      that control-state maintenance for more independent arithmetic work, not if
+										      they just shave arithmetic ops in isolation.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

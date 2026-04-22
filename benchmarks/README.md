@@ -736,6 +736,19 @@ preferred default (`default_array_ratio_median ~2.2033x` vs enabled `~2.2142x`),
 "multi-stream, but without wider safepoints"; even the spill-neutral two-stream recurrence split
 stays worse than the shipped serial wide body.
 
+To keep the next branch fact-based, the arm64 fill-vs-C probe now emits category counts for the
+shipped wide body itself:
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_064855_96771.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_064900_96827.log` show the landed
+Oren main iteration at `35` hot instructions for `4` outputs (`8.75` per element), with category
+mix per output element of `stores 1.00`, `arith 2.75`, `moves 1.25`, `compare/tick 1.75`, and
+`branches 2.00`. The host C vector ceiling through `LBB0_15` is `6.75` instructions per element,
+but its mix is inverted: `stores 0.50`, `arith 5.00`, `moves 0.25`, `compare/tick 0.50`, and
+`branches 0.50`. Reweight again: the remaining gap is not “too little arithmetic” in the abstract;
+it is the extra control/move/store overhead around Oren's serial recurrence. Future retries should
+only ship if they replace that control-state maintenance with more independent arithmetic work
+rather than shaving arithmetic ops in isolation.
+
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 
 ```bash

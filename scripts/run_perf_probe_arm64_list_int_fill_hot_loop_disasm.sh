@@ -116,6 +116,38 @@ def count_mnemonics(insns):
     return len(insns), counts
 
 
+def category_counts(insns):
+    categories = {
+        "loads": 0,
+        "stores": 0,
+        "arith": 0,
+        "moves": 0,
+        "compare_tick": 0,
+        "branches": 0,
+        "calls": 0,
+        "other": 0,
+    }
+    for insn in insns:
+        mnemonic = insn["mnemonic"]
+        if mnemonic in {"ldr", "ldp", "ldur"}:
+            categories["loads"] += 1
+        elif mnemonic in {"str", "stp", "stur"}:
+            categories["stores"] += 1
+        elif mnemonic in {"add", "sub", "mul", "madd", "msub", "udiv", "umulh", "lsr", "csel"}:
+            categories["arith"] += 1
+        elif mnemonic == "mov":
+            categories["moves"] += 1
+        elif mnemonic in {"cmp", "subs"}:
+            categories["compare_tick"] += 1
+        elif mnemonic == "bl":
+            categories["calls"] += 1
+        elif mnemonic == "b" or mnemonic.startswith("b."):
+            categories["branches"] += 1
+        else:
+            categories["other"] += 1
+    return categories
+
+
 def format_counts(counts, interesting):
     parts = []
     for mnemonic in interesting:
@@ -126,6 +158,11 @@ def format_counts(counts, interesting):
             continue
         parts.append(f"{mnemonic}={counts[mnemonic]}")
     return " ".join(parts)
+
+
+def format_category_counts(counts):
+    order = ["loads", "stores", "arith", "moves", "compare_tick", "branches", "calls", "other"]
+    return " ".join(f"{key}={counts[key]}" for key in order if counts.get(key))
 
 
 def collect_cold_gc_tick_blocks(insns):
@@ -144,7 +181,7 @@ def collect_cold_gc_tick_blocks(insns):
     return blocks, cold_insns
 
 
-def find_main_iter_metrics(hot_insns, start_abs, end_abs):
+def find_main_iter_insns(hot_insns, start_abs, end_abs):
     main_step = 1
     for insn in hot_insns:
         m = tick_step_re.search(insn["line"])
@@ -154,7 +191,7 @@ def find_main_iter_metrics(hot_insns, start_abs, end_abs):
         if step > main_step:
             main_step = step
     if main_step <= 1:
-        return len(hot_insns), 1, float(len(hot_insns))
+        return hot_insns, 1
 
     scalar_target = None
     for insn in hot_insns:
@@ -169,14 +206,13 @@ def find_main_iter_metrics(hot_insns, start_abs, end_abs):
         break
 
     if scalar_target is None:
-        return len(hot_insns), main_step, float(len(hot_insns)) / float(main_step)
+        return hot_insns, main_step
 
     main_iter_insns = [insn for insn in hot_insns if start_abs <= insn["addr"] < scalar_target]
     if not main_iter_insns:
-        return len(hot_insns), main_step, float(len(hot_insns)) / float(main_step)
+        return hot_insns, main_step
 
-    main_iter_hot = len(main_iter_insns)
-    return main_iter_hot, main_step, float(main_iter_hot) / float(main_step)
+    return main_iter_insns, main_step
 
 
 def emit_block(label, path, prefix):
@@ -202,7 +238,12 @@ def emit_block(label, path, prefix):
     hot_insns = [insn for insn in insns if insn["addr"] not in cold_addrs]
     hot_count, hot_counts = count_mnemonics(hot_insns)
     cold_count, cold_counts = count_mnemonics(cold_insns)
-    main_iter_hot, main_iter_elems, main_iter_per_elem = find_main_iter_metrics(hot_insns, start_abs, end_abs)
+    main_iter_insns, main_iter_elems = find_main_iter_insns(hot_insns, start_abs, end_abs)
+    main_iter_hot, main_iter_counts = count_mnemonics(main_iter_insns)
+    main_iter_per_elem = float(main_iter_hot) / float(main_iter_elems)
+    hot_category_counts = category_counts(hot_insns)
+    main_iter_category_counts = category_counts(main_iter_insns)
+    cold_category_counts = category_counts(cold_insns)
     print(f"  kind: {kind}")
     print(f"  text_base: 0x{base:016x}")
     print(f"  range_off: {start_off}..{end_off} ({nbytes} bytes)")
@@ -221,9 +262,21 @@ def emit_block(label, path, prefix):
     formatted_hot_counts = format_counts(hot_counts, interesting)
     if formatted_hot_counts:
         print(f"  hot_counts: {formatted_hot_counts}")
+    formatted_main_iter_counts = format_counts(main_iter_counts, interesting)
+    if formatted_main_iter_counts:
+        print(f"  main_iter_counts: {formatted_main_iter_counts}")
     formatted_cold_counts = format_counts(cold_counts, interesting)
     if formatted_cold_counts:
         print(f"  cold_gc_tick_counts: {formatted_cold_counts}")
+    formatted_hot_category_counts = format_category_counts(hot_category_counts)
+    if formatted_hot_category_counts:
+        print(f"  hot_category_counts: {formatted_hot_category_counts}")
+    formatted_main_iter_category_counts = format_category_counts(main_iter_category_counts)
+    if formatted_main_iter_category_counts:
+        print(f"  main_iter_category_counts: {formatted_main_iter_category_counts}")
+    formatted_cold_category_counts = format_category_counts(cold_category_counts)
+    if formatted_cold_category_counts:
+        print(f"  cold_gc_tick_category_counts: {formatted_cold_category_counts}")
     if cold_blocks:
         ranges = " ".join(f"0x{start:016x}->0x{target:016x}" for start, target, _ in cold_blocks)
         print(f"  cold_gc_tick_ranges: {ranges}")
