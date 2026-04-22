@@ -353,12 +353,12 @@ static OrenValue OREN_RESULT_VALUE;
 // Forward decl: runtime uses "const string" keys in hot paths without heap allocation.
 OrenValue oren_string_const(const char* s);
 #include "011_alloc_registry.inc"
+static inline OrenValue oren_string_from_single_byte(unsigned char b);
 static int oren_generator_mark_value_internal(OrenValue v);
 static int oren_generator_mark_alloc_internal(OrenAllocNode* n, void* ptr);
 static int oren_generator_ptr_from_value_internal(OrenValue v, uintptr_t* out_ptr);
 static int oren_generator_print_internal(OrenValue v);
 static OrenValue oren_generator_type_name_internal(OrenValue v);
-
 // Fast conservative-GC filter:
 // Most machine words on the stack/register snapshots are not pointers into the Oren heap.
 // Track a coarse [min,max] allocation address range so the mark phase can skip the vast

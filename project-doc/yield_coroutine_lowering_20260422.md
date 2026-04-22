@@ -148,6 +148,10 @@ backend-shared value-helper slices landed.
     `state_layout=dedicated_generator_object_kind_v1`, `worker_context_type=generator_context`,
     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and
     `decl_forms=["named_function_decl","function_valued_var"]`
+  - the C runtime cleanup above that substrate is now split too: numeric pointer accessors live in
+    `lib/runtime/061_ptr_load_store.inc`, print/iter/string reflection helpers live in
+    `lib/runtime/043_print_iter_string.inc`, and both `lib/runtime/010_prelude.inc` and
+    `lib/runtime/040_lists_maps.inc` are back under the repo's 2000-line red line
   - the immediate structural cleanup above that substrate is also now started:
     - generator-specific AVM helper logic is split into dedicated includes instead of living only as
       inline islands inside `lib/avm/avm_native.inc` / `lib/avm/avm_state.inc`

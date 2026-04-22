@@ -12,6 +12,7 @@
 
 #include "runtime/010_prelude.inc"
 #include "runtime/060_ptr_unsafe.inc"
+#include "runtime/061_ptr_load_store.inc"
 #include "runtime/020_threads_gc.inc"
 #include "runtime/021_channels.inc"
 #include "runtime/025_entropy.inc"
@@ -19,5 +20,6 @@
 #include "runtime/040_lists_maps.inc"
 #include "runtime/041_err_helpers.inc"
 #include "runtime/042_generator_objects.inc"
+#include "runtime/043_print_iter_string.inc"
 #include "runtime/045_bytes_helpers.inc"
 #include "runtime/050_io_misc.inc"

@@ -4256,12 +4256,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 					   - New (2026-04-22): raw generator slot numbering is now isolated to named injected helper
 					     accessors in `lib/compiler/parser_parse/005_generator_core.oren`, so the new dedicated
 					     generator object-kind substrate stays localized instead of rewriting every
-					   - New (2026-04-22): the first large-file cleanup pass above that substrate is now in place too:
-					     generator-specific AVM/runtime glue lives in dedicated helper includes, and
-					     `lib/runtime/010_prelude.inc` is back under the 2000-line threshold. Reweight the next debt
-					     payoff toward the remaining generic oversized hosts (`lib/avm/avm_native.inc`,
-					     `lib/avm/avm_state.inc`, `lib/runtime/040_lists_maps.inc`) instead of reopening settled
-					     generator semantics.
+						   - New (2026-04-22): the large-file cleanup pass above that substrate has moved one step
+						     further too: generator-specific AVM/runtime glue lives in dedicated helper includes,
+						     pointer load/store helpers now live in `lib/runtime/061_ptr_load_store.inc`, and
+						     print/iter/string reflection helpers now live in `lib/runtime/043_print_iter_string.inc`.
+						     `lib/runtime/010_prelude.inc` and `lib/runtime/040_lists_maps.inc` are both back under
+						     the 2000-line threshold, so reweight the next debt payoff toward the remaining generic
+						     oversized AVM hosts (`lib/avm/avm_native.inc`, `lib/avm/avm_state.inc`) instead of
+						     reopening settled generator semantics.
 					   - New (2026-04-22): the repo-default verification lane is green again after moving the
 					     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
 					     broader generator surface verifier. Reweight the next task above correctness: optimize the
