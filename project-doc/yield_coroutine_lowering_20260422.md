@@ -236,6 +236,15 @@ backend-shared value-helper slices landed.
     so the broad branch keeps the shipped `udiv; mul; sub` remainder path and the remaining
     open surface is the slot-store/arithmetic/safepoint-reset shape, not generic final
     count/cursor writeback
+  - that fill-side open surface is now narrowed again by a direct Oren-vs-C compare:
+    `make perf-probe-arm64-fill-vs-c-loop-compare` pairs the shipped fill hot-loop summary with
+    the host C `-O2` arm64 assembly, and
+    (`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_043402_53791.log`) shows the
+    Oren hot body at `17.00` instructions per element versus a host C four-wide recurrence block
+    `LBB0_15` at `27` instructions for four elements (`6.75` per element) plus a `9`-instruction
+    scalar tail in `LBB0_18`. That shifts the next backend branch away from another narrow scalar
+    count/cursor cleanup theory and toward a measured wide/unrolled nonnegative-linear fill path
+    experiment on the shipped tree
   - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
     promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
     tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)

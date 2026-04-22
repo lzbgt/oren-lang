@@ -2478,6 +2478,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      `udiv; mul; sub` remainder path, stop treating per-iteration count/cursor
 										      writeback as the likely blocker, and use the new hot-loop probe to attack the
 										      surviving slot-store/arithmetic/safepoint-reset shape instead.
+										      Oren-vs-C compare follow-up (2026-04-23): added
+										      `make perf-probe-arm64-fill-vs-c-loop-compare` to pair the shipped fill
+										      hot-loop summary with the host C `-O2` arm64 assembly. The first artifact
+										      (`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_043402_53791.log`)
+										      shows the current emitted-code gap much more directly: the shipped Oren body is
+										      `17.00` hot instructions per element, while the host C ceiling carries four
+										      independent recurrence streams through `LBB0_15` at `27` instructions for four
+										      elements (`6.75` per element) plus a `9`-instruction scalar tail in `LBB0_18`.
+										      Reweight again: the next fill-side branch should be a measured wide/unrolled
+										      nonnegative-linear recurrence experiment on the shipped path, not another narrow
+										      scalar count/cursor cleanup theory by itself.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

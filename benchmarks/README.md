@@ -105,6 +105,23 @@ For the explicit `list<int>` counterpart, use
 host C vector/mid/tail shape, with labels selected by instruction pattern rather than assumed
 `LBB0_*` numbers.
 
+For the analogous arm64 `fill_list_int` comparison, use:
+
+```bash
+make perf-probe-arm64-fill-vs-c-loop-compare
+```
+
+This reuses the shipped fill hot-loop disasm probe, compiles
+[benchmarks/fill_list_int/fill_list_int.c](/Users/zongbaolu/work/compiler-mini/benchmarks/fill_list_int/fill_list_int.c)
+to arm64 assembly, and extracts the Oren `fast_list_int_push_while_no_tick` body plus the host C
+vector and scalar tail loops into one summary. The latest artifact,
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_043402_53791.log`, shows the current
+shipped Oren fill body at `17` hot instructions per element, while the host C ceiling uses a
+four-wide recurrence block (`LBB0_15`) at `27` instructions for four elements, or `6.75`
+instructions per element, plus a `9`-instruction scalar tail (`LBB0_18`). That is the right
+current baseline when judging future arm64 fill work: the remaining gap is primarily versus a
+wide/unrolled C recurrence shape, not a hidden hot-path final count/cursor writeback.
+
 The probe also now parses comma-separated `OREN_BENCH_ENV_BUILD_OREN` correctly, so multi-var build
 env overrides reach the traced Oren build instead of being collapsed into one invalid token.
 
@@ -571,6 +588,23 @@ did not support shipping it:
 
 So the shipped nonnegative-linear path stays the simpler direct mul/add/(u)div lowering. The
 recurrence subpath was removed from the tree rather than kept as another speculative opt-in.
+
+The next emitted-code reweight is now anchored by a direct Oren-vs-C fill loop compare too:
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_043402_53791.log` pairs the shipped
+Oren fill hot-loop summary with the host C `-O2` assembly and shows the current scalar gap more
+directly:
+
+- Oren shipped fill hot body
+  - `17.00` instructions per element
+  - one value recurrence, one slot store, one loop tick check per element
+- host C vector loop
+  - `27` instructions for four elements, or `6.75` instructions per element
+  - four independent recurrence streams carried in parallel, two `stp` stores per trip
+- host C scalar tail
+  - `9` instructions per element
+
+So the next fill-side backend work should be judged against a missing wide/unrolled recurrence
+shape, not another theory about hot-path final count/cursor writeback alone.
 
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 
