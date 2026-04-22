@@ -736,6 +736,25 @@ preferred default (`default_array_ratio_median ~2.2033x` vs enabled `~2.2142x`),
 "multi-stream, but without wider safepoints"; even the spill-neutral two-stream recurrence split
 stays worse than the shipped serial wide body.
 
+A narrower remaining-count control follow-up under that same shipped four-wide body also stays
+rejected. This rerun only changed the loop control from carried `i` + recomputed `n - i` into a
+carried `remaining` count, so it left the shipped safepoint spill width, store shape, and branch
+mix otherwise intact. The emitted loop still improved slightly:
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_070103_440.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_070107_517.log` show the wide main
+iteration dropping from `35` hot instructions for `4` outputs (`8.75` per element) to `34`
+(`8.50` per element), with the per-output-element arithmetic slice moving from `2.75` down to
+`2.50` while `stores 1.00`, `moves 1.25`, `compare/tick 1.75`, and `branches 2.00` stay flat.
+
+That control-form retry still does not hold on the actual same-tree decision surface:
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-remaining-decision-20260423_065955_98963.log`
+only improves fill/share and exact `array_sum_int` slightly (`default_fill_vs_c_vector ~2.2233x`
+vs enabled `~2.1710x`, `default_array_ratio_median ~2.1913x` vs enabled `~2.1894x`), while exact
+`dot_product_int` regresses (`default_dot_ratio_median ~1.7179x` vs enabled `~1.7739x`,
+`decision_surface_alignment: agree`). Reweight again: shaving one arithmetic instruction per wide
+trip is not enough if the carried-control rewrite leaves the dominant compare/branch/store shape
+unchanged and still hurts the exact whole-program dot surface.
+
 To keep the next branch fact-based, the arm64 fill-vs-C probe now emits category counts for the
 shipped wide body itself:
 `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_064855_96771.log` and

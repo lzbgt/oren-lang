@@ -2648,6 +2648,30 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      Oren's serial recurrence. Future retries should only ship if they trade
 										      that control-state maintenance for more independent arithmetic work, not if
 										      they just shave arithmetic ops in isolation.
+										    - Arm64 explicit push nonnegative-linear remaining-count control follow-up (2026-04-23):
+										      the next narrower loop-control rewrite under that same shipped four-wide
+										      body is now also closed negative. A temporary rerun kept the shipped
+										      safepoint spill width and store shape intact, but replaced the carried
+										      `i` + recomputed `n - i` control with a carried remaining-count and
+										      reconstructed the final idx/count only at loop exit. The emitted loop
+										      still improved slightly:
+										      `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_070103_440.log`
+										      and
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_070107_517.log`
+										      show the wide main iteration dropping from `35` hot instructions for `4`
+										      outputs (`8.75` per element) to `34` (`8.50` per element), and the
+										      per-output-element category mix only changes in arithmetic
+										      (`2.75 -> 2.50`) while `stores 1.00`, `moves 1.25`, `compare/tick 1.75`,
+										      and `branches 2.00` stay flat. The actual same-tree decision surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-remaining-decision-20260423_065955_98963.log`)
+										      still does not justify keeping it: fill/share and exact `array_sum_int`
+										      improve slightly (`default_fill_vs_c_vector ~2.2233×` vs enabled
+										      `~2.1710×`, `default_array_ratio_median ~2.1913×` vs enabled `~2.1894×`),
+										      but exact `dot_product_int` regresses (`default_dot_ratio_median
+										      ~1.7179×` vs enabled `~1.7739×`, `decision_surface_alignment: agree`).
+										      Reweight again: the remaining blocker is not an `n - i` bookkeeping seam
+										      by itself; future retries need a bigger control/store reduction or a
+										      stronger whole-program dot win.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface
