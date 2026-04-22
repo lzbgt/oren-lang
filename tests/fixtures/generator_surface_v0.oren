@@ -1,0 +1,90 @@
+import gen "std:generator"
+
+fn counter_worker(co, args) {
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in (co["yield_ch"], co["resume_ch"])
+    var resumed1 = yield (seed + resumed0) in (co["yield_ch"], co["resume_ch"])
+    return resumed1 + 5
+}
+
+fn nil_worker(co, args) {
+    var seed = args[0]
+    yield in (co["yield_ch"], co["resume_ch"])
+    return seed + 7
+}
+
+fn collect_worker(co, args) {
+    var seed = args[0]
+    var i = 0
+    while i < 3 {
+        yield (seed + i) in (co["yield_ch"], co["resume_ch"])
+        i = i + 1
+    }
+    return seed + 30
+}
+
+fn main() {
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    if c1 == 0 || c2 == 0 { return 80 }
+
+    oren_chan_send(c2, 111)
+    var sel = oren_select_recv([c1, c2])
+    if sel == 0 { return 81 }
+    if oren_list_len(sel) != 2 { return 82 }
+    if sel[0] != 1 || sel[1] != 111 { return 83 }
+
+    var raw1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    if raw1 == 0 { return 84 }
+    if oren_list_len(raw1) != 2 || raw1[1] != 1 { return 85 }
+    var raw_idx1 = raw1[0]
+    if raw_idx1 == 0 {
+        if oren_chan_recv(c1) != 11 { return 86 }
+    } else {
+        if oren_chan_recv(c2) != 22 { return 87 }
+    }
+
+    var raw2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    if raw2 == 0 { return 88 }
+    if oren_list_len(raw2) != 2 || raw2[1] != 1 { return 89 }
+    var raw_idx2 = raw2[0]
+    if raw_idx2 == 0 {
+        if oren_chan_recv(c1) != 33 { return 90 }
+    } else {
+        if oren_chan_recv(c2) != 44 { return 91 }
+    }
+    if raw_idx1 == raw_idx2 { return 92 }
+
+    var g1 = gen.start(counter_worker, [40])
+    var s0 = gen.next(g1)
+    if oren_is_err(s0) == true { return 100 }
+    if s0["ok"] != true || s0["done"] != false || s0["value"] != 41 { return 101 }
+    var s1 = gen.send(g1, 2)
+    if oren_is_err(s1) == true { return 102 }
+    if s1["ok"] != true || s1["value"] != 42 { return 103 }
+    var s2 = gen.send(g1, 7)
+    if oren_is_err(s2) == true { return 104 }
+    if s2["done"] != true || s2["return"] != 12 { return 105 }
+    if gen.is_done(g1) != true || gen.return_value(g1) != 12 { return 106 }
+
+    var g2 = gen.start(nil_worker, [60])
+    var n0 = gen.next(g2)
+    if oren_is_err(n0) == true { return 110 }
+    if n0["ok"] != true || n0["value"] != nil { return 111 }
+    var n1 = gen.send(g2, 3)
+    if oren_is_err(n1) == true { return 112 }
+    if n1["done"] != true || n1["return"] != 67 { return 113 }
+
+    var g3 = gen.start(counter_worker, [10])
+    var bad = gen.send(g3, 99)
+    if oren_is_err(bad) != true { return 120 }
+
+    var g4 = gen.start(collect_worker, [5])
+    var xs = gen.collect(g4)
+    if oren_is_err(xs) == true { return 130 }
+    if oren_list_len(xs) != 3 { return 131 }
+    if xs[0] != 5 || xs[1] != 6 || xs[2] != 7 { return 132 }
+    if gen.return_value(g4) != 35 { return 133 }
+
+    return 0
+}

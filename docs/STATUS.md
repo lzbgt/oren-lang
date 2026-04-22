@@ -1406,6 +1406,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     surfaces now record whether a site came from raw helper calls or source syntax via
 	     `syntax_kinds` plus per-point `syntax` / `explicit_value`. The remaining gap is fuller
 	     coroutine/generator protocol above that explicit channel surface.
+	   - New (2026-04-22): the first reusable source-level generator abstraction now ships as
+	     `std:generator`. Its `start/next/send/collect` API uses the same explicit
+	     `yield ... in (yield_ch, resume_ch)` protocol with a fixed worker contract
+	     `worker(co, args_list)`, and the C backend path is now real because the shared POSIX runtime
+	     exposes `oren_select` / `oren_select_recv` for pipe-backed channels. What is still missing is
+	     a compiler-managed generator/coroutine object model above that library-backed surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

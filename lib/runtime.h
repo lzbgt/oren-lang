@@ -175,6 +175,13 @@ OrenValue oren_join_all();
 OrenValue oren_new_channel(void);
 OrenValue oren_chan_send(OrenValue ch, OrenValue value);
 OrenValue oren_chan_recv(OrenValue ch);
+// Shared channel-select surface (same descriptor encoding as AVM/native):
+// - recv case: channel `[rfd, wfd]` or `[0, ch]`
+// - send case: `[1, ch, value]`
+// Returns `[idx, payload]` on success, `0` on malformed/empty input, or `-errno`.
+OrenValue oren_select(OrenValue cases);
+// Convenience recv-only wrapper: `oren_select_recv([ch1, ch2, ...])`.
+OrenValue oren_select_recv(OrenValue chs);
 
 OrenValue oren_func(OrenFn fn, void* env);
 // Create a closure by capturing values into an environment (capture-by-value).

@@ -1,0 +1,145 @@
+// std/generator.oren
+//
+// Channel-backed stackless generator helpers built on the shipped
+// `yield ... in (yield_ch, resume_ch)` / `oren_yield_exchange(...)` surface.
+//
+// Worker contract:
+// - `start(worker, args_list)` spawns `worker(co, args_list)`.
+// - The context map exposes:
+//     - `yield_ch`
+//     - `resume_ch`
+// - Workers yield outward values with:
+//     - `yield value in (co["yield_ch"], co["resume_ch"])`
+//     - `yield in (co["yield_ch"], co["resume_ch"])`
+// - `next(gen)` resumes with `nil`
+// - `send(gen, value)` resumes with `value`
+//
+// This is the first reusable source-level generator protocol. It is intentionally
+// library-backed rather than syntax-backed so the same surface works under
+// bytecode, C, and native without needing backend-specific coroutine objects.
+
+fn _generator_err(ctx, msg) {
+    return oren_err(4, ctx + ": " + msg)
+}
+
+fn _generator_step_value(ok, done, value, retv) {
+    return {"ok": ok, "done": done, "value": value, "return": retv}
+}
+
+fn _generator_yield_step(value) {
+    return _generator_step_value(true, false, value, nil)
+}
+
+fn _generator_done_step(retv) {
+    return _generator_step_value(false, true, nil, retv)
+}
+
+fn _generator_ctx(yield_ch, resume_ch) {
+    return {"yield_ch": yield_ch, "resume_ch": resume_ch}
+}
+
+fn _generator_finish(gen, retv) {
+    oren_map_set_str(gen, "done", true)
+    oren_map_set_str(gen, "return", retv)
+    var task = oren_map_get_str(gen, "task")
+    if task != nil && task != 0 {
+        oren_join(task)
+    }
+    oren_map_set_str(gen, "task", nil)
+    return retv
+}
+
+fn _generator_ensure_task(gen) {
+    var task = oren_map_get_str(gen, "task")
+    if task != nil && task != 0 { return task }
+    task = spawn _generator_entry(
+        oren_map_get_str(gen, "worker"),
+        oren_map_get_str(gen, "args_list"),
+        oren_map_get_str(gen, "yield_ch"),
+        oren_map_get_str(gen, "resume_ch"),
+        oren_map_get_str(gen, "done_ch")
+    )
+    oren_map_set_str(gen, "task", task)
+    return task
+}
+
+fn _generator_entry(worker, args_list, yield_ch, resume_ch, done_ch) {
+    var retv = worker(_generator_ctx(yield_ch, resume_ch), args_list)
+    oren_chan_send(done_ch, retv)
+    return retv
+}
+
+fn _generator_resume(gen, value) {
+    _generator_ensure_task(gen)
+    if oren_map_get_str(gen, "started") == true {
+        oren_chan_send(oren_map_get_str(gen, "resume_ch"), value)
+    } else {
+        oren_map_set_str(gen, "started", true)
+    }
+    // Drive one cooperative scheduling step before blocking on channel readiness.
+    // This matches the explicit `yield_exchange` fixture pattern (`oren_yield(); recv/send; oren_yield()`),
+    // but centralizes it in the reusable abstraction so callers do not need to remember it.
+    oren_yield()
+    var sel = oren_select([[0, oren_map_get_str(gen, "done_ch")], [0, oren_map_get_str(gen, "yield_ch")]])
+    var idx = sel[0]
+    var payload = sel[1]
+    if idx == 0 {
+        _generator_finish(gen, payload)
+        return _generator_done_step(payload)
+    }
+    return _generator_yield_step(payload)
+}
+
+fn start(worker, args_list) {
+    if args_list == nil { args_list = [] }
+    var yield_ch = oren_new_channel()
+    var resume_ch = oren_new_channel()
+    var done_ch = oren_new_channel()
+    return {
+        "__generator_v0": true,
+        "worker": worker,
+        "args_list": args_list,
+        "yield_ch": yield_ch,
+        "resume_ch": resume_ch,
+        "done_ch": done_ch,
+        "task": nil,
+        "started": false,
+        "done": false,
+        "return": nil,
+    }
+}
+
+fn next(gen) {
+    if oren_map_get_str(gen, "done") == true {
+        return _generator_done_step(oren_map_get_str(gen, "return"))
+    }
+    return _generator_resume(gen, nil)
+}
+
+fn send(gen, value) {
+    if oren_map_get_str(gen, "done") == true {
+        return _generator_done_step(oren_map_get_str(gen, "return"))
+    }
+    if oren_map_get_str(gen, "started") != true && value != nil {
+        return _generator_err("generator.send", "initial send expects nil; use generator.next(gen) first")
+    }
+    return _generator_resume(gen, value)
+}
+
+fn is_done(gen) {
+    return oren_map_get_str(gen, "done") == true
+}
+
+fn return_value(gen) {
+    return oren_map_get_str(gen, "return")
+}
+
+fn collect(gen) {
+    var out = []
+    while true {
+        var step = next(gen)
+        if oren_is_err(step) == true { return step }
+        if step["done"] == true { return out }
+        oren_list_push(out, step["value"])
+    }
+}

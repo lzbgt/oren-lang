@@ -3378,7 +3378,8 @@ Rolling status:
   intentionally local and backend-shared:
   - `oren_yield_value(v)` yields, then resumes with `v`
   - no caller-supplied resume value exists yet
-  - no generator-style outward yielded-value channel exists yet
+  - no compiler-managed generator object/channel exists yet; outward value flow currently uses
+    explicit exchange channels or the stdlib `std:generator` wrapper built on top of them
 - New (2026-04-22): explicit caller-visible yield/resume channels now also exist through
   `oren_yield_exchange(yield_ch, resume_ch, value)`. The same contract now also has a first-class
   source syntax on the shared front-end:
@@ -3387,8 +3388,11 @@ Rolling status:
   That syntax is parity-verified under bytecode, C, and the default native green/runtime path.
   On native host threads with green runtime already active and no background workers, `oren_yield()`
   now drives one cooperative green scheduling step before falling back to the OS yield hint. The
-  remaining gap is broader coroutine/generator protocol above this explicit channel form, not
-  first availability of source syntax.
+  first reusable source-level abstraction above it is now `std:generator`, whose
+  `start/next/send/collect` surface is built directly on `yield ... in (yield_ch, resume_ch)` and
+  the shared channel/select runtime. The remaining gap is broader compiler/language
+  coroutine/generator protocol above that explicit/library-backed form, not first availability of
+  source syntax or reusable generator helpers.
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
   semantics beyond the current local value-stable helper path.
 
@@ -5209,6 +5213,15 @@ Current behavior (native runtime, rolling):
   - sends `v` to `yield_ch`
   - yields cooperatively / via OS hint using `oren_yield()`
   - resumes by reading and returning the next value from `resume_ch`
+- `std:generator` is the first reusable source-level abstraction on top of that explicit helper:
+  - `gen.start(worker, args_list)` creates a generator handle
+  - worker contract is `worker(co, args_list)` where `co["yield_ch"]` / `co["resume_ch"]` expose
+    the explicit exchange channels
+  - `gen.next(gen)` resumes with `nil`
+  - `gen.send(gen, value)` resumes with `value`
+  - `gen.collect(gen)` drains yielded values into a list
+  - under the C backend this now depends on the shared POSIX `oren_select` / `oren_select_recv`
+    surface over pipe-backed channels instead of a generator-specific workaround
 - Language sugar now uses those helpers consistently:
   - `yield` statement -> `oren_yield_stmt()`
   - `(yield)` -> `oren_yield_value(nil)`
@@ -5218,7 +5231,8 @@ Current behavior (native runtime, rolling):
 - The shipped helper contracts are now:
   - `oren_yield_value(v)`: local value-stable resume
   - `oren_yield_exchange(yield_ch, resume_ch, v)`: explicit yielded/resumed values via channel args
-- Still missing: fuller coroutine/generator protocol above these shipped source/helper forms.
+- Still missing: fuller compiler/language coroutine or generator protocol above these shipped
+  source/helper/library forms.
 
 - If running inside a green task: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - If green runtime is already active on a host thread and background workers are not running:
@@ -5231,6 +5245,8 @@ Current behavior (native runtime, rolling):
 Source of truth:
 
 - `lib/runtime_native/262_yield.oren`
+- `lib/runtime/021_channels.inc`
+- `lib/std/generator.oren`
 - Linux syscall numbers are repo-owned in `docs/refs/linux_*` and wired via `lib/compiler/*_abi_linux.oren`.
 
 ### 2. Channels + `oren_select` (today: data-driven, backend-shared)

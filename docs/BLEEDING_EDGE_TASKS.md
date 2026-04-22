@@ -4237,6 +4237,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     `yield in (yield_ch, resume_ch)`), with metadata distinguishing source syntax from raw helper
 	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`. The remaining gap is a
 	     stronger language-level coroutine/generator protocol above that explicit channel surface.
+	   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
+	     top of that explicit exchange contract. It standardizes `worker(co, args_list)` plus
+	     `start/next/send/collect`, and the C backend path now relies on a shared POSIX
+	     `oren_select` / `oren_select_recv` runtime surface instead of backend-specific generator
+	     workarounds. Reweight the remaining coroutine backlog toward language/runtime object-model
+	     work, not basic generator availability.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

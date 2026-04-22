@@ -1,0 +1,103 @@
+import gen "../../lib/std/generator.oren"
+
+fn fail(code) {
+    print("module generator_std FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+fn counter_worker(co, args) {
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in (co["yield_ch"], co["resume_ch"])
+    var resumed1 = yield (seed + resumed0) in (co["yield_ch"], co["resume_ch"])
+    return resumed1 + 5
+}
+
+fn nil_worker(co, args) {
+    var seed = args[0]
+    yield in (co["yield_ch"], co["resume_ch"])
+    return seed + 7
+}
+
+fn main() {
+    var g = gen.start(counter_worker, [40])
+    var s0 = gen.next(g)
+    if oren_is_err(s0) == true { fail(10) }
+    assert_true(s0["ok"] == true, 11)
+    assert_true(s0["done"] == false, 12)
+    assert_eq(s0["value"], 41, 13)
+
+    var s1 = gen.send(g, 2)
+    if oren_is_err(s1) == true { fail(14) }
+    assert_true(s1["ok"] == true, 15)
+    assert_eq(s1["value"], 42, 16)
+
+    var s2 = gen.send(g, 7)
+    if oren_is_err(s2) == true { fail(17) }
+    assert_true(s2["ok"] == false, 18)
+    assert_true(s2["done"] == true, 19)
+    assert_eq(s2["return"], 12, 20)
+    assert_true(gen.is_done(g) == true, 21)
+    assert_eq(gen.return_value(g), 12, 22)
+
+    var g2 = gen.start(nil_worker, [60])
+    var n0 = gen.next(g2)
+    if oren_is_err(n0) == true { fail(30) }
+    assert_true(n0["ok"] == true, 31)
+    assert_true(n0["value"] == nil, 32)
+    var n1 = gen.send(g2, 3)
+    if oren_is_err(n1) == true { fail(33) }
+    assert_true(n1["done"] == true, 34)
+    assert_eq(n1["return"], 67, 35)
+
+    var bias = 100
+    var closure_worker = |co, args| {
+        var seed = args[0]
+        var r = yield (seed + bias) in (co["yield_ch"], co["resume_ch"])
+        return r + bias
+    }
+    bias = 999
+    var g3 = gen.start(closure_worker, [5])
+    var c0 = gen.next(g3)
+    if oren_is_err(c0) == true { fail(40) }
+    assert_eq(c0["value"], 105, 41)
+    var c1 = gen.send(g3, 4)
+    if oren_is_err(c1) == true { fail(42) }
+    assert_eq(c1["return"], 104, 43)
+
+    var g4 = gen.start(counter_worker, [10])
+    var bad = gen.send(g4, 99)
+    assert_true(oren_is_err(bad) == true, 50)
+
+    fn list_worker(co, args) {
+        var seed = args[0]
+        var i = 0
+        while i < 3 {
+            yield (seed + i) in (co["yield_ch"], co["resume_ch"])
+            i = i + 1
+        }
+        return seed + 30
+    }
+
+    var g5 = gen.start(list_worker, [5])
+    var xs = gen.collect(g5)
+    if oren_is_err(xs) == true { fail(60) }
+    assert_eq(oren_list_len(xs), 3, 61)
+    assert_eq(xs[0], 5, 62)
+    assert_eq(xs[1], 6, 63)
+    assert_eq(xs[2], 7, 64)
+    assert_true(gen.is_done(g5) == true, 65)
+    assert_eq(gen.return_value(g5), 35, 66)
+
+    print("module generator_std OK")
+    exit(0)
+}

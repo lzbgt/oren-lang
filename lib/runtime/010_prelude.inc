@@ -10,6 +10,7 @@
 
 #if !defined(_WIN32)
 #include <dirent.h>
+#include <poll.h>
 #if defined(__linux__)
 #include <sched.h>
 #endif
@@ -39,6 +40,9 @@
 
 #ifndef ETIMEDOUT
 #define ETIMEDOUT 110
+#endif
+#ifndef ENOSYS
+#define ENOSYS 38
 #endif
 
 // MSVC's UCRT provides `struct timespec` in <time.h> (VS2022 Tier‑1).

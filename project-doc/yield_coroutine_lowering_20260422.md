@@ -81,6 +81,23 @@ backend-shared value-helper slices landed.
   Measured on the primary arm64-macos host from the phase logs:
   - old full quick-integration fixture span: about `151837.9 ms`
   - new tiny autoseed fixture span: about `1073.2 ms`
+- Fresh landing (2026-04-22): the first reusable source-level generator abstraction now ships as
+  `std:generator`. It does not introduce new compiler-only coroutine objects; instead it
+  standardizes a library contract on top of the existing explicit exchange surface:
+  - worker shape: `worker(co, args_list)`
+  - context keys: `co["yield_ch"]`, `co["resume_ch"]`
+  - handle operations: `start`, `next`, `send`, `is_done`, `return_value`, `collect`
+  The cross-backend generator verifier now also runs a raw channel-select smoke first, because that
+  surfaced a real missing piece: the C runtime had channels but no shared `oren_select(...)`.
+- Fresh landing (2026-04-22): the C runtime now exposes a POSIX `oren_select` /
+  `oren_select_recv` surface over the existing pipe-backed channels with the same visible case
+  encoding as AVM/native:
+  - recv: channel object `[rfd, wfd]` or descriptor `[0, ch]`
+  - send: descriptor `[1, ch, value]`
+  - success result: `[idx, payload]` where send returns `[idx, 1]`
+  - rolling fairness: deterministic round-robin cursor like the native surface
+  This closes the concrete C-backend gap that blocked `std:generator` parity on the current POSIX
+  host path. It is still not the same thing as a compiler-managed coroutine/generator object model.
 
 That boundary is deliberate, not accidental.
 

@@ -1,0 +1,85 @@
+import gen "../../lib/std/generator.oren"
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    print("test_generator_v0 FAIL " + oren_int_to_string(code))
+    oren_exit(code)
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    assert_eq(0, 1, code)
+}
+
+fn avm_counter_worker(co, args) {
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in (co["yield_ch"], co["resume_ch"])
+    var resumed1 = yield (seed + resumed0) in (co["yield_ch"], co["resume_ch"])
+    return resumed1 + 5
+}
+
+fn avm_nil_worker(co, args) {
+    var seed = args[0]
+    yield in (co["yield_ch"], co["resume_ch"])
+    return seed + 7
+}
+
+fn avm_collect_worker(co, args) {
+    var seed = args[0]
+    var i = 0
+    while i < 3 {
+        yield (seed + i) in (co["yield_ch"], co["resume_ch"])
+        i = i + 1
+    }
+    return seed + 30
+}
+
+fn test_step_protocol() {
+    var g = gen.start(avm_counter_worker, [40])
+    var s0 = gen.next(g)
+    assert_true(oren_is_err(s0) == false, 10)
+    assert_true(s0["ok"] == true, 11)
+    assert_eq(s0["value"], 41, 12)
+    var s1 = gen.send(g, 2)
+    assert_true(oren_is_err(s1) == false, 13)
+    assert_eq(s1["value"], 42, 14)
+    var s2 = gen.send(g, 7)
+    assert_true(oren_is_err(s2) == false, 15)
+    assert_true(s2["done"] == true, 16)
+    assert_eq(s2["return"], 12, 17)
+    assert_true(gen.is_done(g) == true, 18)
+    assert_eq(gen.return_value(g), 12, 19)
+}
+
+fn test_nil_and_collect() {
+    var g0 = gen.start(avm_nil_worker, [60])
+    var n0 = gen.next(g0)
+    assert_true(oren_is_err(n0) == false, 20)
+    assert_true(n0["value"] == nil, 21)
+    var n1 = gen.send(g0, 3)
+    assert_true(oren_is_err(n1) == false, 22)
+    assert_eq(n1["return"], 67, 23)
+
+    var g1 = gen.start(avm_collect_worker, [5])
+    var xs = gen.collect(g1)
+    assert_true(oren_is_err(xs) == false, 24)
+    assert_eq(oren_list_len(xs), 3, 25)
+    assert_eq(xs[0], 5, 26)
+    assert_eq(xs[1], 6, 27)
+    assert_eq(xs[2], 7, 28)
+    assert_eq(gen.return_value(g1), 35, 29)
+}
+
+fn test_initial_send_err() {
+    var g = gen.start(avm_counter_worker, [10])
+    var bad = gen.send(g, 99)
+    assert_true(oren_is_err(bad) == true, 30)
+}
+
+fn main() {
+    test_step_protocol()
+    test_nil_and_collect()
+    test_initial_send_err()
+    print("test_generator_v0: OK")
+    oren_exit(0)
+}
