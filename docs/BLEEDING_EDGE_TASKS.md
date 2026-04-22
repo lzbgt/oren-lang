@@ -2538,6 +2538,26 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      mov-chain as the primary blocker; the next fill-side work should target the
 										      recurrence arithmetic itself and the compare/branch structure inside the
 										      shipped wide body.
+										    - Arm64 explicit push nonnegative-linear branchless-wrap follow-up (2026-04-23):
+										      the next `sub` + `csel` control-form hypothesis under that same shipped
+										      four-wide body is now also closed negative. A temporary rerun replaced the
+										      carried wrap `cmp` / `b.lt` pairs with branchless `sub` + `csel` recurrence
+										      steps. The emitted loop still improved:
+										      `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_055647_83223.log`
+										      and
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_055652_83291.log`
+										      show the wide main iteration dropping to `31` hot instructions for `4`
+										      outputs (`7.75` per element). But the actual same-tree decision surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-csel-decision-20260423_055520_81868.log`)
+										      still rejected promotion decisively: fill/share preferred the shipped default
+										      (`default_fill_vs_c_vector ~2.1457×` vs enabled `~3.2438×`), exact
+										      `array_sum_int` median also preferred default (`default_array_ratio_median
+										      ~2.2018×` vs enabled `~2.2386×`), and only exact `dot_product_int` median
+										      moved toward the branchless path (`default_dot_ratio_median ~1.7842×` vs
+										      enabled `~1.5692×`, `decision_surface_alignment: agree`). Reweight again:
+										      stop treating branchy wrap control as the primary blocker; the next fill-side
+										      work should target the serial carried recurrence itself versus the host C
+										      loop's four independent streams.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

@@ -657,6 +657,24 @@ enabled `~2.2298x`, `default_dot_ratio_median ~1.5550x` vs enabled `~1.6600x`,
 mov-chain either; the next backend work should focus on the recurrence arithmetic itself and the
 compare/branch structure inside the shipped wide body.
 
+A branchless `csel` wrap-control follow-up under that same shipped four-wide body also stays
+rejected. The temporary
+`OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_CSEL=1` rerun replaced the carried
+`cmp`/`b.lt` wrap branches with `sub` + `csel` recurrence steps. The emitted loop still improved:
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_055647_83223.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_055652_83291.log` show the wide main
+iteration dropping to `31` hot instructions for `4` output elements (`7.75` per element). But the
+actual same-tree ranking in
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-csel-decision-20260423_055520_81868.log`
+rejected promotion decisively: fill/share preferred the shipped default (`default_fill_vs_c_vector
+~2.1457x` vs enabled `~3.2438x`), exact `array_sum_int` median also preferred default
+(`default_array_ratio_median ~2.2018x` vs enabled `~2.2386x`), and only exact `dot_product_int`
+median moved toward the branchless path (`default_dot_ratio_median ~1.7842x` vs enabled
+`~1.5692x`, `decision_surface_alignment: agree`). Reweight again: the remaining fill-side blocker
+is no longer mainly the branchy wrap-control form either; the next backend work should target the
+serial carried recurrence itself versus the host C loop's four independent streams, not more local
+control-form tweaks.
+
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 
 ```bash
