@@ -1445,12 +1445,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       internal accessors/constructors in `lib/compiler/parser_parse/005_generator_core.oren`
 		     - the machine-readable layout marker is now `state_layout=dedicated_generator_object_kind_v1`
 		       to reflect that dedicated object-kind ABI
-			     - the follow-on refactor slice is now deeper too: generator-specific AVM/native/runtime glue
-			       remains extracted into dedicated helper includes, `lib/runtime/010_prelude.inc` and
-			       `lib/runtime/040_lists_maps.inc` are both back under the 2000-line red line, and the
-			       remaining large-file debt is now concentrated more narrowly in older generic AVM hosts
-			       such as `lib/avm/avm_native.inc` and `lib/avm/avm_state.inc` instead of new generator
-			       substrate code or mixed pointer/print/iter helpers being spread through them
+				     - the follow-on refactor slice is now deeper too: generator-specific AVM/native/runtime glue
+				       remains extracted into dedicated helper includes, `lib/runtime/010_prelude.inc` and
+				       `lib/runtime/040_lists_maps.inc` are both back under the 2000-line red line, and
+				       `lib/avm/avm_state.inc` is back under that threshold too after splitting record/replay
+				       and snapshot/restore helpers into `lib/avm/avm_state_rr.inc` and
+				       `lib/avm/avm_state_snapshot.inc`
+				     - the remaining large-file debt is now concentrated even more narrowly in older generic
+				       AVM hosts such as `lib/avm/avm_native.inc`, with the universe/VFS helper cluster now
+				       extracted into `lib/avm/avm_native_fs_universe_helpers.inc` instead of staying inline
 		   - New (2026-04-22): the default verification lane is back to green after aligning
 		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
 		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining
