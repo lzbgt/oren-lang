@@ -194,3 +194,45 @@ var meta_decl_lambda = |seed| {
     yield
     return seed + 14
 }
+
+fn finalize_manual_explicit(seed, co) {
+    var r0 = oren_generator_on_finalize(co, || nil)
+    if oren_is_err(r0) == true { return -101 }
+    return yield (seed + 15) in co
+}
+
+fn finalize_alias_explicit(seed, co) {
+    var r0 = oren_generator_on_close(co, || nil)
+    if oren_is_err(r0) == true { return -102 }
+    yield (seed + 16) in co
+    return seed + 1
+}
+
+fn finalize_defer_explicit(seed, co) {
+    defer { return nil } in co
+    yield (seed + 17) in co
+    return seed + 2
+}
+
+@oren.generator
+var meta_decl_finalize_manual = fn(seed) {
+    var r0 = oren_generator_on_finalize(|| nil)
+    if oren_is_err(r0) == true { return -103 }
+    var resumed = yield (seed + 18)
+    return resumed + seed
+}
+
+@oren.generator
+var meta_decl_finalize_alias = fn(seed) {
+    var r0 = oren_generator_on_close(|| nil)
+    if oren_is_err(r0) == true { return -104 }
+    yield (seed + 19)
+    return seed + 3
+}
+
+@oren.generator
+var meta_decl_finalize_defer = fn(seed) {
+    defer { return nil }
+    yield (seed + 20)
+    return seed + 4
+}

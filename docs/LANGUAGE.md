@@ -3432,6 +3432,23 @@ Rolling status:
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`, plus
     `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`, plus
     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
+  - generator declaration metadata is now `version=18` and records
+    `finalize_surface=generator_finalize_v0`
+  - per-function `meta`, `dump linked`, and OBC metadata now also expose generator finalization
+    sites directly through:
+    - `contains_generator_finalize`
+    - `generator_finalize_count`
+    - `generator_finalize_sites`
+    - `generator_finalize_surface`
+  - `generator_finalize_surface` currently reports:
+    - `version=1`
+    - `surface=generator_finalize_v0`
+    - `lifecycle=on_done_or_close_v1`
+    - `hook_arity=zero_arg`
+    - `syntax_kinds`, `api_kinds`, `consumer_kinds`
+    - `finalize_points`
+  - the focused cross-surface parity guard for that metadata is now
+    `verify-generator-finalize-surface-v0`
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`

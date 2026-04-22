@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+meta_compiler="${1:-${OREN_META_COMPILER:-./oren}}"
+
 mkdir -p build/logs build/tmp
 ts="$(date +%Y%m%d_%H%M%S)"
 meta_out="build/tmp/meta_yield_surface_${ts}.json"
@@ -11,8 +13,8 @@ log="build/logs/verify_yield_metadata_${ts}.log"
 
 {
   echo "writing $meta_out"
-  ./oren meta tests/fixtures/meta_yield_surface.oren -o "$meta_out" || exit 1
-
+  echo "\$ $meta_compiler meta tests/fixtures/meta_yield_surface.oren -o $meta_out"
+  "$meta_compiler" meta tests/fixtures/meta_yield_surface.oren -o "$meta_out" || exit 1
   python3 - "$meta_out" <<'PY' || exit 1
 import json
 import sys
@@ -69,6 +71,12 @@ expected_names = {
     "exchange_nested_only",
     "meta_decl_var",
     "meta_decl_lambda",
+    "finalize_manual_explicit",
+    "finalize_alias_explicit",
+    "finalize_defer_explicit",
+    "meta_decl_finalize_manual",
+    "meta_decl_finalize_alias",
+    "meta_decl_finalize_defer",
 }
 expected_hidden_names = {
     "_oren_generator_bind_active_child",
@@ -112,6 +120,7 @@ expected_hidden_names = {
     "oren_generator_send",
     "oren_generator_start",
 }
+actual_names = set(by_name)
 actual_names = set(by_name)
 if actual_names != (expected_names | expected_hidden_names):
     raise SystemExit(f"unexpected function names: {sorted(by_name)!r}")
@@ -165,13 +174,14 @@ def exchange_expect(site, context, syntax, explicit_value, binding):
     }
 
 expected_generator_decl_surface = {
-    "version": 17,
+    "version": 18,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
     "object_type": "generator",
     "yield_surface": "generator_context_v0",
+    "finalize_surface": "generator_finalize_v0",
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
@@ -199,6 +209,44 @@ def generator_expect(site, context, explicit_value):
     out["is_generator_decl"] = True
     out["generator_decl_surface"] = expected_generator_decl_surface
     return out
+
+def finalize_surface(points):
+    syntax_kinds = []
+    api_kinds = []
+    consumer_kinds = []
+    for point in points:
+        _, context, syntax, api = point
+        if syntax not in syntax_kinds:
+            syntax_kinds.append(syntax)
+        if api not in api_kinds:
+            api_kinds.append(api)
+        if context not in consumer_kinds:
+            consumer_kinds.append(context)
+    return {
+        "version": 1,
+        "surface": "generator_finalize_v0",
+        "lifecycle": "on_done_or_close_v1",
+        "hook_arity": "zero_arg",
+        "syntax_kinds": syntax_kinds,
+        "api_kinds": api_kinds,
+        "consumer_kinds": consumer_kinds,
+        "finalize_points": [
+            {"id": idx, "site": site, "context": context, "syntax": syntax, "api": api}
+            for idx, (site, context, syntax, api) in enumerate(points)
+        ],
+    }
+
+def finalize_expect(points):
+    return {
+        "contains_yield": False,
+        "yield_stmt_count": 0,
+        "yield_stmt_sites": [],
+        "yield_lowering": None,
+        "contains_generator_finalize": True,
+        "generator_finalize_count": len(points),
+        "generator_finalize_sites": [site for site, _, _, _ in points],
+        "generator_finalize_surface": finalize_surface(points),
+    }
 
 expected = {
     "no_yield": {
@@ -755,6 +803,42 @@ expected = {
     },
     "meta_decl_var": generator_expect("tests/fixtures/meta_yield_surface.oren:188:19", "var_init", True),
     "meta_decl_lambda": generator_expect("tests/fixtures/meta_yield_surface.oren:194:5", "expr_stmt", False),
+    "finalize_manual_explicit": {
+        **exchange_expect("tests/fixtures/meta_yield_surface.oren:201:12", "return_value", "yield_in_context", True, "generator_context"),
+        **finalize_expect([
+            ("tests/fixtures/meta_yield_surface.oren:199:40", "var_init", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+        ]),
+    },
+    "finalize_alias_explicit": {
+        **exchange_expect("tests/fixtures/meta_yield_surface.oren:207:5", "expr_stmt", "yield_in_context", True, "generator_context"),
+        **finalize_expect([
+            ("tests/fixtures/meta_yield_surface.oren:205:37", "var_init", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+        ]),
+    },
+    "finalize_defer_explicit": {
+        **exchange_expect("tests/fixtures/meta_yield_surface.oren:213:5", "expr_stmt", "yield_in_context", True, "generator_context"),
+        **finalize_expect([
+            ("tests/fixtures/meta_yield_surface.oren:212:5", "expr_stmt", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+        ]),
+    },
+    "meta_decl_finalize_manual": {
+        **generator_expect("tests/fixtures/meta_yield_surface.oren:221:19", "var_init", True),
+        **finalize_expect([
+            ("tests/fixtures/meta_yield_surface.oren:219:40", "var_init", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+        ]),
+    },
+    "meta_decl_finalize_alias": {
+        **generator_expect("tests/fixtures/meta_yield_surface.oren:229:5", "expr_stmt", True),
+        **finalize_expect([
+            ("tests/fixtures/meta_yield_surface.oren:227:37", "var_init", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+        ]),
+    },
+    "meta_decl_finalize_defer": {
+        **generator_expect("tests/fixtures/meta_yield_surface.oren:236:5", "expr_stmt", True),
+        **finalize_expect([
+            ("tests/fixtures/meta_yield_surface.oren:235:5", "expr_stmt", "defer_v0", "oren_generator_on_finalize_v1"),
+        ]),
+    },
 }
 
 for exp in expected.values():
@@ -766,6 +850,10 @@ for exp in expected.values():
     exp.setdefault("yield_exchange_count", 0)
     exp.setdefault("yield_exchange_sites", [])
     exp.setdefault("yield_exchange_surface", None)
+    exp.setdefault("contains_generator_finalize", False)
+    exp.setdefault("generator_finalize_count", 0)
+    exp.setdefault("generator_finalize_sites", [])
+    exp.setdefault("generator_finalize_surface", None)
     exp.setdefault("is_generator_decl", False)
     exp.setdefault("generator_decl_surface", None)
 

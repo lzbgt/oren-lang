@@ -4290,13 +4290,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			       using `on_finalize_mode=lifo_zero_arg_on_done_or_close_v1`
 			     - `on_close(...)` now remains only as an alias surface, recorded as
 			       `on_close_mode=alias_of_on_finalize_v1`
-			     - source-level finalization syntax now ships too:
-			       - explicit workers: `defer { ... } in co`
-			       - `@oren.generator` declarations: `defer { ... }`
-			       - `defer` remains contextual instead of becoming a global reserved word
-			     - handle sealing now first recursively closes the active delegated chain, then runs
-			       finalization hooks, then detaches live workers instead of resuming them with a hidden close
-			       sentinel
+		     - source-level finalization syntax now ships too:
+		       - explicit workers: `defer { ... } in co`
+		       - `@oren.generator` declarations: `defer { ... }`
+		       - `defer` remains contextual instead of becoming a global reserved word
+		     - generator declaration metadata is now `version=18` with
+		       `finalize_surface=generator_finalize_v0`
+		     - per-function `meta`, `dump linked`, and OBC outputs now expose
+		       `contains_generator_finalize`, `generator_finalize_count`,
+		       `generator_finalize_sites`, and `generator_finalize_surface`
+		     - the emitted `generator_finalize_surface` is `generator_finalize_v0`
+		       with `lifecycle=on_done_or_close_v1`, `hook_arity=zero_arg`, and
+		       per-site `syntax_kinds` / `api_kinds` / `consumer_kinds` /
+		       `finalize_points`
+		     - the new compact parity guard is
+		       `verify-generator-finalize-surface-v0`
+		     - handle sealing now first recursively closes the active delegated chain, then runs
+		       finalization hooks, then detaches live workers instead of resuming them with a hidden close
+		       sentinel
 			     - imported stage2 bytecode coverage now includes
 			       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`,
 			       `tests/fixtures/generator_import_close_regression_v0.oren`,

@@ -156,6 +156,11 @@ fn new_function_yield_info() {
         "yield_exchange_count": 0,
         "yield_exchange_sites": [],
         "yield_exchange_points": [],
+        "contains_generator_finalize": false,
+        "generator_finalize_count": 0,
+        "generator_finalize_sites": [],
+        "generator_finalize_points": [],
+        "generator_finalize_surface": nil,
         "non_top_level_yield_sites": [],
         "loop_nested_yield_sites": [],
         "has_nested_function_literal": false,
@@ -224,6 +229,60 @@ fn yield_exchange_expr_site(expr) {
     return nil
 }
 
+fn generator_finalize_expr_site(expr) {
+    if expr == nil { return nil }
+    var tok = expr["generator_finalize_token"]
+    if tok == nil { tok = expr["token"] }
+    if tok == nil { return nil }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    if file != nil && file != "" {
+        if line != nil && line > 0 {
+            if col != nil && col > 0 {
+                return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+            }
+            return file + ":" + oren_int_to_string(line)
+        }
+        return file
+    }
+    if line != nil && line > 0 {
+        if col != nil && col > 0 {
+            return oren_int_to_string(line) + ":" + oren_int_to_string(col)
+        }
+        return oren_int_to_string(line)
+    }
+    return nil
+}
+
+fn generator_finalize_call_api(expr) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var callee = expr["fn"]
+    if callee == nil { return nil }
+    if callee["type"] == "Identifier" {
+        if callee["value"] == "oren_generator_on_finalize" { return "oren_generator_on_finalize_v1" }
+        if callee["value"] == "oren_generator_on_close" { return "oren_generator_on_close_v1" }
+        return nil
+    }
+    if callee["type"] != "Member" { return nil }
+    var prop = callee["prop"]
+    if prop == nil || prop["type"] != "Identifier" { return nil }
+    if prop["value"] == "on_finalize" { return "oren_generator_on_finalize_v1" }
+    if prop["value"] == "on_close" { return "oren_generator_on_close_v1" }
+    return nil
+}
+
+fn generator_finalize_call_syntax(expr, api_name) {
+    if expr != nil && expr["generator_finalize_source_syntax"] == true {
+        var syntax_name = expr["generator_finalize_syntax_kind"]
+        if syntax_name == "defer_in_context" { return "defer_in_context_v0" }
+        if syntax_name == "defer" || syntax_name == "generator_decl_defer" { return "defer_v0" }
+        return "defer_v0"
+    }
+    if api_name == "oren_generator_on_close_v1" { return "on_close_call_alias_v1" }
+    return "on_finalize_call_v1"
+}
+
 fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
     if info == nil || expr == nil || expr["type"] != "Call" { return nil }
     var callee = expr["fn"]
@@ -264,6 +323,27 @@ fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
         "syntax": syntax_name,
         "binding": binding_name,
         "explicit_value": explicit_value,
+    })
+    return nil
+}
+
+fn function_yield_info_note_finalize_expr_ctx(info, expr, context) {
+    if info == nil || expr == nil || expr["type"] != "Call" { return nil }
+    var api_name = generator_finalize_call_api(expr)
+    if api_name == nil { return nil }
+    info["contains_generator_finalize"] = true
+    info["generator_finalize_count"] = info["generator_finalize_count"] + 1
+    var site = generator_finalize_expr_site(expr)
+    if site != nil { oren_list_push(info["generator_finalize_sites"], site) }
+    var context_name = context
+    if context_name == nil || context_name == "" { context_name = "expr" }
+    var syntax_name = generator_finalize_call_syntax(expr, api_name)
+    oren_list_push(info["generator_finalize_points"], {
+        "id": oren_list_len(info["generator_finalize_points"]),
+        "site": site,
+        "context": context_name,
+        "syntax": syntax_name,
+        "api": api_name,
     })
     return nil
 }
@@ -536,6 +616,7 @@ fn function_yield_info_walk_expr(info, expr, depth, in_loop, context) {
     if et == "Call" {
         function_yield_info_note_value_expr_ctx(info, expr, context)
         function_yield_info_note_exchange_expr_ctx(info, expr, context)
+        function_yield_info_note_finalize_expr_ctx(info, expr, context)
         function_yield_info_walk_expr(info, expr["fn"], depth, in_loop, "call_callee")
         var args = expr["args"]
         var i = 0
@@ -771,19 +852,64 @@ fn function_yield_exchange_surface(info) {
     }
 }
 
+fn function_generator_finalize_surface(info) {
+    if info == nil || info["generator_finalize_count"] <= 0 { return nil }
+    var consumer_kinds = []
+    var consumer_seen = {}
+    var syntax_kinds = []
+    var syntax_seen = {}
+    var api_kinds = []
+    var api_seen = {}
+    var points = info["generator_finalize_points"]
+    var i = 0
+    while points != nil && i < oren_list_len(points) {
+        var point = points[i]
+        var context_name = nil
+        if point != nil { context_name = point["context"] }
+        if context_name != nil && context_name != "" && consumer_seen[context_name] != true {
+            consumer_seen[context_name] = true
+            oren_list_push(consumer_kinds, context_name)
+        }
+        var syntax_name = nil
+        if point != nil { syntax_name = point["syntax"] }
+        if syntax_name != nil && syntax_name != "" && syntax_seen[syntax_name] != true {
+            syntax_seen[syntax_name] = true
+            oren_list_push(syntax_kinds, syntax_name)
+        }
+        var api_name = nil
+        if point != nil { api_name = point["api"] }
+        if api_name != nil && api_name != "" && api_seen[api_name] != true {
+            api_seen[api_name] = true
+            oren_list_push(api_kinds, api_name)
+        }
+        i = i + 1
+    }
+    return {
+        "version": 1,
+        "surface": "generator_finalize_v0",
+        "lifecycle": "on_done_or_close_v1",
+        "hook_arity": "zero_arg",
+        "syntax_kinds": syntax_kinds,
+        "api_kinds": api_kinds,
+        "consumer_kinds": consumer_kinds,
+        "finalize_points": info["generator_finalize_points"],
+    }
+}
+
 fn function_generator_decl_surface(func) {
     if func == nil { return nil }
     if func["generator_decl"] != true && function_attrs_has_name(func["attrs"], "oren.generator") != true {
         return nil
     }
     return {
-        "version": 17,
+        "version": 18,
         "surface": "compiler_generator_object_v2",
         "syntax": "attr_oren.generator",
         "helper_api": "oren_generator_start_v2",
         "caller_api": "generator_handle_v2",
         "object_type": "generator",
         "yield_surface": "generator_context_v0",
+        "finalize_surface": "generator_finalize_v0",
         "iter_surface": "for_in_v0",
         "iter_api": "oren_iter_next_v0",
         "iter_resume": "implicit_nil_v0",
@@ -827,6 +953,7 @@ fn function_yield_info(func) {
     info["yield_lowering"] = function_yield_lowering_plan(func, info, function_yield_locals_across(func))
     info["yield_value_surface"] = function_yield_value_surface(info)
     info["yield_exchange_surface"] = function_yield_exchange_surface(info)
+    info["generator_finalize_surface"] = function_generator_finalize_surface(info)
     info["generator_decl_surface"] = function_generator_decl_surface(func)
     info["is_generator_decl"] = info["generator_decl_surface"] != nil
     return info

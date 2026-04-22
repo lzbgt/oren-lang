@@ -1472,30 +1472,42 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     - `oren_generator_on_finalize(co, hook)` / `std:generator.on_finalize(co, hook)` now register
 				       zero-argument finalization hooks for explicit workers, and declaration bodies can use the
 				       same contract through `gen.on_finalize(hook)` / `oren_generator_on_finalize(hook)`
-				     - `on_close(...)` remains a thin alias of the same hook list for compatibility
-				     - new source-level finalization syntax now ships too:
-				       - explicit workers: `defer { ... } in co`
-				       - `@oren.generator` declarations: `defer { ... }`
-				       - `defer` is contextual and not reserved outside these generator forms
-				     - hooks now run in LIFO order on both explicit `close()` and ordinary natural completion
-				     - the first hook error becomes the sticky terminal generator result after cleanup still
-				       completes, while `return_value(gen)` preserves the ordinary cached return value
-				     - `oren_generator_close(gen)` / `std:generator.close(gen)` deterministically seal the handle
-				       done across bytecode, C, and native
+		     - `on_close(...)` remains a thin alias of the same hook list for compatibility
+		     - new source-level finalization syntax now ships too:
+		       - explicit workers: `defer { ... } in co`
+		       - `@oren.generator` declarations: `defer { ... }`
+		       - `defer` is contextual and not reserved outside these generator forms
+		     - declaration metadata is now `version=18` and records
+		       `finalize_surface=generator_finalize_v0`
+		     - hooks now run in LIFO order on both explicit `close()` and ordinary natural completion
+		     - the first hook error becomes the sticky terminal generator result after cleanup still
+		       completes, while `return_value(gen)` preserves the ordinary cached return value
+		     - `oren_generator_close(gen)` / `std:generator.close(gen)` deterministically seal the handle
+		       done across bytecode, C, and native
 				     - unfinished handles now finish at the handle surface with `return_value == nil`
 				     - already-finished handles preserve and return their cached final value unless a terminal
 				       finalizer error was recorded
 				     - active delegated chains are now recursively closed and finalization hooks are run before the
 				       outer live worker is detached,
 				       so partially-consumed `yield from` / started-step delegation trees seal deterministically too
-				     - imported stage2 bytecode coverage now includes
-				       `tests/fixtures/generator_import_close_regression_v0.oren` and
-				       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`, plus
-				       `tests/fixtures/generator_import_on_close_regression_v0.oren`,
-				       `tests/fixtures/generator_import_on_finalize_regression_v0.oren`, and
-				       `tests/fixtures/generator_import_defer_regression_v0.oren`
-				     - native wrapper discovery now also pre-scans nested lambda / generator-worker bodies for
-				       named function values, so declaration-body `on_close(...)` plus
+		     - imported stage2 bytecode coverage now includes
+		       `tests/fixtures/generator_import_close_regression_v0.oren` and
+		       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`, plus
+		       `tests/fixtures/generator_import_on_close_regression_v0.oren`,
+		       `tests/fixtures/generator_import_on_finalize_regression_v0.oren`, and
+		       `tests/fixtures/generator_import_defer_regression_v0.oren`
+		     - per-function `meta`, `dump linked`, and extracted OBC metadata now expose
+		       `contains_generator_finalize`, `generator_finalize_count`,
+		       `generator_finalize_sites`, and `generator_finalize_surface`
+		     - `generator_finalize_surface` is now emitted as
+		       `generator_finalize_v0` with `lifecycle=on_done_or_close_v1`,
+		       `hook_arity=zero_arg`, plus per-site `syntax_kinds`, `api_kinds`,
+		       `consumer_kinds`, and `finalize_points`
+		     - `make test` now includes the compact parity target
+		       `verify-generator-finalize-surface-v0` to keep those three tool
+		       surfaces aligned
+		     - native wrapper discovery now also pre-scans nested lambda / generator-worker bodies for
+		       named function values, so declaration-body `on_close(...)` plus
 				       `gen.start(named_worker, ...)` followed by `yield from ...` is part of the shipped native
 				       proof surface again
 			     - started handles now detach the live worker instead of resuming user code with a hidden

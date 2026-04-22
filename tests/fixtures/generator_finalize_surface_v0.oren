@@ -1,0 +1,47 @@
+fn finalize_manual_explicit(seed, co) {
+    var r0 = oren_generator_on_finalize(co, || nil)
+    if oren_is_err(r0) == true { return -101 }
+    return yield seed in co
+}
+
+fn finalize_alias_explicit(seed, co) {
+    var r0 = oren_generator_on_close(co, || nil)
+    if oren_is_err(r0) == true { return -102 }
+    yield (seed + 1) in co
+    return seed + 1
+}
+
+fn finalize_defer_explicit(seed, co) {
+    defer { return nil } in co
+    yield (seed + 2) in co
+    return seed + 2
+}
+
+var finalize_surface_workers_keep = [
+    finalize_manual_explicit,
+    finalize_alias_explicit,
+    finalize_defer_explicit
+]
+
+@oren.generator
+var decl_finalize_manual = fn(seed) {
+    var r0 = oren_generator_on_finalize(|| nil)
+    if oren_is_err(r0) == true { return -103 }
+    var resumed = yield (seed + 3)
+    return resumed + seed
+}
+
+@oren.generator
+var decl_finalize_alias = fn(seed) {
+    var r0 = oren_generator_on_close(|| nil)
+    if oren_is_err(r0) == true { return -104 }
+    yield (seed + 4)
+    return seed + 3
+}
+
+@oren.generator
+var decl_finalize_defer = fn(seed) {
+    defer { return nil }
+    yield (seed + 5)
+    return seed + 4
+}

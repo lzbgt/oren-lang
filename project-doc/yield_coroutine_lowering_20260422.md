@@ -326,7 +326,7 @@ backend-shared value-helper slices landed.
     hard-kill/finalization guarantee: detached workers may still exist on some substrates until the
     process/runtime exits
   - metadata for `@oren.generator` declarations now records:
-    - `version = 17`
+    - `version = 18`
     - `resume_surface = "next_send_finalize_defer_close_delegate_yield_from_v7"`
     - `on_finalize_api = "oren_generator_on_finalize_v1"`
     - `on_finalize_mode = "lifo_zero_arg_on_done_or_close_v1"`
@@ -335,7 +335,20 @@ backend-shared value-helper slices landed.
     - `close_api = "oren_generator_close_v1"`
     - `close_mode = "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5"`
     - `delegate_mode = "track_active_chain_inline_fresh_or_cached_started_step_v3"`
+    - `finalize_surface = "generator_finalize_v0"`
     - `finalize_source_syntaxes = ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"]`
+  - per-function `meta`, `dump linked`, and extracted OBC metadata now also record:
+    - `contains_generator_finalize`
+    - `generator_finalize_count`
+    - `generator_finalize_sites`
+    - `generator_finalize_surface`
+  - `generator_finalize_surface` currently emits:
+    - `version = 1`
+    - `surface = "generator_finalize_v0"`
+    - `lifecycle = "on_done_or_close_v1"`
+    - `hook_arity = "zero_arg"`
+    - `syntax_kinds`, `api_kinds`, `consumer_kinds`
+    - `finalize_points`
   - new runtime coverage lives in:
     - `tests/fixtures/generator_surface_v0.oren`
     - `tests/modules/test_generator_std.oren`
@@ -346,6 +359,10 @@ backend-shared value-helper slices landed.
     - `tests/fixtures/generator_import_on_finalize_regression_v0.oren`
     - `tests/fixtures/generator_import_defer_regression_v0.oren`
     - `tests/fixtures/generator_defer_blocked_missing_context_v0.oren`
+    - `tests/fixtures/generator_finalize_surface_v0.oren`
+  - the compact cross-surface verifier for that metadata now lives at:
+    - `scripts/verify_generator_finalize_surface_v0.sh`
+    - wired into `make test` as `verify-generator-finalize-surface-v0`
   - follow-up fix in the same area (2026-04-22): native wrapper discovery now also pre-scans
     nested lambda / generator-worker bodies for named function values before late fnwrap synthesis
     - this closes the previously documented seam where declaration-body `on_close(...)` plus

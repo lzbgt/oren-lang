@@ -79,13 +79,14 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 17,
+    "version": 18,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
     "object_type": "generator",
     "yield_surface": "generator_context_v0",
+    "finalize_surface": "generator_finalize_v0",
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
@@ -144,6 +145,42 @@ def assert_decl(item, *, count, sites, context, explicit_value):
         if point["explicit_value"] != explicit_value:
             raise SystemExit(f"{item['name']} bad point explicit_value: {point!r}")
 
+def ordered_unique(values):
+    out = []
+    for value in values:
+        if value not in out:
+            out.append(value)
+    return out
+
+def assert_finalize(item, *, points, context):
+    sites = [site for site, _, _ in points]
+    syntax_kinds = ordered_unique([syntax for _, syntax, _ in points])
+    api_kinds = ordered_unique([api for _, _, api in points])
+    if item["contains_generator_finalize"] is not True or item["generator_finalize_count"] != len(points):
+        raise SystemExit(f"{item['name']} bad generator_finalize count: {item!r}")
+    if item["generator_finalize_sites"] != sites:
+        raise SystemExit(f"{item['name']} bad generator_finalize_sites: {item['generator_finalize_sites']!r}")
+    surface = item["generator_finalize_surface"]
+    if surface is None:
+        raise SystemExit(f"{item['name']} missing generator_finalize_surface")
+    if surface["version"] != 1 or surface["surface"] != "generator_finalize_v0":
+        raise SystemExit(f"{item['name']} bad generator_finalize_surface header: {surface!r}")
+    if surface["lifecycle"] != "on_done_or_close_v1" or surface["hook_arity"] != "zero_arg":
+        raise SystemExit(f"{item['name']} bad finalize lifecycle/arity: {surface!r}")
+    if surface["syntax_kinds"] != syntax_kinds:
+        raise SystemExit(f"{item['name']} bad finalize syntax_kinds: {surface!r}")
+    if surface["api_kinds"] != api_kinds:
+        raise SystemExit(f"{item['name']} bad finalize api_kinds: {surface!r}")
+    if surface["consumer_kinds"] != [context]:
+        raise SystemExit(f"{item['name']} bad finalize consumer_kinds: {surface!r}")
+    if len(surface["finalize_points"]) != len(points):
+        raise SystemExit(f"{item['name']} bad finalize_points len: {surface!r}")
+    for idx, ((site, syntax, api), point) in enumerate(zip(points, surface["finalize_points"])):
+        if point["id"] != idx:
+            raise SystemExit(f"{item['name']} bad finalize id: {point!r}")
+        if point["site"] != site or point["context"] != context or point["syntax"] != syntax or point["api"] != api:
+            raise SystemExit(f"{item['name']} bad finalize point: {point!r}")
+
 for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_counter", detail_key),
@@ -193,6 +230,40 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         raise SystemExit(f"counter_worker should use generator context binding: {worker!r}")
     if worker["yield_exchange_surface"]["syntax_kinds"] != ["yield_in_context"]:
         raise SystemExit(f"counter_worker should use yield_in_context syntax: {worker!r}")
+    assert_finalize(
+        get_func(payload, "finalize_hook_worker", detail_key),
+        points=[
+            ("tests/fixtures/generator_surface_v0.oren:278:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:280:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:282:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+        ],
+        context="var_init",
+    )
+    assert_finalize(
+        get_func(payload, "defer_finalize_worker", detail_key),
+        points=[
+            ("tests/fixtures/generator_surface_v0.oren:335:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:336:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+        ],
+        context="expr_stmt",
+    )
+    assert_finalize(
+        get_func(payload, "decl_finalize_hook", detail_key),
+        points=[
+            ("tests/fixtures/generator_surface_v0.oren:311:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:313:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:315:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+        ],
+        context="var_init",
+    )
+    assert_finalize(
+        get_func(payload, "decl_defer_finalize", detail_key),
+        points=[
+            ("tests/fixtures/generator_surface_v0.oren:361:5", "defer_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:362:5", "defer_v0", "oren_generator_on_finalize_v1"),
+        ],
+        context="expr_stmt",
+    )
 PY
 
 blocked_log="$tmpdir/generator_decl_blocked_nonfunction_var.log"
