@@ -155,6 +155,18 @@ backend-shared value-helper slices landed.
   This means the current surface is good for plain producer-style generators that do not require
   non-`nil` caller input between yields, while `gen.send(...)` remains the richer manual protocol.
 
+- Reverted landing (2026-04-22): attempted richer generator composition through
+  `oren_generator_delegate(...)` is not shipped after stage2 repro reduction exposed a self-hosted
+  bytecode compile regression. Facts from the reduced probes:
+  - no-import declaration-only composition compiled under stage2
+  - importing `std:generator` in the same module as delegated generator composition triggered the
+    stage2 bytecode build regression again, even after removing the worker-style `gen.delegate(...)`
+    facade
+  - because the surface was not robust under the self-hosted compiler, the public delegation syntax
+    and metadata claims were rolled back in this turn
+  This remains the next real resume/composition task above the shipped `for-in` / `next` / `send`
+  surface, but it is intentionally not documented as available until the compiler path is fixed.
+
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:
   - `yield expr in co`
