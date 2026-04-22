@@ -241,6 +241,7 @@ fn is_non_capturable_ident_name(name) {
     if name == nil || name == "" { return true }
     if is_builtin_ident_name(name) { return true }
     if starts_with(name, "oren_") { return true }
+    if starts_with(name, "_oren_") { return true }
     if starts_with(name, "sys_") { return true }
     return false
 }

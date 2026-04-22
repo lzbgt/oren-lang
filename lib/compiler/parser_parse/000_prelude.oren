@@ -477,6 +477,7 @@ fn _generator_helper_name_used(name) {
     if name == "oren_generator_is_done" { return true }
     if name == "oren_generator_return_value" { return true }
     if name == "oren_generator_collect" { return true }
+    if name == "_oren_generator_context_exchange" { return true }
     return false
 }
 
@@ -618,10 +619,17 @@ fn _program_needs_generator_core(prog) {
 fn _generator_core_src() {
     var src = ""
     src = src + "fn _oren_generator_err(ctx, msg) { return oren_err(4, ctx + \": \" + msg) }\n"
+    src = src + "fn _oren_generator_is_context(co) { return oren_type_name(co) == \"generator_context\" }\n"
     src = src + "fn _oren_generator_step_value(ok, done, value, retv) { return {\"ok\": ok, \"done\": done, \"value\": value, \"return\": retv} }\n"
     src = src + "fn _oren_generator_yield_step(value) { return _oren_generator_step_value(true, false, value, nil) }\n"
     src = src + "fn _oren_generator_done_step(retv) { return _oren_generator_step_value(false, true, nil, retv) }\n"
     src = src + "fn _oren_generator_ctx(yield_ch, resume_ch) { return {\"__oren_type\": \"generator_context\", \"yield_ch\": yield_ch, \"resume_ch\": resume_ch} }\n"
+    src = src + "fn _oren_generator_context_exchange(co, value) {\n"
+    src = src + "    if _oren_generator_is_context(co) != true {\n"
+    src = src + "        return _oren_generator_err(\"yield in\", \"expected generator context\")\n"
+    src = src + "    }\n"
+    src = src + "    return oren_yield_exchange(oren_map_get_str(co, \"yield_ch\"), oren_map_get_str(co, \"resume_ch\"), value)\n"
+    src = src + "}\n"
     src = src + "fn _oren_generator_finish(gen, retv) {\n"
     src = src + "    oren_map_set_str(gen, \"done\", true)\n"
     src = src + "    oren_map_set_str(gen, \"return\", retv)\n"
@@ -736,13 +744,6 @@ fn _generator_core_stmts(p) {
     return prog["statements"]
 }
 
-fn _generator_ctx_slot_expr(co_name, slot_name) {
-    var idx_tok = token.new_token(token.TOK_LBRACKET, "[")
-    var base_tok = token.new_token(token.TOK_IDENT, co_name)
-    var slot_tok = token.new_token(token.TOK_STRING, slot_name)
-    return ast.new_index(idx_tok, ast.new_identifier(base_tok), ast.new_string(slot_tok))
-}
-
 fn _generator_nil_expr() {
     return ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
 }
@@ -805,10 +806,10 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
             if args0 != nil && oren_list_len(args0) > 0 {
                 value_expr = _generator_rewrite_yield_expr(args0[0], co_name)
             }
-            var out = yield_exchange_expr_call(
+            var ctx_tok = token.new_token(token.TOK_IDENT, co_name)
+            var out = yield_exchange_context_expr_call(
                 tok,
-                _generator_ctx_slot_expr(co_name, "yield_ch"),
-                _generator_ctx_slot_expr(co_name, "resume_ch"),
+                ast.new_identifier(ctx_tok),
                 value_expr,
                 expr["yield_value_explicit"] == true
             )
@@ -868,10 +869,10 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
 fn _generator_rewrite_yield_stmt(stmt, co_name) {
     if stmt == nil { return nil }
     if stmt["yield_stmt"] == true {
-        var call = yield_exchange_expr_call(
+        var ctx_tok = token.new_token(token.TOK_IDENT, co_name)
+        var call = yield_exchange_context_expr_call(
             stmt["token"],
-            _generator_ctx_slot_expr(co_name, "yield_ch"),
-            _generator_ctx_slot_expr(co_name, "resume_ch"),
+            ast.new_identifier(ctx_tok),
             _generator_nil_expr(),
             false
         )

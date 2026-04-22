@@ -13,14 +13,14 @@ fn assert_true(x, code) {
 
 fn avm_counter_worker(co, args) {
     var seed = args[0]
-    var resumed0 = yield (seed + 1) in (co["yield_ch"], co["resume_ch"])
-    var resumed1 = yield (seed + resumed0) in (co["yield_ch"], co["resume_ch"])
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
     return resumed1 + 5
 }
 
 fn avm_nil_worker(co, args) {
     var seed = args[0]
-    yield in (co["yield_ch"], co["resume_ch"])
+    yield in co
     return seed + 7
 }
 
@@ -28,7 +28,7 @@ fn avm_collect_worker(co, args) {
     var seed = args[0]
     var i = 0
     while i < 3 {
-        yield (seed + i) in (co["yield_ch"], co["resume_ch"])
+        yield (seed + i) in co
         i = i + 1
     }
     return seed + 30

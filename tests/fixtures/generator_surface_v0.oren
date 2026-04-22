@@ -2,14 +2,14 @@ import gen "std:generator"
 
 fn counter_worker(co, args) {
     var seed = args[0]
-    var resumed0 = yield (seed + 1) in (co["yield_ch"], co["resume_ch"])
-    var resumed1 = yield (seed + resumed0) in (co["yield_ch"], co["resume_ch"])
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
     return resumed1 + 5
 }
 
 fn nil_worker(co, args) {
     var seed = args[0]
-    yield in (co["yield_ch"], co["resume_ch"])
+    yield in co
     return seed + 7
 }
 
@@ -17,10 +17,14 @@ fn collect_worker(co, args) {
     var seed = args[0]
     var i = 0
     while i < 3 {
-        yield (seed + i) in (co["yield_ch"], co["resume_ch"])
+        yield (seed + i) in co
         i = i + 1
     }
     return seed + 30
+}
+
+fn exchange_bad_context(seed) {
+    return yield (seed + 99) in 123
 }
 
 @oren.generator
@@ -103,6 +107,8 @@ fn main() {
     if oren_is_err(sb2) == true { return 165 }
     if sb2["done"] != true || sb2["return"] != 12 { return 166 }
     if oren_generator_is_done(g1b) != true || oren_generator_return_value(g1b) != 12 { return 167 }
+    var bad_ctx = exchange_bad_context(20)
+    if oren_is_err(bad_ctx) != true { return 168 }
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)

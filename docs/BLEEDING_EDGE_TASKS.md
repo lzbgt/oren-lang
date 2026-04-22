@@ -4240,7 +4240,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 	     top of that explicit exchange contract, but it is no longer the storage owner. Its
 	     `start/next/send/collect` surface is now a thin facade over compiler-injected
-	     `oren_generator_*` helpers, and the shipped handle is tagged as `generator`.
+	     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
+	     use `yield ... in co` as the normalized generator-context surface instead of spelling out
+	     raw channel fields.
 	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` now lower to that same
 	     compiler-managed handle surface instead of a hidden `std:generator.start(...)` import.
 	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
@@ -4248,6 +4250,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     iterable/coroutine language affordances without manual channel semantics leaking through).
 	     verified across bytecode, C, and native.
+	   - New (2026-04-22): the focused exchange/generator proof scripts now take source-side
+	     `meta`/`dump linked` from `./oren` and still verify stage2-built embedded OBC metadata plus
+	     bytecode/C/native execution, which cuts the default guard cost without dropping target
+	     artifact coverage.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

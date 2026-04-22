@@ -1409,15 +1409,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	   - New (2026-04-22): the first reusable source-level generator abstraction now ships as
 	     `std:generator`. Its `start/next/send/collect` API is now a thin facade over
 	     compiler-injected `oren_generator_*` helpers, so the shipped handle is tagged as
-	     `generator` instead of being exposed only as an ad hoc stdlib map, while the worker contract
-	     still uses the same explicit `yield ... in (yield_ch, resume_ch)` protocol underneath.
+	     `generator` instead of being exposed only as an ad hoc stdlib map. Worker bodies now use
+	     `yield ... in co` as the normalized generator-context contract, while the same explicit
+	     channel protocol still exists underneath.
 	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` declaration sugar now
 	     lowers to that same compiler-managed generator-handle surface instead of a hidden
 	     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
 	     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v0`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
-	     `channel_resume_v0` yield contract. The remaining boundary
-	     is now declaration shape, not scope: `@oren.generator` still requires a named function declaration.
+	     `generator_context_v0` worker-facing yield contract and binding-sensitive
+	     `yield_exchange_surface`. The remaining boundary is now declaration shape, not scope:
+	     `@oren.generator` still requires a named function declaration.
+	   - New (2026-04-22): the focused exchange/generator verifiers now read source-side
+	     `meta`/`dump linked` through `./oren` and cross-check target-compiler artifact metadata from
+	     the stage2-built `.obc`, keeping the default verification lane fast without dropping
+	     bytecode/C/native generator-context proof coverage.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

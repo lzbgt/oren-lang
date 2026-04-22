@@ -3385,21 +3385,23 @@ Rolling status:
   source syntax on the shared front-end:
   - `yield expr in (yield_ch, resume_ch)`
   - `yield in (yield_ch, resume_ch)` for implicit `nil` outward values
+  - `yield expr in co` / `yield in co` for compiler-managed generator-context exchange
   That syntax is parity-verified under bytecode, C, and the default native green/runtime path.
   On native host threads with green runtime already active and no background workers, `oren_yield()`
   now drives one cooperative green scheduling step before falling back to the OS yield hint. The
   first reusable source-level abstraction above it is now `std:generator`, whose
   `start/next/send/collect` surface is now a thin facade over compiler-injected
   `oren_generator_*` helpers and a tagged `generator` handle, while worker bodies still use
-  `yield ... in (yield_ch, resume_ch)` and the shared channel/select runtime underneath. The
-  remaining gap is broader coroutine/generator protocol above that first compiler-managed handle,
-  not first availability of source syntax or reusable generator helpers.
+  `yield ... in co` as the normalized worker-facing contract even though the shared
+  channel/select runtime still carries the underlying exchange. The remaining gap is broader
+  coroutine/generator protocol above that first compiler-managed handle, not first availability of
+  source syntax or reusable generator helpers.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
   on top of that same protocol:
   - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
   - the declaration lowers to a wrapper that returns `oren_generator_start(...)`
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
-    `channel_resume_v0` exchange contract
+    `generator_context_v0` exchange contract (`yield ... in co`)
   - the same v0 surface is now verified for both top-level and block-local declarations across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
@@ -3683,19 +3685,19 @@ Notes:
 - Function entries also expose the explicit channel-based helper surface separately:
   - `contains_yield_exchange`: `true` when the function body contains explicit channel-based
     yield/resume sites, either direct `oren_yield_exchange(yield_ch, resume_ch, value)` calls or the
-    shared-front-end source syntax `yield [expr] in (yield_ch, resume_ch)`.
+    shared-front-end source syntax `yield [expr] in (yield_ch, resume_ch)` / `yield [expr] in co`.
   - `yield_exchange_count`: count of those explicit channel exchange sites.
   - `yield_exchange_sites`: source sites for those exchange sites as `file:line:col`.
   - `yield_exchange_surface`: machine-readable statement of the current explicit contract
-    (`channel_resume_v0`, explicit yield/resume channel arguments, caller-visible resume values,
-    outward yielded-value channel), including `consumer_kinds`, `syntax_kinds`, plus per-point
-    `context`, `syntax`, and `explicit_value`.
+    (`channel_resume_v0`, explicit yielded/resumed values, and binding-sensitive channel/context
+    argument positions), including `binding_kinds`, `consumer_kinds`, `syntax_kinds`, plus per-point
+    `context`, `syntax`, `binding`, and `explicit_value`.
 - Generator declaration sugar is exposed separately too:
   - `is_generator_decl`: `true` for functions declared with `@oren.generator`
   - `generator_decl_surface`: machine-readable statement of the current generator object protocol
     (`compiler_generator_object_v0`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v0`, caller handle `generator_handle_v0`, object type `generator`,
-    underlying yield surface `channel_resume_v0`)
+    underlying yield surface `generator_context_v0`)
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`
@@ -5229,31 +5231,41 @@ Current behavior (native runtime, rolling):
   - sends `v` to `yield_ch`
   - yields cooperatively / via OS hint using `oren_yield()`
   - resumes by reading and returning the next value from `resume_ch`
+- `_oren_generator_context_exchange(co, v)` is the compiler-managed generator-context helper:
+  - source syntax: `yield expr in co` and `yield in co`
+  - intended for compiler-generated generator worker bodies and parser-lowered generator
+    declarations, not general manual use
+  - validates that `co` is a `generator_context`, then forwards to the same underlying explicit
+    exchange channels
 - `std:generator` is the first reusable source-level abstraction on top of that explicit helper:
   - `gen.start(worker, args_list)` creates a generator handle
-  - worker contract is `worker(co, args_list)` where `co["yield_ch"]` / `co["resume_ch"]` expose
-    the explicit exchange channels
+  - worker contract is `worker(co, args_list)` where `co` is an opaque generator context and worker
+    yields use `yield [expr] in co`
   - `gen.next(gen)` resumes with `nil`
   - `gen.send(gen, value)` resumes with `value`
   - `gen.collect(gen)` drains yielded values into a list
   - under the C backend this now depends on the shared POSIX `oren_select` / `oren_select_recv`
     surface over pipe-backed channels instead of a generator-specific workaround
-- First language-level declaration sugar now also ships on top of `std:generator`:
+- First language-level declaration sugar now also ships on top of that same generator handle:
   - `@oren.generator fn counter(seed) { ... }`
-  - calling `counter(seed)` returns the same generator-map handle shape as `gen.start(...)`
+  - calling `counter(seed)` returns the same tagged `generator` handle shape as `gen.start(...)`
   - plain `yield` / `yield expr` inside the declaration are lowered to the shared
-    `yield ... in (yield_ch, resume_ch)` contract, so `gen.send(...)` supplies the resumed value
-  - v0 boundary: only top-level generator declarations are supported; block-local
-    `@oren.generator fn ...` is a compile-time error
+    `yield ... in co` contract, so `gen.send(...)` supplies the resumed value
+  - v0 boundary: generator declarations still require a named function declaration; anonymous
+    function literals and arbitrary statements are rejected
 - Language sugar now uses those helpers consistently:
   - `yield` statement -> `oren_yield_stmt()`
   - `(yield)` -> `oren_yield_value(nil)`
   - `yield expr` / `(yield expr)` -> `oren_yield_value(expr)`
   - `yield expr in (yield_ch, resume_ch)` -> `oren_yield_exchange(yield_ch, resume_ch, expr)`
   - `yield in (yield_ch, resume_ch)` -> `oren_yield_exchange(yield_ch, resume_ch, nil)`
+  - `yield expr in co` -> `_oren_generator_context_exchange(co, expr)`
+  - `yield in co` -> `_oren_generator_context_exchange(co, nil)`
 - The shipped helper contracts are now:
   - `oren_yield_value(v)`: local value-stable resume
   - `oren_yield_exchange(yield_ch, resume_ch, v)`: explicit yielded/resumed values via channel args
+  - `_oren_generator_context_exchange(co, v)`: compiler-managed generator-context exchange over the
+    same underlying explicit channel protocol
 - Still missing: fuller compiler/language coroutine or generator protocol above these shipped
   source/helper/library forms.
 

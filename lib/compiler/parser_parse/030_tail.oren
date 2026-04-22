@@ -230,6 +230,17 @@ fn yield_exchange_expr_call(tok, yield_ch_expr, resume_ch_expr, value_expr, expl
     return call
 }
 
+fn yield_exchange_context_expr_call(tok, ctx_expr, value_expr, explicit_value) {
+    var ident_tok = token.new_token(token.TOK_IDENT, "_oren_generator_context_exchange")
+    var ident = ast.new_identifier(ident_tok)
+    var call = ast.new_call(ident_tok, ident, [ctx_expr, value_expr])
+    call["yield_exchange_expr"] = true
+    call["yield_token"] = tok
+    call["yield_exchange_explicit_value"] = explicit_value
+    call["yield_exchange_source_syntax"] = true
+    return call
+}
+
 fn yield_has_exchange_clause(p, tok) {
     if tok == nil { return false }
     var cur_line = -1
@@ -246,25 +257,28 @@ fn yield_has_exchange_clause(p, tok) {
 
 fn parse_yield_exchange_clause(p, tok, value_expr, explicit_value) {
     parser_next_token(p) // 'in'
-    if !expect_peek(p, token.TOK_LPAREN) {
-        parser_add_error(p, "yield exchange expects channel pair syntax: yield <value> in (yield_ch, resume_ch)")
-        return nil
+    if peek_is(p, token.TOK_LPAREN) {
+        parser_next_token(p) // '('
+        parser_next_token(p)
+        var yield_ch = parse_expression(p, LOWEST)
+        if yield_ch == nil { return nil }
+        if !expect_peek(p, token.TOK_COMMA) {
+            parser_add_error(p, "yield exchange expects ',' between yield and resume channels")
+            return nil
+        }
+        parser_next_token(p)
+        var resume_ch = parse_expression(p, LOWEST)
+        if resume_ch == nil { return nil }
+        if !expect_peek(p, token.TOK_RPAREN) {
+            parser_add_error(p, "yield exchange expects closing ')'")
+            return nil
+        }
+        return yield_exchange_expr_call(tok, yield_ch, resume_ch, value_expr, explicit_value)
     }
     parser_next_token(p)
-    var yield_ch = parse_expression(p, LOWEST)
-    if yield_ch == nil { return nil }
-    if !expect_peek(p, token.TOK_COMMA) {
-        parser_add_error(p, "yield exchange expects ',' between yield and resume channels")
-        return nil
-    }
-    parser_next_token(p)
-    var resume_ch = parse_expression(p, LOWEST)
-    if resume_ch == nil { return nil }
-    if !expect_peek(p, token.TOK_RPAREN) {
-        parser_add_error(p, "yield exchange expects closing ')'")
-        return nil
-    }
-    return yield_exchange_expr_call(tok, yield_ch, resume_ch, value_expr, explicit_value)
+    var ctx_expr = parse_expression(p, LOWEST)
+    if ctx_expr == nil { return nil }
+    return yield_exchange_context_expr_call(tok, ctx_expr, value_expr, explicit_value)
 }
 
 fn parse_yield_expr(p) {

@@ -104,9 +104,9 @@ backend-shared value-helper slices landed.
   to:
   - a wrapper function `counter(seed)` that returns `oren_generator_start(worker, [])`
   - a hidden worker body where plain `yield` / `yield expr` are rewritten to
-    `yield [expr] in (co["yield_ch"], co["resume_ch"])`
+    `yield [expr] in co`
   - metadata markers `is_generator_decl=true` plus `generator_decl_surface` so tool surfaces can
-    distinguish the wrapper form from raw helper calls or manual `oren_generator_start(...)`
+  distinguish the wrapper form from raw helper calls or manual `oren_generator_start(...)`
   That surface is now verified for both top-level and block-local declarations because the parser
   also lowers block-local named functions through the shared first-class callable form
   `fn name(...) { ... } -> var name = fn (...) { ... }`, and the closure analyzers for bytecode, C,
@@ -124,6 +124,29 @@ backend-shared value-helper slices landed.
   The handle is tagged as `{"__oren_type": "generator", ...}`, so `oren_type_name(gen)` now
   returns `"generator"` across bytecode, C, and native. `std:generator` is now a thin facade over
   those helpers instead of owning the state layout itself.
+
+- Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
+  generator context instead of raw channel field spelling. The shared front-end accepts:
+  - `yield expr in co`
+  - `yield in co`
+  and lowers that to `_oren_generator_context_exchange(co, value)`, which validates `co` as a
+  `generator_context` and then forwards to the underlying explicit
+  `oren_yield_exchange(yield_ch, resume_ch, value)` channel protocol. Metadata now reports that
+  distinction through:
+  - `yield_exchange_surface.binding_kinds = ["generator_context"]`
+  - `yield_exchange_surface.context_arg_index = 0`
+  - point-level `binding = "generator_context"`
+  - `generator_decl_surface.yield_surface = "generator_context_v0"`
+
+- Fresh landing (2026-04-22): the focused exchange/generator verification scripts now read
+  source-side `meta` / `dump linked` through `./oren` and keep `./oren_stage2` on the actual
+  build/runtime path. The correctness trade is explicit and favorable:
+  - fast source-truth checking from stage1
+  - target-compiler artifact truth still checked through embedded OBC metadata from stage2 bytecode
+    builds
+  - bytecode, C, and native execution proof still runs under stage2
+  This keeps the default lane moving while stage2 `meta` latency remains materially higher than
+  stage1 on the same fixtures.
 
 The remaining boundary is narrower and still deliberate: `@oren.generator` applies only to named
 function declarations, not anonymous function literals or arbitrary statements.

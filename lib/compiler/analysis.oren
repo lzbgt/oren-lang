@@ -194,7 +194,15 @@ fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
     if info == nil || expr == nil || expr["type"] != "Call" { return nil }
     var callee = expr["fn"]
     if callee == nil || callee["type"] != "Identifier" { return nil }
-    if callee["value"] != "oren_yield_exchange" { return nil }
+    var callee_name = callee["value"]
+    var binding_name = nil
+    if callee_name == "oren_yield_exchange" {
+        binding_name = "explicit_channel_pair"
+    } else if callee_name == "_oren_generator_context_exchange" {
+        binding_name = "generator_context"
+    } else {
+        return nil
+    }
     info["contains_yield_exchange"] = true
     info["yield_exchange_count"] = info["yield_exchange_count"] + 1
     var site = yield_exchange_expr_site(expr)
@@ -205,7 +213,11 @@ fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
     if expr["yield_exchange_syntax_kind"] != nil && expr["yield_exchange_syntax_kind"] != "" {
         syntax_name = expr["yield_exchange_syntax_kind"]
     } else if expr["yield_exchange_source_syntax"] == true {
-        syntax_name = "yield_in_channels"
+        if binding_name == "generator_context" {
+            syntax_name = "yield_in_context"
+        } else {
+            syntax_name = "yield_in_channels"
+        }
     }
     var explicit_value = true
     if expr["yield_exchange_source_syntax"] == true {
@@ -216,6 +228,7 @@ fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
         "site": site,
         "context": context_name,
         "syntax": syntax_name,
+        "binding": binding_name,
         "explicit_value": explicit_value,
     })
     return nil
@@ -651,6 +664,10 @@ fn function_yield_exchange_surface(info) {
     var seen = {}
     var syntax_kinds = []
     var syntax_seen = {}
+    var binding_kinds = []
+    var binding_seen = {}
+    var has_pair = false
+    var has_context = false
     var i = 0
     var points = info["yield_exchange_points"]
     while points != nil && i < oren_list_len(points) {
@@ -667,18 +684,53 @@ fn function_yield_exchange_surface(info) {
             syntax_seen[syntax_name] = true
             oren_list_push(syntax_kinds, syntax_name)
         }
+        var binding_name = nil
+        if point != nil { binding_name = point["binding"] }
+        if binding_name != nil && binding_name != "" && binding_seen[binding_name] != true {
+            binding_seen[binding_name] = true
+            oren_list_push(binding_kinds, binding_name)
+        }
+        if binding_name == "explicit_channel_pair" { has_pair = true }
+        if binding_name == "generator_context" { has_context = true }
         i = i + 1
     }
+    var observer = "mixed_binding"
+    var resume_source = "mixed_binding"
+    var yield_channel_arg_index = -1
+    var resume_channel_arg_index = -1
+    var context_arg_index = -1
+    var value_arg_index = -1
+    if has_pair == true && has_context != true {
+        observer = "explicit_channel_arg"
+        resume_source = "explicit_channel_arg"
+        yield_channel_arg_index = 0
+        resume_channel_arg_index = 1
+        value_arg_index = 2
+    } else if has_context == true && has_pair != true {
+        observer = "generator_context"
+        resume_source = "generator_context"
+        context_arg_index = 0
+        value_arg_index = 1
+    } else if has_pair == true && has_context == true {
+        observer = "mixed_binding"
+        resume_source = "mixed_binding"
+        yield_channel_arg_index = 0
+        resume_channel_arg_index = 1
+        context_arg_index = 0
+        value_arg_index = -1
+    }
     return {
-        "version": 1,
+        "version": 2,
         "surface": "channel_resume_v0",
-        "yield_value_observer": "explicit_channel_arg",
-        "resume_value_source": "explicit_channel_arg",
+        "yield_value_observer": observer,
+        "resume_value_source": resume_source,
         "caller_resume_values": true,
         "generator_channel": true,
-        "yield_channel_arg_index": 0,
-        "resume_channel_arg_index": 1,
-        "value_arg_index": 2,
+        "yield_channel_arg_index": yield_channel_arg_index,
+        "resume_channel_arg_index": resume_channel_arg_index,
+        "context_arg_index": context_arg_index,
+        "value_arg_index": value_arg_index,
+        "binding_kinds": binding_kinds,
         "syntax_kinds": syntax_kinds,
         "consumer_kinds": consumer_kinds,
         "exchange_points": info["yield_exchange_points"],
@@ -691,13 +743,13 @@ fn function_generator_decl_surface(func) {
         return nil
     }
     return {
-        "version": 2,
+        "version": 3,
         "surface": "compiler_generator_object_v0",
         "syntax": "attr_oren.generator",
         "helper_api": "oren_generator_start_v0",
         "caller_api": "generator_handle_v0",
         "object_type": "generator",
-        "yield_surface": "channel_resume_v0",
+        "yield_surface": "generator_context_v0",
     }
 }
 

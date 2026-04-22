@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 compiler="${1:-./oren_stage2}"
+meta_compiler="${OREN_META_COMPILER:-./oren}"
 platform="${OREN_PLATFORM:-}"
 
 if [ -z "$platform" ]; then
@@ -43,8 +44,8 @@ bytecode_meta_out="$tmpdir/exchange_bytecode.meta.json"
 c_out="$tmpdir/exchange_c"
 native_out="$tmpdir/exchange_native"
 
-run_ok "$compiler" meta "$src" --platform "$platform" -o "$meta_out"
-run_ok "$compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
+run_ok "$meta_compiler" meta "$src" --platform "$platform" -o "$meta_out"
+run_ok "$meta_compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
 run_ok "$compiler" build "$src" \
   --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
 run_ok ./avm "$bytecode_out"
@@ -88,7 +89,7 @@ def assert_plain(name, item):
         raise SystemExit(f"{name} unexpected yield surface metadata: {item!r}")
 
 
-def assert_exchange(name, item, site, context, syntax, explicit_value):
+def assert_exchange(name, item, site, context, syntax, explicit_value, binding):
     if item["contains_yield"] is not False or item["yield_stmt_count"] != 0 or item["yield_stmt_sites"] != []:
         raise SystemExit(f"{name} unexpected bare yield metadata: {item!r}")
     if item["contains_yield_value"] is not False or item["yield_value_count"] != 0 or item["yield_value_sites"] != []:
@@ -106,19 +107,37 @@ def assert_exchange(name, item, site, context, syntax, explicit_value):
     surface = item["yield_exchange_surface"]
     if surface is None:
         raise SystemExit(f"{name} missing yield_exchange_surface")
+    if binding == "explicit_channel_pair":
+        observer = "explicit_channel_arg"
+        resume_source = "explicit_channel_arg"
+        yield_idx = 0
+        resume_idx = 1
+        context_idx = -1
+        value_idx = 2
+    elif binding == "generator_context":
+        observer = "generator_context"
+        resume_source = "generator_context"
+        yield_idx = -1
+        resume_idx = -1
+        context_idx = 0
+        value_idx = 1
+    else:
+        raise SystemExit(f"unknown binding {binding!r}")
     expected_surface = {
-        "version": 1,
+        "version": 2,
         "surface": "channel_resume_v0",
-        "yield_value_observer": "explicit_channel_arg",
-        "resume_value_source": "explicit_channel_arg",
+        "yield_value_observer": observer,
+        "resume_value_source": resume_source,
         "caller_resume_values": True,
         "generator_channel": True,
-        "yield_channel_arg_index": 0,
-        "resume_channel_arg_index": 1,
-        "value_arg_index": 2,
+        "yield_channel_arg_index": yield_idx,
+        "resume_channel_arg_index": resume_idx,
+        "context_arg_index": context_idx,
+        "value_arg_index": value_idx,
+        "binding_kinds": [binding],
         "syntax_kinds": [syntax],
         "consumer_kinds": [context],
-        "exchange_points": [{"id": 0, "site": site, "context": context, "syntax": syntax, "explicit_value": explicit_value}],
+        "exchange_points": [{"id": 0, "site": site, "context": context, "syntax": syntax, "binding": binding, "explicit_value": explicit_value}],
     }
     if surface != expected_surface:
         raise SystemExit(f"{name} bad yield_exchange_surface: expected {expected_surface!r}, got {surface!r}")
@@ -130,15 +149,21 @@ obc = by_name(load(os.environ["BYTECODE_META_OUT"])["metadata"]["functions"])
 
 for payloads in (meta, dump, obc):
     assert_plain("add1_exchange", payloads["add1_exchange"])
-    assert_exchange("exchange_var", payloads["exchange_var"], "tests/fixtures/yield_exchange_surface_v0.oren:6:38", "var_init", "helper_call", True)
-    assert_exchange("exchange_return", payloads["exchange_return"], "tests/fixtures/yield_exchange_surface_v0.oren:11:31", "return_value", "helper_call", True)
-    assert_exchange("exchange_call_arg", payloads["exchange_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:15:45", "call_arg", "helper_call", True)
-    assert_exchange("exchange_stmt", payloads["exchange_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:19:24", "expr_stmt", "helper_call", True)
-    assert_exchange("exchange_syntax_var", payloads["exchange_syntax_var"], "tests/fixtures/yield_exchange_surface_v0.oren:24:19", "var_init", "yield_in_channels", True)
-    assert_exchange("exchange_syntax_return", payloads["exchange_syntax_return"], "tests/fixtures/yield_exchange_surface_v0.oren:29:12", "return_value", "yield_in_channels", True)
-    assert_exchange("exchange_syntax_call_arg", payloads["exchange_syntax_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:33:26", "call_arg", "yield_in_channels", True)
-    assert_exchange("exchange_syntax_stmt", payloads["exchange_syntax_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:37:5", "expr_stmt", "yield_in_channels", True)
-    assert_exchange("exchange_syntax_nil", payloads["exchange_syntax_nil"], "tests/fixtures/yield_exchange_surface_v0.oren:42:19", "var_init", "yield_in_channels", False)
+    assert_exchange("exchange_var", payloads["exchange_var"], "tests/fixtures/yield_exchange_surface_v0.oren:6:38", "var_init", "helper_call", True, "explicit_channel_pair")
+    assert_exchange("exchange_return", payloads["exchange_return"], "tests/fixtures/yield_exchange_surface_v0.oren:11:31", "return_value", "helper_call", True, "explicit_channel_pair")
+    assert_exchange("exchange_call_arg", payloads["exchange_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:15:45", "call_arg", "helper_call", True, "explicit_channel_pair")
+    assert_exchange("exchange_stmt", payloads["exchange_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:19:24", "expr_stmt", "helper_call", True, "explicit_channel_pair")
+    assert_exchange("exchange_syntax_var", payloads["exchange_syntax_var"], "tests/fixtures/yield_exchange_surface_v0.oren:24:19", "var_init", "yield_in_channels", True, "explicit_channel_pair")
+    assert_exchange("exchange_syntax_return", payloads["exchange_syntax_return"], "tests/fixtures/yield_exchange_surface_v0.oren:29:12", "return_value", "yield_in_channels", True, "explicit_channel_pair")
+    assert_exchange("exchange_syntax_call_arg", payloads["exchange_syntax_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:33:26", "call_arg", "yield_in_channels", True, "explicit_channel_pair")
+    assert_exchange("exchange_syntax_stmt", payloads["exchange_syntax_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:37:5", "expr_stmt", "yield_in_channels", True, "explicit_channel_pair")
+    assert_exchange("exchange_syntax_nil", payloads["exchange_syntax_nil"], "tests/fixtures/yield_exchange_surface_v0.oren:42:19", "var_init", "yield_in_channels", False, "explicit_channel_pair")
+    assert_exchange("exchange_context_var", payloads["exchange_context_var"], "tests/fixtures/yield_exchange_surface_v0.oren:48:19", "var_init", "yield_in_context", True, "generator_context")
+    assert_exchange("exchange_context_return", payloads["exchange_context_return"], "tests/fixtures/yield_exchange_surface_v0.oren:54:12", "return_value", "yield_in_context", True, "generator_context")
+    assert_exchange("exchange_context_call_arg", payloads["exchange_context_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:59:26", "call_arg", "yield_in_context", True, "generator_context")
+    assert_exchange("exchange_context_stmt", payloads["exchange_context_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:64:5", "expr_stmt", "yield_in_context", True, "generator_context")
+    assert_exchange("exchange_context_nil", payloads["exchange_context_nil"], "tests/fixtures/yield_exchange_surface_v0.oren:70:19", "var_init", "yield_in_context", False, "generator_context")
+    assert_exchange("exchange_context_bad", payloads["exchange_context_bad"], "tests/fixtures/yield_exchange_surface_v0.oren:75:12", "return_value", "yield_in_context", True, "generator_context")
     assert_plain("main", payloads["main"])
 
 print("yield exchange metadata verified")

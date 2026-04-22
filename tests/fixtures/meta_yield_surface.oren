@@ -153,6 +153,29 @@ fn exchange_syntax_call_arg(seed, out_ch, in_ch) {
     return add1_meta(yield (seed + 8) in (out_ch, in_ch))
 }
 
+fn exchange_context_var(seed, co) {
+    var x = yield (seed + 9) in co
+    return x
+}
+
+fn exchange_context_nil(seed, co) {
+    var x = yield in co
+    return x + seed
+}
+
+fn exchange_context_return(seed, co) {
+    return yield (seed + 10) in co
+}
+
+fn exchange_context_stmt(seed, co) {
+    yield (seed + 11) in co
+    return seed
+}
+
+fn exchange_context_call_arg(seed, co) {
+    return add1_meta(yield (seed + 12) in co)
+}
+
 fn exchange_nested_only() {
     var f = || {
         return oren_yield_exchange(1, 2, 3)

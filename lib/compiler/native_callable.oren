@@ -326,6 +326,7 @@ fn lambda_maybe_add_capture(ctx, name, declared, seen, out) {
     // the lambda env (and fail with "unknown var ..."), even though the call emission treats
     // them as intrinsics.
     if _str_starts_with(name, "oren_") { return nil }
+    if _str_starts_with(name, "_oren_") { return nil }
     if _str_starts_with(name, "sys_") { return nil }
     // Legacy/core builtins that are not `oren_`-prefixed but are still intrinsic/global today.
     if name == "malloc" || name == "malloc_raw" ||

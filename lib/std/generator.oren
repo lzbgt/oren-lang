@@ -2,9 +2,9 @@
 //
 // Thin stdlib facade over the compiler-injected generator core surface.
 // The underlying handle is now a dedicated tagged object (`oren_type_name(gen) == "generator"`),
-// while the worker protocol remains the same:
+// and worker bodies should treat `co` as an opaque generator context:
 // - `start(worker, args_list)` expects `worker(co, args_list)`
-// - `co["yield_ch"]` / `co["resume_ch"]` carry the explicit channel exchange surface
+// - `yield [expr] in co` is the shared source-level yield/resume contract inside that worker
 // - `next/send/is_done/return_value/collect` delegate to the shared runtime/compiler helpers
 
 fn start(worker, args_list) {

@@ -43,6 +43,38 @@ fn exchange_syntax_nil(out_ch, in_ch, seed) {
     return resumed + seed
 }
 
+fn exchange_context_var(co, args) {
+    var seed = args[0]
+    var resumed = yield (seed + 9) in co
+    return resumed + 16
+}
+
+fn exchange_context_return(co, args) {
+    var seed = args[0]
+    return yield (seed + 10) in co
+}
+
+fn exchange_context_call_arg(co, args) {
+    var seed = args[0]
+    return add1_exchange(yield (seed + 11) in co)
+}
+
+fn exchange_context_stmt(co, args) {
+    var seed = args[0]
+    yield (seed + 12) in co
+    return seed + 13
+}
+
+fn exchange_context_nil(co, args) {
+    var seed = args[0]
+    var resumed = yield in co
+    return resumed + seed
+}
+
+fn exchange_context_bad(seed) {
+    return yield (seed + 99) in 123
+}
+
 fn main() {
     var out1 = oren_new_channel()
     var in1 = oren_new_channel()
@@ -142,6 +174,49 @@ fn main() {
     oren_yield()
     var r9 = oren_join(h9)
     if r9 != 135 { return 2700 + r9 }
+
+    var g10 = oren_generator_start(exchange_context_var, [130])
+    var c10 = oren_generator_next(g10)
+    if oren_is_err(c10) == true { return 2800 }
+    if c10["value"] != 139 { return 2801 }
+    var c10r = oren_generator_send(g10, 16)
+    if oren_is_err(c10r) == true { return 2802 }
+    if c10r["return"] != 32 { return 2803 + c10r["return"] }
+
+    var g11 = oren_generator_start(exchange_context_return, [140])
+    var c11 = oren_generator_next(g11)
+    if oren_is_err(c11) == true { return 2810 }
+    if c11["value"] != 150 { return 2811 }
+    var c11r = oren_generator_send(g11, 17)
+    if oren_is_err(c11r) == true { return 2812 }
+    if c11r["return"] != 17 { return 2813 + c11r["return"] }
+
+    var g12 = oren_generator_start(exchange_context_call_arg, [150])
+    var c12 = oren_generator_next(g12)
+    if oren_is_err(c12) == true { return 2820 }
+    if c12["value"] != 161 { return 2821 }
+    var c12r = oren_generator_send(g12, 18)
+    if oren_is_err(c12r) == true { return 2822 }
+    if c12r["return"] != 19 { return 2823 + c12r["return"] }
+
+    var g13 = oren_generator_start(exchange_context_stmt, [160])
+    var c13 = oren_generator_next(g13)
+    if oren_is_err(c13) == true { return 2830 }
+    if c13["value"] != 172 { return 2831 }
+    var c13r = oren_generator_send(g13, 19)
+    if oren_is_err(c13r) == true { return 2832 }
+    if c13r["return"] != 173 { return 2833 + c13r["return"] }
+
+    var g14 = oren_generator_start(exchange_context_nil, [170])
+    var c14 = oren_generator_next(g14)
+    if oren_is_err(c14) == true { return 2840 }
+    if c14["value"] != nil { return 2841 }
+    var c14r = oren_generator_send(g14, 20)
+    if oren_is_err(c14r) == true { return 2842 }
+    if c14r["return"] != 190 { return 2843 + c14r["return"] }
+
+    var bad_ctx = exchange_context_bad(200)
+    if oren_is_err(bad_ctx) != true { return 2850 }
 
     return 0
 }
