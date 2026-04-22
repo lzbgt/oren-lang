@@ -1,0 +1,565 @@
+fn _compiler_run_completion_cmd(pos) {
+    var sh = "bash"
+    if pos != nil && oren_list_len(pos) > 0 {
+        if pos[0] != nil && pos[0] != "" { sh = pos[0] }
+    }
+    completion_emit(sh)
+    return nil
+}
+
+fn _compiler_run_sym_cmd(pos) {
+    // Resolve a program counter address to a function name (native debug builds).
+    //
+    // Motivation: native stage2 bringup can crash in deep recursion; `nm` is not useful
+    // for our custom native emitter outputs. `resolve_symbol` is generated in native
+    // debug builds and can map addresses back to function names.
+    if pos == nil || oren_list_len(pos) < 1 {
+        usage_cmd("sym")
+        oren_exit(2)
+    }
+    var addr_s = pos[0]
+    var addr = optimizer.parse_int(addr_s)
+    if addr == nil {
+        emit_diag("compile", 2, "oren sym: invalid address: " + addr_s)
+        print("oren sym: invalid address: " + addr_s)
+        oren_exit(2)
+    }
+    print(oren_resolve_symbol(addr))
+    return nil
+}
+
+fn _compiler_run_scan_cmd(pos) {
+    var lib = pos[0]
+    ensure_dir("build/tmp")
+    var nm_out = "build/tmp/scan_tmp.txt"
+
+    // Preferred (rolling): if this library was produced by Oren's `--lib` output,
+    // there is a generated C header next to it. Prefer parsing the header so this
+    // command works cross-platform (macOS `nm` cannot read PE/ELF, and stripped
+    // shared objects may not expose text symbols).
+    //
+    // Example:
+    //   ./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib --metadata
+    // produces:
+    //   build/libmath.dylib
+    //   build/libmath.h
+    // Find the last '.' in the path (extension separator). Keep this local: not all
+    // runtimes expose a "last_index_of" helper.
+    var dot_idx = nil
+    var _lib_len = oren_string_len(lib)
+    var _p = _lib_len - 1
+    while _p >= 0 {
+        if oren_string_char_at(lib, _p) == "." {
+            dot_idx = _p
+            _p = -1
+        } else {
+            _p = _p - 1
+        }
+    }
+    var hdr_guess = nil
+    if dot_idx != nil && dot_idx > 0 {
+        hdr_guess = oren_string_slice(lib, 0, dot_idx) + ".h"
+    } else {
+        hdr_guess = lib + ".h"
+    }
+    var hdr = oren_read_file(hdr_guess)
+    if !oren_is_err(hdr) {
+        // Prefer a tiny line-based parser over `nm` for Oren-generated headers.
+        // This keeps `oren scan` useful cross-platform (macOS cannot `nm` PE/ELF)
+        // and stays deterministic even when the shared object is stripped.
+        print("# API Documentation for " + lib)
+        print("")
+        print("| Symbol | Address | Type | Signature |")
+        print("|---|---|---|---|")
+
+        var s = hdr
+        var n = oren_string_len(s)
+        var idx = 0
+        var line_start = 0
+        var seen = {}
+        while idx <= n {
+            if idx == n || oren_string_char_at(s, idx) == "\n" {
+                var line = oren_string_slice(s, line_start, idx)
+                line_start = idx + 1
+
+                // Trim trailing CR (Windows headers).
+                var ll = oren_string_len(line)
+                if ll > 0 && oren_string_char_at(line, ll - 1) == "\r" {
+                    line = oren_string_slice(line, 0, ll - 1)
+                    ll = ll - 1
+                }
+
+                // Trim leading/trailing spaces/tabs.
+                var l = 0
+                while l < ll {
+                    var ch = oren_string_char_at(line, l)
+                    if ch == " " || ch == "\t" { l = l + 1 }
+                    else { break }
+                }
+                var r = ll
+                while r > l {
+                    var ch2 = oren_string_char_at(line, r - 1)
+                    if ch2 == " " || ch2 == "\t" { r = r - 1 }
+                    else { break }
+                }
+                if r <= l {
+                    idx = idx + 1
+                    continue
+                }
+                line = oren_string_slice(line, l, r)
+                ll = oren_string_len(line)
+
+                // Match: extern <ret> <name>(...);
+                if ll >= 7 && oren_string_slice(line, 0, 7) == "extern " {
+                    // Ignore: extern "C" { ... }
+                    if ll >= 10 && oren_string_slice(line, 0, 10) == "extern \"C\"" {
+                        idx = idx + 1
+                        continue
+                    }
+
+                    // Must end with ';'.
+                    if oren_string_char_at(line, ll - 1) != ";" {
+                        idx = idx + 1
+                        continue
+                    }
+
+                    // Find '('.
+                    var open = -1
+                    var k = 0
+                    while k < ll {
+                        if oren_string_char_at(line, k) == "(" {
+                            open = k
+                            k = ll
+                        } else {
+                            k = k + 1
+                        }
+                    }
+                    if open <= 0 {
+                        idx = idx + 1
+                        continue
+                    }
+
+                    // Signature for display: strip leading `extern ` and trailing `;`.
+                    var sig = oren_string_slice(line, 7, ll - 1)
+                    // Trim spaces after removing ';'.
+                    var sig_len = oren_string_len(sig)
+                    while sig_len > 0 {
+                        var c0 = oren_string_char_at(sig, sig_len - 1)
+                        if c0 == " " || c0 == "\t" {
+                            sig = oren_string_slice(sig, 0, sig_len - 1)
+                            sig_len = sig_len - 1
+                        } else {
+                            sig_len = 0
+                        }
+                    }
+
+                    // Extract the function name token: last identifier before '('.
+                    var p = open - 1
+                    while p >= 0 {
+                        var c = oren_string_char_at(line, p)
+                        if c == " " || c == "\t" { p = p - 1 }
+                        else { break }
+                    }
+                    var name_end = p + 1
+                    var name_start = p
+                    while name_start >= 0 {
+                        var c2 = oren_string_char_at(line, name_start)
+                        var ok = false
+                        if c2 == "_" { ok = true }
+                        else if c2 >= "a" && c2 <= "z" { ok = true }
+                        else if c2 >= "A" && c2 <= "Z" { ok = true }
+                        else if c2 >= "0" && c2 <= "9" { ok = true }
+                        if !ok {
+                            name_start = name_start + 1
+                            break
+                        }
+                        name_start = name_start - 1
+                    }
+                    if name_start < 0 { name_start = 0 }
+                    if name_end > name_start {
+                        var name = oren_string_slice(line, name_start, name_end)
+                        if name != nil && name != "" {
+                            // Keep output stable and avoid duplicates.
+                            if seen[name] != true {
+                                seen[name] = true
+                                print("| " + name + " | - | Function | " + sig + " |")
+                            }
+                        }
+                    }
+                }
+            }
+            idx = idx + 1
+        }
+        return nil
+    }
+
+    // Host-aware nm flags:
+    // - macOS: `nm -gU` (external, no undefineds; underscores in symbols)
+    // - Linux: `nm -gD` (dynamic symbols from shared objects)
+    // - Windows: best-effort (`nm -g` if present)
+    var hostp = detect_host_platform()
+    var nm_flags = "-gU"
+    if hostp != nil && hostp["target"] == "linux" { nm_flags = "-gD" }
+    else if hostp != nil && hostp["target"] == "windows" { nm_flags = "-g" }
+
+    var cmd = "nm " + nm_flags + " " + shell_quote(lib) + " > " + shell_quote(nm_out)
+    if oren_system(cmd) != 0 {
+        print("Scan failed (nm not found or lib invalid?)")
+        return nil
+    }
+    var content = oren_read_file(nm_out)
+    if oren_is_err(content) {
+        print("Scan failed (cannot read nm output): " + nm_out)
+        var msg = oren_err_msg(content)
+        if msg != nil { print(msg) }
+        return nil
+    }
+    var len = oren_string_len(content)
+    var idx = 0
+
+    print("# API Documentation for " + lib)
+    print("")
+    print("| Symbol | Address | Type | Signature |")
+    print("|---|---|---|---|")
+
+    // Parse lines: address T symbol
+    var line_start = 0
+    while idx < len {
+        if oren_string_char_at(content, idx) == "\n" {
+            var line = oren_string_slice(content, line_start, idx)
+            // Parse line
+            // Format: "0000000000003f50 T _my_api_func"
+            // Check if contains " T " (or " t " on some toolchains)
+            // Simple search
+            var t_idx = -1
+            var k = 0
+            var l_len = oren_string_len(line)
+            while k < l_len - 3 {
+                if oren_string_char_at(line, k) == " " {
+                    var kind = oren_string_char_at(line, k + 1)
+                    if kind == "T" || kind == "t" {
+                        if oren_string_char_at(line, k + 2) == " " { t_idx = k; k = l_len }
+                    }
+                }
+                k = k + 1
+            }
+
+            if t_idx != -1 {
+                var addr = oren_string_slice(line, 0, t_idx)
+                var sym = oren_string_slice(line, t_idx + 3, l_len)
+                // Trim CR if any
+                // macOS symbols have _ prefix.
+                if oren_string_char_at(sym, 0) == "_" {
+                    sym = oren_string_slice(sym, 1, oren_string_len(sym))
+                }
+                print("| " + sym + " | " + addr + " | Function | - |")
+            }
+
+            line_start = idx + 1
+        }
+        idx = idx + 1
+    }
+
+    // Best-effort cleanup: delete the temporary nm output.
+    // Do not fail the command if cleanup fails.
+    if host_is_windows() { nm_out = _path_to_windows_sep(nm_out) }
+    oren_unlink(nm_out)
+    return nil
+}
+
+fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
+    if dbg_flow != nil { print("DEBUG_FLOW enter dump") }
+    var kind = pos[0]
+    var path = pos[1]
+    if dbg_flow != nil { print("DEBUG_FLOW dump kind=" + kind + " path=" + path) }
+
+    // Modern CLI: options parsed/validated by std:argparse.
+    var target = opts["target"]
+    var arch = opts["arch"]
+    // `--target/--arch` are legacy and now support `auto` to mean "runtime host".
+    // If the user explicitly passes `--target auto` / `--arch auto`, treat them as unset.
+    if target == "auto" { target = ""; seen["target"] = false }
+    if arch == "auto" { arch = ""; seen["arch"] = false }
+    var platform0 = opts["platform"]
+    if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
+    if platform0 != nil && platform0 != "" {
+        var ps0 = parse_platform_spec(platform0)
+        if ps0 == nil {
+            var emsg0 = "oren dump: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+            emit_diag("compile", 2, emsg0)
+            print(emsg0)
+            oren_exit(2)
+        }
+        arch = ps0["arch"]
+        target = ps0["os"]
+    } else {
+        // Default to the runtime host platform when the user did not specify
+        // --platform/--target/--arch (rolling correctness for Linux+Windows bring-up).
+        var host0 = detect_host_platform()
+        if host0 != nil {
+            if seen["arch"] != true { arch = host0["arch"] }
+            if seen["target"] != true { target = host0["target"] }
+        }
+    }
+    if target == nil || target == "" || arch == nil || arch == "" {
+        var emsg_det = "oren dump: could not determine target platform; pass --platform <arch>-<os> or set OREN_PLATFORM"
+        emit_diag("compile", 2, emsg_det)
+        print(emsg_det)
+        oren_exit(2)
+    }
+    var outp = ""
+    if seen["out"] == true { outp = opts["out"] }
+
+    var strict = (opts["strict-attrs"] == true)
+    var allow = split_csv(opts["attr-allow-prefixes"])
+    var strict_yield_lowering_v0_dump = (opts["strict-yield-lowering-v0"] == true)
+    if kind == "tokens" {
+        if dbg_flow != nil { print("DEBUG_FLOW dump tokens start") }
+        var js = dump.dump_tokens_json(path, strict, allow, (opts["strict-ident-prefixes"] == true), split_csv(opts["ident-allow-prefixes"]))
+        if js == nil {
+            emit_diag("compile", 2, "dump tokens failed: " + path)
+            oren_exit(1)
+        }
+        if dbg_flow != nil { print("DEBUG_FLOW dump tokens got_json") }
+        var rc = dump.write_or_print(outp, js)
+        if rc != 0 {
+            emit_diag("compile", 2, "Failed to write dump output: " + outp)
+            oren_exit(rc)
+        }
+        return nil
+    }
+    if kind == "linked" {
+        if dbg_flow != nil { print("DEBUG_FLOW dump linked start") }
+        var rr = expand_includes_file_result(path, [])
+        if rr["ok"] != true {
+            var emsg = "Failed to read file: " + path
+            var msg = rr["err"]
+            if msg != nil { emsg = emsg + " (" + msg + ")" }
+            emit_diag("compile", 2, emsg)
+            print("Failed to read file: " + path)
+            if msg != nil { print(msg) }
+            oren_exit(2)
+        }
+        var src = rr["src"]
+        if dbg_flow != nil { print("DEBUG_FLOW dump linked got_src") }
+        var l = lexer.new_lexer(src)
+        l["file"] = path
+        var p = parser.new_parser(l)
+        p["strict_attrs"] = strict
+        p["attr_allow_prefixes"] = allow
+        p["strict_ident_prefixes"] = (opts["strict-ident-prefixes"] == true)
+        p["ident_allow_prefixes"] = split_csv(opts["ident-allow-prefixes"])
+        var prog = parser.parse_program(p)
+        if oren_list_len(p["errors"]) > 0 {
+            var first_err = nil
+            if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+            emit_diag("parse", 1, first_err)
+            print("Parse errors:")
+            var ei = 0
+            while ei < oren_list_len(p["errors"]) {
+                print(p["errors"][ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
+        }
+        var cfg_debug = true
+        var v_nd = oren_env("OREN_NATIVE_NO_DEBUG")
+        if v_nd != nil && v_nd != "" && v_nd != "0" && v_nd != "false" { cfg_debug = false }
+        var backend0 = opts["backend"]
+        if backend0 == nil { backend0 = "c" }
+        var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0, "debug": cfg_debug, "keep_all_top_level_functions": true})
+        _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-linked", linked)
+        if dbg_flow != nil { print("DEBUG_FLOW dump linked linked_ok") }
+        var js2 = dump.linked_summary_json(linked, path)
+        var rc2 = dump.write_or_print(outp, js2)
+        if rc2 != 0 {
+            emit_diag("compile", 2, "Failed to write dump output: " + outp)
+            oren_exit(rc2)
+        }
+        return nil
+    }
+    if kind == "graph" {
+        if dbg_flow != nil { print("DEBUG_FLOW dump graph start") }
+        var rrg = expand_includes_file_result(path, [])
+        if rrg["ok"] != true {
+            var emsgg = "Failed to read file: " + path
+            var msgg = rrg["err"]
+            if msgg != nil { emsgg = emsgg + " (" + msgg + ")" }
+            emit_diag("compile", 2, emsgg)
+            print("Failed to read file: " + path)
+            if msgg != nil { print(msgg) }
+            oren_exit(2)
+        }
+        var srcg = rrg["src"]
+        if dbg_flow != nil { print("DEBUG_FLOW dump graph got_src") }
+        var lg = lexer.new_lexer(srcg)
+        lg["file"] = path
+        var pg = parser.new_parser(lg)
+        pg["strict_attrs"] = strict
+        pg["attr_allow_prefixes"] = allow
+        pg["strict_ident_prefixes"] = (opts["strict-ident-prefixes"] == true)
+        pg["ident_allow_prefixes"] = split_csv(opts["ident-allow-prefixes"])
+        var progg = parser.parse_program(pg)
+        if oren_list_len(pg["errors"]) > 0 {
+            var first_err = nil
+            if oren_list_len(pg["errors"]) > 0 { first_err = pg["errors"][0] }
+            emit_diag("parse", 1, first_err)
+            print("Parse errors:")
+            var eig = 0
+            while eig < oren_list_len(pg["errors"]) {
+                print(pg["errors"][eig])
+                eig = eig + 1
+            }
+            oren_exit(1)
+        }
+        var cfg_debugg = true
+        var v_ndg = oren_env("OREN_NATIVE_NO_DEBUG")
+        if v_ndg != nil && v_ndg != "" && v_ndg != "0" && v_ndg != "false" { cfg_debugg = false }
+        var backend0g = opts["backend"]
+        if backend0g == nil { backend0g = "c" }
+        var linkedg = link_program(path, progg, {"target": target, "arch": arch, "backend": backend0g, "debug": cfg_debugg, "keep_all_top_level_functions": true})
+        _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-graph", linkedg)
+        if dbg_flow != nil { print("DEBUG_FLOW dump graph linked_ok") }
+        var graph = linkedg["module_graph"]
+        var jsg = dump.module_graph_json(graph)
+        var rcg = dump.write_or_print(outp, jsg)
+        if rcg != 0 {
+            emit_diag("compile", 2, "Failed to write dump output: " + outp)
+            oren_exit(rcg)
+        }
+        return nil
+    }
+
+    emit_diag("compile", 2, "Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
+    print("Unknown dump kind: " + kind + " (expected: tokens|linked|graph)")
+    oren_exit(2)
+}
+
+fn _compiler_run_meta_cmd(pos, opts, seen, dbg_flow) {
+    if dbg_flow != nil { print("DEBUG_FLOW enter meta") }
+    var path = pos[0]
+
+    // Modern CLI: options already parsed/validated by std/argparse.
+    var target = opts["target"]
+    var arch = opts["arch"]
+    // `--target/--arch` are legacy and now support `auto` to mean "runtime host".
+    // If the user explicitly passes `--target auto` / `--arch auto`, treat them as unset.
+    if target == "auto" { target = ""; seen["target"] = false }
+    if arch == "auto" { arch = ""; seen["arch"] = false }
+    var platform0 = opts["platform"]
+    if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
+    if platform0 != nil && platform0 != "" {
+        var ps0 = parse_platform_spec(platform0)
+        if ps0 == nil {
+            var emsg0 = "oren meta: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+            emit_diag("compile", 2, emsg0)
+            print(emsg0)
+            oren_exit(2)
+        }
+        arch = ps0["arch"]
+        target = ps0["os"]
+    } else {
+        // Default to runtime host platform unless the user explicitly overrides.
+        var host0 = detect_host_platform()
+        if host0 != nil {
+            if seen["arch"] != true { arch = host0["arch"] }
+            if seen["target"] != true { target = host0["target"] }
+        }
+    }
+    if target == nil || target == "" || arch == nil || arch == "" {
+        var emsg_det2 = "oren meta: could not determine target platform; pass --platform <arch>-<os> or set OREN_PLATFORM"
+        emit_diag("compile", 2, emsg_det2)
+        print(emsg_det2)
+        oren_exit(2)
+    }
+    // Default output: keep artifacts under build/targets/<arch>-<os>/<kind>/... for a clean repo layout.
+    // (Repo-local outputs make rolling iteration predictable for humans + AI agents.)
+    var out_meta = "build/targets/" + arch + "-" + target + "/meta/" + basename(strip_suffix(path, ".oren")) + ".meta.json"
+
+    var deterministic = (opts["deterministic"] == true)
+    var emit_manifest = false
+    if seen["manifest"] == true { emit_manifest = true }
+
+    STRICT_ATTRS = (opts["strict-attrs"] == true)
+    ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
+    STRICT_IDENT_PREFIXES = (opts["strict-ident-prefixes"] == true)
+    IDENT_ALLOW_PREFIXES = split_csv(opts["ident-allow-prefixes"])
+    var strict_yield_lowering_v0_meta = (opts["strict-yield-lowering-v0"] == true)
+    if seen["out"] == true { out_meta = opts["out"] }
+
+    var rr = expand_includes_file_result(path, [])
+    if rr["ok"] != true {
+        var emsg = "Failed to read file: " + path
+        var msg = rr["err"]
+        if msg != nil { emsg = emsg + " (" + msg + ")" }
+        emit_diag("compile", 2, emsg)
+        print("Failed to read file: " + path)
+        if msg != nil { print(msg) }
+        oren_exit(2)
+    }
+    var src = rr["src"]
+    var l = lexer.new_lexer(src)
+    l["file"] = path
+    var p = parser.new_parser(l)
+    p["strict_attrs"] = STRICT_ATTRS
+    p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    p["strict_ident_prefixes"] = STRICT_IDENT_PREFIXES
+    p["ident_allow_prefixes"] = IDENT_ALLOW_PREFIXES
+    var prog = parser.parse_program(p)
+    if oren_list_len(p["errors"]) > 0 {
+        var first_err = nil
+        if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
+        emit_diag("parse", 1, first_err)
+        print("Parse errors:")
+        var ei = 0
+        while ei < oren_list_len(p["errors"]) {
+            print(p["errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+    // `oren meta` is an introspection command; it should include metadata for all
+    // declared symbols, not only those reachable from `main`.
+    var cfg_debugm = true
+    var v_ndm = oren_env("OREN_NATIVE_NO_DEBUG")
+    if v_ndm != nil && v_ndm != "" && v_ndm != "0" && v_ndm != "false" { cfg_debugm = false }
+    var backend0m = opts["backend"]
+    if backend0m == nil { backend0m = "c" }
+    var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0m, "debug": cfg_debugm, "keep_all_top_level_functions": true})
+    _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_meta, "meta", linked)
+    var meta_json = metadata.generate_metadata(linked)
+    var meta_domains = metadata.cap_required_domains(linked["statements"])
+    var meta_profile = _runtime_profile_request_for_manifest("meta", false)
+    var meta_policy = _artifact_manifest_policy_with_package("meta", false, [], meta_domains, metadata.json_package_manifest(linked["statements"]), metadata.json_package_policy_check(linked["statements"], meta_profile, []))
+    ensure_dir(dirname(out_meta))
+    var w = oren_write_file(out_meta, meta_json)
+    if oren_is_err(w) {
+        var emsgW = "Failed to write metadata: " + out_meta
+        var msgw = oren_err_msg(w)
+        if msgw != nil { emsgW = emsgW + " (" + msgw + ")" }
+        emit_diag("compile", 2, emsgW)
+        print("Failed to write metadata: " + out_meta)
+        if msgw != nil { print(msgw) }
+        oren_exit(1)
+    }
+    print("Wrote metadata: " + out_meta)
+    if deterministic || emit_manifest {
+        var bs = oren_read_u8_buf(out_meta)
+        if oren_is_err(bs) {
+            var emsgH = "Failed to read artifact for hashing: " + out_meta
+            var msgH = oren_err_msg(bs)
+            if msgH != nil { emsgH = emsgH + " (" + msgH + ")" }
+            emit_diag("compile", 2, emsgH)
+            print("Failed to read artifact for hashing: " + out_meta)
+            if msgH != nil { print(msgH) }
+            oren_exit(1)
+        }
+        if deterministic { _emit_artifact_hash("meta", out_meta, bs) }
+        if emit_manifest {
+            var h = _sha256_hex(bs)
+            _write_artifact_manifest_with_policy("meta", out_meta, h, target, arch, deterministic, _bytes_len_any(bs), meta_policy)
+        }
+    }
+    return nil
+}
