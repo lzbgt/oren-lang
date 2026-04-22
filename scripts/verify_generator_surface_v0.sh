@@ -36,12 +36,19 @@ run_ok() {
 }
 
 src="tests/fixtures/generator_surface_v0.oren"
+blocked_src="tests/fixtures/generator_decl_blocked_local_v0.oren"
 bytecode_out="$tmpdir/generator_bytecode.obc"
+meta_out="$tmpdir/generator_meta.json"
+dump_out="$tmpdir/generator_dump.json"
+bytecode_meta_out="$tmpdir/generator_bytecode_meta.json"
 c_out="$tmpdir/generator_c"
 native_out="$tmpdir/generator_native"
 
+run_ok "$compiler" meta "$src" --platform "$platform" -o "$meta_out"
+run_ok "$compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
 run_ok "$compiler" build "$src" \
   --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
+run_ok python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
 run_ok ./avm "$bytecode_out"
 
 run_ok "$compiler" build "$src" \
@@ -51,6 +58,97 @@ run_ok "$c_out"
 run_ok "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
 run_ok "$native_out"
+
+python3 - "$meta_out" "$dump_out" "$bytecode_meta_out" >>"$log" <<'PY'
+import json
+import sys
+
+meta_path, dump_path, obc_path = sys.argv[1:4]
+meta = json.load(open(meta_path, "r", encoding="utf-8"))
+dump = json.load(open(dump_path, "r", encoding="utf-8"))
+obc = json.load(open(obc_path, "r", encoding="utf-8"))["metadata"]
+
+def get_func(payload, name, detail_key=False):
+    key = "function_details" if detail_key else "functions"
+    for item in payload[key]:
+        if item.get("name") == name:
+            return item
+    raise SystemExit(f"missing function {name} in {key}")
+
+expected_decl_surface = {
+    "version": 1,
+    "surface": "std_generator_wrapper_v0",
+    "syntax": "attr_oren.generator",
+    "stdlib_module": "std:generator",
+    "caller_api": "generator_map_v0",
+    "yield_surface": "channel_resume_v0",
+}
+
+def assert_decl(item, *, count, sites, context, explicit_value):
+    if item["is_generator_decl"] is not True:
+        raise SystemExit(f"{item['name']} missing is_generator_decl: {item!r}")
+    if item["generator_decl_surface"] != expected_decl_surface:
+        raise SystemExit(f"{item['name']} bad generator_decl_surface: {item['generator_decl_surface']!r}")
+    if item["contains_yield_exchange"] is not True or item["yield_exchange_count"] != count:
+        raise SystemExit(f"{item['name']} bad yield_exchange count: {item!r}")
+    if item["yield_exchange_sites"] != sites:
+        raise SystemExit(f"{item['name']} bad yield_exchange_sites: {item['yield_exchange_sites']!r}")
+    surface = item["yield_exchange_surface"]
+    if surface is None:
+        raise SystemExit(f"{item['name']} missing yield_exchange_surface")
+    if surface["syntax_kinds"] != ["generator_decl"]:
+        raise SystemExit(f"{item['name']} bad syntax_kinds: {surface!r}")
+    if surface["consumer_kinds"] != [context]:
+        raise SystemExit(f"{item['name']} bad consumer_kinds: {surface!r}")
+    if len(surface["exchange_points"]) != count:
+        raise SystemExit(f"{item['name']} bad exchange_points len: {surface!r}")
+    for point in surface["exchange_points"]:
+        if point["syntax"] != "generator_decl":
+            raise SystemExit(f"{item['name']} bad point syntax: {point!r}")
+        if point["context"] != context:
+            raise SystemExit(f"{item['name']} bad point context: {point!r}")
+        if point["explicit_value"] != explicit_value:
+            raise SystemExit(f"{item['name']} bad point explicit_value: {point!r}")
+
+for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
+    assert_decl(
+        get_func(payload, "decl_counter", detail_key),
+        count=2,
+        sites=[
+            "tests/fixtures/generator_surface_v0.oren:28:20",
+            "tests/fixtures/generator_surface_v0.oren:29:20",
+        ],
+        context="var_init",
+        explicit_value=True,
+    )
+    assert_decl(
+        get_func(payload, "decl_nil", detail_key),
+        count=1,
+        sites=["tests/fixtures/generator_surface_v0.oren:35:5"],
+        context="expr_stmt",
+        explicit_value=False,
+    )
+    assert_decl(
+        get_func(payload, "decl_collect", detail_key),
+        count=1,
+        sites=["tests/fixtures/generator_surface_v0.oren:43:9"],
+        context="expr_stmt",
+        explicit_value=True,
+    )
+    worker = get_func(payload, "counter_worker", detail_key)
+    if worker["is_generator_decl"] is not False or worker["generator_decl_surface"] is not None:
+        raise SystemExit(f"counter_worker should not be generator decl: {worker!r}")
+PY
+
+blocked_log="$tmpdir/generator_decl_blocked_local.log"
+echo "\$ $compiler build $blocked_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_local.obc" >>"$log"
+if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_local.obc" >>"$blocked_log" 2>&1; then
+  cat "$blocked_log" >>"$log"
+  echo "verify_generator_surface_v0: expected local generator declaration to fail" >&2
+  exit 1
+fi
+cat "$blocked_log" >>"$log"
+grep -F "@oren.generator is currently only supported on top-level function declarations" "$blocked_log" >/dev/null
 
 echo "generator surface v0 verify OK" >>"$log"
 echo "generator surface v0 verify OK"

@@ -98,6 +98,18 @@ backend-shared value-helper slices landed.
   - rolling fairness: deterministic round-robin cursor like the native surface
   This closes the concrete C-backend gap that blocked `std:generator` parity on the current POSIX
   host path. It is still not the same thing as a compiler-managed coroutine/generator object model.
+- Fresh landing (2026-04-22): top-level `@oren.generator fn ...` now ships as the first parser-level
+  declaration sugar on top of that same contract. The front-end lowers
+  `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
+  to:
+  - a wrapper function `counter(seed)` that returns `std:generator.start(worker, [])`
+  - a hidden worker body where plain `yield` / `yield expr` are rewritten to
+    `yield [expr] in (co["yield_ch"], co["resume_ch"])`
+  - metadata markers `is_generator_decl=true` plus `generator_decl_surface` so tool surfaces can
+    distinguish the wrapper form from raw helper calls or manual `std:generator.start(...)`
+  The current v0 boundary is deliberate and now enforced by a focused verifier: block-local
+  `@oren.generator fn ...` declarations fail at compile time because closure/import capture lowering
+  is not yet unified across bytecode, C, and native.
 
 That boundary is deliberate, not accidental.
 

@@ -1,0 +1,15 @@
+import gen "std:generator"
+
+fn make_counter(seed) {
+    @oren.generator
+    fn inner(n) {
+        var resumed = yield (n + seed)
+        return resumed + seed
+    }
+    return inner(seed)
+}
+
+fn main() {
+    var g = make_counter(5)
+    return gen.is_done(g)
+}

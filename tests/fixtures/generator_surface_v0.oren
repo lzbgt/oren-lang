@@ -23,6 +23,29 @@ fn collect_worker(co, args) {
     return seed + 30
 }
 
+@oren.generator
+fn decl_counter(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+@oren.generator
+fn decl_nil(seed) {
+    yield
+    return seed + 7
+}
+
+@oren.generator
+fn decl_collect(seed) {
+    var i = 0
+    while i < 3 {
+        yield (seed + i)
+        i = i + 1
+    }
+    return seed + 30
+}
+
 fn main() {
     var c1 = oren_new_channel()
     var c2 = oren_new_channel()
@@ -85,6 +108,32 @@ fn main() {
     if oren_list_len(xs) != 3 { return 131 }
     if xs[0] != 5 || xs[1] != 6 || xs[2] != 7 { return 132 }
     if gen.return_value(g4) != 35 { return 133 }
+
+    var g5 = decl_counter(40)
+    var d0 = gen.next(g5)
+    if oren_is_err(d0) == true { return 140 }
+    if d0["ok"] != true || d0["done"] != false || d0["value"] != 41 { return 141 }
+    var d1 = gen.send(g5, 2)
+    if oren_is_err(d1) == true { return 142 }
+    if d1["ok"] != true || d1["value"] != 42 { return 143 }
+    var d2 = gen.send(g5, 7)
+    if oren_is_err(d2) == true { return 144 }
+    if d2["done"] != true || d2["return"] != 12 { return 145 }
+
+    var g6 = decl_nil(60)
+    var dn0 = gen.next(g6)
+    if oren_is_err(dn0) == true { return 146 }
+    if dn0["ok"] != true || dn0["value"] != nil { return 147 }
+    var dn1 = gen.send(g6, 3)
+    if oren_is_err(dn1) == true { return 148 }
+    if dn1["done"] != true || dn1["return"] != 67 { return 149 }
+
+    var g7 = decl_collect(5)
+    var dxs = gen.collect(g7)
+    if oren_is_err(dxs) == true { return 150 }
+    if oren_list_len(dxs) != 3 { return 151 }
+    if dxs[0] != 5 || dxs[1] != 6 || dxs[2] != 7 { return 152 }
+    if gen.return_value(g7) != 35 { return 153 }
 
     return 0
 }

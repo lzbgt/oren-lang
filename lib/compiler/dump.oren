@@ -181,6 +181,8 @@ fn linked_summary_json(linked) {
         out = out + json_kv_int("yield_exchange_count", yield_info["yield_exchange_count"]) + ", "
         out = out + "\"yield_exchange_sites\": " + metadata.json_string_array(yield_info["yield_exchange_sites"]) + ", "
         out = out + "\"yield_exchange_surface\": " + metadata.json_yield_exchange_surface(yield_info["yield_exchange_surface"]) + ", "
+        out = out + json_kv_bool("is_generator_decl", yield_info["is_generator_decl"]) + ", "
+        out = out + "\"generator_decl_surface\": " + metadata.json_generator_decl_surface(yield_info["generator_decl_surface"]) + ", "
         out = out + "\"yield_lowering\": " + metadata.json_yield_lowering(yield_info["yield_lowering"])
         out = out + " }"
         i = i + 1

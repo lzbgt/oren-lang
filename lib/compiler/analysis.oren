@@ -98,6 +98,17 @@ fn yield_value_expr_site(expr) {
     return nil
 }
 
+fn function_attrs_has_name(attrs, name) {
+    if attrs == nil || name == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn new_function_yield_info() {
     return {
         "contains_yield": false,
@@ -114,6 +125,8 @@ fn new_function_yield_info() {
         "non_top_level_yield_sites": [],
         "loop_nested_yield_sites": [],
         "has_nested_function_literal": false,
+        "is_generator_decl": false,
+        "generator_decl_surface": nil,
     }
 }
 
@@ -189,7 +202,11 @@ fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
     var context_name = context
     if context_name == nil || context_name == "" { context_name = "expr" }
     var syntax_name = "helper_call"
-    if expr["yield_exchange_source_syntax"] == true { syntax_name = "yield_in_channels" }
+    if expr["yield_exchange_syntax_kind"] != nil && expr["yield_exchange_syntax_kind"] != "" {
+        syntax_name = expr["yield_exchange_syntax_kind"]
+    } else if expr["yield_exchange_source_syntax"] == true {
+        syntax_name = "yield_in_channels"
+    }
     var explicit_value = true
     if expr["yield_exchange_source_syntax"] == true {
         explicit_value = (expr["yield_exchange_explicit_value"] == true)
@@ -668,10 +685,28 @@ fn function_yield_exchange_surface(info) {
     }
 }
 
+fn function_generator_decl_surface(func) {
+    if func == nil { return nil }
+    if func["generator_decl"] != true && function_attrs_has_name(func["attrs"], "oren.generator") != true {
+        return nil
+    }
+    return {
+        "version": 1,
+        "surface": "std_generator_wrapper_v0",
+        "syntax": "attr_oren.generator",
+        "stdlib_module": "std:generator",
+        "caller_api": "generator_map_v0",
+        "yield_surface": "channel_resume_v0",
+    }
+}
+
 fn function_yield_info(func) {
     var info = new_function_yield_info()
     if func == nil { return info }
     var body = func["body"]
+    if func["generator_decl"] == true && func["generator_source_body"] != nil {
+        body = func["generator_source_body"]
+    }
     if body != nil && (body["type"] == "Block" || body["type"] == "StmtList") {
         var stmts = body["stmts"]
         var i = 0
@@ -685,6 +720,8 @@ fn function_yield_info(func) {
     info["yield_lowering"] = function_yield_lowering_plan(func, info, function_yield_locals_across(func))
     info["yield_value_surface"] = function_yield_value_surface(info)
     info["yield_exchange_surface"] = function_yield_exchange_surface(info)
+    info["generator_decl_surface"] = function_generator_decl_surface(func)
+    info["is_generator_decl"] = info["generator_decl_surface"] != nil
     return info
 }
 

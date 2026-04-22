@@ -34,6 +34,29 @@ fn avm_collect_worker(co, args) {
     return seed + 30
 }
 
+@oren.generator
+fn avm_decl_counter(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+@oren.generator
+fn avm_decl_nil(seed) {
+    yield
+    return seed + 7
+}
+
+@oren.generator
+fn avm_decl_collect(seed) {
+    var i = 0
+    while i < 3 {
+        yield (seed + i)
+        i = i + 1
+    }
+    return seed + 30
+}
+
 fn test_step_protocol() {
     var g = gen.start(avm_counter_worker, [40])
     var s0 = gen.next(g)
@@ -76,10 +99,42 @@ fn test_initial_send_err() {
     assert_true(oren_is_err(bad) == true, 30)
 }
 
+fn test_generator_decl_syntax() {
+    var g0 = avm_decl_counter(40)
+    var s0 = gen.next(g0)
+    assert_true(oren_is_err(s0) == false, 40)
+    assert_eq(s0["value"], 41, 41)
+    var s1 = gen.send(g0, 2)
+    assert_true(oren_is_err(s1) == false, 42)
+    assert_eq(s1["value"], 42, 43)
+    var s2 = gen.send(g0, 7)
+    assert_true(oren_is_err(s2) == false, 44)
+    assert_eq(s2["return"], 12, 45)
+
+    var g1 = avm_decl_nil(60)
+    var n0 = gen.next(g1)
+    assert_true(oren_is_err(n0) == false, 46)
+    assert_true(n0["value"] == nil, 47)
+    var n1 = gen.send(g1, 3)
+    assert_true(oren_is_err(n1) == false, 48)
+    assert_eq(n1["return"], 67, 49)
+
+    var g2 = avm_decl_collect(5)
+    var xs = gen.collect(g2)
+    assert_true(oren_is_err(xs) == false, 50)
+    assert_eq(oren_list_len(xs), 3, 51)
+    assert_eq(xs[0], 5, 52)
+    assert_eq(xs[1], 6, 53)
+    assert_eq(xs[2], 7, 54)
+    assert_eq(gen.return_value(g2), 35, 55)
+
+}
+
 fn main() {
     test_step_protocol()
     test_nil_and_collect()
     test_initial_send_err()
+    test_generator_decl_syntax()
     print("test_generator_v0: OK")
     oren_exit(0)
 }

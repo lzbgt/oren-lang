@@ -28,6 +28,29 @@ fn nil_worker(co, args) {
     return seed + 7
 }
 
+@oren.generator
+fn decl_counter(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+@oren.generator
+fn decl_nil(seed) {
+    yield
+    return seed + 7
+}
+
+@oren.generator
+fn decl_collect(seed) {
+    var i = 0
+    while i < 3 {
+        yield (seed + i)
+        i = i + 1
+    }
+    return seed + 30
+}
+
 fn main() {
     var g = gen.start(counter_worker, [40])
     var s0 = gen.next(g)
@@ -97,6 +120,34 @@ fn main() {
     assert_eq(xs[2], 7, 64)
     assert_true(gen.is_done(g5) == true, 65)
     assert_eq(gen.return_value(g5), 35, 66)
+
+    var g6 = decl_counter(40)
+    var d0 = gen.next(g6)
+    if oren_is_err(d0) == true { fail(70) }
+    assert_eq(d0["value"], 41, 71)
+    var d1 = gen.send(g6, 2)
+    if oren_is_err(d1) == true { fail(72) }
+    assert_eq(d1["value"], 42, 73)
+    var d2 = gen.send(g6, 7)
+    if oren_is_err(d2) == true { fail(74) }
+    assert_eq(d2["return"], 12, 75)
+
+    var g7 = decl_nil(60)
+    var dn0 = gen.next(g7)
+    if oren_is_err(dn0) == true { fail(76) }
+    assert_true(dn0["value"] == nil, 77)
+    var dn1 = gen.send(g7, 3)
+    if oren_is_err(dn1) == true { fail(78) }
+    assert_eq(dn1["return"], 67, 79)
+
+    var g8 = decl_collect(5)
+    var dxs = gen.collect(g8)
+    if oren_is_err(dxs) == true { fail(80) }
+    assert_eq(oren_list_len(dxs), 3, 81)
+    assert_eq(dxs[0], 5, 82)
+    assert_eq(dxs[1], 6, 83)
+    assert_eq(dxs[2], 7, 84)
+    assert_eq(gen.return_value(g8), 35, 85)
 
     print("module generator_std OK")
     exit(0)

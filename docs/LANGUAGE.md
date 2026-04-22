@@ -3393,6 +3393,15 @@ Rolling status:
   the shared channel/select runtime. The remaining gap is broader compiler/language
   coroutine/generator protocol above that explicit/library-backed form, not first availability of
   source syntax or reusable generator helpers.
+- New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
+  on top of that same protocol:
+  - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
+  - the declaration lowers to a wrapper that returns `std:generator.start(...)`
+  - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
+    `channel_resume_v0` exchange contract
+  - this v0 surface is currently verified only for top-level function declarations; block-local
+    `@oren.generator fn ...` declarations fail at compile time on purpose until closure/runtime
+    lowering is unified across all shipped backends
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
   semantics beyond the current local value-stable helper path.
 
@@ -3678,6 +3687,11 @@ Notes:
     (`channel_resume_v0`, explicit yield/resume channel arguments, caller-visible resume values,
     outward yielded-value channel), including `consumer_kinds`, `syntax_kinds`, plus per-point
     `context`, `syntax`, and `explicit_value`.
+- Generator declaration sugar is exposed separately too:
+  - `is_generator_decl`: `true` for functions declared with `@oren.generator`
+  - `generator_decl_surface`: machine-readable statement of the current wrapper protocol
+    (`std_generator_wrapper_v0`, syntax `attr_oren.generator`, stdlib module `std:generator`,
+    caller handle `generator_map_v0`, underlying yield surface `channel_resume_v0`)
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`
@@ -5206,10 +5220,8 @@ Current behavior (native runtime, rolling):
   - yields cooperatively / via OS hint using `oren_yield()`
   - always resumes with the provided local value `v`
 - `oren_yield_exchange(yield_ch, resume_ch, v)` is the explicit caller-visible helper:
-- Source syntax also exists for the same contract:
-  - `yield expr in (yield_ch, resume_ch)`
-  - `yield in (yield_ch, resume_ch)`
-- `oren_yield_exchange(yield_ch, resume_ch, v)` remains the explicit helper surface:
+  - same contract is also available as source syntax:
+    `yield expr in (yield_ch, resume_ch)` and `yield in (yield_ch, resume_ch)`
   - sends `v` to `yield_ch`
   - yields cooperatively / via OS hint using `oren_yield()`
   - resumes by reading and returning the next value from `resume_ch`
@@ -5222,6 +5234,13 @@ Current behavior (native runtime, rolling):
   - `gen.collect(gen)` drains yielded values into a list
   - under the C backend this now depends on the shared POSIX `oren_select` / `oren_select_recv`
     surface over pipe-backed channels instead of a generator-specific workaround
+- First language-level declaration sugar now also ships on top of `std:generator`:
+  - `@oren.generator fn counter(seed) { ... }`
+  - calling `counter(seed)` returns the same generator-map handle shape as `gen.start(...)`
+  - plain `yield` / `yield expr` inside the declaration are lowered to the shared
+    `yield ... in (yield_ch, resume_ch)` contract, so `gen.send(...)` supplies the resumed value
+  - v0 boundary: only top-level generator declarations are supported; block-local
+    `@oren.generator fn ...` is a compile-time error
 - Language sugar now uses those helpers consistently:
   - `yield` statement -> `oren_yield_stmt()`
   - `(yield)` -> `oren_yield_value(nil)`

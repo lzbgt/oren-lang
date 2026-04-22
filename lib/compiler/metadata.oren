@@ -397,6 +397,19 @@ fn json_yield_exchange_surface(surface) {
     return out
 }
 
+fn json_generator_decl_surface(surface) {
+    if surface == nil { return "null" }
+    var out = "{ "
+    out = out + "\"version\": " + oren_int_to_string(surface["version"]) + ", "
+    out = out + "\"surface\": " + json_string(surface["surface"]) + ", "
+    out = out + "\"syntax\": " + json_string(surface["syntax"]) + ", "
+    out = out + "\"stdlib_module\": " + json_string(surface["stdlib_module"]) + ", "
+    out = out + "\"caller_api\": " + json_string(surface["caller_api"]) + ", "
+    out = out + "\"yield_surface\": " + json_string(surface["yield_surface"])
+    out = out + " }"
+    return out
+}
+
 fn json_yield_prepared_v0_segments(xs) {
     if xs == nil { return "null" }
     var out = "["
@@ -969,6 +982,8 @@ fn generate_metadata(prog) {
             json = json + "      \"yield_exchange_count\": " + oren_int_to_string(yield_info["yield_exchange_count"]) + ",\n"
             json = json + "      \"yield_exchange_sites\": " + json_string_array(yield_info["yield_exchange_sites"]) + ",\n"
             json = json + "      \"yield_exchange_surface\": " + json_yield_exchange_surface(yield_info["yield_exchange_surface"]) + ",\n"
+            json = json + "      \"is_generator_decl\": " + json_bool(yield_info["is_generator_decl"]) + ",\n"
+            json = json + "      \"generator_decl_surface\": " + json_generator_decl_surface(yield_info["generator_decl_surface"]) + ",\n"
             json = json + "      \"yield_lowering\": " + json_yield_lowering(yield_info["yield_lowering"]) + "\n"
             json = json + "    }"
             first = false
