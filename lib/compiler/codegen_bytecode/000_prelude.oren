@@ -273,8 +273,9 @@ fn lambda_collect_declared_in_statement(stmt, declared) {
     return nil
 }
 
-fn maybe_add_capture(name, declared, seen, out) {
+fn maybe_add_capture(name, ctx, declared, seen, out) {
     if is_non_capturable_ident_name(name) { return nil }
+    if ctx != nil && ctx["aliases"][name] != nil { return nil }
     if declared[name] == true { return nil }
     if seen[name] == true { return nil }
     seen[name] = true
@@ -282,49 +283,55 @@ fn maybe_add_capture(name, declared, seen, out) {
     return nil
 }
 
-fn lambda_collect_used_in_expression(exp, declared, seen, out) {
+fn lambda_collect_used_in_expression(exp, ctx, declared, seen, out) {
     if exp == nil { return nil }
     var et = exp["type"]
     if et == "Identifier" {
-        maybe_add_capture(exp["value"], declared, seen, out)
+        maybe_add_capture(exp["value"], ctx, declared, seen, out)
         return nil
     }
     if et == "Function" {
-        // Nested lambdas are their own closures.
+        var nested = exp["captures"]
+        if nested == nil { nested = lambda_free_vars(ctx, exp) }
+        var i = 0
+        while i < oren_list_len(nested) {
+            maybe_add_capture(nested[i], ctx, declared, seen, out)
+            i = i + 1
+        }
         return nil
     }
     if et == "Call" {
-        lambda_collect_used_in_expression(exp["fn"], declared, seen, out)
+        lambda_collect_used_in_expression(exp["fn"], ctx, declared, seen, out)
         var i = 0
         while i < oren_list_len(exp["args"]) {
-            lambda_collect_used_in_expression(exp["args"][i], declared, seen, out)
+            lambda_collect_used_in_expression(exp["args"][i], ctx, declared, seen, out)
             i = i + 1
         }
-        if exp["spread"] != nil { lambda_collect_used_in_expression(exp["spread"], declared, seen, out) }
+        if exp["spread"] != nil { lambda_collect_used_in_expression(exp["spread"], ctx, declared, seen, out) }
         return nil
     }
-    if et == "Prefix" { lambda_collect_used_in_expression(exp["right"], declared, seen, out); return nil }
+    if et == "Prefix" { lambda_collect_used_in_expression(exp["right"], ctx, declared, seen, out); return nil }
     if et == "Infix" {
-        lambda_collect_used_in_expression(exp["left"], declared, seen, out)
-        lambda_collect_used_in_expression(exp["right"], declared, seen, out)
+        lambda_collect_used_in_expression(exp["left"], ctx, declared, seen, out)
+        lambda_collect_used_in_expression(exp["right"], ctx, declared, seen, out)
         return nil
     }
     if et == "If" {
-        lambda_collect_used_in_expression(exp["cond"], declared, seen, out)
-        lambda_collect_used_in_statement(exp["consq"], declared, seen, out)
-        if exp["alt"] != nil { lambda_collect_used_in_statement(exp["alt"], declared, seen, out) }
+        lambda_collect_used_in_expression(exp["cond"], ctx, declared, seen, out)
+        lambda_collect_used_in_statement(exp["consq"], ctx, declared, seen, out)
+        if exp["alt"] != nil { lambda_collect_used_in_statement(exp["alt"], ctx, declared, seen, out) }
         return nil
     }
-    if et == "Member" { lambda_collect_used_in_expression(exp["left"], declared, seen, out); return nil }
+    if et == "Member" { lambda_collect_used_in_expression(exp["left"], ctx, declared, seen, out); return nil }
     if et == "Index" {
-        lambda_collect_used_in_expression(exp["left"], declared, seen, out)
-        lambda_collect_used_in_expression(exp["index"], declared, seen, out)
+        lambda_collect_used_in_expression(exp["left"], ctx, declared, seen, out)
+        lambda_collect_used_in_expression(exp["index"], ctx, declared, seen, out)
         return nil
     }
     if et == "Array" {
         var j = 0
         while j < oren_list_len(exp["elements"]) {
-            lambda_collect_used_in_expression(exp["elements"][j], declared, seen, out)
+            lambda_collect_used_in_expression(exp["elements"][j], ctx, declared, seen, out)
             j = j + 1
         }
         return nil
@@ -333,61 +340,61 @@ fn lambda_collect_used_in_expression(exp, declared, seen, out) {
         var k = 0
         while k < oren_list_len(exp["pairs"]) {
             var pair = exp["pairs"][k]
-            lambda_collect_used_in_expression(pair["key"], declared, seen, out)
-            lambda_collect_used_in_expression(pair["value"], declared, seen, out)
+            lambda_collect_used_in_expression(pair["key"], ctx, declared, seen, out)
+            lambda_collect_used_in_expression(pair["value"], ctx, declared, seen, out)
             k = k + 1
         }
         return nil
     }
-    if et == "SpawnExpr" { lambda_collect_used_in_expression(exp["call"], declared, seen, out); return nil }
+    if et == "SpawnExpr" { lambda_collect_used_in_expression(exp["call"], ctx, declared, seen, out); return nil }
     return nil
 }
 
-fn lambda_collect_used_in_statement(stmt, declared, seen, out) {
+fn lambda_collect_used_in_statement(stmt, ctx, declared, seen, out) {
     if stmt == nil { return nil }
     var st = stmt["type"]
-    if st == "Var" { lambda_collect_used_in_expression(stmt["value"], declared, seen, out); return nil }
+    if st == "Var" { lambda_collect_used_in_expression(stmt["value"], ctx, declared, seen, out); return nil }
     if st == "Assign" {
-        maybe_add_capture(stmt["name"]["value"], declared, seen, out)
-        lambda_collect_used_in_expression(stmt["value"], declared, seen, out)
+        maybe_add_capture(stmt["name"]["value"], ctx, declared, seen, out)
+        lambda_collect_used_in_expression(stmt["value"], ctx, declared, seen, out)
         return nil
     }
     if st == "Set" {
         if stmt["left"]["type"] == "Identifier" {
-            maybe_add_capture(stmt["left"]["value"], declared, seen, out)
+            maybe_add_capture(stmt["left"]["value"], ctx, declared, seen, out)
         } else {
-            lambda_collect_used_in_expression(stmt["left"], declared, seen, out)
+            lambda_collect_used_in_expression(stmt["left"], ctx, declared, seen, out)
         }
-        lambda_collect_used_in_expression(stmt["value"], declared, seen, out)
+        lambda_collect_used_in_expression(stmt["value"], ctx, declared, seen, out)
         return nil
     }
-    if st == "Return" { lambda_collect_used_in_expression(stmt["value"], declared, seen, out); return nil }
-    if st == "ExprStmt" { lambda_collect_used_in_expression(stmt["expr"], declared, seen, out); return nil }
+    if st == "Return" { lambda_collect_used_in_expression(stmt["value"], ctx, declared, seen, out); return nil }
+    if st == "ExprStmt" { lambda_collect_used_in_expression(stmt["expr"], ctx, declared, seen, out); return nil }
     if st == "Block" {
         var i = 0
         while i < oren_list_len(stmt["stmts"]) {
-            lambda_collect_used_in_statement(stmt["stmts"][i], declared, seen, out)
+            lambda_collect_used_in_statement(stmt["stmts"][i], ctx, declared, seen, out)
             i = i + 1
         }
         return nil
     }
     if st == "While" {
-        lambda_collect_used_in_expression(stmt["cond"], declared, seen, out)
-        lambda_collect_used_in_statement(stmt["body"], declared, seen, out)
+        lambda_collect_used_in_expression(stmt["cond"], ctx, declared, seen, out)
+        lambda_collect_used_in_statement(stmt["body"], ctx, declared, seen, out)
         return nil
     }
     if st == "For" {
-        lambda_collect_used_in_statement(stmt["init"], declared, seen, out)
-        lambda_collect_used_in_expression(stmt["cond"], declared, seen, out)
-        lambda_collect_used_in_statement(stmt["post"], declared, seen, out)
-        lambda_collect_used_in_statement(stmt["body"], declared, seen, out)
+        lambda_collect_used_in_statement(stmt["init"], ctx, declared, seen, out)
+        lambda_collect_used_in_expression(stmt["cond"], ctx, declared, seen, out)
+        lambda_collect_used_in_statement(stmt["post"], ctx, declared, seen, out)
+        lambda_collect_used_in_statement(stmt["body"], ctx, declared, seen, out)
         return nil
     }
-    if st == "Spawn" { lambda_collect_used_in_expression(stmt["call"], declared, seen, out); return nil }
+    if st == "Spawn" { lambda_collect_used_in_expression(stmt["call"], ctx, declared, seen, out); return nil }
     return nil
 }
 
-fn lambda_free_vars(fun) {
+fn lambda_free_vars(ctx, fun) {
     var declared = {}
     // params
     var i = 0
@@ -400,7 +407,7 @@ fn lambda_free_vars(fun) {
 
     var out = []
     var seen = {}
-    lambda_collect_used_in_statement(fun["body"], declared, seen, out)
+    lambda_collect_used_in_statement(fun["body"], ctx, declared, seen, out)
     return out
 }
 

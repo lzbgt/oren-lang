@@ -460,7 +460,13 @@ fn lambda_collect_used_in_expression(ctx, exp, declared, seen, out) {
         return nil
     }
     if et == "Function" {
-        // Nested lambdas are their own closures.
+        var nested = exp["captures"]
+        if nested == nil { nested = lambda_free_vars(ctx, exp) }
+        var i = 0
+        while i < oren_list_len(nested) {
+            lambda_maybe_add_capture(ctx, nested[i], declared, seen, out)
+            i = i + 1
+        }
         return nil
     }
     if et == "Call" {

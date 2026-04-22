@@ -36,7 +36,7 @@ run_ok() {
 }
 
 src="tests/fixtures/generator_surface_v0.oren"
-blocked_src="tests/fixtures/generator_decl_blocked_local_v0.oren"
+blocked_src="tests/fixtures/generator_decl_blocked_unnamed_v0.oren"
 bytecode_out="$tmpdir/generator_bytecode.obc"
 meta_out="$tmpdir/generator_meta.json"
 dump_out="$tmpdir/generator_dump.json"
@@ -140,15 +140,15 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         raise SystemExit(f"counter_worker should not be generator decl: {worker!r}")
 PY
 
-blocked_log="$tmpdir/generator_decl_blocked_local.log"
-echo "\$ $compiler build $blocked_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_local.obc" >>"$log"
-if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_local.obc" >>"$blocked_log" 2>&1; then
+blocked_log="$tmpdir/generator_decl_blocked_unnamed.log"
+echo "\$ $compiler build $blocked_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_unnamed.obc" >>"$log"
+if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_unnamed.obc" >>"$blocked_log" 2>&1; then
   cat "$blocked_log" >>"$log"
-  echo "verify_generator_surface_v0: expected local generator declaration to fail" >&2
+  echo "verify_generator_surface_v0: expected unnamed generator declaration to fail" >&2
   exit 1
 fi
 cat "$blocked_log" >>"$log"
-grep -F "@oren.generator is currently only supported on top-level function declarations" "$blocked_log" >/dev/null
+grep -F "@oren.generator may only precede named function declarations" "$blocked_log" >/dev/null
 
 echo "generator surface v0 verify OK" >>"$log"
 echo "generator surface v0 verify OK"

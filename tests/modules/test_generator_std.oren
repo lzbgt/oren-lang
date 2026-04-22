@@ -121,33 +121,55 @@ fn main() {
     assert_true(gen.is_done(g5) == true, 65)
     assert_eq(gen.return_value(g5), 35, 66)
 
+    var local_bias = 7
+    fn local_add(a, b) {
+        return a + b + local_bias
+    }
+    local_bias = 100
+    assert_eq(local_add(1, 2), 10, 67)
+
+    var local_gen_bias = 100
+    @oren.generator
+    fn local_decl(seed) {
+        var resumed = yield (seed + local_gen_bias)
+        return resumed + local_gen_bias
+    }
+    local_gen_bias = 999
+    var g5b = local_decl(5)
+    var lg0 = gen.next(g5b)
+    if oren_is_err(lg0) == true { fail(68) }
+    assert_eq(lg0["value"], 105, 69)
+    var lg1 = gen.send(g5b, 4)
+    if oren_is_err(lg1) == true { fail(70) }
+    assert_eq(lg1["return"], 104, 71)
+
     var g6 = decl_counter(40)
     var d0 = gen.next(g6)
-    if oren_is_err(d0) == true { fail(70) }
-    assert_eq(d0["value"], 41, 71)
+    if oren_is_err(d0) == true { fail(72) }
+    assert_eq(d0["value"], 41, 73)
     var d1 = gen.send(g6, 2)
-    if oren_is_err(d1) == true { fail(72) }
-    assert_eq(d1["value"], 42, 73)
+    if oren_is_err(d1) == true { fail(74) }
+    assert_eq(d1["value"], 42, 75)
     var d2 = gen.send(g6, 7)
-    if oren_is_err(d2) == true { fail(74) }
-    assert_eq(d2["return"], 12, 75)
+    if oren_is_err(d2) == true { fail(76) }
+    assert_eq(d2["return"], 12, 77)
 
     var g7 = decl_nil(60)
     var dn0 = gen.next(g7)
-    if oren_is_err(dn0) == true { fail(76) }
-    assert_true(dn0["value"] == nil, 77)
+    if oren_is_err(dn0) == true { fail(78) }
+    assert_true(dn0["value"] == nil, 79)
     var dn1 = gen.send(g7, 3)
-    if oren_is_err(dn1) == true { fail(78) }
-    assert_eq(dn1["return"], 67, 79)
+    if oren_is_err(dn1) == true { fail(80) }
+    assert_eq(dn1["return"], 67, 81)
 
     var g8 = decl_collect(5)
     var dxs = gen.collect(g8)
-    if oren_is_err(dxs) == true { fail(80) }
-    assert_eq(oren_list_len(dxs), 3, 81)
-    assert_eq(dxs[0], 5, 82)
-    assert_eq(dxs[1], 6, 83)
-    assert_eq(dxs[2], 7, 84)
-    assert_eq(gen.return_value(g8), 35, 85)
+    if oren_is_err(dxs) == true { fail(82) }
+    assert_eq(oren_list_len(dxs), 3, 83)
+    assert_eq(dxs[0], 5, 84)
+    assert_eq(dxs[1], 6, 85)
+    assert_eq(dxs[2], 7, 86)
+    assert_eq(gen.return_value(g8), 35, 87)
 
     print("module generator_std OK")
     exit(0)

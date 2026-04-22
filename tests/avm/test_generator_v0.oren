@@ -130,11 +130,36 @@ fn test_generator_decl_syntax() {
 
 }
 
+fn test_local_generator_decl_syntax() {
+    var local_bias = 7
+    fn local_add(a, b) {
+        return a + b + local_bias
+    }
+    local_bias = 100
+    assert_eq(local_add(1, 2), 10, 56)
+
+    var local_gen_bias = 100
+    @oren.generator
+    fn local_decl(seed) {
+        var resumed = yield (seed + local_gen_bias)
+        return resumed + local_gen_bias
+    }
+    local_gen_bias = 999
+    var g = local_decl(5)
+    var s0 = gen.next(g)
+    assert_true(oren_is_err(s0) == false, 57)
+    assert_eq(s0["value"], 105, 58)
+    var s1 = gen.send(g, 4)
+    assert_true(oren_is_err(s1) == false, 59)
+    assert_eq(s1["return"], 104, 60)
+}
+
 fn main() {
     test_step_protocol()
     test_nil_and_collect()
     test_initial_send_err()
     test_generator_decl_syntax()
+    test_local_generator_decl_syntax()
     print("test_generator_v0: OK")
     oren_exit(0)
 }

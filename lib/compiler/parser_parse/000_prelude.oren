@@ -494,6 +494,34 @@ fn _generator_nil_expr() {
     return ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
 }
 
+fn _local_fn_decl_name_ident(fun) {
+    if fun == nil { return nil }
+    var nm = fun["name"]
+    if nm == nil || nm == "" { return nil }
+    var tok = token.new_token(token.TOK_IDENT, nm)
+    var src = fun["token"]
+    if src != nil {
+        if src["file"] != nil { tok["file"] = src["file"] }
+        if src["line"] != nil { tok["line"] = src["line"] }
+        if src["col"] != nil { tok["col"] = src["col"] }
+        if src["pos"] != nil { tok["pos"] = src["pos"] }
+        if src["end"] != nil { tok["end"] = src["end"] }
+    }
+    return ast.new_identifier(tok)
+}
+
+fn maybe_lower_local_fn_decl_stmt(p, stmt) {
+    if stmt == nil || stmt["type"] != "ExprStmt" { return stmt }
+    if p["block_depth"] <= 0 { return stmt }
+    var fun = stmt["expr"]
+    if fun == nil || fun["type"] != "Function" { return stmt }
+    var name_ident = _local_fn_decl_name_ident(fun)
+    if name_ident == nil { return stmt }
+    fun["decl_name"] = fun["name"]
+    fun["name"] = ""
+    return ast.new_var(fun["token"], name_ident, fun)
+}
+
 fn _generator_rewrite_yield_expr(expr, co_name) {
     if expr == nil { return nil }
     var t = expr["type"]
@@ -705,8 +733,13 @@ fn maybe_lower_generator_decl_stmt(p, stmt) {
     var wrapper_body = ast.new_block(body_tok)
     oren_list_push(wrapper_body["stmts"], ast.new_return(token.new_token(token.TOK_RETURN, "return"), start_call))
     if p["block_depth"] > 0 {
-        parser_add_error(p, "@oren.generator is currently only supported on top-level function declarations")
-        return stmt
+        var name_ident = _local_fn_decl_name_ident(func)
+        func["body"] = wrapper_body
+        func["generator_decl"] = true
+        func["generator_import_alias"] = import_alias
+        func["decl_name"] = func["name"]
+        func["name"] = ""
+        return ast.new_var(func["token"], name_ident, func)
     }
     func["body"] = wrapper_body
     func["generator_decl"] = true

@@ -4246,8 +4246,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	   - New (2026-04-22): top-level `@oren.generator fn ...` now ships as the first parser-level
 	     generator declaration sugar on top of `std:generator`. Reweight the remaining work again:
 	     the missing piece is no longer “first source syntax for generators”, it is a compiler-managed
-	     coroutine/generator object model that can replace the current stdlib-map wrapper and extend
-	     beyond the intentional v0 boundary where block-local generator declarations still fail.
+	     coroutine/generator object model that can replace the current stdlib-map wrapper now that
+	     block-local `@oren.generator` declarations and shared local named-function sugar are parity-
+	     verified across bytecode, C, and native.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

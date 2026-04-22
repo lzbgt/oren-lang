@@ -98,8 +98,8 @@ backend-shared value-helper slices landed.
   - rolling fairness: deterministic round-robin cursor like the native surface
   This closes the concrete C-backend gap that blocked `std:generator` parity on the current POSIX
   host path. It is still not the same thing as a compiler-managed coroutine/generator object model.
-- Fresh landing (2026-04-22): top-level `@oren.generator fn ...` now ships as the first parser-level
-  declaration sugar on top of that same contract. The front-end lowers
+- Fresh landing (2026-04-22): `@oren.generator fn ...` now ships as parser-level declaration sugar on
+  top of that same contract. The front-end lowers
   `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
   to:
   - a wrapper function `counter(seed)` that returns `std:generator.start(worker, [])`
@@ -107,11 +107,14 @@ backend-shared value-helper slices landed.
     `yield [expr] in (co["yield_ch"], co["resume_ch"])`
   - metadata markers `is_generator_decl=true` plus `generator_decl_surface` so tool surfaces can
     distinguish the wrapper form from raw helper calls or manual `std:generator.start(...)`
-  The current v0 boundary is deliberate and now enforced by a focused verifier: block-local
-  `@oren.generator fn ...` declarations fail at compile time because closure/import capture lowering
-  is not yet unified across bytecode, C, and native.
+  That surface is now verified for both top-level and block-local declarations because the parser
+  also lowers block-local named functions through the shared first-class callable form
+  `fn name(...) { ... } -> var name = fn (...) { ... }`, and the closure analyzers for bytecode, C,
+  and native now propagate nested-lambda free vars outward so local generator wrappers can capture
+  enclosing locals correctly.
 
-That boundary is deliberate, not accidental.
+The remaining boundary is narrower and still deliberate: `@oren.generator` applies only to named
+function declarations, not anonymous function literals or arbitrary statements.
 
 ## Existing runtime / backend seams
 

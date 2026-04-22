@@ -1417,8 +1417,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     the declaration to the shared channel-resume protocol, then returns the same generator-handle
 	     map shape that `std:generator.start(...)` produces. Metadata/dump/OBC surfaces now expose
 	     `is_generator_decl` plus `generator_decl_surface` so this wrapper form is visible to tools.
-	     The v0 boundary is explicit: block-local `@oren.generator` declarations still fail at compile
-	     time until closure/runtime lowering is unified across all backends.
+	     The next landing widened that same surface to block-local declarations too, on top of shared
+	     parser-level local named-function lowering (`fn name(...) { ... } -> var name = fn (...) { ... }`)
+	     and nested-lambda capture propagation across bytecode, C, and native. The remaining boundary
+	     is now declaration shape, not scope: `@oren.generator` still requires a named function declaration.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

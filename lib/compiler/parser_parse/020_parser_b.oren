@@ -288,10 +288,11 @@ fn parse_block(p) {
 	                                    s["doc"] = pending
 	                                }
 	                            }
-                            s = maybe_lower_generator_decl_stmt(p, s)
-	                            oren_list_push(block["stmts"], s)
-	                            si = si + 1
-	                        }
+	                            s = maybe_lower_generator_decl_stmt(p, s)
+	                            s = maybe_lower_local_fn_decl_stmt(p, s)
+		                            oren_list_push(block["stmts"], s)
+		                            si = si + 1
+		                        }
                     } else {
                         if attrs != nil && oren_list_len(attrs) != 0 {
                             parser_add_error(p, "attributes may not precede enum/impl sugar expansion in blocks yet")
@@ -327,9 +328,10 @@ fn parse_block(p) {
                             }
 	                        }
 	                    }
-                    stmt = maybe_lower_generator_decl_stmt(p, stmt)
-	                    oren_list_push(block["stmts"], stmt)
-	                }
+	                    stmt = maybe_lower_generator_decl_stmt(p, stmt)
+	                    stmt = maybe_lower_local_fn_decl_stmt(p, stmt)
+		                    oren_list_push(block["stmts"], stmt)
+		                }
             }
             if frame != nil {
                 frame["doc_lines"] = nil

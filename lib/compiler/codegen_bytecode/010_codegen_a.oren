@@ -194,11 +194,11 @@ fn bytecode_compile_expr(ctx, expr) {
     if expr["type"] == "Function" {
         // Function literal (lambda): parser lowers `|...| { ... }` into an anonymous Function node (name="").
         // Rolling closure model (v0): capture-by-value, env is a LIST in deterministic first-use order.
-        if expr["name"] == "" {
-            if expr["lambda_name"] == nil {
-                expr["lambda_name"] = lambda_gensym(ctx)
-                expr["captures"] = lambda_free_vars(expr)
-            }
+            if expr["name"] == "" {
+                if expr["lambda_name"] == nil {
+                    expr["lambda_name"] = lambda_gensym(ctx)
+                    expr["captures"] = lambda_free_vars(ctx, expr)
+                }
             var lname = expr["lambda_name"]
             // Compile the lambda body exactly once (it is skipped at runtime via an entry JMP).
             if ctx["functions"][lname] == nil {

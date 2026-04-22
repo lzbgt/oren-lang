@@ -3399,9 +3399,11 @@ Rolling status:
   - the declaration lowers to a wrapper that returns `std:generator.start(...)`
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
     `channel_resume_v0` exchange contract
-  - this v0 surface is currently verified only for top-level function declarations; block-local
-    `@oren.generator fn ...` declarations fail at compile time on purpose until closure/runtime
-    lowering is unified across all shipped backends
+  - the same v0 surface is now verified for both top-level and block-local declarations across
+    bytecode, C, and native, with block-local lowering reusing the shared local named-function
+    sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
+  - the remaining boundary is narrower: `@oren.generator` still requires a named function
+    declaration; it does not apply to anonymous function literals or arbitrary statements
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
   semantics beyond the current local value-stable helper path.
 

@@ -135,5 +135,27 @@ fn main() {
     if dxs[0] != 5 || dxs[1] != 6 || dxs[2] != 7 { return 152 }
     if gen.return_value(g7) != 35 { return 153 }
 
+    var local_bias = 7
+    fn local_add(a, b) {
+        return a + b + local_bias
+    }
+    local_bias = 100
+    if local_add(1, 2) != 10 { return 154 }
+
+    var local_gen_bias = 100
+    @oren.generator
+    fn local_decl(seed) {
+        var resumed = yield (seed + local_gen_bias)
+        return resumed + local_gen_bias
+    }
+    local_gen_bias = 999
+    var g8 = local_decl(5)
+    var l0 = gen.next(g8)
+    if oren_is_err(l0) == true { return 155 }
+    if l0["ok"] != true || l0["done"] != false || l0["value"] != 105 { return 156 }
+    var l1 = gen.send(g8, 4)
+    if oren_is_err(l1) == true { return 157 }
+    if l1["done"] != true || l1["return"] != 104 { return 158 }
+
     return 0
 }
