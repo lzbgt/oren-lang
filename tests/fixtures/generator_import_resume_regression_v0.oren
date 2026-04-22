@@ -1,0 +1,15 @@
+import gen "std:generator"
+
+fn child_worker(co, args) {
+    var seed = args[0]
+    var resumed = yield (seed + 1) in co
+    return resumed + 5
+}
+
+fn outer_worker(co, args) {
+    var child = gen.start(child_worker, [args[0]])
+    if child == nil { return 1 }
+    return 0
+}
+
+fn main() { return 0 }

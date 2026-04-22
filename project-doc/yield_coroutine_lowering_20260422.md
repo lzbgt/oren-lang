@@ -162,6 +162,22 @@ backend-shared value-helper slices landed.
   - importing `std:generator` in the same module as delegated generator composition triggered the
     stage2 bytecode build regression again, even after removing the worker-style `gen.delegate(...)`
     facade
+  - the most reliable reduced shape is now committed and narrower than the original delegation
+    attempt: a module that imports `std:generator`, starts an inner generator, and whose worker
+    contains any `yield ... in co` currently times out under stage2 after
+    `[phase] pass global_dce` and `[trace] link: done`, before bytecode emission
+  - the nearby controls still compile:
+    - no import + value-resume worker + `oren_generator_start(...)`
+    - import + no-yield worker + `gen.start(...)`
+  - the blocked fixtures are:
+    - `tests/fixtures/generator_import_yield_regression_stmt_v0.oren`
+    - `tests/fixtures/generator_import_resume_regression_v0.oren`
+    and the nearby controls are:
+    - `tests/fixtures/generator_import_resume_control_no_import_v0.oren`
+    - `tests/fixtures/generator_import_yield_control_import_no_yield_v0.oren`
+    verified by `scripts/probe_generator_import_yield_regression.sh`
+  - conditional exclusion of `oren_generator_delegate(...)` from non-using modules was confirmed
+    separately through metadata inspection, but that did not remove the import-side compile stall
   - because the surface was not robust under the self-hosted compiler, the public delegation syntax
     and metadata claims were rolled back in this turn
   This remains the next real resume/composition task above the shipped `for-in` / `next` / `send`

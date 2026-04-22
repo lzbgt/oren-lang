@@ -4261,6 +4261,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     `meta`/`dump linked` from `./oren` and still verify stage2-built embedded OBC metadata plus
 	     bytecode/C/native execution, which cuts the default guard cost without dropping target
 	     artifact coverage.
+	   - New (2026-04-22): the blocked next-step compiler issue is now pinned to a committed reduced
+	     matrix instead of a vague “delegation breaks” note. Under stage2 bytecode build:
+	     - import + `gen.start(...)` + worker `yield ... in co` times out after `global_dce`
+	       and `link: done`, before bytecode emission
+	     - no-import value-resume and import + no-yield controls still compile
+	     Keep `scripts/probe_generator_import_yield_regression.sh` and
+	     `tests/fixtures/generator_import_*` as the factual starting point for the next
+	     compiler fix instead of re-expanding the surface first.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
