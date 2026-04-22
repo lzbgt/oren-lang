@@ -693,6 +693,29 @@ is no longer mainly the branchy wrap-control form either; the next backend work 
 serial carried recurrence itself versus the host C loop's four independent streams, not more local
 control-form tweaks.
 
+A narrower precise-safepoint-spill follow-up under that same shipped four-wide body also stays
+rejected. This rerun changed only the inline GC tick helper, replacing the conservative two-pair
+cursor spill with the exact live-pointer spill `[x19]` using `stp x19, xzr` / `ldp x19, xzr`. The
+emitted hot loop therefore did not change at all:
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_062415_90653.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_062415_90632.log` still show `35`
+hot instructions for `4` outputs (`8.75` per element), but the cold GC-tick side blocks shrink
+from `16` instructions on the clean shipped baseline
+(`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_061450_87903.log`,
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_061450_87882.log`) to `12`.
+
+That cleaner side path still does not hold as a shipped performance move. Relative to the clean
+baseline decision surface in
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_045547_59235.log`,
+the precise-spill rerun in
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_062307_89324.log`
+improved fill/share (`default_fill_vs_c_vector ~2.2247x -> ~2.1355x`) but regressed both exact
+same-tree medians (`default_array_ratio_median ~2.1889x -> ~2.2115x`,
+`default_dot_ratio_median ~1.7420x -> ~1.7738x`). Reweight again: exact live-pointer conservative
+spills are mechanically cleaner, but not enough to keep on the shipped tree by themselves. Any
+future retry has to pair that narrower spill contract with a stronger recurrence/control win or a
+correctness need.
+
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 
 ```bash

@@ -314,6 +314,26 @@ backend-shared value-helper slices landed.
     `decision_surface_alignment: agree`). That narrows the remaining backend work further again:
     the open gap is no longer mainly the branchy wrap-control form either, but the serial carried
     recurrence itself versus the host C loop's four independent streams
+  - the next narrower precise-safepoint-spill follow-up under that same shipped four-wide body is
+    now also closed negative. A temporary rerun changed only the inline GC tick helper, replacing
+    the conservative two-pair cursor spill with the exact live-pointer spill `[x19]` through
+    `stp x19, xzr` / `ldp x19, xzr`. The emitted hot loop did not change:
+    `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_062415_90653.log` and
+    `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_062415_90632.log` still show
+    `35` hot instructions for `4` outputs (`8.75` per element), but the cold GC-tick side blocks
+    shrink from `16` instructions on the clean shipped baseline
+    (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_061450_87903.log`,
+    `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_061450_87882.log`) to `12`.
+    That cleaner side path still does not hold on the actual shipped surface: compared with the
+    clean baseline decision probe
+    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_045547_59235.log`),
+    the precise-spill rerun
+    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_062307_89324.log`)
+    improves fill/share (`default_fill_vs_c_vector ~2.2247× -> ~2.1355×`) but regresses both exact
+    same-tree medians (`default_array_ratio_median ~2.1889× -> ~2.2115×`,
+    `default_dot_ratio_median ~1.7420× -> ~1.7738×`). That narrows the remaining backend work
+    further again: exact live-pointer conservative spills are cleaner, but not enough to keep as a
+    standalone perf move on the shipped tree.
 	  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
 	    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
 	    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)

@@ -2580,6 +2580,33 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      stop treating branchy wrap control as the primary blocker; the next fill-side
 										      work should target the serial carried recurrence itself versus the host C
 										      loop's four independent streams.
+										    - Arm64 explicit push nonnegative-linear precise-safepoint-spill follow-up (2026-04-23):
+										      the next narrower inline GC helper hypothesis under that same shipped
+										      four-wide body is now also closed negative. A temporary rerun changed only
+										      the conservative safepoint spill contract, replacing the two preserved
+										      cursor pairs with the exact live pointer spill `[x19]` via
+										      `stp x19, xzr` / `ldp x19, xzr`. The emitted hot loop did not change:
+										      `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_062415_90653.log`
+										      and
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_062415_90632.log`
+										      still show `35` hot instructions for `4` outputs (`8.75` per element),
+										      but the cold GC-tick side blocks shrink from `16` instructions on the clean
+										      shipped baseline
+										      (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_061450_87903.log`,
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_061450_87882.log`)
+										      to `12`. The actual same-tree decision surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_062307_89324.log`)
+										      still rejected keeping that change on the shipped tree relative to the
+										      clean baseline
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_045547_59235.log`):
+										      fill/share improved (`default_fill_vs_c_vector ~2.2247× -> ~2.1355×`), but
+										      both exact same-tree medians regressed
+										      (`default_array_ratio_median ~2.1889× -> ~2.2115×`,
+										      `default_dot_ratio_median ~1.7420× -> ~1.7738×`). Reweight again: exact
+										      live-pointer conservative spills are mechanically cleaner, but they are not
+										      enough to ship as a standalone perf move; any future retry has to be paired
+										      with a stronger recurrence/control improvement or justified by a correctness
+										      need.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface
