@@ -3422,7 +3422,7 @@ Rolling status:
     - inside `@oren.generator` declarations: `defer { ... }`
     - the `defer` surface is contextual; it is not reserved outside those generator forms
   - metadata now reports that object contract as `compiler_generator_object_v2` with
-    `generator_handle_v2`, `hidden_list_capsule_v4`, declaration-form metadata via
+    `generator_handle_v2`, `opaque_named_slot_capsule_v5`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
     metadata through `resume_surface=next_send_finalize_defer_close_delegate_yield_from_v7`,
@@ -3449,6 +3449,8 @@ Rolling status:
     - `finalize_points`
   - the focused cross-surface parity guard for that metadata is now
     `verify-generator-finalize-surface-v0`
+  - internally, raw generator slot numbers are now isolated to named injected helper accessors, so
+    the remaining representation swap is a single substrate seam instead of every resume/close path
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
@@ -3743,18 +3745,22 @@ Notes:
 - Generator declaration sugar is exposed separately too:
   - `is_generator_decl`: `true` for functions declared with `@oren.generator`
   - `generator_decl_surface`: machine-readable statement of the current generator object protocol
-    (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
+    (`compiler_generator_object_v2`, `version=18`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
-    underlying yield surface `generator_context_v0`, iterable surface `for_in_v0` with
-    implicit-`nil` resume, explicit resume/delegation surface `next_send_close_delegate_yield_from_v5`
+    underlying yield surface `generator_context_v0`, finalization surface `generator_finalize_v0`,
+    iterable surface `for_in_v0` with implicit-`nil` resume, explicit
+    resume/delegation/finalization surface `next_send_finalize_defer_close_delegate_yield_from_v7`
     (`next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
+    `on_finalize_api=oren_generator_on_finalize_v1`,
+    `on_close_api=oren_generator_on_close_v1`,
     `close_api=oren_generator_close_v1`,
     `delegate_api=oren_generator_delegate_v1`,
     `delegate_step_api=oren_generator_delegate_step_v1`,
+    `finalize_source_syntaxes=["defer_v0","defer_in_context_v0","on_finalize_call_v1","on_close_call_alias_v1"]`,
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
-    `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
+    `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`,
     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`),
-    state layout `hidden_list_capsule_v2`,
+    state layout `opaque_named_slot_capsule_v5`,
     worker context type `generator_context`, declaration forms
     `["named_function_decl", "function_valued_var"]`)
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan

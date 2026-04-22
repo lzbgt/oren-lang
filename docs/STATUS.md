@@ -1420,7 +1420,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 			     `generator_context_v0` worker-facing yield contract and binding-sensitive
 				     `yield_exchange_surface`. That v2 surface now explicitly records
-				     `state_layout=hidden_list_capsule_v4`, `worker_context_type=generator_context`,
+					     `state_layout=opaque_named_slot_capsule_v5`, `worker_context_type=generator_context`,
 					     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
 					     `resume_surface=next_send_finalize_defer_close_delegate_yield_from_v7`,
 					     `next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
@@ -1436,7 +1436,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
 					     `decl_forms=["named_function_decl","function_valued_var"]`, and the
 					     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
-			     lifecycle fields.
+				     lifecycle fields.
+		   - New (2026-04-22): the remaining generator substrate seam is narrower now even before the
+		     future dedicated coroutine object kind lands.
+		     - the injected generator core moved into `lib/compiler/parser_parse/005_generator_core.oren`,
+		       bringing `000_prelude.oren` back under the repo-local 2000-line red line
+		     - raw positional generator slots are now isolated to named internal helper accessors and
+		       constructors instead of being spread through resume/close/delegate logic
+		     - the machine-readable layout marker is now `state_layout=opaque_named_slot_capsule_v5`
+		       to reflect that internal named-slot ABI
 	   - New (2026-04-22): generator handles are now iterable too. `for x in gen { ... }` works
 	     across bytecode, C, and native by routing generator handles through the compiler-managed
 	     generator bridge while resuming each step with implicit `nil`. This gives language-level

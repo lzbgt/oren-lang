@@ -4248,11 +4248,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.
 		     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 		     wrapper”, and the shipped handle contract is now also opaque by default
-					     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
+					     (`compiler_generator_object_v2` with `opaque_named_slot_capsule_v5` plus validated
 					     `generator_context`, declaration-form metadata, `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
 					     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
-				     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
-			     `generator` handle
+					     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
+				     `generator` handle
+			   - New (2026-04-22): raw generator slot numbering is now isolated to named injected helper
+			     accessors in `lib/compiler/parser_parse/005_generator_core.oren`, so the future dedicated
+			     coroutine object kind can swap one substrate seam instead of rewriting every
+			     resume/close/delegate path.
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     fuller coroutine language affordances without manual channel semantics leaking through).
 	   - New (2026-04-22): generator handles now participate in generic `for x in iterable`

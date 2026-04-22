@@ -6,6 +6,7 @@
 // Include order is identical to the former monolithic `parser_parse.oren`.
 
 // @include "parser_parse/000_prelude.oren"
+// @include "parser_parse/005_generator_core.oren"
 // @include "parser_parse/010_parser_a.oren"
 // @include "parser_parse/020_parser_b.oren"
 // @include "parser_parse/030_tail.oren"

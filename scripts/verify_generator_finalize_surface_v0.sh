@@ -88,7 +88,7 @@ expected_decl_surface = {
     "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
     "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
-    "state_layout": "hidden_list_capsule_v4",
+    "state_layout": "opaque_named_slot_capsule_v5",
     "worker_context_type": "generator_context",
     "decl_forms": ["named_function_decl", "function_valued_var"],
 }
