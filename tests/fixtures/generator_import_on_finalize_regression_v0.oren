@@ -1,0 +1,37 @@
+import gen "std:generator"
+
+fn inner_worker(co, args) {
+    var box = args[0]
+    var seed = args[1]
+    var r0 = gen.on_finalize(co, || { oren_list_push(box, seed + 1); return nil })
+    if oren_is_err(r0) == true { return -10 }
+    var r1 = gen.on_close(co, || { oren_list_push(box, seed + 2); return nil })
+    if oren_is_err(r1) == true { return -11 }
+    var resumed = yield seed in co
+    return resumed + seed + 20
+}
+
+@oren.generator
+fn outer(box, seed) {
+    var r0 = gen.on_finalize(|| { oren_list_push(box, seed + 3); return nil })
+    if oren_is_err(r0) == true { return -12 }
+    var inner = gen.start(inner_worker, [box, seed])
+    return yield from inner
+}
+
+fn main() {
+    var box = []
+    var g = outer(box, 4)
+    var s0 = gen.next(g)
+    if oren_is_err(s0) == true { return 1 }
+    if s0["value"] != 4 { return 2 }
+    var s1 = gen.send(g, 6)
+    if oren_is_err(s1) == true { return 3 }
+    if s1["done"] != true || s1["return"] != 30 { return 4 }
+    if gen.return_value(g) != 30 { return 5 }
+    if oren_list_len(box) != 3 { return 6 }
+    if box[0] != 6 { return 7 }
+    if box[1] != 5 { return 8 }
+    if box[2] != 7 { return 9 }
+    return 0
+}

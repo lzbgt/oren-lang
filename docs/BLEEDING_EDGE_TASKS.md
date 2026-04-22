@@ -4282,20 +4282,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       - explicit workers: `yield from inner in co`
 		       - `@oren.generator` declarations: `yield from inner`
 		       - `from` is contextual after `yield`, so existing identifiers named `from` are preserved
-		     - the shipped mode is `track_active_chain_inline_fresh_or_cached_started_step_v3`
-		     - explicit close/finalization now ships too through
-		       `oren_generator_close(gen)` / `std:generator.close(gen)`, with
-		       `close_mode=propagate_active_delegate_chain_run_close_hooks_detach_live_task_v4`
-		       plus `oren_generator_on_close(co, hook)` / `std:generator.on_close(...)`
-		       using `on_close_mode=lifo_zero_arg_close_only_v1`
-		     - handle sealing now first recursively closes the active delegated chain, then runs close
-		       hooks, then detaches live workers instead of resuming them with a hidden close sentinel
-		     - imported stage2 bytecode coverage now includes
-		       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`,
-		       `tests/fixtures/generator_import_close_regression_v0.oren`,
-		       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`,
-		       `tests/fixtures/generator_import_on_close_regression_v0.oren`, and
-		       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
+			     - the shipped mode is `track_active_chain_inline_fresh_or_cached_started_step_v3`
+			     - explicit close/finalization now ships too through
+			       `oren_generator_close(gen)` / `std:generator.close(gen)`, with
+			       `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`
+			       plus `oren_generator_on_finalize(co, hook)` / `std:generator.on_finalize(...)`
+			       using `on_finalize_mode=lifo_zero_arg_on_done_or_close_v1`
+			     - `on_close(...)` now remains only as an alias surface, recorded as
+			       `on_close_mode=alias_of_on_finalize_v1`
+			     - handle sealing now first recursively closes the active delegated chain, then runs
+			       finalization hooks, then detaches live workers instead of resuming them with a hidden close
+			       sentinel
+			     - imported stage2 bytecode coverage now includes
+			       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`,
+			       `tests/fixtures/generator_import_close_regression_v0.oren`,
+			       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`,
+			       `tests/fixtures/generator_import_on_close_regression_v0.oren`,
+			       `tests/fixtures/generator_import_on_finalize_regression_v0.oren`, and
+			       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
 		     - native wrapper discovery now also pre-scans nested lambda / generator-worker bodies for
 		       named function values, so declaration-body `on_close(...)` plus
 		       `gen.start(named_worker, ...)` followed by `yield from ...` is no longer a blocked native seam

@@ -1418,21 +1418,23 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
 		     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v2`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
-		     `generator_context_v0` worker-facing yield contract and binding-sensitive
-			     `yield_exchange_surface`. That v2 surface now explicitly records
-			     `state_layout=hidden_list_capsule_v3`, `worker_context_type=generator_context`,
-				     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
-				     `resume_surface=next_send_close_delegate_yield_from_v5`, `next_api=oren_generator_next_v2`,
-				     `send_api=oren_generator_send_v2`, `on_close_api=oren_generator_on_close_v1`,
-				     `close_api=oren_generator_close_v1`,
-				     `delegate_api=oren_generator_delegate_v1`,
-				     `delegate_step_api=oren_generator_delegate_step_v1`,
-				     `on_close_mode=lifo_zero_arg_close_only_v1`,
-				     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
-				     `close_mode=propagate_active_delegate_chain_run_close_hooks_detach_live_task_v4`,
-				     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
-				     `decl_forms=["named_function_decl","function_valued_var"]`, and the
-				     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
+			     `generator_context_v0` worker-facing yield contract and binding-sensitive
+				     `yield_exchange_surface`. That v2 surface now explicitly records
+				     `state_layout=hidden_list_capsule_v4`, `worker_context_type=generator_context`,
+					     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
+					     `resume_surface=next_send_finalize_close_delegate_yield_from_v6`,
+					     `next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
+					     `on_finalize_api=oren_generator_on_finalize_v1`,
+					     `on_close_api=oren_generator_on_close_v1`, `close_api=oren_generator_close_v1`,
+					     `delegate_api=oren_generator_delegate_v1`,
+					     `delegate_step_api=oren_generator_delegate_step_v1`,
+					     `on_finalize_mode=lifo_zero_arg_on_done_or_close_v1`,
+					     `on_close_mode=alias_of_on_finalize_v1`,
+					     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
+					     `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`,
+					     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
+					     `decl_forms=["named_function_decl","function_valued_var"]`, and the
+					     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
 			     lifecycle fields.
 	   - New (2026-04-22): generator handles are now iterable too. `for x in gen { ... }` works
 	     across bytecode, C, and native by routing generator handles through the compiler-managed
@@ -1466,22 +1468,26 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       - `from` is contextual after `yield`, not a globally reserved identifier
 			     - the shipped v3 mode is `track_active_chain_inline_fresh_or_cached_started_step_v3`
 				   - New (2026-04-22): explicit generator close/finalization now ships too.
-				     - `oren_generator_on_close(co, hook)` / `std:generator.on_close(co, hook)` now register
-				       zero-argument close hooks for explicit workers, and declaration bodies can use the same
-				       contract through `gen.on_close(hook)` / `oren_generator_on_close(hook)`
-				     - close hooks run in LIFO order only on explicit `close()`, and the first hook error is
-				       returned after cleanup still completes
+				     - `oren_generator_on_finalize(co, hook)` / `std:generator.on_finalize(co, hook)` now register
+				       zero-argument finalization hooks for explicit workers, and declaration bodies can use the
+				       same contract through `gen.on_finalize(hook)` / `oren_generator_on_finalize(hook)`
+				     - `on_close(...)` remains a thin alias of the same hook list for compatibility
+				     - hooks now run in LIFO order on both explicit `close()` and ordinary natural completion
+				     - the first hook error becomes the sticky terminal generator result after cleanup still
+				       completes, while `return_value(gen)` preserves the ordinary cached return value
 				     - `oren_generator_close(gen)` / `std:generator.close(gen)` deterministically seal the handle
 				       done across bytecode, C, and native
 				     - unfinished handles now finish at the handle surface with `return_value == nil`
-				     - already-finished handles preserve and return their cached final value
-				     - active delegated chains are now recursively closed and close hooks are run before the
+				     - already-finished handles preserve and return their cached final value unless a terminal
+				       finalizer error was recorded
+				     - active delegated chains are now recursively closed and finalization hooks are run before the
 				       outer live worker is detached,
 				       so partially-consumed `yield from` / started-step delegation trees seal deterministically too
 				     - imported stage2 bytecode coverage now includes
 				       `tests/fixtures/generator_import_close_regression_v0.oren` and
 				       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`, plus
-				       `tests/fixtures/generator_import_on_close_regression_v0.oren`
+				       `tests/fixtures/generator_import_on_close_regression_v0.oren` and
+				       `tests/fixtures/generator_import_on_finalize_regression_v0.oren`
 				     - native wrapper discovery now also pre-scans nested lambda / generator-worker bodies for
 				       named function values, so declaration-body `on_close(...)` plus
 				       `gen.start(named_worker, ...)` followed by `yield from ...` is part of the shipped native

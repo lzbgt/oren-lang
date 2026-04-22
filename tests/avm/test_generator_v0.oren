@@ -261,12 +261,73 @@ fn avm_decl_close_hook_chain(box, base) {
     return retv + 1
 }
 
+fn avm_finalize_hook_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -982 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = gen.on_finalize(co, || { oren_list_push(box, base + 1); return nil })
+    if oren_is_err(r0) == true { return -983 }
+    var r1 = oren_generator_on_finalize(co, || { oren_list_push(box, base + 2); return nil })
+    if oren_is_err(r1) == true { return -984 }
+    var r2 = gen.on_close(co, || { oren_list_push(box, base + 3); return nil })
+    if oren_is_err(r2) == true { return -985 }
+    var resumed = yield base in co
+    return resumed + base + 7
+}
+
+fn avm_finalize_hook_err_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -986 }
+    var box = args[0]
+    var r0 = gen.on_finalize(co, || { oren_list_push(box, 1); return nil })
+    if oren_is_err(r0) == true { return -987 }
+    var r1 = gen.on_finalize(co, || { oren_list_push(box, 2); return oren_err(78, "finalize hook boom") })
+    if oren_is_err(r1) == true { return -988 }
+    yield 1 in co
+    return 123
+}
+
+fn avm_finalize_hook_chain_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -989 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = gen.on_finalize(co, || { oren_list_push(box, base + 1); return nil })
+    if oren_is_err(r0) == true { return -990 }
+    var resumed = yield base in co
+    return resumed + base + 31
+}
+
+@oren.generator
+fn avm_decl_finalize_hook(box, base) {
+    var r0 = gen.on_finalize(|| { oren_list_push(box, base + 10); return nil })
+    assert_true(oren_is_err(r0) == false, 3104)
+    var r1 = oren_generator_on_finalize(|| { oren_list_push(box, base + 20); return nil })
+    assert_true(oren_is_err(r1) == false, 3105)
+    var r2 = gen.on_close(|| { oren_list_push(box, base + 30); return nil })
+    assert_true(oren_is_err(r2) == false, 3106)
+    var resumed = yield (base + 1)
+    return resumed + base + 200
+}
+
+@oren.generator
+fn avm_decl_finalize_hook_chain(box, base) {
+    var r0 = gen.on_finalize(|| { oren_list_push(box, base + 2); return nil })
+    assert_true(oren_is_err(r0) == false, 3107)
+    var inner = gen.start(avm_finalize_hook_chain_inner_worker, [box, base])
+    var retv = yield from inner
+    assert_true(oren_is_err(retv) == false, 3108)
+    return retv + 1
+}
+
 fn avm_bad_on_close_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -975 }
     var bad0 = gen.on_close(co, 123)
     if oren_is_err(bad0) != true { return -976 }
     var bad1 = oren_generator_on_close(co, 123)
     if oren_is_err(bad1) != true { return -977 }
+    var bad2 = gen.on_finalize(co, 123)
+    if oren_is_err(bad2) != true { return -978 }
+    var bad3 = oren_generator_on_finalize(co, 123)
+    if oren_is_err(bad3) != true { return -979 }
     return 1
 }
 
@@ -521,6 +582,8 @@ fn test_close_surface() {
     assert_true(gen.return_value(c6mid) == nil, 424)
     assert_true(gen.is_done(c6inner) == true, 425)
     assert_true(gen.return_value(c6inner) == nil, 426)
+    assert_true(oren_is_err(gen.on_finalize(123, || nil)) == true, 4261)
+    assert_true(oren_is_err(oren_generator_on_finalize(123, || nil)) == true, 4262)
 
     var hook_box0 = []
     var g7 = gen.start(avm_close_hook_worker, [hook_box0, 80])
@@ -571,6 +634,68 @@ fn test_close_surface() {
     assert_eq(hook_box3[1], 102, 454)
     assert_eq(hook_box3[2], 103, 455)
     assert_true(gen.is_done(g10) == true, 456)
+
+    var final_box0 = []
+    var g11 = gen.start(avm_finalize_hook_worker, [final_box0, 120])
+    var f11s0 = gen.next(g11)
+    assert_true(oren_is_err(f11s0) == false, 4561)
+    assert_eq(f11s0["value"], 120, 4562)
+    var f11s1 = gen.send(g11, 4)
+    assert_true(oren_is_err(f11s1) == false, 4563)
+    assert_true(f11s1["done"] == true, 4564)
+    assert_eq(f11s1["return"], 131, 4565)
+    assert_eq(oren_list_len(final_box0), 3, 4566)
+    assert_eq(final_box0[0], 123, 4567)
+    assert_eq(final_box0[1], 122, 4568)
+    assert_eq(final_box0[2], 121, 4569)
+    assert_true(gen.is_done(g11) == true, 4570)
+    assert_true(gen.return_value(g11) == 131, 4571)
+
+    var final_box1 = []
+    var g12 = avm_decl_finalize_hook(final_box1, 130)
+    var f12s0 = gen.next(g12)
+    assert_true(oren_is_err(f12s0) == false, 4572)
+    assert_eq(f12s0["value"], 131, 4573)
+    var f12s1 = gen.send(g12, 6)
+    assert_true(oren_is_err(f12s1) == false, 4574)
+    assert_true(f12s1["done"] == true, 4575)
+    assert_eq(f12s1["return"], 336, 4576)
+    assert_eq(oren_list_len(final_box1), 3, 4577)
+    assert_eq(final_box1[0], 160, 4578)
+    assert_eq(final_box1[1], 150, 4579)
+    assert_eq(final_box1[2], 140, 4580)
+    assert_true(gen.is_done(g12) == true, 4581)
+    assert_true(gen.return_value(g12) == 336, 4582)
+
+    var final_box2 = []
+    var g13 = gen.start(avm_finalize_hook_err_worker, [final_box2])
+    var f13s0 = gen.next(g13)
+    assert_true(oren_is_err(f13s0) == false, 4583)
+    assert_eq(f13s0["value"], 1, 4584)
+    var f13s1 = gen.send(g13, 9)
+    assert_true(oren_is_err(f13s1) == true, 4585)
+    assert_eq(oren_list_len(final_box2), 2, 4586)
+    assert_eq(final_box2[0], 2, 4587)
+    assert_eq(final_box2[1], 1, 4588)
+    assert_true(gen.is_done(g13) == true, 4589)
+    assert_true(gen.return_value(g13) == 123, 4590)
+    assert_true(oren_is_err(gen.next(g13)) == true, 4591)
+    assert_true(oren_is_err(gen.close(g13)) == true, 4592)
+
+    var final_box3 = []
+    var g14 = avm_decl_finalize_hook_chain(final_box3, 140)
+    var f14s0 = gen.next(g14)
+    assert_true(oren_is_err(f14s0) == false, 4593)
+    assert_eq(f14s0["value"], 140, 4594)
+    var f14s1 = gen.send(g14, 8)
+    assert_true(oren_is_err(f14s1) == false, 4595)
+    assert_true(f14s1["done"] == true, 4596)
+    assert_eq(f14s1["return"], 180, 4597)
+    assert_eq(oren_list_len(final_box3), 2, 4598)
+    assert_eq(final_box3[0], 141, 4599)
+    assert_eq(final_box3[1], 142, 4600)
+    assert_true(gen.is_done(g14) == true, 4601)
+    assert_true(gen.return_value(g14) == 180, 4602)
 }
 
 fn test_generator_decl_syntax() {

@@ -5277,20 +5277,26 @@ Current behavior (native runtime, rolling):
   - `gen.next(gen)` resumes with `nil`
   - `gen.send(gen, value)` resumes with `value`
   - `gen.collect(gen)` drains yielded values into a list
-  - `gen.on_close(co, hook)` / `oren_generator_on_close(co, hook)` register deterministic close hooks
-    on an explicit worker context
+  - `gen.on_finalize(co, hook)` / `oren_generator_on_finalize(co, hook)` register deterministic
+    finalization hooks on an explicit worker context
+    - `gen.on_close(...)` / `oren_generator_on_close(...)` remain as aliases of the same hook list
     - `hook` must be a zero-argument callable
     - hooks run in LIFO order
-    - hooks run on explicit `close()`, not on ordinary natural completion
-    - if a hook returns `err`, `close()` returns the first such error after still finishing cleanup
+    - hooks now run on both explicit `close()` and ordinary natural completion
+    - if a hook returns `err`, the first such `err` becomes the terminal generator result after still
+      finishing cleanup
   - `gen.close(gen)` explicitly seals a generator handle done
-    - if the generator already finished, it returns the cached final return value
+    - if the generator already finished, it returns the cached final return value unless a terminal
+      finalizer error was recorded, in which case it returns that `err`
     - if it has not finished yet, it first recursively closes the currently active delegated child
-      chain, if any, then runs registered close hooks, and then marks the handle done with
+      chain, if any, then runs registered finalization hooks, and then marks the handle done with
       `return_value == nil`
     - for started generators it detaches the live worker handle instead of trying to resume user
       code with a hidden close sentinel; this keeps `close()` deterministic across bytecode, C, and
       native even when the worker would otherwise yield again
+  - terminal finalizer errors are sticky:
+    - after natural completion with a hook error, `next()` / `send()` / `collect()` return that `err`
+    - `return_value(gen)` still preserves the generator’s cached ordinary return value
   - `gen.delegate(co, inner)` delegates through the outer `generator_context`, yielding directly on
     that outer context and returning the inner generator’s final return value
   - fresh inner generators inline directly
@@ -5310,8 +5316,9 @@ Current behavior (native runtime, rolling):
     `yield ... in co` contract, so `gen.send(...)` supplies the resumed value
   - declaration bodies may now also use `yield from inner` for generator delegation without
     spelling `delegate(...)` or passing explicit step maps
-  - declaration bodies may register close hooks too through `gen.on_close(hook)` or
-    `oren_generator_on_close(hook)`; those use the same zero-argument, LIFO, close-only contract
+  - declaration bodies may register finalization hooks through `gen.on_finalize(hook)` or
+    `oren_generator_on_finalize(hook)`, and `gen.on_close(hook)` /
+    `oren_generator_on_close(hook)` remain aliases of that same zero-argument, LIFO contract
   - v0 boundary: generator declarations require a named binding site (named function declaration
     or function-valued `var` binding); bare anonymous function literals and arbitrary non-function
     statements are rejected
@@ -5335,10 +5342,12 @@ Current behavior (native runtime, rolling):
     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
   - `oren_generator_delegate_step(co, inner, step)`: resumes a partially-started inner generator from
     its current yielded `step`, exposed as `gen.delegate_step(co, inner, step)`
-  - `oren_generator_on_close(co, hook)`: registers a close hook, exposed as `gen.on_close(...)`, with
-    `on_close_mode=lifo_zero_arg_close_only_v1`
+  - `oren_generator_on_finalize(co, hook)`: registers a finalization hook, exposed as
+    `gen.on_finalize(...)`, with `on_finalize_mode=lifo_zero_arg_on_done_or_close_v1`
+  - `oren_generator_on_close(co, hook)`: alias of `oren_generator_on_finalize(co, hook)`, exposed as
+    `gen.on_close(...)`, with `on_close_mode=alias_of_on_finalize_v1`
   - `oren_generator_close(gen)`: explicit handle finalization, exposed as `gen.close(gen)`, with
-    `close_mode=propagate_active_delegate_chain_run_close_hooks_detach_live_task_v4`
+    `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`
 - Still missing: broader coroutine protocol above these shipped source/helper/library forms
   (for example, stronger hard-cancellation/finalization semantics beyond the current explicit
   close+detach contract and richer coroutine lifecycle affordances).

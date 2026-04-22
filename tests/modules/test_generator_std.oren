@@ -259,12 +259,73 @@ fn decl_close_hook_chain(box, base) {
     return retv + 1
 }
 
+fn finalize_hook_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -982 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = gen.on_finalize(co, || { oren_list_push(box, base + 1); return nil })
+    if oren_is_err(r0) == true { return -983 }
+    var r1 = oren_generator_on_finalize(co, || { oren_list_push(box, base + 2); return nil })
+    if oren_is_err(r1) == true { return -984 }
+    var r2 = gen.on_close(co, || { oren_list_push(box, base + 3); return nil })
+    if oren_is_err(r2) == true { return -985 }
+    var resumed = yield base in co
+    return resumed + base + 7
+}
+
+fn finalize_hook_err_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -986 }
+    var box = args[0]
+    var r0 = gen.on_finalize(co, || { oren_list_push(box, 1); return nil })
+    if oren_is_err(r0) == true { return -987 }
+    var r1 = gen.on_finalize(co, || { oren_list_push(box, 2); return oren_err(78, "finalize hook boom") })
+    if oren_is_err(r1) == true { return -988 }
+    yield 1 in co
+    return 123
+}
+
+fn finalize_hook_chain_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -989 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = gen.on_finalize(co, || { oren_list_push(box, base + 1); return nil })
+    if oren_is_err(r0) == true { return -990 }
+    var resumed = yield base in co
+    return resumed + base + 31
+}
+
+@oren.generator
+fn decl_finalize_hook(box, base) {
+    var r0 = gen.on_finalize(|| { oren_list_push(box, base + 10); return nil })
+    if oren_is_err(r0) == true { return -991 }
+    var r1 = oren_generator_on_finalize(|| { oren_list_push(box, base + 20); return nil })
+    if oren_is_err(r1) == true { return -992 }
+    var r2 = gen.on_close(|| { oren_list_push(box, base + 30); return nil })
+    if oren_is_err(r2) == true { return -993 }
+    var resumed = yield (base + 1)
+    return resumed + base + 200
+}
+
+@oren.generator
+fn decl_finalize_hook_chain(box, base) {
+    var r0 = gen.on_finalize(|| { oren_list_push(box, base + 2); return nil })
+    if oren_is_err(r0) == true { return -994 }
+    var inner = gen.start(finalize_hook_chain_inner_worker, [box, base])
+    var retv = yield from inner
+    if oren_is_err(retv) == true { return -995 }
+    return retv + 1
+}
+
 fn bad_on_close_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -975 }
     var bad0 = gen.on_close(co, 123)
     if oren_is_err(bad0) != true { return -976 }
     var bad1 = oren_generator_on_close(co, 123)
     if oren_is_err(bad1) != true { return -977 }
+    var bad2 = gen.on_finalize(co, 123)
+    if oren_is_err(bad2) != true { return -978 }
+    var bad3 = oren_generator_on_finalize(co, 123)
+    if oren_is_err(bad3) != true { return -979 }
     return 1
 }
 
@@ -460,6 +521,8 @@ fn main() {
     assert_true(gen.return_value(close6inner) == nil, 6725)
     assert_true(oren_is_err(gen.on_close(123, || nil)) == true, 6726)
     assert_true(oren_is_err(oren_generator_on_close(123, || nil)) == true, 6727)
+    assert_true(oren_is_err(gen.on_finalize(123, || nil)) == true, 67271)
+    assert_true(oren_is_err(oren_generator_on_finalize(123, || nil)) == true, 67272)
 
     var g5c7 = gen.start(bad_on_close_worker, [])
     var close7done = gen.next(g5c7)
@@ -517,6 +580,68 @@ fn main() {
     assert_eq(hook_box3[1], 102, 6759)
     assert_eq(hook_box3[2], 103, 6760)
     assert_true(gen.is_done(g5cb) == true, 6761)
+
+    var final_box0 = []
+    var g5cc = gen.start(finalize_hook_worker, [final_box0, 120])
+    var finalc0 = gen.next(g5cc)
+    assert_true(oren_is_err(finalc0) == false, 67611)
+    assert_eq(finalc0["value"], 120, 67612)
+    var finalc1 = gen.send(g5cc, 4)
+    assert_true(oren_is_err(finalc1) == false, 67613)
+    assert_true(finalc1["done"] == true, 67614)
+    assert_eq(finalc1["return"], 131, 67615)
+    assert_eq(oren_list_len(final_box0), 3, 67616)
+    assert_eq(final_box0[0], 123, 67617)
+    assert_eq(final_box0[1], 122, 67618)
+    assert_eq(final_box0[2], 121, 67619)
+    assert_true(gen.is_done(g5cc) == true, 67620)
+    assert_true(gen.return_value(g5cc) == 131, 67621)
+
+    var final_box1 = []
+    var g5cd = decl_finalize_hook(final_box1, 130)
+    var finald0 = gen.next(g5cd)
+    assert_true(oren_is_err(finald0) == false, 67622)
+    assert_eq(finald0["value"], 131, 67623)
+    var finald1 = gen.send(g5cd, 6)
+    assert_true(oren_is_err(finald1) == false, 67624)
+    assert_true(finald1["done"] == true, 67625)
+    assert_eq(finald1["return"], 336, 67626)
+    assert_eq(oren_list_len(final_box1), 3, 67627)
+    assert_eq(final_box1[0], 160, 67628)
+    assert_eq(final_box1[1], 150, 67629)
+    assert_eq(final_box1[2], 140, 67630)
+    assert_true(gen.is_done(g5cd) == true, 67631)
+    assert_true(gen.return_value(g5cd) == 336, 67632)
+
+    var final_box2 = []
+    var g5ce = gen.start(finalize_hook_err_worker, [final_box2])
+    var finale0 = gen.next(g5ce)
+    assert_true(oren_is_err(finale0) == false, 67633)
+    assert_eq(finale0["value"], 1, 67634)
+    var finale1 = gen.send(g5ce, 9)
+    assert_true(oren_is_err(finale1) == true, 67635)
+    assert_eq(oren_list_len(final_box2), 2, 67636)
+    assert_eq(final_box2[0], 2, 67637)
+    assert_eq(final_box2[1], 1, 67638)
+    assert_true(gen.is_done(g5ce) == true, 67639)
+    assert_true(gen.return_value(g5ce) == 123, 67640)
+    assert_true(oren_is_err(gen.next(g5ce)) == true, 67641)
+    assert_true(oren_is_err(gen.close(g5ce)) == true, 67642)
+
+    var final_box3 = []
+    var g5cf = decl_finalize_hook_chain(final_box3, 140)
+    var finalf0 = gen.next(g5cf)
+    assert_true(oren_is_err(finalf0) == false, 67643)
+    assert_eq(finalf0["value"], 140, 67644)
+    var finalf1 = gen.send(g5cf, 8)
+    assert_true(oren_is_err(finalf1) == false, 67645)
+    assert_true(finalf1["done"] == true, 67646)
+    assert_eq(finalf1["return"], 180, 67647)
+    assert_eq(oren_list_len(final_box3), 2, 67648)
+    assert_eq(final_box3[0], 141, 67649)
+    assert_eq(final_box3[1], 142, 67650)
+    assert_true(gen.is_done(g5cf) == true, 67651)
+    assert_true(gen.return_value(g5cf) == 180, 67652)
 
     var g5d = gen.start(delegate_outer_worker, [30])
     var ds0 = gen.next(g5d)

@@ -292,36 +292,44 @@ backend-shared value-helper slices landed.
 
 - Fresh landing (2026-04-22): explicit generator close/finalization now ships on top of the same
   handle/runtime seam.
-  - the compiler-injected generator core now also exposes `oren_generator_on_close(co, hook)`
-  - `std:generator` now exposes `on_close(...)` as a thin facade over that helper
+  - the compiler-injected generator core now also exposes `oren_generator_on_finalize(co, hook)`
+  - `std:generator` now exposes `on_finalize(...)` as a thin facade over that helper
+  - `oren_generator_on_close(co, hook)` / `std:generator.on_close(...)` remain aliases of the same
+    registered hook list
   - the compiler-injected generator core now exposes `oren_generator_close(gen)`
   - `std:generator` now exposes `close(gen)` as a thin facade over that helper
   - current contract:
-    - explicit workers register close hooks as `gen.on_close(co, hook)` /
-      `oren_generator_on_close(co, hook)`
-    - `@oren.generator` declarations register close hooks as `gen.on_close(hook)` /
-      `oren_generator_on_close(hook)`
+    - explicit workers register finalization hooks as `gen.on_finalize(co, hook)` /
+      `oren_generator_on_finalize(co, hook)`
+    - `@oren.generator` declarations register finalization hooks as `gen.on_finalize(hook)` /
+      `oren_generator_on_finalize(hook)`
+    - `on_close(...)` remains a source-level alias of the same registration path
     - hooks must be zero-argument callables
     - hooks run in LIFO order
-    - hooks run on explicit `close()`, not on natural completion
-    - the first hook `err` becomes the return from `close()`, but cleanup still continues
-    - already-finished generators preserve and return their cached final value
+    - hooks now run on both explicit `close()` and natural completion
+    - the first hook `err` becomes the sticky terminal generator result, but cleanup still continues
+    - already-finished generators preserve and return their cached final value unless a terminal
+      finalizer error was recorded
     - unfinished generators first recursively close the currently active delegated child chain, if
-      any, then run current-handle close hooks, and are then sealed done deterministically at the
+      any, then run current-handle finalization hooks, and are then sealed done deterministically at the
       handle surface with `return_value == nil`
     - started generators now detach the live worker handle instead of resuming user code with an
       internal close value; this avoids backend-specific deadlocks when a worker would otherwise
       yield again after `close()`
+    - after natural completion with a finalizer error, `next()` / `send()` / `collect()` surface that
+      `err`, while `return_value(gen)` still preserves the ordinary cached return value
   - this is intentionally documented as a deterministic handle-sealing contract, not a portable
     hard-kill/finalization guarantee: detached workers may still exist on some substrates until the
     process/runtime exits
   - metadata for `@oren.generator` declarations now records:
-    - `version = 15`
-    - `resume_surface = "next_send_close_delegate_yield_from_v5"`
+    - `version = 16`
+    - `resume_surface = "next_send_finalize_close_delegate_yield_from_v6"`
+    - `on_finalize_api = "oren_generator_on_finalize_v1"`
+    - `on_finalize_mode = "lifo_zero_arg_on_done_or_close_v1"`
     - `on_close_api = "oren_generator_on_close_v1"`
-    - `on_close_mode = "lifo_zero_arg_close_only_v1"`
+    - `on_close_mode = "alias_of_on_finalize_v1"`
     - `close_api = "oren_generator_close_v1"`
-    - `close_mode = "propagate_active_delegate_chain_run_close_hooks_detach_live_task_v4"`
+    - `close_mode = "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5"`
     - `delegate_mode = "track_active_chain_inline_fresh_or_cached_started_step_v3"`
   - new runtime coverage lives in:
     - `tests/fixtures/generator_surface_v0.oren`
@@ -330,6 +338,7 @@ backend-shared value-helper slices landed.
     - `tests/fixtures/generator_import_close_regression_v0.oren`
     - `tests/fixtures/generator_import_delegate_close_regression_v0.oren`
     - `tests/fixtures/generator_import_on_close_regression_v0.oren`
+    - `tests/fixtures/generator_import_on_finalize_regression_v0.oren`
   - follow-up fix in the same area (2026-04-22): native wrapper discovery now also pre-scans
     nested lambda / generator-worker bodies for named function values before late fnwrap synthesis
     - this closes the previously documented seam where declaration-body `on_close(...)` plus
