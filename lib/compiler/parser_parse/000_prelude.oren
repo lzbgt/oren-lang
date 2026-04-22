@@ -273,6 +273,9 @@ fn parse_program(p) {
     if p["_skip_generator_core_inject"] != true && _program_needs_generator_core(prog) == true {
         prog["statements"] = _prepend_stmts(prog["statements"], _generator_core_stmts(p))
     }
+    if p["_generator_forin_bridge_name"] != nil {
+        prog["statements"] = _prepend_stmts(prog["statements"], _generator_forin_bridge_stmts(p))
+    }
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
     prog["traits"] = p["traits"]
     p["_gc_stmt"] = nil
@@ -756,7 +759,7 @@ fn _generator_core_src() {
 fn _generator_core_stmts(p) {
     var file = p["file"]
     if file == nil { file = "" }
-    var helper_file = file + "#oren_generator_core_v0"
+    var helper_file = file + "#oren_generator_core_v0#" + parser_gensym(p, "__oren_generator_core_")
     var l = lexer.new_lexer(_generator_core_src())
     l["file"] = helper_file
     var hp = core.new_parser(l)
@@ -769,6 +772,128 @@ fn _generator_core_stmts(p) {
     var prog = parse_program(hp)
     if oren_list_len(hp["errors"]) > 0 {
         parser_add_error(p, "internal generator core parse failure")
+        return []
+    }
+    return prog["statements"]
+}
+
+fn _generator_helper_hex_digit(n) {
+    return oren_string_char_at("0123456789abcdef", n)
+}
+
+fn _generator_helper_byte_hex(b) {
+    if b < 0 { b = 0 }
+    if b > 255 { b = 255 }
+    var hi = b / 16
+    var lo = b - (hi * 16)
+    return _generator_helper_hex_digit(hi) + _generator_helper_hex_digit(lo)
+}
+
+fn _generator_helper_file_hash(file) {
+    if file == nil || file == "" { return "0" }
+    var out = ""
+    var i = 0
+    var n = oren_string_len(file)
+    if n <= 24 {
+        while i < n {
+            out = out + _generator_helper_byte_hex(oren_string_byte_at_unchecked(file, i))
+            i = i + 1
+        }
+        return out
+    }
+    while i < 12 {
+        out = out + _generator_helper_byte_hex(oren_string_byte_at_unchecked(file, i))
+        i = i + 1
+    }
+    out = out + "_" + oren_int_to_string(n) + "_"
+    i = n - 12
+    while i < n {
+        out = out + _generator_helper_byte_hex(oren_string_byte_at_unchecked(file, i))
+        i = i + 1
+    }
+    return out
+}
+
+fn _generator_forin_bridge_name(p) {
+    var name = p["_generator_forin_bridge_name"]
+    if name != nil { return name }
+    var file = p["file"]
+    if file == nil { file = "" }
+    name = parser_gensym(p, "__oren_generator_forin_next_f" + _generator_helper_file_hash(file) + "_")
+    p["_generator_forin_bridge_name"] = name
+    return name
+}
+
+fn _generator_forin_bridge_src(name) {
+    var pair_name = name + "_pair"
+    var ctx_name = name + "_ctx"
+    var entry_name = name + "_entry"
+    var src = ""
+    src = src + "fn " + pair_name + "(out_pair, okv, value) {\n"
+    src = src + "    if oren_type_name(out_pair) == \"list\" && oren_list_len(out_pair) >= 2 {\n"
+    src = src + "        out_pair[0] = okv\n"
+    src = src + "        out_pair[1] = value\n"
+    src = src + "        return out_pair\n"
+    src = src + "    }\n"
+    src = src + "    return [okv, value]\n"
+    src = src + "}\n"
+    src = src + "fn " + ctx_name + "(yield_ch, resume_ch) {\n"
+    src = src + "    return [\"__oren_generator_context_v2\", yield_ch, resume_ch]\n"
+    src = src + "}\n"
+    src = src + "fn " + entry_name + "(worker, args_list, yield_ch, resume_ch, done_ch) {\n"
+    src = src + "    var retv = worker(" + ctx_name + "(yield_ch, resume_ch), args_list)\n"
+    src = src + "    oren_chan_send(done_ch, retv)\n"
+    src = src + "    return retv\n"
+    src = src + "}\n"
+    src = src + "fn " + name + "(container, idx, out_pair) {\n"
+    src = src + "    if oren_type_name(container) != \"generator\" { return oren_iter_next(container, idx, out_pair) }\n"
+    src = src + "    if idx < 0 { return " + pair_name + "(out_pair, 0, nil) }\n"
+    src = src + "    if container[8] == true { return " + pair_name + "(out_pair, 0, nil) }\n"
+    src = src + "    var task = container[6]\n"
+    src = src + "    if task == nil || task == 0 {\n"
+    src = src + "        task = spawn " + entry_name + "(container[1], container[2], container[3], container[4], container[5])\n"
+    src = src + "        container[6] = task\n"
+    src = src + "    }\n"
+    src = src + "    if container[7] == true {\n"
+    src = src + "        oren_chan_send(container[4], nil)\n"
+    src = src + "    } else {\n"
+    src = src + "        container[7] = true\n"
+    src = src + "    }\n"
+    src = src + "    oren_yield()\n"
+    src = src + "    var sel = oren_select([[0, container[5]], [0, container[3]]])\n"
+    src = src + "    var slot = sel[0]\n"
+    src = src + "    var payload = sel[1]\n"
+    src = src + "    if slot == 0 {\n"
+    src = src + "        container[8] = true\n"
+    src = src + "        container[9] = payload\n"
+    src = src + "        task = container[6]\n"
+    src = src + "        if task != nil && task != 0 { oren_join(task) }\n"
+    src = src + "        container[6] = nil\n"
+    src = src + "        return " + pair_name + "(out_pair, 0, nil)\n"
+    src = src + "    }\n"
+    src = src + "    return " + pair_name + "(out_pair, 1, payload)\n"
+    src = src + "}\n"
+    return src
+}
+
+fn _generator_forin_bridge_stmts(p) {
+    var name = p["_generator_forin_bridge_name"]
+    if name == nil { return [] }
+    var file = p["file"]
+    if file == nil { file = "" }
+    var helper_file = file + "#generator_forin_bridge#" + name
+    var l = lexer.new_lexer(_generator_forin_bridge_src(name))
+    l["file"] = helper_file
+    var hp = core.new_parser(l)
+    hp["file"] = helper_file
+    hp["strict_attrs"] = p["strict_attrs"]
+    hp["attr_allow_prefixes"] = p["attr_allow_prefixes"]
+    hp["strict_ident_prefixes"] = p["strict_ident_prefixes"]
+    hp["ident_allow_prefixes"] = p["ident_allow_prefixes"]
+    hp["_skip_generator_core_inject"] = true
+    var prog = parse_program(hp)
+    if oren_list_len(hp["errors"]) > 0 {
+        parser_add_error(p, "internal generator for-in bridge parse failure")
         return []
     }
     return prog["statements"]

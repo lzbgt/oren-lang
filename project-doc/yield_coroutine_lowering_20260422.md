@@ -142,8 +142,18 @@ backend-shared value-helper slices landed.
     supported worker-facing exchange API
   - metadata now reports this as `compiler_generator_object_v2` with
     `helper_api=oren_generator_start_v2`, `caller_api=generator_handle_v2`,
-    `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`, and
+    `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`,
+    `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and
     `decl_forms=["named_function_decl","function_valued_var"]`
+
+- Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
+  sugar too, without changing the public handle layout again. The compiler-generated bridge:
+  - recognizes `generator` handles before normal `oren_iter_next(...)` fallback
+  - advances them through `oren_generator_next(...)`
+  - adapts generator steps to the iteration pair contract `[ok, value]`
+  - resumes every step with implicit `nil`
+  This means the current surface is good for plain producer-style generators that do not require
+  non-`nil` caller input between yields, while `gen.send(...)` remains the richer manual protocol.
 
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:
@@ -170,7 +180,9 @@ backend-shared value-helper slices landed.
 
 The remaining boundary is narrower and still deliberate: `@oren.generator` applies only to named
 binding sites (named function declarations or function-valued `var` bindings), not bare anonymous
-function literals or arbitrary non-function statements.
+function literals or arbitrary non-function statements. Above that, the remaining semantic gap is
+no longer basic iterability; it is richer caller-visible coroutine/generator resume protocols beyond
+the shipped implicit-`nil` `for-in` bridge and explicit `gen.send(...)` / channel-helper surfaces.
 
 ## Existing runtime / backend seams
 

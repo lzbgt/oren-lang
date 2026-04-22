@@ -153,6 +153,13 @@ fn main() {
     if xs[0] != 5 || xs[1] != 6 || xs[2] != 7 { return 132 }
     if gen.return_value(g4) != 35 { return 133 }
 
+    var g4b = gen.start(collect_worker, [9])
+    var ys = []
+    for y in g4b { oren_list_push(ys, y) }
+    if oren_list_len(ys) != 3 { return 134 }
+    if ys[0] != 9 || ys[1] != 10 || ys[2] != 11 { return 135 }
+    if gen.is_done(g4b) != true || gen.return_value(g4b) != 39 { return 136 }
+
     var g5 = decl_counter(40)
     if oren_type_name(g5) != "generator" { return 139 }
     var d0 = gen.next(g5)
@@ -179,6 +186,12 @@ fn main() {
     if oren_list_len(dxs) != 3 { return 151 }
     if dxs[0] != 5 || dxs[1] != 6 || dxs[2] != 7 { return 152 }
     if gen.return_value(g7) != 35 { return 153 }
+
+    var g7d = decl_collect(8)
+    var dsum = 0
+    for dv in g7d { dsum = dsum + dv }
+    if dsum != 27 { return 1531 }
+    if gen.is_done(g7d) != true || gen.return_value(g7d) != 38 { return 1532 }
 
     var g7b = decl_var_counter(40)
     if oren_type_name(g7b) != "generator" { return 174 }
@@ -237,6 +250,15 @@ fn main() {
     var lv1 = gen.send(g9, 4)
     if oren_is_err(lv1) == true { return 188 }
     if lv1["done"] != true || lv1["return"] != 34 { return 189 }
+
+    var g10 = decl_nil(70)
+    var nil_count = 0
+    for nv in g10 {
+        if nv != nil { return 190 }
+        nil_count = nil_count + 1
+    }
+    if nil_count != 1 { return 191 }
+    if gen.is_done(g10) != true || gen.return_value(g10) != 77 { return 192 }
 
     return 0
 }

@@ -2650,6 +2650,7 @@ Implementation note (current compiler):
     - `map`: yields **keys** in deterministic key order (see deterministic maps contract)
     - `string`: yields byte codepoints (`0..255`), stopping at NUL terminator
     - `bytes` (AVM): yields `u8` values (`0..255`)
+    - `generator`: resumes with implicit `nil` and yields each produced value until completion
     - typed numeric buffers: yields element values (`i32/i64/f32/f64`) in index order
     - typed buffer view lists (portable stdlib encodings):
       - slice view: `[buf, off, len]`
@@ -3408,8 +3409,9 @@ Rolling status:
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
     `generator_context_v0` exchange contract (`yield ... in co`)
   - metadata now reports that object contract as `compiler_generator_object_v2` with
-    `generator_handle_v2`, `hidden_list_capsule_v2`, and declaration-form metadata via
-    `generator_decl_surface.decl_forms`
+    `generator_handle_v2`, `hidden_list_capsule_v2`, declaration-form metadata via
+    `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
+    `iter_api=oren_iter_next_v0`, and `iter_resume=implicit_nil_v0`
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
@@ -3706,9 +3708,9 @@ Notes:
   - `generator_decl_surface`: machine-readable statement of the current generator object protocol
     (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
-    underlying yield surface `generator_context_v0`, state layout `hidden_list_capsule_v2`,
-    worker context type `generator_context`, declaration forms `["named_function_decl",
-    "function_valued_var"]`)
+    underlying yield surface `generator_context_v0`, iterable surface `for_in_v0` with
+    implicit-`nil` resume, state layout `hidden_list_capsule_v2`, worker context type
+    `generator_context`, declaration forms `["named_function_decl", "function_valued_var"]`)
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`
@@ -5255,6 +5257,8 @@ Current behavior (native runtime, rolling):
   - `gen.next(gen)` resumes with `nil`
   - `gen.send(gen, value)` resumes with `value`
   - `gen.collect(gen)` drains yielded values into a list
+  - `for x in gen { ... }` now also works directly for generator handles, using the same yielded
+    values while resuming each step with implicit `nil`
   - under the C backend this now depends on the shared POSIX `oren_select` / `oren_select_recv`
     surface over pipe-backed channels instead of a generator-specific workaround
 - First language-level declaration sugar now also ships on top of that same generator handle:

@@ -143,6 +143,16 @@ fn main() {
     assert_true(gen.is_done(g5) == true, 65)
     assert_eq(gen.return_value(g5), 35, 66)
 
+    var g5i = gen.start(list_worker, [9])
+    var ys = []
+    for y in g5i { oren_list_push(ys, y) }
+    assert_eq(oren_list_len(ys), 3, 661)
+    assert_eq(ys[0], 9, 662)
+    assert_eq(ys[1], 10, 663)
+    assert_eq(ys[2], 11, 664)
+    assert_true(gen.is_done(g5i) == true, 665)
+    assert_eq(gen.return_value(g5i), 39, 666)
+
     var local_bias = 7
     fn local_add(a, b) {
         return a + b + local_bias
@@ -194,6 +204,13 @@ fn main() {
     assert_eq(dxs[2], 7, 86)
     assert_eq(gen.return_value(g8), 35, 87)
 
+    var g8i = decl_collect(8)
+    var dsum = 0
+    for dv in g8i { dsum = dsum + dv }
+    assert_eq(dsum, 27, 871)
+    assert_true(gen.is_done(g8i) == true, 872)
+    assert_eq(gen.return_value(g8i), 38, 873)
+
     var g9 = decl_var_counter(40)
     assert_eq(oren_type_name(g9), "generator", 89)
     var dv0 = gen.next(g9)
@@ -229,6 +246,16 @@ fn main() {
     var lv1 = gen.send(g11, 4)
     if oren_is_err(lv1) == true { fail(103) }
     assert_eq(lv1["return"], 34, 104)
+
+    var g12 = decl_nil(70)
+    var nil_count = 0
+    for nv in g12 {
+        assert_true(nv == nil, 105)
+        nil_count = nil_count + 1
+    }
+    assert_eq(nil_count, 1, 106)
+    assert_true(gen.is_done(g12) == true, 107)
+    assert_eq(gen.return_value(g12), 77, 108)
 
     print("module generator_std OK")
     exit(0)

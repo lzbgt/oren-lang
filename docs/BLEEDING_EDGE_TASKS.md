@@ -4249,10 +4249,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 	     wrapper”, and the shipped handle contract is now also opaque by default
 	     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
-	     `generator_context` and declaration-form metadata). The remaining work is the next abstraction layer above the shipped
+	     `generator_context`, declaration-form metadata, and `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
 	     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
-	     iterable/coroutine language affordances without manual channel semantics leaking through).
+	     fuller coroutine language affordances without manual channel semantics leaking through).
+	   - New (2026-04-22): generator handles now participate in generic `for x in iterable`
+	     lowering too. The shipped contract is intentionally simple and explicit:
+	     `for x in gen { ... }` resumes the generator with implicit `nil` on each step until done.
 	     verified across bytecode, C, and native.
 	   - New (2026-04-22): the focused exchange/generator proof scripts now take source-side
 	     `meta`/`dump linked` from `./oren` and still verify stage2-built embedded OBC metadata plus

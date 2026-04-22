@@ -438,11 +438,12 @@ fn parse_for(p) {
         }
 
         // body:
-        //   var @forinr = oren_iter_next(container, idx, out_pair)
+        //   var @forinr = <file-local generator-aware for-in bridge>(container, idx, out_pair)
         //   out_pair = @forinr
         //   ok = @forinr[0]
         //   if ok != 0 { var user = @forinr[1]; <user_body> }
-        var fn_next = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, "oren_iter_next"), "value": "oren_iter_next"}
+        var fn_next_name = _generator_forin_bridge_name(p)
+        var fn_next = {"type": "Identifier", "token": token.new_token(token.TOK_IDENT, fn_next_name), "value": fn_next_name}
         var call_next = ast.new_call(token.new_token(token.TOK_LPAREN, "("), fn_next, [container_expr, st_idx, st_pair])
         var bind_res = ast.new_var(token.new_token(token.TOK_LET, "var"), res_ident, call_next)
 

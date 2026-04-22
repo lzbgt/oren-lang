@@ -108,6 +108,16 @@ fn test_nil_and_collect() {
     assert_eq(xs[1], 6, 27)
     assert_eq(xs[2], 7, 28)
     assert_eq(gen.return_value(g1), 35, 29)
+
+    var g2 = gen.start(avm_collect_worker, [9])
+    var ys = []
+    for y in g2 { oren_list_push(ys, y) }
+    assert_eq(oren_list_len(ys), 3, 291)
+    assert_eq(ys[0], 9, 292)
+    assert_eq(ys[1], 10, 293)
+    assert_eq(ys[2], 11, 294)
+    assert_true(gen.is_done(g2) == true, 295)
+    assert_eq(gen.return_value(g2), 39, 296)
 }
 
 fn test_initial_send_err() {
@@ -150,6 +160,13 @@ fn test_generator_decl_syntax() {
     assert_eq(xs[1], 6, 53)
     assert_eq(xs[2], 7, 54)
     assert_eq(gen.return_value(g2), 35, 55)
+
+    var g3 = avm_decl_collect(8)
+    var dsum = 0
+    for dv in g3 { dsum = dsum + dv }
+    assert_eq(dsum, 27, 551)
+    assert_true(gen.is_done(g3) == true, 552)
+    assert_eq(gen.return_value(g3), 38, 553)
 
 }
 
@@ -213,6 +230,16 @@ fn test_generator_var_decl_syntax() {
     var v1 = gen.send(g2, 4)
     assert_true(oren_is_err(v1) == false, 75)
     assert_eq(v1["return"], 34, 76)
+
+    var g3 = avm_decl_nil(70)
+    var nil_count = 0
+    for nv in g3 {
+        assert_true(nv == nil, 77)
+        nil_count = nil_count + 1
+    }
+    assert_eq(nil_count, 1, 78)
+    assert_true(gen.is_done(g3) == true, 79)
+    assert_eq(gen.return_value(g3), 77, 80)
 }
 
 fn main() {

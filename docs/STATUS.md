@@ -1420,10 +1420,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 	     `generator_context_v0` worker-facing yield contract and binding-sensitive
 	     `yield_exchange_surface`. That v2 surface now explicitly records
-	     `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`, and
+	     `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`,
+	     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and
 	     `decl_forms=["named_function_decl","function_valued_var"]`, and the
 	     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
 	     lifecycle fields.
+	   - New (2026-04-22): generator handles are now iterable too. `for x in gen { ... }` works
+	     across bytecode, C, and native by routing generator handles through the compiler-managed
+	     generator bridge while resuming each step with implicit `nil`. This gives language-level
+	     generators a first real `for-in` affordance instead of requiring only manual `next/send` or
+	     `collect(...)` loops.
 	     The remaining boundary is now binding shape, not scope: `@oren.generator` still requires a
 	     named binding site, not an arbitrary non-function statement.
 	   - New (2026-04-22): the focused exchange/generator verifiers now read source-side
