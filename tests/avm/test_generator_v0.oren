@@ -251,6 +251,16 @@ fn avm_decl_close_hook(box, base) {
     return resumed + base + 100
 }
 
+@oren.generator
+fn avm_decl_close_hook_chain(box, base) {
+    var r0 = gen.on_close(|| { oren_list_push(box, base + 3); return nil })
+    assert_true(oren_is_err(r0) == false, 3102)
+    var middle = gen.start(avm_close_hook_chain_middle_worker, [box, base])
+    var retv = yield from middle
+    assert_true(oren_is_err(retv) == false, 3103)
+    return retv + 1
+}
+
 fn avm_bad_on_close_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -975 }
     var bad0 = gen.on_close(co, 123)
@@ -548,6 +558,19 @@ fn test_close_surface() {
     assert_eq(hook_box2[1], 1, 446)
     assert_true(gen.is_done(g9) == true, 447)
     assert_true(gen.return_value(g9) == nil, 448)
+
+    var hook_box3 = []
+    var g10 = avm_decl_close_hook_chain(hook_box3, 100)
+    var c10s0 = gen.next(g10)
+    assert_true(oren_is_err(c10s0) == false, 449)
+    assert_eq(c10s0["value"], 100, 450)
+    var close10 = gen.close(g10)
+    assert_true(oren_is_err(close10) == false, 451)
+    assert_eq(oren_list_len(hook_box3), 3, 452)
+    assert_eq(hook_box3[0], 101, 453)
+    assert_eq(hook_box3[1], 102, 454)
+    assert_eq(hook_box3[2], 103, 455)
+    assert_true(gen.is_done(g10) == true, 456)
 }
 
 fn test_generator_decl_syntax() {

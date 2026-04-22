@@ -1482,12 +1482,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				       `tests/fixtures/generator_import_close_regression_v0.oren` and
 				       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`, plus
 				       `tests/fixtures/generator_import_on_close_regression_v0.oren`
+				     - native wrapper discovery now also pre-scans nested lambda / generator-worker bodies for
+				       named function values, so declaration-body `on_close(...)` plus
+				       `gen.start(named_worker, ...)` followed by `yield from ...` is part of the shipped native
+				       proof surface again
 			     - started handles now detach the live worker instead of resuming user code with a hidden
 			       close sentinel, so the close surface stays deterministic even if the worker would
 			       otherwise yield again
-			     - remaining narrow gap: the native proof surface still excludes declaration-body
-			       `on_close(...)` combined with delegated startup of a named worker through
-			       `gen.start(named_worker, ...)` followed by `yield from ...` inside that same declaration
 			     - the native nested-green scheduler seam that previously blocked `gen.next(inner)` from inside
 			       an active outer generator is fixed and pinned by
 			       `scripts/verify_generator_nested_green_resume_v0.sh` plus

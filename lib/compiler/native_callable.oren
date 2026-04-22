@@ -85,6 +85,157 @@ fn func_decl_scan_stmt_list(ctx, stmts) {
     return nil
 }
 
+// --- Named function value discovery (for late fnwrap synthesis) ---
+//
+// Native backends synthesize `__oren_fnwrap_*` only for named functions that are actually used as
+// first-class values. Expression emission already marks those sites, but nested lambda /
+// generator-worker bodies can discover new uses only after lambda wrappers are compiled.
+//
+// Pre-scan expression trees so wrapper synthesis sees named function values that are reachable only
+// through nested anonymous functions, without waiting for backend-local expression lowering.
+
+fn _mark_named_fn_value_use(ctx, name) {
+    if ctx == nil || name == nil || name == "" { return nil }
+    if _str_starts_with(name, "__oren_fnwrap_") { return nil }
+    if _str_starts_with(name, "__oren_lambda_") { return nil }
+    if ctx["func_arity"] == nil || ctx["func_arity"][name] == nil { return nil }
+    if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][name] = 1 }
+    return nil
+}
+
+fn collect_named_fn_value_uses_in_expression(ctx, exp, direct_callee) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        if direct_callee != true { _mark_named_fn_value_use(ctx, exp["value"]) }
+        return nil
+    }
+    if et == "Function" {
+        collect_named_fn_value_uses_in_statement(ctx, exp["body"])
+        return nil
+    }
+    if et == "Call" {
+        collect_named_fn_value_uses_in_expression(ctx, exp["fn"], true)
+        var i = 0
+        while exp["args"] != nil && i < oren_list_len(exp["args"]) {
+            collect_named_fn_value_uses_in_expression(ctx, exp["args"][i], false)
+            i = i + 1
+        }
+        if exp["spread"] != nil { collect_named_fn_value_uses_in_expression(ctx, exp["spread"], false) }
+        return nil
+    }
+    if et == "Prefix" { collect_named_fn_value_uses_in_expression(ctx, exp["right"], false); return nil }
+    if et == "Infix" {
+        collect_named_fn_value_uses_in_expression(ctx, exp["left"], false)
+        collect_named_fn_value_uses_in_expression(ctx, exp["right"], false)
+        return nil
+    }
+    if et == "If" {
+        collect_named_fn_value_uses_in_expression(ctx, exp["cond"], false)
+        collect_named_fn_value_uses_in_statement(ctx, exp["consq"])
+        if exp["alt"] != nil { collect_named_fn_value_uses_in_statement(ctx, exp["alt"]) }
+        return nil
+    }
+    if et == "Member" { collect_named_fn_value_uses_in_expression(ctx, exp["left"], false); return nil }
+    if et == "Index" {
+        collect_named_fn_value_uses_in_expression(ctx, exp["left"], false)
+        collect_named_fn_value_uses_in_expression(ctx, exp["index"], false)
+        return nil
+    }
+    if et == "Array" {
+        var j = 0
+        while exp["elements"] != nil && j < oren_list_len(exp["elements"]) {
+            collect_named_fn_value_uses_in_expression(ctx, exp["elements"][j], false)
+            j = j + 1
+        }
+        return nil
+    }
+    if et == "Hash" {
+        var k = 0
+        while exp["pairs"] != nil && k < oren_list_len(exp["pairs"]) {
+            var pair = exp["pairs"][k]
+            if pair != nil {
+                if pair["key"] != nil { collect_named_fn_value_uses_in_expression(ctx, pair["key"], false) }
+                if pair["value"] != nil { collect_named_fn_value_uses_in_expression(ctx, pair["value"], false) }
+                if pair["k"] != nil { collect_named_fn_value_uses_in_expression(ctx, pair["k"], false) }
+                if pair["v"] != nil { collect_named_fn_value_uses_in_expression(ctx, pair["v"], false) }
+            }
+            k = k + 1
+        }
+        return nil
+    }
+    if et == "SpawnExpr" { collect_named_fn_value_uses_in_expression(ctx, exp["call"], false); return nil }
+    return nil
+}
+
+fn collect_named_fn_value_uses_in_statement(ctx, stmt) {
+    if stmt == nil { return nil }
+    var st = stmt["type"]
+    if st == "Function" { collect_named_fn_value_uses_in_expression(ctx, stmt, false); return nil }
+    if st == "Var" { collect_named_fn_value_uses_in_expression(ctx, stmt["value"], false); return nil }
+    if st == "Assign" { collect_named_fn_value_uses_in_expression(ctx, stmt["value"], false); return nil }
+    if st == "Set" {
+        collect_named_fn_value_uses_in_expression(ctx, stmt["left"], false)
+        collect_named_fn_value_uses_in_expression(ctx, stmt["value"], false)
+        return nil
+    }
+    if st == "Return" { collect_named_fn_value_uses_in_expression(ctx, stmt["value"], false); return nil }
+    if st == "ExprStmt" { collect_named_fn_value_uses_in_expression(ctx, stmt["expr"], false); return nil }
+    if st == "Block" || st == "StmtList" {
+        var i = 0
+        while stmt["stmts"] != nil && i < oren_list_len(stmt["stmts"]) {
+            collect_named_fn_value_uses_in_statement(ctx, stmt["stmts"][i])
+            i = i + 1
+        }
+        return nil
+    }
+    if st == "While" {
+        collect_named_fn_value_uses_in_expression(ctx, stmt["cond"], false)
+        collect_named_fn_value_uses_in_statement(ctx, stmt["body"])
+        return nil
+    }
+    if st == "For" {
+        collect_named_fn_value_uses_in_statement(ctx, stmt["init"])
+        collect_named_fn_value_uses_in_expression(ctx, stmt["cond"], false)
+        collect_named_fn_value_uses_in_statement(ctx, stmt["post"])
+        collect_named_fn_value_uses_in_statement(ctx, stmt["body"])
+        return nil
+    }
+    if st == "If" {
+        collect_named_fn_value_uses_in_expression(ctx, stmt["cond"], false)
+        collect_named_fn_value_uses_in_statement(ctx, stmt["consq"])
+        if stmt["alt"] != nil { collect_named_fn_value_uses_in_statement(ctx, stmt["alt"]) }
+        return nil
+    }
+    if st == "Switch" {
+        collect_named_fn_value_uses_in_expression(ctx, stmt["value"], false)
+        var ci = 0
+        while stmt["cases"] != nil && ci < oren_list_len(stmt["cases"]) {
+            var c = stmt["cases"][ci]
+            var vi = 0
+            while c != nil && c["values"] != nil && vi < oren_list_len(c["values"]) {
+                collect_named_fn_value_uses_in_expression(ctx, c["values"][vi], false)
+                vi = vi + 1
+            }
+            if c != nil { collect_named_fn_value_uses_in_statement(ctx, c["body"]) }
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { collect_named_fn_value_uses_in_statement(ctx, stmt["default"]) }
+        return nil
+    }
+    if st == "Spawn" { collect_named_fn_value_uses_in_expression(ctx, stmt["call"], false); return nil }
+    return nil
+}
+
+fn collect_named_fn_value_uses_in_stmt_list(ctx, stmts) {
+    var i = 0
+    while stmts != nil && i < oren_list_len(stmts) {
+        collect_named_fn_value_uses_in_statement(ctx, stmts[i])
+        i = i + 1
+    }
+    return nil
+}
+
 
 // --- Local `fn name(...) { ... }` lowering (shared) ---
 //

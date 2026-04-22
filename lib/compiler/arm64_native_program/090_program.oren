@@ -639,6 +639,9 @@ fn native_compile_program_arm64(linked, platform) {
     // They are emitted after user code so forward references resolve via fixups.
     var t_wrap0 = 0
     if trace { t_wrap0 = oren_time_now_ns() }
+    callable.collect_named_fn_value_uses_in_stmt_list(ctx, user_stmts)
+    if used_rtobj != true { callable.collect_named_fn_value_uses_in_stmt_list(ctx, runtime_stmts) }
+    callable.collect_named_fn_value_uses_in_statement(ctx, top_stmt)
     var need = ctx["fnwrap_needed"]
     var n_wrap = 0
     var wi = 0

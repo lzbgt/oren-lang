@@ -339,6 +339,15 @@ fn native_compile_program_x64(linked, platform) {
             di = di + 1
         }
     }
+    callable.collect_named_fn_value_uses_in_stmt_list(ctx, stmts_all)
+    if top_info["top_level_fn"] != nil {
+        callable.collect_named_fn_value_uses_in_expression(ctx, top_info["top_level_fn"], false)
+    }
+    var vtc = 0
+    while vtc < oren_list_len(type_ctors) {
+        callable.collect_named_fn_value_uses_in_expression(ctx, type_ctors[vtc], false)
+        vtc = vtc + 1
+    }
     // --- Callable wrappers (Tier‑1 convergence) ---
     //
     // x64 no longer eagerly synthesizes `__oren_fnwrap_<name>` for every named function:

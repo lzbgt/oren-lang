@@ -330,11 +330,13 @@ backend-shared value-helper slices landed.
     - `tests/fixtures/generator_import_close_regression_v0.oren`
     - `tests/fixtures/generator_import_delegate_close_regression_v0.oren`
     - `tests/fixtures/generator_import_on_close_regression_v0.oren`
-  - currently unshipped narrow seam:
-    - declaration-body `on_close(...)` plus delegated startup of a named worker through
-      `gen.start(named_worker, ...)` followed by `yield from ...` inside that same
-      `@oren.generator` declaration still misses native wrapper synthesis and is intentionally kept
-      out of the shipped proof surface for now
+  - follow-up fix in the same area (2026-04-22): native wrapper discovery now also pre-scans
+    nested lambda / generator-worker bodies for named function values before late fnwrap synthesis
+    - this closes the previously documented seam where declaration-body `on_close(...)` plus
+      `gen.start(named_worker, ...)` followed by `yield from ...` inside the same
+      `@oren.generator` declaration could miss `__oren_fnwrap_*` emission on native
+    - the reduced import/native proof now builds and runs through
+      `tests/fixtures/generator_import_on_close_regression_v0.oren`
 
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:

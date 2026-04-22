@@ -4296,10 +4296,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`,
 		       `tests/fixtures/generator_import_on_close_regression_v0.oren`, and
 		       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
-		     - remaining narrow seam to either fix or pin with a negative boundary:
-		       declaration-body `on_close(...)` plus delegated startup of a named worker through
-		       `gen.start(named_worker, ...)` followed by `yield from ...` inside the same
-		       `@oren.generator` declaration is still excluded from the shipped native proof surface
+		     - native wrapper discovery now also pre-scans nested lambda / generator-worker bodies for
+		       named function values, so declaration-body `on_close(...)` plus
+		       `gen.start(named_worker, ...)` followed by `yield from ...` is no longer a blocked native seam
 				   - New (2026-04-22): the native nested-green scheduler seam is no longer a blocked repro.
 					     - `scripts/verify_generator_nested_green_resume_v0.sh` now proves the fixed path instead of
 					       a timeout-only failure

@@ -5315,9 +5315,6 @@ Current behavior (native runtime, rolling):
   - v0 boundary: generator declarations require a named binding site (named function declaration
     or function-valued `var` binding); bare anonymous function literals and arbitrary non-function
     statements are rejected
-  - current rolling boundary: the native proof surface still excludes the narrower combination of
-    declaration-body `on_close(...)` plus delegated startup of a named worker through
-    `gen.start(named_worker, ...)` followed by `yield from ...` inside that same declaration
 - Language sugar now uses those helpers consistently:
   - `yield` statement -> `oren_yield_stmt()`
   - `(yield)` -> `oren_yield_value(nil)`

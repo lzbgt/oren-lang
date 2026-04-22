@@ -487,6 +487,7 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     // Synthesize only wrappers needed by the runtime itself:
     // - named functions used as first-class values (tracked in ctx["fnwrap_needed"])
     // - lambda wrappers (always needed when a lambda literal exists)
+    callable.collect_named_fn_value_uses_in_stmt_list(ctx, stmts)
     var wrappers = []
     var need = ctx["fnwrap_needed"]
     var wi = 0

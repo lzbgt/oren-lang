@@ -759,6 +759,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     }
 
     // Synthesize wrappers needed by runtime itself (named fns used as values, lambda wrappers).
+    callable.collect_named_fn_value_uses_in_stmt_list(ctx, stmts)
     var need = ctx["fnwrap_needed"]
     var wi = 0
     while wi < oren_list_len(ctx["func_decl_order"]) {

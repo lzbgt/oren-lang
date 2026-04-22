@@ -249,6 +249,16 @@ fn decl_close_hook(box, base) {
     return resumed + base + 100
 }
 
+@oren.generator
+fn decl_close_hook_chain(box, base) {
+    var r0 = gen.on_close(|| { oren_list_push(box, base + 3); return nil })
+    if oren_is_err(r0) == true { return -980 }
+    var middle = gen.start(close_hook_chain_middle_worker, [box, base])
+    var retv = yield from middle
+    if oren_is_err(retv) == true { return -981 }
+    return retv + 1
+}
+
 fn bad_on_close_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -975 }
     var bad0 = gen.on_close(co, 123)
@@ -494,6 +504,19 @@ fn main() {
     assert_eq(hook_box2[1], 1, 6751)
     assert_true(gen.is_done(g5ca) == true, 6752)
     assert_true(gen.return_value(g5ca) == nil, 6753)
+
+    var hook_box3 = []
+    var g5cb = decl_close_hook_chain(hook_box3, 100)
+    var closebstep = gen.next(g5cb)
+    assert_true(oren_is_err(closebstep) == false, 6754)
+    assert_eq(closebstep["value"], 100, 6755)
+    var closeb = gen.close(g5cb)
+    assert_true(oren_is_err(closeb) == false, 6756)
+    assert_eq(oren_list_len(hook_box3), 3, 6757)
+    assert_eq(hook_box3[0], 101, 6758)
+    assert_eq(hook_box3[1], 102, 6759)
+    assert_eq(hook_box3[2], 103, 6760)
+    assert_true(gen.is_done(g5cb) == true, 6761)
 
     var g5d = gen.start(delegate_outer_worker, [30])
     var ds0 = gen.next(g5d)
