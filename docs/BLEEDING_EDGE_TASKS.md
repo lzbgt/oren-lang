@@ -257,6 +257,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     hard to `~4.2125×` / `~0.005534`. Reweight again: the remaining cost is not the obvious
 	     frame spill/reload pair by itself, and the next exact same-tree work should look below that
 	     narrow `X20` live-range assumption instead of reopening this trim branch.
+	   - Update (2026-04-23): the next safepoint-side loop-state trim under that same shipped fill
+	     surface is now rejected too. Starting from the same baseline
+	     `build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`
+	     (`default_fill_vs_c_vector ~2.3103×`, fill `per_rep_s ~0.003096`), a rerun that replaced the
+	     generic inline-tick preserved-reg spill set with the narrower explicit-pairs path for
+	     `fast_list_int_push_while`
+	     (`build/logs/perf-probe-list-int-fill-share-decision-20260423_022302_10735.log`) still
+	     regressed slightly to `~2.3697×` / `~0.003107`. Reweight again: the remaining fill-side cost
+	     is not solved by just narrowing the safepoint spill pairs on the shipped loop, so the next
+	     exact same-tree work should stay below that branch too.
 	   - Update (2026-04-21): the shared native quick path now carries an explicit GC reuse tracking
 	     smoke. `tests/native/test_gc_reuse_tracking.oren` was tightened so the dead headers are
 	     created through `oren_new_list(0)` and an escaping aggregate, then

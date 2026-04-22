@@ -561,6 +561,17 @@ does not support a shipped default change:
 
 Keep `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK=4095` for now; the higher masks are still probe-only.
 
+One more narrower fast-loop follow-up on the same shipped fill surface is now also closed. The exact
+same-tree baseline remains
+`build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`
+(`oren_fill_list_int / c_fill_slot64_vector ~2.3103x`, fill `per_rep_s ~0.003096`). A focused
+rerun that replaced the generic inline-tick preserved-reg spill set with the narrower explicit-pairs
+path for `fast_list_int_push_while`
+(`build/logs/perf-probe-list-int-fill-share-decision-20260423_022302_10735.log`) still moved the
+wrong way (`~2.3697x`, fill `per_rep_s ~0.003107`). Reweight again: the remaining shipped fill-side
+cost is not solved by just narrowing the safepoint spill pairs on the explicit push loop, so the
+next pass should stay below that branch too.
+
 One more aggressive follow-up on that same baseline was tested and then removed from the tree: a
 single-list whole-fill runtime helper that replaced the explicit push loop with one
 `native_list_int_try_fill_nonneg_linear_exact(...)` call. It did trigger on

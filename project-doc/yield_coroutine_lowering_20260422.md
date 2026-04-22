@@ -216,6 +216,14 @@ backend-shared value-helper slices landed.
     (`build/logs/perf-probe-list-int-fill-share-decision-20260423_021057_8800.log`) regressed hard
     to `fill per_rep_s ~0.005534` / `fill_vs_c_vector ~4.2125×`, so the next work should look
     below that narrow `X20` live-range assumption rather than reopening this trim branch
+  - the next safepoint-side loop-state trim on that same shipped fill surface is now settled
+    negative too: compared with the same baseline
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`), a rerun that
+    replaced the generic inline-tick preserved-reg spill set with the narrower explicit-pairs path
+    for `fast_list_int_push_while`
+    (`build/logs/perf-probe-list-int-fill-share-decision-20260423_022302_10735.log`) still
+    regressed slightly to `fill per_rep_s ~0.003107` / `fill_vs_c_vector ~2.3697×`, so the next
+    work should not reopen that safepoint-pair branch without stronger emitted-code evidence
 
 - Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
   sugar too, without changing the public handle layout again. The compiler-generated bridge:
