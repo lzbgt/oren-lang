@@ -1,0 +1,28 @@
+import gen "std:generator"
+
+fn inner_worker(co, args) {
+    var seed = args[0]
+    var resumed = yield (seed + 1) in co
+    return resumed + seed + 20
+}
+
+@oren.generator
+fn outer(box, seed) {
+    var inner = gen.start(inner_worker, [seed])
+    box[0] = inner
+    return yield from inner
+}
+
+fn main() {
+    var box = [nil]
+    var g = outer(box, 4)
+    var s0 = gen.next(g)
+    if oren_is_err(s0) == true { return 1 }
+    if s0["value"] != 5 { return 2 }
+    if box[0] == nil { return 3 }
+    var closed = gen.close(g)
+    if oren_is_err(closed) == true { return 4 }
+    if gen.is_done(box[0]) != true { return 5 }
+    if gen.return_value(box[0]) != nil { return 6 }
+    return 0
+}

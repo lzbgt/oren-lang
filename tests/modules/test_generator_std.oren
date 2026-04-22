@@ -96,6 +96,40 @@ fn delegate_step_outer_direct_worker(co, args) {
     return retv + 15
 }
 
+fn delegate_chain_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -946 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 70
+}
+
+fn delegate_chain_middle_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -947 }
+    var cells = args[0]
+    var seed = args[1]
+    var inner = gen.start(delegate_chain_inner_worker, [seed])
+    cells[1] = inner
+    var retv = yield from inner in co
+    if oren_is_err(retv) == true { return -948 }
+    return retv + 30
+}
+
+fn delegate_chain_started_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -949 }
+    var cells = args[0]
+    var seed = args[1]
+    var middle = gen.start(delegate_chain_middle_worker, [cells, seed])
+    cells[0] = middle
+    var step0 = gen.next(middle)
+    if oren_is_err(step0) == true { return -950 }
+    assert_true(step0["ok"] == true, 6819)
+    assert_eq(step0["value"], seed + 1, 6820)
+    var retv = yield from middle in co
+    if oren_is_err(retv) == true { return -951 }
+    return retv + 40
+}
+
 @oren.generator
 fn decl_counter(seed) {
     var resumed0 = yield (seed + 1)
@@ -149,6 +183,15 @@ fn decl_delegate_started(seed) {
     var retv = yield from inner
     if oren_is_err(retv) == true { return -945 }
     return retv + 23
+}
+
+@oren.generator
+fn decl_delegate_chain(cells, seed) {
+    var middle = gen.start(delegate_chain_middle_worker, [cells, seed])
+    cells[0] = middle
+    var retv = yield from middle
+    if oren_is_err(retv) == true { return -952 }
+    return retv + 41
 }
 
 fn main() {
@@ -295,6 +338,52 @@ fn main() {
     assert_true(close4 == nil, 6693)
     assert_true(gen.is_done(g5c4) == true, 6694)
     assert_true(gen.return_value(g5c4) == nil, 6695)
+
+    var close_cells0 = [nil, nil]
+    var g5c5 = gen.start(delegate_chain_started_outer_worker, [close_cells0, 55])
+    var close5step = gen.next(g5c5)
+    assert_true(oren_is_err(close5step) == false, 6696)
+    assert_eq(close5step["value"], 56, 6697)
+    var close5mid = close_cells0[0]
+    var close5inner = close_cells0[1]
+    assert_true(gen.is_done(close5mid) == false, 6698)
+    assert_true(gen.is_done(close5inner) == false, 6699)
+    var close5 = gen.close(g5c5)
+    assert_true(oren_is_err(close5) == false, 6700)
+    assert_true(close5 == nil, 6701)
+    assert_true(gen.is_done(g5c5) == true, 6702)
+    assert_true(gen.return_value(g5c5) == nil, 6703)
+    assert_true(gen.is_done(close5mid) == true, 6704)
+    assert_true(gen.return_value(close5mid) == nil, 6705)
+    assert_true(gen.is_done(close5inner) == true, 6706)
+    assert_true(gen.return_value(close5inner) == nil, 6707)
+    var close5mid_done = gen.next(close5mid)
+    assert_true(oren_is_err(close5mid_done) == false, 6708)
+    assert_true(close5mid_done["done"] == true, 6709)
+    assert_true(close5mid_done["return"] == nil, 6710)
+    var close5inner_done = gen.next(close5inner)
+    assert_true(oren_is_err(close5inner_done) == false, 6711)
+    assert_true(close5inner_done["done"] == true, 6712)
+    assert_true(close5inner_done["return"] == nil, 6713)
+
+    var close_cells1 = [nil, nil]
+    var g5c6 = decl_delegate_chain(close_cells1, 65)
+    var close6step = gen.next(g5c6)
+    assert_true(oren_is_err(close6step) == false, 6714)
+    assert_eq(close6step["value"], 66, 6715)
+    var close6mid = close_cells1[0]
+    var close6inner = close_cells1[1]
+    assert_true(gen.is_done(close6mid) == false, 6716)
+    assert_true(gen.is_done(close6inner) == false, 6717)
+    var close6 = gen.close(g5c6)
+    assert_true(oren_is_err(close6) == false, 6718)
+    assert_true(close6 == nil, 6719)
+    assert_true(gen.is_done(g5c6) == true, 6720)
+    assert_true(gen.return_value(g5c6) == nil, 6721)
+    assert_true(gen.is_done(close6mid) == true, 6722)
+    assert_true(gen.return_value(close6mid) == nil, 6723)
+    assert_true(gen.is_done(close6inner) == true, 6724)
+    assert_true(gen.return_value(close6inner) == nil, 6725)
 
     var g5d = gen.start(delegate_outer_worker, [30])
     var ds0 = gen.next(g5d)

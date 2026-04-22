@@ -3417,12 +3417,12 @@ Rolling status:
     `generator_handle_v2`, `hidden_list_capsule_v2`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
-    metadata through `resume_surface=next_send_close_delegate_yield_from_v4`,
+    metadata through `resume_surface=next_send_close_delegate_yield_from_v5`,
     `delegate_api=oren_generator_delegate_v1`,
     `close_api=oren_generator_close_v1`,
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`, plus
-    `close_mode=mark_done_detach_live_task_v2`, plus
-    `delegate_mode=inline_fresh_or_cached_started_step_v2`
+    `close_mode=propagate_active_delegate_chain_detach_live_task_v3`, plus
+    `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
@@ -3720,14 +3720,14 @@ Notes:
     (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
     underlying yield surface `generator_context_v0`, iterable surface `for_in_v0` with
-    implicit-`nil` resume, explicit resume/delegation surface `next_send_close_delegate_yield_from_v4`
+    implicit-`nil` resume, explicit resume/delegation surface `next_send_close_delegate_yield_from_v5`
     (`next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
     `close_api=oren_generator_close_v1`,
     `delegate_api=oren_generator_delegate_v1`,
     `delegate_step_api=oren_generator_delegate_step_v1`,
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
-    `close_mode=mark_done_detach_live_task_v2`,
-    `delegate_mode=inline_fresh_or_cached_started_step_v2`),
+    `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
+    `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`),
     state layout `hidden_list_capsule_v2`,
     worker context type `generator_context`, declaration forms
     `["named_function_decl", "function_valued_var"]`)
@@ -5279,7 +5279,8 @@ Current behavior (native runtime, rolling):
   - `gen.collect(gen)` drains yielded values into a list
   - `gen.close(gen)` explicitly seals a generator handle done
     - if the generator already finished, it returns the cached final return value
-    - if it has not finished yet, it marks the handle done with `return_value == nil`
+    - if it has not finished yet, it first recursively closes the currently active delegated child
+      chain, if any, and then marks the handle done with `return_value == nil`
     - for started generators it detaches the live worker handle instead of trying to resume user
       code with a hidden close sentinel; this keeps `close()` deterministic across bytecode, C, and
       native even when the worker would otherwise yield again
@@ -5322,11 +5323,11 @@ Current behavior (native runtime, rolling):
     same underlying explicit channel protocol
   - `oren_generator_delegate(co, inner)`: manual generator composition over the same
     `generator_context` protocol, exposed as `gen.delegate(co, inner)`, with
-    `delegate_mode=inline_fresh_or_cached_started_step_v2`
+    `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
   - `oren_generator_delegate_step(co, inner, step)`: resumes a partially-started inner generator from
     its current yielded `step`, exposed as `gen.delegate_step(co, inner, step)`
   - `oren_generator_close(gen)`: explicit handle finalization, exposed as `gen.close(gen)`, with
-    `close_mode=mark_done_detach_live_task_v2`
+    `close_mode=propagate_active_delegate_chain_detach_live_task_v3`
 - Still missing: broader coroutine protocol above these shipped source/helper/library forms
   (for example, stronger hard-cancellation/finalization semantics beyond the current explicit
   close+detach contract and richer coroutine lifecycle affordances).

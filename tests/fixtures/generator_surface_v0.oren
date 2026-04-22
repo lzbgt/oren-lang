@@ -88,6 +88,39 @@ fn delegate_step_outer_direct_worker(co, args) {
     return retv + 15
 }
 
+fn delegate_chain_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -951 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 70
+}
+
+fn delegate_chain_middle_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -952 }
+    var cells = args[0]
+    var seed = args[1]
+    var inner = gen.start(delegate_chain_inner_worker, [seed])
+    cells[1] = inner
+    var retv = yield from inner in co
+    if oren_is_err(retv) == true { return -953 }
+    return retv + 30
+}
+
+fn delegate_chain_started_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -954 }
+    var cells = args[0]
+    var seed = args[1]
+    var middle = gen.start(delegate_chain_middle_worker, [cells, seed])
+    cells[0] = middle
+    var step0 = gen.next(middle)
+    if oren_is_err(step0) == true { return -955 }
+    if step0["ok"] != true || step0["value"] != seed + 1 { return -956 }
+    var retv = yield from middle in co
+    if oren_is_err(retv) == true { return -957 }
+    return retv + 40
+}
+
 fn delegate_collect_inner(co, args) {
     if oren_type_name(co) != "generator_context" { return -933 }
     var seed = args[0]
@@ -162,6 +195,15 @@ fn decl_delegate_started(seed) {
     var retv = yield from inner
     if oren_is_err(retv) == true { return -950 }
     return retv + 23
+}
+
+@oren.generator
+fn decl_delegate_chain(cells, seed) {
+    var middle = gen.start(delegate_chain_middle_worker, [cells, seed])
+    cells[0] = middle
+    var retv = yield from middle
+    if oren_is_err(retv) == true { return -958 }
+    return retv + 41
 }
 
 fn main() {
@@ -285,6 +327,42 @@ fn main() {
     if oren_is_err(close4) == true { return 1759 }
     if close4 != nil { return 1760 }
     if gen.is_done(gc4) != true || gen.return_value(gc4) != nil { return 1761 }
+
+    var close_cells0 = [nil, nil]
+    var gc5 = gen.start(delegate_chain_started_outer_worker, [close_cells0, 55])
+    var gc5s0 = gen.next(gc5)
+    if oren_is_err(gc5s0) == true { return 1762 }
+    if gc5s0["ok"] != true || gc5s0["value"] != 56 { return 1763 }
+    var gc5mid = close_cells0[0]
+    var gc5inner = close_cells0[1]
+    if gen.is_done(gc5mid) != false || gen.is_done(gc5inner) != false { return 1764 }
+    var close5 = gen.close(gc5)
+    if oren_is_err(close5) == true { return 1765 }
+    if close5 != nil { return 1766 }
+    if gen.is_done(gc5) != true || gen.return_value(gc5) != nil { return 1767 }
+    if gen.is_done(gc5mid) != true || gen.return_value(gc5mid) != nil { return 1768 }
+    if gen.is_done(gc5inner) != true || gen.return_value(gc5inner) != nil { return 1769 }
+    var gc5mid_done = gen.next(gc5mid)
+    if oren_is_err(gc5mid_done) == true { return 1770 }
+    if gc5mid_done["done"] != true || gc5mid_done["return"] != nil { return 1771 }
+    var gc5inner_done = gen.next(gc5inner)
+    if oren_is_err(gc5inner_done) == true { return 1772 }
+    if gc5inner_done["done"] != true || gc5inner_done["return"] != nil { return 1773 }
+
+    var close_cells1 = [nil, nil]
+    var gc6 = decl_delegate_chain(close_cells1, 65)
+    var gc6s0 = gen.next(gc6)
+    if oren_is_err(gc6s0) == true { return 1774 }
+    if gc6s0["ok"] != true || gc6s0["value"] != 66 { return 1775 }
+    var gc6mid = close_cells1[0]
+    var gc6inner = close_cells1[1]
+    if gen.is_done(gc6mid) != false || gen.is_done(gc6inner) != false { return 1776 }
+    var close6 = gen.close(gc6)
+    if oren_is_err(close6) == true { return 1777 }
+    if close6 != nil { return 1778 }
+    if gen.is_done(gc6) != true || gen.return_value(gc6) != nil { return 1779 }
+    if gen.is_done(gc6mid) != true || gen.return_value(gc6mid) != nil { return 1780 }
+    if gen.is_done(gc6inner) != true || gen.return_value(gc6inner) != nil { return 1781 }
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)

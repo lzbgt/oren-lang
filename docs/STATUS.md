@@ -1422,13 +1422,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     `yield_exchange_surface`. That v2 surface now explicitly records
 		     `state_layout=hidden_list_capsule_v2`, `worker_context_type=generator_context`,
 			     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
-			     `resume_surface=next_send_close_delegate_yield_from_v4`, `next_api=oren_generator_next_v2`,
+			     `resume_surface=next_send_close_delegate_yield_from_v5`, `next_api=oren_generator_next_v2`,
 			     `send_api=oren_generator_send_v2`, `close_api=oren_generator_close_v1`,
 			     `delegate_api=oren_generator_delegate_v1`,
 			     `delegate_step_api=oren_generator_delegate_step_v1`,
 			     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
-			     `close_mode=mark_done_detach_live_task_v2`,
-			     `delegate_mode=inline_fresh_or_cached_started_step_v2`, and
+			     `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
+			     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
 			     `decl_forms=["named_function_decl","function_valued_var"]`, and the
 			     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
 			     lifecycle fields.
@@ -1462,12 +1462,17 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       - explicit workers: `yield from inner in co`
 		       - `@oren.generator` declarations: `yield from inner`
 		       - `from` is contextual after `yield`, not a globally reserved identifier
-		     - the shipped v2 mode is `inline_fresh_or_cached_started_step_v2`
-		   - New (2026-04-22): explicit generator close/finalization now ships too.
-		     - `oren_generator_close(gen)` / `std:generator.close(gen)` deterministically seal the handle
-		       done across bytecode, C, and native
-		     - unfinished handles now finish at the handle surface with `return_value == nil`
-		     - already-finished handles preserve and return their cached final value
+			     - the shipped v3 mode is `track_active_chain_inline_fresh_or_cached_started_step_v3`
+			   - New (2026-04-22): explicit generator close/finalization now ships too.
+			     - `oren_generator_close(gen)` / `std:generator.close(gen)` deterministically seal the handle
+			       done across bytecode, C, and native
+			     - unfinished handles now finish at the handle surface with `return_value == nil`
+			     - already-finished handles preserve and return their cached final value
+			     - active delegated chains are now recursively closed before the outer live worker is detached,
+			       so partially-consumed `yield from` / started-step delegation trees seal deterministically too
+			     - imported stage2 bytecode coverage now includes
+			       `tests/fixtures/generator_import_close_regression_v0.oren` and
+			       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`
 		     - started handles now detach the live worker instead of resuming user code with a hidden
 		       close sentinel, so the close surface stays deterministic even if the worker would
 		       otherwise yield again

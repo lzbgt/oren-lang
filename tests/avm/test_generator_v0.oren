@@ -100,6 +100,39 @@ fn avm_delegate_step_outer_direct_worker(co, args) {
     return retv + 15
 }
 
+fn avm_delegate_chain_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -937 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 70
+}
+
+fn avm_delegate_chain_middle_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -938 }
+    var cells = args[0]
+    var seed = args[1]
+    var inner = gen.start(avm_delegate_chain_inner_worker, [seed])
+    cells[1] = inner
+    var retv = yield from inner in co
+    assert_true(oren_is_err(retv) == false, 3094)
+    return retv + 30
+}
+
+fn avm_delegate_chain_started_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -939 }
+    var cells = args[0]
+    var seed = args[1]
+    var middle = gen.start(avm_delegate_chain_middle_worker, [cells, seed])
+    cells[0] = middle
+    var step0 = gen.next(middle)
+    assert_true(oren_is_err(step0) == false, 3095)
+    assert_eq(step0["value"], seed + 1, 3096)
+    var retv = yield from middle in co
+    assert_true(oren_is_err(retv) == false, 3097)
+    return retv + 40
+}
+
 @oren.generator
 fn avm_decl_counter(seed) {
     var resumed0 = yield (seed + 1)
@@ -152,6 +185,15 @@ fn avm_decl_delegate_started(seed) {
     var retv = yield from inner
     assert_true(oren_is_err(retv) == false, 3093)
     return retv + 23
+}
+
+@oren.generator
+fn avm_decl_delegate_chain(cells, seed) {
+    var middle = gen.start(avm_delegate_chain_middle_worker, [cells, seed])
+    cells[0] = middle
+    var retv = yield from middle
+    assert_true(oren_is_err(retv) == false, 3098)
+    return retv + 41
 }
 
 fn test_step_protocol() {
@@ -351,6 +393,52 @@ fn test_close_surface() {
     assert_true(close4 == nil, 394)
     assert_true(gen.is_done(g4) == true, 395)
     assert_true(gen.return_value(g4) == nil, 396)
+
+    var close_cells0 = [nil, nil]
+    var g5 = gen.start(avm_delegate_chain_started_outer_worker, [close_cells0, 55])
+    var c5s0 = gen.next(g5)
+    assert_true(oren_is_err(c5s0) == false, 397)
+    assert_eq(c5s0["value"], 56, 398)
+    var c5mid = close_cells0[0]
+    var c5inner = close_cells0[1]
+    assert_true(gen.is_done(c5mid) == false, 399)
+    assert_true(gen.is_done(c5inner) == false, 400)
+    var close5 = gen.close(g5)
+    assert_true(oren_is_err(close5) == false, 401)
+    assert_true(close5 == nil, 402)
+    assert_true(gen.is_done(g5) == true, 403)
+    assert_true(gen.return_value(g5) == nil, 404)
+    assert_true(gen.is_done(c5mid) == true, 405)
+    assert_true(gen.return_value(c5mid) == nil, 406)
+    assert_true(gen.is_done(c5inner) == true, 407)
+    assert_true(gen.return_value(c5inner) == nil, 408)
+    var c5mid_done = gen.next(c5mid)
+    assert_true(oren_is_err(c5mid_done) == false, 409)
+    assert_true(c5mid_done["done"] == true, 410)
+    assert_true(c5mid_done["return"] == nil, 411)
+    var c5inner_done = gen.next(c5inner)
+    assert_true(oren_is_err(c5inner_done) == false, 412)
+    assert_true(c5inner_done["done"] == true, 413)
+    assert_true(c5inner_done["return"] == nil, 414)
+
+    var close_cells1 = [nil, nil]
+    var g6 = avm_decl_delegate_chain(close_cells1, 65)
+    var c6s0 = gen.next(g6)
+    assert_true(oren_is_err(c6s0) == false, 415)
+    assert_eq(c6s0["value"], 66, 416)
+    var c6mid = close_cells1[0]
+    var c6inner = close_cells1[1]
+    assert_true(gen.is_done(c6mid) == false, 417)
+    assert_true(gen.is_done(c6inner) == false, 418)
+    var close6 = gen.close(g6)
+    assert_true(oren_is_err(close6) == false, 419)
+    assert_true(close6 == nil, 420)
+    assert_true(gen.is_done(g6) == true, 421)
+    assert_true(gen.return_value(g6) == nil, 422)
+    assert_true(gen.is_done(c6mid) == true, 423)
+    assert_true(gen.return_value(c6mid) == nil, 424)
+    assert_true(gen.is_done(c6inner) == true, 425)
+    assert_true(gen.return_value(c6inner) == nil, 426)
 }
 
 fn test_generator_decl_syntax() {

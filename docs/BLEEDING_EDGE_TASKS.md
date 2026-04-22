@@ -4248,9 +4248,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.
 		     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 		     wrapper”, and the shipped handle contract is now also opaque by default
-				     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
-				     `generator_context`, declaration-form metadata, `close_mode=mark_done_detach_live_task_v2`,
-				     `delegate_mode=inline_fresh_or_cached_started_step_v2`, and
+					     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
+					     `generator_context`, declaration-form metadata, `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
+					     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
 				     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
 			     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
@@ -4282,14 +4282,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			       - explicit workers: `yield from inner in co`
 			       - `@oren.generator` declarations: `yield from inner`
 			       - `from` is contextual after `yield`, so existing identifiers named `from` are preserved
-				     - the shipped mode is `inline_fresh_or_cached_started_step_v2`
-					   - explicit close/finalization now ships too through
-					       `oren_generator_close(gen)` / `std:generator.close(gen)`, with
-					       `close_mode=mark_done_detach_live_task_v2`
-					       and deterministic handle sealing by detaching live workers instead of resuming them
-					       with a hidden close sentinel
-				     - imported stage2 bytecode coverage now includes
-			       `tests/fixtures/generator_import_delegate_step_regression_v0.oren` and
+					     - the shipped mode is `track_active_chain_inline_fresh_or_cached_started_step_v3`
+						   - explicit close/finalization now ships too through
+						       `oren_generator_close(gen)` / `std:generator.close(gen)`, with
+						       `close_mode=propagate_active_delegate_chain_detach_live_task_v3`
+						       and deterministic handle sealing by first recursively closing the active delegated
+						       chain, then detaching live workers instead of resuming them with a hidden close sentinel
+					     - imported stage2 bytecode coverage now includes
+				       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`,
+				       `tests/fixtures/generator_import_close_regression_v0.oren`, and
+				       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`
 			       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
 				   - New (2026-04-22): the native nested-green scheduler seam is no longer a blocked repro.
 					     - `scripts/verify_generator_nested_green_resume_v0.sh` now proves the fixed path instead of

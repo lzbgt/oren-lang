@@ -71,6 +71,9 @@ expected_names = {
     "meta_decl_lambda",
 }
 expected_hidden_names = {
+    "_oren_generator_bind_active_child",
+    "_oren_generator_close_active_child",
+    "_oren_generator_context_owner",
     "_oren_generator_context_exchange",
     "_oren_generator_ctx",
     "_oren_generator_done_step",
@@ -86,6 +89,7 @@ expected_hidden_names = {
     "_oren_generator_is_handle",
     "_oren_generator_mark_done",
     "_oren_generator_resume",
+    "_oren_generator_restore_active_child",
     "_oren_generator_set",
     "_oren_generator_step_value",
     "_oren_generator_trace",
@@ -153,7 +157,7 @@ def exchange_expect(site, context, syntax, explicit_value, binding):
     }
 
 expected_generator_decl_surface = {
-    "version": 13,
+    "version": 14,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -163,14 +167,14 @@ expected_generator_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_close_delegate_yield_from_v4",
+    "resume_surface": "next_send_close_delegate_yield_from_v5",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
     "close_api": "oren_generator_close_v1",
     "delegate_api": "oren_generator_delegate_v1",
     "delegate_step_api": "oren_generator_delegate_step_v1",
-    "close_mode": "mark_done_detach_live_task_v2",
-    "delegate_mode": "inline_fresh_or_cached_started_step_v2",
+    "close_mode": "propagate_active_delegate_chain_detach_live_task_v3",
+    "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
     "state_layout": "hidden_list_capsule_v2",
     "worker_context_type": "generator_context",
