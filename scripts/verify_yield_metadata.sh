@@ -87,7 +87,6 @@ expected_hidden_names = {
     "_oren_generator_close_hooks",
     "_oren_generator_context_owner_slot",
     "_oren_generator_context_resume_ch",
-    "_oren_generator_context_tag",
     "_oren_generator_context_yield_ch",
     "_oren_generator_context_owner",
     "_oren_generator_context_exchange",
@@ -106,7 +105,6 @@ expected_hidden_names = {
     "_oren_generator_finish",
     "_oren_generator_finalize",
     "_oren_generator_get",
-    "_oren_generator_handle_tag",
     "_oren_generator_is_context",
     "_oren_generator_is_handle",
     "_oren_generator_mark_done",
@@ -202,8 +200,8 @@ def exchange_expect(site, context, syntax, explicit_value, binding):
     }
 
 expected_generator_decl_surface = {
-    "version": 18,
-    "surface": "compiler_generator_object_v2",
+    "version": 19,
+    "surface": "compiler_generator_object_v3",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
@@ -227,7 +225,7 @@ expected_generator_decl_surface = {
     "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
     "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
-    "state_layout": "opaque_named_slot_capsule_v5",
+    "state_layout": "dedicated_generator_object_kind_v1",
     "worker_context_type": "generator_context",
     "decl_forms": ["named_function_decl", "function_valued_var"],
 }

@@ -28,6 +28,8 @@ var TAG_I32_BUF = 10
 var TAG_I64_BUF = 11
 var TAG_F32_BUF = 12
 var TAG_F64_BUF = 13
+var TAG_GENERATOR = 14
+var TAG_GENERATOR_CONTEXT = 15
 
 fn tag(v) { return oren_type_tag(v) }
 fn name(v) { return oren_type_name(v) }
@@ -41,3 +43,5 @@ fn is_buf(v) {
     var t = tag(v)
     return t >= TAG_U8_BUF && t <= TAG_F64_BUF
 }
+fn is_generator(v) { return tag(v) == TAG_GENERATOR }
+fn is_generator_context(v) { return tag(v) == TAG_GENERATOR_CONTEXT }

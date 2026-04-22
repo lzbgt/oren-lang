@@ -571,6 +571,20 @@ fn oren_mark_value(val) {
             var buf = ptr_get(iadd(val, 16))
             oren_mark_value(buf)
         }
+        if kind == generator_handle_kind() {
+            var i = 0
+            while i < generator_handle_slot_count() {
+                oren_mark_value(ptr_get(generator_object_slot_ptr(val, i)))
+                i = i + 1
+            }
+        }
+        if kind == generator_context_kind() {
+            var i = 0
+            while i < generator_context_slot_count() {
+                oren_mark_value(ptr_get(generator_object_slot_ptr(val, i)))
+                i = i + 1
+            }
+        }
         if kind == 4 { // STRUCT (conservative scan)
             // Rolling contract (native runtime):
             // Struct allocations are tagged with kind=STRUCT so GC can scan fields conservatively.

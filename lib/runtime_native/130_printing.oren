@@ -358,6 +358,8 @@ fn oren_type_tag(v) {
     if native_value_is_nil(v) { return 0 }
     if native_value_is_false(v) || native_value_is_true(v) { return 3 }
     if oren_is_string(v) == true { return 4 }
+    if generator_handle_ptr(v) != 0 { return 14 }
+    if generator_context_ptr(v) != 0 { return 15 }
     if oren_is_list(v) == true { return 6 }
     if oren_is_list_int(v) == true { return 6 }
     if oren_is_map(v) == true { return 7 }
@@ -390,16 +392,7 @@ fn oren_type_name(v) {
     if t == 3 { return "bool" }
     if t == 4 { return "string" }
     if t == 5 { return "py_obj" }
-    if t == 6 {
-        if oren_list_len(v) > 0 {
-            var tag0 = oren_list_get(v, 0)
-            if oren_is_string(tag0) == true {
-                if tag0 == "__oren_generator_handle_v2" { return "generator" }
-                if tag0 == "__oren_generator_context_v2" { return "generator_context" }
-            }
-        }
-        return "list"
-    }
+    if t == 6 { return "list" }
     if t == 7 {
         // Rolling reflection v0:
         // Type constructors are map-shaped values tagged with `__oren_type`.
@@ -414,6 +407,8 @@ fn oren_type_name(v) {
     if t == 11 { return "i64_buf" }
     if t == 12 { return "f32_buf" }
     if t == 13 { return "f64_buf" }
+    if t == 14 { return "generator" }
+    if t == 15 { return "generator_context" }
     return "unknown"
 }
 

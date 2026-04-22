@@ -72,6 +72,8 @@ static int avm_value_equal_depth(AvmValue a, AvmValue b, int depth) {
     if (a.type == AVM_VAL_BYTES) return a.as.b == b.as.b;
     if (a.type == AVM_VAL_I32_BUF || a.type == AVM_VAL_I64_BUF ||
         a.type == AVM_VAL_F32_BUF || a.type == AVM_VAL_F64_BUF) return a.as.buf == b.as.buf;
+    if (a.type == AVM_VAL_GENERATOR) return a.as.gen == b.as.gen;
+    if (a.type == AVM_VAL_GENERATOR_CONTEXT) return a.as.gctx == b.as.gctx;
     if (a.type == AVM_VAL_LIST_INT) return a.as.li == b.as.li;
     if (a.type == AVM_VAL_LIST) return a.as.l == b.as.l;
     if (a.type == AVM_VAL_MAP) return a.as.m == b.as.m;

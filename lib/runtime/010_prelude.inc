@@ -362,7 +362,9 @@ typedef enum {
     // Opaque raw bytes (no pointers). Used for typed buffer payloads and other HPC blobs.
     OREN_ALLOC_RAW = 5,
     // mmap-backed opaque raw bytes (returned to OS via munmap on free/GC sweep).
-    OREN_ALLOC_RAW_MMAP = 6
+    OREN_ALLOC_RAW_MMAP = 6,
+    OREN_ALLOC_GENERATOR = 7,
+    OREN_ALLOC_GENERATOR_CONTEXT = 8
 } OrenAllocKind;
 
 typedef struct OrenAllocNode {
@@ -1455,6 +1457,30 @@ static void oren_mark_value(OrenValue v) {
         }
         return;
     }
+    if (v.type == OREN_TYPE_GENERATOR) {
+        OrenGeneratorHandle* gen = v.as.generator_val;
+        if (!gen) return;
+        OrenAllocNode* n = oren_find_node(gen);
+        if (n && n->freed == 0 && n->kind == OREN_ALLOC_GENERATOR) {
+            n->freed = -1;
+            for (int i = 0; i < (int)(sizeof(gen->slots) / sizeof(gen->slots[0])); i++) {
+                oren_mark_value(gen->slots[i]);
+            }
+        }
+        return;
+    }
+    if (v.type == OREN_TYPE_GENERATOR_CONTEXT) {
+        OrenGeneratorContext* co = v.as.generator_context_val;
+        if (!co) return;
+        OrenAllocNode* n = oren_find_node(co);
+        if (n && n->freed == 0 && n->kind == OREN_ALLOC_GENERATOR_CONTEXT) {
+            n->freed = -1;
+            for (int i = 0; i < (int)(sizeof(co->slots) / sizeof(co->slots[0])); i++) {
+                oren_mark_value(co->slots[i]);
+            }
+        }
+        return;
+    }
 }
 
 static int oren_type_valid(int t);
@@ -1723,6 +1749,8 @@ void oren_gc_collect() {
                 } else {
                     free(n->ptr);
                 }
+            } else if (n->kind == OREN_ALLOC_GENERATOR || n->kind == OREN_ALLOC_GENERATOR_CONTEXT) {
+                free(n->ptr);
             } else {
                 free(n->ptr);
             }
@@ -1827,7 +1855,7 @@ void oren_gc_safepoint() {
 }
 
 static int oren_type_valid(int t) {
-    return t >= OREN_TYPE_NIL && t <= OREN_TYPE_F64_BUF;
+    return t >= OREN_TYPE_NIL && t <= OREN_TYPE_GENERATOR_CONTEXT;
 }
 
 static void oren_mark_alloc_ptr(void* ptr) {
@@ -1871,6 +1899,22 @@ static void oren_mark_alloc_ptr(void* ptr) {
                 OrenAllocNode* dn = oren_find_node(b->data);
                 if (dn && dn->freed == 0 && (dn->kind == OREN_ALLOC_RAW || dn->kind == OREN_ALLOC_RAW_MMAP)) dn->freed = -1;
             }
+        }
+        return;
+    }
+    if (n->kind == OREN_ALLOC_GENERATOR) {
+        n->freed = -1;
+        OrenGeneratorHandle* gen = (OrenGeneratorHandle*)ptr;
+        for (int i = 0; i < (int)(sizeof(gen->slots) / sizeof(gen->slots[0])); i++) {
+            oren_mark_value(gen->slots[i]);
+        }
+        return;
+    }
+    if (n->kind == OREN_ALLOC_GENERATOR_CONTEXT) {
+        n->freed = -1;
+        OrenGeneratorContext* co = (OrenGeneratorContext*)ptr;
+        for (int i = 0; i < (int)(sizeof(co->slots) / sizeof(co->slots[0])); i++) {
+            oren_mark_value(co->slots[i]);
         }
         return;
     }
@@ -1935,6 +1979,8 @@ static void oren_mark_stack_range(void* a, void* b) {
         else if (v.type == OREN_TYPE_LIST) ptr = (uintptr_t)v.as.list_val;
         else if (v.type == OREN_TYPE_MAP) ptr = (uintptr_t)v.as.map_val;
         else if (v.type == OREN_TYPE_U8_BUF || v.type == OREN_TYPE_I32_BUF || v.type == OREN_TYPE_I64_BUF || v.type == OREN_TYPE_F32_BUF || v.type == OREN_TYPE_F64_BUF) ptr = (uintptr_t)v.as.buf_val;
+        else if (v.type == OREN_TYPE_GENERATOR) ptr = (uintptr_t)v.as.generator_val;
+        else if (v.type == OREN_TYPE_GENERATOR_CONTEXT) ptr = (uintptr_t)v.as.generator_context_val;
         else if (v.type == OREN_TYPE_FUNC) ptr = (uintptr_t)v.as.func_val.env;
         else {
             // OREN_TYPE_PY_OBJ or unknown future types: nothing for the GC to do here.

@@ -1,0 +1,112 @@
+// --- Generator objects (native backend) ---
+//
+// Dedicated tracked object kinds:
+// - generator handle: kind=10
+// - generator context: kind=11
+//
+// Layouts (magic + fixed slots):
+// - handle: [magic][slot0..slot13]
+// - context: [magic][slot0..slot3]
+
+fn generator_handle_kind() { return 10 }
+fn generator_context_kind() { return 11 }
+
+fn generator_handle_magic() { return 5135597022326178892 }
+fn generator_context_magic() { return 5135597001086227528 }
+
+fn generator_handle_slot_count() { return 14 }
+fn generator_context_slot_count() { return 4 }
+
+fn generator_object_slots_base(ptr) { return iadd(ptr, 8) }
+fn generator_object_slot_ptr(ptr, slot) { return iadd(generator_object_slots_base(ptr), slot * 8) }
+
+fn generator_handle_total_bytes() { return 8 + generator_handle_slot_count() * 8 }
+fn generator_context_total_bytes() { return 8 + generator_context_slot_count() * 8 }
+
+fn generator_handle_ptr(v) {
+    if v == 0 || native_value_is_nil(v) { return 0 }
+    var node = oren_find_node(v)
+    if node == 0 { return 0 }
+    if ptr_get(iadd(node, 16)) != generator_handle_kind() { return 0 }
+    if ptr_get(v) != generator_handle_magic() { return 0 }
+    return v
+}
+
+fn generator_context_ptr(v) {
+    if v == 0 || native_value_is_nil(v) { return 0 }
+    var node = oren_find_node(v)
+    if node == 0 { return 0 }
+    if ptr_get(iadd(node, 16)) != generator_context_kind() { return 0 }
+    if ptr_get(v) != generator_context_magic() { return 0 }
+    return v
+}
+
+fn generator_handle_slot_ptr_checked(v, slot) {
+    var ptr = generator_handle_ptr(v)
+    if ptr == 0 { return 0 }
+    if slot < 0 || slot >= generator_handle_slot_count() { return 0 }
+    return generator_object_slot_ptr(ptr, slot)
+}
+
+fn generator_context_slot_ptr_checked(v, slot) {
+    var ptr = generator_context_ptr(v)
+    if ptr == 0 { return 0 }
+    if slot < 0 || slot >= generator_context_slot_count() { return 0 }
+    return generator_object_slot_ptr(ptr, slot)
+}
+
+@oren.keep
+fn oren_generator_handle_new_internal(worker, args_list, yield_ch, resume_ch, done_ch) {
+    var obj = malloc_k(generator_handle_total_bytes(), 0)
+    if obj == 0 { return 0 }
+    ptr_set(obj, generator_handle_magic())
+    var i = 0
+    while i < generator_handle_slot_count() {
+        ptr_set(generator_object_slot_ptr(obj, i), native_value_nil())
+        i = i + 1
+    }
+    ptr_set(generator_object_slot_ptr(obj, 1), worker)
+    ptr_set(generator_object_slot_ptr(obj, 2), args_list)
+    ptr_set(generator_object_slot_ptr(obj, 3), yield_ch)
+    ptr_set(generator_object_slot_ptr(obj, 4), resume_ch)
+    ptr_set(generator_object_slot_ptr(obj, 5), done_ch)
+    ptr_set(generator_object_slot_ptr(obj, 7), native_value_false())
+    ptr_set(generator_object_slot_ptr(obj, 8), native_value_false())
+    oren_track_alloc(obj, generator_handle_total_bytes(), generator_handle_kind())
+    return obj
+}
+
+@oren.keep
+fn oren_generator_context_new_internal(yield_ch, resume_ch, owner) {
+    var obj = malloc_k(generator_context_total_bytes(), 0)
+    if obj == 0 { return 0 }
+    ptr_set(obj, generator_context_magic())
+    var i = 0
+    while i < generator_context_slot_count() {
+        ptr_set(generator_object_slot_ptr(obj, i), native_value_nil())
+        i = i + 1
+    }
+    ptr_set(generator_object_slot_ptr(obj, 1), yield_ch)
+    ptr_set(generator_object_slot_ptr(obj, 2), resume_ch)
+    ptr_set(generator_object_slot_ptr(obj, 3), owner)
+    oren_track_alloc(obj, generator_context_total_bytes(), generator_context_kind())
+    return obj
+}
+
+@oren.keep
+fn oren_generator_slot_get_internal(obj, slot) {
+    var p = generator_handle_slot_ptr_checked(obj, slot)
+    if p != 0 { return ptr_get(p) }
+    p = generator_context_slot_ptr_checked(obj, slot)
+    if p != 0 { return ptr_get(p) }
+    return native_value_nil()
+}
+
+@oren.keep
+fn oren_generator_slot_set_internal(obj, slot, value) {
+    var p = generator_handle_slot_ptr_checked(obj, slot)
+    if p == 0 { p = generator_context_slot_ptr_checked(obj, slot) }
+    if p == 0 { return native_value_nil() }
+    ptr_set(p, value)
+    return value
+}

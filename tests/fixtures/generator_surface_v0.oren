@@ -1,7 +1,11 @@
 import gen "std:generator"
+import reflect "../../lib/std/reflect.oren"
 
 fn counter_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -900 }
+    if oren_type_tag(co) != reflect.TAG_GENERATOR_CONTEXT { return -901 }
+    if reflect.is_generator_context(co) != true { return -902 }
+    if reflect.is_list(co) == true { return -903 }
     var seed = args[0]
     var resumed0 = yield (seed + 1) in co
     var resumed1 = yield (seed + resumed0) in co
@@ -420,6 +424,9 @@ fn main() {
 
     var g1 = gen.start(counter_worker, [40])
     if oren_type_name(g1) != "generator" { return 93 }
+    if oren_type_tag(g1) != reflect.TAG_GENERATOR { return 931 }
+    if reflect.is_generator(g1) != true { return 932 }
+    if reflect.is_list(g1) == true { return 933 }
     var s0 = gen.next(g1)
     if oren_is_err(s0) == true { return 100 }
     if s0["ok"] != true || s0["done"] != false || s0["value"] != 41 { return 101 }
@@ -433,6 +440,9 @@ fn main() {
 
     var g1b = oren_generator_start(counter_worker, [20])
     if oren_type_name(g1b) != "generator" { return 107 }
+    if oren_type_tag(g1b) != reflect.TAG_GENERATOR { return 1071 }
+    if reflect.is_generator(g1b) != true { return 1072 }
+    if reflect.is_list(g1b) == true { return 1073 }
     var sb0 = oren_generator_next(g1b)
     if oren_is_err(sb0) == true { return 161 }
     if sb0["ok"] != true || sb0["value"] != 21 { return 162 }

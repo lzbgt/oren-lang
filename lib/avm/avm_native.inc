@@ -17,6 +17,8 @@ static int64_t avm_oren_type_tag(AvmValue v) {
         case AVM_VAL_I64_BUF: return 11;
         case AVM_VAL_F32_BUF: return 12;
         case AVM_VAL_F64_BUF: return 13;
+        case AVM_VAL_GENERATOR: return 14;
+        case AVM_VAL_GENERATOR_CONTEXT: return 15;
         default: return 0;
     }
 }
@@ -37,8 +39,71 @@ static const char* avm_oren_type_name_from_tag(int64_t tag) {
         case 11: return "i64_buf";
         case 12: return "f32_buf";
         case 13: return "f64_buf";
+        case 14: return "generator";
+        case 15: return "generator_context";
         default: return "unknown";
     }
+}
+
+static AvmGeneratorHandle* avm_generator_handle_ptr(AvmValue v) {
+    if (v.type != AVM_VAL_GENERATOR || !v.as.gen) return NULL;
+    if (v.as.gen->magic != AVM_GENERATOR_HANDLE_MAGIC) return NULL;
+    return v.as.gen;
+}
+
+static AvmGeneratorContext* avm_generator_context_ptr(AvmValue v) {
+    if (v.type != AVM_VAL_GENERATOR_CONTEXT || !v.as.gctx) return NULL;
+    if (v.as.gctx->magic != AVM_GENERATOR_CONTEXT_MAGIC) return NULL;
+    return v.as.gctx;
+}
+
+static AvmValue* avm_generator_slot_ptr(AvmValue obj, int64_t slot) {
+    if (slot < 0) return NULL;
+    if (obj.type == AVM_VAL_GENERATOR) {
+        AvmGeneratorHandle* gen = avm_generator_handle_ptr(obj);
+        if (!gen || slot >= 14) return NULL;
+        return &gen->slots[slot];
+    }
+    if (obj.type == AVM_VAL_GENERATOR_CONTEXT) {
+        AvmGeneratorContext* co = avm_generator_context_ptr(obj);
+        if (!co || slot >= 4) return NULL;
+        return &co->slots[slot];
+    }
+    return NULL;
+}
+
+static AvmValue avm_generator_handle_new_internal_value(AvmVM* vm, AvmValue worker, AvmValue args_list, AvmValue yield_ch, AvmValue resume_ch, AvmValue done_ch) {
+    (void)vm;
+    AvmGeneratorHandle* gen = (AvmGeneratorHandle*)avm_heap_malloc_k(sizeof(AvmGeneratorHandle), AVM_ALLOC_KIND_GENERATOR);
+    if (!gen) return avm_alloc_fail_value();
+    gen->magic = AVM_GENERATOR_HANDLE_MAGIC;
+    for (int i = 0; i < 14; i++) gen->slots[i] = avm_nil();
+    gen->slots[1] = worker;
+    gen->slots[2] = args_list;
+    gen->slots[3] = yield_ch;
+    gen->slots[4] = resume_ch;
+    gen->slots[5] = done_ch;
+    gen->slots[7] = avm_bool(0);
+    gen->slots[8] = avm_bool(0);
+    AvmValue out;
+    out.type = AVM_VAL_GENERATOR;
+    out.as.gen = gen;
+    return out;
+}
+
+static AvmValue avm_generator_context_new_internal_value(AvmVM* vm, AvmValue yield_ch, AvmValue resume_ch, AvmValue owner) {
+    (void)vm;
+    AvmGeneratorContext* co = (AvmGeneratorContext*)avm_heap_malloc_k(sizeof(AvmGeneratorContext), AVM_ALLOC_KIND_GENERATOR_CONTEXT);
+    if (!co) return avm_alloc_fail_value();
+    co->magic = AVM_GENERATOR_CONTEXT_MAGIC;
+    for (int i = 0; i < 4; i++) co->slots[i] = avm_nil();
+    co->slots[1] = yield_ch;
+    co->slots[2] = resume_ch;
+    co->slots[3] = owner;
+    AvmValue out;
+    out.type = AVM_VAL_GENERATOR_CONTEXT;
+    out.as.gctx = co;
+    return out;
 }
 
 static int avm_i32_pack_extract(AvmValue v, int assume_int, int32_t* out) {
@@ -2407,15 +2472,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         case 150: { // oren_type_name(v) -> string
             if (nargs > 0) {
                 AvmValue v = args[0];
-                if (v.type == AVM_VAL_LIST) {
-                    AvmValue tag = avm_list_get_value(v, avm_int(0));
-                    if (tag.type == AVM_VAL_STRING) {
-                        const char* s = (const char*)tag.as.p;
-                        if (s && strcmp(s, "__oren_generator_handle_v2") == 0) { res = avm_string("generator"); break; }
-                        if (s && strcmp(s, "__oren_generator_context_v2") == 0) { res = avm_string("generator_context"); break; }
-                    }
-                    res = avm_string("list");
-                } else if (v.type == AVM_VAL_MAP) {
+                if (v.type == AVM_VAL_MAP) {
                     AvmValue outv;
                     if (avm_map_get_key(v, "__oren_type", &outv)) {
                         if (outv.type == AVM_VAL_STRING) { res = outv; break; }
@@ -2426,6 +2483,47 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 }
             } else {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_type_name expects (value)");
+            }
+            break;
+        }
+        case 163: { // oren_generator_handle_new_internal(worker, args_list, yield_ch, resume_ch, done_ch)
+            if (nargs > 4) {
+                res = avm_generator_handle_new_internal_value(vm, args[0], args[1], args[2], args[3], args[4]);
+                if (avm_is_err_val(res)) avm_abort(vm, res);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_generator_handle_new_internal expects (worker, args_list, yield_ch, resume_ch, done_ch)");
+            }
+            break;
+        }
+        case 164: { // oren_generator_context_new_internal(yield_ch, resume_ch, owner)
+            if (nargs > 2) {
+                res = avm_generator_context_new_internal_value(vm, args[0], args[1], args[2]);
+                if (avm_is_err_val(res)) avm_abort(vm, res);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_generator_context_new_internal expects (yield_ch, resume_ch, owner)");
+            }
+            break;
+        }
+        case 165: { // oren_generator_slot_get_internal(obj, slot)
+            if (nargs > 1 && args[1].type == AVM_VAL_INT) {
+                AvmValue* p = avm_generator_slot_ptr(args[0], args[1].as.i);
+                res = p ? *p : avm_nil();
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_generator_slot_get_internal expects (generator_like, int)");
+            }
+            break;
+        }
+        case 166: { // oren_generator_slot_set_internal(obj, slot, value)
+            if (nargs > 2 && args[1].type == AVM_VAL_INT) {
+                AvmValue* p = avm_generator_slot_ptr(args[0], args[1].as.i);
+                if (p) {
+                    *p = args[2];
+                    res = args[2];
+                } else {
+                    res = avm_nil();
+                }
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_generator_slot_set_internal expects (generator_like, int, value)");
             }
             break;
         }
@@ -6734,6 +6832,32 @@ static AvmValue avm_clone_map(CloneTable* tab, AvmMap* map) {
     AvmValue r; r.type = AVM_VAL_MAP; r.as.m = nm; return r;
 }
 
+static AvmValue avm_clone_generator_handle(CloneTable* tab, AvmGeneratorHandle* gen) {
+    if (!gen) return avm_nil();
+    void* found = clonetab_find(tab, (void*)gen, 11);
+    if (found) { AvmValue r; r.type = AVM_VAL_GENERATOR; r.as.gen = (AvmGeneratorHandle*)found; return r; }
+    AvmGeneratorHandle* ng = (AvmGeneratorHandle*)avm_heap_malloc_k(sizeof(AvmGeneratorHandle), AVM_ALLOC_KIND_GENERATOR);
+    if (!ng) return avm_nil();
+    ng->magic = AVM_GENERATOR_HANDLE_MAGIC;
+    for (int i = 0; i < 14; i++) ng->slots[i] = avm_nil();
+    if (!clonetab_add(tab, (void*)gen, ng, 11)) { avm_heap_free(ng); return avm_nil(); }
+    for (int i = 0; i < 14; i++) ng->slots[i] = avm_clone_value_rec(tab, gen->slots[i]);
+    AvmValue r; r.type = AVM_VAL_GENERATOR; r.as.gen = ng; return r;
+}
+
+static AvmValue avm_clone_generator_context(CloneTable* tab, AvmGeneratorContext* co) {
+    if (!co) return avm_nil();
+    void* found = clonetab_find(tab, (void*)co, 12);
+    if (found) { AvmValue r; r.type = AVM_VAL_GENERATOR_CONTEXT; r.as.gctx = (AvmGeneratorContext*)found; return r; }
+    AvmGeneratorContext* nc = (AvmGeneratorContext*)avm_heap_malloc_k(sizeof(AvmGeneratorContext), AVM_ALLOC_KIND_GENERATOR_CONTEXT);
+    if (!nc) return avm_nil();
+    nc->magic = AVM_GENERATOR_CONTEXT_MAGIC;
+    for (int i = 0; i < 4; i++) nc->slots[i] = avm_nil();
+    if (!clonetab_add(tab, (void*)co, nc, 12)) { avm_heap_free(nc); return avm_nil(); }
+    for (int i = 0; i < 4; i++) nc->slots[i] = avm_clone_value_rec(tab, co->slots[i]);
+    AvmValue r; r.type = AVM_VAL_GENERATOR_CONTEXT; r.as.gctx = nc; return r;
+}
+
 static AvmValue avm_clone_value_rec(CloneTable* tab, AvmValue v) {
     if (v.type == AVM_VAL_NIL) return avm_nil();
     if (v.type == AVM_VAL_INT) return avm_int(v.as.i);
@@ -6743,6 +6867,8 @@ static AvmValue avm_clone_value_rec(CloneTable* tab, AvmValue v) {
     if (v.type == AVM_VAL_BYTES) return avm_clone_bytes(tab, v.as.b);
     if (v.type == AVM_VAL_LIST) return avm_clone_list(tab, v.as.l);
     if (v.type == AVM_VAL_MAP) return avm_clone_map(tab, v.as.m);
+    if (v.type == AVM_VAL_GENERATOR) return avm_clone_generator_handle(tab, v.as.gen);
+    if (v.type == AVM_VAL_GENERATOR_CONTEXT) return avm_clone_generator_context(tab, v.as.gctx);
     return avm_nil();
 }
 

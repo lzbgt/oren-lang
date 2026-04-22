@@ -1045,6 +1045,10 @@ fn bytecode_compile_expr(ctx, expr) {
         // - `oren_type_tag(x)` is used pervasively in stdlib to detect nil without relying on scalar-nil comparisons.
         if name == "oren_type_tag" { native_id = 146 }
         if name == "oren_type_name" { native_id = 150 }
+        if name == "oren_generator_handle_new_internal" { native_id = 163 }
+        if name == "oren_generator_context_new_internal" { native_id = 164 }
+        if name == "oren_generator_slot_get_internal" { native_id = 165 }
+        if name == "oren_generator_slot_set_internal" { native_id = 166 }
         // Map helpers for string keys (used by map literals + iterable protocol maps).
         if name == "oren_map_get_str" { native_id = 147 }
         if name == "oren_map_set_str" { native_id = 148 }

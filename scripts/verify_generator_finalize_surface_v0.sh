@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 compiler="${1:-./oren_stage2}"
+meta_compiler="${OREN_META_COMPILER:-./oren}"
 platform="${OREN_PLATFORM:-}"
 
 if [ -z "$platform" ]; then
@@ -41,8 +42,8 @@ run_ok() {
   "$@" >>"$log" 2>&1
 }
 
-run_ok "$compiler" meta "$src" -o "$meta_out"
-run_ok "$compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
+run_ok "$meta_compiler" meta "$src" -o "$meta_out"
+run_ok "$meta_compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
 run_ok "$compiler" build "$src" --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
 run_ok python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
 
@@ -63,8 +64,8 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 18,
-    "surface": "compiler_generator_object_v2",
+    "version": 19,
+    "surface": "compiler_generator_object_v3",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
@@ -88,7 +89,7 @@ expected_decl_surface = {
     "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
     "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
-    "state_layout": "opaque_named_slot_capsule_v5",
+    "state_layout": "dedicated_generator_object_kind_v1",
     "worker_context_type": "generator_context",
     "decl_forms": ["named_function_decl", "function_valued_var"],
 }

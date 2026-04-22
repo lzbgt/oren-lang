@@ -489,7 +489,7 @@ fn compiler_main() {
             var linked = link_program(path, prog, {"target": target, "arch": arch, "backend": backend0, "debug": cfg_debug, "keep_all_top_level_functions": true})
             _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0_dump, "dump-linked", linked)
             if dbg_flow != nil { print("DEBUG_FLOW dump linked linked_ok") }
-            var js2 = dump.linked_summary_json(linked)
+            var js2 = dump.linked_summary_json(linked, path)
             var rc2 = dump.write_or_print(outp, js2)
             if rc2 != 0 {
                 emit_diag("compile", 2, "Failed to write dump output: " + outp)

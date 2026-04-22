@@ -2061,6 +2061,12 @@ static void print_value_no_newline(OrenValue v) {
         case OREN_TYPE_F64_BUF:
             printf("<f64_buf len=%u>", v.as.buf_val ? v.as.buf_val->len : 0u);
             break;
+        case OREN_TYPE_GENERATOR:
+            printf("<generator %p>", (void*)v.as.generator_val);
+            break;
+        case OREN_TYPE_GENERATOR_CONTEXT:
+            printf("<generator_context %p>", (void*)v.as.generator_context_val);
+            break;
         case OREN_TYPE_PY_OBJ: {
 #ifdef OREN_ENABLE_PYTHON
             PyObject* str = PyObject_Str(v.as.py_obj);
@@ -2507,21 +2513,7 @@ OrenValue oren_type_name(OrenValue v) {
         case OREN_TYPE_BOOL: return oren_string_const("bool");
         case OREN_TYPE_STRING: return oren_string_const("string");
         case OREN_TYPE_PY_OBJ: return oren_string_const("py_obj");
-        case OREN_TYPE_LIST: {
-            OrenList* l = v.as.list_val;
-            if (l) {
-                pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-                oren_obj_lock(mu);
-                OrenValue tag = OREN_NIL;
-                if (l->count > 0) tag = l->items[0];
-                oren_obj_unlock(mu);
-                if (tag.type == OREN_TYPE_STRING && tag.as.string_val) {
-                    if (strcmp(tag.as.string_val, "__oren_generator_handle_v2") == 0) return oren_string_const("generator");
-                    if (strcmp(tag.as.string_val, "__oren_generator_context_v2") == 0) return oren_string_const("generator_context");
-                }
-            }
-            return oren_string_const("list");
-        }
+        case OREN_TYPE_LIST: return oren_string_const("list");
         case OREN_TYPE_MAP: {
             // Rolling reflection v0: type constructor values are map-shaped and tagged with:
             //   {"__oren_type":"User", ...}
@@ -2535,6 +2527,8 @@ OrenValue oren_type_name(OrenValue v) {
         case OREN_TYPE_I64_BUF: return oren_string_const("i64_buf");
         case OREN_TYPE_F32_BUF: return oren_string_const("f32_buf");
         case OREN_TYPE_F64_BUF: return oren_string_const("f64_buf");
+        case OREN_TYPE_GENERATOR: return oren_string_const("generator");
+        case OREN_TYPE_GENERATOR_CONTEXT: return oren_string_const("generator_context");
         default: return oren_string_const("unknown");
     }
 }

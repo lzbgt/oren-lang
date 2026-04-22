@@ -1416,11 +1416,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
 		     lowering to that same compiler-managed generator-handle surface instead of a hidden
 		     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
-		     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v2`, so tools can
+		     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v3`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 			     `generator_context_v0` worker-facing yield contract and binding-sensitive
 				     `yield_exchange_surface`. That v2 surface now explicitly records
-					     `state_layout=opaque_named_slot_capsule_v5`, `worker_context_type=generator_context`,
+					     `state_layout=dedicated_generator_object_kind_v1`, `worker_context_type=generator_context`,
 					     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
 					     `resume_surface=next_send_finalize_defer_close_delegate_yield_from_v7`,
 					     `next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
@@ -1437,14 +1437,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					     `decl_forms=["named_function_decl","function_valued_var"]`, and the
 					     helper APIs validate bad handles/contexts without depending on map semantics or exposed public
 				     lifecycle fields.
-		   - New (2026-04-22): the remaining generator substrate seam is narrower now even before the
-		     future dedicated coroutine object kind lands.
-		     - the injected generator core moved into `lib/compiler/parser_parse/005_generator_core.oren`,
-		       bringing `000_prelude.oren` back under the repo-local 2000-line red line
-		     - raw positional generator slots are now isolated to named internal helper accessors and
-		       constructors instead of being spread through resume/close/delegate logic
-		     - the machine-readable layout marker is now `state_layout=opaque_named_slot_capsule_v5`
-		       to reflect that internal named-slot ABI
+		   - New (2026-04-22): the dedicated generator substrate replacement is now in place across C,
+		     native, and AVM.
+		     - generator handles and `generator_context` now use dedicated runtime object kinds instead of
+		       piggybacking on hidden list capsules
+		     - the injected generator core still centralizes raw positional slot access through named
+		       internal accessors/constructors in `lib/compiler/parser_parse/005_generator_core.oren`
+		     - the machine-readable layout marker is now `state_layout=dedicated_generator_object_kind_v1`
+		       to reflect that dedicated object-kind ABI
+		   - New (2026-04-22): the default verification lane is back to green after aligning
+		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
+		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining
+		     compiler-performance seam is narrower and explicit now: `./oren_stage2 dump linked
+		     tests/fixtures/generator_finalize_surface_v0.oren` is still slower than the default test-lane
+		     budget and remains the next dump-tooling optimization target rather than a user-facing
+		     generator correctness blocker.
 	   - New (2026-04-22): generator handles are now iterable too. `for x in gen { ... }` works
 	     across bytecode, C, and native by routing generator handles through the compiler-managed
 	     generator bridge while resuming each step with implicit `nil`. This gives language-level
@@ -1485,7 +1492,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       - explicit workers: `defer { ... } in co`
 		       - `@oren.generator` declarations: `defer { ... }`
 		       - `defer` is contextual and not reserved outside these generator forms
-		     - declaration metadata is now `version=18` and records
+			     - declaration metadata is now `version=19` and records
 		       `finalize_surface=generator_finalize_v0`
 		     - hooks now run in LIFO order on both explicit `close()` and ordinary natural completion
 		     - the first hook error becomes the sticky terminal generator result after cleanup still

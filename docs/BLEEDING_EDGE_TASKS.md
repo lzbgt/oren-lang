@@ -4247,15 +4247,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     compiler-managed handle surface for both named `fn ...` declarations and function-valued
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.
 		     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
-		     wrapper”, and the shipped handle contract is now also opaque by default
-					     (`compiler_generator_object_v2` with `opaque_named_slot_capsule_v5` plus validated
+			     wrapper”, and the shipped handle contract is now also opaque by default
+						     (`compiler_generator_object_v3` with `dedicated_generator_object_kind_v1` plus validated
 					     `generator_context`, declaration-form metadata, `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
 					     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
 					     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
 				     `generator` handle
-			   - New (2026-04-22): raw generator slot numbering is now isolated to named injected helper
-			     accessors in `lib/compiler/parser_parse/005_generator_core.oren`, so the future dedicated
-			     coroutine object kind can swap one substrate seam instead of rewriting every
+				   - New (2026-04-22): raw generator slot numbering is now isolated to named injected helper
+				     accessors in `lib/compiler/parser_parse/005_generator_core.oren`, so the new dedicated
+				     generator object-kind substrate stays localized instead of rewriting every
+				   - New (2026-04-22): the repo-default verification lane is green again after moving the
+				     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
+				     broader generator surface verifier. Reweight the next task above correctness: optimize the
+				     stage2 `dump linked` hot path on `tests/fixtures/generator_finalize_surface_v0.oren`
+				     without widening the shipped generator surface.
 			     resume/close/delegate path.
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
 	     fuller coroutine language affordances without manual channel semantics leaking through).
@@ -4298,7 +4303,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       - explicit workers: `defer { ... } in co`
 		       - `@oren.generator` declarations: `defer { ... }`
 		       - `defer` remains contextual instead of becoming a global reserved word
-		     - generator declaration metadata is now `version=18` with
+			     - generator declaration metadata is now `version=19` with
 		       `finalize_surface=generator_finalize_v0`
 		     - per-function `meta`, `dump linked`, and OBC outputs now expose
 		       `contains_generator_finalize`, `generator_finalize_count`,

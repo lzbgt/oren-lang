@@ -129,24 +129,29 @@ backend-shared value-helper slices landed.
   The handle now reports `oren_type_name(gen) == "generator"` across bytecode, C, and native.
   `std:generator` is now a thin facade over those helpers instead of owning the state layout itself.
 
-- Fresh landing (2026-04-22): the first compiler-managed handle is now intentionally opaque at the
-  language contract level instead of merely “not documented”. The injected core now uses an opaque
-  named-slot capsule ABI (`opaque_named_slot_capsule_v5`) and validates both generator handles and generator
-  contexts before `next/send/collect` or `yield ... in co` proceed.
+- Fresh landing (2026-04-22): the compiler-managed generator substrate is now intentionally opaque at the
+  language contract level instead of merely “not documented”. The injected core now targets dedicated
+  generator object kinds (`dedicated_generator_object_kind_v1`) and validates both generator handles and
+  generator contexts before `next/send/collect` or `yield ... in co` proceed.
   Concretely:
   - the generator substrate no longer depends on map semantics at all; both `generator` handles and
-    `generator_context` now live on compiler-managed capsules recognized by `oren_type_name(...)`
+    `generator_context` now live on compiler/runtime-managed dedicated object kinds recognized by
+    `oren_type_name(...)`
   - old public lifecycle fields like `yield_ch`, `resume_ch`, `done_ch`, `worker`, `args_list`,
     `task`, `started`, `done`, and `return` are no longer part of the supported generator surface
   - worker bodies should treat `co` purely as a `generator_context`; `yield ... in co` is the only
     supported worker-facing exchange API
   - raw positional slot numbers are now isolated to named injected accessors/constructors inside
     `lib/compiler/parser_parse/005_generator_core.oren`
-  - metadata now reports this as `compiler_generator_object_v2` with
+  - metadata now reports this as `compiler_generator_object_v3` with
     `helper_api=oren_generator_start_v2`, `caller_api=generator_handle_v2`,
-    `state_layout=opaque_named_slot_capsule_v5`, `worker_context_type=generator_context`,
+    `state_layout=dedicated_generator_object_kind_v1`, `worker_context_type=generator_context`,
     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and
     `decl_forms=["named_function_decl","function_valued_var"]`
+  - the default repo verification lane stays green by using the stage1 `./oren` tool path for
+    generator finalize `meta` / `dump linked` parity, matching the broader generator surface verifier;
+    the remaining narrow tooling issue is stage2 `dump linked` throughput on
+    `tests/fixtures/generator_finalize_surface_v0.oren`, not generator semantics or backend parity
 
 - Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
   sugar too, without changing the public handle layout again. The compiler-generated bridge:

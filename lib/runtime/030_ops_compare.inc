@@ -381,6 +381,10 @@ OrenValue oren_eq(OrenValue a, OrenValue b) {
             return oren_bool(a.as.list_val == b.as.list_val);
         case OREN_TYPE_MAP:
             return oren_bool(a.as.map_val == b.as.map_val);
+        case OREN_TYPE_GENERATOR:
+            return oren_bool(a.as.generator_val == b.as.generator_val);
+        case OREN_TYPE_GENERATOR_CONTEXT:
+            return oren_bool(a.as.generator_context_val == b.as.generator_context_val);
     }
     return OREN_FALSE;
 }

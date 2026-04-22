@@ -79,8 +79,8 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 18,
-    "surface": "compiler_generator_object_v2",
+    "version": 19,
+    "surface": "compiler_generator_object_v3",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
@@ -104,7 +104,7 @@ expected_decl_surface = {
     "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
     "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
-    "state_layout": "opaque_named_slot_capsule_v5",
+    "state_layout": "dedicated_generator_object_kind_v1",
     "worker_context_type": "generator_context",
     "decl_forms": ["named_function_decl", "function_valued_var"],
 }
@@ -186,8 +186,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:148:20",
-            "tests/fixtures/generator_surface_v0.oren:149:20",
+            "tests/fixtures/generator_surface_v0.oren:152:20",
+            "tests/fixtures/generator_surface_v0.oren:153:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -195,14 +195,14 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_nil", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:155:5"],
+        sites=["tests/fixtures/generator_surface_v0.oren:159:5"],
         context="expr_stmt",
         explicit_value=False,
     )
     assert_decl(
         get_func(payload, "decl_collect", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:163:9"],
+        sites=["tests/fixtures/generator_surface_v0.oren:167:9"],
         context="expr_stmt",
         explicit_value=True,
     )
@@ -210,8 +210,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_var_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:171:20",
-            "tests/fixtures/generator_surface_v0.oren:172:20",
+            "tests/fixtures/generator_surface_v0.oren:175:20",
+            "tests/fixtures/generator_surface_v0.oren:176:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -219,7 +219,7 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_var_lambda", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:178:19"],
+        sites=["tests/fixtures/generator_surface_v0.oren:182:19"],
         context="var_init",
         explicit_value=True,
     )
@@ -233,34 +233,34 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_finalize(
         get_func(payload, "finalize_hook_worker", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:278:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:280:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:282:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:282:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:284:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:286:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
         ],
         context="var_init",
     )
     assert_finalize(
         get_func(payload, "defer_finalize_worker", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:335:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:336:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:339:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:340:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
         ],
         context="expr_stmt",
     )
     assert_finalize(
         get_func(payload, "decl_finalize_hook", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:311:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:313:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:315:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:315:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:317:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:319:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
         ],
         context="var_init",
     )
     assert_finalize(
         get_func(payload, "decl_defer_finalize", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:361:5", "defer_v0", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:362:5", "defer_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:365:5", "defer_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:366:5", "defer_v0", "oren_generator_on_finalize_v1"),
         ],
         context="expr_stmt",
     )

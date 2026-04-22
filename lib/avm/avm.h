@@ -29,7 +29,9 @@ typedef enum {
     AVM_VAL_I32_BUF = 10,
     AVM_VAL_I64_BUF = 11,
     AVM_VAL_F32_BUF = 12,
-    AVM_VAL_F64_BUF = 13
+    AVM_VAL_F64_BUF = 13,
+    AVM_VAL_GENERATOR = 14,
+    AVM_VAL_GENERATOR_CONTEXT = 15
 } AvmType;
 
 struct AvmList;
@@ -38,6 +40,8 @@ struct AvmMap;
 struct AvmBytes;
 struct AvmFunc;
 struct AvmBuf;
+struct AvmGeneratorHandle;
+struct AvmGeneratorContext;
 
 typedef struct {
     AvmType type;
@@ -51,6 +55,8 @@ typedef struct {
         struct AvmBytes* b;
         struct AvmFunc* fn;
         struct AvmBuf* buf;
+        struct AvmGeneratorHandle* gen;
+        struct AvmGeneratorContext* gctx;
     } as;
 } AvmValue;
 
@@ -94,6 +100,16 @@ typedef struct AvmBuf {
     uint32_t len;       // element count
     uint32_t elem_size; // 4 for i32/f32, 8 for i64/f64
 } AvmBuf;
+
+typedef struct AvmGeneratorHandle {
+    uint64_t magic;
+    AvmValue slots[14];
+} AvmGeneratorHandle;
+
+typedef struct AvmGeneratorContext {
+    uint64_t magic;
+    AvmValue slots[4];
+} AvmGeneratorContext;
 
 typedef struct {
     uint8_t* code;

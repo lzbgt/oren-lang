@@ -33,6 +33,8 @@ void avm_print_value_no_nl(AvmValue v) {
     else if (v.type == AVM_VAL_I64_BUF) printf("<i64_buf>");
     else if (v.type == AVM_VAL_F32_BUF) printf("<f32_buf>");
     else if (v.type == AVM_VAL_F64_BUF) printf("<f64_buf>");
+    else if (v.type == AVM_VAL_GENERATOR) printf("<generator>");
+    else if (v.type == AVM_VAL_GENERATOR_CONTEXT) printf("<generator_context>");
     else printf("<?>");
 }
 
@@ -51,6 +53,8 @@ const char* avm_val_type_short(AvmValue v) {
         case AVM_VAL_I64_BUF: return "I64_BUF";
         case AVM_VAL_F32_BUF: return "F32_BUF";
         case AVM_VAL_F64_BUF: return "F64_BUF";
+        case AVM_VAL_GENERATOR: return "GENERATOR";
+        case AVM_VAL_GENERATOR_CONTEXT: return "GENERATOR_CONTEXT";
         default: return "VAL?";
     }
 }

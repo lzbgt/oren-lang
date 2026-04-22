@@ -16,6 +16,8 @@ const char* avm_val_type_name(AvmValue v) {
         case AVM_VAL_I64_BUF: return "I64_BUF";
         case AVM_VAL_F32_BUF: return "F32_BUF";
         case AVM_VAL_F64_BUF: return "F64_BUF";
+        case AVM_VAL_GENERATOR: return "GENERATOR";
+        case AVM_VAL_GENERATOR_CONTEXT: return "GENERATOR_CONTEXT";
         default: return "VAL?";
     }
 }
@@ -36,6 +38,8 @@ static void dump_value_short(FILE* out, AvmValue v) {
     if (v.type == AVM_VAL_I64_BUF) { fprintf(out, "<i64_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
     if (v.type == AVM_VAL_F32_BUF) { fprintf(out, "<f32_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
     if (v.type == AVM_VAL_F64_BUF) { fprintf(out, "<f64_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
+    if (v.type == AVM_VAL_GENERATOR) { fprintf(out, "<generator>"); return; }
+    if (v.type == AVM_VAL_GENERATOR_CONTEXT) { fprintf(out, "<generator_context>"); return; }
     fprintf(out, "<val?>");
 }
 
@@ -83,6 +87,10 @@ static void json_dump_value_short(FILE* out, AvmValue v) {
         fprintf(out, ",\"len\":%d", v.as.li ? v.as.li->count : 0);
     } else if (v.type == AVM_VAL_MAP) {
         fprintf(out, ",\"len\":%d", v.as.m ? v.as.m->count : 0);
+    } else if (v.type == AVM_VAL_GENERATOR) {
+        fprintf(out, ",\"slots\":14");
+    } else if (v.type == AVM_VAL_GENERATOR_CONTEXT) {
+        fprintf(out, ",\"slots\":4");
     }
     fprintf(out, "}");
 }
@@ -158,6 +166,8 @@ const char* avm_value_type_name(int t) {
         case AVM_VAL_I64_BUF: return "I64_BUF";
         case AVM_VAL_F32_BUF: return "F32_BUF";
         case AVM_VAL_F64_BUF: return "F64_BUF";
+        case AVM_VAL_GENERATOR: return "GENERATOR";
+        case AVM_VAL_GENERATOR_CONTEXT: return "GENERATOR_CONTEXT";
         default: return "VAL?";
     }
 }

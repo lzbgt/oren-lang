@@ -1,4 +1,5 @@
 import gen "../../lib/std/generator.oren"
+import reflect "../../lib/std/reflect.oren"
 
 fn fail(code) {
     print("module generator_std FAIL " + oren_int_to_string(code))
@@ -17,6 +18,9 @@ fn assert_eq(a, b, code) {
 
 fn counter_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -900 }
+    if oren_type_tag(co) != reflect.TAG_GENERATOR_CONTEXT { return -901 }
+    if reflect.is_generator_context(co) != true { return -902 }
+    if reflect.is_list(co) == true { return -903 }
     var seed = args[0]
     var resumed0 = yield (seed + 1) in co
     var resumed1 = yield (seed + resumed0) in co
@@ -376,7 +380,10 @@ fn bad_on_close_worker(co, args) {
 
 fn main() {
     var g = gen.start(counter_worker, [40])
+    assert_eq(oren_type_tag(g), reflect.TAG_GENERATOR, 8)
     assert_eq(oren_type_name(g), "generator", 9)
+    assert_true(reflect.is_generator(g) == true, 91)
+    assert_true(reflect.is_list(g) == false, 92)
     var s0 = gen.next(g)
     if oren_is_err(s0) == true { fail(10) }
     assert_true(s0["ok"] == true, 11)

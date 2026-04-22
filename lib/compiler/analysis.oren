@@ -902,8 +902,8 @@ fn function_generator_decl_surface(func) {
         return nil
     }
     return {
-        "version": 18,
-        "surface": "compiler_generator_object_v2",
+        "version": 19,
+        "surface": "compiler_generator_object_v3",
         "syntax": "attr_oren.generator",
         "helper_api": "oren_generator_start_v2",
         "caller_api": "generator_handle_v2",
@@ -927,7 +927,7 @@ fn function_generator_decl_surface(func) {
         "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
         "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
         "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
-        "state_layout": "opaque_named_slot_capsule_v5",
+        "state_layout": "dedicated_generator_object_kind_v1",
         "worker_context_type": "generator_context",
         "decl_forms": ["named_function_decl", "function_valued_var"],
     }

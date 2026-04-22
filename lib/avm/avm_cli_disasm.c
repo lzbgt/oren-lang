@@ -93,9 +93,10 @@ static void disasm_const(FILE* out, const AvmProgram* prog, uint16_t idx) {
     else if (v.type == AVM_VAL_BYTES) fprintf(out, "<bytes len=%d>", v.as.b ? v.as.b->len : 0);
     else if (v.type == AVM_VAL_LIST) fprintf(out, "<list>");
     else if (v.type == AVM_VAL_LIST_INT) fprintf(out, "<list_int>");
-    else if (v.type == AVM_VAL_LIST_INT) fprintf(out, "<list_int>");
     else if (v.type == AVM_VAL_MAP) fprintf(out, "<map>");
     else if (v.type == AVM_VAL_FUNC) fprintf(out, "<func addr=%u>", v.as.fn ? (unsigned)v.as.fn->addr : 0u);
+    else if (v.type == AVM_VAL_GENERATOR) fprintf(out, "<generator>");
+    else if (v.type == AVM_VAL_GENERATOR_CONTEXT) fprintf(out, "<generator_context>");
     else fprintf(out, "<val?>");
 }
 

@@ -38,6 +38,7 @@
 // @include "runtime_native/267_wait_on_addr.oren"
 // @include "runtime_native/269_os_thread_m.oren"
 // @include "runtime_native/120_first_class_fn.oren"
+// @include "runtime_native/125_generator_objects.oren"
 // @include "runtime_native/130_printing.oren"
 // @include "runtime_native/140_errors.oren"
 // @include "runtime_native/150_strings.oren"

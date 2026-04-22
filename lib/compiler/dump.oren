@@ -21,6 +21,21 @@ fn json_kv_bool(k, v) {
     return json_string(k) + ": null"
 }
 
+fn join_with(parts, sep) {
+    if parts == nil { return "" }
+    var n = oren_list_len(parts)
+    if n <= 0 { return "" }
+    if n == 1 { return parts[0] }
+    var out = []
+    var i = 0
+    while i < n {
+        if i != 0 { oren_list_push(out, sep) }
+        oren_list_push(out, parts[i])
+        i = i + 1
+    }
+    return oren_string_join(out)
+}
+
 fn write_or_print(out_path, content) {
     if out_path == "" {
         print(content)
@@ -106,10 +121,10 @@ fn dump_tokens_json(src_path, strict_attrs, attr_allow_prefixes, strict_ident_pr
     return out
 }
 
-fn linked_summary_json(linked) {
+fn linked_summary_json(linked, entry_path) {
     if linked == nil { return "{}\n" }
 
-    // Collect top-level names (deterministic in statement order).
+    // Collect top-level names from the requested entry source in deterministic statement order.
     var functions = []
     var function_details = []
     var structs = []
@@ -131,8 +146,19 @@ fn linked_summary_json(linked) {
         if s == nil { i = i + 1; continue }
         var entry = analysis.top_level_function_surface_entry(s)
         if entry != nil {
-            oren_list_push(functions, entry["name"])
-            oren_list_push(function_details, entry["func"])
+            var entry_name = entry["name"]
+            var entry_func = entry["func"]
+            var include_entry = true
+            var entry_tok = entry_func["tok"]
+            if entry_path != nil && entry_path != "" && entry_tok != nil && entry_tok["file"] != entry_path {
+                include_entry = false
+            }
+            if metadata.str_starts_with(entry_name, "_oren_generator_") == true { include_entry = false }
+            if metadata.str_starts_with(entry_name, "oren_generator_") == true { include_entry = false }
+            if include_entry == true {
+                oren_list_push(functions, entry_name)
+                oren_list_push(function_details, entry_func)
+            }
         }
         if s["type"] == "Type" {
             oren_list_push(structs, s["name"]["value"])
@@ -143,77 +169,103 @@ fn linked_summary_json(linked) {
         i = i + 1
     }
 
-    var out = "{\n"
-    out = out + "  \"functions\": ["
+    var function_parts = []
     i = 0
     while i < oren_list_len(functions) {
-        if i != 0 { out = out + ", " }
-        out = out + json_string(functions[i])
+        oren_list_push(function_parts, json_string(functions[i]))
         i = i + 1
     }
-    out = out + "],\n"
 
-    out = out + "  \"function_details\": [\n"
+    var function_detail_parts = []
     i = 0
     while i < oren_list_len(function_details) {
         var func = function_details[i]
         var name = analysis.function_surface_name(func, functions[i])
         var yield_info = analysis.function_yield_info(func)
-        if i != 0 { out = out + ",\n" }
-        out = out + "    { "
-        out = out + json_kv_str("name", name) + ", "
-        out = out + json_kv_bool("contains_yield", yield_info["contains_yield"]) + ", "
-        out = out + json_kv_int("yield_stmt_count", yield_info["yield_stmt_count"]) + ", "
-        out = out + "\"yield_stmt_sites\": " + metadata.json_string_array(yield_info["yield_stmt_sites"]) + ", "
-        out = out + json_kv_bool("contains_yield_value", yield_info["contains_yield_value"]) + ", "
-        out = out + json_kv_int("yield_value_count", yield_info["yield_value_count"]) + ", "
-        out = out + "\"yield_value_sites\": " + metadata.json_string_array(yield_info["yield_value_sites"]) + ", "
-        out = out + "\"yield_value_surface\": " + metadata.json_yield_value_surface(yield_info["yield_value_surface"]) + ", "
-        out = out + json_kv_bool("contains_yield_exchange", yield_info["contains_yield_exchange"]) + ", "
-        out = out + json_kv_int("yield_exchange_count", yield_info["yield_exchange_count"]) + ", "
-        out = out + "\"yield_exchange_sites\": " + metadata.json_string_array(yield_info["yield_exchange_sites"]) + ", "
-        out = out + "\"yield_exchange_surface\": " + metadata.json_yield_exchange_surface(yield_info["yield_exchange_surface"]) + ", "
-        out = out + json_kv_bool("contains_generator_finalize", yield_info["contains_generator_finalize"]) + ", "
-        out = out + json_kv_int("generator_finalize_count", yield_info["generator_finalize_count"]) + ", "
-        out = out + "\"generator_finalize_sites\": " + metadata.json_string_array(yield_info["generator_finalize_sites"]) + ", "
-        out = out + "\"generator_finalize_surface\": " + metadata.json_generator_finalize_surface(yield_info["generator_finalize_surface"]) + ", "
-        out = out + json_kv_bool("is_generator_decl", yield_info["is_generator_decl"]) + ", "
-        out = out + "\"generator_decl_surface\": " + metadata.json_generator_decl_surface(yield_info["generator_decl_surface"]) + ", "
-        out = out + "\"yield_lowering\": " + metadata.json_yield_lowering(yield_info["yield_lowering"])
-        out = out + " }"
+        var entry_parts = []
+        oren_list_push(entry_parts, "    { ")
+        oren_list_push(entry_parts, json_kv_str("name", name))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_bool("contains_yield", yield_info["contains_yield"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_int("yield_stmt_count", yield_info["yield_stmt_count"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"yield_stmt_sites\": " + metadata.json_string_array(yield_info["yield_stmt_sites"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_bool("contains_yield_value", yield_info["contains_yield_value"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_int("yield_value_count", yield_info["yield_value_count"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"yield_value_sites\": " + metadata.json_string_array(yield_info["yield_value_sites"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"yield_value_surface\": " + metadata.json_yield_value_surface(yield_info["yield_value_surface"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_bool("contains_yield_exchange", yield_info["contains_yield_exchange"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_int("yield_exchange_count", yield_info["yield_exchange_count"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"yield_exchange_sites\": " + metadata.json_string_array(yield_info["yield_exchange_sites"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"yield_exchange_surface\": " + metadata.json_yield_exchange_surface(yield_info["yield_exchange_surface"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_bool("contains_generator_finalize", yield_info["contains_generator_finalize"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_int("generator_finalize_count", yield_info["generator_finalize_count"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"generator_finalize_sites\": " + metadata.json_string_array(yield_info["generator_finalize_sites"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"generator_finalize_surface\": " + metadata.json_generator_finalize_surface(yield_info["generator_finalize_surface"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, json_kv_bool("is_generator_decl", yield_info["is_generator_decl"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"generator_decl_surface\": " + metadata.json_generator_decl_surface(yield_info["generator_decl_surface"]))
+        oren_list_push(entry_parts, ", ")
+        oren_list_push(entry_parts, "\"yield_lowering\": " + metadata.json_yield_lowering(yield_info["yield_lowering"]))
+        oren_list_push(entry_parts, " }")
+        oren_list_push(function_detail_parts, oren_string_join(entry_parts))
         i = i + 1
     }
-    out = out + "\n  ],\n"
 
-    out = out + "  \"structs\": ["
+    var struct_parts = []
     i = 0
     while i < oren_list_len(structs) {
-        if i != 0 { out = out + ", " }
-        out = out + json_string(structs[i])
+        oren_list_push(struct_parts, json_string(structs[i]))
         i = i + 1
     }
-    out = out + "],\n"
 
-    out = out + "  \"enums\": ["
+    var enum_parts = []
     i = 0
     while i < oren_list_len(enums) {
-        if i != 0 { out = out + ", " }
-        out = out + json_string(enums[i])
+        oren_list_push(enum_parts, json_string(enums[i]))
         i = i + 1
     }
-    out = out + "],\n"
 
-    out = out + "  \"traits\": ["
+    var trait_parts = []
     i = 0
     while i < oren_list_len(traits) {
-        if i != 0 { out = out + ", " }
-        out = out + json_string(traits[i])
+        oren_list_push(trait_parts, json_string(traits[i]))
         i = i + 1
     }
-    out = out + "]\n"
 
-    out = out + "}\n"
-    return out
+    var out_parts = []
+    oren_list_push(out_parts, "{\n")
+    oren_list_push(out_parts, "  \"functions\": [")
+    oren_list_push(out_parts, join_with(function_parts, ", "))
+    oren_list_push(out_parts, "],\n")
+    oren_list_push(out_parts, "  \"function_details\": [\n")
+    oren_list_push(out_parts, join_with(function_detail_parts, ",\n"))
+    oren_list_push(out_parts, "\n  ],\n")
+    oren_list_push(out_parts, "  \"structs\": [")
+    oren_list_push(out_parts, join_with(struct_parts, ", "))
+    oren_list_push(out_parts, "],\n")
+    oren_list_push(out_parts, "  \"enums\": [")
+    oren_list_push(out_parts, join_with(enum_parts, ", "))
+    oren_list_push(out_parts, "],\n")
+    oren_list_push(out_parts, "  \"traits\": [")
+    oren_list_push(out_parts, join_with(trait_parts, ", "))
+    oren_list_push(out_parts, "]\n")
+    oren_list_push(out_parts, "}\n")
+    return oren_string_join(out_parts)
 }
 
 fn _json_obj_str(k, v) {

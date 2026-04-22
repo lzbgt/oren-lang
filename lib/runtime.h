@@ -31,7 +31,9 @@ typedef enum {
     OREN_TYPE_I32_BUF,
     OREN_TYPE_I64_BUF,
     OREN_TYPE_F32_BUF,
-    OREN_TYPE_F64_BUF
+    OREN_TYPE_F64_BUF,
+    OREN_TYPE_GENERATOR,
+    OREN_TYPE_GENERATOR_CONTEXT
 } OrenType;
 
 // Stable error codes (rolling ABI; subject to refinement, but keep numbers stable once used).
@@ -49,6 +51,8 @@ typedef enum {
 struct OrenList;
 struct OrenMap;
 struct OrenBuf;
+struct OrenGeneratorHandle;
+struct OrenGeneratorContext;
 
 typedef struct OrenValue OrenValue;
 
@@ -73,6 +77,8 @@ struct OrenValue {
         struct OrenMap* map_val;
         OrenFunc func_val;
         struct OrenBuf* buf_val;
+        struct OrenGeneratorHandle* generator_val;
+        struct OrenGeneratorContext* generator_context_val;
     } as;
 };
 
@@ -98,6 +104,16 @@ typedef struct OrenBuf {
     uint32_t len;       // element count
     uint32_t elem_size; // 4 for i32/f32, 8 for i64/f64
 } OrenBuf;
+
+typedef struct OrenGeneratorHandle {
+    uint64_t magic;
+    OrenValue slots[14];
+} OrenGeneratorHandle;
+
+typedef struct OrenGeneratorContext {
+    uint64_t magic;
+    OrenValue slots[4];
+} OrenGeneratorContext;
 
 // Forward declaration for inline helpers.
 void oren_panic(const char* msg);
@@ -133,6 +149,22 @@ void oren_roots_reset(size_t mark);
 // - `oren_list_reserve` is the OrenValue-level wrapper used by compiled Oren code.
 void oren_list_reserve_raw(struct OrenList* l, int new_cap);
 OrenValue oren_list_reserve(OrenValue list, OrenValue new_cap);
+
+// Dedicated coroutine/generator object helpers (internal compiler/runtime ABI).
+OrenValue oren_generator_handle_new_internal(
+    OrenValue worker,
+    OrenValue args_list,
+    OrenValue yield_ch,
+    OrenValue resume_ch,
+    OrenValue done_ch
+);
+OrenValue oren_generator_context_new_internal(
+    OrenValue yield_ch,
+    OrenValue resume_ch,
+    OrenValue owner
+);
+OrenValue oren_generator_slot_get_internal(OrenValue obj, OrenValue slot);
+OrenValue oren_generator_slot_set_internal(OrenValue obj, OrenValue slot, OrenValue value);
 
 	extern OrenValue OREN_NIL;
 	extern OrenValue OREN_TRUE;

@@ -21,6 +21,10 @@
 #define AVM_ERR_INTERNAL 8
 #define AVM_ERR_BUDGET 9
 
+// Dedicated generator object kinds used by both the AVM native surface and snapshot restore paths.
+#define AVM_GENERATOR_HANDLE_MAGIC UINT64_C(0x47454E48414E444C)
+#define AVM_GENERATOR_CONTEXT_MAGIC UINT64_C(0x47454E434F4E5448)
+
 // --- Cooperative scheduler types (internal; shared with snapshot module) ---
 //
 // These are intentionally *not* part of the public `avm.h` ABI yet; they are
@@ -123,7 +127,9 @@ enum {
     // Opaque raw bytes (no pointers). Used for typed-buffer payloads.
     AVM_ALLOC_KIND_RAW = 11,
     // Unboxed list<int> payloads (AVM list-int).
-    AVM_ALLOC_KIND_LIST_INT = 12
+    AVM_ALLOC_KIND_LIST_INT = 12,
+    AVM_ALLOC_KIND_GENERATOR = 13,
+    AVM_ALLOC_KIND_GENERATOR_CONTEXT = 14
 };
 
 static inline AvmValue avm_int(int64_t i) {
