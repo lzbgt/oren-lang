@@ -657,6 +657,24 @@ enabled `~2.2298x`, `default_dot_ratio_median ~1.5550x` vs enabled `~1.6600x`,
 mov-chain either; the next backend work should focus on the recurrence arithmetic itself and the
 compare/branch structure inside the shipped wide body.
 
+A narrower four-stream follow-up under that same shipped four-wide body also stays rejected. The
+temporary `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_MULTI_STREAM=1` rerun kept four
+independent carried lanes live in preserved regs and advanced each by a precomputed `4*step mod`
+delta across main iterations. The emitted loop still improved:
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_061011_87026.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_061011_87005.log` show the wide main
+iteration dropping to `32` hot instructions for `4` output elements (`8.00` per element), but they
+also show the cold GC-tick side blocks growing from `16` to `24` instructions because the helper
+now had to spill and restore four preserved pairs. The actual same-tree ranking in
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-multi-stream-decision-20260423_060858_85589.log`
+still rejected promotion cleanly: fill/share preferred the shipped default (`default_fill_vs_c_vector
+~2.1459x` vs enabled `~2.1862x`), exact `array_sum_int` median also preferred default
+(`default_array_ratio_median ~2.1979x` vs enabled `~2.2283x`), and exact `dot_product_int` median
+preferred default too (`default_dot_ratio_median ~1.5145x` vs enabled `~1.6533x`,
+`decision_surface_alignment: agree`). Reweight again: the remaining fill-side blocker is not just
+"serial recurrence versus independent streams" in the abstract; any future multi-stream retry has
+to avoid paying a fatter safepoint spill/reset tax at the same time.
+
 A branchless `csel` wrap-control follow-up under that same shipped four-wide body also stays
 rejected. The temporary
 `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_CSEL=1` rerun replaced the carried

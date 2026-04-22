@@ -280,6 +280,24 @@ backend-shared value-helper slices landed.
     `decision_surface_alignment: disagree`). That narrows the remaining backend work further: the
     open gap is no longer mainly the mov-chain either, but the recurrence arithmetic itself and the
     compare/branch structure inside the shipped wide body
+  - the next true four-stream recurrence follow-up under that same shipped four-wide body is now
+    also closed negative. A temporary rerun kept four carried lanes live in preserved regs and
+    advanced each by a precomputed `4*step mod` delta across main iterations. The emitted loop
+    still improved:
+    `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_061011_87026.log` and
+    `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_061011_87005.log` show the wide
+    main iteration dropping to `32` hot instructions for `4` outputs (`8.00` per element). But the
+    same emitted-code pass also shows the cold GC-tick side blocks growing from `16` to `24`
+    instructions because the helper had to spill and restore four preserved pairs instead of two.
+    The actual same-tree decision surface
+    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-multi-stream-decision-20260423_060858_85589.log`)
+    still rejected promotion cleanly: fill/share preferred the shipped default
+    (`default_fill_vs_c_vector ~2.1459×` vs enabled `~2.1862×`), exact `array_sum_int` median also
+    preferred default (`default_array_ratio_median ~2.1979×` vs enabled `~2.2283×`), and exact
+    `dot_product_int` median preferred default too (`default_dot_ratio_median ~1.5145×` vs enabled
+    `~1.6533×`, `decision_surface_alignment: agree`). That narrows the remaining backend work
+    further again: any future multi-stream retry has to avoid paying a wider safepoint spill/reset
+    tax at the same time
   - the next branchless wrap-control follow-up under that same shipped four-wide body is now also
     closed negative. A temporary rerun replaced the carried wrap `cmp` / `b.lt` pairs with `sub`
     + `csel` recurrence steps. The emitted loop still improved:

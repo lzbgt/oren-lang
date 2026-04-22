@@ -245,9 +245,14 @@ print(
 print(
     f"  Oren still performs one value recurrence, one slot store, and one loop tick check per element; C carries four independent recurrence streams through {vec_label}"
 )
-print(
-    f"  The scalar C tail is {tail_total} insns per element, so the major remaining gap is not just loop-exit count writeback but the absence of a wide/unrolled recurrence shape on the Oren side"
-)
+if oren_main_iter_elems > 1:
+    print(
+        f"  The scalar C tail is {tail_total} insns per element, so the major remaining gap is inside Oren's landed {oren_main_iter_elems}-wide body itself: carried recurrence independence plus its store/tick scaffolding versus the C vector ceiling"
+    )
+else:
+    print(
+        f"  The scalar C tail is {tail_total} insns per element, so the major remaining gap is not just loop-exit count writeback but the absence of a wide/unrolled recurrence shape on the Oren side"
+    )
 PY
 
 echo "${title} complete; summary: $summary_log"
