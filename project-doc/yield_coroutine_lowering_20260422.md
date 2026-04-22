@@ -222,6 +222,20 @@ backend-shared value-helper slices landed.
     The widened safety lanes stayed green too:
     `build/logs/make_verify_native_quick_20260423_tick_reg_fix_v1.log` and
     `build/logs/make_test_20260423_tick_reg_fix_v1.log`
+  - a new emitted-code probe now keeps that fill-side work grounded in the actual hot loop:
+    `make perf-probe-arm64-list-int-fill-hot-loop-disasm` summarizes the shipped
+    `fill_list_int` / `array_sum_int` `fast_list_int_push_while` body while excluding the cold GC
+    tick side block. The reverted current-tree artifact
+    (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_042356_51281.log`)
+    shows the shipped loop at `25` total instructions / `17` hot instructions with no
+    per-iteration final count/cursor writeback in the hot body. A temporary `% 1000` fuse to
+    `udiv; msub` reduced the hot body to `16` instructions in
+    (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_041825_49207.log`) but
+    still regressed the real shipped decision surface
+    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_041844_49343.log`),
+    so the broad branch keeps the shipped `udiv; mul; sub` remainder path and the remaining
+    open surface is the slot-store/arithmetic/safepoint-reset shape, not generic final
+    count/cursor writeback
   - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
     promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
     tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)

@@ -2460,6 +2460,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      `build/logs/make_test_20260423_tick_reg_fix_v1.log`). Reweight again: the inline
 										      tick-register correctness hole is closed; keep the shipped branch, and continue
 										      attacking the residual slot-write / count-update / safepoint-reset cost below it.
+										      Loop-body disasm follow-up (2026-04-23): added
+										      `make perf-probe-arm64-list-int-fill-hot-loop-disasm` so the shipped
+										      `fill_list_int` / `array_sum_int` `fast_list_int_push_while` body can be counted
+										      directly while excluding the cold GC-tick side block. The reverted current-tree
+										      artifact
+										      (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_042356_51281.log`)
+										      shows the shipped loop at `25` total instructions / `17` hot instructions with
+										      no per-iteration final count/cursor writeback in the hot body. A temporary
+										      `% 1000` remainder fuse to `udiv; msub` reduced the hot body to `16`
+										      instructions in
+										      (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_041825_49207.log`)
+										      but still regressed the real shipped decision surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_041844_49343.log`:
+										      `default_fill_vs_c_vector ~2.4590×`, `default_array_ratio_median ~2.2222×`,
+										      `default_dot_ratio_median ~1.6367×`). Reweight again: keep the shipped
+										      `udiv; mul; sub` remainder path, stop treating per-iteration count/cursor
+										      writeback as the likely blocker, and use the new hot-loop probe to attack the
+										      surviving slot-store/arithmetic/safepoint-reset shape instead.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

@@ -523,6 +523,36 @@ helper now keeps `x9` reserved and uses `x11`/`x10` scratch instead, push loops 
 (`build/logs/verify_native_list_int_fast_lowering_20260423_034642_36487.log`) now disassembles the
 `array_sum_int` push loop and rejects any hot-loop `x9` use other than `subs x9, x9, #0x1`.
 
+For the remaining emitted-code work below that branch, use:
+
+```bash
+make perf-probe-arm64-list-int-fill-hot-loop-disasm
+```
+
+This disassembles the current shipped `fast_list_int_push_while*` loop for both `fill_list_int`
+and `array_sum_int`, excludes the cold GC tick block, and summarizes the hot-body mnemonic mix.
+Current shipped artifact `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_042356_51281.log`
+shows the fill loop at 25 total instructions / 17 hot instructions with the same hot mix on both
+benchmarks: one slot write, two `mul`, one `udiv`, one `sub`, three `add`, one `subs` tick, and no
+count/cursor writeback inside the hot body beyond the final cursor increment.
+
+That probe also closes the obvious “just fuse the remainder pair” branch. A narrow rerun replaced
+the shipped `udiv; mul; sub` remainder sequence with `udiv; msub`, which reduced the emitted hot
+body from 17 to 16 instructions (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_041825_49207.log`)
+but still regressed on the actual shipped decision surface
+(`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_041844_49343.log`):
+
+- fill/share moved the wrong way
+  - shipped default with `msub` `oren_fill_list_int / c_fill_slot64_vector ~2.4590x`
+  - reverted shipped baseline `~2.4026x`
+- exact same-tree whole-operation medians also worsened
+  - `default_array_ratio_median ~2.2222x` vs reverted shipped baseline `~2.2189x`
+  - `default_dot_ratio_median ~1.6367x` vs reverted shipped baseline `~1.5522x`
+
+So the shipped path stays with the simpler `mul; sub` remainder pair for now. The next emitted-code
+work should use the fill-hot-loop probe to target the surviving slot-write, cursor/count finalization,
+or safepoint-reset structure rather than assuming a one-instruction arithmetic fusion will help.
+
 One narrower follow-up under that same family was tested and then pruned immediately instead of
 being left behind as another dead branch. The recurrence variant tried to replace the per-iteration
 `udiv`-based `%` recomputation with a carried modulo recurrence for the single-list cursor case, but
