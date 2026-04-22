@@ -2390,20 +2390,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      (`default_dot_ratio_median ~1.8313×` vs disabled `~1.8546×`).
 									      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR` therefore ships on by default on the
 									      current tree.
-									    - Arm64 push idx-expr preserved-cursor follow-up (2026-04-09): new ranking
-									      surface `make perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision`
-									      compares the shipped default against the opt-in
-									      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=1` branch on the same
-									      fill/share attribution probe plus same-tree exact whole-operation C-ceiling reruns.
-									      Current widened rerun
-									      (`build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260409_191744_50107.log`)
-									      keeps that cursor-reg branch experimental only: fill/share preferred enabled
-									      (`default_fill_vs_c_vector ~4.4711×`, enabled `~3.7073×`), but exact
-									      same-tree whole-operation medians still preferred the shipped default
-									      (`default_array_ratio_median ~2.2491×` vs enabled `~2.3005×`,
-									      `default_dot_ratio_median ~1.8327×` vs enabled `~1.8585×`).
-									      Reweight: do not ship `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS`
-									      by default; it joins the other “local surface win, exact surface loss” branches.
+									    - Arm64 push idx-expr preserved-cursor follow-up (2026-04-23 refresh): the
+									      current-tree ranking surface
+									      `make perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision` now compares
+									      the shipped default against explicit disable
+									      (`OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=0`) after the later
+									      nonnegative-linear/default-on fill changes landed. The refreshed rerun
+									      (`build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260423_025433_17194.log`)
+									      now agrees on the target surfaces: fill/share strongly preferred default
+									      (`default_fill_vs_c_vector ~1.7572×` vs disabled `~2.3562×`), exact
+									      `array_sum_int` also preferred default
+									      (`default_array_ratio_median ~2.2127×` vs disabled `~2.2219×`), and exact
+									      `dot_product_int` median stayed lower on the default too
+									      (`default_dot_ratio_median ~1.3770×` vs disabled `~1.5110×`).
+									      `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS` therefore now ships on by
+									      default on the current tree.
 										    - Arm64 explicit push nonnegative-linear fill follow-up (2026-04-09): ranking
 										      surface `make perf-probe-arm64-fast-push-nonneg-linear-decision` now compares the
 										      current shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=0`

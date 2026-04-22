@@ -199,6 +199,14 @@ backend-shared value-helper slices landed.
     (`build/logs/make_verify_native_quick_20260423_011547_default_on_promote_v1.log`)
     plus the full repo lane
     (`build/logs/make_test_20260423_012704_default_on_promote_v2.log`)
+  - the narrower arm64 preserved-cursor fill-side follow-up is now promoted too:
+    `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS` ships on by default after the current-tree
+    shipped-vs-disabled rerun
+    (`build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260423_025433_17194.log`)
+    kept the decision surface aligned and preferred the shipped default on both fill/share
+    (`default_fill_vs_c_vector ~1.7572×` vs disabled `~2.3562×`) and exact `array_sum_int`
+    (`default_array_ratio_median ~2.2127×` vs disabled `~2.2219×`), with exact
+    `dot_product_int` median lower on the shipped default too
   - the next runtime constructor micro-hypothesis on that same shipped fill surface is now also
     settled negative: compared with the current baseline
     (`build/logs/perf-probe-list-int-fill-share-decision-20260423_011353_91782.log`,

@@ -470,26 +470,25 @@ For the narrower preserved-cursor follow-up on top of that same shipped fill-sid
 make perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision
 ```
 
-This compares the shipped default against the opt-in
-`OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=1` branch, which keeps the single-list
+This compares the shipped default against explicit disable
+`OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=0`, which keeps the single-list
 idx-expression cursor and loop bounds live in preserved regs instead of round-tripping them through
-stack slots each iteration. Current widened decision artifact
-`build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260409_191744_50107.log`
-keeps that branch experimental only:
+stack slots each iteration. The current-tree promoted-default decision artifact
+`build/logs/perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision-20260423_025433_17194.log`
+now keeps that cursor-reg path shipped on:
 
-- fill/share surface preferred the opt-in branch
-  - default `oren_fill_list_int / c_fill_slot64_vector ~4.4711x`
-  - enabled `~3.7073x`
-  - `fill_pref: enabled`
-- exact same-tree whole-operation C ceiling still preferred the shipped default
-  - `default_array_ratio_median ~2.2491x` vs enabled `~2.3005x` (`array_default_wins: 3/5`)
-  - `default_dot_ratio_median ~1.8327x` vs enabled `~1.8585x` (`dot_enabled_wins: 4/5`, but
-    default median still lower)
-  - `decision_surface_alignment: disagree`
+- fill/share surface preferred the shipped default
+  - default `oren_fill_list_int / c_fill_slot64_vector ~1.7572x`
+  - disabled `~2.3562x`
+  - `fill_pref: default`
+- exact same-tree whole-operation C ceiling also preferred the shipped default
+  - `default_array_ratio_median ~2.2127x` vs disabled `~2.2219x` (`array_default_wins: 2/3`)
+  - `default_dot_ratio_median ~1.3770x` vs disabled `~1.5110x`
+  - `decision_surface_alignment: agree`
 
-Reweight accordingly: keep `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS` opt-in only. It is
-another branch where local fill/setup wins do not survive the exact same-tree whole-operation
-ranking surface.
+Reweight accordingly: `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS` now ships on by default.
+The branch is no longer just a local fill/setup win; on the current tree it also survives the exact
+same-tree whole-operation ranking surface.
 
 For the next fill-side lowering on that same shipped baseline, use:
 

@@ -567,7 +567,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var idx_int_expr_cursor_regs = false
     if single_list_cursor == true &&
         (idx_nonneg_linear_fast == true || idx_int_expr_fast == true) &&
-        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS") == true {
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS") == true {
         idx_int_expr_cursor_regs = true
     }
 

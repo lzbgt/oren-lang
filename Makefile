@@ -1276,8 +1276,8 @@ perf-probe-arm64-fast-push-idx-expr-decision: oren_stage2
 perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision: oren_stage2
 	@OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_TAG=perf-probe-arm64-fast-push-idx-expr-cursor-regs-decision \
 	 OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_TITLE='arm64 fast list<int> push idx-expr cursor-regs decision summary' \
-	 OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_VARIANT_LABEL=enabled \
-	 OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_VARIANT_ENV=OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=1 \
+	 OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_VARIANT_LABEL=disabled \
+	 OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_VARIANT_ENV=OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS=0 \
 	 ./scripts/run_perf_probe_arm64_fast_push_idx_expr_decision.sh
 
 perf-probe-arm64-fast-push-nonneg-linear-decision: oren_stage2
