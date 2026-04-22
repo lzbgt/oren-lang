@@ -537,8 +537,9 @@ The emitted-code contract under that shipped branch is now guarded too. Disassem
 for mul/add/mod immediates even though inline GC countdown uses `x9` as the tick register. The
 helper now keeps `x9` reserved and uses `x11`/`x10` scratch instead, push loops now publish
 `[arm64_loop_range]` traces, and `make verify-native-list-int-fast-lowering`
-(`build/logs/verify_native_list_int_fast_lowering_20260423_034642_36487.log`) now disassembles the
-`array_sum_int` push loop and rejects any hot-loop `x9` use other than `subs x9, x9, #0x1`.
+(`build/logs/verify_native_list_int_fast_lowering_20260423_051622_70950.log`) now disassembles the
+`array_sum_int` push loop, rejects any hot-loop `x9` use beyond the shipped countdown forms
+(`subs x9, x9, #0x1` / `#0x4`), and requires the four-wide slot-store body to stay present.
 
 For the remaining emitted-code work below that branch, use:
 
@@ -548,10 +549,12 @@ make perf-probe-arm64-list-int-fill-hot-loop-disasm
 
 This disassembles the current shipped `fast_list_int_push_while*` loop for both `fill_list_int`
 and `array_sum_int`, excludes the cold GC tick block, and summarizes the hot-body mnemonic mix.
-Current shipped artifact `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_042356_51281.log`
-shows the fill loop at 25 total instructions / 17 hot instructions with the same hot mix on both
-benchmarks: one slot write, two `mul`, one `udiv`, one `sub`, three `add`, one `subs` tick, and no
-count/cursor writeback inside the hot body beyond the final cursor increment.
+The current shipped artifact
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_045542_59163.log` shows the
+promoted wide loop at 62 total instructions / 46 hot instructions, and the corrected normalization
+also reports the main wide iteration directly: 35 hot instructions for 4 output elements, or
+`8.75` hot instructions per output element. That shipped body now includes the wide `subs x9, x9,
+#0x4` countdown, four slot stores, a single cursor bump by 4, and a scalar 0..3 tail.
 
 That probe also closes the obvious “just fuse the remainder pair” branch. A narrow rerun replaced
 the shipped `udiv; mul; sub` remainder sequence with `udiv; msub`, which reduced the emitted hot
@@ -590,21 +593,38 @@ So the shipped nonnegative-linear path stays the simpler direct mul/add/(u)div l
 recurrence subpath was removed from the tree rather than kept as another speculative opt-in.
 
 The next emitted-code reweight is now anchored by a direct Oren-vs-C fill loop compare too:
-`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_043402_53791.log` pairs the shipped
-Oren fill hot-loop summary with the host C `-O2` assembly and shows the current scalar gap more
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_045541_59142.log` pairs the shipped
+Oren fill hot-loop summary with the host C `-O2` assembly and shows the current widened gap more
 directly:
 
 - Oren shipped fill hot body
-  - `17.00` instructions per element
-  - one value recurrence, one slot store, one loop tick check per element
+  - `35` hot instructions for 4 output elements, or `8.75` instructions per element
+  - four carried modulo steps plus four slot stores in the main body, with a scalar tail for the
+    final 0..3 elements
 - host C vector loop
   - `27` instructions for four elements, or `6.75` instructions per element
   - four independent recurrence streams carried in parallel, two `stp` stores per trip
 - host C scalar tail
   - `9` instructions per element
 
-So the next fill-side backend work should be judged against a missing wide/unrolled recurrence
-shape, not another theory about hot-path final count/cursor writeback alone.
+That wide/unrolled shape is now shipped by default too. The refreshed current-tree decision surface
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_045547_59235.log`
+compares shipped default against explicit disable
+(`OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4=0`) and still aligns in favor of the
+promoted branch:
+
+- fill/share prefers shipped default
+  - default `oren_fill_list_int / c_fill_slot64_vector ~2.2247x`
+  - disabled `~2.4860x`
+  - `fill_pref: default`
+- exact same-tree whole-operation surface also prefers shipped default
+  - `default_array_ratio_median ~2.1889x` vs disabled `~2.2154x` (`array_default_wins: 3/3`)
+  - `default_dot_ratio_median ~1.7420x` vs disabled `~1.7574x` (`exact_dot_pref: default`)
+  - `decision_surface_alignment: agree`
+
+So the next fill-side backend work should no longer be framed as “add a wide shape”. That shape is
+landed. The remaining gap is the arithmetic/store/tail/safepoint overhead inside the shipped wide
+body versus the host C four-lane recurrence ceiling.
 
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 

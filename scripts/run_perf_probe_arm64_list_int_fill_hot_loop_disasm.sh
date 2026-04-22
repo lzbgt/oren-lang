@@ -40,6 +40,7 @@ import sys
 range_re = re.compile(r"\[arm64_loop_range\] kind=([^\s]+) start=(\d+) end=(\d+) bytes=(\d+)")
 addr_re = re.compile(r"^([0-9a-fA-F]{16})\b")
 branch_target_re = re.compile(r"\b0x([0-9a-fA-F]+)\b")
+tick_step_re = re.compile(r"\bsubs\s+x9,\s*x9,\s*#(?:0x)?([0-9a-fA-F]+)\b")
 
 
 def load_lines(path):
@@ -143,6 +144,41 @@ def collect_cold_gc_tick_blocks(insns):
     return blocks, cold_insns
 
 
+def find_main_iter_metrics(hot_insns, start_abs, end_abs):
+    main_step = 1
+    for insn in hot_insns:
+        m = tick_step_re.search(insn["line"])
+        if not m:
+            continue
+        step = int(m.group(1), 16)
+        if step > main_step:
+            main_step = step
+    if main_step <= 1:
+        return len(hot_insns), 1, float(len(hot_insns))
+
+    scalar_target = None
+    for insn in hot_insns:
+        target = insn["target"]
+        if target is None:
+            continue
+        if not (insn["addr"] < target < end_abs):
+            continue
+        if not insn["mnemonic"].startswith("b."):
+            continue
+        scalar_target = target
+        break
+
+    if scalar_target is None:
+        return len(hot_insns), main_step, float(len(hot_insns)) / float(main_step)
+
+    main_iter_insns = [insn for insn in hot_insns if start_abs <= insn["addr"] < scalar_target]
+    if not main_iter_insns:
+        return len(hot_insns), main_step, float(len(hot_insns)) / float(main_step)
+
+    main_iter_hot = len(main_iter_insns)
+    return main_iter_hot, main_step, float(main_iter_hot) / float(main_step)
+
+
 def emit_block(label, path, prefix):
     lines = load_lines(path)
     base = first_text_addr(lines)
@@ -166,12 +202,16 @@ def emit_block(label, path, prefix):
     hot_insns = [insn for insn in insns if insn["addr"] not in cold_addrs]
     hot_count, hot_counts = count_mnemonics(hot_insns)
     cold_count, cold_counts = count_mnemonics(cold_insns)
+    main_iter_hot, main_iter_elems, main_iter_per_elem = find_main_iter_metrics(hot_insns, start_abs, end_abs)
     print(f"  kind: {kind}")
     print(f"  text_base: 0x{base:016x}")
     print(f"  range_off: {start_off}..{end_off} ({nbytes} bytes)")
     print(f"  range_abs: 0x{start_abs:016x}..0x{end_abs:016x}")
     print(f"  instruction_count: {total_insns}")
     print(f"  hot_instruction_count: {hot_count}")
+    print(f"  main_iter_output_elements: {main_iter_elems}")
+    print(f"  main_iter_hot_instruction_count: {main_iter_hot}")
+    print(f"  main_iter_hot_instructions_per_output_elem: {main_iter_per_elem:.2f}")
     print(f"  cold_gc_tick_blocks: {len(cold_blocks)}")
     print(f"  cold_gc_tick_instruction_count: {cold_count}")
     interesting = ["ldr", "ldp", "str", "stp", "mul", "madd", "msub", "udiv", "add", "subs", "cmp", "b", "bl"]

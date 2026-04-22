@@ -52,7 +52,15 @@ path, prefix = sys.argv[1], sys.argv[2]
 range_re = re.compile(r"\[arm64_loop_range\] kind=([^\s]+) start=(\d+) end=(\d+) bytes=(\d+)")
 addr_re = re.compile(r"^([0-9a-fA-F]{16})\b")
 branch_target_re = re.compile(r"\b0x([0-9a-fA-F]+)\b")
-allowed_tick_re = re.compile(r"\bsubs\s+x9,\s*x9,\s*#(?:0x)?1\b")
+allowed_tick_re = re.compile(r"\bsubs\s+x9,\s*x9,\s*#(?:0x)?(?:1|4)\b")
+wide_tick_re = re.compile(r"\bsubs\s+x9,\s*x9,\s*#(?:0x)?4\b")
+wide_bump_re = re.compile(r"\badd\s+x20,\s*x20,\s*#(?:0x)?4\b")
+wide_store_res = [
+    re.compile(r"\bstr\s+x12,\s*\[x19\]"),
+    re.compile(r"\bstr\s+x13,\s*\[x19,\s*#(?:0x)?8\]"),
+    re.compile(r"\bstr\s+x14,\s*\[x19,\s*#(?:0x)?10\]"),
+    re.compile(r"\bstr\s+x15,\s*\[x19,\s*#(?:0x)?18\]"),
+]
 
 
 def load_lines(path):
@@ -140,12 +148,22 @@ cold_addrs = collect_cold_gc_tick_blocks(insns)
 hot_insns = [insn for insn in insns if insn["addr"] not in cold_addrs]
 offenders = []
 allowed_tick_seen = False
+wide_tick_seen = False
+wide_bump_seen = False
+wide_store_seen = [False, False, False, False]
 for insn in hot_insns:
     line = insn["line"]
     if not re.search(r"\bx9\b", line):
+        if wide_bump_re.search(line):
+            wide_bump_seen = True
+        for idx, store_re in enumerate(wide_store_res):
+            if store_re.search(line):
+                wide_store_seen[idx] = True
         continue
     if allowed_tick_re.search(line):
         allowed_tick_seen = True
+        if wide_tick_re.search(line):
+            wide_tick_seen = True
         continue
     offenders.append(line)
 
@@ -157,6 +175,18 @@ if offenders:
     print(f"verify_native_list_int_fast_lowering: unexpected hot-loop x9 use in {prefix}", file=sys.stderr)
     for line in offenders:
         print(line, file=sys.stderr)
+    sys.exit(1)
+
+if not wide_tick_seen:
+    print(f"verify_native_list_int_fast_lowering: missing 4-wide hot-loop x9 countdown in {prefix}", file=sys.stderr)
+    sys.exit(1)
+
+if not wide_bump_seen:
+    print(f"verify_native_list_int_fast_lowering: missing 4-wide idx bump in {prefix}", file=sys.stderr)
+    sys.exit(1)
+
+if not all(wide_store_seen):
+    print(f"verify_native_list_int_fast_lowering: missing 4-wide slot stores in {prefix}", file=sys.stderr)
     sys.exit(1)
 PY
 }

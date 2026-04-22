@@ -286,23 +286,35 @@ fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
 }
 
 fn native_emit_gc_safepoint_inline_tick(ctx, tick_mask) {
-    return native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [[19, 20], [21, 22], [23, 24], [25, 26], [27, 28]])
+    return native_emit_gc_safepoint_inline_tick_pairs_step(ctx, tick_mask, 1, [[19, 20], [21, 22], [23, 24], [25, 26], [27, 28]])
 }
 
 fn native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, reg_pairs) {
+    return native_emit_gc_safepoint_inline_tick_pairs_step(ctx, tick_mask, 1, reg_pairs)
+}
+
+fn native_emit_gc_safepoint_inline_tick_pairs_step(ctx, tick_mask, step, reg_pairs) {
     // PERF:
     // Inline tick update for hot loops that do not allocate inside the body.
     //
     // Contract:
     // - Caller seeds the inline tick state via native_emit_gc_inline_tick_init(...).
     // - Uses X11 as scratch only on the fallback mask-gate path.
+    // - `step > 1` is only valid on the countdown path when the seeded period is divisible by the
+    //   step, so the effective safepoint frequency per logical iteration stays unchanged.
     //
     // Common case (low-bits mask, e.g. 4095): countdown to zero and branch on NZ.
     // Fallback: tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
+    if step == nil || step <= 0 { step = 1 }
     var period = native_arm64_inline_tick_period(tick_mask)
+    if period > 0 && step > 1 {
+        if int_mod(period, step) != 0 || step > 4095 {
+            step = 1
+        }
+    }
     if period > 0 {
         // Common shipped path: countdown avoids the per-iteration mask materialization/and/cmp trio.
-        push_u32_le(ctx["code"], insn_subs_imm(9, 9, 1))
+        push_u32_le(ctx["code"], insn_subs_imm(9, 9, step))
     } else {
         push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
         push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))

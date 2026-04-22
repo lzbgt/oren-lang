@@ -212,9 +212,10 @@ backend-shared value-helper slices landed.
     even though inline GC countdown uses `x9` as the tick register inside
     `fast_list_int_push_while`. The helper now keeps `x9` reserved and uses `x11`/`x10` scratch
     instead, both push emitters now publish `[arm64_loop_range]` traces, and
-    `build/logs/verify_native_list_int_fast_lowering_20260423_034642_36487.log` now disassembles
-    `array_sum_int` and rejects any hot-loop `x9` use beyond `subs x9, x9, #0x1`. The refreshed
-    shipped-vs-disabled rerun
+    `build/logs/verify_native_list_int_fast_lowering_20260423_051622_70950.log` now disassembles
+    `array_sum_int`, rejects any hot-loop `x9` use beyond the shipped countdown forms
+    (`subs x9, x9, #0x1` / `#0x4`), and requires the four-wide slot-store body to stay present. The
+    refreshed shipped-vs-disabled rerun
     (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_034811_37016.log`)
     still keeps the broad nonnegative-linear branch shipped on, with fill/share strongly preferring
     default (`default_fill_vs_c_vector ~2.4026×` vs disabled `~5.0016×`) and exact medians also
@@ -236,15 +237,20 @@ backend-shared value-helper slices landed.
     so the broad branch keeps the shipped `udiv; mul; sub` remainder path and the remaining
     open surface is the slot-store/arithmetic/safepoint-reset shape, not generic final
     count/cursor writeback
-  - that fill-side open surface is now narrowed again by a direct Oren-vs-C compare:
-    `make perf-probe-arm64-fill-vs-c-loop-compare` pairs the shipped fill hot-loop summary with
-    the host C `-O2` arm64 assembly, and
-    (`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_043402_53791.log`) shows the
-    Oren hot body at `17.00` instructions per element versus a host C four-wide recurrence block
-    `LBB0_15` at `27` instructions for four elements (`6.75` per element) plus a `9`-instruction
-    scalar tail in `LBB0_18`. That shifts the next backend branch away from another narrow scalar
-    count/cursor cleanup theory and toward a measured wide/unrolled nonnegative-linear fill path
-    experiment on the shipped tree
+  - that fill-side open surface then turned into the next shipped improvement too. The corrected
+    direct Oren-vs-C compare
+    (`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_045541_59142.log`) now reports
+    the landed wide body at `35` hot instructions for `4` output elements (`8.75` per element)
+    versus the host C four-wide recurrence block `LBB0_15` at `27` instructions for four elements
+    (`6.75` per element) plus a `9`-instruction scalar tail in `LBB0_18`. The decision surface for
+    that experiment is now closed positive and promoted:
+    `build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision-20260423_045547_59235.log`
+    keeps `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4` shipped on by default because the
+    promoted tree wins on fill/share (`default_fill_vs_c_vector ~2.2247×` vs disabled `~2.4860×`),
+    exact `array_sum_int` (`default_array_ratio_median ~2.1889×` vs `~2.2154×`), and exact
+    `dot_product_int` median (`default_dot_ratio_median ~1.7420×` vs `~1.7574×`). That shifts the
+    remaining backend work away from “add width” and toward the arithmetic / store / tail /
+    safepoint cost inside the now-landed four-wide body
   - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
     promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
     tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)

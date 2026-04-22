@@ -180,6 +180,9 @@ c_lines = read_lines(os.environ["C_ASM_LOG"])
 vec_total, vec_counts = count_mnemonics(c_vec)
 tail_total, tail_counts = count_mnemonics(c_tail)
 oren_hot = int(oren["hot_instruction_count"])
+oren_main_iter_elems = int(oren.get("main_iter_output_elements", "1"))
+oren_main_iter_hot = int(oren.get("main_iter_hot_instruction_count", str(oren_hot)))
+oren_main_iter_per_elem = float(oren.get("main_iter_hot_instructions_per_output_elem", str(float(oren_hot))))
 
 print(os.environ["TITLE"])
 print("")
@@ -192,6 +195,9 @@ for key in [
     "range_abs",
     "instruction_count",
     "hot_instruction_count",
+    "main_iter_output_elements",
+    "main_iter_hot_instruction_count",
+    "main_iter_hot_instructions_per_output_elem",
     "cold_gc_tick_blocks",
     "cold_gc_tick_instruction_count",
     "mnemonic_counts",
@@ -201,7 +207,7 @@ for key in [
 ]:
     if key in oren:
         print(f"oren_{key}: {oren[key]}")
-print(f"oren_hot_instructions_per_elem: {fmt_float(float(oren_hot))}")
+print(f"oren_hot_instructions_per_elem: {fmt_float(oren_main_iter_per_elem)}")
 print("")
 print(f"c_source: {os.environ['C_SOURCE']}")
 print(f"c_asm: {os.environ['C_ASM_LOG']}")
@@ -234,7 +240,7 @@ for line in oren["snippet"]:
 print("")
 print("comparison_notes:")
 print(
-    f"  Oren hot body is {oren_hot} insns per element; C vector body is {fmt_float(vec_total / 4.0)} insns per element before scalar tail cleanup"
+    f"  Oren hot main iteration is {oren_main_iter_hot} insns for {oren_main_iter_elems} output element(s), or {fmt_float(oren_main_iter_per_elem)} per element; C vector body is {fmt_float(vec_total / 4.0)} insns per element before scalar tail cleanup"
 )
 print(
     f"  Oren still performs one value recurrence, one slot store, and one loop tick check per element; C carries four independent recurrence streams through {vec_label}"

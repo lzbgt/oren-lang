@@ -216,6 +216,19 @@ fn _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, linear, idx_reg) {
     return true
 }
 
+fn _arm64_emit_add_step_mod_inplace(ctx, val_reg, step_reg, mod_reg) {
+    if ctx == nil || val_reg == nil || step_reg == nil || mod_reg == nil { return false }
+    push_u32_le(ctx["code"], insn_add_reg(val_reg, val_reg, step_reg))
+    push_u32_le(ctx["code"], insn_cmp_reg(val_reg, mod_reg))
+    var jskip_sub = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], insn_sub_reg(val_reg, val_reg, mod_reg))
+    var after = bytes_len(ctx["code"])
+    var off = (after - jskip_sub) / 4
+    set_u32_le(ctx["code"], jskip_sub, insn_b_cond(off, 11)) // LT
+    return true
+}
+
 fn _arm64_emit_trace_list_header_if_enabled(ctx, list_reg) {
     if ctx == nil || ctx["trace_native_list_hdr"] == nil { return nil }
     if list_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, list_reg)) }
@@ -570,6 +583,24 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS") == true {
         idx_int_expr_cursor_regs = true
     }
+    var idx_nonneg_linear_unroll4_fast = false
+    var idx_nonneg_linear_unroll4_step = nil
+    var idx_nonneg_linear_unroll4_mod = nil
+    if single_list_cursor == true &&
+        idx_int_expr_cursor_regs == true &&
+        idx_nonneg_linear_fast == true &&
+        oren_list_len(pushes) == 1 &&
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4") == true {
+        var linear0 = pushes[0]["linear"]
+        if linear0 != nil && linear0["mod"] != nil && linear0["mod"] > 0 {
+            var period0 = gc.native_arm64_inline_tick_period(tick_mask)
+            if period0 > 0 && int_mod(period0, 4) == 0 {
+                idx_nonneg_linear_unroll4_fast = true
+                idx_nonneg_linear_unroll4_mod = linear0["mod"]
+                idx_nonneg_linear_unroll4_step = int_mod(linear0["mul"], linear0["mod"])
+            }
+        }
+    }
 
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -732,6 +763,13 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
         emit_ldr_reg_sp_any(ctx, 20, i_off)
         emit_ldr_reg_sp_any(ctx, 21, n_off)
+        if idx_nonneg_linear_unroll4_fast == true {
+            emit_load_i64_imm(ctx, 22, idx_nonneg_linear_unroll4_step)
+            emit_load_i64_imm(ctx, 23, idx_nonneg_linear_unroll4_mod)
+            _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, pushes[0]["linear"], 20)
+            push_u32_le(ctx["code"], insn_mov_reg(24, 0))
+            emit_load_i64_imm(ctx, 25, 4)
+        }
     }
 
     // Fast loop entry
@@ -744,7 +782,10 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    if idx_int_expr_cursor_regs == true {
+    if idx_nonneg_linear_unroll4_fast == true {
+        // The unrolled branch emits its own step-aware safepoint checks in the wide body and falls
+        // back to a scalar recurrence tail for the final 0..3 elements.
+    } else if idx_int_expr_cursor_regs == true {
         gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [[19, 20], [21, 22]])
     } else {
         gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
@@ -752,7 +793,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
 
     // Keep idx local updated for generic value expressions. The idx-only int fast path uses X20
     // directly and avoids the extra frame spill/reload churn in fill-heavy loops.
-    if idx_int_expr_fast != true {
+    if idx_int_expr_fast != true && idx_nonneg_linear_unroll4_fast != true {
         emit_str_reg_fp_any(ctx, 20, idx_fp_off)
     }
 
@@ -761,28 +802,86 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var value_expr = push["value"]
         var buf_slot2 = list_base_off + 8
 
-        // value -> X0
-        if idx_nonneg_linear_fast == true {
-            _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, push["linear"], 20)
-        } else if idx_int_expr_fast == true {
-            _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
-        } else {
-            native_compile_expr(ctx, value_expr)
-            _arm64_restore_stack_to(ctx, loop_base_stack)
-        }
+        if idx_nonneg_linear_unroll4_fast == true {
+            // Measured opt-in branch: widen the shipped scalar recurrence into a four-lane cursor
+            // loop while keeping the broad nonnegative-linear proof and per-element safepoint
+            // frequency aligned with the shipped scalar path.
+            push_u32_le(ctx["code"], insn_sub_reg(10, 21, 20))
+            push_u32_le(ctx["code"], insn_cmp_reg(10, 25))
+            var jpos_scalar_tail = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // patched: b.lt scalar tail
 
-        if idx_int_expr_cursor_regs == true {
+            gc.native_emit_gc_safepoint_inline_tick_pairs_step(ctx, tick_mask, 4, [[19, 20], [21, 22]])
+
+            push_u32_le(ctx["code"], insn_mov_reg(12, 24))
+            push_u32_le(ctx["code"], insn_mov_reg(13, 12))
+            _arm64_emit_add_step_mod_inplace(ctx, 13, 22, 23)
+            push_u32_le(ctx["code"], insn_mov_reg(14, 13))
+            _arm64_emit_add_step_mod_inplace(ctx, 14, 22, 23)
+            push_u32_le(ctx["code"], insn_mov_reg(15, 14))
+            _arm64_emit_add_step_mod_inplace(ctx, 15, 22, 23)
+
+            push_u32_le(ctx["code"], insn_str_ptr(12, 19))
+            push_u32_le(ctx["code"], insn_str_ptr_off(13, 19, 8))
+            push_u32_le(ctx["code"], insn_str_ptr_off(14, 19, 16))
+            push_u32_le(ctx["code"], insn_str_ptr_off(15, 19, 24))
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 32))
+
+            push_u32_le(ctx["code"], insn_mov_reg(24, 15))
+            _arm64_emit_add_step_mod_inplace(ctx, 24, 22, 23)
+            push_u32_le(ctx["code"], insn_add_imm(20, 20, 4))
+
+            var jpos_skip_scalar_tail = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // patched: b loop_back
+
+            var scalar_tail_pos = bytes_len(ctx["code"])
+            var scalar_tail_off = (scalar_tail_pos - jpos_scalar_tail) / 4
+            set_u32_le(ctx["code"], jpos_scalar_tail, insn_b_cond(scalar_tail_off, 11)) // LT
+
+            gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [[19, 20], [21, 22]])
+            push_u32_le(ctx["code"], insn_mov_reg(0, 24))
+            push_u32_le(ctx["code"], insn_str_ptr(0, 19))
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+            _arm64_emit_add_step_mod_inplace(ctx, 24, 22, 23)
+            push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+
+            var after_scalar_tail = bytes_len(ctx["code"])
+            var skip_scalar_tail_off = (after_scalar_tail - jpos_skip_scalar_tail) / 4
+            set_u32_le(ctx["code"], jpos_skip_scalar_tail, insn_b(skip_scalar_tail_off))
+        } else if idx_int_expr_cursor_regs == true {
+            // value -> X0
+            if idx_nonneg_linear_fast == true {
+                _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, push["linear"], 20)
+            } else if idx_int_expr_fast == true {
+                _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
+            } else {
+                native_compile_expr(ctx, value_expr)
+                _arm64_restore_stack_to(ctx, loop_base_stack)
+            }
+
             push_u32_le(ctx["code"], insn_str_ptr(0, 19))
             push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
         } else {
+            // value -> X0
+            if idx_nonneg_linear_fast == true {
+                _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, push["linear"], 20)
+            } else if idx_int_expr_fast == true {
+                _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
+            } else {
+                native_compile_expr(ctx, value_expr)
+                _arm64_restore_stack_to(ctx, loop_base_stack)
+            }
+
             emit_ldr_reg_sp_any(ctx, 19, buf_slot2)
             push_u32_le(ctx["code"], insn_str_ptr(0, 19))
             push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
             emit_str_reg_sp_any(ctx, 19, buf_slot2)
             emit_ldr_reg_sp_any(ctx, 20, i_off)
         }
-        push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
-        if idx_int_expr_cursor_regs != true {
+        if idx_nonneg_linear_unroll4_fast != true {
+            push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+        }
+        if idx_int_expr_cursor_regs != true && idx_nonneg_linear_unroll4_fast != true {
             emit_str_reg_sp_any(ctx, 20, i_off)
         }
     } else {
