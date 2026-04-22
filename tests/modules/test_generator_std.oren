@@ -53,6 +53,7 @@ fn decl_collect(seed) {
 
 fn main() {
     var g = gen.start(counter_worker, [40])
+    assert_eq(oren_type_name(g), "generator", 9)
     var s0 = gen.next(g)
     if oren_is_err(s0) == true { fail(10) }
     assert_true(s0["ok"] == true, 11)
@@ -144,6 +145,7 @@ fn main() {
     assert_eq(lg1["return"], 104, 71)
 
     var g6 = decl_counter(40)
+    assert_eq(oren_type_name(g6), "generator", 88)
     var d0 = gen.next(g6)
     if oren_is_err(d0) == true { fail(72) }
     assert_eq(d0["value"], 41, 73)

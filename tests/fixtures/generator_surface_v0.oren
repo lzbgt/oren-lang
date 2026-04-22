@@ -79,6 +79,7 @@ fn main() {
     if raw_idx1 == raw_idx2 { return 92 }
 
     var g1 = gen.start(counter_worker, [40])
+    if oren_type_name(g1) != "generator" { return 93 }
     var s0 = gen.next(g1)
     if oren_is_err(s0) == true { return 100 }
     if s0["ok"] != true || s0["done"] != false || s0["value"] != 41 { return 101 }
@@ -89,6 +90,19 @@ fn main() {
     if oren_is_err(s2) == true { return 104 }
     if s2["done"] != true || s2["return"] != 12 { return 105 }
     if gen.is_done(g1) != true || gen.return_value(g1) != 12 { return 106 }
+
+    var g1b = oren_generator_start(counter_worker, [20])
+    if oren_type_name(g1b) != "generator" { return 107 }
+    var sb0 = oren_generator_next(g1b)
+    if oren_is_err(sb0) == true { return 161 }
+    if sb0["ok"] != true || sb0["value"] != 21 { return 162 }
+    var sb1 = oren_generator_send(g1b, 2)
+    if oren_is_err(sb1) == true { return 163 }
+    if sb1["ok"] != true || sb1["value"] != 22 { return 164 }
+    var sb2 = oren_generator_send(g1b, 7)
+    if oren_is_err(sb2) == true { return 165 }
+    if sb2["done"] != true || sb2["return"] != 12 { return 166 }
+    if oren_generator_is_done(g1b) != true || oren_generator_return_value(g1b) != 12 { return 167 }
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
@@ -110,6 +124,7 @@ fn main() {
     if gen.return_value(g4) != 35 { return 133 }
 
     var g5 = decl_counter(40)
+    if oren_type_name(g5) != "generator" { return 139 }
     var d0 = gen.next(g5)
     if oren_is_err(d0) == true { return 140 }
     if d0["ok"] != true || d0["done"] != false || d0["value"] != 41 { return 141 }

@@ -3378,8 +3378,8 @@ Rolling status:
   intentionally local and backend-shared:
   - `oren_yield_value(v)` yields, then resumes with `v`
   - no caller-supplied resume value exists yet
-  - no compiler-managed generator object/channel exists yet; outward value flow currently uses
-    explicit exchange channels or the stdlib `std:generator` wrapper built on top of them
+  - the shipped generator handle is now compiler-managed and tagged as `generator`, but its worker
+    protocol still uses explicit exchange channels under the hood
 - New (2026-04-22): explicit caller-visible yield/resume channels now also exist through
   `oren_yield_exchange(yield_ch, resume_ch, value)`. The same contract now also has a first-class
   source syntax on the shared front-end:
@@ -3389,14 +3389,15 @@ Rolling status:
   On native host threads with green runtime already active and no background workers, `oren_yield()`
   now drives one cooperative green scheduling step before falling back to the OS yield hint. The
   first reusable source-level abstraction above it is now `std:generator`, whose
-  `start/next/send/collect` surface is built directly on `yield ... in (yield_ch, resume_ch)` and
-  the shared channel/select runtime. The remaining gap is broader compiler/language
-  coroutine/generator protocol above that explicit/library-backed form, not first availability of
-  source syntax or reusable generator helpers.
+  `start/next/send/collect` surface is now a thin facade over compiler-injected
+  `oren_generator_*` helpers and a tagged `generator` handle, while worker bodies still use
+  `yield ... in (yield_ch, resume_ch)` and the shared channel/select runtime underneath. The
+  remaining gap is broader coroutine/generator protocol above that first compiler-managed handle,
+  not first availability of source syntax or reusable generator helpers.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
   on top of that same protocol:
   - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
-  - the declaration lowers to a wrapper that returns `std:generator.start(...)`
+  - the declaration lowers to a wrapper that returns `oren_generator_start(...)`
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
     `channel_resume_v0` exchange contract
   - the same v0 surface is now verified for both top-level and block-local declarations across
@@ -3691,9 +3692,10 @@ Notes:
     `context`, `syntax`, and `explicit_value`.
 - Generator declaration sugar is exposed separately too:
   - `is_generator_decl`: `true` for functions declared with `@oren.generator`
-  - `generator_decl_surface`: machine-readable statement of the current wrapper protocol
-    (`std_generator_wrapper_v0`, syntax `attr_oren.generator`, stdlib module `std:generator`,
-    caller handle `generator_map_v0`, underlying yield surface `channel_resume_v0`)
+  - `generator_decl_surface`: machine-readable statement of the current generator object protocol
+    (`compiler_generator_object_v0`, syntax `attr_oren.generator`, helper API
+    `oren_generator_start_v0`, caller handle `generator_handle_v0`, object type `generator`,
+    underlying yield surface `channel_resume_v0`)
 - Functions that contain source-level `yield` also expose `yield_lowering`, a rolling internal plan
   object with:
   - `entry_state`

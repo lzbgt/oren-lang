@@ -4238,16 +4238,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`. The remaining gap is a
 	     stronger language-level coroutine/generator protocol above that explicit channel surface.
 	   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
-	     top of that explicit exchange contract. It standardizes `worker(co, args_list)` plus
-	     `start/next/send/collect`, and the C backend path now relies on a shared POSIX
-	     `oren_select` / `oren_select_recv` runtime surface instead of backend-specific generator
-	     workarounds. Reweight the remaining coroutine backlog toward language/runtime object-model
-	     work, not basic generator availability.
-	   - New (2026-04-22): top-level `@oren.generator fn ...` now ships as the first parser-level
-	     generator declaration sugar on top of `std:generator`. Reweight the remaining work again:
-	     the missing piece is no longer “first source syntax for generators”, it is a compiler-managed
-	     coroutine/generator object model that can replace the current stdlib-map wrapper now that
-	     block-local `@oren.generator` declarations and shared local named-function sugar are parity-
+	     top of that explicit exchange contract, but it is no longer the storage owner. Its
+	     `start/next/send/collect` surface is now a thin facade over compiler-injected
+	     `oren_generator_*` helpers, and the shipped handle is tagged as `generator`.
+	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` now lower to that same
+	     compiler-managed handle surface instead of a hidden `std:generator.start(...)` import.
+	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
+	     wrapper”, it is the next abstraction layer above the shipped `generator` handle
+	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
+	     iterable/coroutine language affordances without manual channel semantics leaking through).
 	     verified across bytecode, C, and native.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.

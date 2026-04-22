@@ -1407,19 +1407,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `syntax_kinds` plus per-point `syntax` / `explicit_value`. The remaining gap is fuller
 	     coroutine/generator protocol above that explicit channel surface.
 	   - New (2026-04-22): the first reusable source-level generator abstraction now ships as
-	     `std:generator`. Its `start/next/send/collect` API uses the same explicit
-	     `yield ... in (yield_ch, resume_ch)` protocol with a fixed worker contract
-	     `worker(co, args_list)`, and the C backend path is now real because the shared POSIX runtime
-	     exposes `oren_select` / `oren_select_recv` for pipe-backed channels. What is still missing is
-	     a compiler-managed generator/coroutine object model above that library-backed surface.
-	   - New (2026-04-22): top-level `@oren.generator fn ...` declaration sugar now ships on top of
-	     that same `std:generator` surface. The compiler rewrites plain `yield` / `yield expr` inside
-	     the declaration to the shared channel-resume protocol, then returns the same generator-handle
-	     map shape that `std:generator.start(...)` produces. Metadata/dump/OBC surfaces now expose
-	     `is_generator_decl` plus `generator_decl_surface` so this wrapper form is visible to tools.
-	     The next landing widened that same surface to block-local declarations too, on top of shared
-	     parser-level local named-function lowering (`fn name(...) { ... } -> var name = fn (...) { ... }`)
-	     and nested-lambda capture propagation across bytecode, C, and native. The remaining boundary
+	     `std:generator`. Its `start/next/send/collect` API is now a thin facade over
+	     compiler-injected `oren_generator_*` helpers, so the shipped handle is tagged as
+	     `generator` instead of being exposed only as an ad hoc stdlib map, while the worker contract
+	     still uses the same explicit `yield ... in (yield_ch, resume_ch)` protocol underneath.
+	   - New (2026-04-22): top-level and block-local `@oren.generator fn ...` declaration sugar now
+	     lowers to that same compiler-managed generator-handle surface instead of a hidden
+	     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
+	     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v0`, so tools can
+	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
+	     `channel_resume_v0` yield contract. The remaining boundary
 	     is now declaration shape, not scope: `@oren.generator` still requires a named function declaration.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.

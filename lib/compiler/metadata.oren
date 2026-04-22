@@ -403,8 +403,9 @@ fn json_generator_decl_surface(surface) {
     out = out + "\"version\": " + oren_int_to_string(surface["version"]) + ", "
     out = out + "\"surface\": " + json_string(surface["surface"]) + ", "
     out = out + "\"syntax\": " + json_string(surface["syntax"]) + ", "
-    out = out + "\"stdlib_module\": " + json_string(surface["stdlib_module"]) + ", "
+    out = out + "\"helper_api\": " + json_string(surface["helper_api"]) + ", "
     out = out + "\"caller_api\": " + json_string(surface["caller_api"]) + ", "
+    out = out + "\"object_type\": " + json_string(surface["object_type"]) + ", "
     out = out + "\"yield_surface\": " + json_string(surface["yield_surface"])
     out = out + " }"
     return out

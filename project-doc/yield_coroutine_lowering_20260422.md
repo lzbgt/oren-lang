@@ -102,16 +102,28 @@ backend-shared value-helper slices landed.
   top of that same contract. The front-end lowers
   `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
   to:
-  - a wrapper function `counter(seed)` that returns `std:generator.start(worker, [])`
+  - a wrapper function `counter(seed)` that returns `oren_generator_start(worker, [])`
   - a hidden worker body where plain `yield` / `yield expr` are rewritten to
     `yield [expr] in (co["yield_ch"], co["resume_ch"])`
   - metadata markers `is_generator_decl=true` plus `generator_decl_surface` so tool surfaces can
-    distinguish the wrapper form from raw helper calls or manual `std:generator.start(...)`
+    distinguish the wrapper form from raw helper calls or manual `oren_generator_start(...)`
   That surface is now verified for both top-level and block-local declarations because the parser
   also lowers block-local named functions through the shared first-class callable form
   `fn name(...) { ... } -> var name = fn (...) { ... }`, and the closure analyzers for bytecode, C,
   and native now propagate nested-lambda free vars outward so local generator wrappers can capture
   enclosing locals correctly.
+
+- Fresh landing (2026-04-22): the “replace the stdlib-map wrapper” slice is now done. The parser
+  injects a hidden generator core into only the modules that need it, exposing:
+  - `oren_generator_start(worker, args_list)`
+  - `oren_generator_next(gen)`
+  - `oren_generator_send(gen, value)`
+  - `oren_generator_is_done(gen)`
+  - `oren_generator_return_value(gen)`
+  - `oren_generator_collect(gen)`
+  The handle is tagged as `{"__oren_type": "generator", ...}`, so `oren_type_name(gen)` now
+  returns `"generator"` across bytecode, C, and native. `std:generator` is now a thin facade over
+  those helpers instead of owning the state layout itself.
 
 The remaining boundary is narrower and still deliberate: `@oren.generator` applies only to named
 function declarations, not anonymous function literals or arbitrary statements.

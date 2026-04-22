@@ -59,6 +59,7 @@ fn avm_decl_collect(seed) {
 
 fn test_step_protocol() {
     var g = gen.start(avm_counter_worker, [40])
+    assert_eq(oren_type_name(g), "generator", 9)
     var s0 = gen.next(g)
     assert_true(oren_is_err(s0) == false, 10)
     assert_true(s0["ok"] == true, 11)
@@ -101,6 +102,7 @@ fn test_initial_send_err() {
 
 fn test_generator_decl_syntax() {
     var g0 = avm_decl_counter(40)
+    assert_eq(oren_type_name(g0), "generator", 39)
     var s0 = gen.next(g0)
     assert_true(oren_is_err(s0) == false, 40)
     assert_eq(s0["value"], 41, 41)

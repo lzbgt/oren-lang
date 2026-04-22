@@ -76,11 +76,12 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 1,
-    "surface": "std_generator_wrapper_v0",
+    "version": 2,
+    "surface": "compiler_generator_object_v0",
     "syntax": "attr_oren.generator",
-    "stdlib_module": "std:generator",
-    "caller_api": "generator_map_v0",
+    "helper_api": "oren_generator_start_v0",
+    "caller_api": "generator_handle_v0",
+    "object_type": "generator",
     "yield_surface": "channel_resume_v0",
 }
 

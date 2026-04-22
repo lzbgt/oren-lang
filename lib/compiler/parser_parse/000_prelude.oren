@@ -1,5 +1,6 @@
 import token "token.oren"
 import ast "ast.oren"
+import lexer "lexer.oren"
 import core "parser_core.oren"
 
 // Re-export precedence constants into this module's scope so the rest of the
@@ -269,8 +270,8 @@ fn parse_program(p) {
         stmt_i = stmt_i + 1
         parser_next_token(p)
     }
-    if p["_needs_generator_import"] == true {
-        prog["statements"] = _prepend_stmt(prog["statements"], _generator_import_stmt(p))
+    if p["_skip_generator_core_inject"] != true && _program_needs_generator_core(prog) == true {
+        prog["statements"] = _prepend_stmts(prog["statements"], _generator_core_stmts(p))
     }
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
     prog["traits"] = p["traits"]
@@ -452,35 +453,287 @@ fn _attrs_filter_out_name(attrs, nm) {
     return out
 }
 
-fn _generator_import_alias(p) {
-    var alias = p["_generator_import_alias"]
-    if alias != nil && alias != "" { return alias }
-    alias = parser_gensym(p, "@generator_mod_")
-    p["_generator_import_alias"] = alias
-    p["_needs_generator_import"] = true
-    return alias
-}
-
-fn _generator_import_stmt(p) {
-    var alias = p["_generator_import_alias"]
-    if alias == nil || alias == "" { return nil }
-    var tok = token.new_token(token.TOK_IMPORT, "import")
-    tok["file"] = p["file"]
-    var alias_tok = token.new_token(token.TOK_IDENT, alias)
-    alias_tok["file"] = p["file"]
-    return ast.new_import(tok, ast.new_identifier(alias_tok), "std:generator")
-}
-
-fn _prepend_stmt(stmts, stmt) {
-    if stmt == nil { return stmts }
-    if stmts == nil { return [stmt] }
-    var out = [stmt]
+fn _prepend_stmts(stmts, prefix_stmts) {
+    if prefix_stmts == nil || oren_list_len(prefix_stmts) == 0 { return stmts }
+    if stmts == nil { return prefix_stmts }
+    var out = []
     var i = 0
+    while i < oren_list_len(prefix_stmts) {
+        oren_list_push(out, prefix_stmts[i])
+        i = i + 1
+    }
+    i = 0
     while i < oren_list_len(stmts) {
         oren_list_push(out, stmts[i])
         i = i + 1
     }
     return out
+}
+
+fn _generator_helper_name_used(name) {
+    if name == "oren_generator_start" { return true }
+    if name == "oren_generator_next" { return true }
+    if name == "oren_generator_send" { return true }
+    if name == "oren_generator_is_done" { return true }
+    if name == "oren_generator_return_value" { return true }
+    if name == "oren_generator_collect" { return true }
+    return false
+}
+
+fn _expr_uses_generator_core(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Identifier" {
+        return _generator_helper_name_used(expr["value"]) == true
+    }
+    if t == "Function" || t == "Lambda" {
+        return _stmt_uses_generator_core(expr["body"])
+    }
+    if t == "Prefix" {
+        return _expr_uses_generator_core(expr["right"])
+    }
+    if t == "Infix" {
+        if _expr_uses_generator_core(expr["left"]) == true { return true }
+        return _expr_uses_generator_core(expr["right"])
+    }
+    if t == "If" {
+        if _expr_uses_generator_core(expr["cond"]) == true { return true }
+        if _stmt_uses_generator_core(expr["consq"]) == true { return true }
+        return _stmt_uses_generator_core(expr["alt"])
+    }
+    if t == "Call" {
+        if _expr_uses_generator_core(expr["fn"]) == true { return true }
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            if _expr_uses_generator_core(args[i]) == true { return true }
+            i = i + 1
+        }
+        if expr["spread"] != nil { return _expr_uses_generator_core(expr["spread"]) }
+        return false
+    }
+    if t == "Member" {
+        if _expr_uses_generator_core(expr["left"]) == true { return true }
+        return _expr_uses_generator_core(expr["prop"])
+    }
+    if t == "Index" {
+        if _expr_uses_generator_core(expr["left"]) == true { return true }
+        return _expr_uses_generator_core(expr["index"])
+    }
+    if t == "Array" {
+        var elems = expr["elements"]
+        var ei = 0
+        while elems != nil && ei < oren_list_len(elems) {
+            if _expr_uses_generator_core(elems[ei]) == true { return true }
+            ei = ei + 1
+        }
+        return false
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var pi = 0
+        while pairs != nil && pi < oren_list_len(pairs) {
+            var pair = pairs[pi]
+            if pair["key"] != nil && _expr_uses_generator_core(pair["key"]) == true { return true }
+            if pair["value"] != nil && _expr_uses_generator_core(pair["value"]) == true { return true }
+            if pair["k"] != nil && _expr_uses_generator_core(pair["k"]) == true { return true }
+            if pair["v"] != nil && _expr_uses_generator_core(pair["v"]) == true { return true }
+            pi = pi + 1
+        }
+        return false
+    }
+    if t == "SpawnExpr" {
+        return _expr_uses_generator_core(expr["call"])
+    }
+    return false
+}
+
+fn _stmt_uses_generator_core(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            if _stmt_uses_generator_core(xs[i]) == true { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "ExprStmt" { return _expr_uses_generator_core(stmt["expr"]) }
+    if t == "Var" { return _expr_uses_generator_core(stmt["value"]) }
+    if t == "Assign" { return _expr_uses_generator_core(stmt["value"]) }
+    if t == "Set" {
+        if _expr_uses_generator_core(stmt["left"]) == true { return true }
+        return _expr_uses_generator_core(stmt["value"])
+    }
+    if t == "Return" { return _expr_uses_generator_core(stmt["value"]) }
+    if t == "While" {
+        if _expr_uses_generator_core(stmt["cond"]) == true { return true }
+        return _stmt_uses_generator_core(stmt["body"])
+    }
+    if t == "For" {
+        if _stmt_uses_generator_core(stmt["init"]) == true { return true }
+        if _expr_uses_generator_core(stmt["cond"]) == true { return true }
+        if _stmt_uses_generator_core(stmt["post"]) == true { return true }
+        return _stmt_uses_generator_core(stmt["body"])
+    }
+    if t == "If" {
+        if _expr_uses_generator_core(stmt["cond"]) == true { return true }
+        if _stmt_uses_generator_core(stmt["consq"]) == true { return true }
+        return _stmt_uses_generator_core(stmt["alt"])
+    }
+    if t == "Spawn" { return _expr_uses_generator_core(stmt["call"]) }
+    if t == "Switch" {
+        if _expr_uses_generator_core(stmt["value"]) == true { return true }
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            var vals = c["values"]
+            var vi = 0
+            while vals != nil && vi < oren_list_len(vals) {
+                if _expr_uses_generator_core(vals[vi]) == true { return true }
+                vi = vi + 1
+            }
+            if _stmt_uses_generator_core(c["body"]) == true { return true }
+            ci = ci + 1
+        }
+        return _stmt_uses_generator_core(stmt["default"])
+    }
+    return false
+}
+
+fn _program_needs_generator_core(prog) {
+    if prog == nil || prog["statements"] == nil { return false }
+    var stmts = prog["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        if _stmt_uses_generator_core(stmts[i]) == true { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _generator_core_src() {
+    var src = ""
+    src = src + "fn _oren_generator_err(ctx, msg) { return oren_err(4, ctx + \": \" + msg) }\n"
+    src = src + "fn _oren_generator_step_value(ok, done, value, retv) { return {\"ok\": ok, \"done\": done, \"value\": value, \"return\": retv} }\n"
+    src = src + "fn _oren_generator_yield_step(value) { return _oren_generator_step_value(true, false, value, nil) }\n"
+    src = src + "fn _oren_generator_done_step(retv) { return _oren_generator_step_value(false, true, nil, retv) }\n"
+    src = src + "fn _oren_generator_ctx(yield_ch, resume_ch) { return {\"__oren_type\": \"generator_context\", \"yield_ch\": yield_ch, \"resume_ch\": resume_ch} }\n"
+    src = src + "fn _oren_generator_finish(gen, retv) {\n"
+    src = src + "    oren_map_set_str(gen, \"done\", true)\n"
+    src = src + "    oren_map_set_str(gen, \"return\", retv)\n"
+    src = src + "    var task = oren_map_get_str(gen, \"task\")\n"
+    src = src + "    if task != nil && task != 0 { oren_join(task) }\n"
+    src = src + "    oren_map_set_str(gen, \"task\", nil)\n"
+    src = src + "    return retv\n"
+    src = src + "}\n"
+    src = src + "fn _oren_generator_entry(worker, args_list, yield_ch, resume_ch, done_ch) {\n"
+    src = src + "    var retv = worker(_oren_generator_ctx(yield_ch, resume_ch), args_list)\n"
+    src = src + "    oren_chan_send(done_ch, retv)\n"
+    src = src + "    return retv\n"
+    src = src + "}\n"
+    src = src + "fn _oren_generator_ensure_task(gen) {\n"
+    src = src + "    var task = oren_map_get_str(gen, \"task\")\n"
+    src = src + "    if task != nil && task != 0 { return task }\n"
+    src = src + "    task = spawn _oren_generator_entry(\n"
+    src = src + "        oren_map_get_str(gen, \"worker\"),\n"
+    src = src + "        oren_map_get_str(gen, \"args_list\"),\n"
+    src = src + "        oren_map_get_str(gen, \"yield_ch\"),\n"
+    src = src + "        oren_map_get_str(gen, \"resume_ch\"),\n"
+    src = src + "        oren_map_get_str(gen, \"done_ch\")\n"
+    src = src + "    )\n"
+    src = src + "    oren_map_set_str(gen, \"task\", task)\n"
+    src = src + "    return task\n"
+    src = src + "}\n"
+    src = src + "fn _oren_generator_resume(gen, value) {\n"
+    src = src + "    _oren_generator_ensure_task(gen)\n"
+    src = src + "    if oren_map_get_str(gen, \"started\") == true {\n"
+    src = src + "        oren_chan_send(oren_map_get_str(gen, \"resume_ch\"), value)\n"
+    src = src + "    } else {\n"
+    src = src + "        oren_map_set_str(gen, \"started\", true)\n"
+    src = src + "    }\n"
+    src = src + "    oren_yield()\n"
+    src = src + "    var sel = oren_select([[0, oren_map_get_str(gen, \"done_ch\")], [0, oren_map_get_str(gen, \"yield_ch\")]])\n"
+    src = src + "    var idx = sel[0]\n"
+    src = src + "    var payload = sel[1]\n"
+    src = src + "    if idx == 0 {\n"
+    src = src + "        _oren_generator_finish(gen, payload)\n"
+    src = src + "        return _oren_generator_done_step(payload)\n"
+    src = src + "    }\n"
+    src = src + "    return _oren_generator_yield_step(payload)\n"
+    src = src + "}\n"
+    src = src + "@oren.keep\n"
+    src = src + "fn oren_generator_start(worker, args_list) {\n"
+    src = src + "    if args_list == nil { args_list = [] }\n"
+    src = src + "    var yield_ch = oren_new_channel()\n"
+    src = src + "    var resume_ch = oren_new_channel()\n"
+    src = src + "    var done_ch = oren_new_channel()\n"
+    src = src + "    return {\n"
+    src = src + "        \"__oren_type\": \"generator\",\n"
+    src = src + "        \"__generator_v0\": true,\n"
+    src = src + "        \"worker\": worker,\n"
+    src = src + "        \"args_list\": args_list,\n"
+    src = src + "        \"yield_ch\": yield_ch,\n"
+    src = src + "        \"resume_ch\": resume_ch,\n"
+    src = src + "        \"done_ch\": done_ch,\n"
+    src = src + "        \"task\": nil,\n"
+    src = src + "        \"started\": false,\n"
+    src = src + "        \"done\": false,\n"
+    src = src + "        \"return\": nil,\n"
+    src = src + "    }\n"
+    src = src + "}\n"
+    src = src + "@oren.keep\n"
+    src = src + "fn oren_generator_next(gen) {\n"
+    src = src + "    if oren_map_get_str(gen, \"done\") == true { return _oren_generator_done_step(oren_map_get_str(gen, \"return\")) }\n"
+    src = src + "    return _oren_generator_resume(gen, nil)\n"
+    src = src + "}\n"
+    src = src + "@oren.keep\n"
+    src = src + "fn oren_generator_send(gen, value) {\n"
+    src = src + "    if oren_map_get_str(gen, \"done\") == true { return _oren_generator_done_step(oren_map_get_str(gen, \"return\")) }\n"
+    src = src + "    if oren_map_get_str(gen, \"started\") != true && value != nil {\n"
+    src = src + "        return _oren_generator_err(\"generator.send\", \"initial send expects nil; use generator.next(gen) first\")\n"
+    src = src + "    }\n"
+    src = src + "    return _oren_generator_resume(gen, value)\n"
+    src = src + "}\n"
+    src = src + "@oren.keep\n"
+    src = src + "fn oren_generator_is_done(gen) { return oren_map_get_str(gen, \"done\") == true }\n"
+    src = src + "@oren.keep\n"
+    src = src + "fn oren_generator_return_value(gen) { return oren_map_get_str(gen, \"return\") }\n"
+    src = src + "@oren.keep\n"
+    src = src + "fn oren_generator_collect(gen) {\n"
+    src = src + "    var out = []\n"
+    src = src + "    while true {\n"
+    src = src + "        var step = oren_generator_next(gen)\n"
+    src = src + "        if oren_is_err(step) == true { return step }\n"
+    src = src + "        if step[\"done\"] == true { return out }\n"
+    src = src + "        oren_list_push(out, step[\"value\"])\n"
+    src = src + "    }\n"
+    src = src + "}\n"
+    return src
+}
+
+fn _generator_core_stmts(p) {
+    var file = p["file"]
+    if file == nil { file = "" }
+    var helper_file = file + "#oren_generator_core_v0"
+    var l = lexer.new_lexer(_generator_core_src())
+    l["file"] = helper_file
+    var hp = core.new_parser(l)
+    hp["file"] = helper_file
+    hp["strict_attrs"] = p["strict_attrs"]
+    hp["attr_allow_prefixes"] = p["attr_allow_prefixes"]
+    hp["strict_ident_prefixes"] = p["strict_ident_prefixes"]
+    hp["ident_allow_prefixes"] = p["ident_allow_prefixes"]
+    hp["_skip_generator_core_inject"] = true
+    var prog = parse_program(hp)
+    if oren_list_len(hp["errors"]) > 0 {
+        parser_add_error(p, "internal generator core parse failure")
+        return []
+    }
+    return prog["statements"]
 }
 
 fn _generator_ctx_slot_expr(co_name, slot_name) {
@@ -710,7 +963,6 @@ fn maybe_lower_generator_decl_stmt(p, stmt) {
         parser_add_error(p, "@oren.generator may only precede named function declarations")
         return stmt
     }
-    var import_alias = _generator_import_alias(p)
     var co_name = parser_gensym(p, "@generator_co_")
     var args_name = parser_gensym(p, "@generator_args_")
     var worker_tok = token.new_token(token.TOK_BITOR, "|")
@@ -724,11 +976,8 @@ fn maybe_lower_generator_decl_stmt(p, stmt) {
     var worker = ast.new_function(worker_tok, "", worker_params, func["body"])
     worker["generator_decl_worker"] = true
     var call_tok = token.new_token(token.TOK_LPAREN, "(")
-    var member_tok = token.new_token(token.TOK_DOT, ".")
-    var import_ident_tok = token.new_token(token.TOK_IDENT, import_alias)
-    var start_ident_tok = token.new_token(token.TOK_IDENT, "start")
-    var start_member = ast.new_member(member_tok, ast.new_identifier(import_ident_tok), ast.new_identifier(start_ident_tok))
-    var start_call = ast.new_call(call_tok, start_member, [worker, ast.new_array(token.new_token(token.TOK_LBRACKET, "["), [])])
+    var start_ident_tok = token.new_token(token.TOK_IDENT, "oren_generator_start")
+    var start_call = ast.new_call(call_tok, ast.new_identifier(start_ident_tok), [worker, ast.new_array(token.new_token(token.TOK_LBRACKET, "["), [])])
     var body_tok = token.new_token(token.TOK_LBRACE, "{")
     var wrapper_body = ast.new_block(body_tok)
     oren_list_push(wrapper_body["stmts"], ast.new_return(token.new_token(token.TOK_RETURN, "return"), start_call))
@@ -736,14 +985,12 @@ fn maybe_lower_generator_decl_stmt(p, stmt) {
         var name_ident = _local_fn_decl_name_ident(func)
         func["body"] = wrapper_body
         func["generator_decl"] = true
-        func["generator_import_alias"] = import_alias
         func["decl_name"] = func["name"]
         func["name"] = ""
         return ast.new_var(func["token"], name_ident, func)
     }
     func["body"] = wrapper_body
     func["generator_decl"] = true
-    func["generator_import_alias"] = import_alias
     return stmt
 }
 

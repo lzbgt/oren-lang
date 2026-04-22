@@ -126,7 +126,8 @@ fn new_parser(l) {
     oren_list_push(known, "oren.release")
     // Source/package policy metadata (tooling contract; enforcement stays explicit).
     oren_list_push(known, "oren.package")
-    // Source-level generator declaration sugar lowered by the parser into std:generator.
+    // Source-level generator declaration sugar lowered by the parser into the hidden
+    // compiler-managed generator core helpers (`oren_generator_*`).
     oren_list_push(known, "oren.generator")
     // Arena auto-loop annotations (compiler-only).
     oren_list_push(known, "oren.arena")
