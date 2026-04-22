@@ -543,7 +543,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var idx_nonneg_linear_fast = false
     if all_push_values_nonneg_linear_safe == true &&
         nonneg_linear_safe_n_limit != nil &&
-        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR") == true {
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR") == true {
         // This path only handles nonnegative affine/mod shapes with a proven loop-bound ceiling, so
         // the direct mul/add/(u)div sequence stays semantically aligned with the generic int path.
         idx_nonneg_linear_fast = true

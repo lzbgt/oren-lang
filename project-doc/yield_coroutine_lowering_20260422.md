@@ -190,6 +190,15 @@ backend-shared value-helper slices landed.
     introspection path, which both cleans the metadata surface and drops
     `./oren_stage2 dump linked tests/fixtures/generator_finalize_surface_v0.oren`
     from about `1.53s` to `0.18s`
+  - the adjacent arm64 `list<int>` fill-side shipped-surface decision seam is now closed again too:
+    `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` is back to default-on after the current-tree
+    shipped-vs-disabled rerun
+    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_011353_91759.log`)
+    kept the formal decision rule aligned and the shipped default also passed
+    `make verify-native-quick`
+    (`build/logs/make_verify_native_quick_20260423_011547_default_on_promote_v1.log`)
+    plus the full repo lane
+    (`build/logs/make_test_20260423_012704_default_on_promote_v2.log`)
 
 - Fresh landing (2026-04-22): generator handles now participate in generic `for x in iterable`
   sugar too, without changing the public handle layout again. The compiler-generated bridge:

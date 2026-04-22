@@ -217,28 +217,26 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `0x8000000000000000`. Native quick now runs that reducer directly, and the dedicated W5
      tracking smoke uses the reduced fixtures (`test_gc_reuse_alloc_churn_min`,
      `test_gc_collect_list_int_live`, `test_gc_auto_list_int_live`, and the generic control)
-     instead of the heavier benchmark build. The same-day self-host check forced
-     `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` back to opt-in only:
-     `./oren_stage2_nonneg0` (built with the flag off) compiles and runs native quick cleanly
-     while the default-on self-hosted build stalls. A direct arm64 `oren_gc_collect()` shortcut was
-     tried during the same investigation and then removed after it deadlocked the native quick
-     green join-waiter fixture; shipped code stays on the normal direct-call lowering there.
-   - Update (2026-04-23): the broad nonnegative-linear branch is still the strongest current
-     fill-side performance candidate, but it is still not self-host-safe enough to ship by
-     default. The refreshed current-tree rerun
-     (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_002542_70401.log`)
-     again preferred `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=1` on both surfaces
-     (`default_fill_vs_c_vector ~5.7432×` vs enabled `~2.3262×`,
-     `default_array_ratio_median ~2.1543×` vs enabled `~2.0482×`,
-     `default_dot_ratio_median ~1.8061×` vs enabled `~1.7963×`). The reduced W5 tracking guard
-     now also passes under that opt-in branch
-     (`build/logs/verify_alloc_churn_tracking_smoke_nonneg_linear_20260423_002715.log`), so the
-     remaining blocker is the broader self-host/native-quick safety surface, not the reduced
-     alloc-churn smoke itself. A narrower attempted exact-shape isolation was tested and reverted
-     in the same turn: `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_003345_74555.log`
-     only improved exact `array_sum_int`, while fill/share and exact `dot_product_int` still
-     preferred the disabled branch. Reweight next work toward root-causing or fencing the
-     broad-branch self-host stall instead of promoting another partial fill-only default.
+     instead of the heavier benchmark build. That same-day reducer fix still triggered a temporary
+     rollback while the broader self-host/native-quick surface was being re-closed. A direct arm64
+     `oren_gc_collect()` shortcut was tried during the same investigation and then removed after it
+     deadlocked the native quick green join-waiter fixture; shipped code stays on the normal
+     direct-call lowering there.
+   - Update (2026-04-23): that broader blocker is now closed on the current tree, so
+     `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` ships on by default again. The refreshed
+     shipped-vs-disabled decision surface
+     (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_011353_91759.log`)
+     keeps the formal rule aligned (`decision_surface_alignment: agree`) and still strongly
+     prefers the shipped default on the fill/share plus exact `array_sum_int` surfaces
+     (`default_fill_vs_c_vector ~2.3103×` vs disabled `~5.7054×`,
+     `default_array_ratio_median ~2.1964×` vs disabled `~2.3212×`), while exact
+     `dot_product_int` only moves slightly toward the disabled branch
+     (`default_dot_ratio_median ~1.3884×` vs disabled `~1.3578×`). The real shipped safety surface
+     is green too: `make verify-native-quick`
+     (`build/logs/make_verify_native_quick_20260423_011547_default_on_promote_v1.log`) and
+     `make test` (`build/logs/make_test_20260423_012704_default_on_promote_v2.log`) both pass with
+     the default-on branch. Reweight next work away from more branch-isolation experiments and
+     toward the residual list build/fill lifetime cost on this now-revalidated shipped surface.
 	   - Update (2026-04-21): the shared native quick path now carries an explicit GC reuse tracking
 	     smoke. `tests/native/test_gc_reuse_tracking.oren` was tightened so the dead headers are
 	     created through `oren_new_list(0)` and an escaping aggregate, then
@@ -2361,45 +2359,43 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      `default_dot_ratio_median ~1.8327×` vs enabled `~1.8585×`).
 									      Reweight: do not ship `OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS`
 									      by default; it joins the other “local surface win, exact surface loss” branches.
-									    - Arm64 explicit push nonnegative-linear fill follow-up (2026-04-09): ranking
-									      surface `make perf-probe-arm64-fast-push-nonneg-linear-decision` now compares the
-									      current shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=1`
-									      on the same fill/share attribution probe plus same-tree exact whole-operation
-									      C-ceiling reruns.
-									      The widened rerun
-										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`)
-										      closes this branch as the next real shipped fill-side win: fill/share strongly
-										      preferred default (`default_fill_vs_c_vector ~2.8909×`, disabled `~4.3823×`),
-										      exact `array_sum_int` also preferred default
-										      (`default_array_ratio_median ~2.2540×` vs disabled `~2.2740×`), and exact
-										      `dot_product_int` preferred default too
-										      (`default_dot_ratio_median ~1.7910×` vs disabled `~1.8065×`).
-										      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR` therefore now ships on by default on
-										      the current tree.
-										      Fix + verify (2026-04-21): reduced aggressive-GC churn exposed a current overflow
-										      in `_arm64_nonneg_linear_safe_n_limit(...)` on the identity shape, which emitted a
-										      signed preheader compare against `0x8000000000000000`. Saturating that bound fixed
-										      the reducer, but the self-host decision surface still failed: a stage2 compiler
-										      built with the default-on branch stalled in native quick while
-										      `./oren_stage2_nonneg0` completed cleanly. This branch is therefore back to opt-in
-										      until it is self-host-safe, and native quick now carries
-										      `tests/native/test_gc_reuse_alloc_churn_min.oren` as a direct guardrail.
-										      Refresh (2026-04-23): the current-tree rerun still says the broad branch is the
-										      right performance candidate even though it is not yet safe to ship by default.
-										      `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_002542_70401.log`
-										      again preferred `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=1` across both
-										      surfaces (`default_fill_vs_c_vector ~5.7432×` vs enabled `~2.3262×`,
-										      `default_array_ratio_median ~2.1543×` vs enabled `~2.0482×`,
-										      `default_dot_ratio_median ~1.8061×` vs enabled `~1.7963×`), and the reduced
-										      alloc-churn tracking smoke now passes under that opt-in branch
-										      (`build/logs/verify_alloc_churn_tracking_smoke_nonneg_linear_20260423_002715.log`).
-										      A narrower attempted fresh-single-list default-on isolation was tested and then
-										      reverted instead of being left around as another mixed branch:
-										      `build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_003345_74555.log`
-										      improved exact `array_sum_int` only, while fill/share and exact `dot_product_int`
-										      still preferred the disabled branch. Reweight next work toward root-causing or
-										      fencing the broad self-host/native-quick blocker, not toward shipping another
-										      partial isolation.
+										    - Arm64 explicit push nonnegative-linear fill follow-up (2026-04-09): ranking
+										      surface `make perf-probe-arm64-fast-push-nonneg-linear-decision` now compares the
+										      current shipped default against `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR=0`
+										      on the same fill/share attribution probe plus same-tree exact whole-operation
+										      C-ceiling reruns.
+										      The widened rerun
+											      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260409_195510_97018.log`)
+											      originally closed this branch as the next real shipped fill-side win: fill/share
+											      strongly preferred default (`default_fill_vs_c_vector ~2.8909×`, disabled
+											      `~4.3823×`), exact `array_sum_int` also preferred default
+											      (`default_array_ratio_median ~2.2540×` vs disabled `~2.2740×`), and exact
+											      `dot_product_int` preferred default too
+											      (`default_dot_ratio_median ~1.7910×` vs disabled `~1.8065×`).
+											      Fix + verify (2026-04-21): reduced aggressive-GC churn exposed a current overflow
+											      in `_arm64_nonneg_linear_safe_n_limit(...)` on the identity shape, which emitted a
+											      signed preheader compare against `0x8000000000000000`. Saturating that bound fixed
+											      the reducer, but the branch was temporarily rolled back while a broader default-on
+											      self-host/native-quick stall was investigated. Native quick now carries
+											      `tests/native/test_gc_reuse_alloc_churn_min.oren` as a direct guardrail for that
+											      family.
+											      Refresh + promote (2026-04-23): the current-tree shipped-vs-disabled rerun
+											      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-decision-20260423_011353_91759.log`)
+											      closes that blocker and re-promotes the broad branch on the actual shipped tree.
+											      The formal decision surface stays aligned (`decision_surface_alignment: agree`);
+											      fill/share strongly prefers the shipped default
+											      (`default_fill_vs_c_vector ~2.3103×`, disabled `~5.7054×`), exact
+											      `array_sum_int` still prefers default
+											      (`default_array_ratio_median ~2.1964×` vs disabled `~2.3212×`), and exact
+											      `dot_product_int` only moves slightly toward the disabled branch
+											      (`default_dot_ratio_median ~1.3884×` vs disabled `~1.3578×`).
+											      The real shipped safety lane is now green too:
+											      `build/logs/make_verify_native_quick_20260423_011547_default_on_promote_v1.log`
+											      and `build/logs/make_test_20260423_012704_default_on_promote_v2.log` both pass
+											      with the default-on branch. Reweight accordingly: keep the broad
+											      nonnegative-linear path shipped, do not revive the narrower fresh-single-list
+											      isolation, and attack the residual lifetime/setup cost on this exact same-tree
+											      default surface.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface
