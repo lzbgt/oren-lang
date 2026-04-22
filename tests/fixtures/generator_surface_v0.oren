@@ -206,6 +206,70 @@ fn decl_delegate_chain(cells, seed) {
     return retv + 41
 }
 
+fn close_hook_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -960 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = gen.on_close(co, || { oren_list_push(box, base + 1); return nil })
+    if oren_is_err(r0) == true { return -961 }
+    var r1 = oren_generator_on_close(co, || { oren_list_push(box, base + 2); return nil })
+    if oren_is_err(r1) == true { return -962 }
+    var resumed = yield base in co
+    return resumed + base + 5
+}
+
+fn close_hook_err_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -963 }
+    var box = args[0]
+    var r0 = gen.on_close(co, || { oren_list_push(box, 1); return nil })
+    if oren_is_err(r0) == true { return -964 }
+    var r1 = gen.on_close(co, || { oren_list_push(box, 2); return oren_err(77, "close hook boom") })
+    if oren_is_err(r1) == true { return -965 }
+    yield 1 in co
+    return 0
+}
+
+fn close_hook_chain_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -966 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = gen.on_close(co, || { oren_list_push(box, base + 1); return nil })
+    if oren_is_err(r0) == true { return -967 }
+    var resumed = yield base in co
+    return resumed + base + 11
+}
+
+fn close_hook_chain_middle_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -968 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = gen.on_close(co, || { oren_list_push(box, base + 2); return nil })
+    if oren_is_err(r0) == true { return -969 }
+    var inner = gen.start(close_hook_chain_inner_worker, [box, base])
+    var retv = yield from inner in co
+    if oren_is_err(retv) == true { return -970 }
+    return retv + 1
+}
+
+@oren.generator
+fn decl_close_hook(box, base) {
+    var r0 = gen.on_close(|| { oren_list_push(box, base + 10); return nil })
+    if oren_is_err(r0) == true { return -971 }
+    var r1 = oren_generator_on_close(|| { oren_list_push(box, base + 20); return nil })
+    if oren_is_err(r1) == true { return -972 }
+    var resumed = yield (base + 1)
+    return resumed + base + 100
+}
+
+fn bad_on_close_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -973 }
+    var bad0 = gen.on_close(co, 123)
+    if oren_is_err(bad0) != true { return -974 }
+    var bad1 = oren_generator_on_close(co, 123)
+    if oren_is_err(bad1) != true { return -975 }
+    return 1
+}
+
 fn main() {
     var c1 = oren_new_channel()
     var c2 = oren_new_channel()
@@ -363,6 +427,47 @@ fn main() {
     if gen.is_done(gc6) != true || gen.return_value(gc6) != nil { return 1779 }
     if gen.is_done(gc6mid) != true || gen.return_value(gc6mid) != nil { return 1780 }
     if gen.is_done(gc6inner) != true || gen.return_value(gc6inner) != nil { return 1781 }
+    if oren_is_err(gen.on_close(123, || nil)) != true { return 1782 }
+    if oren_is_err(oren_generator_on_close(123, || nil)) != true { return 1783 }
+
+    var gc7 = gen.start(bad_on_close_worker, [])
+    var gc7done = gen.next(gc7)
+    if oren_is_err(gc7done) == true { return 1784 }
+    if gc7done["done"] != true || gc7done["return"] != 1 { return 1785 }
+
+    var hook_box0 = []
+    var gc8 = gen.start(close_hook_worker, [hook_box0, 80])
+    var gc8s0 = gen.next(gc8)
+    if oren_is_err(gc8s0) == true { return 1786 }
+    if gc8s0["ok"] != true || gc8s0["value"] != 80 { return 1787 }
+    var close8 = gen.close(gc8)
+    if oren_is_err(close8) == true { return 1788 }
+    if close8 != nil { return 1789 }
+    if oren_list_len(hook_box0) != 2 { return 1790 }
+    if hook_box0[0] != 82 || hook_box0[1] != 81 { return 1791 }
+    if gen.is_done(gc8) != true { return 1792 }
+
+    var hook_box1 = []
+    var gc9 = decl_close_hook(hook_box1, 90)
+    var gc9s0 = gen.next(gc9)
+    if oren_is_err(gc9s0) == true { return 1793 }
+    if gc9s0["ok"] != true || gc9s0["value"] != 91 { return 1794 }
+    var close9 = gen.close(gc9)
+    if oren_is_err(close9) == true { return 1795 }
+    if oren_list_len(hook_box1) != 2 { return 1796 }
+    if hook_box1[0] != 110 || hook_box1[1] != 100 { return 1797 }
+    if gen.is_done(gc9) != true { return 1798 }
+
+    var hook_box2 = []
+    var gca = gen.start(close_hook_err_worker, [hook_box2])
+    var gcas0 = gen.next(gca)
+    if oren_is_err(gcas0) == true { return 1799 }
+    if gcas0["ok"] != true || gcas0["value"] != 1 { return 1800 }
+    var closea = gen.close(gca)
+    if oren_is_err(closea) != true { return 1801 }
+    if oren_list_len(hook_box2) != 2 { return 1802 }
+    if hook_box2[0] != 2 || hook_box2[1] != 1 { return 1803 }
+    if gen.is_done(gca) != true || gen.return_value(gca) != nil { return 1804 }
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)

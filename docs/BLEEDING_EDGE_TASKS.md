@@ -4273,26 +4273,33 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     - the probe is pinned in `make test` through `verify-generator-import-yield-regression`
 		   - New (2026-04-22): the next abstraction layer above plain `next/send` is now widened and
 		     source-visible too.
-			     - `oren_generator_delegate(co, inner)` / `std:generator.delegate(co, inner)` now cover both
-			       fresh-handle inlining and already-started handles that still carry a cached current step
-			     - `oren_generator_delegate_step(co, inner, step)` /
-			       `std:generator.delegate_step(co, inner, step)` remain available for explicit step-driven
-			       control
-			     - source syntax now ships:
-			       - explicit workers: `yield from inner in co`
-			       - `@oren.generator` declarations: `yield from inner`
-			       - `from` is contextual after `yield`, so existing identifiers named `from` are preserved
-					     - the shipped mode is `track_active_chain_inline_fresh_or_cached_started_step_v3`
-						   - explicit close/finalization now ships too through
-						       `oren_generator_close(gen)` / `std:generator.close(gen)`, with
-						       `close_mode=propagate_active_delegate_chain_detach_live_task_v3`
-						       and deterministic handle sealing by first recursively closing the active delegated
-						       chain, then detaching live workers instead of resuming them with a hidden close sentinel
-					     - imported stage2 bytecode coverage now includes
-				       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`,
-				       `tests/fixtures/generator_import_close_regression_v0.oren`, and
-				       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`
-			       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
+		     - `oren_generator_delegate(co, inner)` / `std:generator.delegate(co, inner)` now cover both
+		       fresh-handle inlining and already-started handles that still carry a cached current step
+		     - `oren_generator_delegate_step(co, inner, step)` /
+		       `std:generator.delegate_step(co, inner, step)` remain available for explicit step-driven
+		       control
+		     - source syntax now ships:
+		       - explicit workers: `yield from inner in co`
+		       - `@oren.generator` declarations: `yield from inner`
+		       - `from` is contextual after `yield`, so existing identifiers named `from` are preserved
+		     - the shipped mode is `track_active_chain_inline_fresh_or_cached_started_step_v3`
+		     - explicit close/finalization now ships too through
+		       `oren_generator_close(gen)` / `std:generator.close(gen)`, with
+		       `close_mode=propagate_active_delegate_chain_run_close_hooks_detach_live_task_v4`
+		       plus `oren_generator_on_close(co, hook)` / `std:generator.on_close(...)`
+		       using `on_close_mode=lifo_zero_arg_close_only_v1`
+		     - handle sealing now first recursively closes the active delegated chain, then runs close
+		       hooks, then detaches live workers instead of resuming them with a hidden close sentinel
+		     - imported stage2 bytecode coverage now includes
+		       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`,
+		       `tests/fixtures/generator_import_close_regression_v0.oren`,
+		       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`,
+		       `tests/fixtures/generator_import_on_close_regression_v0.oren`, and
+		       `tests/fixtures/generator_import_yield_from_regression_v0.oren`
+		     - remaining narrow seam to either fix or pin with a negative boundary:
+		       declaration-body `on_close(...)` plus delegated startup of a named worker through
+		       `gen.start(named_worker, ...)` followed by `yield from ...` inside the same
+		       `@oren.generator` declaration is still excluded from the shipped native proof surface
 				   - New (2026-04-22): the native nested-green scheduler seam is no longer a blocked repro.
 					     - `scripts/verify_generator_nested_green_resume_v0.sh` now proves the fixed path instead of
 					       a timeout-only failure

@@ -5277,10 +5277,17 @@ Current behavior (native runtime, rolling):
   - `gen.next(gen)` resumes with `nil`
   - `gen.send(gen, value)` resumes with `value`
   - `gen.collect(gen)` drains yielded values into a list
+  - `gen.on_close(co, hook)` / `oren_generator_on_close(co, hook)` register deterministic close hooks
+    on an explicit worker context
+    - `hook` must be a zero-argument callable
+    - hooks run in LIFO order
+    - hooks run on explicit `close()`, not on ordinary natural completion
+    - if a hook returns `err`, `close()` returns the first such error after still finishing cleanup
   - `gen.close(gen)` explicitly seals a generator handle done
     - if the generator already finished, it returns the cached final return value
     - if it has not finished yet, it first recursively closes the currently active delegated child
-      chain, if any, and then marks the handle done with `return_value == nil`
+      chain, if any, then runs registered close hooks, and then marks the handle done with
+      `return_value == nil`
     - for started generators it detaches the live worker handle instead of trying to resume user
       code with a hidden close sentinel; this keeps `close()` deterministic across bytecode, C, and
       native even when the worker would otherwise yield again
@@ -5303,9 +5310,14 @@ Current behavior (native runtime, rolling):
     `yield ... in co` contract, so `gen.send(...)` supplies the resumed value
   - declaration bodies may now also use `yield from inner` for generator delegation without
     spelling `delegate(...)` or passing explicit step maps
+  - declaration bodies may register close hooks too through `gen.on_close(hook)` or
+    `oren_generator_on_close(hook)`; those use the same zero-argument, LIFO, close-only contract
   - v0 boundary: generator declarations require a named binding site (named function declaration
     or function-valued `var` binding); bare anonymous function literals and arbitrary non-function
     statements are rejected
+  - current rolling boundary: the native proof surface still excludes the narrower combination of
+    declaration-body `on_close(...)` plus delegated startup of a named worker through
+    `gen.start(named_worker, ...)` followed by `yield from ...` inside that same declaration
 - Language sugar now uses those helpers consistently:
   - `yield` statement -> `oren_yield_stmt()`
   - `(yield)` -> `oren_yield_value(nil)`
@@ -5326,8 +5338,10 @@ Current behavior (native runtime, rolling):
     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
   - `oren_generator_delegate_step(co, inner, step)`: resumes a partially-started inner generator from
     its current yielded `step`, exposed as `gen.delegate_step(co, inner, step)`
+  - `oren_generator_on_close(co, hook)`: registers a close hook, exposed as `gen.on_close(...)`, with
+    `on_close_mode=lifo_zero_arg_close_only_v1`
   - `oren_generator_close(gen)`: explicit handle finalization, exposed as `gen.close(gen)`, with
-    `close_mode=propagate_active_delegate_chain_detach_live_task_v3`
+    `close_mode=propagate_active_delegate_chain_run_close_hooks_detach_live_task_v4`
 - Still missing: broader coroutine protocol above these shipped source/helper/library forms
   (for example, stronger hard-cancellation/finalization semantics beyond the current explicit
   close+detach contract and richer coroutine lifecycle affordances).
