@@ -2520,6 +2520,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 										      Reweight again: stop treating slot-store shape as the primary blocker; the
 										      remaining fill-side gap is now more likely in the carried recurrence arithmetic
 										      and compare/branch density inside the shipped wide body.
+										    - Arm64 explicit push nonnegative-linear direct-register follow-up (2026-04-23):
+										      the next mov-chain hypothesis under that same shipped four-wide body is now also
+										      closed negative. A temporary rerun removed the cloned register chain around the
+										      carried values. The emitted loop improved again:
+										      `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_054624_80049.log`
+										      and
+										      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_054629_80110.log`
+										      show the wide main iteration dropping to `30` hot instructions for `4` outputs
+										      (`7.50` per element). But the actual same-tree decision surface
+										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-direct-regs-decision-20260423_054458_78631.log`)
+										      still rejected promotion: fill/share improved (`default_fill_vs_c_vector
+										      ~2.2174×` vs enabled `~2.1132×`), but both exact medians regressed
+										      (`default_array_ratio_median ~2.2164×` vs enabled `~2.2298×`,
+										      `default_dot_ratio_median ~1.5550×` vs enabled `~1.6600×`,
+										      `decision_surface_alignment: disagree`). Reweight again: stop treating the
+										      mov-chain as the primary blocker; the next fill-side work should target the
+										      recurrence arithmetic itself and the compare/branch structure inside the
+										      shipped wide body.
 										    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 										      baseline, but the widened cached decision surface

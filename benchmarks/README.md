@@ -642,6 +642,21 @@ exact `dot_product_int` median moved toward the pair-store branch (`default_dot_
 scalar stores versus two pair stores”; it is now centered on the carried recurrence arithmetic and
 branch/compare density inside the shipped four-wide body.
 
+The next direct-register follow-up under that same shipped four-wide body also stays rejected. The
+temporary `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_DIRECT_REGS=1` rerun removed the
+mov-chain around the four carried values and improved the emitted loop further:
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_054624_80049.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_054629_80110.log` show the wide main
+iteration dropping to `30` hot instructions for `4` output elements (`7.50` per element). But the
+actual same-tree ranking in
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-direct-regs-decision-20260423_054458_78631.log`
+still rejected promotion: fill/share improved (`default_fill_vs_c_vector ~2.2174x` vs enabled
+`~2.1132x`), but both exact medians moved the wrong way (`default_array_ratio_median ~2.2164x` vs
+enabled `~2.2298x`, `default_dot_ratio_median ~1.5550x` vs enabled `~1.6600x`,
+`decision_surface_alignment: disagree`). Reweight again: the remaining gap is no longer mainly the
+mov-chain either; the next backend work should focus on the recurrence arithmetic itself and the
+compare/branch structure inside the shipped wide body.
+
 For explicit `fast_list_int_push_while` safepoint tick-mask follow-up work, use:
 
 ```bash
