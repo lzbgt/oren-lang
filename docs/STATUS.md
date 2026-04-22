@@ -1460,10 +1460,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					       `lib/avm/avm_native_buffer_cases_c.inc`,
 					       `lib/avm/avm_native_buffer_cases_d.inc`,
 					       `lib/avm/avm_native_capability_domain_fs.inc`, and
-					       `lib/avm/avm_native_capability_domains_misc.inc`. The remaining oversized code-file
-					       debt is now outside this host: `lib/compiler/arm64_native_stmt_loops_list_emit.oren`,
-					       `lib/compiler/arm64_native_stmt.oren`,
-					       `lib/compiler/compiler/040_build_pipeline/010_main.oren`, and `lib/avm/main.c`.
+					       `lib/avm/avm_native_capability_domains_misc.inc`
+					     - the next coupled ARM64 stmt host split is now landed too:
+					       `lib/compiler/arm64_native_stmt.oren` is back under the red line, the old
+					       `lib/compiler/arm64_native_stmt_loops_list_emit.oren` body is now split across
+					       `lib/compiler/arm64_native_stmt_loops_list_emit_prefix_reduce.oren`,
+					       `lib/compiler/arm64_native_stmt_loops_list_emit_int_reduce_dot.oren`, and
+					       `lib/compiler/arm64_native_stmt_loops_list_emit_dot_push.oren`, and the set-lowering tail
+					       now lives in `lib/compiler/arm64_native_stmt_set.oren`. The remaining oversized code-file
+					       debt is now narrower still: `lib/compiler/compiler/040_build_pipeline/010_main.oren`
+					       and `lib/avm/main.c`.
 		   - New (2026-04-22): the default verification lane is back to green after aligning
 		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
 		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining

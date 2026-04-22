@@ -1,0 +1,1124 @@
+import core "arm64_core.oren"
+import exprm "arm64_native_expr.oren"
+import gc "arm64_native_gc.oren"
+import listm "arm64_native_stmt_loops_list.oren"
+
+// List-loop emitters extracted from arm64_native_stmt_loops_list.oren.
+
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_finalize(b) { return core.bytes_finalize(b) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn align_up(n, align) { return core.align_up(n, align) }
+fn ceil_div(a, b) { return core.ceil_div(a, b) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos, name) }
+
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_add_2d(vd, vn, vm) { return core.insn_add_2d(vd, vn, vm) }
+fn insn_addp_2d(vd, vn, vm) { return core.insn_addp_2d(vd, vn, vm) }
+fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
+fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
+fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
+fn insn_ldr_ptr_post(rd, rn, offset) { return core.insn_ldr_ptr_post(rd, rn, offset) }
+fn insn_ldrsw(rt, rn, offset) { return core.insn_ldrsw(rt, rn, offset) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
+fn insn_madd(rd, rn, rm, ra) { return core.insn_madd(rd, rn, rm, ra) }
+fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
+fn insn_ret() { return core.insn_ret() }
+fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
+fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, rt2, rn, offset) }
+fn insn_ldr_q(vt, rn) { return core.insn_ldr_q(vt, rn) }
+fn insn_ldr_q_off(vt, rn, offset) { return core.insn_ldr_q_off(vt, rn, offset) }
+fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
+fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
+fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
+fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_sub_imm(rd, rn, imm) { return core.insn_sub_imm(rd, rn, imm) }
+fn insn_subs_imm(rd, rn, imm) { return core.insn_subs_imm(rd, rn, imm) }
+fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
+fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
+fn insn_lsrv(rd, rn, rm) { return core.insn_lsrv(rd, rn, rm) }
+fn insn_umov_x_d(rd, rn) { return core.insn_umov_x_d(rd, rn) }
+
+fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
+fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+fn emit_ldr_reg_fp_any(ctx, reg, offset) { return core.emit_ldr_reg_fp_any(ctx, reg, offset) }
+fn emit_str_reg_fp_any(ctx, reg, offset) { return core.emit_str_reg_fp_any(ctx, reg, offset) }
+fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
+
+// Delegate expression compilation to the expr module.
+fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+
+// Helpers from list matchers module.
+fn _arm64_local_fp_off(ctx, name) { return listm._arm64_local_fp_off(ctx, name) }
+fn _arm64_str_eq_bytes(a, b) { return listm._arm64_str_eq_bytes(a, b) }
+fn _arm64_fast_loop_int_lit_const(expr) { return listm._arm64_fast_loop_int_lit_const(expr) }
+fn _arm64_emit_while_generic(ctx, stmt) { return listm._arm64_emit_while_generic(ctx, stmt) }
+fn _arm64_restore_stack_to(ctx, base_stack) { return listm._arm64_restore_stack_to(ctx, base_stack) }
+
+fn _arm64_local_int_const(ctx, name) {
+    if ctx == nil || name == nil { return nil }
+    return exprm.native_expr_int_const(ctx, {"type": "Identifier", "token": nil, "value": name})
+}
+
+fn _arm64_emit_list_int_dot_slot_load(ctx, dst, base, offset, low32_loads) {
+    if low32_loads == true {
+        push_u32_le(ctx["code"], insn_ldrsw(dst, base, offset))
+    } else if offset == 0 {
+        push_u32_le(ctx["code"], insn_ldr_ptr(dst, base))
+    } else {
+        push_u32_le(ctx["code"], insn_ldr_ptr_off(dst, base, offset))
+    }
+}
+
+// Keep arm64 list fast-loop validation on the same resilient runtime contract as the
+// native list helpers: recover/retrack valid list headers before rejecting the pointer.
+// Call sites still do explicit kind/magic checks after this helper returns a tracked node or 0.
+fn _arm64_emit_find_list_node_known_kind(ctx, ptr_reg, dst_reg, want_kind) {
+    if ctx == nil { return nil }
+    if ptr_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, ptr_reg)) }
+    emit_load_i64_imm(ctx, 1, want_kind)
+    var bl_find = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "_list_find_node_known_kind"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+    if dst_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(dst_reg, 0)) }
+    return nil
+}
+
+// Prefix-zero statement fast paths stay opt-in until the full acceptance bundle is clean.
+fn _arm64_env_enabled_default_false(name) {
+    var v = oren_env(name)
+    if v == "1" || v == "true" { return true }
+    return false
+}
+
+fn _arm64_env_enabled_default_true(name) {
+    var v = oren_env(name)
+    if v == "0" || v == "false" { return false }
+    return true
+}
+
+fn _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr, idx_name, idx_reg) {
+    if ctx == nil || expr == nil || idx_name == nil { return false }
+    var int_const = _arm64_fast_loop_int_lit_const(expr)
+    if int_const != nil {
+        emit_load_i64_imm(ctx, 0, int_const)
+        return true
+    }
+    var et = expr["type"]
+    if et == "Identifier" {
+        if _arm64_str_eq_bytes(expr["value"], idx_name) != true { return false }
+        if idx_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, idx_reg)) }
+        return true
+    }
+    if et == "Prefix" {
+        if expr["op"] != "-" { return false }
+        if _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr["right"], idx_name, idx_reg) != true { return false }
+        push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0))
+        return true
+    }
+    if et != "Infix" { return false }
+    var op = expr["op"]
+    if op != "+" && op != "-" && op != "*" && op != "%" { return false }
+
+    if _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr["left"], idx_name, idx_reg) != true { return false }
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    if _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, expr["right"], idx_name, idx_reg) != true {
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+        return false
+    }
+
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+
+    if op == "+" {
+        push_u32_le(ctx["code"], insn_add_reg(0, 1, 0))
+        return true
+    }
+    if op == "-" {
+        push_u32_le(ctx["code"], insn_sub_reg(0, 1, 0))
+        return true
+    }
+    if op == "*" {
+        push_u32_le(ctx["code"], insn_mul(0, 1, 0))
+        return true
+    }
+
+    var rhs_const = _arm64_fast_loop_int_lit_const(expr["right"])
+    if rhs_const == nil || rhs_const == 0 || rhs_const == -1 { return false }
+    push_u32_le(ctx["code"], insn_sdiv(2, 1, 0))
+    push_u32_le(ctx["code"], insn_mul(2, 2, 0))
+    push_u32_le(ctx["code"], insn_sub_reg(0, 1, 2))
+    return true
+}
+
+fn _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, linear, idx_reg) {
+    if ctx == nil || linear == nil || idx_reg == nil { return false }
+    var mul = linear["mul"]
+    var add = linear["add"]
+    var mod = linear["mod"]
+    if mul == nil || add == nil || mod == nil { return false }
+    if mul < 0 || add < 0 || mod < 0 { return false }
+
+    if mul == 0 {
+        emit_load_i64_imm(ctx, 0, add)
+    } else {
+        if idx_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, idx_reg)) }
+        if mul != 1 {
+            emit_load_i64_imm(ctx, 9, mul)
+            push_u32_le(ctx["code"], insn_mul(0, 0, 9))
+        }
+        if add != 0 {
+            emit_load_i64_imm(ctx, 9, add)
+            push_u32_le(ctx["code"], insn_add_reg(0, 0, 9))
+        }
+    }
+    if mod > 0 {
+        // Keep this helper on caller-saved scratch regs. X19..X26 are the backend's
+        // preserved/root-carrying temp set inside hot loops and must not be clobbered here.
+        emit_load_i64_imm(ctx, 9, mod)
+        push_u32_le(ctx["code"], insn_udiv(10, 0, 9))
+        push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+        push_u32_le(ctx["code"], insn_sub_reg(0, 0, 10))
+    }
+    return true
+}
+
+fn _arm64_emit_trace_list_header_if_enabled(ctx, list_reg) {
+    if ctx == nil || ctx["trace_native_list_hdr"] == nil { return nil }
+    if list_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(0, list_reg)) }
+    emit_load_i64_imm(ctx, 1, 7) // list_int_push
+    emit_load_i64_imm(ctx, 2, 8) // LIST_INT
+    var bl_trace = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
+    return nil
+}
+
+
+fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
+    if ctx == nil || stmt == nil || info == nil { return nil }
+
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var sum_name = info["sum"]
+    var lists = info["lists"]
+    var muls = info["muls"]
+    var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
+    var n_fp_off = _arm64_local_fp_off(ctx, n_name)
+    var sum_fp_off = _arm64_local_fp_off(ctx, sum_name)
+    if idx_fp_off == nil || n_fp_off == nil || sum_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+
+    var base_stack = ctx["stack_size"]
+    var list_count = oren_list_len(lists)
+    var mul_count = oren_list_len(muls)
+    var unique_lists = false
+    if list_count == mul_count * 2 { unique_lists = true }
+    // Boxed dot loops follow the same contract as list<int> dot loops: register tick on the
+    // hot path, no dedicated stack tick slot by default, optional env escape hatch to restore
+    // the old layout while comparing traces.
+    var keep_tick_slot = false
+    if oren_env("OREN_ARM64_FAST_LIST_DOT_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_DOT_TICK_MASK", 4095)
+    var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
+    if !keep_tick_slot { slots = 3 + list_count * 2 }
+    var total_bytes = align_up(slots * 8, 16)
+    emit_sub_sp_any(ctx, total_bytes)
+    ctx["stack_size"] = ctx["stack_size"] + total_bytes
+
+    var loop_base_stack = ctx["stack_size"]
+    var tick_off = 0
+    var slot0 = 8
+    var trace_kind = "fast_list_dot_while"
+    if !keep_tick_slot {
+        tick_off = -1
+        slot0 = 0
+        trace_kind = "fast_list_dot_while_no_tick"
+    }
+    var i_off = slot0
+    var n_off = slot0 + 8
+    var sum_off = slot0 + 16
+    var list_base_off = slot0 + 24
+    listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
+
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
+    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
+
+    // load i/n/sum locals into slots
+    emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
+    emit_str_reg_sp_any(ctx, 0, i_off)
+    emit_ldr_reg_fp_any(ctx, 0, n_fp_off)
+    emit_str_reg_sp_any(ctx, 0, n_off)
+    emit_ldr_reg_fp_any(ctx, 0, sum_fp_off)
+    emit_str_reg_sp_any(ctx, 0, sum_off)
+
+    var slow_jumps = []
+
+    // i < 0 => slow
+    emit_ldr_reg_sp_any(ctx, 0, i_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_i_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_i_neg, "cond": 11}) // LT
+
+    // n < 0 => slow
+    emit_ldr_reg_sp_any(ctx, 0, n_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_n_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_n_neg, "cond": 11}) // LT
+
+    // validate lists + capture buf pointers
+    var li = 0
+    while li < list_count {
+        var list_name = lists[li]
+        var list_fp_off = _arm64_local_fp_off(ctx, list_name)
+        var list_slot = list_base_off + li * 16
+        var buf_slot = list_slot + 8
+
+        // list pointer -> slot
+        emit_ldr_reg_fp_any(ctx, 0, list_fp_off)
+        emit_str_reg_sp_any(ctx, 0, list_slot)
+
+        // list == 0 => slow
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jpos_list_nil = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
+
+        // node = _list_find_node_known_kind(list, LIST)
+        _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 2)
+
+        // node == 0 => slow
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jpos_node_nil = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_node_nil, "cond": 0}) // EQ
+
+        // kind check (LIST == 2)
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+        emit_load_i64_imm(ctx, 2, 2)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_kind_bad = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_kind_bad, "cond": 1}) // NE
+
+        // magic check
+        emit_ldr_reg_sp_any(ctx, 0, list_slot)
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 24)
+        emit_load_i64_imm(ctx, 2, 1279870019)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_magic_bad = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
+
+        // count < n => slow
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 0) // count
+        emit_ldr_reg_sp_any(ctx, 2, n_off)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_count_small = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_count_small, "cond": 11}) // LT
+
+        // buf pointer
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+        emit_str_reg_sp_any(ctx, 1, buf_slot)
+
+        li = li + 1
+    }
+
+    if unique_lists {
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_load_i64_imm(ctx, 21, 8)
+        push_u32_le(ctx["code"], insn_mul(22, 20, 21))
+        var li_init = 0
+        while li_init < list_count {
+            var buf_slot_init = list_base_off + li_init * 16 + 8
+            emit_ldr_reg_sp_any(ctx, 23, buf_slot_init)
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 22))
+            emit_str_reg_sp_any(ctx, 23, buf_slot_init)
+            li_init = li_init + 1
+        }
+    }
+
+    // Keep i/sum in registers across iterations.
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_ldr_reg_sp_any(ctx, 23, sum_off)
+    emit_load_i64_imm(ctx, 22, 8)
+
+    // Fast loop entry
+    var loop_cond_pos = bytes_len(ctx["code"])
+    emit_ldr_reg_sp_any(ctx, 21, n_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    var jpos_fast_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ge end
+
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+
+    var mi = 0
+    while mi < oren_list_len(muls) {
+        var mul = muls[mi]
+        var left_list = mul["left"]
+        var right_list = mul["right"]
+        var li_left = 0
+        while li_left < list_count {
+            if _arm64_str_eq_bytes(lists[li_left], left_list) { break }
+            li_left = li_left + 1
+        }
+        var li_right = 0
+        while li_right < list_count {
+            if _arm64_str_eq_bytes(lists[li_right], right_list) { break }
+            li_right = li_right + 1
+        }
+        var buf_left = list_base_off + li_left * 16 + 8
+        var buf_right = list_base_off + li_right * 16 + 8
+
+        if unique_lists {
+            // left value (advance cursor)
+            emit_ldr_reg_sp_any(ctx, 24, buf_left)
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+            push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
+            emit_str_reg_sp_any(ctx, 24, buf_left)
+
+            // right value (advance cursor)
+            emit_ldr_reg_sp_any(ctx, 26, buf_right)
+            push_u32_le(ctx["code"], insn_ldr_ptr(27, 26))
+            push_u32_le(ctx["code"], insn_add_reg(26, 26, 22))
+            emit_str_reg_sp_any(ctx, 26, buf_right)
+
+            // sum += left * right
+            push_u32_le(ctx["code"], insn_mul(25, 25, 27))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+        } else {
+            // left value
+            emit_ldr_reg_sp_any(ctx, 21, buf_left)
+            push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+            push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+
+            // right value
+            emit_ldr_reg_sp_any(ctx, 26, buf_right)
+            push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+            push_u32_le(ctx["code"], insn_add_reg(24, 26, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr(24, 24))
+
+            // sum += left * right
+            push_u32_le(ctx["code"], insn_mul(25, 25, 24))
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+        }
+
+        mi = mi + 1
+    }
+
+    // i++
+    push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+
+    var back_pos = bytes_len(ctx["code"])
+    var back_off = (loop_cond_pos - back_pos) / 4
+    push_u32_le(ctx["code"], insn_b(back_off))
+
+    var fast_end_pos = bytes_len(ctx["code"])
+    var end_off = (fast_end_pos - jpos_fast_end) / 4
+    set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+
+    // Update idx/sum locals after loop exit.
+    emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+    emit_str_reg_fp_any(ctx, 23, sum_fp_off)
+
+    var jpos_skip_slow = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b end
+
+    // Slow path: patch all failure branches here and emit generic loop.
+    var slow_pos = bytes_len(ctx["code"])
+    var si = 0
+    while si < oren_list_len(slow_jumps) {
+        var sj = slow_jumps[si]
+        var soff = (slow_pos - sj["pos"]) / 4
+        set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
+        si = si + 1
+    }
+    _arm64_emit_while_generic(ctx, stmt)
+
+    var end_pos = bytes_len(ctx["code"])
+    var skip_off = (end_pos - jpos_skip_slow) / 4
+    set_u32_le(ctx["code"], jpos_skip_slow, insn_b(skip_off))
+
+    _arm64_restore_stack_to(ctx, base_stack)
+    return nil
+}
+
+fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
+    if ctx == nil || stmt == nil || info == nil { return nil }
+
+    var trace_reserve = oren_env("OREN_TRACE_NATIVE_LIST_RESERVE") != nil
+
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var n_const = info["n_const"]
+    var lists = info["lists"]
+    var pushes = info["pushes"]
+    var single_list_cursor_safe = info["single_list_cursor_safe"] == true
+    var all_push_values_idx_int_expr_safe = info["all_push_values_idx_int_expr_safe"] == true
+    var all_push_values_nonneg_linear_safe = info["all_push_values_nonneg_linear_safe"] == true
+    var nonneg_linear_safe_n_limit = info["nonneg_linear_safe_n_limit"]
+    var fresh_exact_lists = info["fresh_exact_lists"]
+    var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
+    var n_fp_off = nil
+    if n_name != nil { n_fp_off = _arm64_local_fp_off(ctx, n_name) }
+    if idx_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name != nil && n_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name == nil && n_const == nil { return _arm64_emit_while_generic(ctx, stmt) }
+
+    var base_stack = ctx["stack_size"]
+    var list_count = oren_list_len(lists)
+    var keep_tick_slot = false
+    if oren_env("OREN_ARM64_FAST_LIST_INT_PUSH_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK", 4095)
+    var slots = 3 + list_count * 2 // tick + i + n + (list, buf)*N
+    if !keep_tick_slot { slots = 2 + list_count * 2 }
+    var total_bytes = align_up(slots * 8, 16)
+    emit_sub_sp_any(ctx, total_bytes)
+    ctx["stack_size"] = ctx["stack_size"] + total_bytes
+
+    var loop_base_stack = ctx["stack_size"]
+    var tick_off = 0
+    var slot0 = 8
+    var trace_kind = "fast_list_int_push_while"
+    if !keep_tick_slot {
+        tick_off = -1
+        slot0 = 0
+        trace_kind = "fast_list_int_push_while_no_tick"
+    }
+    var i_off = slot0
+    var n_off = slot0 + 8
+    var list_base_off = slot0 + 16
+    listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
+
+    var single_list_cursor = false
+    if list_count == 1 &&
+        oren_list_len(pushes) == 1 &&
+        single_list_cursor_safe == true &&
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_SINGLE_LIST_CURSOR") == true {
+        single_list_cursor = true
+    }
+    var idx_int_expr_fast = false
+    if all_push_values_idx_int_expr_safe == true &&
+        _arm64_env_enabled_default_true("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR") == true {
+        idx_int_expr_fast = true
+    }
+    var idx_nonneg_linear_fast = false
+    if all_push_values_nonneg_linear_safe == true &&
+        nonneg_linear_safe_n_limit != nil &&
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR") == true {
+        // This path only handles nonnegative affine/mod shapes with a proven loop-bound ceiling, so
+        // the direct mul/add/(u)div sequence stays semantically aligned with the generic int path.
+        idx_nonneg_linear_fast = true
+    }
+    var fresh_exact_init_fast = false
+    if fresh_exact_lists != nil &&
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_INIT") == true {
+        fresh_exact_init_fast = true
+    }
+    var fresh_exact_single_list_fast = false
+    if fresh_exact_lists != nil &&
+        list_count == 1 &&
+        oren_list_len(pushes) == 1 &&
+        single_list_cursor_safe == true &&
+        fresh_exact_lists[lists[0]] == true &&
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_FRESH_EXACT_SINGLE_LIST") == true {
+        // Narrow experimental shortcut: isolate the single-list explicit fill shape from the broader
+        // fresh-exact proof so it can be ranked independently on the exact whole-operation surface.
+        fresh_exact_single_list_fast = true
+    }
+    var idx_int_expr_cursor_regs = false
+    if single_list_cursor == true &&
+        (idx_nonneg_linear_fast == true || idx_int_expr_fast == true) &&
+        _arm64_env_enabled_default_false("OREN_ARM64_FAST_LIST_INT_PUSH_IDX_EXPR_CURSOR_REGS") == true {
+        idx_int_expr_cursor_regs = true
+    }
+
+    // load i/n locals into slots
+    emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
+    emit_str_reg_sp_any(ctx, 0, i_off)
+    if n_fp_off != nil {
+        emit_ldr_reg_fp_any(ctx, 0, n_fp_off)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    } else {
+        emit_load_i64_imm(ctx, 0, n_const)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    }
+
+    var slow_jumps = []
+
+    // i < 0 => slow
+    emit_ldr_reg_sp_any(ctx, 0, i_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_i_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_i_neg, "cond": 11}) // LT
+
+    // n < 0 => slow
+    emit_ldr_reg_sp_any(ctx, 0, n_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_n_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_n_neg, "cond": 11}) // LT
+    if idx_nonneg_linear_fast == true {
+        emit_load_i64_imm(ctx, 1, nonneg_linear_safe_n_limit)
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+        var jpos_n_too_big = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_n_too_big, "cond": 12}) // GT
+    }
+
+    // validate lists + capture buf pointers
+    var li = 0
+    while li < list_count {
+        var list_name = lists[li]
+        var list_fp_off = _arm64_local_fp_off(ctx, list_name)
+        var list_slot = list_base_off + li * 16
+        var buf_slot = list_slot + 8
+        var list_fresh_exact = false
+        if fresh_exact_single_list_fast == true {
+            list_fresh_exact = true
+        } else if fresh_exact_init_fast == true && fresh_exact_lists[list_name] == true {
+            list_fresh_exact = true
+        }
+
+        // list pointer -> slot
+        emit_ldr_reg_fp_any(ctx, 0, list_fp_off)
+        emit_str_reg_sp_any(ctx, 0, list_slot)
+        if list_fresh_exact == true {
+            // Cross-statement proof: this list was freshly constructed as `list.int_new(n)` in the
+            // same block, `i` is still known 0 at loop entry, and no intervening statement could
+            // alias or mutate the list. Skip the reserve/count/header revalidation and use the
+            // constructor-initialized buffer directly.
+            emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+            emit_str_reg_sp_any(ctx, 1, buf_slot)
+        } else {
+            // list == 0 => slow
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+            var jpos_list_nil = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
+
+            // node = _list_find_node_known_kind(list, LIST_INT)
+            _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 8)
+
+            // node == 0 => slow
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+            var jpos_node_nil = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(slow_jumps, {"pos": jpos_node_nil, "cond": 0}) // EQ
+
+            // kind check (LIST_INT == 8)
+            emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+            emit_load_i64_imm(ctx, 2, 8)
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+            var jpos_kind_bad = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(slow_jumps, {"pos": jpos_kind_bad, "cond": 1}) // NE
+
+            // magic check
+            emit_ldr_reg_sp_any(ctx, 0, list_slot)
+            emit_load_ptr_from_base_plus(ctx, 1, 0, 24)
+            emit_load_i64_imm(ctx, 2, 1279870019)
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+            var jpos_magic_bad = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
+
+            // capacity check: cap < n => reserve (grow list buffer)
+            emit_load_ptr_from_base_plus(ctx, 1, 0, 8) // cap
+            emit_ldr_reg_sp_any(ctx, 2, n_off)
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+            var jpos_cap_ok = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // patched: b.ge cap_ok
+            // list_reserve(list, n)
+            if trace_reserve {
+                emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
+                emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
+                emit_load_i64_imm(ctx, 2, 8)
+                var bl_trace_reserve = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_reserve, "name": "oren_trace_list_reserve_fast"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace_reserve)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_reserve_fast")
+            }
+            emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
+            emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
+            var bl_reserve = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reserve, "name": "oren_list_int_reserve"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_reserve)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_int_reserve")
+            emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after call
+
+            var cap_ok_pos = bytes_len(ctx["code"])
+            var cap_ok_off = (cap_ok_pos - jpos_cap_ok) / 4
+            set_u32_le(ctx["code"], jpos_cap_ok, insn_b_cond(cap_ok_off, 10)) // GE
+
+            // count check: count != i => slow
+            emit_load_ptr_from_base_plus(ctx, 1, 0, 0) // count
+            emit_ldr_reg_sp_any(ctx, 2, i_off)
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+            var jpos_count_bad = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(slow_jumps, {"pos": jpos_count_bad, "cond": 1}) // NE
+
+            // buf pointer
+            emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+            emit_str_reg_sp_any(ctx, 1, buf_slot)
+        }
+
+        li = li + 1
+	    }
+	
+    // Seed the inline tick after preheader reserve/capacity calls so the fast loop always starts
+    // from a known countdown state on the no-slot path too.
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
+    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
+
+    if single_list_cursor {
+        // Keep the active list<int> cursor in the existing buf stack slot. We deliberately do not
+        // keep it live in X19 across `native_compile_expr`: arm64 expression lowering freely uses
+        // X19/X20 internally, so the safe win here is to stop rebuilding `buf + i*8` every trip.
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_load_i64_imm(ctx, 21, 8)
+        push_u32_le(ctx["code"], insn_mul(22, 20, 21))
+        emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
+        push_u32_le(ctx["code"], insn_add_reg(19, 19, 22))
+        emit_str_reg_sp_any(ctx, 19, list_base_off + 8)
+    }
+
+    if idx_int_expr_cursor_regs == true {
+        // Narrow fill-side fast path: once the value expression is proven to be pure idx arithmetic,
+        // keep the cursor and loop bounds live in preserved regs instead of round-tripping them
+        // through stack slots every iteration.
+        emit_ldr_reg_sp_any(ctx, 19, list_base_off + 8)
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
+
+    // Fast loop entry
+    var loop_cond_pos = bytes_len(ctx["code"])
+    if idx_int_expr_cursor_regs != true {
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_ldr_reg_sp_any(ctx, 21, n_off)
+    }
+    push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    var jpos_fast_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ge end
+
+    if idx_int_expr_cursor_regs == true {
+        gc.native_emit_gc_safepoint_inline_tick_pairs(ctx, tick_mask, [[19, 20], [21, 22]])
+    } else {
+        gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+    }
+
+    // Keep idx local updated for generic value expressions. The idx-only int fast path uses X20
+    // directly and avoids the extra frame spill/reload churn in fill-heavy loops.
+    if idx_int_expr_fast != true {
+        emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+    }
+
+    if single_list_cursor {
+        var push = pushes[0]
+        var value_expr = push["value"]
+        var buf_slot2 = list_base_off + 8
+
+        // value -> X0
+        if idx_nonneg_linear_fast == true {
+            _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, push["linear"], 20)
+        } else if idx_int_expr_fast == true {
+            _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
+        } else {
+            native_compile_expr(ctx, value_expr)
+            _arm64_restore_stack_to(ctx, loop_base_stack)
+        }
+
+        if idx_int_expr_cursor_regs == true {
+            push_u32_le(ctx["code"], insn_str_ptr(0, 19))
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+        } else {
+            emit_ldr_reg_sp_any(ctx, 19, buf_slot2)
+            push_u32_le(ctx["code"], insn_str_ptr(0, 19))
+            push_u32_le(ctx["code"], insn_add_imm(19, 19, 8))
+            emit_str_reg_sp_any(ctx, 19, buf_slot2)
+            emit_ldr_reg_sp_any(ctx, 20, i_off)
+        }
+        push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+        if idx_int_expr_cursor_regs != true {
+            emit_str_reg_sp_any(ctx, 20, i_off)
+        }
+    } else {
+        var pi = 0
+        while pi < oren_list_len(pushes) {
+            var push = pushes[pi]
+            var list_name2 = push["list"]
+            var value_expr = push["value"]
+            var list_index = 0
+            while list_index < list_count {
+                if _arm64_str_eq_bytes(lists[list_index], list_name2) { break }
+                list_index = list_index + 1
+            }
+            var list_slot2 = list_base_off + list_index * 16
+            var buf_slot2 = list_slot2 + 8
+
+            // value -> X0
+            if idx_nonneg_linear_fast == true {
+                _arm64_emit_fast_loop_nonneg_linear_to_x0(ctx, push["linear"], 20)
+            } else if idx_int_expr_fast == true {
+                _arm64_emit_fast_loop_idx_int_expr_to_x0(ctx, value_expr, idx_name, 20)
+            } else {
+                native_compile_expr(ctx, value_expr)
+                _arm64_restore_stack_to(ctx, loop_base_stack)
+            }
+
+            // addr = buf + i*8 ; store value
+            emit_ldr_reg_sp_any(ctx, 20, i_off)
+            emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
+            emit_load_i64_imm(ctx, 22, 8)
+            push_u32_le(ctx["code"], insn_mul(23, 20, 22))
+            push_u32_le(ctx["code"], insn_add_reg(23, 21, 23))
+            push_u32_le(ctx["code"], insn_str_ptr(0, 23))
+
+            pi = pi + 1
+        }
+
+        // i++
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+        emit_str_reg_sp_any(ctx, 20, i_off)
+    }
+
+    var back_pos = bytes_len(ctx["code"])
+    var back_off = (loop_cond_pos - back_pos) / 4
+    push_u32_le(ctx["code"], insn_b(back_off))
+
+    var fast_end_pos = bytes_len(ctx["code"])
+    var end_off = (fast_end_pos - jpos_fast_end) / 4
+    set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+
+    // Update list counts after loop exit.
+    if idx_int_expr_cursor_regs != true {
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+    }
+    var li2 = 0
+    while li2 < list_count {
+        var list_slot3 = list_base_off + li2 * 16
+        emit_ldr_reg_sp_any(ctx, 21, list_slot3)
+        push_u32_le(ctx["code"], insn_str_ptr(20, 21))
+        _arm64_emit_trace_list_header_if_enabled(ctx, 21)
+        li2 = li2 + 1
+	    }
+	
+    // Update idx local after loop exit.
+    emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+
+    var jpos_skip_slow = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b end
+
+    // Slow path: patch all failure branches here and emit generic loop.
+    var slow_pos = bytes_len(ctx["code"])
+    var si = 0
+    while si < oren_list_len(slow_jumps) {
+        var sj = slow_jumps[si]
+        var soff = (slow_pos - sj["pos"]) / 4
+        set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
+        si = si + 1
+    }
+    _arm64_emit_while_generic(ctx, stmt)
+
+    var end_pos = bytes_len(ctx["code"])
+    var skip_off = (end_pos - jpos_skip_slow) / 4
+    set_u32_le(ctx["code"], jpos_skip_slow, insn_b(skip_off))
+
+    _arm64_restore_stack_to(ctx, base_stack)
+    return nil
+}
+
+fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
+    if ctx == nil || stmt == nil || info == nil { return nil }
+
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var n_const = info["n_const"]
+    var lists = info["lists"]
+    var pushes = info["pushes"]
+    var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
+    var n_fp_off = nil
+    if n_name != nil { n_fp_off = _arm64_local_fp_off(ctx, n_name) }
+    if idx_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name != nil && n_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name == nil && n_const == nil { return _arm64_emit_while_generic(ctx, stmt) }
+
+    var base_stack = ctx["stack_size"]
+    var list_count = oren_list_len(lists)
+    var keep_tick_slot = false
+    if oren_env("OREN_ARM64_FAST_LIST_PUSH_KEEP_TICK_SLOT") != nil { keep_tick_slot = true }
+    var tick_mask = gc.native_arm64_fast_loop_tick_mask("OREN_ARM64_FAST_LIST_PUSH_TICK_MASK", 255)
+    var slots = 3 + list_count * 2 // tick + i + n + (list, buf)*N
+    if !keep_tick_slot { slots = 2 + list_count * 2 }
+    var total_bytes = align_up(slots * 8, 16)
+    emit_sub_sp_any(ctx, total_bytes)
+    ctx["stack_size"] = ctx["stack_size"] + total_bytes
+
+    var loop_base_stack = ctx["stack_size"]
+    var tick_off = 0
+    var slot0 = 8
+    var trace_kind = "fast_list_push_while"
+    if !keep_tick_slot {
+        tick_off = -1
+        slot0 = 0
+        trace_kind = "fast_list_push_while_no_tick"
+    }
+    var i_off = slot0
+    var n_off = slot0 + 8
+    var list_base_off = slot0 + 16
+    listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
+
+    // load i/n locals into slots
+    emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
+    emit_str_reg_sp_any(ctx, 0, i_off)
+    if n_fp_off != nil {
+        emit_ldr_reg_fp_any(ctx, 0, n_fp_off)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    } else {
+        emit_load_i64_imm(ctx, 0, n_const)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    }
+
+    var slow_jumps = []
+
+    // i < 0 => slow
+    emit_ldr_reg_sp_any(ctx, 0, i_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_i_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_i_neg, "cond": 11}) // LT
+
+    // n < 0 => slow
+    emit_ldr_reg_sp_any(ctx, 0, n_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_n_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_jumps, {"pos": jpos_n_neg, "cond": 11}) // LT
+
+    // validate lists + capture buf pointers
+    var li = 0
+    while li < list_count {
+        var list_name = lists[li]
+        var list_fp_off = _arm64_local_fp_off(ctx, list_name)
+        var list_slot = list_base_off + li * 16
+        var buf_slot = list_slot + 8
+
+        // list pointer -> slot
+        emit_ldr_reg_fp_any(ctx, 0, list_fp_off)
+        emit_str_reg_sp_any(ctx, 0, list_slot)
+
+        // list == 0 => slow
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jpos_list_nil = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_list_nil, "cond": 0}) // EQ
+
+        // node = _list_find_node_known_kind(list, LIST)
+        _arm64_emit_find_list_node_known_kind(ctx, 0, 0, 2)
+
+        // node == 0 => slow
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jpos_node_nil = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_node_nil, "cond": 0}) // EQ
+
+        // kind check (LIST == 2)
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+        emit_load_i64_imm(ctx, 2, 2)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_kind_bad = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_kind_bad, "cond": 1}) // NE
+
+        // magic check
+        emit_ldr_reg_sp_any(ctx, 0, list_slot)
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 24)
+        emit_load_i64_imm(ctx, 2, 1279870019)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_magic_bad = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
+
+        // capacity check: cap < n => reserve (grow list buffer)
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 8) // cap
+        emit_ldr_reg_sp_any(ctx, 2, n_off)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_cap_ok = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b.ge cap_ok
+        // list_reserve(list, n)
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
+        emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
+        var bl_reserve = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reserve, "name": "oren_list_reserve"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_reserve)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_reserve")
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after call
+
+        var cap_ok_pos = bytes_len(ctx["code"])
+        var cap_ok_off = (cap_ok_pos - jpos_cap_ok) / 4
+        set_u32_le(ctx["code"], jpos_cap_ok, insn_b_cond(cap_ok_off, 10)) // GE
+
+        // count check: count != i => slow
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 0) // count
+        emit_ldr_reg_sp_any(ctx, 2, i_off)
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var jpos_count_bad = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_count_bad, "cond": 1}) // NE
+
+        // buf pointer
+        emit_load_ptr_from_base_plus(ctx, 1, 0, 16)
+        emit_str_reg_sp_any(ctx, 1, buf_slot)
+
+        li = li + 1
+	    }
+	
+    // Seed the inline tick after preheader reserve/capacity calls so the fast loop always starts
+    // from a known countdown state on the no-slot path too.
+    gc.native_emit_gc_inline_tick_init(ctx, tick_mask)
+    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
+
+    // Fast loop entry
+    var loop_cond_pos = bytes_len(ctx["code"])
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_ldr_reg_sp_any(ctx, 21, n_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    var jpos_fast_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ge end
+
+    gc.native_emit_gc_safepoint_inline_tick(ctx, tick_mask)
+
+    // Keep idx local updated for value expressions.
+    emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+
+    var pi = 0
+    while pi < oren_list_len(pushes) {
+        var push = pushes[pi]
+        var list_name2 = push["list"]
+        var value_expr = push["value"]
+        var list_index = 0
+        while list_index < list_count {
+            if _arm64_str_eq_bytes(lists[list_index], list_name2) { break }
+            list_index = list_index + 1
+        }
+        var list_slot2 = list_base_off + list_index * 16
+        var buf_slot2 = list_slot2 + 8
+
+        // value -> X0
+        native_compile_expr(ctx, value_expr)
+        _arm64_restore_stack_to(ctx, loop_base_stack)
+
+        // addr = buf + i*8 ; store value
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
+        emit_load_i64_imm(ctx, 22, 8)
+        push_u32_le(ctx["code"], insn_mul(23, 20, 22))
+        push_u32_le(ctx["code"], insn_add_reg(23, 21, 23))
+        push_u32_le(ctx["code"], insn_str_ptr(0, 23))
+
+        pi = pi + 1
+    }
+
+    // i++
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+    emit_str_reg_sp_any(ctx, 20, i_off)
+
+    var back_pos = bytes_len(ctx["code"])
+    var back_off = (loop_cond_pos - back_pos) / 4
+    push_u32_le(ctx["code"], insn_b(back_off))
+
+    var fast_end_pos = bytes_len(ctx["code"])
+    var end_off = (fast_end_pos - jpos_fast_end) / 4
+    set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+
+    // Update list counts after loop exit.
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    var li2 = 0
+    while li2 < list_count {
+        var list_slot3 = list_base_off + li2 * 16
+        emit_ldr_reg_sp_any(ctx, 21, list_slot3)
+        push_u32_le(ctx["code"], insn_str_ptr(20, 21))
+        if ctx["trace_native_list_hdr"] != nil {
+            push_u32_le(ctx["code"], insn_mov_reg(0, 21)) // list
+            emit_load_i64_imm(ctx, 1, 4) // list_push
+            emit_load_i64_imm(ctx, 2, 2) // LIST
+            var bl_trace = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_trace)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_trace_list_header")
+        }
+        li2 = li2 + 1
+    }
+
+    // Update idx local after loop exit.
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_str_reg_fp_any(ctx, 20, idx_fp_off)
+
+    var jpos_skip_slow = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b end
+
+    // Slow path: patch all failure branches here and emit generic loop.
+    var slow_pos = bytes_len(ctx["code"])
+    var si = 0
+    while si < oren_list_len(slow_jumps) {
+        var sj = slow_jumps[si]
+        var soff = (slow_pos - sj["pos"]) / 4
+        set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
+        si = si + 1
+    }
+    _arm64_emit_while_generic(ctx, stmt)
+
+    var end_pos = bytes_len(ctx["code"])
+    var skip_off = (end_pos - jpos_skip_slow) / 4
+    set_u32_le(ctx["code"], jpos_skip_slow, insn_b(skip_off))
+
+    _arm64_restore_stack_to(ctx, base_stack)
+    return nil
+}

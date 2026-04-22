@@ -169,10 +169,14 @@ backend-shared value-helper slices landed.
       `lib/avm/avm_native_capability_domain_fs.inc` and
       `lib/avm/avm_native_capability_domains_misc.inc`
     - `lib/runtime/010_prelude.inc` and `lib/runtime/040_lists_maps.inc` stay back under the red
-      line, so the remaining oversized debt is now reweighted away from generator/AVM-native glue and
-      toward `lib/compiler/arm64_native_stmt_loops_list_emit.oren`,
-      `lib/compiler/arm64_native_stmt.oren`,
-      `lib/compiler/compiler/040_build_pipeline/010_main.oren`, and `lib/avm/main.c`
+      line, and the next coupled ARM64 stmt split is landed too:
+      `lib/compiler/arm64_native_stmt.oren` is back under the red line, the old list-loop emitter
+      body now lives in `lib/compiler/arm64_native_stmt_loops_list_emit_prefix_reduce.oren`,
+      `lib/compiler/arm64_native_stmt_loops_list_emit_int_reduce_dot.oren`, and
+      `lib/compiler/arm64_native_stmt_loops_list_emit_dot_push.oren`, and the set-lowering tail now
+      lives in `lib/compiler/arm64_native_stmt_set.oren`. The remaining oversized debt is now
+      reweighted away from generator/AVM-native glue and toward
+      `lib/compiler/compiler/040_build_pipeline/010_main.oren` and `lib/avm/main.c`
   - the default repo verification lane stays green by using the stage1 `./oren` tool path for
     generator finalize `meta` / `dump linked` parity, matching the broader generator surface verifier;
     the remaining narrow tooling issue is stage2 `dump linked` throughput on

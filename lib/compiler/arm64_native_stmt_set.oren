@@ -1,0 +1,290 @@
+import core "arm64_core.oren"
+import exprm "arm64_native_expr.oren"
+import loopm "arm64_native_stmt_loops.oren"
+
+fn bytes_len(b) { return core.bytes_len(b) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
+fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+fn native_compile_stmt_set(ctx, stmt) {
+    if stmt["left"]["type"] == "Index" {
+        native_compile_expr(ctx, stmt["left"]["left"]) // container -> X0
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        
+        native_compile_expr(ctx, stmt["left"]["index"]) // index -> X0
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        
+        native_compile_expr(ctx, stmt["value"]) // value -> X0
+        
+        // Pop index -> X1
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+        
+        // Pop container -> X2
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+        
+        // oren_index_set(container, index, value)
+        // Need X0=container, X1=index, X2=value
+        // Currently: X0=value, X1=index, X2=container
+        
+        push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+        push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // cont -> X0
+        // X1 is index (ok)
+        push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+
+        // Native backend fast-path: list in-bounds store without calling stdlib.
+        // Falls back to typed `oren_map_set_{int,str}` for map containers (deterministic; no runtime key-kind inference).
+
+        // If container is nil, panic deterministically.
+        push_u32_le(ctx["code"], insn_movz(4, 0))
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
+        var br_non_nil = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        exprm.native_emit_panic(ctx, "index_set on nil")
+        var non_nil_pos = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
+
+        // Tier‑1 safety: never read object headers from untracked pointers.
+        //
+        // In the native v0 carrier model, immediates and pointers share the same i64 slot, so we
+        // must only treat `container` as a list/map pointer if it is tracked.
+        //
+        // Use the same tracked-node kind contract as the runtime (and as x86_64):
+        // - kind==2 => LIST
+        // - kind==3 => MAP
+        //
+        // Preserve container/index/value across the probe call using callee-saved registers.
+        push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = container
+        push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = index
+        push_u32_le(ctx["code"], insn_mov_reg(21, 2)) // X21 = value
+
+        // node = oren_find_node(container)
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+        var bl_find_node = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+
+        // If node == 0 => not a tracked container => panic deterministically.
+        push_u32_le(ctx["code"], insn_movz(4, 0))
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
+        var br_node_nonzero = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        var recv_kind0 = stmt["left"]["recv_kind"]
+        if recv_kind0 == "list" {
+            exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
+        } else if recv_kind0 == "list_int" {
+            exprm.native_emit_panic(ctx, "index_set recv_kind=list_int but value is not a list_int")
+        } else if recv_kind0 == "map" {
+            exprm.native_emit_panic(ctx, "index_set recv_kind=map but value is not a map")
+        } else {
+            exprm.native_emit_panic(ctx, "index_set on non-container (expected list or map)")
+        }
+        var node_ok_pos = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
+
+        // kind = *(node + 16)
+        emit_load_ptr_from_base_plus(ctx, 4, 0, 16) // X4 = kind
+
+        // Dispatch to list vs map.
+        var br_to_map = nil
+        if recv_kind0 == "list" {
+            emit_load_i64_imm(ctx, 5, 2) // X5 = LIST
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            emit_load_i64_imm(ctx, 5, 8) // X5 = LIST_INT
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list_int = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
+            var list_ok_pos = bytes_len(ctx["code"])
+            set_u32_le(ctx["code"], br_is_list, insn_b_cond((list_ok_pos - br_is_list) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_is_list_int, insn_b_cond((list_ok_pos - br_is_list_int) / 4, 0)) // EQ
+        } else if recv_kind0 == "list_int" {
+            emit_load_i64_imm(ctx, 5, 8) // X5 = LIST_INT
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list_int = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "index_set recv_kind=list_int but value is not a list_int")
+            var list_int_ok_pos = bytes_len(ctx["code"])
+            set_u32_le(ctx["code"], br_is_list_int, insn_b_cond((list_int_ok_pos - br_is_list_int) / 4, 0)) // EQ
+        } else if recv_kind0 == "map" {
+            emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            br_to_map = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "index_set recv_kind=map but value is not a map")
+            // map label is patched later; list block will be skipped by the branch.
+        } else {
+            // Unknown at compile-time => dynamic kind dispatch (LIST or MAP).
+            emit_load_i64_imm(ctx, 5, 2) // X5 = LIST
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list2 = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            emit_load_i64_imm(ctx, 5, 8) // X5 = LIST_INT
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list2_int = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            br_to_map = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            exprm.native_emit_panic(ctx, "index_set on non-container (expected list or map)")
+            var list_pos = bytes_len(ctx["code"])
+            set_u32_le(ctx["code"], br_is_list2, insn_b_cond((list_pos - br_is_list2) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_is_list2_int, insn_b_cond((list_pos - br_is_list2_int) / 4, 0)) // EQ
+            // If kind==MAP, `br_to_map` is patched later to map_pos.
+        }
+
+        // --- List path ---
+        // Restore container/index/value (X0=container, X1=index, X2=value).
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+        push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+        push_u32_le(ctx["code"], insn_mov_reg(2, 21))
+
+        // Semantics: `xs[i] = v` grows lists as needed (matches C backend + tests).
+        // Delegate to the native runtime helper rather than inlining strict in-bounds stores.
+        var list_set_sym = "oren_list_set"
+        if recv_kind0 == "list_int" { list_set_sym = "oren_list_int_set" }
+        var bl_list_set = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_set, "name": list_set_sym})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_set)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], list_set_sym)
+
+        // Done.
+        var br_done = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+
+        // --- Map fallback ---
+        var map_pos = bytes_len(ctx["code"])
+        // Restore container/index/value (X0=container, X1=index, X2=value).
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+        push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+        push_u32_le(ctx["code"], insn_mov_reg(2, 21))
+        var bl_pos = bytes_len(ctx["code"])
+        var recv_kind = stmt["left"]["recv_kind"]
+        if recv_kind == "list" || recv_kind == "list_int" {
+            // Deterministic contract: list index_set never falls back to map ops.
+            if recv_kind == "list_int" {
+                exprm.native_emit_panic(ctx, "index_set recv_kind=list_int but value is not a list_int")
+            } else {
+                exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
+            }
+        } else {
+            // Typed map set (no key-kind heuristics).
+            var kk = -1
+            if stmt["left"]["known_key_kind"] != nil { kk = stmt["left"]["known_key_kind"] }
+            if kk < 0 {
+                var ix = stmt["left"]["index"]
+                if ix != nil {
+                    if ix["type"] == "Integer" { kk = 0 }
+                    if ix["type"] == "String" { kk = 1 }
+                }
+            }
+
+            var map_set_sym = nil
+            if kk == 0 { map_set_sym = "oren_map_set_int" }
+            if kk == 1 { map_set_sym = "oren_map_set_str" }
+
+            if map_set_sym == nil {
+                // Dynamic map set: delegate key-kind selection to the injected runtime helper.
+                var bl_pos2 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos2)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_map_set")
+            } else {
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": map_set_sym})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], map_set_sym)
+            }
+        }
+
+        var done_pos = bytes_len(ctx["code"])
+        if br_to_map != nil {
+            set_u32_le(ctx["code"], br_to_map, insn_b_cond((map_pos - br_to_map) / 4, 0)) // EQ
+        }
+        set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+
+        return nil
+    }
+    if stmt["left"]["type"] == "Member" {
+         // obj.prop = val -> oren_map_set_str(obj, "prop", val)
+         // Similar logic, but index is string literal
+         
+         native_compile_expr(ctx, stmt["left"]["left"]) // obj -> X0
+         push_u32_le(ctx["code"], insn_sub_sp(16))
+         push_u32_le(ctx["code"], insn_str_x0_sp(0))
+         ctx["stack_size"] = ctx["stack_size"] + 16
+         
+	         // Prop name string (deduped cstr0).
+	         var prop = stmt["left"]["prop"]["value"]
+	         var data_off = exprm.native_data_add_cstr0(ctx, prop)
+	         var adr_pos = bytes_len(ctx["code"])
+	         push_u32_le(ctx["code"], 0)
+	         push_u32_le(ctx["code"], 0)
+	         oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off, "reg": nil})
+	         oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+	         oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], data_off)
+	         oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
+	         
+	         push_u32_le(ctx["code"], insn_sub_sp(16))
+	         push_u32_le(ctx["code"], insn_str_x0_sp(0))
+	         ctx["stack_size"] = ctx["stack_size"] + 16
+         
+         native_compile_expr(ctx, stmt["value"]) // val -> X0
+         
+         // Pop key -> X1
+         push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+         push_u32_le(ctx["code"], insn_add_sp(16))
+         ctx["stack_size"] = ctx["stack_size"] - 16
+         
+         // Pop obj -> X2
+         push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+         push_u32_le(ctx["code"], insn_add_sp(16))
+         ctx["stack_size"] = ctx["stack_size"] - 16
+         
+         // Need X0=obj, X1=key, X2=val
+         // Currently: X0=val, X1=key, X2=obj
+         push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+         push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // obj -> X0
+         // X1 is key (ok)
+         push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+         
+         var bl_pos2 = bytes_len(ctx["code"])
+         push_u32_le(ctx["code"], 0)
+         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set_str"})
+         oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos2)
+         oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_map_set_str")
+         
+         return nil
+    }
+    native_error(ctx, stmt["token"], "native backend: unsupported set target")
+    return nil
+}

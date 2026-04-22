@@ -4271,12 +4271,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 							     `lib/avm/avm_native_buffer_cases_c.inc`, and
 							     `lib/avm/avm_native_buffer_cases_d.inc`, and the capability-domain dispatcher body now
 							     lives in `lib/avm/avm_native_capability_domain_fs.inc` plus
-							     `lib/avm/avm_native_capability_domains_misc.inc`. Reweight the next debt payoff toward
-							     the remaining oversized non-generator code hosts
-							     `lib/compiler/arm64_native_stmt_loops_list_emit.oren`,
-							     `lib/compiler/arm64_native_stmt.oren`,
-							     `lib/compiler/compiler/040_build_pipeline/010_main.oren`, and `lib/avm/main.c`
-							     instead of reopening settled generator semantics or already-split AVM native hosts.
+								     `lib/avm/avm_native_capability_domains_misc.inc`
+						   - New (2026-04-22): the next coupled ARM64 stmt payoff above that generator/AVM cleanup is
+						     landed too. `lib/compiler/arm64_native_stmt.oren` is back under the repo threshold, the
+						     old list-loop emitter body is now split into
+						     `lib/compiler/arm64_native_stmt_loops_list_emit_prefix_reduce.oren`,
+						     `lib/compiler/arm64_native_stmt_loops_list_emit_int_reduce_dot.oren`, and
+						     `lib/compiler/arm64_native_stmt_loops_list_emit_dot_push.oren`, and the set-lowering tail
+						     now lives in `lib/compiler/arm64_native_stmt_set.oren`. Reweight the remaining oversized
+						     non-generator code-host debt toward
+						     `lib/compiler/compiler/040_build_pipeline/010_main.oren` and `lib/avm/main.c`
+						     instead of reopening settled generator semantics or already-split AVM / ARM64 stmt hosts.
 					   - New (2026-04-22): the repo-default verification lane is green again after moving the
 					     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
 					     broader generator surface verifier. Reweight the next task above correctness: optimize the
