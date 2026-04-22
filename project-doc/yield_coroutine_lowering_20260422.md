@@ -174,15 +174,15 @@ backend-shared value-helper slices landed.
       body now lives in `lib/compiler/arm64_native_stmt_loops_list_emit_prefix_reduce.oren`,
       `lib/compiler/arm64_native_stmt_loops_list_emit_int_reduce_dot.oren`, and
       `lib/compiler/arm64_native_stmt_loops_list_emit_dot_push.oren`, and the set-lowering tail now
-      lives in `lib/compiler/arm64_native_stmt_set.oren`. The remaining oversized debt is now
-      reweighted away from generator/AVM-native glue and toward
+      lives in `lib/compiler/arm64_native_stmt_set.oren`. The remaining oversized debt was then
+      fully cleared too:
       `lib/compiler/compiler/040_build_pipeline/010_main.oren` now delegates its
       completion/sym/scan/dump/meta introspection block through
-      `lib/compiler/compiler/040_build_pipeline/008_introspection_commands.oren`, and
+      `lib/compiler/compiler/040_build_pipeline/008_introspection_commands.oren`,
       `lib/avm/main.c` now keeps its effect-ledger/report helper block in
-      `lib/avm/avm_main_effect_ledger.inc`, so the remaining tracked oversized source is now the
-      include-based native QI bundle `tests/native/qi/100_tests_basic.oren` rather than a
-      production host/compiler/runtime file
+      `lib/avm/avm_main_effect_ledger.inc`, and `tests/native/qi/100_tests_basic.oren` is now a
+      thin include facade over four focused shards. The rolling tracked source scan is back under
+      the 2000-line threshold across compiler/runtime code and Tier-1 test bundles
   - the default repo verification lane stays green by using the stage1 `./oren` tool path for
     generator finalize `meta` / `dump linked` parity, matching the broader generator surface verifier;
     the remaining narrow tooling issue is stage2 `dump linked` throughput on

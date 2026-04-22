@@ -1,0 +1,725 @@
+@pack
+struct PV_H {
+    v: u8,
+    t: u8,
+    len: u16be,
+    src: u32be,
+    dst: u32be
+}
+
+struct F32Box {
+    x: f32
+}
+
+fn test_core() {
+    trace("QI: test_core begin")
+    // Arithmetic / bool / bit ops.
+    assert_eq(2 + 3, 5, 10)
+    assert_true(true, 11)
+    assert_true(!false, 12)
+    assert_eq((1 | 2), 3, 13)
+    assert_eq((255 & 7), 7, 131)
+    assert_eq((10 & 255), 10, 132)
+    assert_eq((5 ^ 1), 4, 14)
+    assert_eq((1 << 5), 32, 15)
+    assert_eq((32 >> 5), 1, 16)
+    assert_eq(7 / 3, 2, 17)
+    assert_eq(-7 / 3, -2, 18)
+    assert_eq(7 / -3, -2, 19)
+    assert_eq(-7 / -3, 2, 20)
+
+    trace("QI: test_core yield")
+    // Yield is a best-effort OS scheduling hint today (future: native greenlet scheduler).
+    // It must be callable and bounded on all Tier-1 platforms.
+    var ynorm = oren_yield_stmt()
+    if ynorm != nil { fail(136) }
+    yield
+    var yrc = oren_yield()
+    if yrc != 0 {
+        print("QI: oren_yield failed rc=" + oren_int_to_string(yrc))
+        fail(137)
+    }
+    var yval = oren_yield_value(123)
+    if yval != 123 { fail(138) }
+    var yexpr = (yield 77)
+    if yexpr != 77 { fail(139) }
+    var ynilexpr = (yield)
+    if ynilexpr != nil { fail(140) }
+
+    // Pointer byte stores/loads must work (critical for typed buffers, hashing, IO).
+    var p0 = oren_ptr_alloc(16)
+    if p0 == 0 { fail(133) }
+    ptr_set_byte(p0 + 0, 123)
+    ptr_set_byte(p0 + 1, 45)
+    var w0 = ptr_get(p0)
+    assert_eq(w0 & 255, 123, 134)
+    assert_eq((w0 >> 8) & 255, 45, 135)
+    oren_ptr_free(p0)
+
+    // Multi-arg calling convention (native ABI) sanity.
+    assert_eq(add3(1, 2, 3), 6, 136)
+
+    // Type-strict equality parity (critical):
+    // - `nil` must be distinct from numeric zero
+    // - `false` must be distinct from numeric zero
+    // - `nil` must be distinct from `false`
+    //
+    // NOTE (rolling):
+    // The compiler rejects provably-scalar `== nil` comparisons as a correctness guardrail.
+    // Exercise the equality behavior through unknown-typed values (map flows) so the test
+    // still probes the native backend hazard surface until full tagged values land.
+    var m0 = {"z": 0, "f": false, "n": nil}
+    var z0 = m0["z"]
+    var f0 = m0["f"]
+    var n0 = m0["n"]
+
+    if z0 == nil { fail(1001) }
+    if nil == z0 { fail(1002) }
+    if z0 == false { fail(1003) }
+    if false == z0 { fail(1004) }
+    if 0 == false { fail(1005) }
+    if false == 0 { fail(1006) }
+    if n0 == false { fail(1007) }
+    if false == n0 { fail(1008) }
+    if n0 != nil { fail(1009) }
+
+    // Truthiness parity (docs/LANGUAGE.md):
+    // - falsey: `nil`, `false`
+    // - truthy: everything else (including int 0)
+    if 0 { } else { fail(1010) }
+    if nil { fail(1011) }
+    if false { fail(1012) }
+    if !0 { fail(1013) }
+    if !nil { } else { fail(1014) }
+    assert_true((0 && nil) == false, 1015)
+    assert_true((0 || nil) == true, 1016)
+    assert_true((nil || 0) == true, 1017)
+    assert_true((nil && 0) == false, 1018)
+
+    trace("QI: test_core string literal pooling")
+    // Critical perf/correctness invariant (native backend):
+    // - string literals are deduped into a single cstr0 pool
+    // - literals are recognized as strings via `oren_init_static_cstr0_table`
+    // - literals must NOT be tracked as GC heap allocations
+    //
+    // These checks are intentionally pointer-identity based (do not use `==` for strings).
+    var lit0 = "qi_literal_pool_test"
+    var lit1 = "qi_literal_pool_test"
+    if (lit0 - lit1) != 0 { fail(3100) }
+    assert_true(oren_is_string(lit0), 3101)
+    if oren_find_node(lit0) != 0 { fail(3102) }
+
+    trace("QI: test_core reflection func")
+    var fn0 = add
+    assert_eq(reflect.tag(fn0), reflect.TAG_FUNC, 3110)
+    assert_streq(reflect.name(fn0), "func", 3111)
+
+    trace("QI: test_core lists")
+    var xs = [1, 2, 3, 4]
+    xs[1] = 20
+    assert_eq(xs[1], 20, 30)
+    var s = 0
+    for x in xs {
+        if x == 20 { continue }
+        s = s + x
+    }
+    assert_eq(s, 1 + 3 + 4, 31)
+
+    trace("QI: test_core iterable-map protocol")
+    var it = "ra" + "nge"
+    assert_true(oren_is_string(it), 3210)
+    assert_streq(it, "range", 3211)
+    var m_it = {"__iter": it, "start": 0, "end": 4, "step": 1}
+    var ys = []
+    for v in m_it { oren_list_push(ys, v) }
+    assert_eq(oren_list_len(ys), 4, 3212)
+    assert_eq(ys[0], 0, 3213)
+    assert_eq(ys[1], 1, 3214)
+    assert_eq(ys[2], 2, 3215)
+    assert_eq(ys[3], 3, 3216)
+
+    trace("QI: test_core empty list lowering int")
+    var li = []
+    oren_list_push(li, 1)
+    oren_list_int_push(li, 2)
+    assert_eq(oren_list_int_len(li), 2, 3220)
+    assert_eq(oren_list_int_get(li, 0), 1, 3221)
+    assert_eq(oren_list_int_get(li, 1), 2, 3222)
+
+    trace("QI: test_core empty list stays boxed")
+    var lb = []
+    var m1 = {"k": 1}
+    oren_list_push(lb, m1)
+    assert_eq(oren_list_len(lb), 1, 3223)
+    var m2 = oren_list_get(lb, 0)
+    assert_eq(m2["k"], 1, 3224)
+
+    trace("QI: test_core typed buffer views")
+    var ie0 = oren_is_err(0)
+    if ie0 {
+        print("QI: BUG: oren_is_err(0) returned true")
+        fail(3190)
+    }
+    var b = oren_i32_buf_new(6)
+    if oren_is_err(b) {
+        print("QI: oren_i32_buf_new failed")
+        fail(3200)
+    }
+    var chk0 = native_buf_check(b, BUF_TAG_I32, 4)
+    if chk0 != 0 {
+        print("QI: BUG: native_buf_check(b) returned err=" + oren_int_to_string(chk0))
+        fail(3191)
+    }
+    if oren_is_err(chk0) {
+        print("QI: BUG: oren_is_err(native_buf_check_ok)=1")
+        fail(3192)
+    }
+    var bi = 0
+    while bi < 6 {
+        var st = oren_buf_store_i32(b, bi, (bi + 1) * 10)
+        if oren_is_err(st) {
+            print("QI: oren_buf_store_i32 failed idx=" + oren_int_to_string(bi))
+            fail(3201)
+        }
+        if g_qi_trace_on != 0 && bi == 0 {
+            print("QI: store_i32 ret=" + oren_int_to_string(st) + " buf=" + oren_int_to_string(b))
+        }
+        if st != b { fail(3204) }
+        bi = bi + 1
+    }
+    if g_qi_trace_on != 0 {
+        var dp = oren_buf_data_ptr_unchecked(b)
+        print("QI: buf hdr len=" + oren_int_to_string(ptr_get(b + 0)))
+        print("QI: buf hdr elem_size=" + oren_int_to_string(ptr_get(b + 8)))
+        print("QI: buf hdr magic=" + oren_int_to_string(ptr_get(b + 24)))
+        print("QI: buf hdr tag=" + oren_int_to_string(ptr_get(b + 32)) + " BUF_TAG_I32=" + oren_int_to_string(BUF_TAG_I32))
+        print("QI: buf hdr data=" + oren_int_to_string(ptr_get(b + 16)))
+        print("QI: buf hdr data_ptr=" + oren_int_to_string(ptr_get(b + 40)))
+        print("QI: buf payload ptr=" + oren_int_to_string(dp))
+        if dp != 0 {
+            fn dump4(off) {
+                return oren_int_to_string(ptr_get_byte(dp + off + 0) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 1) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 2) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 3) & 255)
+            }
+            print("QI: buf bytes @0..3   = " + dump4(0))
+            print("QI: buf bytes @4..7   = " + dump4(4))
+            print("QI: buf bytes @8..11  = " + dump4(8))
+            print("QI: buf bytes @12..15 = " + dump4(12))
+            print("QI: buf bytes @16..19 = " + dump4(16))
+            print("QI: buf bytes @20..23 = " + dump4(20))
+            print("QI: buf u64 @0  = " + oren_int_to_string(ptr_get(dp + 0)))
+            print("QI: buf u64 @8  = " + oren_int_to_string(ptr_get(dp + 8)))
+            print("QI: buf u64 @16 = " + oren_int_to_string(ptr_get(dp + 16)))
+        }
+    }
+    var r2 = oren_buf_load_i32(b, 2)
+    if oren_is_err(r2) { fail(3202) }
+    assert_eq(r2, 30, 3203)
+    var b_node = oren_find_node(ptr_get(b + 16))
+    if b_node == 0 { fail(3205) }
+    if ptr_get(iadd(b_node, 16)) == list_int_kind() { fail(3206) }
+    var buf_keep = [b]
+    var churn = []
+    var ci = 0
+    while ci < 128 {
+        var li2 = oren_new_list_int(0)
+        oren_list_int_push(li2, ci)
+        oren_list_push(churn, li2)
+        ci = ci + 1
+    }
+    oren_gc_collect()
+    assert_eq(oren_buf_load_i32(oren_list_get(buf_keep, 0), 2), 30, 3207)
+    var view = [b, 2, 3]
+    var s2 = 0
+    for x2 in view { s2 = s2 + x2 }
+    assert_eq(s2, 120, 32)
+    var view2 = [b, 1, 3, 2]
+    var s3 = 0
+    for x3 in view2 { s3 = s3 + x3 }
+    assert_eq(s3, 120, 33)
+
+    trace("QI: test_core maps")
+    var m = {"b": 1, "a": 2}
+    var ks = []
+    for k in m { oren_list_push(ks, k) }
+    assert_eq(oren_list_len(ks), 2, 40)
+    assert_streq(ks[0], "a", 41)
+    assert_streq(ks[1], "b", 42)
+
+    var m3 = {"x": 0}
+    var v0 = m3["x"]
+    assert_eq(v0, 0, 46)
+    if v0 == nil { fail(1020) }
+    assert_true(m3["missing"] == nil, 1021)
+
+    trace("QI: test_core strings")
+    var st = "a" + "b" + "c"
+    assert_eq(oren_string_len(st), 3, 43)
+    assert_streq(oren_string_char_at(st, 0), "a", 44)
+    assert_streq(oren_string_char_at(st, 2), "c", 45)
+
+    trace("QI: test_core function_values")
+    var f = add
+    assert_eq(f(10, 1), 11, 50)
+    var xs3 = [2, 3]
+    assert_eq(add3(1, xs3...), 6, 51)
+    var glen = oren_list_len
+    assert_eq(glen([1, 2, 3]), 3, 52)
+
+    trace("QI: test_core recursion")
+    assert_eq(sum_rec(2000), 2001000, 60)
+    trace("QI: test_core end")
+}
+
+fn test_list_set_clear_stress() {
+    trace("QI: test_list_set_clear_stress")
+    var xs = []
+    var li = oren_new_list_int(0)
+    oren_list_int_push(li, 0)
+    var i = 0
+    while i < 64 {
+        oren_list_set(xs, i, i)
+        oren_list_set(li, i, i)
+        i = i + 1
+    }
+    assert_eq(oren_list_len(xs), 64, 3300)
+    assert_eq(oren_list_int_len(li), 64, 3301)
+    oren_gc_collect()
+    i = 0
+    while i < 64 {
+        assert_eq(xs[i], i, 3302)
+        assert_eq(oren_list_int_get(li, i), i, 3303)
+        i = i + 1
+    }
+    oren_list_clear(xs)
+    oren_list_int_clear(li)
+    assert_eq(oren_list_len(xs), 0, 3304)
+    assert_eq(oren_list_int_len(li), 0, 3305)
+
+    i = 0
+    while i < 32 {
+        oren_list_int_set(li, i, i + 1)
+        i = i + 1
+    }
+    assert_eq(oren_list_int_len(li), 32, 3306)
+    assert_eq(oren_list_int_get(li, 0), 1, 3307)
+    assert_eq(oren_list_int_get(li, 31), 32, 3308)
+
+    assert_true(oren_is_list_int(li), 3309)
+    assert_eq(oren_list_int_slot_stride_bytes(), 8, 3310)
+    var data = oren_list_int_data_ptr(li)
+    assert_true(data != 0, 3311)
+    assert_eq(oren_list_int_data_ptr_unchecked(li), data, 3312)
+    assert_eq(oren_list_int_data_ptr_unchecked(nil), 0, 3313)
+    assert_eq(ptr_get(data + 0), 1, 3314)
+    assert_eq(ptr_get(data + 8), 2, 3315)
+    assert_eq(ptr_get(data + 16), 3, 3316)
+    assert_eq(oren_list_int_reduce_sum_slots(li), 528, 3319)
+    assert_eq(oren_list_int_reduce_sum_slots_unchecked(li), 528, 3320)
+    assert_eq(oren_list_int_dot_slots(li, li), 11440, 3321)
+    assert_eq(oren_list_int_dot_slots_unchecked(li, li), 11440, 3322)
+    assert_eq(oren_list_int_reduce_sum_slots(nil), 0, 3323)
+    assert_eq(oren_list_int_dot_slots(nil, nil), 0, 3324)
+    assert_eq(oren_list_int_reduce_sum_slots_unchecked(nil), 0, 3330)
+    assert_eq(oren_list_int_dot_slots_unchecked(nil, nil), 0, 3331)
+    var li_short = oren_new_list_int(0)
+    oren_list_int_push(li_short, 1)
+    var raw_sum_bad = oren_list_int_reduce_sum_slots([1, "x"])
+    assert_true(oren_is_err(raw_sum_bad), 3332)
+    assert_eq(oren_err_code(raw_sum_bad), 4, 3333)
+    var raw_dot_bad = oren_list_int_dot_slots(li, li_short)
+    assert_true(oren_is_err(raw_dot_bad), 3334)
+    assert_eq(oren_err_code(raw_dot_bad), 4, 3335)
+    var raw_dot_nil = oren_list_int_dot_slots(li, nil)
+    assert_true(oren_is_err(raw_dot_nil), 3336)
+    assert_eq(oren_err_code(raw_dot_nil), 4, 3337)
+
+    oren_list_int_set(li, 1, 44)
+    assert_eq(ptr_get(data + 8), 44, 3317)
+    assert_eq(oren_list_int_get(li, 1), 44, 3318)
+    assert_eq(oren_list_int_reduce_sum_slots_unchecked(li), 570, 3325)
+    assert_eq(oren_list_int_dot_slots_unchecked(li, li), 13372, 3326)
+
+    var sum_commuted = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        sum_commuted = oren_list_int_get(li, i) + sum_commuted
+        i = i + 1
+    }
+    assert_eq(sum_commuted, 570, 3327)
+
+    var dot_commuted = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        dot_commuted = oren_list_int_get(li, i) * oren_list_int_get(li, i) + dot_commuted
+        i = i + 1
+    }
+    assert_eq(dot_commuted, 13372, 3328)
+
+    var sum_temp = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        var x = oren_list_int_get(li, i)
+        sum_temp = x + sum_temp
+        i = i + 1
+    }
+    assert_eq(sum_temp, 570, 3329)
+
+    var dot_temp = 0
+    i = 0
+    while i < oren_list_int_len(li) {
+        var p = oren_list_int_get(li, i) * oren_list_int_get(li, i)
+        dot_temp = p + dot_temp
+        i = i + 1
+    }
+    assert_eq(dot_temp, 13372, 3330)
+    oren_gc_collect()
+    return 0
+}
+
+fn test_global_roots_survive_gc() {
+    trace("QI: test_global_roots_survive_gc")
+    g_qi_global_root_list = []
+    var i = 0
+    while i < 32 {
+        oren_list_push(g_qi_global_root_list, i)
+        i = i + 1
+    }
+    oren_gc_collect()
+    assert_eq(oren_list_len(g_qi_global_root_list), 32, 3320)
+    assert_eq(g_qi_global_root_list[5], 5, 3321)
+    assert_eq(g_qi_global_root_list[31], 31, 3322)
+    return 0
+}
+
+fn test_boxed_list_dot_sum() {
+    trace("QI: test_boxed_list_dot_sum")
+    var n = 4096
+    var xs = []
+    var ys = []
+    var i = 0
+    while i < n {
+        var v = (i * 3 + 7) % 1000
+        var w = (i * 5 + 11) % 1000
+        oren_list_push(xs, v)
+        oren_list_push(ys, w)
+        i = i + 1
+    }
+
+    var expected_sum = 0
+    var expected_dot = 0
+    i = 0
+    while i < n {
+        var v2 = (i * 3 + 7) % 1000
+        var w2 = (i * 5 + 11) % 1000
+        expected_sum = expected_sum + v2
+        expected_dot = expected_dot + v2 * w2
+        i = i + 1
+    }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        sum = sum + xs[i]
+        i = i + 1
+    }
+    if sum != expected_sum {
+        print("QI: boxed list sum mismatch got=" + oren_int_to_string(sum) +
+            " expected=" + oren_int_to_string(expected_sum))
+        fail(780)
+    }
+
+    var dot = 0
+    i = 0
+    while i < n {
+        dot = dot + xs[i] * ys[i]
+        i = i + 1
+    }
+    if dot != expected_dot {
+        print("QI: boxed list dot mismatch got=" + oren_int_to_string(dot) +
+            " expected=" + oren_int_to_string(expected_dot))
+        fail(781)
+    }
+
+    var sum_commuted = 0
+    i = 0
+    while i < n {
+        sum_commuted = xs[i] + sum_commuted
+        i = i + 1
+    }
+    if sum_commuted != expected_sum {
+        print("QI: boxed list commuted sum mismatch got=" + oren_int_to_string(sum_commuted) +
+            " expected=" + oren_int_to_string(expected_sum))
+        fail(782)
+    }
+
+    var dot_commuted = 0
+    i = 0
+    while i < n {
+        dot_commuted = xs[i] * ys[i] + dot_commuted
+        i = i + 1
+    }
+    if dot_commuted != expected_dot {
+        print("QI: boxed list commuted dot mismatch got=" + oren_int_to_string(dot_commuted) +
+            " expected=" + oren_int_to_string(expected_dot))
+        fail(783)
+    }
+
+    var sum_temp = 0
+    i = 0
+    while i < n {
+        var x = xs[i]
+        sum_temp = x + sum_temp
+        i = i + 1
+    }
+    if sum_temp != expected_sum {
+        print("QI: boxed list temp sum mismatch got=" + oren_int_to_string(sum_temp) +
+            " expected=" + oren_int_to_string(expected_sum))
+        fail(784)
+    }
+
+    var dot_temp = 0
+    i = 0
+    while i < n {
+        var p = xs[i] * ys[i]
+        dot_temp = p + dot_temp
+        i = i + 1
+    }
+    if dot_temp != expected_dot {
+        print("QI: boxed list temp dot mismatch got=" + oren_int_to_string(dot_temp) +
+            " expected=" + oren_int_to_string(expected_dot))
+        fail(785)
+    }
+    return 0
+}
+
+fn test_string_literals_static() {
+    trace("QI: test_string_literals_static")
+    var before = native_mem_live_count()
+    var before_roots = native_mem_roots_count()
+    var p1 = "qi_static_lit"
+    var p2 = "qi_static_lit"
+    assert_true((p1 - p2) == 0, 69)
+    assert_true(oren_find_node(p1) == 0, 70)
+    assert_true(native_is_string_ptr(p1) != 0, 71)
+    assert_true(native_cstr0_set_has(p1) != 0, 72)
+    var after = native_mem_live_count()
+    assert_eq(after, before, 73)
+    var after_roots = native_mem_roots_count()
+    assert_eq(after_roots, before_roots, 74)
+}
+
+fn test_type_tag_varargs() {
+    trace("QI: test_type_tag_varargs")
+
+    fn tags_of(...args) {
+        var out = []
+        for v in args { oren_list_push(out, oren_type_tag(v)) }
+        return out
+    }
+
+    assert_eq(reflect.TAG_NIL, 0, 970)
+    assert_eq(reflect.TAG_INT, 1, 971)
+    assert_eq(reflect.TAG_FLOAT, 2, 972)
+    assert_eq(reflect.TAG_BOOL, 3, 973)
+    assert_eq(reflect.TAG_STRING, 4, 974)
+    assert_eq(reflect.TAG_FUNC, 8, 9741)
+    assert_eq(reflect.TAG_LIST, 6, 975)
+    assert_eq(reflect.TAG_MAP, 7, 976)
+    assert_eq(reflect.TAG_I32_BUF, 10, 977)
+
+    var v_nil = nil
+    var v_bool = true
+    var v_int = 123
+    var v_float = 1.25
+    var v_str = "x"
+    var v_func = add
+    var v_list = []
+    var v_map = {"k": 1}
+    var v_buf = oren_i32_buf_new(0)
+    var v_struct = F32Box(1.0)
+
+    var tags = tags_of(v_nil, v_bool, v_int, v_float, v_str, v_func, v_list, v_map, v_buf, v_struct)
+    assert_eq(oren_list_len(tags), 10, 76)
+    assert_eq(tags[0], 0, 77)
+    assert_eq(tags[1], 3, 771)
+    assert_eq(tags[2], 1, 78)
+    assert_true(tags[3] == 1 || tags[3] == 2, 781)
+    assert_eq(tags[4], 4, 79)
+    assert_eq(tags[5], 8, 791)
+    assert_eq(tags[6], 6, 80)
+    assert_eq(tags[7], 7, 81)
+    assert_eq(tags[8], 10, 82)
+    assert_eq(tags[9], 7, 89)
+
+    assert_streq(oren_type_name(v_nil), "nil", 83)
+    assert_streq(oren_type_name(v_bool), "bool", 831)
+    assert_streq(oren_type_name(v_int), "int", 84)
+    var n_float = oren_type_name(v_float)
+    assert_true(n_float == "int" || n_float == "float", 841)
+    assert_streq(oren_type_name(v_str), "string", 85)
+    assert_streq(oren_type_name(v_func), "func", 851)
+    assert_streq(oren_type_name(v_list), "list", 86)
+    assert_streq(oren_type_name(v_map), "map", 87)
+    assert_streq(oren_type_name(v_buf), "i32_buf", 88)
+    assert_streq(oren_type_name(v_struct), "F32Box", 90)
+
+    assert_eq(reflect.tag(v_nil), 0, 978)
+    assert_streq(reflect.name(v_struct), "F32Box", 979)
+}
+
+fn test_read_u8_buf_missing_returns_err() {
+    trace("QI: test_read_u8_buf_missing_returns_err")
+    var r = oren_read_u8_buf("__qi_missing_file_should_not_exist__u8.bin")
+    assert_true(oren_is_err(r), 74)
+}
+
+fn test_read_file_missing_returns_err() {
+    trace("QI: test_read_file_missing_returns_err")
+    var r = oren_read_file("__qi_missing_file_should_not_exist__s.txt")
+    assert_true(oren_is_err(r), 75)
+}
+
+fn test_numeric_casts() {
+    assert_eq(ints.u8(256 + 5), 5, 100)
+    assert_eq(ints.u8(-1), 255, 101)
+    assert_eq(ints.i8(255), -1, 102)
+    assert_eq(ints.i8(128), -128, 103)
+    assert_eq(ints.u16(65536 + 7), 7, 110)
+    assert_eq(ints.u16(-1), 65535, 111)
+    assert_eq(ints.i16(65535), -1, 112)
+    assert_eq(ints.i16(32768), -32768, 113)
+    assert_eq(ints.u32(4294967296 + 9), 9, 120)
+    assert_eq(ints.u32(-1), 4294967295, 121)
+    assert_eq(ints.i32(4294967295), -1, 122)
+    assert_eq(ints.i32(2147483648), -2147483648, 123)
+    assert_eq(u8(1.9), 1, 130)
+    assert_eq(i32(-1.9), -1, 131)
+    assert_eq(f64(1), 1.0, 132)
+}
+
+fn test_float_and_bytes() {
+    var a = 1.5
+    var b = 2.5
+    assert_eq(a + b, 4.0, 200)
+    assert_eq(b - a, 1.0, 201)
+    assert_eq(a * 2.0, 3.0, 202)
+    assert_eq(3.0 / a, 2.0, 203)
+
+    var b32 = F32Box(16777217.0)
+    assert_eq(b32.x, 16777216.0, 210)
+
+    var hx = "00ff1020"
+    var bb = oren_bytes_from_hex(hx)
+    assert_true(oren_is_err(bb) == false, 220)
+    assert_eq(oren_bytes_len(bb), 4, 221)
+    assert_streq(oren_bytes_to_hex(bb), hx, 222)
+    var sum = 0
+    for x in bb { sum = sum + x }
+    assert_eq(sum, 0 + 255 + 16 + 32, 223)
+
+    var pkt = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("PV_H", pkt, 0).v, 69, 230)
+    assert_eq(pack_view("PV_H", pkt, 0).len, 84, 231)
+    assert_eq(pack_view("PV_H", pkt, 0).src, 3232235521, 232)
+    assert_eq(pack_view("PV_H", pkt, 0).dst, 134744072, 233)
+}
+
+fn test_json() {
+    var jr = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\\\n\\\"y\"}")
+    assert_eq(jr["ok"], 1, 300)
+    var out = json.encode(jr["v"])
+    assert_streq(out, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}", 301)
+}
+
+fn test_ui_headless() {
+    trace("QI: test_ui_headless")
+
+    var b = ui_core.box("b", 2, 2)
+    b["p"]["bg"] = "#ff0000ff"
+    var t = ui_core.text("t", "hi", 2, 1)
+    t["p"]["color"] = "#00ff00ff"
+    var root = ui_core.column("root", [b, t])
+
+    var opts = {"clear_color": "#00000000"}
+    var cmds = ui_render.render(root, opts)
+    assert_eq(oren_list_len(cmds), 3, 310)
+
+    var w = 2
+    var h = 3
+    var vr = ui_cmds.validate(cmds, w, h, {"strict_bounds": 1})
+    assert_true(vr == 0, 311)
+    assert_true(oren_is_err(ui_cmds.validate(cmds, "x", h, {"strict_bounds": 1})), 323)
+    var bad_bg = ui_raster.rasterize([], 1, 1, {"clear_color": "red"})
+    assert_true(oren_is_err(bad_bg) == true, 324)
+    assert_eq(oren_err_code(bad_bg), 4, 325)
+    assert_streq(oren_err_msg(bad_bg), "rasterize: clear_color: color must be #RRGGBB or #RRGGBBAA", 326)
+
+    var img = ui_raster.rasterize(cmds, w, h, {"strict_bounds": 1})
+    assert_true(oren_is_err(img) == false, 312)
+
+    var n = oren_buf_len(img)
+    assert_true(oren_is_err(n) == false, 313)
+    assert_eq(n, w * h * 4, 314)
+
+    assert_eq(oren_buf_load_u8(img, 0), 255, 315)
+    assert_eq(oren_buf_load_u8(img, 1), 0, 316)
+    assert_eq(oren_buf_load_u8(img, 2), 0, 317)
+    assert_eq(oren_buf_load_u8(img, 3), 255, 318)
+
+    var idx_t0 = (2 * w + 0) * 4
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 0), 0, 319)
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 1), 255, 320)
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 2), 0, 321)
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 3), 255, 322)
+}
+
+fn test_spawn_join() {
+    var h = spawn worker_sleep_short()
+    var r0 = oren_join_timeout(h, 0)
+    assert_eq(r0, 0 - 60, 400)
+    var r1 = oren_join(h)
+    assert_eq(r1, 55, 401)
+}
+
+fn test_select() {
+    trace("QI: test_select")
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    if c1 == 0 || c2 == 0 { fail(450) }
+
+    trace("QI: select_recv")
+    oren_chan_send(c2, 111)
+    var sel = oren_select_recv([c1, c2])
+    if sel == 0 { fail(451) }
+    assert_eq(oren_list_len(sel), 2, 452)
+    assert_eq(oren_list_get(sel, 0), 1, 453)
+    assert_eq(oren_list_get(sel, 1), 111, 454)
+
+    trace("QI: select send #1")
+    var s1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    if s1 == 0 { fail(455) }
+    assert_eq(oren_list_len(s1), 2, 456)
+    assert_eq(oren_list_get(s1, 1), 1, 457)
+    var idx1 = oren_list_get(s1, 0)
+    if idx1 == 0 {
+        assert_eq(oren_chan_recv(c1), 11, 458)
+    } else {
+        assert_eq(oren_chan_recv(c2), 22, 459)
+    }
+
+    trace("QI: select send #2")
+    var s2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    if s2 == 0 { fail(460) }
+    assert_eq(oren_list_len(s2), 2, 461)
+    assert_eq(oren_list_get(s2, 1), 1, 462)
+    var idx2 = oren_list_get(s2, 0)
+    if idx2 == 0 {
+        assert_eq(oren_chan_recv(c1), 33, 463)
+    } else {
+        assert_eq(oren_chan_recv(c2), 44, 464)
+    }
+    return 0
+}

@@ -1,0 +1,160 @@
+fn _qi_select_recv_one(ch) {
+    var sel = oren_select_recv([ch])
+    if sel == 0 { return 0 - 5 }
+    if oren_list_len(sel) != 2 { return 0 - 5 }
+    return oren_list_get(sel, 1)
+}
+
+fn _qi_select_send_delayed(ch, v) {
+    oren_green_sleep_ns(5000000)
+    oren_chan_send(ch, v)
+    return 0
+}
+
+fn _qi_select_send_fairness_in_green(c1, c2) {
+    var s1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    if s1 == 0 { return 0 - 5 }
+    if oren_list_len(s1) != 2 { return 0 - 5 }
+    if oren_list_get(s1, 1) != 1 { return 0 - 5 }
+    var idx1 = oren_list_get(s1, 0)
+    if idx1 == 0 {
+        if oren_chan_recv(c1) != 11 { return 0 - 5 }
+    } else {
+        if oren_chan_recv(c2) != 22 { return 0 - 5 }
+    }
+
+    var s2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    if s2 == 0 { return 0 - 5 }
+    if oren_list_len(s2) != 2 { return 0 - 5 }
+    if oren_list_get(s2, 1) != 1 { return 0 - 5 }
+    var idx2 = oren_list_get(s2, 0)
+    if idx2 == 0 {
+        if oren_chan_recv(c1) != 33 { return 0 - 5 }
+    } else {
+        if oren_chan_recv(c2) != 44 { return 0 - 5 }
+    }
+
+    if idx1 == idx2 { return 0 - 5 }
+    return 0
+}
+
+fn test_select_in_green_workers() {
+    trace("QI: test_select_in_green_workers")
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 560)
+
+    var c = oren_new_channel()
+    if c == 0 { fail(561) }
+
+    var recv_h = spawn _qi_select_recv_one(c)
+    var send_h = spawn _qi_select_send_delayed(c, 777)
+
+    var r = oren_join_timeout(recv_h, 200)
+    assert_eq(r, 777, 562)
+    oren_join_timeout(send_h, 200)
+    return 0
+}
+
+fn test_select_multi_case_in_green_workers() {
+    trace("QI: test_select_multi_case_in_green_workers")
+
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 563)
+
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    if c1 == 0 || c2 == 0 { fail(564) }
+
+    var h = spawn _qi_select_send_fairness_in_green(c1, c2)
+    var r = oren_join_timeout(h, 500)
+    assert_eq(r, 0, 565)
+    return 0
+}
+
+fn _qi_select_recv_block_forever(ch) {
+    var sel = oren_select_recv([ch])
+    if sel == 0 { return 0 - 5 }
+    if oren_list_len(sel) != 2 { return 0 - 5 }
+    return oren_list_get(sel, 1)
+}
+
+fn test_select_idle_does_not_spin_cpu() {
+    trace("QI: test_select_idle_does_not_spin_cpu")
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 566)
+    trace("QI: idle spin: workers started")
+
+    oren_green_debug_reset()
+    trace("QI: idle spin: debug reset")
+
+    var c = oren_new_channel()
+    if c == 0 { fail(567) }
+    trace("QI: idle spin: channel created")
+
+    var h = spawn _qi_select_recv_block_forever(c)
+    trace("QI: idle spin: recv spawned h=" + oren_int_to_string(h))
+
+    sys_nanosleep(200000000)
+    trace("QI: idle spin: host slept")
+
+    var iters = oren_green_debug_idle_iters()
+    trace("QI: idle spin: iters=" + oren_int_to_string(iters))
+    assert_true(iters >= 0, 568)
+    assert_true(iters <= 20, 569)
+    trace("QI: idle spin: iters ok")
+    trace("QI: idle spin: pre-send h=" + oren_int_to_string(h))
+
+    oren_chan_send(c, 999)
+    trace("QI: idle spin: sent h=" + oren_int_to_string(h))
+    var r = oren_join_timeout(h, 500)
+    assert_eq(r, 999, 570)
+    trace("QI: idle spin: joined")
+    return 0
+}
+
+fn test_arena_list_smoke() {
+    trace("QI: test_arena_list_smoke")
+    oren_arena_push()
+    var xs = oren_arena_new_list(8)
+    if xs == 0 { fail(4100) }
+    oren_list_push(xs, 1)
+    oren_list_push(xs, 2)
+    assert_eq(oren_list_len(xs), 2, 4101)
+    var ys = oren_arena_new_list_int(8)
+    if ys == 0 { fail(4102) }
+    oren_list_int_push(ys, 10)
+    oren_list_int_push(ys, 20)
+    assert_eq(oren_list_int_len(ys), 2, 4103)
+    oren_arena_pop()
+
+    oren_arena_push()
+    var zs = oren_arena_new_list(4)
+    if zs == 0 { fail(4104) }
+    oren_list_push(zs, 7)
+    assert_eq(oren_list_len(zs), 1, 4105)
+    oren_arena_pop()
+    return 0
+}
+
+fn test_arena_loop_attrs() {
+    trace("QI: test_arena_loop_attrs")
+    var sum = 0
+    var i = 0
+    @oren.arena
+    while i < 3 {
+        var xs = [i, i + 1]
+        sum = sum + xs[0]
+        i = i + 1
+    }
+    assert_true(sum >= 3, 4110)
+
+    var ys = []
+    i = 0
+    @oren.noarena
+    while i < 2 {
+        oren_list_push(ys, i)
+        i = i + 1
+    }
+    assert_eq(oren_list_len(ys), 2, 4111)
+    return 0
+}

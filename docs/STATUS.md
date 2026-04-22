@@ -1468,14 +1468,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					       `lib/compiler/arm64_native_stmt_loops_list_emit_int_reduce_dot.oren`, and
 					       `lib/compiler/arm64_native_stmt_loops_list_emit_dot_push.oren`, and the set-lowering tail
 					       now lives in `lib/compiler/arm64_native_stmt_set.oren`
-					     - the last oversized production code hosts are now under the red line too:
-					       `lib/compiler/compiler/040_build_pipeline/010_main.oren` now delegates the
-					       introspection-command block through
-					       `lib/compiler/compiler/040_build_pipeline/008_introspection_commands.oren`, and
-					       `lib/avm/main.c` now carries its effect-ledger/report helpers in
-					       `lib/avm/avm_main_effect_ledger.inc`. The remaining tracked oversized source is now
-					       the include-based native QI bundle `tests/native/qi/100_tests_basic.oren`, not a
-					       production host/compiler/runtime file.
+					     - the red-line source split is now complete for tracked code too:
+					       `tests/native/qi/100_tests_basic.oren` is now a thin include facade over
+					       `110_tests_basic_smoke_a.oren`, `120_tests_basic_std_buffer.oren`,
+					       `130_tests_basic_core_runtime.oren`, and `140_tests_basic_select_arena.oren`,
+					       so the tracked `.oren` / `.c` / `.h` / `.inc` source scan is back under the
+					       rolling 2000-line threshold across production code and Tier-1 test bundles.
 		   - New (2026-04-22): the default verification lane is back to green after aligning
 		     `verify_generator_finalize_surface_v0.sh` with the same fast stage1 tool path already used by
 		     `verify_generator_surface_v0.sh` for `meta` / `dump linked` parity checks. The remaining
@@ -1934,7 +1932,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 8) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk, but the rolling tracked >2000-line source
-     file list is now empty after the latest runtime/compiler/transpiler splits (2026-03-27 scan).
+     file list is empty again after the latest runtime/compiler/test-bundle splits
+     (2026-04-22 rescan).
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
        `lib/compiler/arm64_native_gc.oren` (2026-02-25).

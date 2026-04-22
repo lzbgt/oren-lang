@@ -1,0 +1,188 @@
+var g_qi_global_root_list = []
+
+fn test_entropy() {
+    trace("QI: test_entropy")
+    // Smoke: OS entropy surface must exist and be bounded (no hangs).
+    // Contract: oren_getentropy(ptr, len) -> 0 on success, or -errno.
+    var p = oren_ptr_alloc(32)
+    if p == 0 { fail(72) }
+    var rc = oren_getentropy(p, 32)
+    oren_ptr_free(p)
+    if rc != 0 {
+        print("QI: oren_getentropy failed rc=" + oren_int_to_string(rc))
+        fail(73)
+    }
+    return 0
+}
+
+fn test_cfg_debug_release() {
+    trace("QI: test_cfg_debug_release")
+    var hit = 0
+    @cfg("debug") hit = hit + 1
+    @cfg("release") hit = hit + 2
+    if hit != 1 && hit != 2 {
+        print("QI: cfg debug/release mismatch hit=" + oren_int_to_string(hit))
+        fail(74)
+    }
+    var hit2 = 0
+    @debug hit2 = hit2 + 4
+    @release hit2 = hit2 + 8
+    if hit2 != 4 && hit2 != 8 {
+        print("QI: debug/release shorthand mismatch hit2=" + oren_int_to_string(hit2))
+        fail(75)
+    }
+    var hit3 = 0
+    debug {
+        hit3 = hit3 + 16
+    }
+    release {
+        hit3 = hit3 + 32
+    }
+    if hit3 != 16 && hit3 != 32 {
+        print("QI: debug/release block mismatch hit3=" + oren_int_to_string(hit3))
+        fail(76)
+    }
+    dbg("QI: dbg sugar")
+    @cfg("debug") dbg("QI: dbg sugar cfg")
+    dprint("QI: dprint sugar")
+    @cfg("debug") dprint("QI: dprint sugar cfg")
+    var dv = dbg(41)
+    var dv2 = dprint(42)
+    if dv != 41 || dv2 != 42 {
+        print("QI: dbg expr mismatch dv=" + oren_int_to_string(dv) + " dv2=" + oren_int_to_string(dv2))
+        fail(77)
+    }
+    return 0
+}
+
+fn test_std_assert_smoke() {
+    trace("QI: test_std_assert_smoke")
+    assertm.assert(true, "std assert ok")
+    assertm.assert_eq(1, 1, "std assert_eq ok")
+    assertm.assert_ne(1, 2, "std assert_ne ok")
+    assertm.assert_streq("x", "x", "std assert_streq ok")
+    assertm.assert_err(oren_err(1, "boom"), "std assert_err ok")
+    var okv = assertm.assert_ok(7, "std assert_ok ok")
+    assert_eq(okv, 7, 7701)
+    return 0
+}
+
+fn test_std_strings_smoke() {
+    trace("QI: test_std_strings_smoke")
+    var s = "Oren"
+    assert_eq(strings.len(s), 4, 7800)
+    assert_streq(strings.slice(s, 1, 3), "re", 7801)
+    assert_streq(strings.char_at(s, 2), "e", 7802)
+    var bs = strings.to_bytes("AZ")
+    assert_eq(oren_list_len(bs), 2, 7803)
+    assert_eq(bs[0], 65, 7804)
+    assert_eq(bs[1], 90, 7805)
+    var s2 = strings.from_bytes([66, 67])
+    assert_streq(s2, "BC", 7806)
+    assert_true(oren_is_err(strings.try_char_at("hi", "x")), 7807)
+    assert_true(oren_is_err(strings.try_slice("hi", "x", 1)), 7808)
+    return 0
+}
+
+fn test_std_bytes_smoke() {
+    trace("QI: test_std_bytes_smoke")
+    var b = bytesm.from_hex("00ff1020")
+    assert_true(oren_is_err(b) == false, 7810)
+    assert_eq(bytesm.len(b), 4, 7811)
+    assert_eq(bytesm.get_u8(b, 0), 0, 7812)
+    assert_eq(bytesm.get_u8(b, 1), 255, 7813)
+    bytesm.set_u8(b, 2, 171)
+    assert_eq(bytesm.get_u8(b, 2), 171, 7814)
+    assert_streq(bytesm.to_hex(b), "00ffab20", 7815)
+    var b2 = bytesm.pack([1, 2, 3])
+    assert_eq(bytesm.len(b2), 3, 7816)
+    var xs = bytesm.unpack(b2)
+    assert_eq(oren_list_len(xs), 3, 7817)
+    assert_eq(xs[0], 1, 7818)
+    assert_streq(bytesm.to_string(bytesm.from_string("hi")), "hi", 7819)
+
+    var pkt = bytesm.from_hex("12340102030405060708")
+    assert_true(oren_is_err(pkt) == false, 7820)
+    assert_eq(bytesm.try_get_u16_be(pkt, 0), 4660, 7821)
+    assert_eq(bytesm.try_get_u32_be(pkt, 2), 16909060, 7822)
+    assert_eq(bytesm.try_get_u64_be(pkt, 2), 72623859790382856, 7823)
+    assert_true(oren_is_err(bytesm.try_get_u32_be(pkt, 7)), 7824)
+
+    var buf8 = oren_u8_buf_new(8)
+    assert_true(oren_is_err(buf8) == false, 7825)
+    assert_true(oren_is_err(bytesm.try_put_u16_be(buf8, 0, 4660)) == false, 7826)
+    assert_eq(bytesm.try_get_u16_be(buf8, 0), 4660, 7827)
+    assert_true(oren_is_err(bytesm.try_put_u32_le(buf8, 2, 16909060)) == false, 7828)
+    assert_eq(bytesm.try_get_u32_le(buf8, 2), 16909060, 7829)
+    assert_true(oren_is_err(bytesm.try_put_i16_le(buf8, 0, -2)) == false, 7830)
+    assert_eq(bytesm.try_get_i16_le(buf8, 0), -2, 7831)
+    assert_true(oren_is_err(bytesm.try_put_i32_be(buf8, 0, -2)) == false, 7832)
+    assert_eq(bytesm.try_get_i32_be(buf8, 0), -2, 7833)
+    assert_eq(bytesm.try_set_i32_le(buf8, 0, -2), -2, 7834)
+    assert_eq(bytesm.try_get_i32_le(buf8, 0), -2, 7835)
+    assert_true(oren_is_err(bytesm.try_put_u16_be(buf8, 7, 1)), 7836)
+    assert_true(oren_is_err(bytesm.try_put_i32_le(buf8, 5, 1)), 7837)
+    assert_true(oren_is_err(bytesm.try_set_u16_be(buf8, 0, 70000)), 7838)
+    assert_true(oren_is_err(bytesm.try_put_u64_le(buf8, 0, 72623859790382856)) == false, 7839)
+    assert_eq(bytesm.try_get_u64_le(buf8, 0), 72623859790382856, 7840)
+    assert_true(oren_is_err(bytesm.try_put_i64_be(buf8, 0, -2)) == false, 7841)
+    assert_eq(bytesm.try_get_i64_be(buf8, 0), -2, 7842)
+    assert_true(oren_is_err(bytesm.try_put_u64_be(buf8, 0, -1)), 7843)
+    assert_streq(bytesm.try_to_string(bytesm.try_from_string("ok")), "ok", 7884)
+    assert_eq(bytesm.try_unpack(bytesm.try_pack([1, 2, 3]))[2], 3, 7885)
+    assert_true(oren_is_err(bytesm.try_from_string(123)), 7886)
+    assert_true(oren_is_err(bytesm.try_pack(123)), 7887)
+    assert_true(oren_is_err(bytesm.try_unpack("nope")), 7888)
+    var sub = bytesm.try_slice(bytesm.try_from_string("hello"), 1, 3)
+    assert_true(oren_is_err(sub) == false, 7941)
+    assert_streq(bytesm.try_to_string(sub), "ell", 7942)
+    assert_true(oren_is_err(bytesm.try_slice(sub, -1, 1)), 7943)
+    var cat = bytesm.try_concat(bytesm.try_from_string("ab"), bytesm.try_from_string("CD"))
+    assert_true(oren_is_err(cat) == false, 7944)
+    assert_streq(bytesm.try_to_string(cat), "abCD", 7945)
+    assert_true(oren_is_err(bytesm.try_concat(123, cat)), 7946)
+    var dst = bytesm.try_from_string("hello")
+    assert_true(oren_is_err(dst) == false, 7947)
+    assert_true(oren_is_err(bytesm.try_copy_into(dst, 1, bytesm.try_from_string("XY"), 0, 2)) == false, 7948)
+    assert_streq(bytesm.try_to_string(dst), "hXYlo", 7949)
+    assert_true(oren_is_err(bytesm.try_copy_into(dst, 4, bytesm.try_from_string("XY"), 0, 2)), 7950)
+    assert_true(oren_is_err(bytesm.try_get_u8(b, "x")), 7962)
+    assert_true(oren_is_err(bytesm.try_set_u8(b, "x", 1)), 7963)
+    assert_true(oren_is_err(bytesm.try_copy_into(dst, "x", bytesm.try_from_string("XY"), 0, 1)), 7964)
+    var ub2 = oren_u8_buf_new(2)
+    assert_true(oren_is_err(ub2) == false, 7889)
+    assert_true(oren_is_err(oren_buf_store_u8(ub2, 0, 65)) == false, 7890)
+    assert_true(oren_is_err(oren_buf_store_u8(ub2, 1, 66)) == false, 7891)
+    assert_streq(bytesm.try_to_string(ub2), "AB", 7892)
+    assert_streq(bytesm.to_string(ub2), "AB", 7893)
+    var from_buf = bytesm.try_from_u8_buf(ub2)
+    assert_true(oren_is_err(from_buf) == false, 7951)
+    assert_streq(bytesm.try_to_string(from_buf), "AB", 7952)
+    var to_buf = bytesm.try_to_u8_buf(bytesm.try_from_string("CD"))
+    assert_true(oren_is_err(to_buf) == false, 7953)
+    assert_streq(bufferm.try_u8_to_string(to_buf), "CD", 7954)
+    assert_true(oren_is_err(bytesm.try_from_u8_buf("nope")), 7955)
+    assert_true(oren_is_err(bytesm.try_to_u8_buf(123)), 7956)
+    assert_streq(bytesm.try_to_string_slice(bytesm.try_from_string("hello"), 1, 3), "ell", 7957)
+    var slice_buf = bytesm.try_to_u8_buf_slice(bytesm.try_from_string("hello"), 1, 3)
+    assert_true(oren_is_err(slice_buf) == false, 7958)
+    assert_streq(bufferm.try_u8_to_string(slice_buf), "ell", 7959)
+    assert_true(oren_is_err(bytesm.try_to_string_slice("nope", 0, 1)), 7960)
+    assert_true(oren_is_err(bytesm.try_to_u8_buf_slice("nope", 0, 1)), 7961)
+    return 0
+}
+
+fn test_std_list_slice_smoke() {
+    trace("QI: test_std_list_slice_smoke")
+    var xs = [10, 20, 30, 40]
+    var ys = list.slice_copy(xs, 1, 2)
+    assert_true(oren_is_err(ys) == false, 7965)
+    assert_eq(oren_list_len(ys), 2, 7966)
+    assert_eq(ys[0], 20, 7967)
+    assert_true(oren_is_err(list.slice_copy(xs, "x", 1)), 7968)
+    var bad = list.slice_view(xs, "x", 1)
+    var count = 0
+    for _x in bad { count = count + 1 }
+    assert_eq(count, 0, 7969)
+    return 0
+}

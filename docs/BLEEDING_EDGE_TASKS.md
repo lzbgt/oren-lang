@@ -4279,16 +4279,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						     `lib/compiler/arm64_native_stmt_loops_list_emit_int_reduce_dot.oren`, and
 						     `lib/compiler/arm64_native_stmt_loops_list_emit_dot_push.oren`, and the set-lowering tail
 						     now lives in `lib/compiler/arm64_native_stmt_set.oren`
-						   - New (2026-04-22): the last oversized production code hosts are under threshold too.
-						     `lib/compiler/compiler/040_build_pipeline/010_main.oren` now routes the
-						     completion/sym/scan/dump/meta introspection block through
-						     `lib/compiler/compiler/040_build_pipeline/008_introspection_commands.oren`, and
-						     `lib/avm/main.c` now sources its effect-ledger/report helper block from
-						     `lib/avm/avm_main_effect_ledger.inc`. The remaining tracked oversized source is now the
-						     include-based native QI bundle `tests/native/qi/100_tests_basic.oren`, so reweight the
-						     next red-line cleanup toward that test bundle or toward higher-leverage runtime/compiler
-						     seams like the stage2 `dump linked` throughput path instead of reopening settled host
-						     splits.
+						   - New (2026-04-22): the last tracked oversized source file is gone too.
+						     `tests/native/qi/100_tests_basic.oren` is now only a facade that includes
+						     `110_tests_basic_smoke_a.oren`, `120_tests_basic_std_buffer.oren`,
+						     `130_tests_basic_core_runtime.oren`, and `140_tests_basic_select_arena.oren`,
+						     so the rolling tracked source scan is back under the 2000-line threshold
+						     everywhere. Reweight the next task away from file-size cleanup and toward
+						     higher-leverage runtime/compiler seams like the stage2 `dump linked`
+						     throughput path.
 					   - New (2026-04-22): the repo-default verification lane is green again after moving the
 					     generator-finalize meta/dump parity check onto the same stage1 tool path used by the
 					     broader generator surface verifier. Reweight the next task above correctness: optimize the
