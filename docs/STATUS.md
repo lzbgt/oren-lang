@@ -1391,18 +1391,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New (2026-04-22): value-carrying `yield` is parity-verified across bytecode, C, and native
      through `oren_yield_value(v)`. This is intentionally a local value-stable resume surface, not
      yet a caller-visible coroutine/generator protocol.
-   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
-     parity-verified through `oren_yield_exchange(yield_ch, resume_ch, v)` across bytecode, C, and
-     native. On native host threads with green runtime already active and no background workers,
-     `oren_yield()` now drives one cooperative green scheduling step so this helper no longer
-     depends on `OREN_NO_GREEN=1` verification escape hatches. Direct standalone
+	   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
+	     parity-verified through `oren_yield_exchange(yield_ch, resume_ch, v)` across bytecode, C, and
+	     native. On native host threads with green runtime already active and no background workers,
+	     `oren_yield()` now drives one cooperative green scheduling step so this helper no longer
+	     depends on `OREN_NO_GREEN=1` verification escape hatches. Direct standalone
      `./scripts/run_native_quick_integration.sh ./oren_stage2` now also auto-prewarms runtime
-     astbin/rtobj seeds for the current runtime hash, so empty seed dirs no longer fall back to a
-     cold self-hosted `rtobj.miss.build.start` path during the quick smoke. The bundled structural
-     guard now proves that path with a dedicated tiny native fixture instead of the full
-     quick-integration program, so default verification keeps the seed-hit guarantee with lower
-     cost. The remaining gap is full source-level coroutine/generator protocol above that helper
-     surface.
+	     astbin/rtobj seeds for the current runtime hash, so empty seed dirs no longer fall back to a
+	     cold self-hosted `rtobj.miss.build.start` path during the quick smoke. The bundled structural
+	     guard now proves that path with a dedicated tiny native fixture instead of the full
+	     quick-integration program, so default verification keeps the seed-hit guarantee with lower
+	     cost. The same explicit protocol now also has shared-front-end source syntax:
+	     `yield expr in (yield_ch, resume_ch)` and `yield in (yield_ch, resume_ch)`. Metadata/dump/OBC
+	     surfaces now record whether a site came from raw helper calls or source syntax via
+	     `syntax_kinds` plus per-point `syntax` / `explicit_value`. The remaining gap is fuller
+	     coroutine/generator protocol above that explicit channel surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
      remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

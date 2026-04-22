@@ -338,7 +338,9 @@ fn json_yield_exchange_points(xs) {
             out = out + "{ "
             out = out + "\"id\": " + oren_int_to_string(x["id"]) + ", "
             out = out + "\"site\": " + json_string(x["site"]) + ", "
-            out = out + "\"context\": " + json_string(x["context"])
+            out = out + "\"context\": " + json_string(x["context"]) + ", "
+            out = out + "\"syntax\": " + json_string(x["syntax"]) + ", "
+            out = out + "\"explicit_value\": " + json_bool(x["explicit_value"])
             out = out + " }"
             first = false
         }
@@ -388,6 +390,7 @@ fn json_yield_exchange_surface(surface) {
     out = out + "\"yield_channel_arg_index\": " + oren_int_to_string(surface["yield_channel_arg_index"]) + ", "
     out = out + "\"resume_channel_arg_index\": " + oren_int_to_string(surface["resume_channel_arg_index"]) + ", "
     out = out + "\"value_arg_index\": " + oren_int_to_string(surface["value_arg_index"]) + ", "
+    out = out + "\"syntax_kinds\": " + json_string_array(surface["syntax_kinds"]) + ", "
     out = out + "\"consumer_kinds\": " + json_string_array(surface["consumer_kinds"]) + ", "
     out = out + "\"exchange_points\": " + json_yield_exchange_points(surface["exchange_points"])
     out = out + " }"

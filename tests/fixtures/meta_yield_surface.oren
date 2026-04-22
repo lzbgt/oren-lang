@@ -130,6 +130,29 @@ fn exchange_call_arg(seed, out_ch, in_ch) {
     return add1_meta(oren_yield_exchange(out_ch, in_ch, seed + 4))
 }
 
+fn exchange_syntax_var(seed, out_ch, in_ch) {
+    var x = yield (seed + 5) in (out_ch, in_ch)
+    return x
+}
+
+fn exchange_syntax_nil(seed, out_ch, in_ch) {
+    var x = yield in (out_ch, in_ch)
+    return x + seed
+}
+
+fn exchange_syntax_return(seed, out_ch, in_ch) {
+    return yield (seed + 6) in (out_ch, in_ch)
+}
+
+fn exchange_syntax_stmt(seed, out_ch, in_ch) {
+    yield (seed + 7) in (out_ch, in_ch)
+    return seed
+}
+
+fn exchange_syntax_call_arg(seed, out_ch, in_ch) {
+    return add1_meta(yield (seed + 8) in (out_ch, in_ch))
+}
+
 fn exchange_nested_only() {
     var f = || {
         return oren_yield_exchange(1, 2, 3)

@@ -20,6 +20,29 @@ fn exchange_stmt(out_ch, in_ch, seed) {
     return seed + 5
 }
 
+fn exchange_syntax_var(out_ch, in_ch, seed) {
+    var resumed = yield (seed + 5) in (out_ch, in_ch)
+    return resumed + 20
+}
+
+fn exchange_syntax_return(out_ch, in_ch, seed) {
+    return yield (seed + 6) in (out_ch, in_ch)
+}
+
+fn exchange_syntax_call_arg(out_ch, in_ch, seed) {
+    return add1_exchange(yield (seed + 7) in (out_ch, in_ch))
+}
+
+fn exchange_syntax_stmt(out_ch, in_ch, seed) {
+    yield (seed + 8) in (out_ch, in_ch)
+    return seed + 9
+}
+
+fn exchange_syntax_nil(out_ch, in_ch, seed) {
+    var resumed = yield in (out_ch, in_ch)
+    return resumed + seed
+}
+
 fn main() {
     var out1 = oren_new_channel()
     var in1 = oren_new_channel()
@@ -64,6 +87,61 @@ fn main() {
     oren_yield()
     var r4 = oren_join(h4)
     if r4 != 75 { return 1700 + r4 }
+
+    var out5 = oren_new_channel()
+    var in5 = oren_new_channel()
+    var h5 = spawn exchange_syntax_var(out5, in5, 80)
+    oren_yield()
+    var y5 = oren_chan_recv(out5)
+    if y5 != 85 { return 1800 + y5 }
+    oren_chan_send(in5, 11)
+    oren_yield()
+    var r5 = oren_join(h5)
+    if r5 != 31 { return 1900 + r5 }
+
+    var out6 = oren_new_channel()
+    var in6 = oren_new_channel()
+    var h6 = spawn exchange_syntax_return(out6, in6, 90)
+    oren_yield()
+    var y6 = oren_chan_recv(out6)
+    if y6 != 96 { return 2000 + y6 }
+    oren_chan_send(in6, 12)
+    oren_yield()
+    var r6 = oren_join(h6)
+    if r6 != 12 { return 2100 + r6 }
+
+    var out7 = oren_new_channel()
+    var in7 = oren_new_channel()
+    var h7 = spawn exchange_syntax_call_arg(out7, in7, 100)
+    oren_yield()
+    var y7 = oren_chan_recv(out7)
+    if y7 != 107 { return 2200 + y7 }
+    oren_chan_send(in7, 13)
+    oren_yield()
+    var r7 = oren_join(h7)
+    if r7 != 14 { return 2300 + r7 }
+
+    var out8 = oren_new_channel()
+    var in8 = oren_new_channel()
+    var h8 = spawn exchange_syntax_stmt(out8, in8, 110)
+    oren_yield()
+    var y8 = oren_chan_recv(out8)
+    if y8 != 118 { return 2400 + y8 }
+    oren_chan_send(in8, 14)
+    oren_yield()
+    var r8 = oren_join(h8)
+    if r8 != 119 { return 2500 + r8 }
+
+    var out9 = oren_new_channel()
+    var in9 = oren_new_channel()
+    var h9 = spawn exchange_syntax_nil(out9, in9, 120)
+    oren_yield()
+    var y9 = oren_chan_recv(out9)
+    if y9 != nil { return 2600 }
+    oren_chan_send(in9, 15)
+    oren_yield()
+    var r9 = oren_join(h9)
+    if r9 != 135 { return 2700 + r9 }
 
     return 0
 }

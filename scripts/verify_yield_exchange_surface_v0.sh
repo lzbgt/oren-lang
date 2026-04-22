@@ -88,7 +88,7 @@ def assert_plain(name, item):
         raise SystemExit(f"{name} unexpected yield surface metadata: {item!r}")
 
 
-def assert_exchange(name, item, site, context):
+def assert_exchange(name, item, site, context, syntax, explicit_value):
     if item["contains_yield"] is not False or item["yield_stmt_count"] != 0 or item["yield_stmt_sites"] != []:
         raise SystemExit(f"{name} unexpected bare yield metadata: {item!r}")
     if item["contains_yield_value"] is not False or item["yield_value_count"] != 0 or item["yield_value_sites"] != []:
@@ -116,8 +116,9 @@ def assert_exchange(name, item, site, context):
         "yield_channel_arg_index": 0,
         "resume_channel_arg_index": 1,
         "value_arg_index": 2,
+        "syntax_kinds": [syntax],
         "consumer_kinds": [context],
-        "exchange_points": [{"id": 0, "site": site, "context": context}],
+        "exchange_points": [{"id": 0, "site": site, "context": context, "syntax": syntax, "explicit_value": explicit_value}],
     }
     if surface != expected_surface:
         raise SystemExit(f"{name} bad yield_exchange_surface: expected {expected_surface!r}, got {surface!r}")
@@ -129,10 +130,15 @@ obc = by_name(load(os.environ["BYTECODE_META_OUT"])["metadata"]["functions"])
 
 for payloads in (meta, dump, obc):
     assert_plain("add1_exchange", payloads["add1_exchange"])
-    assert_exchange("exchange_var", payloads["exchange_var"], "tests/fixtures/yield_exchange_surface_v0.oren:6:38", "var_init")
-    assert_exchange("exchange_return", payloads["exchange_return"], "tests/fixtures/yield_exchange_surface_v0.oren:11:31", "return_value")
-    assert_exchange("exchange_call_arg", payloads["exchange_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:15:45", "call_arg")
-    assert_exchange("exchange_stmt", payloads["exchange_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:19:24", "expr_stmt")
+    assert_exchange("exchange_var", payloads["exchange_var"], "tests/fixtures/yield_exchange_surface_v0.oren:6:38", "var_init", "helper_call", True)
+    assert_exchange("exchange_return", payloads["exchange_return"], "tests/fixtures/yield_exchange_surface_v0.oren:11:31", "return_value", "helper_call", True)
+    assert_exchange("exchange_call_arg", payloads["exchange_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:15:45", "call_arg", "helper_call", True)
+    assert_exchange("exchange_stmt", payloads["exchange_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:19:24", "expr_stmt", "helper_call", True)
+    assert_exchange("exchange_syntax_var", payloads["exchange_syntax_var"], "tests/fixtures/yield_exchange_surface_v0.oren:24:19", "var_init", "yield_in_channels", True)
+    assert_exchange("exchange_syntax_return", payloads["exchange_syntax_return"], "tests/fixtures/yield_exchange_surface_v0.oren:29:12", "return_value", "yield_in_channels", True)
+    assert_exchange("exchange_syntax_call_arg", payloads["exchange_syntax_call_arg"], "tests/fixtures/yield_exchange_surface_v0.oren:33:26", "call_arg", "yield_in_channels", True)
+    assert_exchange("exchange_syntax_stmt", payloads["exchange_syntax_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:37:5", "expr_stmt", "yield_in_channels", True)
+    assert_exchange("exchange_syntax_nil", payloads["exchange_syntax_nil"], "tests/fixtures/yield_exchange_surface_v0.oren:42:19", "var_init", "yield_in_channels", False)
     assert_plain("main", payloads["main"])
 
 print("yield exchange metadata verified")

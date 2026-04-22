@@ -4223,17 +4223,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New (2026-04-22): value-carrying `yield` is now parity-verified under bytecode, C, and native
      too. The current contract is intentionally local and helper-based: `oren_yield_value(v)`
      yields, then resumes with `v`.
-   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
-     parity-verified under bytecode, C, and native through
-     `oren_yield_exchange(yield_ch, resume_ch, v)`. On native host threads with green runtime
-     already active and no background workers, `oren_yield()` now drives one cooperative green
-     scheduling step so this helper works on the default runtime path too. Direct standalone
-     `./scripts/run_native_quick_integration.sh ./oren_stage2` now auto-prewarms runtime
-     astbin/rtobj seeds too, so empty seed dirs no longer fall back to a cold self-hosted
-     `rtobj.miss.build.start` path during the quick smoke. The seeded-cold proof now runs against a
-     dedicated tiny native fixture instead of the full quick-integration source, so default
-     verification keeps the same structural guarantee at lower cost. The remaining gap is a
-     stronger language-level coroutine/generator protocol above that explicit helper surface.
+	   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
+	     parity-verified under bytecode, C, and native through
+	     `oren_yield_exchange(yield_ch, resume_ch, v)`. On native host threads with green runtime
+	     already active and no background workers, `oren_yield()` now drives one cooperative green
+	     scheduling step so this helper works on the default runtime path too. Direct standalone
+	     `./scripts/run_native_quick_integration.sh ./oren_stage2` now auto-prewarms runtime
+	     astbin/rtobj seeds too, so empty seed dirs no longer fall back to a cold self-hosted
+	     `rtobj.miss.build.start` path during the quick smoke. The seeded-cold proof now runs against a
+	     dedicated tiny native fixture instead of the full quick-integration source, so default
+	     verification keeps the same structural guarantee at lower cost. The same channel protocol now
+	     also has shared-front-end source syntax (`yield expr in (yield_ch, resume_ch)` and
+	     `yield in (yield_ch, resume_ch)`), with metadata distinguishing source syntax from raw helper
+	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`. The remaining gap is a
+	     stronger language-level coroutine/generator protocol above that explicit channel surface.
    - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
      reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

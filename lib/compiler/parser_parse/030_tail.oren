@@ -219,15 +219,69 @@ fn yield_value_expr_call(tok, value_expr, explicit_value) {
     return call
 }
 
+fn yield_exchange_expr_call(tok, yield_ch_expr, resume_ch_expr, value_expr, explicit_value) {
+    var ident_tok = token.new_token(token.TOK_IDENT, "oren_yield_exchange")
+    var ident = ast.new_identifier(ident_tok)
+    var call = ast.new_call(ident_tok, ident, [yield_ch_expr, resume_ch_expr, value_expr])
+    call["yield_exchange_expr"] = true
+    call["yield_token"] = tok
+    call["yield_exchange_explicit_value"] = explicit_value
+    call["yield_exchange_source_syntax"] = true
+    return call
+}
+
+fn yield_has_exchange_clause(p, tok) {
+    if tok == nil { return false }
+    var cur_line = -1
+    if tok["line"] != nil { cur_line = tok["line"] }
+    if cur_line < 0 { return false }
+    var peek = p["peek"]
+    if peek == nil { return false }
+    if peek["type"] != token.TOK_IN { return false }
+    var peek_line = -2
+    if peek["line"] != nil { peek_line = peek["line"] }
+    if peek_line != cur_line { return false }
+    return true
+}
+
+fn parse_yield_exchange_clause(p, tok, value_expr, explicit_value) {
+    parser_next_token(p) // 'in'
+    if !expect_peek(p, token.TOK_LPAREN) {
+        parser_add_error(p, "yield exchange expects channel pair syntax: yield <value> in (yield_ch, resume_ch)")
+        return nil
+    }
+    parser_next_token(p)
+    var yield_ch = parse_expression(p, LOWEST)
+    if yield_ch == nil { return nil }
+    if !expect_peek(p, token.TOK_COMMA) {
+        parser_add_error(p, "yield exchange expects ',' between yield and resume channels")
+        return nil
+    }
+    parser_next_token(p)
+    var resume_ch = parse_expression(p, LOWEST)
+    if resume_ch == nil { return nil }
+    if !expect_peek(p, token.TOK_RPAREN) {
+        parser_add_error(p, "yield exchange expects closing ')'")
+        return nil
+    }
+    return yield_exchange_expr_call(tok, yield_ch, resume_ch, value_expr, explicit_value)
+}
+
 fn parse_yield_expr(p) {
     var tok = p["cur"]
     var value_expr = ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
     var explicit_value = false
+    if yield_has_exchange_clause(p, tok) {
+        return parse_yield_exchange_clause(p, tok, value_expr, explicit_value)
+    }
     if yield_has_inline_value(p, tok) {
         parser_next_token(p)
         value_expr = parse_expression(p, LOWEST)
         if value_expr == nil { return nil }
         explicit_value = true
+    }
+    if yield_has_exchange_clause(p, tok) {
+        return parse_yield_exchange_clause(p, tok, value_expr, explicit_value)
     }
     return yield_value_expr_call(tok, value_expr, explicit_value)
 }

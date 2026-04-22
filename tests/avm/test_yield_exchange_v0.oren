@@ -1,3 +1,10 @@
+fn assert_eq(a, b) {
+    if a != b {
+        print("test_yield_exchange_v0 FAIL")
+        exit(1)
+    }
+}
+
 fn avm_exchange_worker(out_ch, in_ch, seed) {
     var resumed = oren_yield_exchange(out_ch, in_ch, seed + 1)
     return resumed + 5
@@ -5,6 +12,16 @@ fn avm_exchange_worker(out_ch, in_ch, seed) {
 
 fn avm_exchange_call_arg_worker(out_ch, in_ch, seed) {
     return oren_int_to_string(oren_yield_exchange(out_ch, in_ch, seed + 2))
+}
+
+fn avm_exchange_syntax_worker(out_ch, in_ch, seed) {
+    var resumed = yield (seed + 3) in (out_ch, in_ch)
+    return resumed + 6
+}
+
+fn avm_exchange_syntax_nil_worker(out_ch, in_ch, seed) {
+    var resumed = yield in (out_ch, in_ch)
+    return resumed + seed
 }
 
 fn test_exchange_var() {
@@ -29,9 +46,33 @@ fn test_exchange_call_arg() {
     assert_eq(oren_join(h), "9")
 }
 
+fn test_exchange_source_syntax() {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn avm_exchange_syntax_worker(out, inp, 60)
+    oren_yield()
+    assert_eq(oren_chan_recv(out), 63)
+    oren_chan_send(inp, 10)
+    oren_yield()
+    assert_eq(oren_join(h), 16)
+}
+
+fn test_exchange_source_nil() {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn avm_exchange_syntax_nil_worker(out, inp, 70)
+    oren_yield()
+    assert_eq(oren_chan_recv(out), nil)
+    oren_chan_send(inp, 11)
+    oren_yield()
+    assert_eq(oren_join(h), 81)
+}
+
 fn main() {
     test_exchange_var()
     test_exchange_call_arg()
+    test_exchange_source_syntax()
+    test_exchange_source_nil()
     print("test_yield_exchange_v0: OK")
     return 0
 }

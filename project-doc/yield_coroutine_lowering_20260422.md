@@ -55,6 +55,14 @@ backend-shared value-helper slices landed.
   and `yield_exchange_surface`. That surface records the shipped `channel_resume_v0` contract:
   yielded values are observed through explicit `yield_ch`, resumed values are supplied through
   explicit `resume_ch`, and the metadata names those argument positions directly.
+- Fresh probe / landing (2026-04-22): that same explicit channel contract now also has shared-front-end
+  source syntax:
+  - `yield expr in (yield_ch, resume_ch)`
+  - `yield in (yield_ch, resume_ch)` for implicit `nil`
+  The lowering still routes through `oren_yield_exchange(...)`, but source attribution now stays on
+  the original `yield` token and metadata records whether each exchange point came from raw helper
+  calls or source syntax via `syntax_kinds`, `exchange_points[*].syntax`, and
+  `exchange_points[*].explicit_value`.
 - Fresh probe (2026-04-22): strict bytecode/C/native builds also execute a bare `yield` inside a
   nested function-literal body successfully. Parent-function metadata still intentionally ignores
   nested bodies when summarizing `contains_yield` / `yield_stmt_sites`; that probe result is about

@@ -153,7 +153,8 @@ fn function_yield_info_note_value_expr(info, expr) {
 
 fn yield_exchange_expr_site(expr) {
     if expr == nil { return nil }
-    var tok = expr["token"]
+    var tok = expr["yield_token"]
+    if tok == nil { tok = expr["token"] }
     if tok == nil { return nil }
     var file = tok["file"]
     var line = tok["line"]
@@ -187,10 +188,18 @@ fn function_yield_info_note_exchange_expr_ctx(info, expr, context) {
     if site != nil { oren_list_push(info["yield_exchange_sites"], site) }
     var context_name = context
     if context_name == nil || context_name == "" { context_name = "expr" }
+    var syntax_name = "helper_call"
+    if expr["yield_exchange_source_syntax"] == true { syntax_name = "yield_in_channels" }
+    var explicit_value = true
+    if expr["yield_exchange_source_syntax"] == true {
+        explicit_value = (expr["yield_exchange_explicit_value"] == true)
+    }
     oren_list_push(info["yield_exchange_points"], {
         "id": oren_list_len(info["yield_exchange_points"]),
         "site": site,
         "context": context_name,
+        "syntax": syntax_name,
+        "explicit_value": explicit_value,
     })
     return nil
 }
@@ -623,6 +632,8 @@ fn function_yield_exchange_surface(info) {
     if info == nil || info["yield_exchange_count"] <= 0 { return nil }
     var consumer_kinds = []
     var seen = {}
+    var syntax_kinds = []
+    var syntax_seen = {}
     var i = 0
     var points = info["yield_exchange_points"]
     while points != nil && i < oren_list_len(points) {
@@ -632,6 +643,12 @@ fn function_yield_exchange_surface(info) {
         if kind != nil && kind != "" && seen[kind] != true {
             seen[kind] = true
             oren_list_push(consumer_kinds, kind)
+        }
+        var syntax_name = nil
+        if point != nil { syntax_name = point["syntax"] }
+        if syntax_name != nil && syntax_name != "" && syntax_seen[syntax_name] != true {
+            syntax_seen[syntax_name] = true
+            oren_list_push(syntax_kinds, syntax_name)
         }
         i = i + 1
     }
@@ -645,6 +662,7 @@ fn function_yield_exchange_surface(info) {
         "yield_channel_arg_index": 0,
         "resume_channel_arg_index": 1,
         "value_arg_index": 2,
+        "syntax_kinds": syntax_kinds,
         "consumer_kinds": consumer_kinds,
         "exchange_points": info["yield_exchange_points"],
     }
