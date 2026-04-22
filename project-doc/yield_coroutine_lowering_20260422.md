@@ -204,10 +204,10 @@ backend-shared value-helper slices landed.
   stage2 path.
   - the compiler-injected generator core now exposes `oren_generator_delegate(co, inner)`
   - `std:generator` now exposes `delegate(co, inner)` as a thin facade over that helper
-  - the final shipped v0 mode is `inline_fresh_handle_v0`
+  - the first shipped mode was `inline_fresh_handle_v0`
   - the helper validates both `co` and `inner`, inlines a fresh inner generator handle directly into
-    the current outer `generator_context`, returns the inner generator’s final return value when
-    delegation completes, and rejects partially-started inner handles
+  the current outer `generator_context`, returns the inner generator’s final return value when
+  delegation completes, and rejects partially-started inner handles
   - already-completed inner handles are treated as stable values and return their cached final value
   - this means imported delegated composition is now a real shipped surface again, not only a note:
     explicit workers can compose generators without re-exposing channel fields or depending on map
@@ -219,38 +219,42 @@ backend-shared value-helper slices landed.
     - `tests/modules/test_generator_std.oren`
     - `tests/avm/test_generator_v0.oren`
   - metadata for `@oren.generator` declarations now records the widened manual resume surface as:
-    - `resume_surface = "next_send_delegate_v0"`
+    - `resume_surface = "next_send_delegate_step_v1"`
     - `next_api = "oren_generator_next_v2"`
     - `send_api = "oren_generator_send_v2"`
     - `delegate_api = "oren_generator_delegate_v0"`
-    - `delegate_mode = "inline_fresh_handle_v0"`
+    - `delegate_step_api = "oren_generator_delegate_step_v1"`
+    - `delegate_mode = "inline_fresh_handle_or_started_step_v1"`
   Delegation syntax itself is still not reintroduced in this turn; the shipped surface is helper and
   stdlib based, with the regression floor preserved by the committed stage2 matrix.
 
-- Reduced blocked repro (2026-04-22): partially-started delegation is still not shippable on the
-  native green runtime, and the failure is now pinned more tightly than the earlier broad
-  “delegation is blocked” note.
-  - committed probe:
-    - `scripts/probe_generator_nested_green_resume_block_v0.sh`
-    - fixture: `tests/fixtures/generator_nested_green_resume_block_v0.oren`
-  - what the probe does:
-    - starts an outer generator on the host
-    - inside that outer generator, starts an inner generator and immediately calls `gen.next(inner)`
-    - runs the native binary with `OREN_TRACE_GENERATOR_CORE=1` and `OREN_TRACE_GREEN_RUNQ_ARGS=1`
-    - expects the current timeout-only blocked shape
-  - observed reduced trace shape:
+- Runtime fix + widened delegation (2026-04-22): partially-started delegation is now shippable too.
+  - the native green runtime bug was in host-side `oren_select(...)`: when green was active without
+    background workers, the host could block in an external select wait without continuing the
+    scheduler, so nested `gen.next(inner)` from inside an active outer generator never let `inner`
+    run
+  - the native runtime now keeps host-side select cooperative in that mode by polling green work
+    between short external waits, which makes the previously blocked reduced case complete
+  - the old blocked repro is replaced by a positive verifier:
+    - `scripts/verify_generator_nested_green_resume_v0.sh`
+    - fixture: `tests/fixtures/generator_nested_green_resume_v0.oren`
+  - the verified trace shape now includes:
     - `main:before_next`
-    - outer host-side resume starts and enqueues the outer worker on the global runq
     - `outer:start`
     - `outer:before_next`
-    - inner `spawn` enqueues the inner worker on the local green runq (`trace: green_runq push_local ...`)
-    - the outer host-side resume still reaches `resume.after_yield`
-    - no `inner:start` appears before the timeout
-  - practical conclusion:
-    - the next fix target is the nested green resume / scheduler-drive seam, not parser lowering
-    - fresh-handle delegation (`inline_fresh_handle_v0`) remains the shipped surface
-    - started-step delegation must stay unshipped until this native runtime path is fixed and then
-      re-verified across bytecode/C/native plus the imported stage2 matrix
+    - `inner:start`
+    - `outer:after_next`
+    - `main:after_next`
+  - with that seam fixed, the generator core now also exposes:
+    - `oren_generator_delegate_step(co, inner, step)`
+    - stdlib facade: `std:generator.delegate_step(co, inner, step)`
+  - semantics:
+    - `delegate(co, inner)` still handles fresh inner generators
+    - `delegate_step(co, inner, step)` delegates the remaining sequence from a partially-started
+      generator, where `step` is the currently yielded step already observed from `inner`
+    - the mode name is now `inline_fresh_handle_or_started_step_v1`
+  - the stage2 import/yield matrix now also pins started-step imported composition through
+    `tests/fixtures/generator_import_delegate_step_regression_v0.oren`
 
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:

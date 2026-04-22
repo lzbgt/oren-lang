@@ -20,18 +20,18 @@ if [ -z "$platform" ]; then
 fi
 
 if [ -z "$platform" ]; then
-  echo "probe_generator_nested_green_resume_block_v0: could not determine host platform; set OREN_PLATFORM" >&2
+  echo "verify_generator_nested_green_resume_v0: could not determine host platform; set OREN_PLATFORM" >&2
   exit 1
 fi
 
 mkdir -p build/logs build/tmp
 ts="$(date +%Y%m%d_%H%M%S)"
-tmpdir="build/tmp/generator_nested_green_resume_block_v0_${ts}"
-log="build/logs/probe_generator_nested_green_resume_block_v0_${ts}.log"
+tmpdir="build/tmp/generator_nested_green_resume_v0_${ts}"
+log="build/logs/verify_generator_nested_green_resume_v0_${ts}.log"
 mkdir -p "$tmpdir"
 
-src="tests/fixtures/generator_nested_green_resume_block_v0.oren"
-native_out="$tmpdir/generator_nested_green_resume_block_v0_native"
+src="tests/fixtures/generator_nested_green_resume_v0.oren"
+native_out="$tmpdir/generator_nested_green_resume_v0_native"
 
 run_ok() {
   echo "\$ $*" >>"$log"
@@ -41,23 +41,20 @@ run_ok() {
 run_ok "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
 
-echo "\$ /usr/bin/perl -e 'alarm shift @ARGV; exec @ARGV' 6 env OREN_TRACE_GENERATOR_CORE=1 OREN_TRACE_GREEN_RUNQ_ARGS=1 $native_out" >>"$log"
-if /usr/bin/perl -e 'alarm shift @ARGV; exec @ARGV' 6 \
+run_ok /usr/bin/perl -e 'alarm shift @ARGV; exec @ARGV' 6 \
   env OREN_TRACE_GENERATOR_CORE=1 OREN_TRACE_GREEN_RUNQ_ARGS=1 \
-  "$native_out" >>"$log" 2>&1; then
-  echo "probe_generator_nested_green_resume_block_v0: expected nested green resume to block" >&2
-  exit 1
-fi
+  "$native_out"
 
 grep -F "main:before_next" "$log" >/dev/null
 grep -F "outer:start" "$log" >/dev/null
 grep -F "outer:before_next" "$log" >/dev/null
 grep -F "trace: green_runq push_local" "$log" >/dev/null
+grep -F "trace: green_runq pop_local" "$log" >/dev/null
+grep -F "inner:start" "$log" >/dev/null
 grep -F "[trace] generator resume.after_yield" "$log" >/dev/null
-if grep -F "inner:start" "$log" >/dev/null; then
-  echo "probe_generator_nested_green_resume_block_v0: expected inner worker to remain unscheduled in blocked repro" >&2
-  exit 1
-fi
+grep -F "[trace] generator resume.after_select" "$log" >/dev/null
+grep -F "outer:after_next" "$log" >/dev/null
+grep -F "main:after_next" "$log" >/dev/null
 
-echo "generator nested green resume block repro OK" >>"$log"
-echo "generator nested green resume block repro OK"
+echo "generator nested green resume verified" >>"$log"
+echo "generator nested green resume verified"

@@ -82,6 +82,17 @@ fn _select_in_green() {
     return oren_green_in_green() == true
 }
 
+fn _select_host_green_coop_enabled() {
+    // Host-thread cooperative bridge:
+    // when green runtime is active without background workers, a host `oren_select(...)`
+    // must keep advancing the in-process scheduler or nested generator/channel waits can deadlock.
+    if _select_in_green() == true { return false }
+    if g_green_inited == 0 { return false }
+    if _green_enabled() != true { return false }
+    if g_green_workers_started != 0 { return false }
+    return true
+}
+
 fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
     // Netpoll v2 green select:
     // - Use the shared scheduler netpoller (kqueue/epoll) directly.
@@ -613,6 +624,13 @@ fn oren_select(cases) {
         oren_gc_pin(prev_pin)
         return green_res
     }
+    var host_green_coop = _select_host_green_coop_enabled()
+    var host_green_timeout_ms = -1
+    if host_green_coop {
+        // Keep external waits efficient, but never block long enough to starve the single-thread
+        // green scheduler that nested generator/channel composition depends on.
+        host_green_timeout_ms = 1
+    }
     while 1 {
         var nready = 0
         var evbuf = 0
@@ -665,9 +683,30 @@ fn oren_select(cases) {
                 j = j + 1
             }
 
-            nready = sys_kevent(kq, change, nfds, evs, nfds, 0)
+            var ts = 0
+            if host_green_timeout_ms >= 0 {
+                ts = malloc(16)
+                if ts == 0 {
+                    sys_close(kq)
+                    free(change)
+                    free(evs)
+                    free(kinds)
+                    free(fds)
+                    free(chans)
+                    free(vals)
+                    native_gc_root_pop(root_count)
+                    oren_gc_pin(prev_pin)
+                    return 0 - 12
+                }
+                var sec = host_green_timeout_ms / 1000
+                var nsec = (host_green_timeout_ms - sec * 1000) * 1000000
+                ptr_set(ts + 0, sec)
+                ptr_set(ts + 8, nsec)
+            }
+            nready = sys_kevent(kq, change, nfds, evs, nfds, ts)
             sys_close(kq)
             free(change)
+            if ts != 0 { free(ts) }
             if nready <= 0 {
                 free(evs)
                 if nready < 0 {
@@ -675,6 +714,9 @@ fn oren_select(cases) {
                     native_gc_root_pop(root_count)
                     oren_gc_pin(prev_pin)
                     return nready
+                }
+                if host_green_coop {
+                    oren_green_poll_steps(1)
                 }
                 continue
             }
@@ -729,7 +771,7 @@ fn oren_select(cases) {
                 k = k + 1
             }
 
-            nready = sys_epoll_pwait(epfd, out, nfds2, -1, 0, 0)
+            nready = sys_epoll_pwait(epfd, out, nfds2, host_green_timeout_ms, 0, 0)
             sys_close(epfd)
             free(ev)
             if nready <= 0 {
@@ -739,6 +781,9 @@ fn oren_select(cases) {
                     native_gc_root_pop(root_count)
                     oren_gc_pin(prev_pin)
                     return nready
+                }
+                if host_green_coop {
+                    oren_green_poll_steps(1)
                 }
                 continue
             }

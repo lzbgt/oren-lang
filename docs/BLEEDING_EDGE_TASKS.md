@@ -4249,7 +4249,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 	     wrapper”, and the shipped handle contract is now also opaque by default
 		     (`compiler_generator_object_v2` with `hidden_list_capsule_v2` plus validated
-		     `generator_context`, declaration-form metadata, `delegate_mode=inline_fresh_handle_v0`, and
+		     `generator_context`, declaration-form metadata, `delegate_mode=inline_fresh_handle_or_started_step_v1`, and
 		     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped
 		     `generator` handle
 	     (compiler-managed coroutine object lifecycle, richer resume protocols, and eventually
@@ -4270,24 +4270,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			       `tests/fixtures/generator_import_*` cases plus delegated imported composition compile under
 			       `./oren_stage2 build --backend bytecode`
 			     - the probe is pinned in `make test` through `verify-generator-import-yield-regression`
-				   - New (2026-04-22): the next abstraction layer above plain `next/send` is now partially
-				     shipped instead of remaining only a note: `oren_generator_delegate(co, inner)` and
-				     `std:generator.delegate(co, inner)` provide manual generator composition over the same
-				     cross-backend `generator_context` protocol. The shipped v0 mode is
-				     `inline_fresh_handle_v0`: fresh inner handles inline into the current context, completed
-				     handles return cached final values, and partially-started inner handles are rejected. That
-				     makes imported delegated composition a concrete, verified surface while fuller delegation
-				     syntax remains future work.
-				   - New (2026-04-22): the next blocked seam is now pinned with a committed native repro
-				     instead of hand-kept trace logs.
-					     - `scripts/probe_generator_nested_green_resume_block_v0.sh` proves the current
-					       failure shape for partially-started delegation on native green runtime
-					     - the reduced fixture `tests/fixtures/generator_nested_green_resume_block_v0.oren`
-					       narrows the issue to nested green resume: `outer:before_next` executes, the inner worker
-				       is enqueued locally, and the host-side outer resume still advances before any `inner:start`
-				       appears
-				     - reweight the next generator/runtime batch toward that scheduler/runtime seam, not toward
-				       more parser sugar or wider helper APIs
+				   - New (2026-04-22): the next abstraction layer above plain `next/send` is now actually
+				     widened and shipped.
+					     - `oren_generator_delegate(co, inner)` / `std:generator.delegate(co, inner)` still cover
+					       fresh-handle inlining
+					     - `oren_generator_delegate_step(co, inner, step)` /
+					       `std:generator.delegate_step(co, inner, step)` now cover partially-started inner
+					       generators when the current yielded step is provided explicitly
+					     - the shipped mode is `inline_fresh_handle_or_started_step_v1`
+					     - imported stage2 bytecode coverage now includes
+					       `tests/fixtures/generator_import_delegate_step_regression_v0.oren`
+				   - New (2026-04-22): the native nested-green scheduler seam is no longer a blocked repro.
+					     - `scripts/verify_generator_nested_green_resume_v0.sh` now proves the fixed path instead of
+					       a timeout-only failure
+					     - `tests/fixtures/generator_nested_green_resume_v0.oren` keeps the reduced runtime shape
+					       pinned under native
+					     - reweight the next generator/runtime batch upward again, toward broader coroutine/resume
+					       protocol design rather than another scheduler unblock
 	   - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
 	     reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).

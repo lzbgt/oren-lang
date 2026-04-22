@@ -3412,8 +3412,8 @@ Rolling status:
     `generator_handle_v2`, `hidden_list_capsule_v2`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
-    metadata through `resume_surface=next_send_delegate_v0` plus
-    `delegate_mode=inline_fresh_handle_v0`
+    metadata through `resume_surface=next_send_delegate_step_v1` plus
+    `delegate_mode=inline_fresh_handle_or_started_step_v1`
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
     sugar `fn name(...) { ... } -> var name = fn (...) { ... }`
@@ -3711,9 +3711,11 @@ Notes:
     (`compiler_generator_object_v2`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
     underlying yield surface `generator_context_v0`, iterable surface `for_in_v0` with
-    implicit-`nil` resume, explicit resume/delegation surface `next_send_delegate_v0`
+    implicit-`nil` resume, explicit resume/delegation surface `next_send_delegate_step_v1`
     (`next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
-    `delegate_api=oren_generator_delegate_v0`, `delegate_mode=inline_fresh_handle_v0`),
+    `delegate_api=oren_generator_delegate_v0`,
+    `delegate_step_api=oren_generator_delegate_step_v1`,
+    `delegate_mode=inline_fresh_handle_or_started_step_v1`),
     state layout `hidden_list_capsule_v2`,
     worker context type `generator_context`, declaration forms
     `["named_function_decl", "function_valued_var"]`)
@@ -5297,7 +5299,9 @@ Current behavior (native runtime, rolling):
     same underlying explicit channel protocol
   - `oren_generator_delegate(co, inner)`: manual generator composition over the same
     `generator_context` protocol, exposed as `gen.delegate(co, inner)`, with
-    `delegate_mode=inline_fresh_handle_v0`
+    `delegate_mode=inline_fresh_handle_or_started_step_v1`
+  - `oren_generator_delegate_step(co, inner, step)`: resumes a partially-started inner generator from
+    its current yielded `step`, exposed as `gen.delegate_step(co, inner, step)`
 - Still missing: fuller generator delegation syntax and broader coroutine protocol above these
   shipped source/helper/library forms.
 

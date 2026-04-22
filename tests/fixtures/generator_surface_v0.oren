@@ -48,6 +48,28 @@ fn delegate_outer_direct_worker(co, args) {
     return retv + 9
 }
 
+fn delegate_step_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -935 }
+    var inner = gen.start(delegate_inner_worker, [args[0]])
+    var step0 = gen.next(inner)
+    if oren_is_err(step0) == true { return -936 }
+    if step0["ok"] != true || step0["value"] != args[0] + 1 { return -937 }
+    var retv = gen.delegate_step(co, inner, step0)
+    if oren_is_err(retv) == true { return -938 }
+    return retv + 13
+}
+
+fn delegate_step_outer_direct_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -939 }
+    var inner = oren_generator_start(delegate_inner_worker, [args[0]])
+    var step0 = oren_generator_next(inner)
+    if oren_is_err(step0) == true { return -940 }
+    if step0["ok"] != true || step0["value"] != args[0] + 1 { return -941 }
+    var retv = oren_generator_delegate_step(co, inner, step0)
+    if oren_is_err(retv) == true { return -942 }
+    return retv + 15
+}
+
 fn delegate_collect_inner(co, args) {
     if oren_type_name(co) != "generator_context" { return -933 }
     var seed = args[0]
@@ -223,21 +245,57 @@ fn main() {
     if oren_is_err(dd2) == true { return 1372 }
     if dd2["done"] != true || dd2["return"] != 67 { return 1373 }
 
-    var g4e = gen.start(delegate_collect_outer, [5])
-    var dxs2 = gen.collect(g4e)
-    if oren_is_err(dxs2) == true { return 1374 }
-    if oren_list_len(dxs2) != 3 { return 1375 }
-    if dxs2[0] != 5 || dxs2[1] != 6 || dxs2[2] != 7 { return 1376 }
-    if gen.return_value(g4e) != 46 { return 1377 }
+    var g4e = gen.start(delegate_step_outer_worker, [50])
+    var de0 = gen.next(g4e)
+    if oren_is_err(de0) == true { return 1374 }
+    if de0["ok"] != true || de0["value"] != 51 { return 1375 }
+    var de1 = gen.send(g4e, 4)
+    if oren_is_err(de1) == true { return 1376 }
+    if de1["ok"] != true || de1["value"] != 54 { return 1377 }
+    var de2 = gen.send(g4e, 8)
+    if oren_is_err(de2) == true { return 1378 }
+    if de2["done"] != true || de2["return"] != 71 { return 1379 }
 
-    var g4f = gen.start(delegate_collect_outer, [9])
+    var g4f = gen.start(delegate_step_outer_direct_worker, [60])
+    var df0 = gen.next(g4f)
+    if oren_is_err(df0) == true { return 1380 }
+    if df0["ok"] != true || df0["value"] != 61 { return 1381 }
+    var df1 = gen.send(g4f, 5)
+    if oren_is_err(df1) == true { return 1382 }
+    if df1["ok"] != true || df1["value"] != 65 { return 1383 }
+    var df2 = gen.send(g4f, 9)
+    if oren_is_err(df2) == true { return 1384 }
+    if df2["done"] != true || df2["return"] != 74 { return 1385 }
+
+    var started_inner = gen.start(delegate_inner_worker, [70])
+    var started_step = gen.next(started_inner)
+    if oren_is_err(started_step) == true { return 1386 }
+    if started_step["ok"] != true || started_step["value"] != 71 { return 1387 }
+    if oren_is_err(gen.delegate_step(123, started_inner, started_step)) != true { return 1388 }
+    if oren_is_err(gen.delegate_step([], 456, started_step)) != true { return 1389 }
+    if oren_is_err(gen.delegate_step([], started_inner, 789)) != true { return 1390 }
+    var started_step1 = gen.send(started_inner, 6)
+    if oren_is_err(started_step1) == true { return 13901 }
+    if started_step1["ok"] != true || started_step1["value"] != 76 { return 13902 }
+    var started_step2 = gen.send(started_inner, 10)
+    if oren_is_err(started_step2) == true { return 13903 }
+    if started_step2["done"] != true || started_step2["return"] != 60 { return 13904 }
+
+    var g4g = gen.start(delegate_collect_outer, [5])
+    var dxs2 = gen.collect(g4g)
+    if oren_is_err(dxs2) == true { return 1391 }
+    if oren_list_len(dxs2) != 3 { return 1392 }
+    if dxs2[0] != 5 || dxs2[1] != 6 || dxs2[2] != 7 { return 1393 }
+    if gen.return_value(g4g) != 46 { return 1394 }
+
+    var g4h = gen.start(delegate_collect_outer, [9])
     var dsum2 = 0
-    for dv2 in g4f { dsum2 = dsum2 + dv2 }
-    if dsum2 != 30 { return 1378 }
-    if gen.is_done(g4f) != true || gen.return_value(g4f) != 50 { return 1379 }
+    for dv2 in g4h { dsum2 = dsum2 + dv2 }
+    if dsum2 != 30 { return 1395 }
+    if gen.is_done(g4h) != true || gen.return_value(g4h) != 50 { return 1396 }
 
     var g5 = decl_counter(40)
-    if oren_type_name(g5) != "generator" { return 139 }
+    if oren_type_name(g5) != "generator" { return 1397 }
     var d0 = gen.next(g5)
     if oren_is_err(d0) == true { return 140 }
     if d0["ok"] != true || d0["done"] != false || d0["value"] != 41 { return 141 }

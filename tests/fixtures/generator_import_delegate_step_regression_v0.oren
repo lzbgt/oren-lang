@@ -1,0 +1,18 @@
+import gen "std:generator"
+
+fn inner_worker(co, args) {
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 40
+}
+
+fn outer_worker(co, args) {
+    var inner = gen.start(inner_worker, [args[0]])
+    var step0 = gen.next(inner)
+    return gen.delegate_step(co, inner, step0) + 5
+}
+
+fn main() {
+    return outer_worker
+}

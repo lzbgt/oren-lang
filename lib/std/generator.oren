@@ -24,6 +24,10 @@ fn delegate(co, inner) {
     return oren_generator_delegate(co, inner)
 }
 
+fn delegate_step(co, inner, step) {
+    return oren_generator_delegate_step(co, inner, step)
+}
+
 fn is_done(gen) {
     return oren_generator_is_done(gen)
 }
