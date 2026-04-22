@@ -1,0 +1,30 @@
+import gen "std:generator"
+
+fn inner_worker(co, args) {
+    print("inner:start")
+    var seed = args[0]
+    var r1 = yield seed + 1 in co
+    print("inner:after1")
+    yield seed + r1 in co
+    print("inner:after2")
+    return seed + r1 + 9
+}
+
+fn outer_worker(co, args) {
+    print("outer:start")
+    var inner = gen.start(inner_worker, [50])
+    print("outer:before_next")
+    var step = gen.next(inner)
+    print("outer:after_next")
+    print(step)
+    return 0
+}
+
+fn main() {
+    var outer = gen.start(outer_worker, [])
+    print("main:before_next")
+    var s1 = gen.next(outer)
+    print("main:after_next")
+    print(s1)
+    return 0
+}

@@ -227,6 +227,31 @@ backend-shared value-helper slices landed.
   Delegation syntax itself is still not reintroduced in this turn; the shipped surface is helper and
   stdlib based, with the regression floor preserved by the committed stage2 matrix.
 
+- Reduced blocked repro (2026-04-22): partially-started delegation is still not shippable on the
+  native green runtime, and the failure is now pinned more tightly than the earlier broad
+  “delegation is blocked” note.
+  - committed probe:
+    - `scripts/probe_generator_nested_green_resume_block_v0.sh`
+    - fixture: `tests/fixtures/generator_nested_green_resume_block_v0.oren`
+  - what the probe does:
+    - starts an outer generator on the host
+    - inside that outer generator, starts an inner generator and immediately calls `gen.next(inner)`
+    - runs the native binary with `OREN_TRACE_GENERATOR_CORE=1` and `OREN_TRACE_GREEN_RUNQ_ARGS=1`
+    - expects the current timeout-only blocked shape
+  - observed reduced trace shape:
+    - `main:before_next`
+    - outer host-side resume starts and enqueues the outer worker on the global runq
+    - `outer:start`
+    - `outer:before_next`
+    - inner `spawn` enqueues the inner worker on the local green runq (`trace: green_runq push_local ...`)
+    - the outer host-side resume still reaches `resume.after_yield`
+    - no `inner:start` appears before the timeout
+  - practical conclusion:
+    - the next fix target is the nested green resume / scheduler-drive seam, not parser lowering
+    - fresh-handle delegation (`inline_fresh_handle_v0`) remains the shipped surface
+    - started-step delegation must stay unshipped until this native runtime path is fixed and then
+      re-verified across bytecode/C/native plus the imported stage2 matrix
+
 - Fresh landing (2026-04-22): generator worker source is now normalized around compiler-managed
   generator context instead of raw channel field spelling. The shared front-end accepts:
   - `yield expr in co`

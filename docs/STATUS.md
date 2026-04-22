@@ -1447,14 +1447,25 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	       cases under `./oren_stage2 build --backend bytecode`
 	     - `scripts/probe_generator_import_yield_regression.sh` is now a positive guard and is
 	       wired into `make test` through `verify-generator-import-yield-regression`
-		   - New (2026-04-22): generator delegation is now re-opened on top of that fixed stage2 path via
-		     `oren_generator_delegate(co, inner)` and the `std:generator.delegate(co, inner)` facade.
-		     The shipped v0 mode is `inline_fresh_handle_v0`: it inlines a fresh inner generator handle
-		     into the current outer `generator_context`, returns the inner generator’s final return value,
-		     rejects partially-started inner handles, and still keeps imported delegated composition covered
-		     across bytecode/C/native plus the stage2 imported-generator probe.
-   - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
-     remaining work there is API tightening and broader parity, not first availability.
+			   - New (2026-04-22): generator delegation is now re-opened on top of that fixed stage2 path via
+			     `oren_generator_delegate(co, inner)` and the `std:generator.delegate(co, inner)` facade.
+			     The shipped v0 mode is `inline_fresh_handle_v0`: it inlines a fresh inner generator handle
+			     into the current outer `generator_context`, returns the inner generator’s final return value,
+			     rejects partially-started inner handles, and still keeps imported delegated composition covered
+			     across bytecode/C/native plus the stage2 imported-generator probe.
+			   - New (2026-04-22): partially-started delegation remains blocked on native nested green resume,
+			     and the blocked shape is now pinned by a committed probe instead of ad hoc logs.
+			     - `scripts/probe_generator_nested_green_resume_block_v0.sh` builds
+			       `tests/fixtures/generator_nested_green_resume_block_v0.oren` under native and
+			       expects the current timeout-only failure shape
+			     - the reduced repro proves a tighter fact than the earlier broad delegation notes:
+			       `gen.next(inner)` from inside an already-running outer generator reaches `outer:before_next`,
+			       enqueues the inner worker on the local green runq, and still returns to the outer host-side
+			       resume path before any `inner:start` execution appears
+			     - fresh-handle delegation remains the shipped surface; started-step delegation is not claimed
+			       as shipped until that nested green resume/runtime seam is fixed
+	   - Bytes + typed buffers are already partially shipped through `std:bytes` and `std:buffer`;
+	     remaining work there is API tightening and broader parity, not first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
    - New: `std:result` smoke fixture wired into native quick integration
      (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).

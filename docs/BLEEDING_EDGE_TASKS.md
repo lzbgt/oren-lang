@@ -4266,20 +4266,30 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     guarded by a committed four-case matrix instead of living only as a rollback note.
 	     - the metadata emitter path was refactored away from repeated whole-document string
 	       concatenation and onto chunked `oren_string_join(...)` assembly
-		     - `scripts/probe_generator_import_yield_regression.sh` now proves all four committed
-		       `tests/fixtures/generator_import_*` cases plus delegated imported composition compile under
-		       `./oren_stage2 build --backend bytecode`
-		     - the probe is pinned in `make test` through `verify-generator-import-yield-regression`
-			   - New (2026-04-22): the next abstraction layer above plain `next/send` is now partially
-			     shipped instead of remaining only a note: `oren_generator_delegate(co, inner)` and
-			     `std:generator.delegate(co, inner)` provide manual generator composition over the same
-			     cross-backend `generator_context` protocol. The shipped v0 mode is
-			     `inline_fresh_handle_v0`: fresh inner handles inline into the current context, completed
-			     handles return cached final values, and partially-started inner handles are rejected. That
-			     makes imported delegated composition a concrete, verified surface while fuller delegation
-			     syntax remains future work.
-   - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
-     reweight that thread toward API tightening rather than first availability.
+			     - `scripts/probe_generator_import_yield_regression.sh` now proves all four committed
+			       `tests/fixtures/generator_import_*` cases plus delegated imported composition compile under
+			       `./oren_stage2 build --backend bytecode`
+			     - the probe is pinned in `make test` through `verify-generator-import-yield-regression`
+				   - New (2026-04-22): the next abstraction layer above plain `next/send` is now partially
+				     shipped instead of remaining only a note: `oren_generator_delegate(co, inner)` and
+				     `std:generator.delegate(co, inner)` provide manual generator composition over the same
+				     cross-backend `generator_context` protocol. The shipped v0 mode is
+				     `inline_fresh_handle_v0`: fresh inner handles inline into the current context, completed
+				     handles return cached final values, and partially-started inner handles are rejected. That
+				     makes imported delegated composition a concrete, verified surface while fuller delegation
+				     syntax remains future work.
+				   - New (2026-04-22): the next blocked seam is now pinned with a committed native repro
+				     instead of hand-kept trace logs.
+					     - `scripts/probe_generator_nested_green_resume_block_v0.sh` proves the current
+					       failure shape for partially-started delegation on native green runtime
+					     - the reduced fixture `tests/fixtures/generator_nested_green_resume_block_v0.oren`
+					       narrows the issue to nested green resume: `outer:before_next` executes, the inner worker
+				       is enqueued locally, and the host-side outer resume still advances before any `inner:start`
+				       appears
+				     - reweight the next generator/runtime batch toward that scheduler/runtime seam, not toward
+				       more parser sugar or wider helper APIs
+	   - Bytes + typed buffers are already partially shipped through `std:bytes` / `std:buffer`;
+	     reweight that thread toward API tightening rather than first availability.
    - Design spec: `docs/design/structured_error_model.md` (2026-03-05).
    - New: `std:result` smoke fixture in native quick integration
      (`tests/fixtures/tier1_native_result_smoke_main.oren`, 2026-03-05).
