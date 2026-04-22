@@ -165,7 +165,7 @@ def exchange_expect(site, context, syntax, explicit_value, binding):
     }
 
 expected_generator_decl_surface = {
-    "version": 16,
+    "version": 17,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -175,7 +175,7 @@ expected_generator_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_finalize_close_delegate_yield_from_v6",
+    "resume_surface": "next_send_finalize_defer_close_delegate_yield_from_v7",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
     "on_finalize_api": "oren_generator_on_finalize_v1",
@@ -187,6 +187,7 @@ expected_generator_decl_surface = {
     "on_close_mode": "alias_of_on_finalize_v1",
     "close_mode": "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5",
     "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
+    "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
     "state_layout": "hidden_list_capsule_v4",
     "worker_context_type": "generator_context",

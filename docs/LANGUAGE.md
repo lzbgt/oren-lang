@@ -1924,12 +1924,16 @@ Implemented today:
 
 `fn`, `var`, `true`, `false`, `if`, `else`, `return`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `yield`, `nil`, `ffi`, `import`, `struct`, `class`, `spawn`, `enum`, `trait`, `impl`, `test`, `assert`, `match`, `as`, `pub`
 
-Planned (not implemented yet):
+Contextual generator syntax:
 
-`defer`
+- `defer` is now recognized as a statement-only, generator-finalization keyword in these forms:
+  - explicit workers: `defer { ... } in co`
+  - `@oren.generator` declarations: `defer { ... }`
+- outside those generator contexts, plain `defer { ... }` is rejected unless it includes
+  `in co`
 
-Rolling note: `yield` is now reserved as a statement keyword. `defer` remains a design
-placeholder and is not guaranteed to be reserved today.
+Rolling note: `yield` is now reserved as a statement keyword. `defer` is still **not** a
+globally reserved keyword; it is only contextual in the generator-finalization forms above.
 
 Rolling note: `match` is a **contextual** keyword to preserve compatibility with code that uses
 `match` as an identifier (variable/function name). The parser treats `match` as a statement only
@@ -3413,15 +3417,20 @@ Rolling status:
     - inside `@oren.generator` declarations: `yield from inner`
     - the `from` surface is contextual after `yield`; it is not a reserved identifier in the
       general language
+  - source-level generator finalization now also ships on top of that same contract:
+    - inside explicit generator workers: `defer { ... } in co`
+    - inside `@oren.generator` declarations: `defer { ... }`
+    - the `defer` surface is contextual; it is not reserved outside those generator forms
   - metadata now reports that object contract as `compiler_generator_object_v2` with
-    `generator_handle_v2`, `hidden_list_capsule_v2`, declaration-form metadata via
+    `generator_handle_v2`, `hidden_list_capsule_v4`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
-    metadata through `resume_surface=next_send_close_delegate_yield_from_v5`,
+    metadata through `resume_surface=next_send_finalize_defer_close_delegate_yield_from_v7`,
     `delegate_api=oren_generator_delegate_v1`,
     `close_api=oren_generator_close_v1`,
+    `finalize_source_syntaxes=["defer_v0","defer_in_context_v0","on_finalize_call_v1","on_close_call_alias_v1"]`,
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`, plus
-    `close_mode=propagate_active_delegate_chain_detach_live_task_v3`, plus
+    `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`, plus
     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
   - the same v0 surface is now verified for both top-level and block-local declarations/bindings across
     bytecode, C, and native, with block-local lowering reusing the shared local named-function
@@ -5316,6 +5325,10 @@ Current behavior (native runtime, rolling):
     `yield ... in co` contract, so `gen.send(...)` supplies the resumed value
   - declaration bodies may now also use `yield from inner` for generator delegation without
     spelling `delegate(...)` or passing explicit step maps
+  - generator finalization can now also be written directly in source syntax:
+    - explicit workers: `defer { ... } in co`
+    - declaration bodies: `defer { ... }`
+    - `defer` remains contextual and is not reserved outside these generator forms
   - declaration bodies may register finalization hooks through `gen.on_finalize(hook)` or
     `oren_generator_on_finalize(hook)`, and `gen.on_close(hook)` /
     `oren_generator_on_close(hook)` remain aliases of that same zero-argument, LIFO contract
@@ -5332,6 +5345,8 @@ Current behavior (native runtime, rolling):
   - `yield in co` -> `_oren_generator_context_exchange(co, nil)`
   - `yield from inner in co` -> `oren_generator_delegate(co, inner)`
   - `yield from inner` inside `@oren.generator` -> `oren_generator_delegate(co, inner)`
+  - `defer { ... } in co` -> `oren_generator_on_finalize(co, || { ... })`
+  - `defer { ... }` inside `@oren.generator` -> `oren_generator_on_finalize(co, || { ... })`
 - The shipped helper contracts are now:
   - `oren_yield_value(v)`: local value-stable resume
   - `oren_yield_exchange(yield_ch, resume_ch, v)`: explicit yielded/resumed values via channel args

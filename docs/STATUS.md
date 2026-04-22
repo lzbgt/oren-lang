@@ -1422,7 +1422,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     `yield_exchange_surface`. That v2 surface now explicitly records
 				     `state_layout=hidden_list_capsule_v4`, `worker_context_type=generator_context`,
 					     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
-					     `resume_surface=next_send_finalize_close_delegate_yield_from_v6`,
+					     `resume_surface=next_send_finalize_defer_close_delegate_yield_from_v7`,
 					     `next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
 					     `on_finalize_api=oren_generator_on_finalize_v1`,
 					     `on_close_api=oren_generator_on_close_v1`, `close_api=oren_generator_close_v1`,
@@ -1430,6 +1430,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					     `delegate_step_api=oren_generator_delegate_step_v1`,
 					     `on_finalize_mode=lifo_zero_arg_on_done_or_close_v1`,
 					     `on_close_mode=alias_of_on_finalize_v1`,
+					     `finalize_source_syntaxes=["defer_v0","defer_in_context_v0","on_finalize_call_v1","on_close_call_alias_v1"]`,
 					     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`,
 					     `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`,
 					     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
@@ -1472,6 +1473,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				       zero-argument finalization hooks for explicit workers, and declaration bodies can use the
 				       same contract through `gen.on_finalize(hook)` / `oren_generator_on_finalize(hook)`
 				     - `on_close(...)` remains a thin alias of the same hook list for compatibility
+				     - new source-level finalization syntax now ships too:
+				       - explicit workers: `defer { ... } in co`
+				       - `@oren.generator` declarations: `defer { ... }`
+				       - `defer` is contextual and not reserved outside these generator forms
 				     - hooks now run in LIFO order on both explicit `close()` and ordinary natural completion
 				     - the first hook error becomes the sticky terminal generator result after cleanup still
 				       completes, while `return_value(gen)` preserves the ordinary cached return value
@@ -1486,8 +1491,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				     - imported stage2 bytecode coverage now includes
 				       `tests/fixtures/generator_import_close_regression_v0.oren` and
 				       `tests/fixtures/generator_import_delegate_close_regression_v0.oren`, plus
-				       `tests/fixtures/generator_import_on_close_regression_v0.oren` and
-				       `tests/fixtures/generator_import_on_finalize_regression_v0.oren`
+				       `tests/fixtures/generator_import_on_close_regression_v0.oren`,
+				       `tests/fixtures/generator_import_on_finalize_regression_v0.oren`, and
+				       `tests/fixtures/generator_import_defer_regression_v0.oren`
 				     - native wrapper discovery now also pre-scans nested lambda / generator-worker bodies for
 				       named function values, so declaration-body `on_close(...)` plus
 				       `gen.start(named_worker, ...)` followed by `yield from ...` is part of the shipped native

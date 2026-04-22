@@ -1,0 +1,9 @@
+fn bad_finalize(seed) {
+    var box = []
+    defer { oren_list_push(box, seed); return nil }
+    return seed
+}
+
+fn main() {
+    return bad_finalize(3)
+}

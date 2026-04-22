@@ -39,6 +39,7 @@ run_ok() {
 src="tests/fixtures/generator_surface_v0.oren"
 blocked_src="tests/fixtures/generator_decl_blocked_nonfunction_var_v0.oren"
 blocked_yield_from_src="tests/fixtures/generator_yield_from_blocked_missing_context_v0.oren"
+blocked_defer_src="tests/fixtures/generator_defer_blocked_missing_context_v0.oren"
 bytecode_out="$tmpdir/generator_bytecode.obc"
 meta_out="$tmpdir/generator_meta.json"
 dump_out="$tmpdir/generator_dump.json"
@@ -78,7 +79,7 @@ def get_func(payload, name, detail_key=False):
     raise SystemExit(f"missing function {name} in {key}")
 
 expected_decl_surface = {
-    "version": 16,
+    "version": 17,
     "surface": "compiler_generator_object_v2",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
@@ -88,7 +89,7 @@ expected_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_finalize_close_delegate_yield_from_v6",
+    "resume_surface": "next_send_finalize_defer_close_delegate_yield_from_v7",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
     "on_finalize_api": "oren_generator_on_finalize_v1",
@@ -100,6 +101,7 @@ expected_decl_surface = {
     "on_close_mode": "alias_of_on_finalize_v1",
     "close_mode": "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5",
     "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
+    "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
     "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
     "state_layout": "hidden_list_capsule_v4",
     "worker_context_type": "generator_context",
@@ -213,6 +215,17 @@ fi
 cat "$blocked_yield_from_log" >>"$log"
 grep -F "yield from" "$blocked_yield_from_log" >/dev/null
 grep -F "requires 'in co' outside @oren.generator declarations" "$blocked_yield_from_log" >/dev/null
+
+blocked_defer_log="$tmpdir/generator_defer_blocked_missing_context.log"
+echo "\$ $compiler build $blocked_defer_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_defer.obc" >>"$log"
+if "$compiler" build "$blocked_defer_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_defer.obc" >>"$blocked_defer_log" 2>&1; then
+  cat "$blocked_defer_log" >>"$log"
+  echo "verify_generator_surface_v0: expected plain defer without context to fail" >&2
+  exit 1
+fi
+cat "$blocked_defer_log" >>"$log"
+grep -F "defer" "$blocked_defer_log" >/dev/null
+grep -F "requires 'in co' outside @oren.generator declarations" "$blocked_defer_log" >/dev/null
 
 echo "generator surface v0 verify OK" >>"$log"
 echo "generator surface v0 verify OK"

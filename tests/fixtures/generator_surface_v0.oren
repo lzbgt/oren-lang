@@ -328,6 +328,51 @@ fn decl_finalize_hook_chain(box, base) {
     return retv + 1
 }
 
+fn defer_finalize_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -996 }
+    var box = args[0]
+    var base = args[1]
+    defer { oren_list_push(box, base + 1); return nil } in co
+    defer { oren_list_push(box, base + 2); return nil } in co
+    var resumed = yield base in co
+    return resumed + base + 41
+}
+
+fn defer_finalize_err_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -997 }
+    var box = args[0]
+    defer { oren_list_push(box, 1); return nil } in co
+    defer { oren_list_push(box, 2); return oren_err(79, "defer finalize boom") } in co
+    yield 1 in co
+    return 321
+}
+
+fn defer_finalize_chain_inner_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -998 }
+    var box = args[0]
+    var base = args[1]
+    defer { oren_list_push(box, base + 1); return nil } in co
+    var resumed = yield base in co
+    return resumed + base + 31
+}
+
+@oren.generator
+fn decl_defer_finalize(box, base) {
+    defer { oren_list_push(box, base + 10); return nil }
+    defer { oren_list_push(box, base + 20); return nil }
+    var resumed = yield (base + 1)
+    return resumed + base + 210
+}
+
+@oren.generator
+fn decl_defer_finalize_chain(box, base) {
+    defer { oren_list_push(box, base + 2); return nil }
+    var inner = gen.start(defer_finalize_chain_inner_worker, [box, base])
+    var retv = yield from inner
+    if oren_is_err(retv) == true { return -999 }
+    return retv + 1
+}
+
 fn bad_on_close_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -973 }
     var bad0 = gen.on_close(co, 123)
@@ -601,6 +646,55 @@ fn main() {
     if oren_list_len(final_box3) != 2 { return 18127 }
     if final_box3[0] != 141 || final_box3[1] != 142 { return 18128 }
     if gen.is_done(gcf) != true || gen.return_value(gcf) != 180 { return 18129 }
+
+    var defer_box0 = []
+    var gcg = gen.start(defer_finalize_worker, [defer_box0, 150])
+    var gcgs0 = gen.next(gcg)
+    if oren_is_err(gcgs0) == true { return 18130 }
+    if gcgs0["ok"] != true || gcgs0["value"] != 150 { return 18131 }
+    var closeg = gen.close(gcg)
+    if oren_is_err(closeg) == true { return 18132 }
+    if closeg != nil { return 18133 }
+    if oren_list_len(defer_box0) != 2 { return 18134 }
+    if defer_box0[0] != 152 || defer_box0[1] != 151 { return 18135 }
+    if gen.is_done(gcg) != true || gen.return_value(gcg) != nil { return 18136 }
+
+    var defer_box1 = []
+    var gch = decl_defer_finalize(defer_box1, 160)
+    var gchs0 = gen.next(gch)
+    if oren_is_err(gchs0) == true { return 18137 }
+    if gchs0["ok"] != true || gchs0["value"] != 161 { return 18138 }
+    var gchs1 = gen.send(gch, 5)
+    if oren_is_err(gchs1) == true { return 18139 }
+    if gchs1["done"] != true || gchs1["return"] != 375 { return 18140 }
+    if oren_list_len(defer_box1) != 2 { return 18141 }
+    if defer_box1[0] != 180 || defer_box1[1] != 170 { return 18142 }
+    if gen.is_done(gch) != true || gen.return_value(gch) != 375 { return 18143 }
+
+    var defer_box2 = []
+    var gci = gen.start(defer_finalize_err_worker, [defer_box2])
+    var gcis0 = gen.next(gci)
+    if oren_is_err(gcis0) == true { return 18144 }
+    if gcis0["ok"] != true || gcis0["value"] != 1 { return 18145 }
+    var gcis1 = gen.send(gci, 9)
+    if oren_is_err(gcis1) != true { return 18146 }
+    if oren_list_len(defer_box2) != 2 { return 18147 }
+    if defer_box2[0] != 2 || defer_box2[1] != 1 { return 18148 }
+    if gen.is_done(gci) != true || gen.return_value(gci) != 321 { return 18149 }
+    if oren_is_err(gen.next(gci)) != true { return 18150 }
+    if oren_is_err(gen.close(gci)) != true { return 18151 }
+
+    var defer_box3 = []
+    var gcj = decl_defer_finalize_chain(defer_box3, 170)
+    var gcjs0 = gen.next(gcj)
+    if oren_is_err(gcjs0) == true { return 18152 }
+    if gcjs0["ok"] != true || gcjs0["value"] != 170 { return 18153 }
+    var gcjs1 = gen.send(gcj, 8)
+    if oren_is_err(gcjs1) == true { return 18154 }
+    if gcjs1["done"] != true || gcjs1["return"] != 210 { return 18155 }
+    if oren_list_len(defer_box3) != 2 { return 18156 }
+    if defer_box3[0] != 171 || defer_box3[1] != 172 { return 18157 }
+    if gen.is_done(gcj) != true || gen.return_value(gcj) != 210 { return 18158 }
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)

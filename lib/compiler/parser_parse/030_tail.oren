@@ -261,6 +261,26 @@ fn yield_delegate_expr_call(tok, ctx_expr, inner_expr, has_context) {
     return call
 }
 
+fn generator_finalize_expr_call(tok, ctx_expr, hook_expr, has_context) {
+    var ident_tok = token.new_token(token.TOK_IDENT, "oren_generator_on_finalize")
+    var ident = ast.new_identifier(ident_tok)
+    var args = [hook_expr]
+    if has_context == true {
+        args = [ctx_expr, hook_expr]
+    }
+    var call = ast.new_call(ident_tok, ident, args)
+    call["generator_finalize_expr"] = true
+    call["generator_finalize_token"] = tok
+    call["generator_finalize_source_syntax"] = true
+    call["generator_finalize_missing_context"] = (has_context != true)
+    if has_context == true {
+        call["generator_finalize_syntax_kind"] = "defer_in_context"
+    } else {
+        call["generator_finalize_syntax_kind"] = "defer"
+    }
+    return call
+}
+
 fn yield_has_exchange_clause(p, tok) {
     if tok == nil { return false }
     var cur_line = -1
@@ -351,6 +371,44 @@ fn parse_yield_expr(p) {
         return parse_yield_exchange_clause(p, tok, value_expr, explicit_value)
     }
     return yield_value_expr_call(tok, value_expr, explicit_value)
+}
+
+fn defer_has_context_clause(p) {
+    if !peek_is(p, token.TOK_IN) { return false }
+    var cur = p["cur"]
+    if cur == nil { return false }
+    var cur_line = -1
+    if cur["line"] != nil { cur_line = cur["line"] }
+    if cur_line < 0 { return false }
+    var peek_line = -2
+    if p["peek"]["line"] != nil { peek_line = p["peek"]["line"] }
+    return peek_line == cur_line
+}
+
+fn parse_defer_stmt(p) {
+    var tok = p["cur"]
+    if !expect_peek(p, token.TOK_LBRACE) { return nil }
+    var hook_body = parse_block(p)
+    if hook_body == nil { return nil }
+    var hook_tok = token.new_token(token.TOK_OR, "||")
+    if tok["file"] != nil { hook_tok["file"] = tok["file"] }
+    if tok["line"] != nil { hook_tok["line"] = tok["line"] }
+    if tok["col"] != nil { hook_tok["col"] = tok["col"] }
+    if tok["pos"] != nil { hook_tok["pos"] = tok["pos"] }
+    if tok["end"] != nil { hook_tok["end"] = tok["end"] }
+    var hook_expr = ast.new_function(hook_tok, "", [], hook_body)
+    var call = nil
+    if defer_has_context_clause(p) == true {
+        parser_next_token(p) // 'in'
+        parser_next_token(p)
+        var ctx_expr = parse_expression(p, LOWEST)
+        if ctx_expr == nil { return nil }
+        call = generator_finalize_expr_call(tok, ctx_expr, hook_expr, true)
+    } else {
+        call = generator_finalize_expr_call(tok, nil, hook_expr, false)
+    }
+    if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+    return ast.new_expr_stmt(tok, call)
 }
 
 fn parse_for_init(p) {

@@ -303,6 +303,10 @@ backend-shared value-helper slices landed.
       `oren_generator_on_finalize(co, hook)`
     - `@oren.generator` declarations register finalization hooks as `gen.on_finalize(hook)` /
       `oren_generator_on_finalize(hook)`
+    - source-level finalization syntax now also ships on that same contract:
+      - explicit workers: `defer { ... } in co`
+      - `@oren.generator` declarations: `defer { ... }`
+      - `defer` is contextual and was intentionally not made globally reserved
     - `on_close(...)` remains a source-level alias of the same registration path
     - hooks must be zero-argument callables
     - hooks run in LIFO order
@@ -322,8 +326,8 @@ backend-shared value-helper slices landed.
     hard-kill/finalization guarantee: detached workers may still exist on some substrates until the
     process/runtime exits
   - metadata for `@oren.generator` declarations now records:
-    - `version = 16`
-    - `resume_surface = "next_send_finalize_close_delegate_yield_from_v6"`
+    - `version = 17`
+    - `resume_surface = "next_send_finalize_defer_close_delegate_yield_from_v7"`
     - `on_finalize_api = "oren_generator_on_finalize_v1"`
     - `on_finalize_mode = "lifo_zero_arg_on_done_or_close_v1"`
     - `on_close_api = "oren_generator_on_close_v1"`
@@ -331,6 +335,7 @@ backend-shared value-helper slices landed.
     - `close_api = "oren_generator_close_v1"`
     - `close_mode = "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5"`
     - `delegate_mode = "track_active_chain_inline_fresh_or_cached_started_step_v3"`
+    - `finalize_source_syntaxes = ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"]`
   - new runtime coverage lives in:
     - `tests/fixtures/generator_surface_v0.oren`
     - `tests/modules/test_generator_std.oren`
@@ -339,6 +344,8 @@ backend-shared value-helper slices landed.
     - `tests/fixtures/generator_import_delegate_close_regression_v0.oren`
     - `tests/fixtures/generator_import_on_close_regression_v0.oren`
     - `tests/fixtures/generator_import_on_finalize_regression_v0.oren`
+    - `tests/fixtures/generator_import_defer_regression_v0.oren`
+    - `tests/fixtures/generator_defer_blocked_missing_context_v0.oren`
   - follow-up fix in the same area (2026-04-22): native wrapper discovery now also pre-scans
     nested lambda / generator-worker bodies for named function values before late fnwrap synthesis
     - this closes the previously documented seam where declaration-body `on_close(...)` plus

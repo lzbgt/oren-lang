@@ -1222,6 +1222,26 @@ fn _generator_rewrite_yield_expr(expr, co_name) {
             out["yield_exchange_syntax_kind"] = "generator_decl"
             return out
         }
+        if expr["generator_finalize_expr"] == true {
+            expr["fn"] = _generator_rewrite_yield_expr(expr["fn"], co_name)
+            var finalize_args = expr["args"]
+            if expr["generator_finalize_missing_context"] == true {
+                var ctx_tokf = token.new_token(token.TOK_IDENT, co_name)
+                expr["args"] = [
+                    ast.new_identifier(ctx_tokf),
+                    _generator_rewrite_yield_expr(finalize_args[0], co_name)
+                ]
+                expr["generator_finalize_missing_context"] = false
+                expr["generator_finalize_syntax_kind"] = "generator_decl_defer"
+                return expr
+            }
+            var fi = 0
+            while finalize_args != nil && fi < oren_list_len(finalize_args) {
+                finalize_args[fi] = _generator_rewrite_yield_expr(finalize_args[fi], co_name)
+                fi = fi + 1
+            }
+            return expr
+        }
         if _generator_call_is_finalize_hook(expr["fn"]) == true {
             expr["fn"] = _generator_rewrite_yield_expr(expr["fn"], co_name)
             var hook_args = expr["args"]
@@ -1301,6 +1321,23 @@ fn _yield_delegate_source_site(expr) {
     return out
 }
 
+fn _generator_finalize_source_site(expr) {
+    if expr == nil { return "defer" }
+    var tok = expr["generator_finalize_token"]
+    if tok == nil { tok = expr["token"] }
+    if tok == nil { return "defer" }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    var out = "defer"
+    if file != nil && file != "" { out = out + " at " + file }
+    if line != nil && line > 0 {
+        out = out + ":" + oren_int_to_string(line)
+        if col != nil && col > 0 { out = out + ":" + oren_int_to_string(col) }
+    }
+    return out
+}
+
 fn _stmt_validate_yield_delegate_expr(p, expr) {
     if expr == nil { return nil }
     var t = expr["type"]
@@ -1322,6 +1359,10 @@ fn _stmt_validate_yield_delegate_expr(p, expr) {
     if t == "Call" {
         if expr["yield_delegate_expr"] == true && expr["yield_delegate_missing_context"] == true {
             parser_add_error(p, _yield_delegate_source_site(expr) + " requires 'in co' outside @oren.generator declarations")
+            return nil
+        }
+        if expr["generator_finalize_expr"] == true && expr["generator_finalize_missing_context"] == true {
+            parser_add_error(p, _generator_finalize_source_site(expr) + " requires 'in co' outside @oren.generator declarations")
             return nil
         }
         _stmt_validate_yield_delegate_expr(p, expr["fn"])
@@ -1781,6 +1822,9 @@ fn parse_statement(p) {
                pt != token.TOK_SEMICOLON && pt != token.TOK_RBRACE && pt != token.TOK_EOF {
                 return parse_match(p)
             }
+        }
+        if p["cur"]["literal"] == "defer" && peek_is(p, token.TOK_LBRACE) {
+            return parse_defer_stmt(p)
         }
         if peek_is(p, token.TOK_DECLARE) { return parse_short_var(p) }
         if peek_is(p, token.TOK_COLON) { return parse_typed_short_var(p) }

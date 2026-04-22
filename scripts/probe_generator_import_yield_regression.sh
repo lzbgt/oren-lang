@@ -70,5 +70,8 @@ run_success_case \
 run_success_case \
   "generator_import_on_finalize_regression_v0" \
   "tests/fixtures/generator_import_on_finalize_regression_v0.oren"
+run_success_case \
+  "generator_import_defer_regression_v0" \
+  "tests/fixtures/generator_import_defer_regression_v0.oren"
 
 echo "probe logs are under ${log_dir}, outputs under ${tmp_dir}"
