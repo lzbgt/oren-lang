@@ -139,6 +139,21 @@ backend-shared value-helper slices landed.
   - `deadline_ns <= time.now_ns()` fires immediately
   - `deadline_ns == nil` defaults to immediate
   - invalid non-`int` deadlines return an immediate argument `err`
+- Fresh landing (2026-04-23): the first explicit soft-then-hard stop policy now ships above that
+  helper layer:
+  - `stop_after(target, timeout_ms, grace_ms, reason)` records the cooperative sticky cancel
+    request after `timeout_ms` and then escalates to the shipped hard-stop `cancel(...)` path after
+    `grace_ms`
+  - `stop_at(target, deadline_ns, grace_ms, reason)` applies that same soft-then-hard policy
+    against an absolute `deadline_ns` in the `time.now_ns()` domain
+  - `timeout_ms == nil`, `grace_ms == nil`, and `deadline_ns == nil` all default to immediate
+    scheduling points
+  - negative timeout / grace values clamp to `0`
+  - invalid non-`int` timeout / grace / deadline arguments return an immediate `err`
+  - `cancel(target, reason)` now consistently accepts either a generator handle or an active
+    generator context, matching the target-oriented watcher/stop surface
+  - `terminal_result(handle)` now exposes the final done-handle result directly as terminal error
+    or return value, and rejects invalid / still-live handles with `err`
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

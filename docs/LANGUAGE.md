@@ -3395,7 +3395,7 @@ Rolling status:
   On native host threads with green runtime already active and no background workers, `oren_yield()`
   now drives one cooperative green scheduling step before falling back to the OS yield hint. The
   first reusable source-level abstraction above it is now `std:generator`, whose
-  `start/next/send/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface is
+  `start/next/send/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/stop_after/stop_at/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/terminal_result/collect/is_cancel_requested/cancel_reason` surface is
   now a thin facade over compiler-injected
   `oren_generator_*` helpers and a compiler-managed `generator` handle. That handle is intentionally
   opaque at the language contract level: workers use `yield ... in co`, helpers validate generator
@@ -3408,8 +3408,8 @@ Rolling status:
 - New (2026-04-23): that same shipped generator/coroutine substrate now also carries a two-layer
   cancellation contract above forced `close()`:
   - `request_cancel(target, reason)` marks a sticky cancel request on a generator handle or context
-  - `cancel(target, reason)` records that sticky request and then forces the existing deterministic
-    `close()` path
+  - `cancel(target, reason)` records that sticky request on a generator handle or active generator
+    context and then forces the existing deterministic `close()` path
   - `is_cancel_requested(target)` and `cancel_reason(target)` expose that sticky state
   - the first request wins; later requests do not overwrite the recorded reason
   - the state remains observable after natural completion or explicit `close()`
@@ -3434,10 +3434,27 @@ Rolling status:
     - `deadline_ns <= time.now_ns()` triggers immediately
     - `deadline_ns == nil` defaults to immediate
     - invalid non-`int` deadlines return an immediate argument `err`
+  - `stop_after(target, timeout_ms, grace_ms, reason)` layers scheduler-facing stop policy above
+    the watcher helpers:
+    - after `timeout_ms`, it records the cooperative sticky cancel request
+    - after an additional `grace_ms`, it applies the shipped hard-stop `cancel(...)` path
+    - `timeout_ms == nil` and `grace_ms == nil` both default to `0`
+    - negative timeout/grace values clamp to `0`
+    - invalid non-`int` timeout/grace arguments return an immediate argument `err`
+  - `stop_at(target, deadline_ns, grace_ms, reason)` applies that same soft-then-hard stop policy
+    against an absolute `deadline_ns` in the `time.now_ns()` domain
+    - `deadline_ns <= time.now_ns()` triggers immediately
+    - `deadline_ns == nil` defaults to immediate
+    - invalid non-`int` deadlines return an immediate argument `err`
+  - `terminal_result(gen)` exposes the final handle result directly:
+    - it accepts only a done generator handle, not a generator context
+    - it returns the sticky terminal error when one exists
+    - otherwise it returns the cached `return_value(gen)`
+    - invalid or still-live handles return an immediate `err`
 - New (2026-04-23): `std:coroutine` now also ships as a thin facade over that same compiler-managed
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
-  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`)
+  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/stop_after/stop_at/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/terminal_result/collect/is_cancel_requested/cancel_reason`)
   plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)` as the matching
   handle/context tag checks.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar

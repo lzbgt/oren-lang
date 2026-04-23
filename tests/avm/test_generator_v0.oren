@@ -53,6 +53,15 @@ fn avm_cancel_probe_worker(co, args) {
     return resumed + reason
 }
 
+fn avm_capture_context_counter_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -924 }
+    var cells = args[0]
+    var seed = args[1]
+    cells[0] = co
+    var resumed = yield seed in co
+    return resumed + 1
+}
+
 fn avm_cancel_delegate_outer_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -922 }
     var inner = gen.start(avm_cancel_probe_worker, [args[0], args[1]])
@@ -440,6 +449,7 @@ fn test_step_protocol() {
     assert_eq(s2["return"], 12, 17)
     assert_true(gen.is_done(g) == true, 18)
     assert_eq(gen.return_value(g), 12, 19)
+    assert_eq(gen.terminal_result(g), 12, 1041)
     assert_true(gen.current_step(g) == nil, 101)
     assert_true(gen.is_closed(g) == false, 102)
     assert_true(gen.terminal_error(g) == nil, 103)
@@ -554,12 +564,15 @@ fn test_initial_send_err() {
     assert_true(oren_is_err(gen.cancel_after(123, 0, 1)) == true, 3323)
     assert_true(oren_is_err(gen.request_cancel_at(123, 0, 1)) == true, 3324)
     assert_true(oren_is_err(gen.cancel_at(123, 0, 1)) == true, 3325)
+    assert_true(oren_is_err(gen.stop_after(123, 0, 0, 1)) == true, 3326)
+    assert_true(oren_is_err(gen.stop_at(123, 0, 0, 1)) == true, 3327)
     assert_true(gen.is_started(123) == false, 333)
     assert_true(gen.is_cancel_requested(123) == false, 3331)
     assert_true(gen.cancel_reason(123) == nil, 3332)
     assert_true(gen.current_step(123) == nil, 334)
     assert_true(gen.is_closed(123) == false, 3341)
     assert_true(gen.terminal_error(123) == nil, 3342)
+    assert_true(oren_is_err(gen.terminal_result(123)) == true, 3343)
     assert_true(gen.is_done(123) == false, 34)
     assert_true(gen.return_value(123) == nil, 35)
     assert_true(oren_is_err(gen.delegate(123, g)) == true, 351)
@@ -613,6 +626,7 @@ fn test_cancel_surface() {
     assert_eq(gen.return_value(g0), 73, 3629)
     assert_true(gen.is_closed(g0) == false, 3630)
     assert_true(gen.terminal_error(g0) == nil, 3631)
+    assert_eq(gen.terminal_result(g0), 73, 36311)
     assert_true(gen.is_cancel_requested(g0) == true, 3632)
     assert_eq(gen.cancel_reason(g0), 70, 3633)
 
@@ -636,6 +650,14 @@ fn test_cancel_surface() {
     assert_true(oren_is_err(tw0bad) == true, 363401)
     var tw0atbad = gen.request_cancel_at(g0t, "bad", 1)
     assert_true(oren_is_err(tw0atbad) == true, 3634011)
+    var tw0stopbad = gen.stop_after(g0t, "bad", 0, 1)
+    assert_true(oren_is_err(tw0stopbad) == true, 3634012)
+    var tw0stopgracebad = gen.stop_after(g0t, 0, "bad", 1)
+    assert_true(oren_is_err(tw0stopgracebad) == true, 3634013)
+    var tw0stopatbad = gen.stop_at(g0t, "bad", 0, 1)
+    assert_true(oren_is_err(tw0stopatbad) == true, 3634014)
+    var tw0stopatgracebad = gen.stop_at(g0t, 0, "bad", 1)
+    assert_true(oren_is_err(tw0stopatgracebad) == true, 3634015)
 
     var g0n = gen.start(avm_cancel_probe_worker, [56, 76])
     var t0n = gen.next(g0n)
@@ -707,6 +729,7 @@ fn test_cancel_surface() {
     assert_true(gen.is_closed(g3) == true, 3656)
     assert_true(gen.return_value(g3) == nil, 3657)
     assert_true(gen.terminal_error(g3) == nil, 3658)
+    assert_true(gen.terminal_result(g3) == nil, 36581)
     assert_true(gen.is_cancel_requested(g3) == true, 3659)
     assert_eq(gen.cancel_reason(g3), 71, 3660)
     var k2 = gen.next(g3)
@@ -760,6 +783,68 @@ fn test_cancel_surface() {
     assert_true(gen.is_closed(g3at) == true, 366706)
     assert_true(gen.is_cancel_requested(g3at) == true, 366707)
     assert_eq(gen.cancel_reason(g3at), 85, 366708)
+
+    var gs0 = gen.start(avm_counter_worker, [28])
+    var gs0s0 = gen.next(gs0)
+    assert_true(oren_is_err(gs0s0) == false, 366709)
+    assert_eq(gs0s0["value"], 29, 366710)
+    var gs0h = gen.stop_after(gs0, 0, 0, 86)
+    assert_true(oren_is_err(gs0h) == false, 366711)
+    var gs0r = oren_join_timeout(gs0h, 2000)
+    assert_true(oren_is_err(gs0r) == false, 366712)
+    assert_true(gs0r == nil, 366713)
+    assert_true(gen.is_done(gs0) == true, 366714)
+    assert_true(gen.is_closed(gs0) == true, 366715)
+    assert_true(gen.is_cancel_requested(gs0) == true, 366716)
+    assert_eq(gen.cancel_reason(gs0), 86, 366717)
+    assert_true(gen.terminal_result(gs0) == nil, 366718)
+
+    var gs1 = gen.start(avm_counter_worker, [30])
+    var gs1s0 = gen.next(gs1)
+    assert_true(oren_is_err(gs1s0) == false, 366719)
+    assert_eq(gs1s0["value"], 31, 366720)
+    var gs1h = gen.stop_at(gs1, 0, 0, 87)
+    assert_true(oren_is_err(gs1h) == false, 366721)
+    var gs1r = oren_join_timeout(gs1h, 2000)
+    assert_true(oren_is_err(gs1r) == false, 366722)
+    assert_true(gs1r == nil, 366723)
+    assert_true(gen.is_done(gs1) == true, 366724)
+    assert_true(gen.is_closed(gs1) == true, 366725)
+    assert_true(gen.is_cancel_requested(gs1) == true, 366726)
+    assert_eq(gen.cancel_reason(gs1), 87, 366727)
+
+    var gs2 = gen.start(avm_counter_worker, [18])
+    assert_true(oren_is_err(gen.next(gs2)) == false, 366728)
+    assert_true(oren_is_err(gen.send(gs2, 4)) == false, 366729)
+    var gs2done = gen.send(gs2, 9)
+    assert_true(oren_is_err(gs2done) == false, 366730)
+    assert_true(gs2done["done"] == true, 366731)
+    assert_eq(gs2done["return"], 14, 366732)
+    var gs2h = gen.stop_after(gs2, 0, 1, 120)
+    assert_true(oren_is_err(gs2h) == false, 366733)
+    var gs2r = oren_join_timeout(gs2h, 2000)
+    assert_true(oren_is_err(gs2r) == false, 366734)
+    assert_eq(gs2r, 14, 366735)
+    assert_true(gen.is_cancel_requested(gs2) == false, 366736)
+    assert_true(gen.cancel_reason(gs2) == nil, 366737)
+    assert_eq(gen.terminal_result(gs2), 14, 366738)
+
+    var gctxcells = [nil]
+    var gctx = gen.start(avm_capture_context_counter_worker, [gctxcells, 61])
+    var gctxs0 = gen.next(gctx)
+    assert_true(oren_is_err(gctxs0) == false, 366739)
+    assert_eq(gctxs0["value"], 61, 366740)
+    var gctxco = gctxcells[0]
+    assert_true(oren_type_name(gctxco) == "generator_context", 366741)
+    var gctxh = gen.stop_after(gctxco, 0, 0, 88)
+    assert_true(oren_is_err(gctxh) == false, 366742)
+    var gctxr = oren_join_timeout(gctxh, 2000)
+    assert_true(oren_is_err(gctxr) == false, 366743)
+    assert_true(gctxr == nil, 366744)
+    assert_true(gen.is_done(gctx) == true, 366745)
+    assert_true(gen.is_closed(gctx) == true, 366746)
+    assert_true(gen.is_cancel_requested(gctx) == true, 366747)
+    assert_eq(gen.cancel_reason(gctx), 88, 366748)
 
     var cells = [nil]
     var g4 = gen.start(avm_cancel_delegate_capture_outer_worker, [cells, 60, 80])
@@ -985,6 +1070,7 @@ fn test_close_surface() {
     assert_true(gen.return_value(g9) == nil, 448)
     assert_true(gen.is_closed(g9) == true, 4481)
     assert_true(oren_is_err(gen.terminal_error(g9)) == true, 4482)
+    assert_true(oren_is_err(gen.terminal_result(g9)) == true, 4483)
 
     var hook_box3 = []
     var g10 = avm_decl_close_hook_chain(hook_box3, 100)
@@ -1045,6 +1131,7 @@ fn test_close_surface() {
     assert_true(gen.return_value(g13) == 123, 4590)
     assert_true(gen.is_closed(g13) == false, 45901)
     assert_true(oren_is_err(gen.terminal_error(g13)) == true, 45902)
+    assert_true(oren_is_err(gen.terminal_result(g13)) == true, 45903)
     assert_true(oren_is_err(gen.next(g13)) == true, 4591)
     assert_true(oren_is_err(gen.close(g13)) == true, 4592)
 

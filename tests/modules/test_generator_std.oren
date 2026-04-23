@@ -46,6 +46,15 @@ fn cancel_probe_worker(co, args) {
     return resumed + reason
 }
 
+fn capture_context_counter_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -9211 }
+    var cells = args[0]
+    var seed = args[1]
+    cells[0] = co
+    var resumed = yield seed in co
+    return resumed + 1
+}
+
 fn cancel_delegate_outer_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -922 }
     var inner = gen.start(cancel_probe_worker, [args[0], args[1]])
@@ -443,9 +452,13 @@ fn main() {
     assert_eq(s2["return"], 12, 20)
     assert_true(gen.is_done(g) == true, 21)
     assert_eq(gen.return_value(g), 12, 22)
+    assert_eq(gen.terminal_result(g), 12, 10101)
     assert_true(gen.current_step(g) == nil, 101)
     assert_true(gen.is_closed(g) == false, 102)
     assert_true(gen.terminal_error(g) == nil, 103)
+    var g_term_live = gen.start(counter_worker, [41])
+    assert_true(oren_is_err(gen.terminal_result(g_term_live)) == true, 10102)
+    assert_true(gen.close(g_term_live) == nil, 10103)
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
@@ -492,6 +505,7 @@ fn main() {
     assert_true(gen.current_step(123) == nil, 534)
     assert_true(gen.is_closed(123) == false, 5341)
     assert_true(gen.terminal_error(123) == nil, 5342)
+    assert_true(oren_is_err(gen.terminal_result(123)) == true, 5343)
     assert_true(gen.is_done(123) == false, 54)
     assert_true(gen.return_value(123) == nil, 55)
 
@@ -563,6 +577,7 @@ fn main() {
     assert_eq(gen.return_value(g5r0), 73, 667006)
     assert_true(gen.is_closed(g5r0) == false, 667007)
     assert_true(gen.terminal_error(g5r0) == nil, 667008)
+    assert_eq(gen.terminal_result(g5r0), 73, 6670081)
     assert_true(gen.is_cancel_requested(g5r0) == true, 667009)
     assert_eq(gen.cancel_reason(g5r0), 70, 667010)
 
@@ -586,6 +601,18 @@ fn main() {
     assert_true(oren_is_err(g5rt0bad) == true, 66701101)
     var g5rt0atbad = gen.request_cancel_at(g5rt0, "bad", 1)
     assert_true(oren_is_err(g5rt0atbad) == true, 667011011)
+    var g5stopbad0 = gen.stop_after(123, 0, 0, 1)
+    assert_true(oren_is_err(g5stopbad0) == true, 667011012)
+    var g5stopbad1 = gen.stop_after(g5rt0, "bad", 0, 1)
+    assert_true(oren_is_err(g5stopbad1) == true, 667011013)
+    var g5stopbad2 = gen.stop_after(g5rt0, 0, "bad", 1)
+    assert_true(oren_is_err(g5stopbad2) == true, 667011014)
+    var g5stopatbad0 = gen.stop_at(123, 0, 0, 1)
+    assert_true(oren_is_err(g5stopatbad0) == true, 667011015)
+    var g5stopatbad1 = gen.stop_at(g5rt0, "bad", 0, 1)
+    assert_true(oren_is_err(g5stopatbad1) == true, 667011016)
+    var g5stopatbad2 = gen.stop_at(g5rt0, 0, "bad", 1)
+    assert_true(oren_is_err(g5stopatbad2) == true, 667011017)
 
     var g5rt1 = gen.start(cancel_probe_worker, [56, 76])
     var g5rt1s0 = gen.next(g5rt1)
@@ -657,6 +684,7 @@ fn main() {
     assert_true(gen.is_closed(g5k0) == true, 667033)
     assert_true(gen.return_value(g5k0) == nil, 667034)
     assert_true(gen.terminal_error(g5k0) == nil, 667035)
+    assert_true(gen.terminal_result(g5k0) == nil, 6670351)
     assert_true(gen.is_cancel_requested(g5k0) == true, 667036)
     assert_eq(gen.cancel_reason(g5k0), 71, 667037)
     var g5k0step = gen.next(g5k0)
@@ -710,6 +738,68 @@ fn main() {
     assert_true(gen.is_closed(g5kat0) == true, 66704406)
     assert_true(gen.is_cancel_requested(g5kat0) == true, 66704407)
     assert_eq(gen.cancel_reason(g5kat0), 85, 66704408)
+
+    var g5st0 = gen.start(counter_worker, [28])
+    var g5st0s0 = gen.next(g5st0)
+    assert_true(oren_is_err(g5st0s0) == false, 66704409)
+    assert_eq(g5st0s0["value"], 29, 66704410)
+    var g5st0h = gen.stop_after(g5st0, 0, 0, 86)
+    assert_true(oren_is_err(g5st0h) == false, 66704411)
+    var g5st0rv = oren_join_timeout(g5st0h, 2000)
+    assert_true(oren_is_err(g5st0rv) == false, 66704412)
+    assert_true(g5st0rv == nil, 66704413)
+    assert_true(gen.is_done(g5st0) == true, 66704414)
+    assert_true(gen.is_closed(g5st0) == true, 66704415)
+    assert_true(gen.is_cancel_requested(g5st0) == true, 66704416)
+    assert_eq(gen.cancel_reason(g5st0), 86, 66704417)
+    assert_true(gen.terminal_result(g5st0) == nil, 66704418)
+
+    var g5sat0 = gen.start(counter_worker, [30])
+    var g5sat0s0 = gen.next(g5sat0)
+    assert_true(oren_is_err(g5sat0s0) == false, 66704419)
+    assert_eq(g5sat0s0["value"], 31, 66704420)
+    var g5sat0h = gen.stop_at(g5sat0, 0, 0, 87)
+    assert_true(oren_is_err(g5sat0h) == false, 66704421)
+    var g5sat0rv = oren_join_timeout(g5sat0h, 2000)
+    assert_true(oren_is_err(g5sat0rv) == false, 66704422)
+    assert_true(g5sat0rv == nil, 66704423)
+    assert_true(gen.is_done(g5sat0) == true, 66704424)
+    assert_true(gen.is_closed(g5sat0) == true, 66704425)
+    assert_true(gen.is_cancel_requested(g5sat0) == true, 66704426)
+    assert_eq(gen.cancel_reason(g5sat0), 87, 66704427)
+
+    var g5st1 = gen.start(counter_worker, [18])
+    assert_true(oren_is_err(gen.next(g5st1)) == false, 66704428)
+    assert_true(oren_is_err(gen.send(g5st1, 4)) == false, 66704429)
+    var g5st1done = gen.send(g5st1, 9)
+    assert_true(oren_is_err(g5st1done) == false, 66704430)
+    assert_true(g5st1done["done"] == true, 66704431)
+    assert_eq(g5st1done["return"], 14, 66704432)
+    var g5st1h = gen.stop_after(g5st1, 0, 1, 120)
+    assert_true(oren_is_err(g5st1h) == false, 66704433)
+    var g5st1rv = oren_join_timeout(g5st1h, 2000)
+    assert_true(oren_is_err(g5st1rv) == false, 66704434)
+    assert_eq(g5st1rv, 14, 66704435)
+    assert_true(gen.is_cancel_requested(g5st1) == false, 66704436)
+    assert_true(gen.cancel_reason(g5st1) == nil, 66704437)
+    assert_eq(gen.terminal_result(g5st1), 14, 66704438)
+
+    var g5ctxcells = [nil]
+    var g5ctx0 = gen.start(capture_context_counter_worker, [g5ctxcells, 61])
+    var g5ctx0s0 = gen.next(g5ctx0)
+    assert_true(oren_is_err(g5ctx0s0) == false, 66704439)
+    assert_eq(g5ctx0s0["value"], 61, 66704440)
+    var g5ctxco = g5ctxcells[0]
+    assert_true(oren_type_name(g5ctxco) == "generator_context", 66704441)
+    var g5ctx0h = gen.stop_after(g5ctxco, 0, 0, 88)
+    assert_true(oren_is_err(g5ctx0h) == false, 66704442)
+    var g5ctx0rv = oren_join_timeout(g5ctx0h, 2000)
+    assert_true(oren_is_err(g5ctx0rv) == false, 66704443)
+    assert_true(g5ctx0rv == nil, 66704444)
+    assert_true(gen.is_done(g5ctx0) == true, 66704445)
+    assert_true(gen.is_closed(g5ctx0) == true, 66704446)
+    assert_true(gen.is_cancel_requested(g5ctx0) == true, 66704447)
+    assert_eq(gen.cancel_reason(g5ctx0), 88, 66704448)
 
     var g5kcells = [nil]
     var g5k1 = gen.start(cancel_delegate_capture_outer_worker, [g5kcells, 60, 80])
@@ -933,6 +1023,7 @@ fn main() {
     assert_true(gen.return_value(g5ca) == nil, 6753)
     assert_true(gen.is_closed(g5ca) == true, 67531)
     assert_true(oren_is_err(gen.terminal_error(g5ca)) == true, 67532)
+    assert_true(oren_is_err(gen.terminal_result(g5ca)) == true, 67533)
 
     var hook_box3 = []
     var g5cb = decl_close_hook_chain(hook_box3, 100)
@@ -993,6 +1084,7 @@ fn main() {
     assert_true(gen.return_value(g5ce) == 123, 67640)
     assert_true(gen.is_closed(g5ce) == false, 676401)
     assert_true(oren_is_err(gen.terminal_error(g5ce)) == true, 676402)
+    assert_true(oren_is_err(gen.terminal_result(g5ce)) == true, 676403)
     assert_true(oren_is_err(gen.next(g5ce)) == true, 67641)
     assert_true(oren_is_err(gen.close(g5ce)) == true, 67642)
 

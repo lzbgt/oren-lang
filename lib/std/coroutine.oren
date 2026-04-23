@@ -11,6 +11,8 @@
 //   watcher task after a relative timeout
 // - `request_cancel_at(...)` / `cancel_at(...)` schedule that same protocol against an absolute
 //   `deadline_ns` in the `time.now_ns()` domain
+// - `stop_after(...)` / `stop_at(...)` apply a soft-then-hard stop policy above those watcher
+//   helpers
 // - `cancel(...)` is the hard-stop layer above that state: it records the request and then
 //   forces the existing close/detach/finalize path
 //
@@ -72,6 +74,14 @@ fn cancel_at(co, deadline_ns, reason) {
     return gen.cancel_at(co, deadline_ns, reason)
 }
 
+fn stop_after(co, timeout_ms, grace_ms, reason) {
+    return gen.stop_after(co, timeout_ms, grace_ms, reason)
+}
+
+fn stop_at(co, deadline_ns, grace_ms, reason) {
+    return gen.stop_at(co, deadline_ns, grace_ms, reason)
+}
+
 fn delegate(co, inner) {
     return oren_generator_delegate(co, inner)
 }
@@ -95,6 +105,8 @@ fn current_step(co) { return oren_generator_current_step(co) }
 fn return_value(co) { return oren_generator_return_value(co) }
 
 fn terminal_error(co) { return oren_generator_terminal_error(co) }
+
+fn terminal_result(co) { return gen.terminal_result(co) }
 
 fn cancel_reason(co) { return oren_generator_cancel_reason(co) }
 

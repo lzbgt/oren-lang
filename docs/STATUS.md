@@ -1490,6 +1490,22 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       deadline
 		     - `deadline_ns <= time.now_ns()` fires immediately, `deadline_ns == nil` defaults to
 		       immediate, and invalid non-`int` deadlines return an immediate argument `err`
+		   - New (2026-04-23): the same shipped stack now also carries the first explicit stop-policy
+		     layer above those helpers:
+		     - `std:generator.stop_after(target, timeout_ms, grace_ms, reason)` /
+		       `std:coroutine.stop_after(...)` record a cooperative cancel request after `timeout_ms`
+		       and then apply the shipped hard-stop `cancel(...)` protocol after `grace_ms`
+		     - `std:generator.stop_at(target, deadline_ns, grace_ms, reason)` /
+		       `std:coroutine.stop_at(...)` apply that same soft-then-hard policy against an absolute
+		       deadline in the `time.now_ns()` domain
+		     - `timeout_ms == nil`, `grace_ms == nil`, and `deadline_ns == nil` all default to
+		       immediate scheduling points, negative timeout/grace values clamp to `0`, and invalid
+		       non-`int` timeout / grace / deadline arguments return an immediate `err`
+		     - `cancel(target, reason)` now consistently accepts either a generator handle or an
+		       active generator context, matching the already-shipped target-oriented watcher surface
+		     - `terminal_result(target)` now exposes the final done-handle result directly: it returns
+		       the sticky terminal error when one exists, otherwise the cached return value, and fails
+		       immediately for invalid or still-live handles
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

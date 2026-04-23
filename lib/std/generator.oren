@@ -6,7 +6,7 @@
 // as an opaque generator context rather than a map of channels:
 // - `start(worker, args_list)` expects `worker(co, args_list)`
 // - `yield [expr] in co` is the shared source-level yield/resume contract inside that worker
-// - `next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/cancel_reason/collect`
+// - `next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/stop_after/stop_at/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/terminal_result/cancel_reason/collect`
 //   delegate to the shared runtime/compiler helpers
 
 import time "std:time"
@@ -29,6 +29,15 @@ fn _generator_timeout_ms(ctx, timeout_ms) {
     return timeout_ms
 }
 
+fn _generator_grace_ms(ctx, grace_ms) {
+    if oren_type_tag(grace_ms) == 0 { return 0 }
+    if oren_type_name(grace_ms) != "int" {
+        return _generator_cancel_target_err(ctx, "expected int grace_ms")
+    }
+    if grace_ms < 0 { return 0 }
+    return grace_ms
+}
+
 fn _generator_deadline_delay_ms(ctx, deadline_ns) {
     if oren_type_tag(deadline_ns) == 0 { return 0 }
     if oren_type_name(deadline_ns) != "int" {
@@ -42,6 +51,11 @@ fn _generator_deadline_delay_ms(ctx, deadline_ns) {
     return rem_ms
 }
 
+fn _generator_expect_handle(gen, ctx) {
+    if oren_type_name(gen) == "generator" { return nil }
+    return _generator_cancel_target_err(ctx, "expected generator handle")
+}
+
 fn _generator_request_cancel_after_worker(target, timeout_ms, reason) {
     if timeout_ms > 0 { time.sleep_ms(timeout_ms) }
     return oren_generator_request_cancel(target, reason)
@@ -49,6 +63,14 @@ fn _generator_request_cancel_after_worker(target, timeout_ms, reason) {
 
 fn _generator_cancel_after_worker(target, timeout_ms, reason) {
     if timeout_ms > 0 { time.sleep_ms(timeout_ms) }
+    return oren_generator_cancel(target, reason)
+}
+
+fn _generator_stop_after_worker(target, timeout_ms, grace_ms, reason) {
+    if timeout_ms > 0 { time.sleep_ms(timeout_ms) }
+    var req = oren_generator_request_cancel(target, reason)
+    if oren_is_err(req) == true { return req }
+    if grace_ms > 0 { time.sleep_ms(grace_ms) }
     return oren_generator_cancel(target, reason)
 }
 
@@ -120,6 +142,28 @@ fn cancel_at(target, deadline_ns, reason) {
     return spawn _generator_cancel_after_worker(target, delay_ms, reason)
 }
 
+fn stop_after(target, timeout_ms, grace_ms, reason) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.stop_after", "expected generator handle or context")
+    }
+    var delay_ms = _generator_timeout_ms("generator.stop_after", timeout_ms)
+    if oren_is_err(delay_ms) == true { return delay_ms }
+    var grace_delay_ms = _generator_grace_ms("generator.stop_after", grace_ms)
+    if oren_is_err(grace_delay_ms) == true { return grace_delay_ms }
+    return spawn _generator_stop_after_worker(target, delay_ms, grace_delay_ms, reason)
+}
+
+fn stop_at(target, deadline_ns, grace_ms, reason) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.stop_at", "expected generator handle or context")
+    }
+    var delay_ms = _generator_deadline_delay_ms("generator.stop_at", deadline_ns)
+    if oren_is_err(delay_ms) == true { return delay_ms }
+    var grace_delay_ms = _generator_grace_ms("generator.stop_at", grace_ms)
+    if oren_is_err(grace_delay_ms) == true { return grace_delay_ms }
+    return spawn _generator_stop_after_worker(target, delay_ms, grace_delay_ms, reason)
+}
+
 fn delegate(co, inner) {
     return oren_generator_delegate(co, inner)
 }
@@ -154,6 +198,17 @@ fn return_value(gen) {
 
 fn terminal_error(gen) {
     return oren_generator_terminal_error(gen)
+}
+
+fn terminal_result(gen) {
+    var bad = _generator_expect_handle(gen, "generator.terminal_result")
+    if bad != nil { return bad }
+    if oren_generator_is_done(gen) != true {
+        return _generator_cancel_target_err("generator.terminal_result", "expected done generator handle")
+    }
+    var term_err = oren_generator_terminal_error(gen)
+    if term_err != nil { return term_err }
+    return oren_generator_return_value(gen)
 }
 
 fn cancel_reason(gen) {

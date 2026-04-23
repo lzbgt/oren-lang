@@ -225,8 +225,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:186:20",
-            "tests/fixtures/generator_surface_v0.oren:187:20",
+            "tests/fixtures/generator_surface_v0.oren:195:20",
+            "tests/fixtures/generator_surface_v0.oren:196:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -234,14 +234,14 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_nil", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:193:5"],
+        sites=["tests/fixtures/generator_surface_v0.oren:202:5"],
         context="expr_stmt",
         explicit_value=False,
     )
     assert_decl(
         get_func(payload, "decl_collect", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:201:9"],
+        sites=["tests/fixtures/generator_surface_v0.oren:210:9"],
         context="expr_stmt",
         explicit_value=True,
     )
@@ -249,8 +249,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_var_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:209:20",
-            "tests/fixtures/generator_surface_v0.oren:210:20",
+            "tests/fixtures/generator_surface_v0.oren:218:20",
+            "tests/fixtures/generator_surface_v0.oren:219:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -258,7 +258,7 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_var_lambda", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:216:19"],
+        sites=["tests/fixtures/generator_surface_v0.oren:225:19"],
         context="var_init",
         explicit_value=True,
     )
@@ -272,34 +272,34 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_finalize(
         get_func(payload, "finalize_hook_worker", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:316:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:318:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:320:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:325:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:327:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:329:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
         ],
         context="var_init",
     )
     assert_finalize(
         get_func(payload, "defer_finalize_worker", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:373:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:374:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:382:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:383:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
         ],
         context="expr_stmt",
     )
     assert_finalize(
         get_func(payload, "decl_finalize_hook", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:349:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:351:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:353:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:358:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:360:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:362:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
         ],
         context="var_init",
     )
     assert_finalize(
         get_func(payload, "decl_defer_finalize", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:399:5", "defer_v0", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:400:5", "defer_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:408:5", "defer_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:409:5", "defer_v0", "oren_generator_on_finalize_v1"),
         ],
         context="expr_stmt",
     )
