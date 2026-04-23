@@ -92,6 +92,8 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   Source-level `@oren.coroutine` declaration syntax now also ships as a parser-level alias of
   `@oren.generator`, including named `fn`, function-valued `var`, lambda-valued `var`, `yield from`,
   and `defer` declaration forms, while metadata/runtime stay canonical on the generator substrate.
+  The shipped handle-level lifecycle surface now also includes `is_started(...)` and
+  `current_step(...)` on both `std:generator` and `std:coroutine`.
   The remaining gap is full resumable coroutine/generator semantics plus a stronger
   default scheduler-aware native green-channel protocol for that explicit exchange path. The
   structured error model is
@@ -1438,15 +1440,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `syntax_kinds` plus per-point `syntax` / `explicit_value`. The remaining gap is fuller
 	     coroutine/generator protocol above that explicit channel surface.
 	   - New (2026-04-22): the first reusable source-level generator abstraction now ships as
-	     `std:generator`. Its `start/next/send/close/delegate/collect` API is now a thin facade over
+	     `std:generator`. Its `start/next/send/close/delegate/is_started/is_done/current_step/return_value/collect`
+	     API is now a thin facade over
 	     compiler-injected `oren_generator_*` helpers, so the shipped handle is tagged as
 	     `generator` instead of being exposed only as an ad hoc stdlib map. Worker bodies now use
 	     `yield ... in co` as the normalized generator-context contract, while the same explicit
 	     channel protocol still exists underneath.
-		   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
-		     that same compiler-managed handle/context contract. It exposes
-		     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`
-		     plus `std:reflect.is_coroutine(v)`.
+	   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
+	     that same compiler-managed handle/context contract. It exposes
+	     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_started/is_done/current_step/return_value/collect`
+	     plus `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)`.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

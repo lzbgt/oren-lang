@@ -4638,13 +4638,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     stronger language-level coroutine/generator protocol above that explicit channel surface.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
-		     `start/next/send/close/delegate/collect` surface is now a thin facade over compiler-injected
+		     `start/next/send/close/delegate/is_started/is_done/current_step/return_value/collect` surface
+		     is now a thin facade over compiler-injected
 		     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
 		     use `yield ... in co` as the normalized generator-context surface instead of spelling out
 		     raw channel fields.
 			   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
 			     that same shipped handle/context substrate. It adds
-			     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`
+			     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_started/is_done/current_step/return_value/collect`
 			     plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)`.
 			   - New (2026-04-23): source-level `@oren.coroutine` now also ships as a self-host-safe
 			     parser alias of `@oren.generator`. Reweight the next feature backlog accordingly:

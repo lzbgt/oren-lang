@@ -89,7 +89,8 @@ backend-shared value-helper slices landed.
   standardizes a library contract on top of the existing explicit exchange surface:
   - worker shape: `worker(co, args_list)`
   - worker-facing exchange: `yield [expr] in co`
-  - handle operations: `start`, `next`, `send`, `is_done`, `return_value`, `collect`
+  - handle operations: `start`, `next`, `send`, `is_started`, `is_done`, `current_step`,
+    `return_value`, `collect`
   The cross-backend generator verifier now also runs a raw channel-select smoke first, because that
   surfaced a real missing piece: the C runtime had channels but no shared `oren_select(...)`.
 - Fresh landing (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade
@@ -97,7 +98,8 @@ backend-shared value-helper slices landed.
   - same worker shape: `worker(co, args_list)`
   - same worker-facing exchange: `yield [expr] in co`
   - runtime-facing operations: `start`, `resume`, `next`, `send`, `on_finalize`, `on_close`,
-    `close`, `delegate`, `delegate_step`, `is_done`, `return_value`, `collect`
+    `close`, `delegate`, `delegate_step`, `is_started`, `is_done`, `current_step`,
+    `return_value`, `collect`
   - `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)` are now the matching
     handle/context tag tests for that shipped facade
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
@@ -145,7 +147,9 @@ backend-shared value-helper slices landed.
   - `oren_generator_start(worker, args_list)`
   - `oren_generator_next(gen)`
   - `oren_generator_send(gen, value)`
+  - `oren_generator_is_started(gen)`
   - `oren_generator_is_done(gen)`
+  - `oren_generator_current_step(gen)`
   - `oren_generator_return_value(gen)`
   - `oren_generator_collect(gen)`
   The handle now reports `oren_type_name(gen) == "generator"` across bytecode, C, and native.

@@ -384,16 +384,25 @@ fn main() {
     assert_eq(oren_type_name(g), "generator", 9)
     assert_true(reflect.is_generator(g) == true, 91)
     assert_true(reflect.is_list(g) == false, 92)
+    assert_true(gen.is_started(g) == false, 93)
+    assert_true(gen.current_step(g) == nil, 94)
     var s0 = gen.next(g)
     if oren_is_err(s0) == true { fail(10) }
     assert_true(s0["ok"] == true, 11)
     assert_true(s0["done"] == false, 12)
     assert_eq(s0["value"], 41, 13)
+    var gs0 = gen.current_step(g)
+    assert_true(gs0 != nil, 95)
+    assert_true(gs0["ok"] == true, 96)
+    assert_true(gs0["done"] == false, 97)
+    assert_eq(gs0["value"], 41, 98)
+    assert_true(gen.is_started(g) == true, 99)
 
     var s1 = gen.send(g, 2)
     if oren_is_err(s1) == true { fail(14) }
     assert_true(s1["ok"] == true, 15)
     assert_eq(s1["value"], 42, 16)
+    assert_eq(gen.current_step(g)["value"], 42, 100)
 
     var s2 = gen.send(g, 7)
     if oren_is_err(s2) == true { fail(17) }
@@ -402,6 +411,7 @@ fn main() {
     assert_eq(s2["return"], 12, 20)
     assert_true(gen.is_done(g) == true, 21)
     assert_eq(gen.return_value(g), 12, 22)
+    assert_true(gen.current_step(g) == nil, 101)
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
@@ -436,6 +446,8 @@ fn main() {
     assert_true(oren_is_err(gen.collect(123)) == true, 53)
     assert_true(oren_is_err(gen.close(123)) == true, 531)
     assert_true(oren_is_err(oren_generator_close(123)) == true, 532)
+    assert_true(gen.is_started(123) == false, 533)
+    assert_true(gen.current_step(123) == nil, 534)
     assert_true(gen.is_done(123) == false, 54)
     assert_true(gen.return_value(123) == nil, 55)
 
@@ -488,11 +500,13 @@ fn main() {
     var close1step = gen.next(g5c1)
     assert_true(oren_is_err(close1step) == false, 6670)
     assert_eq(close1step["value"], 26, 6671)
+    assert_eq(gen.current_step(g5c1)["value"], 26, 66711)
     var close1 = gen.close(g5c1)
     assert_true(oren_is_err(close1) == false, 6672)
     assert_true(close1 == nil, 6673)
     assert_true(gen.is_done(g5c1) == true, 6674)
     assert_true(gen.return_value(g5c1) == nil, 6675)
+    assert_true(gen.current_step(g5c1) == nil, 66751)
     var close1done = gen.send(g5c1, 99)
     assert_true(oren_is_err(close1done) == false, 6676)
     assert_true(close1done["done"] == true, 6677)
@@ -510,11 +524,14 @@ fn main() {
     assert_eq(gen.return_value(g5c2), 14, 6685)
 
     var g5c3 = oren_generator_start(counter_worker, [18])
+    assert_true(oren_generator_is_started(g5c3) == false, 66851)
+    assert_true(oren_generator_current_step(g5c3) == nil, 66852)
     var close3 = oren_generator_close(g5c3)
     assert_true(oren_is_err(close3) == false, 6686)
     assert_true(close3 == nil, 6687)
     assert_true(oren_generator_is_done(g5c3) == true, 6688)
     assert_true(oren_generator_return_value(g5c3) == nil, 6689)
+    assert_true(oren_generator_current_step(g5c3) == nil, 66891)
 
     var g5c4 = decl_delegate(45)
     var close4step = gen.next(g5c4)

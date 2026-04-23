@@ -82,8 +82,8 @@ def assert_visible_function_set(payload, detail_key=False):
             raise SystemExit(f"unexpected hidden generator helper in {key}: {name!r}")
 
 expected_decl_surface = {
-    "version": 19,
-    "surface": "compiler_generator_object_v3",
+    "version": 20,
+    "surface": "compiler_generator_object_v4",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
@@ -101,6 +101,8 @@ expected_decl_surface = {
     "close_api": "oren_generator_close_v1",
     "delegate_api": "oren_generator_delegate_v1",
     "delegate_step_api": "oren_generator_delegate_step_v1",
+    "started_api": "oren_generator_is_started_v1",
+    "current_step_api": "oren_generator_current_step_v1",
     "on_finalize_mode": "lifo_zero_arg_on_done_or_close_v1",
     "on_close_mode": "alias_of_on_finalize_v1",
     "close_mode": "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5",
