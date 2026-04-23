@@ -711,6 +711,57 @@ fn main() {
     if oren_is_err(gat2rv) == true || gat2rv != 14 { return 1733965 }
     if gen.is_cancel_requested(gat2) != false || gen.cancel_reason(gat2) != nil { return 1733966 }
 
+    var gwreq0 = gen.start(cancel_probe_worker, [58, 122])
+    var gwreq0s0 = gen.next(gwreq0)
+    if oren_is_err(gwreq0s0) == true || gwreq0s0["ok"] != true || gwreq0s0["value"] != 58 { return 17339661 }
+    var gwreq0rv = gen.request_cancel_after_wait(gwreq0, 0, 122, nil)
+    if oren_is_err(gwreq0rv) == true || gwreq0rv != nil { return 17339662 }
+    if gen.is_cancel_requested(gwreq0) != true || gen.cancel_reason(gwreq0) != 122 { return 17339663 }
+    var gwreq0s1 = gen.send(gwreq0, 4)
+    if oren_is_err(gwreq0s1) == true || gwreq0s1["done"] != true || gwreq0s1["return"] != 126 { return 17339664 }
+
+    var gwreq1 = gen.start(cancel_probe_worker, [59, 123])
+    var gwreq1s0 = gen.next(gwreq1)
+    if oren_is_err(gwreq1s0) == true || gwreq1s0["ok"] != true || gwreq1s0["value"] != 59 { return 17339665 }
+    var gwreq1rv = gen.request_cancel_at_wait(gwreq1, 0, 123, -1)
+    if oren_is_err(gwreq1rv) == true || gwreq1rv != nil { return 17339666 }
+    if gen.is_cancel_requested(gwreq1) != true || gen.cancel_reason(gwreq1) != 123 { return 17339667 }
+    var gwreq1s1 = gen.send(gwreq1, 4)
+    if oren_is_err(gwreq1s1) == true || gwreq1s1["done"] != true || gwreq1s1["return"] != 127 { return 17339668 }
+
+    if oren_is_err(gen.request_cancel_after_wait(gwreq1, 0, 1, "bad")) != true { return 17339669 }
+    if oren_is_err(gen.cancel_after_wait(gwreq1, 0, 1, "bad")) != true { return 17339670 }
+    if oren_is_err(gen.request_cancel_at_wait(gwreq1, 0, 1, "bad")) != true { return 17339671 }
+    if oren_is_err(gen.cancel_at_wait(gwreq1, 0, 1, "bad")) != true { return 17339672 }
+    if oren_is_err(gen.stop_after_wait(gwreq1, 0, 0, 1, "bad")) != true { return 17339673 }
+    if oren_is_err(gen.stop_at_wait(gwreq1, 0, 0, 1, "bad")) != true { return 17339674 }
+
+    var gwcancel0 = gen.start(counter_worker, [33])
+    var gwcancel0s0 = gen.next(gwcancel0)
+    if oren_is_err(gwcancel0s0) == true || gwcancel0s0["ok"] != true || gwcancel0s0["value"] != 34 { return 17339675 }
+    var gwcancel0rv = gen.cancel_at_wait(gwcancel0, 0, 124, 2000)
+    if oren_is_err(gwcancel0rv) == true || gwcancel0rv != nil { return 17339676 }
+    if gen.is_done(gwcancel0) != true || gen.is_closed(gwcancel0) != true { return 17339677 }
+    if gen.is_cancel_requested(gwcancel0) != true || gen.cancel_reason(gwcancel0) != 124 { return 17339678 }
+
+    var gwstop0 = gen.start(counter_worker, [34])
+    var gwstop0s0 = gen.next(gwstop0)
+    if oren_is_err(gwstop0s0) == true || gwstop0s0["ok"] != true || gwstop0s0["value"] != 35 { return 17339679 }
+    var gwstop0rv = gen.stop_after_wait(gwstop0, 0, 0, 125, nil)
+    if oren_is_err(gwstop0rv) == true || gwstop0rv != nil { return 17339680 }
+    if gen.is_done(gwstop0) != true || gen.is_closed(gwstop0) != true { return 17339681 }
+    if gen.is_cancel_requested(gwstop0) != true || gen.cancel_reason(gwstop0) != 125 { return 17339682 }
+    if gen.terminal_result(gwstop0) != nil { return 17339683 }
+
+    var gwstop1 = gen.start(counter_worker, [20])
+    if oren_is_err(gen.next(gwstop1)) == true { return 17339684 }
+    if oren_is_err(gen.send(gwstop1, 4)) == true { return 17339685 }
+    var gwstop1done = gen.send(gwstop1, 9)
+    if oren_is_err(gwstop1done) == true || gwstop1done["done"] != true || gwstop1done["return"] != 14 { return 17339686 }
+    var gwstop1rv = gen.stop_at_wait(gwstop1, 0, 0, 126, 2000)
+    if oren_is_err(gwstop1rv) == true || gwstop1rv != 14 { return 17339687 }
+    if gen.is_cancel_requested(gwstop1) != false || gen.cancel_reason(gwstop1) != nil { return 17339688 }
+
     var gcan1 = gen.start(cancel_delegate_outer_worker, [60, 80])
     var gcan1s0 = gen.next(gcan1)
     if oren_is_err(gcan1s0) == true || gcan1s0["ok"] != true || gcan1s0["value"] != 60 { return 17339 }

@@ -1472,11 +1472,22 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - `std:generator.cancel_after(target, timeout_ms, reason)` /
 		       `std:coroutine.cancel_after(...)` spawn a joinable watcher task that sleeps and then applies
 		       the same first-write-wins hard-stop `cancel(...)` protocol
+		     - `std:generator.request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` /
+		       `std:coroutine.request_cancel_after_wait(...)` and
+		       `std:generator.cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` /
+		       `std:coroutine.cancel_after_wait(...)` are the synchronous stdlib forms above those
+		       watcher helpers: they spawn the same watcher and then wait through the shipped
+		       `oren_join_timeout(...)` contract
 		     - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and non-`int`
 		       timeouts return an immediate argument `err`
 		     - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the
 		       target is already done, the watcher surfaces that cached terminal result instead of
 		       rewriting cancellation state
+		     - `join_timeout_ms == nil` or any negative `join_timeout_ms` value now uses a derived
+		       wait budget instead of a raw infinite join: relative helpers wait for
+		       `timeout_ms + 2000`, absolute helpers wait for the computed deadline delay plus `2000`,
+		       and stop helpers add `grace_ms` into that same default budget; non-`int`
+		       join-timeout arguments return an immediate argument `err`
 		     - the default native green/runtime route now supports these watcher tasks on started
 		       generator handles, so the remaining gap moves up to richer scheduler/deadline policy rather
 		       than baseline timeout-helper availability
@@ -1488,6 +1499,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - `std:generator.cancel_at(target, deadline_ns, reason)` /
 		       `std:coroutine.cancel_at(...)` apply the same hard-stop protocol against an absolute
 		       deadline
+		     - `std:generator.request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` /
+		       `std:coroutine.request_cancel_at_wait(...)` and
+		       `std:generator.cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` /
+		       `std:coroutine.cancel_at_wait(...)` are the matching synchronous absolute-deadline forms
 		     - `deadline_ns <= time.now_ns()` fires immediately, `deadline_ns == nil` defaults to
 		       immediate, and invalid non-`int` deadlines return an immediate argument `err`
 		   - New (2026-04-23): the same shipped stack now also carries the first explicit stop-policy
@@ -1498,6 +1513,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - `std:generator.stop_at(target, deadline_ns, grace_ms, reason)` /
 		       `std:coroutine.stop_at(...)` apply that same soft-then-hard policy against an absolute
 		       deadline in the `time.now_ns()` domain
+		     - `std:generator.stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms)` /
+		       `std:coroutine.stop_after_wait(...)` and
+		       `std:generator.stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms)` /
+		       `std:coroutine.stop_at_wait(...)` are the synchronous stdlib forms above that watcher
+		       layer: they apply the same policy and then wait for the watcher through
+		       `oren_join_timeout(...)`, using either the explicit `join_timeout_ms` budget or the
+		       derived operation window plus `2000`
 		     - `timeout_ms == nil`, `grace_ms == nil`, and `deadline_ns == nil` all default to
 		       immediate scheduling points, negative timeout/grace values clamp to `0`, and invalid
 		       non-`int` timeout / grace / deadline arguments return an immediate `err`
@@ -1506,6 +1528,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - `terminal_result(target)` now exposes the final done-handle result directly: it returns
 		       the sticky terminal error when one exists, otherwise the cached return value, and fails
 		       immediately for invalid or still-live handles
+		     The remaining gap is now higher-level scheduler deadline policy above the shipped
+		     synchronous stdlib stop/cancel surface, not manual watcher joining or missing timeout
+		     helpers.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

@@ -6,7 +6,7 @@
 // as an opaque generator context rather than a map of channels:
 // - `start(worker, args_list)` expects `worker(co, args_list)`
 // - `yield [expr] in co` is the shared source-level yield/resume contract inside that worker
-// - `next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/stop_after/stop_at/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/terminal_result/cancel_reason/collect`
+// - `next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/request_cancel_after_wait/cancel_after/cancel_after_wait/request_cancel_at/request_cancel_at_wait/cancel_at/cancel_at_wait/stop_after/stop_after_wait/stop_at/stop_at_wait/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/terminal_result/cancel_reason/collect`
 //   delegate to the shared runtime/compiler helpers
 
 import time "std:time"
@@ -54,6 +54,26 @@ fn _generator_deadline_delay_ms(ctx, deadline_ns) {
 fn _generator_expect_handle(gen, ctx) {
     if oren_type_name(gen) == "generator" { return nil }
     return _generator_cancel_target_err(ctx, "expected generator handle")
+}
+
+fn _generator_wait_default_ms(delay_ms, grace_ms) {
+    var total = delay_ms + grace_ms + 2000
+    if total < delay_ms || total < grace_ms || total < 0 { return 2147483647 }
+    return total
+}
+
+fn _generator_wait_budget_ms(ctx, join_timeout_ms, default_wait_ms) {
+    if oren_type_tag(join_timeout_ms) == 0 { return default_wait_ms }
+    if oren_type_name(join_timeout_ms) != "int" {
+        return _generator_cancel_target_err(ctx, "expected int join_timeout_ms")
+    }
+    if join_timeout_ms < 0 { return default_wait_ms }
+    return join_timeout_ms
+}
+
+fn _generator_wait_handle(watcher, wait_ms) {
+    if oren_is_err(watcher) == true { return watcher }
+    return oren_join_timeout(watcher, wait_ms)
 }
 
 fn _generator_request_cancel_after_worker(target, timeout_ms, reason) {
@@ -115,6 +135,17 @@ fn request_cancel_after(target, timeout_ms, reason) {
     return spawn _generator_request_cancel_after_worker(target, delay_ms, reason)
 }
 
+fn request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.request_cancel_after_wait", "expected generator handle or context")
+    }
+    var delay = _generator_timeout_ms("generator.request_cancel_after_wait", timeout_ms)
+    if oren_is_err(delay) == true { return delay }
+    var wait = _generator_wait_budget_ms("generator.request_cancel_after_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
+    if oren_is_err(wait) == true { return wait }
+    return _generator_wait_handle(request_cancel_after(target, delay, reason), wait)
+}
+
 fn cancel_after(target, timeout_ms, reason) {
     if _generator_cancel_target_ok(target) != true {
         return _generator_cancel_target_err("generator.cancel_after", "expected generator handle or context")
@@ -122,6 +153,17 @@ fn cancel_after(target, timeout_ms, reason) {
     var delay_ms = _generator_timeout_ms("generator.cancel_after", timeout_ms)
     if oren_is_err(delay_ms) == true { return delay_ms }
     return spawn _generator_cancel_after_worker(target, delay_ms, reason)
+}
+
+fn cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.cancel_after_wait", "expected generator handle or context")
+    }
+    var delay = _generator_timeout_ms("generator.cancel_after_wait", timeout_ms)
+    if oren_is_err(delay) == true { return delay }
+    var wait = _generator_wait_budget_ms("generator.cancel_after_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
+    if oren_is_err(wait) == true { return wait }
+    return _generator_wait_handle(cancel_after(target, delay, reason), wait)
 }
 
 fn request_cancel_at(target, deadline_ns, reason) {
@@ -133,6 +175,17 @@ fn request_cancel_at(target, deadline_ns, reason) {
     return spawn _generator_request_cancel_after_worker(target, delay_ms, reason)
 }
 
+fn request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.request_cancel_at_wait", "expected generator handle or context")
+    }
+    var delay = _generator_deadline_delay_ms("generator.request_cancel_at_wait", deadline_ns)
+    if oren_is_err(delay) == true { return delay }
+    var wait = _generator_wait_budget_ms("generator.request_cancel_at_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
+    if oren_is_err(wait) == true { return wait }
+    return _generator_wait_handle(request_cancel_at(target, deadline_ns, reason), wait)
+}
+
 fn cancel_at(target, deadline_ns, reason) {
     if _generator_cancel_target_ok(target) != true {
         return _generator_cancel_target_err("generator.cancel_at", "expected generator handle or context")
@@ -140,6 +193,17 @@ fn cancel_at(target, deadline_ns, reason) {
     var delay_ms = _generator_deadline_delay_ms("generator.cancel_at", deadline_ns)
     if oren_is_err(delay_ms) == true { return delay_ms }
     return spawn _generator_cancel_after_worker(target, delay_ms, reason)
+}
+
+fn cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.cancel_at_wait", "expected generator handle or context")
+    }
+    var delay = _generator_deadline_delay_ms("generator.cancel_at_wait", deadline_ns)
+    if oren_is_err(delay) == true { return delay }
+    var wait = _generator_wait_budget_ms("generator.cancel_at_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
+    if oren_is_err(wait) == true { return wait }
+    return _generator_wait_handle(cancel_at(target, deadline_ns, reason), wait)
 }
 
 fn stop_after(target, timeout_ms, grace_ms, reason) {
@@ -153,6 +217,19 @@ fn stop_after(target, timeout_ms, grace_ms, reason) {
     return spawn _generator_stop_after_worker(target, delay_ms, grace_delay_ms, reason)
 }
 
+fn stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.stop_after_wait", "expected generator handle or context")
+    }
+    var delay = _generator_timeout_ms("generator.stop_after_wait", timeout_ms)
+    if oren_is_err(delay) == true { return delay }
+    var grace = _generator_grace_ms("generator.stop_after_wait", grace_ms)
+    if oren_is_err(grace) == true { return grace }
+    var wait = _generator_wait_budget_ms("generator.stop_after_wait", join_timeout_ms, _generator_wait_default_ms(delay, grace))
+    if oren_is_err(wait) == true { return wait }
+    return _generator_wait_handle(stop_after(target, delay, grace, reason), wait)
+}
+
 fn stop_at(target, deadline_ns, grace_ms, reason) {
     if _generator_cancel_target_ok(target) != true {
         return _generator_cancel_target_err("generator.stop_at", "expected generator handle or context")
@@ -162,6 +239,19 @@ fn stop_at(target, deadline_ns, grace_ms, reason) {
     var grace_delay_ms = _generator_grace_ms("generator.stop_at", grace_ms)
     if oren_is_err(grace_delay_ms) == true { return grace_delay_ms }
     return spawn _generator_stop_after_worker(target, delay_ms, grace_delay_ms, reason)
+}
+
+fn stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.stop_at_wait", "expected generator handle or context")
+    }
+    var delay = _generator_deadline_delay_ms("generator.stop_at_wait", deadline_ns)
+    if oren_is_err(delay) == true { return delay }
+    var grace = _generator_grace_ms("generator.stop_at_wait", grace_ms)
+    if oren_is_err(grace) == true { return grace }
+    var wait = _generator_wait_budget_ms("generator.stop_at_wait", join_timeout_ms, _generator_wait_default_ms(delay, grace))
+    if oren_is_err(wait) == true { return wait }
+    return _generator_wait_handle(stop_at(target, deadline_ns, grace, reason), wait)
 }
 
 fn delegate(co, inner) {

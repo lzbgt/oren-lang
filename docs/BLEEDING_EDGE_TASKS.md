@@ -4655,17 +4655,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       sleeps and then records the cooperative sticky cancel-request state
 		     - `cancel_after(target, timeout_ms, reason)` starts a joinable watcher task that sleeps and
 		       then applies the same first-write-wins hard-stop `cancel(...)` protocol
+		     - `request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` and
+		       `cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` are the synchronous
+		       stdlib forms above those watcher helpers: they spawn the same watcher and then wait
+		       through `oren_join_timeout(...)`
 		     - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
 		       timeouts fail immediately with `err`
 		     - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the
 		       target already finished, the watcher surfaces the cached terminal result without rewriting
 		       the target’s cancellation state
+		     - `join_timeout_ms == nil` or any negative `join_timeout_ms` value now uses a derived
+		       wait budget instead of a raw infinite join: relative helpers wait for
+		       `timeout_ms + 2000`, absolute helpers wait for the computed deadline delay plus `2000`,
+		       and stop helpers add `grace_ms` into that same default budget; invalid non-`int`
+		       join-timeout arguments fail immediately with `err`
 		     - the default native green/runtime route now carries started generator handles through these
 		       watcher tasks correctly, so the remaining gap is richer deadline/scheduler policy rather
 		       than timeout-helper availability itself
 		   - New (2026-04-23): absolute-deadline watcher helpers now also ship on the same contract:
 		     - `request_cancel_at(target, deadline_ns, reason)` / `cancel_at(target, deadline_ns, reason)`
 		       use the `time.now_ns()` domain instead of relative `timeout_ms`
+		     - `request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` /
+		       `cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` are the matching
+		       synchronous absolute-deadline forms
 		     - `deadline_ns <= time.now_ns()` fires immediately, `deadline_ns == nil` defaults to
 		       immediate, and invalid non-`int` deadlines fail immediately with `err`
 		   - New (2026-04-23): the shipped helper stack now also carries an explicit stop-policy layer:
@@ -4674,6 +4686,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       `grace_ms`
 		     - `stop_at(target, deadline_ns, grace_ms, reason)` applies that same soft-then-hard
 		       policy against an absolute deadline in the `time.now_ns()` domain
+		     - `stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms)` /
+		       `stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms)` are the
+		       synchronous stdlib forms above that watcher layer: they apply the same policy and then
+		       wait through `oren_join_timeout(...)`, using either the explicit `join_timeout_ms`
+		       budget or the derived operation window plus `2000`
 		     - `timeout_ms == nil`, `grace_ms == nil`, and `deadline_ns == nil` all default to
 		       immediate scheduling points, negative timeout/grace values clamp to `0`, and invalid
 		       non-`int` timeout / grace / deadline arguments fail immediately with `err`
@@ -4682,8 +4699,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     - `terminal_result(handle)` now exposes the final done-handle result directly instead of
 		       requiring callers to branch manually across `terminal_error(...)` and `return_value(...)`
 		     The remaining gap is now a stronger language-level coroutine/generator protocol and
-		     higher-level timeout / stop policy above the explicit channel surface, not baseline hard-stop or
-		     timeout-helper API availability.
+		     higher-level scheduler/deadline policy above this synchronous stop/cancel surface, not
+		     baseline hard-stop, timeout-helper, or manual watcher-join availability.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
 				     `start/next/send/close/cancel/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface

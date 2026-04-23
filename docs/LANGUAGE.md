@@ -3423,14 +3423,26 @@ Rolling status:
     for `timeout_ms` and then records the same cooperative sticky request state
   - `cancel_after(target, timeout_ms, reason)` spawns a joinable watcher task that sleeps and then
     applies the same first-write-wins hard-stop `cancel(...)` protocol
+  - `request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` /
+    `cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` are the synchronous stdlib
+    forms above those watcher helpers: they spawn the same watcher and then wait on it through the
+    shipped `oren_join_timeout(...)` contract
   - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
     timeout arguments return an immediate `err`
   - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the target
     is already done, the watcher surfaces the cached terminal result instead of rewriting
     cancellation state
+  - `join_timeout_ms == nil` or any negative `join_timeout_ms` value uses a derived wait budget
+    instead of a raw infinite join: relative helpers wait for `timeout_ms + 2000`, absolute
+    helpers wait for `max(deadline_ns - time.now_ns(), 0)` plus `2000`, and stop helpers add
+    `grace_ms` into that same default budget; invalid non-`int` join-timeout arguments return an
+    immediate `err`
   - `request_cancel_at(target, deadline_ns, reason)` / `cancel_at(target, deadline_ns, reason)`
     apply that same watcher protocol against an absolute `deadline_ns` in the `time.now_ns()`
     domain
+  - `request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` /
+    `cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` are the matching synchronous
+    absolute-deadline forms
     - `deadline_ns <= time.now_ns()` triggers immediately
     - `deadline_ns == nil` defaults to immediate
     - invalid non-`int` deadlines return an immediate argument `err`
@@ -3441,8 +3453,14 @@ Rolling status:
     - `timeout_ms == nil` and `grace_ms == nil` both default to `0`
     - negative timeout/grace values clamp to `0`
     - invalid non-`int` timeout/grace arguments return an immediate argument `err`
+  - `stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms)` synchronously applies
+    that same soft-then-hard policy and waits for the watcher result through `oren_join_timeout(...)`
+    using either the explicit `join_timeout_ms` budget or the derived `timeout_ms + grace_ms + 2000`
+    default
   - `stop_at(target, deadline_ns, grace_ms, reason)` applies that same soft-then-hard stop policy
     against an absolute `deadline_ns` in the `time.now_ns()` domain
+  - `stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms)` is the matching
+    synchronous absolute-deadline stop form
     - `deadline_ns <= time.now_ns()` triggers immediately
     - `deadline_ns == nil` defaults to immediate
     - invalid non-`int` deadlines return an immediate argument `err`
@@ -3454,7 +3472,7 @@ Rolling status:
 - New (2026-04-23): `std:coroutine` now also ships as a thin facade over that same compiler-managed
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
-  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/stop_after/stop_at/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/terminal_result/collect/is_cancel_requested/cancel_reason`)
+  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/request_cancel_after_wait/cancel_after/cancel_after_wait/request_cancel_at/request_cancel_at_wait/cancel_at/cancel_at_wait/stop_after/stop_after_wait/stop_at/stop_at_wait/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/terminal_result/collect/is_cancel_requested/cancel_reason`)
   plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)` as the matching
   handle/context tag checks.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar

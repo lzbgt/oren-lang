@@ -8,11 +8,13 @@
 // - inside that worker, `yield [expr] in co` is the shared exchange contract
 // - cooperative cancel requests stay observable as request state via `request_cancel(...)`
 // - `request_cancel_after(...)` / `cancel_after(...)` schedule that same protocol on a joinable
-//   watcher task after a relative timeout
+//   watcher task after a relative timeout, while the `*_wait(...)` forms hide that watcher-plus-join
+//   pattern behind a direct synchronous result with an explicit or derived wait budget
 // - `request_cancel_at(...)` / `cancel_at(...)` schedule that same protocol against an absolute
-//   `deadline_ns` in the `time.now_ns()` domain
+//   `deadline_ns` in the `time.now_ns()` domain, with matching `*_at_wait(...)` forms
 // - `stop_after(...)` / `stop_at(...)` apply a soft-then-hard stop policy above those watcher
-//   helpers
+//   helpers, and `stop_after_wait(...)` / `stop_at_wait(...)` synchronously wait for that policy
+//   watcher to finish
 // - `cancel(...)` is the hard-stop layer above that state: it records the request and then
 //   forces the existing close/detach/finalize path
 //
@@ -62,24 +64,48 @@ fn request_cancel_after(co, timeout_ms, reason) {
     return gen.request_cancel_after(co, timeout_ms, reason)
 }
 
+fn request_cancel_after_wait(co, timeout_ms, reason, join_timeout_ms) {
+    return gen.request_cancel_after_wait(co, timeout_ms, reason, join_timeout_ms)
+}
+
 fn cancel_after(co, timeout_ms, reason) {
     return gen.cancel_after(co, timeout_ms, reason)
+}
+
+fn cancel_after_wait(co, timeout_ms, reason, join_timeout_ms) {
+    return gen.cancel_after_wait(co, timeout_ms, reason, join_timeout_ms)
 }
 
 fn request_cancel_at(co, deadline_ns, reason) {
     return gen.request_cancel_at(co, deadline_ns, reason)
 }
 
+fn request_cancel_at_wait(co, deadline_ns, reason, join_timeout_ms) {
+    return gen.request_cancel_at_wait(co, deadline_ns, reason, join_timeout_ms)
+}
+
 fn cancel_at(co, deadline_ns, reason) {
     return gen.cancel_at(co, deadline_ns, reason)
+}
+
+fn cancel_at_wait(co, deadline_ns, reason, join_timeout_ms) {
+    return gen.cancel_at_wait(co, deadline_ns, reason, join_timeout_ms)
 }
 
 fn stop_after(co, timeout_ms, grace_ms, reason) {
     return gen.stop_after(co, timeout_ms, grace_ms, reason)
 }
 
+fn stop_after_wait(co, timeout_ms, grace_ms, reason, join_timeout_ms) {
+    return gen.stop_after_wait(co, timeout_ms, grace_ms, reason, join_timeout_ms)
+}
+
 fn stop_at(co, deadline_ns, grace_ms, reason) {
     return gen.stop_at(co, deadline_ns, grace_ms, reason)
+}
+
+fn stop_at_wait(co, deadline_ns, grace_ms, reason, join_timeout_ms) {
+    return gen.stop_at_wait(co, deadline_ns, grace_ms, reason, join_timeout_ms)
 }
 
 fn delegate(co, inner) {

@@ -123,11 +123,20 @@ backend-shared value-helper slices landed.
     for `timeout_ms` and then records the same sticky cooperative request state
   - `cancel_after(target, timeout_ms, reason)` starts a joinable watcher task that sleeps and then
     applies the same first-write-wins hard-stop `cancel(...)` protocol
+  - `request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` /
+    `cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` are the synchronous stdlib
+    forms above those watcher helpers: they spawn the same watcher and then wait through the
+    shipped `oren_join_timeout(...)` contract
   - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
     timeout arguments return an immediate `err`
   - the watcher join result is `nil` for live-target request/hard-cancel flows; if
     `cancel_after(...)` runs after the target is already done, the watcher returns the cached
     terminal result instead of rewriting cancellation state
+  - `join_timeout_ms == nil` or any negative `join_timeout_ms` value now uses a derived wait
+    budget instead of a raw infinite join: relative helpers wait for `timeout_ms + 2000`,
+    absolute helpers wait for the computed deadline delay plus `2000`, and stop helpers add
+    `grace_ms` into that same default budget; invalid non-`int` join-timeout arguments return an
+    immediate `err`
   - the restored clean native green/runtime route carries started generator handles through these
     watcher tasks correctly, so the remaining protocol gap is now richer scheduler/deadline policy
     above the shipped helper layer rather than missing timeout-helper availability
@@ -136,6 +145,9 @@ backend-shared value-helper slices landed.
   - `request_cancel_at(target, deadline_ns, reason)` / `cancel_at(target, deadline_ns, reason)`
     use the same watcher protocol but against an absolute `deadline_ns` in the `time.now_ns()`
     domain
+  - `request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` /
+    `cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)` are the matching synchronous
+    absolute-deadline forms
   - `deadline_ns <= time.now_ns()` fires immediately
   - `deadline_ns == nil` defaults to immediate
   - invalid non-`int` deadlines return an immediate argument `err`
@@ -146,6 +158,11 @@ backend-shared value-helper slices landed.
     `grace_ms`
   - `stop_at(target, deadline_ns, grace_ms, reason)` applies that same soft-then-hard policy
     against an absolute `deadline_ns` in the `time.now_ns()` domain
+  - `stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms)` /
+  `stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms)` are the synchronous
+  stdlib forms above that watcher layer: they apply the same policy and then wait through
+  `oren_join_timeout(...)`, using either the explicit `join_timeout_ms` budget or the derived
+  operation window plus `2000`
   - `timeout_ms == nil`, `grace_ms == nil`, and `deadline_ns == nil` all default to immediate
     scheduling points
   - negative timeout / grace values clamp to `0`
@@ -154,6 +171,8 @@ backend-shared value-helper slices landed.
     generator context, matching the target-oriented watcher/stop surface
   - `terminal_result(handle)` now exposes the final done-handle result directly as terminal error
     or return value, and rejects invalid / still-live handles with `err`
+  - the remaining gap moves up again: richer scheduler deadline policy should build on this
+    synchronous stdlib stop/cancel surface rather than on raw watcher tasks
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now
