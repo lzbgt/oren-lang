@@ -5319,6 +5319,9 @@ Current behavior (native runtime, rolling):
   - sends `v` to `yield_ch`
   - yields cooperatively / via OS hint using `oren_yield()`
   - resumes by reading and returning the next value from `resume_ch`
+  - on the default native host-green runtime, the final `resume_ch` wait is scheduler-aware:
+    responder green tasks may themselves `yield` before replying, because the wait routes through
+    `oren_select_recv([resume_ch])` rather than a raw blocking recv
 - `_oren_generator_context_exchange(co, v)` is the compiler-managed generator-context helper:
   - source syntax: `yield expr in co` and `yield in co`
   - intended for compiler-generated generator worker bodies and parser-lowered generator

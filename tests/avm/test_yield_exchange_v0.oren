@@ -24,6 +24,13 @@ fn avm_exchange_syntax_nil_worker(out_ch, in_ch, seed) {
     return resumed + seed
 }
 
+fn avm_exchange_host_reply_after_yield(out_ch, in_ch, delta) {
+    var seen = oren_chan_recv(out_ch)
+    oren_yield()
+    oren_chan_send(in_ch, seen + delta)
+    return delta
+}
+
 fn test_exchange_var() {
     var out = oren_new_channel()
     var inp = oren_new_channel()
@@ -68,11 +75,29 @@ fn test_exchange_source_nil() {
     assert_eq(oren_join(h), 81)
 }
 
+fn test_exchange_host_green_helper() {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn avm_exchange_host_reply_after_yield(out, inp, 21)
+    assert_eq(oren_yield_exchange(out, inp, 90), 111)
+    assert_eq(oren_join(h), 21)
+}
+
+fn test_exchange_host_green_syntax() {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn avm_exchange_host_reply_after_yield(out, inp, 22)
+    assert_eq(yield 91 in (out, inp), 113)
+    assert_eq(oren_join(h), 22)
+}
+
 fn main() {
     test_exchange_var()
     test_exchange_call_arg()
     test_exchange_source_syntax()
     test_exchange_source_nil()
+    test_exchange_host_green_helper()
+    test_exchange_host_green_syntax()
     print("test_yield_exchange_v0: OK")
     return 0
 }

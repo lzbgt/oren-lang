@@ -95,8 +95,11 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   The shipped handle-level lifecycle surface now also includes
   `is_started(...)`, `is_closed(...)`, `current_step(...)`, and `terminal_error(...)`
   on both `std:generator` and `std:coroutine`.
+  On the default native host-green runtime, `oren_yield_exchange(yield_ch, resume_ch, v)` now also
+  waits for `resume_ch` through the scheduler-aware select path, so responder green tasks may
+  cooperatively `yield` before replying without stalling the host thread on a raw channel recv.
   The remaining gap is full resumable coroutine/generator semantics plus a stronger
-  default scheduler-aware native green-channel protocol for that explicit exchange path. The
+  scheduler-aware exchange/cancellation protocol above that explicit helper path. The
   structured error model is
   already shipped as the
   rolling value-or-error

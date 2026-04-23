@@ -4622,11 +4622,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	   - New (2026-04-22): value-carrying `yield` is now parity-verified under bytecode, C, and native
 	     too. The current contract is intentionally local and helper-based: `oren_yield_value(v)`
      yields, then resumes with `v`.
-	   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
+	   - New (2026-04-22 / 2026-04-23): explicit caller-visible yielded/resumed value exchange is also
 	     parity-verified under bytecode, C, and native through
 	     `oren_yield_exchange(yield_ch, resume_ch, v)`. On native host threads with green runtime
-	     already active and no background workers, `oren_yield()` now drives one cooperative green
-	     scheduling step so this helper works on the default runtime path too. Direct standalone
+	     already active and no background workers, the shipped path now does both pieces needed for
+	     correctness on the default runtime route: `oren_yield()` drives a cooperative green
+	     scheduling step, and the final wait for `resume_ch` now goes through the scheduler-aware
+	     `oren_select_recv([resume_ch])` path instead of a raw blocking `oren_chan_recv(resume_ch)`.
+	     That means a responder green task may itself `yield` before replying without wedging the host
+	     thread. Direct standalone
 	     `./scripts/run_native_quick_integration.sh ./oren_stage2` now auto-prewarms runtime
 	     astbin/rtobj seeds too, so empty seed dirs no longer fall back to a cold self-hosted
 	     `rtobj.miss.build.start` path during the quick smoke. The seeded-cold proof now runs against a
@@ -4635,7 +4639,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     also has shared-front-end source syntax (`yield expr in (yield_ch, resume_ch)` and
 	     `yield in (yield_ch, resume_ch)`), with metadata distinguishing source syntax from raw helper
 	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`. The remaining gap is a
-	     stronger language-level coroutine/generator protocol above that explicit channel surface.
+	     stronger language-level coroutine/generator protocol plus scheduler-aware
+	     exchange/cancellation semantics above that explicit channel surface.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
 			     `start/next/send/close/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect` surface

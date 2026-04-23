@@ -46,9 +46,17 @@ fn oren_yield_value(value) {
     return value
 }
 
+fn _oren_yield_exchange_resume_wait(resume_ch) {
+    var sel = oren_select_recv([resume_ch])
+    if oren_type_name(sel) == "list" && oren_list_len(sel) >= 2 {
+        return sel[1]
+    }
+    return sel
+}
+
 @oren.keep
 fn oren_yield_exchange(yield_ch, resume_ch, value) {
     oren_chan_send(yield_ch, value)
     oren_yield()
-    return oren_chan_recv(resume_ch)
+    return _oren_yield_exchange_resume_wait(resume_ch)
 }

@@ -36,6 +36,29 @@ run_ok() {
   "$@" >>"$log" 2>&1
 }
 
+run_ok_timeout() {
+  local timeout_secs="$1"
+  shift
+  echo "\$ $*  # timeout=${timeout_secs}s" >>"$log"
+  python3 - "$timeout_secs" "$@" >>"$log" 2>&1 <<'PY'
+import subprocess
+import sys
+
+timeout_secs = float(sys.argv[1])
+cmd = sys.argv[2:]
+proc = subprocess.Popen(cmd)
+try:
+    raise SystemExit(proc.wait(timeout=timeout_secs))
+except subprocess.TimeoutExpired:
+    proc.kill()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+    raise SystemExit(124)
+PY
+}
+
 src="tests/fixtures/yield_exchange_surface_v0.oren"
 meta_out="$tmpdir/exchange.meta.json"
 dump_out="$tmpdir/exchange.linked.json"
@@ -48,16 +71,16 @@ run_ok "$meta_compiler" meta "$src" --platform "$platform" -o "$meta_out"
 run_ok "$meta_compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
 run_ok "$compiler" build "$src" \
   --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
-run_ok ./avm "$bytecode_out"
+run_ok_timeout 20 ./avm "$bytecode_out"
 run_ok python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
 
 run_ok "$compiler" build "$src" \
   --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
-run_ok "$c_out"
+run_ok_timeout 20 "$c_out"
 
 run_ok "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
-run_ok "$native_out"
+run_ok_timeout 20 "$native_out"
 
 META_OUT="$meta_out" \
 DUMP_OUT="$dump_out" \
@@ -164,6 +187,9 @@ for payloads in (meta, dump, obc):
     assert_exchange("exchange_context_stmt", payloads["exchange_context_stmt"], "tests/fixtures/yield_exchange_surface_v0.oren:68:5", "expr_stmt", "yield_in_context", True, "generator_context")
     assert_exchange("exchange_context_nil", payloads["exchange_context_nil"], "tests/fixtures/yield_exchange_surface_v0.oren:75:19", "var_init", "yield_in_context", False, "generator_context")
     assert_exchange("exchange_context_bad", payloads["exchange_context_bad"], "tests/fixtures/yield_exchange_surface_v0.oren:80:12", "return_value", "yield_in_context", True, "generator_context")
+    assert_plain("exchange_host_green_reply_after_yield", payloads["exchange_host_green_reply_after_yield"])
+    assert_exchange("exchange_host_green_helper", payloads["exchange_host_green_helper"], "tests/fixtures/yield_exchange_surface_v0.oren:94:38", "var_init", "helper_call", True, "explicit_channel_pair")
+    assert_exchange("exchange_host_green_syntax", payloads["exchange_host_green_syntax"], "tests/fixtures/yield_exchange_surface_v0.oren:104:19", "var_init", "yield_in_channels", True, "explicit_channel_pair")
     assert_plain("main", payloads["main"])
 
 print("yield exchange metadata verified")

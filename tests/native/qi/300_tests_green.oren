@@ -1,3 +1,32 @@
+fn _qi_yield_exchange_reply_after_yield(out_ch, in_ch, delta) {
+    var seen = oren_chan_recv(out_ch)
+    oren_yield()
+    oren_chan_send(in_ch, seen + delta)
+    return delta
+}
+
+fn test_yield_exchange_host_green_wait() {
+    trace("QI: test_yield_exchange_host_green_wait")
+    if g_target_os == 3 { return 0 }
+
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn _qi_yield_exchange_reply_after_yield(out, inp, 21)
+    var resumed0 = oren_yield_exchange(out, inp, 90)
+    assert_eq(resumed0, 111, 651)
+    var joined0 = oren_join_timeout(h, 2000)
+    assert_eq(joined0, 21, 652)
+
+    var out2 = oren_new_channel()
+    var inp2 = oren_new_channel()
+    var h2 = spawn _qi_yield_exchange_reply_after_yield(out2, inp2, 22)
+    var resumed1 = (yield 91 in (out2, inp2))
+    assert_eq(resumed1, 113, 653)
+    var joined1 = oren_join_timeout(h2, 2000)
+    assert_eq(joined1, 22, 654)
+    return 0
+}
+
 fn test_green_multi_p_single_thread_poll_steal() {
     trace("QI: test_green_multi_p_single_thread_poll_steal")
     // Green tasks are the default `spawn` path on macOS/Linux today.

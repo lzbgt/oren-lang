@@ -80,6 +80,33 @@ fn exchange_context_bad(seed) {
     return yield (seed + 99) in 123
 }
 
+fn exchange_host_green_reply_after_yield(out_ch, in_ch, delta) {
+    var seen = oren_chan_recv(out_ch)
+    oren_yield()
+    oren_chan_send(in_ch, seen + delta)
+    return delta
+}
+
+fn exchange_host_green_helper(seed, delta) {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn exchange_host_green_reply_after_yield(out, inp, delta)
+    var resumed = oren_yield_exchange(out, inp, seed)
+    var joined = oren_join(h)
+    if joined != delta { return -3100 }
+    return resumed
+}
+
+fn exchange_host_green_syntax(seed, delta) {
+    var out = oren_new_channel()
+    var inp = oren_new_channel()
+    var h = spawn exchange_host_green_reply_after_yield(out, inp, delta)
+    var resumed = yield seed in (out, inp)
+    var joined = oren_join(h)
+    if joined != delta { return -3110 }
+    return resumed
+}
+
 fn main() {
     var out1 = oren_new_channel()
     var in1 = oren_new_channel()
@@ -222,6 +249,12 @@ fn main() {
 
     var bad_ctx = exchange_context_bad(200)
     if oren_is_err(bad_ctx) != true { return 2850 }
+
+    var host0 = exchange_host_green_helper(210, 21)
+    if host0 != 231 { return 2860 + host0 }
+
+    var host1 = exchange_host_green_syntax(220, 22)
+    if host1 != 242 { return 2870 + host1 }
 
     return 0
 }

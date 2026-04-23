@@ -43,6 +43,7 @@ fn main() {
     test_green_sp_alignment_x64()
     test_green_p_count_api()
     test_green_multi_p_single_thread_poll_steal()
+    test_yield_exchange_host_green_wait()
     test_green_poll_cache_does_not_corrupt_p_ptr()
     test_green_p_acquire_release_blocks_start_workers()
     test_green_idle_p_pool_acquire_any()

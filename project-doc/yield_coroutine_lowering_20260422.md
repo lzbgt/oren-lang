@@ -70,11 +70,14 @@ backend-shared value-helper slices landed.
   nested function-literal body successfully. Parent-function metadata still intentionally ignores
   nested bodies when summarizing `contains_yield` / `yield_stmt_sites`; that probe result is about
   execution support, not about attributing the nested body to the enclosing function.
-- Fresh probe (2026-04-22): strict bytecode/C/native builds also execute
+- Fresh probe / landing (2026-04-22 / 2026-04-23): strict bytecode/C/native builds also execute
   `oren_yield_exchange(yield_ch, resume_ch, v)` successfully on the default native runtime too.
-  Native host threads with green runtime already active and no background workers now use
-  `oren_yield()` to drive one cooperative green scheduling step, so the verifier no longer needs an
-  `OREN_NO_GREEN=1` escape hatch for this helper path.
+  Native host threads with green runtime already active and no background workers now do both parts
+  needed for the shipped helper path: `oren_yield()` drives one cooperative green scheduling step,
+  and the final wait for `resume_ch` now routes through `oren_select_recv([resume_ch])` instead of a
+  raw blocking `oren_chan_recv(resume_ch)`. The verifier therefore no longer needs an
+  `OREN_NO_GREEN=1` escape hatch for this helper path, and responder green tasks may yield before
+  replying without wedging the host thread.
 - Fresh probe (2026-04-22): direct standalone `./scripts/run_native_quick_integration.sh ./oren_stage2`
   no longer needs a manually refreshed runtime seed after runtime-hash changes. The quick script
   now auto-prewarms runtime astbin + rtobj seeds for the current hash before the stage2 build,
@@ -974,9 +977,10 @@ now back to **Option B** on top of the current helper surfaces:
 The first lowering pass already executes the current AVM bare-statement subset end-to-end, and
 backend parity for the same subset is guarded across bytecode/C/native. The helper-based value
 surface is parity-guarded, and the explicit exchange protocol is now shipped plus introspectable on
-the default native runtime too. The next pass should stop widening helper mechanics and instead
-tackle the real remaining boundary: true caller-visible coroutine/generator semantics beyond the
-current helper contracts.
+the default native runtime too, including scheduler-aware host-green waiting on the final
+`resume_ch` receive. The next pass should stop widening helper mechanics and instead tackle the
+real remaining boundary: true caller-visible coroutine/generator semantics and stronger
+scheduler-aware exchange/cancellation protocol above the current helper contracts.
 
 That path keeps the current repo state honest:
 
