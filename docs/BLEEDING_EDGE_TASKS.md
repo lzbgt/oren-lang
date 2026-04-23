@@ -2727,23 +2727,36 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 													      per-element count and still lose the exact whole-program dot surface, so future
 													      retries must preserve that dominant-path win without enough rare-wrap/control
 													      cost to flip `dot_product_int` back the wrong way.
-													    - Arm64 exact-program fill-mix probe (2026-04-23): the new target
-													      `make perf-probe-arm64-fast-push-exact-fill-mix` now reads the exact benchmark
-													      sources and reports which same-tree programs can actually enter the shipped
-													      single-list unroll4 gate `single_list_cursor && pushes_per_iter==1 &&
-													      nonnegative_linear && tick_period%4==0`. The first summary log
-													      (`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_080825_22120.log`)
-													      closes the attribution gap: `array_sum_int` is directly causal for this branch
-													      family (`fill_pushes_per_iter: 1`, `single_list_unroll4_applicable: yes`) and
-													      is still overwhelmingly no-wrap in isolation (`494000` no-wrap wide trips,
-													      `6000` wrap trips, `98.8000%` / `1.2000%`), while `dot_product_int` is
-													      structurally ineligible (`fill_pushes_per_iter: 2`,
-													      `single_list_unroll4_applicable: no`, `ineligible_reason:
-													      pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`) even though its two
-													      isolated fill streams are also mostly no-wrap (`99.2000%` for `a`, `98.0000%`
-													      for `b`). Reweight again: for this single-list fill family, exact
-													      `array_sum_int` is the causal benchmark and exact `dot_product_int` is a
-													      non-causal control signal until a separate multi-push specialization exists.
+														    - Arm64 exact-program fill-mix probe (2026-04-23): the new target
+														      `make perf-probe-arm64-fast-push-exact-fill-mix` now defaults to the causal
+														      single-list set `array_sum_int,array_sum_int_step7` plus the non-causal control
+														      `dot_product_int`, and reports which exact programs can actually enter the
+														      shipped single-list unroll4 gate `single_list_cursor && pushes_per_iter==1 &&
+														      nonnegative_linear && tick_period%4==0`. The refreshed summary log
+														      (`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_081815_23618.log`)
+														      shows both single-list sum benchmarks are directly causal
+														      (`fill_pushes_per_iter: 1`, `single_list_unroll4_applicable: yes`) and still
+														      overwhelmingly no-wrap in isolation (`array_sum_int 98.8000%`,
+														      `array_sum_int_step7 98.0000%`), while `dot_product_int` remains structurally
+														      ineligible (`fill_pushes_per_iter: 2`, `single_list_unroll4_applicable: no`,
+														      `ineligible_reason: pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`)
+														      even though its two isolated fill streams are also mostly no-wrap
+														      (`99.2000%` and `98.0000%`).
+														    - Arm64 single-list family decision surface (2026-04-23): the new target
+														      `make perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision`
+														      keeps the fill/share surface but ranks exact programs as causal single-list
+														      benchmarks (`array_sum_int,array_sum_int_step7`) plus the separate non-causal
+														      `dot_product_int` control. The first summary
+														      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision-20260423_082026_25099.log`)
+														      exposes a real disagreement on the current shipped tree: fill/share prefers the
+														      shipped default (`default_fill_vs_c_vector ~2.0473×` vs disabled `~2.3812×`),
+														      but both causal exact programs slightly prefer `disabled` on steady native/C
+														      (`array_sum_int ~2.0855×` vs `~2.0782×`,
+														      `array_sum_int_step7 ~2.0855×` vs `~2.0782×`), and the non-causal control also
+														      slightly prefers `disabled` (`dot_product_int ~5.1433×` vs `~5.1370×`), so
+														      `decision_surface_alignment: disagree`. Reweight again: do not spend the next
+														      round on narrower local control-form tweaks until this causal single-list
+														      surface is reconciled.
 													    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
 												      a narrower single-list modulo-recurrence subpath was tested on the same shipped
 												      baseline, but the widened cached decision surface

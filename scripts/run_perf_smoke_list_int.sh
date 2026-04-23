@@ -56,10 +56,13 @@ run_native_check() {
 }
 
 build_native_bin array_sum_int
+build_native_bin array_sum_int_step7
 build_native_bin dot_product_int
 
 run_native_check array_sum_int 205 10 3
 run_native_check array_sum_int 710 20 3
+run_native_check array_sum_int_step7 335 10 3
+run_native_check array_sum_int_step7 1370 20 3
 run_native_check dot_product_int 6590 10 3
 run_native_check dot_product_int 54380 20 3
 

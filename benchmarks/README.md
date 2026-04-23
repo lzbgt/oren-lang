@@ -12,6 +12,7 @@ Benchmarks:
 - `loop_sum` (tight integer loop with simple arithmetic)
 - `array_sum` (list/array fill + sum; stresses element access and loop overhead)
 - `array_sum_int` (list<int> fill + sum; evaluates unboxed list<int> path)
+- `array_sum_int_step7` (single-list list<int> fill + sum with a second modulo recurrence; causal control for single-list fast-push ranking)
 - `dot_product` (two-array dot product; stresses loads, multiply, and loop)
 - `dot_product_int` (list<int> dot product; evaluates unboxed list<int> path)
 - `multi_list_push_int` (three list<int> pushes per loop + sum; stresses unboxed list<int> push throughput)
@@ -813,18 +814,42 @@ which ones can actually enter the shipped single-list unroll4 fill gate
 (`single_list_cursor && pushes_per_iter==1 && nonnegative_linear && tick_period%4==0`) before any
 performance numbers are interpreted.
 
-The first exact-program mix log
-`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_080825_22120.log` closes an
-important attribution gap. `array_sum_int` directly exercises the shipped single-list unroll4 fill
-family (`fill_pushes_per_iter: 1`, `single_list_unroll4_applicable: yes`) and its isolated fill
-stream is overwhelmingly no-wrap at the benchmark default (`494000` no-wrap wide trips, `6000`
-wrap trips, `98.8000%` / `1.2000%`). `dot_product_int` does not directly exercise that branch
-family at all (`fill_pushes_per_iter: 2`, `single_list_unroll4_applicable: no`,
-`ineligible_reason: pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`), even though each
-individual fill stream would also be mostly no-wrap in isolation (`99.2000%` for `a`, `98.0000%`
-for `b`). Reweight again: for this single-list fill family, exact `array_sum_int` is the causal
-same-tree benchmark and exact `dot_product_int` is a non-causal control signal until a separate
-multi-push specialization exists.
+The refreshed exact-program mix log
+`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_081815_23618.log` closes that
+attribution gap more cleanly. Both `array_sum_int` and the new `array_sum_int_step7` directly
+exercise the shipped single-list unroll4 fill family (`fill_pushes_per_iter: 1`,
+`single_list_unroll4_applicable: yes`) and both are still overwhelmingly no-wrap in isolation at
+the benchmark default:
+
+- `array_sum_int`: `494000` no-wrap wide trips, `6000` wrap trips, `98.8000%` / `1.2000%`
+- `array_sum_int_step7`: `490000` no-wrap wide trips, `10000` wrap trips, `98.0000%` / `2.0000%`
+
+`dot_product_int` still does not directly exercise that branch family at all
+(`fill_pushes_per_iter: 2`, `single_list_unroll4_applicable: no`, `ineligible_reason:
+pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`), even though each individual fill
+stream would also be mostly no-wrap in isolation (`99.2000%` for `a`, `98.0000%` for `b`).
+Reweight again: for this single-list fill family, exact `array_sum_int` and
+`array_sum_int_step7` are the causal same-tree benchmarks, while exact `dot_product_int` remains a
+non-causal control signal until a separate multi-push specialization exists.
+
+To rank the current shipped family on those causal exact programs directly, use:
+
+```bash
+make perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision
+```
+
+This keeps the existing fill/share surface, but replaces the old broad exact-program attribution
+with a causal single-list exact set (`array_sum_int,array_sum_int_step7`) plus a separate
+non-causal control (`dot_product_int`). The first summary
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision-20260423_082026_25099.log`
+shows a real conflict on the current tree: fill/share still prefers the shipped default
+(`default_fill_vs_c_vector ~2.0473x` vs disabled `~2.3812x`), but both causal exact programs now
+slightly prefer `disabled` on steady native/C (`array_sum_int ~2.0855x` vs `~2.0782x`,
+`array_sum_int_step7 ~2.0855x` vs `~2.0782x`), and the non-causal control also happens to prefer
+`disabled` (`dot_product_int ~5.1433x` vs `~5.1370x`). So the new probe does not justify another
+sub-branch promotion yet; it sharpens the next problem instead. The current shipped unroll4 default
+still needs a causal steady-surface explanation, or a re-check strong enough to justify keeping it
+as shipped before more local control-form tuning continues.
 
 To keep the next branch fact-based, the arm64 fill-vs-C probe now emits category counts for the
 shipped wide body itself:

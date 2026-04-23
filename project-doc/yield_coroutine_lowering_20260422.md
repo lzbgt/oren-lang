@@ -424,21 +424,32 @@ backend-shared value-helper slices landed.
 		    the host C vector loop’s static `6.75` instructions per element and still lose the exact dot
 		    surface, so the next retry must keep that dominant-path advantage without enough rare-wrap or
 		    control-side cost to flip `dot_product_int` back the wrong way.
-		  - the exact-program attribution gap for that same single-list fill family is now closed too.
-		    The new `make perf-probe-arm64-fast-push-exact-fill-mix` target and its first log
-		    (`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_080825_22120.log`) read the
-		    benchmark sources themselves and report whether each exact program can actually enter the
-		    shipped gate `single_list_cursor && pushes_per_iter==1 && nonnegative_linear &&
-		    tick_period%4==0`. The result matters: `array_sum_int` is directly causal here
-		    (`fill_pushes_per_iter: 1`, `single_list_unroll4_applicable: yes`) and is still almost all
-		    no-wrap in isolation (`494000` no-wrap wide trips, `6000` wrap trips, `98.8000%` /
-		    `1.2000%`), while `dot_product_int` is structurally outside this branch family
-		    (`fill_pushes_per_iter: 2`, `single_list_unroll4_applicable: no`, `ineligible_reason:
-		    pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`) even though each isolated fill
-		    stream is also mostly no-wrap (`99.2000%` for `a`, `98.0000%` for `b`). That reweights the
-		    remaining work again: for this branch family, exact `array_sum_int` is the causal same-tree
-		    benchmark and exact `dot_product_int` is only a control/guardrail until a distinct multi-push
-		    specialization exists.
+		  - the exact-program attribution gap for that same single-list fill family is now closed more
+		    cleanly. `make perf-probe-arm64-fast-push-exact-fill-mix` now defaults to the causal
+		    single-list set `array_sum_int,array_sum_int_step7` plus the non-causal `dot_product_int`
+		    control, and the refreshed log
+		    (`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_081815_23618.log`) shows
+		    both sum benchmarks are directly causal here (`fill_pushes_per_iter: 1`,
+		    `single_list_unroll4_applicable: yes`) while `dot_product_int` is structurally outside this
+		    branch family (`fill_pushes_per_iter: 2`, `single_list_unroll4_applicable: no`,
+		    `ineligible_reason: pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`). Their
+		    isolated fill streams are still mostly no-wrap (`array_sum_int 98.8000%`,
+		    `array_sum_int_step7 98.0000%`, `dot_product_int` streams `99.2000%` and `98.0000%`), but
+		    only the two single-list programs are causal for this family.
+		  - the first exact single-list family decision surface is now in-repo too, and it does not
+		    align with the fill/share-only story yet. The new target
+		    `make perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision` keeps the
+		    existing fill/share surface but ranks exact programs as causal single-list benchmarks
+		    (`array_sum_int,array_sum_int_step7`) plus the separate non-causal `dot_product_int`
+		    control. Its first summary
+		    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision-20260423_082026_25099.log`)
+		    shows fill/share still prefers the shipped default (`default_fill_vs_c_vector ~2.0473×` vs
+		    disabled `~2.3812×`), while both causal exact programs slightly prefer `disabled` on steady
+		    native/C (`array_sum_int ~2.0855×` vs `~2.0782×`, `array_sum_int_step7 ~2.0855×` vs
+		    `~2.0782×`) and the non-causal control also slightly prefers `disabled`
+		    (`dot_product_int ~5.1433×` vs `~5.1370×`). That means the next single-list iteration should
+		    first reconcile the causal steady surface with the fill/share surface rather than immediately
+		    resume narrower control-form tuning.
 		  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
 		    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
 		    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)

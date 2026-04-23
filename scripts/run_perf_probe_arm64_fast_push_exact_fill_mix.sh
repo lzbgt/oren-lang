@@ -10,7 +10,7 @@ mkdir -p "$log_dir"
 
 summary_log="$log_dir/perf-probe-arm64-fast-push-exact-fill-mix-${ts}.log"
 
-programs="${OREN_ARM64_FAST_PUSH_EXACT_FILL_MIX_PROGRAMS:-array_sum_int,dot_product_int}"
+programs="${OREN_ARM64_FAST_PUSH_EXACT_FILL_MIX_PROGRAMS:-array_sum_int,array_sum_int_step7,dot_product_int}"
 n_override="${OREN_ARM64_FAST_PUSH_EXACT_FILL_MIX_N:-${OREN_LIST_INT_C_CEILING_N:-}}"
 reps_override="${OREN_ARM64_FAST_PUSH_EXACT_FILL_MIX_REPS:-${OREN_LIST_INT_C_CEILING_REPS:-}}"
 tick_mask="${OREN_ARM64_FAST_PUSH_EXACT_FILL_MIX_TICK_MASK:-${OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK:-4095}}"

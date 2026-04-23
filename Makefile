@@ -1297,6 +1297,16 @@ perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision: oren_stage2
 perf-probe-arm64-fast-push-exact-fill-mix:
 	@./scripts/run_perf_probe_arm64_fast_push_exact_fill_mix.sh
 
+perf-probe-arm64-fast-push-single-list-family-decision: oren_stage2
+	@./scripts/run_perf_probe_arm64_fast_push_single_list_family_decision.sh
+
+perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision: oren_stage2
+	@OREN_ARM64_FAST_PUSH_SINGLE_LIST_DECISION_TAG=perf-probe-arm64-fast-push-nonneg-linear-unroll4-single-list-decision \
+	 OREN_ARM64_FAST_PUSH_SINGLE_LIST_DECISION_TITLE='arm64 fast list<int> push nonneg-linear unroll4 single-list family decision summary' \
+	 OREN_ARM64_FAST_PUSH_SINGLE_LIST_DECISION_VARIANT_LABEL=disabled \
+	 OREN_ARM64_FAST_PUSH_SINGLE_LIST_DECISION_VARIANT_ENV=OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4=0 \
+	 ./scripts/run_perf_probe_arm64_fast_push_single_list_family_decision.sh
+
 perf-probe-arm64-fast-push-tick-mask-decision: oren_stage2
 	@./scripts/run_perf_probe_arm64_fast_push_tick_mask_decision.sh
 

@@ -1,0 +1,52 @@
+import list "std:list"
+
+fn _parse_u64(s) {
+    if s == nil { return 0 }
+    var bs = oren_bytes_from_string(s)
+    if bs == nil || oren_list_len(bs) == 0 { return 0 }
+    var i = 0
+    var out = 0
+    while i < oren_list_len(bs) {
+        var c = bs[i]
+        if c < 48 || c > 57 { return 0 }
+        out = out * 10 + (c - 48)
+        i = i + 1
+    }
+    return out
+}
+
+fn main() {
+    var args = oren_args()
+    var n = 2000000
+    var reps = 1
+    if oren_list_len(args) >= 2 {
+        var v = oren_trunc_int(_parse_u64(args[1]))
+        if v >= 0 { n = v }
+    }
+    if oren_list_len(args) >= 3 {
+        var r = oren_trunc_int(_parse_u64(args[2]))
+        if r >= 0 { reps = r }
+    }
+
+    var xs = list.int_new(n)
+    var i = 0
+    while i < n {
+        list.int_push(xs, (i * 7 + 2) % 1000)
+        i = i + 1
+    }
+
+    var sum = 0
+    var rep = 0
+    while rep < reps {
+        sum = 0
+        i = 0
+        while i < n {
+            sum = sum + xs[i]
+            i = i + 1
+        }
+        rep = rep + 1
+    }
+
+    print(sum)
+    return 0
+}
