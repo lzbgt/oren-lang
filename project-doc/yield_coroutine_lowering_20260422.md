@@ -149,8 +149,10 @@ backend-shared value-helper slices landed.
   - `oren_generator_send(gen, value)`
   - `oren_generator_is_started(gen)`
   - `oren_generator_is_done(gen)`
+  - `oren_generator_is_closed(gen)`
   - `oren_generator_current_step(gen)`
   - `oren_generator_return_value(gen)`
+  - `oren_generator_terminal_error(gen)`
   - `oren_generator_collect(gen)`
   The handle now reports `oren_type_name(gen) == "generator"` across bytecode, C, and native.
   `std:generator` is now a thin facade over those helpers instead of owning the state layout itself.
@@ -169,9 +171,12 @@ backend-shared value-helper slices landed.
     supported worker-facing exchange API
   - raw positional slot numbers are now isolated to named injected accessors/constructors inside
     `lib/compiler/parser_parse/005_generator_core.oren`
-  - metadata now reports this as `compiler_generator_object_v3` with
+  - metadata now reports this as `compiler_generator_object_v5` with
     `helper_api=oren_generator_start_v2`, `caller_api=generator_handle_v2`,
     `state_layout=dedicated_generator_object_kind_v1`, `worker_context_type=generator_context`,
+    `started_api=oren_generator_is_started_v1`, `closed_api=oren_generator_is_closed_v1`,
+    `current_step_api=oren_generator_current_step_v1`,
+    `terminal_error_api=oren_generator_terminal_error_v1`,
     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and
     `decl_forms=["named_function_decl","function_valued_var"]`
   - the C runtime cleanup above that substrate is now split too: numeric pointer accessors live in

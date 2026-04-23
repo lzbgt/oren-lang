@@ -70,6 +70,7 @@ fn oren_generator_handle_new_internal(worker, args_list, yield_ch, resume_ch, do
     ptr_set(generator_object_slot_ptr(obj, 3), yield_ch)
     ptr_set(generator_object_slot_ptr(obj, 4), resume_ch)
     ptr_set(generator_object_slot_ptr(obj, 5), done_ch)
+    ptr_set(generator_object_slot_ptr(obj, 0), native_value_false())
     ptr_set(generator_object_slot_ptr(obj, 7), native_value_false())
     ptr_set(generator_object_slot_ptr(obj, 8), native_value_false())
     oren_track_alloc(obj, generator_handle_total_bytes(), generator_handle_kind())

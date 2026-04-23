@@ -386,6 +386,8 @@ fn main() {
     assert_true(reflect.is_list(g) == false, 92)
     assert_true(gen.is_started(g) == false, 93)
     assert_true(gen.current_step(g) == nil, 94)
+    assert_true(gen.is_closed(g) == false, 941)
+    assert_true(gen.terminal_error(g) == nil, 942)
     var s0 = gen.next(g)
     if oren_is_err(s0) == true { fail(10) }
     assert_true(s0["ok"] == true, 11)
@@ -412,6 +414,8 @@ fn main() {
     assert_true(gen.is_done(g) == true, 21)
     assert_eq(gen.return_value(g), 12, 22)
     assert_true(gen.current_step(g) == nil, 101)
+    assert_true(gen.is_closed(g) == false, 102)
+    assert_true(gen.terminal_error(g) == nil, 103)
 
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
@@ -448,6 +452,8 @@ fn main() {
     assert_true(oren_is_err(oren_generator_close(123)) == true, 532)
     assert_true(gen.is_started(123) == false, 533)
     assert_true(gen.current_step(123) == nil, 534)
+    assert_true(gen.is_closed(123) == false, 5341)
+    assert_true(gen.terminal_error(123) == nil, 5342)
     assert_true(gen.is_done(123) == false, 54)
     assert_true(gen.return_value(123) == nil, 55)
 
@@ -522,6 +528,8 @@ fn main() {
     assert_true(oren_is_err(close2) == false, 6683)
     assert_eq(close2, 14, 6684)
     assert_eq(gen.return_value(g5c2), 14, 6685)
+    assert_true(gen.is_closed(g5c2) == false, 66841)
+    assert_true(gen.terminal_error(g5c2) == nil, 66842)
 
     var g5c3 = oren_generator_start(counter_worker, [18])
     assert_true(oren_generator_is_started(g5c3) == false, 66851)
@@ -532,6 +540,8 @@ fn main() {
     assert_true(oren_generator_is_done(g5c3) == true, 6688)
     assert_true(oren_generator_return_value(g5c3) == nil, 6689)
     assert_true(oren_generator_current_step(g5c3) == nil, 66891)
+    assert_true(oren_generator_is_closed(g5c3) == true, 66892)
+    assert_true(oren_generator_terminal_error(g5c3) == nil, 66893)
 
     var g5c4 = decl_delegate(45)
     var close4step = gen.next(g5c4)
@@ -542,6 +552,8 @@ fn main() {
     assert_true(close4 == nil, 6693)
     assert_true(gen.is_done(g5c4) == true, 6694)
     assert_true(gen.return_value(g5c4) == nil, 6695)
+    assert_true(gen.is_closed(g5c4) == true, 66951)
+    assert_true(gen.terminal_error(g5c4) == nil, 66952)
 
     var close_cells0 = [nil, nil]
     var g5c5 = gen.start(delegate_chain_started_outer_worker, [close_cells0, 55])
@@ -636,6 +648,8 @@ fn main() {
     assert_eq(hook_box2[1], 1, 6751)
     assert_true(gen.is_done(g5ca) == true, 6752)
     assert_true(gen.return_value(g5ca) == nil, 6753)
+    assert_true(gen.is_closed(g5ca) == true, 67531)
+    assert_true(oren_is_err(gen.terminal_error(g5ca)) == true, 67532)
 
     var hook_box3 = []
     var g5cb = decl_close_hook_chain(hook_box3, 100)
@@ -694,6 +708,8 @@ fn main() {
     assert_eq(final_box2[1], 1, 67638)
     assert_true(gen.is_done(g5ce) == true, 67639)
     assert_true(gen.return_value(g5ce) == 123, 67640)
+    assert_true(gen.is_closed(g5ce) == false, 676401)
+    assert_true(oren_is_err(gen.terminal_error(g5ce)) == true, 676402)
     assert_true(oren_is_err(gen.next(g5ce)) == true, 67641)
     assert_true(oren_is_err(gen.close(g5ce)) == true, 67642)
 
@@ -753,6 +769,8 @@ fn main() {
     assert_eq(defer_box2[1], 1, 67677)
     assert_true(gen.is_done(g5ci) == true, 67678)
     assert_true(gen.return_value(g5ci) == 321, 67679)
+    assert_true(gen.is_closed(g5ci) == false, 676791)
+    assert_true(oren_is_err(gen.terminal_error(g5ci)) == true, 676792)
     assert_true(oren_is_err(gen.next(g5ci)) == true, 67680)
     assert_true(oren_is_err(gen.close(g5ci)) == true, 67681)
 

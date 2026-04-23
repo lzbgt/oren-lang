@@ -92,8 +92,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   Source-level `@oren.coroutine` declaration syntax now also ships as a parser-level alias of
   `@oren.generator`, including named `fn`, function-valued `var`, lambda-valued `var`, `yield from`,
   and `defer` declaration forms, while metadata/runtime stay canonical on the generator substrate.
-  The shipped handle-level lifecycle surface now also includes `is_started(...)` and
-  `current_step(...)` on both `std:generator` and `std:coroutine`.
+  The shipped handle-level lifecycle surface now also includes
+  `is_started(...)`, `is_closed(...)`, `current_step(...)`, and `terminal_error(...)`
+  on both `std:generator` and `std:coroutine`.
   The remaining gap is full resumable coroutine/generator semantics plus a stronger
   default scheduler-aware native green-channel protocol for that explicit exchange path. The
   structured error model is
@@ -1448,7 +1449,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     channel protocol still exists underneath.
 	   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
 	     that same compiler-managed handle/context contract. It exposes
-	     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_started/is_done/current_step/return_value/collect`
+	     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect`
 	     plus `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)`.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
@@ -1460,7 +1461,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
 		     lowering to that same compiler-managed generator-handle surface instead of a hidden
 		     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
-		     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v3`, so tools can
+			     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v5`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 			     `generator_context_v0` worker-facing yield contract and binding-sensitive
 				     `yield_exchange_surface`. That v2 surface now explicitly records
@@ -1472,6 +1473,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					     `on_close_api=oren_generator_on_close_v1`, `close_api=oren_generator_close_v1`,
 					     `delegate_api=oren_generator_delegate_v1`,
 					     `delegate_step_api=oren_generator_delegate_step_v1`,
+					     `started_api=oren_generator_is_started_v1`,
+					     `closed_api=oren_generator_is_closed_v1`,
+					     `current_step_api=oren_generator_current_step_v1`,
+					     `terminal_error_api=oren_generator_terminal_error_v1`,
 					     `on_finalize_mode=lifo_zero_arg_on_done_or_close_v1`,
 					     `on_close_mode=alias_of_on_finalize_v1`,
 					     `finalize_source_syntaxes=["defer_v0","defer_in_context_v0","on_finalize_call_v1","on_close_call_alias_v1"]`,

@@ -141,6 +141,7 @@ OrenValue oren_generator_handle_new_internal(
     gen->slots[3] = yield_ch;
     gen->slots[4] = resume_ch;
     gen->slots[5] = done_ch;
+    gen->slots[0] = OREN_FALSE;
     gen->slots[7] = OREN_FALSE;
     gen->slots[8] = OREN_FALSE;
     oren_register_alloc(gen, OREN_ALLOC_GENERATOR);

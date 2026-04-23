@@ -388,6 +388,8 @@ fn test_step_protocol() {
     assert_true(reflect.is_list(g) == false, 92)
     assert_true(gen.is_started(g) == false, 93)
     assert_true(gen.current_step(g) == nil, 94)
+    assert_true(gen.is_closed(g) == false, 941)
+    assert_true(gen.terminal_error(g) == nil, 942)
     var s0 = gen.next(g)
     assert_true(oren_is_err(s0) == false, 10)
     assert_true(s0["ok"] == true, 11)
@@ -409,6 +411,8 @@ fn test_step_protocol() {
     assert_true(gen.is_done(g) == true, 18)
     assert_eq(gen.return_value(g), 12, 19)
     assert_true(gen.current_step(g) == nil, 101)
+    assert_true(gen.is_closed(g) == false, 102)
+    assert_true(gen.terminal_error(g) == nil, 103)
 }
 
 fn test_nil_and_collect() {
@@ -517,6 +521,8 @@ fn test_initial_send_err() {
     assert_true(oren_is_err(oren_generator_close(123)) == true, 332)
     assert_true(gen.is_started(123) == false, 333)
     assert_true(gen.current_step(123) == nil, 334)
+    assert_true(gen.is_closed(123) == false, 3341)
+    assert_true(gen.terminal_error(123) == nil, 3342)
     assert_true(gen.is_done(123) == false, 34)
     assert_true(gen.return_value(123) == nil, 35)
     assert_true(oren_is_err(gen.delegate(123, g)) == true, 351)
@@ -551,6 +557,8 @@ fn test_close_surface() {
     assert_true(close0 == nil, 363)
     assert_true(gen.is_done(g0) == true, 364)
     assert_true(gen.return_value(g0) == nil, 365)
+    assert_true(gen.is_closed(g0) == true, 3651)
+    assert_true(gen.terminal_error(g0) == nil, 3652)
     var close0step = gen.next(g0)
     assert_true(oren_is_err(close0step) == false, 366)
     assert_true(close0step["done"] == true, 367)
@@ -570,6 +578,8 @@ fn test_close_surface() {
     assert_true(gen.is_done(g1) == true, 375)
     assert_true(gen.return_value(g1) == nil, 376)
     assert_true(gen.current_step(g1) == nil, 3761)
+    assert_true(gen.is_closed(g1) == true, 3762)
+    assert_true(gen.terminal_error(g1) == nil, 3763)
     var close1done = gen.send(g1, 99)
     assert_true(oren_is_err(close1done) == false, 377)
     assert_true(close1done["done"] == true, 378)
@@ -687,6 +697,8 @@ fn test_close_surface() {
     assert_eq(hook_box2[1], 1, 446)
     assert_true(gen.is_done(g9) == true, 447)
     assert_true(gen.return_value(g9) == nil, 448)
+    assert_true(gen.is_closed(g9) == true, 4481)
+    assert_true(oren_is_err(gen.terminal_error(g9)) == true, 4482)
 
     var hook_box3 = []
     var g10 = avm_decl_close_hook_chain(hook_box3, 100)
@@ -745,6 +757,8 @@ fn test_close_surface() {
     assert_eq(final_box2[1], 1, 4588)
     assert_true(gen.is_done(g13) == true, 4589)
     assert_true(gen.return_value(g13) == 123, 4590)
+    assert_true(gen.is_closed(g13) == false, 45901)
+    assert_true(oren_is_err(gen.terminal_error(g13)) == true, 45902)
     assert_true(oren_is_err(gen.next(g13)) == true, 4591)
     assert_true(oren_is_err(gen.close(g13)) == true, 4592)
 
@@ -804,6 +818,8 @@ fn test_close_surface() {
     assert_eq(defer_box2[1], 1, 4627)
     assert_true(gen.is_done(g17) == true, 4628)
     assert_true(gen.return_value(g17) == 321, 4629)
+    assert_true(gen.is_closed(g17) == false, 46291)
+    assert_true(oren_is_err(gen.terminal_error(g17)) == true, 46292)
     assert_true(oren_is_err(gen.next(g17)) == true, 4630)
     assert_true(oren_is_err(gen.close(g17)) == true, 4631)
 

@@ -60,6 +60,17 @@ fn hook_worker(co, args) {
     return resumed + base + 5
 }
 
+fn hook_err_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -160 }
+    var box = args[0]
+    var r0 = coro.on_close(co, || { oren_list_push(box, 1); return nil })
+    if oren_is_err(r0) == true { return -161 }
+    var r1 = coro.on_close(co, || { oren_list_push(box, 2); return oren_err(79, "coroutine close hook boom") })
+    if oren_is_err(r1) == true { return -162 }
+    yield 1 in co
+    return 0
+}
+
 fn main() {
     var c0 = coro.start(counter_worker, [40])
     if oren_type_name(c0) != "generator" { return 1 }
@@ -67,6 +78,7 @@ fn main() {
     if reflect.is_coroutine_context(123) != false { return 201 }
     if coro.is_started(c0) != false { return 202 }
     if coro.current_step(c0) != nil { return 203 }
+    if coro.is_closed(c0) != false || coro.terminal_error(c0) != nil { return 2031 }
     var c0s0 = coro.next(c0)
     if oren_is_err(c0s0) == true || c0s0["value"] != 41 { return 3 }
     var c0peek0 = coro.current_step(c0)
@@ -81,6 +93,7 @@ fn main() {
     if coro.is_done(c0) != true { return 6 }
     if coro.return_value(c0) != 12 { return 7 }
     if coro.current_step(c0) != nil { return 207 }
+    if coro.is_closed(c0) != false || coro.terminal_error(c0) != nil { return 2071 }
 
     var bad0 = coro.next(123)
     if oren_is_err(bad0) != true { return 8 }
@@ -92,6 +105,7 @@ fn main() {
     if oren_is_err(bad3) != true { return 11 }
     if coro.is_started(123) != false { return 208 }
     if coro.current_step(123) != nil { return 209 }
+    if coro.is_closed(123) != false || coro.terminal_error(123) != nil { return 2091 }
     if coro.is_done(123) != false { return 12 }
     if coro.return_value(123) != nil { return 13 }
 
@@ -100,6 +114,7 @@ fn main() {
     if oren_is_err(xs) == true { return 14 }
     if oren_list_len(xs) != 3 || xs[0] != 5 || xs[1] != 6 || xs[2] != 7 { return 15 }
     if coro.is_done(c1) != true || coro.return_value(c1) != 35 { return 16 }
+    if coro.is_closed(c1) != false || coro.terminal_error(c1) != nil { return 161 }
 
     var c2 = coro.start(delegate_outer_worker, [30])
     var d0 = coro.next(c2)
@@ -126,6 +141,18 @@ fn main() {
     if oren_is_err(closed) == true || closed != nil { return 24 }
     if coro.is_done(c4) != true || coro.return_value(c4) != nil { return 25 }
     if coro.current_step(c4) != nil { return 211 }
+    if coro.is_closed(c4) != true || coro.terminal_error(c4) != nil { return 2111 }
     if oren_list_len(box) != 2 || box[0] != 82 || box[1] != 81 { return 26 }
+
+    var err_box = []
+    var c5 = coro.start(hook_err_worker, [err_box])
+    var e0 = coro.next(c5)
+    if oren_is_err(e0) == true || e0["value"] != 1 { return 27 }
+    var e1 = coro.close(c5)
+    if oren_is_err(e1) != true { return 28 }
+    if coro.is_done(c5) != true || coro.is_closed(c5) != true { return 29 }
+    if oren_is_err(coro.terminal_error(c5)) != true { return 30 }
+    if coro.return_value(c5) != nil { return 31 }
+    if oren_list_len(err_box) != 2 || err_box[0] != 2 || err_box[1] != 1 { return 32 }
     return 0
 }

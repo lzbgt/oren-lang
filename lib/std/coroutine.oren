@@ -51,17 +51,15 @@ fn is_started(co) {
     return oren_generator_is_started(co)
 }
 
-fn is_done(co) {
-    return oren_generator_is_done(co)
-}
+fn is_done(co) { return oren_generator_is_done(co) }
 
-fn current_step(co) {
-    return oren_generator_current_step(co)
-}
+fn is_closed(co) { return oren_generator_is_closed(co) }
 
-fn return_value(co) {
-    return oren_generator_return_value(co)
-}
+fn current_step(co) { return oren_generator_current_step(co) }
+
+fn return_value(co) { return oren_generator_return_value(co) }
+
+fn terminal_error(co) { return oren_generator_terminal_error(co) }
 
 fn collect(co) {
     return oren_generator_collect(co)

@@ -70,6 +70,17 @@ fn hook_worker(co, args) {
     return resumed + base + 5
 }
 
+fn hook_err_worker(co, args) {
+    assert_true(reflect.is_generator_context(co) == true, 160)
+    var box = args[0]
+    var r0 = coro.on_close(co, || { oren_list_push(box, 1); return nil })
+    assert_true(oren_is_err(r0) == false, 161)
+    var r1 = coro.on_close(co, || { oren_list_push(box, 2); return oren_err(79, "coroutine close hook boom") })
+    assert_true(oren_is_err(r1) == false, 162)
+    yield 1 in co
+    return 0
+}
+
 fn main() {
     var c0 = coro.start(counter_worker, [40])
     assert_eq(oren_type_name(c0), "generator", 1)
@@ -77,6 +88,8 @@ fn main() {
     assert_true(reflect.is_coroutine_context(123) == false, 201)
     assert_true(coro.is_started(c0) == false, 202)
     assert_true(coro.current_step(c0) == nil, 203)
+    assert_true(coro.is_closed(c0) == false, 2031)
+    assert_true(coro.terminal_error(c0) == nil, 2032)
     var c0s0 = coro.next(c0)
     assert_eq(c0s0["value"], 41, 3)
     var c0peek0 = coro.current_step(c0)
@@ -95,6 +108,8 @@ fn main() {
     assert_true(coro.is_done(c0) == true, 6)
     assert_eq(coro.return_value(c0), 12, 7)
     assert_true(coro.current_step(c0) == nil, 211)
+    assert_true(coro.is_closed(c0) == false, 2111)
+    assert_true(coro.terminal_error(c0) == nil, 2112)
 
     assert_true(oren_is_err(coro.next(123)) == true, 8)
     assert_true(oren_is_err(coro.send(123, 1)) == true, 9)
@@ -102,6 +117,8 @@ fn main() {
     assert_true(oren_is_err(coro.close(123)) == true, 11)
     assert_true(coro.is_started(123) == false, 212)
     assert_true(coro.current_step(123) == nil, 213)
+    assert_true(coro.is_closed(123) == false, 2131)
+    assert_true(coro.terminal_error(123) == nil, 2132)
 
     var c1 = coro.start(list_worker, [5])
     var xs = coro.collect(c1)
@@ -110,6 +127,8 @@ fn main() {
     assert_eq(xs[1], 6, 14)
     assert_eq(xs[2], 7, 15)
     assert_eq(coro.return_value(c1), 35, 16)
+    assert_true(coro.is_closed(c1) == false, 1611)
+    assert_true(coro.terminal_error(c1) == nil, 1612)
 
     var c2 = coro.start(delegate_outer_worker, [30])
     assert_eq(coro.next(c2)["value"], 31, 17)
@@ -127,9 +146,23 @@ fn main() {
     assert_eq(coro.current_step(c4)["value"], 80, 214)
     assert_true(coro.close(c4) == nil, 24)
     assert_true(coro.current_step(c4) == nil, 215)
+    assert_true(coro.is_closed(c4) == true, 2151)
+    assert_true(coro.terminal_error(c4) == nil, 2152)
     assert_eq(oren_list_len(box), 2, 25)
     assert_eq(box[0], 82, 26)
     assert_eq(box[1], 81, 27)
+
+    var err_box = []
+    var c5 = coro.start(hook_err_worker, [err_box])
+    assert_eq(coro.next(c5)["value"], 1, 28)
+    assert_true(oren_is_err(coro.close(c5)) == true, 29)
+    assert_true(coro.is_done(c5) == true, 30)
+    assert_true(coro.is_closed(c5) == true, 31)
+    assert_true(oren_is_err(coro.terminal_error(c5)) == true, 32)
+    assert_true(coro.return_value(c5) == nil, 33)
+    assert_eq(oren_list_len(err_box), 2, 34)
+    assert_eq(err_box[0], 2, 35)
+    assert_eq(err_box[1], 1, 36)
 
     print("avm coroutine_v0 OK")
 }

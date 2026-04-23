@@ -437,6 +437,7 @@ fn main() {
     if oren_is_err(s2) == true { return 104 }
     if s2["done"] != true || s2["return"] != 12 { return 105 }
     if gen.is_done(g1) != true || gen.return_value(g1) != 12 { return 106 }
+    if gen.is_closed(g1) != false || gen.terminal_error(g1) != nil { return 1061 }
 
     var g1b = oren_generator_start(counter_worker, [20])
     if oren_type_name(g1b) != "generator" { return 107 }
@@ -445,8 +446,10 @@ fn main() {
     if reflect.is_list(g1b) == true { return 1073 }
     if gen.is_started(g1b) != false { return 1074 }
     if gen.current_step(g1b) != nil { return 1075 }
+    if gen.is_closed(g1b) != false || gen.terminal_error(g1b) != nil { return 10751 }
     if oren_generator_is_started(g1b) != false { return 1076 }
     if oren_generator_current_step(g1b) != nil { return 1077 }
+    if oren_generator_is_closed(g1b) != false || oren_generator_terminal_error(g1b) != nil { return 10771 }
     var sb0 = oren_generator_next(g1b)
     if oren_is_err(sb0) == true { return 161 }
     if sb0["ok"] != true || sb0["value"] != 21 { return 162 }
@@ -463,6 +466,7 @@ fn main() {
     if sb2["done"] != true || sb2["return"] != 12 { return 166 }
     if oren_generator_is_done(g1b) != true || oren_generator_return_value(g1b) != 12 { return 167 }
     if oren_generator_current_step(g1b) != nil { return 1671 }
+    if oren_generator_is_closed(g1b) != false || oren_generator_terminal_error(g1b) != nil { return 1672 }
     var bad_ctx = exchange_bad_context(20)
     if oren_is_err(bad_ctx) != true { return 168 }
     var bad_next = oren_generator_next(123)
@@ -473,6 +477,7 @@ fn main() {
     if oren_is_err(bad_collect) != true { return 171 }
     if oren_generator_is_started(123) != false { return 1711 }
     if oren_generator_current_step(123) != nil { return 1712 }
+    if oren_generator_is_closed(123) != false || oren_generator_terminal_error(123) != nil { return 1713 }
     if oren_generator_is_done(123) != false { return 172 }
     if oren_generator_return_value(123) != nil { return 173 }
     if oren_is_err(gen.close(123)) != true { return 1731 }
@@ -483,6 +488,7 @@ fn main() {
     if oren_is_err(close0) == true { return 1733 }
     if close0 != nil { return 1734 }
     if gen.is_done(gc0) != true || gen.return_value(gc0) != nil { return 1735 }
+    if gen.is_closed(gc0) != true || gen.terminal_error(gc0) != nil { return 17351 }
     var close0step = gen.next(gc0)
     if oren_is_err(close0step) == true { return 1736 }
     if close0step["done"] != true || close0step["return"] != nil { return 1737 }
@@ -502,6 +508,7 @@ fn main() {
     if close1 != nil { return 1743 }
     if gen.is_done(gc1) != true || gen.return_value(gc1) != nil { return 1744 }
     if gen.current_step(gc1) != nil { return 17441 }
+    if gen.is_closed(gc1) != true || gen.terminal_error(gc1) != nil { return 17442 }
     var close1done = gen.send(gc1, 99)
     if oren_is_err(close1done) == true { return 1745 }
     if close1done["done"] != true || close1done["return"] != nil { return 1746 }
@@ -612,6 +619,7 @@ fn main() {
     if oren_list_len(hook_box2) != 2 { return 1802 }
     if hook_box2[0] != 2 || hook_box2[1] != 1 { return 1803 }
     if gen.is_done(gca) != true || gen.return_value(gca) != nil { return 1804 }
+    if gen.is_closed(gca) != true || oren_is_err(gen.terminal_error(gca)) != true { return 18041 }
 
     var hook_box3 = []
     var gcb = decl_close_hook_chain(hook_box3, 100)
@@ -658,6 +666,7 @@ fn main() {
     if oren_list_len(final_box2) != 2 { return 18118 }
     if final_box2[0] != 2 || final_box2[1] != 1 { return 18119 }
     if gen.is_done(gce) != true || gen.return_value(gce) != 123 { return 18120 }
+    if gen.is_closed(gce) != false || oren_is_err(gen.terminal_error(gce)) != true { return 181201 }
     if oren_is_err(gen.next(gce)) != true { return 18121 }
     if oren_is_err(gen.close(gce)) != true { return 18122 }
 
@@ -707,6 +716,7 @@ fn main() {
     if oren_list_len(defer_box2) != 2 { return 18147 }
     if defer_box2[0] != 2 || defer_box2[1] != 1 { return 18148 }
     if gen.is_done(gci) != true || gen.return_value(gci) != 321 { return 18149 }
+    if gen.is_closed(gci) != false || oren_is_err(gen.terminal_error(gci)) != true { return 181491 }
     if oren_is_err(gen.next(gci)) != true { return 18150 }
     if oren_is_err(gen.close(gci)) != true { return 18151 }
 

@@ -499,8 +499,10 @@ fn _generator_helper_name_used(name) {
     if name == "oren_generator_close" { return true }
     if name == "oren_generator_is_started" { return true }
     if name == "oren_generator_is_done" { return true }
+    if name == "oren_generator_is_closed" { return true }
     if name == "oren_generator_current_step" { return true }
     if name == "oren_generator_return_value" { return true }
+    if name == "oren_generator_terminal_error" { return true }
     if name == "oren_generator_collect" { return true }
     if name == "_oren_generator_context_exchange" { return true }
     return false

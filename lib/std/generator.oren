@@ -6,7 +6,7 @@
 // as an opaque generator context rather than a map of channels:
 // - `start(worker, args_list)` expects `worker(co, args_list)`
 // - `yield [expr] in co` is the shared source-level yield/resume contract inside that worker
-// - `next/send/on_finalize/on_close/close/delegate/is_started/is_done/current_step/return_value/collect`
+// - `next/send/on_finalize/on_close/close/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect`
 //   delegate to the shared runtime/compiler helpers
 
 fn start(worker, args_list) {
@@ -49,12 +49,20 @@ fn is_done(gen) {
     return oren_generator_is_done(gen)
 }
 
+fn is_closed(gen) {
+    return oren_generator_is_closed(gen)
+}
+
 fn current_step(gen) {
     return oren_generator_current_step(gen)
 }
 
 fn return_value(gen) {
     return oren_generator_return_value(gen)
+}
+
+fn terminal_error(gen) {
+    return oren_generator_terminal_error(gen)
 }
 
 fn collect(gen) {

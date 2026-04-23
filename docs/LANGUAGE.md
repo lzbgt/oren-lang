@@ -3408,7 +3408,7 @@ Rolling status:
 - New (2026-04-23): `std:coroutine` now also ships as a thin facade over that same compiler-managed
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
-  (`start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_started/is_done/current_step/return_value/collect`)
+  (`start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect`)
   plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)` as the matching
   handle/context tag checks.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
@@ -3437,7 +3437,7 @@ Rolling status:
     - inside explicit generator workers: `defer { ... } in co`
     - inside `@oren.generator` and `@oren.coroutine` declarations: `defer { ... }`
     - the `defer` surface is contextual; it is not reserved outside those generator forms
-  - metadata now reports that object contract as `compiler_generator_object_v4` with
+  - metadata now reports that object contract as `compiler_generator_object_v5` with
     `generator_handle_v2`, `dedicated_generator_object_kind_v1`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
@@ -3445,12 +3445,14 @@ Rolling status:
     `delegate_api=oren_generator_delegate_v1`,
     `close_api=oren_generator_close_v1`,
     `started_api=oren_generator_is_started_v1`,
+    `closed_api=oren_generator_is_closed_v1`,
     `current_step_api=oren_generator_current_step_v1`,
+    `terminal_error_api=oren_generator_terminal_error_v1`,
     `finalize_source_syntaxes=["defer_v0","defer_in_context_v0","on_finalize_call_v1","on_close_call_alias_v1"]`,
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`, plus
     `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`, plus
     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
-  - generator declaration metadata is now `version=20` and records
+  - generator declaration metadata is now `version=21` and records
     `finalize_surface=generator_finalize_v0`
   - per-function `meta`, `dump linked`, and OBC metadata now also expose generator finalization
     sites directly through:
@@ -3764,12 +3766,13 @@ Notes:
 - Generator declaration sugar is exposed separately too:
   - `is_generator_decl`: `true` for functions declared with `@oren.generator`
   - `generator_decl_surface`: machine-readable statement of the current generator object protocol
-    (`compiler_generator_object_v4`, `version=20`, syntax `attr_oren.generator`, helper API
+    (`compiler_generator_object_v5`, `version=21`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
     underlying yield surface `generator_context_v0`, finalization surface `generator_finalize_v0`,
     iterable surface `for_in_v0` with implicit-`nil` resume, explicit
     resume/delegation/finalization surface `next_send_finalize_defer_close_delegate_yield_from_v7`,
-    lifecycle APIs `oren_generator_is_started_v1` / `oren_generator_current_step_v1`
+    lifecycle APIs `oren_generator_is_started_v1` / `oren_generator_is_closed_v1` /
+    `oren_generator_current_step_v1` / `oren_generator_terminal_error_v1`
     (`next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
     `on_finalize_api=oren_generator_on_finalize_v1`,
     `on_close_api=oren_generator_on_close_v1`,
@@ -5329,8 +5332,12 @@ Current behavior (native runtime, rolling):
   - `gen.next(gen)` resumes with `nil`
   - `gen.send(gen, value)` resumes with `value`
   - `gen.is_started(gen)` reports whether the handle has ever been resumed
+  - `gen.is_closed(gen)` reports whether the handle reached terminal state through explicit
+    `close(gen)` rather than natural completion
   - `gen.current_step(gen)` returns the currently cached yielded step map while the handle is
     suspended at a yield, otherwise `nil`
+  - `gen.terminal_error(gen)` returns the sticky terminal `err` captured during
+    close/finalization, otherwise `nil`
   - `gen.collect(gen)` drains yielded values into a list
   - `gen.on_finalize(co, hook)` / `oren_generator_on_finalize(co, hook)` register deterministic
     finalization hooks on an explicit worker context
@@ -5369,8 +5376,8 @@ Current behavior (native runtime, rolling):
   - `coro.on_finalize(co, hook)` / `coro.on_close(co, hook)` are aliases of the same deterministic
     zero-argument finalization hook list
   - `coro.close(co)`, `coro.delegate(co, inner)`, `coro.delegate_step(co, inner, step)`,
-    `coro.is_started(co)`, `coro.is_done(co)`, `coro.current_step(co)`, `coro.return_value(co)`,
-    and `coro.collect(co)` forward to the same
+    `coro.is_started(co)`, `coro.is_done(co)`, `coro.is_closed(co)`, `coro.current_step(co)`,
+    `coro.return_value(co)`, `coro.terminal_error(co)`, and `coro.collect(co)` forward to the same
     underlying `oren_generator_*` contract
   - `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)` are currently the same
     tag checks as `is_generator(v)` / `is_generator_context(v)`
@@ -5428,8 +5435,8 @@ Current behavior (native runtime, rolling):
     `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`
 - Still missing: broader coroutine protocol above these shipped source/helper/library forms
   (for example, stronger hard-cancellation/finalization semantics beyond the current explicit
-  close+detach contract and lifecycle affordances beyond the current `is_started/current_step`
-  introspection surface).
+  close+detach contract and lifecycle affordances beyond the current
+  `is_started/is_closed/current_step/terminal_error` introspection surface).
 
 - If running inside a green task: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
 - If green runtime is already active on a host thread and background workers are not running:
