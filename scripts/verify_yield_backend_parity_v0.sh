@@ -40,17 +40,41 @@ bytecode_out="$tmpdir/ready_bytecode.obc"
 c_out="$tmpdir/ready_c"
 native_out="$tmpdir/ready_native"
 
-run_ok env OREN_TRACE_BYTECODE_YIELD_LOWERING=1 "$compiler" build "$ready_src" \
+run_ok env OREN_TRACE_BYTECODE_YIELD_LOWERING=1 OREN_TRACE_YIELD_LOWERING_V0=1 "$compiler" build "$ready_src" \
   --backend bytecode --platform "$platform" --no-cache --strict-yield-lowering-v0 -o "$bytecode_out"
 run_ok ./avm "$bytecode_out"
 
-run_ok "$compiler" build "$ready_src" \
+run_ok env OREN_TRACE_YIELD_LOWERING_V0=1 "$compiler" build "$ready_src" \
   --backend c --platform "$platform" --no-cache --no-debug --strict-yield-lowering-v0 -o "$c_out"
 run_ok "$c_out"
 
-run_ok "$compiler" build "$ready_src" \
+run_ok env OREN_TRACE_YIELD_LOWERING_V0=1 "$compiler" build "$ready_src" \
   --backend native --platform "$platform" --no-cache --no-debug --strict-yield-lowering-v0 -o "$native_out"
 run_ok "$native_out"
+
+grep -q "\\[yield_lowering_v0\\] backend=bytecode fn=ready_worker .*kind=split_dispatch .*segments=2" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=bytecode fn=ready_live_local .*kind=split_dispatch .*segments=2" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=bytecode fn=ready_multi_yield .*kind=split_dispatch .*segments=3" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=bytecode fn=ready_branch_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=bytecode fn=ready_block_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=bytecode fn=ready_loop_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=bytecode fn=ready_nested_capture .*kind=split_dispatch .*segments=2" "$log"
+
+grep -q "\\[yield_lowering_v0\\] backend=c fn=ready_worker .*kind=split_dispatch .*segments=2" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=c fn=ready_live_local .*kind=split_dispatch .*segments=2" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=c fn=ready_multi_yield .*kind=split_dispatch .*segments=3" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=c fn=ready_branch_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=c fn=ready_block_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=c fn=ready_loop_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=c fn=ready_nested_capture .*kind=split_dispatch .*segments=2" "$log"
+
+grep -q "\\[yield_lowering_v0\\] backend=native fn=ready_worker .*kind=split_dispatch .*segments=2" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=native fn=ready_live_local .*kind=split_dispatch .*segments=2" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=native fn=ready_multi_yield .*kind=split_dispatch .*segments=3" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=native fn=ready_branch_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=native fn=ready_block_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=native fn=ready_loop_yield .*kind=direct_passthrough .*segments=1" "$log"
+grep -q "\\[yield_lowering_v0\\] backend=native fn=ready_nested_capture .*kind=split_dispatch .*segments=2" "$log"
 
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_worker" "$log"
 grep -q "\\[bc_yield_lowering_v0\\] lowered fn=ready_live_local" "$log"

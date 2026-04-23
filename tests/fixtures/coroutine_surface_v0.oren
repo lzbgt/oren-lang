@@ -3,6 +3,7 @@ import reflect "../../lib/std/reflect.oren"
 
 fn counter_worker(co, args) {
     if reflect.is_generator_context(co) != true { return -100 }
+    if reflect.is_coroutine_context(co) != true { return -101 }
     var seed = args[0]
     var resumed0 = yield (seed + 1) in co
     var resumed1 = yield (seed + resumed0) in co
@@ -63,6 +64,7 @@ fn main() {
     var c0 = coro.start(counter_worker, [40])
     if oren_type_name(c0) != "generator" { return 1 }
     if reflect.is_coroutine(c0) != true { return 2 }
+    if reflect.is_coroutine_context(123) != false { return 201 }
     var c0s0 = coro.next(c0)
     if oren_is_err(c0s0) == true || c0s0["value"] != 41 { return 3 }
     var c0s1 = coro.send(c0, 2)

@@ -425,6 +425,57 @@ fn _enforce_yield_lowering_v0_if_requested(enforce, artifact_kind, prog) {
     oren_exit(2)
 }
 
+fn _yield_lowering_v0_trace_enabled() {
+    var v = oren_env("OREN_TRACE_YIELD_LOWERING_V0")
+    return v != nil && v != "" && v != "0"
+}
+
+fn _yield_lowering_v0_bool_string(v) {
+    if v == true { return "true" }
+    return "false"
+}
+
+fn _trace_yield_lowering_v0_if_requested(artifact_kind, prog) {
+    if _yield_lowering_v0_trace_enabled() != true { return nil }
+    if prog == nil || prog["statements"] == nil { return nil }
+    var stmts = prog["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var entry = analysis.top_level_function_surface_entry(stmts[i])
+        if entry != nil {
+            var info = analysis.function_yield_info(entry["func"])
+            var lowering = nil
+            if info != nil { lowering = info["yield_lowering"] }
+            if lowering != nil {
+                var prepared = lowering["prepared_v0"]
+                var gate = lowering["lowering_v0"]
+                var ready = false
+                var kind = ""
+                var state_local = ""
+                var resume_state = -1
+                var seg_count = 0
+                if gate != nil && gate["ready"] == true { ready = true }
+                if prepared != nil {
+                    if prepared["kind"] != nil { kind = prepared["kind"] }
+                    if prepared["state_local"] != nil { state_local = prepared["state_local"] }
+                    if prepared["resume_state"] != nil { resume_state = prepared["resume_state"] }
+                    if prepared["segments"] != nil { seg_count = oren_list_len(prepared["segments"]) }
+                }
+                print("[yield_lowering_v0] backend=" + artifact_kind +
+                      " fn=" + entry["name"] +
+                      " surface=" + lowering["surface"] +
+                      " ready=" + _yield_lowering_v0_bool_string(ready) +
+                      " kind=" + kind +
+                      " state_local=" + state_local +
+                      " resume_state=" + oren_int_to_string(resume_state) +
+                      " segments=" + oren_int_to_string(seg_count))
+            }
+        }
+        i = i + 1
+    }
+    return nil
+}
+
 fn _artifact_manifest_policy_json(policy) {
     if policy == nil { policy = _artifact_manifest_policy("unknown", false, [], []) }
     var backend = policy["backend"]

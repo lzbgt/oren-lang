@@ -16,6 +16,34 @@ var decl_var_counter = fn(seed) {
     return resumed1 + 5
 }
 
+@oren.coroutine
+var decl_var_lambda = |seed| {
+    var resumed = yield (seed + 2)
+    return resumed + 9
+}
+
+fn decl_delegate_inner_worker(co, args) {
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 5
+}
+
+@oren.coroutine
+fn decl_delegate(seed) {
+    var inner = coro.start(decl_delegate_inner_worker, [seed])
+    var retv = yield from inner
+    if oren_is_err(retv) == true { return -20 }
+    return retv + 21
+}
+
+@oren.coroutine
+fn decl_defer(box, base) {
+    defer { oren_list_push(box, base + 1) }
+    var resumed = yield base
+    return resumed + base + 5
+}
+
 fn main() {
     var c0 = decl_counter(40)
     if reflect.is_coroutine(c0) != true { return 1 }
@@ -34,6 +62,29 @@ fn main() {
     if oren_is_err(c1s1) == true || c1s1["value"] != 34 { return 7 }
     var c1s2 = gen.send(c1, 9)
     if oren_is_err(c1s2) == true || c1s2["return"] != 14 { return 8 }
+
+    var c1l = decl_var_lambda(10)
+    if reflect.is_coroutine(c1l) != true { return 11 }
+    var c1l0 = coro.next(c1l)
+    if oren_is_err(c1l0) == true || c1l0["value"] != 12 { return 12 }
+    var c1l1 = coro.send(c1l, 4)
+    if oren_is_err(c1l1) == true || c1l1["return"] != 13 { return 13 }
+
+    var c1d = decl_delegate(30)
+    var c1d0 = coro.next(c1d)
+    if oren_is_err(c1d0) == true || c1d0["value"] != 31 { return 14 }
+    var c1d1 = coro.send(c1d, 4)
+    if oren_is_err(c1d1) == true || c1d1["value"] != 34 { return 15 }
+    var c1d2 = coro.send(c1d, 9)
+    if oren_is_err(c1d2) == true || c1d2["return"] != 35 { return 16 }
+
+    var box = []
+    var c1f = decl_defer(box, 80)
+    var c1f0 = coro.next(c1f)
+    if oren_is_err(c1f0) == true || c1f0["value"] != 80 { return 17 }
+    var c1f1 = coro.send(c1f, 7)
+    if oren_is_err(c1f1) == true || c1f1["return"] != 92 { return 18 }
+    if oren_list_len(box) != 1 || box[0] != 81 { return 19 }
 
     var local_bias = 100
     @oren.coroutine

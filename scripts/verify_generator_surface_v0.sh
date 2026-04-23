@@ -352,9 +352,54 @@ def assert_decl(item, *, count):
     if item["contains_yield_exchange"] is not True or item["yield_exchange_count"] != count:
         raise SystemExit(f"{item['name']} bad yield_exchange count: {item!r}")
 
+def ordered_unique(values):
+    out = []
+    for value in values:
+        if value not in out:
+            out.append(value)
+    return out
+
+def assert_finalize(item, *, points, context):
+    sites = [site for site, _, _ in points]
+    syntax_kinds = ordered_unique([syntax for _, syntax, _ in points])
+    api_kinds = ordered_unique([api for _, _, api in points])
+    if item["contains_generator_finalize"] is not True or item["generator_finalize_count"] != len(points):
+        raise SystemExit(f"{item['name']} bad generator_finalize count: {item!r}")
+    if item["generator_finalize_sites"] != sites:
+        raise SystemExit(f"{item['name']} bad generator_finalize_sites: {item['generator_finalize_sites']!r}")
+    surface = item["generator_finalize_surface"]
+    if surface is None:
+        raise SystemExit(f"{item['name']} missing generator_finalize_surface")
+    if surface["version"] != 1 or surface["surface"] != "generator_finalize_v0":
+        raise SystemExit(f"{item['name']} bad generator_finalize_surface header: {surface!r}")
+    if surface["lifecycle"] != "on_done_or_close_v1" or surface["hook_arity"] != "zero_arg":
+        raise SystemExit(f"{item['name']} bad finalize lifecycle/arity: {surface!r}")
+    if surface["syntax_kinds"] != syntax_kinds:
+        raise SystemExit(f"{item['name']} bad finalize syntax_kinds: {surface!r}")
+    if surface["api_kinds"] != api_kinds:
+        raise SystemExit(f"{item['name']} bad finalize api_kinds: {surface!r}")
+    if surface["consumer_kinds"] != [context]:
+        raise SystemExit(f"{item['name']} bad finalize consumer_kinds: {surface!r}")
+    if len(surface["finalize_points"]) != len(points):
+        raise SystemExit(f"{item['name']} bad finalize_points len: {surface!r}")
+    for idx, ((site, syntax, api), point) in enumerate(zip(points, surface["finalize_points"])):
+        if point["id"] != idx:
+            raise SystemExit(f"{item['name']} bad finalize id: {point!r}")
+        if point["site"] != site or point["context"] != context or point["syntax"] != syntax or point["api"] != api:
+            raise SystemExit(f"{item['name']} bad finalize point: {point!r}")
+
 for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(get_func(payload, "decl_counter", detail_key), count=2)
     assert_decl(get_func(payload, "decl_var_counter", detail_key), count=2)
+    assert_decl(get_func(payload, "decl_var_lambda", detail_key), count=1)
+    assert_decl(get_func(payload, "decl_defer", detail_key), count=1)
+    assert_finalize(
+        get_func(payload, "decl_defer", detail_key),
+        points=[
+            ("tests/fixtures/coroutine_decl_surface_v0.oren:42:5", "defer_v0", "oren_generator_on_finalize_v1"),
+        ],
+        context="expr_stmt",
+    )
 PY
 
 blocked_log="$tmpdir/generator_decl_blocked_nonfunction_var.log"

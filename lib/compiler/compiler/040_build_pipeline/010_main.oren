@@ -684,7 +684,8 @@ fn compiler_main() {
         return nil
     }
     _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0, backend, prog)
-	    if backend == "bytecode" {
+    _trace_yield_lowering_v0_if_requested(backend, prog)
+		    if backend == "bytecode" {
 	        var allow_undef = false
 	        if stdlib_mode == "obc" { allow_undef = true }
 	        if oren_list_len(link_obc) > 0 { allow_undef = true }

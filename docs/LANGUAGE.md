@@ -3408,7 +3408,8 @@ Rolling status:
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
   (`start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`)
-  plus `std:reflect.is_coroutine(v)` as the matching handle tag check.
+  plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)` as the matching
+  handle/context tag checks.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
   on top of that same protocol:
   - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
@@ -3418,6 +3419,7 @@ Rolling status:
     shipped declaration family:
     - `@oren.coroutine fn counter(seed) { ... }`
     - `@oren.coroutine var counter = fn(seed) { ... }`
+    - `@oren.coroutine var counter = |seed| { ... }`
   - the declaration lowers to a wrapper that returns `oren_generator_start(...)`
   - the alias is intentionally parser-only:
     - runtime handle kind remains `generator`
@@ -3427,12 +3429,12 @@ Rolling status:
     `generator_context_v0` exchange contract (`yield ... in co`)
   - source-level delegation now also ships on top of the same handle/context contract:
     - inside explicit generator workers: `yield from inner in co`
-    - inside `@oren.generator` declarations: `yield from inner`
+    - inside `@oren.generator` and `@oren.coroutine` declarations: `yield from inner`
     - the `from` surface is contextual after `yield`; it is not a reserved identifier in the
       general language
   - source-level generator finalization now also ships on top of that same contract:
     - inside explicit generator workers: `defer { ... } in co`
-    - inside `@oren.generator` declarations: `defer { ... }`
+    - inside `@oren.generator` and `@oren.coroutine` declarations: `defer { ... }`
     - the `defer` surface is contextual; it is not reserved outside those generator forms
   - metadata now reports that object contract as `compiler_generator_object_v3` with
     `generator_handle_v2`, `dedicated_generator_object_kind_v1`, declaration-form metadata via
@@ -5362,9 +5364,11 @@ Current behavior (native runtime, rolling):
   - `coro.close(co)`, `coro.delegate(co, inner)`, `coro.delegate_step(co, inner, step)`,
     `coro.is_done(co)`, `coro.return_value(co)`, and `coro.collect(co)` forward to the same
     underlying `oren_generator_*` contract
-  - `std:reflect.is_coroutine(v)` is currently the same tag check as `is_generator(v)`
+  - `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)` are currently the same
+    tag checks as `is_generator(v)` / `is_generator_context(v)`
   - `@oren.coroutine` now ships as parser sugar for the same declaration lowering as
-    `@oren.generator`
+    `@oren.generator`, including lambda-valued `var` bindings plus declaration-local `yield from`
+    and `defer`
   - this still does **not** imply a separate coroutine metadata/runtime kind; the canonical
     declaration metadata remains `attr_oren.generator`
 - First language-level declaration sugar now also ships on top of that same generator handle:

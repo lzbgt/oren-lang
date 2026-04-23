@@ -4612,12 +4612,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			     `prepared_v0.kind=direct_passthrough`, and functions that also contain nested function
 			     literals stay ready when their own top-level yields are otherwise ordinary. The old
 			     non-top-level / loop / nested-literal blockers were stale policy, not execution limits.
-   - New (2026-04-22): the same ready bare-yield fixture is now parity-verified under bytecode, C,
-     and native with stage2 + strict gating. AVM consumes `prepared_v0` through explicit
-     split-dispatch or direct-passthrough execution; C/native still reach the shipped subset
-     through direct `oren_yield_stmt()` execution rather than backend state-machine lowering.
-   - New (2026-04-22): value-carrying `yield` is now parity-verified under bytecode, C, and native
-     too. The current contract is intentionally local and helper-based: `oren_yield_value(v)`
+	   - New (2026-04-22): the same ready bare-yield fixture is now parity-verified under bytecode, C,
+	     and native with stage2 + strict gating. AVM consumes `prepared_v0` through explicit
+	     split-dispatch or direct-passthrough execution; C/native still reach the shipped subset
+	     through direct `oren_yield_stmt()` execution rather than backend state-machine lowering.
+	   - New (2026-04-23): that same parity verifier now also emits a backend-neutral
+	     `[yield_lowering_v0]` summary for bytecode, C, and native, so the same prepared-plan shape is
+	     observable in every build path instead of only through the older AVM-only lowering trace.
+	   - New (2026-04-22): value-carrying `yield` is now parity-verified under bytecode, C, and native
+	     too. The current contract is intentionally local and helper-based: `oren_yield_value(v)`
      yields, then resumes with `v`.
 	   - New (2026-04-22): explicit caller-visible yielded/resumed value exchange is also
 	     parity-verified under bytecode, C, and native through
@@ -4639,16 +4642,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
 		     use `yield ... in co` as the normalized generator-context surface instead of spelling out
 		     raw channel fields.
-		   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
-		     that same shipped handle/context substrate. It adds
-		     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`
-		     plus `std:reflect.is_coroutine(v)`.
-		   - New (2026-04-23): source-level `@oren.coroutine` now also ships as a self-host-safe
-		     parser alias of `@oren.generator`. Reweight the next feature backlog accordingly:
-		     - the missing work is no longer “ship coroutine source syntax”
-		     - the remaining gap is a distinct coroutine metadata/runtime model plus the broader
-		       resumable coroutine protocol above the current generator substrate
-		     - canonical metadata/runtime still stay on the generator contract
+			   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
+			     that same shipped handle/context substrate. It adds
+			     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`
+			     plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)`.
+			   - New (2026-04-23): source-level `@oren.coroutine` now also ships as a self-host-safe
+			     parser alias of `@oren.generator`. Reweight the next feature backlog accordingly:
+			     - the missing work is no longer “ship coroutine source syntax”
+			     - the shipped alias family now covers named `fn`, function-valued `var`,
+			       lambda-valued `var`, `yield from`, and `defer` declaration forms
+			     - the remaining gap is a distinct coroutine metadata/runtime model plus the broader
+			       resumable coroutine protocol above the current generator substrate
+			     - canonical metadata/runtime still stay on the generator contract
 		   - New (2026-04-22): top-level and block-local `@oren.generator` now lower to that same
 		     compiler-managed handle surface for both named `fn ...` declarations and function-valued
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.

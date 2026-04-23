@@ -18,6 +18,7 @@ fn assert_eq(a, b, code) {
 
 fn counter_worker(co, args) {
     assert_true(reflect.is_generator_context(co) == true, 100)
+    assert_true(reflect.is_coroutine_context(co) == true, 101)
     var seed = args[0]
     var resumed0 = yield (seed + 1) in co
     var resumed1 = yield (seed + resumed0) in co
@@ -73,6 +74,7 @@ fn main() {
     var c0 = coro.start(counter_worker, [40])
     assert_eq(oren_type_name(c0), "generator", 1)
     assert_true(reflect.is_coroutine(c0) == true, 2)
+    assert_true(reflect.is_coroutine_context(123) == false, 201)
     var c0s0 = coro.next(c0)
     assert_eq(c0s0["value"], 41, 3)
     var c0s1 = coro.send(c0, 2)

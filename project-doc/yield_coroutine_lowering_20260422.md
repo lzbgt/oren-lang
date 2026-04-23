@@ -39,6 +39,9 @@ backend-shared value-helper slices landed.
 - That same ready bare-yield subset is now parity-verified under bytecode, C, and native builds.
   Only AVM currently consumes `prepared_v0` as an explicit lowering path; C/native execute the same
   shipped subset through ordinary `oren_yield_stmt()` calls on their existing runtime surfaces.
+- Fresh landing (2026-04-23): `verify_yield_backend_parity_v0` now also emits a backend-neutral
+  `[yield_lowering_v0]` trace for bytecode, C, and native, so parity is guarded against the same
+  prepared-plan summary on every backend instead of relying only on the older AVM-only lowering trace.
 - Value-carrying `yield` is now parity-verified under bytecode, C, and native too, but it uses the
   normalized helper path directly instead of `yield_lowering.prepared_v0`. Metadata remains focused
   on the rolling bare-statement coroutine plan rather than pretending to describe generator-like
@@ -95,10 +98,14 @@ backend-shared value-helper slices landed.
   - same worker-facing exchange: `yield [expr] in co`
   - runtime-facing operations: `start`, `resume`, `next`, `send`, `on_finalize`, `on_close`,
     `close`, `delegate`, `delegate_step`, `is_done`, `return_value`, `collect`
-  - `std:reflect.is_coroutine(v)` is now the matching handle-tag test for that shipped facade
+  - `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)` are now the matching
+    handle/context tag tests for that shipped facade
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
-  - named `fn` declarations and function-valued `var` bindings now accept `@oren.coroutine`
+  - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now
+    accept `@oren.coroutine`
+  - inside those declarations, `yield from ...` and `defer { ... }` now ride on the same shipped
+    generator delegate/finalize protocol as `@oren.generator`
   - the lowering path is still the same compiler-managed generator wrapper / `oren_generator_start(...)`
   - metadata stays canonical on the generator contract (`generator_decl_surface.syntax=attr_oren.generator`)
   - runtime handle kind still remains `generator`

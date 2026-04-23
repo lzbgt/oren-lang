@@ -46,3 +46,4 @@ fn is_buf(v) {
 fn is_generator(v) { return tag(v) == TAG_GENERATOR }
 fn is_coroutine(v) { return tag(v) == TAG_GENERATOR }
 fn is_generator_context(v) { return tag(v) == TAG_GENERATOR_CONTEXT }
+fn is_coroutine_context(v) { return tag(v) == TAG_GENERATOR_CONTEXT }
