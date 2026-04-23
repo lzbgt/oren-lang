@@ -22,6 +22,34 @@ fn slow_task(seed) {
     return seed + 200
 }
 
+fn blocked_task(ch) {
+    return oren_chan_recv(ch)
+}
+
+fn delayed_send_task(args) {
+    var ch = args[0]
+    var value = args[1]
+    var delay_ms = args[2]
+    if delay_ms > 0 { time.sleep_ms(delay_ms) }
+    oren_chan_send(ch, value)
+    return 0
+}
+
+fn stop_joined(result, expected) {
+    if oren_type_name(result) != "map" { return false }
+    if result["status"] != "joined" { return false }
+    if result["result"] != expected { return false }
+    return true
+}
+
+fn stop_detached(result, reason) {
+    if oren_type_name(result) != "map" { return false }
+    if result["status"] != "detached" { return false }
+    if result["result"] != -60 { return false }
+    if result["reason"] != reason { return false }
+    return true
+}
+
 fn run_task_group_task_surface_v0() {
     var policy0 = {"mode": "stop", "timeout_ms": 0, "grace_ms": 1, "reason": 401}
     var group0 = tg.new(policy0)
@@ -68,7 +96,7 @@ fn run_task_group_task_surface_v0() {
     var rtm0 = tg.members(rtg0)
     if oren_is_err(rtm0) == true || list.len(rtm0) != 0 { return 191023 }
     if oren_is_err(tg.default_policy(rtg0)) != true { return 191024 }
-    if oren_is_err(tg.stop_policy(rtg0, nil)) != true { return 191025 }
+    if oren_type_name(tg.stop_policy(rtg0, nil)) != "list" { return 191025 }
     if oren_is_err(tg.spawn_call_list(group0, quick_task, [1])) != true { return 191026 }
 
     var rth0 = tg.spawn_call_list(rtg0, quick_task, [4])
@@ -94,6 +122,51 @@ fn run_task_group_task_surface_v0() {
     if tg.detach_all(rtg2) != 1 { return 191038 }
     if tg.count(rtg2) != 0 { return 191039 }
     if oren_is_err(tg.add(rtg2, mixed_gen)) != true { return 191040 }
+
+    var rtg3 = tg.new_runtime()
+    if oren_is_err(rtg3) == true { return 191041 }
+    var rtj3 = tg.spawn_call_list(rtg3, quick_task, [9])
+    if task.is_handle(rtj3) != true { return 191042 }
+    var rtw3 = tg.stop_policy(rtg3, {"timeout_ms": 20, "grace_ms": 0, "reason": 901})
+    if oren_is_err(rtw3) == true || list.len(rtw3) != 1 { return 191043 }
+    if tg.count(rtg3) != 0 { return 191044 }
+    var rtr3 = tg.join_watchers(rtw3, 2000)
+    if oren_is_err(rtr3) == true || stop_joined(rtr3[0], 109) != true { return 191045 }
+
+    var rtg4 = tg.new_runtime()
+    if oren_is_err(rtg4) == true { return 191046 }
+    var ch4 = oren_new_channel()
+    var sender4 = spawn delayed_send_task([ch4, 910, 50])
+    var rts4 = tg.spawn_call_list(rtg4, blocked_task, [ch4])
+    if task.is_handle(rts4) != true { return 191047 }
+    var rtr4 = tg.stop_policy_wait(rtg4, {"timeout_ms": 0, "grace_ms": 0, "reason": 902})
+    if oren_is_err(rtr4) == true || list.len(rtr4) != 1 { return 191048 }
+    if stop_detached(rtr4[0], 902) != true { return 191049 }
+    if task.join(sender4) != 0 { return 191058 }
+    if tg.count(rtg4) != 0 { return 191050 }
+
+    var rtg5 = tg.new_runtime()
+    if oren_is_err(rtg5) == true { return 191051 }
+    var rts5 = tg.spawn_call_list(rtg5, quick_task, [11])
+    if task.is_handle(rts5) != true { return 191052 }
+    var dl5 = time.now_ns() + 50000000
+    var rtr5 = tg.stop_policy_wait(rtg5, {"deadline_ns": dl5, "grace_ms": 0, "reason": 903})
+    if oren_is_err(rtr5) == true || list.len(rtr5) != 1 { return 191053 }
+    if stop_joined(rtr5[0], 111) != true { return 191054 }
+
+    var rtg6 = tg.new_runtime()
+    if oren_is_err(rtg6) == true { return 191055 }
+    if oren_is_err(tg.stop_policy(rtg6, {"mode": "request_cancel"})) != true { return 191056 }
+    if oren_is_err(tg.stop_policy_wait(rtg6, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 191057 }
+
+    var rtg7 = tg.new_runtime()
+    if oren_is_err(rtg7) == true { return 191059 }
+    var rts7 = tg.spawn_call_list(rtg7, slow_task, [12])
+    if task.is_handle(rts7) != true { return 191060 }
+    var rtr7 = tg.stop_policy_wait(rtg7, {"timeout_ms": 0, "grace_ms": 0, "reason": 904, "join_timeout_ms": 200})
+    if oren_is_err(rtr7) == true || list.len(rtr7) != 1 { return 191061 }
+    if stop_joined(rtr7[0], 212) != true { return 191062 }
+    if tg.count(rtg7) != 0 { return 191063 }
 
     return 0
 }

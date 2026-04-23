@@ -3492,8 +3492,8 @@ Rolling status:
       mutable group over generator/coroutine handles, active contexts, or safe task handles
     - `task_group.add(...)`, `extend(...)`, `members(...)`, `count(...)`, `default_policy(...)`,
       and `set_default_policy(...)` expose the basic membership and default-policy surface
-    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` still apply only to
-      generator-backed members and return an immediate `err` when task handles are present
+    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` still apply the full
+      generator/coroutine stop-policy map to generator-backed members in stdlib map-backed groups
     - `task_group.join_all(group, join_timeout_ms)` joins task-handle-only groups and returns the
       per-member results; missing or negative `join_timeout_ms` defaults to `2000`
     - `task_group.join_watchers(...)` keeps the explicit watcher-list join surface
@@ -3509,12 +3509,24 @@ Rolling status:
       - `task_group.spawn_call_list(group, fn_obj, args_list)` spawns directly into the runtime
         group on AVM, C, and the default native green-task scheduler
       - `task_group.detach_all(group)` detaches every current member and clears the runtime group
-      - runtime-backed groups intentionally remain task-only in this slice:
-        `default_policy(...)`, `set_default_policy(...)`, `stop_policy(...)`,
-        `stop_policy_wait(...)`, and `terminal_results(...)` return immediate `err`
+      - `task_group.stop_policy(group, policy)` now also ships for runtime-backed groups, but its
+        contract is intentionally task-shaped rather than generator-shaped:
+        - it accepts only `mode="stop"` and returns a watcher list
+        - `timeout_ms` and `deadline_ns` stay mutually exclusive, `grace_ms` is accepted, and the
+          effective wait window is `delay_ms + grace_ms` because generic `spawn` handles still have
+          no cancellation phase to separate from the final hard detach
+        - each watcher waits for completion within that total budget and detaches on timeout,
+          returning a per-member map with `status`, `result`, `reason`, and `detach_result`
+      - `task_group.stop_policy_wait(group, policy)` is the synchronous runtime-backed form:
+        - it returns the same per-member result maps directly
+        - `join_timeout_ms`, when provided, overrides the derived total wait budget for this
+          synchronous path
+      - runtime-backed groups still intentionally reject `default_policy(...)`,
+        `set_default_policy(...)`, and `terminal_results(...)`
     - the remaining boundary is now above this split group surface: unified runtime-owned
       structured concurrency across both generic tasks and generator/coroutine handles, plus
-      group-owned stop/deadline policy for runtime-backed groups, is not shipped yet
+      true task cancellation for generic `spawn` handles and default-policy ownership in runtime
+      groups, is not shipped yet
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists

@@ -1554,8 +1554,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     layer above that policy map:
 			     - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable
 			       groups over generator/coroutine handles, active contexts, or safe task handles
-			     - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` remain generator-only
-			       and reject task handles explicitly
+				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` apply the full
+				      generator/coroutine stop-policy map to generator-backed members in stdlib map-backed
+				      groups
 			     - `task_group.join_all(...)` now joins task-handle-only groups, while
 			       `task_group.join_watchers(...)` keeps the explicit watcher-join surface
 			     - `task_group.terminal_results(...)` remains generator-handle-only
@@ -1568,12 +1569,24 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			       and stdlib map-backed groups
 			     - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
 			       the default native green-task scheduler
-			     - `task_group.detach_all(...)` is the matching runtime-group detach-and-clear surface
-			     - runtime-backed groups intentionally do not own stop/default-policy/terminal-result
-			       semantics yet; those calls return immediate `err`
-			     - the remaining boundary is now above this split layer: unified runtime-owned structured
-			       concurrency across both generic tasks and generator/coroutine handles, plus group-owned
-			       stop/deadline policy for runtime-backed groups, is not shipped yet.
+				    - `task_group.detach_all(...)` is the matching runtime-group detach-and-clear surface
+				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now also ship for
+				      runtime-backed groups, but only as wait/deadline plus detach semantics because generic
+				      `spawn` handles still have no cancellation primitive
+				      - runtime groups accept only `mode="stop"`
+				      - `timeout_ms` and `deadline_ns` remain mutually exclusive
+				      - the effective wait window is `delay_ms + grace_ms`, because there is no separate soft
+				        cancel phase for generic tasks
+				      - the synchronous path accepts `join_timeout_ms` as an explicit override of that derived
+				        total wait window
+				      - per-member results are returned as maps with `status`, `result`, `reason`, and
+				        `detach_result`
+				    - runtime-backed groups still intentionally reject `default_policy(...)`,
+				      `set_default_policy(...)`, and `terminal_results(...)`
+				    - the remaining boundary is now above this split layer: unified runtime-owned structured
+				      concurrency across both generic tasks and generator/coroutine handles, plus true task
+				      cancellation for generic `spawn` handles and runtime-owned default-policy storage, is not
+				      shipped yet.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path
