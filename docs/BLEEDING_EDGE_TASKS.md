@@ -4638,12 +4638,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     verification keeps the same structural guarantee at lower cost. The same channel protocol now
 	     also has shared-front-end source syntax (`yield expr in (yield_ch, resume_ch)` and
 	     `yield in (yield_ch, resume_ch)`), with metadata distinguishing source syntax from raw helper
-	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`. The remaining gap is a
-	     stronger language-level coroutine/generator protocol plus scheduler-aware
-	     exchange/cancellation semantics above that explicit channel surface.
+	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`.
+		   - New (2026-04-23): the first generator/coroutine-level cooperative cancellation-request
+		     surface now also ships above that helper path:
+		     - `std:generator.request_cancel(...)` / `std:coroutine.request_cancel(...)` record a sticky
+		       cancel request distinct from `close()`
+		     - `is_cancel_requested(...)` and `cancel_reason(...)` expose the first-write-wins sticky
+		       state
+		     - active delegation now propagates the request down the current child chain
+		     - the request survives natural completion or explicit `close()`
+		     - this is still cooperative state only; it does not yet hard-stop the worker
+	     The remaining gap is now a stronger language-level coroutine/generator protocol plus hard
+	     cancellation / timeout semantics above that explicit channel surface.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
-			     `start/next/send/close/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect` surface
+			     `start/next/send/close/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface
 		     is now a thin facade over compiler-injected
 		     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
 		     use `yield ... in co` as the normalized generator-context surface instead of spelling out
@@ -4663,9 +4672,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		   - New (2026-04-22): top-level and block-local `@oren.generator` now lower to that same
 		     compiler-managed handle surface for both named `fn ...` declarations and function-valued
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.
-		     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
-			     wrapper”, and the shipped handle contract is now also opaque by default
-							     (`compiler_generator_object_v5` with `dedicated_generator_object_kind_v1` plus validated
+			     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
+				     wrapper”, and the shipped handle contract is now also opaque by default
+								     (`compiler_generator_object_v6` with `dedicated_generator_object_kind_v1` plus validated
 					     `generator_context`, declaration-form metadata, `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
 						     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
 						     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped

@@ -21,6 +21,26 @@ fn list_worker(co, args) {
     return seed + 30
 }
 
+fn cancel_probe_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -115 }
+    if coro.is_cancel_requested(co) != false { return -116 }
+    if coro.cancel_reason(co) != nil { return -117 }
+    var seed = args[0]
+    var reason = args[1]
+    var resumed = yield seed in co
+    if coro.is_cancel_requested(co) != true { return -118 }
+    if coro.cancel_reason(co) != reason { return -119 }
+    return resumed + reason
+}
+
+fn cancel_delegate_outer_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -1191 }
+    var inner = coro.start(cancel_probe_worker, [args[0], args[1]])
+    var retv = coro.delegate(co, inner)
+    if oren_is_err(retv) == true { return -1192 }
+    return retv
+}
+
 fn delegate_inner_worker(co, args) {
     if reflect.is_generator_context(co) != true { return -120 }
     var seed = args[0]
@@ -103,7 +123,11 @@ fn main() {
     if oren_is_err(bad2) != true { return 10 }
     var bad3 = coro.close(123)
     if oren_is_err(bad3) != true { return 11 }
+    var bad4 = coro.request_cancel(123, 1)
+    if oren_is_err(bad4) != true { return 111 }
     if coro.is_started(123) != false { return 208 }
+    if coro.is_cancel_requested(123) != false { return 2081 }
+    if coro.cancel_reason(123) != nil { return 2082 }
     if coro.current_step(123) != nil { return 209 }
     if coro.is_closed(123) != false || coro.terminal_error(123) != nil { return 2091 }
     if coro.is_done(123) != false { return 12 }
@@ -115,6 +139,31 @@ fn main() {
     if oren_list_len(xs) != 3 || xs[0] != 5 || xs[1] != 6 || xs[2] != 7 { return 15 }
     if coro.is_done(c1) != true || coro.return_value(c1) != 35 { return 16 }
     if coro.is_closed(c1) != false || coro.terminal_error(c1) != nil { return 161 }
+
+    var c1b = coro.start(cancel_probe_worker, [50, 70])
+    if coro.is_cancel_requested(c1b) != false || coro.cancel_reason(c1b) != nil { return 1611 }
+    var c1bs0 = coro.next(c1b)
+    if oren_is_err(c1bs0) == true || c1bs0["value"] != 50 { return 1612 }
+    var c1breq0 = coro.request_cancel(c1b, 70)
+    if oren_is_err(c1breq0) == true || c1breq0 != nil { return 1613 }
+    if coro.is_cancel_requested(c1b) != true || coro.cancel_reason(c1b) != 70 { return 1614 }
+    var c1breq1 = coro.request_cancel(c1b, 99)
+    if oren_is_err(c1breq1) == true || c1breq1 != nil { return 1615 }
+    if coro.cancel_reason(c1b) != 70 { return 1616 }
+    var c1bs1 = coro.send(c1b, 3)
+    if oren_is_err(c1bs1) == true || c1bs1["done"] != true || c1bs1["return"] != 73 { return 1617 }
+    if coro.is_done(c1b) != true || coro.return_value(c1b) != 73 { return 1618 }
+    if coro.is_closed(c1b) != false || coro.terminal_error(c1b) != nil { return 1619 }
+    if coro.is_cancel_requested(c1b) != true || coro.cancel_reason(c1b) != 70 { return 1620 }
+
+    var c1c = coro.start(cancel_delegate_outer_worker, [60, 80])
+    var c1cs0 = coro.next(c1c)
+    if oren_is_err(c1cs0) == true || c1cs0["value"] != 60 { return 1621 }
+    var c1creq0 = coro.request_cancel(c1c, 80)
+    if oren_is_err(c1creq0) == true || c1creq0 != nil { return 1622 }
+    if coro.is_cancel_requested(c1c) != true || coro.cancel_reason(c1c) != 80 { return 1623 }
+    var c1cs1 = coro.send(c1c, 4)
+    if oren_is_err(c1cs1) == true || c1cs1["done"] != true || c1cs1["return"] != 84 { return 1624 }
 
     var c2 = coro.start(delegate_outer_worker, [30])
     var d0 = coro.next(c2)
@@ -142,7 +191,18 @@ fn main() {
     if coro.is_done(c4) != true || coro.return_value(c4) != nil { return 25 }
     if coro.current_step(c4) != nil { return 211 }
     if coro.is_closed(c4) != true || coro.terminal_error(c4) != nil { return 2111 }
+    if coro.is_cancel_requested(c4) != false || coro.cancel_reason(c4) != nil { return 2112 }
     if oren_list_len(box) != 2 || box[0] != 82 || box[1] != 81 { return 26 }
+
+    var c4b = coro.start(counter_worker, [15])
+    var c4bs0 = coro.next(c4b)
+    if oren_is_err(c4bs0) == true || c4bs0["value"] != 16 { return 261 }
+    var c4breq0 = coro.request_cancel(c4b, 90)
+    if oren_is_err(c4breq0) == true || c4breq0 != nil { return 262 }
+    var c4bclose = coro.close(c4b)
+    if oren_is_err(c4bclose) == true || c4bclose != nil { return 263 }
+    if coro.is_done(c4b) != true || coro.is_closed(c4b) != true { return 264 }
+    if coro.is_cancel_requested(c4b) != true || coro.cancel_reason(c4b) != 90 { return 265 }
 
     var err_box = []
     var c5 = coro.start(hook_err_worker, [err_box])

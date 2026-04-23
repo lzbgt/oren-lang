@@ -107,7 +107,7 @@ typedef struct OrenBuf {
 
 typedef struct OrenGeneratorHandle {
     uint64_t magic;
-    OrenValue slots[14];
+    OrenValue slots[16];
 } OrenGeneratorHandle;
 
 typedef struct OrenGeneratorContext {

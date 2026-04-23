@@ -30,6 +30,30 @@ fn collect_worker(co, args) {
     return seed + 30
 }
 
+fn cancel_probe_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -921 }
+    if gen.is_cancel_requested(co) != false { return -922 }
+    if oren_generator_is_cancel_requested(co) != false { return -923 }
+    if gen.cancel_reason(co) != nil { return -924 }
+    if oren_generator_cancel_reason(co) != nil { return -925 }
+    var seed = args[0]
+    var reason = args[1]
+    var resumed = yield seed in co
+    if gen.is_cancel_requested(co) != true { return -926 }
+    if oren_generator_is_cancel_requested(co) != true { return -927 }
+    if gen.cancel_reason(co) != reason { return -928 }
+    if oren_generator_cancel_reason(co) != reason { return -929 }
+    return resumed + reason
+}
+
+fn cancel_delegate_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -9291 }
+    var inner = gen.start(cancel_probe_worker, [args[0], args[1]])
+    var retv = gen.delegate(co, inner)
+    if oren_is_err(retv) == true { return -9292 }
+    return retv
+}
+
 fn delegate_inner_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -930 }
     var seed = args[0]
@@ -482,6 +506,51 @@ fn main() {
     if oren_generator_return_value(123) != nil { return 173 }
     if oren_is_err(gen.close(123)) != true { return 1731 }
     if oren_is_err(oren_generator_close(123)) != true { return 1732 }
+    if oren_is_err(gen.request_cancel(123, 1)) != true { return 17321 }
+    if oren_is_err(oren_generator_request_cancel(123, 1)) != true { return 17322 }
+    if gen.is_cancel_requested(123) != false || gen.cancel_reason(123) != nil { return 17323 }
+    if oren_generator_is_cancel_requested(123) != false || oren_generator_cancel_reason(123) != nil { return 17324 }
+
+    var gcan0 = gen.start(cancel_probe_worker, [50, 70])
+    if gen.is_cancel_requested(gcan0) != false || gen.cancel_reason(gcan0) != nil { return 17325 }
+    if oren_generator_is_cancel_requested(gcan0) != false || oren_generator_cancel_reason(gcan0) != nil { return 17326 }
+    var gcan0s0 = gen.next(gcan0)
+    if oren_is_err(gcan0s0) == true || gcan0s0["ok"] != true || gcan0s0["value"] != 50 { return 17327 }
+    var gcan0req0 = gen.request_cancel(gcan0, 70)
+    if oren_is_err(gcan0req0) == true || gcan0req0 != nil { return 17328 }
+    if gen.is_cancel_requested(gcan0) != true || gen.cancel_reason(gcan0) != 70 { return 17329 }
+    var gcan0req1 = oren_generator_request_cancel(gcan0, 99)
+    if oren_is_err(gcan0req1) == true || gcan0req1 != nil { return 17330 }
+    if oren_generator_is_cancel_requested(gcan0) != true || oren_generator_cancel_reason(gcan0) != 70 { return 17331 }
+    if gen.is_done(gcan0) != false || gen.is_closed(gcan0) != false { return 17332 }
+    var gcan0s1 = gen.send(gcan0, 3)
+    if oren_is_err(gcan0s1) == true || gcan0s1["done"] != true || gcan0s1["return"] != 73 { return 17333 }
+    if gen.is_done(gcan0) != true || gen.return_value(gcan0) != 73 { return 17334 }
+    if gen.is_closed(gcan0) != false || gen.terminal_error(gcan0) != nil { return 17335 }
+    if gen.is_cancel_requested(gcan0) != true || gen.cancel_reason(gcan0) != 70 { return 17336 }
+    var gcan0req2 = gen.request_cancel(gcan0, 111)
+    if oren_is_err(gcan0req2) == true || gcan0req2 != nil { return 17337 }
+    if gen.cancel_reason(gcan0) != 70 { return 17338 }
+
+    var gcan1 = gen.start(cancel_delegate_outer_worker, [60, 80])
+    var gcan1s0 = gen.next(gcan1)
+    if oren_is_err(gcan1s0) == true || gcan1s0["ok"] != true || gcan1s0["value"] != 60 { return 17339 }
+    var gcan1req0 = gen.request_cancel(gcan1, 80)
+    if oren_is_err(gcan1req0) == true || gcan1req0 != nil { return 17340 }
+    if gen.is_cancel_requested(gcan1) != true || gen.cancel_reason(gcan1) != 80 { return 17341 }
+    var gcan1s1 = gen.send(gcan1, 4)
+    if oren_is_err(gcan1s1) == true || gcan1s1["done"] != true || gcan1s1["return"] != 84 { return 17342 }
+    if gen.is_done(gcan1) != true || gen.return_value(gcan1) != 84 { return 17343 }
+
+    var gcan2 = gen.start(counter_worker, [15])
+    var gcan2s0 = gen.next(gcan2)
+    if oren_is_err(gcan2s0) == true || gcan2s0["ok"] != true || gcan2s0["value"] != 16 { return 17344 }
+    var gcan2req0 = gen.request_cancel(gcan2, 90)
+    if oren_is_err(gcan2req0) == true || gcan2req0 != nil { return 17345 }
+    var gcan2close = gen.close(gcan2)
+    if oren_is_err(gcan2close) == true || gcan2close != nil { return 17346 }
+    if gen.is_done(gcan2) != true || gen.is_closed(gcan2) != true { return 17347 }
+    if gen.is_cancel_requested(gcan2) != true || gen.cancel_reason(gcan2) != 90 { return 17348 }
 
     var gc0 = gen.start(counter_worker, [15])
     var close0 = gen.close(gc0)

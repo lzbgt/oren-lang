@@ -5,7 +5,7 @@
 // - generator context: kind=11
 //
 // Layouts (magic + fixed slots):
-// - handle: [magic][slot0..slot13]
+// - handle: [magic][slot0..slot15]
 // - context: [magic][slot0..slot3]
 
 fn generator_handle_kind() { return 10 }
@@ -14,7 +14,7 @@ fn generator_context_kind() { return 11 }
 fn generator_handle_magic() { return 5135597022326178892 }
 fn generator_context_magic() { return 5135597001086227528 }
 
-fn generator_handle_slot_count() { return 14 }
+fn generator_handle_slot_count() { return 16 }
 fn generator_context_slot_count() { return 4 }
 
 fn generator_object_slots_base(ptr) { return iadd(ptr, 8) }

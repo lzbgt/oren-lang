@@ -41,6 +41,26 @@ fn avm_collect_worker(co, args) {
     return seed + 30
 }
 
+fn avm_cancel_probe_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -921 }
+    assert_true(gen.is_cancel_requested(co) == false, 3091)
+    assert_true(gen.cancel_reason(co) == nil, 3092)
+    var seed = args[0]
+    var reason = args[1]
+    var resumed = yield seed in co
+    assert_true(gen.is_cancel_requested(co) == true, 3093)
+    assert_eq(gen.cancel_reason(co), reason, 3094)
+    return resumed + reason
+}
+
+fn avm_cancel_delegate_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -922 }
+    var inner = gen.start(avm_cancel_probe_worker, [args[0], args[1]])
+    var retv = gen.delegate(co, inner)
+    assert_true(oren_is_err(retv) == false, 3095)
+    return retv
+}
+
 fn avm_delegate_inner_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -930 }
     var seed = args[0]
@@ -519,7 +539,10 @@ fn test_initial_send_err() {
     assert_true(oren_is_err(gen.collect(123)) == true, 33)
     assert_true(oren_is_err(gen.close(123)) == true, 331)
     assert_true(oren_is_err(oren_generator_close(123)) == true, 332)
+    assert_true(oren_is_err(gen.request_cancel(123, 1)) == true, 3321)
     assert_true(gen.is_started(123) == false, 333)
+    assert_true(gen.is_cancel_requested(123) == false, 3331)
+    assert_true(gen.cancel_reason(123) == nil, 3332)
     assert_true(gen.current_step(123) == nil, 334)
     assert_true(gen.is_closed(123) == false, 3341)
     assert_true(gen.terminal_error(123) == nil, 3342)
@@ -548,6 +571,61 @@ fn test_initial_send_err() {
     assert_true(oren_is_err(bad_done) == false, 3611)
     assert_true(bad_done["done"] == true, 3612)
     assert_eq(bad_done["return"], 1, 3613)
+}
+
+fn test_cancel_surface() {
+    var g0 = gen.start(avm_cancel_probe_worker, [50, 70])
+    assert_true(gen.is_cancel_requested(g0) == false, 3614)
+    assert_true(gen.cancel_reason(g0) == nil, 3615)
+    var s0 = gen.next(g0)
+    assert_true(oren_is_err(s0) == false, 3616)
+    assert_eq(s0["value"], 50, 3617)
+    var req0 = gen.request_cancel(g0, 70)
+    assert_true(oren_is_err(req0) == false, 3618)
+    assert_true(req0 == nil, 3619)
+    assert_true(gen.is_cancel_requested(g0) == true, 3620)
+    assert_eq(gen.cancel_reason(g0), 70, 3621)
+    var req1 = gen.request_cancel(g0, 99)
+    assert_true(oren_is_err(req1) == false, 3622)
+    assert_eq(gen.cancel_reason(g0), 70, 3623)
+    assert_true(gen.is_done(g0) == false, 3624)
+    var s1 = gen.send(g0, 3)
+    assert_true(oren_is_err(s1) == false, 3625)
+    assert_true(s1["done"] == true, 3626)
+    assert_eq(s1["return"], 73, 3627)
+    assert_true(gen.is_done(g0) == true, 3628)
+    assert_eq(gen.return_value(g0), 73, 3629)
+    assert_true(gen.is_closed(g0) == false, 3630)
+    assert_true(gen.terminal_error(g0) == nil, 3631)
+    assert_true(gen.is_cancel_requested(g0) == true, 3632)
+    assert_eq(gen.cancel_reason(g0), 70, 3633)
+
+    var g1 = gen.start(avm_cancel_delegate_outer_worker, [60, 80])
+    var d0 = gen.next(g1)
+    assert_true(oren_is_err(d0) == false, 3634)
+    assert_eq(d0["value"], 60, 3635)
+    var dreq0 = gen.request_cancel(g1, 80)
+    assert_true(oren_is_err(dreq0) == false, 3636)
+    assert_true(gen.is_cancel_requested(g1) == true, 3637)
+    assert_eq(gen.cancel_reason(g1), 80, 3638)
+    var d1 = gen.send(g1, 4)
+    assert_true(oren_is_err(d1) == false, 3639)
+    assert_true(d1["done"] == true, 3640)
+    assert_eq(d1["return"], 84, 3641)
+
+    var g2 = gen.start(avm_counter_worker, [15])
+    var c0 = gen.next(g2)
+    assert_true(oren_is_err(c0) == false, 3642)
+    assert_eq(c0["value"], 16, 3643)
+    var creq0 = gen.request_cancel(g2, 90)
+    assert_true(oren_is_err(creq0) == false, 3644)
+    var c1 = gen.close(g2)
+    assert_true(oren_is_err(c1) == false, 3645)
+    assert_true(c1 == nil, 3646)
+    assert_true(gen.is_done(g2) == true, 3647)
+    assert_true(gen.is_closed(g2) == true, 3648)
+    assert_true(gen.is_cancel_requested(g2) == true, 3649)
+    assert_eq(gen.cancel_reason(g2), 90, 3650)
 }
 
 fn test_close_surface() {
@@ -976,6 +1054,7 @@ fn main() {
     test_step_protocol()
     test_nil_and_collect()
     test_initial_send_err()
+    test_cancel_surface()
     test_close_surface()
     test_generator_decl_syntax()
     test_local_generator_decl_syntax()

@@ -109,8 +109,8 @@ def assert_no_hidden_generator_helpers(payload, detail_key=False):
             raise SystemExit(f"unexpected hidden generator helper in {key}: {name!r}")
 
 expected_decl_surface = {
-    "version": 21,
-    "surface": "compiler_generator_object_v5",
+    "version": 22,
+    "surface": "compiler_generator_object_v6",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
@@ -120,18 +120,21 @@ expected_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_finalize_defer_close_delegate_yield_from_v7",
+    "resume_surface": "next_send_finalize_defer_close_request_cancel_delegate_yield_from_v8",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
     "on_finalize_api": "oren_generator_on_finalize_v1",
     "on_close_api": "oren_generator_on_close_v1",
     "close_api": "oren_generator_close_v1",
+    "request_cancel_api": "oren_generator_request_cancel_v1",
     "delegate_api": "oren_generator_delegate_v1",
     "delegate_step_api": "oren_generator_delegate_step_v1",
     "started_api": "oren_generator_is_started_v1",
     "closed_api": "oren_generator_is_closed_v1",
+    "cancel_requested_api": "oren_generator_is_cancel_requested_v1",
     "current_step_api": "oren_generator_current_step_v1",
     "terminal_error_api": "oren_generator_terminal_error_v1",
+    "cancel_reason_api": "oren_generator_cancel_reason_v1",
     "on_finalize_mode": "lifo_zero_arg_on_done_or_close_v1",
     "on_close_mode": "alias_of_on_finalize_v1",
     "close_mode": "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5",
@@ -221,8 +224,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:152:20",
-            "tests/fixtures/generator_surface_v0.oren:153:20",
+            "tests/fixtures/generator_surface_v0.oren:176:20",
+            "tests/fixtures/generator_surface_v0.oren:177:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -230,14 +233,14 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_nil", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:159:5"],
+        sites=["tests/fixtures/generator_surface_v0.oren:183:5"],
         context="expr_stmt",
         explicit_value=False,
     )
     assert_decl(
         get_func(payload, "decl_collect", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:167:9"],
+        sites=["tests/fixtures/generator_surface_v0.oren:191:9"],
         context="expr_stmt",
         explicit_value=True,
     )
@@ -245,8 +248,8 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
         get_func(payload, "decl_var_counter", detail_key),
         count=2,
         sites=[
-            "tests/fixtures/generator_surface_v0.oren:175:20",
-            "tests/fixtures/generator_surface_v0.oren:176:20",
+            "tests/fixtures/generator_surface_v0.oren:199:20",
+            "tests/fixtures/generator_surface_v0.oren:200:20",
         ],
         context="var_init",
         explicit_value=True,
@@ -254,7 +257,7 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_decl(
         get_func(payload, "decl_var_lambda", detail_key),
         count=1,
-        sites=["tests/fixtures/generator_surface_v0.oren:182:19"],
+        sites=["tests/fixtures/generator_surface_v0.oren:206:19"],
         context="var_init",
         explicit_value=True,
     )
@@ -268,34 +271,34 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     assert_finalize(
         get_func(payload, "finalize_hook_worker", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:282:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:284:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:286:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:306:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:308:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:310:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
         ],
         context="var_init",
     )
     assert_finalize(
         get_func(payload, "defer_finalize_worker", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:339:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:340:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:363:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:364:5", "defer_in_context_v0", "oren_generator_on_finalize_v1"),
         ],
         context="expr_stmt",
     )
     assert_finalize(
         get_func(payload, "decl_finalize_hook", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:315:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:317:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:319:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:339:29", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:341:40", "on_finalize_call_v1", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:343:26", "on_close_call_alias_v1", "oren_generator_on_close_v1"),
         ],
         context="var_init",
     )
     assert_finalize(
         get_func(payload, "decl_defer_finalize", detail_key),
         points=[
-            ("tests/fixtures/generator_surface_v0.oren:365:5", "defer_v0", "oren_generator_on_finalize_v1"),
-            ("tests/fixtures/generator_surface_v0.oren:366:5", "defer_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:389:5", "defer_v0", "oren_generator_on_finalize_v1"),
+            ("tests/fixtures/generator_surface_v0.oren:390:5", "defer_v0", "oren_generator_on_finalize_v1"),
         ],
         context="expr_stmt",
     )
@@ -311,8 +314,8 @@ dump = json.load(open(dump_path, "r", encoding="utf-8"))
 obc = json.load(open(obc_path, "r", encoding="utf-8"))["metadata"]
 
 expected_decl_surface = {
-    "version": 21,
-    "surface": "compiler_generator_object_v5",
+    "version": 22,
+    "surface": "compiler_generator_object_v6",
     "syntax": "attr_oren.generator",
     "helper_api": "oren_generator_start_v2",
     "caller_api": "generator_handle_v2",
@@ -322,18 +325,21 @@ expected_decl_surface = {
     "iter_surface": "for_in_v0",
     "iter_api": "oren_iter_next_v0",
     "iter_resume": "implicit_nil_v0",
-    "resume_surface": "next_send_finalize_defer_close_delegate_yield_from_v7",
+    "resume_surface": "next_send_finalize_defer_close_request_cancel_delegate_yield_from_v8",
     "next_api": "oren_generator_next_v2",
     "send_api": "oren_generator_send_v2",
     "on_finalize_api": "oren_generator_on_finalize_v1",
     "on_close_api": "oren_generator_on_close_v1",
     "close_api": "oren_generator_close_v1",
+    "request_cancel_api": "oren_generator_request_cancel_v1",
     "delegate_api": "oren_generator_delegate_v1",
     "delegate_step_api": "oren_generator_delegate_step_v1",
     "started_api": "oren_generator_is_started_v1",
     "closed_api": "oren_generator_is_closed_v1",
+    "cancel_requested_api": "oren_generator_is_cancel_requested_v1",
     "current_step_api": "oren_generator_current_step_v1",
     "terminal_error_api": "oren_generator_terminal_error_v1",
+    "cancel_reason_api": "oren_generator_cancel_reason_v1",
     "on_finalize_mode": "lifo_zero_arg_on_done_or_close_v1",
     "on_close_mode": "alias_of_on_finalize_v1",
     "close_mode": "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5",

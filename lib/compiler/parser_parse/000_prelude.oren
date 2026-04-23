@@ -497,9 +497,12 @@ fn _generator_helper_name_used(name) {
     if name == "oren_generator_on_finalize" { return true }
     if name == "oren_generator_on_close" { return true }
     if name == "oren_generator_close" { return true }
+    if name == "oren_generator_request_cancel" { return true }
     if name == "oren_generator_is_started" { return true }
     if name == "oren_generator_is_done" { return true }
     if name == "oren_generator_is_closed" { return true }
+    if name == "oren_generator_is_cancel_requested" { return true }
+    if name == "oren_generator_cancel_reason" { return true }
     if name == "oren_generator_current_step" { return true }
     if name == "oren_generator_return_value" { return true }
     if name == "oren_generator_terminal_error" { return true }
