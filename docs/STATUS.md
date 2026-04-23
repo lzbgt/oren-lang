@@ -1452,7 +1452,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     channel protocol still exists underneath.
 	   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
 	     that same compiler-managed handle/context contract. It exposes
-	     `start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`
+	     `start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/.../stop_policy/stop_policy_wait/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`
 	     plus `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)`.
 		   - New (2026-04-23): the same shipped generator/coroutine substrate now also exposes a
 		     two-layer cancellation contract above `close()`:
@@ -1528,9 +1528,24 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - `terminal_result(target)` now exposes the final done-handle result directly: it returns
 		       the sticky terminal error when one exists, otherwise the cached return value, and fails
 		       immediately for invalid or still-live handles
-		     The remaining gap is now higher-level scheduler deadline policy above the shipped
-		     synchronous stdlib stop/cancel surface, not manual watcher joining or missing timeout
-		     helpers.
+		   - New (2026-04-23): that same helper stack now also exposes the first map-shaped
+		     scheduler/deadline policy surface:
+		     - `std:generator.stop_policy(target, policy)` / `std:coroutine.stop_policy(...)` normalize a
+		       policy map and always return the joinable watcher handle for that policy
+		     - `std:generator.stop_policy_wait(target, policy)` / `std:coroutine.stop_policy_wait(...)`
+		       apply that same normalized policy synchronously through the existing safe `*_wait(...)`
+		       layer
+		     - supported policy keys are:
+		       - `mode = request_cancel | cancel | stop` (default `stop`; `request` aliases
+		         `request_cancel`)
+		       - `timeout_ms` or `deadline_ns` (mutually exclusive when both are non-`nil`)
+		       - `grace_ms` for `mode=stop`
+		       - `reason`
+		       - `join_timeout_ms` on the `*_wait(...)` path
+		     - positive `grace_ms` with non-stop modes fails immediately with `err`
+		     - the remaining boundary is now above this policy map: structured-concurrency /
+		       scheduler-owned deadline groups and richer caller-visible coroutine semantics, not raw
+		       timeout-helper composition.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

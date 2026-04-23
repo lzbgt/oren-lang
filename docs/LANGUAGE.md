@@ -3464,6 +3464,20 @@ Rolling status:
     - `deadline_ns <= time.now_ns()` triggers immediately
     - `deadline_ns == nil` defaults to immediate
     - invalid non-`int` deadlines return an immediate argument `err`
+  - `stop_policy(target, policy)` / `stop_policy_wait(target, policy)` now ship as the first
+    map-shaped scheduler/deadline policy layer above that flat helper family
+    - `policy["mode"]` accepts `request_cancel`, `cancel`, or `stop` (default `stop`; `request`
+      aliases `request_cancel`)
+    - `policy["timeout_ms"]` and `policy["deadline_ns"]` are mutually exclusive when both are
+      non-`nil`
+    - `policy["grace_ms"]` is only meaningful for `mode=stop`; positive grace with other modes
+      returns an immediate `err`
+    - `policy["reason"]` is forwarded unchanged
+    - `stop_policy(...)` always returns the joinable watcher handle for the normalized policy, even
+      when that policy is immediate
+    - `stop_policy_wait(...)` applies the same normalized policy synchronously; when
+      `policy["join_timeout_ms"]` is missing or negative it uses the same derived wait-budget rules
+      as the existing `*_wait(...)` helpers
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists
@@ -3472,7 +3486,7 @@ Rolling status:
 - New (2026-04-23): `std:coroutine` now also ships as a thin facade over that same compiler-managed
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
-  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/request_cancel_after_wait/cancel_after/cancel_after_wait/request_cancel_at/request_cancel_at_wait/cancel_at/cancel_at_wait/stop_after/stop_after_wait/stop_at/stop_at_wait/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/terminal_result/collect/is_cancel_requested/cancel_reason`)
+  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/request_cancel_after_wait/cancel_after/cancel_after_wait/request_cancel_at/request_cancel_at_wait/cancel_at/cancel_at_wait/stop_after/stop_after_wait/stop_at/stop_at_wait/stop_policy/stop_policy_wait/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/terminal_result/collect/is_cancel_requested/cancel_reason`)
   plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)` as the matching
   handle/context tag checks.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar

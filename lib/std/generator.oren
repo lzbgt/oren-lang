@@ -6,7 +6,7 @@
 // as an opaque generator context rather than a map of channels:
 // - `start(worker, args_list)` expects `worker(co, args_list)`
 // - `yield [expr] in co` is the shared source-level yield/resume contract inside that worker
-// - `next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/request_cancel_after_wait/cancel_after/cancel_after_wait/request_cancel_at/request_cancel_at_wait/cancel_at/cancel_at_wait/stop_after/stop_after_wait/stop_at/stop_at_wait/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/terminal_result/cancel_reason/collect`
+// - `next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/request_cancel_after_wait/cancel_after/cancel_after_wait/request_cancel_at/request_cancel_at_wait/cancel_at/cancel_at_wait/stop_after/stop_after_wait/stop_at/stop_at_wait/stop_policy/stop_policy_wait/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/terminal_result/cancel_reason/collect`
 //   delegate to the shared runtime/compiler helpers
 
 import time "std:time"
@@ -54,6 +54,75 @@ fn _generator_deadline_delay_ms(ctx, deadline_ns) {
 fn _generator_expect_handle(gen, ctx) {
     if oren_type_name(gen) == "generator" { return nil }
     return _generator_cancel_target_err(ctx, "expected generator handle")
+}
+
+fn _generator_policy_map(ctx, policy) {
+    if oren_type_tag(policy) == 0 { return {} }
+    if oren_type_name(policy) != "map" {
+        return _generator_cancel_target_err(ctx, "expected map policy")
+    }
+    return policy
+}
+
+fn _generator_policy_mode(ctx, mode) {
+    if oren_type_tag(mode) == 0 { return "stop" }
+    if oren_type_name(mode) != "string" {
+        return _generator_cancel_target_err(ctx, "expected string mode")
+    }
+    if mode == "request" || mode == "request_cancel" { return "request_cancel" }
+    if mode == "cancel" { return "cancel" }
+    if mode == "stop" { return "stop" }
+    return _generator_cancel_target_err(ctx, "expected mode request_cancel|cancel|stop")
+}
+
+fn _generator_deadline_ns_arg(ctx, deadline_ns) {
+    if oren_type_tag(deadline_ns) == 0 { return nil }
+    if oren_type_name(deadline_ns) != "int" {
+        return _generator_cancel_target_err(ctx, "expected int deadline_ns")
+    }
+    return deadline_ns
+}
+
+fn _generator_join_timeout_arg(ctx, join_timeout_ms) {
+    if oren_type_tag(join_timeout_ms) == 0 { return nil }
+    if oren_type_name(join_timeout_ms) != "int" {
+        return _generator_cancel_target_err(ctx, "expected int join_timeout_ms")
+    }
+    return join_timeout_ms
+}
+
+fn _generator_stop_policy_fields(ctx, policy0, want_join_timeout) {
+    var policy = _generator_policy_map(ctx, policy0)
+    if oren_is_err(policy) == true { return policy }
+    var mode = _generator_policy_mode(ctx, oren_map_get_str(policy, "mode"))
+    if oren_is_err(mode) == true { return mode }
+    var timeout_ms = oren_map_get_str(policy, "timeout_ms")
+    var deadline_ns = oren_map_get_str(policy, "deadline_ns")
+    if oren_type_tag(timeout_ms) != 0 && oren_type_tag(deadline_ns) != 0 {
+        return _generator_cancel_target_err(ctx, "timeout_ms and deadline_ns are mutually exclusive")
+    }
+    timeout_ms = _generator_timeout_ms(ctx, timeout_ms)
+    if oren_is_err(timeout_ms) == true { return timeout_ms }
+    deadline_ns = _generator_deadline_ns_arg(ctx, deadline_ns)
+    if oren_is_err(deadline_ns) == true { return deadline_ns }
+    var grace_ms = _generator_grace_ms(ctx, oren_map_get_str(policy, "grace_ms"))
+    if oren_is_err(grace_ms) == true { return grace_ms }
+    if mode != "stop" && grace_ms > 0 {
+        return _generator_cancel_target_err(ctx, "grace_ms requires mode=stop")
+    }
+    var join_timeout_ms = nil
+    if want_join_timeout == true {
+        join_timeout_ms = _generator_join_timeout_arg(ctx, oren_map_get_str(policy, "join_timeout_ms"))
+        if oren_is_err(join_timeout_ms) == true { return join_timeout_ms }
+    }
+    return {
+        "mode": mode,
+        "timeout_ms": timeout_ms,
+        "deadline_ns": deadline_ns,
+        "grace_ms": grace_ms,
+        "reason": oren_map_get_str(policy, "reason"),
+        "join_timeout_ms": join_timeout_ms,
+    }
 }
 
 fn _generator_wait_default_ms(delay_ms, grace_ms) {
@@ -214,6 +283,9 @@ fn stop_after(target, timeout_ms, grace_ms, reason) {
     if oren_is_err(delay_ms) == true { return delay_ms }
     var grace_delay_ms = _generator_grace_ms("generator.stop_after", grace_ms)
     if oren_is_err(grace_delay_ms) == true { return grace_delay_ms }
+    if grace_delay_ms <= 0 {
+        return cancel_after(target, delay_ms, reason)
+    }
     return spawn _generator_stop_after_worker(target, delay_ms, grace_delay_ms, reason)
 }
 
@@ -225,6 +297,9 @@ fn stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms) {
     if oren_is_err(delay) == true { return delay }
     var grace = _generator_grace_ms("generator.stop_after_wait", grace_ms)
     if oren_is_err(grace) == true { return grace }
+    if grace <= 0 {
+        return cancel_after_wait(target, delay, reason, join_timeout_ms)
+    }
     var wait = _generator_wait_budget_ms("generator.stop_after_wait", join_timeout_ms, _generator_wait_default_ms(delay, grace))
     if oren_is_err(wait) == true { return wait }
     return _generator_wait_handle(stop_after(target, delay, grace, reason), wait)
@@ -238,6 +313,9 @@ fn stop_at(target, deadline_ns, grace_ms, reason) {
     if oren_is_err(delay_ms) == true { return delay_ms }
     var grace_delay_ms = _generator_grace_ms("generator.stop_at", grace_ms)
     if oren_is_err(grace_delay_ms) == true { return grace_delay_ms }
+    if grace_delay_ms <= 0 {
+        return cancel_at(target, deadline_ns, reason)
+    }
     return spawn _generator_stop_after_worker(target, delay_ms, grace_delay_ms, reason)
 }
 
@@ -249,9 +327,55 @@ fn stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms) {
     if oren_is_err(delay) == true { return delay }
     var grace = _generator_grace_ms("generator.stop_at_wait", grace_ms)
     if oren_is_err(grace) == true { return grace }
+    if grace <= 0 {
+        return cancel_at_wait(target, deadline_ns, reason, join_timeout_ms)
+    }
     var wait = _generator_wait_budget_ms("generator.stop_at_wait", join_timeout_ms, _generator_wait_default_ms(delay, grace))
     if oren_is_err(wait) == true { return wait }
     return _generator_wait_handle(stop_at(target, deadline_ns, grace, reason), wait)
+}
+
+fn stop_policy(target, policy) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.stop_policy", "expected generator handle or context")
+    }
+    var fields = _generator_stop_policy_fields("generator.stop_policy", policy, false)
+    if oren_is_err(fields) == true { return fields }
+    var mode = fields["mode"]
+    var timeout_ms = fields["timeout_ms"]
+    var deadline_ns = fields["deadline_ns"]
+    var grace_ms = fields["grace_ms"]
+    var reason = fields["reason"]
+    if oren_type_tag(deadline_ns) != 0 {
+        if mode == "request_cancel" { return request_cancel_at(target, deadline_ns, reason) }
+        if mode == "cancel" { return cancel_at(target, deadline_ns, reason) }
+        return stop_at(target, deadline_ns, grace_ms, reason)
+    }
+    if mode == "request_cancel" { return request_cancel_after(target, timeout_ms, reason) }
+    if mode == "cancel" { return cancel_after(target, timeout_ms, reason) }
+    return stop_after(target, timeout_ms, grace_ms, reason)
+}
+
+fn stop_policy_wait(target, policy) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.stop_policy_wait", "expected generator handle or context")
+    }
+    var fields = _generator_stop_policy_fields("generator.stop_policy_wait", policy, true)
+    if oren_is_err(fields) == true { return fields }
+    var mode = fields["mode"]
+    var timeout_ms = fields["timeout_ms"]
+    var deadline_ns = fields["deadline_ns"]
+    var grace_ms = fields["grace_ms"]
+    var reason = fields["reason"]
+    var join_timeout_ms = fields["join_timeout_ms"]
+    if oren_type_tag(deadline_ns) != 0 {
+        if mode == "request_cancel" { return request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) }
+        if mode == "cancel" { return cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) }
+        return stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms)
+    }
+    if mode == "request_cancel" { return request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) }
+    if mode == "cancel" { return cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) }
+    return stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms)
 }
 
 fn delegate(co, inner) {

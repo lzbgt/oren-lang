@@ -15,6 +15,8 @@
 // - `stop_after(...)` / `stop_at(...)` apply a soft-then-hard stop policy above those watcher
 //   helpers, and `stop_after_wait(...)` / `stop_at_wait(...)` synchronously wait for that policy
 //   watcher to finish
+// - `stop_policy(...)` / `stop_policy_wait(...)` normalize a map-shaped scheduler/deadline policy
+//   above that flat helper family
 // - `cancel(...)` is the hard-stop layer above that state: it records the request and then
 //   forces the existing close/detach/finalize path
 //
@@ -106,6 +108,14 @@ fn stop_at(co, deadline_ns, grace_ms, reason) {
 
 fn stop_at_wait(co, deadline_ns, grace_ms, reason, join_timeout_ms) {
     return gen.stop_at_wait(co, deadline_ns, grace_ms, reason, join_timeout_ms)
+}
+
+fn stop_policy(co, policy) {
+    return gen.stop_policy(co, policy)
+}
+
+fn stop_policy_wait(co, policy) {
+    return gen.stop_policy_wait(co, policy)
 }
 
 fn delegate(co, inner) {

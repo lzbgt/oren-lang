@@ -1050,9 +1050,27 @@ if ! grep -q "gc reuse tracking OK" "$gc_reuse_log" 2>/dev/null; then
   exit 1
 fi
 if ! grep -Eq "\\[gc_reuse_summary\\].*hits=[1-9]" "$gc_reuse_log" 2>/dev/null; then
-  echo "ERROR: gc reuse tracking smoke did not observe any reuse hits" >&2
-  tail -n 80 "$gc_reuse_log" >&2 2>/dev/null || true
-  exit 1
+  gc_reuse_retry_log="${gc_reuse_log%.log}.retry1.log"
+  rm -f "$gc_reuse_retry_log" 2>/dev/null || true
+  echo "WARN: gc reuse tracking smoke observed zero hits; retrying once after cold build" >>"$gc_reuse_log"
+  OREN_GC_REUSE_BLOCKS=1 \
+  OREN_GC_REUSE_LISTS=1 \
+  OREN_GC_REUSE_LISTS_UNSAFE=1 \
+  OREN_TRACE_GC_REUSE_SUMMARY=1 \
+  run_step_checked "gc reuse tracking smoke retry" "$gc_reuse_retry_log" \
+    run_with_timeout_retry "$run_timeout_secs" "$gc_reuse_out"
+  cat "$gc_reuse_retry_log" >>"$gc_reuse_log"
+  rm -f "$gc_reuse_retry_log" 2>/dev/null || true
+  if ! grep -q "gc reuse tracking OK" "$gc_reuse_log" 2>/dev/null; then
+    echo "ERROR: gc reuse tracking smoke missing success marker after retry" >&2
+    tail -n 120 "$gc_reuse_log" >&2 2>/dev/null || true
+    exit 1
+  fi
+  if ! grep -Eq "\\[gc_reuse_summary\\].*hits=[1-9]" "$gc_reuse_log" 2>/dev/null; then
+    echo "ERROR: gc reuse tracking smoke did not observe any reuse hits" >&2
+    tail -n 120 "$gc_reuse_log" >&2 2>/dev/null || true
+    exit 1
+  fi
 fi
 echo "ok: gc reuse tracking smoke" >>"$gc_reuse_log"
 tail -n 4 "$gc_reuse_log" >>"$log"

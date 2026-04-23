@@ -4698,8 +4698,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       watcher/stop helpers no longer depend on an implicit handle-only hard-cancel seam
 		     - `terminal_result(handle)` now exposes the final done-handle result directly instead of
 		       requiring callers to branch manually across `terminal_error(...)` and `return_value(...)`
-		     The remaining gap is now a stronger language-level coroutine/generator protocol and
-		     higher-level scheduler/deadline policy above this synchronous stop/cancel surface, not
+		   - New (2026-04-23): the shipped stop/cancel stack now also has a map-shaped
+		     scheduler/deadline policy API above the flat helper family:
+		     - `stop_policy(target, policy)` always returns the joinable watcher handle for the
+		       normalized policy
+		     - `stop_policy_wait(target, policy)` applies that same normalized policy synchronously
+		     - `policy["mode"]` accepts `request_cancel`, `cancel`, or `stop` (default `stop`; `request`
+		       aliases `request_cancel`)
+		     - `policy["timeout_ms"]` and `policy["deadline_ns"]` are mutually exclusive when both are
+		       non-`nil`
+		     - `policy["grace_ms"]` is valid only for `mode=stop`; positive grace on other modes fails
+		       immediately with `err`
+		     - `policy["join_timeout_ms"]` is consumed by `stop_policy_wait(...)` and follows the same
+		       derived wait-budget rules as the existing `*_wait(...)` helpers
+		     The remaining gap is now above this policy layer: stronger structured-concurrency /
+		     scheduler-owned deadline groups and richer caller-visible coroutine/generator semantics, not
 		     baseline hard-stop, timeout-helper, or manual watcher-join availability.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its

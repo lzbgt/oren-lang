@@ -171,8 +171,21 @@ backend-shared value-helper slices landed.
     generator context, matching the target-oriented watcher/stop surface
   - `terminal_result(handle)` now exposes the final done-handle result directly as terminal error
     or return value, and rejects invalid / still-live handles with `err`
-  - the remaining gap moves up again: richer scheduler deadline policy should build on this
-    synchronous stdlib stop/cancel surface rather than on raw watcher tasks
+- Fresh landing (2026-04-23): that same synchronous stop/cancel stack now also exposes a
+  map-shaped scheduler/deadline policy API:
+  - `stop_policy(target, policy)` always returns the joinable watcher handle for the normalized
+    policy
+  - `stop_policy_wait(target, policy)` applies that same normalized policy synchronously
+  - `policy["mode"]` accepts `request_cancel`, `cancel`, or `stop` (default `stop`; `request`
+    aliases `request_cancel`)
+  - `policy["timeout_ms"]` and `policy["deadline_ns"]` are mutually exclusive when both are
+    non-`nil`
+  - `policy["grace_ms"]` is valid only for `mode=stop`; positive grace with the other modes fails
+    immediately with `err`
+  - `policy["join_timeout_ms"]` is consumed by `stop_policy_wait(...)` and follows the same
+    derived wait-budget rules as the existing `*_wait(...)` helpers
+  - the remaining gap moves up again: scheduler-owned deadline groups / structured-concurrency
+    policy should build on this first-class map layer rather than on raw watcher tasks
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

@@ -762,6 +762,48 @@ fn main() {
     if oren_is_err(gwstop1rv) == true || gwstop1rv != 14 { return 17339687 }
     if gen.is_cancel_requested(gwstop1) != false || gen.cancel_reason(gwstop1) != nil { return 17339688 }
 
+    var gpol0 = gen.start(cancel_probe_worker, [60, 127])
+    var gpol0s0 = gen.next(gpol0)
+    if oren_is_err(gpol0s0) == true || gpol0s0["ok"] != true || gpol0s0["value"] != 60 { return 17339689 }
+    var gpol0h = gen.stop_policy(gpol0, {"mode": "request_cancel", "timeout_ms": 0, "reason": 127})
+    if oren_is_err(gpol0h) == true { return 17339690 }
+    var gpol0rv = oren_join_timeout(gpol0h, 2000)
+    if oren_is_err(gpol0rv) == true || gpol0rv != nil { return 17339691 }
+    if gen.is_cancel_requested(gpol0) != true || gen.cancel_reason(gpol0) != 127 { return 17339692 }
+    var gpol0s1 = gen.send(gpol0, 4)
+    if oren_is_err(gpol0s1) == true || gpol0s1["done"] != true || gpol0s1["return"] != 131 { return 17339693 }
+
+    var gpol1 = gen.start(counter_worker, [21])
+    var gpol1s0 = gen.next(gpol1)
+    if oren_is_err(gpol1s0) == true || gpol1s0["ok"] != true || gpol1s0["value"] != 22 { return 17339694 }
+    var gpol1rv = gen.stop_policy_wait(gpol1, {"mode": "cancel", "deadline_ns": 0, "reason": 128, "join_timeout_ms": 2000})
+    if oren_is_err(gpol1rv) == true || gpol1rv != nil { return 17339695 }
+    if gen.is_done(gpol1) != true || gen.is_closed(gpol1) != true { return 17339696 }
+    if gen.is_cancel_requested(gpol1) != true || gen.cancel_reason(gpol1) != 128 { return 17339697 }
+
+    var gpol2 = gen.start(counter_worker, [22])
+    if oren_is_err(gen.next(gpol2)) == true { return 17339698 }
+    if oren_is_err(gen.send(gpol2, 4)) == true { return 17339699 }
+    var gpol2done = gen.send(gpol2, 9)
+    if oren_is_err(gpol2done) == true || gpol2done["done"] != true || gpol2done["return"] != 14 { return 17339700 }
+    var gpol2rv = gen.stop_policy_wait(gpol2, {"mode": "cancel", "deadline_ns": 0, "reason": 129, "join_timeout_ms": 2000})
+    if oren_is_err(gpol2rv) == true || gpol2rv != 14 { return 17339701 }
+    if gen.is_cancel_requested(gpol2) != false || gen.cancel_reason(gpol2) != nil { return 17339702 }
+
+    var gpol3 = gen.start(counter_worker, [35])
+    var gpol3s0 = gen.next(gpol3)
+    if oren_is_err(gpol3s0) == true || gpol3s0["ok"] != true || gpol3s0["value"] != 36 { return 17339703 }
+    var gpol3rv = gen.stop_policy_wait(gpol3, {"reason": 130})
+    if oren_is_err(gpol3rv) == true || gpol3rv != nil { return 17339704 }
+    if gen.is_done(gpol3) != true || gen.is_closed(gpol3) != true { return 17339705 }
+    if gen.is_cancel_requested(gpol3) != true || gen.cancel_reason(gpol3) != 130 { return 17339706 }
+
+    if oren_is_err(gen.stop_policy(123, {"mode": "stop"})) != true { return 17339707 }
+    if oren_is_err(gen.stop_policy(gpol3, {"mode": "bogus"})) != true { return 17339708 }
+    if oren_is_err(gen.stop_policy(gpol3, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 17339709 }
+    if oren_is_err(gen.stop_policy(gpol3, {"mode": "cancel", "grace_ms": 1})) != true { return 17339710 }
+    if oren_is_err(gen.stop_policy_wait(gpol3, {"mode": "cancel", "join_timeout_ms": "bad"})) != true { return 17339711 }
+
     var gcan1 = gen.start(cancel_delegate_outer_worker, [60, 80])
     var gcan1s0 = gen.next(gcan1)
     if oren_is_err(gcan1s0) == true || gcan1s0["ok"] != true || gcan1s0["value"] != 60 { return 17339 }
