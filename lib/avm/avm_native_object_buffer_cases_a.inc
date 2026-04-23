@@ -672,6 +672,34 @@
             res = avm_bool(done);
             break;
         }
+        case 178: { // oren_task_current_handle() -> handle|nil
+            res = avm_task_current_handle(vm);
+            break;
+        }
+        case 179: { // oren_task_request_cancel(handle, reason) -> nil|err
+            if (!vm || nargs <= 1) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_request_cancel expects (handle, reason)");
+                break;
+            }
+            res = avm_task_request_cancel(vm, args[0], args[1]);
+            break;
+        }
+        case 180: { // oren_task_is_cancel_requested(handle) -> bool
+            if (!vm || nargs <= 0) {
+                res = avm_bool(0);
+                break;
+            }
+            res = avm_task_is_cancel_requested(vm, args[0]);
+            break;
+        }
+        case 181: { // oren_task_cancel_reason(handle) -> any|nil
+            if (!vm || nargs <= 0) {
+                res = avm_nil();
+                break;
+            }
+            res = avm_task_cancel_reason(vm, args[0]);
+            break;
+        }
         case 169: { // oren_task_group_new() -> group_handle
             if (!vm) { res = avm_err(AVM_ERR_INTERNAL, "oren_task_group_new: missing vm"); break; }
             res = avm_task_group_new(vm);

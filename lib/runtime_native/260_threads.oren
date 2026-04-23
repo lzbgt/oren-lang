@@ -1507,6 +1507,37 @@ fn oren_task_is_done(handle) {
 }
 
 @oren.keep
+fn oren_task_current_handle() {
+    var g = oren_green_current_g_or0()
+    if g == 0 { return nil }
+    return g
+}
+
+@oren.keep
+fn oren_task_request_cancel(handle, reason) {
+    if oren_task_is_handle(handle) != true {
+        return oren_err(4, "oren_task_request_cancel: expected task handle")
+    }
+    if ptr_get(handle + green_g_off_cancel_requested()) == 0 {
+        ptr_set(handle + green_g_off_cancel_requested(), 1)
+        ptr_set(handle + green_g_off_cancel_reason(), reason)
+    }
+    return nil
+}
+
+@oren.keep
+fn oren_task_is_cancel_requested(handle) {
+    if oren_task_is_handle(handle) != true { return false }
+    return ptr_get(handle + green_g_off_cancel_requested()) != 0
+}
+
+@oren.keep
+fn oren_task_cancel_reason(handle) {
+    if oren_task_is_handle(handle) != true { return nil }
+    return ptr_get(handle + green_g_off_cancel_reason())
+}
+
+@oren.keep
 fn oren_task_group_new() {
     _task_group_runtime_ensure_state()
     var id = g_task_group_runtime_next_id

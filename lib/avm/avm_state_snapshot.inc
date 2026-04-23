@@ -73,8 +73,8 @@ static uint8_t* snap_read_bytes(FILE* f, uint32_t* out_len, int* ok) {
 int avm_snapshot(AvmVM* vm, const char* path) {
     if (!vm || !vm->prog || !path) return 1;
 
-    // Cooperative tasks/channels (rolling): AVMSNAP8 adds scheduler snapshot support for runtime
-    // task-group registries in addition to tasks/channels.
+    // Cooperative tasks/channels (rolling): AVMSNAP9 adds per-task cooperative-cancel state on top
+    // of the AVMSNAP8 scheduler snapshot support for runtime task-group registries.
 
     ObjTable objs = {0};
 
@@ -130,6 +130,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
                 collect_value_objects(&objs, t->wait_list);
                 collect_value_objects(&objs, t->wake_value);
                 collect_value_objects(&objs, t->ret);
+                collect_value_objects(&objs, t->cancel_reason);
             }
 
             // Channels: only queued message values are part of the VM semantic heap graph.
@@ -154,7 +155,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     }
 
     // Magic (8 bytes)
-    const uint8_t magic[8] = {'A','V','M','S','N','A','P','8'};
+    const uint8_t magic[8] = {'A','V','M','S','N','A','P','9'};
     if (fwrite(magic, 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
 
     if (!write_u32_le(f, (uint32_t)objs.count)) { fclose(f); objtable_free(&objs); return 1; }
@@ -387,7 +388,8 @@ int avm_snapshot(AvmVM* vm, const char* path) {
         if (fwrite("AVMNET0B", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
     }
 
-    // Scheduler snapshot (rolling; AVMSNAP8+): tasks + channels + runtime task groups.
+    // Scheduler snapshot (rolling; AVMSNAP9+): tasks + channels + runtime task groups, plus
+    // per-task cooperative-cancel state.
     //
     // Layout: tagged chunk appended at end so older readers can ignore (they won't accept AVMSNAP8 anyway).
     if (vm->sched) {
@@ -428,6 +430,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
 
                 if (!write_u8(f, (uint8_t)(t->done ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
                 if (!write_u8(f, (uint8_t)(t->blocked ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
+                if (!write_u8(f, (uint8_t)(t->cancel_requested ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
                 if (!write_u32_le(f, (uint32_t)t->wait_kind)) { fclose(f); objtable_free(&objs); return 1; }
                 if (!write_u32_le(f, (uint32_t)t->wait_id)) { fclose(f); objtable_free(&objs); return 1; }
                 if (!write_u32_le(f, (uint32_t)t->wait_chan)) { fclose(f); objtable_free(&objs); return 1; }
@@ -435,6 +438,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
                 if (!write_u64_le(f, t->join_deadline_ns)) { fclose(f); objtable_free(&objs); return 1; }
                 if (!write_u8(f, (uint8_t)(t->wake_pending ? 1 : 0))) { fclose(f); objtable_free(&objs); return 1; }
                 if (!encode_value(f, &objs, t->wake_value)) { fclose(f); objtable_free(&objs); return 1; }
+                if (!encode_value(f, &objs, t->cancel_reason)) { fclose(f); objtable_free(&objs); return 1; }
                 if (!write_u32_le(f, (uint32_t)t->slice_remaining)) { fclose(f); objtable_free(&objs); return 1; }
                 if (!write_u32_le(f, (uint32_t)t->select_cursor)) { fclose(f); objtable_free(&objs); return 1; }
 
@@ -530,6 +534,7 @@ int avm_restore(AvmVM* vm, const char* path) {
     const uint8_t want6[8] = {'A','V','M','S','N','A','P','6'};
     const uint8_t want7[8] = {'A','V','M','S','N','A','P','7'};
     const uint8_t want8[8] = {'A','V','M','S','N','A','P','8'};
+    const uint8_t want9[8] = {'A','V','M','S','N','A','P','9'};
     int snap_ver = 0;
     if (memcmp(magic, want2, 8) == 0) snap_ver = 2;
     if (memcmp(magic, want3, 8) == 0) snap_ver = 3;
@@ -538,6 +543,7 @@ int avm_restore(AvmVM* vm, const char* path) {
     if (memcmp(magic, want6, 8) == 0) snap_ver = 6;
     if (memcmp(magic, want7, 8) == 0) snap_ver = 7;
     if (memcmp(magic, want8, 8) == 0) snap_ver = 8;
+    if (memcmp(magic, want9, 8) == 0) snap_ver = 9;
     if (snap_ver == 0) { fclose(f); return 1; }
 
     int ok = 1;
@@ -1040,7 +1046,8 @@ int avm_restore(AvmVM* vm, const char* path) {
             fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
         }
 
-        // Scheduler chunk (rolling; AVMSNAP7+; runtime task groups added in AVMSNAP8)
+        // Scheduler chunk (rolling; AVMSNAP7+; runtime task groups added in AVMSNAP8,
+        // per-task cooperative cancel state added in AVMSNAP9)
         if (snap_ver >= 7) {
             if (fread(tag, 1, 8, f) != 8) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
             if (memcmp(tag, "AVMSCH00", 8) == 0) {
@@ -1176,6 +1183,13 @@ int avm_restore(AvmVM* vm, const char* path) {
                     if (fread(&blocked, 1, 1, f) != 1) { oks = 0; break; }
                     t->done = done ? 1 : 0;
                     t->blocked = blocked ? 1 : 0;
+                    if (snap_ver >= 9) {
+                        uint8_t cancel_requested = 0;
+                        if (fread(&cancel_requested, 1, 1, f) != 1) { oks = 0; break; }
+                        t->cancel_requested = cancel_requested ? 1 : 0;
+                    } else {
+                        t->cancel_requested = 0;
+                    }
                     t->wait_kind = (int)read_u32_le(f, &oks);
                     t->wait_id = (int)read_u32_le(f, &oks);
                     t->wait_chan = (int)read_u32_le(f, &oks);
@@ -1187,6 +1201,11 @@ int avm_restore(AvmVM* vm, const char* path) {
                     if (fread(&wakep, 1, 1, f) != 1) { oks = 0; break; }
                     t->wake_pending = wakep ? 1 : 0;
                     if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->wake_value)) { oks = 0; break; }
+                    if (snap_ver >= 9) {
+                        if (!decode_value(f, obj_types, obj_ptrs, obj_count, &t->cancel_reason)) { oks = 0; break; }
+                    } else {
+                        t->cancel_reason = avm_nil();
+                    }
                     t->slice_remaining = (int)read_u32_le(f, &oks);
                     t->select_cursor = (int)read_u32_le(f, &oks);
                     if (!oks) break;

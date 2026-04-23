@@ -24,6 +24,25 @@ fn delayed_send_task(args) {
     return 0
 }
 
+fn cancel_observer_task(args) {
+    var seed = args[0]
+    var loops = args[1]
+    var self = task.current()
+    if task.is_handle(self) != true { return seed - 9000 }
+    if task.is_cancel_requested(self) == true {
+        return seed + task.cancel_reason(self)
+    }
+    var i = 0
+    while i < loops {
+        if task.is_cancel_requested(self) == true {
+            return seed + task.cancel_reason(self)
+        }
+        time.sleep_ms(5)
+        i = i + 1
+    }
+    return seed
+}
+
 fn stop_joined(result, expected) {
     if oren_type_name(result) != "map" { return false }
     if result["status"] != "joined" { return false }
@@ -50,6 +69,9 @@ fn run_task_surface_v0() {
     if task.is_handle(nil) != false { return 190000 }
     if task.is_handle(123) != false { return 190001 }
     if task.is_done(123) != false { return 190002 }
+    if task.current() != nil { return 1900025 }
+    if task.is_cancel_requested(123) != false { return 1900026 }
+    if task.cancel_reason(123) != nil { return 1900027 }
     if reflect.is_task(123) != false { return 190003 }
     if oren_is_err(task.join(123)) != true { return 190004 }
     if oren_is_err(task.join_timeout(123, 0)) != true { return 190005 }
@@ -59,6 +81,11 @@ fn run_task_surface_v0() {
     if oren_is_err(task.join_all([123], 0)) != true { return 190009 }
     if oren_is_err(task.stop_policy(123, nil)) != true { return 190010 }
     if oren_is_err(task.stop_policy_wait(123, nil)) != true { return 190011 }
+    if oren_is_err(task.request_cancel(123, 1)) != true { return 1900111 }
+    if oren_is_err(task.request_cancel_after(123, 0, 1)) != true { return 1900112 }
+    if oren_is_err(task.request_cancel_after_wait(123, 0, 1, nil)) != true { return 1900113 }
+    if oren_is_err(task.request_cancel_at(123, 0, 1)) != true { return 1900114 }
+    if oren_is_err(task.request_cancel_at_wait(123, 0, 1, nil)) != true { return 1900115 }
 
     var h0 = spawn quick_task(40)
     if task.is_handle(h0) != true { return 190012 }
@@ -70,7 +97,11 @@ fn run_task_surface_v0() {
     if task.is_done(h1) != false { return 190016 }
     var h1r = task.join_timeout(h1, 0)
     if h1r != -60 { return 190017 }
-    if oren_is_err(task.stop_policy(h1, {"mode": "request_cancel"})) != true { return 190018 }
+    var h1w = task.stop_policy(h1, {"mode": "request_cancel", "timeout_ms": 0, "reason": 6})
+    if task.is_handle(h1w) != true { return 190018 }
+    if task.join(h1w) != nil { return 1900181 }
+    if task.is_cancel_requested(h1) != true || task.cancel_reason(h1) != 6 { return 1900182 }
+    if task.join(h1) != 52 { return 1900183 }
     if oren_is_err(task.stop_policy_wait(h1, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 190019 }
     if oren_is_err(task.stop_policy_wait(h1, {"join_timeout_ms": "bad"})) != true { return 190020 }
 
@@ -124,6 +155,62 @@ fn run_task_surface_v0() {
     var w10r = task.join(w10)
     if stop_joined_or_detached(w10r, 950, 906) != true { return 190035 }
     if task.join(sender10) != 0 { return 190036 }
+
+    var h11 = spawn cancel_observer_task([1000, 80])
+    time.sleep_ms(5)
+    if task.request_cancel(h11, 7) != nil { return 190037 }
+    if task.is_cancel_requested(h11) != true { return 190038 }
+    if task.cancel_reason(h11) != 7 { return 190039 }
+    if task.request_cancel(h11, 9) != nil { return 190040 }
+    if task.cancel_reason(h11) != 7 { return 190041 }
+    if task.join(h11) != 1007 { return 190042 }
+
+    var h12 = spawn cancel_observer_task([1100, 80])
+    var w12 = task.request_cancel_after(h12, 0, 8)
+    if task.is_handle(w12) != true { return 190043 }
+    if task.join(w12) != nil { return 190044 }
+    if task.is_cancel_requested(h12) != true || task.cancel_reason(h12) != 8 { return 190045 }
+    if task.join(h12) != 1108 { return 190046 }
+
+    var h13 = spawn cancel_observer_task([1200, 80])
+    var w13 = task.request_cancel_after_wait(h13, nil, 9, nil)
+    if w13 != nil { return 190047 }
+    if task.is_cancel_requested(h13) != true || task.cancel_reason(h13) != 9 { return 190048 }
+    if task.join(h13) != 1209 { return 190049 }
+
+    var h14 = spawn cancel_observer_task([1300, 80])
+    var dl14 = time.now_ns() + 1000000
+    var w14 = task.request_cancel_at(h14, dl14, 10)
+    if task.is_handle(w14) != true { return 190050 }
+    if task.join(w14) != nil { return 190051 }
+    if task.is_cancel_requested(h14) != true || task.cancel_reason(h14) != 10 { return 190052 }
+    if task.join(h14) != 1310 { return 190053 }
+
+    var h15 = spawn cancel_observer_task([1400, 80])
+    var dl15 = time.now_ns() + 1000000
+    if task.request_cancel_at_wait(h15, dl15, 11, -1) != nil { return 190054 }
+    if task.is_cancel_requested(h15) != true || task.cancel_reason(h15) != 11 { return 190055 }
+    if task.join(h15) != 1411 { return 190056 }
+
+    var h16 = spawn cancel_observer_task([1500, 80])
+    var w16 = task.stop_policy(h16, {"mode": "request_cancel", "timeout_ms": 0, "reason": 12})
+    if task.is_handle(w16) != true { return 190057 }
+    if task.join(w16) != nil { return 190058 }
+    if task.is_cancel_requested(h16) != true || task.cancel_reason(h16) != 12 { return 190059 }
+    if task.join(h16) != 1512 { return 190060 }
+
+    var h17 = spawn cancel_observer_task([1600, 80])
+    var w17 = task.stop_policy_wait(h17, {"mode": "request_cancel", "timeout_ms": 0, "reason": 13, "join_timeout_ms": 200})
+    if w17 != nil { return 190061 }
+    if task.is_cancel_requested(h17) != true || task.cancel_reason(h17) != 13 { return 190062 }
+    if task.join(h17) != 1613 { return 190063 }
+
+    var ch18 = oren_new_channel()
+    var h18 = spawn blocked_task(ch18)
+    if task.request_cancel(h18, 14) != nil { return 190064 }
+    if task.is_cancel_requested(h18) != true || task.cancel_reason(h18) != 14 { return 190065 }
+    oren_chan_send(ch18, 971)
+    if task.join(h18) != 971 { return 190066 }
 
     return 0
 }

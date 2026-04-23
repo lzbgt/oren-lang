@@ -735,9 +735,11 @@ typedef struct OrenThreadNode {
     int detached;
     int joined;
     int done;
+    int cancel_requested;
     pthread_mutex_t mu;
     pthread_cond_t cv;
     OrenValue result;
+    OrenValue cancel_reason;
     char* error;
     // Spawned-call state (for closure-safe spawning). When using `oren_spawn0`, these remain NIL.
     OrenValue fn;
@@ -796,6 +798,7 @@ typedef struct OrenThreadState {
     // can find roots even when `setjmp` does not preserve caller-saved registers on a platform.
     uintptr_t gc_regs[64];
     int has_gc_regs;
+    OrenThreadNode* current_task;
     struct OrenThreadState* next;
 } OrenThreadState;
 
@@ -1600,15 +1603,18 @@ void oren_gc_collect() {
         // during stage2 parallel builds).
         int done = 0;
         OrenValue result = OREN_NIL;
+        OrenValue cancel_reason = OREN_NIL;
         OrenValue fn = OREN_NIL;
         OrenValue args_list = OREN_NIL;
         pthread_mutex_lock(&t->mu);
         done = t->done;
         result = t->result;
+        cancel_reason = t->cancel_reason;
         fn = t->fn;
         args_list = t->args_list;
         pthread_mutex_unlock(&t->mu);
         if (done) oren_mark_value(result);
+        oren_mark_value(cancel_reason);
         oren_mark_value(fn);
         oren_mark_value(args_list);
         t = t->next;
@@ -1976,6 +1982,7 @@ static void* oren_spawn0_entry(void* p) {
     // Ensure this thread participates in safepoint GC accounting.
     OrenThreadState* st = oren_thread_state();
     OrenSpawn0Args* a = (OrenSpawn0Args*)p;
+    if (st && a && a->node) st->current_task = a->node;
     
     if (setjmp(st->panic_buf) == 0) {
         st->has_panic_buf = 1;
@@ -2014,7 +2021,7 @@ static void* oren_spawn0_entry(void* p) {
             }
         }
     }
-    
+    if (st) st->current_task = NULL;
     free(a);
     oren_thread_unregister();
     return NULL;

@@ -858,6 +858,8 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_args_stamp_cap(), 0)
     ptr_set(g + green_g_off_args_stamp_buf(), 0)
     ptr_set(g + green_g_off_args_stamp_magic(), 0)
+    ptr_set(g + green_g_off_cancel_requested(), 0)
+    ptr_set(g + green_g_off_cancel_reason(), nil)
     _green_retag_struct(g, green_g_bytes())
     var guard_on = _green_trace_spawn_alloc_guard_enabled()
     var stamp_on = _green_trace_args_stamp_enabled()

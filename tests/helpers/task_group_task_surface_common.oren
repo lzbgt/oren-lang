@@ -35,6 +35,22 @@ fn delayed_send_task(args) {
     return 0
 }
 
+fn cancel_observer_task(args) {
+    var seed = args[0]
+    var loops = args[1]
+    var self = task.current()
+    if task.is_handle(self) != true { return seed - 9000 }
+    var i = 0
+    while i < loops {
+        if task.is_cancel_requested(self) == true {
+            return seed + task.cancel_reason(self)
+        }
+        time.sleep_ms(5)
+        i = i + 1
+    }
+    return seed
+}
+
 fn stop_joined(result, expected) {
     if oren_type_name(result) != "map" { return false }
     if result["status"] != "joined" { return false }
@@ -194,9 +210,16 @@ fn run_task_group_task_surface_v0() {
 
     var rtg6 = tg.new_runtime()
     if oren_is_err(rtg6) == true { return 191059 }
-    if task.is_handle(tg.spawn_call_list(rtg6, slow_task, [10])) != true { return 191060 }
-    if oren_is_err(tg.stop_policy(rtg6, {"mode": "request_cancel"})) != true { return 191060 }
-    if oren_is_err(tg.stop_policy_wait(rtg6, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 191061 }
+    var rtc6 = tg.spawn_call_list(rtg6, cancel_observer_task, [[1200, 80]])
+    if task.is_handle(rtc6) != true { return 191060 }
+    var rtw6 = tg.stop_policy(rtg6, {"mode": "request_cancel", "timeout_ms": 0, "reason": 906})
+    if oren_is_err(rtw6) == true || list.len(rtw6) != 1 { return 1910601 }
+    var rtr6 = tg.join_watchers(rtw6, 2000)
+    if oren_is_err(rtr6) == true || list.len(rtr6) != 1 || rtr6[0] != nil { return 1910602 }
+    if task.is_cancel_requested(rtc6) != true || task.cancel_reason(rtc6) != 906 { return 1910603 }
+    if task.join(rtc6) != 2106 { return 1910604 }
+    var rtempty6 = tg.stop_policy_wait(rtg6, {"timeout_ms": 0, "deadline_ns": 0})
+    if oren_is_err(rtempty6) == true || list.len(rtempty6) != 0 { return 191061 }
     if oren_is_err(tg.detach_all(rtg6)) == true { return 191062 }
 
     var rtg7 = tg.new_runtime_with_policy({"timeout_ms": 0, "grace_ms": 0, "reason": 904})
@@ -221,6 +244,23 @@ fn run_task_group_task_surface_v0() {
     if oren_is_err(rtr8) == true || list.len(rtr8) != 2 { return 191073 }
     if stop_joined_or_detached(rtr8[0], 113, 905) != true || rtr8[1] != 14 { return 191074 }
     if tg.count(rtg8) != 0 { return 191075 }
+
+    var rtg8b = tg.from_runtime_list([spawn cancel_observer_task([1300, 80]), gen.start(counter_worker, [95])], {"mode": "request_cancel", "timeout_ms": 0, "reason": 907})
+    if oren_is_err(rtg8b) == true || tg.count(rtg8b) != 2 { return 1910751 }
+    var rtm8b = tg.members(rtg8b)
+    if oren_is_err(rtm8b) == true || list.len(rtm8b) != 2 { return 1910752 }
+    var rtr8b = tg.stop_policy_wait(rtg8b, {"join_timeout_ms": 2000})
+    if oren_is_err(rtr8b) == true || list.len(rtr8b) != 2 { return 1910753 }
+    if rtr8b[0] != nil { return 1910754 }
+    var rtj8b = task.join(rtm8b[0])
+    if oren_is_err(rtj8b) == true { return 19107551 }
+    if rtj8b == nil { return 19107552 }
+    if rtj8b == 1300 { return 19107553 }
+    if rtj8b == -7700 { return 19107554 }
+    if rtj8b != 2207 { return 1910755 }
+    if gen.is_cancel_requested(rtm8b[1]) != true || gen.cancel_reason(rtm8b[1]) != 907 { return 1910756 }
+    if gen.close(rtm8b[1]) != nil { return 19107565 }
+    if tg.count(rtg8b) != 0 { return 1910757 }
 
     var doneg1 = gen.start(counter_worker, [80])
     if oren_is_err(gen.next(doneg1)) == true { return 191076 }

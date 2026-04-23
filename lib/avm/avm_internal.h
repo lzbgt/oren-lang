@@ -40,6 +40,7 @@ typedef struct {
     int done;
     int blocked;
     int detached;
+    int cancel_requested;
 
     int wait_kind;      // 0 none, 1 join, 2 recv, 3 select, 4 join_timeout
     int wait_id;        // join target task id
@@ -71,6 +72,7 @@ typedef struct {
 
     AvmValue ret;
     int has_ret;
+    AvmValue cancel_reason;
 } AvmTask;
 
 typedef struct {

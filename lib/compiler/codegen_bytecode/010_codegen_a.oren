@@ -1047,6 +1047,10 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_type_name" { native_id = 150 }
         if name == "oren_task_is_handle" { native_id = 167 }
         if name == "oren_task_is_done" { native_id = 168 }
+        if name == "oren_task_current_handle" { native_id = 178 }
+        if name == "oren_task_request_cancel" { native_id = 179 }
+        if name == "oren_task_is_cancel_requested" { native_id = 180 }
+        if name == "oren_task_cancel_reason" { native_id = 181 }
         if name == "oren_task_group_new" { native_id = 169 }
         if name == "oren_task_group_is_handle" { native_id = 170 }
         if name == "oren_task_group_add" { native_id = 171 }

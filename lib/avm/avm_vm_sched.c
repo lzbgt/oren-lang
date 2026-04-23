@@ -397,6 +397,7 @@ int sched_new_task(AvmVM* vm, AvmSched* s, AvmValue fn, AvmValue args_list) {
     t->done = 0;
     t->blocked = 0;
     t->detached = 0;
+    t->cancel_requested = 0;
     t->wait_kind = 0;
     t->wait_id = 0;
     t->wait_chan = 0;
@@ -404,6 +405,7 @@ int sched_new_task(AvmVM* vm, AvmSched* s, AvmValue fn, AvmValue args_list) {
     t->join_deadline_ns = 0;
     t->wake_pending = 0;
     t->wake_value = avm_nil();
+    t->cancel_reason = avm_nil();
     t->slice_remaining = s->quantum_steps;
     t->select_cursor = 0;
     t->stack = (AvmValue*)malloc(sizeof(AvmValue) * AVM_STACK_SIZE);
@@ -445,6 +447,48 @@ int sched_new_task(AvmVM* vm, AvmSched* s, AvmValue fn, AvmValue args_list) {
     if (tid >= s->task_count) s->task_count = tid + 1;
     (void)sched_ready_push(s, tid);
     return tid;
+}
+
+AvmValue avm_task_current_handle(AvmVM* vm) {
+    if (!vm || !vm->sched) return avm_nil();
+    AvmSched* s = (AvmSched*)vm->sched;
+    if (!s || !s->init) return avm_nil();
+    if (s->current_tid <= 0) return avm_nil();
+    return avm_int((int64_t)s->current_tid + 1);
+}
+
+AvmValue avm_task_request_cancel(AvmVM* vm, AvmValue handle, AvmValue reason) {
+    if (!vm || !vm->sched) return avm_err(AVM_ERR_INVALID_ARG, "oren_task_request_cancel: missing scheduler");
+    if (handle.type != AVM_VAL_INT) return avm_err(AVM_ERR_INVALID_ARG, "oren_task_request_cancel: expected task handle");
+    AvmSched* s = (AvmSched*)vm->sched;
+    int tid = (int)handle.as.i - 1;
+    if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) {
+        return avm_err(AVM_ERR_INVALID_ARG, "oren_task_request_cancel: expected live task handle");
+    }
+    AvmTask* t = &s->tasks[tid];
+    if (!t->cancel_requested) {
+        t->cancel_requested = 1;
+        t->cancel_reason = reason;
+    }
+    return avm_nil();
+}
+
+AvmValue avm_task_is_cancel_requested(AvmVM* vm, AvmValue handle) {
+    if (!vm || !vm->sched) return avm_bool(0);
+    if (handle.type != AVM_VAL_INT) return avm_bool(0);
+    AvmSched* s = (AvmSched*)vm->sched;
+    int tid = (int)handle.as.i - 1;
+    if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) return avm_bool(0);
+    return avm_bool(s->tasks[tid].cancel_requested ? 1 : 0);
+}
+
+AvmValue avm_task_cancel_reason(AvmVM* vm, AvmValue handle) {
+    if (!vm || !vm->sched) return avm_nil();
+    if (handle.type != AVM_VAL_INT) return avm_nil();
+    AvmSched* s = (AvmSched*)vm->sched;
+    int tid = (int)handle.as.i - 1;
+    if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) return avm_nil();
+    return s->tasks[tid].cancel_reason;
 }
 
 AvmChan* sched_chan_get(AvmSched* s, int64_t hid) {

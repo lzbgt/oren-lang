@@ -51,7 +51,9 @@ fn green_g_off_args_stamp_len() { return 176 }
 fn green_g_off_args_stamp_cap() { return 184 }
 fn green_g_off_args_stamp_buf() { return 192 }
 fn green_g_off_args_stamp_magic() { return 200 }
-fn green_g_bytes() { return 208 }
+fn green_g_off_cancel_requested() { return 208 }
+fn green_g_off_cancel_reason() { return 216 }
+fn green_g_bytes() { return 224 }
 
 // Green states.
 fn green_g_state_runnable() { return 1 }

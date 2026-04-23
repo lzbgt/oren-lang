@@ -188,16 +188,31 @@ backend-shared value-helper slices landed.
     `spawn` handles:
     - `task.is_handle(...)` / `is_done(...)` provide the first reflected task predicates across
       AVM, C, and the default native green-task path
+    - `task.current()` now returns the current safe task handle inside scheduler-backed spawned work
+      and `nil` elsewhere
+    - `task.request_cancel(...)`, `task.is_cancel_requested(...)`, and `task.cancel_reason(...)`
+      now ship as cooperative sticky cancel-request state for generic task handles
+    - a task may observe that sticky request on its first executed step when the request is recorded
+      before the task first runs
+    - `task.request_cancel_after(...)` / `request_cancel_after_wait(...)` and
+      `task.request_cancel_at(...)` / `request_cancel_at_wait(...)` now layer timeout/deadline
+      helpers above that cooperative state
+    - zero-delay / already-expired `*_wait(...)` calls now apply the request synchronously before
+      returning instead of relying on a watcher task to run later
     - `task.join(...)`, `join_timeout(...)`, `detach(...)`, and `join_all(...)` now wrap the raw
       runtime join surface behind safe-handle validation
+    - `join_timeout(...) == -60` now preserves the live handle for later join/cancel/detach instead
+      of consuming it on timeout
     - `task.stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, `stop_at_wait(...)`,
       `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the shared task stop/deadline
       surface for generic `spawn` handles
-    - that task stop surface accepts only `mode="stop"` and still implements
-      wait/deadline-plus-detach semantics because generic tasks do not yet have a cancellation
-      primitive
-    - `stop_policy_wait(...)` returns the `{status, result, reason, detach_result}` map and accepts
-      `join_timeout_ms` as an explicit synchronous wait-budget override
+    - that task stop surface now accepts `mode="request_cancel"` and `mode="stop"`
+    - `mode="request_cancel"` records cooperative sticky state only; generic tasks still have no
+      hard cancellation primitive
+    - `mode="stop"` keeps the existing wait/deadline-plus-detach semantics
+    - `stop_policy_wait(...)` returns `nil` for `mode="request_cancel"` and returns the
+      `{status, result, reason, detach_result}` map for `mode="stop"`; `join_timeout_ms` remains
+      the explicit synchronous wait-budget override
     - legacy native raw fallback handles remain low-level-only for now; the safe reflected surface
       is intentionally limited to scheduler-backed native task handles
   - Fresh landing (2026-04-23): `std:task_group` now ships as the first group-shaped
@@ -235,8 +250,8 @@ backend-shared value-helper slices landed.
     - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by member kind:
       - stored runtime-group default policy is merged before override validation
       - generator/coroutine members keep the full generator-backed stop-policy semantics
-      - task members now use the same shared `std:task` stop contract, including the
-        `mode="stop"` restriction, `delay_ms + grace_ms` wait window, result-map shape, and
+      - task members now use the same shared `std:task` contract, including cooperative
+        `mode="request_cancel"` plus the existing `mode="stop"` wait/deadline behavior and
         optional `join_timeout_ms` override on the synchronous path
     - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
       operations and reject extra generator/coroutine members

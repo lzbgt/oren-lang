@@ -3482,17 +3482,39 @@ Rolling status:
     `spawn` handles:
     - `task.is_handle(...)` and `std:reflect.is_task(...)` expose the reflected task predicate
     - `task.is_done(...)` is the safe non-consuming completion probe
+    - `task.current()` returns the current safe task handle inside a scheduler-backed spawned task
+      and `nil` elsewhere
+    - `task.request_cancel(handle, reason)`, `task.is_cancel_requested(handle)`, and
+      `task.cancel_reason(handle)` now ship as the first cooperative cancellation-request surface
+      for generic `spawn` handles
+      - the request is sticky and first-write-wins; it records state only and does not force-stop the
+        task
+      - if the request lands before the task reaches its first instruction, that task may observe
+        `is_cancel_requested(self) == true` on its first step
+    - `task.request_cancel_after(...)`, `request_cancel_after_wait(...)`, `request_cancel_at(...)`,
+      and `request_cancel_at_wait(...)` layer timeout/deadline helpers above that cooperative state
+      - zero-delay / already-expired `*_wait(...)` calls apply the request synchronously before they
+        return instead of relying on a watcher task eventually being scheduled
+      - zero-delay async helpers still return a joinable watcher handle, but they record the sticky
+        cancel request before returning that handle
     - `task.join(...)`, `task.join_timeout(...)`, `task.detach(...)`, and `task.join_all(...)`
       wrap the raw join/detach surface with handle validation
+      - `task.join_timeout(...)` returning `-60` does not consume, detach, or invalidate the handle;
+        later `join(...)`, `request_cancel(...)`, or `detach(...)` calls still apply to that same
+        live task
     - `task.stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, `stop_at_wait(...)`,
-      `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the task-shaped deadline/stop
-      surface for generic `spawn` handles
-      - only `mode="stop"` is accepted for task handles; generic `spawn` work still has no
-        cancellation phase, so the effective task wait window is `delay_ms + grace_ms`
-      - `stop_policy(...)` always returns a joinable watcher handle for that normalized task stop
-        request
-      - `stop_policy_wait(...)` returns a map with `status`, `result`, `reason`, and
-        `detach_result`; `join_timeout_ms`, when present, overrides the derived task wait budget
+      `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the shared task-shaped
+      deadline/stop surface for generic `spawn` handles
+      - `mode="request_cancel"` and `mode="stop"` are accepted for task handles (`request` aliases
+        `request_cancel`)
+      - `mode="request_cancel"` uses the cooperative sticky request state only; generic `spawn` work
+        still has no hard cancellation primitive
+      - `mode="stop"` keeps the existing wait/deadline-plus-detach behavior, so its effective wait
+        window is `delay_ms + grace_ms`
+      - `stop_policy(...)` always returns a joinable watcher handle for the normalized task policy
+      - `stop_policy_wait(...)` returns `nil` for `mode="request_cancel"` and returns the
+        `{status, result, reason, detach_result}` map for `mode="stop"`; `join_timeout_ms`, when
+        present, overrides the derived synchronous wait budget
       - a zero-budget task stop may still report `joined` when the scheduler can finish the task in
         the immediate step; otherwise it reports `detached`
     - current native scope is the default scheduler-backed green-task path; legacy native raw
@@ -3539,9 +3561,9 @@ Rolling status:
         - the stored runtime-group default policy is merged before override validation
         - generator/coroutine handles and active contexts keep the full generator-backed
           stop-policy behavior
-        - safe task handles use the same shared `std:task` stop contract, including the
-          `mode="stop"` restriction, `delay_ms + grace_ms` wait window, result map shape, and
-          optional `join_timeout_ms` override on the synchronous path
+        - safe task handles use the same shared `std:task` contract, including cooperative
+          `mode="request_cancel"` plus the existing `mode="stop"` wait/deadline behavior and
+          `join_timeout_ms` override on the synchronous path
       - `task_group.join_all(...)` and `detach_all(...)` remain task-handle-only runtime-group
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain

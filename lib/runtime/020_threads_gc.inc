@@ -10,9 +10,11 @@ OrenValue oren_spawn0(OrenFn0 fn) {
     n->detached = 0;
     n->joined = 0;
     n->done = 0;
+    n->cancel_requested = 0;
     pthread_mutex_init(&n->mu, NULL);
     pthread_cond_init(&n->cv, NULL);
     n->result = OREN_NIL;
+    n->cancel_reason = OREN_NIL;
     n->error = NULL;
     n->fn = OREN_NIL;
     n->args_list = OREN_NIL;
@@ -216,6 +218,7 @@ static void* oren_spawn_call_entry(void* p) {
     // Ensure this thread participates in safepoint GC accounting.
     OrenThreadState* st = oren_thread_state();
     OrenSpawnCallArgs* a = (OrenSpawnCallArgs*)p;
+    if (st && a && a->node) st->current_task = a->node;
 
     if (setjmp(st->panic_buf) == 0) {
         st->has_panic_buf = 1;
@@ -258,6 +261,7 @@ static void* oren_spawn_call_entry(void* p) {
         }
     }
 
+    if (st) st->current_task = NULL;
     free(a);
     oren_thread_unregister();
     return NULL;
@@ -343,9 +347,11 @@ OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list) {
     n->detached = 0;
     n->joined = 0;
     n->done = 0;
+    n->cancel_requested = 0;
     pthread_mutex_init(&n->mu, NULL);
     pthread_cond_init(&n->cv, NULL);
     n->result = OREN_NIL;
+    n->cancel_reason = OREN_NIL;
     n->error = NULL;
     n->fn = fn;
     n->args_list = args_list;
@@ -491,7 +497,6 @@ OrenValue oren_join(OrenValue thread) {
         unlock_collections();
         return OREN_NIL;
     }
-    thread_list_remove(n);
     n->joined = 1;
     unlock_collections();
     // Join must be GC-cooperative:
@@ -523,9 +528,15 @@ OrenValue oren_join(OrenValue thread) {
     if (n->error) {
         char buf[256];
         snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
+        lock_collections();
+        thread_list_remove(n);
+        unlock_collections();
         thread_node_destroy(n);
         oren_panic(buf);
     }
+    lock_collections();
+    thread_list_remove(n);
+    unlock_collections();
     thread_node_destroy(n);
     return res;
 }
@@ -540,7 +551,6 @@ OrenValue oren_join_timeout(OrenValue thread, OrenValue timeout_ms) {
     lock_collections();
     if (n->joined) { unlock_collections(); return OREN_NIL; }
     if (n->detached) { unlock_collections(); return OREN_NIL; }
-    thread_list_remove(n);
     unlock_collections();
 
     if (ms < 0) {
@@ -566,9 +576,15 @@ OrenValue oren_join_timeout(OrenValue thread, OrenValue timeout_ms) {
         if (n->error) {
             char buf[256];
             snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
+            lock_collections();
+            thread_list_remove(n);
+            unlock_collections();
             thread_node_destroy(n);
             oren_panic(buf);
         }
+        lock_collections();
+        thread_list_remove(n);
+        unlock_collections();
         thread_node_destroy(n);
         return res;
     }
@@ -615,10 +631,6 @@ OrenValue oren_join_timeout(OrenValue thread, OrenValue timeout_ms) {
     pthread_mutex_unlock(&n->mu);
 
     if (!done) {
-        lock_collections();
-        n->detached = 1;
-        unlock_collections();
-        pthread_detach(n->t);
         return oren_int(-60); // BSD ETIMEDOUT
     }
 
@@ -630,9 +642,15 @@ OrenValue oren_join_timeout(OrenValue thread, OrenValue timeout_ms) {
     if (n->error) {
         char buf[256];
         snprintf(buf, sizeof(buf), "Joined thread failed: %s", n->error);
+        lock_collections();
+        thread_list_remove(n);
+        unlock_collections();
         thread_node_destroy(n);
         oren_panic(buf);
     }
+    lock_collections();
+    thread_list_remove(n);
+    unlock_collections();
     thread_node_destroy(n);
     return res;
 }
@@ -695,6 +713,65 @@ OrenValue oren_task_is_done(OrenValue thread) {
     int d = n->done;
     pthread_mutex_unlock(&n->mu);
     return oren_bool(d);
+}
+
+OrenValue oren_task_current_handle(void) {
+    OrenThreadState* st = oren_thread_state();
+    if (!st || !st->current_task) return OREN_NIL;
+    return oren_int((long long)(intptr_t)st->current_task);
+}
+
+OrenValue oren_task_request_cancel(OrenValue thread, OrenValue reason) {
+    if (spawn_fork_handle_live(thread)) {
+        return oren_err(oren_int(7), oren_string("oren_task_request_cancel: fork task handles do not support cancellation"));
+    }
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return oren_err(oren_int(4), oren_string("oren_task_request_cancel: expected task handle"));
+    lock_collections();
+    if (!thread_handle_live_locked(n)) {
+        unlock_collections();
+        return oren_err(oren_int(4), oren_string("oren_task_request_cancel: expected live task handle"));
+    }
+    pthread_mutex_lock(&n->mu);
+    unlock_collections();
+    if (!n->cancel_requested) {
+        n->cancel_requested = 1;
+        n->cancel_reason = reason;
+    }
+    pthread_mutex_unlock(&n->mu);
+    return OREN_NIL;
+}
+
+OrenValue oren_task_is_cancel_requested(OrenValue thread) {
+    if (spawn_fork_handle_live(thread)) return OREN_FALSE;
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_FALSE;
+    lock_collections();
+    if (!thread_handle_live_locked(n)) {
+        unlock_collections();
+        return OREN_FALSE;
+    }
+    pthread_mutex_lock(&n->mu);
+    unlock_collections();
+    int requested = n->cancel_requested;
+    pthread_mutex_unlock(&n->mu);
+    return oren_bool(requested);
+}
+
+OrenValue oren_task_cancel_reason(OrenValue thread) {
+    if (spawn_fork_handle_live(thread)) return OREN_NIL;
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_NIL;
+    lock_collections();
+    if (!thread_handle_live_locked(n)) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    pthread_mutex_lock(&n->mu);
+    unlock_collections();
+    OrenValue reason = n->cancel_reason;
+    pthread_mutex_unlock(&n->mu);
+    return reason;
 }
 
 static int task_group_value_eq(OrenValue a, OrenValue b) {
