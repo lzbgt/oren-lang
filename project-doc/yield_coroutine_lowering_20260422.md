@@ -412,21 +412,36 @@ backend-shared value-helper slices landed.
 	    (`build/logs/verify_native_list_int_fast_lowering_20260423_075050_17727.log`) passes, so the
 	    branch is correct and repeat-stable; it is rejected only because the exact whole-program dot
 	    surface still loses.
-	  - the fill hot-loop probe itself is sharper now for this class of branch. When a wide loop
-	    contains a dominant fast subpath plus a rare fallback block, the disasm/compare tooling now
-	    measures the fast subpath instead of treating both as one static iteration body. The refreshed
-	    nowrap-split logs
+		  - the fill hot-loop probe itself is sharper now for this class of branch. When a wide loop
+		    contains a dominant fast subpath plus a rare fallback block, the disasm/compare tooling now
+		    measures the fast subpath instead of treating both as one static iteration body. The refreshed
+		    nowrap-split logs
 	    (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_075358_18627.log`,
 	    `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_075357_18606.log`) now report
-	    `main_iter_kind=split_fast_path` at `23` hot instructions for `4` outputs (`5.75` per
-	    element), with per-element category mix `stores 1.00`, `arith 2.00`, `moves 0.00`,
-	    `compare/tick 1.25`, and `branches 1.50`. That means the common fill-side path can now beat
-	    the host C vector loop’s static `6.75` instructions per element and still lose the exact dot
-	    surface, so the next retry must keep that dominant-path advantage without enough rare-wrap or
-	    control-side cost to flip `dot_product_int` back the wrong way.
-	  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
-	    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
-	    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
+		    `main_iter_kind=split_fast_path` at `23` hot instructions for `4` outputs (`5.75` per
+		    element), with per-element category mix `stores 1.00`, `arith 2.00`, `moves 0.00`,
+		    `compare/tick 1.25`, and `branches 1.50`. That means the common fill-side path can now beat
+		    the host C vector loop’s static `6.75` instructions per element and still lose the exact dot
+		    surface, so the next retry must keep that dominant-path advantage without enough rare-wrap or
+		    control-side cost to flip `dot_product_int` back the wrong way.
+		  - the exact-program attribution gap for that same single-list fill family is now closed too.
+		    The new `make perf-probe-arm64-fast-push-exact-fill-mix` target and its first log
+		    (`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_080825_22120.log`) read the
+		    benchmark sources themselves and report whether each exact program can actually enter the
+		    shipped gate `single_list_cursor && pushes_per_iter==1 && nonnegative_linear &&
+		    tick_period%4==0`. The result matters: `array_sum_int` is directly causal here
+		    (`fill_pushes_per_iter: 1`, `single_list_unroll4_applicable: yes`) and is still almost all
+		    no-wrap in isolation (`494000` no-wrap wide trips, `6000` wrap trips, `98.8000%` /
+		    `1.2000%`), while `dot_product_int` is structurally outside this branch family
+		    (`fill_pushes_per_iter: 2`, `single_list_unroll4_applicable: no`, `ineligible_reason:
+		    pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`) even though each isolated fill
+		    stream is also mostly no-wrap (`99.2000%` for `a`, `98.0000%` for `b`). That reweights the
+		    remaining work again: for this branch family, exact `array_sum_int` is the causal same-tree
+		    benchmark and exact `dot_product_int` is only a control/guardrail until a distinct multi-push
+		    specialization exists.
+		  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
+		    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
+		    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
 	    aligned in favor of `65535`, but the immediate promoted-default rerun
     (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032751_32000.log`) did not
     hold, flipping fill/share toward the lower masks and exact `array_sum_int` /

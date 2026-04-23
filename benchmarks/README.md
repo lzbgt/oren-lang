@@ -802,6 +802,30 @@ per element, yet the exact `dot_product_int` surface still loses. Reweight again
 fill path is not enough on its own; future retries must keep that no-wrap advantage without paying
 enough rare-wrap/control-side cost to flip the exact whole-program dot result back the wrong way.
 
+To keep that reweighting fact-based, use:
+
+```bash
+make perf-probe-arm64-fast-push-exact-fill-mix
+```
+
+This reads the exact benchmark sources that currently feed the same-tree ranking surface and reports
+which ones can actually enter the shipped single-list unroll4 fill gate
+(`single_list_cursor && pushes_per_iter==1 && nonnegative_linear && tick_period%4==0`) before any
+performance numbers are interpreted.
+
+The first exact-program mix log
+`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_080825_22120.log` closes an
+important attribution gap. `array_sum_int` directly exercises the shipped single-list unroll4 fill
+family (`fill_pushes_per_iter: 1`, `single_list_unroll4_applicable: yes`) and its isolated fill
+stream is overwhelmingly no-wrap at the benchmark default (`494000` no-wrap wide trips, `6000`
+wrap trips, `98.8000%` / `1.2000%`). `dot_product_int` does not directly exercise that branch
+family at all (`fill_pushes_per_iter: 2`, `single_list_unroll4_applicable: no`,
+`ineligible_reason: pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`), even though each
+individual fill stream would also be mostly no-wrap in isolation (`99.2000%` for `a`, `98.0000%`
+for `b`). Reweight again: for this single-list fill family, exact `array_sum_int` is the causal
+same-tree benchmark and exact `dot_product_int` is a non-causal control signal until a separate
+multi-push specialization exists.
+
 To keep the next branch fact-based, the arm64 fill-vs-C probe now emits category counts for the
 shipped wide body itself:
 `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_064855_96771.log` and

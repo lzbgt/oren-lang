@@ -2714,22 +2714,39 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 												      (`build/logs/verify_native_list_int_fast_lowering_20260423_075050_17727.log`)
 												      passed, so this is a pure performance rejection rather than another
 												      repeat-stability bug.
-												    - Arm64 fill hot-loop split-path probe refresh (2026-04-23):
-												      the disasm/compare tooling now measures the dominant fast subpath when a wide
-												      loop contains a rare fallback block instead of charging both together as one
-												      static main iteration. The refreshed nowrap-split logs
+													    - Arm64 fill hot-loop split-path probe refresh (2026-04-23):
+													      the disasm/compare tooling now measures the dominant fast subpath when a wide
+													      loop contains a rare fallback block instead of charging both together as one
+													      static main iteration. The refreshed nowrap-split logs
 												      (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_075358_18627.log`,
 												      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_075357_18606.log`)
 												      now report `main_iter_kind=split_fast_path` at `23` hot instructions for `4`
-												      outputs (`5.75` per element) with per-element category mix `stores 1.00`,
-												      `arith 2.00`, `moves 0.00`, `compare/tick 1.25`, and `branches 1.50`. Reweight
-												      again: a common fill-side path can now beat the host C vector body on static
-												      per-element count and still lose the exact whole-program dot surface, so future
-												      retries must preserve that dominant-path win without enough rare-wrap/control
-												      cost to flip `dot_product_int` back the wrong way.
-												    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
-											      a narrower single-list modulo-recurrence subpath was tested on the same shipped
-											      baseline, but the widened cached decision surface
+													      outputs (`5.75` per element) with per-element category mix `stores 1.00`,
+													      `arith 2.00`, `moves 0.00`, `compare/tick 1.25`, and `branches 1.50`. Reweight
+													      again: a common fill-side path can now beat the host C vector body on static
+													      per-element count and still lose the exact whole-program dot surface, so future
+													      retries must preserve that dominant-path win without enough rare-wrap/control
+													      cost to flip `dot_product_int` back the wrong way.
+													    - Arm64 exact-program fill-mix probe (2026-04-23): the new target
+													      `make perf-probe-arm64-fast-push-exact-fill-mix` now reads the exact benchmark
+													      sources and reports which same-tree programs can actually enter the shipped
+													      single-list unroll4 gate `single_list_cursor && pushes_per_iter==1 &&
+													      nonnegative_linear && tick_period%4==0`. The first summary log
+													      (`build/logs/perf-probe-arm64-fast-push-exact-fill-mix-20260423_080825_22120.log`)
+													      closes the attribution gap: `array_sum_int` is directly causal for this branch
+													      family (`fill_pushes_per_iter: 1`, `single_list_unroll4_applicable: yes`) and
+													      is still overwhelmingly no-wrap in isolation (`494000` no-wrap wide trips,
+													      `6000` wrap trips, `98.8000%` / `1.2000%`), while `dot_product_int` is
+													      structurally ineligible (`fill_pushes_per_iter: 2`,
+													      `single_list_unroll4_applicable: no`, `ineligible_reason:
+													      pushes_per_iter!=1 blocks single_list_cursor/unroll4 gate`) even though its two
+													      isolated fill streams are also mostly no-wrap (`99.2000%` for `a`, `98.0000%`
+													      for `b`). Reweight again: for this single-list fill family, exact
+													      `array_sum_int` is the causal benchmark and exact `dot_product_int` is a
+													      non-causal control signal until a separate multi-push specialization exists.
+													    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
+												      a narrower single-list modulo-recurrence subpath was tested on the same shipped
+												      baseline, but the widened cached decision surface
 											      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-recurrence-decision-20260410_001827_33770.log`)
 										      rejected it cleanly enough to prune from the tree. Fill/share still preferred the
 										      shipped default (`default_fill_vs_c_vector ~4.7537×`, disabled `~4.8312×`), and

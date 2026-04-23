@@ -1294,6 +1294,9 @@ perf-probe-arm64-fast-push-nonneg-linear-unroll4-decision: oren_stage2
 	 OREN_ARM64_FAST_PUSH_IDX_EXPR_DECISION_VARIANT_ENV=OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4=0 \
 	 ./scripts/run_perf_probe_arm64_fast_push_idx_expr_decision.sh
 
+perf-probe-arm64-fast-push-exact-fill-mix:
+	@./scripts/run_perf_probe_arm64_fast_push_exact_fill_mix.sh
+
 perf-probe-arm64-fast-push-tick-mask-decision: oren_stage2
 	@./scripts/run_perf_probe_arm64_fast_push_tick_mask_decision.sh
 
