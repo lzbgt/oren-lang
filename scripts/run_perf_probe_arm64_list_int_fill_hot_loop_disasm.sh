@@ -191,28 +191,66 @@ def find_main_iter_insns(hot_insns, start_abs, end_abs):
         if step > main_step:
             main_step = step
     if main_step <= 1:
-        return hot_insns, 1
+        return hot_insns, 1, "scalar"
 
-    scalar_target = None
-    for insn in hot_insns:
+    tick_idx = -1
+    for idx, insn in enumerate(hot_insns):
+        if tick_step_re.search(insn["line"]):
+            tick_idx = idx
+            break
+    scan_insns = hot_insns
+    tail_target = None
+    if tick_idx >= 0:
+        pre_tick_targets = []
+        for insn in hot_insns[:tick_idx]:
+            target = insn["target"]
+            if target is None or not insn["mnemonic"].startswith("b.") or not (insn["addr"] < target < end_abs):
+                continue
+            pre_tick_targets.append(target)
+        if pre_tick_targets:
+            tail_target = pre_tick_targets[-1]
+        scan_insns = hot_insns[tick_idx + 1 :]
+
+    if tail_target is None:
+        forward_cond_targets = []
+        for insn in hot_insns:
+            target = insn["target"]
+            if target is None or not insn["mnemonic"].startswith("b.") or not (insn["addr"] < target < end_abs):
+                continue
+            forward_cond_targets.append(target)
+        if not forward_cond_targets:
+            return hot_insns, main_step, "wide_full"
+        tail_target = forward_cond_targets[0]
+
+    split_end = None
+    for idx, insn in enumerate(scan_insns):
         target = insn["target"]
-        if target is None:
+        if target is None or target >= tail_target:
             continue
-        if not (insn["addr"] < target < end_abs):
+        if not insn["mnemonic"].startswith("b.") or not (insn["addr"] < target < end_abs):
             continue
-        if not insn["mnemonic"].startswith("b."):
-            continue
-        scalar_target = target
-        break
+        window_end = idx + 1 + 32
+        j = idx + 1
+        while j < len(scan_insns) and j < window_end:
+            cand = scan_insns[j]
+            if cand["addr"] >= target:
+                break
+            if cand["mnemonic"] == "b" and cand["target"] is not None and cand["target"] > target:
+                split_end = cand["addr"] + 4
+                break
+            j += 1
+        if split_end is not None:
+            break
+    if split_end is not None:
+        split_insns = [insn for insn in hot_insns if start_abs <= insn["addr"] < split_end]
+        if split_insns:
+            return split_insns, main_step, "split_fast_path"
 
-    if scalar_target is None:
-        return hot_insns, main_step
-
-    main_iter_insns = [insn for insn in hot_insns if start_abs <= insn["addr"] < scalar_target]
+    main_iter_insns = [insn for insn in hot_insns if start_abs <= insn["addr"] < tail_target]
     if not main_iter_insns:
-        return hot_insns, main_step
+        return hot_insns, main_step, "wide_full"
 
-    return main_iter_insns, main_step
+    return main_iter_insns, main_step, "wide_full"
 
 
 def emit_block(label, path, prefix):
@@ -238,7 +276,7 @@ def emit_block(label, path, prefix):
     hot_insns = [insn for insn in insns if insn["addr"] not in cold_addrs]
     hot_count, hot_counts = count_mnemonics(hot_insns)
     cold_count, cold_counts = count_mnemonics(cold_insns)
-    main_iter_insns, main_iter_elems = find_main_iter_insns(hot_insns, start_abs, end_abs)
+    main_iter_insns, main_iter_elems, main_iter_kind = find_main_iter_insns(hot_insns, start_abs, end_abs)
     main_iter_hot, main_iter_counts = count_mnemonics(main_iter_insns)
     main_iter_per_elem = float(main_iter_hot) / float(main_iter_elems)
     hot_category_counts = category_counts(hot_insns)
@@ -250,6 +288,7 @@ def emit_block(label, path, prefix):
     print(f"  range_abs: 0x{start_abs:016x}..0x{end_abs:016x}")
     print(f"  instruction_count: {total_insns}")
     print(f"  hot_instruction_count: {hot_count}")
+    print(f"  main_iter_kind: {main_iter_kind}")
     print(f"  main_iter_output_elements: {main_iter_elems}")
     print(f"  main_iter_hot_instruction_count: {main_iter_hot}")
     print(f"  main_iter_hot_instructions_per_output_elem: {main_iter_per_elem:.2f}")

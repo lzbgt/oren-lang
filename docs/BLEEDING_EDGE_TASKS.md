@@ -2692,15 +2692,45 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 											    - Native list<int> fast-lowering verifier repeat/runtime refresh (2026-04-23):
 											      `make verify-native-list-int-fast-lowering` now honors
 											      `OREN_BENCH_ENV_BUILD_OREN` for its arm64 builds and also runs the
-											      generated `fill_list_int` benchmark binary with `2000000 2` as a
-											      repeat-stability runtime guard. That closes the verification hole the
-											      peeled-tail branch exposed: experimental fast-push variants now have
-											      to survive repeated invocation before they can be treated as serious
-											      performance candidates.
-											    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
-										      a narrower single-list modulo-recurrence subpath was tested on the same shipped
-										      baseline, but the widened cached decision surface
-										      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-recurrence-decision-20260410_001827_33770.log`)
+												      generated `fill_list_int` benchmark binary with `2000000 2` as a
+												      repeat-stability runtime guard. That closes the verification hole the
+												      peeled-tail branch exposed: experimental fast-push variants now have
+												      to survive repeated invocation before they can be treated as serious
+												      performance candidates.
+												    - Arm64 explicit push nonnegative-linear unroll4 no-wrap split follow-up (2026-04-23):
+												      a spill-budget-neutral “dominant no-wrap fast path, existing wrap body as rare
+												      fallback” retry is now also closed negative. The temporary branch enabled
+												      `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_NOWRAP_SPLIT=1` and
+												      guarded the current wrap-capable wide body behind a single
+												      `current < mod - 3*step` check, so the common no-wrap case no longer paid the
+												      per-lane wrap-control sequence. The actual same-tree decision surface
+												      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-nowrap-split-decision-20260423_074857_16234.log`)
+												      still rejected shipping it: fill/share preferred enabled
+												      (`default_fill_vs_c_vector ~2.1517×` vs enabled `~1.7698×`), exact
+												      `array_sum_int` median also preferred enabled (`default_array_ratio_median
+												      ~2.1881×` vs enabled `~2.1519×`), but exact `dot_product_int` regressed across
+												      every sweep (`default_dot_ratio_median ~1.5254×` vs enabled `~1.7467×`,
+												      `decision_surface_alignment: agree`). The targeted runtime verifier
+												      (`build/logs/verify_native_list_int_fast_lowering_20260423_075050_17727.log`)
+												      passed, so this is a pure performance rejection rather than another
+												      repeat-stability bug.
+												    - Arm64 fill hot-loop split-path probe refresh (2026-04-23):
+												      the disasm/compare tooling now measures the dominant fast subpath when a wide
+												      loop contains a rare fallback block instead of charging both together as one
+												      static main iteration. The refreshed nowrap-split logs
+												      (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_075358_18627.log`,
+												      `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_075357_18606.log`)
+												      now report `main_iter_kind=split_fast_path` at `23` hot instructions for `4`
+												      outputs (`5.75` per element) with per-element category mix `stores 1.00`,
+												      `arith 2.00`, `moves 0.00`, `compare/tick 1.25`, and `branches 1.50`. Reweight
+												      again: a common fill-side path can now beat the host C vector body on static
+												      per-element count and still lose the exact whole-program dot surface, so future
+												      retries must preserve that dominant-path win without enough rare-wrap/control
+												      cost to flip `dot_product_int` back the wrong way.
+												    - Arm64 explicit push nonnegative-linear recurrence follow-up (2026-04-10):
+											      a narrower single-list modulo-recurrence subpath was tested on the same shipped
+											      baseline, but the widened cached decision surface
+											      (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-recurrence-decision-20260410_001827_33770.log`)
 										      rejected it cleanly enough to prune from the tree. Fill/share still preferred the
 										      shipped default (`default_fill_vs_c_vector ~4.7537×`, disabled `~4.8312×`), and
 										      the exact same-tree whole-operation medians also preferred the disabled branch on

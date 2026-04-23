@@ -774,6 +774,34 @@ arm64 builds and runs the generated `fill_list_int` benchmark binary with `20000
 stability guard, so future experimental fast-push branches have to survive repeated invocation
 before they count as viable perf candidates.
 
+A narrower unroll4 no-wrap split under that same shipped four-wide body is also now rejected, but
+for a different reason: it is correct, it materially improves the common fill path, and it still
+loses on the exact same-tree `dot_product_int` surface. The temporary branch enabled
+`OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_NOWRAP_SPLIT=1` and added a single
+`current < mod - 3*step` guard ahead of the existing wrap-capable wide body, so the dominant
+no-wrap case stopped paying the shipped per-lane wrap-control sequence. The decision summary
+`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-nowrap-split-decision-20260423_074857_16234.log`
+still rejects shipping it: fill/share improves strongly (`default_fill_vs_c_vector ~2.1517x`
+vs enabled `~1.7698x`), exact `array_sum_int` median also prefers enabled
+(`default_array_ratio_median ~2.1881x` vs enabled `~2.1519x`), but exact `dot_product_int`
+regresses across all sweeps (`default_dot_ratio_median ~1.5254x` vs enabled `~1.7467x`).
+The targeted runtime verifier
+`build/logs/verify_native_list_int_fast_lowering_20260423_075050_17727.log` passes, so this branch
+is a pure performance rejection rather than another repeat-invocation bug.
+
+That branch also justified one probe improvement worth keeping permanently. The fill hot-loop
+disasm/compare tooling now reports the dominant fast subpath when a wide loop contains a rare
+fallback block, instead of charging both together as one static “main iteration”. The refreshed
+nowrap-split logs
+`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_075358_18627.log` and
+`build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_075357_18606.log` now show
+`main_iter_kind=split_fast_path` at `23` hot instructions for `4` outputs (`5.75` per element),
+with per-element category mix `stores 1.00`, `arith 2.00`, `moves 0.00`, `compare/tick 1.25`,
+and `branches 1.50`. That is statically better than the host C vector loop’s `6.75` instructions
+per element, yet the exact `dot_product_int` surface still loses. Reweight again: a fast common
+fill path is not enough on its own; future retries must keep that no-wrap advantage without paying
+enough rare-wrap/control-side cost to flip the exact whole-program dot result back the wrong way.
+
 To keep the next branch fact-based, the arm64 fill-vs-C probe now emits category counts for the
 shipped wide body itself:
 `build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_064855_96771.log` and

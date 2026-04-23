@@ -398,10 +398,36 @@ backend-shared value-helper slices landed.
 	    its arm64 builds and also runs the generated `fill_list_int` benchmark binary with
 	    `2000000 2` as a repeat-stability runtime guard, so future fast-push experiments have to
 	    survive repeated invocation before they can be treated as viable performance candidates.
+	  - a spill-budget-neutral unroll4 no-wrap split is now also closed negative. The temporary
+	    branch enabled `OREN_ARM64_FAST_LIST_INT_PUSH_NONNEG_LINEAR_UNROLL4_NOWRAP_SPLIT=1` and
+	    guarded the current wrap-capable wide body behind a single `current < mod - 3*step` check so
+	    the dominant no-wrap case stopped paying the shipped per-lane wrap-control sequence. The same
+	    tree decision surface
+	    (`build/logs/perf-probe-arm64-fast-push-nonneg-linear-unroll4-nowrap-split-decision-20260423_074857_16234.log`)
+	    still rejects promotion even though fill/share and exact `array_sum_int` move the right way
+	    (`default_fill_vs_c_vector ~2.1517×` vs enabled `~1.7698×`,
+	    `default_array_ratio_median ~2.1881×` vs enabled `~2.1519×`): exact `dot_product_int`
+	    regresses across every sweep (`default_dot_ratio_median ~1.5254×` vs enabled `~1.7467×`).
+	    The targeted verifier
+	    (`build/logs/verify_native_list_int_fast_lowering_20260423_075050_17727.log`) passes, so the
+	    branch is correct and repeat-stable; it is rejected only because the exact whole-program dot
+	    surface still loses.
+	  - the fill hot-loop probe itself is sharper now for this class of branch. When a wide loop
+	    contains a dominant fast subpath plus a rare fallback block, the disasm/compare tooling now
+	    measures the fast subpath instead of treating both as one static iteration body. The refreshed
+	    nowrap-split logs
+	    (`build/logs/perf-probe-arm64-list-int-fill-hot-loop-disasm-20260423_075358_18627.log`,
+	    `build/logs/perf-probe-arm64-fill-vs-c-loop-compare-20260423_075357_18606.log`) now report
+	    `main_iter_kind=split_fast_path` at `23` hot instructions for `4` outputs (`5.75` per
+	    element), with per-element category mix `stores 1.00`, `arith 2.00`, `moves 0.00`,
+	    `compare/tick 1.25`, and `branches 1.50`. That means the common fill-side path can now beat
+	    the host C vector loop’s static `6.75` instructions per element and still lose the exact dot
+	    surface, so the next retry must keep that dominant-path advantage without enough rare-wrap or
+	    control-side cost to flip `dot_product_int` back the wrong way.
 	  - the explicit push-loop safepoint-frequency follow-up looked promotable, but the actual
 	    promoted-default rerun closed it back to probe-only: the candidate rerun on the shipped `4095`
 	    tree (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032104_29410.log`)
-    aligned in favor of `65535`, but the immediate promoted-default rerun
+	    aligned in favor of `65535`, but the immediate promoted-default rerun
     (`build/logs/perf-probe-arm64-fast-push-tick-mask-decision-20260423_032751_32000.log`) did not
     hold, flipping fill/share toward the lower masks and exact `array_sum_int` /
     `dot_product_int` medians toward `16383`; `OREN_ARM64_FAST_LIST_INT_PUSH_TICK_MASK` therefore

@@ -239,6 +239,7 @@ for key in [
     "range_abs",
     "instruction_count",
     "hot_instruction_count",
+    "main_iter_kind",
     "main_iter_output_elements",
     "main_iter_hot_instruction_count",
     "main_iter_hot_instructions_per_output_elem",
