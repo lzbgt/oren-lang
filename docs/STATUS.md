@@ -1559,8 +1559,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     - `task_group.join_all(...)` now joins task-handle-only groups, while
 			       `task_group.join_watchers(...)` keeps the explicit watcher-join surface
 			     - `task_group.terminal_results(...)` remains generator-handle-only
-			     - the remaining boundary is now above this stdlib layer: runtime-owned scheduler groups
-			       and richer caller-visible coroutine semantics, not raw timeout-helper composition.
+			   - New (2026-04-23): `std:task_group` now also ships the first runtime-backed task-only
+			     group surface for generic `spawn` work:
+			     - `task_group.new_runtime()` / `from_task_list(targets)` create runtime-owned groups over
+			       safe task handles
+			     - `task_group.is_runtime_group(...)` distinguishes that task-only runtime shape, while
+			       `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime
+			       and stdlib map-backed groups
+			     - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
+			       the default native green-task scheduler
+			     - `task_group.detach_all(...)` is the matching runtime-group detach-and-clear surface
+			     - runtime-backed groups intentionally do not own stop/default-policy/terminal-result
+			       semantics yet; those calls return immediate `err`
+			     - the remaining boundary is now above this split layer: unified runtime-owned structured
+			       concurrency across both generic tasks and generator/coroutine handles, plus group-owned
+			       stop/deadline policy for runtime-backed groups, is not shipped yet.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

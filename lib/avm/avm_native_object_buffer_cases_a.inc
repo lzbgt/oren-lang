@@ -672,6 +672,56 @@
             res = avm_bool(done);
             break;
         }
+        case 169: { // oren_task_group_new() -> group_handle
+            if (!vm) { res = avm_err(AVM_ERR_INTERNAL, "oren_task_group_new: missing vm"); break; }
+            res = avm_task_group_new(vm);
+            break;
+        }
+        case 170: { // oren_task_group_is_handle(v) -> bool
+            int ok = (vm && nargs > 0) ? avm_task_group_is_handle(vm, args[0]) : 0;
+            res = avm_bool(ok);
+            break;
+        }
+        case 171: { // oren_task_group_add(group, handle) -> handle|err
+            if (!vm || nargs <= 1) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_add expects (group, handle)");
+                break;
+            }
+            res = avm_task_group_add(vm, args[0], args[1]);
+            break;
+        }
+        case 172: { // oren_task_group_count(group) -> int
+            if (!vm || nargs <= 0) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_count expects (group)");
+                break;
+            }
+            res = avm_task_group_count(vm, args[0]);
+            break;
+        }
+        case 173: { // oren_task_group_members(group) -> list
+            if (!vm || nargs <= 0) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_members expects (group)");
+                break;
+            }
+            res = avm_task_group_members(vm, args[0]);
+            break;
+        }
+        case 174: { // oren_task_group_clear(group) -> nil
+            if (!vm || nargs <= 0) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_clear expects (group)");
+                break;
+            }
+            res = avm_task_group_clear(vm, args[0]);
+            break;
+        }
+        case 175: { // oren_task_group_spawn_call_list(group, fn, args_list) -> handle|err
+            if (!vm || nargs <= 2) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_spawn_call_list expects (group, fn, args_list)");
+                break;
+            }
+            res = avm_task_group_spawn_call_list(vm, args[0], args[1], args[2]);
+            break;
+        }
         case 151: { // oren_string_eq(a, b) -> bool
             if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_STRING) {
                 const char* a = (const char*)args[0].as.p;

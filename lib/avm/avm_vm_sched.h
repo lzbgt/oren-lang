@@ -24,5 +24,12 @@ int chan_send_value(AvmSched* s, AvmChan* ch, AvmValue v);
 void sched_switch(AvmVM* vm, AvmSched* s, int next_tid);
 uint64_t avm_vm_now_ns(AvmVM* vm);
 void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s);
+AvmValue avm_task_group_new(AvmVM* vm);
+int avm_task_group_is_handle(AvmVM* vm, AvmValue group);
+AvmValue avm_task_group_add(AvmVM* vm, AvmValue group, AvmValue handle);
+AvmValue avm_task_group_count(AvmVM* vm, AvmValue group);
+AvmValue avm_task_group_members(AvmVM* vm, AvmValue group);
+AvmValue avm_task_group_clear(AvmVM* vm, AvmValue group);
+AvmValue avm_task_group_spawn_call_list(AvmVM* vm, AvmValue group, AvmValue fn, AvmValue args_list);
 
 #endif

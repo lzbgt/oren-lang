@@ -746,6 +746,16 @@ typedef struct OrenThreadNode {
 } OrenThreadNode;
 static OrenThreadNode* g_threads = NULL;
 
+typedef struct OrenTaskGroupNode {
+    int64_t id;
+    OrenValue* members;
+    int count;
+    int capacity;
+    struct OrenTaskGroupNode* next;
+} OrenTaskGroupNode;
+static OrenTaskGroupNode* g_task_groups = NULL;
+static int64_t g_task_group_next_id = INT64_C(-900000000000000000);
+
 static void thread_node_destroy(OrenThreadNode* n);
 
 static void lock_collections() { pthread_mutex_lock(&g_collection_mutex); }

@@ -4,6 +4,19 @@ static int write_u64_le(FILE* f, uint64_t v);
 static uint32_t read_u32_le(FILE* f, int* ok);
 static uint64_t read_u64_le(FILE* f, int* ok);
 
+static AvmValue snap_new_empty_map_value(void) {
+    AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+    if (!map) return avm_alloc_fail_value();
+    map->keys = NULL;
+    map->values = NULL;
+    map->count = 0;
+    map->capacity = 0;
+    AvmValue v;
+    v.type = AVM_VAL_MAP;
+    v.as.m = map;
+    return v;
+}
+
 static int snap_write_str(FILE* f, const char* s) {
     if (!f) return 0;
     if (!s) {
@@ -60,7 +73,8 @@ static uint8_t* snap_read_bytes(FILE* f, uint32_t* out_len, int* ok) {
 int avm_snapshot(AvmVM* vm, const char* path) {
     if (!vm || !vm->prog || !path) return 1;
 
-    // Cooperative tasks/channels (rolling): AVMSNAP7 adds scheduler snapshot support.
+    // Cooperative tasks/channels (rolling): AVMSNAP8 adds scheduler snapshot support for runtime
+    // task-group registries in addition to tasks/channels.
 
     ObjTable objs = {0};
 
@@ -81,7 +95,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     if (vm->record_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->record_log_bytes; collect_value_objects(&objs, v); }
     if (vm->replay_log_bytes) { AvmValue v; v.type = AVM_VAL_BYTES; v.as.b = vm->replay_log_bytes; collect_value_objects(&objs, v); }
 
-    // Cooperative tasks + channels (rolling; AVMSNAP7+):
+    // Cooperative tasks + channels (rolling; AVMSNAP8+):
     // Snapshot must include all values reachable from other tasks' stacks/envs and from channel queues.
     if (vm->sched) {
         AvmSched* s = (AvmSched*)vm->sched;
@@ -129,6 +143,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
                     for (int qi = 0; qi < qn; qi++) collect_value_objects(&objs, ch->q[qi]);
                 }
             }
+            collect_value_objects(&objs, s->task_groups);
         }
     }
 
@@ -139,7 +154,7 @@ int avm_snapshot(AvmVM* vm, const char* path) {
     }
 
     // Magic (8 bytes)
-    const uint8_t magic[8] = {'A','V','M','S','N','A','P','7'};
+    const uint8_t magic[8] = {'A','V','M','S','N','A','P','8'};
     if (fwrite(magic, 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
 
     if (!write_u32_le(f, (uint32_t)objs.count)) { fclose(f); objtable_free(&objs); return 1; }
@@ -372,9 +387,9 @@ int avm_snapshot(AvmVM* vm, const char* path) {
         if (fwrite("AVMNET0B", 1, 8, f) != 8) { fclose(f); objtable_free(&objs); return 1; }
     }
 
-    // Scheduler snapshot (rolling; AVMSNAP7+): tasks + channels + queues.
+    // Scheduler snapshot (rolling; AVMSNAP8+): tasks + channels + runtime task groups.
     //
-    // Layout: tagged chunk appended at end so older readers can ignore (they won't accept AVMSNAP7 anyway).
+    // Layout: tagged chunk appended at end so older readers can ignore (they won't accept AVMSNAP8 anyway).
     if (vm->sched) {
         AvmSched* s = (AvmSched*)vm->sched;
         if (!s || !s->init) {
@@ -400,6 +415,8 @@ int avm_snapshot(AvmVM* vm, const char* path) {
             if (!write_u32_le(f, (uint32_t)s->chan_cap)) { fclose(f); objtable_free(&objs); return 1; }
             if (!write_u32_le(f, (uint32_t)s->chan_count)) { fclose(f); objtable_free(&objs); return 1; }
             if (!write_u64_le(f, (uint64_t)s->next_chan_id)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!write_u64_le(f, (uint64_t)s->next_task_group_id)) { fclose(f); objtable_free(&objs); return 1; }
+            if (!encode_value(f, &objs, s->task_groups)) { fclose(f); objtable_free(&objs); return 1; }
 
             int cur = s->current_tid;
 
@@ -512,6 +529,7 @@ int avm_restore(AvmVM* vm, const char* path) {
     const uint8_t want5[8] = {'A','V','M','S','N','A','P','5'};
     const uint8_t want6[8] = {'A','V','M','S','N','A','P','6'};
     const uint8_t want7[8] = {'A','V','M','S','N','A','P','7'};
+    const uint8_t want8[8] = {'A','V','M','S','N','A','P','8'};
     int snap_ver = 0;
     if (memcmp(magic, want2, 8) == 0) snap_ver = 2;
     if (memcmp(magic, want3, 8) == 0) snap_ver = 3;
@@ -519,6 +537,7 @@ int avm_restore(AvmVM* vm, const char* path) {
     if (memcmp(magic, want5, 8) == 0) snap_ver = 5;
     if (memcmp(magic, want6, 8) == 0) snap_ver = 6;
     if (memcmp(magic, want7, 8) == 0) snap_ver = 7;
+    if (memcmp(magic, want8, 8) == 0) snap_ver = 8;
     if (snap_ver == 0) { fclose(f); return 1; }
 
     int ok = 1;
@@ -1021,7 +1040,7 @@ int avm_restore(AvmVM* vm, const char* path) {
             fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1;
         }
 
-        // Scheduler chunk (rolling; AVMSNAP7+)
+        // Scheduler chunk (rolling; AVMSNAP7+; runtime task groups added in AVMSNAP8)
         if (snap_ver >= 7) {
             if (fread(tag, 1, 8, f) != 8) { fclose(f); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
             if (memcmp(tag, "AVMSCH00", 8) == 0) {
@@ -1060,6 +1079,8 @@ int avm_restore(AvmVM* vm, const char* path) {
                 uint32_t chan_cap = read_u32_le(f, &oks);
                 uint32_t chan_count = read_u32_le(f, &oks);
                 uint64_t next_chan_id_u64 = read_u64_le(f, &oks);
+                uint64_t next_task_group_id_u64 = 0;
+                if (snap_ver >= 8) next_task_group_id_u64 = read_u64_le(f, &oks);
                 if (!oks) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
                 if (chan_cap > 1000000u) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
                 if (chan_cap > 0 && chan_count > chan_cap) { fclose(f); free(select_waiters); free(ready); free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs); return 1; }
@@ -1082,6 +1103,8 @@ int avm_restore(AvmVM* vm, const char* path) {
                 s->chan_cap = (int)chan_cap;
                 s->chan_count = (int)chan_count;
                 s->next_chan_id = (int64_t)next_chan_id_u64;
+                s->next_task_group_id = (snap_ver >= 8) ? (int64_t)next_task_group_id_u64 : INT64_C(-900000000000000000);
+                s->task_groups = avm_nil();
 
                 s->tasks = (AvmTask*)calloc((size_t)s->task_cap, sizeof(AvmTask));
                 if (!s->tasks) {
@@ -1122,6 +1145,20 @@ int avm_restore(AvmVM* vm, const char* path) {
                 }
                 free(select_waiters);
                 free(ready);
+
+                if (snap_ver >= 8) {
+                    if (!decode_value(f, obj_types, obj_ptrs, obj_count, &s->task_groups)) {
+                        oks = 0;
+                    }
+                    if (!oks || s->task_groups.type != AVM_VAL_MAP || !s->task_groups.as.m) {
+                        oks = 0;
+                    }
+                } else {
+                    s->task_groups = snap_new_empty_map_value();
+                    if (s->task_groups.type != AVM_VAL_MAP || !s->task_groups.as.m) {
+                        oks = 0;
+                    }
+                }
 
                 // Tasks
                 for (int ti = 0; ti < s->task_cap; ti++) {
@@ -1321,4 +1358,3 @@ int avm_restore(AvmVM* vm, const char* path) {
     free(obj_types); free(obj_aux); free(payload_off); free(obj_ptrs);
     return 0;
 }
-

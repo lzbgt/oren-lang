@@ -3499,6 +3499,22 @@ Rolling status:
     - `task_group.join_watchers(...)` keeps the explicit watcher-list join surface
     - `task_group.terminal_results(group)` remains the generator-handle terminal-result collector
       and rejects task handles or context-only members
+    - New (2026-04-23): runtime-backed task groups now also ship for generic safe task handles:
+      - `task_group.new_runtime()` creates an empty runtime-owned task group
+      - `task_group.from_task_list(targets)` creates the same runtime-backed group from existing safe
+        task handles
+      - `task_group.is_runtime_group(group)` distinguishes that task-only runtime shape, while
+        `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime and
+        stdlib map-backed groups
+      - `task_group.spawn_call_list(group, fn_obj, args_list)` spawns directly into the runtime
+        group on AVM, C, and the default native green-task scheduler
+      - `task_group.detach_all(group)` detaches every current member and clears the runtime group
+      - runtime-backed groups intentionally remain task-only in this slice:
+        `default_policy(...)`, `set_default_policy(...)`, `stop_policy(...)`,
+        `stop_policy_wait(...)`, and `terminal_results(...)` return immediate `err`
+    - the remaining boundary is now above this split group surface: unified runtime-owned
+      structured concurrency across both generic tasks and generator/coroutine handles, plus
+      group-owned stop/deadline policy for runtime-backed groups, is not shipped yet
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists
@@ -5635,8 +5651,9 @@ The following are *design goals* but are not implemented today as stable primiti
 
 - “green threads” / coroutines
 - a portable, shared-memory `mutex`/`lock` that works across macOS/Linux/Windows without libc
-- scheduler/runtime-owned structured concurrency for generic `spawn` handles (the shipped
-  `std:task` / `std:task_group` layer is still stdlib-owned, not a runtime task-group primitive)
+- unified scheduler/runtime-owned structured concurrency across generic `spawn` handles and
+  generator/coroutine workers (runtime-backed task groups now exist for safe `spawn` handles, but
+  mixed groups and group stop/deadline policy are still stdlib-owned)
 - pub/sub or multicast channels
 - data-parallel iterators (`par_map`, `par_reduce`)
 

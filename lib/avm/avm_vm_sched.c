@@ -26,6 +26,8 @@ int avm_sched_is_trivial(AvmVM* vm) {
     AvmSched* s = avm_sched_get(vm);
     if (!s) return 1;
 
+    if (s->task_groups.type == AVM_VAL_MAP && s->task_groups.as.m && s->task_groups.as.m->count != 0) return 0;
+
     // If any channels exist, snapshot must capture channel queues + waiter lists; not supported yet.
     if (s->chan_count != 0) return 0;
 
@@ -142,6 +144,78 @@ AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b) {
     return v;
 }
 
+static AvmValue avm_new_list_from_values(int count, const AvmValue* items) {
+    if (count < 0) count = 0;
+    AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
+    if (!list) return avm_alloc_fail_value();
+    list->count = count;
+    list->capacity = count;
+    list->all_int = 1;
+    list->items = NULL;
+    if (count > 0) {
+        list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)count, AVM_ALLOC_KIND_LIST);
+        if (!list->items) {
+            avm_heap_free(list);
+            return avm_alloc_fail_value();
+        }
+        for (int i = 0; i < count; i++) {
+            list->items[i] = items[i];
+            if (items[i].type != AVM_VAL_INT) list->all_int = 0;
+        }
+    }
+    AvmValue v;
+    v.type = AVM_VAL_LIST;
+    v.as.l = list;
+    return v;
+}
+
+static AvmValue avm_new_empty_map_value(void) {
+    AvmMap* map = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
+    if (!map) return avm_alloc_fail_value();
+    map->keys = NULL;
+    map->values = NULL;
+    map->count = 0;
+    map->capacity = 0;
+    AvmValue v;
+    v.type = AVM_VAL_MAP;
+    v.as.m = map;
+    return v;
+}
+
+static AvmValue avm_task_group_map_get(AvmSched* s, int64_t id) {
+    if (!s || s->task_groups.type != AVM_VAL_MAP || !s->task_groups.as.m) return avm_nil();
+    int found = 0;
+    int idx = avm_map_find_index(s->task_groups.as.m, avm_int(id), &found);
+    if (!found || idx < 0) return avm_nil();
+    return s->task_groups.as.m->values[idx];
+}
+
+static AvmValue avm_task_group_compact_members(AvmVM* vm, AvmSched* s, int64_t id) {
+    (void)vm;
+    AvmValue membersv = avm_task_group_map_get(s, id);
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_nil();
+    AvmList* members = membersv.as.l;
+    int out = 0;
+    for (int i = 0; i < members->count; i++) {
+        AvmValue hv = members->items[i];
+        if (hv.type != AVM_VAL_INT) continue;
+        int tid = (int)hv.as.i - 1;
+        if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) continue;
+        int dup = 0;
+        for (int j = 0; j < out; j++) {
+            if (members->items[j].type == AVM_VAL_INT && members->items[j].as.i == hv.as.i) {
+                dup = 1;
+                break;
+            }
+        }
+        if (dup) continue;
+        members->items[out++] = hv;
+    }
+    members->count = out;
+    members->all_int = 1;
+    return membersv;
+}
+
 uint64_t avm_vm_now_ns(AvmVM* vm) {
     if (!vm) return 0;
     if (vm->deterministic) {
@@ -187,6 +261,14 @@ static AvmSched* avm_sched_ensure(AvmVM* vm) {
     s->chans = (AvmChan*)calloc((size_t)s->chan_cap, sizeof(AvmChan));
     if (!s->chans) { free(s->tasks); free(s); return NULL; }
     s->next_chan_id = 1;
+    s->task_groups = avm_new_empty_map_value();
+    if (s->task_groups.type != AVM_VAL_MAP || !s->task_groups.as.m) {
+        free(s->chans);
+        free(s->tasks);
+        free(s);
+        return NULL;
+    }
+    s->next_task_group_id = INT64_C(-900000000000000000);
 
     // Main task (tid 0) uses the VM's original stack allocation.
     s->tasks[0].used = 1;
@@ -492,6 +574,99 @@ void sched_try_wake_select_waiters(AvmVM* vm, AvmSched* s) {
             i++;
         }
     }
+}
+
+AvmValue avm_task_group_new(AvmVM* vm) {
+    AvmSched* s = avm_sched_lazy_ensure(vm, avm_sched_get(vm));
+    if (!s) return avm_err(AVM_ERR_INTERNAL, "task_group_new: out of memory");
+    if (s->task_groups.type != AVM_VAL_MAP || !s->task_groups.as.m) {
+        return avm_err(AVM_ERR_INTERNAL, "task_group_new: scheduler task_groups not initialized");
+    }
+    int64_t id = s->next_task_group_id--;
+    AvmValue empty = avm_new_list_from_values(0, NULL);
+    if (empty.type != AVM_VAL_LIST || !empty.as.l) return avm_alloc_fail_value();
+    if (!avm_map_set_sorted(s->task_groups.as.m, avm_int(id), empty)) return avm_alloc_fail_value();
+    return avm_int(id);
+}
+
+int avm_task_group_is_handle(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s) return 0;
+    if (group.type != AVM_VAL_INT) return 0;
+    AvmValue members = avm_task_group_map_get(s, group.as.i);
+    return members.type == AVM_VAL_LIST && members.as.l != NULL;
+}
+
+AvmValue avm_task_group_add(AvmVM* vm, AvmValue group, AvmValue handle) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) {
+        return avm_err(AVM_ERR_INVALID_ARG, "task_group_add: invalid group");
+    }
+    if (handle.type != AVM_VAL_INT) {
+        return avm_err(AVM_ERR_INVALID_ARG, "task_group_add: expected task handle");
+    }
+    int tid = (int)handle.as.i - 1;
+    if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) {
+        return avm_err(AVM_ERR_INVALID_ARG, "task_group_add: invalid task handle");
+    }
+    AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) {
+        return avm_err(AVM_ERR_INTERNAL, "task_group_add: missing members list");
+    }
+    AvmList* members = membersv.as.l;
+    for (int i = 0; i < members->count; i++) {
+        if (members->items[i].type == AVM_VAL_INT && members->items[i].as.i == handle.as.i) {
+            return handle;
+        }
+    }
+    if (!avm_list_ensure_cap(members, members->count + 1)) return avm_alloc_fail_value();
+    members->items[members->count++] = handle;
+    members->all_int = 1;
+    return handle;
+}
+
+AvmValue avm_task_group_count(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) return avm_int(0);
+    AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_int(0);
+    return avm_int((int64_t)membersv.as.l->count);
+}
+
+AvmValue avm_task_group_members(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) return avm_new_list_from_values(0, NULL);
+    AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_new_list_from_values(0, NULL);
+    return avm_new_list_from_values(membersv.as.l->count, membersv.as.l->items);
+}
+
+AvmValue avm_task_group_clear(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) return avm_nil();
+    AvmValue membersv = avm_task_group_map_get(s, group.as.i);
+    if (membersv.type == AVM_VAL_LIST && membersv.as.l) {
+        membersv.as.l->count = 0;
+        membersv.as.l->all_int = 1;
+    }
+    return avm_nil();
+}
+
+AvmValue avm_task_group_spawn_call_list(AvmVM* vm, AvmValue group, AvmValue fn, AvmValue args_list) {
+    AvmSched* s = avm_sched_lazy_ensure(vm, avm_sched_get(vm));
+    if (!s) return avm_err(AVM_ERR_INTERNAL, "task_group_spawn_call_list: out of memory");
+    if (!avm_task_group_is_handle(vm, group)) {
+        return avm_err(AVM_ERR_INVALID_ARG, "task_group_spawn_call_list: invalid group");
+    }
+    if (fn.type != AVM_VAL_FUNC || !fn.as.fn || args_list.type != AVM_VAL_LIST || !args_list.as.l) {
+        return avm_err(AVM_ERR_INVALID_ARG, "task_group_spawn_call_list expects (group, fn, args_list)");
+    }
+    int tid = sched_new_task(vm, s, fn, args_list);
+    if (tid <= 0) return avm_err(AVM_ERR_INTERNAL, "task_group_spawn_call_list: spawn failed");
+    AvmValue handle = avm_int((int64_t)tid + 1);
+    AvmValue rv = avm_task_group_add(vm, group, handle);
+    if (rv.type == AVM_VAL_MAP && avm_map_get_bool(rv.as.m, "__err")) return rv;
+    return handle;
 }
 
 void avm_sched_free(AvmVM* vm) {

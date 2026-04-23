@@ -204,9 +204,21 @@ backend-shared value-helper slices landed.
     - `task_group.join_all(...)` is now the task-handle-only group join path, while
       `task_group.join_watchers(...)` and `task_group.terminal_results(...)` complete the watcher /
       final-result side of the group surface
-  - the remaining gap now moves up again: runtime-owned scheduler groups for generic `spawn`
-    handles and richer structured-concurrency policy should build on this stdlib layer rather than
-    on raw watcher tasks or raw per-handle joins
+  - Fresh landing (2026-04-23): runtime-backed task groups for generic `spawn` work now also ship:
+    - `task_group.new_runtime()` / `from_task_list(targets)` create runtime-owned task-only groups
+      over safe task handles
+    - `task_group.is_runtime_group(...)` distinguishes that runtime shape, while
+      `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime and
+      stdlib map-backed groups
+    - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and the
+      default native green-task scheduler
+    - `task_group.detach_all(...)` detaches the current membership and clears the runtime group
+    - runtime-backed groups intentionally do not own stop/default-policy/terminal-result semantics
+      yet; those calls still return immediate `err`
+  - the remaining gap now moves up again: unified runtime-owned structured concurrency across both
+    generic `spawn` tasks and generator/coroutine workers, plus group-owned stop/deadline policy
+    for runtime-backed groups, should build on this split surface rather than on raw watcher tasks
+    or raw per-handle joins
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

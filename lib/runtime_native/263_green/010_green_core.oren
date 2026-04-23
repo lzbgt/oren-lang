@@ -1660,6 +1660,8 @@ fn _green_cleanup_g(g) {
     // Clear references to reduce accidental retention.
     ptr_set(g + green_g_off_fn_obj(), 0)
     ptr_set(g + green_g_off_args_list(), 0)
+    // Invalidate the handle for reflected task-surface checks after join/cleanup.
+    ptr_set(g + green_g_off_magic(), 0)
     return 0
 }
 

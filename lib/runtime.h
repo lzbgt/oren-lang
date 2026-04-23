@@ -202,6 +202,13 @@ OrenValue oren_is_done(OrenValue thread);
 OrenValue oren_task_is_handle(OrenValue thread);
 OrenValue oren_task_is_done(OrenValue thread);
 OrenValue oren_join_all();
+OrenValue oren_task_group_new(void);
+OrenValue oren_task_group_is_handle(OrenValue group);
+OrenValue oren_task_group_add(OrenValue group, OrenValue thread);
+OrenValue oren_task_group_count(OrenValue group);
+OrenValue oren_task_group_members(OrenValue group);
+OrenValue oren_task_group_clear(OrenValue group);
+OrenValue oren_task_group_spawn_call_list(OrenValue group, OrenValue fn, OrenValue args_list);
 
 // Channels (C backend runtime; rolling):
 // - POSIX/Windows: represented as [read_fd, write_fd]

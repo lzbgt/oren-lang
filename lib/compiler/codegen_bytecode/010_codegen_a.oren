@@ -1047,6 +1047,13 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_type_name" { native_id = 150 }
         if name == "oren_task_is_handle" { native_id = 167 }
         if name == "oren_task_is_done" { native_id = 168 }
+        if name == "oren_task_group_new" { native_id = 169 }
+        if name == "oren_task_group_is_handle" { native_id = 170 }
+        if name == "oren_task_group_add" { native_id = 171 }
+        if name == "oren_task_group_count" { native_id = 172 }
+        if name == "oren_task_group_members" { native_id = 173 }
+        if name == "oren_task_group_clear" { native_id = 174 }
+        if name == "oren_task_group_spawn_call_list" { native_id = 175 }
         if name == "oren_generator_handle_new_internal" { native_id = 163 }
         if name == "oren_generator_context_new_internal" { native_id = 164 }
         if name == "oren_generator_slot_get_internal" { native_id = 165 }

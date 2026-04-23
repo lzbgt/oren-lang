@@ -1,7 +1,9 @@
 import gen "std:generator"
 import list "std:list"
+import reflect "std:reflect"
 import task "std:task"
 import tg "std:task_group"
+import time "std:time"
 
 fn counter_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -900 }
@@ -13,6 +15,11 @@ fn counter_worker(co, args) {
 
 fn quick_task(seed) {
     return seed + 100
+}
+
+fn slow_task(seed) {
+    time.sleep_ms(30)
+    return seed + 200
 }
 
 fn run_task_group_task_surface_v0() {
@@ -50,6 +57,43 @@ fn run_task_group_task_surface_v0() {
 
     if oren_is_err(tg.add(group0, 123)) != true { return 191015 }
     if oren_is_err(tg.extend(group0, [123])) != true { return 191016 }
+
+    var rtg0 = tg.new_runtime()
+    if oren_is_err(rtg0) == true { return 191017 }
+    if tg.is_runtime_group(rtg0) != true { return 191018 }
+    if tg.is_group(rtg0) != true { return 191019 }
+    if reflect.is_task_group(rtg0) != true { return 191020 }
+    if reflect.is_task_group(group0) != true { return 191021 }
+    if tg.count(rtg0) != 0 { return 191022 }
+    var rtm0 = tg.members(rtg0)
+    if oren_is_err(rtm0) == true || list.len(rtm0) != 0 { return 191023 }
+    if oren_is_err(tg.default_policy(rtg0)) != true { return 191024 }
+    if oren_is_err(tg.stop_policy(rtg0, nil)) != true { return 191025 }
+    if oren_is_err(tg.spawn_call_list(group0, quick_task, [1])) != true { return 191026 }
+
+    var rth0 = tg.spawn_call_list(rtg0, quick_task, [4])
+    if task.is_handle(rth0) != true { return 191027 }
+    var rth1 = spawn quick_task(5)
+    if oren_is_err(tg.add(rtg0, rth1)) == true { return 191028 }
+    if tg.count(rtg0) != 2 { return 191029 }
+    var rtj0 = tg.join_all(rtg0, 2000)
+    if oren_is_err(rtj0) == true || rtj0[0] != 104 || rtj0[1] != 105 { return 191030 }
+    if tg.count(rtg0) != 0 { return 191031 }
+
+    var rtg1 = tg.from_task_list([spawn quick_task(6), spawn quick_task(7)])
+    if oren_is_err(rtg1) == true { return 191032 }
+    if tg.is_runtime_group(rtg1) != true { return 191033 }
+    var rtj1 = tg.join_all(rtg1, 2000)
+    if oren_is_err(rtj1) == true || rtj1[0] != 106 || rtj1[1] != 107 { return 191034 }
+    if tg.count(rtg1) != 0 { return 191035 }
+
+    var rtg2 = tg.new_runtime()
+    if oren_is_err(rtg2) == true { return 191036 }
+    var rth2 = tg.spawn_call_list(rtg2, slow_task, [8])
+    if task.is_handle(rth2) != true { return 191037 }
+    if tg.detach_all(rtg2) != 1 { return 191038 }
+    if tg.count(rtg2) != 0 { return 191039 }
+    if oren_is_err(tg.add(rtg2, mixed_gen)) != true { return 191040 }
 
     return 0
 }

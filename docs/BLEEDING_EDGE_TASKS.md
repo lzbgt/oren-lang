@@ -4731,10 +4731,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     - `task_group.join_all(...)` is now the task-handle-only group join path, while
 		       `task_group.join_watchers(...)` and `task_group.terminal_results(...)` round out the
 		       watcher / terminal-result side of the group surface
-		     The remaining gap is now above this stdlib group layer: runtime-owned scheduler groups for
-		     generic `spawn` handles and richer caller-visible coroutine/generator semantics, not
-		     baseline hard-stop, timeout-helper, manual watcher-join availability, or safe task-handle
-		     reflection.
+		   - New (2026-04-23): runtime-backed task groups for generic `spawn` work now also ship:
+		     - `task_group.new_runtime()` / `from_task_list(targets)` create runtime-owned task-only
+		       groups over safe task handles
+		     - `task_group.is_runtime_group(...)` distinguishes that runtime shape, while
+		       `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime
+		       and stdlib map-backed groups
+		     - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
+		       the default native green-task scheduler
+		     - `task_group.detach_all(...)` detaches every current member and clears the runtime group
+		     - runtime-backed groups intentionally reject stop/default-policy/terminal-result calls in
+		       this slice; those semantics still belong only to the stdlib map-backed generator layer
+		     The remaining gap is now above this split group layer: unified runtime-owned structured
+		     concurrency across both generic tasks and generator/coroutine handles, plus group-owned
+		     stop/deadline policy for runtime-backed groups, not baseline generic task reflection or
+		     runtime task-group membership for spawned work.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
 				     `start/next/send/close/cancel/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface

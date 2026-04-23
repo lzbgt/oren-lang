@@ -697,6 +697,168 @@ OrenValue oren_task_is_done(OrenValue thread) {
     return oren_bool(d);
 }
 
+static int task_value_eq(OrenValue a, OrenValue b) {
+    if (a.type != b.type) return 0;
+    if (a.type == OREN_TYPE_INT) return a.as.int_val == b.as.int_val;
+    if (a.type == OREN_TYPE_LIST) return a.as.list_val == b.as.list_val;
+    return 0;
+}
+
+static OrenTaskGroupNode* task_group_find_locked(int64_t id) {
+    OrenTaskGroupNode* cur = g_task_groups;
+    while (cur) {
+        if (cur->id == id) return cur;
+        cur = cur->next;
+    }
+    return NULL;
+}
+
+static int task_handle_live_value_locked(OrenValue thread) {
+    if (spawn_fork_handle_live(thread)) return 1;
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return 0;
+    return thread_handle_live_locked(n);
+}
+
+static void task_group_compact_locked(OrenTaskGroupNode* g) {
+    if (!g || !g->members || g->count <= 0) {
+        if (g) g->count = 0;
+        return;
+    }
+    int out = 0;
+    for (int i = 0; i < g->count; i++) {
+        OrenValue v = g->members[i];
+        if (!task_handle_live_value_locked(v)) continue;
+        int dup = 0;
+        for (int j = 0; j < out; j++) {
+            if (task_value_eq(g->members[j], v)) { dup = 1; break; }
+        }
+        if (dup) continue;
+        g->members[out++] = v;
+    }
+    g->count = out;
+}
+
+static int task_group_reserve_locked(OrenTaskGroupNode* g, int need) {
+    if (!g) return 0;
+    if (need <= g->capacity) return 1;
+    int new_cap = g->capacity ? g->capacity * 2 : 8;
+    while (new_cap < need) new_cap *= 2;
+    OrenValue* nv = (OrenValue*)realloc(g->members, sizeof(OrenValue) * (size_t)new_cap);
+    if (!nv) return 0;
+    g->members = nv;
+    g->capacity = new_cap;
+    return 1;
+}
+
+OrenValue oren_task_group_new(void) {
+    OrenTaskGroupNode* g = (OrenTaskGroupNode*)calloc(1, sizeof(OrenTaskGroupNode));
+    if (!g) {
+        oren_panic("task_group_new alloc failed");
+        return OREN_NIL;
+    }
+    lock_collections();
+    g->id = g_task_group_next_id--;
+    g->next = g_task_groups;
+    g_task_groups = g;
+    unlock_collections();
+    return oren_int((long long)g->id);
+}
+
+OrenValue oren_task_group_is_handle(OrenValue group) {
+    if (group.type != OREN_TYPE_INT) return OREN_FALSE;
+    lock_collections();
+    int ok = task_group_find_locked(group.as.int_val) != NULL;
+    unlock_collections();
+    return oren_bool(ok);
+}
+
+OrenValue oren_task_group_add(OrenValue group, OrenValue thread) {
+    if (group.type != OREN_TYPE_INT) return OREN_NIL;
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    if (!g) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    task_group_compact_locked(g);
+    if (!task_handle_live_value_locked(thread)) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    for (int i = 0; i < g->count; i++) {
+        if (task_value_eq(g->members[i], thread)) {
+            unlock_collections();
+            return thread;
+        }
+    }
+    if (!task_group_reserve_locked(g, g->count + 1)) {
+        unlock_collections();
+        oren_panic("task_group_add alloc failed");
+        return OREN_NIL;
+    }
+    g->members[g->count++] = thread;
+    unlock_collections();
+    return thread;
+}
+
+OrenValue oren_task_group_count(OrenValue group) {
+    if (group.type != OREN_TYPE_INT) return oren_int(0);
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    if (!g) {
+        unlock_collections();
+        return oren_int(0);
+    }
+    task_group_compact_locked(g);
+    int count = g->count;
+    unlock_collections();
+    return oren_int((long long)count);
+}
+
+OrenValue oren_task_group_members(OrenValue group) {
+    if (group.type != OREN_TYPE_INT) return oren_new_list(0);
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    if (!g) {
+        unlock_collections();
+        return oren_new_list(0);
+    }
+    task_group_compact_locked(g);
+    int count = g->count;
+    OrenValue* snapshot = NULL;
+    if (count > 0) {
+        snapshot = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        if (!snapshot) {
+            unlock_collections();
+            oren_panic("task_group_members alloc failed");
+            return OREN_NIL;
+        }
+        memcpy(snapshot, g->members, sizeof(OrenValue) * (size_t)count);
+    }
+    unlock_collections();
+    OrenValue out = oren_new_list_from_array(count, snapshot);
+    if (snapshot) free(snapshot);
+    return out;
+}
+
+OrenValue oren_task_group_clear(OrenValue group) {
+    if (group.type != OREN_TYPE_INT) return OREN_NIL;
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    if (g) g->count = 0;
+    unlock_collections();
+    return OREN_NIL;
+}
+
+OrenValue oren_task_group_spawn_call_list(OrenValue group, OrenValue fn, OrenValue args_list) {
+    OrenValue handle = oren_spawn_call_list(fn, args_list);
+    if (oren_is_truthy(oren_task_group_is_handle(group)) && oren_is_truthy(oren_task_is_handle(handle))) {
+        (void)oren_task_group_add(group, handle);
+    }
+    return handle;
+}
+
 OrenValue oren_join_all() {
     // Join all known threads. Safe to call multiple times.
     while (1) {

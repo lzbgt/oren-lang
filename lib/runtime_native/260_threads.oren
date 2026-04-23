@@ -1396,6 +1396,56 @@ fn oren_is_done(handle) {
 // - native default path recognizes scheduler-owned green-task handles
 // - legacy POSIX / Windows fallback handles still use raw `oren_join(_timeout)` directly and are
 //   not yet reflected here because they remain opaque raw pointers without a safe portable validator
+var g_task_group_runtime_members = {}
+var g_task_group_runtime_next_id = -900000000000000000
+
+fn _task_group_runtime_ensure_state() {
+    if oren_type_name(g_task_group_runtime_members) != "map" {
+        g_task_group_runtime_members = {}
+    }
+    if oren_type_name(g_task_group_runtime_next_id) != "int" {
+        g_task_group_runtime_next_id = -900000000000000000
+    }
+}
+
+fn _task_group_runtime_members_or_nil(group) {
+    _task_group_runtime_ensure_state()
+    if oren_type_name(group) != "int" { return nil }
+    var members = g_task_group_runtime_members[group]
+    if oren_type_name(members) != "list" { return nil }
+    return members
+}
+
+fn _task_group_runtime_has_member(members, handle) {
+    var i = 0
+    var n = oren_list_len(members)
+    while i < n {
+        if members[i] == handle { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _task_group_runtime_members_compact(group) {
+    _task_group_runtime_ensure_state()
+    var members = _task_group_runtime_members_or_nil(group)
+    if oren_type_name(members) != "list" { return nil }
+    var out = []
+    var i = 0
+    var n = oren_list_len(members)
+    while i < n {
+        var handle = members[i]
+        if oren_task_is_handle(handle) == true {
+            if _task_group_runtime_has_member(out, handle) != true {
+                oren_list_push(out, handle)
+            }
+        }
+        i = i + 1
+    }
+    g_task_group_runtime_members[group] = out
+    return out
+}
+
 @oren.keep
 fn oren_task_is_handle(handle) {
     if handle == 0 { return false }
@@ -1408,4 +1458,79 @@ fn oren_task_is_done(handle) {
     if oren_task_is_handle(handle) != true { return false }
     if oren_green_is_g(handle) { return oren_green_is_done(handle) }
     return false
+}
+
+@oren.keep
+fn oren_task_group_new() {
+    _task_group_runtime_ensure_state()
+    var id = g_task_group_runtime_next_id
+    g_task_group_runtime_next_id = g_task_group_runtime_next_id - 1
+    g_task_group_runtime_members[id] = []
+    return id
+}
+
+@oren.keep
+fn oren_task_group_is_handle(group) {
+    return oren_type_name(_task_group_runtime_members_or_nil(group)) == "list"
+}
+
+@oren.keep
+fn oren_task_group_add(group, handle) {
+    var members = _task_group_runtime_members_compact(group)
+    if oren_type_name(members) != "list" { return nil }
+    if oren_task_is_handle(handle) != true { return nil }
+    if _task_group_runtime_has_member(members, handle) != true {
+        oren_list_push(members, handle)
+        g_task_group_runtime_members[group] = members
+    }
+    return handle
+}
+
+@oren.keep
+fn oren_task_group_count(group) {
+    var members = _task_group_runtime_members_compact(group)
+    if oren_type_name(members) != "list" { return 0 }
+    return oren_list_len(members)
+}
+
+@oren.keep
+fn oren_task_group_members(group) {
+    var members = _task_group_runtime_members_compact(group)
+    if oren_type_name(members) != "list" { return [] }
+    var out = []
+    var i = 0
+    var n = oren_list_len(members)
+    while i < n {
+        oren_list_push(out, members[i])
+        i = i + 1
+    }
+    return out
+}
+
+@oren.keep
+fn oren_task_group_clear(group) {
+    _task_group_runtime_ensure_state()
+    if oren_task_group_is_handle(group) == true {
+        g_task_group_runtime_members[group] = []
+    }
+    return nil
+}
+
+@oren.keep
+fn oren_task_group_spawn_call_list(group, fn_obj, args_list) {
+    if oren_task_group_is_handle(group) != true {
+        return oren_err(4, "oren_task_group_spawn_call_list: expected runtime task group")
+    }
+    if oren_type_name(args_list) != "list" {
+        return oren_err(4, "oren_task_group_spawn_call_list: expected list args_list")
+    }
+    if _green_enabled() != true {
+        return oren_err(7, "oren_task_group_spawn_call_list: runtime task groups require green-task scheduler")
+    }
+    var handle = oren_spawn_call_list(fn_obj, args_list)
+    if oren_task_is_handle(handle) != true {
+        return oren_err(7, "oren_task_group_spawn_call_list: spawn did not produce safe task handle")
+    }
+    oren_task_group_add(group, handle)
+    return handle
 }
