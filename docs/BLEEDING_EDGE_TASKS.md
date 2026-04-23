@@ -4663,6 +4663,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     - the default native green/runtime route now carries started generator handles through these
 		       watcher tasks correctly, so the remaining gap is richer deadline/scheduler policy rather
 		       than timeout-helper availability itself
+		   - New (2026-04-23): absolute-deadline watcher helpers now also ship on the same contract:
+		     - `request_cancel_at(target, deadline_ns, reason)` / `cancel_at(target, deadline_ns, reason)`
+		       use the `time.now_ns()` domain instead of relative `timeout_ms`
+		     - `deadline_ns <= time.now_ns()` fires immediately, `deadline_ns == nil` defaults to
+		       immediate, and invalid non-`int` deadlines fail immediately with `err`
 	     The remaining gap is now a stronger language-level coroutine/generator protocol and
 	     higher-level timeout / stop policy above the explicit channel surface, not baseline hard-stop or
 	     timeout-helper API availability.

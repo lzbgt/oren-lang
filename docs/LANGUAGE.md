@@ -3395,7 +3395,7 @@ Rolling status:
   On native host threads with green runtime already active and no background workers, `oren_yield()`
   now drives one cooperative green scheduling step before falling back to the OS yield hint. The
   first reusable source-level abstraction above it is now `std:generator`, whose
-  `start/next/send/close/cancel/request_cancel/request_cancel_after/cancel_after/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface is
+  `start/next/send/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface is
   now a thin facade over compiler-injected
   `oren_generator_*` helpers and a compiler-managed `generator` handle. That handle is intentionally
   opaque at the language contract level: workers use `yield ... in co`, helpers validate generator
@@ -3428,10 +3428,16 @@ Rolling status:
   - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the target
     is already done, the watcher surfaces the cached terminal result instead of rewriting
     cancellation state
+  - `request_cancel_at(target, deadline_ns, reason)` / `cancel_at(target, deadline_ns, reason)`
+    apply that same watcher protocol against an absolute `deadline_ns` in the `time.now_ns()`
+    domain
+    - `deadline_ns <= time.now_ns()` triggers immediately
+    - `deadline_ns == nil` defaults to immediate
+    - invalid non-`int` deadlines return an immediate argument `err`
 - New (2026-04-23): `std:coroutine` now also ships as a thin facade over that same compiler-managed
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
-  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`)
+  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/request_cancel_at/cancel_at/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`)
   plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)` as the matching
   handle/context tag checks.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
@@ -5396,6 +5402,11 @@ Current behavior (native runtime, rolling):
     - when the target is live, joining the watcher returns `nil`
     - if the target already finished, joining the watcher returns the cached terminal result without
       rewriting cancellation state
+  - `gen.request_cancel_at(target, deadline_ns, reason)` / `gen.cancel_at(target, deadline_ns, reason)`
+    provide the same policy against an absolute deadline in the `time.now_ns()` domain
+    - `deadline_ns <= time.now_ns()` fires immediately
+    - `deadline_ns == nil` defaults to immediate
+    - invalid non-`int` deadlines return an immediate argument `err`
   - `gen.is_cancel_requested(target)` reports whether that sticky cooperative request was recorded
   - `gen.cancel_reason(target)` returns the first recorded cooperative cancellation reason, otherwise
     `nil`
@@ -5438,6 +5449,7 @@ Current behavior (native runtime, rolling):
     zero-argument finalization hook list
   - `coro.close(co)`, `coro.cancel(co, reason)`, `coro.request_cancel(co, reason)`,
     `coro.request_cancel_after(co, timeout_ms, reason)`, `coro.cancel_after(co, timeout_ms, reason)`,
+    `coro.request_cancel_at(co, deadline_ns, reason)`, `coro.cancel_at(co, deadline_ns, reason)`,
     `coro.delegate(co, inner)`,
     `coro.delegate_step(co, inner, step)`, `coro.is_started(co)`, `coro.is_done(co)`,
     `coro.is_closed(co)`, `coro.current_step(co)`, `coro.return_value(co)`,

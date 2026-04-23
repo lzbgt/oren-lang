@@ -522,6 +522,8 @@ fn main() {
     if oren_is_err(oren_generator_request_cancel(123, 1)) != true { return 17322 }
     if oren_is_err(gen.request_cancel_after(123, 0, 1)) != true { return 173221 }
     if oren_is_err(gen.cancel_after(123, 0, 1)) != true { return 173222 }
+    if oren_is_err(gen.request_cancel_at(123, 0, 1)) != true { return 173223 }
+    if oren_is_err(gen.cancel_at(123, 0, 1)) != true { return 173224 }
     if gen.is_cancel_requested(123) != false || gen.cancel_reason(123) != nil { return 17323 }
     if oren_generator_is_cancel_requested(123) != false || oren_generator_cancel_reason(123) != nil { return 17324 }
 
@@ -559,6 +561,8 @@ fn main() {
 
     var gwatch0bad = gen.request_cancel_after(gwatch0, "bad", 1)
     if oren_is_err(gwatch0bad) != true { return 1733851 }
+    var gwatch0atbad = gen.request_cancel_at(gwatch0, "bad", 1)
+    if oren_is_err(gwatch0atbad) != true { return 17338511 }
 
     var gwatch0n = gen.start(cancel_probe_worker, [56, 76])
     var gwatch0ns0 = gen.next(gwatch0n)
@@ -570,6 +574,17 @@ fn main() {
     if gen.is_cancel_requested(gwatch0n) != true || gen.cancel_reason(gwatch0n) != 76 { return 1733855 }
     var gwatch0ns1 = gen.send(gwatch0n, 4)
     if oren_is_err(gwatch0ns1) == true || gwatch0ns1["done"] != true || gwatch0ns1["return"] != 80 { return 1733856 }
+
+    var gat0 = gen.start(cancel_probe_worker, [57, 77])
+    var gat0s0 = gen.next(gat0)
+    if oren_is_err(gat0s0) == true || gat0s0["ok"] != true || gat0s0["value"] != 57 { return 1733857 }
+    var gat0h = gen.request_cancel_at(gat0, 0, 77)
+    if oren_is_err(gat0h) == true { return 1733858 }
+    var gat0rv = oren_join_timeout(gat0h, 2000)
+    if oren_is_err(gat0rv) == true || gat0rv != nil { return 1733859 }
+    if gen.is_cancel_requested(gat0) != true || gen.cancel_reason(gat0) != 77 { return 1733860 }
+    var gat0s1 = gen.send(gat0, 4)
+    if oren_is_err(gat0s1) == true || gat0s1["done"] != true || gat0s1["return"] != 81 { return 1733861 }
 
     var gwatch1 = gen.start(counter_worker, [22])
     var gwatch1s0 = gen.next(gwatch1)
@@ -591,6 +606,17 @@ fn main() {
     if gen.is_done(gwatch1n) != true || gen.is_closed(gwatch1n) != true { return 1733904 }
     if gen.is_cancel_requested(gwatch1n) != true || gen.cancel_reason(gwatch1n) != 83 { return 1733905 }
 
+    var gat1 = gen.start(counter_worker, [26])
+    var gat1s0 = gen.next(gat1)
+    if oren_is_err(gat1s0) == true || gat1s0["ok"] != true || gat1s0["value"] != 27 { return 1733906 }
+    var gat1deadline = oren_time_now_ns() + 2000000
+    var gat1h = gen.cancel_at(gat1, gat1deadline, 85)
+    if oren_is_err(gat1h) == true { return 1733907 }
+    var gat1rv = oren_join_timeout(gat1h, 2000)
+    if oren_is_err(gat1rv) == true || gat1rv != nil { return 1733908 }
+    if gen.is_done(gat1) != true || gen.is_closed(gat1) != true { return 1733909 }
+    if gen.is_cancel_requested(gat1) != true || gen.cancel_reason(gat1) != 85 { return 1733910 }
+
     var gwatch2 = gen.start(counter_worker, [18])
     var gwatch2s0 = gen.next(gwatch2)
     if oren_is_err(gwatch2s0) == true || gwatch2s0["ok"] != true || gwatch2s0["value"] != 19 { return 173391 }
@@ -603,6 +629,19 @@ fn main() {
     var gwatch2rv = oren_join_timeout(gwatch2h, 2000)
     if oren_is_err(gwatch2rv) == true || gwatch2rv != 14 { return 173395 }
     if gen.is_cancel_requested(gwatch2) != false || gen.cancel_reason(gwatch2) != nil { return 173396 }
+
+    var gat2 = gen.start(counter_worker, [19])
+    var gat2s0 = gen.next(gat2)
+    if oren_is_err(gat2s0) == true || gat2s0["ok"] != true || gat2s0["value"] != 20 { return 1733961 }
+    var gat2s1 = gen.send(gat2, 4)
+    if oren_is_err(gat2s1) == true || gat2s1["ok"] != true || gat2s1["value"] != 23 { return 1733962 }
+    var gat2s2 = gen.send(gat2, 9)
+    if oren_is_err(gat2s2) == true || gat2s2["done"] != true || gat2s2["return"] != 14 { return 1733963 }
+    var gat2h = gen.cancel_at(gat2, 0, 121)
+    if oren_is_err(gat2h) == true { return 1733964 }
+    var gat2rv = oren_join_timeout(gat2h, 2000)
+    if oren_is_err(gat2rv) == true || gat2rv != 14 { return 1733965 }
+    if gen.is_cancel_requested(gat2) != false || gen.cancel_reason(gat2) != nil { return 1733966 }
 
     var gcan1 = gen.start(cancel_delegate_outer_worker, [60, 80])
     var gcan1s0 = gen.next(gcan1)

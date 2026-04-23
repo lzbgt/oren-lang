@@ -141,6 +141,10 @@ fn main() {
     if oren_is_err(bad4b) != true { return 1112 }
     var bad4c = coro.cancel_after(123, 0, 1)
     if oren_is_err(bad4c) != true { return 1113 }
+    var bad4d = coro.request_cancel_at(123, 0, 1)
+    if oren_is_err(bad4d) != true { return 1114 }
+    var bad4e = coro.cancel_at(123, 0, 1)
+    if oren_is_err(bad4e) != true { return 1115 }
     if coro.is_started(123) != false { return 208 }
     if coro.is_cancel_requested(123) != false { return 2081 }
     if coro.cancel_reason(123) != nil { return 2082 }
@@ -185,6 +189,8 @@ fn main() {
 
     var c1btbad = coro.request_cancel_after(c1bt, "bad", 1)
     if oren_is_err(c1btbad) != true { return 162051 }
+    var c1btabad = coro.request_cancel_at(c1bt, "bad", 1)
+    if oren_is_err(c1btabad) != true { return 1620511 }
 
     var c1btn = coro.start(cancel_probe_worker, [56, 76])
     var c1btns0 = coro.next(c1btn)
@@ -196,6 +202,17 @@ fn main() {
     if coro.is_cancel_requested(c1btn) != true || coro.cancel_reason(c1btn) != 76 { return 162055 }
     var c1btns1 = coro.send(c1btn, 4)
     if oren_is_err(c1btns1) == true || c1btns1["done"] != true || c1btns1["return"] != 80 { return 162056 }
+
+    var c1bat = coro.start(cancel_probe_worker, [57, 77])
+    var c1bats0 = coro.next(c1bat)
+    if oren_is_err(c1bats0) == true || c1bats0["value"] != 57 { return 1620561 }
+    var c1batw = coro.request_cancel_at(c1bat, 0, 77)
+    if oren_is_err(c1batw) == true { return 1620562 }
+    var c1batwr = oren_join_timeout(c1batw, 2000)
+    if oren_is_err(c1batwr) == true || c1batwr != nil { return 1620563 }
+    if coro.is_cancel_requested(c1bat) != true || coro.cancel_reason(c1bat) != 77 { return 1620564 }
+    var c1bats1 = coro.send(c1bat, 4)
+    if oren_is_err(c1bats1) == true || c1bats1["done"] != true || c1bats1["return"] != 81 { return 1620565 }
 
     var c1c = coro.start(cancel_delegate_outer_worker, [60, 80])
     var c1cs0 = coro.next(c1c)
@@ -240,6 +257,17 @@ fn main() {
     if coro.is_done(c1dtn) != true || coro.is_closed(c1dtn) != true { return 1624854 }
     if coro.is_cancel_requested(c1dtn) != true || coro.cancel_reason(c1dtn) != 83 { return 1624855 }
 
+    var c1dat = coro.start(counter_worker, [26])
+    var c1dats0 = coro.next(c1dat)
+    if oren_is_err(c1dats0) == true || c1dats0["value"] != 27 { return 1624856 }
+    var c1datdeadline = oren_time_now_ns() + 2000000
+    var c1datw = coro.cancel_at(c1dat, c1datdeadline, 85)
+    if oren_is_err(c1datw) == true { return 1624857 }
+    var c1datwr = oren_join_timeout(c1datw, 2000)
+    if oren_is_err(c1datwr) == true || c1datwr != nil { return 1624858 }
+    if coro.is_done(c1dat) != true || coro.is_closed(c1dat) != true { return 1624859 }
+    if coro.is_cancel_requested(c1dat) != true || coro.cancel_reason(c1dat) != 85 { return 1624860 }
+
     var c1dcells = [nil]
     var c1e = coro.start(cancel_delegate_capture_outer_worker, [c1dcells, 60, 80])
     var c1es0 = coro.next(c1e)
@@ -276,6 +304,19 @@ fn main() {
     var c1ftwr = oren_join_timeout(c1ftw, 2000)
     if oren_is_err(c1ftwr) == true || c1ftwr != 14 { return 16265 }
     if coro.is_cancel_requested(c1ft) != false || coro.cancel_reason(c1ft) != nil { return 16266 }
+
+    var c1fat = coro.start(counter_worker, [19])
+    var c1fats0 = coro.next(c1fat)
+    if oren_is_err(c1fats0) == true || c1fats0["value"] != 20 { return 162661 }
+    var c1fats1 = coro.send(c1fat, 4)
+    if oren_is_err(c1fats1) == true || c1fats1["value"] != 23 { return 162662 }
+    var c1fats2 = coro.send(c1fat, 9)
+    if oren_is_err(c1fats2) == true || c1fats2["done"] != true || c1fats2["return"] != 14 { return 162663 }
+    var c1fatw = coro.cancel_at(c1fat, 0, 121)
+    if oren_is_err(c1fatw) == true { return 162664 }
+    var c1fatwr = oren_join_timeout(c1fatw, 2000)
+    if oren_is_err(c1fatwr) == true || c1fatwr != 14 { return 162665 }
+    if coro.is_cancel_requested(c1fat) != false || coro.cancel_reason(c1fat) != nil { return 162666 }
 
     var c2 = coro.start(delegate_outer_worker, [30])
     var d0 = coro.next(c2)

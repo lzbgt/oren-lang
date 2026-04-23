@@ -1480,6 +1480,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - the default native green/runtime route now supports these watcher tasks on started
 		       generator handles, so the remaining gap moves up to richer scheduler/deadline policy rather
 		       than baseline timeout-helper availability
+		   - New (2026-04-23): the same surface now also supports absolute deadlines in the
+		     `time.now_ns()` domain:
+		     - `std:generator.request_cancel_at(target, deadline_ns, reason)` /
+		       `std:coroutine.request_cancel_at(...)` apply the cooperative watcher protocol against an
+		       absolute deadline instead of a relative timeout
+		     - `std:generator.cancel_at(target, deadline_ns, reason)` /
+		       `std:coroutine.cancel_at(...)` apply the same hard-stop protocol against an absolute
+		       deadline
+		     - `deadline_ns <= time.now_ns()` fires immediately, `deadline_ns == nil` defaults to
+		       immediate, and invalid non-`int` deadlines return an immediate argument `err`
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

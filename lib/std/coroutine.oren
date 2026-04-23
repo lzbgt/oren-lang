@@ -8,7 +8,9 @@
 // - inside that worker, `yield [expr] in co` is the shared exchange contract
 // - cooperative cancel requests stay observable as request state via `request_cancel(...)`
 // - `request_cancel_after(...)` / `cancel_after(...)` schedule that same protocol on a joinable
-//   watcher task after a timeout
+//   watcher task after a relative timeout
+// - `request_cancel_at(...)` / `cancel_at(...)` schedule that same protocol against an absolute
+//   `deadline_ns` in the `time.now_ns()` domain
 // - `cancel(...)` is the hard-stop layer above that state: it records the request and then
 //   forces the existing close/detach/finalize path
 //
@@ -60,6 +62,14 @@ fn request_cancel_after(co, timeout_ms, reason) {
 
 fn cancel_after(co, timeout_ms, reason) {
     return gen.cancel_after(co, timeout_ms, reason)
+}
+
+fn request_cancel_at(co, deadline_ns, reason) {
+    return gen.request_cancel_at(co, deadline_ns, reason)
+}
+
+fn cancel_at(co, deadline_ns, reason) {
+    return gen.cancel_at(co, deadline_ns, reason)
 }
 
 fn delegate(co, inner) {

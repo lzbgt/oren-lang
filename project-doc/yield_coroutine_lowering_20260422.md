@@ -131,6 +131,14 @@ backend-shared value-helper slices landed.
   - the restored clean native green/runtime route carries started generator handles through these
     watcher tasks correctly, so the remaining protocol gap is now richer scheduler/deadline policy
     above the shipped helper layer rather than missing timeout-helper availability
+- Fresh landing (2026-04-23): absolute-deadline cancellation now ships on top of that watcher
+  layer:
+  - `request_cancel_at(target, deadline_ns, reason)` / `cancel_at(target, deadline_ns, reason)`
+    use the same watcher protocol but against an absolute `deadline_ns` in the `time.now_ns()`
+    domain
+  - `deadline_ns <= time.now_ns()` fires immediately
+  - `deadline_ns == nil` defaults to immediate
+  - invalid non-`int` deadlines return an immediate argument `err`
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now
