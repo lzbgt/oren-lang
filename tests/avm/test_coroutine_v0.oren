@@ -55,6 +55,16 @@ fn cancel_delegate_outer_worker(co, args) {
     return retv
 }
 
+fn cancel_delegate_capture_outer_worker(co, args) {
+    assert_true(reflect.is_generator_context(co) == true, 1193)
+    var cells = args[0]
+    var inner = coro.start(cancel_probe_worker, [args[1], args[2]])
+    cells[0] = inner
+    var retv = coro.delegate(co, inner)
+    assert_true(oren_is_err(retv) == false, 1194)
+    return retv
+}
+
 fn delegate_inner_worker(co, args) {
     var seed = args[0]
     var resumed0 = yield (seed + 1) in co
@@ -135,6 +145,7 @@ fn main() {
     assert_true(oren_is_err(coro.send(123, 1)) == true, 9)
     assert_true(oren_is_err(coro.collect(123)) == true, 10)
     assert_true(oren_is_err(coro.close(123)) == true, 11)
+    assert_true(oren_is_err(coro.cancel(123, 1)) == true, 1101)
     assert_true(oren_is_err(coro.request_cancel(123, 1)) == true, 111)
     assert_true(coro.is_started(123) == false, 212)
     assert_true(coro.is_cancel_requested(123) == false, 2121)
@@ -190,6 +201,64 @@ fn main() {
     assert_true(oren_is_err(c1cs1) == false, 1637)
     assert_true(c1cs1["done"] == true, 1638)
     assert_eq(c1cs1["return"], 84, 1639)
+
+    var c1d = coro.start(counter_worker, [20])
+    var c1ds0 = coro.next(c1d)
+    assert_true(oren_is_err(c1ds0) == false, 1640)
+    assert_eq(c1ds0["value"], 21, 1641)
+    var c1dc0 = coro.cancel(c1d, 71)
+    assert_true(oren_is_err(c1dc0) == false, 1642)
+    assert_true(c1dc0 == nil, 1643)
+    assert_true(coro.is_done(c1d) == true, 1644)
+    assert_true(coro.is_closed(c1d) == true, 1645)
+    assert_true(coro.return_value(c1d) == nil, 1646)
+    assert_true(coro.terminal_error(c1d) == nil, 1647)
+    assert_true(coro.is_cancel_requested(c1d) == true, 1648)
+    assert_eq(coro.cancel_reason(c1d), 71, 1649)
+    var c1dstep = coro.next(c1d)
+    assert_true(oren_is_err(c1dstep) == false, 1650)
+    assert_true(c1dstep["done"] == true, 1651)
+    assert_true(c1dstep["return"] == nil, 1652)
+    var c1dc1 = coro.cancel(c1d, 99)
+    assert_true(oren_is_err(c1dc1) == false, 1653)
+    assert_true(c1dc1 == nil, 1654)
+    assert_eq(coro.cancel_reason(c1d), 71, 1655)
+
+    var c1dcells = [nil]
+    var c1e = coro.start(cancel_delegate_capture_outer_worker, [c1dcells, 60, 80])
+    var c1es0 = coro.next(c1e)
+    assert_true(oren_is_err(c1es0) == false, 1656)
+    assert_eq(c1es0["value"], 60, 1657)
+    var c1einner = c1dcells[0]
+    assert_true(reflect.is_coroutine(c1einner) == true, 1658)
+    var c1ec0 = coro.cancel(c1e, 80)
+    assert_true(oren_is_err(c1ec0) == false, 1659)
+    assert_true(c1ec0 == nil, 1660)
+    assert_true(coro.is_done(c1e) == true, 1661)
+    assert_true(coro.is_closed(c1e) == true, 1662)
+    assert_true(coro.is_cancel_requested(c1e) == true, 1663)
+    assert_eq(coro.cancel_reason(c1e), 80, 1664)
+    assert_true(coro.is_done(c1einner) == true, 1665)
+    assert_true(coro.is_closed(c1einner) == true, 1666)
+    assert_true(coro.is_cancel_requested(c1einner) == true, 1667)
+    assert_eq(coro.cancel_reason(c1einner), 80, 1668)
+
+    var c1f = coro.start(counter_worker, [15])
+    var c1fs0 = coro.next(c1f)
+    assert_true(oren_is_err(c1fs0) == false, 1669)
+    assert_eq(c1fs0["value"], 16, 1670)
+    var c1fs1 = coro.send(c1f, 4)
+    assert_true(oren_is_err(c1fs1) == false, 1671)
+    assert_eq(c1fs1["value"], 19, 1672)
+    var c1fs2 = coro.send(c1f, 9)
+    assert_true(oren_is_err(c1fs2) == false, 1673)
+    assert_true(c1fs2["done"] == true, 1674)
+    assert_eq(c1fs2["return"], 14, 1675)
+    var c1fc0 = coro.cancel(c1f, 120)
+    assert_true(oren_is_err(c1fc0) == false, 1676)
+    assert_eq(c1fc0, 14, 1677)
+    assert_true(coro.is_cancel_requested(c1f) == false, 1678)
+    assert_true(coro.cancel_reason(c1f) == nil, 1679)
 
     var c2 = coro.start(delegate_outer_worker, [30])
     assert_eq(coro.next(c2)["value"], 31, 17)

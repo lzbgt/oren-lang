@@ -54,6 +54,16 @@ fn cancel_delegate_outer_worker(co, args) {
     return retv
 }
 
+fn cancel_delegate_capture_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -9293 }
+    var cells = args[0]
+    var inner = gen.start(cancel_probe_worker, [args[1], args[2]])
+    cells[0] = inner
+    var retv = gen.delegate(co, inner)
+    if oren_is_err(retv) == true { return -9294 }
+    return retv
+}
+
 fn delegate_inner_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -930 }
     var seed = args[0]
@@ -506,6 +516,8 @@ fn main() {
     if oren_generator_return_value(123) != nil { return 173 }
     if oren_is_err(gen.close(123)) != true { return 1731 }
     if oren_is_err(oren_generator_close(123)) != true { return 1732 }
+    if oren_is_err(gen.cancel(123, 1)) != true { return 173201 }
+    if oren_is_err(oren_generator_cancel(123, 1)) != true { return 173202 }
     if oren_is_err(gen.request_cancel(123, 1)) != true { return 17321 }
     if oren_is_err(oren_generator_request_cancel(123, 1)) != true { return 17322 }
     if gen.is_cancel_requested(123) != false || gen.cancel_reason(123) != nil { return 17323 }
@@ -551,6 +563,44 @@ fn main() {
     if oren_is_err(gcan2close) == true || gcan2close != nil { return 17346 }
     if gen.is_done(gcan2) != true || gen.is_closed(gcan2) != true { return 17347 }
     if gen.is_cancel_requested(gcan2) != true || gen.cancel_reason(gcan2) != 90 { return 17348 }
+
+    var ghard0 = gen.start(counter_worker, [20])
+    var ghard0s0 = gen.next(ghard0)
+    if oren_is_err(ghard0s0) == true || ghard0s0["ok"] != true || ghard0s0["value"] != 21 { return 173481 }
+    var ghard0c0 = gen.cancel(ghard0, 71)
+    if oren_is_err(ghard0c0) == true || ghard0c0 != nil { return 173482 }
+    if gen.is_done(ghard0) != true || gen.is_closed(ghard0) != true { return 173483 }
+    if gen.return_value(ghard0) != nil || gen.terminal_error(ghard0) != nil { return 173484 }
+    if gen.is_cancel_requested(ghard0) != true || gen.cancel_reason(ghard0) != 71 { return 173485 }
+    var ghard0step = gen.next(ghard0)
+    if oren_is_err(ghard0step) == true || ghard0step["done"] != true || ghard0step["return"] != nil { return 173486 }
+    var ghard0c1 = oren_generator_cancel(ghard0, 99)
+    if oren_is_err(ghard0c1) == true || ghard0c1 != nil { return 173487 }
+    if gen.cancel_reason(ghard0) != 71 { return 173488 }
+
+    var ghard_cells = [nil]
+    var ghard1 = gen.start(cancel_delegate_capture_outer_worker, [ghard_cells, 60, 80])
+    var ghard1s0 = gen.next(ghard1)
+    if oren_is_err(ghard1s0) == true || ghard1s0["ok"] != true || ghard1s0["value"] != 60 { return 173489 }
+    var ghard1inner = ghard_cells[0]
+    if oren_type_name(ghard1inner) != "generator" { return 173490 }
+    var ghard1c0 = gen.cancel(ghard1, 80)
+    if oren_is_err(ghard1c0) == true || ghard1c0 != nil { return 173491 }
+    if gen.is_done(ghard1) != true || gen.is_closed(ghard1) != true { return 173492 }
+    if gen.is_cancel_requested(ghard1) != true || gen.cancel_reason(ghard1) != 80 { return 173493 }
+    if gen.is_done(ghard1inner) != true || gen.is_closed(ghard1inner) != true { return 173494 }
+    if gen.is_cancel_requested(ghard1inner) != true || gen.cancel_reason(ghard1inner) != 80 { return 173495 }
+
+    var ghard2 = gen.start(counter_worker, [15])
+    var ghard2s0 = gen.next(ghard2)
+    if oren_is_err(ghard2s0) == true || ghard2s0["ok"] != true || ghard2s0["value"] != 16 { return 173496 }
+    var ghard2s1 = gen.send(ghard2, 4)
+    if oren_is_err(ghard2s1) == true || ghard2s1["ok"] != true || ghard2s1["value"] != 19 { return 173497 }
+    var ghard2s2 = gen.send(ghard2, 9)
+    if oren_is_err(ghard2s2) == true || ghard2s2["done"] != true || ghard2s2["return"] != 14 { return 173498 }
+    var ghard2c0 = gen.cancel(ghard2, 120)
+    if oren_is_err(ghard2c0) == true || ghard2c0 != 14 { return 173499 }
+    if gen.is_cancel_requested(ghard2) != false || gen.cancel_reason(ghard2) != nil { return 173500 }
 
     var gc0 = gen.start(counter_worker, [15])
     var close0 = gen.close(gc0)

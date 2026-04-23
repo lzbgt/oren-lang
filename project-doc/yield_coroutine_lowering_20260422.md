@@ -101,20 +101,22 @@ backend-shared value-helper slices landed.
   - same worker shape: `worker(co, args_list)`
   - same worker-facing exchange: `yield [expr] in co`
   - runtime-facing operations: `start`, `resume`, `next`, `send`, `on_finalize`, `on_close`,
-    `close`, `request_cancel`, `delegate`, `delegate_step`, `is_started`, `is_done`,
+    `close`, `cancel`, `request_cancel`, `delegate`, `delegate_step`, `is_started`, `is_done`,
     `is_closed`, `current_step`, `return_value`, `terminal_error`, `is_cancel_requested`,
     `cancel_reason`, `collect`
   - `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)` are now the matching
     handle/context tag tests for that shipped facade
-- Fresh landing (2026-04-23): the same shipped generator/coroutine handle now also carries a first
-  cooperative cancellation-request contract:
+- Fresh landing (2026-04-23): the same shipped generator/coroutine handle now also carries a
+  two-layer cancellation contract:
   - `request_cancel(target, reason)` records a sticky cancel request on a generator handle or
     `generator_context`
+  - `cancel(target, reason)` records that sticky request and then forces the deterministic `close()`
+    path
   - `is_cancel_requested(target)` / `cancel_reason(target)` expose that state
   - the first request wins, the reason survives natural completion or explicit `close()`, and the
     request propagates down the currently active delegated child chain
-  - this is intentionally not hard cancellation yet; user code must still observe the request
-    cooperatively
+  - `request_cancel(...)` remains cooperative state; user code must still observe it cooperatively
+  - `cancel(...)` is the shipped hard-stop layer for the current helper path
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now
@@ -160,6 +162,7 @@ backend-shared value-helper slices landed.
   - `oren_generator_start(worker, args_list)`
   - `oren_generator_next(gen)`
   - `oren_generator_send(gen, value)`
+  - `oren_generator_cancel(target, reason)`
   - `oren_generator_request_cancel(target, reason)`
   - `oren_generator_is_started(gen)`
   - `oren_generator_is_done(gen)`
@@ -187,9 +190,10 @@ backend-shared value-helper slices landed.
     supported worker-facing exchange API
   - raw positional slot numbers are now isolated to named injected accessors/constructors inside
     `lib/compiler/parser_parse/005_generator_core.oren`
-  - metadata now reports this as `compiler_generator_object_v6` with
+  - metadata now reports this as `compiler_generator_object_v7` with
     `helper_api=oren_generator_start_v2`, `caller_api=generator_handle_v2`,
     `state_layout=dedicated_generator_object_kind_v1`, `worker_context_type=generator_context`,
+    `cancel_api=oren_generator_cancel_v1`,
     `request_cancel_api=oren_generator_request_cancel_v1`,
     `started_api=oren_generator_is_started_v1`, `closed_api=oren_generator_is_closed_v1`,
     `current_step_api=oren_generator_current_step_v1`,
@@ -727,13 +731,14 @@ backend-shared value-helper slices landed.
     hard-kill/finalization guarantee: detached workers may still exist on some substrates until the
     process/runtime exits
   - metadata for `@oren.generator` declarations now records:
-    - `version = 22`
-    - `resume_surface = "next_send_finalize_defer_close_request_cancel_delegate_yield_from_v8"`
+    - `version = 23`
+    - `resume_surface = "next_send_finalize_defer_close_cancel_delegate_yield_from_v9"`
     - `on_finalize_api = "oren_generator_on_finalize_v1"`
     - `on_finalize_mode = "lifo_zero_arg_on_done_or_close_v1"`
     - `on_close_api = "oren_generator_on_close_v1"`
     - `on_close_mode = "alias_of_on_finalize_v1"`
     - `close_api = "oren_generator_close_v1"`
+    - `cancel_api = "oren_generator_cancel_v1"`
     - `request_cancel_api = "oren_generator_request_cancel_v1"`
     - `cancel_requested_api = "oren_generator_is_cancel_requested_v1"`
     - `cancel_reason_api = "oren_generator_cancel_reason_v1"`

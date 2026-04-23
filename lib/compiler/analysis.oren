@@ -902,8 +902,8 @@ fn function_generator_decl_surface(func) {
         return nil
     }
     return {
-        "version": 22,
-        "surface": "compiler_generator_object_v6",
+        "version": 23,
+        "surface": "compiler_generator_object_v7",
         "syntax": "attr_oren.generator",
         "helper_api": "oren_generator_start_v2",
         "caller_api": "generator_handle_v2",
@@ -913,12 +913,13 @@ fn function_generator_decl_surface(func) {
         "iter_surface": "for_in_v0",
         "iter_api": "oren_iter_next_v0",
         "iter_resume": "implicit_nil_v0",
-        "resume_surface": "next_send_finalize_defer_close_request_cancel_delegate_yield_from_v8",
+        "resume_surface": "next_send_finalize_defer_close_cancel_delegate_yield_from_v9",
         "next_api": "oren_generator_next_v2",
         "send_api": "oren_generator_send_v2",
         "on_finalize_api": "oren_generator_on_finalize_v1",
         "on_close_api": "oren_generator_on_close_v1",
         "close_api": "oren_generator_close_v1",
+        "cancel_api": "oren_generator_cancel_v1",
         "request_cancel_api": "oren_generator_request_cancel_v1",
         "delegate_api": "oren_generator_delegate_v1",
         "delegate_step_api": "oren_generator_delegate_step_v1",

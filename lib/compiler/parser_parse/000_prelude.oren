@@ -497,6 +497,7 @@ fn _generator_helper_name_used(name) {
     if name == "oren_generator_on_finalize" { return true }
     if name == "oren_generator_on_close" { return true }
     if name == "oren_generator_close" { return true }
+    if name == "oren_generator_cancel" { return true }
     if name == "oren_generator_request_cancel" { return true }
     if name == "oren_generator_is_started" { return true }
     if name == "oren_generator_is_done" { return true }

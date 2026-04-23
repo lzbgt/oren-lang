@@ -1452,17 +1452,19 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     channel protocol still exists underneath.
 	   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
 	     that same compiler-managed handle/context contract. It exposes
-	     `start/resume/next/send/on_finalize/on_close/close/request_cancel/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`
+	     `start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`
 	     plus `std:reflect.is_coroutine(v)` / `std:reflect.is_coroutine_context(v)`.
-		   - New (2026-04-23): the same shipped generator/coroutine substrate now also exposes
-		     cooperative cancellation-request state distinct from `close()`:
+		   - New (2026-04-23): the same shipped generator/coroutine substrate now also exposes a
+		     two-layer cancellation contract above `close()`:
 		     - `std:generator.request_cancel(target, reason)` / `std:coroutine.request_cancel(target, reason)`
-		       mark a sticky cancel request on a generator handle or `generator_context`
+		       mark first-write-wins sticky cancellation-request state on a generator handle or
+		       `generator_context`
 		     - `is_cancel_requested(...)` and `cancel_reason(...)` expose that state
-		     - the first request wins, the reason stays sticky after natural completion or `close()`, and
-		       the request propagates down the currently active delegated child chain
-		     - this is still cooperative state only; it does not force-unwind the worker or add a hidden
-		       cancellation exception protocol yet
+		     - `std:generator.cancel(target, reason)` / `std:coroutine.cancel(target, reason)` record the
+		       same sticky state, propagate it down the active delegated child chain, and then force the
+		       deterministic `close()` path
+		     - `request_cancel(...)` remains cooperative state only; `cancel(...)` is the shipped hard-stop
+		       layer for the current helper path
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path
@@ -1473,16 +1475,17 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
 		     lowering to that same compiler-managed generator-handle surface instead of a hidden
 		     `std:generator.start(...)` import. Metadata/dump/OBC surfaces now expose
-			     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v6`, so tools can
+			     `is_generator_decl` plus `generator_decl_surface=compiler_generator_object_v7`, so tools can
 	     distinguish declaration sugar from raw exchange helpers while still seeing the underlying
 			     `generator_context_v0` worker-facing yield contract and binding-sensitive
 				     `yield_exchange_surface`. That v2 surface now explicitly records
 					     `state_layout=dedicated_generator_object_kind_v1`, `worker_context_type=generator_context`,
 					     `iter_surface=for_in_v0`, `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`,
-					     `resume_surface=next_send_finalize_defer_close_request_cancel_delegate_yield_from_v8`,
+					     `resume_surface=next_send_finalize_defer_close_cancel_delegate_yield_from_v9`,
 					     `next_api=oren_generator_next_v2`, `send_api=oren_generator_send_v2`,
 					     `on_finalize_api=oren_generator_on_finalize_v1`,
 					     `on_close_api=oren_generator_on_close_v1`, `close_api=oren_generator_close_v1`,
+					     `cancel_api=oren_generator_cancel_v1`,
 					     `request_cancel_api=oren_generator_request_cancel_v1`,
 					     `delegate_api=oren_generator_delegate_v1`,
 					     `delegate_step_api=oren_generator_delegate_step_v1`,

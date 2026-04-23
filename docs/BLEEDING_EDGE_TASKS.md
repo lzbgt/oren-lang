@@ -4639,27 +4639,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     also has shared-front-end source syntax (`yield expr in (yield_ch, resume_ch)` and
 	     `yield in (yield_ch, resume_ch)`), with metadata distinguishing source syntax from raw helper
 	     calls via `syntax_kinds` and per-point `syntax` / `explicit_value`.
-		   - New (2026-04-23): the first generator/coroutine-level cooperative cancellation-request
-		     surface now also ships above that helper path:
-		     - `std:generator.request_cancel(...)` / `std:coroutine.request_cancel(...)` record a sticky
-		       cancel request distinct from `close()`
-		     - `is_cancel_requested(...)` and `cancel_reason(...)` expose the first-write-wins sticky
-		       state
-		     - active delegation now propagates the request down the current child chain
+		   - New (2026-04-23): the first generator/coroutine-level cancellation protocol now ships above
+		     that helper path:
+		     - `std:generator.request_cancel(...)` / `std:coroutine.request_cancel(...)` record sticky
+		       first-write-wins cancel-request state distinct from `close()`
+		     - `is_cancel_requested(...)` and `cancel_reason(...)` expose that sticky state
+		     - active delegation propagates both request and hard-cancel intent down the current child
+		       chain
 		     - the request survives natural completion or explicit `close()`
-		     - this is still cooperative state only; it does not yet hard-stop the worker
-	     The remaining gap is now a stronger language-level coroutine/generator protocol plus hard
-	     cancellation / timeout semantics above that explicit channel surface.
+		     - `std:generator.cancel(...)` / `std:coroutine.cancel(...)` are now the shipped hard-stop
+		       layer for the current helper path: they record the same sticky state and then force the
+		       deterministic `close()` path
+	     The remaining gap is now a stronger language-level coroutine/generator protocol plus timeout /
+	     policy semantics above that explicit channel surface, not baseline hard-stop API availability.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
-			     `start/next/send/close/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface
+				     `start/next/send/close/cancel/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface
 		     is now a thin facade over compiler-injected
 		     `oren_generator_*` helpers, the shipped handle is tagged as `generator`, and worker bodies now
 		     use `yield ... in co` as the normalized generator-context surface instead of spelling out
 		     raw channel fields.
 			   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
 			     that same shipped handle/context substrate. It adds
-				     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect`
+				     `start/resume/next/send/on_finalize/on_close/close/cancel/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect`
 			     plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)`.
 			   - New (2026-04-23): source-level `@oren.coroutine` now also ships as a self-host-safe
 			     parser alias of `@oren.generator`. Reweight the next feature backlog accordingly:
@@ -4674,7 +4676,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.
 			     Reweight the remaining work again: the missing piece is no longer “replace the stdlib-map
 				     wrapper”, and the shipped handle contract is now also opaque by default
-								     (`compiler_generator_object_v6` with `dedicated_generator_object_kind_v1` plus validated
+									     (`compiler_generator_object_v7` with `dedicated_generator_object_kind_v1` plus validated
 					     `generator_context`, declaration-form metadata, `close_mode=propagate_active_delegate_chain_detach_live_task_v3`,
 						     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`, and
 						     `for_in_v0` iterable metadata). The remaining work is the next abstraction layer above the shipped

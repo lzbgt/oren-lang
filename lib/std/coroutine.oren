@@ -6,8 +6,9 @@
 // - handle type remains `generator`
 // - worker shape remains `worker(co, args_list)`
 // - inside that worker, `yield [expr] in co` is the shared exchange contract
-// - cooperative cancel requests stay distinct from `close(...)`: `request_cancel(...)`
-//   marks sticky request state, while `close(...)` keeps the current detach/finalize behavior
+// - cooperative cancel requests stay observable as request state via `request_cancel(...)`
+// - `cancel(...)` is the hard-stop layer above that state: it records the request and then
+//   forces the existing close/detach/finalize path
 //
 // This module exists to make the shipped coroutine surface explicit at the
 // language/std layer while the broader coroutine state-machine lowering backlog
@@ -39,6 +40,10 @@ fn on_close(co, hook) {
 
 fn close(co) {
     return oren_generator_close(co)
+}
+
+fn cancel(co, reason) {
+    return oren_generator_cancel(co, reason)
 }
 
 fn request_cancel(co, reason) {

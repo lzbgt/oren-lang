@@ -450,6 +450,7 @@ fn json_generator_decl_surface(surface) {
     out = out + "\"on_finalize_api\": " + json_string(surface["on_finalize_api"]) + ", "
     out = out + "\"on_close_api\": " + json_string(surface["on_close_api"]) + ", "
     out = out + "\"close_api\": " + json_string(surface["close_api"]) + ", "
+    out = out + "\"cancel_api\": " + json_string(surface["cancel_api"]) + ", "
     out = out + "\"request_cancel_api\": " + json_string(surface["request_cancel_api"]) + ", "
     out = out + "\"delegate_api\": " + json_string(surface["delegate_api"]) + ", "
     out = out + "\"delegate_step_api\": " + json_string(surface["delegate_step_api"]) + ", "

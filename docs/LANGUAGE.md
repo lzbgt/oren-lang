@@ -3395,7 +3395,7 @@ Rolling status:
   On native host threads with green runtime already active and no background workers, `oren_yield()`
   now drives one cooperative green scheduling step before falling back to the OS yield hint. The
   first reusable source-level abstraction above it is now `std:generator`, whose
-  `start/next/send/close/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface is
+  `start/next/send/close/cancel/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface is
   now a thin facade over compiler-injected
   `oren_generator_*` helpers and a compiler-managed `generator` handle. That handle is intentionally
   opaque at the language contract level: workers use `yield ... in co`, helpers validate generator
@@ -3405,19 +3405,24 @@ Rolling status:
   shared channel/select runtime still carries the underlying exchange, but the remaining gap is
   broader coroutine/generator protocol above that first compiler-managed handle, not first
   availability of source syntax or reusable generator helpers.
-- New (2026-04-23): that same shipped generator/coroutine substrate now also carries a first
-  cooperative cancellation-request layer distinct from forced `close()`:
+- New (2026-04-23): that same shipped generator/coroutine substrate now also carries a two-layer
+  cancellation contract above forced `close()`:
   - `request_cancel(target, reason)` marks a sticky cancel request on a generator handle or context
+  - `cancel(target, reason)` records that sticky request and then forces the existing deterministic
+    `close()` path
   - `is_cancel_requested(target)` and `cancel_reason(target)` expose that sticky state
   - the first request wins; later requests do not overwrite the recorded reason
   - the state remains observable after natural completion or explicit `close()`
   - active `yield from` / delegation chains propagate the request down to the current delegated child
-  - this is still cooperative state only; it does not yet inject a hidden cancellation exception or
-    forcibly unwind user code
+  - `request_cancel(...)` remains cooperative state only; it does not inject a hidden cancellation
+    exception or forcibly unwind user code
+  - `cancel(...)` is the shipped hard-stop layer for the current helper path: live handles become
+    `done` + `closed`, keep the first cancellation reason, and then surface the same deterministic
+    post-`close()` state across bytecode, C, and native
 - New (2026-04-23): `std:coroutine` now also ships as a thin facade over that same compiler-managed
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
-  (`start/resume/next/send/on_finalize/on_close/close/request_cancel/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`)
+  (`start/resume/next/send/on_finalize/on_close/close/cancel/request_cancel/delegate/delegate_step/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason`)
   plus `std:reflect.is_coroutine(v)` and `std:reflect.is_coroutine_context(v)` as the matching
   handle/context tag checks.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
@@ -3446,13 +3451,14 @@ Rolling status:
     - inside explicit generator workers: `defer { ... } in co`
     - inside `@oren.generator` and `@oren.coroutine` declarations: `defer { ... }`
     - the `defer` surface is contextual; it is not reserved outside those generator forms
-  - metadata now reports that object contract as `compiler_generator_object_v6` with
+  - metadata now reports that object contract as `compiler_generator_object_v7` with
     `generator_handle_v2`, `dedicated_generator_object_kind_v1`, declaration-form metadata via
     `generator_decl_surface.decl_forms`, and iterable metadata via `iter_surface=for_in_v0`,
     `iter_api=oren_iter_next_v0`, `iter_resume=implicit_nil_v0`, and explicit resume/delegation
-    metadata through `resume_surface=next_send_finalize_defer_close_request_cancel_delegate_yield_from_v8`,
+    metadata through `resume_surface=next_send_finalize_defer_close_cancel_delegate_yield_from_v9`,
     `delegate_api=oren_generator_delegate_v1`,
     `close_api=oren_generator_close_v1`,
+    `cancel_api=oren_generator_cancel_v1`,
     `request_cancel_api=oren_generator_request_cancel_v1`,
     `started_api=oren_generator_is_started_v1`,
     `closed_api=oren_generator_is_closed_v1`,
@@ -3464,7 +3470,7 @@ Rolling status:
     `delegate_source_syntaxes=["yield_from_v0","yield_from_in_context_v0"]`, plus
     `close_mode=propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5`, plus
     `delegate_mode=track_active_chain_inline_fresh_or_cached_started_step_v3`
-  - generator declaration metadata is now `version=22` and records
+  - generator declaration metadata is now `version=23` and records
     `finalize_surface=generator_finalize_v0`
   - per-function `meta`, `dump linked`, and OBC metadata now also expose generator finalization
     sites directly through:
@@ -3778,12 +3784,12 @@ Notes:
 - Generator declaration sugar is exposed separately too:
   - `is_generator_decl`: `true` for functions declared with `@oren.generator`
   - `generator_decl_surface`: machine-readable statement of the current generator object protocol
-    (`compiler_generator_object_v6`, `version=22`, syntax `attr_oren.generator`, helper API
+    (`compiler_generator_object_v7`, `version=23`, syntax `attr_oren.generator`, helper API
     `oren_generator_start_v2`, caller handle `generator_handle_v2`, object type `generator`,
     underlying yield surface `generator_context_v0`, finalization surface `generator_finalize_v0`,
     iterable surface `for_in_v0` with implicit-`nil` resume, explicit
-    resume/delegation/finalization surface `next_send_finalize_defer_close_request_cancel_delegate_yield_from_v8`,
-    lifecycle APIs `oren_generator_request_cancel_v1` / `oren_generator_is_started_v1` /
+    resume/delegation/finalization surface `next_send_finalize_defer_close_cancel_delegate_yield_from_v9`,
+    lifecycle APIs `oren_generator_cancel_v1` / `oren_generator_request_cancel_v1` / `oren_generator_is_started_v1` /
     `oren_generator_is_closed_v1` / `oren_generator_is_cancel_requested_v1` /
     `oren_generator_current_step_v1` / `oren_generator_terminal_error_v1` /
     `oren_generator_cancel_reason_v1`
@@ -3791,6 +3797,7 @@ Notes:
     `on_finalize_api=oren_generator_on_finalize_v1`,
     `on_close_api=oren_generator_on_close_v1`,
     `close_api=oren_generator_close_v1`,
+    `cancel_api=oren_generator_cancel_v1`,
     `delegate_api=oren_generator_delegate_v1`,
     `delegate_step_api=oren_generator_delegate_step_v1`,
     `finalize_source_syntaxes=["defer_v0","defer_in_context_v0","on_finalize_call_v1","on_close_call_alias_v1"]`,
@@ -5361,6 +5368,12 @@ Current behavior (native runtime, rolling):
     - the request propagates down the currently active delegated child chain
     - it remains visible after natural completion or explicit `close()`
     - this does not force the worker to stop; user code must observe the request cooperatively
+  - `gen.cancel(target, reason)` is the shipped hard-stop layer above that request state
+    - it first records the same first-write-wins sticky cancellation request across the active
+      delegated child chain
+    - it then forces the deterministic `close()` path on the outer live handle
+    - if the handle is already done, it returns the cached terminal result and does not rewrite the
+      recorded cancellation state
   - `gen.is_cancel_requested(target)` reports whether that sticky cooperative request was recorded
   - `gen.cancel_reason(target)` returns the first recorded cooperative cancellation reason, otherwise
     `nil`
@@ -5401,7 +5414,8 @@ Current behavior (native runtime, rolling):
   - `coro.send(co, value)` resumes with `value`
   - `coro.on_finalize(co, hook)` / `coro.on_close(co, hook)` are aliases of the same deterministic
     zero-argument finalization hook list
-  - `coro.close(co)`, `coro.request_cancel(co, reason)`, `coro.delegate(co, inner)`,
+  - `coro.close(co)`, `coro.cancel(co, reason)`, `coro.request_cancel(co, reason)`,
+    `coro.delegate(co, inner)`,
     `coro.delegate_step(co, inner, step)`, `coro.is_started(co)`, `coro.is_done(co)`,
     `coro.is_closed(co)`, `coro.current_step(co)`, `coro.return_value(co)`,
     `coro.terminal_error(co)`, `coro.is_cancel_requested(co)`, `coro.cancel_reason(co)`, and

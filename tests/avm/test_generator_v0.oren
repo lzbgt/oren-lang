@@ -61,6 +61,16 @@ fn avm_cancel_delegate_outer_worker(co, args) {
     return retv
 }
 
+fn avm_cancel_delegate_capture_outer_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -923 }
+    var cells = args[0]
+    var inner = gen.start(avm_cancel_probe_worker, [args[1], args[2]])
+    cells[0] = inner
+    var retv = gen.delegate(co, inner)
+    assert_true(oren_is_err(retv) == false, 3096)
+    return retv
+}
+
 fn avm_delegate_inner_worker(co, args) {
     if oren_type_name(co) != "generator_context" { return -930 }
     var seed = args[0]
@@ -574,6 +584,8 @@ fn test_initial_send_err() {
 }
 
 fn test_cancel_surface() {
+    assert_true(oren_is_err(gen.cancel(123, 1)) == true, 3613)
+
     var g0 = gen.start(avm_cancel_probe_worker, [50, 70])
     assert_true(gen.is_cancel_requested(g0) == false, 3614)
     assert_true(gen.cancel_reason(g0) == nil, 3615)
@@ -626,6 +638,64 @@ fn test_cancel_surface() {
     assert_true(gen.is_closed(g2) == true, 3648)
     assert_true(gen.is_cancel_requested(g2) == true, 3649)
     assert_eq(gen.cancel_reason(g2), 90, 3650)
+
+    var g3 = gen.start(avm_counter_worker, [20])
+    var k0 = gen.next(g3)
+    assert_true(oren_is_err(k0) == false, 3651)
+    assert_eq(k0["value"], 21, 3652)
+    var k1 = gen.cancel(g3, 71)
+    assert_true(oren_is_err(k1) == false, 3653)
+    assert_true(k1 == nil, 3654)
+    assert_true(gen.is_done(g3) == true, 3655)
+    assert_true(gen.is_closed(g3) == true, 3656)
+    assert_true(gen.return_value(g3) == nil, 3657)
+    assert_true(gen.terminal_error(g3) == nil, 3658)
+    assert_true(gen.is_cancel_requested(g3) == true, 3659)
+    assert_eq(gen.cancel_reason(g3), 71, 3660)
+    var k2 = gen.next(g3)
+    assert_true(oren_is_err(k2) == false, 3661)
+    assert_true(k2["done"] == true, 3662)
+    assert_true(k2["return"] == nil, 3663)
+    var k3 = gen.cancel(g3, 99)
+    assert_true(oren_is_err(k3) == false, 3664)
+    assert_true(k3 == nil, 3665)
+    assert_eq(gen.cancel_reason(g3), 71, 3666)
+
+    var cells = [nil]
+    var g4 = gen.start(avm_cancel_delegate_capture_outer_worker, [cells, 60, 80])
+    var kd0 = gen.next(g4)
+    assert_true(oren_is_err(kd0) == false, 3667)
+    assert_eq(kd0["value"], 60, 3668)
+    var inner = cells[0]
+    assert_true(oren_type_name(inner) == "generator", 3669)
+    var kd1 = gen.cancel(g4, 80)
+    assert_true(oren_is_err(kd1) == false, 3670)
+    assert_true(kd1 == nil, 3671)
+    assert_true(gen.is_done(g4) == true, 3672)
+    assert_true(gen.is_closed(g4) == true, 3673)
+    assert_true(gen.is_cancel_requested(g4) == true, 3674)
+    assert_eq(gen.cancel_reason(g4), 80, 3675)
+    assert_true(gen.is_done(inner) == true, 3676)
+    assert_true(gen.is_closed(inner) == true, 3677)
+    assert_true(gen.is_cancel_requested(inner) == true, 3678)
+    assert_eq(gen.cancel_reason(inner), 80, 3679)
+
+    var g5 = gen.start(avm_counter_worker, [15])
+    var ke0 = gen.next(g5)
+    assert_true(oren_is_err(ke0) == false, 3680)
+    assert_eq(ke0["value"], 16, 3681)
+    var ke1 = gen.send(g5, 4)
+    assert_true(oren_is_err(ke1) == false, 3682)
+    assert_eq(ke1["value"], 19, 3683)
+    var ke2 = gen.send(g5, 9)
+    assert_true(oren_is_err(ke2) == false, 3684)
+    assert_true(ke2["done"] == true, 3685)
+    assert_eq(ke2["return"], 14, 3686)
+    var ke3 = gen.cancel(g5, 120)
+    assert_true(oren_is_err(ke3) == false, 3687)
+    assert_eq(ke3, 14, 3688)
+    assert_true(gen.is_cancel_requested(g5) == false, 3689)
+    assert_true(gen.cancel_reason(g5) == nil, 3690)
 }
 
 fn test_close_surface() {
