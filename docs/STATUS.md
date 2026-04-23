@@ -84,11 +84,14 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
 - **Feature set maturity**: the remaining essential language backlog is now full
   `yield`/stackless coroutine semantics beyond the current helper surfaces. Bare
   `yield`, `yield <value>`, and expression/result-position `yield` are now shipped through the
-  backend-shared helpers `oren_yield_stmt()` / `oren_yield_value(v)`, and explicit caller-visible
-  value exchange now also exists through `oren_yield_exchange(yield_ch, resume_ch, v)`. The
-  remaining gap is source-level coroutine/generator semantics plus a stronger default
-  scheduler-aware native green-channel protocol for that explicit exchange path. The structured
-  error model is already shipped as the
+  backend-shared helpers `oren_yield_stmt()` / `oren_yield_value(v)`, explicit caller-visible
+  value exchange now also exists through `oren_yield_exchange(yield_ch, resume_ch, v)`, and the
+  first reusable handle-level abstractions now ship as `std:generator` plus the thinner
+  coroutine-oriented alias facade `std:coroutine` (`reflect.is_coroutine(v)` currently matches the
+  same handle tag). The remaining gap is source-level coroutine/generator semantics, including a
+  not-yet-shipped `@oren.coroutine` syntax/metadata alias, plus a stronger default scheduler-aware
+  native green-channel protocol for that explicit exchange path. The structured error model is
+  already shipped as the
   rolling value-or-error
   convention (`oren_err` / `oren_is_err` / `std:result`), with stdlib migration breadth still
   ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
@@ -1433,6 +1436,14 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 	     `generator` instead of being exposed only as an ad hoc stdlib map. Worker bodies now use
 	     `yield ... in co` as the normalized generator-context contract, while the same explicit
 	     channel protocol still exists underneath.
+		   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
+		     that same compiler-managed handle/context contract. It exposes
+		     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`
+		     plus `std:reflect.is_coroutine(v)`, but it is intentionally only a runtime/library naming
+		     layer on top of the shipped `generator` handle. A source-level `@oren.coroutine`
+		     declaration/metadata alias was explicitly *not* shipped in this slice because the attempted
+		     front-end alias branch broke native self-hosted stage2 bytecode builds of
+		     `lib/std/generator.oren`; that remains backlog until it is self-host-safe.
 		   - New (2026-04-22): top-level and block-local `@oren.generator` generator sugar now covers
 		     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
 		     lowering to that same compiler-managed generator-handle surface instead of a hidden

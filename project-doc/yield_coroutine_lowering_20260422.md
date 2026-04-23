@@ -89,6 +89,18 @@ backend-shared value-helper slices landed.
   - handle operations: `start`, `next`, `send`, `is_done`, `return_value`, `collect`
   The cross-backend generator verifier now also runs a raw channel-select smoke first, because that
   surfaced a real missing piece: the C runtime had channels but no shared `oren_select(...)`.
+- Fresh landing (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade
+  over that same compiler-managed generator handle/context contract:
+  - same worker shape: `worker(co, args_list)`
+  - same worker-facing exchange: `yield [expr] in co`
+  - runtime-facing operations: `start`, `resume`, `next`, `send`, `on_finalize`, `on_close`,
+    `close`, `delegate`, `delegate_step`, `is_done`, `return_value`, `collect`
+  - `std:reflect.is_coroutine(v)` is now the matching handle-tag test for that shipped facade
+  This is intentionally a runtime/library naming layer only. The attempted source-level
+  `@oren.coroutine` parser/metadata alias was not kept because the branch was not self-host-safe:
+  after the alias rewrite, a freshly rebuilt no-cache `oren_stage2` could no longer bytecode-build
+  `lib/std/generator.oren` (captured-var / undefined-function failures), so the safe shipped slice
+  stops at the stdlib facade and runtime tests.
 - Fresh landing (2026-04-22): the C runtime now exposes a POSIX `oren_select` /
   `oren_select_recv` surface over the existing pipe-backed channels with the same visible case
   encoding as AVM/native:

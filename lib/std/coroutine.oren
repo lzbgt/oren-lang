@@ -1,0 +1,60 @@
+// std/coroutine.oren
+//
+// Thin stdlib facade over the current coroutine-capable generator substrate.
+// Today the user-facing coroutine alias reuses the same underlying dedicated
+// handle and generator-context runtime objects as `std:generator`:
+// - handle type remains `generator`
+// - worker shape remains `worker(co, args_list)`
+// - inside that worker, `yield [expr] in co` is the shared exchange contract
+//
+// This module exists to make the shipped coroutine surface explicit at the
+// language/std layer while the broader coroutine state-machine lowering backlog
+// is still rolling.
+
+fn start(worker, args_list) {
+    return oren_generator_start(worker, args_list)
+}
+
+fn resume(co) {
+    return oren_generator_next(co)
+}
+
+fn next(co) {
+    return resume(co)
+}
+
+fn send(co, value) {
+    return oren_generator_send(co, value)
+}
+
+fn on_finalize(co, hook) {
+    return oren_generator_on_finalize(co, hook)
+}
+
+fn on_close(co, hook) {
+    return oren_generator_on_close(co, hook)
+}
+
+fn close(co) {
+    return oren_generator_close(co)
+}
+
+fn delegate(co, inner) {
+    return oren_generator_delegate(co, inner)
+}
+
+fn delegate_step(co, inner, step) {
+    return oren_generator_delegate_step(co, inner, step)
+}
+
+fn is_done(co) {
+    return oren_generator_is_done(co)
+}
+
+fn return_value(co) {
+    return oren_generator_return_value(co)
+}
+
+fn collect(co) {
+    return oren_generator_collect(co)
+}

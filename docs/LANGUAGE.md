@@ -3404,6 +3404,14 @@ Rolling status:
   shared channel/select runtime still carries the underlying exchange, but the remaining gap is
   broader coroutine/generator protocol above that first compiler-managed handle, not first
   availability of source syntax or reusable generator helpers.
+- New (2026-04-23): `std:coroutine` now also ships as a thin facade over that same compiler-managed
+  `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
+  exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
+  (`start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`)
+  plus `std:reflect.is_coroutine(v)` as the matching handle tag check. This is intentionally a
+  library/runtime naming layer only: there is still no separate source-level `@oren.coroutine`
+  declaration sugar, no distinct coroutine object kind, and no metadata alias surface above the
+  shipped generator substrate yet.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
   on top of that same protocol:
   - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
@@ -3458,7 +3466,8 @@ Rolling status:
     (named function declaration or function-valued `var` binding); it does not apply to
     bare anonymous function literals or arbitrary non-function statements
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
-  semantics beyond the current local value-stable helper path.
+  semantics beyond the current local value-stable helper path, plus source-level `@oren.coroutine`
+  declaration sugar / metadata aliasing above the current shipped `std:coroutine` runtime facade.
 
 Design direction for the remaining backlog:
 
@@ -5339,6 +5348,17 @@ Current behavior (native runtime, rolling):
     values while resuming each step with implicit `nil`
   - under the C backend this now depends on the shared POSIX `oren_select` / `oren_select_recv`
     surface over pipe-backed channels instead of a generator-specific workaround
+- `std:coroutine` now also ships as a naming-layer facade over that same handle/context substrate:
+  - `coro.start(worker, args_list)` creates the same tagged `generator` handle
+  - `coro.resume(co)` / `coro.next(co)` resume with implicit `nil`
+  - `coro.send(co, value)` resumes with `value`
+  - `coro.on_finalize(co, hook)` / `coro.on_close(co, hook)` are aliases of the same deterministic
+    zero-argument finalization hook list
+  - `coro.close(co)`, `coro.delegate(co, inner)`, `coro.delegate_step(co, inner, step)`,
+    `coro.is_done(co)`, `coro.return_value(co)`, and `coro.collect(co)` forward to the same
+    underlying `oren_generator_*` contract
+  - `std:reflect.is_coroutine(v)` is currently the same tag check as `is_generator(v)`
+  - this does **not** imply a separate source-level `@oren.coroutine` syntax or metadata surface yet
 - First language-level declaration sugar now also ships on top of that same generator handle:
   - `@oren.generator fn counter(seed) { ... }`
   - `@oren.generator var counter = fn(seed) { ... }`

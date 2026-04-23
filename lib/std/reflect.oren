@@ -44,4 +44,5 @@ fn is_buf(v) {
     return t >= TAG_U8_BUF && t <= TAG_F64_BUF
 }
 fn is_generator(v) { return tag(v) == TAG_GENERATOR }
+fn is_coroutine(v) { return tag(v) == TAG_GENERATOR }
 fn is_generator_context(v) { return tag(v) == TAG_GENERATOR_CONTEXT }

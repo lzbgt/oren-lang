@@ -1,0 +1,117 @@
+import coro "../../lib/std/coroutine.oren"
+import reflect "../../lib/std/reflect.oren"
+
+fn counter_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -100 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 5
+}
+
+fn list_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -110 }
+    var seed = args[0]
+    var i = 0
+    while i < 3 {
+        yield (seed + i) in co
+        i = i + 1
+    }
+    return seed + 30
+}
+
+fn delegate_inner_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -120 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 50
+}
+
+fn delegate_outer_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -130 }
+    var inner = coro.start(delegate_inner_worker, [args[0]])
+    var retv = coro.delegate(co, inner)
+    if oren_is_err(retv) == true { return -131 }
+    return retv + 21
+}
+
+fn delegate_step_outer_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -140 }
+    var inner = coro.start(delegate_inner_worker, [args[0]])
+    var step0 = coro.next(inner)
+    if oren_is_err(step0) == true { return -141 }
+    if step0["ok"] != true || step0["value"] != args[0] + 1 { return -142 }
+    var retv = coro.delegate_step(co, inner, step0)
+    if oren_is_err(retv) == true { return -143 }
+    return retv + 13
+}
+
+fn hook_worker(co, args) {
+    if reflect.is_generator_context(co) != true { return -150 }
+    var box = args[0]
+    var base = args[1]
+    var r0 = coro.on_finalize(co, || { oren_list_push(box, base + 1); return nil })
+    if oren_is_err(r0) == true { return -151 }
+    var r1 = coro.on_close(co, || { oren_list_push(box, base + 2); return nil })
+    if oren_is_err(r1) == true { return -152 }
+    var resumed = yield base in co
+    return resumed + base + 5
+}
+
+fn main() {
+    var c0 = coro.start(counter_worker, [40])
+    if oren_type_name(c0) != "generator" { return 1 }
+    if reflect.is_coroutine(c0) != true { return 2 }
+    var c0s0 = coro.next(c0)
+    if oren_is_err(c0s0) == true || c0s0["value"] != 41 { return 3 }
+    var c0s1 = coro.send(c0, 2)
+    if oren_is_err(c0s1) == true || c0s1["value"] != 42 { return 4 }
+    var c0s2 = coro.send(c0, 7)
+    if oren_is_err(c0s2) == true || c0s2["return"] != 12 { return 5 }
+    if coro.is_done(c0) != true { return 6 }
+    if coro.return_value(c0) != 12 { return 7 }
+
+    var bad0 = coro.next(123)
+    if oren_is_err(bad0) != true { return 8 }
+    var bad1 = coro.send(123, 1)
+    if oren_is_err(bad1) != true { return 9 }
+    var bad2 = coro.collect(123)
+    if oren_is_err(bad2) != true { return 10 }
+    var bad3 = coro.close(123)
+    if oren_is_err(bad3) != true { return 11 }
+    if coro.is_done(123) != false { return 12 }
+    if coro.return_value(123) != nil { return 13 }
+
+    var c1 = coro.start(list_worker, [5])
+    var xs = coro.collect(c1)
+    if oren_is_err(xs) == true { return 14 }
+    if oren_list_len(xs) != 3 || xs[0] != 5 || xs[1] != 6 || xs[2] != 7 { return 15 }
+    if coro.is_done(c1) != true || coro.return_value(c1) != 35 { return 16 }
+
+    var c2 = coro.start(delegate_outer_worker, [30])
+    var d0 = coro.next(c2)
+    if oren_is_err(d0) == true || d0["value"] != 31 { return 17 }
+    var d1 = coro.send(c2, 4)
+    if oren_is_err(d1) == true || d1["value"] != 34 { return 18 }
+    var d2 = coro.send(c2, 9)
+    if oren_is_err(d2) == true || d2["return"] != 80 { return 19 }
+
+    var c3 = coro.start(delegate_step_outer_worker, [50])
+    var ds0 = coro.next(c3)
+    if oren_is_err(ds0) == true || ds0["value"] != 51 { return 20 }
+    var ds1 = coro.send(c3, 4)
+    if oren_is_err(ds1) == true || ds1["value"] != 54 { return 21 }
+    var ds2 = coro.send(c3, 8)
+    if oren_is_err(ds2) == true || ds2["return"] != 71 { return 22 }
+
+    var box = []
+    var c4 = coro.start(hook_worker, [box, 80])
+    var h0 = coro.next(c4)
+    if oren_is_err(h0) == true || h0["value"] != 80 { return 23 }
+    var closed = coro.close(c4)
+    if oren_is_err(closed) == true || closed != nil { return 24 }
+    if coro.is_done(c4) != true || coro.return_value(c4) != nil { return 25 }
+    if oren_list_len(box) != 2 || box[0] != 82 || box[1] != 81 { return 26 }
+    return 0
+}
