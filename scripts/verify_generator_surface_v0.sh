@@ -37,7 +37,9 @@ run_ok() {
 }
 
 src="tests/fixtures/generator_surface_v0.oren"
+coroutine_alias_src="tests/fixtures/coroutine_decl_surface_v0.oren"
 blocked_src="tests/fixtures/generator_decl_blocked_nonfunction_var_v0.oren"
+coroutine_alias_blocked_src="tests/fixtures/coroutine_decl_blocked_nonfunction_var_v0.oren"
 blocked_yield_from_src="tests/fixtures/generator_yield_from_blocked_missing_context_v0.oren"
 blocked_defer_src="tests/fixtures/generator_defer_blocked_missing_context_v0.oren"
 bytecode_out="$tmpdir/generator_bytecode.obc"
@@ -46,6 +48,12 @@ dump_out="$tmpdir/generator_dump.json"
 bytecode_meta_out="$tmpdir/generator_bytecode_meta.json"
 c_out="$tmpdir/generator_c"
 native_out="$tmpdir/generator_native"
+coroutine_alias_bytecode_out="$tmpdir/coroutine_decl_bytecode.obc"
+coroutine_alias_meta_out="$tmpdir/coroutine_decl_meta.json"
+coroutine_alias_dump_out="$tmpdir/coroutine_decl_dump.json"
+coroutine_alias_bytecode_meta_out="$tmpdir/coroutine_decl_bytecode_meta.json"
+coroutine_alias_c_out="$tmpdir/coroutine_decl_c"
+coroutine_alias_native_out="$tmpdir/coroutine_decl_native"
 
 run_ok "$meta_compiler" meta "$src" --platform "$platform" -o "$meta_out"
 run_ok "$meta_compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
@@ -61,6 +69,21 @@ run_ok "$c_out"
 run_ok "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
 run_ok "$native_out"
+
+run_ok "$meta_compiler" meta "$coroutine_alias_src" --platform "$platform" -o "$coroutine_alias_meta_out"
+run_ok "$meta_compiler" dump linked "$coroutine_alias_src" --platform "$platform" -o "$coroutine_alias_dump_out"
+run_ok "$compiler" build "$coroutine_alias_src" \
+  --backend bytecode --platform "$platform" --no-cache -o "$coroutine_alias_bytecode_out"
+run_ok python3 scripts/extract_obc_metadata.py "$coroutine_alias_bytecode_out" -o "$coroutine_alias_bytecode_meta_out"
+run_ok ./avm "$coroutine_alias_bytecode_out"
+
+run_ok "$compiler" build "$coroutine_alias_src" \
+  --backend c --platform "$platform" --no-cache --no-debug -o "$coroutine_alias_c_out"
+run_ok "$coroutine_alias_c_out"
+
+run_ok "$compiler" build "$coroutine_alias_src" \
+  --backend native --platform "$platform" --no-cache --no-debug -o "$coroutine_alias_native_out"
+run_ok "$coroutine_alias_native_out"
 
 python3 - "$meta_out" "$dump_out" "$bytecode_meta_out" >>"$log" <<'PY'
 import json
@@ -274,6 +297,66 @@ for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
     )
 PY
 
+python3 - "$coroutine_alias_meta_out" "$coroutine_alias_dump_out" "$coroutine_alias_bytecode_meta_out" >>"$log" <<'PY'
+import json
+import sys
+
+meta_path, dump_path, obc_path = sys.argv[1:4]
+meta = json.load(open(meta_path, "r", encoding="utf-8"))
+dump = json.load(open(dump_path, "r", encoding="utf-8"))
+obc = json.load(open(obc_path, "r", encoding="utf-8"))["metadata"]
+
+expected_decl_surface = {
+    "version": 19,
+    "surface": "compiler_generator_object_v3",
+    "syntax": "attr_oren.generator",
+    "helper_api": "oren_generator_start_v2",
+    "caller_api": "generator_handle_v2",
+    "object_type": "generator",
+    "yield_surface": "generator_context_v0",
+    "finalize_surface": "generator_finalize_v0",
+    "iter_surface": "for_in_v0",
+    "iter_api": "oren_iter_next_v0",
+    "iter_resume": "implicit_nil_v0",
+    "resume_surface": "next_send_finalize_defer_close_delegate_yield_from_v7",
+    "next_api": "oren_generator_next_v2",
+    "send_api": "oren_generator_send_v2",
+    "on_finalize_api": "oren_generator_on_finalize_v1",
+    "on_close_api": "oren_generator_on_close_v1",
+    "close_api": "oren_generator_close_v1",
+    "delegate_api": "oren_generator_delegate_v1",
+    "delegate_step_api": "oren_generator_delegate_step_v1",
+    "on_finalize_mode": "lifo_zero_arg_on_done_or_close_v1",
+    "on_close_mode": "alias_of_on_finalize_v1",
+    "close_mode": "propagate_active_delegate_chain_run_finalize_hooks_on_done_or_close_detach_live_task_v5",
+    "delegate_mode": "track_active_chain_inline_fresh_or_cached_started_step_v3",
+    "finalize_source_syntaxes": ["defer_v0", "defer_in_context_v0", "on_finalize_call_v1", "on_close_call_alias_v1"],
+    "delegate_source_syntaxes": ["yield_from_v0", "yield_from_in_context_v0"],
+    "state_layout": "dedicated_generator_object_kind_v1",
+    "worker_context_type": "generator_context",
+    "decl_forms": ["named_function_decl", "function_valued_var"],
+}
+
+def get_func(payload, name, detail_key=False):
+    key = "function_details" if detail_key else "functions"
+    for item in payload[key]:
+        if item.get("name") == name:
+            return item
+    raise SystemExit(f"missing function {name} in {key}")
+
+def assert_decl(item, *, count):
+    if item["is_generator_decl"] is not True:
+        raise SystemExit(f"{item['name']} missing is_generator_decl: {item!r}")
+    if item["generator_decl_surface"] != expected_decl_surface:
+        raise SystemExit(f"{item['name']} bad generator_decl_surface: {item['generator_decl_surface']!r}")
+    if item["contains_yield_exchange"] is not True or item["yield_exchange_count"] != count:
+        raise SystemExit(f"{item['name']} bad yield_exchange count: {item!r}")
+
+for payload, detail_key in [(meta, False), (dump, True), (obc, False)]:
+    assert_decl(get_func(payload, "decl_counter", detail_key), count=2)
+    assert_decl(get_func(payload, "decl_var_counter", detail_key), count=2)
+PY
+
 blocked_log="$tmpdir/generator_decl_blocked_nonfunction_var.log"
 echo "\$ $compiler build $blocked_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_nonfunction_var.obc" >>"$log"
 if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/blocked_nonfunction_var.obc" >>"$blocked_log" 2>&1; then
@@ -282,7 +365,17 @@ if "$compiler" build "$blocked_src" --backend bytecode --platform "$platform" --
   exit 1
 fi
 cat "$blocked_log" >>"$log"
-grep -F "@oren.generator on var requires function value" "$blocked_log" >/dev/null
+grep -F "@oren.generator/@oren.coroutine on var requires function value" "$blocked_log" >/dev/null
+
+coroutine_alias_blocked_log="$tmpdir/coroutine_decl_blocked_nonfunction_var.log"
+echo "\$ $compiler build $coroutine_alias_blocked_src --backend bytecode --platform $platform --no-cache -o $tmpdir/coroutine_blocked_nonfunction_var.obc" >>"$log"
+if "$compiler" build "$coroutine_alias_blocked_src" --backend bytecode --platform "$platform" --no-cache -o "$tmpdir/coroutine_blocked_nonfunction_var.obc" >>"$coroutine_alias_blocked_log" 2>&1; then
+  cat "$coroutine_alias_blocked_log" >>"$log"
+  echo "verify_generator_surface_v0: expected non-function coroutine var binding to fail" >&2
+  exit 1
+fi
+cat "$coroutine_alias_blocked_log" >>"$log"
+grep -F "@oren.generator/@oren.coroutine on var requires function value" "$coroutine_alias_blocked_log" >/dev/null
 
 blocked_yield_from_log="$tmpdir/generator_yield_from_blocked_missing_context.log"
 echo "\$ $compiler build $blocked_yield_from_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_yield_from.obc" >>"$log"
@@ -293,7 +386,7 @@ if "$compiler" build "$blocked_yield_from_src" --backend bytecode --platform "$p
 fi
 cat "$blocked_yield_from_log" >>"$log"
 grep -F "yield from" "$blocked_yield_from_log" >/dev/null
-grep -F "requires 'in co' outside @oren.generator declarations" "$blocked_yield_from_log" >/dev/null
+grep -F "requires 'in co' outside @oren.generator/@oren.coroutine declarations" "$blocked_yield_from_log" >/dev/null
 
 blocked_defer_log="$tmpdir/generator_defer_blocked_missing_context.log"
 echo "\$ $compiler build $blocked_defer_src --backend bytecode --platform $platform --no-cache -o $tmpdir/blocked_defer.obc" >>"$log"
@@ -304,7 +397,7 @@ if "$compiler" build "$blocked_defer_src" --backend bytecode --platform "$platfo
 fi
 cat "$blocked_defer_log" >>"$log"
 grep -F "defer" "$blocked_defer_log" >/dev/null
-grep -F "requires 'in co' outside @oren.generator declarations" "$blocked_defer_log" >/dev/null
+grep -F "requires 'in co' outside @oren.generator/@oren.coroutine declarations" "$blocked_defer_log" >/dev/null
 
 echo "generator surface v0 verify OK" >>"$log"
 echo "generator surface v0 verify OK"

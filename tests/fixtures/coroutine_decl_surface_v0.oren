@@ -1,0 +1,51 @@
+import gen "std:generator"
+import coro "../../lib/std/coroutine.oren"
+import reflect "../../lib/std/reflect.oren"
+
+@oren.coroutine
+fn decl_counter(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+@oren.coroutine
+var decl_var_counter = fn(seed) {
+    var resumed0 = yield (seed + 1)
+    var resumed1 = yield (seed + resumed0)
+    return resumed1 + 5
+}
+
+fn main() {
+    var c0 = decl_counter(40)
+    if reflect.is_coroutine(c0) != true { return 1 }
+    var c0s0 = coro.next(c0)
+    if oren_is_err(c0s0) == true || c0s0["value"] != 41 { return 2 }
+    var c0s1 = coro.send(c0, 2)
+    if oren_is_err(c0s1) == true || c0s1["value"] != 42 { return 3 }
+    var c0s2 = coro.send(c0, 7)
+    if oren_is_err(c0s2) == true || c0s2["return"] != 12 { return 4 }
+
+    var c1 = decl_var_counter(30)
+    if oren_type_name(c1) != "generator" { return 5 }
+    var c1s0 = gen.next(c1)
+    if oren_is_err(c1s0) == true || c1s0["value"] != 31 { return 6 }
+    var c1s1 = gen.send(c1, 4)
+    if oren_is_err(c1s1) == true || c1s1["value"] != 34 { return 7 }
+    var c1s2 = gen.send(c1, 9)
+    if oren_is_err(c1s2) == true || c1s2["return"] != 14 { return 8 }
+
+    var local_bias = 100
+    @oren.coroutine
+    fn local_decl(seed) {
+        var resumed = yield (seed + local_bias)
+        return resumed + local_bias
+    }
+    local_bias = 999
+    var c2 = local_decl(5)
+    var c2s0 = coro.next(c2)
+    if oren_is_err(c2s0) == true || c2s0["value"] != 105 { return 9 }
+    var c2s1 = coro.send(c2, 4)
+    if oren_is_err(c2s1) == true || c2s1["return"] != 104 { return 10 }
+    return 0
+}

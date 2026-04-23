@@ -1,0 +1,6 @@
+@oren.coroutine
+var bad = 123
+
+fn main() {
+    return 0
+}

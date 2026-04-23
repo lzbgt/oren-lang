@@ -3408,16 +3408,21 @@ Rolling status:
   `generator` handle/context contract. It keeps the same worker shape (`worker(co, args_list)`) and
   exchange surface (`yield ... in co`), but exposes coroutine-oriented runtime names
   (`start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`)
-  plus `std:reflect.is_coroutine(v)` as the matching handle tag check. This is intentionally a
-  library/runtime naming layer only: there is still no separate source-level `@oren.coroutine`
-  declaration sugar, no distinct coroutine object kind, and no metadata alias surface above the
-  shipped generator substrate yet.
+  plus `std:reflect.is_coroutine(v)` as the matching handle tag check.
 - New (2026-04-22): the parser now also ships the first language-level generator declaration sugar
   on top of that same protocol:
   - `@oren.generator fn counter(seed) { var r = yield (seed + 1); return r + 5 }`
   - `@oren.generator var counter = fn(seed) { var r = yield (seed + 1); return r + 5 }`
   - `@oren.generator var counter = |seed| { var r = yield (seed + 1); return r + 5 }`
+  - New (2026-04-23): `@oren.coroutine` is now accepted as source-level parser sugar for the same
+    shipped declaration family:
+    - `@oren.coroutine fn counter(seed) { ... }`
+    - `@oren.coroutine var counter = fn(seed) { ... }`
   - the declaration lowers to a wrapper that returns `oren_generator_start(...)`
+  - the alias is intentionally parser-only:
+    - runtime handle kind remains `generator`
+    - `std:coroutine` and `std:generator` both operate on that same handle/context substrate
+    - metadata remains canonical on the generator surface (`generator_decl_surface.syntax=attr_oren.generator`)
   - plain `yield` / `yield expr` inside that declaration are rewritten to the shared
     `generator_context_v0` exchange contract (`yield ... in co`)
   - source-level delegation now also ships on top of the same handle/context contract:
@@ -3466,8 +3471,8 @@ Rolling status:
     (named function declaration or function-valued `var` binding); it does not apply to
     bare anonymous function literals or arbitrary non-function statements
 - Not implemented yet: full resumable state-machine lowering for value-carrying coroutine/generator
-  semantics beyond the current local value-stable helper path, plus source-level `@oren.coroutine`
-  declaration sugar / metadata aliasing above the current shipped `std:coroutine` runtime facade.
+  semantics beyond the current local value-stable helper path, plus any distinct coroutine object
+  kind / metadata surface above the current shipped parser alias + `std:coroutine` facade.
 
 Design direction for the remaining backlog:
 
@@ -5358,7 +5363,10 @@ Current behavior (native runtime, rolling):
     `coro.is_done(co)`, `coro.return_value(co)`, and `coro.collect(co)` forward to the same
     underlying `oren_generator_*` contract
   - `std:reflect.is_coroutine(v)` is currently the same tag check as `is_generator(v)`
-  - this does **not** imply a separate source-level `@oren.coroutine` syntax or metadata surface yet
+  - `@oren.coroutine` now ships as parser sugar for the same declaration lowering as
+    `@oren.generator`
+  - this still does **not** imply a separate coroutine metadata/runtime kind; the canonical
+    declaration metadata remains `attr_oren.generator`
 - First language-level declaration sugar now also ships on top of that same generator handle:
   - `@oren.generator fn counter(seed) { ... }`
   - `@oren.generator var counter = fn(seed) { ... }`

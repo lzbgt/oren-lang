@@ -4642,11 +4642,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
 		     that same shipped handle/context substrate. It adds
 		     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`
-		     plus `std:reflect.is_coroutine(v)`, but it does **not** introduce a new coroutine object
-		     kind or source-level `@oren.coroutine` declaration surface. Reweight the next feature
-		     backlog accordingly: the missing work is no longer “name the runtime handle as a
-		     coroutine”, it is the self-host-safe source-level coroutine syntax / metadata alias and the
-		     broader resumable coroutine protocol above the current generator substrate.
+		     plus `std:reflect.is_coroutine(v)`.
+		   - New (2026-04-23): source-level `@oren.coroutine` now also ships as a self-host-safe
+		     parser alias of `@oren.generator`. Reweight the next feature backlog accordingly:
+		     - the missing work is no longer “ship coroutine source syntax”
+		     - the remaining gap is a distinct coroutine metadata/runtime model plus the broader
+		       resumable coroutine protocol above the current generator substrate
+		     - canonical metadata/runtime still stay on the generator contract
 		   - New (2026-04-22): top-level and block-local `@oren.generator` now lower to that same
 		     compiler-managed handle surface for both named `fn ...` declarations and function-valued
 		     `var` bindings instead of a hidden `std:generator.start(...)` import.

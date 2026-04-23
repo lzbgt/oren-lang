@@ -88,9 +88,11 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   value exchange now also exists through `oren_yield_exchange(yield_ch, resume_ch, v)`, and the
   first reusable handle-level abstractions now ship as `std:generator` plus the thinner
   coroutine-oriented alias facade `std:coroutine` (`reflect.is_coroutine(v)` currently matches the
-  same handle tag). The remaining gap is source-level coroutine/generator semantics, including a
-  not-yet-shipped `@oren.coroutine` syntax/metadata alias, plus a stronger default scheduler-aware
-  native green-channel protocol for that explicit exchange path. The structured error model is
+  same handle tag). Source-level `@oren.coroutine` declaration syntax now also ships as a
+  parser-level alias of `@oren.generator`, while metadata/runtime stay canonical on the generator
+  substrate. The remaining gap is full resumable coroutine/generator semantics plus a stronger
+  default scheduler-aware native green-channel protocol for that explicit exchange path. The
+  structured error model is
   already shipped as the
   rolling value-or-error
   convention (`oren_err` / `oren_is_err` / `std:result`), with stdlib migration breadth still
@@ -1439,11 +1441,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		   - New (2026-04-23): `std:coroutine` now ships as the matching coroutine-oriented facade over
 		     that same compiler-managed handle/context contract. It exposes
 		     `start/resume/next/send/on_finalize/on_close/close/delegate/delegate_step/is_done/return_value/collect`
-		     plus `std:reflect.is_coroutine(v)`, but it is intentionally only a runtime/library naming
-		     layer on top of the shipped `generator` handle. A source-level `@oren.coroutine`
-		     declaration/metadata alias was explicitly *not* shipped in this slice because the attempted
-		     front-end alias branch broke native self-hosted stage2 bytecode builds of
-		     `lib/std/generator.oren`; that remains backlog until it is self-host-safe.
+		     plus `std:reflect.is_coroutine(v)`.
+		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
+		     parser-level alias of `@oren.generator`. The safe landed contract is:
+		     - declaration lowering is the same compiler-managed generator wrapper path
+		     - metadata remains canonical (`generator_decl_surface.syntax=attr_oren.generator`)
+		     - runtime handle kind remains `generator`
+		     - there is still no distinct coroutine object kind or separate coroutine metadata surface
 		   - New (2026-04-22): top-level and block-local `@oren.generator` generator sugar now covers
 		     both named `fn ...` declarations and function-valued `var` bindings (`fn` or lambda bodies),
 		     lowering to that same compiler-managed generator-handle surface instead of a hidden

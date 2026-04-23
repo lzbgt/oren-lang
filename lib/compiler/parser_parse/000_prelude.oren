@@ -1003,11 +1003,11 @@ fn _stmt_validate_yield_delegate_expr(p, expr) {
     }
     if t == "Call" {
         if expr["yield_delegate_expr"] == true && expr["yield_delegate_missing_context"] == true {
-            parser_add_error(p, _yield_delegate_source_site(expr) + " requires 'in co' outside @oren.generator declarations")
+            parser_add_error(p, _yield_delegate_source_site(expr) + " requires 'in co' outside @oren.generator/@oren.coroutine declarations")
             return nil
         }
         if expr["generator_finalize_expr"] == true && expr["generator_finalize_missing_context"] == true {
-            parser_add_error(p, _generator_finalize_source_site(expr) + " requires 'in co' outside @oren.generator declarations")
+            parser_add_error(p, _generator_finalize_source_site(expr) + " requires 'in co' outside @oren.generator/@oren.coroutine declarations")
             return nil
         }
         _stmt_validate_yield_delegate_expr(p, expr["fn"])
@@ -1240,7 +1240,7 @@ fn maybe_lower_generator_decl_stmt(p, stmt) {
         decl_name = func["name"]
         is_decl_stmt = true
         if decl_name == nil || decl_name == "" {
-            parser_add_error(p, "@oren.generator may only precede named function declarations or function-valued var bindings")
+            parser_add_error(p, "@oren.generator/@oren.coroutine may only precede named function declarations or function-valued var bindings")
             return stmt
         }
     } else {
@@ -1251,7 +1251,7 @@ fn maybe_lower_generator_decl_stmt(p, stmt) {
         if name_ident == nil || _attrs_has_name(name_ident["attrs"], "oren.generator") != true { return stmt }
         decl_name = name_ident["value"]
         if decl_name == nil || decl_name == "" {
-            parser_add_error(p, "@oren.generator on var requires named identifier")
+            parser_add_error(p, "@oren.generator/@oren.coroutine on var requires named identifier")
             return stmt
         }
     }
@@ -1306,12 +1306,12 @@ fn attach_attrs_to_stmt(p, stmt, attrs) {
                 var generator_attrs = _attrs_only_name(attrs, "oren.generator")
                 generator_var_exp["attrs"] = _merge_attrs(generator_var_exp["attrs"], generator_attrs)
             } else {
-                parser_add_error(p, "@oren.generator on var requires function value")
+                parser_add_error(p, "@oren.generator/@oren.coroutine on var requires function value")
                 attrs = _attrs_filter_out_name(attrs, "oren.generator")
                 if attrs == nil || oren_list_len(attrs) == 0 { return nil }
             }
         } else {
-            parser_add_error(p, "@oren.generator may only precede named function declarations or function-valued var bindings")
+            parser_add_error(p, "@oren.generator/@oren.coroutine may only precede named function declarations or function-valued var bindings")
             attrs = _attrs_filter_out_name(attrs, "oren.generator")
             if attrs == nil || oren_list_len(attrs) == 0 { return nil }
         }
