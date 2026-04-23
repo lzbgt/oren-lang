@@ -219,6 +219,8 @@ backend-shared value-helper slices landed.
       stdlib map-backed groups
     - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for runtime-backed
       groups and round-trip a cloned stored policy map
+    - runtime-backed mixed membership plus stored default policy now live in the runtime group
+      state itself across C, native, and AVM instead of stdlib sidecar maps
     - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and the
       default native green-task scheduler
     - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by member kind:
@@ -236,10 +238,10 @@ backend-shared value-helper slices landed.
       operations and reject extra generator/coroutine members
     - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
       generator/coroutine handles; it still rejects task handles and context-only members
-  - the remaining gap now moves up again: true runtime-owned unified structured concurrency across
-    both generic `spawn` tasks and generator/coroutine workers, plus real task cancellation for
-    generic `spawn` handles, should build on this split surface rather than on raw watcher tasks or
-    raw per-handle joins
+  - the remaining gap is now narrower: runtime-backed groups are already unified and runtime-owned
+    for mixed membership plus stored default policy, but typed stop dispatch still lives in stdlib
+    and real task cancellation for generic `spawn` handles should build on this surface rather than
+    on raw watcher tasks or raw per-handle joins
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

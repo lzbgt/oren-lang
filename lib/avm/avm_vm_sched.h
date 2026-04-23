@@ -29,6 +29,8 @@ int avm_task_group_is_handle(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_add(AvmVM* vm, AvmValue group, AvmValue handle);
 AvmValue avm_task_group_count(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_members(AvmVM* vm, AvmValue group);
+AvmValue avm_task_group_default_policy(AvmVM* vm, AvmValue group);
+AvmValue avm_task_group_set_default_policy(AvmVM* vm, AvmValue group, AvmValue policy);
 AvmValue avm_task_group_clear(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_spawn_call_list(AvmVM* vm, AvmValue group, AvmValue fn, AvmValue args_list);
 

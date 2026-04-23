@@ -111,8 +111,8 @@ typedef struct {
     int chan_count;
     int64_t next_chan_id;
 
-    // Runtime-owned task groups for generic spawn handles.
-    // Handle shape: negative int id; registry shape: MAP<int, LIST<int task_handle>>.
+    // Runtime-owned task groups for generic spawn handles plus mixed generator/coroutine members.
+    // Handle shape: negative int id; registry shape: MAP<int, MAP{members: LIST<any>, default_policy: MAP}>.
     AvmValue task_groups;
     int64_t next_task_group_id;
 } AvmSched;

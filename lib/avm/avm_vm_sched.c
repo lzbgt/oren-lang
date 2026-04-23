@@ -190,29 +190,109 @@ static AvmValue avm_task_group_map_get(AvmSched* s, int64_t id) {
     return s->task_groups.as.m->values[idx];
 }
 
-static AvmValue avm_task_group_compact_members(AvmVM* vm, AvmSched* s, int64_t id) {
+static AvmValue avm_task_group_state_field_get(AvmValue statev, const char* key) {
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return avm_nil();
+    int found = 0;
+    int idx = avm_map_find_index(statev.as.m, avm_string(key), &found);
+    if (!found || idx < 0) return avm_nil();
+    return statev.as.m->values[idx];
+}
+
+static int avm_task_group_state_field_set(AvmValue statev, const char* key, AvmValue value) {
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return 0;
+    return avm_map_set_sorted(statev.as.m, avm_string(key), value);
+}
+
+static int avm_task_group_value_eq(AvmValue a, AvmValue b) {
+    if (a.type != b.type) return 0;
+    switch (a.type) {
+        case AVM_VAL_NIL: return 1;
+        case AVM_VAL_BOOL: return a.as.b == b.as.b;
+        case AVM_VAL_INT: return a.as.i == b.as.i;
+        case AVM_VAL_FLOAT: return a.as.f == b.as.f;
+        case AVM_VAL_FUNC: return a.as.fn == b.as.fn;
+        case AVM_VAL_STRING:
+        case AVM_VAL_BYTES:
+        case AVM_VAL_LIST:
+        case AVM_VAL_LIST_INT:
+        case AVM_VAL_MAP:
+        case AVM_VAL_I32_BUF:
+        case AVM_VAL_I64_BUF:
+        case AVM_VAL_F32_BUF:
+        case AVM_VAL_F64_BUF:
+            return a.as.p == b.as.p;
+        case AVM_VAL_GENERATOR: return a.as.gen == b.as.gen;
+        case AVM_VAL_GENERATOR_CONTEXT: return a.as.gctx == b.as.gctx;
+        default: return 0;
+    }
+}
+
+static int avm_task_group_member_is_live(AvmSched* s, AvmValue member) {
+    if (!s) return 0;
+    if (member.type == AVM_VAL_INT) {
+        int tid = (int)member.as.i - 1;
+        return tid >= 0 && tid < s->task_cap && s->tasks[tid].used;
+    }
+    if (member.type == AVM_VAL_GENERATOR) return member.as.gen != NULL;
+    if (member.type == AVM_VAL_GENERATOR_CONTEXT) return member.as.gctx != NULL;
+    return 0;
+}
+
+static AvmValue avm_task_group_state_ensure(AvmVM* vm, AvmSched* s, int64_t id) {
     (void)vm;
-    AvmValue membersv = avm_task_group_map_get(s, id);
+    AvmValue statev = avm_task_group_map_get(s, id);
+    if (statev.type == AVM_VAL_NIL) return avm_nil();
+    if (statev.type == AVM_VAL_LIST && statev.as.l) {
+        AvmValue policy = avm_new_empty_map_value();
+        if (policy.type != AVM_VAL_MAP || !policy.as.m) return avm_alloc_fail_value();
+        AvmValue upgraded = avm_new_empty_map_value();
+        if (upgraded.type != AVM_VAL_MAP || !upgraded.as.m) return avm_alloc_fail_value();
+        if (!avm_task_group_state_field_set(upgraded, "members", statev)) return avm_alloc_fail_value();
+        if (!avm_task_group_state_field_set(upgraded, "default_policy", policy)) return avm_alloc_fail_value();
+        if (!avm_map_set_sorted(s->task_groups.as.m, avm_int(id), upgraded)) return avm_alloc_fail_value();
+        statev = upgraded;
+    }
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return avm_nil();
+    AvmValue membersv = avm_task_group_state_field_get(statev, "members");
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) {
+        membersv = avm_new_list_from_values(0, NULL);
+        if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_alloc_fail_value();
+        if (!avm_task_group_state_field_set(statev, "members", membersv)) return avm_alloc_fail_value();
+    }
+    AvmValue policyv = avm_task_group_state_field_get(statev, "default_policy");
+    if (policyv.type != AVM_VAL_MAP || !policyv.as.m) {
+        policyv = avm_new_empty_map_value();
+        if (policyv.type != AVM_VAL_MAP || !policyv.as.m) return avm_alloc_fail_value();
+        if (!avm_task_group_state_field_set(statev, "default_policy", policyv)) return avm_alloc_fail_value();
+    }
+    return statev;
+}
+
+static AvmValue avm_task_group_compact_members(AvmVM* vm, AvmSched* s, int64_t id) {
+    AvmValue statev = avm_task_group_state_ensure(vm, s, id);
+    if (avm_is_err_val(statev)) return statev;
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return avm_nil();
+    AvmValue membersv = avm_task_group_state_field_get(statev, "members");
     if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_nil();
     AvmList* members = membersv.as.l;
     int out = 0;
+    int all_int = 1;
     for (int i = 0; i < members->count; i++) {
         AvmValue hv = members->items[i];
-        if (hv.type != AVM_VAL_INT) continue;
-        int tid = (int)hv.as.i - 1;
-        if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) continue;
+        if (!avm_task_group_member_is_live(s, hv)) continue;
         int dup = 0;
         for (int j = 0; j < out; j++) {
-            if (members->items[j].type == AVM_VAL_INT && members->items[j].as.i == hv.as.i) {
+            if (avm_task_group_value_eq(members->items[j], hv)) {
                 dup = 1;
                 break;
             }
         }
         if (dup) continue;
         members->items[out++] = hv;
+        if (hv.type != AVM_VAL_INT) all_int = 0;
     }
     members->count = out;
-    members->all_int = 1;
+    members->all_int = all_int;
     return membersv;
 }
 
@@ -583,9 +663,15 @@ AvmValue avm_task_group_new(AvmVM* vm) {
         return avm_err(AVM_ERR_INTERNAL, "task_group_new: scheduler task_groups not initialized");
     }
     int64_t id = s->next_task_group_id--;
-    AvmValue empty = avm_new_list_from_values(0, NULL);
-    if (empty.type != AVM_VAL_LIST || !empty.as.l) return avm_alloc_fail_value();
-    if (!avm_map_set_sorted(s->task_groups.as.m, avm_int(id), empty)) return avm_alloc_fail_value();
+    AvmValue members = avm_new_list_from_values(0, NULL);
+    if (members.type != AVM_VAL_LIST || !members.as.l) return avm_alloc_fail_value();
+    AvmValue policy = avm_new_empty_map_value();
+    if (policy.type != AVM_VAL_MAP || !policy.as.m) return avm_alloc_fail_value();
+    AvmValue statev = avm_new_empty_map_value();
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return avm_alloc_fail_value();
+    if (!avm_task_group_state_field_set(statev, "members", members)) return avm_alloc_fail_value();
+    if (!avm_task_group_state_field_set(statev, "default_policy", policy)) return avm_alloc_fail_value();
+    if (!avm_map_set_sorted(s->task_groups.as.m, avm_int(id), statev)) return avm_alloc_fail_value();
     return avm_int(id);
 }
 
@@ -593,8 +679,9 @@ int avm_task_group_is_handle(AvmVM* vm, AvmValue group) {
     AvmSched* s = avm_sched_get(vm);
     if (!s) return 0;
     if (group.type != AVM_VAL_INT) return 0;
-    AvmValue members = avm_task_group_map_get(s, group.as.i);
-    return members.type == AVM_VAL_LIST && members.as.l != NULL;
+    AvmValue statev = avm_task_group_state_ensure(vm, s, group.as.i);
+    if (avm_is_err_val(statev)) return 0;
+    return statev.type == AVM_VAL_MAP && statev.as.m != NULL;
 }
 
 AvmValue avm_task_group_add(AvmVM* vm, AvmValue group, AvmValue handle) {
@@ -602,26 +689,23 @@ AvmValue avm_task_group_add(AvmVM* vm, AvmValue group, AvmValue handle) {
     if (!s || !avm_task_group_is_handle(vm, group)) {
         return avm_err(AVM_ERR_INVALID_ARG, "task_group_add: invalid group");
     }
-    if (handle.type != AVM_VAL_INT) {
-        return avm_err(AVM_ERR_INVALID_ARG, "task_group_add: expected task handle");
-    }
-    int tid = (int)handle.as.i - 1;
-    if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) {
-        return avm_err(AVM_ERR_INVALID_ARG, "task_group_add: invalid task handle");
+    if (!avm_task_group_member_is_live(s, handle)) {
+        return avm_err(AVM_ERR_INVALID_ARG, "task_group_add: expected live task/generator handle or generator context");
     }
     AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (avm_is_err_val(membersv)) return membersv;
     if (membersv.type != AVM_VAL_LIST || !membersv.as.l) {
         return avm_err(AVM_ERR_INTERNAL, "task_group_add: missing members list");
     }
     AvmList* members = membersv.as.l;
     for (int i = 0; i < members->count; i++) {
-        if (members->items[i].type == AVM_VAL_INT && members->items[i].as.i == handle.as.i) {
+        if (avm_task_group_value_eq(members->items[i], handle)) {
             return handle;
         }
     }
     if (!avm_list_ensure_cap(members, members->count + 1)) return avm_alloc_fail_value();
     members->items[members->count++] = handle;
-    members->all_int = 1;
+    if (handle.type != AVM_VAL_INT) members->all_int = 0;
     return handle;
 }
 
@@ -629,6 +713,7 @@ AvmValue avm_task_group_count(AvmVM* vm, AvmValue group) {
     AvmSched* s = avm_sched_get(vm);
     if (!s || !avm_task_group_is_handle(vm, group)) return avm_int(0);
     AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (avm_is_err_val(membersv)) return membersv;
     if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_int(0);
     return avm_int((int64_t)membersv.as.l->count);
 }
@@ -637,14 +722,34 @@ AvmValue avm_task_group_members(AvmVM* vm, AvmValue group) {
     AvmSched* s = avm_sched_get(vm);
     if (!s || !avm_task_group_is_handle(vm, group)) return avm_new_list_from_values(0, NULL);
     AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (avm_is_err_val(membersv)) return membersv;
     if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_new_list_from_values(0, NULL);
     return avm_new_list_from_values(membersv.as.l->count, membersv.as.l->items);
+}
+
+AvmValue avm_task_group_default_policy(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) return avm_nil();
+    AvmValue statev = avm_task_group_state_ensure(vm, s, group.as.i);
+    if (avm_is_err_val(statev)) return statev;
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return avm_nil();
+    return avm_task_group_state_field_get(statev, "default_policy");
+}
+
+AvmValue avm_task_group_set_default_policy(AvmVM* vm, AvmValue group, AvmValue policy) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) return avm_nil();
+    AvmValue statev = avm_task_group_state_ensure(vm, s, group.as.i);
+    if (avm_is_err_val(statev)) return statev;
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return avm_nil();
+    if (!avm_task_group_state_field_set(statev, "default_policy", policy)) return avm_alloc_fail_value();
+    return policy;
 }
 
 AvmValue avm_task_group_clear(AvmVM* vm, AvmValue group) {
     AvmSched* s = avm_sched_get(vm);
     if (!s || !avm_task_group_is_handle(vm, group)) return avm_nil();
-    AvmValue membersv = avm_task_group_map_get(s, group.as.i);
+    AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
     if (membersv.type == AVM_VAL_LIST && membersv.as.l) {
         membersv.as.l->count = 0;
         membersv.as.l->all_int = 1;

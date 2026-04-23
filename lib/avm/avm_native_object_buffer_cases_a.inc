@@ -722,6 +722,22 @@
             res = avm_task_group_spawn_call_list(vm, args[0], args[1], args[2]);
             break;
         }
+        case 176: { // oren_task_group_default_policy(group) -> map|nil
+            if (!vm || nargs <= 0) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_default_policy expects (group)");
+                break;
+            }
+            res = avm_task_group_default_policy(vm, args[0]);
+            break;
+        }
+        case 177: { // oren_task_group_set_default_policy(group, policy) -> policy|nil|err
+            if (!vm || nargs <= 1) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_set_default_policy expects (group, policy)");
+                break;
+            }
+            res = avm_task_group_set_default_policy(vm, args[0], args[1]);
+            break;
+        }
         case 151: { // oren_string_eq(a, b) -> bool
             if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_STRING) {
                 const char* a = (const char*)args[0].as.p;

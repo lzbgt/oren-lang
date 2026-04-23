@@ -4744,10 +4744,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			    - `task_group.is_runtime_group(...)` distinguishes that runtime-backed shape, while
 			      `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime
 			      and stdlib map-backed groups
-			    - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for
-			      runtime-backed groups and round-trip a cloned stored policy map
-			    - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
-			      the default native green-task scheduler
+				    - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for
+				      runtime-backed groups and round-trip a cloned stored policy map
+				    - runtime-backed mixed membership plus stored default policy now live in the runtime
+				      group state itself across C, native, and AVM instead of stdlib sidecar maps
+				    - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
+				      the default native green-task scheduler
 			    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by
 			      member kind:
 			      - stored runtime-group default policy is merged before override validation
@@ -4765,9 +4767,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      operations and reject extra generator/coroutine members
 			    - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
 			      generator/coroutine handles; it still rejects task handles and context-only members
-			    The remaining gap is now above this split group layer: true runtime-owned unified
-			    structured concurrency across both generic tasks and generator/coroutine workers, plus
-			    real task cancellation for generic `spawn` handles, not baseline generic task reflection
+				    The remaining gap is now narrower: runtime-backed groups are already unified and
+				    runtime-owned for mixed membership plus stored default policy, but typed stop dispatch
+				    still lives in stdlib and real task cancellation for generic `spawn` handles remains the
+				    next concrete runtime boundary
 			    or runtime task-group membership for spawned work.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its

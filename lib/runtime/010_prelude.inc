@@ -751,6 +751,7 @@ typedef struct OrenTaskGroupNode {
     OrenValue* members;
     int count;
     int capacity;
+    OrenValue default_policy;
     struct OrenTaskGroupNode* next;
 } OrenTaskGroupNode;
 static OrenTaskGroupNode* g_task_groups = NULL;
@@ -1611,6 +1612,17 @@ void oren_gc_collect() {
         oren_mark_value(fn);
         oren_mark_value(args_list);
         t = t->next;
+    }
+
+    // Task groups are runtime-owned, outside the GC heap. Keep both stored default policy and
+    // current members alive explicitly so runtime-backed groups can own generator/coroutine values.
+    OrenTaskGroupNode* tg = g_task_groups;
+    while (tg) {
+        oren_mark_value(tg->default_policy);
+        for (int i = 0; i < tg->count; i++) {
+            oren_mark_value(tg->members[i]);
+        }
+        tg = tg->next;
     }
 
     // Conservative stack scanning over all registered threads.

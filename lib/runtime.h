@@ -207,6 +207,8 @@ OrenValue oren_task_group_is_handle(OrenValue group);
 OrenValue oren_task_group_add(OrenValue group, OrenValue thread);
 OrenValue oren_task_group_count(OrenValue group);
 OrenValue oren_task_group_members(OrenValue group);
+OrenValue oren_task_group_default_policy(OrenValue group);
+OrenValue oren_task_group_set_default_policy(OrenValue group, OrenValue policy);
 OrenValue oren_task_group_clear(OrenValue group);
 OrenValue oren_task_group_spawn_call_list(OrenValue group, OrenValue fn, OrenValue args_list);
 

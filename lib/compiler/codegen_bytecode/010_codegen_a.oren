@@ -1054,6 +1054,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_task_group_members" { native_id = 173 }
         if name == "oren_task_group_clear" { native_id = 174 }
         if name == "oren_task_group_spawn_call_list" { native_id = 175 }
+        if name == "oren_task_group_default_policy" { native_id = 176 }
+        if name == "oren_task_group_set_default_policy" { native_id = 177 }
         if name == "oren_generator_handle_new_internal" { native_id = 163 }
         if name == "oren_generator_context_new_internal" { native_id = 164 }
         if name == "oren_generator_slot_get_internal" { native_id = 165 }

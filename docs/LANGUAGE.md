@@ -3516,6 +3516,8 @@ Rolling status:
         stdlib map-backed groups
       - `task_group.default_policy(group)` / `set_default_policy(group, policy)` now also ship for
         runtime-backed groups and round-trip a cloned stored policy map
+      - runtime-backed mixed membership plus stored default policy are now owned by the runtime
+        group state itself across C, native, and AVM rather than by stdlib sidecar maps
       - `task_group.spawn_call_list(group, fn_obj, args_list)` spawns directly into the runtime
         group on AVM, C, and the default native green-task scheduler
       - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now also ship for
@@ -3536,9 +3538,9 @@ Rolling status:
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
         only generator/coroutine handles; it still rejects task handles and context-only members
-    - the remaining boundary is now above this split runtime surface: true runtime-owned unified
-      structured concurrency across both generic tasks and generator/coroutine workers, plus real
-      task cancellation for generic `spawn` handles, is not shipped yet
+    - the remaining boundary is now narrower: runtime-backed groups are already unified and
+      runtime-owned for mixed membership plus stored default policy, but typed stop dispatch still
+      lives in stdlib and real task cancellation for generic `spawn` handles is not shipped yet
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists

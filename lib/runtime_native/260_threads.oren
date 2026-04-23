@@ -1396,53 +1396,99 @@ fn oren_is_done(handle) {
 // - native default path recognizes scheduler-owned green-task handles
 // - legacy POSIX / Windows fallback handles still use raw `oren_join(_timeout)` directly and are
 //   not yet reflected here because they remain opaque raw pointers without a safe portable validator
-var g_task_group_runtime_members = {}
+var g_task_group_runtime_groups = {}
 var g_task_group_runtime_next_id = -900000000000000000
 
 fn _task_group_runtime_ensure_state() {
-    if oren_type_name(g_task_group_runtime_members) != "map" {
-        g_task_group_runtime_members = {}
+    if oren_type_name(g_task_group_runtime_groups) != "map" {
+        g_task_group_runtime_groups = {}
     }
     if oren_type_name(g_task_group_runtime_next_id) != "int" {
         g_task_group_runtime_next_id = -900000000000000000
     }
 }
 
-fn _task_group_runtime_members_or_nil(group) {
+fn _task_group_runtime_state_or_nil(group) {
     _task_group_runtime_ensure_state()
     if oren_type_name(group) != "int" { return nil }
-    var members = g_task_group_runtime_members[group]
+    var state = g_task_group_runtime_groups[group]
+    if oren_type_name(state) == "list" {
+        state = {
+            "members": state,
+            "default_policy": {},
+        }
+        g_task_group_runtime_groups[group] = state
+    }
+    if oren_type_name(state) != "map" { return nil }
+    var members = oren_map_get_str(state, "members")
+    if oren_type_name(members) != "list" {
+        members = []
+        oren_map_set_str(state, "members", members)
+    }
+    var policy = oren_map_get_str(state, "default_policy")
+    if oren_type_name(policy) != "map" {
+        policy = {}
+        oren_map_set_str(state, "default_policy", policy)
+    }
+    return state
+}
+
+fn _task_group_runtime_members_or_nil(group) {
+    var state = _task_group_runtime_state_or_nil(group)
+    if oren_type_name(state) != "map" { return nil }
+    var members = oren_map_get_str(state, "members")
     if oren_type_name(members) != "list" { return nil }
     return members
 }
 
-fn _task_group_runtime_has_member(members, handle) {
+fn _task_group_runtime_policy_or_nil(group) {
+    var state = _task_group_runtime_state_or_nil(group)
+    if oren_type_name(state) != "map" { return nil }
+    var policy = oren_map_get_str(state, "default_policy")
+    if oren_type_name(policy) != "map" { return nil }
+    return policy
+}
+
+fn _task_group_runtime_has_member(members, target) {
     var i = 0
     var n = oren_list_len(members)
     while i < n {
-        if members[i] == handle { return true }
+        if members[i] == target { return true }
         i = i + 1
     }
     return false
 }
 
+fn _task_group_runtime_member_kind(target) {
+    if oren_task_is_handle(target) == true { return "task" }
+    var tn = oren_type_name(target)
+    if tn == "generator" || tn == "generator_context" { return tn }
+    return nil
+}
+
+fn _task_group_runtime_member_live(target) {
+    return _task_group_runtime_member_kind(target) != nil
+}
+
 fn _task_group_runtime_members_compact(group) {
-    _task_group_runtime_ensure_state()
     var members = _task_group_runtime_members_or_nil(group)
     if oren_type_name(members) != "list" { return nil }
     var out = []
     var i = 0
     var n = oren_list_len(members)
     while i < n {
-        var handle = members[i]
-        if oren_task_is_handle(handle) == true {
-            if _task_group_runtime_has_member(out, handle) != true {
-                oren_list_push(out, handle)
+        var target = members[i]
+        if _task_group_runtime_member_live(target) == true {
+            if _task_group_runtime_has_member(out, target) != true {
+                oren_list_push(out, target)
             }
         }
         i = i + 1
     }
-    g_task_group_runtime_members[group] = out
+    var state = _task_group_runtime_state_or_nil(group)
+    if oren_type_name(state) == "map" {
+        oren_map_set_str(state, "members", out)
+    }
     return out
 }
 
@@ -1465,25 +1511,31 @@ fn oren_task_group_new() {
     _task_group_runtime_ensure_state()
     var id = g_task_group_runtime_next_id
     g_task_group_runtime_next_id = g_task_group_runtime_next_id - 1
-    g_task_group_runtime_members[id] = []
+    g_task_group_runtime_groups[id] = {
+        "members": [],
+        "default_policy": {},
+    }
     return id
 }
 
 @oren.keep
 fn oren_task_group_is_handle(group) {
-    return oren_type_name(_task_group_runtime_members_or_nil(group)) == "list"
+    return oren_type_name(_task_group_runtime_state_or_nil(group)) == "map"
 }
 
 @oren.keep
-fn oren_task_group_add(group, handle) {
+fn oren_task_group_add(group, target) {
     var members = _task_group_runtime_members_compact(group)
     if oren_type_name(members) != "list" { return nil }
-    if oren_task_is_handle(handle) != true { return nil }
-    if _task_group_runtime_has_member(members, handle) != true {
-        oren_list_push(members, handle)
-        g_task_group_runtime_members[group] = members
+    if _task_group_runtime_member_live(target) != true { return nil }
+    if _task_group_runtime_has_member(members, target) != true {
+        oren_list_push(members, target)
+        var state = _task_group_runtime_state_or_nil(group)
+        if oren_type_name(state) == "map" {
+            oren_map_set_str(state, "members", members)
+        }
     }
-    return handle
+    return target
 }
 
 @oren.keep
@@ -1509,11 +1561,28 @@ fn oren_task_group_members(group) {
 
 @oren.keep
 fn oren_task_group_clear(group) {
-    _task_group_runtime_ensure_state()
     if oren_task_group_is_handle(group) == true {
-        g_task_group_runtime_members[group] = []
+        var state = _task_group_runtime_state_or_nil(group)
+        if oren_type_name(state) == "map" {
+            oren_map_set_str(state, "members", [])
+        }
     }
     return nil
+}
+
+@oren.keep
+fn oren_task_group_default_policy(group) {
+    var policy = _task_group_runtime_policy_or_nil(group)
+    if oren_type_name(policy) != "map" { return nil }
+    return policy
+}
+
+@oren.keep
+fn oren_task_group_set_default_policy(group, policy) {
+    var state = _task_group_runtime_state_or_nil(group)
+    if oren_type_name(state) != "map" { return nil }
+    oren_map_set_str(state, "default_policy", policy)
+    return policy
 }
 
 @oren.keep

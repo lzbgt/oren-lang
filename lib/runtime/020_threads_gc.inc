@@ -697,11 +697,39 @@ OrenValue oren_task_is_done(OrenValue thread) {
     return oren_bool(d);
 }
 
-static int task_value_eq(OrenValue a, OrenValue b) {
+static int task_group_value_eq(OrenValue a, OrenValue b) {
     if (a.type != b.type) return 0;
-    if (a.type == OREN_TYPE_INT) return a.as.int_val == b.as.int_val;
-    if (a.type == OREN_TYPE_LIST) return a.as.list_val == b.as.list_val;
-    return 0;
+    switch (a.type) {
+        case OREN_TYPE_NIL: return 1;
+        case OREN_TYPE_INT: return a.as.int_val == b.as.int_val;
+        case OREN_TYPE_FLOAT: return a.as.float_val == b.as.float_val;
+        case OREN_TYPE_BOOL: return a.as.bool_val == b.as.bool_val;
+        case OREN_TYPE_STRING: return a.as.string_val == b.as.string_val;
+        case OREN_TYPE_PY_OBJ: return a.as.py_obj == b.as.py_obj;
+        case OREN_TYPE_LIST: return a.as.list_val == b.as.list_val;
+        case OREN_TYPE_MAP: return a.as.map_val == b.as.map_val;
+        case OREN_TYPE_FUNC:
+            return a.as.func_val.fn == b.as.func_val.fn && a.as.func_val.env == b.as.func_val.env;
+        case OREN_TYPE_U8_BUF:
+        case OREN_TYPE_I32_BUF:
+        case OREN_TYPE_I64_BUF:
+        case OREN_TYPE_F32_BUF:
+        case OREN_TYPE_F64_BUF:
+            return a.as.buf_val == b.as.buf_val;
+        case OREN_TYPE_GENERATOR:
+            return a.as.generator_val == b.as.generator_val;
+        case OREN_TYPE_GENERATOR_CONTEXT:
+            return a.as.generator_context_val == b.as.generator_context_val;
+        default:
+            return 0;
+    }
+}
+
+static int task_handle_live_value_locked(OrenValue thread);
+
+static int task_group_member_live_locked(OrenValue v) {
+    if (task_handle_live_value_locked(v)) return 1;
+    return v.type == OREN_TYPE_GENERATOR || v.type == OREN_TYPE_GENERATOR_CONTEXT;
 }
 
 static OrenTaskGroupNode* task_group_find_locked(int64_t id) {
@@ -728,10 +756,10 @@ static void task_group_compact_locked(OrenTaskGroupNode* g) {
     int out = 0;
     for (int i = 0; i < g->count; i++) {
         OrenValue v = g->members[i];
-        if (!task_handle_live_value_locked(v)) continue;
+        if (!task_group_member_live_locked(v)) continue;
         int dup = 0;
         for (int j = 0; j < out; j++) {
-            if (task_value_eq(g->members[j], v)) { dup = 1; break; }
+            if (task_group_value_eq(g->members[j], v)) { dup = 1; break; }
         }
         if (dup) continue;
         g->members[out++] = v;
@@ -759,6 +787,7 @@ OrenValue oren_task_group_new(void) {
     }
     lock_collections();
     g->id = g_task_group_next_id--;
+    g->default_policy = OREN_NIL;
     g->next = g_task_groups;
     g_task_groups = g;
     unlock_collections();
@@ -782,12 +811,12 @@ OrenValue oren_task_group_add(OrenValue group, OrenValue thread) {
         return OREN_NIL;
     }
     task_group_compact_locked(g);
-    if (!task_handle_live_value_locked(thread)) {
+    if (!task_group_member_live_locked(thread)) {
         unlock_collections();
         return OREN_NIL;
     }
     for (int i = 0; i < g->count; i++) {
-        if (task_value_eq(g->members[i], thread)) {
+        if (task_group_value_eq(g->members[i], thread)) {
             unlock_collections();
             return thread;
         }
@@ -840,6 +869,28 @@ OrenValue oren_task_group_members(OrenValue group) {
     OrenValue out = oren_new_list_from_array(count, snapshot);
     if (snapshot) free(snapshot);
     return out;
+}
+
+OrenValue oren_task_group_default_policy(OrenValue group) {
+    if (group.type != OREN_TYPE_INT) return OREN_NIL;
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    OrenValue policy = g ? g->default_policy : OREN_NIL;
+    unlock_collections();
+    return policy;
+}
+
+OrenValue oren_task_group_set_default_policy(OrenValue group, OrenValue policy) {
+    if (group.type != OREN_TYPE_INT) return OREN_NIL;
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    if (!g) {
+        unlock_collections();
+        return OREN_NIL;
+    }
+    g->default_policy = policy;
+    unlock_collections();
+    return policy;
 }
 
 OrenValue oren_task_group_clear(OrenValue group) {
