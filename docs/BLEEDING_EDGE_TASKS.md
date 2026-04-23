@@ -4711,8 +4711,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       immediately with `err`
 		     - `policy["join_timeout_ms"]` is consumed by `stop_policy_wait(...)` and follows the same
 		       derived wait-budget rules as the existing `*_wait(...)` helpers
-		     The remaining gap is now above this policy layer: stronger structured-concurrency /
-		     scheduler-owned deadline groups and richer caller-visible coroutine/generator semantics, not
+		   - New (2026-04-23): `std:task_group` now ships as the first structured-concurrency group
+		     layer above that policy map:
+		     - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable
+		       groups over generator/coroutine handles or active contexts
+		     - `task_group.stop_policy(group, policy)` merges the group default policy with an override
+		       and returns a watcher list for the whole group
+		     - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
+		       synchronously and returns the per-member results
+		     - `task_group.join_watchers(...)` and `task_group.terminal_results(...)` round out the
+		       watcher / terminal-result side of the group surface
+		     The remaining gap is now above this stdlib group layer: runtime-owned scheduler groups for
+		     generic `spawn` handles and richer caller-visible coroutine/generator semantics, not
 		     baseline hard-stop, timeout-helper, or manual watcher-join availability.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its

@@ -14,7 +14,7 @@ static AvmValue* avm_generator_slot_ptr(AvmValue obj, int64_t slot) {
     if (slot < 0) return NULL;
     if (obj.type == AVM_VAL_GENERATOR) {
         AvmGeneratorHandle* gen = avm_generator_handle_ptr(obj);
-        if (!gen || slot >= 14) return NULL;
+        if (!gen || slot >= AVM_GENERATOR_HANDLE_SLOTS) return NULL;
         return &gen->slots[slot];
     }
     if (obj.type == AVM_VAL_GENERATOR_CONTEXT) {
@@ -30,7 +30,7 @@ static AvmValue avm_generator_handle_new_internal_value(AvmVM* vm, AvmValue work
     AvmGeneratorHandle* gen = (AvmGeneratorHandle*)avm_heap_malloc_k(sizeof(AvmGeneratorHandle), AVM_ALLOC_KIND_GENERATOR);
     if (!gen) return avm_alloc_fail_value();
     gen->magic = AVM_GENERATOR_HANDLE_MAGIC;
-    for (int i = 0; i < 14; i++) gen->slots[i] = avm_nil();
+    for (int i = 0; i < AVM_GENERATOR_HANDLE_SLOTS; i++) gen->slots[i] = avm_nil();
     gen->slots[1] = worker;
     gen->slots[2] = args_list;
     gen->slots[3] = yield_ch;

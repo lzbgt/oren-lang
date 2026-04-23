@@ -3,8 +3,8 @@ static inline int avm_generator_object_type(uint8_t t) {
 }
 
 static inline uint32_t avm_generator_slot_count_for_type(uint8_t t) {
-    if (t == 11) return 14u;
-    if (t == 12) return 4u;
+    if (t == 11) return AVM_GENERATOR_HANDLE_SLOTS;
+    if (t == 12) return AVM_GENERATOR_CONTEXT_SLOTS;
     return 0u;
 }
 
@@ -17,14 +17,14 @@ static int avm_generator_free_object(uint8_t t, void* ptr) {
 static int avm_generator_collect_value_object(ObjTable* t, AvmValue v) {
     if (v.type == AVM_VAL_GENERATOR && v.as.gen) {
         if (objtable_find(t, v.as.gen) >= 0) return 1;
-        objtable_add(t, v.as.gen, 11, 14);
-        for (int i = 0; i < 14; i++) collect_value_objects(t, v.as.gen->slots[i]);
+        objtable_add(t, v.as.gen, 11, AVM_GENERATOR_HANDLE_SLOTS);
+        for (int i = 0; i < AVM_GENERATOR_HANDLE_SLOTS; i++) collect_value_objects(t, v.as.gen->slots[i]);
         return 1;
     }
     if (v.type == AVM_VAL_GENERATOR_CONTEXT && v.as.gctx) {
         if (objtable_find(t, v.as.gctx) >= 0) return 1;
-        objtable_add(t, v.as.gctx, 12, 4);
-        for (int i = 0; i < 4; i++) collect_value_objects(t, v.as.gctx->slots[i]);
+        objtable_add(t, v.as.gctx, 12, AVM_GENERATOR_CONTEXT_SLOTS);
+        for (int i = 0; i < AVM_GENERATOR_CONTEXT_SLOTS; i++) collect_value_objects(t, v.as.gctx->slots[i]);
         return 1;
     }
     return 0;
@@ -82,20 +82,20 @@ static int avm_generator_alloc_object(uint8_t t, uint32_t aux, void** out_ptr) {
     if (!out_ptr) return 0;
     *out_ptr = NULL;
     if (t == 11) {
-        if (aux != 14) return 0;
+        if (aux != AVM_GENERATOR_HANDLE_SLOTS) return 0;
         AvmGeneratorHandle* gen = (AvmGeneratorHandle*)malloc(sizeof(AvmGeneratorHandle));
         if (!gen) return 0;
         gen->magic = AVM_GENERATOR_HANDLE_MAGIC;
-        for (int i = 0; i < 14; i++) gen->slots[i] = avm_nil();
+        for (int i = 0; i < AVM_GENERATOR_HANDLE_SLOTS; i++) gen->slots[i] = avm_nil();
         *out_ptr = gen;
         return 1;
     }
     if (t == 12) {
-        if (aux != 4) return 0;
+        if (aux != AVM_GENERATOR_CONTEXT_SLOTS) return 0;
         AvmGeneratorContext* co = (AvmGeneratorContext*)malloc(sizeof(AvmGeneratorContext));
         if (!co) return 0;
         co->magic = AVM_GENERATOR_CONTEXT_MAGIC;
-        for (int i = 0; i < 4; i++) co->slots[i] = avm_nil();
+        for (int i = 0; i < AVM_GENERATOR_CONTEXT_SLOTS; i++) co->slots[i] = avm_nil();
         *out_ptr = co;
         return 1;
     }

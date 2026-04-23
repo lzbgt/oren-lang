@@ -1,0 +1,142 @@
+import coro "std:coroutine"
+import gen "std:generator"
+import list "std:list"
+import tg "std:task_group"
+
+fn counter_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -900 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 5
+}
+
+fn cancel_probe_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -910 }
+    var seed = args[0]
+    var resumed = yield seed in co
+    if gen.is_cancel_requested(co) != true { return -911 }
+    var reason = gen.cancel_reason(co)
+    if oren_type_name(reason) != "int" { return -912 }
+    return resumed + reason
+}
+
+fn capture_context_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -920 }
+    var cells = args[0]
+    var seed = args[1]
+    cells[0] = co
+    var resumed = yield seed in co
+    return resumed + 1
+}
+
+fn _group_bad_map() {
+    return {"__task_group_surface": "bad", "members": []}
+}
+
+fn run_task_group_surface_v0() {
+    var pre0 = gen.start(cancel_probe_worker, [7])
+    var pre0s0 = gen.next(pre0)
+    if oren_is_err(pre0s0) == true || pre0s0["value"] != 7 { return 180000 }
+    var pre0req = gen.request_cancel(pre0, 300)
+    if oren_is_err(pre0req) == true { return 1800001 }
+    if gen.is_cancel_requested(pre0) != true || gen.cancel_reason(pre0) != 300 { return 1800002 }
+    var pre0done = gen.send(pre0, 1)
+    if oren_is_err(pre0done) == true || pre0done["done"] != true || pre0done["return"] != 301 { return 1800003 }
+
+    var policy0 = {"mode": "request_cancel", "timeout_ms": 0, "reason": 301}
+    var group0 = tg.new(policy0)
+    if oren_is_err(group0) == true { return 180001 }
+    policy0["reason"] = 999
+    var group0_policy = tg.default_policy(group0)
+    if oren_is_err(group0_policy) == true || group0_policy["reason"] != 301 { return 180002 }
+    if tg.is_group(group0) != true { return 180003 }
+    if tg.count(group0) != 0 { return 180004 }
+    if oren_is_err(tg.new("bad")) != true { return 180005 }
+    if oren_is_err(tg.add(_group_bad_map(), 123)) != true { return 180006 }
+
+    var req0 = gen.start(cancel_probe_worker, [10])
+    var req1 = coro.start(cancel_probe_worker, [20])
+    var req0s0 = gen.next(req0)
+    if oren_is_err(req0s0) == true || req0s0["value"] != 10 { return 180007 }
+    var req1s0 = coro.next(req1)
+    if oren_is_err(req1s0) == true || req1s0["value"] != 20 { return 180008 }
+    if oren_is_err(tg.add(group0, req0)) == true { return 180009 }
+    if oren_is_err(tg.extend(group0, [req1])) == true { return 180010 }
+    if tg.count(group0) != 2 { return 180011 }
+    var snapshot0 = tg.members(group0)
+    if oren_is_err(snapshot0) == true || list.len(snapshot0) != 2 { return 180012 }
+    list.push(snapshot0, req0)
+    if tg.count(group0) != 2 { return 180013 }
+
+    var req_watchers = tg.stop_policy(group0, nil)
+    if oren_is_err(req_watchers) == true || list.len(req_watchers) != 2 { return 180014 }
+    var req_join = tg.join_watchers(req_watchers, 2000)
+    if oren_is_err(req_join) == true || list.len(req_join) != 2 { return 180015 }
+    if req_join[0] != nil || req_join[1] != nil { return 180016 }
+    if gen.cancel_reason(req0) != 301 || coro.cancel_reason(req1) != 301 { return 180017 }
+    var req0done = gen.send(req0, 4)
+    if oren_is_err(req0done) == true || req0done["done"] != true || req0done["return"] != 305 { return 180018 }
+    var req1done = coro.send(req1, 5)
+    if oren_is_err(req1done) == true || req1done["done"] != true || req1done["return"] != 306 { return 180019 }
+    var req_terms = tg.terminal_results(group0)
+    if oren_is_err(req_terms) == true || req_terms[0] != 305 || req_terms[1] != 306 { return 180020 }
+
+    var group1 = tg.new(nil)
+    if oren_is_err(group1) == true { return 180021 }
+    if oren_is_err(tg.set_default_policy(group1, {"mode": "cancel", "deadline_ns": 0, "reason": 302})) == true { return 180022 }
+    if tg.default_policy(group1)["reason"] != 302 { return 180023 }
+    var cancel0 = gen.start(counter_worker, [21])
+    var cancel1 = coro.start(counter_worker, [31])
+    if oren_is_err(gen.next(cancel0)) == true { return 180024 }
+    if oren_is_err(coro.next(cancel1)) == true { return 180025 }
+    if oren_is_err(tg.extend(group1, [cancel0, cancel1])) == true { return 180026 }
+    var cancel_results = tg.stop_policy_wait(group1, {"join_timeout_ms": 2000})
+    if oren_is_err(cancel_results) == true || list.len(cancel_results) != 2 { return 180027 }
+    if cancel_results[0] != nil || cancel_results[1] != nil { return 180028 }
+    if gen.is_done(cancel0) != true || coro.is_done(cancel1) != true { return 180029 }
+    if gen.cancel_reason(cancel0) != 302 || coro.cancel_reason(cancel1) != 302 { return 180030 }
+    var cancel_terms = tg.terminal_results(group1)
+    if oren_is_err(cancel_terms) == true || cancel_terms[0] != nil || cancel_terms[1] != nil { return 180031 }
+
+    var done0 = gen.start(counter_worker, [25])
+    var done1 = coro.start(counter_worker, [35])
+    if oren_is_err(gen.next(done0)) == true || oren_is_err(gen.send(done0, 4)) == true { return 180032 }
+    var done0rv = gen.send(done0, 9)
+    if oren_is_err(done0rv) == true || done0rv["done"] != true || done0rv["return"] != 14 { return 180033 }
+    if oren_is_err(coro.next(done1)) == true || oren_is_err(coro.send(done1, 6)) == true { return 180034 }
+    var done1rv = coro.send(done1, 11)
+    if oren_is_err(done1rv) == true || done1rv["done"] != true || done1rv["return"] != 16 { return 180035 }
+    var group2 = tg.from_list([done0, done1], {"mode": "cancel", "reason": 303})
+    if oren_is_err(group2) == true || tg.count(group2) != 2 { return 180036 }
+    var done_group_rv = tg.stop_policy_wait(group2, {"join_timeout_ms": 2000})
+    if oren_is_err(done_group_rv) == true || done_group_rv[0] != 14 || done_group_rv[1] != 16 { return 180037 }
+    var done_terms = tg.terminal_results(group2)
+    if oren_is_err(done_terms) == true || done_terms[0] != 14 || done_terms[1] != 16 { return 180038 }
+
+    var live0 = gen.start(counter_worker, [41])
+    if oren_is_err(gen.next(live0)) == true { return 180039 }
+    var live_group = tg.from_list([live0], nil)
+    if oren_is_err(live_group) == true { return 180040 }
+    if oren_is_err(tg.terminal_results(live_group)) != true { return 180041 }
+
+    var ctx_cells = [nil]
+    var ctx_handle = gen.start(capture_context_worker, [ctx_cells, 50])
+    var ctx_step0 = gen.next(ctx_handle)
+    if oren_is_err(ctx_step0) == true || ctx_step0["value"] != 50 { return 180049 }
+    var ctx_group = tg.from_list([ctx_cells[0]], {"mode": "cancel", "deadline_ns": 0, "reason": 304})
+    if oren_is_err(ctx_group) == true { return 180050 }
+    var ctx_rv = tg.stop_policy_wait(ctx_group, {"join_timeout_ms": 2000})
+    if oren_is_err(ctx_rv) == true || ctx_rv[0] != nil { return 180051 }
+    if gen.is_done(ctx_handle) != true || gen.cancel_reason(ctx_handle) != 304 { return 180052 }
+
+    if oren_is_err(tg.add(group0, 123)) != true { return 180042 }
+    if oren_is_err(tg.extend(group0, 123)) != true { return 180043 }
+    if oren_is_err(tg.stop_policy(group0, {"mode": "bogus"})) != true { return 180044 }
+    if oren_is_err(tg.stop_policy(group0, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 180045 }
+    if oren_is_err(tg.stop_policy_wait(group0, {"mode": "cancel", "grace_ms": 1})) != true { return 180046 }
+    if oren_is_err(tg.join_watchers(123, 0)) != true { return 180047 }
+    if oren_is_err(tg.join_watchers([], "bad")) != true { return 180048 }
+
+    return 0
+}

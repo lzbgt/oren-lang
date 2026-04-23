@@ -17,6 +17,8 @@
 //   watcher to finish
 // - `stop_policy(...)` / `stop_policy_wait(...)` normalize a map-shaped scheduler/deadline policy
 //   above that flat helper family
+// - `std:task_group` now builds the first group-shaped structured-concurrency layer on top of that
+//   per-handle policy stack for generator/coroutine handles
 // - `cancel(...)` is the hard-stop layer above that state: it records the request and then
 //   forces the existing close/detach/finalize path
 //

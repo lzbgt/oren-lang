@@ -1,0 +1,9 @@
+import helper "../helpers/task_group_surface_common.oren"
+
+var rc = helper.run_task_group_surface_v0()
+if rc != 0 {
+    print("test_task_group_std FAIL " + oren_int_to_string(rc))
+    exit(rc)
+}
+print("test_task_group_std OK")
+exit(0)

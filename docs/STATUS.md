@@ -1528,8 +1528,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		     - `terminal_result(target)` now exposes the final done-handle result directly: it returns
 		       the sticky terminal error when one exists, otherwise the cached return value, and fails
 		       immediately for invalid or still-live handles
-		   - New (2026-04-23): that same helper stack now also exposes the first map-shaped
-		     scheduler/deadline policy surface:
+			   - New (2026-04-23): that same helper stack now also exposes the first map-shaped
+			     scheduler/deadline policy surface:
 		     - `std:generator.stop_policy(target, policy)` / `std:coroutine.stop_policy(...)` normalize a
 		       policy map and always return the joinable watcher handle for that policy
 		     - `std:generator.stop_policy_wait(target, policy)` / `std:coroutine.stop_policy_wait(...)`
@@ -1542,10 +1542,20 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       - `grace_ms` for `mode=stop`
 		       - `reason`
 		       - `join_timeout_ms` on the `*_wait(...)` path
-		     - positive `grace_ms` with non-stop modes fails immediately with `err`
-		     - the remaining boundary is now above this policy map: structured-concurrency /
-		       scheduler-owned deadline groups and richer caller-visible coroutine semantics, not raw
-		       timeout-helper composition.
+			     - positive `grace_ms` with non-stop modes fails immediately with `err`
+			   - New (2026-04-23): `std:task_group` now ships as the first group-shaped
+			     structured-concurrency layer above that policy map:
+			     - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable
+			       groups over generator/coroutine handles or active contexts
+			     - `task_group.stop_policy(group, policy)` merges the group default policy with an
+			       override and returns a watcher handle list for the whole group
+			     - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
+			       synchronously and returns the per-member results
+			     - `task_group.join_watchers(...)` and `task_group.terminal_results(...)` complete the
+			       watcher and final-result side of that group surface
+			     - the remaining boundary is now above this stdlib group layer: runtime-owned scheduler
+			       groups for generic `spawn` handles and richer caller-visible coroutine semantics, not
+			       raw timeout-helper composition.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

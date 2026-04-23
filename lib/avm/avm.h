@@ -11,6 +11,8 @@
 #define MAX_FRAMES 65536
 #define AVM_STACK_SIZE 16777216
 #define AVM_FREELIST_BUCKETS 16
+#define AVM_GENERATOR_HANDLE_SLOTS 16
+#define AVM_GENERATOR_CONTEXT_SLOTS 4
 
 typedef enum {
     AVM_VAL_NIL = 0,
@@ -103,12 +105,12 @@ typedef struct AvmBuf {
 
 typedef struct AvmGeneratorHandle {
     uint64_t magic;
-    AvmValue slots[14];
+    AvmValue slots[AVM_GENERATOR_HANDLE_SLOTS];
 } AvmGeneratorHandle;
 
 typedef struct AvmGeneratorContext {
     uint64_t magic;
-    AvmValue slots[4];
+    AvmValue slots[AVM_GENERATOR_CONTEXT_SLOTS];
 } AvmGeneratorContext;
 
 typedef struct {

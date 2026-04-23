@@ -3478,6 +3478,23 @@ Rolling status:
     - `stop_policy_wait(...)` applies the same normalized policy synchronously; when
       `policy["join_timeout_ms"]` is missing or negative it uses the same derived wait-budget rules
       as the existing `*_wait(...)` helpers
+  - New (2026-04-23): `std:task_group` now ships as the first group-shaped structured-concurrency
+    layer above that per-handle generator/coroutine policy stack
+    - `task_group.new(default_policy)` / `task_group.from_list(targets, default_policy)` create a
+      mutable group over generator/coroutine handles or active contexts and clone the optional
+      default policy map
+    - `task_group.add(...)`, `extend(...)`, `members(...)`, `count(...)`, `default_policy(...)`,
+      and `set_default_policy(...)` expose the basic membership and default-policy surface
+    - `task_group.stop_policy(group, policy)` merges the group default policy with an optional
+      override and returns a watcher-handle list for every group member
+    - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
+      synchronously and returns the per-member results
+    - `task_group.join_watchers(watchers, join_timeout_ms)` waits watcher lists explicitly; missing
+      or negative `join_timeout_ms` defaults to `2000`
+    - `task_group.terminal_results(group)` collects final results for done handle members and fails
+      immediately for still-live handles or context-only members
+    - current scope is generator/coroutine structured concurrency; generic `spawn` handles are not
+      part of `std:task_group` yet
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists
@@ -5614,7 +5631,8 @@ The following are *design goals* but are not implemented today as stable primiti
 
 - “green threads” / coroutines
 - a portable, shared-memory `mutex`/`lock` that works across macOS/Linux/Windows without libc
-- structured concurrency (`task_group`, cancellation propagation)
+- scheduler/runtime-owned structured concurrency for generic `spawn` handles (the shipped
+  `std:task_group` currently covers generator/coroutine handles only)
 - pub/sub or multicast channels
 - data-parallel iterators (`par_map`, `par_reduce`)
 

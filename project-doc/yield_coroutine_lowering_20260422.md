@@ -184,8 +184,19 @@ backend-shared value-helper slices landed.
     immediately with `err`
   - `policy["join_timeout_ms"]` is consumed by `stop_policy_wait(...)` and follows the same
     derived wait-budget rules as the existing `*_wait(...)` helpers
-  - the remaining gap moves up again: scheduler-owned deadline groups / structured-concurrency
-    policy should build on this first-class map layer rather than on raw watcher tasks
+  - Fresh landing (2026-04-23): `std:task_group` now ships as the first group-shaped
+    structured-concurrency layer above that map policy:
+    - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable groups
+      over generator/coroutine handles or active contexts
+    - `task_group.stop_policy(group, policy)` merges the group default policy with an override and
+      returns a watcher list for the full group
+    - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
+      synchronously and returns the per-member results
+    - `task_group.join_watchers(...)` and `task_group.terminal_results(...)` complete the watcher /
+      final-result side of the group surface
+  - the remaining gap now moves up again: runtime-owned scheduler groups for generic `spawn`
+    handles and richer structured-concurrency policy should build on this stdlib group layer
+    rather than on raw watcher tasks
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

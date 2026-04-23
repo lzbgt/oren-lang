@@ -187,13 +187,13 @@ static int rr_read_value(FILE* f, AvmValue* out) {
             AvmGeneratorHandle* gen = (AvmGeneratorHandle*)malloc(sizeof(AvmGeneratorHandle));
             if (!gen) { ok = 0; break; }
             gen->magic = AVM_GENERATOR_HANDLE_MAGIC;
-            for (int i = 0; i < 14; i++) gen->slots[i] = avm_nil();
+            for (int i = 0; i < AVM_GENERATOR_HANDLE_SLOTS; i++) gen->slots[i] = avm_nil();
             obj_ptrs[id] = gen;
         } else if (t == 12) {
             AvmGeneratorContext* co = (AvmGeneratorContext*)malloc(sizeof(AvmGeneratorContext));
             if (!co) { ok = 0; break; }
             co->magic = AVM_GENERATOR_CONTEXT_MAGIC;
-            for (int i = 0; i < 4; i++) co->slots[i] = avm_nil();
+            for (int i = 0; i < AVM_GENERATOR_CONTEXT_SLOTS; i++) co->slots[i] = avm_nil();
             obj_ptrs[id] = co;
         } else if (t == 3) {
             AvmMap* map = (AvmMap*)malloc(sizeof(AvmMap));
@@ -280,14 +280,14 @@ static int rr_read_value(FILE* f, AvmValue* out) {
             if (!ok) break;
         } else if (t == 11) {
             AvmGeneratorHandle* gen = (AvmGeneratorHandle*)obj_ptrs[id];
-            if (!gen || aux != 14) { ok = 0; break; }
+            if (!gen || aux != AVM_GENERATOR_HANDLE_SLOTS) { ok = 0; break; }
             for (uint32_t i = 0; i < aux; i++) {
                 if (!decode_value(f, obj_types, obj_ptrs, obj_count, &gen->slots[i])) { ok = 0; break; }
             }
             if (!ok) break;
         } else if (t == 12) {
             AvmGeneratorContext* co = (AvmGeneratorContext*)obj_ptrs[id];
-            if (!co || aux != 4) { ok = 0; break; }
+            if (!co || aux != AVM_GENERATOR_CONTEXT_SLOTS) { ok = 0; break; }
             for (uint32_t i = 0; i < aux; i++) {
                 if (!decode_value(f, obj_types, obj_ptrs, obj_count, &co->slots[i])) { ok = 0; break; }
             }

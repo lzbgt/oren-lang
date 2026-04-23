@@ -1037,13 +1037,13 @@ int avm_result_hash(AvmVM* vm, uint8_t out[32]) {
             }
         } else if (t == 11) { // GENERATOR
             AvmGeneratorHandle* gen = (AvmGeneratorHandle*)objs.ptrs[id];
-            if (!gen || aux != 14) { objtable_free(&objs); return 0; }
+            if (!gen || aux != AVM_GENERATOR_HANDLE_SLOTS) { objtable_free(&objs); return 0; }
             for (uint32_t i = 0; i < aux; i++) {
                 if (!encode_value_for_hash(&h, &objs, gen->slots[i])) { objtable_free(&objs); return 0; }
             }
         } else if (t == 12) { // GENERATOR_CONTEXT
             AvmGeneratorContext* co = (AvmGeneratorContext*)objs.ptrs[id];
-            if (!co || aux != 4) { objtable_free(&objs); return 0; }
+            if (!co || aux != AVM_GENERATOR_CONTEXT_SLOTS) { objtable_free(&objs); return 0; }
             for (uint32_t i = 0; i < aux; i++) {
                 if (!encode_value_for_hash(&h, &objs, co->slots[i])) { objtable_free(&objs); return 0; }
             }

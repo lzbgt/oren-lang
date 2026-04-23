@@ -1,0 +1,240 @@
+// std/task_group.oren
+//
+// First structured-concurrency group layer above the current generator/coroutine
+// stop-policy helpers.
+//
+// Scope:
+// - owns a mutable list of generator/coroutine handles or active contexts
+// - optionally owns a default stop-policy map
+// - applies the shipped per-handle `std:generator.stop_policy(...)` /
+//   `stop_policy_wait(...)` surface across the whole group
+// - exposes watcher-list joins and final terminal-result collection
+//
+// Non-goals (still rolling):
+// - generic `spawn` handle groups
+// - runtime-owned scheduler groups
+// - implicit parent/child task lifetime enforcement
+
+import gen "std:generator"
+import list "std:list"
+
+fn _task_group_surface() { return "generator_task_group_v0" }
+
+fn _task_group_err(ctx, msg) {
+    return oren_err(4, ctx + ": " + msg)
+}
+
+fn _task_group_target_ok(target) {
+    var name = oren_type_name(target)
+    return name == "generator" || name == "generator_context"
+}
+
+fn _task_group_policy_map(ctx, policy) {
+    if oren_type_tag(policy) == 0 { return {} }
+    if oren_type_name(policy) != "map" {
+        return _task_group_err(ctx, "expected map policy")
+    }
+    return policy
+}
+
+fn _task_group_copy_policy(ctx, policy0) {
+    var policy = _task_group_policy_map(ctx, policy0)
+    if oren_is_err(policy) == true { return policy }
+    return {
+        "mode": oren_map_get_str(policy, "mode"),
+        "timeout_ms": oren_map_get_str(policy, "timeout_ms"),
+        "deadline_ns": oren_map_get_str(policy, "deadline_ns"),
+        "grace_ms": oren_map_get_str(policy, "grace_ms"),
+        "reason": oren_map_get_str(policy, "reason"),
+        "join_timeout_ms": oren_map_get_str(policy, "join_timeout_ms"),
+    }
+}
+
+fn _task_group_merge_policy(ctx, base0, override0) {
+    var merged = _task_group_copy_policy(ctx, base0)
+    if oren_is_err(merged) == true { return merged }
+    var override = _task_group_policy_map(ctx, override0)
+    if oren_is_err(override) == true { return override }
+    var keys = ["mode", "timeout_ms", "deadline_ns", "grace_ms", "reason", "join_timeout_ms"]
+    var i = 0
+    while i < 6 {
+        var key = keys[i]
+        var value = oren_map_get_str(override, key)
+        if oren_type_tag(value) != 0 {
+            oren_map_set_str(merged, key, value)
+        }
+        i = i + 1
+    }
+    return merged
+}
+
+fn _task_group_members_ref(ctx, group) {
+    if oren_type_name(group) != "map" {
+        return _task_group_err(ctx, "expected task group map")
+    }
+    if oren_map_get_str(group, "__task_group_surface") != _task_group_surface() {
+        return _task_group_err(ctx, "expected task group surface " + _task_group_surface())
+    }
+    var members = oren_map_get_str(group, "members")
+    if oren_type_name(members) != "list" {
+        return _task_group_err(ctx, "group members must be list")
+    }
+    var policy = oren_map_get_str(group, "default_policy")
+    if oren_type_tag(policy) != 0 && oren_type_name(policy) != "map" {
+        return _task_group_err(ctx, "default_policy must be map")
+    }
+    return members
+}
+
+fn _task_group_join_timeout_ms(ctx, join_timeout_ms) {
+    if oren_type_tag(join_timeout_ms) == 0 { return 2000 }
+    if oren_type_name(join_timeout_ms) != "int" {
+        return _task_group_err(ctx, "expected int join_timeout_ms")
+    }
+    if join_timeout_ms < 0 { return 2000 }
+    return join_timeout_ms
+}
+
+fn is_group(group) {
+    if oren_type_name(group) != "map" { return false }
+    if oren_map_get_str(group, "__task_group_surface") != _task_group_surface() { return false }
+    var members = oren_map_get_str(group, "members")
+    return oren_type_name(members) == "list"
+}
+
+fn new(default_policy) {
+    var policy = _task_group_copy_policy("task_group.new", default_policy)
+    if oren_is_err(policy) == true { return policy }
+    return {
+        "__task_group_surface": _task_group_surface(),
+        "members": [],
+        "default_policy": policy,
+    }
+}
+
+fn from_list(targets, default_policy) {
+    var group = new(default_policy)
+    if oren_is_err(group) == true { return group }
+    return extend(group, targets)
+}
+
+fn count(group) {
+    var members = _task_group_members_ref("task_group.count", group)
+    if oren_is_err(members) == true { return members }
+    return list.len(members)
+}
+
+fn members(group) {
+    var refs = _task_group_members_ref("task_group.members", group)
+    if oren_is_err(refs) == true { return refs }
+    return list.clone(refs)
+}
+
+fn default_policy(group) {
+    var refs = _task_group_members_ref("task_group.default_policy", group)
+    if oren_is_err(refs) == true { return refs }
+    return _task_group_copy_policy("task_group.default_policy", oren_map_get_str(group, "default_policy"))
+}
+
+fn set_default_policy(group, policy0) {
+    var refs = _task_group_members_ref("task_group.set_default_policy", group)
+    if oren_is_err(refs) == true { return refs }
+    var policy = _task_group_copy_policy("task_group.set_default_policy", policy0)
+    if oren_is_err(policy) == true { return policy }
+    group["default_policy"] = policy
+    return group
+}
+
+fn add(group, target) {
+    var refs = _task_group_members_ref("task_group.add", group)
+    if oren_is_err(refs) == true { return refs }
+    if _task_group_target_ok(target) != true {
+        return _task_group_err("task_group.add", "expected generator handle or context")
+    }
+    list.push(refs, target)
+    return group
+}
+
+fn extend(group, targets) {
+    var refs = _task_group_members_ref("task_group.extend", group)
+    if oren_is_err(refs) == true { return refs }
+    if oren_type_name(targets) != "list" {
+        return _task_group_err("task_group.extend", "expected list targets")
+    }
+    var n = list.len(targets)
+    var i = 0
+    while i < n {
+        var target = targets[i]
+        if _task_group_target_ok(target) != true {
+            return _task_group_err("task_group.extend", "expected generator handle or context")
+        }
+        list.push(refs, target)
+        i = i + 1
+    }
+    return group
+}
+
+fn stop_policy(group, policy0) {
+    var refs = _task_group_members_ref("task_group.stop_policy", group)
+    if oren_is_err(refs) == true { return refs }
+    var policy = _task_group_merge_policy("task_group.stop_policy", oren_map_get_str(group, "default_policy"), policy0)
+    if oren_is_err(policy) == true { return policy }
+    var watchers = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        var watcher = gen.stop_policy(refs[i], policy)
+        if oren_is_err(watcher) == true { return watcher }
+        list.push(watchers, watcher)
+        i = i + 1
+    }
+    return watchers
+}
+
+fn stop_policy_wait(group, policy0) {
+    var refs = _task_group_members_ref("task_group.stop_policy_wait", group)
+    if oren_is_err(refs) == true { return refs }
+    var policy = _task_group_merge_policy("task_group.stop_policy_wait", oren_map_get_str(group, "default_policy"), policy0)
+    if oren_is_err(policy) == true { return policy }
+    var out = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        var result = gen.stop_policy_wait(refs[i], policy)
+        if oren_is_err(result) == true { return result }
+        list.push(out, result)
+        i = i + 1
+    }
+    return out
+}
+
+fn join_watchers(watchers, join_timeout_ms) {
+    if oren_type_name(watchers) != "list" {
+        return _task_group_err("task_group.join_watchers", "expected watcher list")
+    }
+    var n = list.len(watchers)
+    var wait_ms = _task_group_join_timeout_ms("task_group.join_watchers", join_timeout_ms)
+    if oren_is_err(wait_ms) == true { return wait_ms }
+    var out = []
+    var i = 0
+    while i < n {
+        list.push(out, oren_join_timeout(watchers[i], wait_ms))
+        i = i + 1
+    }
+    return out
+}
+
+fn terminal_results(group) {
+    var refs = _task_group_members_ref("task_group.terminal_results", group)
+    if oren_is_err(refs) == true { return refs }
+    var out = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        var result = gen.terminal_result(refs[i])
+        if oren_is_err(result) == true { return result }
+        list.push(out, result)
+        i = i + 1
+    }
+    return out
+}
