@@ -1,0 +1,80 @@
+// std/task.oren
+//
+// Safe facade for generic language-level `spawn` handles.
+//
+// Rolling scope:
+// - wraps the existing `spawn` / `oren_join(_timeout)` / `oren_detach` runtime surface
+// - adds a safe reflected predicate (`is_handle`) before destructive operations
+// - supports the default scheduler-backed task handles on native, plus AVM/C task handles
+// - legacy native raw fallback handles (fork / Windows thread fallback) still use the low-level
+//   raw helpers directly and are not yet reflected by `is_handle(...)`
+
+import list "std:list"
+
+fn _task_err(ctx, msg) {
+    return oren_err(4, ctx + ": " + msg)
+}
+
+fn _task_handle_ok(handle) {
+    return oren_task_is_handle(handle) == true
+}
+
+fn _task_timeout_ms(ctx, timeout_ms) {
+    if oren_type_tag(timeout_ms) == 0 { return -1 }
+    if oren_type_name(timeout_ms) != "int" {
+        return _task_err(ctx, "expected int timeout_ms")
+    }
+    return timeout_ms
+}
+
+fn is_handle(handle) {
+    return oren_task_is_handle(handle)
+}
+
+fn is_done(handle) {
+    return oren_task_is_done(handle)
+}
+
+fn join(handle) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.join", "expected task handle")
+    }
+    return oren_join(handle)
+}
+
+fn join_timeout(handle, timeout_ms) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.join_timeout", "expected task handle")
+    }
+    var wait_ms = _task_timeout_ms("task.join_timeout", timeout_ms)
+    if oren_is_err(wait_ms) == true { return wait_ms }
+    return oren_join_timeout(handle, wait_ms)
+}
+
+fn detach(handle) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.detach", "expected task handle")
+    }
+    oren_detach(handle)
+    return nil
+}
+
+fn join_all(handles, timeout_ms) {
+    if oren_type_name(handles) != "list" {
+        return _task_err("task.join_all", "expected list handles")
+    }
+    var wait_ms = _task_timeout_ms("task.join_all", timeout_ms)
+    if oren_is_err(wait_ms) == true { return wait_ms }
+    var out = []
+    var i = 0
+    var n = list.len(handles)
+    while i < n {
+        var handle = handles[i]
+        if _task_handle_ok(handle) != true {
+            return _task_err("task.join_all", "expected task handle")
+        }
+        list.push(out, oren_join_timeout(handle, wait_ms))
+        i = i + 1
+    }
+    return out
+}

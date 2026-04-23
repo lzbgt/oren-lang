@@ -648,6 +648,30 @@
             }
             break;
         }
+        case 167: { // oren_task_is_handle(v) -> bool
+            int ok = 0;
+            if (nargs > 0 && args[0].type == AVM_VAL_INT && vm && vm->sched) {
+                AvmSched* sched = (AvmSched*)vm->sched;
+                int tid = (int)args[0].as.i - 1;
+                if (tid >= 0 && tid < sched->task_cap && sched->tasks[tid].used) {
+                    ok = 1;
+                }
+            }
+            res = avm_bool(ok);
+            break;
+        }
+        case 168: { // oren_task_is_done(v) -> bool
+            int done = 0;
+            if (nargs > 0 && args[0].type == AVM_VAL_INT && vm && vm->sched) {
+                AvmSched* sched = (AvmSched*)vm->sched;
+                int tid = (int)args[0].as.i - 1;
+                if (tid >= 0 && tid < sched->task_cap && sched->tasks[tid].used) {
+                    done = sched->tasks[tid].done ? 1 : 0;
+                }
+            }
+            res = avm_bool(done);
+            break;
+        }
         case 151: { // oren_string_eq(a, b) -> bool
             if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_STRING) {
                 const char* a = (const char*)args[0].as.p;

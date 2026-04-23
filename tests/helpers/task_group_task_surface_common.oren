@@ -1,0 +1,55 @@
+import gen "std:generator"
+import list "std:list"
+import task "std:task"
+import tg "std:task_group"
+
+fn counter_worker(co, args) {
+    if oren_type_name(co) != "generator_context" { return -900 }
+    var seed = args[0]
+    var resumed0 = yield (seed + 1) in co
+    var resumed1 = yield (seed + resumed0) in co
+    return resumed1 + 5
+}
+
+fn quick_task(seed) {
+    return seed + 100
+}
+
+fn run_task_group_task_surface_v0() {
+    var policy0 = {"mode": "stop", "timeout_ms": 0, "grace_ms": 1, "reason": 401}
+    var group0 = tg.new(policy0)
+    if oren_is_err(group0) == true { return 191000 }
+    policy0["reason"] = 999
+    var copied0 = tg.default_policy(group0)
+    if oren_is_err(copied0) == true || copied0["reason"] != 401 { return 191001 }
+
+    var task0 = spawn quick_task(1)
+    var task1 = spawn quick_task(2)
+    if oren_is_err(tg.add(group0, task0)) == true { return 191002 }
+    if oren_is_err(tg.extend(group0, [task1])) == true { return 191003 }
+    if tg.count(group0) != 2 { return 191004 }
+    var members0 = tg.members(group0)
+    if oren_is_err(members0) == true || list.len(members0) != 2 { return 191005 }
+    list.push(members0, task0)
+    if tg.count(group0) != 2 { return 191006 }
+
+    if oren_is_err(tg.stop_policy(group0, nil)) != true { return 191007 }
+    if oren_is_err(tg.stop_policy_wait(group0, nil)) != true { return 191008 }
+    if oren_is_err(tg.terminal_results(group0)) != true { return 191009 }
+
+    var join0 = tg.join_all(group0, 2000)
+    if oren_is_err(join0) == true || join0[0] != 101 || join0[1] != 102 { return 191010 }
+
+    var mixed_gen = gen.start(counter_worker, [60])
+    var mixed_task = spawn quick_task(3)
+    var mixed_group = tg.from_list([mixed_gen, mixed_task], nil)
+    if oren_is_err(mixed_group) == true { return 191011 }
+    if oren_is_err(tg.join_all(mixed_group, 0)) != true { return 191012 }
+    if task.join(mixed_task) != 103 { return 191013 }
+    if gen.close(mixed_gen) != nil { return 191014 }
+
+    if oren_is_err(tg.add(group0, 123)) != true { return 191015 }
+    if oren_is_err(tg.extend(group0, [123])) != true { return 191016 }
+
+    return 0
+}

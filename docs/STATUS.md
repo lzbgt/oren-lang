@@ -1543,19 +1543,24 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       - `reason`
 		       - `join_timeout_ms` on the `*_wait(...)` path
 			     - positive `grace_ms` with non-stop modes fails immediately with `err`
-			   - New (2026-04-23): `std:task_group` now ships as the first group-shaped
-			     structured-concurrency layer above that policy map:
+			   - New (2026-04-23): `std:task` now ships as the safe generic `spawn` facade:
+			     - `task.is_handle(...)` / `std:reflect.is_task(...)` expose the reflected task predicate
+			     - `task.is_done(...)` is the safe completion probe
+			     - `task.join(...)`, `join_timeout(...)`, `detach(...)`, and `join_all(...)` wrap the raw
+			       join/detach surface with handle validation
+			     - native support currently covers the default scheduler-backed green-task path; legacy
+			       native raw fallback handles remain low-level only
+			   - New (2026-04-23): `std:task_group` now ships as the first mixed structured-concurrency
+			     layer above that policy map:
 			     - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable
-			       groups over generator/coroutine handles or active contexts
-			     - `task_group.stop_policy(group, policy)` merges the group default policy with an
-			       override and returns a watcher handle list for the whole group
-			     - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
-			       synchronously and returns the per-member results
-			     - `task_group.join_watchers(...)` and `task_group.terminal_results(...)` complete the
-			       watcher and final-result side of that group surface
-			     - the remaining boundary is now above this stdlib group layer: runtime-owned scheduler
-			       groups for generic `spawn` handles and richer caller-visible coroutine semantics, not
-			       raw timeout-helper composition.
+			       groups over generator/coroutine handles, active contexts, or safe task handles
+			     - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` remain generator-only
+			       and reject task handles explicitly
+			     - `task_group.join_all(...)` now joins task-handle-only groups, while
+			       `task_group.join_watchers(...)` keeps the explicit watcher-join surface
+			     - `task_group.terminal_results(...)` remains generator-handle-only
+			     - the remaining boundary is now above this stdlib layer: runtime-owned scheduler groups
+			       and richer caller-visible coroutine semantics, not raw timeout-helper composition.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

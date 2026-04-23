@@ -410,6 +410,40 @@ static OrenThreadNode* thread_from_value(OrenValue v) {
     return (OrenThreadNode*)(intptr_t)v.as.int_val;
 }
 
+static int thread_handle_live_locked(OrenThreadNode* node) {
+    OrenThreadNode* cur = g_threads;
+    while (cur) {
+        if (cur == node) return 1;
+        cur = cur->next;
+    }
+    return 0;
+}
+
+static int spawn_fork_handle_live(OrenValue thread) {
+#if defined(_WIN32)
+    (void)thread;
+    return 0;
+#else
+    if (thread.type != OREN_TYPE_LIST || !thread.as.list_val) return 0;
+    if (thread.as.list_val->count != 2) return 0;
+    OrenValue pidv = thread.as.list_val->items[0];
+    OrenValue fdv = thread.as.list_val->items[1];
+    if (pidv.type != OREN_TYPE_INT || fdv.type != OREN_TYPE_INT) return 0;
+    if (fdv.as.int_val <= 0) return 0;
+    pid_t pid = (pid_t)pidv.as.int_val;
+    pthread_mutex_lock(&g_spawn_fork_mu);
+    int found = 0;
+    for (size_t i = 0; i < g_spawn_fork_pids_len; i++) {
+        if (g_spawn_fork_pids[i] == pid) {
+            found = 1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_spawn_fork_mu);
+    return found;
+#endif
+}
+
 static void thread_node_destroy(OrenThreadNode* n) {
     if (!n) return;
     // Roots are safe to unregister even if they were never registered.
@@ -632,6 +666,32 @@ OrenValue oren_is_done(OrenValue thread) {
     OrenThreadNode* n = thread_from_value(thread);
     if (!n) return OREN_FALSE;
     pthread_mutex_lock(&n->mu);
+    int d = n->done;
+    pthread_mutex_unlock(&n->mu);
+    return oren_bool(d);
+}
+
+OrenValue oren_task_is_handle(OrenValue thread) {
+    if (spawn_fork_handle_live(thread)) return OREN_TRUE;
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_FALSE;
+    lock_collections();
+    int live = thread_handle_live_locked(n);
+    unlock_collections();
+    return oren_bool(live);
+}
+
+OrenValue oren_task_is_done(OrenValue thread) {
+    if (spawn_fork_handle_live(thread)) return OREN_FALSE;
+    OrenThreadNode* n = thread_from_value(thread);
+    if (!n) return OREN_FALSE;
+    lock_collections();
+    if (!thread_handle_live_locked(n)) {
+        unlock_collections();
+        return OREN_FALSE;
+    }
+    pthread_mutex_lock(&n->mu);
+    unlock_collections();
     int d = n->done;
     pthread_mutex_unlock(&n->mu);
     return oren_bool(d);

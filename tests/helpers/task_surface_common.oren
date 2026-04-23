@@ -1,0 +1,47 @@
+import reflect "std:reflect"
+import task "std:task"
+import time "std:time"
+
+fn quick_task(seed) {
+    return seed + 1
+}
+
+fn slow_task(seed) {
+    time.sleep_ms(30)
+    return seed + 2
+}
+
+fn run_task_surface_v0() {
+    if task.is_handle(nil) != false { return 190000 }
+    if task.is_handle(123) != false { return 190001 }
+    if task.is_done(123) != false { return 190002 }
+    if reflect.is_task(123) != false { return 190003 }
+    if oren_is_err(task.join(123)) != true { return 190004 }
+    if oren_is_err(task.join_timeout(123, 0)) != true { return 190005 }
+    if oren_is_err(task.join_timeout(nil, "bad")) != true { return 190006 }
+    if oren_is_err(task.detach(123)) != true { return 190007 }
+    if oren_is_err(task.join_all(123, 0)) != true { return 190008 }
+    if oren_is_err(task.join_all([123], 0)) != true { return 190009 }
+
+    var h0 = spawn quick_task(40)
+    if task.is_handle(h0) != true { return 190010 }
+    if reflect.is_task(h0) != true { return 190011 }
+    if task.join(h0) != 41 { return 190012 }
+
+    var h1 = spawn slow_task(50)
+    if task.is_handle(h1) != true { return 190013 }
+    if task.is_done(h1) != false { return 190014 }
+    var h1r = task.join_timeout(h1, 0)
+    if h1r != -60 { return 190015 }
+
+    var h2 = spawn quick_task(60)
+    var h3 = spawn quick_task(70)
+    var all = task.join_all([h2, h3], nil)
+    if oren_is_err(all) == true { return 190016 }
+    if all[0] != 61 || all[1] != 71 { return 190017 }
+
+    var h4 = spawn slow_task(80)
+    if task.detach(h4) != nil { return 190018 }
+
+    return 0
+}

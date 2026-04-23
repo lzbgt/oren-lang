@@ -1,3 +1,5 @@
+import task "std:task"
+
 // std:reflect (rolling v0)
 //
 // This module provides a small, portable reflection surface suitable for:
@@ -47,3 +49,4 @@ fn is_generator(v) { return tag(v) == TAG_GENERATOR }
 fn is_coroutine(v) { return tag(v) == TAG_GENERATOR }
 fn is_generator_context(v) { return tag(v) == TAG_GENERATOR_CONTEXT }
 fn is_coroutine_context(v) { return tag(v) == TAG_GENERATOR_CONTEXT }
+fn is_task(v) { return task.is_handle(v) }

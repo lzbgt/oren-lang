@@ -199,6 +199,8 @@ OrenValue oren_join(OrenValue thread);
 OrenValue oren_join_timeout(OrenValue thread, OrenValue timeout_ms);
 OrenValue oren_detach(OrenValue thread);
 OrenValue oren_is_done(OrenValue thread);
+OrenValue oren_task_is_handle(OrenValue thread);
+OrenValue oren_task_is_done(OrenValue thread);
 OrenValue oren_join_all();
 
 // Channels (C backend runtime; rolling):

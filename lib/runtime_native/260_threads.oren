@@ -1391,3 +1391,21 @@ fn oren_is_done(handle) {
 
     return got >= 8
 }
+
+// Safe reflected task-handle surface (rolling v0):
+// - native default path recognizes scheduler-owned green-task handles
+// - legacy POSIX / Windows fallback handles still use raw `oren_join(_timeout)` directly and are
+//   not yet reflected here because they remain opaque raw pointers without a safe portable validator
+@oren.keep
+fn oren_task_is_handle(handle) {
+    if handle == 0 { return false }
+    if oren_green_is_g(handle) { return true }
+    return false
+}
+
+@oren.keep
+fn oren_task_is_done(handle) {
+    if oren_task_is_handle(handle) != true { return false }
+    if oren_green_is_g(handle) { return oren_green_is_done(handle) }
+    return false
+}

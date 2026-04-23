@@ -4711,19 +4711,30 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		       immediately with `err`
 		     - `policy["join_timeout_ms"]` is consumed by `stop_policy_wait(...)` and follows the same
 		       derived wait-budget rules as the existing `*_wait(...)` helpers
+		   - New (2026-04-23): `std:task` now ships as the first safe facade over generic `spawn`
+		     handles:
+		     - `task.is_handle(...)` / `is_done(...)` provide the first reflected task predicates across
+		       AVM, C, and the default native green-task path
+		     - `task.join(...)`, `join_timeout(...)`, `detach(...)`, and `join_all(...)` now wrap the
+		       raw runtime join surface behind safe-handle validation
+		     - legacy native raw fallback handles remain low-level-only for now; the safe reflected
+		       surface is intentionally limited to scheduler-backed task handles there
 		   - New (2026-04-23): `std:task_group` now ships as the first structured-concurrency group
 		     layer above that policy map:
 		     - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable
-		       groups over generator/coroutine handles or active contexts
+		       groups over generator/coroutine handles, active contexts, or safe task handles
 		     - `task_group.stop_policy(group, policy)` merges the group default policy with an override
-		       and returns a watcher list for the whole group
+		       and returns a watcher list for the whole group, but still applies only to
+		       generator/coroutine-backed members
 		     - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
-		       synchronously and returns the per-member results
-		     - `task_group.join_watchers(...)` and `task_group.terminal_results(...)` round out the
+		       synchronously and returns the per-member results for generator-backed members
+		     - `task_group.join_all(...)` is now the task-handle-only group join path, while
+		       `task_group.join_watchers(...)` and `task_group.terminal_results(...)` round out the
 		       watcher / terminal-result side of the group surface
 		     The remaining gap is now above this stdlib group layer: runtime-owned scheduler groups for
 		     generic `spawn` handles and richer caller-visible coroutine/generator semantics, not
-		     baseline hard-stop, timeout-helper, or manual watcher-join availability.
+		     baseline hard-stop, timeout-helper, manual watcher-join availability, or safe task-handle
+		     reflection.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
 				     `start/next/send/close/cancel/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface

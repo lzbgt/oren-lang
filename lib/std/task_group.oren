@@ -4,29 +4,35 @@
 // stop-policy helpers.
 //
 // Scope:
-// - owns a mutable list of generator/coroutine handles or active contexts
+// - owns a mutable list of generator/coroutine handles, active contexts, or safe generic task handles
 // - optionally owns a default stop-policy map
 // - applies the shipped per-handle `std:generator.stop_policy(...)` /
-//   `stop_policy_wait(...)` surface across the whole group
-// - exposes watcher-list joins and final terminal-result collection
+//   `stop_policy_wait(...)` surface across generator-backed members
+// - exposes watcher-list joins, task joins, and final terminal-result collection
 //
 // Non-goals (still rolling):
-// - generic `spawn` handle groups
 // - runtime-owned scheduler groups
 // - implicit parent/child task lifetime enforcement
 
 import gen "std:generator"
 import list "std:list"
+import task "std:task"
 
-fn _task_group_surface() { return "generator_task_group_v0" }
+fn _task_group_surface() { return "task_group_v1" }
 
 fn _task_group_err(ctx, msg) {
     return oren_err(4, ctx + ": " + msg)
 }
 
-fn _task_group_target_ok(target) {
+fn _task_group_target_kind(target) {
     var name = oren_type_name(target)
-    return name == "generator" || name == "generator_context"
+    if name == "generator" || name == "generator_context" { return name }
+    if task.is_handle(target) == true { return "task" }
+    return nil
+}
+
+fn _task_group_target_ok(target) {
+    return _task_group_target_kind(target) != nil
 }
 
 fn _task_group_policy_map(ctx, policy) {
@@ -149,7 +155,7 @@ fn add(group, target) {
     var refs = _task_group_members_ref("task_group.add", group)
     if oren_is_err(refs) == true { return refs }
     if _task_group_target_ok(target) != true {
-        return _task_group_err("task_group.add", "expected generator handle or context")
+        return _task_group_err("task_group.add", "expected generator handle, generator context, or task handle")
     }
     list.push(refs, target)
     return group
@@ -166,7 +172,7 @@ fn extend(group, targets) {
     while i < n {
         var target = targets[i]
         if _task_group_target_ok(target) != true {
-            return _task_group_err("task_group.extend", "expected generator handle or context")
+            return _task_group_err("task_group.extend", "expected generator handle, generator context, or task handle")
         }
         list.push(refs, target)
         i = i + 1
@@ -183,6 +189,10 @@ fn stop_policy(group, policy0) {
     var i = 0
     var n = list.len(refs)
     while i < n {
+        var kind = _task_group_target_kind(refs[i])
+        if kind == "task" {
+            return _task_group_err("task_group.stop_policy", "task handles do not support stop_policy; use join_all")
+        }
         var watcher = gen.stop_policy(refs[i], policy)
         if oren_is_err(watcher) == true { return watcher }
         list.push(watchers, watcher)
@@ -200,9 +210,32 @@ fn stop_policy_wait(group, policy0) {
     var i = 0
     var n = list.len(refs)
     while i < n {
+        var kind = _task_group_target_kind(refs[i])
+        if kind == "task" {
+            return _task_group_err("task_group.stop_policy_wait", "task handles do not support stop_policy_wait; use join_all")
+        }
         var result = gen.stop_policy_wait(refs[i], policy)
         if oren_is_err(result) == true { return result }
         list.push(out, result)
+        i = i + 1
+    }
+    return out
+}
+
+fn join_all(group, join_timeout_ms) {
+    var refs = _task_group_members_ref("task_group.join_all", group)
+    if oren_is_err(refs) == true { return refs }
+    var wait_ms = _task_group_join_timeout_ms("task_group.join_all", join_timeout_ms)
+    if oren_is_err(wait_ms) == true { return wait_ms }
+    var out = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        var kind = _task_group_target_kind(refs[i])
+        if kind != "task" {
+            return _task_group_err("task_group.join_all", "expected task-handle-only group")
+        }
+        list.push(out, task.join_timeout(refs[i], wait_ms))
         i = i + 1
     }
     return out
@@ -231,6 +264,13 @@ fn terminal_results(group) {
     var i = 0
     var n = list.len(refs)
     while i < n {
+        var kind = _task_group_target_kind(refs[i])
+        if kind == "task" {
+            return _task_group_err("task_group.terminal_results", "task handles require join_all")
+        }
+        if kind == "generator_context" {
+            return _task_group_err("task_group.terminal_results", "generator contexts do not have terminal results")
+        }
         var result = gen.terminal_result(refs[i])
         if oren_is_err(result) == true { return result }
         list.push(out, result)

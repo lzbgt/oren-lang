@@ -3478,23 +3478,27 @@ Rolling status:
     - `stop_policy_wait(...)` applies the same normalized policy synchronously; when
       `policy["join_timeout_ms"]` is missing or negative it uses the same derived wait-budget rules
       as the existing `*_wait(...)` helpers
+  - New (2026-04-23): `std:task` now ships as the first safe facade over generic language-level
+    `spawn` handles:
+    - `task.is_handle(...)` and `std:reflect.is_task(...)` expose the reflected task predicate
+    - `task.is_done(...)` is the safe non-consuming completion probe
+    - `task.join(...)`, `task.join_timeout(...)`, `task.detach(...)`, and `task.join_all(...)`
+      wrap the raw join/detach surface with handle validation
+    - current native scope is the default scheduler-backed green-task path; legacy native raw
+      fallback handles still use low-level `oren_join(_timeout)` directly
   - New (2026-04-23): `std:task_group` now ships as the first group-shaped structured-concurrency
-    layer above that per-handle generator/coroutine policy stack
+    layer above the generator/coroutine stop-policy stack and the generic task facade
     - `task_group.new(default_policy)` / `task_group.from_list(targets, default_policy)` create a
-      mutable group over generator/coroutine handles or active contexts and clone the optional
-      default policy map
+      mutable group over generator/coroutine handles, active contexts, or safe task handles
     - `task_group.add(...)`, `extend(...)`, `members(...)`, `count(...)`, `default_policy(...)`,
       and `set_default_policy(...)` expose the basic membership and default-policy surface
-    - `task_group.stop_policy(group, policy)` merges the group default policy with an optional
-      override and returns a watcher-handle list for every group member
-    - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
-      synchronously and returns the per-member results
-    - `task_group.join_watchers(watchers, join_timeout_ms)` waits watcher lists explicitly; missing
-      or negative `join_timeout_ms` defaults to `2000`
-    - `task_group.terminal_results(group)` collects final results for done handle members and fails
-      immediately for still-live handles or context-only members
-    - current scope is generator/coroutine structured concurrency; generic `spawn` handles are not
-      part of `std:task_group` yet
+    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` still apply only to
+      generator-backed members and return an immediate `err` when task handles are present
+    - `task_group.join_all(group, join_timeout_ms)` joins task-handle-only groups and returns the
+      per-member results; missing or negative `join_timeout_ms` defaults to `2000`
+    - `task_group.join_watchers(...)` keeps the explicit watcher-list join surface
+    - `task_group.terminal_results(group)` remains the generator-handle terminal-result collector
+      and rejects task handles or context-only members
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists
@@ -5632,7 +5636,7 @@ The following are *design goals* but are not implemented today as stable primiti
 - “green threads” / coroutines
 - a portable, shared-memory `mutex`/`lock` that works across macOS/Linux/Windows without libc
 - scheduler/runtime-owned structured concurrency for generic `spawn` handles (the shipped
-  `std:task_group` currently covers generator/coroutine handles only)
+  `std:task` / `std:task_group` layer is still stdlib-owned, not a runtime task-group primitive)
 - pub/sub or multicast channels
 - data-parallel iterators (`par_map`, `par_reduce`)
 
