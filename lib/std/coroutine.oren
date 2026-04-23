@@ -7,12 +7,16 @@
 // - worker shape remains `worker(co, args_list)`
 // - inside that worker, `yield [expr] in co` is the shared exchange contract
 // - cooperative cancel requests stay observable as request state via `request_cancel(...)`
+// - `request_cancel_after(...)` / `cancel_after(...)` schedule that same protocol on a joinable
+//   watcher task after a timeout
 // - `cancel(...)` is the hard-stop layer above that state: it records the request and then
 //   forces the existing close/detach/finalize path
 //
 // This module exists to make the shipped coroutine surface explicit at the
 // language/std layer while the broader coroutine state-machine lowering backlog
 // is still rolling.
+
+import gen "std:generator"
 
 fn start(worker, args_list) {
     return oren_generator_start(worker, args_list)
@@ -48,6 +52,14 @@ fn cancel(co, reason) {
 
 fn request_cancel(co, reason) {
     return oren_generator_request_cancel(co, reason)
+}
+
+fn request_cancel_after(co, timeout_ms, reason) {
+    return gen.request_cancel_after(co, timeout_ms, reason)
+}
+
+fn cancel_after(co, timeout_ms, reason) {
+    return gen.cancel_after(co, timeout_ms, reason)
 }
 
 fn delegate(co, inner) {

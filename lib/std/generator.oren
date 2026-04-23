@@ -6,8 +6,38 @@
 // as an opaque generator context rather than a map of channels:
 // - `start(worker, args_list)` expects `worker(co, args_list)`
 // - `yield [expr] in co` is the shared source-level yield/resume contract inside that worker
-// - `next/send/on_finalize/on_close/close/cancel/request_cancel/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/cancel_reason/collect`
+// - `next/send/on_finalize/on_close/close/cancel/request_cancel/request_cancel_after/cancel_after/delegate/is_started/is_done/is_closed/is_cancel_requested/current_step/return_value/terminal_error/cancel_reason/collect`
 //   delegate to the shared runtime/compiler helpers
+
+import time "std:time"
+
+fn _generator_cancel_target_err(ctx, msg) {
+    return oren_err(4, ctx + ": " + msg)
+}
+
+fn _generator_cancel_target_ok(target) {
+    var name = oren_type_name(target)
+    return name == "generator" || name == "generator_context"
+}
+
+fn _generator_timeout_ms(ctx, timeout_ms) {
+    if oren_type_tag(timeout_ms) == 0 { return 0 }
+    if oren_type_name(timeout_ms) != "int" {
+        return _generator_cancel_target_err(ctx, "expected int timeout_ms")
+    }
+    if timeout_ms < 0 { return 0 }
+    return timeout_ms
+}
+
+fn _generator_request_cancel_after_worker(target, timeout_ms, reason) {
+    if timeout_ms > 0 { time.sleep_ms(timeout_ms) }
+    return oren_generator_request_cancel(target, reason)
+}
+
+fn _generator_cancel_after_worker(target, timeout_ms, reason) {
+    if timeout_ms > 0 { time.sleep_ms(timeout_ms) }
+    return oren_generator_cancel(target, reason)
+}
 
 fn start(worker, args_list) {
     return oren_generator_start(worker, args_list)
@@ -39,6 +69,24 @@ fn cancel(gen, reason) {
 
 fn request_cancel(gen, reason) {
     return oren_generator_request_cancel(gen, reason)
+}
+
+fn request_cancel_after(target, timeout_ms, reason) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.request_cancel_after", "expected generator handle or context")
+    }
+    var delay_ms = _generator_timeout_ms("generator.request_cancel_after", timeout_ms)
+    if oren_is_err(delay_ms) == true { return delay_ms }
+    return spawn _generator_request_cancel_after_worker(target, delay_ms, reason)
+}
+
+fn cancel_after(target, timeout_ms, reason) {
+    if _generator_cancel_target_ok(target) != true {
+        return _generator_cancel_target_err("generator.cancel_after", "expected generator handle or context")
+    }
+    var delay_ms = _generator_timeout_ms("generator.cancel_after", timeout_ms)
+    if oren_is_err(delay_ms) == true { return delay_ms }
+    return spawn _generator_cancel_after_worker(target, delay_ms, reason)
 }
 
 fn delegate(co, inner) {

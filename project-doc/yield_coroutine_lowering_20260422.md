@@ -117,6 +117,20 @@ backend-shared value-helper slices landed.
     request propagates down the currently active delegated child chain
   - `request_cancel(...)` remains cooperative state; user code must still observe it cooperatively
   - `cancel(...)` is the shipped hard-stop layer for the current helper path
+- Fresh landing (2026-04-23): timeout-aware watcher helpers now ship above that same
+  cancel/request-cancel surface:
+  - `request_cancel_after(target, timeout_ms, reason)` starts a joinable watcher task that sleeps
+    for `timeout_ms` and then records the same sticky cooperative request state
+  - `cancel_after(target, timeout_ms, reason)` starts a joinable watcher task that sleeps and then
+    applies the same first-write-wins hard-stop `cancel(...)` protocol
+  - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
+    timeout arguments return an immediate `err`
+  - the watcher join result is `nil` for live-target request/hard-cancel flows; if
+    `cancel_after(...)` runs after the target is already done, the watcher returns the cached
+    terminal result instead of rewriting cancellation state
+  - the restored clean native green/runtime route carries started generator handles through these
+    watcher tasks correctly, so the remaining protocol gap is now richer scheduler/deadline policy
+    above the shipped helper layer rather than missing timeout-helper availability
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

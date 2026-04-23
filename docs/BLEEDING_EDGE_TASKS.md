@@ -4650,8 +4650,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 		     - `std:generator.cancel(...)` / `std:coroutine.cancel(...)` are now the shipped hard-stop
 		       layer for the current helper path: they record the same sticky state and then force the
 		       deterministic `close()` path
-	     The remaining gap is now a stronger language-level coroutine/generator protocol plus timeout /
-	     policy semantics above that explicit channel surface, not baseline hard-stop API availability.
+		   - New (2026-04-23): timeout-aware watcher helpers now also ship on that same surface:
+		     - `request_cancel_after(target, timeout_ms, reason)` starts a joinable watcher task that
+		       sleeps and then records the cooperative sticky cancel-request state
+		     - `cancel_after(target, timeout_ms, reason)` starts a joinable watcher task that sleeps and
+		       then applies the same first-write-wins hard-stop `cancel(...)` protocol
+		     - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
+		       timeouts fail immediately with `err`
+		     - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the
+		       target already finished, the watcher surfaces the cached terminal result without rewriting
+		       the target’s cancellation state
+		     - the default native green/runtime route now carries started generator handles through these
+		       watcher tasks correctly, so the remaining gap is richer deadline/scheduler policy rather
+		       than timeout-helper availability itself
+	     The remaining gap is now a stronger language-level coroutine/generator protocol and
+	     higher-level timeout / stop policy above the explicit channel surface, not baseline hard-stop or
+	     timeout-helper API availability.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
 				     `start/next/send/close/cancel/request_cancel/delegate/is_started/is_done/is_closed/current_step/return_value/terminal_error/collect/is_cancel_requested/cancel_reason` surface

@@ -1465,6 +1465,21 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       deterministic `close()` path
 		     - `request_cancel(...)` remains cooperative state only; `cancel(...)` is the shipped hard-stop
 		       layer for the current helper path
+		   - New (2026-04-23): timeout-aware watcher helpers now also ship on top of that same substrate:
+		     - `std:generator.request_cancel_after(target, timeout_ms, reason)` /
+		       `std:coroutine.request_cancel_after(...)` spawn a joinable watcher task that sleeps for
+		       `timeout_ms` and then records the same cooperative sticky cancel request
+		     - `std:generator.cancel_after(target, timeout_ms, reason)` /
+		       `std:coroutine.cancel_after(...)` spawn a joinable watcher task that sleeps and then applies
+		       the same first-write-wins hard-stop `cancel(...)` protocol
+		     - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and non-`int`
+		       timeouts return an immediate argument `err`
+		     - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the
+		       target is already done, the watcher surfaces that cached terminal result instead of
+		       rewriting cancellation state
+		     - the default native green/runtime route now supports these watcher tasks on started
+		       generator handles, so the remaining gap moves up to richer scheduler/deadline policy rather
+		       than baseline timeout-helper availability
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path
