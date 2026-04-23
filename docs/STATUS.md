@@ -1562,13 +1562,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     - `task_group.terminal_results(...)` remains generator-handle-only
 			   - New (2026-04-23): `std:task_group` now also ships the first runtime-backed task-only
 			     group surface for generic `spawn` work:
-			     - `task_group.new_runtime()` / `from_task_list(targets)` create runtime-owned groups over
-			       safe task handles
-			     - `task_group.is_runtime_group(...)` distinguishes that task-only runtime shape, while
-			       `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime
-			       and stdlib map-backed groups
-			     - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
-			       the default native green-task scheduler
+				    - `task_group.new_runtime()` / `new_runtime_with_policy(default_policy)` create
+				      runtime-owned groups over safe task handles, with the latter attaching a stored default
+				      stop-policy map
+				    - `task_group.from_task_list(targets)` / `from_task_list_with_policy(targets, default_policy)`
+				      are the matching constructors over existing safe task handles
+				    - `task_group.is_runtime_group(...)` distinguishes that task-only runtime shape, while
+				      `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime
+				      and stdlib map-backed groups
+				    - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for
+				      runtime-backed groups and round-trip a cloned stored policy map
+				    - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
+				      the default native green-task scheduler
 				    - `task_group.detach_all(...)` is the matching runtime-group detach-and-clear surface
 				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now also ship for
 				      runtime-backed groups, but only as wait/deadline plus detach semantics because generic
@@ -1577,16 +1582,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				      - `timeout_ms` and `deadline_ns` remain mutually exclusive
 				      - the effective wait window is `delay_ms + grace_ms`, because there is no separate soft
 				        cancel phase for generic tasks
+				      - stored runtime-group default policy is merged before override validation
 				      - the synchronous path accepts `join_timeout_ms` as an explicit override of that derived
 				        total wait window
 				      - per-member results are returned as maps with `status`, `result`, `reason`, and
 				        `detach_result`
-				    - runtime-backed groups still intentionally reject `default_policy(...)`,
-				      `set_default_policy(...)`, and `terminal_results(...)`
+				    - runtime-backed groups still intentionally reject `terminal_results(...)`
 				    - the remaining boundary is now above this split layer: unified runtime-owned structured
 				      concurrency across both generic tasks and generator/coroutine handles, plus true task
-				      cancellation for generic `spawn` handles and runtime-owned default-policy storage, is not
-				      shipped yet.
+				      cancellation for generic `spawn` handles and runtime-owned mixed groups, is not shipped
+				      yet.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

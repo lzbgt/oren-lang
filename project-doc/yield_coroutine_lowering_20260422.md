@@ -205,11 +205,16 @@ backend-shared value-helper slices landed.
       `task_group.join_watchers(...)` and `task_group.terminal_results(...)` complete the watcher /
       final-result side of the group surface
   - Fresh landing (2026-04-23): runtime-backed task groups for generic `spawn` work now also ship:
-    - `task_group.new_runtime()` / `from_task_list(targets)` create runtime-owned task-only groups
-      over safe task handles
+    - `task_group.new_runtime()` / `new_runtime_with_policy(default_policy)` create runtime-owned
+      task-only groups over safe task handles, with the latter attaching a stored default
+      stop-policy map
+    - `task_group.from_task_list(targets)` / `from_task_list_with_policy(targets, default_policy)`
+      are the matching constructors over existing safe task handles
     - `task_group.is_runtime_group(...)` distinguishes that runtime shape, while
       `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime and
       stdlib map-backed groups
+    - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for runtime-backed
+      groups and round-trip a cloned stored policy map
     - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and the
       default native green-task scheduler
     - `task_group.detach_all(...)` detaches the current membership and clears the runtime group
@@ -220,15 +225,15 @@ backend-shared value-helper slices landed.
       - `timeout_ms` and `deadline_ns` remain mutually exclusive
       - the effective wait window is `delay_ms + grace_ms`, because there is no separate soft
         cancel phase for generic tasks
+      - stored runtime-group default policy is merged before override validation
       - `stop_policy_wait(...)` accepts `join_timeout_ms` as an explicit override of that derived
         total wait window
       - per-member results are maps with `status`, `result`, `reason`, and `detach_result`
-    - runtime-backed groups still intentionally reject `default_policy(...)`,
-      `set_default_policy(...)`, and `terminal_results(...)`
+    - runtime-backed groups still intentionally reject `terminal_results(...)`
   - the remaining gap now moves up again: unified runtime-owned structured concurrency across both
     generic `spawn` tasks and generator/coroutine workers, plus true task cancellation for generic
-    `spawn` handles and runtime-owned default-policy storage, should build on this split surface
-    rather than on raw watcher tasks or raw per-handle joins
+    `spawn` handles and runtime-owned mixed groups, should build on this split surface rather than
+    on raw watcher tasks or raw per-handle joins
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

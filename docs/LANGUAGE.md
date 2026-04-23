@@ -3501,11 +3501,17 @@ Rolling status:
       and rejects task handles or context-only members
     - New (2026-04-23): runtime-backed task groups now also ship for generic safe task handles:
       - `task_group.new_runtime()` creates an empty runtime-owned task group
+      - `task_group.new_runtime_with_policy(default_policy)` creates the same runtime-backed group
+        with an attached default stop-policy map
       - `task_group.from_task_list(targets)` creates the same runtime-backed group from existing safe
         task handles
+      - `task_group.from_task_list_with_policy(targets, default_policy)` is the matching
+        constructor for existing safe task handles plus a stored default stop-policy map
       - `task_group.is_runtime_group(group)` distinguishes that task-only runtime shape, while
         `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime and
         stdlib map-backed groups
+      - `task_group.default_policy(group)` / `set_default_policy(group, policy)` now also ship for
+        runtime-backed groups and round-trip a cloned stored policy map
       - `task_group.spawn_call_list(group, fn_obj, args_list)` spawns directly into the runtime
         group on AVM, C, and the default native green-task scheduler
       - `task_group.detach_all(group)` detaches every current member and clears the runtime group
@@ -3519,14 +3525,14 @@ Rolling status:
           returning a per-member map with `status`, `result`, `reason`, and `detach_result`
       - `task_group.stop_policy_wait(group, policy)` is the synchronous runtime-backed form:
         - it returns the same per-member result maps directly
+        - the stored runtime-group default policy is merged before override policy validation
         - `join_timeout_ms`, when provided, overrides the derived total wait budget for this
           synchronous path
-      - runtime-backed groups still intentionally reject `default_policy(...)`,
-        `set_default_policy(...)`, and `terminal_results(...)`
+      - runtime-backed groups still intentionally reject `terminal_results(...)`
     - the remaining boundary is now above this split group surface: unified runtime-owned
       structured concurrency across both generic tasks and generator/coroutine handles, plus
-      true task cancellation for generic `spawn` handles and default-policy ownership in runtime
-      groups, is not shipped yet
+      true task cancellation for generic `spawn` handles and runtime-owned mixed groups, is not
+      shipped yet
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists
