@@ -130,6 +130,42 @@ fn run_task_group_surface_v0() {
     if oren_is_err(ctx_rv) == true || ctx_rv[0] != nil { return 180051 }
     if gen.is_done(ctx_handle) != true || gen.cancel_reason(ctx_handle) != 304 { return 180052 }
 
+    var rreq0 = gen.start(cancel_probe_worker, [40])
+    var rreq1 = coro.start(cancel_probe_worker, [50])
+    var rreq0s0 = gen.next(rreq0)
+    if oren_is_err(rreq0s0) == true || rreq0s0["value"] != 40 { return 180053 }
+    var rreq1s0 = coro.next(rreq1)
+    if oren_is_err(rreq1s0) == true || rreq1s0["value"] != 50 { return 180054 }
+    var rreq_group = tg.from_runtime_list([rreq0, rreq1], {"mode": "request_cancel", "reason": 305})
+    if oren_is_err(rreq_group) == true || tg.is_runtime_group(rreq_group) != true || tg.count(rreq_group) != 2 { return 180055 }
+    if tg.default_policy(rreq_group)["reason"] != 305 { return 180056 }
+    var rreq_watchers = tg.stop_policy(rreq_group, nil)
+    if oren_is_err(rreq_watchers) == true || list.len(rreq_watchers) != 2 { return 180057 }
+    var rreq_join = tg.join_watchers(rreq_watchers, 2000)
+    if oren_is_err(rreq_join) == true || list.len(rreq_join) != 2 || rreq_join[0] != nil || rreq_join[1] != nil { return 180058 }
+    if gen.cancel_reason(rreq0) != 305 || coro.cancel_reason(rreq1) != 305 { return 180059 }
+    var rreq0done = gen.send(rreq0, 7)
+    if oren_is_err(rreq0done) == true || rreq0done["done"] != true || rreq0done["return"] != 312 { return 180060 }
+    var rreq1done = coro.send(rreq1, 8)
+    if oren_is_err(rreq1done) == true || rreq1done["done"] != true || rreq1done["return"] != 313 { return 180061 }
+
+    var rctx_cells = [nil]
+    var rctx_handle = gen.start(capture_context_worker, [rctx_cells, 60])
+    var rctx_step0 = gen.next(rctx_handle)
+    if oren_is_err(rctx_step0) == true || rctx_step0["value"] != 60 { return 180062 }
+    var rctx_group = tg.from_runtime_list([rctx_cells[0]], {"mode": "cancel", "reason": 306})
+    if oren_is_err(rctx_group) == true || tg.count(rctx_group) != 1 { return 180063 }
+    var rctx_rv = tg.stop_policy_wait(rctx_group, {"join_timeout_ms": 2000})
+    if oren_is_err(rctx_rv) == true || list.len(rctx_rv) != 1 || rctx_rv[0] != nil { return 180064 }
+    if gen.is_done(rctx_handle) != true || gen.cancel_reason(rctx_handle) != 306 { return 180065 }
+
+    var rdone_group = tg.from_runtime_list([done0, done1], nil)
+    if oren_is_err(rdone_group) == true || tg.count(rdone_group) != 2 { return 180066 }
+    var rdone_terms = tg.terminal_results(rdone_group)
+    if oren_is_err(rdone_terms) == true || rdone_terms[0] != 14 || rdone_terms[1] != 16 { return 180067 }
+    if oren_is_err(tg.join_all(rdone_group, 0)) != true { return 180068 }
+    if oren_is_err(tg.detach_all(rdone_group)) != true { return 180069 }
+
     if oren_is_err(tg.add(group0, 123)) != true { return 180042 }
     if oren_is_err(tg.extend(group0, 123)) != true { return 180043 }
     if oren_is_err(tg.stop_policy(group0, {"mode": "bogus"})) != true { return 180044 }

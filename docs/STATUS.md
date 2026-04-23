@@ -1560,38 +1560,44 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     - `task_group.join_all(...)` now joins task-handle-only groups, while
 			       `task_group.join_watchers(...)` keeps the explicit watcher-join surface
 			     - `task_group.terminal_results(...)` remains generator-handle-only
-			   - New (2026-04-23): `std:task_group` now also ships the first runtime-backed task-only
-			     group surface for generic `spawn` work:
+			   - New (2026-04-23): `std:task_group` now also ships the first runtime-backed mixed group
+			     surface for generic `spawn` work plus generator/coroutine members:
 				    - `task_group.new_runtime()` / `new_runtime_with_policy(default_policy)` create
-				      runtime-owned groups over safe task handles, with the latter attaching a stored default
-				      stop-policy map
+				      runtime-backed groups with the latter attaching a stored default stop-policy map
 				    - `task_group.from_task_list(targets)` / `from_task_list_with_policy(targets, default_policy)`
-				      are the matching constructors over existing safe task handles
-				    - `task_group.is_runtime_group(...)` distinguishes that task-only runtime shape, while
+				      are the task-handle constructors, while `task_group.from_runtime_list(targets,
+				      default_policy)` creates the same runtime-backed shape from a mixed list of safe task
+				      handles plus generator/coroutine handles or active contexts
+				    - runtime-backed groups now also accept those same mixed non-task members through
+				      `add(...)` / `extend(...)`
+				    - `task_group.is_runtime_group(...)` distinguishes that runtime-backed shape, while
 				      `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime
 				      and stdlib map-backed groups
 				    - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for
 				      runtime-backed groups and round-trip a cloned stored policy map
 				    - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
 				      the default native green-task scheduler
-				    - `task_group.detach_all(...)` is the matching runtime-group detach-and-clear surface
-				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now also ship for
-				      runtime-backed groups, but only as wait/deadline plus detach semantics because generic
-				      `spawn` handles still have no cancellation primitive
-				      - runtime groups accept only `mode="stop"`
-				      - `timeout_ms` and `deadline_ns` remain mutually exclusive
-				      - the effective wait window is `delay_ms + grace_ms`, because there is no separate soft
-				        cancel phase for generic tasks
+				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by
+				      member kind:
 				      - stored runtime-group default policy is merged before override validation
-				      - the synchronous path accepts `join_timeout_ms` as an explicit override of that derived
-				        total wait window
-				      - per-member results are returned as maps with `status`, `result`, `reason`, and
-				        `detach_result`
-				    - runtime-backed groups still intentionally reject `terminal_results(...)`
-				    - the remaining boundary is now above this split layer: unified runtime-owned structured
-				      concurrency across both generic tasks and generator/coroutine handles, plus true task
-				      cancellation for generic `spawn` handles and runtime-owned mixed groups, is not shipped
-				      yet.
+				      - generator/coroutine members keep the full generator-backed stop-policy semantics
+				      - if task members are present, the task side still accepts only `mode="stop"`,
+				        keeps `timeout_ms` / `deadline_ns` mutually exclusive, and uses `delay_ms +
+				        grace_ms` as the effective wait window because generic `spawn` handles still have no
+				        cancellation primitive
+				      - `stop_policy_wait(...)` still accepts `join_timeout_ms` as an explicit override of
+				        that derived task wait window
+				      - task-member results are maps with `status`, `result`, `reason`, and
+				        `detach_result`; a zero-budget stop may still return `joined` when the scheduler can
+				        complete the task in the immediate step, otherwise it returns `detached`
+				    - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
+				      operations and reject extra generator/coroutine members
+				    - `task_group.terminal_results(...)` now also works for runtime-backed groups that
+				      contain only generator/coroutine handles; it still rejects task handles and
+				      context-only members
+				    - the remaining boundary is now above this split layer: true runtime-owned unified
+				      structured concurrency across both generic tasks and generator/coroutine workers, plus
+				      real task cancellation for generic `spawn` handles, is not shipped yet.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

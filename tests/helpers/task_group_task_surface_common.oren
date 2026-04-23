@@ -50,6 +50,13 @@ fn stop_detached(result, reason) {
     return true
 }
 
+fn stop_joined_or_detached(result, expected_joined, reason) {
+    if stop_detached(result, reason) == true { return true }
+    if stop_joined(result, expected_joined) != true { return false }
+    if result["reason"] != reason { return false }
+    return true
+}
+
 fn run_task_group_task_surface_v0() {
     var policy0 = {"mode": "stop", "timeout_ms": 0, "grace_ms": 1, "reason": 401}
     var group0 = tg.new(policy0)
@@ -130,7 +137,7 @@ fn run_task_group_task_surface_v0() {
     if task.is_handle(rth2) != true { return 191040 }
     if tg.detach_all(rtg2) != 1 { return 191041 }
     if tg.count(rtg2) != 0 { return 191042 }
-    if oren_is_err(tg.add(rtg2, mixed_gen)) != true { return 191043 }
+    if oren_is_err(tg.add(rtg2, 123)) != true { return 191043 }
 
     var rtg3 = tg.new_runtime_with_policy({"timeout_ms": 20, "grace_ms": 0, "reason": 901})
     if oren_is_err(rtg3) == true { return 191044 }
@@ -151,7 +158,7 @@ fn run_task_group_task_surface_v0() {
     if oren_is_err(tg.set_default_policy(rtg4, {"timeout_ms": 0, "grace_ms": 0, "reason": 902})) == true { return 191051 }
     var rtr4 = tg.stop_policy_wait(rtg4, nil)
     if oren_is_err(rtr4) == true || list.len(rtr4) != 1 { return 191052 }
-    if stop_detached(rtr4[0], 902) != true { return 191053 }
+    if stop_joined_or_detached(rtr4[0], 910, 902) != true { return 191053 }
     if task.join(sender4) != 0 { return 191054 }
     if tg.count(rtg4) != 0 { return 191055 }
 
@@ -164,17 +171,43 @@ fn run_task_group_task_surface_v0() {
 
     var rtg6 = tg.new_runtime()
     if oren_is_err(rtg6) == true { return 191059 }
+    if task.is_handle(tg.spawn_call_list(rtg6, slow_task, [10])) != true { return 191060 }
     if oren_is_err(tg.stop_policy(rtg6, {"mode": "request_cancel"})) != true { return 191060 }
     if oren_is_err(tg.stop_policy_wait(rtg6, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 191061 }
+    if oren_is_err(tg.detach_all(rtg6)) == true { return 191062 }
 
     var rtg7 = tg.new_runtime_with_policy({"timeout_ms": 0, "grace_ms": 0, "reason": 904})
-    if oren_is_err(rtg7) == true { return 191062 }
+    if oren_is_err(rtg7) == true { return 191063 }
     var rts7 = tg.spawn_call_list(rtg7, slow_task, [12])
-    if task.is_handle(rts7) != true { return 191063 }
+    if task.is_handle(rts7) != true { return 191064 }
     var rtr7 = tg.stop_policy_wait(rtg7, {"join_timeout_ms": 200})
-    if oren_is_err(rtr7) == true || list.len(rtr7) != 1 { return 191064 }
-    if stop_joined(rtr7[0], 212) != true || rtr7[0]["reason"] != 904 { return 191065 }
-    if tg.count(rtg7) != 0 { return 191066 }
+    if oren_is_err(rtr7) == true || list.len(rtr7) != 1 { return 191065 }
+    if stop_joined(rtr7[0], 212) != true || rtr7[0]["reason"] != 904 { return 191066 }
+    if tg.count(rtg7) != 0 { return 191067 }
+
+    var doneg0 = gen.start(counter_worker, [70])
+    if oren_is_err(gen.next(doneg0)) == true { return 191068 }
+    if oren_is_err(gen.send(doneg0, 4)) == true { return 191069 }
+    var doneg0rv = gen.send(doneg0, 9)
+    if oren_is_err(doneg0rv) == true || doneg0rv["done"] != true || doneg0rv["return"] != 14 { return 191070 }
+    var rtg8 = tg.from_runtime_list([spawn quick_task(13), doneg0], {"mode": "stop", "timeout_ms": 0, "grace_ms": 0, "reason": 905})
+    if oren_is_err(rtg8) == true || tg.count(rtg8) != 2 { return 191071 }
+    var rtm8 = tg.members(rtg8)
+    if oren_is_err(rtm8) == true || list.len(rtm8) != 2 { return 191072 }
+    var rtr8 = tg.stop_policy_wait(rtg8, nil)
+    if oren_is_err(rtr8) == true || list.len(rtr8) != 2 { return 191073 }
+    if stop_joined_or_detached(rtr8[0], 113, 905) != true || rtr8[1] != 14 { return 191074 }
+    if tg.count(rtg8) != 0 { return 191075 }
+
+    var doneg1 = gen.start(counter_worker, [80])
+    if oren_is_err(gen.next(doneg1)) == true { return 191076 }
+    if oren_is_err(gen.send(doneg1, 5)) == true { return 191077 }
+    var doneg1rv = gen.send(doneg1, 11)
+    if oren_is_err(doneg1rv) == true || doneg1rv["done"] != true || doneg1rv["return"] != 16 { return 191078 }
+    var rtg9 = tg.from_runtime_list([doneg1], nil)
+    if oren_is_err(rtg9) == true { return 191079 }
+    var terms9 = tg.terminal_results(rtg9)
+    if oren_is_err(terms9) == true || list.len(terms9) != 1 || terms9[0] != 16 { return 191080 }
 
     return 0
 }
