@@ -75,23 +75,46 @@ fn run_task_group_task_surface_v0() {
     list.push(members0, task0)
     if tg.count(group0) != 2 { return 191006 }
 
-    if oren_is_err(tg.stop_policy(group0, nil)) != true { return 191007 }
-    if oren_is_err(tg.stop_policy_wait(group0, nil)) != true { return 191008 }
-    if oren_is_err(tg.terminal_results(group0)) != true { return 191009 }
+    var stopw0 = tg.stop_policy(group0, nil)
+    if oren_is_err(stopw0) == true || list.len(stopw0) != 2 { return 191007 }
+    var stopj0 = tg.join_watchers(stopw0, 2000)
+    if oren_is_err(stopj0) == true || list.len(stopj0) != 2 { return 191008 }
+    if stop_joined(stopj0[0], 101) != true || stop_joined(stopj0[1], 102) != true { return 191009 }
+    if stopj0[0]["reason"] != 401 || stopj0[1]["reason"] != 401 { return 191010 }
+    if oren_is_err(tg.terminal_results(group0)) != true { return 191011 }
 
-    var join0 = tg.join_all(group0, 2000)
-    if oren_is_err(join0) == true || join0[0] != 101 || join0[1] != 102 { return 191010 }
+    var group0j = tg.from_list([spawn quick_task(3), spawn quick_task(4)], nil)
+    if oren_is_err(group0j) == true { return 191012 }
+    var join0 = tg.join_all(group0j, 2000)
+    if oren_is_err(join0) == true || join0[0] != 103 || join0[1] != 104 { return 191013 }
+
+    var group0w = tg.from_list([spawn slow_task(5)], {"timeout_ms": 0, "grace_ms": 0, "reason": 402})
+    if oren_is_err(group0w) == true { return 191014 }
+    var wait0 = tg.stop_policy_wait(group0w, {"join_timeout_ms": 200})
+    if oren_is_err(wait0) == true || list.len(wait0) != 1 { return 191015 }
+    if stop_joined(wait0[0], 205) != true || wait0[0]["reason"] != 402 { return 191016 }
+
+    var doneg_std0 = gen.start(counter_worker, [90])
+    if oren_is_err(gen.next(doneg_std0)) == true { return 191117 }
+    if oren_is_err(gen.send(doneg_std0, 6)) == true { return 191118 }
+    var doneg_std0rv = gen.send(doneg_std0, 12)
+    if oren_is_err(doneg_std0rv) == true || doneg_std0rv["done"] != true || doneg_std0rv["return"] != 17 { return 191119 }
+    var mixed_stop = tg.from_list([spawn quick_task(7), doneg_std0], {"mode": "stop", "timeout_ms": 0, "grace_ms": 0, "reason": 403})
+    if oren_is_err(mixed_stop) == true { return 191120 }
+    var mixed_stop_rv = tg.stop_policy_wait(mixed_stop, {"join_timeout_ms": 200})
+    if oren_is_err(mixed_stop_rv) == true || list.len(mixed_stop_rv) != 2 { return 191121 }
+    if stop_joined(mixed_stop_rv[0], 107) != true || mixed_stop_rv[0]["reason"] != 403 || mixed_stop_rv[1] != 17 { return 191122 }
 
     var mixed_gen = gen.start(counter_worker, [60])
-    var mixed_task = spawn quick_task(3)
+    var mixed_task = spawn quick_task(6)
     var mixed_group = tg.from_list([mixed_gen, mixed_task], nil)
-    if oren_is_err(mixed_group) == true { return 191011 }
-    if oren_is_err(tg.join_all(mixed_group, 0)) != true { return 191012 }
-    if task.join(mixed_task) != 103 { return 191013 }
-    if gen.close(mixed_gen) != nil { return 191014 }
+    if oren_is_err(mixed_group) == true { return 191111 }
+    if oren_is_err(tg.join_all(mixed_group, 0)) != true { return 191112 }
+    if task.join(mixed_task) != 106 { return 191113 }
+    if gen.close(mixed_gen) != nil { return 191114 }
 
-    if oren_is_err(tg.add(group0, 123)) != true { return 191015 }
-    if oren_is_err(tg.extend(group0, [123])) != true { return 191016 }
+    if oren_is_err(tg.add(group0, 123)) != true { return 191115 }
+    if oren_is_err(tg.extend(group0, [123])) != true { return 191116 }
 
     var rt_policy0 = {"mode": "stop", "timeout_ms": 25, "reason": 700}
     var rtg0 = tg.new_runtime_with_policy(rt_policy0)

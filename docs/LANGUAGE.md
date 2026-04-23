@@ -3484,6 +3484,17 @@ Rolling status:
     - `task.is_done(...)` is the safe non-consuming completion probe
     - `task.join(...)`, `task.join_timeout(...)`, `task.detach(...)`, and `task.join_all(...)`
       wrap the raw join/detach surface with handle validation
+    - `task.stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, `stop_at_wait(...)`,
+      `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the task-shaped deadline/stop
+      surface for generic `spawn` handles
+      - only `mode="stop"` is accepted for task handles; generic `spawn` work still has no
+        cancellation phase, so the effective task wait window is `delay_ms + grace_ms`
+      - `stop_policy(...)` always returns a joinable watcher handle for that normalized task stop
+        request
+      - `stop_policy_wait(...)` returns a map with `status`, `result`, `reason`, and
+        `detach_result`; `join_timeout_ms`, when present, overrides the derived task wait budget
+      - a zero-budget task stop may still report `joined` when the scheduler can finish the task in
+        the immediate step; otherwise it reports `detached`
     - current native scope is the default scheduler-backed green-task path; legacy native raw
       fallback handles still use low-level `oren_join(_timeout)` directly
   - New (2026-04-23): `std:task_group` now ships as the first group-shaped structured-concurrency
@@ -3492,8 +3503,11 @@ Rolling status:
       mutable group over generator/coroutine handles, active contexts, or safe task handles
     - `task_group.add(...)`, `extend(...)`, `members(...)`, `count(...)`, `default_policy(...)`,
       and `set_default_policy(...)` expose the basic membership and default-policy surface
-    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` still apply the full
-      generator/coroutine stop-policy map to generator-backed members in stdlib map-backed groups
+    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by member kind
+      in stdlib map-backed groups too:
+      - generator/coroutine handles and active contexts keep the full generator-backed stop-policy
+        semantics
+      - safe task handles use the shared `std:task` stop contract
     - `task_group.join_all(group, join_timeout_ms)` joins task-handle-only groups and returns the
       per-member results; missing or negative `join_timeout_ms` defaults to `2000`
     - `task_group.join_watchers(...)` keeps the explicit watcher-list join surface
@@ -3521,19 +3535,13 @@ Rolling status:
       - `task_group.spawn_call_list(group, fn_obj, args_list)` spawns directly into the runtime
         group on AVM, C, and the default native green-task scheduler
       - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now also ship for
-        runtime-backed groups, with typed dispatch by member kind:
+        runtime-backed groups, with the same member-kind dispatch:
         - the stored runtime-group default policy is merged before override validation
         - generator/coroutine handles and active contexts keep the full generator-backed
           stop-policy behavior
-        - if any safe task handles are present, the task side of the contract remains task-shaped:
-          only `mode="stop"` is accepted, `timeout_ms` and `deadline_ns` stay mutually exclusive,
-          and the effective task wait window is `delay_ms + grace_ms` because generic `spawn`
-          handles still have no cancellation phase to separate from the final detach
-        - runtime task-member results are maps with `status`, `result`, `reason`, and
-          `detach_result`; a zero-budget stop may still report `joined` when the scheduler can
-          complete the task in that immediate step, otherwise it reports `detached`
-        - `join_timeout_ms`, when provided on `stop_policy_wait(...)`, overrides the derived task
-          wait budget for that synchronous path
+        - safe task handles use the same shared `std:task` stop contract, including the
+          `mode="stop"` restriction, `delay_ms + grace_ms` wait window, result map shape, and
+          optional `join_timeout_ms` override on the synchronous path
       - `task_group.join_all(...)` and `detach_all(...)` remain task-handle-only runtime-group
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain

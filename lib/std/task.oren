@@ -10,6 +10,7 @@
 //   raw helpers directly and are not yet reflected by `is_handle(...)`
 
 import list "std:list"
+import time "std:time"
 
 fn _task_err(ctx, msg) {
     return oren_err(4, ctx + ": " + msg)
@@ -25,6 +26,147 @@ fn _task_timeout_ms(ctx, timeout_ms) {
         return _task_err(ctx, "expected int timeout_ms")
     }
     return timeout_ms
+}
+
+fn _task_policy_map(ctx, policy) {
+    if oren_type_tag(policy) == 0 { return {} }
+    if oren_type_name(policy) != "map" {
+        return _task_err(ctx, "expected map policy")
+    }
+    return policy
+}
+
+fn _task_stop_mode(ctx, mode0) {
+    if oren_type_tag(mode0) == 0 { return "stop" }
+    if oren_type_name(mode0) != "string" {
+        return _task_err(ctx, "expected string mode")
+    }
+    var mode = mode0
+    if mode == "request" { mode = "request_cancel" }
+    if mode != "stop" {
+        return _task_err(ctx, "task handles support mode=stop only")
+    }
+    return mode
+}
+
+fn _task_stop_timeout_ms(ctx, timeout_ms) {
+    if oren_type_tag(timeout_ms) == 0 { return 0 }
+    if oren_type_name(timeout_ms) != "int" {
+        return _task_err(ctx, "expected int timeout_ms")
+    }
+    if timeout_ms < 0 { return 0 }
+    return timeout_ms
+}
+
+fn _task_stop_deadline_ns_arg(ctx, deadline_ns) {
+    if oren_type_tag(deadline_ns) == 0 { return nil }
+    if oren_type_name(deadline_ns) != "int" {
+        return _task_err(ctx, "expected int deadline_ns")
+    }
+    return deadline_ns
+}
+
+fn _task_stop_grace_ms(ctx, grace_ms) {
+    if oren_type_tag(grace_ms) == 0 { return 0 }
+    if oren_type_name(grace_ms) != "int" {
+        return _task_err(ctx, "expected int grace_ms")
+    }
+    if grace_ms < 0 { return 0 }
+    return grace_ms
+}
+
+fn _task_stop_delay_ms(deadline_ns, timeout_ms) {
+    if oren_type_tag(deadline_ns) == 0 { return timeout_ms }
+    var now_ns = time.now_ns()
+    if now_ns == 0 { return 0 }
+    var delta_ns = deadline_ns - now_ns
+    if delta_ns <= 0 { return 0 }
+    var delay_ms = delta_ns / 1000000
+    if delay_ms <= 0 { return 0 }
+    if delay_ms > 2147483647 { return 2147483647 }
+    return delay_ms
+}
+
+fn _task_stop_join_timeout_arg(ctx, join_timeout_ms) {
+    if oren_type_tag(join_timeout_ms) == 0 { return nil }
+    if oren_type_name(join_timeout_ms) != "int" {
+        return _task_err(ctx, "expected int join_timeout_ms")
+    }
+    return join_timeout_ms
+}
+
+fn _task_stop_wait_ms(delay_ms, grace_ms) {
+    var total = delay_ms + grace_ms
+    if total < delay_ms || total < grace_ms || total < 0 { return 2147483647 }
+    return total
+}
+
+fn _task_stop_wait_budget_ms(ctx, join_timeout_ms, default_wait_ms) {
+    if oren_type_tag(join_timeout_ms) == 0 { return default_wait_ms }
+    if oren_type_name(join_timeout_ms) != "int" {
+        return _task_err(ctx, "expected int join_timeout_ms")
+    }
+    if join_timeout_ms < 0 { return default_wait_ms }
+    return join_timeout_ms
+}
+
+fn _task_stop_fields(ctx, policy0, want_join_timeout) {
+    var policy = _task_policy_map(ctx, policy0)
+    if oren_is_err(policy) == true { return policy }
+    var mode = _task_stop_mode(ctx, oren_map_get_str(policy, "mode"))
+    if oren_is_err(mode) == true { return mode }
+    var timeout_ms = oren_map_get_str(policy, "timeout_ms")
+    var deadline_ns = oren_map_get_str(policy, "deadline_ns")
+    if oren_type_tag(timeout_ms) != 0 && oren_type_tag(deadline_ns) != 0 {
+        return _task_err(ctx, "timeout_ms and deadline_ns are mutually exclusive")
+    }
+    timeout_ms = _task_stop_timeout_ms(ctx, timeout_ms)
+    if oren_is_err(timeout_ms) == true { return timeout_ms }
+    deadline_ns = _task_stop_deadline_ns_arg(ctx, deadline_ns)
+    if oren_is_err(deadline_ns) == true { return deadline_ns }
+    var grace_ms = _task_stop_grace_ms(ctx, oren_map_get_str(policy, "grace_ms"))
+    if oren_is_err(grace_ms) == true { return grace_ms }
+    var join_timeout_ms = nil
+    if want_join_timeout == true {
+        join_timeout_ms = _task_stop_join_timeout_arg(ctx, oren_map_get_str(policy, "join_timeout_ms"))
+        if oren_is_err(join_timeout_ms) == true { return join_timeout_ms }
+    }
+    return {
+        "mode": mode,
+        "delay_ms": _task_stop_delay_ms(deadline_ns, timeout_ms),
+        "grace_ms": grace_ms,
+        "reason": oren_map_get_str(policy, "reason"),
+        "join_timeout_ms": join_timeout_ms,
+    }
+}
+
+fn _task_stop_result(status, result, reason, detach_result) {
+    return {
+        "status": status,
+        "result": result,
+        "reason": reason,
+        "detach_result": detach_result,
+    }
+}
+
+fn _task_stop_handle(handle, wait_ms, reason) {
+    var rv = join_timeout(handle, wait_ms)
+    if oren_is_err(rv) == true { return rv }
+    if rv == -60 {
+        var detach_rv = nil
+        if is_handle(handle) == true {
+            detach_rv = detach(handle)
+            if oren_is_err(detach_rv) == true {
+                return _task_stop_result("detach_error", rv, reason, detach_rv)
+            }
+        }
+        return _task_stop_result("detached", rv, reason, detach_rv)
+    }
+    return _task_stop_result("joined", rv, reason, nil)
+}
+
+fn _task_stop_worker(handle, wait_ms, reason) {
+    return _task_stop_handle(handle, wait_ms, reason)
 }
 
 fn is_handle(handle) {
@@ -77,4 +219,93 @@ fn join_all(handles, timeout_ms) {
         i = i + 1
     }
     return out
+}
+
+fn stop_after(handle, timeout_ms, grace_ms, reason) {
+    return stop_policy(handle, {
+        "mode": "stop",
+        "timeout_ms": timeout_ms,
+        "grace_ms": grace_ms,
+        "reason": reason,
+    })
+}
+
+fn stop_after_wait(handle, timeout_ms, grace_ms, reason, join_timeout_ms) {
+    return stop_policy_wait(handle, {
+        "mode": "stop",
+        "timeout_ms": timeout_ms,
+        "grace_ms": grace_ms,
+        "reason": reason,
+        "join_timeout_ms": join_timeout_ms,
+    })
+}
+
+fn stop_at(handle, deadline_ns, grace_ms, reason) {
+    return stop_policy(handle, {
+        "mode": "stop",
+        "deadline_ns": deadline_ns,
+        "grace_ms": grace_ms,
+        "reason": reason,
+    })
+}
+
+fn stop_at_wait(handle, deadline_ns, grace_ms, reason, join_timeout_ms) {
+    return stop_policy_wait(handle, {
+        "mode": "stop",
+        "deadline_ns": deadline_ns,
+        "grace_ms": grace_ms,
+        "reason": reason,
+        "join_timeout_ms": join_timeout_ms,
+    })
+}
+
+fn stop_policy(handle, policy0) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.stop_policy", "expected task handle")
+    }
+    var fields = _task_stop_fields("task.stop_policy", policy0, false)
+    if oren_is_err(fields) == true { return fields }
+    var watcher = spawn _task_stop_worker(
+        handle,
+        _task_stop_wait_ms(fields["delay_ms"], fields["grace_ms"]),
+        fields["reason"]
+    )
+    if _task_handle_ok(watcher) != true {
+        return _task_err("task.stop_policy", "failed to spawn stop watcher")
+    }
+    return watcher
+}
+
+fn stop_policy_wait(handle, policy0) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.stop_policy_wait", "expected task handle")
+    }
+    var fields = _task_stop_fields("task.stop_policy_wait", policy0, true)
+    if oren_is_err(fields) == true { return fields }
+    var wait_ms = _task_stop_wait_budget_ms(
+        "task.stop_policy_wait",
+        fields["join_timeout_ms"],
+        _task_stop_wait_ms(fields["delay_ms"], fields["grace_ms"])
+    )
+    if oren_is_err(wait_ms) == true { return wait_ms }
+    var watcher = spawn _task_stop_worker(handle, wait_ms, fields["reason"])
+    if _task_handle_ok(watcher) != true {
+        return _task_err("task.stop_policy_wait", "failed to spawn stop watcher")
+    }
+    var rv = join_timeout(watcher, wait_ms)
+    if oren_is_err(rv) == true { return rv }
+    if rv == -60 {
+        var detach_rv = nil
+        if is_handle(watcher) == true {
+            detach_rv = detach(watcher)
+            if oren_is_err(detach_rv) == true {
+                return _task_stop_result("detach_error", rv, fields["reason"], detach_rv)
+            }
+        }
+        return _task_stop_result("detached", rv, fields["reason"], detach_rv)
+    }
+    if oren_type_name(rv) != "map" {
+        return _task_err("task.stop_policy_wait", "stop watcher returned invalid result")
+    }
+    return rv
 }

@@ -10,6 +10,38 @@ fn oren_new_channel() {
     return oren_pipe() // Returns [r, w]
 }
 
+fn _chan_pipe_wait_fd(fd, want_write) {
+    if fd < 0 { return 0 - 22 }
+    if oren_green_in_green() == true && native_netpoll_supported() == true {
+        var g = oren_green_current_g_or0()
+        if g != 0 {
+            var rc0 = native_netpoll_init_once()
+            if rc0 < 0 { return rc0 }
+            while 1 {
+                ptr_set(g + green_g_off_io_fd(), fd)
+                ptr_set(g + green_g_off_io_kind(), want_write)
+                ptr_set(g + green_g_off_io_ready(), 0)
+                ptr_set(g + green_g_off_io_active(), 1)
+                var arc = native_netpoll_arm_fd(fd, want_write, g)
+                if arc < 0 {
+                    ptr_set(g + green_g_off_io_active(), 0)
+                    return arc
+                }
+                // Approximate "wait forever" using a long sleep; the netpoller forces an early wake
+                // on readiness.
+                oren_green_sleep_ns(60000000000) // 60s
+                native_netpoll_disarm_fd(fd, want_write)
+                var ok = ptr_get(g + green_g_off_io_ready())
+                ptr_set(g + green_g_off_io_active(), 0)
+                ptr_set(g + green_g_off_io_ready(), 0)
+                if ok != 0 { return 1 }
+            }
+        }
+    }
+    sys_nanosleep(1000000) // 1ms backoff on non-green paths
+    return 1
+}
+
 fn oren_chan_send(ch, val) {
     if native_chan_is_mem(ch) == 1 {
         return native_chan_send_mem(ch, val)
@@ -18,7 +50,26 @@ fn oren_chan_send(ch, val) {
     var buf = malloc(8)
     if buf == 0 { return 0 }
     ptr_set(buf, val)
-    sys_write(w, buf, 8)
+    var sent = 0
+    while sent < 8 {
+        var n = sys_write(w, buf + sent, 8 - sent)
+        n = native_canon_i32_arg(n)
+        if n > 0 {
+            sent = sent + n
+            continue
+        }
+        // EAGAIN/EWOULDBLOCK: macOS=35, Linux=11
+        if n == 0 - 35 || n == 0 - 11 {
+            var ready = _chan_pipe_wait_fd(w, 1)
+            if ready < 0 {
+                free(buf)
+                return 0
+            }
+            continue
+        }
+        free(buf)
+        return 0
+    }
     free(buf)
     return 1
 }
@@ -30,7 +81,26 @@ fn oren_chan_recv(ch) {
     var r = oren_list_get(ch, 0)
     var buf = malloc(8)
     if buf == 0 { return 0 }
-    sys_read(r, buf, 8)
+    var got = 0
+    while got < 8 {
+        var n = sys_read(r, buf + got, 8 - got)
+        n = native_canon_i32_arg(n)
+        if n > 0 {
+            got = got + n
+            continue
+        }
+        // EAGAIN/EWOULDBLOCK: macOS=35, Linux=11
+        if n == 0 - 35 || n == 0 - 11 {
+            var ready = _chan_pipe_wait_fd(r, 0)
+            if ready < 0 {
+                free(buf)
+                return 0
+            }
+            continue
+        }
+        free(buf)
+        return 0
+    }
     var val = ptr_get(buf)
     free(buf)
     return val
@@ -49,6 +119,14 @@ fn oren_pipe() {
     var r = ptr_get(buf)
     var w = ptr_get(iadd(buf, 8))
     free(buf)
+    if r >= 0 {
+        var rfl = sys_fcntl_getfl(r)
+        if rfl >= 0 { sys_fcntl_setfl(r, rfl | OREN_O_NONBLOCK) }
+    }
+    if w >= 0 {
+        var wfl = sys_fcntl_getfl(w)
+        if wfl >= 0 { sys_fcntl_setfl(w, wfl | OREN_O_NONBLOCK) }
+    }
     
     var l = oren_new_list(2)
     oren_list_push(l, r)

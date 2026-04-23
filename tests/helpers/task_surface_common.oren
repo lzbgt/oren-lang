@@ -11,6 +11,41 @@ fn slow_task(seed) {
     return seed + 2
 }
 
+fn blocked_task(ch) {
+    return oren_chan_recv(ch)
+}
+
+fn delayed_send_task(args) {
+    var ch = args[0]
+    var value = args[1]
+    var delay_ms = args[2]
+    if delay_ms > 0 { time.sleep_ms(delay_ms) }
+    oren_chan_send(ch, value)
+    return 0
+}
+
+fn stop_joined(result, expected) {
+    if oren_type_name(result) != "map" { return false }
+    if result["status"] != "joined" { return false }
+    if result["result"] != expected { return false }
+    return true
+}
+
+fn stop_detached(result, reason) {
+    if oren_type_name(result) != "map" { return false }
+    if result["status"] != "detached" { return false }
+    if result["result"] != -60 { return false }
+    if result["reason"] != reason { return false }
+    return true
+}
+
+fn stop_joined_or_detached(result, expected_joined, reason) {
+    if stop_detached(result, reason) == true { return true }
+    if stop_joined(result, expected_joined) != true { return false }
+    if result["reason"] != reason { return false }
+    return true
+}
+
 fn run_task_surface_v0() {
     if task.is_handle(nil) != false { return 190000 }
     if task.is_handle(123) != false { return 190001 }
@@ -22,26 +57,73 @@ fn run_task_surface_v0() {
     if oren_is_err(task.detach(123)) != true { return 190007 }
     if oren_is_err(task.join_all(123, 0)) != true { return 190008 }
     if oren_is_err(task.join_all([123], 0)) != true { return 190009 }
+    if oren_is_err(task.stop_policy(123, nil)) != true { return 190010 }
+    if oren_is_err(task.stop_policy_wait(123, nil)) != true { return 190011 }
 
     var h0 = spawn quick_task(40)
-    if task.is_handle(h0) != true { return 190010 }
-    if reflect.is_task(h0) != true { return 190011 }
-    if task.join(h0) != 41 { return 190012 }
+    if task.is_handle(h0) != true { return 190012 }
+    if reflect.is_task(h0) != true { return 190013 }
+    if task.join(h0) != 41 { return 190014 }
 
     var h1 = spawn slow_task(50)
-    if task.is_handle(h1) != true { return 190013 }
-    if task.is_done(h1) != false { return 190014 }
+    if task.is_handle(h1) != true { return 190015 }
+    if task.is_done(h1) != false { return 190016 }
     var h1r = task.join_timeout(h1, 0)
-    if h1r != -60 { return 190015 }
+    if h1r != -60 { return 190017 }
+    if oren_is_err(task.stop_policy(h1, {"mode": "request_cancel"})) != true { return 190018 }
+    if oren_is_err(task.stop_policy_wait(h1, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 190019 }
+    if oren_is_err(task.stop_policy_wait(h1, {"join_timeout_ms": "bad"})) != true { return 190020 }
 
     var h2 = spawn quick_task(60)
     var h3 = spawn quick_task(70)
     var all = task.join_all([h2, h3], nil)
-    if oren_is_err(all) == true { return 190016 }
-    if all[0] != 61 || all[1] != 71 { return 190017 }
+    if oren_is_err(all) == true { return 190021 }
+    if all[0] != 61 || all[1] != 71 { return 190022 }
 
     var h4 = spawn slow_task(80)
-    if task.detach(h4) != nil { return 190018 }
+    if task.detach(h4) != nil { return 190023 }
+
+    var h5 = spawn quick_task(90)
+    var w5 = task.stop_after(h5, 10, 0, 901)
+    if task.is_handle(w5) != true { return 190024 }
+    var w5r = task.join(w5)
+    if stop_joined(w5r, 91) != true || w5r["reason"] != 901 { return 190025 }
+
+    var ch6 = oren_new_channel()
+    var sender6 = spawn delayed_send_task([ch6, 920, 50])
+    var h6 = spawn blocked_task(ch6)
+    var h6r = task.stop_after_wait(h6, 0, 0, 902, 200)
+    if stop_joined(h6r, 920) != true || h6r["reason"] != 902 { return 190026 }
+    if task.join(sender6) != 0 { return 190027 }
+
+    var ch7 = oren_new_channel()
+    var sender7 = spawn delayed_send_task([ch7, 940, 50])
+    var h7 = spawn blocked_task(ch7)
+    var h7r = task.stop_policy_wait(h7, {"timeout_ms": 0, "grace_ms": 0, "reason": 903})
+    if stop_detached(h7r, 903) != true { return 190028 }
+    if task.join(sender7) != 0 { return 190029 }
+
+    var h8 = spawn quick_task(100)
+    var w8 = task.stop_at(h8, time.now_ns() + 50000000, 0, 904)
+    if task.is_handle(w8) != true { return 190030 }
+    var w8r = task.join(w8)
+    if stop_joined(w8r, 101) != true || w8r["reason"] != 904 { return 190031 }
+
+    var ch9 = oren_new_channel()
+    var sender9 = spawn delayed_send_task([ch9, 930, 20])
+    var h9 = spawn blocked_task(ch9)
+    var h9r = task.stop_at_wait(h9, time.now_ns() + 50000000, 0, 905, 200)
+    if stop_joined(h9r, 930) != true || h9r["reason"] != 905 { return 190032 }
+    if task.join(sender9) != 0 { return 190033 }
+
+    var ch10 = oren_new_channel()
+    var sender10 = spawn delayed_send_task([ch10, 950, 50])
+    var h10 = spawn blocked_task(ch10)
+    var w10 = task.stop_policy(h10, {"timeout_ms": 0, "grace_ms": 0, "reason": 906})
+    if task.is_handle(w10) != true { return 190034 }
+    var w10r = task.join(w10)
+    if stop_joined_or_detached(w10r, 950, 906) != true { return 190035 }
+    if task.join(sender10) != 0 { return 190036 }
 
     return 0
 }

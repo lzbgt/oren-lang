@@ -190,6 +190,14 @@ backend-shared value-helper slices landed.
       AVM, C, and the default native green-task path
     - `task.join(...)`, `join_timeout(...)`, `detach(...)`, and `join_all(...)` now wrap the raw
       runtime join surface behind safe-handle validation
+    - `task.stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, `stop_at_wait(...)`,
+      `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the shared task stop/deadline
+      surface for generic `spawn` handles
+    - that task stop surface accepts only `mode="stop"` and still implements
+      wait/deadline-plus-detach semantics because generic tasks do not yet have a cancellation
+      primitive
+    - `stop_policy_wait(...)` returns the `{status, result, reason, detach_result}` map and accepts
+      `join_timeout_ms` as an explicit synchronous wait-budget override
     - legacy native raw fallback handles remain low-level-only for now; the safe reflected surface
       is intentionally limited to scheduler-backed native task handles
   - Fresh landing (2026-04-23): `std:task_group` now ships as the first group-shaped
@@ -197,10 +205,11 @@ backend-shared value-helper slices landed.
     - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable groups
       over generator/coroutine handles, active contexts, or safe task handles
     - `task_group.stop_policy(group, policy)` merges the group default policy with an override and
-      returns a watcher list for the full group; in stdlib map-backed groups it still applies the
-      full generator/coroutine stop-policy map to generator-backed members
+      returns a watcher list for the full group; stdlib map-backed groups now also dispatch by
+      member kind instead of rejecting task members
     - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
-      synchronously and returns the per-member results for generator-backed members
+      synchronously and now routes task members through the shared `std:task`
+      stop-policy surface
     - `task_group.join_all(...)` is now the task-handle-only group join path, while
       `task_group.join_watchers(...)` and `task_group.terminal_results(...)` complete the watcher /
       final-result side of the group surface
@@ -226,14 +235,9 @@ backend-shared value-helper slices landed.
     - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by member kind:
       - stored runtime-group default policy is merged before override validation
       - generator/coroutine members keep the full generator-backed stop-policy semantics
-      - if task members are present, the task side still accepts only `mode="stop"`, keeps
-        `timeout_ms` / `deadline_ns` mutually exclusive, and uses `delay_ms + grace_ms` as the
-        effective wait window because generic `spawn` tasks still have no cancellation primitive
-      - `stop_policy_wait(...)` accepts `join_timeout_ms` as an explicit override of that derived
-        task wait window
-      - task-member results are maps with `status`, `result`, `reason`, and `detach_result`; a
-        zero-budget stop may still return `joined` when the scheduler can finish the task in the
-        immediate step, otherwise it returns `detached`
+      - task members now use the same shared `std:task` stop contract, including the
+        `mode="stop"` restriction, `delay_ms + grace_ms` wait window, result-map shape, and
+        optional `join_timeout_ms` override on the synchronous path
     - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
       operations and reject extra generator/coroutine members
     - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only

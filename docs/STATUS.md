@@ -1548,15 +1548,25 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 			     - `task.is_done(...)` is the safe completion probe
 			     - `task.join(...)`, `join_timeout(...)`, `detach(...)`, and `join_all(...)` wrap the raw
 			       join/detach surface with handle validation
-			     - native support currently covers the default scheduler-backed green-task path; legacy
-			       native raw fallback handles remain low-level only
+			     - `task.stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, `stop_at_wait(...)`,
+			       `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the shared task stop/deadline
+			       surface for generic `spawn` handles
+			     - that task stop surface accepts only `mode="stop"` and still implements
+			       wait/deadline-plus-detach semantics because generic tasks do not yet have a cancellation
+			       primitive
+				   - `stop_policy(...)` always returns a watcher handle; `stop_policy_wait(...)` returns the
+				     `{status, result, reason, detach_result}` map and accepts `join_timeout_ms` as an
+				     explicit synchronous wait-budget override
+				   - native support currently covers the default scheduler-backed green-task path; legacy
+				     native raw fallback handles remain low-level only
 			   - New (2026-04-23): `std:task_group` now ships as the first mixed structured-concurrency
 			     layer above that policy map:
 			     - `task_group.new(default_policy)` / `from_list(targets, default_policy)` create mutable
 			       groups over generator/coroutine handles, active contexts, or safe task handles
-				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` apply the full
-				      generator/coroutine stop-policy map to generator-backed members in stdlib map-backed
-				      groups
+				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by
+				      member kind even in stdlib map-backed groups: generator/coroutine members keep the full
+				      generator-backed stop-policy contract, while task members use the shared `std:task`
+				      stop surface
 			     - `task_group.join_all(...)` now joins task-handle-only groups, while
 			       `task_group.join_watchers(...)` keeps the explicit watcher-join surface
 			     - `task_group.terminal_results(...)` remains generator-handle-only
@@ -1583,20 +1593,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				      member kind:
 				      - stored runtime-group default policy is merged before override validation
 				      - generator/coroutine members keep the full generator-backed stop-policy semantics
-				      - if task members are present, the task side still accepts only `mode="stop"`,
-				        keeps `timeout_ms` / `deadline_ns` mutually exclusive, and uses `delay_ms +
-				        grace_ms` as the effective wait window because generic `spawn` handles still have no
-				        cancellation primitive
-				      - `stop_policy_wait(...)` still accepts `join_timeout_ms` as an explicit override of
-				        that derived task wait window
-				      - task-member results are maps with `status`, `result`, `reason`, and
-				        `detach_result`; a zero-budget stop may still return `joined` when the scheduler can
-				        complete the task in the immediate step, otherwise it returns `detached`
-				    - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
-				      operations and reject extra generator/coroutine members
-				    - `task_group.terminal_results(...)` now also works for runtime-backed groups that
-				      contain only generator/coroutine handles; it still rejects task handles and
-				      context-only members
+				      - task members now use the same shared `std:task` stop contract, including the
+				        `mode="stop"` restriction, `delay_ms + grace_ms` wait window, `{status, result,
+				        reason, detach_result}` result map, and optional `join_timeout_ms` override on the
+				        synchronous path
+				      - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
+				        operations and reject extra generator/coroutine members
+				      - `task_group.terminal_results(...)` now also works for runtime-backed groups that
+				        contain only generator/coroutine handles; it still rejects task handles and
+				        context-only members
 				    - the remaining boundary is now narrower: runtime-backed groups are already unified and
 				      runtime-owned for mixed membership plus stored default policy, but typed stop dispatch
 				      still lives in stdlib and real task cancellation for generic `spawn` handles is not
