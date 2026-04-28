@@ -529,7 +529,9 @@ fn join_watchers(watchers, join_timeout_ms) {
     var out = []
     var i = 0
     while i < n {
-        list.push(out, oren_join_timeout(watchers[i], wait_ms))
+        var rv = task.join_timeout(watchers[i], wait_ms)
+        if oren_is_err(rv) == true { return rv }
+        list.push(out, rv)
         i = i + 1
     }
     return out

@@ -3546,7 +3546,8 @@ Rolling status:
       `stop_at_wait(group, deadline_ns, grace_ms, reason, join_timeout_ms)`
     - `task_group.join_all(group, join_timeout_ms)` joins task-handle-only groups and returns the
       per-member results; missing or negative `join_timeout_ms` defaults to `2000`
-    - `task_group.join_watchers(...)` keeps the explicit watcher-list join surface
+    - `task_group.join_watchers(...)` keeps the explicit watcher-list join surface and validates each
+      watcher as a safe task handle before joining
     - `task_group.terminal_results(group)` remains the generator-handle terminal-result collector
       and rejects task handles or context-only members
     - New (2026-04-23): runtime-backed task groups now also ship for generic safe task handles and

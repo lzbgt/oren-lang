@@ -200,6 +200,7 @@ fn run_task_group_surface_v0() {
     if oren_is_err(tg.stop_policy_wait(group0, {"mode": "cancel", "grace_ms": 1})) != true { return 180046 }
     if oren_is_err(tg.join_watchers(123, 0)) != true { return 180047 }
     if oren_is_err(tg.join_watchers([], "bad")) != true { return 180048 }
+    if oren_is_err(tg.join_watchers([123], 0)) != true { return 180084 }
 
     return 0
 }
