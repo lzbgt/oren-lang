@@ -378,6 +378,78 @@ fn stop_policy_wait(group, policy0) {
     return out
 }
 
+fn request_cancel(group, reason) {
+    return stop_policy(group, {
+        "mode": "request_cancel",
+        "timeout_ms": 0,
+        "reason": reason,
+    })
+}
+
+fn request_cancel_wait(group, reason, join_timeout_ms) {
+    return stop_policy_wait(group, {
+        "mode": "request_cancel",
+        "timeout_ms": 0,
+        "reason": reason,
+        "join_timeout_ms": join_timeout_ms,
+    })
+}
+
+fn cancel(group, reason) {
+    return stop_policy(group, {
+        "mode": "cancel",
+        "timeout_ms": 0,
+        "reason": reason,
+    })
+}
+
+fn cancel_wait(group, reason, join_timeout_ms) {
+    return stop_policy_wait(group, {
+        "mode": "cancel",
+        "timeout_ms": 0,
+        "reason": reason,
+        "join_timeout_ms": join_timeout_ms,
+    })
+}
+
+fn stop_after(group, timeout_ms, grace_ms, reason) {
+    return stop_policy(group, {
+        "mode": "stop",
+        "timeout_ms": timeout_ms,
+        "grace_ms": grace_ms,
+        "reason": reason,
+    })
+}
+
+fn stop_after_wait(group, timeout_ms, grace_ms, reason, join_timeout_ms) {
+    return stop_policy_wait(group, {
+        "mode": "stop",
+        "timeout_ms": timeout_ms,
+        "grace_ms": grace_ms,
+        "reason": reason,
+        "join_timeout_ms": join_timeout_ms,
+    })
+}
+
+fn stop_at(group, deadline_ns, grace_ms, reason) {
+    return stop_policy(group, {
+        "mode": "stop",
+        "deadline_ns": deadline_ns,
+        "grace_ms": grace_ms,
+        "reason": reason,
+    })
+}
+
+fn stop_at_wait(group, deadline_ns, grace_ms, reason, join_timeout_ms) {
+    return stop_policy_wait(group, {
+        "mode": "stop",
+        "deadline_ns": deadline_ns,
+        "grace_ms": grace_ms,
+        "reason": reason,
+        "join_timeout_ms": join_timeout_ms,
+    })
+}
+
 fn join_all(group, join_timeout_ms) {
     if _task_group_is_runtime(group) == true {
         var refs0 = oren_task_group_members(group)

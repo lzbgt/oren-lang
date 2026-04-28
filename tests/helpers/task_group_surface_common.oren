@@ -166,6 +166,33 @@ fn run_task_group_surface_v0() {
     if oren_is_err(tg.join_all(rdone_group, 0)) != true { return 180068 }
     if oren_is_err(tg.detach_all(rdone_group)) != true { return 180069 }
 
+    var direct_req0 = gen.start(cancel_probe_worker, [70])
+    var direct_req1 = coro.start(cancel_probe_worker, [80])
+    if oren_is_err(gen.next(direct_req0)) == true { return 180070 }
+    if oren_is_err(coro.next(direct_req1)) == true { return 180071 }
+    var direct_req_group = tg.from_list([direct_req0, direct_req1], nil)
+    if oren_is_err(direct_req_group) == true { return 180072 }
+    var direct_req_watch = tg.request_cancel(direct_req_group, 307)
+    if oren_is_err(direct_req_watch) == true || list.len(direct_req_watch) != 2 { return 180073 }
+    var direct_req_join = tg.join_watchers(direct_req_watch, 2000)
+    if oren_is_err(direct_req_join) == true || direct_req_join[0] != nil || direct_req_join[1] != nil { return 180074 }
+    var direct_req0done = gen.send(direct_req0, 9)
+    if oren_is_err(direct_req0done) == true || direct_req0done["done"] != true || direct_req0done["return"] != 316 { return 180075 }
+    var direct_req1done = coro.send(direct_req1, 10)
+    if oren_is_err(direct_req1done) == true || direct_req1done["done"] != true || direct_req1done["return"] != 317 { return 180076 }
+
+    var direct_cancel0 = gen.start(counter_worker, [90])
+    var direct_cancel1 = coro.start(counter_worker, [100])
+    if oren_is_err(gen.next(direct_cancel0)) == true { return 180077 }
+    if oren_is_err(coro.next(direct_cancel1)) == true { return 180078 }
+    var direct_cancel_group = tg.from_runtime_list([direct_cancel0, direct_cancel1], nil)
+    if oren_is_err(direct_cancel_group) == true { return 180079 }
+    var direct_cancel_rv = tg.cancel_wait(direct_cancel_group, 308, 2000)
+    if oren_is_err(direct_cancel_rv) == true || list.len(direct_cancel_rv) != 2 { return 180080 }
+    if direct_cancel_rv[0] != nil || direct_cancel_rv[1] != nil { return 180081 }
+    if gen.is_done(direct_cancel0) != true || coro.is_done(direct_cancel1) != true { return 180082 }
+    if gen.cancel_reason(direct_cancel0) != 308 || coro.cancel_reason(direct_cancel1) != 308 { return 180083 }
+
     if oren_is_err(tg.add(group0, 123)) != true { return 180042 }
     if oren_is_err(tg.extend(group0, 123)) != true { return 180043 }
     if oren_is_err(tg.stop_policy(group0, {"mode": "bogus"})) != true { return 180044 }

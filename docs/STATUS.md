@@ -1590,8 +1590,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				      member kind even in stdlib map-backed groups: generator/coroutine members keep the full
 				      generator-backed stop-policy contract, while task members use the shared `std:task`
 				      stop surface
-			     - `task_group.join_all(...)` now joins task-handle-only groups, while
-			       `task_group.join_watchers(...)` keeps the explicit watcher-join surface
+				     - direct group helpers now mirror the same policy family for easier use:
+				       `request_cancel(...)`, `request_cancel_wait(...)`, `cancel(...)`, `cancel_wait(...)`,
+				       `stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, and `stop_at_wait(...)`
+				     - `task_group.join_all(...)` now joins task-handle-only groups, while
+				       `task_group.join_watchers(...)` keeps the explicit watcher-join surface
 			     - `task_group.terminal_results(...)` remains generator-handle-only
 			   - New (2026-04-23): `std:task_group` now also ships the first runtime-backed mixed group
 			     surface for generic `spawn` work plus generator/coroutine members:

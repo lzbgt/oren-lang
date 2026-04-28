@@ -4757,10 +4757,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			    - `task_group.stop_policy(group, policy)` merges the group default policy with an override
 			      and returns a watcher list for the whole group; stdlib map-backed groups now also
 			      dispatch by member kind instead of rejecting task members
-			    - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
-			      synchronously and now routes task members through the shared `std:task`
-			      stop-policy surface
-		     - `task_group.join_all(...)` is now the task-handle-only group join path, while
+				    - `task_group.stop_policy_wait(group, policy)` applies that same normalized policy
+				      synchronously and now routes task members through the shared `std:task`
+				      stop-policy surface
+				    - direct group helpers now mirror the same policy family for easier use:
+				      `request_cancel(...)`, `request_cancel_wait(...)`, `cancel(...)`, `cancel_wait(...)`,
+				      `stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, and `stop_at_wait(...)`
+			     - `task_group.join_all(...)` is now the task-handle-only group join path, while
 		       `task_group.join_watchers(...)` and `task_group.terminal_results(...)` round out the
 		       watcher / terminal-result side of the group surface
 		   - New (2026-04-23): runtime-backed task groups for generic `spawn` work now also ship as the

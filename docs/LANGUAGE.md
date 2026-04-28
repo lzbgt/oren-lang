@@ -3537,6 +3537,13 @@ Rolling status:
       - generator/coroutine handles and active contexts keep the full generator-backed stop-policy
         semantics
       - safe task handles use the shared `std:task` stop contract
+    - direct group helpers mirror the per-handle policy family and avoid caller-side map boilerplate:
+      `request_cancel(group, reason)`, `request_cancel_wait(group, reason, join_timeout_ms)`,
+      `cancel(group, reason)`, `cancel_wait(group, reason, join_timeout_ms)`,
+      `stop_after(group, timeout_ms, grace_ms, reason)`,
+      `stop_after_wait(group, timeout_ms, grace_ms, reason, join_timeout_ms)`,
+      `stop_at(group, deadline_ns, grace_ms, reason)`, and
+      `stop_at_wait(group, deadline_ns, grace_ms, reason, join_timeout_ms)`
     - `task_group.join_all(group, join_timeout_ms)` joins task-handle-only groups and returns the
       per-member results; missing or negative `join_timeout_ms` defaults to `2000`
     - `task_group.join_watchers(...)` keeps the explicit watcher-list join surface

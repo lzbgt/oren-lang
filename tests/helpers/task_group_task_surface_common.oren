@@ -231,6 +231,15 @@ fn run_task_group_task_surface_v0() {
     if stop_joined(rtr6c[0], 2308) != true || rtr6c[0]["reason"] != 908 { return 1910624 }
     if tg.count(rtg6c) != 0 { return 1910625 }
 
+    var rtg6d = tg.new_runtime()
+    if oren_is_err(rtg6d) == true { return 1910626 }
+    var rtc6d = tg.spawn_call_list(rtg6d, cancel_observer_task, [[1600, 80]])
+    if task.is_handle(rtc6d) != true { return 1910627 }
+    var rtr6d = tg.cancel_wait(rtg6d, 910, 200)
+    if oren_is_err(rtr6d) == true || list.len(rtr6d) != 1 { return 1910628 }
+    if stop_joined(rtr6d[0], 2510) != true || rtr6d[0]["reason"] != 910 { return 1910629 }
+    if tg.count(rtg6d) != 0 { return 1910630 }
+
     var rtg7 = tg.new_runtime_with_policy({"timeout_ms": 0, "grace_ms": 0, "reason": 904})
     if oren_is_err(rtg7) == true { return 191063 }
     var rts7 = tg.spawn_call_list(rtg7, slow_task, [12])
@@ -278,6 +287,12 @@ fn run_task_group_task_surface_v0() {
     var rtr8c = tg.join_watchers(rtw8c, 2000)
     if oren_is_err(rtr8c) == true || list.len(rtr8c) != 1 { return 1910760 }
     if stop_joined_or_detached(rtr8c[0], 2409, 909) != true { return 1910761 }
+
+    var rtg8d = tg.from_runtime_list([spawn cancel_observer_task([1700, 80])], nil)
+    if oren_is_err(rtg8d) == true || tg.count(rtg8d) != 1 { return 1910762 }
+    var rtr8d = tg.stop_after_wait(rtg8d, 0, 200, 911, nil)
+    if oren_is_err(rtr8d) == true || list.len(rtr8d) != 1 { return 1910763 }
+    if stop_joined(rtr8d[0], 2611) != true || rtr8d[0]["reason"] != 911 { return 1910764 }
 
     var doneg1 = gen.start(counter_worker, [80])
     if oren_is_err(gen.next(doneg1)) == true { return 191076 }
