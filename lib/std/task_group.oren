@@ -14,9 +14,8 @@
 //
 // Non-goals (still rolling):
 // - implicit parent/child task lifetime enforcement
-// - unified runtime-owned groups across both generic tasks and generator/coroutine workers
-// - hard cancellation for generic `spawn` handles (task members currently support cooperative
-//   `request_cancel` plus wait/deadline/stop orchestration)
+// - unsafe preemptive killing of generic `spawn` workers
+// - moving typed stop dispatch fully into the runtime scheduler instead of this stdlib policy layer
 
 import gen "std:generator"
 import list "std:list"

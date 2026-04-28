@@ -222,6 +222,15 @@ fn run_task_group_task_surface_v0() {
     if oren_is_err(rtempty6) == true || list.len(rtempty6) != 0 { return 191061 }
     if oren_is_err(tg.detach_all(rtg6)) == true { return 191062 }
 
+    var rtg6c = tg.new_runtime()
+    if oren_is_err(rtg6c) == true { return 1910621 }
+    var rtc6c = tg.spawn_call_list(rtg6c, cancel_observer_task, [[1400, 80]])
+    if task.is_handle(rtc6c) != true { return 1910622 }
+    var rtr6c = tg.stop_policy_wait(rtg6c, {"mode": "cancel", "timeout_ms": 0, "reason": 908, "join_timeout_ms": 200})
+    if oren_is_err(rtr6c) == true || list.len(rtr6c) != 1 { return 1910623 }
+    if stop_joined(rtr6c[0], 2308) != true || rtr6c[0]["reason"] != 908 { return 1910624 }
+    if tg.count(rtg6c) != 0 { return 1910625 }
+
     var rtg7 = tg.new_runtime_with_policy({"timeout_ms": 0, "grace_ms": 0, "reason": 904})
     if oren_is_err(rtg7) == true { return 191063 }
     var rts7 = tg.spawn_call_list(rtg7, slow_task, [12])
@@ -261,6 +270,14 @@ fn run_task_group_task_surface_v0() {
     if gen.is_cancel_requested(rtm8b[1]) != true || gen.cancel_reason(rtm8b[1]) != 907 { return 1910756 }
     if gen.close(rtm8b[1]) != nil { return 19107565 }
     if tg.count(rtg8b) != 0 { return 1910757 }
+
+    var rtg8c = tg.from_runtime_list([spawn cancel_observer_task([1500, 80])], {"mode": "cancel", "timeout_ms": 0, "reason": 909})
+    if oren_is_err(rtg8c) == true || tg.count(rtg8c) != 1 { return 1910758 }
+    var rtw8c = tg.stop_policy(rtg8c, nil)
+    if oren_is_err(rtw8c) == true || list.len(rtw8c) != 1 { return 1910759 }
+    var rtr8c = tg.join_watchers(rtw8c, 2000)
+    if oren_is_err(rtr8c) == true || list.len(rtr8c) != 1 { return 1910760 }
+    if stop_joined_or_detached(rtr8c[0], 2409, 909) != true { return 1910761 }
 
     var doneg1 = gen.start(counter_worker, [80])
     if oren_is_err(gen.next(doneg1)) == true { return 191076 }

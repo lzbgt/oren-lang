@@ -3502,19 +3502,26 @@ Rolling status:
       - `task.join_timeout(...)` returning `-60` does not consume, detach, or invalidate the handle;
         later `join(...)`, `request_cancel(...)`, or `detach(...)` calls still apply to that same
         live task
+    - `task.cancel(...)`, `cancel_after(...)`, `cancel_after_wait(...)`, `cancel_at(...)`, and
+      `cancel_at_wait(...)` now ship as the bounded task-cancel surface
+      - cancellation records the same sticky cooperative request first, then uses the safe
+        join/detach path rather than an unsafe preemptive thread kill
+      - the `*_wait(...)` forms accept `join_timeout_ms` as an explicit wait budget after the request
     - `task.stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, `stop_at_wait(...)`,
       `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the shared task-shaped
       deadline/stop surface for generic `spawn` handles
-      - `mode="request_cancel"` and `mode="stop"` are accepted for task handles (`request` aliases
-        `request_cancel`)
+      - `mode="request_cancel"`, `mode="cancel"`, and `mode="stop"` are accepted for task handles
+        (`request` aliases `request_cancel`)
       - `mode="request_cancel"` uses the cooperative sticky request state only; generic `spawn` work
-        still has no hard cancellation primitive
-      - `mode="stop"` keeps the existing wait/deadline-plus-detach behavior, so its effective wait
-        window is `delay_ms + grace_ms`
+        is not stopped or detached by that mode
+      - `mode="cancel"` records the cooperative request at the timeout/deadline and then immediately
+        applies the bounded join/detach stop path
+      - `mode="stop"` records the cooperative request at the timeout/deadline, then waits the grace
+        window before detaching if the task is still live
       - `stop_policy(...)` always returns a joinable watcher handle for the normalized task policy
       - `stop_policy_wait(...)` returns `nil` for `mode="request_cancel"` and returns the
-        `{status, result, reason, detach_result}` map for `mode="stop"`; `join_timeout_ms`, when
-        present, overrides the derived synchronous wait budget
+        `{status, result, reason, detach_result}` map for `mode="cancel"` or `mode="stop"`;
+        `join_timeout_ms`, when present, overrides the derived synchronous wait budget
       - a zero-budget task stop may still report `joined` when the scheduler can finish the task in
         the immediate step; otherwise it reports `detached`
     - current native scope is the default scheduler-backed green-task path; legacy native raw
@@ -3561,16 +3568,16 @@ Rolling status:
         - the stored runtime-group default policy is merged before override validation
         - generator/coroutine handles and active contexts keep the full generator-backed
           stop-policy behavior
-        - safe task handles use the same shared `std:task` contract, including cooperative
-          `mode="request_cancel"` plus the existing `mode="stop"` wait/deadline behavior and
-          `join_timeout_ms` override on the synchronous path
+        - safe task handles use the same shared `std:task` contract, including `mode="request_cancel"`,
+          bounded `mode="cancel"`, `mode="stop"`, and `join_timeout_ms` override on the synchronous path
       - `task_group.join_all(...)` and `detach_all(...)` remain task-handle-only runtime-group
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
         only generator/coroutine handles; it still rejects task handles and context-only members
     - the remaining boundary is now narrower: runtime-backed groups are already unified and
-      runtime-owned for mixed membership plus stored default policy, but typed stop dispatch still
-      lives in stdlib and real task cancellation for generic `spawn` handles is not shipped yet
+      runtime-owned for mixed membership plus stored default policy, and generic task cancellation is
+      now shipped as cooperative request plus bounded stop/detach; typed stop dispatch still lives in
+      stdlib rather than in the runtime scheduler itself
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists

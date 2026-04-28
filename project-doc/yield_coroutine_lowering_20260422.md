@@ -203,16 +203,22 @@ backend-shared value-helper slices landed.
       runtime join surface behind safe-handle validation
     - `join_timeout(...) == -60` now preserves the live handle for later join/cancel/detach instead
       of consuming it on timeout
+    - `task.cancel(...)`, `cancel_after(...)`, `cancel_after_wait(...)`, `cancel_at(...)`, and
+      `cancel_at_wait(...)` now ship as bounded task-cancel helpers: they record the same cooperative
+      sticky request first, then use the safe join/detach path instead of an unsafe preemptive worker
+      kill
     - `task.stop_after(...)`, `stop_after_wait(...)`, `stop_at(...)`, `stop_at_wait(...)`,
       `stop_policy(...)`, and `stop_policy_wait(...)` now ship as the shared task stop/deadline
       surface for generic `spawn` handles
-    - that task stop surface now accepts `mode="request_cancel"` and `mode="stop"`
-    - `mode="request_cancel"` records cooperative sticky state only; generic tasks still have no
-      hard cancellation primitive
-    - `mode="stop"` keeps the existing wait/deadline-plus-detach semantics
+    - that task stop surface now accepts `mode="request_cancel"`, `mode="cancel"`, and `mode="stop"`
+    - `mode="request_cancel"` records cooperative sticky state only
+    - `mode="cancel"` records the cooperative request at the timeout/deadline and then immediately
+      applies bounded join/detach
+    - `mode="stop"` records the cooperative request at the timeout/deadline, then waits the grace
+      window before detaching if the task is still live
     - `stop_policy_wait(...)` returns `nil` for `mode="request_cancel"` and returns the
-      `{status, result, reason, detach_result}` map for `mode="stop"`; `join_timeout_ms` remains
-      the explicit synchronous wait-budget override
+      `{status, result, reason, detach_result}` map for `mode="cancel"` or `mode="stop"`;
+      `join_timeout_ms` remains the explicit synchronous wait-budget override
     - legacy native raw fallback handles remain low-level-only for now; the safe reflected surface
       is intentionally limited to scheduler-backed native task handles
   - Fresh landing (2026-04-23): `std:task_group` now ships as the first group-shaped
@@ -251,16 +257,16 @@ backend-shared value-helper slices landed.
       - stored runtime-group default policy is merged before override validation
       - generator/coroutine members keep the full generator-backed stop-policy semantics
       - task members now use the same shared `std:task` contract, including cooperative
-        `mode="request_cancel"` plus the existing `mode="stop"` wait/deadline behavior and
-        optional `join_timeout_ms` override on the synchronous path
+        `mode="request_cancel"`, bounded `mode="cancel"`, `mode="stop"`, and optional
+        `join_timeout_ms` override on the synchronous path
     - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
       operations and reject extra generator/coroutine members
     - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
       generator/coroutine handles; it still rejects task handles and context-only members
   - the remaining gap is now narrower: runtime-backed groups are already unified and runtime-owned
-    for mixed membership plus stored default policy, but typed stop dispatch still lives in stdlib
-    and real task cancellation for generic `spawn` handles should build on this surface rather than
-    on raw watcher tasks or raw per-handle joins
+    for mixed membership plus stored default policy, and generic task cancellation now ships as
+    cooperative request plus bounded stop/detach; typed stop dispatch still lives in stdlib rather
+    than in the runtime scheduler itself
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

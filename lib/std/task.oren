@@ -6,7 +6,7 @@
 // - wraps the existing `spawn` / `oren_join(_timeout)` / `oren_detach` runtime surface
 // - adds a safe reflected predicate (`is_handle`) before destructive operations
 // - supports the default scheduler-backed task handles on native, plus AVM/C task handles
-// - exposes cooperative cancel-request state for generic task handles
+// - exposes cooperative cancel-request state plus bounded cancel/stop policy for generic task handles
 // - legacy native raw fallback handles (fork / Windows thread fallback) still use the low-level
 //   raw helpers directly and are not yet reflected by `is_handle(...)`
 
@@ -44,8 +44,8 @@ fn _task_stop_mode(ctx, mode0) {
     }
     var mode = mode0
     if mode == "request" { mode = "request_cancel" }
-    if mode != "stop" && mode != "request_cancel" {
-        return _task_err(ctx, "task handles support mode=request_cancel|stop")
+    if mode != "stop" && mode != "request_cancel" && mode != "cancel" {
+        return _task_err(ctx, "task handles support mode=request_cancel|cancel|stop")
     }
     return mode
 }
@@ -133,6 +133,9 @@ fn _task_stop_fields(ctx, policy0, want_join_timeout) {
     if oren_is_err(deadline_ns) == true { return deadline_ns }
     var grace_ms = _task_stop_grace_ms(ctx, oren_map_get_str(policy, "grace_ms"))
     if oren_is_err(grace_ms) == true { return grace_ms }
+    if mode != "stop" && grace_ms > 0 {
+        return _task_err(ctx, "grace_ms is only valid for mode=stop")
+    }
     var join_timeout_ms = nil
     if want_join_timeout == true {
         join_timeout_ms = _task_stop_join_timeout_arg(ctx, oren_map_get_str(policy, "join_timeout_ms"))
@@ -173,8 +176,17 @@ fn _task_stop_handle(handle, wait_ms, reason) {
     return _task_stop_result("joined", rv, reason, nil)
 }
 
-fn _task_stop_worker(handle, wait_ms, reason) {
+fn _task_request_then_stop_handle(handle, wait_ms, reason) {
+    if is_done(handle) != true {
+        var rv0 = request_cancel(handle, reason)
+        if oren_is_err(rv0) == true { return rv0 }
+    }
     return _task_stop_handle(handle, wait_ms, reason)
+}
+
+fn _task_stop_after_worker(handle, delay_ms, wait_ms, reason) {
+    if delay_ms > 0 { time.sleep_ms(delay_ms) }
+    return _task_request_then_stop_handle(handle, wait_ms, reason)
 }
 
 fn _task_request_cancel_after_worker(handle, timeout_ms, reason) {
@@ -272,6 +284,56 @@ fn request_cancel_after(handle, timeout_ms, reason) {
     return spawn _task_request_cancel_after_worker(handle, delay_ms, reason)
 }
 
+fn cancel(handle, reason) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.cancel", "expected task handle")
+    }
+    return _task_request_then_stop_handle(handle, 0, reason)
+}
+
+fn cancel_after(handle, timeout_ms, reason) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.cancel_after", "expected task handle")
+    }
+    var delay_ms = _task_stop_timeout_ms("task.cancel_after", timeout_ms)
+    if oren_is_err(delay_ms) == true { return delay_ms }
+    var watcher = spawn _task_stop_after_worker(handle, delay_ms, 0, reason)
+    if _task_handle_ok(watcher) != true {
+        return _task_err("task.cancel_after", "failed to spawn cancel watcher")
+    }
+    return watcher
+}
+
+fn cancel_after_wait(handle, timeout_ms, reason, join_timeout_ms) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.cancel_after_wait", "expected task handle")
+    }
+    var delay = _task_stop_timeout_ms("task.cancel_after_wait", timeout_ms)
+    if oren_is_err(delay) == true { return delay }
+    if delay <= 0 {
+        var immediate_wait = _task_stop_wait_budget_ms("task.cancel_after_wait", join_timeout_ms, 0)
+        if oren_is_err(immediate_wait) == true { return immediate_wait }
+        return _task_request_then_stop_handle(handle, immediate_wait, reason)
+    }
+    var wait = _task_stop_wait_budget_ms("task.cancel_after_wait", join_timeout_ms, _task_request_wait_default_ms(delay))
+    if oren_is_err(wait) == true { return wait }
+    var watcher = cancel_after(handle, delay, reason)
+    if oren_is_err(watcher) == true { return watcher }
+    var rv = join_timeout(watcher, wait)
+    if oren_is_err(rv) == true { return rv }
+    if rv == -60 {
+        var detach_rv = nil
+        if is_handle(watcher) == true {
+            detach_rv = detach(watcher)
+            if oren_is_err(detach_rv) == true {
+                return _task_stop_result("detach_error", rv, reason, detach_rv)
+            }
+        }
+        return _task_stop_result("detached", rv, reason, detach_rv)
+    }
+    return rv
+}
+
 fn request_cancel_after_wait(handle, timeout_ms, reason, join_timeout_ms) {
     if _task_handle_ok(handle) != true {
         return _task_err("task.request_cancel_after_wait", "expected task handle")
@@ -292,6 +354,26 @@ fn request_cancel_at(handle, deadline_ns, reason) {
     if oren_is_err(deadline) == true { return deadline }
     var delay = _task_stop_delay_ms(deadline, 0)
     return request_cancel_after(handle, delay, reason)
+}
+
+fn cancel_at(handle, deadline_ns, reason) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.cancel_at", "expected task handle")
+    }
+    var deadline = _task_stop_deadline_ns_arg("task.cancel_at", deadline_ns)
+    if oren_is_err(deadline) == true { return deadline }
+    var delay = _task_stop_delay_ms(deadline, 0)
+    return cancel_after(handle, delay, reason)
+}
+
+fn cancel_at_wait(handle, deadline_ns, reason, join_timeout_ms) {
+    if _task_handle_ok(handle) != true {
+        return _task_err("task.cancel_at_wait", "expected task handle")
+    }
+    var deadline = _task_stop_deadline_ns_arg("task.cancel_at_wait", deadline_ns)
+    if oren_is_err(deadline) == true { return deadline }
+    var delay = _task_stop_delay_ms(deadline, 0)
+    return cancel_after_wait(handle, delay, reason, join_timeout_ms)
 }
 
 fn request_cancel_at_wait(handle, deadline_ns, reason, join_timeout_ms) {
@@ -357,11 +439,13 @@ fn stop_policy(handle, policy0) {
         }
         return request_cancel_after(handle, fields["delay_ms"], fields["reason"])
     }
-    var watcher = spawn _task_stop_worker(
-        handle,
-        _task_stop_wait_ms(fields["delay_ms"], fields["grace_ms"]),
-        fields["reason"]
-    )
+    if fields["mode"] == "cancel" {
+        if oren_type_tag(fields["deadline_ns"]) != 0 {
+            return cancel_at(handle, fields["deadline_ns"], fields["reason"])
+        }
+        return cancel_after(handle, fields["delay_ms"], fields["reason"])
+    }
+    var watcher = spawn _task_stop_after_worker(handle, fields["delay_ms"], fields["grace_ms"], fields["reason"])
     if _task_handle_ok(watcher) != true {
         return _task_err("task.stop_policy", "failed to spawn stop watcher")
     }
@@ -380,17 +464,35 @@ fn stop_policy_wait(handle, policy0) {
         }
         return request_cancel_after_wait(handle, fields["delay_ms"], fields["reason"], fields["join_timeout_ms"])
     }
+    if fields["mode"] == "cancel" {
+        if oren_type_tag(fields["deadline_ns"]) != 0 {
+            return cancel_at_wait(handle, fields["deadline_ns"], fields["reason"], fields["join_timeout_ms"])
+        }
+        return cancel_after_wait(handle, fields["delay_ms"], fields["reason"], fields["join_timeout_ms"])
+    }
     var wait_ms = _task_stop_wait_budget_ms(
         "task.stop_policy_wait",
         fields["join_timeout_ms"],
         _task_stop_wait_ms(fields["delay_ms"], fields["grace_ms"])
     )
     if oren_is_err(wait_ms) == true { return wait_ms }
-    var watcher = spawn _task_stop_worker(handle, wait_ms, fields["reason"])
+    var target_wait_ms = fields["grace_ms"]
+    if oren_type_tag(fields["join_timeout_ms"]) != 0 && fields["join_timeout_ms"] >= 0 {
+        if wait_ms <= fields["delay_ms"] {
+            target_wait_ms = 0
+        } else {
+            target_wait_ms = wait_ms - fields["delay_ms"]
+        }
+    }
+    var watcher_wait_ms = wait_ms
+    if oren_type_tag(fields["join_timeout_ms"]) == 0 || fields["join_timeout_ms"] < 0 {
+        watcher_wait_ms = _task_request_wait_default_ms(wait_ms)
+    }
+    var watcher = spawn _task_stop_after_worker(handle, fields["delay_ms"], target_wait_ms, fields["reason"])
     if _task_handle_ok(watcher) != true {
         return _task_err("task.stop_policy_wait", "failed to spawn stop watcher")
     }
-    var rv = join_timeout(watcher, wait_ms)
+    var rv = join_timeout(watcher, watcher_wait_ms)
     if oren_is_err(rv) == true { return rv }
     if rv == -60 {
         var detach_rv = nil
