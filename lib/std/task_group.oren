@@ -8,14 +8,14 @@
 // - optionally owns a default stop-policy map, including for runtime-backed task-only groups
 // - applies the shipped per-handle `std:generator.stop_policy(...)` /
 //   `stop_policy_wait(...)` plus the safe `std:task.stop_policy(...)` /
-//   `stop_policy_wait(...)` surface across members by kind
+//   `stop_policy_wait(...)` surface across runtime-classified members by kind
 // - exposes watcher-list joins, task joins, and final terminal-result collection
-// - runtime-backed task groups now also own stored default policy for mixed task/generator members
+// - runtime-backed task groups now own stored default policy and member-kind classification for mixed task/generator members
 //
 // Non-goals (still rolling):
 // - implicit parent/child task lifetime enforcement
 // - unsafe preemptive killing of generic `spawn` workers
-// - moving typed stop dispatch fully into the runtime scheduler instead of this stdlib policy layer
+// - moving typed stop execution fully into the runtime scheduler instead of this stdlib policy layer
 
 import gen "std:generator"
 import list "std:list"
@@ -44,10 +44,6 @@ fn _task_group_is_runtime(group) {
 }
 
 fn _task_group_runtime_add_target(ctx, group, target) {
-    var kind = _task_group_target_kind(target)
-    if kind == nil {
-        return _task_group_err(ctx, "expected generator handle, generator context, or task handle")
-    }
     var rv = oren_task_group_add(group, target)
     if oren_is_err(rv) == true { return rv }
     if oren_type_tag(rv) == 0 {
@@ -145,6 +141,13 @@ fn _task_group_target_stop_watch(ctx, target, policy0) {
     if kind == nil {
         return _task_group_err(ctx, "expected generator handle, generator context, or task handle")
     }
+    return _task_group_target_stop_watch_kind(ctx, kind, target, policy0)
+}
+
+fn _task_group_target_stop_watch_kind(ctx, kind, target, policy0) {
+    if kind != "task" && kind != "generator" && kind != "generator_context" {
+        return _task_group_err(ctx, "expected runtime member kind")
+    }
     if kind == "task" { return task.stop_policy(target, policy0) }
     return gen.stop_policy(target, policy0)
 }
@@ -154,18 +157,59 @@ fn _task_group_target_stop_wait(ctx, target, policy0) {
     if kind == nil {
         return _task_group_err(ctx, "expected generator handle, generator context, or task handle")
     }
+    return _task_group_target_stop_wait_kind(ctx, kind, target, policy0)
+}
+
+fn _task_group_target_stop_wait_kind(ctx, kind, target, policy0) {
+    if kind != "task" && kind != "generator" && kind != "generator_context" {
+        return _task_group_err(ctx, "expected runtime member kind")
+    }
     if kind == "task" { return task.stop_policy_wait(target, policy0) }
     return gen.stop_policy_wait(target, policy0)
 }
 
+fn _task_group_runtime_snapshot(ctx, group) {
+    var snapshot = oren_task_group_member_snapshot(group)
+    if oren_is_err(snapshot) == true { return snapshot }
+    if oren_type_name(snapshot) != "list" || list.len(snapshot) != 2 {
+        return _task_group_err(ctx, "runtime member snapshot must be [members, kinds]")
+    }
+    var refs = snapshot[0]
+    var kinds = snapshot[1]
+    if oren_type_name(refs) != "list" || oren_type_name(kinds) != "list" {
+        return _task_group_err(ctx, "runtime member snapshot fields must be lists")
+    }
+    if list.len(refs) != list.len(kinds) {
+        return _task_group_err(ctx, "runtime member-kind snapshot mismatch")
+    }
+    return snapshot
+}
+
+fn _task_group_kinds_for_refs(ctx, refs) {
+    var kinds = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        var kind = _task_group_target_kind(refs[i])
+        if kind == nil {
+            return _task_group_err(ctx, "expected generator handle, generator context, or task handle")
+        }
+        list.push(kinds, kind)
+        i = i + 1
+    }
+    return kinds
+}
+
 fn _task_group_runtime_stop_watchers(ctx, group, policy0) {
-    var refs = oren_task_group_members(group)
-    if oren_is_err(refs) == true { return refs }
+    var snapshot = _task_group_runtime_snapshot(ctx, group)
+    if oren_is_err(snapshot) == true { return snapshot }
+    var refs = snapshot[0]
+    var kinds = snapshot[1]
     var watchers = []
     var i = 0
     var n = list.len(refs)
     while i < n {
-        var watcher = _task_group_target_stop_watch(ctx, refs[i], policy0)
+        var watcher = _task_group_target_stop_watch_kind(ctx, kinds[i], refs[i], policy0)
         if oren_is_err(watcher) == true { return watcher }
         list.push(watchers, watcher)
         i = i + 1
@@ -248,6 +292,15 @@ fn members(group) {
     var refs = _task_group_members_ref("task_group.members", group)
     if oren_is_err(refs) == true { return refs }
     return list.clone(refs)
+}
+
+fn member_kinds(group) {
+    if _task_group_is_runtime(group) == true {
+        return oren_task_group_member_kinds(group)
+    }
+    var refs = _task_group_members_ref("task_group.member_kinds", group)
+    if oren_is_err(refs) == true { return refs }
+    return _task_group_kinds_for_refs("task_group.member_kinds", refs)
 }
 
 fn default_policy(group) {
@@ -348,13 +401,15 @@ fn stop_policy_wait(group, policy0) {
         if oren_is_err(base_policy0) == true { return base_policy0 }
         var policy0r = _task_group_merge_policy("task_group.stop_policy_wait", base_policy0, policy0)
         if oren_is_err(policy0r) == true { return policy0r }
-        var refs0 = oren_task_group_members(group)
-        if oren_is_err(refs0) == true { return refs0 }
+        var snapshot0 = _task_group_runtime_snapshot("task_group.stop_policy_wait", group)
+        if oren_is_err(snapshot0) == true { return snapshot0 }
+        var refs0 = snapshot0[0]
+        var kinds0 = snapshot0[1]
         var out0 = []
         var i0 = 0
         var n0 = list.len(refs0)
         while i0 < n0 {
-            var result0 = _task_group_target_stop_wait("task_group.stop_policy_wait", refs0[i0], policy0r)
+            var result0 = _task_group_target_stop_wait_kind("task_group.stop_policy_wait", kinds0[i0], refs0[i0], policy0r)
             if oren_is_err(result0) == true { return result0 }
             list.push(out0, result0)
             i0 = i0 + 1
@@ -452,15 +507,17 @@ fn stop_at_wait(group, deadline_ns, grace_ms, reason, join_timeout_ms) {
 
 fn join_all(group, join_timeout_ms) {
     if _task_group_is_runtime(group) == true {
-        var refs0 = oren_task_group_members(group)
-        if oren_is_err(refs0) == true { return refs0 }
+        var snapshot0 = _task_group_runtime_snapshot("task_group.join_all", group)
+        if oren_is_err(snapshot0) == true { return snapshot0 }
+        var refs0 = snapshot0[0]
+        var kinds0 = snapshot0[1]
         var wait_ms0 = _task_group_join_timeout_ms("task_group.join_all", join_timeout_ms)
         if oren_is_err(wait_ms0) == true { return wait_ms0 }
         var out0 = []
         var i0 = 0
         var n0 = list.len(refs0)
         while i0 < n0 {
-            if _task_group_target_kind(refs0[i0]) != "task" {
+            if kinds0[i0] != "task" {
                 return _task_group_err("task_group.join_all", "expected task-handle-only runtime group")
             }
             list.push(out0, task.join_timeout(refs0[i0], wait_ms0))
@@ -489,12 +546,14 @@ fn join_all(group, join_timeout_ms) {
 
 fn detach_all(group) {
     if _task_group_is_runtime(group) == true {
-        var refs0 = oren_task_group_members(group)
-        if oren_is_err(refs0) == true { return refs0 }
+        var snapshot0 = _task_group_runtime_snapshot("task_group.detach_all", group)
+        if oren_is_err(snapshot0) == true { return snapshot0 }
+        var refs0 = snapshot0[0]
+        var kinds0 = snapshot0[1]
         var i0 = 0
         var n0 = list.len(refs0)
         while i0 < n0 {
-            if _task_group_target_kind(refs0[i0]) != "task" {
+            if kinds0[i0] != "task" {
                 return _task_group_err("task_group.detach_all", "expected task-handle-only runtime group")
             }
             var rv = task.detach(refs0[i0])
@@ -539,13 +598,15 @@ fn join_watchers(watchers, join_timeout_ms) {
 
 fn terminal_results(group) {
     if _task_group_is_runtime(group) == true {
-        var refs0 = oren_task_group_members(group)
-        if oren_is_err(refs0) == true { return refs0 }
+        var snapshot0 = _task_group_runtime_snapshot("task_group.terminal_results", group)
+        if oren_is_err(snapshot0) == true { return snapshot0 }
+        var refs0 = snapshot0[0]
+        var kinds0 = snapshot0[1]
         var out0 = []
         var i0 = 0
         var n0 = list.len(refs0)
         while i0 < n0 {
-            var kind0 = _task_group_target_kind(refs0[i0])
+            var kind0 = kinds0[i0]
             if kind0 == "task" {
                 return _task_group_err("task_group.terminal_results", "task handles require join_all")
             }

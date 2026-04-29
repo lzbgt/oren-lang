@@ -66,6 +66,8 @@ fn run_task_group_surface_v0() {
     if tg.count(group0) != 2 { return 180011 }
     var snapshot0 = tg.members(group0)
     if oren_is_err(snapshot0) == true || list.len(snapshot0) != 2 { return 180012 }
+    var kinds0 = tg.member_kinds(group0)
+    if oren_is_err(kinds0) == true || list.len(kinds0) != 2 || kinds0[0] != "generator" || kinds0[1] != "generator" { return 180085 }
     list.push(snapshot0, req0)
     if tg.count(group0) != 2 { return 180013 }
 
@@ -138,6 +140,8 @@ fn run_task_group_surface_v0() {
     if oren_is_err(rreq1s0) == true || rreq1s0["value"] != 50 { return 180054 }
     var rreq_group = tg.from_runtime_list([rreq0, rreq1], {"mode": "request_cancel", "reason": 305})
     if oren_is_err(rreq_group) == true || tg.is_runtime_group(rreq_group) != true || tg.count(rreq_group) != 2 { return 180055 }
+    var rreq_kinds = tg.member_kinds(rreq_group)
+    if oren_is_err(rreq_kinds) == true || list.len(rreq_kinds) != 2 || rreq_kinds[0] != "generator" || rreq_kinds[1] != "generator" { return 180086 }
     if tg.default_policy(rreq_group)["reason"] != 305 { return 180056 }
     var rreq_watchers = tg.stop_policy(rreq_group, nil)
     if oren_is_err(rreq_watchers) == true || list.len(rreq_watchers) != 2 { return 180057 }
@@ -155,6 +159,8 @@ fn run_task_group_surface_v0() {
     if oren_is_err(rctx_step0) == true || rctx_step0["value"] != 60 { return 180062 }
     var rctx_group = tg.from_runtime_list([rctx_cells[0]], {"mode": "cancel", "reason": 306})
     if oren_is_err(rctx_group) == true || tg.count(rctx_group) != 1 { return 180063 }
+    var rctx_kinds = tg.member_kinds(rctx_group)
+    if oren_is_err(rctx_kinds) == true || list.len(rctx_kinds) != 1 || rctx_kinds[0] != "generator_context" { return 180087 }
     var rctx_rv = tg.stop_policy_wait(rctx_group, {"join_timeout_ms": 2000})
     if oren_is_err(rctx_rv) == true || list.len(rctx_rv) != 1 || rctx_rv[0] != nil { return 180064 }
     if gen.is_done(rctx_handle) != true || gen.cancel_reason(rctx_handle) != 306 { return 180065 }
@@ -198,6 +204,7 @@ fn run_task_group_surface_v0() {
     if oren_is_err(tg.stop_policy(group0, {"mode": "bogus"})) != true { return 180044 }
     if oren_is_err(tg.stop_policy(group0, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 180045 }
     if oren_is_err(tg.stop_policy_wait(group0, {"mode": "cancel", "grace_ms": 1})) != true { return 180046 }
+    if oren_is_err(tg.member_kinds(123)) != true { return 180088 }
     if oren_is_err(tg.join_watchers(123, 0)) != true { return 180047 }
     if oren_is_err(tg.join_watchers([], "bad")) != true { return 180048 }
     if oren_is_err(tg.join_watchers([123], 0)) != true { return 180084 }

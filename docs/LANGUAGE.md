@@ -3567,8 +3567,13 @@ Rolling status:
         stdlib map-backed groups
       - `task_group.default_policy(group)` / `set_default_policy(group, policy)` now also ship for
         runtime-backed groups and round-trip a cloned stored policy map
-      - runtime-backed mixed membership plus stored default policy are now owned by the runtime
-        group state itself across C, native, and AVM rather than by stdlib sidecar maps
+      - `task_group.member_kinds(group)` returns the normalized member-kind vector (`"task"`,
+        `"generator"`, or `"generator_context"`); runtime-backed groups compute this from a single
+        runtime-owned member snapshot so stop/join/terminal paths do not race separate
+        `members(...)` and kind-classification calls
+      - runtime-backed mixed membership, stored default policy, and member-kind classification are now
+        owned by the runtime group state itself across C, native, and AVM rather than by stdlib
+        sidecar maps
       - `task_group.spawn_call_list(group, fn_obj, args_list)` spawns directly into the runtime
         group on AVM, C, and the default native green-task scheduler
       - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now also ship for
@@ -3583,9 +3588,9 @@ Rolling status:
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
         only generator/coroutine handles; it still rejects task handles and context-only members
     - the remaining boundary is now narrower: runtime-backed groups are already unified and
-      runtime-owned for mixed membership plus stored default policy, and generic task cancellation is
-      now shipped as cooperative request plus bounded stop/detach; typed stop dispatch still lives in
-      stdlib rather than in the runtime scheduler itself
+      runtime-owned for mixed membership, stored default policy, and atomic member-kind snapshots, and
+      generic task cancellation is now shipped as cooperative request plus bounded stop/detach; typed
+      stop execution still lives in stdlib rather than in the runtime scheduler itself
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists
@@ -5722,9 +5727,9 @@ The following are *design goals* but are not implemented today as stable primiti
 
 - “green threads” / coroutines
 - a portable, shared-memory `mutex`/`lock` that works across macOS/Linux/Windows without libc
-- unified scheduler/runtime-owned structured concurrency across generic `spawn` handles and
-  generator/coroutine workers (runtime-backed task groups now exist for safe `spawn` handles, but
-  mixed groups and group stop/deadline policy are still stdlib-owned)
+- fully runtime-executed structured concurrency across generic `spawn` handles and generator/coroutine
+  workers (runtime-backed mixed task groups now own membership, default policy, and member-kind
+  snapshots, but the per-kind stop execution still routes through stdlib helper calls)
 - pub/sub or multicast channels
 - data-parallel iterators (`par_map`, `par_reduce`)
 

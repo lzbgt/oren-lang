@@ -734,6 +734,22 @@
             res = avm_task_group_members(vm, args[0]);
             break;
         }
+        case 182: { // oren_task_group_member_kinds(group) -> list
+            if (!vm || nargs <= 0) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_member_kinds expects (group)");
+                break;
+            }
+            res = avm_task_group_member_kinds(vm, args[0]);
+            break;
+        }
+        case 183: { // oren_task_group_member_snapshot(group) -> [members, kinds]
+            if (!vm || nargs <= 0) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_member_snapshot expects (group)");
+                break;
+            }
+            res = avm_task_group_member_snapshot(vm, args[0]);
+            break;
+        }
         case 174: { // oren_task_group_clear(group) -> nil
             if (!vm || nargs <= 0) {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_clear expects (group)");

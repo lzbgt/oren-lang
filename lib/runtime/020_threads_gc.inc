@@ -804,9 +804,15 @@ static int task_group_value_eq(OrenValue a, OrenValue b) {
 
 static int task_handle_live_value_locked(OrenValue thread);
 
+static OrenValue task_group_member_kind_locked(OrenValue v) {
+    if (task_handle_live_value_locked(v)) return oren_string_const("task");
+    if (v.type == OREN_TYPE_GENERATOR) return oren_string_const("generator");
+    if (v.type == OREN_TYPE_GENERATOR_CONTEXT) return oren_string_const("generator_context");
+    return OREN_NIL;
+}
+
 static int task_group_member_live_locked(OrenValue v) {
-    if (task_handle_live_value_locked(v)) return 1;
-    return v.type == OREN_TYPE_GENERATOR || v.type == OREN_TYPE_GENERATOR_CONTEXT;
+    return task_group_member_kind_locked(v).type != OREN_TYPE_NIL;
 }
 
 static OrenTaskGroupNode* task_group_find_locked(int64_t id) {
@@ -946,6 +952,75 @@ OrenValue oren_task_group_members(OrenValue group) {
     OrenValue out = oren_new_list_from_array(count, snapshot);
     if (snapshot) free(snapshot);
     return out;
+}
+
+OrenValue oren_task_group_member_kinds(OrenValue group) {
+    if (group.type != OREN_TYPE_INT) return oren_new_list(0);
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    if (!g) {
+        unlock_collections();
+        return oren_new_list(0);
+    }
+    task_group_compact_locked(g);
+    int count = g->count;
+    OrenValue* snapshot = NULL;
+    if (count > 0) {
+        snapshot = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        if (!snapshot) {
+            unlock_collections();
+            oren_panic("task_group_member_kinds alloc failed");
+            return OREN_NIL;
+        }
+        for (int i = 0; i < count; i++) {
+            snapshot[i] = task_group_member_kind_locked(g->members[i]);
+        }
+    }
+    unlock_collections();
+    OrenValue out = oren_new_list_from_array(count, snapshot);
+    if (snapshot) free(snapshot);
+    return out;
+}
+
+OrenValue oren_task_group_member_snapshot(OrenValue group) {
+    if (group.type != OREN_TYPE_INT) {
+        OrenValue empty_members = oren_new_list(0);
+        OrenValue empty_kinds = oren_new_list(0);
+        return oren_new_list_from_array(2, (OrenValue[]){empty_members, empty_kinds});
+    }
+    lock_collections();
+    OrenTaskGroupNode* g = task_group_find_locked(group.as.int_val);
+    if (!g) {
+        unlock_collections();
+        OrenValue empty_members = oren_new_list(0);
+        OrenValue empty_kinds = oren_new_list(0);
+        return oren_new_list_from_array(2, (OrenValue[]){empty_members, empty_kinds});
+    }
+    task_group_compact_locked(g);
+    int count = g->count;
+    OrenValue* members = NULL;
+    OrenValue* kinds = NULL;
+    if (count > 0) {
+        members = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        kinds = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        if (!members || !kinds) {
+            if (members) free(members);
+            if (kinds) free(kinds);
+            unlock_collections();
+            oren_panic("task_group_member_snapshot alloc failed");
+            return OREN_NIL;
+        }
+        for (int i = 0; i < count; i++) {
+            members[i] = g->members[i];
+            kinds[i] = task_group_member_kind_locked(g->members[i]);
+        }
+    }
+    unlock_collections();
+    OrenValue members_list = oren_new_list_from_array(count, members);
+    OrenValue kinds_list = oren_new_list_from_array(count, kinds);
+    if (members) free(members);
+    if (kinds) free(kinds);
+    return oren_new_list_from_array(2, (OrenValue[]){members_list, kinds_list});
 }
 
 OrenValue oren_task_group_default_policy(OrenValue group) {

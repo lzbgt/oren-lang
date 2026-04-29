@@ -238,6 +238,18 @@ static int avm_task_group_member_is_live(AvmSched* s, AvmValue member) {
     return 0;
 }
 
+static const char* avm_task_group_member_kind(AvmSched* s, AvmValue member) {
+    if (!s) return NULL;
+    if (member.type == AVM_VAL_INT) {
+        int tid = (int)member.as.i - 1;
+        if (tid >= 0 && tid < s->task_cap && s->tasks[tid].used) return "task";
+        return NULL;
+    }
+    if (member.type == AVM_VAL_GENERATOR && member.as.gen) return "generator";
+    if (member.type == AVM_VAL_GENERATOR_CONTEXT && member.as.gctx) return "generator_context";
+    return NULL;
+}
+
 static AvmValue avm_task_group_state_ensure(AvmVM* vm, AvmSched* s, int64_t id) {
     (void)vm;
     AvmValue statev = avm_task_group_map_get(s, id);
@@ -769,6 +781,77 @@ AvmValue avm_task_group_members(AvmVM* vm, AvmValue group) {
     if (avm_is_err_val(membersv)) return membersv;
     if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_new_list_from_values(0, NULL);
     return avm_new_list_from_values(membersv.as.l->count, membersv.as.l->items);
+}
+
+AvmValue avm_task_group_member_kinds(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) return avm_new_list_from_values(0, NULL);
+    AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (avm_is_err_val(membersv)) return membersv;
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_new_list_from_values(0, NULL);
+    int count = membersv.as.l->count;
+    AvmValue* kinds = NULL;
+    if (count > 0) {
+        kinds = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)count);
+        if (!kinds) return avm_alloc_fail_value();
+        for (int i = 0; i < count; i++) {
+            const char* kind = avm_task_group_member_kind(s, membersv.as.l->items[i]);
+            kinds[i] = avm_string(kind ? kind : "");
+            if (avm_is_err_val(kinds[i])) {
+                free(kinds);
+                return kinds[i];
+            }
+        }
+    }
+    AvmValue out = avm_new_list_from_values(count, kinds);
+    free(kinds);
+    return out;
+}
+
+AvmValue avm_task_group_member_snapshot(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) {
+        AvmValue empty_members = avm_new_list_from_values(0, NULL);
+        if (avm_is_err_val(empty_members)) return empty_members;
+        AvmValue empty_kinds = avm_new_list_from_values(0, NULL);
+        if (avm_is_err_val(empty_kinds)) return empty_kinds;
+        AvmValue pair[2] = {empty_members, empty_kinds};
+        return avm_new_list_from_values(2, pair);
+    }
+    AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (avm_is_err_val(membersv)) return membersv;
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) {
+        AvmValue empty_members = avm_new_list_from_values(0, NULL);
+        if (avm_is_err_val(empty_members)) return empty_members;
+        AvmValue empty_kinds = avm_new_list_from_values(0, NULL);
+        if (avm_is_err_val(empty_kinds)) return empty_kinds;
+        AvmValue pair[2] = {empty_members, empty_kinds};
+        return avm_new_list_from_values(2, pair);
+    }
+    int count = membersv.as.l->count;
+    AvmValue* kinds = NULL;
+    if (count > 0) {
+        kinds = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)count);
+        if (!kinds) return avm_alloc_fail_value();
+        for (int i = 0; i < count; i++) {
+            const char* kind = avm_task_group_member_kind(s, membersv.as.l->items[i]);
+            kinds[i] = avm_string(kind ? kind : "");
+            if (avm_is_err_val(kinds[i])) {
+                free(kinds);
+                return kinds[i];
+            }
+        }
+    }
+    AvmValue members_list = avm_new_list_from_values(count, membersv.as.l->items);
+    if (avm_is_err_val(members_list)) {
+        free(kinds);
+        return members_list;
+    }
+    AvmValue kinds_list = avm_new_list_from_values(count, kinds);
+    free(kinds);
+    if (avm_is_err_val(kinds_list)) return kinds_list;
+    AvmValue pair[2] = {members_list, kinds_list};
+    return avm_new_list_from_values(2, pair);
 }
 
 AvmValue avm_task_group_default_policy(AvmVM* vm, AvmValue group) {

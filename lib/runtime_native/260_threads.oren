@@ -1591,6 +1591,42 @@ fn oren_task_group_members(group) {
 }
 
 @oren.keep
+fn oren_task_group_member_kinds(group) {
+    var members = _task_group_runtime_members_compact(group)
+    if oren_type_name(members) != "list" { return [] }
+    var out = []
+    var i = 0
+    var n = oren_list_len(members)
+    while i < n {
+        var kind = _task_group_runtime_member_kind(members[i])
+        if kind != nil {
+            oren_list_push(out, kind)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+@oren.keep
+fn oren_task_group_member_snapshot(group) {
+    var members = _task_group_runtime_members_compact(group)
+    if oren_type_name(members) != "list" { return [[], []] }
+    var refs = []
+    var kinds = []
+    var i = 0
+    var n = oren_list_len(members)
+    while i < n {
+        var kind = _task_group_runtime_member_kind(members[i])
+        if kind != nil {
+            oren_list_push(refs, members[i])
+            oren_list_push(kinds, kind)
+        }
+        i = i + 1
+    }
+    return [refs, kinds]
+}
+
+@oren.keep
 fn oren_task_group_clear(group) {
     if oren_task_group_is_handle(group) == true {
         var state = _task_group_runtime_state_or_nil(group)
