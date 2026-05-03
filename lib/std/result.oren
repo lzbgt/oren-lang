@@ -28,6 +28,36 @@ fn unwrap_or(v, default_value) {
     return v
 }
 
+fn code(v) {
+    if oren_is_err(v) { return oren_err_code(v) }
+    return nil
+}
+
+fn msg(v) {
+    if oren_is_err(v) { return oren_err_msg(v) }
+    return nil
+}
+
+fn map_ok(v, f) {
+    if oren_is_err(v) { return v }
+    return f(v)
+}
+
+fn and_then(v, f) {
+    if oren_is_err(v) { return v }
+    return f(v)
+}
+
+fn map_err(v, f) {
+    if oren_is_err(v) { return f(v) }
+    return v
+}
+
+fn or_else(v, f) {
+    if oren_is_err(v) { return f(v) }
+    return v
+}
+
 fn expect(v, message) {
     if oren_is_err(v) {
         if message != nil { print(message) }

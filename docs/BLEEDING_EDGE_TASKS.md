@@ -4548,9 +4548,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      values now also exist through `oren_yield_exchange(yield_ch, resume_ch, v)`, but source-level
      coroutine/generator semantics and a stronger default native green-channel protocol are still
      missing.
-   - Implemented (rolling): the structured error model is the shipped value-or-error convention
-     (`oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, `std:result`); remaining work is
-     stdlib migration breadth rather than core language/runtime availability.
+	   - Implemented (rolling): the structured error model is the shipped value-or-error convention
+	     (`oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, `std:result`). `std:result`
+	     now also ships `code`, `msg`, `map_ok`, `and_then`, `map_err`, and `or_else`, so the
+	     remaining work is stdlib migration breadth rather than core language/runtime availability.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level

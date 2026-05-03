@@ -3745,7 +3745,8 @@ Rolling status:
   - `oren_err_code(v)`
   - `oren_err_msg(v)`
   - `std:result` helpers such as `is_err`, `is_ok`, `unwrap`, `expect`, `unwrap_or`,
-    `ok_or_errno`, and `with_context`
+    `code`, `msg`, `map_ok`, `and_then`, `map_err`, `or_else`, `ok_or_errno`, and
+    `with_context`
 - Checked stdlib surfaces already use that convention on current rolling builds, including
   `std:list`, `std:bytes`, `std:buffer`, `std:crypto/rand`, `std:ui/commands`,
   `std:ui/color`, and `std:ui/raster`.
