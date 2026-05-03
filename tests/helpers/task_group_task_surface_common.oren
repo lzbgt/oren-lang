@@ -151,6 +151,12 @@ fn run_task_group_task_surface_v0() {
     if oren_is_err(tg.set_default_policy(rtg0, {"mode": "stop", "timeout_ms": 30, "grace_ms": 1, "reason": 701})) == true { return 191026 }
     var rtp2 = tg.default_policy(rtg0)
     if oren_is_err(rtp2) == true || rtp2["reason"] != 701 || rtp2["timeout_ms"] != 30 || rtp2["grace_ms"] != 1 { return 191027 }
+    var rtsnap0 = tg.snapshot(rtg0)
+    if oren_is_err(rtsnap0) == true { return 191081 }
+    if list.len(rtsnap0["members"]) != 0 || list.len(rtsnap0["member_kinds"]) != 0 { return 191082 }
+    if rtsnap0["default_policy"]["reason"] != 701 || rtsnap0["default_policy"]["timeout_ms"] != 30 { return 191083 }
+    rtsnap0["default_policy"]["reason"] = 7701
+    if tg.default_policy(rtg0)["reason"] != 701 { return 191084 }
     if oren_type_name(tg.stop_policy(rtg0, nil)) != "list" { return 191028 }
     if oren_is_err(tg.spawn_call_list(group0, quick_task, [1])) != true { return 191029 }
 
@@ -197,6 +203,10 @@ fn run_task_group_task_surface_v0() {
     var rtk4 = tg.member_kinds(rtg4)
     if oren_is_err(rtk4) == true || list.len(rtk4) != 1 || rtk4[0] != "task" { return 1910801 }
     if oren_is_err(tg.set_default_policy(rtg4, {"timeout_ms": 0, "grace_ms": 0, "reason": 902})) == true { return 191051 }
+    var rtsnap4 = tg.snapshot(rtg4)
+    if oren_is_err(rtsnap4) == true { return 191085 }
+    if list.len(rtsnap4["members"]) != 1 || rtsnap4["member_kinds"][0] != "task" { return 191086 }
+    if rtsnap4["default_policy"]["reason"] != 902 || rtsnap4["default_policy"]["timeout_ms"] != 0 { return 191087 }
     var rtr4 = tg.stop_policy_wait(rtg4, nil)
     if oren_is_err(rtr4) == true || list.len(rtr4) != 1 { return 191052 }
     if stop_joined_or_detached(rtr4[0], 910, 902) != true { return 191053 }
@@ -271,6 +281,10 @@ fn run_task_group_task_surface_v0() {
     if oren_is_err(rtm8b) == true || list.len(rtm8b) != 2 { return 1910752 }
     var rtk8b = tg.member_kinds(rtg8b)
     if oren_is_err(rtk8b) == true || list.len(rtk8b) != 2 || rtk8b[0] != "task" || rtk8b[1] != "generator" { return 1910802 }
+    var rtsnap8b = tg.snapshot(rtg8b)
+    if oren_is_err(rtsnap8b) == true { return 191088 }
+    if list.len(rtsnap8b["members"]) != 2 || rtsnap8b["member_kinds"][0] != "task" || rtsnap8b["member_kinds"][1] != "generator" { return 191089 }
+    if rtsnap8b["default_policy"]["reason"] != 907 || rtsnap8b["default_policy"]["mode"] != "request_cancel" { return 191090 }
     var rtr8b = tg.stop_policy_wait(rtg8b, {"join_timeout_ms": 2000})
     if oren_is_err(rtr8b) == true || list.len(rtr8b) != 2 { return 1910753 }
     if rtr8b[0] != nil { return 1910754 }

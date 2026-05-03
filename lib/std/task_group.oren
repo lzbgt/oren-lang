@@ -10,7 +10,7 @@
 //   `stop_policy_wait(...)` plus the safe `std:task.stop_policy(...)` /
 //   `stop_policy_wait(...)` surface across runtime-classified members by kind
 // - exposes watcher-list joins, task joins, and final terminal-result collection
-// - runtime-backed task groups now own stored default policy and member-kind classification for mixed task/generator members
+// - runtime-backed task groups now own stored default policy and atomic member/kind/policy snapshots for mixed task/generator members
 //
 // Non-goals (still rolling):
 // - implicit parent/child task lifetime enforcement
@@ -169,20 +169,40 @@ fn _task_group_target_stop_wait_kind(ctx, kind, target, policy0) {
 }
 
 fn _task_group_runtime_snapshot(ctx, group) {
-    var snapshot = oren_task_group_member_snapshot(group)
+    var snapshot = oren_task_group_snapshot(group)
     if oren_is_err(snapshot) == true { return snapshot }
-    if oren_type_name(snapshot) != "list" || list.len(snapshot) != 2 {
-        return _task_group_err(ctx, "runtime member snapshot must be [members, kinds]")
+    if oren_type_name(snapshot) != "list" || list.len(snapshot) != 3 {
+        return _task_group_err(ctx, "runtime snapshot must be [members, kinds, default_policy]")
     }
     var refs = snapshot[0]
     var kinds = snapshot[1]
     if oren_type_name(refs) != "list" || oren_type_name(kinds) != "list" {
-        return _task_group_err(ctx, "runtime member snapshot fields must be lists")
+        return _task_group_err(ctx, "runtime snapshot member fields must be lists")
     }
     if list.len(refs) != list.len(kinds) {
-        return _task_group_err(ctx, "runtime member-kind snapshot mismatch")
+        return _task_group_err(ctx, "runtime snapshot member-kind mismatch")
     }
-    return snapshot
+    var policy = _task_group_copy_policy(ctx, snapshot[2])
+    if oren_is_err(policy) == true { return policy }
+    return {
+        "members": refs,
+        "member_kinds": kinds,
+        "default_policy": policy,
+    }
+}
+
+fn _task_group_map_snapshot(ctx, group) {
+    var refs = _task_group_members_ref(ctx, group)
+    if oren_is_err(refs) == true { return refs }
+    var kinds = _task_group_kinds_for_refs(ctx, refs)
+    if oren_is_err(kinds) == true { return kinds }
+    var policy = _task_group_copy_policy(ctx, oren_map_get_str(group, "default_policy"))
+    if oren_is_err(policy) == true { return policy }
+    return {
+        "members": list.clone(refs),
+        "member_kinds": kinds,
+        "default_policy": policy,
+    }
 }
 
 fn _task_group_kinds_for_refs(ctx, refs) {
@@ -200,11 +220,7 @@ fn _task_group_kinds_for_refs(ctx, refs) {
     return kinds
 }
 
-fn _task_group_runtime_stop_watchers(ctx, group, policy0) {
-    var snapshot = _task_group_runtime_snapshot(ctx, group)
-    if oren_is_err(snapshot) == true { return snapshot }
-    var refs = snapshot[0]
-    var kinds = snapshot[1]
+fn _task_group_runtime_stop_watchers(ctx, group, refs, kinds, policy0) {
     var watchers = []
     var i = 0
     var n = list.len(refs)
@@ -303,6 +319,13 @@ fn member_kinds(group) {
     return _task_group_kinds_for_refs("task_group.member_kinds", refs)
 }
 
+fn snapshot(group) {
+    if _task_group_is_runtime(group) == true {
+        return _task_group_runtime_snapshot("task_group.snapshot", group)
+    }
+    return _task_group_map_snapshot("task_group.snapshot", group)
+}
+
 fn default_policy(group) {
     if _task_group_is_runtime(group) == true {
         return _task_group_runtime_default_policy("task_group.default_policy", group)
@@ -373,11 +396,11 @@ fn extend(group, targets) {
 
 fn stop_policy(group, policy0) {
     if _task_group_is_runtime(group) == true {
-        var base_policy0 = _task_group_runtime_default_policy("task_group.stop_policy", group)
-        if oren_is_err(base_policy0) == true { return base_policy0 }
-        var policy0r = _task_group_merge_policy("task_group.stop_policy", base_policy0, policy0)
+        var snapshot0 = _task_group_runtime_snapshot("task_group.stop_policy", group)
+        if oren_is_err(snapshot0) == true { return snapshot0 }
+        var policy0r = _task_group_merge_policy("task_group.stop_policy", snapshot0["default_policy"], policy0)
         if oren_is_err(policy0r) == true { return policy0r }
-        return _task_group_runtime_stop_watchers("task_group.stop_policy", group, policy0r)
+        return _task_group_runtime_stop_watchers("task_group.stop_policy", group, snapshot0["members"], snapshot0["member_kinds"], policy0r)
     }
     var refs = _task_group_members_ref("task_group.stop_policy", group)
     if oren_is_err(refs) == true { return refs }
@@ -397,14 +420,12 @@ fn stop_policy(group, policy0) {
 
 fn stop_policy_wait(group, policy0) {
     if _task_group_is_runtime(group) == true {
-        var base_policy0 = _task_group_runtime_default_policy("task_group.stop_policy_wait", group)
-        if oren_is_err(base_policy0) == true { return base_policy0 }
-        var policy0r = _task_group_merge_policy("task_group.stop_policy_wait", base_policy0, policy0)
-        if oren_is_err(policy0r) == true { return policy0r }
         var snapshot0 = _task_group_runtime_snapshot("task_group.stop_policy_wait", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
-        var refs0 = snapshot0[0]
-        var kinds0 = snapshot0[1]
+        var policy0r = _task_group_merge_policy("task_group.stop_policy_wait", snapshot0["default_policy"], policy0)
+        if oren_is_err(policy0r) == true { return policy0r }
+        var refs0 = snapshot0["members"]
+        var kinds0 = snapshot0["member_kinds"]
         var out0 = []
         var i0 = 0
         var n0 = list.len(refs0)
@@ -509,8 +530,8 @@ fn join_all(group, join_timeout_ms) {
     if _task_group_is_runtime(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.join_all", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
-        var refs0 = snapshot0[0]
-        var kinds0 = snapshot0[1]
+        var refs0 = snapshot0["members"]
+        var kinds0 = snapshot0["member_kinds"]
         var wait_ms0 = _task_group_join_timeout_ms("task_group.join_all", join_timeout_ms)
         if oren_is_err(wait_ms0) == true { return wait_ms0 }
         var out0 = []
@@ -548,8 +569,8 @@ fn detach_all(group) {
     if _task_group_is_runtime(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.detach_all", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
-        var refs0 = snapshot0[0]
-        var kinds0 = snapshot0[1]
+        var refs0 = snapshot0["members"]
+        var kinds0 = snapshot0["member_kinds"]
         var i0 = 0
         var n0 = list.len(refs0)
         while i0 < n0 {
@@ -600,8 +621,8 @@ fn terminal_results(group) {
     if _task_group_is_runtime(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.terminal_results", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
-        var refs0 = snapshot0[0]
-        var kinds0 = snapshot0[1]
+        var refs0 = snapshot0["members"]
+        var kinds0 = snapshot0["member_kinds"]
         var out0 = []
         var i0 = 0
         var n0 = list.len(refs0)

@@ -3531,7 +3531,7 @@ Rolling status:
     - `task_group.new(default_policy)` / `task_group.from_list(targets, default_policy)` create a
       mutable group over generator/coroutine handles, active contexts, or safe task handles
     - `task_group.add(...)`, `extend(...)`, `members(...)`, `count(...)`, `default_policy(...)`,
-      and `set_default_policy(...)` expose the basic membership and default-policy surface
+      `set_default_policy(...)`, and `snapshot(...)` expose the basic membership and default-policy surface
     - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by member kind
       in stdlib map-backed groups too:
       - generator/coroutine handles and active contexts keep the full generator-backed stop-policy
@@ -3571,8 +3571,11 @@ Rolling status:
         `"generator"`, or `"generator_context"`); runtime-backed groups compute this from a single
         runtime-owned member snapshot so stop/join/terminal paths do not race separate
         `members(...)` and kind-classification calls
-      - runtime-backed mixed membership, stored default policy, and member-kind classification are now
-        owned by the runtime group state itself across C, native, and AVM rather than by stdlib
+      - `task_group.snapshot(group)` returns a map with cloned `members`, `member_kinds`, and
+        `default_policy`; runtime-backed groups source those three fields from one runtime-owned
+        snapshot so stop paths no longer race separate default-policy and member reads
+      - runtime-backed mixed membership, stored default policy, and member/kind/policy snapshotting are
+        now owned by the runtime group state itself across C, native, and AVM rather than by stdlib
         sidecar maps
       - `task_group.spawn_call_list(group, fn_obj, args_list)` spawns directly into the runtime
         group on AVM, C, and the default native green-task scheduler
@@ -3588,8 +3591,8 @@ Rolling status:
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
         only generator/coroutine handles; it still rejects task handles and context-only members
     - the remaining boundary is now narrower: runtime-backed groups are already unified and
-      runtime-owned for mixed membership, stored default policy, and atomic member-kind snapshots, and
-      generic task cancellation is now shipped as cooperative request plus bounded stop/detach; typed
+      runtime-owned for mixed membership, stored default policy, and atomic member/kind/policy snapshots,
+      and generic task cancellation is now shipped as cooperative request plus bounded stop/detach; typed
       stop execution still lives in stdlib rather than in the runtime scheduler itself
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context

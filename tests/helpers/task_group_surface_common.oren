@@ -68,6 +68,13 @@ fn run_task_group_surface_v0() {
     if oren_is_err(snapshot0) == true || list.len(snapshot0) != 2 { return 180012 }
     var kinds0 = tg.member_kinds(group0)
     if oren_is_err(kinds0) == true || list.len(kinds0) != 2 || kinds0[0] != "generator" || kinds0[1] != "generator" { return 180085 }
+    var group0_full = tg.snapshot(group0)
+    if oren_is_err(group0_full) == true { return 180089 }
+    if list.len(group0_full["members"]) != 2 || list.len(group0_full["member_kinds"]) != 2 { return 180090 }
+    if group0_full["member_kinds"][0] != "generator" || group0_full["member_kinds"][1] != "generator" { return 180091 }
+    if group0_full["default_policy"]["reason"] != 301 { return 180092 }
+    group0_full["default_policy"]["reason"] = 12345
+    if tg.default_policy(group0)["reason"] != 301 { return 180093 }
     list.push(snapshot0, req0)
     if tg.count(group0) != 2 { return 180013 }
 
@@ -143,6 +150,13 @@ fn run_task_group_surface_v0() {
     var rreq_kinds = tg.member_kinds(rreq_group)
     if oren_is_err(rreq_kinds) == true || list.len(rreq_kinds) != 2 || rreq_kinds[0] != "generator" || rreq_kinds[1] != "generator" { return 180086 }
     if tg.default_policy(rreq_group)["reason"] != 305 { return 180056 }
+    var rreq_full = tg.snapshot(rreq_group)
+    if oren_is_err(rreq_full) == true { return 180094 }
+    if list.len(rreq_full["members"]) != 2 || list.len(rreq_full["member_kinds"]) != 2 { return 180095 }
+    if rreq_full["member_kinds"][0] != "generator" || rreq_full["member_kinds"][1] != "generator" { return 180096 }
+    if rreq_full["default_policy"]["reason"] != 305 { return 180097 }
+    rreq_full["default_policy"]["reason"] = 45678
+    if tg.default_policy(rreq_group)["reason"] != 305 { return 180098 }
     var rreq_watchers = tg.stop_policy(rreq_group, nil)
     if oren_is_err(rreq_watchers) == true || list.len(rreq_watchers) != 2 { return 180057 }
     var rreq_join = tg.join_watchers(rreq_watchers, 2000)
@@ -205,6 +219,7 @@ fn run_task_group_surface_v0() {
     if oren_is_err(tg.stop_policy(group0, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 180045 }
     if oren_is_err(tg.stop_policy_wait(group0, {"mode": "cancel", "grace_ms": 1})) != true { return 180046 }
     if oren_is_err(tg.member_kinds(123)) != true { return 180088 }
+    if oren_is_err(tg.snapshot(123)) != true { return 180099 }
     if oren_is_err(tg.join_watchers(123, 0)) != true { return 180047 }
     if oren_is_err(tg.join_watchers([], "bad")) != true { return 180048 }
     if oren_is_err(tg.join_watchers([123], 0)) != true { return 180084 }

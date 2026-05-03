@@ -4779,15 +4779,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			    - `task_group.is_runtime_group(...)` distinguishes that runtime-backed shape, while
 			      `task_group.is_group(...)` and `std:reflect.is_task_group(...)` now accept both runtime
 			      and stdlib map-backed groups
-				    - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for
-				      runtime-backed groups and round-trip a cloned stored policy map
+					    - `task_group.default_policy(...)` / `set_default_policy(...)` now also ship for
+					      runtime-backed groups and round-trip a cloned stored policy map; `snapshot(...)`
+					      returns cloned `members`, `member_kinds`, and `default_policy`
 					    - `task_group.member_kinds(group)` now exposes the normalized member-kind vector
 					      (`"task"`, `"generator"`, or `"generator_context"`), and runtime-backed groups
 					      compute it from an atomic runtime-owned member snapshot rather than a separate
 					      stdlib classification pass
-					    - runtime-backed mixed membership, stored default policy, and member-kind
-					      classification now live in the runtime group state itself across C, native, and
-					      AVM instead of stdlib sidecar maps
+						    - runtime-backed mixed membership, stored default policy, and member/kind/policy
+						      snapshotting now live in the runtime group state itself across C, native, and
+						      AVM instead of stdlib sidecar maps; runtime stop paths consume that one
+						      snapshot before dispatching per-member policy helpers
 				    - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
 				      the default native green-task scheduler
 			    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by
@@ -4801,11 +4803,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      operations and reject extra generator/coroutine members
 			    - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
 			      generator/coroutine handles; it still rejects task handles and context-only members
-						    The remaining gap is now narrower: runtime-backed groups are already unified and
-						    runtime-owned for mixed membership, stored default policy, and atomic member-kind
-						    snapshots, and generic task cancellation now ships as cooperative request plus
-						    bounded stop/detach; typed stop execution still lives in stdlib rather than in the
-						    runtime scheduler itself
+							    The remaining gap is now narrower: runtime-backed groups are already unified and
+							    runtime-owned for mixed membership, stored default policy, and atomic
+							    member/kind/policy snapshots, and generic task cancellation now ships as
+							    cooperative request plus bounded stop/detach; typed stop execution still lives in
+							    stdlib rather than in the runtime scheduler itself
 			    or runtime task-group membership for spawned work.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its
