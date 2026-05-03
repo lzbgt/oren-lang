@@ -32,19 +32,34 @@ run_timeout_logged() {
   echo "\$ $*  # timeout=${timeout_secs}s"
   set +e
   python3 - "$timeout_secs" "$@" <<'PY'
+import os
+import signal
 import subprocess
 import sys
 
 timeout_secs = float(sys.argv[1])
 cmd = sys.argv[2:]
-proc = subprocess.Popen(cmd)
+kwargs = {}
+if hasattr(os, "setsid"):
+    kwargs["start_new_session"] = True
+proc = subprocess.Popen(cmd, **kwargs)
 try:
     raise SystemExit(proc.wait(timeout=timeout_secs))
 except subprocess.TimeoutExpired:
-    proc.kill()
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    else:
+        proc.kill()
     try:
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
         pass
     raise SystemExit(124)
 PY

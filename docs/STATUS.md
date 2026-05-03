@@ -2248,6 +2248,10 @@ Local (fast):
 
 - `make test` (fast native quick smoke; restored 2026-05-04 to `test-native-quick`,
   with the heavier surface/capability/backend bundle moved to explicit `make test-curated`)
+- Surface verifiers that build native artifacts now wrap native build steps with
+  `OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS` (default `180`) and kill the full process
+  group on timeout. This is a guardrail for native compiler nontermination while
+  iterating on runtime-owned scheduler code.
 - `make verify-native-quick`
 - `make verify-native-quick-simd`
 - `make verify-backend-parity-boxed-list`

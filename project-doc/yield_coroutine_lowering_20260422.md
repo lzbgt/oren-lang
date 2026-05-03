@@ -131,6 +131,11 @@ backend-shared value-helper slices landed.
     before returning and then hand back a joinable completed-result watcher. That preserves the
     public watcher-shaped API while reducing the native green-scheduler over-wait exposed by
     immediate generator stop/cancel verification.
+  - Verification hardening (2026-05-04): surface verifiers that build native artifacts now bound
+    native build steps through `OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS` (default `180`) and kill
+    the compiler process group on timeout. Generator/coroutine surface fixtures also use shorter
+    watcher join budgets for already-short watcher checks, keeping the contract covered without
+    multiplying known native green bounded-join over-wait into long verifier wall time.
   - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
     timeout arguments return an immediate `err`
   - the watcher join result is `nil` for live-target request/hard-cancel flows; if

@@ -568,7 +568,7 @@ fn main() {
     var gwatch0h = gen.request_cancel_after(gwatch0, 0, 75)
     if oren_is_err(gwatch0h) == true { return 173382 }
     if gen.is_cancel_requested(gwatch0) != true || gen.cancel_reason(gwatch0) != 75 { return 1733821 }
-    var gwatch0rv = oren_join_timeout(gwatch0h, 2000)
+    var gwatch0rv = oren_join_timeout(gwatch0h, 200)
     if oren_is_err(gwatch0rv) == true || gwatch0rv != nil { return 173383 }
     if gen.is_cancel_requested(gwatch0) != true || gen.cancel_reason(gwatch0) != 75 { return 173384 }
     var gwatch0s1 = gen.send(gwatch0, 4)
@@ -592,7 +592,7 @@ fn main() {
     if oren_is_err(gwatch0ns0) == true || gwatch0ns0["ok"] != true || gwatch0ns0["value"] != 56 { return 1733852 }
     var gwatch0nh = gen.request_cancel_after(gwatch0n, nil, 76)
     if oren_is_err(gwatch0nh) == true { return 1733853 }
-    var gwatch0nrv = oren_join_timeout(gwatch0nh, 2000)
+    var gwatch0nrv = oren_join_timeout(gwatch0nh, 200)
     if oren_is_err(gwatch0nrv) == true || gwatch0nrv != nil { return 1733854 }
     if gen.is_cancel_requested(gwatch0n) != true || gen.cancel_reason(gwatch0n) != 76 { return 1733855 }
     var gwatch0ns1 = gen.send(gwatch0n, 4)
@@ -603,7 +603,7 @@ fn main() {
     if oren_is_err(gat0s0) == true || gat0s0["ok"] != true || gat0s0["value"] != 57 { return 1733857 }
     var gat0h = gen.request_cancel_at(gat0, 0, 77)
     if oren_is_err(gat0h) == true { return 1733858 }
-    var gat0rv = oren_join_timeout(gat0h, 2000)
+    var gat0rv = oren_join_timeout(gat0h, 200)
     if oren_is_err(gat0rv) == true || gat0rv != nil { return 1733859 }
     if gen.is_cancel_requested(gat0) != true || gen.cancel_reason(gat0) != 77 { return 1733860 }
     var gat0s1 = gen.send(gat0, 4)
@@ -615,7 +615,7 @@ fn main() {
     var gwatch1h = gen.cancel_after(gwatch1, 0, 81)
     if oren_is_err(gwatch1h) == true { return 173387 }
     if gen.is_done(gwatch1) != true || gen.is_closed(gwatch1) != true { return 1733871 }
-    var gwatch1rv = oren_join_timeout(gwatch1h, 2000)
+    var gwatch1rv = oren_join_timeout(gwatch1h, 200)
     if oren_is_err(gwatch1rv) == true || gwatch1rv != nil { return 173388 }
     if gen.is_done(gwatch1) != true || gen.is_closed(gwatch1) != true { return 173389 }
     if gen.is_cancel_requested(gwatch1) != true || gen.cancel_reason(gwatch1) != 81 { return 173390 }
@@ -625,7 +625,7 @@ fn main() {
     if oren_is_err(gwatch1ns0) == true || gwatch1ns0["ok"] != true || gwatch1ns0["value"] != 25 { return 1733901 }
     var gwatch1nh = gen.cancel_after(gwatch1n, -5, 83)
     if oren_is_err(gwatch1nh) == true { return 1733902 }
-    var gwatch1nrv = oren_join_timeout(gwatch1nh, 2000)
+    var gwatch1nrv = oren_join_timeout(gwatch1nh, 200)
     if oren_is_err(gwatch1nrv) == true || gwatch1nrv != nil { return 1733903 }
     if gen.is_done(gwatch1n) != true || gen.is_closed(gwatch1n) != true { return 1733904 }
     if gen.is_cancel_requested(gwatch1n) != true || gen.cancel_reason(gwatch1n) != 83 { return 1733905 }
@@ -636,7 +636,7 @@ fn main() {
     var gat1deadline = oren_time_now_ns() + 2000000
     var gat1h = gen.cancel_at(gat1, gat1deadline, 85)
     if oren_is_err(gat1h) == true { return 1733907 }
-    var gat1rv = oren_join_timeout(gat1h, 2000)
+    var gat1rv = oren_join_timeout(gat1h, 200)
     if oren_is_err(gat1rv) == true || gat1rv != nil { return 1733908 }
     if gen.is_done(gat1) != true || gen.is_closed(gat1) != true { return 1733909 }
     if gen.is_cancel_requested(gat1) != true || gen.cancel_reason(gat1) != 85 { return 1733910 }
@@ -646,7 +646,7 @@ fn main() {
     if oren_is_err(gstop0s0) == true || gstop0s0["ok"] != true || gstop0s0["value"] != 29 { return 17339101 }
     var gstop0h = gen.stop_after(gstop0, 0, 0, 86)
     if oren_is_err(gstop0h) == true { return 17339102 }
-    var gstop0rv = oren_join_timeout(gstop0h, 2000)
+    var gstop0rv = oren_join_timeout(gstop0h, 200)
     if oren_is_err(gstop0rv) == true || gstop0rv != nil { return 17339103 }
     if gen.is_done(gstop0) != true || gen.is_closed(gstop0) != true { return 17339104 }
     if gen.is_cancel_requested(gstop0) != true || gen.cancel_reason(gstop0) != 86 { return 17339105 }
@@ -657,7 +657,7 @@ fn main() {
     if oren_is_err(gsat0s0) == true || gsat0s0["ok"] != true || gsat0s0["value"] != 31 { return 17339107 }
     var gsat0h = gen.stop_at(gsat0, 0, 0, 87)
     if oren_is_err(gsat0h) == true { return 17339108 }
-    var gsat0rv = oren_join_timeout(gsat0h, 2000)
+    var gsat0rv = oren_join_timeout(gsat0h, 200)
     if oren_is_err(gsat0rv) == true || gsat0rv != nil { return 17339109 }
     if gen.is_done(gsat0) != true || gen.is_closed(gsat0) != true { return 17339110 }
     if gen.is_cancel_requested(gsat0) != true || gen.cancel_reason(gsat0) != 87 { return 17339111 }
@@ -669,7 +669,7 @@ fn main() {
     if oren_is_err(gstop1done) == true || gstop1done["done"] != true || gstop1done["return"] != 14 { return 17339114 }
     var gstop1h = gen.stop_after(gstop1, 0, 1, 120)
     if oren_is_err(gstop1h) == true { return 17339115 }
-    var gstop1rv = oren_join_timeout(gstop1h, 2000)
+    var gstop1rv = oren_join_timeout(gstop1h, 200)
     if oren_is_err(gstop1rv) == true || gstop1rv != 14 { return 17339116 }
     if gen.is_cancel_requested(gstop1) != false || gen.cancel_reason(gstop1) != nil { return 17339117 }
     if gen.terminal_result(gstop1) != 14 { return 17339118 }
@@ -682,7 +682,7 @@ fn main() {
     if oren_type_name(gctxco) != "generator_context" { return 17339120 }
     var gctx0h = gen.stop_after(gctxco, 0, 0, 88)
     if oren_is_err(gctx0h) == true { return 17339121 }
-    var gctx0rv = oren_join_timeout(gctx0h, 2000)
+    var gctx0rv = oren_join_timeout(gctx0h, 200)
     if oren_is_err(gctx0rv) == true || gctx0rv != nil { return 17339122 }
     if gen.is_done(gctx0) != true || gen.is_closed(gctx0) != true { return 17339123 }
     if gen.is_cancel_requested(gctx0) != true || gen.cancel_reason(gctx0) != 88 { return 17339124 }
@@ -696,7 +696,7 @@ fn main() {
     if oren_is_err(gwatch2s2) == true || gwatch2s2["done"] != true || gwatch2s2["return"] != 14 { return 173393 }
     var gwatch2h = gen.cancel_after(gwatch2, 0, 120)
     if oren_is_err(gwatch2h) == true { return 173394 }
-    var gwatch2rv = oren_join_timeout(gwatch2h, 2000)
+    var gwatch2rv = oren_join_timeout(gwatch2h, 200)
     if oren_is_err(gwatch2rv) == true || gwatch2rv != 14 { return 173395 }
     if gen.is_cancel_requested(gwatch2) != false || gen.cancel_reason(gwatch2) != nil { return 173396 }
 
@@ -709,7 +709,7 @@ fn main() {
     if oren_is_err(gat2s2) == true || gat2s2["done"] != true || gat2s2["return"] != 14 { return 1733963 }
     var gat2h = gen.cancel_at(gat2, 0, 121)
     if oren_is_err(gat2h) == true { return 1733964 }
-    var gat2rv = oren_join_timeout(gat2h, 2000)
+    var gat2rv = oren_join_timeout(gat2h, 200)
     if oren_is_err(gat2rv) == true || gat2rv != 14 { return 1733965 }
     if gen.is_cancel_requested(gat2) != false || gen.cancel_reason(gat2) != nil { return 1733966 }
 
@@ -769,7 +769,7 @@ fn main() {
     if oren_is_err(gpol0s0) == true || gpol0s0["ok"] != true || gpol0s0["value"] != 60 { return 17339689 }
     var gpol0h = gen.stop_policy(gpol0, {"mode": "request_cancel", "timeout_ms": 0, "reason": 127})
     if oren_is_err(gpol0h) == true { return 17339690 }
-    var gpol0rv = oren_join_timeout(gpol0h, 2000)
+    var gpol0rv = oren_join_timeout(gpol0h, 200)
     if oren_is_err(gpol0rv) == true || gpol0rv != nil { return 17339691 }
     if gen.is_cancel_requested(gpol0) != true || gen.cancel_reason(gpol0) != 127 { return 17339692 }
     var gpol0s1 = gen.send(gpol0, 4)

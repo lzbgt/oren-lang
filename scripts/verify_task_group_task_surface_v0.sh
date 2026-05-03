@@ -7,6 +7,7 @@ cd "$ROOT"
 compiler="${1:-./oren_stage2}"
 platform="${OREN_PLATFORM:-}"
 source scripts/verify_parallel_jobs.sh
+native_build_timeout_secs="${OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS:-180}"
 
 if [ -z "$platform" ]; then
   uname_s="$(uname -s)"
@@ -52,7 +53,7 @@ run_c() {
 }
 
 run_native() {
-  run_logged "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
+  run_timeout_logged "$native_build_timeout_secs" "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
   run_logged "$native_out"
 }
 
