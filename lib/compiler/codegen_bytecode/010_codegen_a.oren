@@ -1054,6 +1054,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_task_cancel_now" { native_id = 186 }
         if name == "oren_task_stop_capabilities" { native_id = 187 }
         if name == "oren_task_cancel_wait" { native_id = 188 }
+        if name == "oren_task_cancel_after_wait" { native_id = 189 }
         if name == "oren_task_group_new" { native_id = 169 }
         if name == "oren_task_group_is_handle" { native_id = 170 }
         if name == "oren_task_group_add" { native_id = 171 }

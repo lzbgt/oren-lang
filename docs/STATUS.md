@@ -1635,7 +1635,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 								      - `std:task.stop_capabilities()` now exposes the current runtime stop boundary
 								        as data: immediate cancel-now and cancel-request state are runtime-backed,
 								        bounded cancel-wait native calls are backend-specific (`true` on C/native,
-								        `false` on AVM), and delayed native-call scheduling remains false
+									        `false` on AVM), and delayed synchronous cancel-wait native calls follow
+									        the same backend split
 				      - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
 				        operations and reject extra generator/coroutine members
 				      - `task_group.terminal_results(...)` now also works for runtime-backed groups that
@@ -1645,11 +1646,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 							      runtime-owned for mixed membership, stored default policy, and atomic
 									      member/kind/policy snapshot-and-take semantics, and generic task cancellation now
 									      ships as cooperative request plus bounded stop/detach; immediate task stop
-									      execution is runtime-owned, C/native bounded cancel waits now use
-									      `oren_task_cancel_wait(...)`, AVM keeps the opcode-level `JOIN_TIMEOUT`
-									      fallback, and delayed task waits plus generator/coroutine typed stop execution
-									      still live in stdlib instead of wholly in the runtime scheduler, with
-									      `std:task.stop_capabilities()` pinning that boundary programmatically.
+										      execution is runtime-owned, C/native bounded and delayed synchronous cancel
+										      waits now use `oren_task_cancel_wait(...)` and
+										      `oren_task_cancel_after_wait(...)`, AVM keeps the opcode-level `JOIN_TIMEOUT`
+										      fallback, and AVM delayed task waits plus generator/coroutine typed stop
+										      execution still live in stdlib instead of wholly in the runtime scheduler,
+										      with `std:task.stop_capabilities()` pinning that boundary programmatically.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

@@ -838,6 +838,23 @@ OrenValue oren_task_cancel_wait(OrenValue thread, OrenValue wait_ms, OrenValue r
     return task_stop_result("joined", rv, reason, OREN_NIL);
 }
 
+OrenValue oren_task_cancel_after_wait(OrenValue thread, OrenValue delay_ms, OrenValue wait_ms, OrenValue reason) {
+    if (!oren_is_truthy(oren_task_is_handle(thread))) {
+        return oren_err(oren_int(4), oren_string("oren_task_cancel_after_wait: expected task handle"));
+    }
+    if (delay_ms.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(4), oren_string("oren_task_cancel_after_wait: expected int delay_ms"));
+    }
+    if (wait_ms.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(4), oren_string("oren_task_cancel_after_wait: expected int wait_ms"));
+    }
+    if (delay_ms.as.int_val > 0) {
+        OrenValue sleep_rv = oren_sleep_ms(delay_ms);
+        if (oren_is_truthy(oren_is_err(sleep_rv))) return sleep_rv;
+    }
+    return oren_task_cancel_wait(thread, wait_ms, reason);
+}
+
 OrenValue oren_task_stop_capabilities(void) {
     return oren_new_map_from_pairs(
         5,
@@ -845,7 +862,7 @@ OrenValue oren_task_stop_capabilities(void) {
             oren_string_const("immediate_cancel_now"), OREN_TRUE,
             oren_string_const("cancel_request_state"), OREN_TRUE,
             oren_string_const("bounded_wait_native_call"), OREN_TRUE,
-            oren_string_const("delayed_wait_native_call"), OREN_FALSE,
+            oren_string_const("delayed_wait_native_call"), OREN_TRUE,
             oren_string_const("blocking_native_call_scheduler"), OREN_TRUE,
         }
     );

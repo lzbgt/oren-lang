@@ -548,6 +548,13 @@ AvmValue avm_task_cancel_wait(void) {
     );
 }
 
+AvmValue avm_task_cancel_after_wait(void) {
+    return avm_err(
+        AVM_ERR_NOT_IMPLEMENTED,
+        "oren_task_cancel_after_wait requires opcode-level scheduler suspension on AVM"
+    );
+}
+
 AvmValue avm_task_stop_capabilities(void) {
     AvmValue mapv = avm_new_empty_map_value();
     if (avm_is_err_val(mapv)) return mapv;

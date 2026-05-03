@@ -3594,8 +3594,8 @@ Rolling status:
           `oren_task_cancel_now(...)`
       - `std:task.stop_capabilities()` exposes the current runtime stop-execution boundary as a stable
         map: `immediate_cancel_now=true`, `cancel_request_state=true`, `bounded_wait_native_call` is
-        backend-specific (`true` on C/native, `false` on AVM), and delayed native-call scheduling is
-        still `false`
+        backend-specific (`true` on C/native, `false` on AVM), and `delayed_wait_native_call` is
+        backend-specific in the same way
       - `task_group.join_all(...)` and `detach_all(...)` remain task-handle-only runtime-group
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
@@ -3603,12 +3603,13 @@ Rolling status:
     - the remaining boundary is now narrower: runtime-backed groups are already unified and
       runtime-owned for mixed membership, stored default policy, and atomic member/kind/policy
       snapshot-and-take semantics, and generic task cancellation is now shipped as cooperative request
-      plus bounded stop/detach; immediate task stop execution is runtime-owned, C/native bounded cancel
-      waits are now runtime-owned through `oren_task_cancel_wait(...)`, and AVM deliberately keeps the
-      opcode-level `JOIN_TIMEOUT` fallback because ordinary native calls cannot suspend the AVM scheduler;
-      delayed task waits and generator/coroutine typed stop execution still live in stdlib rather than
-      wholly in the runtime scheduler itself, with `std:task.stop_capabilities()` as the programmatic
-      guardrail for that boundary
+      plus bounded stop/detach; immediate task stop execution is runtime-owned, C/native bounded and
+      delayed synchronous cancel waits are now runtime-owned through `oren_task_cancel_wait(...)` and
+      `oren_task_cancel_after_wait(...)`, and AVM deliberately keeps the opcode-level `JOIN_TIMEOUT`
+      fallback because ordinary native calls cannot suspend the AVM scheduler; AVM delayed task waits
+      and generator/coroutine typed stop execution still live in stdlib rather than wholly in the
+      runtime scheduler itself, with `std:task.stop_capabilities()` as the programmatic guardrail for
+      that boundary
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists

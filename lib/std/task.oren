@@ -8,7 +8,7 @@
 // - supports the default scheduler-backed task handles on native, plus AVM/C task handles
 // - exposes cooperative cancel-request state plus bounded cancel/stop policy for generic task handles
 // - immediate cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`; C/native
-//   bounded cancel waits use `oren_task_cancel_wait(...)`, while AVM keeps the bytecode JOIN_TIMEOUT path
+//   bounded and delayed synchronous cancel waits use runtime calls, while AVM keeps the bytecode JOIN_TIMEOUT path
 // - `stop_capabilities()` exposes that runtime boundary as a stable, testable feature contract
 // - legacy native raw fallback handles (fork / Windows thread fallback) still use the low-level
 //   raw helpers directly and are not yet reflected by `is_handle(...)`
@@ -184,8 +184,7 @@ fn _task_request_then_stop_handle(handle, wait_ms, reason) {
         return oren_task_cancel_now(handle, reason)
     }
     if wait_ms > 0 {
-        var caps = stop_capabilities()
-        if oren_type_name(caps) == "map" && caps["bounded_wait_native_call"] == true {
+        if _task_stop_capability("bounded_wait_native_call") == true {
             return oren_task_cancel_wait(handle, wait_ms, reason)
         }
     }
@@ -194,6 +193,19 @@ fn _task_request_then_stop_handle(handle, wait_ms, reason) {
         if oren_is_err(rv0) == true { return rv0 }
     }
     return _task_stop_handle(handle, wait_ms, reason)
+}
+
+fn _task_stop_capability(name) {
+    var caps = stop_capabilities()
+    return oren_type_name(caps) == "map" && caps[name] == true
+}
+
+fn _task_can_use_delayed_native_wait(delay_ms, join_timeout_ms) {
+    if delay_ms <= 0 { return false }
+    if _task_stop_capability("delayed_wait_native_call") != true { return false }
+    if oren_type_tag(join_timeout_ms) == 0 { return true }
+    if join_timeout_ms < 0 { return true }
+    return join_timeout_ms >= delay_ms
 }
 
 fn _task_stop_after_worker(handle, delay_ms, wait_ms, reason) {
@@ -333,6 +345,9 @@ fn cancel_after_wait(handle, timeout_ms, reason, join_timeout_ms) {
     }
     var wait = _task_stop_wait_budget_ms("task.cancel_after_wait", join_timeout_ms, _task_request_wait_default_ms(delay))
     if oren_is_err(wait) == true { return wait }
+    if _task_can_use_delayed_native_wait(delay, join_timeout_ms) == true {
+        return oren_task_cancel_after_wait(handle, delay, 0, reason)
+    }
     var watcher = cancel_after(handle, delay, reason)
     if oren_is_err(watcher) == true { return watcher }
     var rv = join_timeout(watcher, wait)
@@ -503,6 +518,9 @@ fn stop_policy_wait(handle, policy0) {
     var watcher_wait_ms = wait_ms
     if oren_type_tag(fields["join_timeout_ms"]) == 0 || fields["join_timeout_ms"] < 0 {
         watcher_wait_ms = _task_request_wait_default_ms(wait_ms)
+    }
+    if _task_can_use_delayed_native_wait(fields["delay_ms"], fields["join_timeout_ms"]) == true {
+        return oren_task_cancel_after_wait(handle, fields["delay_ms"], target_wait_ms, fields["reason"])
     }
     var watcher = spawn _task_stop_after_worker(handle, fields["delay_ms"], target_wait_ms, fields["reason"])
     if _task_handle_ok(watcher) != true {
