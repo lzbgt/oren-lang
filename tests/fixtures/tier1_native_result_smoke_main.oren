@@ -14,6 +14,17 @@ import ui_color "std:ui/color"
 import ui_raster "std:ui/raster"
 import linalg "std:linalg"
 
+fn smoke_result_double(x) { return x * 2 }
+fn smoke_result_positive(x) {
+    if x <= 0 { return r.err(4, "not positive") }
+    return x
+}
+fn smoke_result_tag(e) { return r.with_context(e, "tagged") }
+fn smoke_result_recover(e) {
+    if r.code(e) == 4 { return 77 }
+    return e
+}
+
 fn smoke_buffer_slice_views(i32b) {
     var s_ok2 = buffer.try_slice_new(i32b, 0, 2)
     if r.is_err(s_ok2) { return 186 }
@@ -1145,6 +1156,18 @@ fn main() {
     // ok_or_errno should pass through success.
     var okv = r.ok_or_errno(5, "read")
     if okv != 5 { return 5 }
+    if r.code(okv) != nil || r.msg(okv) != nil { return 1500 }
+    if r.map_ok(21, smoke_result_double) != 42 { return 1501 }
+    var e_keep = r.map_ok(e, smoke_result_double)
+    if r.is_err(e_keep) != true || r.code(e_keep) != 12 { return 1502 }
+    if r.and_then(9, smoke_result_positive) != 9 { return 1503 }
+    var e_chain = r.and_then(0, smoke_result_positive)
+    if r.is_err(e_chain) != true || r.code(e_chain) != 4 { return 1504 }
+    var e_tagged = r.map_err(e_chain, smoke_result_tag)
+    if r.is_err(e_tagged) != true || r.msg(e_tagged) != "tagged: not positive" { return 1505 }
+    if r.map_err(19, smoke_result_tag) != 19 { return 1506 }
+    if r.or_else(e_chain, smoke_result_recover) != 77 { return 1507 }
+    if r.or_else(88, smoke_result_recover) != 88 { return 1508 }
 
     // std:list structured error helpers
     var xs = [1, 2]
