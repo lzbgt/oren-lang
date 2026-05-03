@@ -47,12 +47,16 @@ fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
 fn insn_ldr_ptr(rt, rn) { return core.insn_ldr_ptr(rt, rn) }
 fn insn_ldr_ptr_off(rt, rn, offset) { return core.insn_ldr_ptr_off(rt, rn, offset) }
+fn insn_ldr_ptr_post(rd, rn, offset) { return core.insn_ldr_ptr_post(rd, rn, offset) }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
 fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
 fn insn_stp_pre() { return core.insn_stp_pre() }
 fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
 fn insn_ldp_post() { return core.insn_ldp_post() }
@@ -61,6 +65,7 @@ fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
 fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_sub_imm(rd, rn, imm) { return core.insn_sub_imm(rd, rn, imm) }
 fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_svc(imm) { return core.insn_svc(imm) }
 fn insn_ret() { return core.insn_ret() }

@@ -2298,6 +2298,14 @@ Local (fast):
   costs are now user declaration emission (~22.5s), link/prep (~14.5s), first-class wrapper emission
   (~12.8s), and global-root registration codegen (~7.3s for 626 roots); the latter is explicitly
   logged as `arm64.codegen.global_roots.done` so it no longer hides inside the runtime-decls span.
+- ARM64 native global-root initialization now emits a compact data table plus one generated loop
+  instead of one ADR-data fixup and one BL fixup per root. On the generator surface profile this
+  reduced local fixups from 20271 to 19021 and code bytes from 2592520 to 2585100, while preserving
+  the compile-time `OREN_TRACE_GC_REGISTER_ROOT_NAMES` diagnostic path. It did not reduce the
+  `arm64.codegen.global_roots.done` wall span (~7.4s), so the next native build-time target remains
+  global/root metadata construction itself or the larger user-decl/wrapper emission phases. A
+  map-backed Mach-O local target cache experiment was rejected because it stalled native build
+  profiling until the 180s timeout.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

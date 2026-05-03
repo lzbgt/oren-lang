@@ -209,7 +209,7 @@ fn _arm64_emit_global_roots_init(ctx) {
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     var trace_root_names = ctx["trace_gc_root_names"]
-    var root_count = 0
+    var root_offsets = []
     if gmap != nil {
         var gi = 0
         var pair = [nil, nil]
@@ -255,22 +255,55 @@ fn _arm64_emit_global_roots_init(ctx) {
                     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_name)
                     oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_gc_register_root_name")
                 }
-                var adr_root_pos = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_root_pos, "data_off": off, "reg": nil})
-                oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_root_pos)
-                oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], off)
-                oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
-                var bl_root = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_root, "name": "native_gc_register_root"})
-                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_root)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_gc_register_root")
-                root_count = root_count + 1
+                oren_list_push(root_offsets, off)
             }
             gi = gi + 1
         }
+    }
+    var root_count = oren_list_len(root_offsets)
+    if root_count > 0 {
+        while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+        var table_off = bytes_len(ctx["data"])
+        var ri = 0
+        while ri < root_count {
+            push_u64_le(ctx["data"], root_offsets[ri])
+            ri = ri + 1
+        }
+        // Generated runtime functions do not yet guarantee callee-saved register preservation.
+        // Keep loop state in stack slots across the call to `native_gc_register_root`.
+        push_u32_le(ctx["code"], insn_sub_imm(31, 31, 32))
+        var adr_table_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        arm64_ctx_fixup_adr_data(ctx, adr_table_pos, table_off, 9)
+        emit_load_u64_imm(ctx, 10, root_count)
+        emit_load_u64_imm(ctx, 11, table_off)
+        push_u32_le(ctx["code"], insn_sub_reg(12, 9, 11))
+        push_u32_le(ctx["code"], insn_str_ptr_off(9, 31, 0))
+        push_u32_le(ctx["code"], insn_str_ptr_off(10, 31, 8))
+        push_u32_le(ctx["code"], insn_str_ptr_off(12, 31, 16))
+        var loop_start = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], insn_ldr_ptr_off(10, 31, 8))
+        push_u32_le(ctx["code"], insn_cmp_reg(10, 31))
+        var exit_branch_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], insn_ldr_ptr_off(9, 31, 0))
+        push_u32_le(ctx["code"], insn_ldr_ptr_post(11, 9, 8))
+        push_u32_le(ctx["code"], insn_str_ptr_off(9, 31, 0))
+        push_u32_le(ctx["code"], insn_sub_imm(10, 10, 1))
+        push_u32_le(ctx["code"], insn_str_ptr_off(10, 31, 8))
+        push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 31, 16))
+        push_u32_le(ctx["code"], insn_add_reg(0, 12, 11))
+        var bl_root = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        arm64_ctx_fixup_bl(ctx, bl_root, "native_gc_register_root")
+        var back_pos = bytes_len(ctx["code"])
+        var back_off = (loop_start - back_pos) / 4
+        push_u32_le(ctx["code"], insn_b(back_off))
+        var exit_target = bytes_len(ctx["code"])
+        var exit_off = (exit_target - exit_branch_pos) / 4
+        set_u32_le(ctx["code"], exit_branch_pos, insn_b_cond(exit_off, 0))
+        push_u32_le(ctx["code"], insn_add_imm(31, 31, 32))
     }
     // Epilogue: restore FP/LR and return.
     push_u32_le(ctx["code"], insn_ldp_post())

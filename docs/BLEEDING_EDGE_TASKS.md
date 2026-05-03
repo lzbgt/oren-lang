@@ -4842,9 +4842,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 												        used by surface verifiers, then summarizes adjacent build/codegen phase
 												        deltas. The 2026-05-04 generator profile shows the largest native costs
 												        as user declaration emission (~22.5s), link/prep (~14.5s), wrapper
-												        emission (~12.8s), and global-root registration codegen (~7.3s for
-												        626 roots). `arm64.codegen.global_roots.done` now records that hidden
-												        root cost separately instead of folding it into runtime declarations.
+													        emission (~12.8s), and global-root registration codegen (~7.3s for
+													        626 roots). `arm64.codegen.global_roots.done` now records that hidden
+													        root cost separately instead of folding it into runtime declarations.
+												      - ARM64 global-root initialization now emits a compact root-offset data table
+												        and one generated registration loop instead of per-root ADR/BL fixups. The
+												        generator profile reduced local fixups from 20271 to 19021 and code bytes
+												        from 2592520 to 2585100, while keeping root-name tracing on the explicit
+												        diagnostic path. Wall time for `arm64.codegen.global_roots.done` remains
+												        about 7.4s, so the next native optimization should attack global/root
+												        metadata construction or the larger user-decl/wrapper phases. A map-backed
+												        Mach-O target cache was tested and rejected after hitting the 180s profile
+												        timeout.
 											      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
 										        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
 										        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.

@@ -171,6 +171,12 @@ backend-shared value-helper slices landed.
     attributes the largest native costs to user declaration emission (~22.5s), link/prep (~14.5s),
     first-class wrapper emission (~12.8s), and global-root registration codegen (~7.3s for 626
     roots). `arm64.codegen.global_roots.done` now makes that root-registration span explicit.
+  - ARM64 global-root initializer compaction (2026-05-04): root registration now uses a compact
+    root-offset table plus one generated loop instead of emitting per-root ADR-data and BL fixups.
+    The generator profile reduced local fixups from 20271 to 19021 and code bytes from 2592520 to
+    2585100 while preserving `OREN_TRACE_GC_REGISTER_ROOT_NAMES` on its explicit diagnostic path.
+    The global-root wall span remained about 7.4s, and a map-backed Mach-O target-cache experiment
+    was rejected after hitting the 180s native profile timeout.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated
