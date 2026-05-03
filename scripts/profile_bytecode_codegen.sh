@@ -41,7 +41,8 @@ from pathlib import Path
 
 log = Path(sys.argv[1])
 phase_log = Path(sys.argv[2])
-section_re = re.compile(r"\[bc_codegen_profile\] section=([^ ]+) ms=([0-9]+)(?: count=([0-9]+))?")
+section_re = re.compile(r"\[bc_codegen_profile\] section=([^ ]+) ms=([0-9]+)(.*)$")
+metric_re = re.compile(r" ([A-Za-z_][A-Za-z0-9_]*)=([^ ]+)")
 fn_re = re.compile(r"\[bc_codegen_profile\] fn=(.*?) ms=([0-9]+) bytes=([0-9]+) locals=([0-9]+)")
 
 sections = []
@@ -49,15 +50,16 @@ fns = []
 for line in log.read_text(errors="replace").splitlines():
     m = section_re.search(line)
     if m:
-        sections.append((m.group(1), int(m.group(2)), int(m.group(3) or 0)))
+        metrics = [(km.group(1), km.group(2)) for km in metric_re.finditer(m.group(3))]
+        sections.append((m.group(1), int(m.group(2)), metrics))
         continue
     m = fn_re.search(line)
     if m:
         fns.append((m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4))))
 
 print("== section summary ==")
-for name, ms, count in sorted(sections, key=lambda item: item[1], reverse=True):
-    suffix = f" count={count}" if count else ""
+for name, ms, metrics in sorted(sections, key=lambda item: item[1], reverse=True):
+    suffix = "".join(f" {key}={value}" for key, value in metrics)
     print(f"{ms:8d} ms  {name}{suffix}")
 
 if fns:
@@ -70,4 +72,3 @@ if phase_log.exists():
     print("== build phases log ==")
     print(str(phase_log))
 PY
-

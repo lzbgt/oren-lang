@@ -160,6 +160,11 @@ backend-shared value-helper slices landed.
     direct-address experiment moved the same cost into per-call `ctx["functions"][name]` lookups.
     The next credible performance fix is a runtime-safe hot map lookup improvement or a bytecode
     emission model that avoids thousands of name-keyed post-pass patches.
+  - Bytecode grouped call fixups (2026-05-04): unresolved call positions are now grouped by callee
+    name during emission, so the final fixup pass resolves each unique callee once and patches all
+    positions in that group. The generator surface profile dropped `call_fixups` from about 41s to
+    about 6.7s for `1228` call sites across `231` unique callees while keeping `compile_stmts`
+    around 4.0s. The profile summary now preserves extra section metrics such as `names=...`.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated

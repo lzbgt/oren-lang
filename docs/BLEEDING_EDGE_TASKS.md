@@ -4825,14 +4825,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									        the generator surface constant pool from 5355 entries to 781 entries.
 									      - `OREN_TRACE_BYTECODE_CODEGEN=1` and
 									        `scripts/profile_bytecode_codegen.sh` now provide section/function bytecode
-									        codegen profiling. The 2026-05-04 generator-surface profile proves the
-									        remaining large-fixture bytecode hotspot is the final call-fixup pass
-									        (`call_fixups`: about 41s for 1228 sites), while function-body compilation
-										        is only about 3.9s total. Oren-level cache/patch variants did not improve
-										        this, and a direct-address variant moved the same cost into per-call
-										        `ctx["functions"][name]` lookups, so the next real optimization should
-										        avoid name-keyed post-pass patching or fix the native hot map lookup safely.
-									      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
+										        codegen profiling. The 2026-05-04 generator-surface profile proves the
+										        remaining large-fixture bytecode hotspot is the final call-fixup pass
+										        (`call_fixups`: about 41s for 1228 sites), while function-body compilation
+											        is only about 3.9s total. Oren-level cache/patch variants did not improve
+											        this, and a direct-address variant moved the same cost into per-call
+											        `ctx["functions"][name]` lookups, so the next real optimization should
+											        avoid name-keyed post-pass patching or fix the native hot map lookup safely.
+											      - bytecode call fixups are now grouped by callee name during emission, cutting
+											        the generator-surface `call_fixups` profile from about 41s to about 6.7s
+											        (`1228` call sites across `231` unique callees) without regressing the
+											        `compile_stmts` phase. The profile summary also preserves extra section
+											        metrics such as `names=...` for regression tracking.
+										      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
 									        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
 									        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
 									      - native green bounded joins now re-check the specific joined task between

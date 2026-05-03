@@ -132,8 +132,12 @@ fn new_bytecode_ctx() {
         //
         // Rolling v0 decision: struct values are map-shaped (string-keyed) across backends.
         "types": {},
-        "fixups": [],
-        "fun_fixups": [],
+        "fixup_names": [],
+        "fixup_positions_by_name": {},
+        "fixup_count": 0,
+        "fun_fixup_names": [],
+        "fun_fixup_positions_by_name": {},
+        "fun_fixup_count": 0,
         // Unresolved symbol strategy (rolling):
         // - default: undefined calls are compile errors
         // - when allow_undef=true: keep placeholders and emit OBX relocs for a later linker pass
@@ -153,6 +157,32 @@ fn new_bytecode_ctx() {
         ,"errors": []
         ,"fatal": false
     }
+}
+
+fn bytecode_add_call_fixup(ctx, name, pos) {
+    var by_name = ctx["fixup_positions_by_name"]
+    var positions = by_name[name]
+    if positions == nil {
+        positions = []
+        by_name[name] = positions
+        oren_list_push(ctx["fixup_names"], name)
+    }
+    oren_list_push(positions, pos)
+    ctx["fixup_count"] = ctx["fixup_count"] + 1
+    return nil
+}
+
+fn bytecode_add_func_value_fixup(ctx, name, pos) {
+    var by_name = ctx["fun_fixup_positions_by_name"]
+    var positions = by_name[name]
+    if positions == nil {
+        positions = []
+        by_name[name] = positions
+        oren_list_push(ctx["fun_fixup_names"], name)
+    }
+    oren_list_push(positions, pos)
+    ctx["fun_fixup_count"] = ctx["fun_fixup_count"] + 1
+    return nil
 }
 
 fn is_builtin_ident_name(name) {

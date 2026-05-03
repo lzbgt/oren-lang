@@ -1439,23 +1439,32 @@ fn bytecode_compile_program(linked, config) {
     }
     
     var j = 0
-    var fixups = ctx["fixups"]
-    while j < oren_list_len(fixups) {
-        var fix = fixups[j]
-        var name = fix["name"]
-        var pos = fix["pos"]
+    var fixup_names = ctx["fixup_names"]
+    var fixup_positions_by_name = ctx["fixup_positions_by_name"]
+    while j < oren_list_len(fixup_names) {
+        var name = fixup_names[j]
         var addr = ctx["functions"][name]
         var patched = false
         if oren_type_tag(addr) == 1 {
             if addr > 0 {
-                patch_u32(ctx, pos, addr - 1)
+                var positions = fixup_positions_by_name[name]
+                var pi = 0
+                while pi < oren_list_len(positions) {
+                    patch_u32(ctx, positions[pi], addr - 1)
+                    pi = pi + 1
+                }
                 patched = true
             }
         }
         if patched != true {
+            var positions2 = fixup_positions_by_name[name]
             if ctx["allow_undef"] == true {
                 // Leave placeholder 0 and record relocation for a later linker pass.
-                oren_list_push(ctx["relocs"], {"name": name, "pos": pos, "kind": 0})
+                var ri = 0
+                while ri < oren_list_len(positions2) {
+                    oren_list_push(ctx["relocs"], {"name": name, "pos": positions2[ri], "kind": 0})
+                    ri = ri + 1
+                }
             } else {
                 bytecode_error(ctx, "Undefined function: " + name)
             }
@@ -1464,28 +1473,38 @@ fn bytecode_compile_program(linked, config) {
     }
     if profile_codegen {
         print("[bc_codegen_profile] section=call_fixups ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000) +
-            " count=" + oren_int_to_string(oren_list_len(fixups)))
+            " count=" + oren_int_to_string(ctx["fixup_count"]) +
+            " names=" + oren_int_to_string(oren_list_len(fixup_names)))
         profile_t = oren_time_now_ns()
     }
 
     var k = 0
-    var ffix = ctx["fun_fixups"]
-    while k < oren_list_len(ffix) {
-        var fix2 = ffix[k]
-        var name2 = fix2["name"]
-        var pos2 = fix2["pos"]
+    var ffix_names = ctx["fun_fixup_names"]
+    var ffix_positions_by_name = ctx["fun_fixup_positions_by_name"]
+    while k < oren_list_len(ffix_names) {
+        var name2 = ffix_names[k]
         var addr2 = ctx["functions"][name2]
         var patched2 = false
         if oren_type_tag(addr2) == 1 {
             if addr2 > 0 {
-                patch_u32(ctx, pos2, addr2 - 1)
+                var fpositions = ffix_positions_by_name[name2]
+                var fpi = 0
+                while fpi < oren_list_len(fpositions) {
+                    patch_u32(ctx, fpositions[fpi], addr2 - 1)
+                    fpi = fpi + 1
+                }
                 patched2 = true
             }
         }
         if patched2 != true {
+            var fpositions2 = ffix_positions_by_name[name2]
             if ctx["allow_undef"] == true {
                 // Leave placeholder 0 and record relocation for a later linker pass.
-                oren_list_push(ctx["relocs"], {"name": name2, "pos": pos2, "kind": 1})
+                var fri = 0
+                while fri < oren_list_len(fpositions2) {
+                    oren_list_push(ctx["relocs"], {"name": name2, "pos": fpositions2[fri], "kind": 1})
+                    fri = fri + 1
+                }
             } else {
                 bytecode_error(ctx, "Undefined function value: " + name2)
             }
@@ -1494,7 +1513,8 @@ fn bytecode_compile_program(linked, config) {
     }
     if profile_codegen {
         print("[bc_codegen_profile] section=func_fixups ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000) +
-            " count=" + oren_int_to_string(oren_list_len(ffix)))
+            " count=" + oren_int_to_string(ctx["fun_fixup_count"]) +
+            " names=" + oren_int_to_string(oren_list_len(ffix_names)))
         profile_t = oren_time_now_ns()
     }
 

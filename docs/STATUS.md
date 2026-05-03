@@ -2286,6 +2286,11 @@ Local (fast):
   cost shifts into per-call `ctx["functions"][name]` lookups, so the next performance lever is
   either a runtime-safe hot map lookup improvement or a bytecode emission model that avoids
   thousands of name-keyed post-pass patches.
+- The bytecode call-fixup pass now groups unresolved call positions by callee name during emission.
+  The verified generator-surface profile dropped from about 41s in `call_fixups` to about 6.7s
+  while preserving `compile_stmts` around 4.0s (`1228` call sites across `231` unique callees).
+  `scripts/profile_bytecode_codegen.sh` also preserves extra section metrics such as `names=...`
+  in its summary so grouped-fixup regressions are visible in one log.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

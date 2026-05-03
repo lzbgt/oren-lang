@@ -262,7 +262,7 @@ fn bytecode_compile_expr(ctx, expr) {
                     emit_byte(ctx, AVM_PUSH_FUNC32)
                     var fpos = bytes.bytes_len(ctx["code"])
                     emit_u32(ctx, 0)
-                    oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
+                    bytecode_add_func_value_fixup(ctx, name, fpos)
                     return nil
                 }
                 // Fallthrough if not global (maybe member of variable shadowing module?)
@@ -417,7 +417,7 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_PUSH_FUNC32)
             var fpos = bytes.bytes_len(ctx["code"])
             emit_u32(ctx, 0)
-            oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
+            bytecode_add_func_value_fixup(ctx, name, fpos)
             return nil
         }
         // Unknown identifier: leave it as NIL (best-effort in rolling mode).
@@ -1339,7 +1339,7 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, n_args)
         }
         
-        oren_list_push(ctx["fixups"], {"pos": call_pos, "name": name})
+        bytecode_add_call_fixup(ctx, name, call_pos)
         return nil
     }
     
