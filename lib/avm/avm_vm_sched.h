@@ -36,6 +36,7 @@ AvmValue avm_task_group_members(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_member_kinds(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_member_snapshot(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_snapshot(AvmVM* vm, AvmValue group);
+AvmValue avm_task_group_take_snapshot(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_default_policy(AvmVM* vm, AvmValue group);
 AvmValue avm_task_group_set_default_policy(AvmVM* vm, AvmValue group, AvmValue policy);
 AvmValue avm_task_group_clear(AvmVM* vm, AvmValue group);

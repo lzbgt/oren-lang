@@ -758,6 +758,14 @@
             res = avm_task_group_snapshot(vm, args[0]);
             break;
         }
+        case 185: { // oren_task_group_take_snapshot(group) -> [members, kinds, default_policy] and clear
+            if (!vm || nargs <= 0) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_take_snapshot expects (group)");
+                break;
+            }
+            res = avm_task_group_take_snapshot(vm, args[0]);
+            break;
+        }
         case 174: { // oren_task_group_clear(group) -> nil
             if (!vm || nargs <= 0) {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_group_clear expects (group)");

@@ -109,6 +109,48 @@ fn _task_group_merge_policy(ctx, base0, override0) {
     return merged
 }
 
+fn _task_group_validate_policy_shape(ctx, policy0) {
+    var policy = _task_group_policy_map(ctx, policy0)
+    if oren_is_err(policy) == true { return policy }
+    var mode = oren_map_get_str(policy, "mode")
+    if oren_type_tag(mode) == 0 {
+        mode = "stop"
+    } else {
+        if oren_type_name(mode) != "string" {
+            return _task_group_err(ctx, "expected string mode")
+        }
+        if mode == "request" { mode = "request_cancel" }
+        if mode != "stop" && mode != "request_cancel" && mode != "cancel" {
+            return _task_group_err(ctx, "expected mode request_cancel|cancel|stop")
+        }
+    }
+    var timeout_ms = oren_map_get_str(policy, "timeout_ms")
+    var deadline_ns = oren_map_get_str(policy, "deadline_ns")
+    if oren_type_tag(timeout_ms) != 0 && oren_type_name(timeout_ms) != "int" {
+        return _task_group_err(ctx, "expected int timeout_ms")
+    }
+    if oren_type_tag(deadline_ns) != 0 && oren_type_name(deadline_ns) != "int" {
+        return _task_group_err(ctx, "expected int deadline_ns")
+    }
+    if oren_type_tag(timeout_ms) != 0 && oren_type_tag(deadline_ns) != 0 {
+        return _task_group_err(ctx, "timeout_ms and deadline_ns are mutually exclusive")
+    }
+    var grace_ms = oren_map_get_str(policy, "grace_ms")
+    if oren_type_tag(grace_ms) != 0 {
+        if oren_type_name(grace_ms) != "int" {
+            return _task_group_err(ctx, "expected int grace_ms")
+        }
+        if mode != "stop" && grace_ms > 0 {
+            return _task_group_err(ctx, "grace_ms is only valid for mode=stop")
+        }
+    }
+    var join_timeout_ms = oren_map_get_str(policy, "join_timeout_ms")
+    if oren_type_tag(join_timeout_ms) != 0 && oren_type_name(join_timeout_ms) != "int" {
+        return _task_group_err(ctx, "expected int join_timeout_ms")
+    }
+    return nil
+}
+
 fn _task_group_members_ref(ctx, group) {
     if oren_type_name(group) != "map" {
         return _task_group_err(ctx, "expected task group map")
@@ -169,7 +211,14 @@ fn _task_group_target_stop_wait_kind(ctx, kind, target, policy0) {
 }
 
 fn _task_group_runtime_snapshot(ctx, group) {
-    var snapshot = oren_task_group_snapshot(group)
+    return _task_group_runtime_snapshot_from_raw(ctx, oren_task_group_snapshot(group))
+}
+
+fn _task_group_runtime_take_snapshot(ctx, group) {
+    return _task_group_runtime_snapshot_from_raw(ctx, oren_task_group_take_snapshot(group))
+}
+
+fn _task_group_runtime_snapshot_from_raw(ctx, snapshot) {
     if oren_is_err(snapshot) == true { return snapshot }
     if oren_type_name(snapshot) != "list" || list.len(snapshot) != 3 {
         return _task_group_err(ctx, "runtime snapshot must be [members, kinds, default_policy]")
@@ -220,7 +269,7 @@ fn _task_group_kinds_for_refs(ctx, refs) {
     return kinds
 }
 
-fn _task_group_runtime_stop_watchers(ctx, group, refs, kinds, policy0) {
+fn _task_group_runtime_stop_watchers(ctx, refs, kinds, policy0) {
     var watchers = []
     var i = 0
     var n = list.len(refs)
@@ -230,7 +279,6 @@ fn _task_group_runtime_stop_watchers(ctx, group, refs, kinds, policy0) {
         list.push(watchers, watcher)
         i = i + 1
     }
-    oren_task_group_clear(group)
     return watchers
 }
 
@@ -396,11 +444,18 @@ fn extend(group, targets) {
 
 fn stop_policy(group, policy0) {
     if _task_group_is_runtime(group) == true {
-        var snapshot0 = _task_group_runtime_snapshot("task_group.stop_policy", group)
+        var preflight0 = _task_group_runtime_snapshot("task_group.stop_policy", group)
+        if oren_is_err(preflight0) == true { return preflight0 }
+        if list.len(preflight0["members"]) == 0 { return [] }
+        var policy_pre0 = _task_group_merge_policy("task_group.stop_policy", preflight0["default_policy"], policy0)
+        if oren_is_err(policy_pre0) == true { return policy_pre0 }
+        var valid0 = _task_group_validate_policy_shape("task_group.stop_policy", policy_pre0)
+        if oren_is_err(valid0) == true { return valid0 }
+        var snapshot0 = _task_group_runtime_take_snapshot("task_group.stop_policy", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
         var policy0r = _task_group_merge_policy("task_group.stop_policy", snapshot0["default_policy"], policy0)
         if oren_is_err(policy0r) == true { return policy0r }
-        return _task_group_runtime_stop_watchers("task_group.stop_policy", group, snapshot0["members"], snapshot0["member_kinds"], policy0r)
+        return _task_group_runtime_stop_watchers("task_group.stop_policy", snapshot0["members"], snapshot0["member_kinds"], policy0r)
     }
     var refs = _task_group_members_ref("task_group.stop_policy", group)
     if oren_is_err(refs) == true { return refs }
@@ -420,7 +475,14 @@ fn stop_policy(group, policy0) {
 
 fn stop_policy_wait(group, policy0) {
     if _task_group_is_runtime(group) == true {
-        var snapshot0 = _task_group_runtime_snapshot("task_group.stop_policy_wait", group)
+        var preflight0 = _task_group_runtime_snapshot("task_group.stop_policy_wait", group)
+        if oren_is_err(preflight0) == true { return preflight0 }
+        if list.len(preflight0["members"]) == 0 { return [] }
+        var policy_pre0 = _task_group_merge_policy("task_group.stop_policy_wait", preflight0["default_policy"], policy0)
+        if oren_is_err(policy_pre0) == true { return policy_pre0 }
+        var valid0 = _task_group_validate_policy_shape("task_group.stop_policy_wait", policy_pre0)
+        if oren_is_err(valid0) == true { return valid0 }
+        var snapshot0 = _task_group_runtime_take_snapshot("task_group.stop_policy_wait", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
         var policy0r = _task_group_merge_policy("task_group.stop_policy_wait", snapshot0["default_policy"], policy0)
         if oren_is_err(policy0r) == true { return policy0r }
@@ -435,7 +497,6 @@ fn stop_policy_wait(group, policy0) {
             list.push(out0, result0)
             i0 = i0 + 1
         }
-        oren_task_group_clear(group)
         return out0
     }
     var refs = _task_group_members_ref("task_group.stop_policy_wait", group)

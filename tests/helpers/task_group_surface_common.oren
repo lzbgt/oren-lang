@@ -213,6 +213,16 @@ fn run_task_group_surface_v0() {
     if gen.is_done(direct_cancel0) != true || coro.is_done(direct_cancel1) != true { return 180082 }
     if gen.cancel_reason(direct_cancel0) != 308 || coro.cancel_reason(direct_cancel1) != 308 { return 180083 }
 
+    var invalid_rt0 = gen.start(cancel_probe_worker, [110])
+    if oren_is_err(gen.next(invalid_rt0)) == true { return 180100 }
+    var invalid_rt_group = tg.from_runtime_list([invalid_rt0], nil)
+    if oren_is_err(invalid_rt_group) == true || tg.count(invalid_rt_group) != 1 { return 180101 }
+    if oren_is_err(tg.stop_policy(invalid_rt_group, {"mode": "bogus"})) != true { return 180102 }
+    if tg.count(invalid_rt_group) != 1 { return 180103 }
+    var invalid_rt_rv = tg.cancel_wait(invalid_rt_group, 309, 2000)
+    if oren_is_err(invalid_rt_rv) == true || list.len(invalid_rt_rv) != 1 || invalid_rt_rv[0] != nil { return 180104 }
+    if gen.is_done(invalid_rt0) != true || gen.cancel_reason(invalid_rt0) != 309 { return 180105 }
+
     if oren_is_err(tg.add(group0, 123)) != true { return 180042 }
     if oren_is_err(tg.extend(group0, 123)) != true { return 180043 }
     if oren_is_err(tg.stop_policy(group0, {"mode": "bogus"})) != true { return 180044 }

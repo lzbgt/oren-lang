@@ -214,6 +214,7 @@ OrenValue oren_task_group_members(OrenValue group);
 OrenValue oren_task_group_member_kinds(OrenValue group);
 OrenValue oren_task_group_member_snapshot(OrenValue group);
 OrenValue oren_task_group_snapshot(OrenValue group);
+OrenValue oren_task_group_take_snapshot(OrenValue group);
 OrenValue oren_task_group_default_policy(OrenValue group);
 OrenValue oren_task_group_set_default_policy(OrenValue group, OrenValue policy);
 OrenValue oren_task_group_clear(OrenValue group);

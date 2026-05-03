@@ -73,6 +73,13 @@ fn stop_joined_or_detached(result, expected_joined, reason) {
     return true
 }
 
+fn stop_joined_any_or_detached(result, expected_joined0, expected_joined1, reason) {
+    if stop_joined_or_detached(result, expected_joined0, reason) == true { return true }
+    if stop_joined(result, expected_joined1) != true { return false }
+    if result["reason"] != reason { return false }
+    return true
+}
+
 fn run_task_group_task_surface_v0() {
     var policy0 = {"mode": "stop", "timeout_ms": 0, "grace_ms": 1, "reason": 401}
     var group0 = tg.new(policy0)
@@ -252,6 +259,17 @@ fn run_task_group_task_surface_v0() {
     if stop_joined(rtr6d[0], 2510) != true || rtr6d[0]["reason"] != 910 { return 1910629 }
     if tg.count(rtg6d) != 0 { return 1910630 }
 
+    var rtg6e = tg.new_runtime()
+    if oren_is_err(rtg6e) == true { return 191091 }
+    var rtc6e = tg.spawn_call_list(rtg6e, cancel_observer_task, [[1800, 80]])
+    if task.is_handle(rtc6e) != true { return 191092 }
+    if oren_is_err(tg.stop_policy(rtg6e, {"mode": "bogus"})) != true { return 191093 }
+    if tg.count(rtg6e) != 1 { return 191094 }
+    var rtr6e = tg.cancel_wait(rtg6e, 912, 200)
+    if oren_is_err(rtr6e) == true || list.len(rtr6e) != 1 { return 191095 }
+    if stop_joined(rtr6e[0], 2712) != true || rtr6e[0]["reason"] != 912 { return 191096 }
+    if tg.count(rtg6e) != 0 { return 191097 }
+
     var rtg7 = tg.new_runtime_with_policy({"timeout_ms": 0, "grace_ms": 0, "reason": 904})
     if oren_is_err(rtg7) == true { return 191063 }
     var rts7 = tg.spawn_call_list(rtg7, slow_task, [12])
@@ -304,7 +322,7 @@ fn run_task_group_task_surface_v0() {
     if oren_is_err(rtw8c) == true || list.len(rtw8c) != 1 { return 1910759 }
     var rtr8c = tg.join_watchers(rtw8c, 2000)
     if oren_is_err(rtr8c) == true || list.len(rtr8c) != 1 { return 1910760 }
-    if stop_joined_or_detached(rtr8c[0], 2409, 909) != true { return 1910761 }
+    if stop_joined_any_or_detached(rtr8c[0], 2409, 1500, 909) != true { return 1910761 }
 
     var rtg8d = tg.from_runtime_list([spawn cancel_observer_task([1700, 80])], nil)
     if oren_is_err(rtg8d) == true || tg.count(rtg8d) != 1 { return 1910762 }

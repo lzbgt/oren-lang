@@ -3574,6 +3574,10 @@ Rolling status:
       - `task_group.snapshot(group)` returns a map with cloned `members`, `member_kinds`, and
         `default_policy`; runtime-backed groups source those three fields from one runtime-owned
         snapshot so stop paths no longer race separate default-policy and member reads
+      - runtime-backed `stop_policy(...)` / `stop_policy_wait(...)` now consume members through an
+        atomic runtime-owned take-snapshot after policy preflight validation; invalid overrides leave
+        the group intact, while valid stop operations claim and clear the participating members before
+        typed dispatch starts
       - runtime-backed mixed membership, stored default policy, and member/kind/policy snapshotting are
         now owned by the runtime group state itself across C, native, and AVM rather than by stdlib
         sidecar maps
@@ -3591,9 +3595,10 @@ Rolling status:
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
         only generator/coroutine handles; it still rejects task handles and context-only members
     - the remaining boundary is now narrower: runtime-backed groups are already unified and
-      runtime-owned for mixed membership, stored default policy, and atomic member/kind/policy snapshots,
-      and generic task cancellation is now shipped as cooperative request plus bounded stop/detach; typed
-      stop execution still lives in stdlib rather than in the runtime scheduler itself
+      runtime-owned for mixed membership, stored default policy, and atomic member/kind/policy
+      snapshot-and-take semantics, and generic task cancellation is now shipped as cooperative request
+      plus bounded stop/detach; typed stop execution still lives in stdlib rather than in the runtime
+      scheduler itself
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists

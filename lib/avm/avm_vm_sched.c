@@ -900,6 +900,45 @@ AvmValue avm_task_group_snapshot(AvmVM* vm, AvmValue group) {
     return avm_new_list_from_values(3, triple);
 }
 
+AvmValue avm_task_group_take_snapshot(AvmVM* vm, AvmValue group) {
+    AvmSched* s = avm_sched_get(vm);
+    if (!s || !avm_task_group_is_handle(vm, group)) return avm_task_group_empty_snapshot3();
+    AvmValue statev = avm_task_group_state_ensure(vm, s, group.as.i);
+    if (avm_is_err_val(statev)) return statev;
+    if (statev.type != AVM_VAL_MAP || !statev.as.m) return avm_task_group_empty_snapshot3();
+    AvmValue membersv = avm_task_group_compact_members(vm, s, group.as.i);
+    if (avm_is_err_val(membersv)) return membersv;
+    if (membersv.type != AVM_VAL_LIST || !membersv.as.l) return avm_task_group_empty_snapshot3();
+    AvmValue policy = avm_task_group_state_field_get(statev, "default_policy");
+    if (policy.type != AVM_VAL_MAP || !policy.as.m) policy = avm_nil();
+    int count = membersv.as.l->count;
+    AvmValue* kinds = NULL;
+    if (count > 0) {
+        kinds = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)count);
+        if (!kinds) return avm_alloc_fail_value();
+        for (int i = 0; i < count; i++) {
+            const char* kind = avm_task_group_member_kind(s, membersv.as.l->items[i]);
+            kinds[i] = avm_string(kind ? kind : "");
+            if (avm_is_err_val(kinds[i])) {
+                free(kinds);
+                return kinds[i];
+            }
+        }
+    }
+    AvmValue members_list = avm_new_list_from_values(count, membersv.as.l->items);
+    if (avm_is_err_val(members_list)) {
+        free(kinds);
+        return members_list;
+    }
+    AvmValue kinds_list = avm_new_list_from_values(count, kinds);
+    free(kinds);
+    if (avm_is_err_val(kinds_list)) return kinds_list;
+    membersv.as.l->count = 0;
+    membersv.as.l->all_int = 1;
+    AvmValue triple[3] = {members_list, kinds_list, policy};
+    return avm_new_list_from_values(3, triple);
+}
+
 AvmValue avm_task_group_default_policy(AvmVM* vm, AvmValue group) {
     AvmSched* s = avm_sched_get(vm);
     if (!s || !avm_task_group_is_handle(vm, group)) return avm_nil();

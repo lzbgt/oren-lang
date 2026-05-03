@@ -1616,10 +1616,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 					      (`"task"`, `"generator"`, or `"generator_context"`), and runtime-backed groups
 					      compute it from an atomic runtime-owned member snapshot rather than a separate
 					      stdlib classification pass
-						    - runtime-backed mixed membership, stored default policy, and member/kind/policy
-						      snapshotting now live in the runtime group state itself across C, native, and
-						      AVM instead of stdlib sidecar maps; runtime stop paths consume that one
-						      snapshot before dispatching per-member policy helpers
+							    - runtime-backed mixed membership, stored default policy, and member/kind/policy
+							      snapshotting now live in the runtime group state itself across C, native, and
+							      AVM instead of stdlib sidecar maps; runtime stop paths preflight policy and then
+							      consume an atomic runtime-owned take-snapshot before dispatching per-member
+							      policy helpers, so invalid overrides leave runtime groups intact while valid stop
+							      operations claim and clear participating members up front
 				    - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and
 				      the default native green-task scheduler
 				    - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by
@@ -1636,9 +1638,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 				        context-only members
 							    - the remaining boundary is now narrower: runtime-backed groups are already unified and
 							      runtime-owned for mixed membership, stored default policy, and atomic
-							      member/kind/policy snapshots, and generic task cancellation now ships as
-							      cooperative request plus bounded stop/detach; typed stop execution still lives in
-							      stdlib instead of in the runtime scheduler itself.
+							      member/kind/policy snapshot-and-take semantics, and generic task cancellation now
+							      ships as cooperative request plus bounded stop/detach; typed stop execution still
+							      lives in stdlib instead of in the runtime scheduler itself.
 		   - New (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a
 		     parser-level alias of `@oren.generator`. The safe landed contract is:
 		     - declaration lowering is the same compiler-managed generator wrapper path

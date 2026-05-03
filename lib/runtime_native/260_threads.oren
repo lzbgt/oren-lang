@@ -1650,6 +1650,30 @@ fn oren_task_group_snapshot(group) {
 }
 
 @oren.keep
+fn oren_task_group_take_snapshot(group) {
+    var state = _task_group_runtime_state_or_nil(group)
+    if oren_type_name(state) != "map" { return [[], [], nil] }
+    var members = _task_group_runtime_members_compact(group)
+    if oren_type_name(members) != "list" { return [[], [], nil] }
+    var policy = oren_map_get_str(state, "default_policy")
+    if oren_type_name(policy) != "map" { policy = nil }
+    var refs = []
+    var kinds = []
+    var i = 0
+    var n = oren_list_len(members)
+    while i < n {
+        var kind = _task_group_runtime_member_kind(members[i])
+        if kind != nil {
+            oren_list_push(refs, members[i])
+            oren_list_push(kinds, kind)
+        }
+        i = i + 1
+    }
+    oren_map_set_str(state, "members", [])
+    return [refs, kinds, policy]
+}
+
+@oren.keep
 fn oren_task_group_clear(group) {
     if oren_task_group_is_handle(group) == true {
         var state = _task_group_runtime_state_or_nil(group)

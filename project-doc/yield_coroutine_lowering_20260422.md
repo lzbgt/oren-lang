@@ -258,7 +258,9 @@ backend-shared value-helper slices landed.
       runtime-owned member snapshot rather than a separate stdlib classification pass
     - runtime-backed mixed membership, stored default policy, and member/kind/policy snapshotting now live
       in the runtime group state itself across C, native, and AVM instead of stdlib sidecar maps; runtime
-      stop paths consume that one snapshot before dispatching per-member policy helpers
+      stop paths preflight policy and then consume an atomic runtime-owned take-snapshot before dispatching
+      per-member policy helpers, so invalid overrides leave runtime groups intact while valid stop
+      operations claim and clear participating members up front
     - `task_group.spawn_call_list(...)` spawns directly into the runtime group on AVM, C, and the
       default native green-task scheduler
     - `task_group.stop_policy(group, policy)` / `stop_policy_wait(...)` now dispatch by member kind:
@@ -272,9 +274,9 @@ backend-shared value-helper slices landed.
     - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
       generator/coroutine handles; it still rejects task handles and context-only members
   - the remaining gap is now narrower: runtime-backed groups are already unified and runtime-owned
-    for mixed membership, stored default policy, and atomic member/kind/policy snapshots, and generic
-    task cancellation now ships as cooperative request plus bounded stop/detach; typed stop execution
-    still lives in stdlib rather than in the runtime scheduler itself
+    for mixed membership, stored default policy, and atomic member/kind/policy snapshot-and-take
+    semantics, and generic task cancellation now ships as cooperative request plus bounded stop/detach;
+    typed stop execution still lives in stdlib rather than in the runtime scheduler itself
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now
