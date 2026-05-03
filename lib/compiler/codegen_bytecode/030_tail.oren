@@ -1347,6 +1347,9 @@ fn bytecode_compile_stmt(ctx, stmt) {
 }
 fn bytecode_compile_program(linked, config) {
     var ctx = new_bytecode_ctx()
+    var profile_codegen = oren_env("OREN_TRACE_BYTECODE_CODEGEN") != nil
+    var profile_t = 0
+    if profile_codegen { profile_t = oren_time_now_ns() }
     if config != nil {
         if config["allow_undef"] == true { ctx["allow_undef"] = true }
     }
@@ -1374,6 +1377,10 @@ fn bytecode_compile_program(linked, config) {
         }
         pi = pi + 1
     }
+    if profile_codegen {
+        print("[bc_codegen_profile] section=type_prep ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000))
+        profile_t = oren_time_now_ns()
+    }
 
     var meta = {"errors": []}
     coreir.collect_top_level_functions(meta, linked, "bytecode v0")
@@ -1399,11 +1406,19 @@ fn bytecode_compile_program(linked, config) {
     if meta["func_varargs_fixed"] != nil {
         ctx["func_varargs_fixed"] = meta["func_varargs_fixed"]
     }
+    if profile_codegen {
+        print("[bc_codegen_profile] section=collect_meta ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000))
+        profile_t = oren_time_now_ns()
+    }
 
     var i = 0
     while i < oren_list_len(stmts) {
         bytecode_compile_stmt(ctx, stmts[i])
         i = i + 1
+    }
+    if profile_codegen {
+        print("[bc_codegen_profile] section=compile_stmts ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000))
+        profile_t = oren_time_now_ns()
     }
     
     // Entry: call main() if present.
@@ -1416,8 +1431,12 @@ fn bytecode_compile_program(linked, config) {
             emit_byte(ctx, AVM_POP) // ignore return value
         }
     }
-    
+
     emit_byte(ctx, AVM_HALT)
+    if profile_codegen {
+        print("[bc_codegen_profile] section=entry_halt ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000))
+        profile_t = oren_time_now_ns()
+    }
     
     var j = 0
     var fixups = ctx["fixups"]
@@ -1442,6 +1461,11 @@ fn bytecode_compile_program(linked, config) {
             }
         }
         j = j + 1
+    }
+    if profile_codegen {
+        print("[bc_codegen_profile] section=call_fixups ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000) +
+            " count=" + oren_int_to_string(oren_list_len(fixups)))
+        profile_t = oren_time_now_ns()
     }
 
     var k = 0
@@ -1468,6 +1492,11 @@ fn bytecode_compile_program(linked, config) {
         }
         k = k + 1
     }
+    if profile_codegen {
+        print("[bc_codegen_profile] section=func_fixups ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000) +
+            " count=" + oren_int_to_string(oren_list_len(ffix)))
+        profile_t = oren_time_now_ns()
+    }
 
     // Finalize bytecode buffer for direct emission. Only materialize list<int>
     // for OBC linking, where the linker still consumes code as a list.
@@ -1478,6 +1507,9 @@ fn bytecode_compile_program(linked, config) {
         if !oren_is_err(code_list) { ctx["code"] = code_list }
     } else {
         ctx["code"] = nil
+    }
+    if profile_codegen {
+        print("[bc_codegen_profile] section=finalize ms=" + oren_int_to_string((oren_time_now_ns() - profile_t) / 1000000))
     }
 
     return ctx

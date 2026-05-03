@@ -22,6 +22,7 @@
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
+.PHONY: profile-bytecode-codegen
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -1529,6 +1530,9 @@ benchmarks-update:
 # Lightweight rolling perf tripwire: ensure rtobj-hit compile-one-file stays under threshold.
 perf-guard-native-hit: oren_stage2
 		@./scripts/perf_guard_native_compile_one_file_hit.sh
+
+profile-bytecode-codegen: oren_stage2
+		@./scripts/profile_bytecode_codegen.sh
 
 # Default "test" is the fast stage1 native quick smoke.
 #

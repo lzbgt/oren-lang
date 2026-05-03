@@ -157,6 +157,15 @@ fn _bc_function_body_for_codegen(stmt) {
 
 fn bytecode_compile_function(ctx, stmt) {
     var name = stmt["name"]
+    var profile_codegen = oren_env("OREN_TRACE_BYTECODE_CODEGEN") != nil
+    var profile_t0 = 0
+    var profile_code0 = 0
+    var profile_name = name
+    if profile_name == nil || profile_name == "" { profile_name = "<lambda>" }
+    if profile_codegen {
+        profile_t0 = oren_time_now_ns()
+        profile_code0 = bytes.bytes_len(ctx["code"])
+    }
     var codegen_body = _bc_function_body_for_codegen(stmt)
     if codegen_body == nil { codegen_body = stmt["body"] }
     
@@ -228,10 +237,19 @@ fn bytecode_compile_function(ctx, stmt) {
     
     var end_pc = bytes.bytes_len(ctx["code"])
     patch_u32(ctx, jump_skip_idx, end_pc - (jump_skip_idx + 4))
+    var profile_locals = ctx["local_count"]
     
     ctx["locals"] = old_locals
     ctx["local_count"] = old_local_count
     ctx["in_function"] = old_in_function
     ctx["env_captures"] = old_env_captures
+    if profile_codegen {
+        var profile_dt_ms = (oren_time_now_ns() - profile_t0) / 1000000
+        var profile_bytes = bytes.bytes_len(ctx["code"]) - profile_code0
+        print("[bc_codegen_profile] fn=" + profile_name +
+            " ms=" + oren_int_to_string(profile_dt_ms) +
+            " bytes=" + oren_int_to_string(profile_bytes) +
+            " locals=" + oren_int_to_string(profile_locals))
+    }
     return nil
 }

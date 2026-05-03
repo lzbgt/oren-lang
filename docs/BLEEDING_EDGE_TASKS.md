@@ -4818,6 +4818,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									      - bytecode direct emission now avoids materializing the legacy `list<int>` code
 									        representation unless OBC linking needs it, and scalar constant interning cuts
 									        the generator surface constant pool from 5355 entries to 781 entries.
+									      - `OREN_TRACE_BYTECODE_CODEGEN=1` and
+									        `scripts/profile_bytecode_codegen.sh` now provide section/function bytecode
+									        codegen profiling. The 2026-05-04 generator-surface profile proves the
+									        remaining large-fixture bytecode hotspot is the final call-fixup pass
+									        (`call_fixups`: about 41s for 1228 sites), while function-body compilation
+									        is only about 3.9s total. Oren-level cache/patch variants did not improve
+									        this, so the next real optimization should be a lower-level bulk fixup
+									        primitive or an emission model that removes the random post-pass patch loop.
 									      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
 									        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
 									        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.

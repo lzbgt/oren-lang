@@ -2271,6 +2271,14 @@ Local (fast):
   only materializes the legacy `list<int>` code representation for OBC linking. Scalar constants
   (`nil`, bool, int, float, string) are interned in the bytecode constant pool; the generator
   surface probe dropped from 5355 constants / 312315 emitted bytes to 781 constants / 289646 bytes.
+- Bytecode codegen profiling is now gated by `OREN_TRACE_BYTECODE_CODEGEN=1`, and
+  `scripts/profile_bytecode_codegen.sh` wraps the trace with a section/function summary. A
+  2026-05-04 generator-surface probe showed the actual large-fixture bytecode hotspot is the
+  final call-fixup pass (`call_fixups`: about 41s for 1228 call sites), not function-body
+  compilation (about 3.9s summed across 321 functions). Oren-level cache and patch variants were
+  rejected because they did not reduce that wall time; the next performance lever is a lower-level
+  bulk fixup primitive or a bytecode emission model that avoids thousands of post-pass random
+  patches.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

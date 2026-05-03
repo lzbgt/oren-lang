@@ -150,6 +150,13 @@ backend-shared value-helper slices landed.
     to 781 entries and direct OBC bytes from 312315 to 289646. The AVM bytecode-link smoke now uses
     a bounded tiny OBX link/run default plus an unresolved `--obc-lib` reloc guard; full stdlib OBC
     bundle probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1`.
+  - Bytecode codegen profiling (2026-05-04): `OREN_TRACE_BYTECODE_CODEGEN=1` and
+    `scripts/profile_bytecode_codegen.sh` now report section/function timing. The generator surface
+    probe shows the remaining bytecode codegen wall time is dominated by the final call-fixup pass
+    (`call_fixups`: about 41s for 1228 sites), not function-body compilation (about 3.9s summed
+    across 321 functions). Oren-level cache and patch variants did not improve this path, so the
+    next credible performance fix is a lower-level bulk fixup primitive or a bytecode emission
+    model that avoids thousands of post-pass random patches.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated
