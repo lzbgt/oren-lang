@@ -4562,6 +4562,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     New (2026-05-04): DNS/host/HPACK now also expose structured `try_*` wrappers over
 	     the already-tested ok-map APIs, reducing the remaining network/protocol migration
 	     backlog to broader HTTP/TLS/WebSocket surfaces and untested provider edges.
+	     New (2026-05-04): HTTP and WebSocket loopback-tested APIs now also have structured
+	     wrappers (`try_get_text`, `try_get_response`, `try_connect`, `try_accept`,
+	     `try_recv_text`, `try_send_text_*`), leaving TLS/provider-specific and deeper
+	     protocol edges as the main network ok-map cleanup.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level

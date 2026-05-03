@@ -287,11 +287,11 @@ These stdlib modules exist today and are exercised by regression fixtures:
 - Native NET stack (native backend; rolling Tier‑1 focus):
   - `std:net/tcp`, `std:net/udp`
   - `std:net/dns` (loopback fixtures + Windows default resolver smoke: `tests/fixtures/windows_dns_default_resolver_smoke.oren`; `try_query_a` / `try_resolve_a` return `oren_err` on failure)
-  - `std:net/http` (structured response API; loopback fixtures)
+  - `std:net/http` (structured response API, plus `try_get_text` / `try_get_response` `oren_err` wrappers; loopback fixtures)
   - `std:net/http2` (rolling: framing + loopback fixtures; covers SETTINGS/ACK + PING/ACK + CONTINUATION: `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren`)
   - `std:net/http2_client` (rolling: minimal HTTP/2 client layer; handshake + single-stream request/response; exercised by `tests/native/test_http2_headers_loopback.oren`)
   - `std:net/hpack` (rolling: HPACK encode/decode v0 (includes Huffman), plus `try_encode_header_block` / `try_decode_header_block` structured-error wrappers; smokes: `tests/native/test_hpack_smoke.oren`, `tests/native/test_hpack_encode_rfc_c41.oren`)
-  - `std:net/ws` (WebSocket v0; loopback fixtures)
+  - `std:net/ws` (WebSocket v0, plus structured `try_connect` / `try_accept` / `try_recv_text` / `try_send_text_*` wrappers; loopback fixtures)
   - `std:net/tls` (TLS wrapper; used by `https://` and `wss://` loopback fixtures)
 
 For the detailed NET/TLS behavior and design constraints (determinism, pinning, providers), use the dedicated docs:
@@ -3762,9 +3762,10 @@ Rolling status:
 - Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
-  resolution has `try_resolve_host_ipv4`, and HPACK has `try_encode_header_block` /
-  `try_decode_header_block` so callers can opt into `oren_err` without breaking legacy ok-map
-  network code.
+  resolution has `try_resolve_host_ipv4`, HPACK has `try_encode_header_block` /
+  `try_decode_header_block`, HTTP has `try_get_text` / `try_get_response`, and WebSocket has
+  `try_connect` / `try_accept` / `try_recv_text` / `try_send_text_*`, so callers can opt into
+  `oren_err` without breaking legacy ok-map network code.
 - Design + migration notes: `docs/design/structured_error_model.md`
 
 Planned direction (later, optional):

@@ -169,72 +169,28 @@ fn dns_server_one_a(fd, ip0, ip1, ip2, ip3) {
 fn server(listen_fd) {
     // Accept + handshake, then echo one text frame.
     // Keep timeouts a bit generous on remote Win11 hosts (rolling: avoid flaky scheduling timeouts).
-    var r = ws.accept(listen_fd, 10000)
-    var okv = oren_map_get_str(r, "ok")
-    if okv != 1 {
-        var errv = oren_map_get_str(r, "err")
-        if errv != 0 {
-            var es = oren_intern_cstr(errv)
-            print("ws_echo_loopback: server accept FAIL: " + es)
-        } else {
-            print("ws_echo_loopback: server accept FAIL: ok=" + oren_int_to_string(okv))
-        }
+    var conn = ws.try_accept(listen_fd, 10000)
+    if oren_is_err(conn) {
+        print("ws_echo_loopback: server accept FAIL: " + oren_err_msg(conn))
         return 10
     }
-    var conn = oren_map_get_str(r, "conn")
     if conn == 0 { return 11 }
 
-    var msg = ws.recv_text(conn, 10000)
-    var mok = oren_map_get_str(msg, "ok")
-    if mok != 1 {
-        var merr = oren_map_get_str(msg, "err")
-        if merr != 0 {
-            var mes = oren_intern_cstr(merr)
-            print("ws_echo_loopback: server recv FAIL: " + mes)
-        } else {
-            print("ws_echo_loopback: server recv FAIL: ok=" + oren_int_to_string(mok))
-        }
+    var s = ws.try_recv_text(conn, 10000)
+    if oren_is_err(s) {
+        print("ws_echo_loopback: server recv FAIL: " + oren_err_msg(s))
         return 12
     }
-    var s = oren_map_get_str(msg, "v")
     if s == 0 { return 13 }
 
-    var wr = ws.send_text_server(conn, s, 10000)
+    var wr = ws.try_send_text_server(conn, s, 10000)
     free(s)
-    if wr < 0 {
-        print("ws_echo_loopback: server send FAIL (errno=" + oren_int_to_string(0 - wr) + ")")
+    if oren_is_err(wr) {
+        print("ws_echo_loopback: server send FAIL: " + oren_err_msg(wr))
         return 14
     }
 
     ws.close(conn)
-    return 0
-}
-
-fn _print_connect_fail(c, okv) {
-    var errv = oren_map_get_str(c, "err")
-    if errv != 0 {
-        // `errv` can be an untracked C-string in rolling mode; intern it so string ops are safe.
-        var es = oren_intern_cstr(errv)
-        print("ws_echo_loopback: FAIL connect: " + es)
-    } else {
-        print("ws_echo_loopback: FAIL connect: ok=" + oren_int_to_string(okv))
-    }
-    // Bounded dump of the returned map for debugging (up to 8 entries).
-    var count = ptr_get(c + 0)
-    var buf = ptr_get(c + 16)
-    var i = 0
-    while i < count && i < 8 {
-        var base = buf + i * 24
-        var k = ptr_get(base + 0)
-        var kk = ptr_get(base + 8)
-        var v = ptr_get(base + 16)
-        if kk == 1 {
-            print("ws_echo_loopback: entry key=" + k + " v=" + oren_int_to_string(v))
-        } else {
-            print("ws_echo_loopback: entry key_int=" + oren_int_to_string(k) + " v=" + oren_int_to_string(v))
-        }
-        i = i + 1
-    }
     return 0
 }
 
@@ -248,18 +204,16 @@ fn run_one(listen_fd, url, resolver) {
 
     var c = 0
     if resolver != nil {
-        c = ws.connect_resolver(url, 5000, resolver)
+        c = ws.try_connect_resolver(url, 5000, resolver)
     } else {
-        c = ws.connect(url, 5000)
+        c = ws.try_connect(url, 5000)
     }
 
-    // Avoid relying on `c["ok"]` key-kind inference in rolling mode; use the typed runtime accessor.
-    var okv = oren_map_get_str(c, "ok")
-    if okv != 1 {
-        _print_connect_fail(c, okv)
+    if oren_is_err(c) {
+        print("ws_echo_loopback: FAIL connect: " + oren_err_msg(c))
         rc = 20
     } else {
-        conn = oren_map_get_str(c, "conn")
+        conn = c
 
         // Exercise ping/pong handling (Tier‑1): send ping before the text echo.
         //
@@ -279,25 +233,16 @@ fn run_one(listen_fd, url, resolver) {
 
         if rc == 0 {
             var text = "PING"
-            var wr = ws.send_text_client(conn, text, 5000)
-            if wr < 0 {
-                print("ws_echo_loopback: FAIL send (errno=" + oren_int_to_string(0 - wr) + ")")
+            var wr = ws.try_send_text_client(conn, text, 5000)
+            if oren_is_err(wr) {
+                print("ws_echo_loopback: FAIL send: " + oren_err_msg(wr))
                 rc = 21
             } else {
-                var rr = ws.recv_text(conn, 10000)
-                // Prefer typed map access; do not rely on key-kind inference in tests.
-                var rok = oren_map_get_str(rr, "ok")
-                if rok != 1 {
-                    var rerr = oren_map_get_str(rr, "err")
-                    if rerr != 0 {
-                        var rerr_s = oren_intern_cstr(rerr)
-                        print("ws_echo_loopback: FAIL recv: " + rerr_s)
-                    } else {
-                        print("ws_echo_loopback: FAIL recv: ok=" + oren_int_to_string(rok))
-                    }
+                var body = ws.try_recv_text(conn, 10000)
+                if oren_is_err(body) {
+                    print("ws_echo_loopback: FAIL recv: " + oren_err_msg(body))
                     rc = 22
                 } else {
-                    var body = oren_map_get_str(rr, "v")
                     if body == 0 { rc = 23 }
                     else if strcmp(body, "PING") != 0 {
                         print("ws_echo_loopback: FAIL mismatch")

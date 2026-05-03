@@ -16,6 +16,12 @@ import tcp "std:net/tcp"
 import tls "std:net/tls"
 import hostutil "std:net/host"
 
+fn _err_result(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
 fn _trim_right_ws_in_buf(buf, start, end) {
     var i = end
     while i > start {
@@ -653,12 +659,32 @@ fn get_response_resolver(url, timeout_ms, resolver) {
     return get_response_resolver_opts(url, timeout_ms, resolver, 0)
 }
 
+fn try_get_response_resolver_opts(url, timeout_ms, resolver, opts) {
+    var r = get_response_resolver_opts(url, timeout_ms, resolver, opts)
+    if r["ok"] == 1 {
+        return {"status": r["status"], "headers": r["headers"], "body": r["body"]}
+    }
+    return _err_result(r, "http.get_response failed")
+}
+
+fn try_get_response_resolver(url, timeout_ms, resolver) {
+    return try_get_response_resolver_opts(url, timeout_ms, resolver, 0)
+}
+
 fn get_response_opts(url, timeout_ms, opts) {
     return get_response_resolver_opts(url, timeout_ms, 0, opts)
 }
 
+fn try_get_response_opts(url, timeout_ms, opts) {
+    return try_get_response_resolver_opts(url, timeout_ms, 0, opts)
+}
+
 fn get_response(url, timeout_ms) {
     return get_response_resolver_opts(url, timeout_ms, 0, 0)
+}
+
+fn try_get_response(url, timeout_ms) {
+    return try_get_response_resolver_opts(url, timeout_ms, 0, 0)
 }
 
 fn get_text_resolver(url, timeout_ms, resolver) {
@@ -674,11 +700,21 @@ fn get_text_resolver(url, timeout_ms, resolver) {
     return {"ok": 1, "v": body}
 }
 
+fn try_get_text_resolver(url, timeout_ms, resolver) {
+    var r = get_text_resolver(url, timeout_ms, resolver)
+    if r["ok"] == 1 { return r["v"] }
+    return _err_result(r, "http.get_text failed")
+}
+
 fn get_text(url, timeout_ms) {
     // Default behavior:
     // - IPv4 literal hosts work without DNS
     // - hostname hosts use `dns.default_resolver` (env `OREN_DNS_SERVER` or `/etc/resolv.conf`)
     return get_text_resolver(url, timeout_ms, 0)
+}
+
+fn try_get_text(url, timeout_ms) {
+    return try_get_text_resolver(url, timeout_ms, 0)
 }
 
 fn get(url) {

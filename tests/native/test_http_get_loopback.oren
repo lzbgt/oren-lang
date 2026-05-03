@@ -324,6 +324,48 @@ fn run_case(mode) {
     var sr0b = oren_join_timeout(h0b, 5000)
     if sr0b != 0 { return 48 }
 
+    var h0c = spawn server(listen_fd, mode)
+    var urlc = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var tb = http.try_get_text(urlc, 2000)
+    free(urlc)
+    if oren_is_err(tb) {
+        print("http_get_loopback: FAIL try_get_text: " + oren_err_msg(tb))
+        oren_join_timeout(h0c, 5000)
+        return 49
+    }
+    if strcmp(tb, "HELLO") != 0 {
+        print("http_get_loopback: FAIL body mismatch (try_get_text)")
+        print(tb)
+        free(tb)
+        oren_join_timeout(h0c, 5000)
+        return 62
+    }
+    free(tb)
+    var sr0c = oren_join_timeout(h0c, 5000)
+    if sr0c != 0 { return 63 }
+
+    var h0d = spawn server(listen_fd, mode)
+    var urld = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var trr = http.try_get_response(urld, 2000)
+    free(urld)
+    if oren_is_err(trr) {
+        print("http_get_loopback: FAIL try_get_response: " + oren_err_msg(trr))
+        oren_join_timeout(h0d, 5000)
+        return 64
+    }
+    if trr["status"] != 200 || trr["body"] == 0 || strcmp(trr["body"], "HELLO") != 0 {
+        print("http_get_loopback: FAIL try_get_response payload")
+        http.response_free(trr)
+        oren_join_timeout(h0d, 5000)
+        return 65
+    }
+    http.response_free(trr)
+    var sr0d = oren_join_timeout(h0d, 5000)
+    if sr0d != 0 { return 66 }
+
+    var te = http.try_get_text(nil, 0)
+    if oren_is_err(te) != true { return 67 }
+
     // Hostname path: serve a loopback DNS A record so the test stays offline and deterministic.
     var sfd = udp.bind_local(0)
     if sfd < 0 { return 50 }

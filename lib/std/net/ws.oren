@@ -20,6 +20,18 @@ import sha1 "std:crypto/sha1"
 import rand "std:crypto/rand"
 import base64 "std:encoding/base64"
 
+fn _err_result(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
+fn _errno_result(rc, fallback) {
+    var code = 4
+    if rc < 0 { code = 0 - rc }
+    return oren_err(code, fallback)
+}
+
 // --- Transport abstraction (TCP or TLS) ---
 //
 // Rolling v0:
@@ -424,6 +436,16 @@ fn connect_resolver(url, timeout_ms, resolver) {
     return connect_resolver_opts(url, timeout_ms, resolver, 0)
 }
 
+fn try_connect_resolver_opts(url, timeout_ms, resolver, opts) {
+    var r = connect_resolver_opts(url, timeout_ms, resolver, opts)
+    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
+    return _err_result(r, "ws.connect failed")
+}
+
+fn try_connect_resolver(url, timeout_ms, resolver) {
+    return try_connect_resolver_opts(url, timeout_ms, resolver, 0)
+}
+
 fn connect_resolver_opts(url, timeout_ms, resolver, opts) {
     // Client handshake. Returns {"ok":1,"conn":map} or {"ok":0,"err":string}.
     //
@@ -577,6 +599,10 @@ fn connect(url, timeout_ms) {
     return connect_resolver_opts(url, timeout_ms, 0, 0)
 }
 
+fn try_connect(url, timeout_ms) {
+    return try_connect_resolver_opts(url, timeout_ms, 0, 0)
+}
+
 fn _server_handshake(conn, timeout_ms) {
     // Returns {"ok":1} or {"ok":0,"err":string}.
     var hdr = _read_http_header_into_buf(conn, timeout_ms, 8192)
@@ -627,6 +653,12 @@ fn accept(listen_fd, timeout_ms) {
     return {"ok": 1, "conn": conn}
 }
 
+fn try_accept(listen_fd, timeout_ms) {
+    var r = accept(listen_fd, timeout_ms)
+    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
+    return _err_result(r, "ws.accept failed")
+}
+
 fn accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts) {
     // TLS server accept + handshake for wss:// loopback fixtures and basic servers.
     // Returns {"ok":1,"conn":map} or {"ok":0,"err":string}.
@@ -654,6 +686,12 @@ fn accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts) 
         return r
     }
     return {"ok": 1, "conn": conn}
+}
+
+fn try_accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts) {
+    var r = accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts)
+    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "conn") }
+    return _err_result(r, "ws.accept_tls failed")
 }
 
 fn close(conn) {
@@ -822,8 +860,20 @@ fn send_text_client(conn, text, timeout_ms) {
     return _send_frame_text(conn, text, timeout_ms, 1)
 }
 
+fn try_send_text_client(conn, text, timeout_ms) {
+    var rc = send_text_client(conn, text, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _errno_result(rc, "ws.send_text_client failed")
+}
+
 fn send_text_server(conn, text, timeout_ms) {
     return _send_frame_text(conn, text, timeout_ms, 0)
+}
+
+fn try_send_text_server(conn, text, timeout_ms) {
+    var rc = send_text_server(conn, text, timeout_ms)
+    if rc >= 0 { return 0 }
+    return _errno_result(rc, "ws.send_text_server failed")
 }
 
 fn send_ping_client(conn, payload, timeout_ms) {
@@ -956,4 +1006,10 @@ fn recv_text(conn, timeout_ms) {
         // Text
         return {"ok": 1, "v": out}
     }
+}
+
+fn try_recv_text(conn, timeout_ms) {
+    var r = recv_text(conn, timeout_ms)
+    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
+    return _err_result(r, "ws.recv_text failed")
 }
