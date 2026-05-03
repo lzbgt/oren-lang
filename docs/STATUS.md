@@ -2312,6 +2312,15 @@ Local (fast):
   The generator profile shows wrapper scanning is not the issue (~29ms); named function wrapper
   emission is ~4.2s and lambda wrapper emission is ~8.4s, making direct wrapper emission or wrapper
   codegen batching the next credible native build-cost target.
+- Native build profiling now also emits gated ARM64 function-body rows with
+  `OREN_TRACE_ARM64_FUNCTIONS_PATH`, and `make profile-native-build-phases` summarizes phase totals
+  plus the hottest generated functions. The 2026-05-04 generator-surface profile shows
+  `user_decls` is dominated by the large generated test `main` body (~13.2s / 300888 bytes), while
+  wrapper cost is broad rather than one pathological wrapper (`lambda_wrap` ~8.5s across 52 funcs,
+  `fnwrap` ~4.4s across 37 funcs). The same profile exposes a remaining Mach-O local BL target
+  resolution spike (~2.6s in the first 4096 local BL fixups), but a map-backed Mach-O target-cache
+  experiment is already known to hit the native profile timeout, so the safer next optimization is
+  reducing monolithic statement/function codegen overhead or changing wrapper emission shape.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

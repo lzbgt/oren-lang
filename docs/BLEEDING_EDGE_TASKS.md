@@ -4854,16 +4854,28 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 													        metadata construction or the larger user-decl/wrapper phases. A map-backed
 													        Mach-O target cache was tested and rejected after hitting the 180s profile
 													        timeout.
-												      - ARM64 statement compilation now sets loop/statement compile hooks once per
-												        codegen context instead of resetting module globals for every statement. The
-												        native profile also splits wrapper emission into scan/fnwrap/lambda buckets:
-												        wrapper scanning is only ~29ms, named function wrapper emission is ~4.2s, and
-												        lambda wrapper emission is ~8.4s on the generator surface fixture. The next
-												        native build-cost task should therefore target direct wrapper emission or
-												        wrapper codegen batching, not more AST scanning work.
-												      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
-											        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
-											        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
+													      - ARM64 statement compilation now sets loop/statement compile hooks once per
+													        codegen context instead of resetting module globals for every statement. The
+													        native profile also splits wrapper emission into scan/fnwrap/lambda buckets:
+													        wrapper scanning is only ~29ms, named function wrapper emission is ~4.2s, and
+													        lambda wrapper emission is ~8.4s on the generator surface fixture. The next
+													        native build-cost task should therefore target direct wrapper emission or
+													        wrapper codegen batching, not more AST scanning work.
+													      - ARM64 native build profiling now also captures per-function codegen rows
+													        behind `OREN_TRACE_ARM64_FUNCTIONS_PATH`, and
+													        `make profile-native-build-phases` summarizes phase totals plus the hottest
+													        generated function bodies. The generator-surface profile shows the
+													        `user_decls` phase is dominated by the generated fixture `main`
+													        (~13.2s / 300888 bytes), while wrapper cost is distributed across many
+													        small generated functions (`lambda_wrap` ~8.5s across 52 funcs, `fnwrap`
+													        ~4.4s across 37 funcs). It also exposes a separate Mach-O local BL target
+													        resolution spike (~2.6s in the first 4096 local BL fixups), but a
+													        map-backed target-cache experiment already hit the native profile timeout,
+													        so the next safe native optimization should reduce monolithic
+													        statement/function codegen overhead or change wrapper emission shape.
+													      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
+												        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
+												        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
 									      - native green bounded joins now re-check the specific joined task between
 									        short scheduler-poll slices instead of passing the full caller timeout into
 									        the generic poll loop. This closes the over-wait shape where an already

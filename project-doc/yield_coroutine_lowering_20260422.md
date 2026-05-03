@@ -183,6 +183,15 @@ backend-shared value-helper slices landed.
     generator profile shows scan is only ~29ms, named function wrappers are ~4.2s, and lambda
     wrappers are ~8.4s, so the next native build optimization should target direct wrapper emission
     or wrapper codegen batching rather than more AST scanning.
+  - ARM64 function-body profiling (2026-05-04): `OREN_TRACE_ARM64_FUNCTIONS_PATH` now records
+    generated function codegen rows, and `make profile-native-build-phases` summarizes phase totals
+    plus the hottest functions. The generator-surface profile shows the largest user-decl cost is
+    the generated fixture `main` body (~13.2s / 300888 bytes), while wrapper cost is distributed
+    across many generated wrappers (`lambda_wrap` ~8.5s across 52 funcs, `fnwrap` ~4.4s across 37).
+    The same run exposes a separate Mach-O local BL target-resolution spike (~2.6s in the first
+    4096 local BL fixups); because a map-backed target-cache experiment already hit the profile
+    timeout, the next safe native optimization should reduce monolithic statement/function codegen
+    overhead or change wrapper emission shape.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated

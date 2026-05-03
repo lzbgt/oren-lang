@@ -1264,6 +1264,12 @@ fn native_compile_stmt_inner(ctx, stmt) {
             push_u32_le(ctx["code"], 0) 
             
             var func_start = bytes_len(ctx["code"])
+            var fn_prof_t0 = 0
+            var fn_prof_code0 = 0
+            if ctx["arm64_function_profile"] != nil {
+                fn_prof_t0 = oren_time_now_ns()
+                fn_prof_code0 = func_start
+            }
             ctx["functions"][fn_name] = func_start
             oren_list_push(ctx["function_names"], fn_name)
             if fn_name == "main" {
@@ -1508,6 +1514,16 @@ fn native_compile_stmt_inner(ctx, stmt) {
             push_u32_le(ctx["code"], insn_ret())
             
             var func_end = bytes_len(ctx["code"])
+            if ctx["arm64_function_profile"] != nil {
+                var fn_prof_phase = ctx["arm64_codegen_phase"]
+                if fn_prof_phase == nil { fn_prof_phase = "" }
+                oren_list_push(ctx["arm64_function_profile"], {
+                    "name": fn_name,
+                    "phase": fn_prof_phase,
+                    "ms": (oren_time_now_ns() - fn_prof_t0) / 1000000,
+                    "bytes": func_end - fn_prof_code0
+                })
+            }
             
             if ctx["platform"]["debug"] == true {
                 var ftok = expr["token"]
