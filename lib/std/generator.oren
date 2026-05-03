@@ -145,6 +145,10 @@ fn _generator_wait_handle(watcher, wait_ms) {
     return oren_join_timeout(watcher, wait_ms)
 }
 
+fn _generator_value_worker(value) {
+    return value
+}
+
 fn _generator_request_cancel_after_worker(target, timeout_ms, reason) {
     if timeout_ms > 0 { time.sleep_ms(timeout_ms) }
     return oren_generator_request_cancel(target, reason)
@@ -201,6 +205,9 @@ fn request_cancel_after(target, timeout_ms, reason) {
     }
     var delay_ms = _generator_timeout_ms("generator.request_cancel_after", timeout_ms)
     if oren_is_err(delay_ms) == true { return delay_ms }
+    if delay_ms <= 0 {
+        return spawn _generator_value_worker(oren_generator_request_cancel(target, reason))
+    }
     return spawn _generator_request_cancel_after_worker(target, delay_ms, reason)
 }
 
@@ -212,6 +219,7 @@ fn request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) {
     if oren_is_err(delay) == true { return delay }
     var wait = _generator_wait_budget_ms("generator.request_cancel_after_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
     if oren_is_err(wait) == true { return wait }
+    if delay <= 0 { return oren_generator_request_cancel(target, reason) }
     return _generator_wait_handle(request_cancel_after(target, delay, reason), wait)
 }
 
@@ -221,6 +229,9 @@ fn cancel_after(target, timeout_ms, reason) {
     }
     var delay_ms = _generator_timeout_ms("generator.cancel_after", timeout_ms)
     if oren_is_err(delay_ms) == true { return delay_ms }
+    if delay_ms <= 0 {
+        return spawn _generator_value_worker(oren_generator_cancel(target, reason))
+    }
     return spawn _generator_cancel_after_worker(target, delay_ms, reason)
 }
 
@@ -232,6 +243,7 @@ fn cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) {
     if oren_is_err(delay) == true { return delay }
     var wait = _generator_wait_budget_ms("generator.cancel_after_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
     if oren_is_err(wait) == true { return wait }
+    if delay <= 0 { return oren_generator_cancel(target, reason) }
     return _generator_wait_handle(cancel_after(target, delay, reason), wait)
 }
 
@@ -241,6 +253,9 @@ fn request_cancel_at(target, deadline_ns, reason) {
     }
     var delay_ms = _generator_deadline_delay_ms("generator.request_cancel_at", deadline_ns)
     if oren_is_err(delay_ms) == true { return delay_ms }
+    if delay_ms <= 0 {
+        return spawn _generator_value_worker(oren_generator_request_cancel(target, reason))
+    }
     return spawn _generator_request_cancel_after_worker(target, delay_ms, reason)
 }
 
@@ -252,6 +267,7 @@ fn request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) {
     if oren_is_err(delay) == true { return delay }
     var wait = _generator_wait_budget_ms("generator.request_cancel_at_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
     if oren_is_err(wait) == true { return wait }
+    if delay <= 0 { return oren_generator_request_cancel(target, reason) }
     return _generator_wait_handle(request_cancel_at(target, deadline_ns, reason), wait)
 }
 
@@ -261,6 +277,9 @@ fn cancel_at(target, deadline_ns, reason) {
     }
     var delay_ms = _generator_deadline_delay_ms("generator.cancel_at", deadline_ns)
     if oren_is_err(delay_ms) == true { return delay_ms }
+    if delay_ms <= 0 {
+        return spawn _generator_value_worker(oren_generator_cancel(target, reason))
+    }
     return spawn _generator_cancel_after_worker(target, delay_ms, reason)
 }
 
@@ -272,6 +291,7 @@ fn cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) {
     if oren_is_err(delay) == true { return delay }
     var wait = _generator_wait_budget_ms("generator.cancel_at_wait", join_timeout_ms, _generator_wait_default_ms(delay, 0))
     if oren_is_err(wait) == true { return wait }
+    if delay <= 0 { return oren_generator_cancel(target, reason) }
     return _generator_wait_handle(cancel_at(target, deadline_ns, reason), wait)
 }
 

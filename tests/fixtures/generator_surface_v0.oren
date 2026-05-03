@@ -567,6 +567,7 @@ fn main() {
     if oren_is_err(gwatch0s0) == true || gwatch0s0["ok"] != true || gwatch0s0["value"] != 55 { return 173381 }
     var gwatch0h = gen.request_cancel_after(gwatch0, 0, 75)
     if oren_is_err(gwatch0h) == true { return 173382 }
+    if gen.is_cancel_requested(gwatch0) != true || gen.cancel_reason(gwatch0) != 75 { return 1733821 }
     var gwatch0rv = oren_join_timeout(gwatch0h, 2000)
     if oren_is_err(gwatch0rv) == true || gwatch0rv != nil { return 173383 }
     if gen.is_cancel_requested(gwatch0) != true || gen.cancel_reason(gwatch0) != 75 { return 173384 }
@@ -613,6 +614,7 @@ fn main() {
     if oren_is_err(gwatch1s0) == true || gwatch1s0["ok"] != true || gwatch1s0["value"] != 23 { return 173386 }
     var gwatch1h = gen.cancel_after(gwatch1, 0, 81)
     if oren_is_err(gwatch1h) == true { return 173387 }
+    if gen.is_done(gwatch1) != true || gen.is_closed(gwatch1) != true { return 1733871 }
     var gwatch1rv = oren_join_timeout(gwatch1h, 2000)
     if oren_is_err(gwatch1rv) == true || gwatch1rv != nil { return 173388 }
     if gen.is_done(gwatch1) != true || gen.is_closed(gwatch1) != true { return 173389 }

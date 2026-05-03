@@ -1476,8 +1476,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 		       `std:coroutine.request_cancel_after_wait(...)` and
 		       `std:generator.cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` /
 		       `std:coroutine.cancel_after_wait(...)` are the synchronous stdlib forms above those
-		       watcher helpers: they spawn the same watcher and then wait through the shipped
-		       `oren_join_timeout(...)` contract
+		       watcher helpers: immediate cases apply synchronously, while delayed cases spawn the
+		       same watcher and then wait through the shipped `oren_join_timeout(...)` contract
+		     - Update (2026-05-04): zero-delay or already-expired generator/coroutine
+		       `request_cancel_after(...)`, `cancel_after(...)`, `request_cancel_at(...)`, and
+		       `cancel_at(...)` now apply their operation before returning and hand back a joinable
+		       completed-result watcher. This reduces native green-scheduler over-wait in immediate
+		       generator stop/cancel verification while keeping the public watcher-shaped async API.
 		     - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and non-`int`
 		       timeouts return an immediate argument `err`
 		     - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the

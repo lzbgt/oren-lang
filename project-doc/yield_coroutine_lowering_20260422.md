@@ -125,8 +125,12 @@ backend-shared value-helper slices landed.
     applies the same first-write-wins hard-stop `cancel(...)` protocol
   - `request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` /
     `cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` are the synchronous stdlib
-    forms above those watcher helpers: they spawn the same watcher and then wait through the
-    shipped `oren_join_timeout(...)` contract
+    forms above those watcher helpers: immediate cases apply synchronously, while delayed cases
+    spawn the same watcher and then wait through the shipped `oren_join_timeout(...)` contract
+  - Update (2026-05-04): zero-delay or already-expired generator/coroutine async helpers now apply
+    before returning and then hand back a joinable completed-result watcher. That preserves the
+    public watcher-shaped API while reducing the native green-scheduler over-wait exposed by
+    immediate generator stop/cancel verification.
   - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
     timeout arguments return an immediate `err`
   - the watcher join result is `nil` for live-target request/hard-cancel flows; if

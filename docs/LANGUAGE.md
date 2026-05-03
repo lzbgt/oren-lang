@@ -3423,10 +3423,14 @@ Rolling status:
     for `timeout_ms` and then records the same cooperative sticky request state
   - `cancel_after(target, timeout_ms, reason)` spawns a joinable watcher task that sleeps and then
     applies the same first-write-wins hard-stop `cancel(...)` protocol
+  - zero-delay or already-expired generator/coroutine `request_cancel_after(...)`,
+    `cancel_after(...)`, `request_cancel_at(...)`, and `cancel_at(...)` apply their operation before
+    returning and then hand back a joinable completed-result watcher, preserving the async
+    watcher-shaped API without making the operation depend on watcher scheduling
   - `request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` /
     `cancel_after_wait(target, timeout_ms, reason, join_timeout_ms)` are the synchronous stdlib
-    forms above those watcher helpers: they spawn the same watcher and then wait on it through the
-    shipped `oren_join_timeout(...)` contract
+    forms above those watcher helpers: immediate cases apply synchronously, while delayed cases
+    spawn the same watcher and then wait on it through the shipped `oren_join_timeout(...)` contract
   - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
     timeout arguments return an immediate `err`
   - for live targets the watcher join result is `nil`; if `cancel_after(...)` runs after the target
