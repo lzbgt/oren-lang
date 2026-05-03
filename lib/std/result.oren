@@ -58,6 +58,29 @@ fn or_else(v, f) {
     return v
 }
 
+fn from_ok_map(m) {
+    if oren_is_err(m) { return m }
+    if oren_type_name(m) != "map" { return oren_err(4, "result.from_ok_map: expects map") }
+    var ok = m["ok"]
+    if ok == true || ok == 1 { return m["v"] }
+    if ok == false || ok == 0 {
+        var code0 = m["code"]
+        if oren_type_tag(code0) != 1 { code0 = 4 }
+        var msg0 = m["msg"]
+        if msg0 == nil { msg0 = m["err"] }
+        if msg0 == nil || msg0 == "" { msg0 = "operation failed" }
+        return oren_err(code0, msg0)
+    }
+    return oren_err(4, "result.from_ok_map: missing ok")
+}
+
+fn to_ok_map(v) {
+    if oren_is_err(v) {
+        return {"ok": 0, "code": oren_err_code(v), "err": oren_err_msg(v)}
+    }
+    return {"ok": 1, "v": v}
+}
+
 fn expect(v, message) {
     if oren_is_err(v) {
         if message != nil { print(message) }

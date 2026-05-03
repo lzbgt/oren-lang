@@ -105,7 +105,8 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   rolling value-or-error
   convention (`oren_err` / `oren_is_err` / `std:result`), and `std:result` now includes the
   common compositional helpers `map_ok`, `and_then`, `map_err`, and `or_else` plus `code`/`msg`
-  accessors. Stdlib migration breadth is still ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
+  accessors and `from_ok_map` / `to_ok_map` bridges for older `{"ok":...}` codec-style APIs.
+  Stdlib migration breadth is still ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
   partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
   methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics

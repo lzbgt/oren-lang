@@ -1,5 +1,6 @@
 import r "../../lib/std/result.oren"
 import ui_color "std:ui/color"
+import json "../../lib/std/json.oren"
 
 fn double_ok(x) {
     return x * 2
@@ -80,6 +81,46 @@ if s == "fallback" {
     }
     if r.or_else(88, recover_default) != 88 {
         print("Result FAIL (or_else ok passthrough)")
+        exit(1)
+    }
+    var legacy_ok = {"ok": 1, "v": 123}
+    if r.from_ok_map(legacy_ok) != 123 {
+        print("Result FAIL (from_ok_map ok)")
+        exit(1)
+    }
+    var legacy_err = {"ok": 0, "err": "legacy failed"}
+    var legacy_struct_err = r.from_ok_map(legacy_err)
+    if r.is_err(legacy_struct_err) != true || r.code(legacy_struct_err) != 4 {
+        print("Result FAIL (from_ok_map err)")
+        exit(1)
+    }
+    if r.msg(legacy_struct_err) != "legacy failed" {
+        print("Result FAIL (from_ok_map err msg)")
+        exit(1)
+    }
+    var legacy_bad = r.from_ok_map({"v": 1})
+    if r.is_err(legacy_bad) != true || r.code(legacy_bad) != 4 {
+        print("Result FAIL (from_ok_map missing ok)")
+        exit(1)
+    }
+    var ok_map = r.to_ok_map(55)
+    if ok_map["ok"] != 1 || ok_map["v"] != 55 {
+        print("Result FAIL (to_ok_map ok)")
+        exit(1)
+    }
+    var err_map = r.to_ok_map(e_chain)
+    if err_map["ok"] != 0 || err_map["code"] != 4 || err_map["err"] != "not positive" {
+        print("Result FAIL (to_ok_map err)")
+        exit(1)
+    }
+    var parsed_json = r.from_ok_map(json.decode("{\"n\":3}"))
+    if r.is_err(parsed_json) == true || parsed_json["t"] != "object" || parsed_json["o"]["n"]["i"] != 3 {
+        print("Result FAIL (from_ok_map json)")
+        exit(1)
+    }
+    var bad_json = r.from_ok_map(json.decode("{"))
+    if r.is_err(bad_json) != true || r.code(bad_json) != 4 {
+        print("Result FAIL (from_ok_map json err)")
         exit(1)
     }
 

@@ -4552,6 +4552,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     (`oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, `std:result`). `std:result`
 	     now also ships `code`, `msg`, `map_ok`, `and_then`, `map_err`, and `or_else`, so the
 	     remaining work is stdlib migration breadth rather than core language/runtime availability.
+	     It also ships `from_ok_map` / `to_ok_map` bridges so older JSON/YAML/CBOR-style
+	     `{"ok":...}` maps can interoperate with the structured error convention during migration.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level

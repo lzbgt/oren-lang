@@ -3747,6 +3747,8 @@ Rolling status:
   - `std:result` helpers such as `is_err`, `is_ok`, `unwrap`, `expect`, `unwrap_or`,
     `code`, `msg`, `map_ok`, `and_then`, `map_err`, `or_else`, `ok_or_errno`, and
     `with_context`
+  - compatibility bridges `from_ok_map(m)` and `to_ok_map(v)` for older stdlib surfaces that still
+    return legacy `{"ok": 1, "v": ...}` / `{"ok": 0, "err": ...}` maps during the migration
 - Checked stdlib surfaces already use that convention on current rolling builds, including
   `std:list`, `std:bytes`, `std:buffer`, `std:crypto/rand`, `std:ui/commands`,
   `std:ui/color`, and `std:ui/raster`.
