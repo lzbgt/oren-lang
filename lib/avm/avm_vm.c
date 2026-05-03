@@ -35,6 +35,8 @@ enum {
     ,AVM_OP_JOIN_TIMEOUT   = 0x4C   // stack: [... handle timeout_ms] -> [... ret_or_timeout]
     ,AVM_OP_SELECT         = 0x4D   // stack: [... list<case>] -> [... [idx,payload]] (recv or send)
     ,AVM_OP_DETACH         = 0x62   // stack: [... handle_int] -> [...]
+    ,AVM_OP_TASK_CANCEL_AFTER_WAIT = 0x63 // stack: [... handle delay_ms wait_ms reason] -> [... stop_result|err]
+    ,AVM_OP_TASK_CANCEL_WAIT = 0x64       // stack: [... handle wait_ms reason] -> [... stop_result|err]
 };
 
 static int select_case_parse(AvmValue v, int* out_kind, int64_t* out_chid, AvmValue* out_sendv) {
@@ -244,19 +246,7 @@ void avm_run(AvmVM* vm) {
                     t->ret = (vm->sp > 0) ? vm->stack[vm->sp - 1] : avm_nil();
                     task_save_from_vm(vm, t);
 
-                    // Wake join waiters (simple scan; rolling).
-                    for (int wi = 0; wi < sched->task_cap; wi++) {
-                        AvmTask* w = &sched->tasks[wi];
-                        if (!w->used || !w->blocked) continue;
-                        if ((w->wait_kind == 1 || w->wait_kind == 4) && w->wait_id == tid) {
-                            w->blocked = 0;
-                            w->wait_kind = 0;
-                            w->join_deadline_ns = 0;
-                            w->wake_pending = 1;
-                            w->wake_value = t->ret;
-                            (void)sched_ready_push(sched, wi);
-                        }
-                    }
+                    avm_task_wake_join_waiters(sched, tid, t->ret);
                     if (t->detached) {
                         free(t->frames);
                         free(t->stack);
@@ -724,19 +714,7 @@ void avm_run(AvmVM* vm) {
                         vm->stack[vm->sp++] = ret;
                         task_save_from_vm(vm, t);
 
-                        // Wake join waiters.
-                        for (int wi = 0; wi < sched->task_cap; wi++) {
-                            AvmTask* w = &sched->tasks[wi];
-                            if (!w->used || !w->blocked) continue;
-                            if ((w->wait_kind == 1 || w->wait_kind == 4) && w->wait_id == tid) {
-                                w->blocked = 0;
-                                w->wait_kind = 0;
-                                w->join_deadline_ns = 0;
-                                w->wake_pending = 1;
-                                w->wake_value = ret;
-                                (void)sched_ready_push(sched, wi);
-                            }
-                        }
+                        avm_task_wake_join_waiters(sched, tid, ret);
                         if (t->detached) {
                             free(t->frames);
                             free(t->stack);
@@ -1210,6 +1188,103 @@ void avm_run(AvmVM* vm) {
                     tgt->used = 0;
                 }
                 break;
+            }
+            case AVM_OP_TASK_CANCEL_WAIT: { // TASK_CANCEL_WAIT
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
+                if (vm->sp < 3) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INTERNAL, "stack underflow on TASK_CANCEL_WAIT");
+                    break;
+                }
+                AvmValue reason = vm->stack[--vm->sp];
+                AvmValue waitv = vm->stack[--vm->sp];
+                AvmValue hv = vm->stack[--vm->sp];
+                if (hv.type != AVM_VAL_INT || waitv.type != AVM_VAL_INT) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_WAIT expects (int handle, int wait_ms, reason)");
+                    break;
+                }
+                int tid = (int)hv.as.i - 1;
+                if (tid == sched->current_tid) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_WAIT self");
+                    break;
+                }
+                int transitioned = 0;
+                AvmValue rv = avm_task_cancel_wait_result_or_transition(vm, sched, sched->current_tid, tid, waitv.as.i, reason, &transitioned);
+                if (!transitioned) {
+                    vm->stack[vm->sp++] = rv;
+                    break;
+                }
+                task_save_from_vm(vm, &sched->tasks[sched->current_tid]);
+                int next = -1;
+                if (!sched_ready_pop(sched, &next)) {
+                    avm_task_clear_wait_state(&sched->tasks[sched->current_tid]);
+                    vm->stack[vm->sp++] = avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
+                    break;
+                }
+                sched_switch(vm, sched, next);
+                continue;
+            }
+            case AVM_OP_TASK_CANCEL_AFTER_WAIT: { // TASK_CANCEL_AFTER_WAIT
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
+                if (vm->sp < 4) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INTERNAL, "stack underflow on TASK_CANCEL_AFTER_WAIT");
+                    break;
+                }
+                AvmValue reason = vm->stack[--vm->sp];
+                AvmValue waitv = vm->stack[--vm->sp];
+                AvmValue delayv = vm->stack[--vm->sp];
+                AvmValue hv = vm->stack[--vm->sp];
+                if (hv.type != AVM_VAL_INT || delayv.type != AVM_VAL_INT || waitv.type != AVM_VAL_INT) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_AFTER_WAIT expects (int handle, int delay_ms, int wait_ms, reason)");
+                    break;
+                }
+                int tid = (int)hv.as.i - 1;
+                if (tid == sched->current_tid) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_AFTER_WAIT self");
+                    break;
+                }
+                if (delayv.as.i <= 0) {
+                    int transitioned = 0;
+                    AvmValue rv = avm_task_cancel_wait_result_or_transition(vm, sched, sched->current_tid, tid, waitv.as.i, reason, &transitioned);
+                    if (!transitioned) {
+                        vm->stack[vm->sp++] = rv;
+                        break;
+                    }
+                    task_save_from_vm(vm, &sched->tasks[sched->current_tid]);
+                    int next0 = -1;
+                    if (!sched_ready_pop(sched, &next0)) {
+                        avm_task_clear_wait_state(&sched->tasks[sched->current_tid]);
+                        vm->stack[vm->sp++] = avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
+                        break;
+                    }
+                    sched_switch(vm, sched, next0);
+                    continue;
+                }
+                if (tid < 0 || tid >= sched->task_cap || !sched->tasks[tid].used) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_AFTER_WAIT invalid handle");
+                    break;
+                }
+                avm_add_virtual_sleep_ms(vm, delayv.as.i);
+                int transitioned = 0;
+                AvmValue rv = avm_task_cancel_wait_result_or_transition(vm, sched, sched->current_tid, tid, waitv.as.i, reason, &transitioned);
+                if (!transitioned) {
+                    vm->stack[vm->sp++] = rv;
+                    break;
+                }
+                task_save_from_vm(vm, &sched->tasks[sched->current_tid]);
+                int next = -1;
+                if (!sched_ready_pop(sched, &next)) {
+                    avm_task_clear_wait_state(&sched->tasks[sched->current_tid]);
+                    vm->stack[vm->sp++] = avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
+                    break;
+                }
+                sched_switch(vm, sched, next);
+                continue;
             }
             case AVM_OP_CHAN_NEW: { // CHAN_NEW
                 if (!sched) {
@@ -1848,22 +1923,37 @@ select2_done:
             }
         }
 
-        // JOIN_TIMEOUT deadlines: if any join-timeout waiters are blocked and expired, wake them with ETIMEDOUT.
+        // Deadline-backed scheduler waits: join timeouts and task cancel-wait opcodes.
         // This scan is O(tasks) and runs periodically (amortized). Keep it cheap.
         if (sched && ((steps & 255ull) == 0)) {
             uint64_t now = avm_vm_now_ns(vm);
             for (int i = 0; i < sched->task_cap; i++) {
                 AvmTask* t = &sched->tasks[i];
                 if (!t->used || !t->blocked) continue;
-                if (t->wait_kind != 4) continue; // join_timeout
+                if (t->wait_kind != 4 && t->wait_kind != 6) continue;
                 if (t->join_deadline_ns == 0) continue;
                 if (now >= t->join_deadline_ns) {
-                    t->blocked = 0;
-                    t->wait_kind = 0;
-                    t->join_deadline_ns = 0;
-                    t->wake_pending = 1;
-                    t->wake_value = avm_int(-60); // ETIMEDOUT (BSD)
-                    (void)sched_ready_push(sched, i);
+                    if (t->wait_kind == 4) {
+                        t->blocked = 0;
+                        t->wait_kind = 0;
+                        t->join_deadline_ns = 0;
+                        t->wake_pending = 1;
+                        t->wake_value = avm_int(-60); // ETIMEDOUT (BSD)
+                        (void)sched_ready_push(sched, i);
+                    } else if (t->wait_kind == 6) {
+                        int target_tid = t->wait_id;
+                        AvmValue reason = t->wait_list;
+                        AvmValue rv = avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
+                        if (target_tid >= 0 && target_tid < sched->task_cap && sched->tasks[target_tid].used) {
+                            AvmTask* target = &sched->tasks[target_tid];
+                            if (target->done) {
+                                rv = avm_task_stop_result("joined", target->has_ret ? target->ret : avm_nil(), reason, avm_nil());
+                            } else {
+                                target->detached = 1;
+                            }
+                        }
+                        avm_task_wake_with_value(sched, i, rv);
+                    }
                 }
             }
         }

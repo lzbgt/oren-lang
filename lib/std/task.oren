@@ -7,8 +7,8 @@
 // - adds a safe reflected predicate (`is_handle`) before destructive operations
 // - supports the default scheduler-backed task handles on native, plus AVM/C task handles
 // - exposes cooperative cancel-request state plus bounded cancel/stop policy for generic task handles
-// - immediate cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`; C/native
-//   bounded and delayed synchronous cancel waits use runtime calls, while AVM keeps the bytecode JOIN_TIMEOUT path
+// - immediate cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`; bounded
+//   and delayed synchronous cancel waits are runtime/scheduler-owned on C, native, and AVM
 // - `stop_capabilities()` exposes that runtime boundary as a stable, testable feature contract
 // - legacy native raw fallback handles (fork / Windows thread fallback) still use the low-level
 //   raw helpers directly and are not yet reflected by `is_handle(...)`

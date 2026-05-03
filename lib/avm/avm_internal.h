@@ -42,12 +42,12 @@ typedef struct {
     int detached;
     int cancel_requested;
 
-    int wait_kind;      // 0 none, 1 join, 2 recv, 3 select, 4 join_timeout
+    int wait_kind;      // 0 none, 1 join, 2 recv, 3 select, 4 join_timeout, 6 task_cancel_wait
     int wait_id;        // join target task id
     int wait_chan;      // recv channel id
-    AvmValue wait_list; // select list value (list of channel handles)
+    AvmValue wait_list; // select list value, or task stop reason for wait_kind 6
 
-    // join_timeout deadline (absolute ns). Only meaningful when wait_kind==4.
+    // join/cancel timeout deadline (absolute ns). Only meaningful when wait_kind==4/6.
     uint64_t join_deadline_ns;
 
     int wake_pending;

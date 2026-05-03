@@ -76,21 +76,17 @@ fn run_task_surface_v0() {
     if oren_type_name(caps0) != "map" { return 1900028 }
     if caps0["immediate_cancel_now"] != true { return 1900029 }
     if caps0["cancel_request_state"] != true { return 1900030 }
-    if oren_type_name(caps0["bounded_wait_native_call"]) != "bool" { return 1900031 }
-    if oren_type_name(caps0["delayed_wait_native_call"]) != "bool" { return 1900032 }
+    if caps0["bounded_wait_native_call"] != true { return 1900031 }
+    if caps0["delayed_wait_native_call"] != true { return 1900032 }
     if oren_type_name(caps0["blocking_native_call_scheduler"]) != "bool" { return 1900033 }
     if oren_is_err(oren_task_cancel_wait(123, 0, 1)) != true { return 1900034 }
     if oren_is_err(oren_task_cancel_after_wait(123, 0, 0, 1)) != true { return 19000341 }
-    if caps0["bounded_wait_native_call"] == true {
-        var hcap0 = spawn cancel_observer_task([2300, 80])
-        var hcap0r = oren_task_cancel_wait(hcap0, 200, 21)
-        if stop_joined(hcap0r, 2321) != true || hcap0r["reason"] != 21 { return 1900035 }
-    }
-    if caps0["delayed_wait_native_call"] == true {
-        var hcap1 = spawn cancel_observer_task([2400, 80])
-        var hcap1r = oren_task_cancel_after_wait(hcap1, 1, 200, 22)
-        if stop_joined(hcap1r, 2422) != true || hcap1r["reason"] != 22 { return 1900036 }
-    }
+    var hcap0 = spawn cancel_observer_task([2300, 80])
+    var hcap0r = oren_task_cancel_wait(hcap0, 200, 21)
+    if stop_joined(hcap0r, 2321) != true || hcap0r["reason"] != 21 { return 1900035 }
+    var hcap1 = spawn cancel_observer_task([2400, 80])
+    var hcap1r = oren_task_cancel_after_wait(hcap1, 1, 200, 22)
+    if stop_joined(hcap1r, 2422) != true || hcap1r["reason"] != 22 { return 1900036 }
     if reflect.is_task(123) != false { return 190003 }
     if oren_is_err(task.join(123)) != true { return 190004 }
     if oren_is_err(task.join_timeout(123, 0)) != true { return 190005 }

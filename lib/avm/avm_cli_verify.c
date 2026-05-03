@@ -435,6 +435,14 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 1;  // handle
             push = 0;
+        } else if (op == 0x63) { // TASK_CANCEL_AFTER_WAIT
+            len = 1;
+            pop = 4;  // handle + delay_ms + wait_ms + reason
+            push = 1; // stop-result map or err
+        } else if (op == 0x64) { // TASK_CANCEL_WAIT
+            len = 1;
+            pop = 3;  // handle + wait_ms + reason
+            push = 1; // stop-result map or err
         } else {
             free(depth_at); free(queue); free(qdepth);
             return err_result("verify: unknown opcode");

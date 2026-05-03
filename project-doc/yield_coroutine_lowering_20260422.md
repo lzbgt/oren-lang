@@ -271,9 +271,9 @@ backend-shared value-helper slices landed.
         `join_timeout_ms` override on the synchronous path; immediate zero-budget task cancel/stop
         execution is runtime-owned through `oren_task_cancel_now(...)`
       - `std:task.stop_capabilities()` exposes that runtime boundary as a map:
-        immediate cancel-now and cancel-request state are runtime-backed, bounded cancel-wait native calls
-        are backend-specific (`true` on C/native, `false` on AVM), and delayed synchronous cancel-wait
-        native calls follow the same backend split
+        immediate cancel-now, cancel-request state, bounded cancel-wait, and delayed synchronous
+        cancel-wait are runtime/scheduler-backed across C, native, and AVM; AVM uses dedicated
+        scheduler opcodes for the wait paths
     - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
       operations and reject extra generator/coroutine members
     - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
@@ -281,11 +281,10 @@ backend-shared value-helper slices landed.
   - the remaining gap is now narrower: runtime-backed groups are already unified and runtime-owned
     for mixed membership, stored default policy, and atomic member/kind/policy snapshot-and-take
     semantics, and generic task cancellation now ships as cooperative request plus bounded stop/detach;
-    immediate task stop execution is runtime-owned, C/native bounded and delayed synchronous cancel waits
-    now use `oren_task_cancel_wait(...)` and `oren_task_cancel_after_wait(...)`, AVM keeps the opcode-level
-    `JOIN_TIMEOUT` fallback, and AVM delayed task waits plus generator/coroutine typed stop execution still
-    live in stdlib rather than wholly in the runtime scheduler itself, with `std:task.stop_capabilities()`
-    pinning that boundary programmatically
+    immediate task stop execution and bounded/delayed synchronous task cancel waits are now
+    runtime/scheduler-owned through `oren_task_cancel_now(...)`, `oren_task_cancel_wait(...)`, and
+    `oren_task_cancel_after_wait(...)` across C, native, and AVM. Generator/coroutine typed stop execution
+    still lives in stdlib rather than wholly in the runtime scheduler itself.
 - Fresh landing (2026-04-23): source-level `@oren.coroutine` now also ships, but only as a narrow
   parser-level alias of `@oren.generator`:
   - named `fn` declarations, function-valued `var` bindings, and lambda-valued `var` bindings now

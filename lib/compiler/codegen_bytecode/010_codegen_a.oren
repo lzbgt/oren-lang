@@ -857,6 +857,29 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_JOIN_TIMEOUT)
             return nil
         }
+        if name == "oren_task_cancel_wait" {
+            if oren_list_len(expr["args"]) != 3 {
+            bytecode_error(ctx, "bytecode backend: oren_task_cancel_wait expects (handle, wait_ms, reason)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            bytecode_compile_expr(ctx, expr["args"][2])
+            emit_byte(ctx, AVM_TASK_CANCEL_WAIT)
+            return nil
+        }
+        if name == "oren_task_cancel_after_wait" {
+            if oren_list_len(expr["args"]) != 4 {
+            bytecode_error(ctx, "bytecode backend: oren_task_cancel_after_wait expects (handle, delay_ms, wait_ms, reason)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            bytecode_compile_expr(ctx, expr["args"][2])
+            bytecode_compile_expr(ctx, expr["args"][3])
+            emit_byte(ctx, AVM_TASK_CANCEL_AFTER_WAIT)
+            return nil
+        }
         if name == "oren_detach" {
             if oren_list_len(expr["args"]) != 1 {
             bytecode_error(ctx, "bytecode backend: oren_detach expects (handle)")

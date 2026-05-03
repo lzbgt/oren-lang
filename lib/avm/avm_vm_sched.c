@@ -1,5 +1,6 @@
 #include "avm_vm_sched.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -317,6 +318,107 @@ uint64_t avm_vm_now_ns(AvmVM* vm) {
     return avm_now_ns();
 }
 
+static uint64_t avm_ms_to_ns_saturating(int64_t ms) {
+    if (ms <= 0) return 0;
+    uint64_t ums = (uint64_t)ms;
+    if (ums > UINT64_MAX / 1000000ull) return UINT64_MAX;
+    return ums * 1000000ull;
+}
+
+uint64_t avm_deadline_after_ms(AvmVM* vm, int64_t ms) {
+    uint64_t now = avm_vm_now_ns(vm);
+    uint64_t add = avm_ms_to_ns_saturating(ms);
+    if (UINT64_MAX - now < add) return UINT64_MAX;
+    return now + add;
+}
+
+int avm_clamp_wait_ms_to_int(int64_t ms) {
+    if (ms > INT_MAX) return INT_MAX;
+    if (ms < INT_MIN) return INT_MIN;
+    return (int)ms;
+}
+
+void avm_add_virtual_sleep_ms(AvmVM* vm, int64_t ms) {
+    if (!vm || !vm->deterministic || ms <= 0) return;
+    uint64_t add = avm_ms_to_ns_saturating(ms);
+    uint64_t prev = vm->virtual_sleep_ns;
+    vm->virtual_sleep_ns = prev + add;
+    if (vm->virtual_sleep_ns < prev) vm->virtual_sleep_ns = UINT64_MAX;
+}
+
+void avm_task_clear_wait_state(AvmTask* task) {
+    if (!task) return;
+    task->blocked = 0;
+    task->wait_kind = 0;
+    task->wait_id = 0;
+    task->wait_chan = 0;
+    task->join_deadline_ns = 0;
+    task->wait_list = avm_nil();
+    task->wake_pending = 0;
+    task->wake_value = avm_nil();
+}
+
+void avm_task_wake_with_value(AvmSched* sched, int waiter_tid, AvmValue value) {
+    if (!sched || waiter_tid < 0 || waiter_tid >= sched->task_cap) return;
+    AvmTask* w = &sched->tasks[waiter_tid];
+    if (!w->used) return;
+    avm_task_clear_wait_state(w);
+    w->wake_pending = 1;
+    w->wake_value = value;
+    (void)sched_ready_push(sched, waiter_tid);
+}
+
+void avm_task_wake_join_waiters(AvmSched* sched, int target_tid, AvmValue ret) {
+    if (!sched) return;
+    for (int wi = 0; wi < sched->task_cap; wi++) {
+        AvmTask* w = &sched->tasks[wi];
+        if (!w->used || !w->blocked || w->wait_id != target_tid) continue;
+        if (w->wait_kind == 1 || w->wait_kind == 4) {
+            avm_task_wake_with_value(sched, wi, ret);
+        } else if (w->wait_kind == 6) {
+            AvmValue reason = w->wait_list;
+            avm_task_wake_with_value(sched, wi, avm_task_stop_result("joined", ret, reason, avm_nil()));
+        }
+    }
+}
+
+AvmValue avm_task_cancel_wait_result_or_transition(AvmVM* vm, AvmSched* sched, int waiter_tid, int target_tid, int64_t wait_ms, AvmValue reason, int* transitioned) {
+    if (transitioned) *transitioned = 0;
+    if (!vm || !sched) return avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_WAIT missing scheduler");
+    if (target_tid < 0 || target_tid >= sched->task_cap || !sched->tasks[target_tid].used) {
+        return avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_WAIT invalid handle");
+    }
+    AvmTask* target = &sched->tasks[target_tid];
+    if (target->detached) {
+        return avm_task_stop_result("joined", avm_nil(), reason, avm_nil());
+    }
+    if (target->done) {
+        return avm_task_stop_result("joined", target->has_ret ? target->ret : avm_nil(), reason, avm_nil());
+    }
+    if (!target->cancel_requested) {
+        target->cancel_requested = 1;
+        target->cancel_reason = reason;
+    }
+    if (wait_ms <= 0 || sched->ready_len <= 0) {
+        target->detached = 1;
+        return avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
+    }
+    if (waiter_tid < 0 || waiter_tid >= sched->task_cap || !sched->tasks[waiter_tid].used) {
+        return avm_err(AVM_ERR_INVALID_ARG, "TASK_CANCEL_WAIT invalid waiter");
+    }
+    AvmTask* waiter = &sched->tasks[waiter_tid];
+    waiter->blocked = 1;
+    waiter->wait_kind = 6;
+    waiter->wait_id = target_tid;
+    waiter->wait_chan = avm_clamp_wait_ms_to_int(wait_ms);
+    waiter->wait_list = reason;
+    waiter->join_deadline_ns = avm_deadline_after_ms(vm, wait_ms);
+    waiter->wake_pending = 0;
+    waiter->wake_value = avm_nil();
+    if (transitioned) *transitioned = 1;
+    return avm_nil();
+}
+
 void sched_switch(AvmVM* vm, AvmSched* s, int next_tid) {
     if (!vm || !s) return;
     int cur = s->current_tid;
@@ -503,7 +605,7 @@ AvmValue avm_task_cancel_reason(AvmVM* vm, AvmValue handle) {
     return s->tasks[tid].cancel_reason;
 }
 
-static AvmValue avm_task_stop_result(const char* status, AvmValue result, AvmValue reason, AvmValue detach_result) {
+AvmValue avm_task_stop_result(const char* status, AvmValue result, AvmValue reason, AvmValue detach_result) {
     AvmValue mapv = avm_new_empty_map_value();
     if (avm_is_err_val(mapv)) return mapv;
     int ok = 1;
@@ -561,8 +663,8 @@ AvmValue avm_task_stop_capabilities(void) {
     int ok = 1;
     ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("immediate_cancel_now"), avm_bool(1));
     ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("cancel_request_state"), avm_bool(1));
-    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("bounded_wait_native_call"), avm_bool(0));
-    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("delayed_wait_native_call"), avm_bool(0));
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("bounded_wait_native_call"), avm_bool(1));
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("delayed_wait_native_call"), avm_bool(1));
     ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("blocking_native_call_scheduler"), avm_bool(0));
     if (!ok) return avm_alloc_fail_value();
     return mapv;

@@ -77,6 +77,8 @@ static const char* op_name(uint8_t op) {
         case 0x4C: return "JOIN_TIMEOUT";
         case 0x4D: return "SELECT";
         case 0x62: return "DETACH";
+        case 0x63: return "TASK_CANCEL_AFTER_WAIT";
+        case 0x64: return "TASK_CANCEL_WAIT";
         default: return "OP?";
     }
 }
