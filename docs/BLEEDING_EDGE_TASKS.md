@@ -4559,6 +4559,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     bridged through `std:result.from_ok_map(yaml.decode(...))` until the native YAML
 	     codegen path is cheap enough for a direct wrapper; remaining ok-map cleanup is mostly
 	     network/protocol APIs.
+	     New (2026-05-04): DNS/host/HPACK now also expose structured `try_*` wrappers over
+	     the already-tested ok-map APIs, reducing the remaining network/protocol migration
+	     backlog to broader HTTP/TLS/WebSocket surfaces and untested provider edges.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level

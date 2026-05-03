@@ -49,6 +49,17 @@ fn main() {
         print("got     =" + got)
         _fail("hex mismatch")
     }
+    var tr = hpack.try_encode_header_block(hpack.table_new(4096), headers, {"huffman": 1})
+    if oren_is_err(tr) { _fail("try_encode_header_block err") }
+    var got2 = oren_bytes_to_hex(tr["b"])
+    if _str_eq_bytes(got2, expected) != true { _fail("try_encode_header_block hex mismatch") }
+
+    var dr = hpack.try_decode_header_block(hpack.table_new(4096), tr["b"])
+    if oren_is_err(dr) { _fail("try_decode_header_block err") }
+    if oren_list_len(dr["headers"]) != 4 { _fail("try_decode_header_block header count") }
+    if _str_eq_bytes(dr["headers"][3]["value"], "www.example.com") != true { _fail("try_decode_header_block authority") }
+
+    var bad = hpack.try_decode_header_block(hpack.table_new(4096), oren_bytes_pack([255]))
+    if oren_is_err(bad) != true { _fail("try_decode_header_block invalid should err") }
     exit(0)
 }
-

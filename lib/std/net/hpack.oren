@@ -432,6 +432,12 @@ fn _huff_decode_bytes(ptr0, off, slen) {
     return {"ok": 1, "b": b2}
 }
 
+fn _err_result(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
 fn _static_get(idx) {
     // idx is 1-based.
     if oren_type_tag(idx) == 0 { return {"ok": 0, "err": "hpack.static_get: idx is nil"} }
@@ -709,6 +715,12 @@ fn decode_header_block(table, header_block_bytes) {
     return {"ok": 1, "headers": headers, "table": table}
 }
 
+fn try_decode_header_block(table, header_block_bytes) {
+    var r = decode_header_block(table, header_block_bytes)
+    if r["ok"] == 1 { return {"headers": r["headers"], "table": r["table"]} }
+    return _err_result(r, "hpack.decode_header_block failed")
+}
+
 // --- Encoding (rolling) ---
 
 fn _str_eq_bytes(a, b) {
@@ -951,4 +963,10 @@ fn encode_header_block(table, headers, opts) {
     }
 
     return {"ok": 1, "b": oren_bytes_pack(out), "table": table}
+}
+
+fn try_encode_header_block(table, headers, opts) {
+    var r = encode_header_block(table, headers, opts)
+    if r["ok"] == 1 { return {"b": r["b"], "table": r["table"]} }
+    return _err_result(r, "hpack.encode_header_block failed")
 }

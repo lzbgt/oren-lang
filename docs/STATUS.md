@@ -110,7 +110,8 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   and typed sequence variants) while keeping legacy `{ok, err}` decoders for compatibility;
   YAML remains bridged through `std:result.from_ok_map(yaml.decode(...))` until its native
   codegen path is cheap enough for a direct wrapper without slowing verification.
-  Stdlib migration breadth is still ongoing, mostly in older network/protocol modules. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
+  DNS/host/HPACK now also expose structured `try_*` wrappers over their tested ok-map APIs.
+  Stdlib migration breadth is still ongoing, mostly in older HTTP/TLS/WebSocket network APIs. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
   partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
   methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
@@ -1362,6 +1363,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (`try_decode`, plus CBOR sequence/typed-sequence variants) over their legacy `{ok, err}`
      APIs, so new codec callers can stay on `oren_err` while existing callers remain
      source-compatible. YAML remains compatible through `std:result.from_ok_map(yaml.decode(...))`.
+   - New (2026-05-04): `std:net/dns`, `std:net/host`, and `std:net/hpack` now provide direct
+     structured-error wrappers over their tested legacy ok-map APIs (`try_query_a`,
+     `try_resolve_a`, `try_resolve_host_ipv4`, `try_encode_header_block`,
+     `try_decode_header_block`), keeping existing network callers compatible while giving new
+     code an `oren_err` path.
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
      `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
    - Migration rule: modules with any `pub` declaration become closed-by-default to imports,
@@ -5186,10 +5192,10 @@ Status legend:
 | TIME substrate (`oren_sleep_ms`, `oren_time_*`) | Rolling | `lib/runtime_native/100_time.oren` | `tests/native/test_time_suite.oren` |
 | RNG substrate (`oren_getentropy`) | Rolling | `lib/runtime_native/102_entropy.oren` | `tests/native/test_quick_integration_native.oren` |
 | NET substrate (TCP/UDP) | Rolling | `lib/runtime_native/240_tcp.oren`, `250_udp.oren` | `tests/native/test_net_suite.oren` |
-| DNS v0 | Rolling | `lib/std/net/dns.oren` | `tests/native/test_dns_loopback.oren` |
+| DNS v0 | Rolling | `lib/std/net/dns.oren` (`try_query_a`, `try_resolve_a`) | `tests/native/test_dns_loopback.oren` |
 | TLS v0 | Rolling | `lib/std/net/tls.oren` + OS providers | `tests/native/test_tls_loopback.oren` |
 | HTTP/1.1 GET | Rolling | `lib/std/net/http.oren` | `tests/native/test_http_get_loopback.oren` |
-| HTTP/2 framing + HPACK v0 | Rolling | `lib/std/net/http2.oren`, `lib/std/net/hpack.oren` | `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren` |
+| HTTP/2 framing + HPACK v0 | Rolling | `lib/std/net/http2.oren`, `lib/std/net/hpack.oren` (`try_encode_header_block`, `try_decode_header_block`) | `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren`, `tests/native/test_hpack_encode_rfc_c41.oren` |
 | WebSocket v0 | Rolling | `lib/std/net/ws.oren` | `tests/native/test_ws_echo_loopback.oren` |
 | Channels + select | Rolling | `lib/runtime_native/010_channels_*`, `lib/runtime_native/245_select.oren` | `tests/native/test_integration_suite.oren`, `tests/avm/test_smoke_suite.oren` |
 | Spawn + join | Rolling | `lib/runtime_native/260_threads.oren` | `tests/native/test_integration_suite.oren` |
