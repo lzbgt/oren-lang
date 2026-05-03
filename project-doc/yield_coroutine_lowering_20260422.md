@@ -140,8 +140,16 @@ backend-shared value-helper slices landed.
     astbin seed with stage1 and pass it directly as `OREN_NATIVE_RUNTIME_ASTBIN` for stage2 native
     builds. This avoids the cold runtime include-expansion/parsing path while iterating on
     `lib/runtime_native/**`. They now also prewarm a non-debug core runtime-object seed with
-    stage1 before launching stage2 native surface builds, so edited scheduler runtime files do not
-    force stage2 through cold rtobj generation just to verify a fixture.
+    stage1 before launching stage2 native surface builds. The prewarm no-op path validates the
+    runtime hash cache against recorded source file size/mtime metadata, so repeated verifier runs
+    avoid forced cold seed probes while edited scheduler runtime files still refresh the seed before
+    fixture verification.
+  - Bytecode verifier performance work (2026-05-04): direct bytecode builds now keep the finalized
+    u8 buffer as the primary artifact and only materialize the legacy code list for OBC linking.
+    Scalar bytecode constant interning reduced the generator surface constant pool from 5355 entries
+    to 781 entries and direct OBC bytes from 312315 to 289646. The AVM bytecode-link smoke now uses
+    a bounded tiny OBX link/run default plus an unresolved `--obc-lib` reloc guard; full stdlib OBC
+    bundle probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1`.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated

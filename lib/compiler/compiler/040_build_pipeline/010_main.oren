@@ -685,10 +685,14 @@ fn compiler_main() {
     }
     _enforce_yield_lowering_v0_if_requested(strict_yield_lowering_v0, backend, prog)
     _trace_yield_lowering_v0_if_requested(backend, prog)
-		    if backend == "bytecode" {
+	    if backend == "bytecode" {
 	        var allow_undef = false
+	        var need_link = false
+	        if stdlib_mode == "obc" { need_link = true }
+	        if oren_list_len(link_obc) > 0 { need_link = true }
 	        if stdlib_mode == "obc" { allow_undef = true }
 	        if oren_list_len(link_obc) > 0 { allow_undef = true }
+	        if obc_lib { allow_undef = true }
 
 	        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "backend": backend, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib, "test_mode": test_mode})
 	        if trace_phase_path != nil {
@@ -708,12 +712,13 @@ fn compiler_main() {
 	            if allow_undef == true { allow_undef_s = "true" }
 	            _build_phase_log_append(trace_phase_path, "build.bytecode.codegen.start", "allow_undef=" + allow_undef_s, t_sum0)
 	        }
-	        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
+	        var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef, "materialize_code_list": need_link})
 	        if trace_phase_path != nil {
 	            var n_consts_bc = 0
 	            var n_code_bc = 0
 	            if ctx != nil && ctx["constants"] != nil { n_consts_bc = oren_list_len(ctx["constants"]) }
-	            if ctx != nil && ctx["code"] != nil { n_code_bc = oren_list_len(ctx["code"]) }
+	            if ctx != nil && ctx["code_buf"] != nil { n_code_bc = _bytes_len_any(ctx["code_buf"]) }
+	            else if ctx != nil && ctx["code"] != nil { n_code_bc = oren_list_len(ctx["code"]) }
 	            _build_phase_log_append(trace_phase_path, "build.bytecode.codegen.done", "constants=" + oren_int_to_string(n_consts_bc) + " code=" + oren_int_to_string(n_code_bc), t_sum0)
 	        }
 	        if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
@@ -781,9 +786,6 @@ fn compiler_main() {
         // Stdlib/extra library linking (rolling):
         // - compile the main program with unresolved fixups enabled
         // - link OBX-enabled libraries into a final, self-contained `.obc`
-        var need_link = false
-        if stdlib_mode == "obc" { need_link = true }
-        if oren_list_len(link_obc) > 0 { need_link = true }
 	        if need_link {
             var libs = []
             if stdlib_mode == "obc" {

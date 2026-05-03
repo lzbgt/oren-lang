@@ -480,9 +480,39 @@ fn patch_u32(ctx, idx, n) {
     bytes.bytes_set_u32_le(ctx["code"], idx, n)
 }
 
+fn _bytecode_constant_key(val) {
+    if val == nil { return nil }
+    var typ = val["type"]
+    if typ == "Nil" { return "N" }
+    if typ == "Bool" {
+        if val["value"] == true || val["value"] == 1 { return "B:1" }
+        return "B:0"
+    }
+    if typ == "Integer" { return "I:" + oren_int_to_string(val["value"]) }
+    if typ == "Float" { return "F:" + oren_int_to_string(val["value"]) }
+    if typ == "String" {
+        var s = val["value"]
+        if s == nil { s = "" }
+        return "S:" + oren_int_to_string(oren_string_len(s)) + ":" + s
+    }
+    return nil
+}
+
 fn add_constant(ctx, val) {
+    var key = _bytecode_constant_key(val)
+    if key != nil {
+        var cmap = ctx["constant_map"]
+        if cmap != nil {
+            var hit = cmap[key]
+            if oren_type_tag(hit) != 0 { return hit - 1 }
+        }
+    }
     var idx = oren_list_len(ctx["constants"])
     oren_list_push(ctx["constants"], val)
+    if key != nil {
+        var cmap2 = ctx["constant_map"]
+        if cmap2 != nil { cmap2[key] = idx + 1 }
+    }
     return idx
 }
 

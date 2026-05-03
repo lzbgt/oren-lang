@@ -136,7 +136,9 @@ verify_native_rtobj_seed_prewarm() {
     profile="core"
   fi
 
-  if [[ "${OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED:-1}" = "0" || "${OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED:-1}" = "false" ]]; then
+  # Default to the source-validated no-op path. Use OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED=1
+  # only when deliberately reproing or measuring cold seed refresh behavior.
+  if [[ "${OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED:-0}" = "0" || "${OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED:-0}" = "false" ]]; then
     ./scripts/build_rtobj_seed.sh --platform "$platform" --compiler "$compiler" \
       --build-compiler "$seed_compiler" --runtime-profile "$profile" --no-debug >>"$log_file" 2>&1 || return 1
   else

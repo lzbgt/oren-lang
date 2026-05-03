@@ -4810,9 +4810,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									        prewarm the stage1 runtime astbin seed and pass the exact seed through
 									        `OREN_NATIVE_RUNTIME_ASTBIN` for stage2 native builds, while still bounding
 									        native build process groups with `OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS`.
-									        They also prewarm a non-debug core runtime-object seed with stage1, so
-									        edited scheduler runtime files do not force stage2 through cold rtobj
-									        generation before fixture verification.
+										        They also prewarm a non-debug core runtime-object seed with stage1. The
+										        seed prewarm now validates the runtime hash cache against recorded source
+										        file size/mtime metadata before taking the no-op path, so repeated surface
+										        verifier runs avoid forced cold seed probes while edited scheduler runtime
+										        files still refresh the seed before stage2 fixture verification.
+									      - bytecode direct emission now avoids materializing the legacy `list<int>` code
+									        representation unless OBC linking needs it, and scalar constant interning cuts
+									        the generator surface constant pool from 5355 entries to 781 entries.
+									      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
+									        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
+									        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
 									      - native green bounded joins now re-check the specific joined task between
 									        short scheduler-poll slices instead of passing the full caller timeout into
 									        the generic poll loop. This closes the over-wait shape where an already

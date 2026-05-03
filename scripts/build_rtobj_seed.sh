@@ -230,10 +230,44 @@ rtobj_hash_opts() {
   base="$(sanitize_runtime_path "$runtime_entry")"
 	  local p="${hash_cache_dir}/${base}.hash.txt"
 	  if [[ ! -f "$p" ]]; then return 1; fi
-	  local line
-	  line="$(grep -E "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
-	  [[ -z "$line" ]] && return 1
-	  local rh="${line#hash=}"
+	  local rh
+	  rh="$(python3 - "$p" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        lines = fh.read().splitlines()
+except OSError:
+    raise SystemExit(1)
+
+if not lines or not lines[0].startswith("hash="):
+    raise SystemExit(1)
+rh = lines[0][5:]
+if not rh:
+    raise SystemExit(1)
+
+for line in lines[1:]:
+    if not line:
+        continue
+    parts = line.split("\t")
+    if len(parts) != 3:
+        raise SystemExit(1)
+    src, size_s, mtime_s = parts
+    try:
+        st = os.stat(src)
+        want_size = int(size_s)
+        want_mtime = int(mtime_s)
+    except (OSError, ValueError):
+        raise SystemExit(1)
+    if st.st_size != want_size or st.st_mtime_ns != want_mtime:
+        raise SystemExit(1)
+
+print(rh)
+PY
+	  )" || return 1
+	  [[ -z "$rh" ]] && return 1
 	  local opts
 	  opts="$(rtobj_hash_opts)"
 	  if [[ -n "$opts" ]]; then

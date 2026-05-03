@@ -2262,8 +2262,18 @@ Local (fast):
   by default (`OREN_VERIFY_NATIVE_RTOBJ_SEED=1`,
   `OREN_NATIVE_RTOBJ_SEED_BUILD_COMPILER=./oren`). This keeps native-runtime scheduler
   edits from forcing stage2 through a cold rtobj generation path before the actual fixture
-  build. Set `OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED=0` to skip the forced refresh when
-  deliberately measuring cache-hit behavior.
+  build. The prewarm path now validates the runtime hash cache against each recorded
+  source file's size and nanosecond mtime before taking the no-op seed path, so repeated
+  surface verifier runs avoid forced cold seed probes while runtime edits still refresh
+  the seed before stage2 native fixture builds. Set `OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED=1`
+  to force-refresh when deliberately reproing cold seed behavior.
+- Bytecode direct emission now keeps the finalized u8 buffer as the primary code artifact and
+  only materializes the legacy `list<int>` code representation for OBC linking. Scalar constants
+  (`nil`, bool, int, float, string) are interned in the bytecode constant pool; the generator
+  surface probe dropped from 5355 constants / 312315 emitted bytes to 781 constants / 289646 bytes.
+- `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
+  and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
+  probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.
 - `make verify-native-quick`
 - `make verify-native-quick-simd`
 - `make verify-backend-parity-boxed-list`

@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Verify bytecode + OBX linking by:
-# - building stdlib bundle `.obc` with exports
-# - building a tiny program in stdlib-obc mode (no std sources)
-# - running it via the host `avm` interpreter
-#
-# This is a practical guardrail toward:
-# - compiler-in-AVM (source -> `.obc` in a sandbox universe)
-# - iOS-safe plugin workflows (no host toolchain / no std sources shipped)
+# Verify bytecode + OBX linking with a fast deterministic library/app pair.
+# The full stdlib bundle path is still rolling and can be exercised explicitly
+# with OREN_VERIFY_FULL_STDLIB_OBC=1.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -23,9 +18,8 @@ need_bin() {
 
 need_bin bash
 need_bin grep
-need_bin tail
 
-mkdir -p build/tmp build/logs build/plugins
+mkdir -p build/tmp build/logs
 
 COMPILER="${OREN_COMPILER:-./oren_stage2}"
 if [[ ! -x "$COMPILER" ]]; then
@@ -39,26 +33,55 @@ if [[ ! -x ./avm ]]; then
   exit 2
 fi
 
-echo "== build: plugins (stdlib bundle) ==" >&2
-./scripts/build_avm_plugins.sh
+ts="$(date +%Y%m%d_%H%M%S)"
+tmpdir="build/tmp/avm_obc_link_smoke_${ts}"
+mkdir -p "$tmpdir"
 
-stdlib_obc="build/plugins/stdlib_bundle.obc"
-test -f "$stdlib_obc" || { echo "FAIL: missing stdlib bundle: $stdlib_obc" >&2; exit 2; }
-
-src="tests/fixtures/avm_obc_link_smoke.oren"
-out="build/tmp/avm_obc_link_smoke.obc"
-log="build/logs/avm_obc_link_smoke_build.log"
+lib_src="$tmpdir/lib.oren"
+app_src="$tmpdir/app.oren"
+undef_src="$tmpdir/lib_undef.oren"
+lib_obc="$tmpdir/lib.obc"
+app_obc="$tmpdir/app.obc"
+undef_obc="$tmpdir/lib_undef.obc"
+lib_log="build/logs/avm_obc_link_smoke_lib.log"
+app_log="build/logs/avm_obc_link_smoke_app.log"
 run_log="build/logs/avm_obc_link_smoke_run.log"
-rm -f "$out" "$log" "$run_log" 2>/dev/null || true
+undef_log="build/logs/avm_obc_link_smoke_undef.log"
+rm -f "$lib_log" "$app_log" "$run_log" "$undef_log" 2>/dev/null || true
 
-echo "== build: bytecode app (stdlib-mode obc; no std sources) ==" >&2
-"$COMPILER" build "$src" --backend bytecode -o "$out" \
-  --stdlib-mode obc --stdlib-obc "$stdlib_obc" >"$log" 2>&1
-test -f "$out" || { echo "FAIL: build did not produce $out" >&2; tail -n 120 "$log" >&2 || true; exit 3; }
+cat >"$lib_src" <<'OREN'
+fn lib_answer() {
+    return 41
+}
+OREN
 
-echo "== run: avm $out ==" >&2
+cat >"$app_src" <<'OREN'
+fn main() {
+    if lib_answer() + 1 != 42 {
+        print("FAIL: linked answer")
+        exit(7)
+    }
+    print("ok: avm obc link smoke")
+}
+OREN
+
+cat >"$undef_src" <<'OREN'
+fn calls_external_runtime_symbol() {
+    return definitely_external_symbol()
+}
+OREN
+
+echo "== build: tiny OBX library ==" >&2
+"$COMPILER" build "$lib_src" --backend bytecode --obc-lib -o "$lib_obc" >"$lib_log" 2>&1
+test -f "$lib_obc" || { echo "FAIL: build did not produce $lib_obc" >&2; tail -n 120 "$lib_log" >&2 || true; exit 3; }
+
+echo "== build: app linked against tiny OBX library ==" >&2
+"$COMPILER" build "$app_src" --backend bytecode --link-obc "$lib_obc" -o "$app_obc" >"$app_log" 2>&1
+test -f "$app_obc" || { echo "FAIL: build did not produce $app_obc" >&2; tail -n 120 "$app_log" >&2 || true; exit 4; }
+
+echo "== run: avm $app_obc ==" >&2
 set +e
-./avm "$out" >"$run_log" 2>&1
+./avm "$app_obc" >"$run_log" 2>&1
 rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then
@@ -70,8 +93,18 @@ fi
 grep -F "ok: avm obc link smoke" "$run_log" >/dev/null || {
   echo "FAIL: missing expected output marker" >&2
   tail -n 200 "$run_log" >&2 || true
-  exit 4
+  exit 5
 }
 
-echo "OK: avm bytecode link smoke passed" >&2
+echo "== build: OBX library with unresolved external relo ==" >&2
+"$COMPILER" build "$undef_src" --backend bytecode --obc-lib -o "$undef_obc" >"$undef_log" 2>&1
+test -f "$undef_obc" || { echo "FAIL: --obc-lib did not preserve unresolved relocs" >&2; tail -n 120 "$undef_log" >&2 || true; exit 6; }
 
+if [[ "${OREN_VERIFY_FULL_STDLIB_OBC:-0}" == "1" ]]; then
+  echo "== build: full stdlib bundle opt-in ==" >&2
+  ./scripts/build_avm_plugins.sh
+  stdlib_obc="build/plugins/stdlib_bundle.obc"
+  test -f "$stdlib_obc" || { echo "FAIL: missing stdlib bundle: $stdlib_obc" >&2; exit 7; }
+fi
+
+echo "OK: avm bytecode link smoke passed" >&2

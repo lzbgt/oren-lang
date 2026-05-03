@@ -1469,12 +1469,16 @@ fn bytecode_compile_program(linked, config) {
         k = k + 1
     }
 
-    // Finalize bytecode buffer for consumers that still expect list<int>.
-    // Keep a u8_buf copy for faster bytecode emission.
+    // Finalize bytecode buffer for direct emission. Only materialize list<int>
+    // for OBC linking, where the linker still consumes code as a list.
     var code_buf = bytes.bytes_finalize(ctx["code"])
     ctx["code_buf"] = code_buf
-    var code_list = oren_bytes_unpack(code_buf)
-    if !oren_is_err(code_list) { ctx["code"] = code_list }
+    if config != nil && config["materialize_code_list"] == true {
+        var code_list = oren_bytes_unpack(code_buf)
+        if !oren_is_err(code_list) { ctx["code"] = code_list }
+    } else {
+        ctx["code"] = nil
+    }
 
     return ctx
 }
