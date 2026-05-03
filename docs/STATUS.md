@@ -2328,6 +2328,16 @@ Local (fast):
   improved from ~22.0s to ~20.7s and the link/prep span improved from ~14.6s to ~8.4s. This is a
   verifier-performance fix, not a language semantic change; it also demonstrates that large
   monolithic user functions remain a real native-codegen scaling target.
+- The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
+  full runtime contract into one native `main`. The four chunks keep the same return codes and
+  coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s
+  (`coroutine_surface_part_finished_policy`) and the dispatcher near zero. The same run still shows
+  real compiler/backend costs outside fixture shape: `user_decls` ~12.0s, global-root codegen ~6.3s,
+  link/prep ~9.1s, and Mach-O local BL target resolution ~1.8s for the first 4096 local calls.
+- ARM64 native assignment/global trait propagation now reuses an already-computed float trait when
+  deriving the matching integer trait. This removes a redundant top-level expression walk in hot
+  `var`, `assign`, and global-slot paths without changing the recursive trait rules; profiling shows
+  it is a small correctness-preserving codegen cleanup, not the main native build-time lever.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

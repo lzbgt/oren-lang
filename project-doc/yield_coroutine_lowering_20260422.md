@@ -197,6 +197,13 @@ backend-shared value-helper slices landed.
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around
     ~1.0s, ~4.1s, ~3.0s, and ~4.2s; the measured native profile improved `user_decls` from ~22.0s to
     ~20.7s and link/prep from ~14.6s to ~8.4s.
+  - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
+    with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
+    native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:
+    `user_decls` ~12.0s, global roots ~6.3s, link/prep ~9.1s, and Mach-O local BL target resolution
+    ~1.8s for the first 4096 local calls. ARM64 trait propagation also now reuses already-known
+    float traits when computing integer traits for `var`, assignment, and global propagation; this is
+    a small redundant-walk cleanup rather than the main native build-time fix.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated

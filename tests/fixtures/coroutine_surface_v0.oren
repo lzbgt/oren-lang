@@ -111,7 +111,7 @@ fn hook_err_worker(co, args) {
     return 0
 }
 
-fn main() {
+fn coroutine_surface_part_basic() {
     var c0 = coro.start(counter_worker, [40])
     if oren_type_name(c0) != "generator" { return 1 }
     if reflect.is_coroutine(c0) != true { return 2 }
@@ -175,7 +175,10 @@ fn main() {
     if oren_list_len(xs) != 3 || xs[0] != 5 || xs[1] != 6 || xs[2] != 7 { return 15 }
     if coro.is_done(c1) != true || coro.return_value(c1) != 35 { return 16 }
     if coro.is_closed(c1) != false || coro.terminal_error(c1) != nil { return 161 }
+    return 0
+}
 
+fn coroutine_surface_part_cancel_policy() {
     var c1b = coro.start(cancel_probe_worker, [50, 70])
     if coro.is_cancel_requested(c1b) != false || coro.cancel_reason(c1b) != nil { return 1611 }
     var c1bs0 = coro.next(c1b)
@@ -343,7 +346,10 @@ fn main() {
     if oren_is_err(c1ctx0wr) == true || c1ctx0wr != nil { return 1624882 }
     if coro.is_done(c1ctx0) != true || coro.is_closed(c1ctx0) != true { return 1624883 }
     if coro.is_cancel_requested(c1ctx0) != true || coro.cancel_reason(c1ctx0) != 88 { return 1624884 }
+    return 0
+}
 
+fn coroutine_surface_part_finished_policy() {
     var c1dcells = [nil]
     var c1e = coro.start(cancel_delegate_capture_outer_worker, [c1dcells, 60, 80])
     var c1es0 = coro.next(c1e)
@@ -486,7 +492,10 @@ fn main() {
     if oren_is_err(coro.stop_policy(c1pol3, {"timeout_ms": 0, "deadline_ns": 0})) != true { return 1626709 }
     if oren_is_err(coro.stop_policy(c1pol3, {"mode": "cancel", "grace_ms": 1})) != true { return 1626710 }
     if oren_is_err(coro.stop_policy_wait(c1pol3, {"mode": "cancel", "join_timeout_ms": "bad"})) != true { return 1626711 }
+    return 0
+}
 
+fn coroutine_surface_part_delegate_hooks() {
     var c2 = coro.start(delegate_outer_worker, [30])
     var d0 = coro.next(c2)
     if oren_is_err(d0) == true || d0["value"] != 31 { return 17 }
@@ -537,5 +546,17 @@ fn main() {
     if coro.return_value(c5) != nil { return 31 }
     if oren_is_err(coro.terminal_result(c5)) != true { return 311 }
     if oren_list_len(err_box) != 2 || err_box[0] != 2 || err_box[1] != 1 { return 32 }
+    return 0
+}
+
+fn main() {
+    var r0 = coroutine_surface_part_basic()
+    if r0 != 0 { return r0 }
+    var r1 = coroutine_surface_part_cancel_policy()
+    if r1 != 0 { return r1 }
+    var r2 = coroutine_surface_part_finished_policy()
+    if r2 != 0 { return r2 }
+    var r3 = coroutine_surface_part_delegate_hooks()
+    if r3 != 0 { return r3 }
     return 0
 }

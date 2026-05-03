@@ -36,7 +36,7 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     ctx["globals"][nm] = data_off + 1
 
     var is_floaty = exprm.native_expr_is_floaty(ctx, init_expr)
-    var is_inty = exprm.native_expr_is_inty(ctx, init_expr)
+    var is_inty = exprm.native_expr_is_inty_with_floaty(ctx, init_expr, is_floaty)
     var is_stringy = exprm.native_expr_is_stringy(ctx, init_expr)
     var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, init_expr)
     if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm] = is_floaty }

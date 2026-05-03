@@ -501,8 +501,14 @@ fn native_expr_is_floaty(ctx, expr) {
 fn native_expr_is_inty(ctx, expr) {
     // Heuristic "int propagation" for the native backend.
     // Used to avoid dynamic `oren_add` when both operands are known integer-like.
+    return native_expr_is_inty_with_floaty(ctx, expr, native_expr_is_floaty(ctx, expr))
+}
+
+fn native_expr_is_inty_with_floaty(ctx, expr, is_floaty) {
+    // Same contract as native_expr_is_inty, but lets hot callers reuse an
+    // already-computed float trait instead of walking the expression twice.
     if expr == nil { return false }
-    if native_expr_is_floaty(ctx, expr) { return false }
+    if is_floaty == true { return false }
     var et = expr["type"]
     if et == "Integer" { return true }
     if et == "Float" { return false }
