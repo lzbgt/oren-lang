@@ -61,10 +61,16 @@ fn test_sequence_bytes_and_decode_next() {
     assert(xs[1]["s"] == "x", "seq[1]")
     assert(xs[2]["b"] == 1, "seq[2]")
     assert(xs[3]["t"] == "null", "seq[3]")
+
+    var tr1 = cbor.try_decode_next(bs, 0)
+    assert(oren_is_err(tr1) != true && tr1["v"]["i"] == 1 && tr1["pos"] == r1["pos"], "try_decode_next ok")
+    var trs = cbor.try_decode_sequence(bs)
+    assert(oren_is_err(trs) != true && oren_list_len(trs) == 4 && trs[1]["s"] == "x", "try_decode_sequence ok")
+    var te = cbor.try_decode([255])
+    assert(oren_is_err(te) == true, "try_decode err")
 }
 
 test_array_roundtrip()
 test_sequence_bytes_and_decode_next()
 print("ok")
 exit(0)
-

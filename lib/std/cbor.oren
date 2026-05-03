@@ -369,6 +369,18 @@ fn decode(bs) {
     return r
 }
 
+fn _decode_err(r) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = "cbor decode failed" }
+    return oren_err(4, msg)
+}
+
+fn try_decode(bs) {
+    var r = decode(bs)
+    if r["ok"] == 1 { return r["v"] }
+    return _decode_err(r)
+}
+
 // Streaming / sequence API (RFC 8742)
 //
 // A CBOR sequence is a concatenation of 1+ CBOR items. This is the CBOR-native
@@ -383,6 +395,14 @@ fn decode_next(bs, pos) {
     return _decode_value(bs, pos)
 }
 
+fn try_decode_next(bs, pos) {
+    var r = decode_next(bs, pos)
+    if r["ok"] == 1 {
+        return {"v": r["v"], "pos": r["pos"]}
+    }
+    return _decode_err(r)
+}
+
 fn decode_sequence(bs) {
     var out = []
     var pos = 0
@@ -393,6 +413,12 @@ fn decode_sequence(bs) {
         pos = r["pos"]
     }
     return {"ok": 1, "v": out, "pos": pos}
+}
+
+fn try_decode_sequence(bs) {
+    var r = decode_sequence(bs)
+    if r["ok"] == 1 { return r["v"] }
+    return _decode_err(r)
 }
 
 fn encode_sequence(items) {
@@ -433,6 +459,14 @@ fn decode_next_typed(bs, pos, decode_fn) {
     return {"ok": 1, "v": rr["v"], "pos": r["pos"]}
 }
 
+fn try_decode_next_typed(bs, pos, decode_fn) {
+    var r = decode_next_typed(bs, pos, decode_fn)
+    if r["ok"] == 1 {
+        return {"v": r["v"], "pos": r["pos"]}
+    }
+    return _decode_err(r)
+}
+
 fn decode_sequence_typed(bs, decode_fn) {
     var out = []
     var pos = 0
@@ -443,4 +477,10 @@ fn decode_sequence_typed(bs, decode_fn) {
         pos = r["pos"]
     }
     return {"ok": 1, "v": out, "pos": pos}
+}
+
+fn try_decode_sequence_typed(bs, decode_fn) {
+    var r = decode_sequence_typed(bs, decode_fn)
+    if r["ok"] == 1 { return r["v"] }
+    return _decode_err(r)
 }

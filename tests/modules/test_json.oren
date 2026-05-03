@@ -31,8 +31,17 @@ fn test_nested() {
     assert(out == "{\"x\":[true,false,null,3]}", "nested roundtrip")
 }
 
+fn test_try_decode() {
+    var v = json.try_decode("{\"x\":5}")
+    assert(oren_is_err(v) != true, "try_decode ok")
+    assert(v["o"]["x"]["i"] == 5, "try_decode value")
+    var e = json.try_decode("{")
+    assert(oren_is_err(e) == true, "try_decode err")
+}
+
 test_decode_encode()
 test_int_zero_not_null()
 test_nested()
+test_try_decode()
 print("ok")
 exit(0)

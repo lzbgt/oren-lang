@@ -106,7 +106,11 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   convention (`oren_err` / `oren_is_err` / `std:result`), and `std:result` now includes the
   common compositional helpers `map_ok`, `and_then`, `map_err`, and `or_else` plus `code`/`msg`
   accessors and `from_ok_map` / `to_ok_map` bridges for older `{"ok":...}` codec-style APIs.
-  Stdlib migration breadth is still ongoing. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
+  JSON and CBOR now also expose structured decode wrappers (`try_decode`, plus CBOR sequence
+  and typed sequence variants) while keeping legacy `{ok, err}` decoders for compatibility;
+  YAML remains bridged through `std:result.from_ok_map(yaml.decode(...))` until its native
+  codegen path is cheap enough for a direct wrapper without slowing verification.
+  Stdlib migration breadth is still ongoing, mostly in older network/protocol modules. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
   partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
   methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
@@ -1354,6 +1358,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Implemented (rolling): the structured error model is now the shipped value-or-error
      convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
      `std:result`; remaining work is stdlib migration breadth, not core feature availability.
+   - New (2026-05-04): `std:json` and `std:cbor` now provide structured-error decode bridges
+     (`try_decode`, plus CBOR sequence/typed-sequence variants) over their legacy `{ok, err}`
+     APIs, so new codec callers can stay on `oren_err` while existing callers remain
+     source-compatible. YAML remains compatible through `std:result.from_ok_map(yaml.decode(...))`.
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
      `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
    - Migration rule: modules with any `pub` declaration become closed-by-default to imports,

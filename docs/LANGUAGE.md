@@ -3752,7 +3752,14 @@ Rolling status:
 - Checked stdlib surfaces already use that convention on current rolling builds, including
   `std:list`, `std:bytes`, `std:buffer`, `std:crypto/rand`, `std:ui/commands`,
   `std:ui/color`, and `std:ui/raster`.
-- Remaining migration work is mostly library cleanup: several older codec/network modules still
+- Codec migration is rolling without a flag day: JSON/YAML/CBOR still keep their legacy
+  `{ok, err, v, pos?}` decode APIs for existing callers, and JSON/CBOR now also expose
+  structured-error wrappers where native-codegen cost is already safe (`json.try_decode`,
+  `cbor.try_decode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`, plus typed CBOR
+  sequence variants). YAML callers can use `std:result.from_ok_map(yaml.decode(...))`
+  until the native YAML module codegen path is cheap enough for a direct wrapper without
+  slowing verification.
+- Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - Design + migration notes: `docs/design/structured_error_model.md`
 
@@ -4536,6 +4543,9 @@ YAML decode (config tolerance):
 - `std/yaml.decode(...)` accepts YAML `# ...` comments and also C/JSON-style `// ...` and `/* ... */` comments.
 - Comment detection is restricted (start/whitespace rule) to avoid breaking values like `http://example.com`.
   Encoders remain canonical (no comments).
+- YAML structured-error callers should currently use `std:result.from_ok_map(yaml.decode(...))`;
+  a direct `yaml.try_decode(...)` wrapper is deferred until the native YAML module codegen path
+  is cheap enough to keep Tier-1 iteration fast.
 
 CBOR streaming (rolling, v1):
 
@@ -4543,10 +4553,16 @@ CBOR streaming (rolling, v1):
   - `cbor.encode_sequence([CborValue...]) -> bytes` (concatenation)
   - `cbor.decode_next(bytes, pos) -> {ok, err?, v?, pos}` (incremental)
   - `cbor.decode_sequence(bytes) -> {ok, err?, v:[CborValue...], pos}`
+  - structured-error mirrors:
+    - `cbor.try_decode(bytes) -> CborValue | oren_err`
+    - `cbor.try_decode_next(bytes, pos) -> {v:CborValue, pos:int} | oren_err`
+    - `cbor.try_decode_sequence(bytes) -> [CborValue...] | oren_err`
   - serde-friendly typed helpers:
     - `cbor.encode_sequence_typed(items, Type__cbor_encode) -> bytes`
     - `cbor.decode_next_typed(bytes, pos, Type__cbor_decode) -> {ok, err?, v:<T>, pos}`
     - `cbor.decode_sequence_typed(bytes, Type__cbor_decode) -> {ok, err?, v:[T...], pos}`
+    - `cbor.try_decode_next_typed(...)` and `cbor.try_decode_sequence_typed(...)` mirror
+      those typed helpers with `oren_err` failures.
 
 Planned next step:
 

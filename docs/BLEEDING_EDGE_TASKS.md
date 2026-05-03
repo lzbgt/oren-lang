@@ -4554,6 +4554,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     remaining work is stdlib migration breadth rather than core language/runtime availability.
 	     It also ships `from_ok_map` / `to_ok_map` bridges so older JSON/YAML/CBOR-style
 	     `{"ok":...}` maps can interoperate with the structured error convention during migration.
+	     New (2026-05-04): JSON and CBOR decode surfaces now provide direct structured-error
+	     wrappers (`try_decode`, plus CBOR sequence/typed-sequence variants). YAML remains
+	     bridged through `std:result.from_ok_map(yaml.decode(...))` until the native YAML
+	     codegen path is cheap enough for a direct wrapper; remaining ok-map cleanup is mostly
+	     network/protocol APIs.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level

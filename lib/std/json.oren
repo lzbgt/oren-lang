@@ -314,6 +314,14 @@ fn decode(s) {
     return r
 }
 
+fn try_decode(s) {
+    var r = decode(s)
+    if r["ok"] == 1 { return r["v"] }
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = "json decode failed" }
+    return oren_err(4, msg)
+}
+
 fn _escape_string(s) {
     var bs = oren_bytes_from_string(s)
     var out = []
