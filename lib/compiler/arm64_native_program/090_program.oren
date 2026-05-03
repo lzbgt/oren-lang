@@ -599,7 +599,8 @@ fn native_compile_program_arm64(linked, platform) {
     if trace { print("[arm64] compile runtime decls start n=" + oren_int_to_string(oren_list_len(runtime_decls))) }
     var t_rt0 = 0
     if trace { t_rt0 = oren_time_now_ns() }
-    while i < oren_list_len(runtime_decls) {
+    var n_runtime_decls = oren_list_len(runtime_decls)
+    while i < n_runtime_decls {
         native_compile_stmt(ctx, runtime_decls[i])
         i = i + 1
     }
@@ -607,14 +608,15 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_rt = (oren_time_now_ns() - t_rt0) / 1000000
         print("[arm64] compile runtime decls done +" + oren_int_to_string(dt_rt) + "ms")
     }
-    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.runtime_decls.done", "n=" + oren_int_to_string(oren_list_len(runtime_decls))) }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.runtime_decls.done", "n=" + oren_int_to_string(n_runtime_decls)) }
 
     // Compile user declarations (functions/types/ffi).
     i = 0
     if trace { print("[arm64] compile user decls start n=" + oren_int_to_string(oren_list_len(user_decls))) }
     var t_user0 = 0
     if trace { t_user0 = oren_time_now_ns() }
-    while i < oren_list_len(user_decls) {
+    var n_user_decls = oren_list_len(user_decls)
+    while i < n_user_decls {
         native_compile_stmt(ctx, user_decls[i])
         i = i + 1
     }
@@ -622,7 +624,7 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_user = (oren_time_now_ns() - t_user0) / 1000000
         print("[arm64] compile user decls done +" + oren_int_to_string(dt_user) + "ms")
     }
-    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.user_decls.done", "n=" + oren_int_to_string(oren_list_len(user_decls))) }
+    if phase_log != nil { _arm64_program_phase_log_append(phase_log, "arm64.codegen.user_decls.done", "n=" + oren_int_to_string(n_user_decls)) }
 
     // Compile synthesized __top_level__ last (it can reference any user/runtime symbols).
     // The entry stub calls it before main.
@@ -645,10 +647,14 @@ fn native_compile_program_arm64(linked, platform) {
     callable.collect_named_fn_value_uses_in_stmt_list(ctx, user_stmts)
     if used_rtobj != true { callable.collect_named_fn_value_uses_in_stmt_list(ctx, runtime_stmts) }
     callable.collect_named_fn_value_uses_in_statement(ctx, top_stmt)
+    if phase_log != nil {
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.wrappers.scan.done", "fnwrap_needed=" + oren_int_to_string(oren_map_len(ctx["fnwrap_needed"])))
+    }
     var need = ctx["fnwrap_needed"]
     var n_wrap = 0
     var wi = 0
-    while wi < oren_list_len(ctx["func_decl_order"]) {
+    var n_func_decl_order = oren_list_len(ctx["func_decl_order"])
+    while wi < n_func_decl_order {
         var fname = ctx["func_decl_order"][wi]
         if need == nil || need[fname] == nil { wi = wi + 1; continue }
         n_wrap = n_wrap + 1
@@ -670,9 +676,13 @@ fn native_compile_program_arm64(linked, platform) {
         }
         wi = wi + 1
     }
+    if phase_log != nil {
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.wrappers.fnwrap.done", "fnwrap=" + oren_int_to_string(n_wrap))
+    }
 
     wi = 0
-    while wi < oren_list_len(ctx["lambda_defs"]) {
+    var n_lambda_defs = oren_list_len(ctx["lambda_defs"])
+    while wi < n_lambda_defs {
         var def = ctx["lambda_defs"][wi]
         if def != nil && def["name"] != nil {
             var lname = def["name"]
@@ -682,12 +692,15 @@ fn native_compile_program_arm64(linked, platform) {
         }
         wi = wi + 1
     }
+    if phase_log != nil {
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.wrappers.lambda.done", "lambdas=" + oren_int_to_string(n_lambda_defs))
+    }
     if trace {
         var dt_wrap = (oren_time_now_ns() - t_wrap0) / 1000000
-        print("[arm64] synth wrappers +" + oren_int_to_string(dt_wrap) + "ms fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+        print("[arm64] synth wrappers +" + oren_int_to_string(dt_wrap) + "ms fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(n_lambda_defs))
     }
     if phase_log != nil {
-        _arm64_program_phase_log_append(phase_log, "arm64.codegen.wrappers.done", "fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.wrappers.done", "fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(n_lambda_defs))
     }
 
     // Debug pseudo-symbol for code region that is not a Function node:

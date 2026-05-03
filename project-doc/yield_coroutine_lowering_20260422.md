@@ -177,6 +177,12 @@ backend-shared value-helper slices landed.
     2585100 while preserving `OREN_TRACE_GC_REGISTER_ROOT_NAMES` on its explicit diagnostic path.
     The global-root wall span remained about 7.4s, and a map-backed Mach-O target-cache experiment
     was rejected after hitting the 180s native profile timeout.
+  - ARM64 wrapper profile split (2026-05-04): statement compilation now initializes compile hooks
+    once per codegen context instead of resetting module globals on every statement, and native
+    phase profiling splits first-class wrapper emission into scan/fnwrap/lambda buckets. The
+    generator profile shows scan is only ~29ms, named function wrappers are ~4.2s, and lambda
+    wrappers are ~8.4s, so the next native build optimization should target direct wrapper emission
+    or wrapper codegen batching rather than more AST scanning.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated

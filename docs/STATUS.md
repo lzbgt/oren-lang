@@ -2306,6 +2306,12 @@ Local (fast):
   global/root metadata construction itself or the larger user-decl/wrapper emission phases. A
   map-backed Mach-O local target cache experiment was rejected because it stalled native build
   profiling until the 180s timeout.
+- ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
+  context instead of resetting module globals on every statement. Native phase profiling also splits
+  wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.
+  The generator profile shows wrapper scanning is not the issue (~29ms); named function wrapper
+  emission is ~4.2s and lambda wrapper emission is ~8.4s, making direct wrapper emission or wrapper
+  codegen batching the next credible native build-cost target.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

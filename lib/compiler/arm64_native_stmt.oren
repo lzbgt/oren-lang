@@ -441,7 +441,10 @@ fn native_compile_stmt(ctx, stmt) {
     // to fail deterministically before macOS `___chkstk_darwin` crashes the process.
     if ctx == nil { return nil }
     if stmt == nil { return nil }
-    loopm._arm64_set_compile_hooks(native_compile_expr, native_compile_stmt)
+    if ctx["arm64_compile_hooks_ready"] != true {
+        loopm._arm64_set_compile_hooks(native_compile_expr, native_compile_stmt)
+        ctx["arm64_compile_hooks_ready"] = true
+    }
     var depth = ctx["stmt_depth"]
     if oren_type_tag(depth) != 1 { depth = 0 }
     depth = depth + 1

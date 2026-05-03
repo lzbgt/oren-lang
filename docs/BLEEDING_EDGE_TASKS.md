@@ -4847,16 +4847,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 													        root cost separately instead of folding it into runtime declarations.
 												      - ARM64 global-root initialization now emits a compact root-offset data table
 												        and one generated registration loop instead of per-root ADR/BL fixups. The
-												        generator profile reduced local fixups from 20271 to 19021 and code bytes
-												        from 2592520 to 2585100, while keeping root-name tracing on the explicit
-												        diagnostic path. Wall time for `arm64.codegen.global_roots.done` remains
-												        about 7.4s, so the next native optimization should attack global/root
-												        metadata construction or the larger user-decl/wrapper phases. A map-backed
-												        Mach-O target cache was tested and rejected after hitting the 180s profile
-												        timeout.
-											      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
-										        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
-										        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
+													        generator profile reduced local fixups from 20271 to 19021 and code bytes
+													        from 2592520 to 2585100, while keeping root-name tracing on the explicit
+													        diagnostic path. Wall time for `arm64.codegen.global_roots.done` remains
+													        about 7.4s, so the next native optimization should attack global/root
+													        metadata construction or the larger user-decl/wrapper phases. A map-backed
+													        Mach-O target cache was tested and rejected after hitting the 180s profile
+													        timeout.
+												      - ARM64 statement compilation now sets loop/statement compile hooks once per
+												        codegen context instead of resetting module globals for every statement. The
+												        native profile also splits wrapper emission into scan/fnwrap/lambda buckets:
+												        wrapper scanning is only ~29ms, named function wrapper emission is ~4.2s, and
+												        lambda wrapper emission is ~8.4s on the generator surface fixture. The next
+												        native build-cost task should therefore target direct wrapper emission or
+												        wrapper codegen batching, not more AST scanning work.
+												      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
+											        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
+											        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
 									      - native green bounded joins now re-check the specific joined task between
 									        short scheduler-poll slices instead of passing the full caller timeout into
 									        the generic poll loop. This closes the over-wait shape where an already
