@@ -179,6 +179,11 @@ backend-shared value-helper slices landed.
     the 626-root generator profile count while cutting `arm64.codegen.global_roots.done` from about
     6.8s to about 120ms by avoiding an emission-time globals-map walk. A map-backed Mach-O
     target-cache experiment was rejected after hitting the 180s native profile timeout.
+  - ARM64 rtobj globals adoption (2026-05-04): runtime-object application now emits `rtobj.apply.*`
+    sub-phase profile rows, and schema-3 rtobj metadata carries the runtime global/root metadata needed
+    for direct adoption on cache hits. The generator profile cut the 613-entry runtime globals replay
+    from about 12.26s to about 0.55ms (`rtobj.apply.globals.done adopted=1`) by avoiding ordinary Oren
+    map mutation before user globals are appended.
   - ARM64 wrapper profile split (2026-05-04): statement compilation now initializes compile hooks
     once per codegen context instead of resetting module globals on every statement, and native
     phase profiling splits first-class wrapper emission into scan/fnwrap/lambda buckets. The

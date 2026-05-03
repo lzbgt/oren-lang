@@ -2307,6 +2307,13 @@ Local (fast):
   whole globals map at emission time. The verified generator profile kept the same 626-root count and
   cut that span from about 6.8s to about 120ms. A map-backed Mach-O local target cache experiment was
   rejected because it stalled native build profiling until the 180s timeout.
+- ARM64 runtime-object application now has sub-phase profiling inside `rtobj.apply.*`, and the rtobj
+  schema carries adoptable global/root metadata. On a schema-3 cache hit, the compiler adopts the
+  decoded runtime globals map and recorded root metadata directly before user globals are appended,
+  instead of replaying 613 entries through ordinary Oren map mutation. The generator profile cut
+  `rtobj.apply.globals.done` from about 12.26s to about 0.55ms (`adopted=1`), moving the remaining
+  native-build bottlenecks back to user declaration emission, wrapper emission, and Mach-O local BL
+  target resolution.
 - ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
   context instead of resetting module globals on every statement. Native phase profiling also splits
   wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.

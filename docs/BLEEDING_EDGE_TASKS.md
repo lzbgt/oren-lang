@@ -4854,8 +4854,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        while cutting `arm64.codegen.global_roots.done` from about 6.8s to about
 														        120ms by avoiding an emission-time globals-map walk. A map-backed Mach-O
 														        target cache was tested and rejected after hitting the 180s profile timeout.
-													      - ARM64 statement compilation now sets loop/statement compile hooks once per
-													        codegen context instead of resetting module globals for every statement. The
+														      - ARM64 runtime-object application now logs `rtobj.apply.*` sub-phases and
+														        schema-3 rtobj caches carry adoptable global/root metadata. On cache hits the
+														        compiler adopts the decoded runtime globals map and recorded root metadata
+														        directly before user globals are appended, instead of replaying 613 runtime
+														        globals through ordinary Oren map mutation. The generator profile cuts
+														        `rtobj.apply.globals.done` from about 12.26s to about 0.55ms (`adopted=1`).
+														      - ARM64 statement compilation now sets loop/statement compile hooks once per
+														        codegen context instead of resetting module globals for every statement. The
 													        native profile also splits wrapper emission into scan/fnwrap/lambda buckets:
 													        wrapper scanning is only ~29ms, named function wrapper emission is ~4.2s, and
 													        lambda wrapper emission is ~8.4s on the generator surface fixture. The next

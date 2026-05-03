@@ -33,7 +33,8 @@ import bytes "bytes_builder.oren"
 //
 // Schema v2 switches the cache key input to a fast 63-bit FNV-1a-style fingerprint (two lanes)
 // so repeated builds can find cached runtime objects without spending seconds hashing the runtime.
-var RUNTIME_OBJ_SCHEMA = 2
+// Schema v3 adds adoptable runtime global/root metadata for fast ARM64 rtobj application.
+var RUNTIME_OBJ_SCHEMA = 3
 // Container version for rtobj meta checksum sidecar.
 // Used to avoid fatal astbin decode on corrupted/partial meta files.
 var RUNTIME_OBJ_META_CHECK_VERSION = 1
