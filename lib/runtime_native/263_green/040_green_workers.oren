@@ -1233,7 +1233,13 @@ fn oren_green_join_timeout(g, timeout_ms) {
         var now = _green_time_now_ns()
         if now == 0 { break }
         if now >= deadline { break }
-        _green_poll_until(deadline)
+        var slice_deadline = deadline
+        var now_slice = _green_time_now_ns()
+        if now_slice != 0 {
+            var next_slice = now_slice + 1000000
+            if next_slice < slice_deadline { slice_deadline = next_slice }
+        }
+        _green_poll_until_budget(slice_deadline, 64)
     }
 
     // Timeout: detach (do not kill; safe semantics matches Windows join_timeout).

@@ -4810,9 +4810,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									        prewarm the stage1 runtime astbin seed and pass the exact seed through
 									        `OREN_NATIVE_RUNTIME_ASTBIN` for stage2 native builds, while still bounding
 									        native build process groups with `OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS`.
-									        This avoids cold runtime include expansion/parsing during scheduler work;
-									        the remaining concrete blocker is native codegen/runtime-object generation
-									        spinning on small target-aware edits to `oren_green_join_timeout(...)`.
+									        They also prewarm a non-debug core runtime-object seed with stage1, so
+									        edited scheduler runtime files do not force stage2 through cold rtobj
+									        generation before fixture verification.
+									      - native green bounded joins now re-check the specific joined task between
+									        short scheduler-poll slices instead of passing the full caller timeout into
+									        the generic poll loop. This closes the over-wait shape where an already
+									        completed watcher could be delayed by unrelated parked green tasks.
 				    - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
 				      operations and reject extra generator/coroutine members
 			    - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only

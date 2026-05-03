@@ -117,6 +117,37 @@ verify_native_astbin_seed_path() {
   printf "%s\n" "$path"
 }
 
+verify_native_rtobj_seed_prewarm() {
+  local platform="$1"
+  local log_file="${2:-/dev/stderr}"
+  local compiler="${3:-./oren_stage2}"
+
+  if [[ "${OREN_VERIFY_NATIVE_RTOBJ_SEED:-1}" = "0" || "${OREN_VERIFY_NATIVE_RTOBJ_SEED:-1}" = "false" ]]; then
+    return 0
+  fi
+
+  local seed_compiler="${OREN_NATIVE_RTOBJ_SEED_BUILD_COMPILER:-${OREN_NATIVE_ASTBIN_SEED_COMPILER:-./oren}}"
+  if [[ ! -x ./scripts/build_rtobj_seed.sh || ! -x "$compiler" || ! -x "$seed_compiler" ]]; then
+    return 1
+  fi
+
+  local profile="${OREN_NATIVE_RUNTIME_PROFILE:-core}"
+  if [[ "$profile" = "auto" || "$profile" = "" ]]; then
+    profile="core"
+  fi
+
+  if [[ "${OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED:-1}" = "0" || "${OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED:-1}" = "false" ]]; then
+    ./scripts/build_rtobj_seed.sh --platform "$platform" --compiler "$compiler" \
+      --build-compiler "$seed_compiler" --runtime-profile "$profile" --no-debug >>"$log_file" 2>&1 || return 1
+  else
+    env OREN_FORCE_RUNTIME_OBJ_SEED=1 ./scripts/build_rtobj_seed.sh --platform "$platform" \
+      --compiler "$compiler" --build-compiler "$seed_compiler" --runtime-profile "$profile" \
+      --no-debug >>"$log_file" 2>&1 || return 1
+  fi
+
+  return 0
+}
+
 run_native_build_timeout_logged() {
   local timeout_secs="$1"
   shift

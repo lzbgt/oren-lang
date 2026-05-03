@@ -2258,6 +2258,12 @@ Local (fast):
   is set. This bypasses runtime include expansion/parsing on stage2 verifier builds;
   a 2026-05-04 probe confirmed that touching `lib/runtime_native/263_green/040_green_workers.oren`
   can otherwise leave stage2 spending the entire timeout in cold native-runtime bundle work.
+- Native surface verifiers also prewarm a non-debug core runtime-object seed with stage1
+  by default (`OREN_VERIFY_NATIVE_RTOBJ_SEED=1`,
+  `OREN_NATIVE_RTOBJ_SEED_BUILD_COMPILER=./oren`). This keeps native-runtime scheduler
+  edits from forcing stage2 through a cold rtobj generation path before the actual fixture
+  build. Set `OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED=0` to skip the forced refresh when
+  deliberately measuring cache-hit behavior.
 - `make verify-native-quick`
 - `make verify-native-quick-simd`
 - `make verify-backend-parity-boxed-list`

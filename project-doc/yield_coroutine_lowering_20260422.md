@@ -139,9 +139,13 @@ backend-shared value-helper slices landed.
   - Follow-up hardening (2026-05-04): the same native surface verifiers now prewarm the runtime
     astbin seed with stage1 and pass it directly as `OREN_NATIVE_RUNTIME_ASTBIN` for stage2 native
     builds. This avoids the cold runtime include-expansion/parsing path while iterating on
-    `lib/runtime_native/**`; it does not yet solve the deeper native codegen path where seemingly
-    small target-aware edits inside `oren_green_join_timeout(...)` can still spin during runtime
-    object generation.
+    `lib/runtime_native/**`. They now also prewarm a non-debug core runtime-object seed with
+    stage1 before launching stage2 native surface builds, so edited scheduler runtime files do not
+    force stage2 through cold rtobj generation just to verify a fixture.
+  - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
+    no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
+    in short bounded slices and re-checks the joined target between slices, preventing unrelated
+    parked sleepers from making a completed watcher wait until the caller's timeout expires.
   - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
     timeout arguments return an immediate `err`
   - the watcher join result is `nil` for live-target request/hard-cancel flows; if

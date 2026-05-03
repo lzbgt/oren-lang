@@ -36,6 +36,7 @@ native_astbin_seed="$(verify_native_astbin_seed_path "$platform" "$log" || true)
 if [ -n "$native_astbin_seed" ]; then
   echo "native_runtime_astbin_seed=$native_astbin_seed" >>"$log"
 fi
+verify_native_rtobj_seed_prewarm "$platform" "$log" "$compiler" || true
 
 run_ok() {
   echo "\$ $*" >>"$log"
