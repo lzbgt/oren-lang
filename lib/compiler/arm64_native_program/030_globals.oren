@@ -34,6 +34,9 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     // Store as offset+1 so a real offset of 0 is representable while still using `nil`
     // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     ctx["globals"][nm] = data_off + 1
+    if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], nm) }
+    if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], data_off) }
+    if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], from_runtime == true) }
 
     var is_floaty = exprm.native_expr_is_floaty(ctx, init_expr)
     var is_inty = exprm.native_expr_is_inty_with_floaty(ctx, init_expr, is_floaty)

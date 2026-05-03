@@ -2301,11 +2301,12 @@ Local (fast):
 - ARM64 native global-root initialization now emits a compact data table plus one generated loop
   instead of one ADR-data fixup and one BL fixup per root. On the generator surface profile this
   reduced local fixups from 20271 to 19021 and code bytes from 2592520 to 2585100, while preserving
-  the compile-time `OREN_TRACE_GC_REGISTER_ROOT_NAMES` diagnostic path. It did not reduce the
-  `arm64.codegen.global_roots.done` wall span (~7.4s), so the next native build-time target remains
-  global/root metadata construction itself or the larger user-decl/wrapper emission phases. A
-  map-backed Mach-O local target cache experiment was rejected because it stalled native build
-  profiling until the 180s timeout.
+  the compile-time `OREN_TRACE_GC_REGISTER_ROOT_NAMES` diagnostic path. A follow-up allocator-side
+  root metadata table now records root names, offsets, and runtime-origin flags as globals are
+  allocated or imported from rtobj seeds, so `arm64.codegen.global_roots.done` no longer walks the
+  whole globals map at emission time. The verified generator profile kept the same 626-root count and
+  cut that span from about 6.8s to about 120ms. A map-backed Mach-O local target cache experiment was
+  rejected because it stalled native build profiling until the 180s timeout.
 - ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
   context instead of resetting module globals on every statement. Native phase profiling also splits
   wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.

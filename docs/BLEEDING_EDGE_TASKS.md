@@ -4845,15 +4845,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 													        emission (~12.8s), and global-root registration codegen (~7.3s for
 													        626 roots). `arm64.codegen.global_roots.done` now records that hidden
 													        root cost separately instead of folding it into runtime declarations.
-												      - ARM64 global-root initialization now emits a compact root-offset data table
-												        and one generated registration loop instead of per-root ADR/BL fixups. The
-													        generator profile reduced local fixups from 20271 to 19021 and code bytes
-													        from 2592520 to 2585100, while keeping root-name tracing on the explicit
-													        diagnostic path. Wall time for `arm64.codegen.global_roots.done` remains
-													        about 7.4s, so the next native optimization should attack global/root
-													        metadata construction or the larger user-decl/wrapper phases. A map-backed
-													        Mach-O target cache was tested and rejected after hitting the 180s profile
-													        timeout.
+													      - ARM64 global-root initialization now emits a compact root-offset data table
+													        and one generated registration loop instead of per-root ADR/BL fixups. The
+														        generator profile reduced local fixups from 20271 to 19021 and code bytes
+														        from 2592520 to 2585100, while keeping root-name tracing on the explicit
+														        diagnostic path. Root metadata is now tracked as globals are allocated or
+														        imported from rtobj seeds, preserving the 626-root generator profile count
+														        while cutting `arm64.codegen.global_roots.done` from about 6.8s to about
+														        120ms by avoiding an emission-time globals-map walk. A map-backed Mach-O
+														        target cache was tested and rejected after hitting the 180s profile timeout.
 													      - ARM64 statement compilation now sets loop/statement compile hooks once per
 													        codegen context instead of resetting module globals for every statement. The
 													        native profile also splits wrapper emission into scan/fnwrap/lambda buckets:

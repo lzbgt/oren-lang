@@ -175,8 +175,10 @@ backend-shared value-helper slices landed.
     root-offset table plus one generated loop instead of emitting per-root ADR-data and BL fixups.
     The generator profile reduced local fixups from 20271 to 19021 and code bytes from 2592520 to
     2585100 while preserving `OREN_TRACE_GC_REGISTER_ROOT_NAMES` on its explicit diagnostic path.
-    The global-root wall span remained about 7.4s, and a map-backed Mach-O target-cache experiment
-    was rejected after hitting the 180s native profile timeout.
+    Root metadata is now recorded when globals are allocated or imported from rtobj seeds, preserving
+    the 626-root generator profile count while cutting `arm64.codegen.global_roots.done` from about
+    6.8s to about 120ms by avoiding an emission-time globals-map walk. A map-backed Mach-O
+    target-cache experiment was rejected after hitting the 180s native profile timeout.
   - ARM64 wrapper profile split (2026-05-04): statement compilation now initializes compile hooks
     once per codegen context instead of resetting module globals on every statement, and native
     phase profiling splits first-class wrapper emission into scan/fnwrap/lambda buckets. The

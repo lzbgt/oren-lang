@@ -25,6 +25,9 @@ fn _arm64_new_ctx(linked, platform) {
         "globals_int_const": {},
         "globals_stringy": {},
         "globals_list_stringy": {},
+        "global_root_names": [],
+        "global_root_offsets": [],
+        "global_root_is_runtime": [],
         "functions": {},
         "function_names": [],
         // Named function declarations (name -> arity) collected before codegen.
@@ -87,6 +90,9 @@ fn _arm64_new_ctx(linked, platform) {
     z = 0
     while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
     if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
+    oren_list_push(ctx["global_root_names"], "g_storage")
+    oren_list_push(ctx["global_root_offsets"], g_storage_slot_off)
+    oren_list_push(ctx["global_root_is_runtime"], false)
 
     while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var boot_off = bytes_len(ctx["data"])
@@ -205,18 +211,18 @@ fn _arm64_emit_global_roots_init(ctx) {
     // Prologue: save FP/LR.
     push_u32_le(ctx["code"], insn_stp_pre())
     push_u32_le(ctx["code"], insn_mov_fp_sp())
-    var gmap = ctx["globals"]
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     var trace_root_names = ctx["trace_gc_root_names"]
     var root_offsets = []
-    if gmap != nil {
+    var root_names_src = ctx["global_root_names"]
+    var root_offsets_src = ctx["global_root_offsets"]
+    var root_runtime_src = ctx["global_root_is_runtime"]
+    if root_names_src != nil && root_offsets_src != nil &&
+       oren_list_len(root_names_src) == oren_list_len(root_offsets_src) {
         var gi = 0
-        var pair = [nil, nil]
-        while 1 {
-            var okg = oren_iter_next_entry(gmap, gi, pair)
-            if okg == 0 { break }
-            var gname = pair[0]
+        while gi < oren_list_len(root_offsets_src) {
+            var gname = root_names_src[gi]
             if gname == "g_gc_reuse_bad_list_last_ptr" ||
                gname == "g_find_cache_ptr0" ||
                gname == "g_find_cache_ptr1" ||
@@ -225,39 +231,68 @@ fn _arm64_emit_global_roots_init(ctx) {
                 gi = gi + 1
                 continue
             }
-            if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
-               gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
+            var is_runtime_root = false
+            if root_runtime_src != nil && gi < oren_list_len(root_runtime_src) {
+                if root_runtime_src[gi] == true { is_runtime_root = true }
+            } else if gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
+                is_runtime_root = true
+            }
+            if skip_runtime_globals != nil && skip_runtime_globals != 0 && is_runtime_root == true {
                 gi = gi + 1
                 continue
             }
-            var off_enc = pair[1]
-            if oren_type_tag(off_enc) == 1 {
-                var off = off_enc - 1
-                if trace_root_names != nil && trace_root_names != 0 && gname != nil {
-                    var name_off = exprm.native_data_add_cstr0(ctx, gname)
-                    var adr_ptr_pos = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0)
-                    push_u32_le(ctx["code"], 0)
-                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_ptr_pos, "data_off": off, "reg": nil})
-                    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_ptr_pos)
-                    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], off)
-                    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
-                    var adr_name_pos = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0)
-                    push_u32_le(ctx["code"], 0)
-                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_name_pos, "data_off": name_off, "reg": 1})
-                    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_name_pos)
-                    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], name_off)
-                    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 1)
-                    var bl_name = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0)
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_name, "name": "native_gc_register_root_name"})
-                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_name)
-                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_gc_register_root_name")
-                }
-                oren_list_push(root_offsets, off)
+            var off = root_offsets_src[gi]
+            if trace_root_names != nil && trace_root_names != 0 && gname != nil {
+                var name_off = exprm.native_data_add_cstr0(ctx, gname)
+                var adr_ptr_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_ptr_pos, "data_off": off, "reg": nil})
+                oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_ptr_pos)
+                oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], off)
+                oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
+                var adr_name_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_name_pos, "data_off": name_off, "reg": 1})
+                oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_name_pos)
+                oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], name_off)
+                oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 1)
+                var bl_name = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_name, "name": "native_gc_register_root_name"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_name)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_gc_register_root_name")
             }
+            oren_list_push(root_offsets, off)
             gi = gi + 1
+        }
+    } else {
+        var gmap = ctx["globals"]
+        if gmap != nil {
+            var gi2 = 0
+            var pair = [nil, nil]
+            while 1 {
+                var okg = oren_iter_next_entry(gmap, gi2, pair)
+                if okg == 0 { break }
+                var gname2 = pair[0]
+                if gname2 == "g_gc_reuse_bad_list_last_ptr" ||
+                   gname2 == "g_find_cache_ptr0" ||
+                   gname2 == "g_find_cache_ptr1" ||
+                   gname2 == "g_find_cache_node0" ||
+                   gname2 == "g_find_cache_node1" {
+                    gi2 = gi2 + 1
+                    continue
+                }
+                if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
+                   gname2 != nil && runtime_globals != nil && runtime_globals[gname2] != nil {
+                    gi2 = gi2 + 1
+                    continue
+                }
+                var off_enc = pair[1]
+                if oren_type_tag(off_enc) == 1 { oren_list_push(root_offsets, off_enc - 1) }
+                gi2 = gi2 + 1
+            }
         }
     }
     var root_count = oren_list_len(root_offsets)

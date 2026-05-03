@@ -78,11 +78,17 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
             if okg == 0 { break }
             var name = pairg[0]
             var off_enc = pairg[1]
-            if name != nil && off_enc != nil {
-                if ctx["globals"][name] != nil && ctx["globals"][name] != off_enc {
+            if name != nil && oren_type_tag(off_enc) != 0 {
+                var prev_global = ctx["globals"][name]
+                if oren_type_tag(prev_global) != 0 && prev_global != off_enc {
                     oren_list_push(ctx["errors"], "arm64 native: runtime obj global conflict " + name)
                 } else {
                     ctx["globals"][name] = off_enc
+                    if oren_type_tag(prev_global) == 0 && oren_type_tag(off_enc) == 1 {
+                        if ctx["global_root_names"] != nil { oren_list_push(ctx["global_root_names"], name) }
+                        if ctx["global_root_offsets"] != nil { oren_list_push(ctx["global_root_offsets"], off_enc - 1) }
+                        if ctx["global_root_is_runtime"] != nil { oren_list_push(ctx["global_root_is_runtime"], true) }
+                    }
                 }
             }
             idxg = idxg + 1
