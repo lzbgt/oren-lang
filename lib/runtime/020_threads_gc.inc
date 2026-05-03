@@ -792,15 +792,15 @@ OrenValue oren_task_cancel_now(OrenValue thread, OrenValue reason) {
     }
     if (!oren_is_truthy(oren_task_is_done(thread))) {
         OrenValue req = oren_task_request_cancel(thread, reason);
-        if (oren_is_err(req)) return req;
+        if (oren_is_truthy(oren_is_err(req))) return req;
     }
     OrenValue rv = oren_join_timeout(thread, oren_int(0));
-    if (oren_is_err(rv)) return rv;
+    if (oren_is_truthy(oren_is_err(rv))) return rv;
     if (rv.type == OREN_TYPE_INT && rv.as.int_val == -60) {
         OrenValue detach_rv = OREN_NIL;
         if (oren_is_truthy(oren_task_is_handle(thread))) {
             detach_rv = oren_detach(thread);
-            if (oren_is_err(detach_rv)) {
+            if (oren_is_truthy(oren_is_err(detach_rv))) {
                 return task_stop_result("detach_error", rv, reason, detach_rv);
             }
         }
