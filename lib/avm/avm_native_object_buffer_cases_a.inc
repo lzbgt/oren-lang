@@ -700,6 +700,14 @@
             res = avm_task_cancel_reason(vm, args[0]);
             break;
         }
+        case 186: { // oren_task_cancel_now(handle, reason) -> stop-result map
+            if (!vm || nargs <= 1) {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_task_cancel_now expects (handle, reason)");
+                break;
+            }
+            res = avm_task_cancel_now(vm, args[0], args[1]);
+            break;
+        }
         case 169: { // oren_task_group_new() -> group_handle
             if (!vm) { res = avm_err(AVM_ERR_INTERNAL, "oren_task_group_new: missing vm"); break; }
             res = avm_task_group_new(vm);

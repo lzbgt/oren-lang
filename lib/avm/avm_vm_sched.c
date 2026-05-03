@@ -503,6 +503,44 @@ AvmValue avm_task_cancel_reason(AvmVM* vm, AvmValue handle) {
     return s->tasks[tid].cancel_reason;
 }
 
+static AvmValue avm_task_stop_result(const char* status, AvmValue result, AvmValue reason, AvmValue detach_result) {
+    AvmValue mapv = avm_new_empty_map_value();
+    if (avm_is_err_val(mapv)) return mapv;
+    int ok = 1;
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("status"), avm_string(status));
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("result"), result);
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("reason"), reason);
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("detach_result"), detach_result);
+    if (!ok) return avm_alloc_fail_value();
+    return mapv;
+}
+
+AvmValue avm_task_cancel_now(AvmVM* vm, AvmValue handle, AvmValue reason) {
+    if (!vm || !vm->sched) return avm_err(AVM_ERR_INVALID_ARG, "oren_task_cancel_now: missing scheduler");
+    if (handle.type != AVM_VAL_INT) return avm_err(AVM_ERR_INVALID_ARG, "oren_task_cancel_now: expected task handle");
+    AvmSched* s = (AvmSched*)vm->sched;
+    int tid = (int)handle.as.i - 1;
+    if (tid < 0 || tid >= s->task_cap || !s->tasks[tid].used) {
+        return avm_err(AVM_ERR_INVALID_ARG, "oren_task_cancel_now: expected live task handle");
+    }
+    if (tid == s->current_tid) {
+        return avm_err(AVM_ERR_INVALID_ARG, "oren_task_cancel_now: cannot cancel current task");
+    }
+    AvmTask* t = &s->tasks[tid];
+    if (!t->done && !t->cancel_requested) {
+        t->cancel_requested = 1;
+        t->cancel_reason = reason;
+    }
+    if (t->detached) {
+        return avm_task_stop_result("joined", avm_nil(), reason, avm_nil());
+    }
+    if (t->done) {
+        return avm_task_stop_result("joined", t->has_ret ? t->ret : avm_nil(), reason, avm_nil());
+    }
+    t->detached = 1;
+    return avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
+}
+
 AvmChan* sched_chan_get(AvmSched* s, int64_t hid) {
     if (!s || hid <= 0) return NULL;
     for (int i = 0; i < s->chan_cap; i++) {

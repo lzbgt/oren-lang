@@ -774,6 +774,41 @@ OrenValue oren_task_cancel_reason(OrenValue thread) {
     return reason;
 }
 
+static OrenValue task_stop_result(const char* status, OrenValue result, OrenValue reason, OrenValue detach_result) {
+    return oren_new_map_from_pairs(
+        4,
+        (OrenValue[]){
+            oren_string_const("status"), oren_string_const(status),
+            oren_string_const("result"), result,
+            oren_string_const("reason"), reason,
+            oren_string_const("detach_result"), detach_result,
+        }
+    );
+}
+
+OrenValue oren_task_cancel_now(OrenValue thread, OrenValue reason) {
+    if (!oren_is_truthy(oren_task_is_handle(thread))) {
+        return oren_err(oren_int(4), oren_string("oren_task_cancel_now: expected task handle"));
+    }
+    if (!oren_is_truthy(oren_task_is_done(thread))) {
+        OrenValue req = oren_task_request_cancel(thread, reason);
+        if (oren_is_err(req)) return req;
+    }
+    OrenValue rv = oren_join_timeout(thread, oren_int(0));
+    if (oren_is_err(rv)) return rv;
+    if (rv.type == OREN_TYPE_INT && rv.as.int_val == -60) {
+        OrenValue detach_rv = OREN_NIL;
+        if (oren_is_truthy(oren_task_is_handle(thread))) {
+            detach_rv = oren_detach(thread);
+            if (oren_is_err(detach_rv)) {
+                return task_stop_result("detach_error", rv, reason, detach_rv);
+            }
+        }
+        return task_stop_result("detached", rv, reason, detach_rv);
+    }
+    return task_stop_result("joined", rv, reason, OREN_NIL);
+}
+
 static int task_group_value_eq(OrenValue a, OrenValue b) {
     if (a.type != b.type) return 0;
     switch (a.type) {

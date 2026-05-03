@@ -15,7 +15,7 @@
 // Non-goals (still rolling):
 // - implicit parent/child task lifetime enforcement
 // - unsafe preemptive killing of generic `spawn` workers
-// - moving typed stop execution fully into the runtime scheduler instead of this stdlib policy layer
+// - moving generator/coroutine stop execution fully into the runtime scheduler instead of this stdlib policy layer
 
 import gen "std:generator"
 import list "std:list"

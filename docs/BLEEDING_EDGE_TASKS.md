@@ -4798,18 +4798,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 			      member kind:
 			      - stored runtime-group default policy is merged before override validation
 			      - generator/coroutine members keep the full generator-backed stop-policy semantics
-				      - task members now use the same shared `std:task` contract, including cooperative
-				        `mode="request_cancel"`, bounded `mode="cancel"`, `mode="stop"`, and optional
-				        `join_timeout_ms` override on the synchronous path
+					      - task members now use the same shared `std:task` contract, including cooperative
+					        `mode="request_cancel"`, bounded `mode="cancel"`, `mode="stop"`, and optional
+					        `join_timeout_ms` override on the synchronous path; immediate zero-budget task
+					        cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`
 			    - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
 			      operations and reject extra generator/coroutine members
 			    - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
 			      generator/coroutine handles; it still rejects task handles and context-only members
 								    The remaining gap is now narrower: runtime-backed groups are already unified and
 								    runtime-owned for mixed membership, stored default policy, and atomic
-								    member/kind/policy snapshot-and-take semantics, and generic task cancellation now
-								    ships as cooperative request plus bounded stop/detach; typed stop execution still
-								    lives in stdlib rather than in the runtime scheduler itself
+									    member/kind/policy snapshot-and-take semantics, and generic task cancellation now
+									    ships as cooperative request plus bounded stop/detach; immediate task stop
+									    execution is runtime-owned, while delayed/bounded task waits and generator/coroutine
+									    typed stop execution still live in stdlib rather than wholly in the runtime scheduler
 			    or runtime task-group membership for spawned work.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its

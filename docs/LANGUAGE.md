@@ -3589,7 +3589,9 @@ Rolling status:
         - generator/coroutine handles and active contexts keep the full generator-backed
           stop-policy behavior
         - safe task handles use the same shared `std:task` contract, including `mode="request_cancel"`,
-          bounded `mode="cancel"`, `mode="stop"`, and `join_timeout_ms` override on the synchronous path
+          bounded `mode="cancel"`, `mode="stop"`, and `join_timeout_ms` override on the synchronous path;
+          immediate zero-budget task cancel/stop execution is now runtime-owned through
+          `oren_task_cancel_now(...)`
       - `task_group.join_all(...)` and `detach_all(...)` remain task-handle-only runtime-group
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
@@ -3597,8 +3599,9 @@ Rolling status:
     - the remaining boundary is now narrower: runtime-backed groups are already unified and
       runtime-owned for mixed membership, stored default policy, and atomic member/kind/policy
       snapshot-and-take semantics, and generic task cancellation is now shipped as cooperative request
-      plus bounded stop/detach; typed stop execution still lives in stdlib rather than in the runtime
-      scheduler itself
+      plus bounded stop/detach; immediate task stop execution is runtime-owned, while delayed/bounded
+      task waits and generator/coroutine typed stop execution still live in stdlib rather than wholly
+      in the runtime scheduler itself
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists

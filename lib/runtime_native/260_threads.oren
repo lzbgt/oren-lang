@@ -1537,6 +1537,39 @@ fn oren_task_cancel_reason(handle) {
     return ptr_get(handle + green_g_off_cancel_reason())
 }
 
+fn _task_runtime_stop_result(status, result, reason, detach_result) {
+    return {
+        "status": status,
+        "result": result,
+        "reason": reason,
+        "detach_result": detach_result,
+    }
+}
+
+@oren.keep
+fn oren_task_cancel_now(handle, reason) {
+    if oren_task_is_handle(handle) != true {
+        return oren_err(4, "oren_task_cancel_now: expected task handle")
+    }
+    if oren_task_is_done(handle) != true {
+        var req = oren_task_request_cancel(handle, reason)
+        if oren_is_err(req) == true { return req }
+    }
+    var rv = oren_join_timeout(handle, 0)
+    if oren_is_err(rv) == true { return rv }
+    if rv == -60 {
+        var detach_rv = nil
+        if oren_task_is_handle(handle) == true {
+            detach_rv = oren_detach(handle)
+            if oren_is_err(detach_rv) == true {
+                return _task_runtime_stop_result("detach_error", rv, reason, detach_rv)
+            }
+        }
+        return _task_runtime_stop_result("detached", rv, reason, detach_rv)
+    }
+    return _task_runtime_stop_result("joined", rv, reason, nil)
+}
+
 @oren.keep
 fn oren_task_group_new() {
     _task_group_runtime_ensure_state()
