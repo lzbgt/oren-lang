@@ -4802,12 +4802,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						        `mode="request_cancel"`, bounded `mode="cancel"`, `mode="stop"`, and optional
 						        `join_timeout_ms` override on the synchronous path; immediate zero-budget task
 						        cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`
-							      - `std:task.stop_capabilities()` exposes the runtime stop boundary as data:
-							        immediate cancel-now, cancel-request state, bounded cancel-wait, and delayed
-								        synchronous cancel-wait are runtime/scheduler-backed across C, native, and AVM;
-								        AVM uses dedicated scheduler opcodes for the wait paths
-			    - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
-			      operations and reject extra generator/coroutine members
+								      - `std:task.stop_capabilities()` exposes the runtime stop boundary as data:
+								        immediate cancel-now, cancel-request state, bounded cancel-wait, and delayed
+									        synchronous cancel-wait are runtime/scheduler-backed across C, native, and AVM;
+									        AVM uses dedicated scheduler opcodes for the wait paths
+									      - verifier/runtime-edit guardrail (2026-05-04): native surface verifiers now
+									        prewarm the stage1 runtime astbin seed and pass the exact seed through
+									        `OREN_NATIVE_RUNTIME_ASTBIN` for stage2 native builds, while still bounding
+									        native build process groups with `OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS`.
+									        This avoids cold runtime include expansion/parsing during scheduler work;
+									        the remaining concrete blocker is native codegen/runtime-object generation
+									        spinning on small target-aware edits to `oren_green_join_timeout(...)`.
+				    - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
+				      operations and reject extra generator/coroutine members
 			    - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
 			      generator/coroutine handles; it still rejects task handles and context-only members
 								    The remaining gap is now narrower: runtime-backed groups are already unified and

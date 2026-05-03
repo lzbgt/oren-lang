@@ -32,6 +32,10 @@ ts="$(date +%Y%m%d_%H%M%S)"
 tmpdir="build/tmp/generator_surface_v0_${ts}"
 log="build/logs/verify_generator_surface_v0_${ts}.log"
 mkdir -p "$tmpdir"
+native_astbin_seed="$(verify_native_astbin_seed_path "$platform" "$log" || true)"
+if [ -n "$native_astbin_seed" ]; then
+  echo "native_runtime_astbin_seed=$native_astbin_seed" >>"$log"
+fi
 
 run_ok() {
   echo "\$ $*" >>"$log"
@@ -76,7 +80,7 @@ run_generator_c() {
 }
 
 run_generator_native() {
-  run_timeout_logged "$native_build_timeout_secs" "$compiler" build "$src" \
+  run_native_build_timeout_logged "$native_build_timeout_secs" "$compiler" build "$src" \
     --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
   run_logged "$native_out"
 }
@@ -95,7 +99,7 @@ run_coroutine_alias_c() {
 }
 
 run_coroutine_alias_native() {
-  run_timeout_logged "$native_build_timeout_secs" "$compiler" build "$coroutine_alias_src" \
+  run_native_build_timeout_logged "$native_build_timeout_secs" "$compiler" build "$coroutine_alias_src" \
     --backend native --platform "$platform" --no-cache --no-debug -o "$coroutine_alias_native_out"
   run_logged "$coroutine_alias_native_out"
 }

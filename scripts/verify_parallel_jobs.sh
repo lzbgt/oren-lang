@@ -70,6 +70,63 @@ PY
   return "$rc"
 }
 
+verify_native_astbin_seed_path() {
+  local platform="$1"
+  local log_file="${2:-/dev/stderr}"
+
+  if [[ "${OREN_VERIFY_NATIVE_DIRECT_ASTBIN:-1}" = "0" || "${OREN_VERIFY_NATIVE_DIRECT_ASTBIN:-1}" = "false" ]]; then
+    return 1
+  fi
+
+  local seed_compiler="${OREN_NATIVE_ASTBIN_SEED_COMPILER:-./oren}"
+  local seed_dir="${OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR:-build/cache/native_runtime_astbin_seed}"
+  if [[ "$seed_dir" = "0" || "$seed_dir" = "false" ]]; then
+    return 1
+  fi
+  if [[ ! -x ./scripts/build_runtime_astbin_seed.sh || ! -x "$seed_compiler" ]]; then
+    return 1
+  fi
+
+  ./scripts/build_runtime_astbin_seed.sh --platform "$platform" --compiler "$seed_compiler" >>"$log_file" 2>&1 || return 1
+
+  local os="${platform#*-}"
+  local index="${seed_dir}/.runtime_astbin_seed_index_os_${os}.txt"
+  if [[ ! -f "$index" ]]; then
+    return 1
+  fi
+
+  local variant="native_core"
+  case "${OREN_NATIVE_RUNTIME_PROFILE:-auto}" in
+    full) variant="native_full" ;;
+    core|minimal|auto|"") variant="native_core" ;;
+    *) variant="native_core" ;;
+  esac
+
+  local base
+  base="$(
+    (grep -E "^${variant}=" "$index" || true) | head -n 1 | sed -E "s/^${variant}=//"
+  )"
+  if [[ -z "$base" ]]; then
+    return 1
+  fi
+
+  local path="${seed_dir}/${base}"
+  if [[ ! -f "$path" ]]; then
+    return 1
+  fi
+  printf "%s\n" "$path"
+}
+
+run_native_build_timeout_logged() {
+  local timeout_secs="$1"
+  shift
+  if [[ -n "${native_astbin_seed:-}" ]]; then
+    run_timeout_logged "$timeout_secs" env OREN_NATIVE_RUNTIME_ASTBIN="$native_astbin_seed" "$@"
+    return $?
+  fi
+  run_timeout_logged "$timeout_secs" "$@"
+}
+
 verify_parallel_start() {
   local name="$1"
   shift

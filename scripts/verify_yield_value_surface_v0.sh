@@ -31,6 +31,10 @@ ts="$(date +%Y%m%d_%H%M%S)"
 tmpdir="build/tmp/yield_value_surface_v0_${ts}"
 log="build/logs/verify_yield_value_surface_v0_${ts}.log"
 mkdir -p "$tmpdir"
+native_astbin_seed="$(verify_native_astbin_seed_path "$platform" "$log" || true)"
+if [ -n "$native_astbin_seed" ]; then
+  echo "native_runtime_astbin_seed=$native_astbin_seed" >>"$log"
+fi
 
 run_ok() {
   echo "\$ $*" >>"$log"
@@ -56,7 +60,7 @@ run_ok "$compiler" build "$src" \
   --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
 run_ok "$c_out"
 
-run_timeout_logged "$native_build_timeout_secs" "$compiler" build "$src" \
+run_native_build_timeout_logged "$native_build_timeout_secs" "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
 run_ok "$native_out"
 

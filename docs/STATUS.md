@@ -2252,6 +2252,12 @@ Local (fast):
   `OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS` (default `180`) and kill the full process
   group on timeout. This is a guardrail for native compiler nontermination while
   iterating on runtime-owned scheduler code.
+- Those same native surface verifiers now prewarm the host runtime astbin seed with
+  stage1 (`OREN_NATIVE_ASTBIN_SEED_COMPILER`, default `./oren`) and pass the exact
+  seed through `OREN_NATIVE_RUNTIME_ASTBIN` unless `OREN_VERIFY_NATIVE_DIRECT_ASTBIN=0`
+  is set. This bypasses runtime include expansion/parsing on stage2 verifier builds;
+  a 2026-05-04 probe confirmed that touching `lib/runtime_native/263_green/040_green_workers.oren`
+  can otherwise leave stage2 spending the entire timeout in cold native-runtime bundle work.
 - `make verify-native-quick`
 - `make verify-native-quick-simd`
 - `make verify-backend-parity-boxed-list`

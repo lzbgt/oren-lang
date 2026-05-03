@@ -136,6 +136,12 @@ backend-shared value-helper slices landed.
     the compiler process group on timeout. Generator/coroutine surface fixtures also use shorter
     watcher join budgets for already-short watcher checks, keeping the contract covered without
     multiplying known native green bounded-join over-wait into long verifier wall time.
+  - Follow-up hardening (2026-05-04): the same native surface verifiers now prewarm the runtime
+    astbin seed with stage1 and pass it directly as `OREN_NATIVE_RUNTIME_ASTBIN` for stage2 native
+    builds. This avoids the cold runtime include-expansion/parsing path while iterating on
+    `lib/runtime_native/**`; it does not yet solve the deeper native codegen path where seemingly
+    small target-aware edits inside `oren_green_join_timeout(...)` can still spin during runtime
+    object generation.
   - `timeout_ms == nil` defaults to `0`, negative timeouts clamp to `0`, and invalid non-`int`
     timeout arguments return an immediate `err`
   - the watcher join result is `nil` for live-target request/hard-cancel flows; if
