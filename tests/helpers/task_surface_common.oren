@@ -72,6 +72,13 @@ fn run_task_surface_v0() {
     if task.current() != nil { return 1900025 }
     if task.is_cancel_requested(123) != false { return 1900026 }
     if task.cancel_reason(123) != nil { return 1900027 }
+    var caps0 = task.stop_capabilities()
+    if oren_type_name(caps0) != "map" { return 1900028 }
+    if caps0["immediate_cancel_now"] != true { return 1900029 }
+    if caps0["cancel_request_state"] != true { return 1900030 }
+    if caps0["bounded_wait_native_call"] != false { return 1900031 }
+    if caps0["delayed_wait_native_call"] != false { return 1900032 }
+    if caps0["blocking_native_call_scheduler"] != false { return 1900033 }
     if reflect.is_task(123) != false { return 190003 }
     if oren_is_err(task.join(123)) != true { return 190004 }
     if oren_is_err(task.join_timeout(123, 0)) != true { return 190005 }

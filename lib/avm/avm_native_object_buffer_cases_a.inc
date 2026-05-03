@@ -708,6 +708,10 @@
             res = avm_task_cancel_now(vm, args[0], args[1]);
             break;
         }
+        case 187: { // oren_task_stop_capabilities() -> map
+            res = avm_task_stop_capabilities();
+            break;
+        }
         case 169: { // oren_task_group_new() -> group_handle
             if (!vm) { res = avm_err(AVM_ERR_INTERNAL, "oren_task_group_new: missing vm"); break; }
             res = avm_task_group_new(vm);

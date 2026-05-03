@@ -809,6 +809,19 @@ OrenValue oren_task_cancel_now(OrenValue thread, OrenValue reason) {
     return task_stop_result("joined", rv, reason, OREN_NIL);
 }
 
+OrenValue oren_task_stop_capabilities(void) {
+    return oren_new_map_from_pairs(
+        5,
+        (OrenValue[]){
+            oren_string_const("immediate_cancel_now"), OREN_TRUE,
+            oren_string_const("cancel_request_state"), OREN_TRUE,
+            oren_string_const("bounded_wait_native_call"), OREN_FALSE,
+            oren_string_const("delayed_wait_native_call"), OREN_FALSE,
+            oren_string_const("blocking_native_call_scheduler"), OREN_FALSE,
+        }
+    );
+}
+
 static int task_group_value_eq(OrenValue a, OrenValue b) {
     if (a.type != b.type) return 0;
     switch (a.type) {

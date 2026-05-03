@@ -9,6 +9,7 @@
 // - exposes cooperative cancel-request state plus bounded cancel/stop policy for generic task handles
 // - immediate cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`; delayed and
 //   bounded waits still compose scheduler primitives here until runtimes expose blocking native calls
+// - `stop_capabilities()` exposes that runtime boundary as a stable, testable feature contract
 // - legacy native raw fallback handles (fork / Windows thread fallback) still use the low-level
 //   raw helpers directly and are not yet reflected by `is_handle(...)`
 
@@ -214,6 +215,10 @@ fn is_done(handle) {
 
 fn current() {
     return oren_task_current_handle()
+}
+
+fn stop_capabilities() {
+    return oren_task_stop_capabilities()
 }
 
 fn request_cancel(handle, reason) {

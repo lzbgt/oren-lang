@@ -1571,6 +1571,17 @@ fn oren_task_cancel_now(handle, reason) {
 }
 
 @oren.keep
+fn oren_task_stop_capabilities() {
+    return {
+        "immediate_cancel_now": true,
+        "cancel_request_state": true,
+        "bounded_wait_native_call": false,
+        "delayed_wait_native_call": false,
+        "blocking_native_call_scheduler": false,
+    }
+}
+
+@oren.keep
 fn oren_task_group_new() {
     _task_group_runtime_ensure_state()
     var id = g_task_group_runtime_next_id

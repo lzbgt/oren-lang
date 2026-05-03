@@ -541,6 +541,19 @@ AvmValue avm_task_cancel_now(AvmVM* vm, AvmValue handle, AvmValue reason) {
     return avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
 }
 
+AvmValue avm_task_stop_capabilities(void) {
+    AvmValue mapv = avm_new_empty_map_value();
+    if (avm_is_err_val(mapv)) return mapv;
+    int ok = 1;
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("immediate_cancel_now"), avm_bool(1));
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("cancel_request_state"), avm_bool(1));
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("bounded_wait_native_call"), avm_bool(0));
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("delayed_wait_native_call"), avm_bool(0));
+    ok = ok && avm_map_set_sorted(mapv.as.m, avm_string("blocking_native_call_scheduler"), avm_bool(0));
+    if (!ok) return avm_alloc_fail_value();
+    return mapv;
+}
+
 AvmChan* sched_chan_get(AvmSched* s, int64_t hid) {
     if (!s || hid <= 0) return NULL;
     for (int i = 0; i < s->chan_cap; i++) {

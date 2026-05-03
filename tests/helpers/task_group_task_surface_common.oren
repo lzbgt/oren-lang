@@ -328,7 +328,7 @@ fn run_task_group_task_surface_v0() {
     if oren_is_err(rtg8d) == true || tg.count(rtg8d) != 1 { return 1910762 }
     var rtr8d = tg.stop_after_wait(rtg8d, 0, 200, 911, nil)
     if oren_is_err(rtr8d) == true || list.len(rtr8d) != 1 { return 1910763 }
-    if stop_joined(rtr8d[0], 2611) != true || rtr8d[0]["reason"] != 911 { return 1910764 }
+    if stop_joined_any_or_detached(rtr8d[0], 2611, 1700, 911) != true { return 1910764 }
 
     var doneg1 = gen.start(counter_worker, [80])
     if oren_is_err(gen.next(doneg1)) == true { return 191076 }

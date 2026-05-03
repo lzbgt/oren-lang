@@ -3592,6 +3592,9 @@ Rolling status:
           bounded `mode="cancel"`, `mode="stop"`, and `join_timeout_ms` override on the synchronous path;
           immediate zero-budget task cancel/stop execution is now runtime-owned through
           `oren_task_cancel_now(...)`
+      - `std:task.stop_capabilities()` exposes the current runtime stop-execution boundary as a stable
+        map: `immediate_cancel_now=true`, `cancel_request_state=true`, and the blocking native-call
+        scheduler flags for delayed/bounded waits are currently `false`
       - `task_group.join_all(...)` and `detach_all(...)` remain task-handle-only runtime-group
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
@@ -3601,7 +3604,8 @@ Rolling status:
       snapshot-and-take semantics, and generic task cancellation is now shipped as cooperative request
       plus bounded stop/detach; immediate task stop execution is runtime-owned, while delayed/bounded
       task waits and generator/coroutine typed stop execution still live in stdlib rather than wholly
-      in the runtime scheduler itself
+      in the runtime scheduler itself, with `std:task.stop_capabilities()` as the programmatic guardrail
+      for that boundary
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists
