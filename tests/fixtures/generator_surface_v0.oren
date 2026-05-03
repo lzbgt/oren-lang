@@ -433,7 +433,7 @@ fn bad_on_close_worker(co, args) {
     return 1
 }
 
-fn main() {
+fn generator_surface_part_basic() {
     var c1 = oren_new_channel()
     var c2 = oren_new_channel()
     if c1 == 0 || c2 == 0 { return 80 }
@@ -562,6 +562,10 @@ fn main() {
     if oren_is_err(gcan0req2) == true || gcan0req2 != nil { return 17337 }
     if gen.cancel_reason(gcan0) != 70 { return 17338 }
 
+    return 0
+}
+
+fn generator_surface_part_timeout_policy() {
     var gwatch0 = gen.start(cancel_probe_worker, [55, 75])
     var gwatch0s0 = gen.next(gwatch0)
     if oren_is_err(gwatch0s0) == true || gwatch0s0["ok"] != true || gwatch0s0["value"] != 55 { return 173381 }
@@ -806,6 +810,10 @@ fn main() {
     if oren_is_err(gen.stop_policy(gpol3, {"mode": "cancel", "grace_ms": 1})) != true { return 17339710 }
     if oren_is_err(gen.stop_policy_wait(gpol3, {"mode": "cancel", "join_timeout_ms": "bad"})) != true { return 17339711 }
 
+    return 0
+}
+
+fn generator_surface_part_cancel_close_hooks() {
     var gcan1 = gen.start(cancel_delegate_outer_worker, [60, 80])
     var gcan1s0 = gen.next(gcan1)
     if oren_is_err(gcan1s0) == true || gcan1s0["ok"] != true || gcan1s0["value"] != 60 { return 17339 }
@@ -1116,6 +1124,10 @@ fn main() {
     if defer_box3[0] != 171 || defer_box3[1] != 172 { return 18157 }
     if gen.is_done(gcj) != true || gen.return_value(gcj) != 210 { return 18158 }
 
+    return 0
+}
+
+fn generator_surface_part_iteration_and_decls() {
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
     if oren_is_err(n0) == true { return 110 }
@@ -1312,7 +1324,8 @@ fn main() {
     if oren_is_err(dz2) == true { return 1861 }
     if dz2["done"] != true || dz2["return"] != 83 { return 1862 }
 
-    var bad_delegate_ctx = gen.delegate(123, g1)
+    var bad_delegate_seed = gen.start(counter_worker, [1])
+    var bad_delegate_ctx = gen.delegate(123, bad_delegate_seed)
     if oren_is_err(bad_delegate_ctx) != true { return 1863 }
     var bad_delegate_inner = gen.delegate(123, 456)
     if oren_is_err(bad_delegate_inner) != true { return 1864 }
@@ -1365,5 +1378,17 @@ fn main() {
     if nil_count != 1 { return 191 }
     if gen.is_done(g10) != true || gen.return_value(g10) != 77 { return 192 }
 
+    return 0
+}
+
+fn main() {
+    var r0 = generator_surface_part_basic()
+    if r0 != 0 { return r0 }
+    var r1 = generator_surface_part_timeout_policy()
+    if r1 != 0 { return r1 }
+    var r2 = generator_surface_part_cancel_close_hooks()
+    if r2 != 0 { return r2 }
+    var r3 = generator_surface_part_iteration_and_decls()
+    if r3 != 0 { return r3 }
     return 0
 }

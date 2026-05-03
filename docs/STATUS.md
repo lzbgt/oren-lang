@@ -2321,6 +2321,13 @@ Local (fast):
   resolution spike (~2.6s in the first 4096 local BL fixups), but a map-backed Mach-O target-cache
   experiment is already known to hit the native profile timeout, so the safer next optimization is
   reducing monolithic statement/function codegen overhead or changing wrapper emission shape.
+- The generator surface fixture no longer compiles all runtime checks into one monolithic native
+  `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
+  codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to
+  four smaller bodies (~1.0s, ~4.1s, ~3.0s, ~4.2s). On the measured native profile, `user_decls`
+  improved from ~22.0s to ~20.7s and the link/prep span improved from ~14.6s to ~8.4s. This is a
+  verifier-performance fix, not a language semantic change; it also demonstrates that large
+  monolithic user functions remain a real native-codegen scaling target.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

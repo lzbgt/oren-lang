@@ -4873,6 +4873,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 													        map-backed target-cache experiment already hit the native profile timeout,
 													        so the next safe native optimization should reduce monolithic
 													        statement/function codegen overhead or change wrapper emission shape.
+													      - the generator surface fixture now splits its formerly monolithic native
+													        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
+													        return codes are preserved, but the hottest function drops from ~13.2s /
+													        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).
+													        The measured native profile improves `user_decls` from ~22.0s to ~20.7s
+													        and link/prep from ~14.6s to ~8.4s, while confirming large monolithic
+													        user functions are still a native-codegen scaling target.
 													      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
 												        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
 												        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.

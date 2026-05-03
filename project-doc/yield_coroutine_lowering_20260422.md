@@ -192,6 +192,11 @@ backend-shared value-helper slices landed.
     4096 local BL fixups); because a map-backed target-cache experiment already hit the profile
     timeout, the next safe native optimization should reduce monolithic statement/function codegen
     overhead or change wrapper emission shape.
+  - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
+    return codes while splitting the giant native `main` into four top-level chunks plus a tiny
+    dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around
+    ~1.0s, ~4.1s, ~3.0s, and ~4.2s; the measured native profile improved `user_decls` from ~22.0s to
+    ~20.7s and link/prep from ~14.6s to ~8.4s.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated
