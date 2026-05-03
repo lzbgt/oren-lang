@@ -165,6 +165,12 @@ backend-shared value-helper slices landed.
     positions in that group. The generator surface profile dropped `call_fixups` from about 41s to
     about 6.7s for `1228` call sites across `231` unique callees while keeping `compile_stmts`
     around 4.0s. The profile summary now preserves extra section metrics such as `names=...`.
+  - Native build phase profiling (2026-05-04): `make profile-native-build-phases` wraps a native
+    fixture build with the verifier's direct astbin seed, rtobj seed prewarm, and timeout wrapper,
+    then summarizes adjacent `OREN_TRACE_BUILD_PHASES_PATH` deltas. The generator-surface profile
+    attributes the largest native costs to user declaration emission (~22.5s), link/prep (~14.5s),
+    first-class wrapper emission (~12.8s), and global-root registration codegen (~7.3s for 626
+    roots). `arm64.codegen.global_roots.done` now makes that root-registration span explicit.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated

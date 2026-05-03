@@ -2291,6 +2291,13 @@ Local (fast):
   while preserving `compile_stmts` around 4.0s (`1228` call sites across `231` unique callees).
   `scripts/profile_bytecode_codegen.sh` also preserves extra section metrics such as `names=...`
   in its summary so grouped-fixup regressions are visible in one log.
+- Native fixture build profiling is now available through `make profile-native-build-phases`
+  (`scripts/profile_native_build_phases.sh`). It reuses the verifier's direct astbin seed,
+  rtobj seed prewarm, and process-group timeout wrapper, then summarizes adjacent phase deltas from
+  `OREN_TRACE_BUILD_PHASES_PATH`. A 2026-05-04 generator-surface profile shows the dominant native
+  costs are now user declaration emission (~22.5s), link/prep (~14.5s), first-class wrapper emission
+  (~12.8s), and global-root registration codegen (~7.3s for 626 roots); the latter is explicitly
+  logged as `arm64.codegen.global_roots.done` so it no longer hides inside the runtime-decls span.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

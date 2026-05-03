@@ -22,7 +22,7 @@
 .PHONY: rtobj-seed
 .PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
-.PHONY: profile-bytecode-codegen
+.PHONY: profile-bytecode-codegen profile-native-build-phases
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -1533,6 +1533,9 @@ perf-guard-native-hit: oren_stage2
 
 profile-bytecode-codegen: oren_stage2
 		@./scripts/profile_bytecode_codegen.sh
+
+profile-native-build-phases: oren_stage2
+		@./scripts/profile_native_build_phases.sh
 
 # Default "test" is the fast stage1 native quick smoke.
 #

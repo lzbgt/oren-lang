@@ -4833,13 +4833,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 											        `ctx["functions"][name]` lookups, so the next real optimization should
 											        avoid name-keyed post-pass patching or fix the native hot map lookup safely.
 											      - bytecode call fixups are now grouped by callee name during emission, cutting
-											        the generator-surface `call_fixups` profile from about 41s to about 6.7s
-											        (`1228` call sites across `231` unique callees) without regressing the
-											        `compile_stmts` phase. The profile summary also preserves extra section
-											        metrics such as `names=...` for regression tracking.
-										      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
-									        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
-									        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
+												        the generator-surface `call_fixups` profile from about 41s to about 6.7s
+												        (`1228` call sites across `231` unique callees) without regressing the
+												        `compile_stmts` phase. The profile summary also preserves extra section
+												        metrics such as `names=...` for regression tracking.
+												      - `make profile-native-build-phases` now wraps a native fixture build with
+												        the same direct astbin seed, rtobj seed prewarm, and process-group timeout
+												        used by surface verifiers, then summarizes adjacent build/codegen phase
+												        deltas. The 2026-05-04 generator profile shows the largest native costs
+												        as user declaration emission (~22.5s), link/prep (~14.5s), wrapper
+												        emission (~12.8s), and global-root registration codegen (~7.3s for
+												        626 roots). `arm64.codegen.global_roots.done` now records that hidden
+												        root cost separately instead of folding it into runtime declarations.
+											      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
+										        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
+										        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
 									      - native green bounded joins now re-check the specific joined task between
 									        short scheduler-poll slices instead of passing the full caller timeout into
 									        the generic poll loop. This closes the over-wait shape where an already

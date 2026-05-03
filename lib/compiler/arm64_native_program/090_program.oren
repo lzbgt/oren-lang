@@ -588,7 +588,10 @@ fn native_compile_program_arm64(linked, platform) {
         _arm64_program_phase_log_append(phase_log, "arm64.codegen.prepare.done", "runtime_decls=" + oren_int_to_string(oren_list_len(runtime_decls)) + " user_decls=" + oren_int_to_string(oren_list_len(user_decls)))
     }
     _arm64_trace_global_slots(ctx, "after_prepare_globals")
-    _arm64_emit_global_roots_init(ctx)
+    var global_root_count = _arm64_emit_global_roots_init(ctx)
+    if phase_log != nil {
+        _arm64_program_phase_log_append(phase_log, "arm64.codegen.global_roots.done", "n=" + oren_int_to_string(global_root_count))
+    }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Compile runtime declarations (functions/types/ffi), but not runtime global initializers.

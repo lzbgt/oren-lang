@@ -209,6 +209,7 @@ fn _arm64_emit_global_roots_init(ctx) {
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     var trace_root_names = ctx["trace_gc_root_names"]
+    var root_count = 0
     if gmap != nil {
         var gi = 0
         var pair = [nil, nil]
@@ -266,6 +267,7 @@ fn _arm64_emit_global_roots_init(ctx) {
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_root, "name": "native_gc_register_root"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_root)
                 oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_gc_register_root")
+                root_count = root_count + 1
             }
             gi = gi + 1
         }
@@ -273,7 +275,7 @@ fn _arm64_emit_global_roots_init(ctx) {
     // Epilogue: restore FP/LR and return.
     push_u32_le(ctx["code"], insn_ldp_post())
     push_u32_le(ctx["code"], insn_ret())
-    return 0
+    return root_count
 }
 
 fn _arm64_runtime_function_offset(ctx, name) {
