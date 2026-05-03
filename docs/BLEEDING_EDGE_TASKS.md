@@ -4803,8 +4803,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 						        `join_timeout_ms` override on the synchronous path; immediate zero-budget task
 						        cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`
 						      - `std:task.stop_capabilities()` exposes the runtime stop boundary as data:
-						        immediate cancel-now and cancel-request state are runtime-backed, while delayed/bounded
-						        blocking native-call scheduling is still false
+						        immediate cancel-now and cancel-request state are runtime-backed, bounded cancel-wait
+						        native calls are backend-specific (`true` on C/native, `false` on AVM), and delayed
+						        native-call scheduling is still false
 			    - `task_group.join_all(...)` / `detach_all(...)` remain task-handle-only runtime-group
 			      operations and reject extra generator/coroutine members
 			    - `task_group.terminal_results(...)` now works for runtime-backed groups that contain only
@@ -4813,9 +4814,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 								    runtime-owned for mixed membership, stored default policy, and atomic
 										    member/kind/policy snapshot-and-take semantics, and generic task cancellation now
 										    ships as cooperative request plus bounded stop/detach; immediate task stop
-										    execution is runtime-owned, while delayed/bounded task waits and generator/coroutine
-										    typed stop execution still live in stdlib rather than wholly in the runtime scheduler,
-										    with `std:task.stop_capabilities()` pinning that boundary programmatically
+										    execution is runtime-owned, C/native bounded cancel waits now use
+										    `oren_task_cancel_wait(...)`, AVM keeps the opcode-level `JOIN_TIMEOUT` fallback,
+										    and delayed task waits plus generator/coroutine typed stop execution still live in
+										    stdlib rather than wholly in the runtime scheduler, with
+										    `std:task.stop_capabilities()` pinning that boundary programmatically
 			    or runtime task-group membership for spawned work.
 		   - New (2026-04-22): `std:generator` now ships as the first reusable source-level abstraction on
 		     top of that explicit exchange contract, but it is no longer the storage owner. Its

@@ -708,6 +708,10 @@
             res = avm_task_cancel_now(vm, args[0], args[1]);
             break;
         }
+        case 188: { // oren_task_cancel_wait(handle, wait_ms, reason) -> stop-result map
+            res = avm_task_cancel_wait();
+            break;
+        }
         case 187: { // oren_task_stop_capabilities() -> map
             res = avm_task_stop_capabilities();
             break;

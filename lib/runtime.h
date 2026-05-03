@@ -206,6 +206,7 @@ OrenValue oren_task_request_cancel(OrenValue thread, OrenValue reason);
 OrenValue oren_task_is_cancel_requested(OrenValue thread);
 OrenValue oren_task_cancel_reason(OrenValue thread);
 OrenValue oren_task_cancel_now(OrenValue thread, OrenValue reason);
+OrenValue oren_task_cancel_wait(OrenValue thread, OrenValue wait_ms, OrenValue reason);
 OrenValue oren_task_stop_capabilities(void);
 OrenValue oren_join_all();
 OrenValue oren_task_group_new(void);

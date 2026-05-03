@@ -541,6 +541,13 @@ AvmValue avm_task_cancel_now(AvmVM* vm, AvmValue handle, AvmValue reason) {
     return avm_task_stop_result("detached", avm_int(-60), reason, avm_nil());
 }
 
+AvmValue avm_task_cancel_wait(void) {
+    return avm_err(
+        AVM_ERR_NOT_IMPLEMENTED,
+        "oren_task_cancel_wait requires opcode-level scheduler suspension on AVM"
+    );
+}
+
 AvmValue avm_task_stop_capabilities(void) {
     AvmValue mapv = avm_new_empty_map_value();
     if (avm_is_err_val(mapv)) return mapv;

@@ -1571,13 +1571,43 @@ fn oren_task_cancel_now(handle, reason) {
 }
 
 @oren.keep
+fn oren_task_cancel_wait(handle, wait_ms, reason) {
+    if oren_task_is_handle(handle) != true {
+        return oren_err(4, "oren_task_cancel_wait: expected task handle")
+    }
+    if oren_type_name(wait_ms) != "int" {
+        return oren_err(4, "oren_task_cancel_wait: expected int wait_ms")
+    }
+    if wait_ms <= 0 {
+        return oren_task_cancel_now(handle, reason)
+    }
+    if oren_task_is_done(handle) != true {
+        var req = oren_task_request_cancel(handle, reason)
+        if oren_is_err(req) == true { return req }
+    }
+    var rv = oren_join_timeout(handle, wait_ms)
+    if oren_is_err(rv) == true { return rv }
+    if rv == -60 {
+        var detach_rv = nil
+        if oren_task_is_handle(handle) == true {
+            detach_rv = oren_detach(handle)
+            if oren_is_err(detach_rv) == true {
+                return _task_runtime_stop_result("detach_error", rv, reason, detach_rv)
+            }
+        }
+        return _task_runtime_stop_result("detached", rv, reason, detach_rv)
+    }
+    return _task_runtime_stop_result("joined", rv, reason, nil)
+}
+
+@oren.keep
 fn oren_task_stop_capabilities() {
     return {
         "immediate_cancel_now": true,
         "cancel_request_state": true,
-        "bounded_wait_native_call": false,
+        "bounded_wait_native_call": true,
         "delayed_wait_native_call": false,
-        "blocking_native_call_scheduler": false,
+        "blocking_native_call_scheduler": true,
     }
 }
 

@@ -3593,8 +3593,9 @@ Rolling status:
           immediate zero-budget task cancel/stop execution is now runtime-owned through
           `oren_task_cancel_now(...)`
       - `std:task.stop_capabilities()` exposes the current runtime stop-execution boundary as a stable
-        map: `immediate_cancel_now=true`, `cancel_request_state=true`, and the blocking native-call
-        scheduler flags for delayed/bounded waits are currently `false`
+        map: `immediate_cancel_now=true`, `cancel_request_state=true`, `bounded_wait_native_call` is
+        backend-specific (`true` on C/native, `false` on AVM), and delayed native-call scheduling is
+        still `false`
       - `task_group.join_all(...)` and `detach_all(...)` remain task-handle-only runtime-group
         operations and reject extra generator/coroutine members
       - `task_group.terminal_results(group)` now also works for runtime-backed groups that contain
@@ -3602,10 +3603,12 @@ Rolling status:
     - the remaining boundary is now narrower: runtime-backed groups are already unified and
       runtime-owned for mixed membership, stored default policy, and atomic member/kind/policy
       snapshot-and-take semantics, and generic task cancellation is now shipped as cooperative request
-      plus bounded stop/detach; immediate task stop execution is runtime-owned, while delayed/bounded
-      task waits and generator/coroutine typed stop execution still live in stdlib rather than wholly
-      in the runtime scheduler itself, with `std:task.stop_capabilities()` as the programmatic guardrail
-      for that boundary
+      plus bounded stop/detach; immediate task stop execution is runtime-owned, C/native bounded cancel
+      waits are now runtime-owned through `oren_task_cancel_wait(...)`, and AVM deliberately keeps the
+      opcode-level `JOIN_TIMEOUT` fallback because ordinary native calls cannot suspend the AVM scheduler;
+      delayed task waits and generator/coroutine typed stop execution still live in stdlib rather than
+      wholly in the runtime scheduler itself, with `std:task.stop_capabilities()` as the programmatic
+      guardrail for that boundary
   - `terminal_result(gen)` exposes the final handle result directly:
     - it accepts only a done generator handle, not a generator context
     - it returns the sticky terminal error when one exists

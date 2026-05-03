@@ -29,6 +29,7 @@ AvmValue avm_task_request_cancel(AvmVM* vm, AvmValue handle, AvmValue reason);
 AvmValue avm_task_is_cancel_requested(AvmVM* vm, AvmValue handle);
 AvmValue avm_task_cancel_reason(AvmVM* vm, AvmValue handle);
 AvmValue avm_task_cancel_now(AvmVM* vm, AvmValue handle, AvmValue reason);
+AvmValue avm_task_cancel_wait(void);
 AvmValue avm_task_stop_capabilities(void);
 AvmValue avm_task_group_new(AvmVM* vm);
 int avm_task_group_is_handle(AvmVM* vm, AvmValue group);

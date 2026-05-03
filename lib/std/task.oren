@@ -7,8 +7,8 @@
 // - adds a safe reflected predicate (`is_handle`) before destructive operations
 // - supports the default scheduler-backed task handles on native, plus AVM/C task handles
 // - exposes cooperative cancel-request state plus bounded cancel/stop policy for generic task handles
-// - immediate cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`; delayed and
-//   bounded waits still compose scheduler primitives here until runtimes expose blocking native calls
+// - immediate cancel/stop execution is runtime-owned through `oren_task_cancel_now(...)`; C/native
+//   bounded cancel waits use `oren_task_cancel_wait(...)`, while AVM keeps the bytecode JOIN_TIMEOUT path
 // - `stop_capabilities()` exposes that runtime boundary as a stable, testable feature contract
 // - legacy native raw fallback handles (fork / Windows thread fallback) still use the low-level
 //   raw helpers directly and are not yet reflected by `is_handle(...)`
@@ -182,6 +182,12 @@ fn _task_stop_handle(handle, wait_ms, reason) {
 fn _task_request_then_stop_handle(handle, wait_ms, reason) {
     if wait_ms == 0 {
         return oren_task_cancel_now(handle, reason)
+    }
+    if wait_ms > 0 {
+        var caps = stop_capabilities()
+        if oren_type_name(caps) == "map" && caps["bounded_wait_native_call"] == true {
+            return oren_task_cancel_wait(handle, wait_ms, reason)
+        }
     }
     if is_done(handle) != true {
         var rv0 = request_cancel(handle, reason)

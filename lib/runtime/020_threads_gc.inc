@@ -809,15 +809,44 @@ OrenValue oren_task_cancel_now(OrenValue thread, OrenValue reason) {
     return task_stop_result("joined", rv, reason, OREN_NIL);
 }
 
+OrenValue oren_task_cancel_wait(OrenValue thread, OrenValue wait_ms, OrenValue reason) {
+    if (!oren_is_truthy(oren_task_is_handle(thread))) {
+        return oren_err(oren_int(4), oren_string("oren_task_cancel_wait: expected task handle"));
+    }
+    if (wait_ms.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(4), oren_string("oren_task_cancel_wait: expected int wait_ms"));
+    }
+    if (wait_ms.as.int_val <= 0) {
+        return oren_task_cancel_now(thread, reason);
+    }
+    if (!oren_is_truthy(oren_task_is_done(thread))) {
+        OrenValue req = oren_task_request_cancel(thread, reason);
+        if (oren_is_truthy(oren_is_err(req))) return req;
+    }
+    OrenValue rv = oren_join_timeout(thread, wait_ms);
+    if (oren_is_truthy(oren_is_err(rv))) return rv;
+    if (rv.type == OREN_TYPE_INT && rv.as.int_val == -60) {
+        OrenValue detach_rv = OREN_NIL;
+        if (oren_is_truthy(oren_task_is_handle(thread))) {
+            detach_rv = oren_detach(thread);
+            if (oren_is_truthy(oren_is_err(detach_rv))) {
+                return task_stop_result("detach_error", rv, reason, detach_rv);
+            }
+        }
+        return task_stop_result("detached", rv, reason, detach_rv);
+    }
+    return task_stop_result("joined", rv, reason, OREN_NIL);
+}
+
 OrenValue oren_task_stop_capabilities(void) {
     return oren_new_map_from_pairs(
         5,
         (OrenValue[]){
             oren_string_const("immediate_cancel_now"), OREN_TRUE,
             oren_string_const("cancel_request_state"), OREN_TRUE,
-            oren_string_const("bounded_wait_native_call"), OREN_FALSE,
+            oren_string_const("bounded_wait_native_call"), OREN_TRUE,
             oren_string_const("delayed_wait_native_call"), OREN_FALSE,
-            oren_string_const("blocking_native_call_scheduler"), OREN_FALSE,
+            oren_string_const("blocking_native_call_scheduler"), OREN_TRUE,
         }
     );
 }
