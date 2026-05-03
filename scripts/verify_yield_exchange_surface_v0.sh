@@ -7,6 +7,7 @@ cd "$ROOT"
 compiler="${1:-./oren_stage2}"
 meta_compiler="${OREN_META_COMPILER:-./oren}"
 platform="${OREN_PLATFORM:-}"
+source scripts/verify_parallel_jobs.sh
 
 if [ -z "$platform" ]; then
   uname_s="$(uname -s)"
@@ -36,29 +37,6 @@ run_ok() {
   "$@" >>"$log" 2>&1
 }
 
-run_ok_timeout() {
-  local timeout_secs="$1"
-  shift
-  echo "\$ $*  # timeout=${timeout_secs}s" >>"$log"
-  python3 - "$timeout_secs" "$@" >>"$log" 2>&1 <<'PY'
-import subprocess
-import sys
-
-timeout_secs = float(sys.argv[1])
-cmd = sys.argv[2:]
-proc = subprocess.Popen(cmd)
-try:
-    raise SystemExit(proc.wait(timeout=timeout_secs))
-except subprocess.TimeoutExpired:
-    proc.kill()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        pass
-    raise SystemExit(124)
-PY
-}
-
 src="tests/fixtures/yield_exchange_surface_v0.oren"
 meta_out="$tmpdir/exchange.meta.json"
 dump_out="$tmpdir/exchange.linked.json"
@@ -69,18 +47,30 @@ native_out="$tmpdir/exchange_native"
 
 run_ok "$meta_compiler" meta "$src" --platform "$platform" -o "$meta_out"
 run_ok "$meta_compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
-run_ok "$compiler" build "$src" \
-  --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
-run_ok_timeout 20 ./avm "$bytecode_out"
-run_ok python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
 
-run_ok "$compiler" build "$src" \
-  --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
-run_ok_timeout 20 "$c_out"
+run_bytecode() {
+  run_logged "$compiler" build "$src" \
+    --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
+  run_timeout_logged 20 ./avm "$bytecode_out"
+  run_logged python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
+}
 
-run_ok "$compiler" build "$src" \
-  --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
-run_ok_timeout 20 "$native_out"
+run_c() {
+  run_logged "$compiler" build "$src" \
+    --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
+  run_timeout_logged 20 "$c_out"
+}
+
+run_native() {
+  run_logged "$compiler" build "$src" \
+    --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
+  run_timeout_logged 20 "$native_out"
+}
+
+verify_parallel_start bytecode run_bytecode
+verify_parallel_start c run_c
+verify_parallel_start native run_native
+verify_parallel_wait "$log"
 
 META_OUT="$meta_out" \
 DUMP_OUT="$dump_out" \

@@ -38,6 +38,7 @@ Build + test:
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler
 make test       # fast native smoke
+make test-curated  # heavier curated surface/capability/backend bundle
 make test-selfhost  # heavier stage2/capsule/optimizer self-host bundle
 make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 make verify-native-quick-base-guarded  # stage1 base quick path, strict no-retry

@@ -7,6 +7,7 @@ cd "$ROOT"
 compiler="${1:-./oren_stage2}"
 meta_compiler="${OREN_META_COMPILER:-./oren}"
 platform="${OREN_PLATFORM:-}"
+source scripts/verify_parallel_jobs.sh
 
 if [ -z "$platform" ]; then
   uname_s="$(uname -s)"
@@ -57,33 +58,54 @@ coroutine_alias_native_out="$tmpdir/coroutine_decl_native"
 
 run_ok "$meta_compiler" meta "$src" --platform "$platform" -o "$meta_out"
 run_ok "$meta_compiler" dump linked "$src" --platform "$platform" -o "$dump_out"
-run_ok "$compiler" build "$src" \
-  --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
-run_ok python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
-run_ok ./avm "$bytecode_out"
-
-run_ok "$compiler" build "$src" \
-  --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
-run_ok "$c_out"
-
-run_ok "$compiler" build "$src" \
-  --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
-run_ok "$native_out"
-
 run_ok "$meta_compiler" meta "$coroutine_alias_src" --platform "$platform" -o "$coroutine_alias_meta_out"
 run_ok "$meta_compiler" dump linked "$coroutine_alias_src" --platform "$platform" -o "$coroutine_alias_dump_out"
-run_ok "$compiler" build "$coroutine_alias_src" \
-  --backend bytecode --platform "$platform" --no-cache -o "$coroutine_alias_bytecode_out"
-run_ok python3 scripts/extract_obc_metadata.py "$coroutine_alias_bytecode_out" -o "$coroutine_alias_bytecode_meta_out"
-run_ok ./avm "$coroutine_alias_bytecode_out"
 
-run_ok "$compiler" build "$coroutine_alias_src" \
-  --backend c --platform "$platform" --no-cache --no-debug -o "$coroutine_alias_c_out"
-run_ok "$coroutine_alias_c_out"
+run_generator_bytecode() {
+  run_logged "$compiler" build "$src" \
+    --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
+  run_logged python3 scripts/extract_obc_metadata.py "$bytecode_out" -o "$bytecode_meta_out"
+  run_logged ./avm "$bytecode_out"
+}
 
-run_ok "$compiler" build "$coroutine_alias_src" \
-  --backend native --platform "$platform" --no-cache --no-debug -o "$coroutine_alias_native_out"
-run_ok "$coroutine_alias_native_out"
+run_generator_c() {
+  run_logged "$compiler" build "$src" \
+    --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
+  run_logged "$c_out"
+}
+
+run_generator_native() {
+  run_logged "$compiler" build "$src" \
+    --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
+  run_logged "$native_out"
+}
+
+run_coroutine_alias_bytecode() {
+  run_logged "$compiler" build "$coroutine_alias_src" \
+    --backend bytecode --platform "$platform" --no-cache -o "$coroutine_alias_bytecode_out"
+  run_logged python3 scripts/extract_obc_metadata.py "$coroutine_alias_bytecode_out" -o "$coroutine_alias_bytecode_meta_out"
+  run_logged ./avm "$coroutine_alias_bytecode_out"
+}
+
+run_coroutine_alias_c() {
+  run_logged "$compiler" build "$coroutine_alias_src" \
+    --backend c --platform "$platform" --no-cache --no-debug -o "$coroutine_alias_c_out"
+  run_logged "$coroutine_alias_c_out"
+}
+
+run_coroutine_alias_native() {
+  run_logged "$compiler" build "$coroutine_alias_src" \
+    --backend native --platform "$platform" --no-cache --no-debug -o "$coroutine_alias_native_out"
+  run_logged "$coroutine_alias_native_out"
+}
+
+verify_parallel_start generator_bytecode run_generator_bytecode
+verify_parallel_start generator_c run_generator_c
+verify_parallel_start generator_native run_generator_native
+verify_parallel_start coroutine_alias_bytecode run_coroutine_alias_bytecode
+verify_parallel_start coroutine_alias_c run_coroutine_alias_c
+verify_parallel_start coroutine_alias_native run_coroutine_alias_native
+verify_parallel_wait "$log"
 
 python3 - "$meta_out" "$dump_out" "$bytecode_meta_out" >>"$log" <<'PY'
 import json

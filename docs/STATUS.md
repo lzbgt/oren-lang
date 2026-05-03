@@ -2241,7 +2241,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 Local (fast):
 
-- `make test`
+- `make test` (fast native quick smoke; restored 2026-05-04 to `test-native-quick`,
+  with the heavier surface/capability/backend bundle moved to explicit `make test-curated`)
 - `make verify-native-quick`
 - `make verify-native-quick-simd`
 - `make verify-backend-parity-boxed-list`

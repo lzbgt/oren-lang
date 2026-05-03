@@ -6,6 +6,7 @@ cd "$ROOT"
 
 compiler="${1:-./oren_stage2}"
 platform="${OREN_PLATFORM:-}"
+source scripts/verify_parallel_jobs.sh
 
 if [ -z "$platform" ]; then
   uname_s="$(uname -s)"
@@ -40,13 +41,24 @@ bytecode_out="$tmpdir/task_bytecode.obc"
 c_out="$tmpdir/task_c"
 native_out="$tmpdir/task_native"
 
-run_ok "$compiler" build "$src" --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
-run_ok ./avm "$bytecode_out"
+run_bytecode() {
+  run_logged "$compiler" build "$src" --backend bytecode --platform "$platform" --no-cache -o "$bytecode_out"
+  run_logged ./avm "$bytecode_out"
+}
 
-run_ok "$compiler" build "$src" --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
-run_ok "$c_out"
+run_c() {
+  run_logged "$compiler" build "$src" --backend c --platform "$platform" --no-cache --no-debug -o "$c_out"
+  run_logged "$c_out"
+}
 
-run_ok "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
-run_ok "$native_out"
+run_native() {
+  run_logged "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug -o "$native_out"
+  run_logged "$native_out"
+}
+
+verify_parallel_start bytecode run_bytecode
+verify_parallel_start c run_c
+verify_parallel_start native run_native
+verify_parallel_wait "$log"
 
 echo "verify_task_surface_v0: OK ($log)"
