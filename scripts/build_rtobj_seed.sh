@@ -50,6 +50,7 @@ Env:
   OREN_FORCE_RUNTIME_OBJ_SEED         if set, do not take the fast no-op path
   OREN_NATIVE_RUNTIME_PROFILE         runtime profile override ("auto"/"core"/"minimal"/"full")
   OREN_RT_OBJ_SEED_BUILD_COMPILER     override compiler used for cold seed population builds
+  OREN_RT_OBJ_SEED_BUILD_TIMEOUT_SECS timeout for the cold seed population build (default: 180)
   OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE
                                       opt-out for capsule rtobj caching (set to 0/false)
 EOF
@@ -408,6 +409,48 @@ copy_key_to_seed() {
   echo "key=$key"
 }
 
+run_with_timeout() {
+  local timeout_secs="$1"
+  shift
+  python3 - "$timeout_secs" "$@" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+import time
+
+try:
+    timeout = float(sys.argv[1])
+except (TypeError, ValueError):
+    timeout = 180.0
+cmd = sys.argv[2:]
+if not cmd:
+    raise SystemExit(2)
+
+proc = subprocess.Popen(cmd, start_new_session=True)
+try:
+    raise SystemExit(proc.wait(timeout=timeout))
+except subprocess.TimeoutExpired:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        rc = proc.poll()
+        if rc is not None:
+            print(f"ERROR: command timed out after {timeout:g}s: {' '.join(cmd)}", file=sys.stderr)
+            raise SystemExit(124)
+        time.sleep(0.1)
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    print(f"ERROR: command timed out after {timeout:g}s and was killed: {' '.join(cmd)}", file=sys.stderr)
+    raise SystemExit(124)
+PY
+}
+
 key=""
 want_rh="$(runtime_hash_from_cache || true)"
 
@@ -465,21 +508,24 @@ mkdir -p build/tmp
 # - When runtime_profile is unset/empty, we explicitly set "auto" so the behavior
 #   is deterministic for this seed probe.
 rp="${runtime_profile:-auto}"
+seed_build_timeout="${OREN_RT_OBJ_SEED_BUILD_TIMEOUT_SECS:-180}"
 capsule_flag=""
 if [[ "$capsule" = "1" ]]; then
   capsule_flag="--capsule"
 fi
 if [[ -n "$runtime_astbin_seed_path" ]]; then
+  echo "NOTE: cold seed build timeout=${seed_build_timeout}s" >&2
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
   OREN_NATIVE_RUNTIME_PROFILE="$rp" \
   OREN_NATIVE_RUNTIME_ASTBIN="$runtime_astbin_seed_path" \
-    "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
+    run_with_timeout "$seed_build_timeout" "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
     $capsule_flag \
     "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
 else
+  echo "NOTE: cold seed build timeout=${seed_build_timeout}s" >&2
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
   OREN_NATIVE_RUNTIME_PROFILE="$rp" \
-    "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
+    run_with_timeout "$seed_build_timeout" "$build_compiler" build examples/hello.oren --backend native --platform "$platform" \
     $capsule_flag \
     "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
 fi

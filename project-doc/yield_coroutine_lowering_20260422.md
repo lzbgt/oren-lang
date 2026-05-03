@@ -143,7 +143,9 @@ backend-shared value-helper slices landed.
     stage1 before launching stage2 native surface builds. The prewarm no-op path validates the
     runtime hash cache against recorded source file size/mtime metadata, so repeated verifier runs
     avoid forced cold seed probes while edited scheduler runtime files still refresh the seed before
-    fixture verification.
+    fixture verification. The shared `scripts/build_rtobj_seed.sh` cold-fill path is also bounded by
+    `OREN_RT_OBJ_SEED_BUILD_TIMEOUT_SECS` (default `180`) and kills the full child process group on
+    timeout, so `make stage2` no longer has an unbounded rtobj seed probe outside verifier wrappers.
   - Bytecode verifier performance work (2026-05-04): direct bytecode builds now keep the finalized
     u8 buffer as the primary artifact and only materialize the legacy code list for OBC linking.
     Scalar bytecode constant interning reduced the generator surface constant pool from 5355 entries
@@ -154,9 +156,10 @@ backend-shared value-helper slices landed.
     `scripts/profile_bytecode_codegen.sh` now report section/function timing. The generator surface
     probe shows the remaining bytecode codegen wall time is dominated by the final call-fixup pass
     (`call_fixups`: about 41s for 1228 sites), not function-body compilation (about 3.9s summed
-    across 321 functions). Oren-level cache and patch variants did not improve this path, so the
-    next credible performance fix is a lower-level bulk fixup primitive or a bytecode emission
-    model that avoids thousands of post-pass random patches.
+    across 321 functions). Oren-level cache and patch variants did not improve this path, and a
+    direct-address experiment moved the same cost into per-call `ctx["functions"][name]` lookups.
+    The next credible performance fix is a runtime-safe hot map lookup improvement or a bytecode
+    emission model that avoids thousands of name-keyed post-pass patches.
   - Runtime fix (2026-05-04): native green host-thread `oren_green_join_timeout(g, timeout_ms)`
     no longer hands the full positive timeout to the generic scheduler poll in one shot. It polls
     in short bounded slices and re-checks the joined target between slices, preventing unrelated

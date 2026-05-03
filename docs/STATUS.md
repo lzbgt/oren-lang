@@ -2267,6 +2267,12 @@ Local (fast):
   surface verifier runs avoid forced cold seed probes while runtime edits still refresh
   the seed before stage2 native fixture builds. Set `OREN_VERIFY_NATIVE_FORCE_RTOBJ_SEED=1`
   to force-refresh when deliberately reproing cold seed behavior.
+- The shared rtobj seed cold-fill helper is now bounded too:
+  `scripts/build_rtobj_seed.sh` wraps the small native seed probe in
+  `OREN_RT_OBJ_SEED_BUILD_TIMEOUT_SECS` (default `180`) and kills the child process
+  group on timeout. This plugs the non-verifier gap exposed by runtime/compiler
+  optimization experiments where `make stage2` could otherwise sit indefinitely in
+  `rtobj_seed_probe`.
 - Bytecode direct emission now keeps the finalized u8 buffer as the primary code artifact and
   only materializes the legacy `list<int>` code representation for OBC linking. Scalar constants
   (`nil`, bool, int, float, string) are interned in the bytecode constant pool; the generator
@@ -2276,9 +2282,10 @@ Local (fast):
   2026-05-04 generator-surface probe showed the actual large-fixture bytecode hotspot is the
   final call-fixup pass (`call_fixups`: about 41s for 1228 call sites), not function-body
   compilation (about 3.9s summed across 321 functions). Oren-level cache and patch variants were
-  rejected because they did not reduce that wall time; the next performance lever is a lower-level
-  bulk fixup primitive or a bytecode emission model that avoids thousands of post-pass random
-  patches.
+  rejected because they did not reduce that wall time; a direct-address variant proved the same
+  cost shifts into per-call `ctx["functions"][name]` lookups, so the next performance lever is
+  either a runtime-safe hot map lookup improvement or a bytecode emission model that avoids
+  thousands of name-keyed post-pass patches.
 - `scripts/verify_avm_bytecode_link_smoke.sh` is now a bounded tiny OBX link/run smoke by default
   and separately guards that `--obc-lib` can preserve unresolved relocs. Full stdlib-bundle OBC
   probing remains opt-in with `OREN_VERIFY_FULL_STDLIB_OBC=1` because that path is still rolling.

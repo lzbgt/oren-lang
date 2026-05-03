@@ -4811,10 +4811,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									        `OREN_NATIVE_RUNTIME_ASTBIN` for stage2 native builds, while still bounding
 									        native build process groups with `OREN_VERIFY_NATIVE_BUILD_TIMEOUT_SECS`.
 										        They also prewarm a non-debug core runtime-object seed with stage1. The
-										        seed prewarm now validates the runtime hash cache against recorded source
-										        file size/mtime metadata before taking the no-op path, so repeated surface
-										        verifier runs avoid forced cold seed probes while edited scheduler runtime
-										        files still refresh the seed before stage2 fixture verification.
+											        seed prewarm now validates the runtime hash cache against recorded source
+											        file size/mtime metadata before taking the no-op path, so repeated surface
+											        verifier runs avoid forced cold seed probes while edited scheduler runtime
+											        files still refresh the seed before stage2 fixture verification.
+											      - the shared rtobj seed cold-fill helper is now bounded by
+											        `OREN_RT_OBJ_SEED_BUILD_TIMEOUT_SECS` (default `180`) and kills the
+											        child process group on timeout, closing the `make stage2` gap where a
+											        bad native-runtime/codegen edit could previously sit in `rtobj_seed_probe`
+											        outside the verifier timeout wrapper.
 									      - bytecode direct emission now avoids materializing the legacy `list<int>` code
 									        representation unless OBC linking needs it, and scalar constant interning cuts
 									        the generator surface constant pool from 5355 entries to 781 entries.
@@ -4823,9 +4828,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 									        codegen profiling. The 2026-05-04 generator-surface profile proves the
 									        remaining large-fixture bytecode hotspot is the final call-fixup pass
 									        (`call_fixups`: about 41s for 1228 sites), while function-body compilation
-									        is only about 3.9s total. Oren-level cache/patch variants did not improve
-									        this, so the next real optimization should be a lower-level bulk fixup
-									        primitive or an emission model that removes the random post-pass patch loop.
+										        is only about 3.9s total. Oren-level cache/patch variants did not improve
+										        this, and a direct-address variant moved the same cost into per-call
+										        `ctx["functions"][name]` lookups, so the next real optimization should
+										        avoid name-keyed post-pass patching or fix the native hot map lookup safely.
 									      - the AVM bytecode-link smoke is now a bounded tiny OBX link/run verifier by
 									        default, with unresolved `--obc-lib` relocs guarded separately; full stdlib
 									        bundle probing is opt-in via `OREN_VERIFY_FULL_STDLIB_OBC=1`.
