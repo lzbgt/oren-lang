@@ -28,5 +28,11 @@ fn main() {
     if x == 7 && y == 9 && x + y == 16 { } else { return 19 }
     if x != 8 && y != 10 { } else { return 20 }
     if x == 8 || y == 10 { return 21 }
+    var s = "request_cancel"
+    if s == "request_cancel" { } else { return 22 }
+    if s != "cancel" { } else { return 23 }
+    if s == "cancel" || s == "stop" { return 24 }
+    if s == "request_cancel" && mark(true) { } else { return 25 }
+    if hits != 3 { return 26 }
     return 0
 }

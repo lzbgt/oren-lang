@@ -262,6 +262,11 @@ backend-shared value-helper slices landed.
     instead of emitting a runtime boolean singleton and then re-normalizing it. The focused native quick
     fixture verifies side-effect short-circuit behavior. The generator profile keeps `user_decls` wall
     time roughly neutral (~20.9s) but cuts user-declaration code bytes from 452472 to 379528.
+  - Direct string-comparison-if follow-up (2026-05-04): direct ARM64 `if` branch lowering now covers
+    string/string-literal comparisons with the same guarded `strcmp` semantics and native small-value
+    fallback as expression lowering. The generator profile keeps `user_decls` wall time roughly neutral
+    but cuts `user_decls` bytes from `340360` to `325368` and local ADR-data fixups from `4665` to
+    `4303`, so this is a guard-heavy code-size/fixup-volume cleanup rather than the final wall-time fix.
   - Shared function epilogue follow-up (2026-05-04): ARM64 `return` statements now restore SP to FP and
     branch to one function-local epilogue after any required call-depth exit, instead of duplicating the
     callee-saved restore/ret sequence per return site. The generator profile keeps `user_decls` wall time

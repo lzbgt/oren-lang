@@ -2499,6 +2499,13 @@ Local (fast):
   behavior, and the native quick lane runs it by default. The uncontended generator profile keeps
   `user_decls` wall time roughly neutral (~20.9s) while reducing `user_decls` code bytes from 452472 to
   379528; the remaining wall-time boundary is still large user-body lowering rather than wrapper codegen.
+- ARM64 direct string-comparison if branches (2026-05-04): the direct `if` branch path now also handles
+  string/string-literal comparisons with the same guarded `strcmp` semantics as expression lowering,
+  including the small-value fallback to integer comparison for native untagged values. This avoids
+  materializing runtime boolean singletons when the result is immediately consumed by statement
+  branching. The generator profile keeps `user_decls` wall time roughly neutral but reduces
+  `user_decls` bytes from `340360` to `325368` and local ADR-data fixups from `4665` to `4303`; treat
+  it as a guard-heavy code-size/fixup-volume cleanup, not the final wall-time fix.
 - ARM64 shared function epilogue (2026-05-04): generated `return` statements now restore the stack and
   branch to one function-local epilogue instead of duplicating the X19-X26/LR restore sequence at every
   return site. Call-depth exit still runs before the shared return branch, preserving recursion-guard

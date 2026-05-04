@@ -5022,16 +5022,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																			        to 2505768 and `user_decls` bytes from 460696 to 452472. This is a
 																			        useful guard-heavy code-size cleanup, but `user_decls` wall time remains
 																			        the next real backend boundary.
-																			      - Direct logical-if branch follow-up (2026-05-04): ARM64 `if`
-																			        conditions whose guards are short-circuit `||` / `&&` chains now carry
-																			        branch-result lists directly instead of materializing runtime boolean
-																			        singleton values and immediately normalizing them again for statement
-																			        truthiness. `tests/fixtures/tier1_native_logical_if_branch_main.oren`
-																			        verifies side-effect short-circuit behavior and is now part of native
-																			        quick integration. The uncontended generator profile keeps
-																			        `user_decls` wall time roughly neutral (~20.9s) while reducing
-																			        `user_decls` code bytes from 452472 to 379528, so the remaining
-																			        backend work stays on lowering cost, not guard-chain code size.
+																				      - Direct logical-if branch follow-up (2026-05-04): ARM64 `if`
+																				        conditions whose guards are short-circuit `||` / `&&` chains now carry
+																				        branch-result lists directly instead of materializing runtime boolean
+																				        singleton values and immediately normalizing them again for statement
+																				        truthiness. `tests/fixtures/tier1_native_logical_if_branch_main.oren`
+																				        verifies side-effect short-circuit behavior and is now part of native
+																				        quick integration. The uncontended generator profile keeps
+																				        `user_decls` wall time roughly neutral (~20.9s) while reducing
+																				        `user_decls` code bytes from 452472 to 379528, so the remaining
+																				        backend work stays on lowering cost, not guard-chain code size.
+																				      - Direct string-comparison-if follow-up (2026-05-04): the same direct
+																				        ARM64 `if` branch path now covers string/string-literal comparisons
+																				        with the existing guarded `strcmp` semantics and native small-value
+																				        fallback. This avoids producing runtime boolean singletons when
+																				        statement branching consumes the comparison immediately. The measured
+																				        generator profile keeps `user_decls` wall time roughly neutral but
+																				        cuts `user_decls` bytes from `340360` to `325368` and local ADR-data
+																				        fixups from `4665` to `4303`; continue treating this as
+																				        code-size/fixup-volume cleanup rather than the final wall-time fix.
 																			      - Shared function epilogue follow-up (2026-05-04): generated ARM64
 																				        `return` statements now run call-depth exit if required, restore SP to
 																				        FP, and branch to one function-local epilogue instead of duplicating

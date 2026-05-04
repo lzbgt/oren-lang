@@ -149,6 +149,40 @@ fn _arm64_int_lit_value(expr) {
     return intparse.parse_int_lit(expr["value"])
 }
 
+fn _arm64_cmp_may_use_strcmp(ctx, left, right) {
+    var l_is_nil = false
+    var r_is_nil = false
+    if left != nil && left["type"] == "Nil" { l_is_nil = true }
+    if right != nil && right["type"] == "Nil" { r_is_nil = true }
+    if l_is_nil == true || r_is_nil == true { return false }
+
+    var ls = exprm.native_expr_is_stringy(ctx, left)
+    var rs = exprm.native_expr_is_stringy(ctx, right)
+    if ls == true && rs == true { return true }
+
+    if ls == true && right != nil {
+        var rt = right["type"]
+        if rt != "Integer" && rt != "Float" && rt != "Boolean" { return true }
+    }
+    if rs == true && left != nil {
+        var lt = left["type"]
+        if lt != "Integer" && lt != "Float" && lt != "Boolean" { return true }
+    }
+
+    var l_lit = false
+    var r_lit = false
+    if left != nil && left["type"] == "String" { l_lit = true }
+    if right != nil && right["type"] == "String" { r_lit = true }
+    if l_lit != true && r_lit != true { return false }
+
+    var other = left
+    if l_lit == true { other = right }
+    if other == nil { return false }
+    var ot = other["type"]
+    if ot == "Integer" || ot == "Float" || ot == "Boolean" { return false }
+    return true
+}
+
 fn _arm64_int_lit_fits_cmp_imm(v) {
     if v == nil { return false }
     if v < 0 || v > 4095 { return false }
@@ -239,7 +273,8 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
 
     var left_stringy = exprm.native_expr_is_stringy(ctx, l)
     var right_stringy = exprm.native_expr_is_stringy(ctx, r)
-    if left_stringy == true || right_stringy == true { return nil }
+    var string_cmp = false
+    if left_stringy == true || right_stringy == true { string_cmp = true }
 
     var left_floaty = exprm.native_expr_is_floaty(ctx, l)
     var right_floaty = exprm.native_expr_is_floaty(ctx, r)
@@ -247,6 +282,64 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
     if left_floaty == true || right_floaty == true { floaty = true }
     var true_cond = _arm64_cmp_cond_code(op, floaty)
     if true_cond == nil { return nil }
+
+    if string_cmp == true {
+        var allow_strcmp = _arm64_cmp_may_use_strcmp(ctx, l, r)
+        native_compile_expr(ctx, l)
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        native_compile_expr(ctx, r)
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+
+        if allow_strcmp == true {
+            // Runtime safety guard mirrors expression lowering: native values are untagged, so
+            // values below the first page are treated as non-strings and use integer comparison.
+            push_u32_le(ctx["code"], insn_movz(3, 4096))
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 3))
+            var br_lt_left = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 3))
+            var br_lt_right = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+            push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+            push_u32_le(ctx["code"], insn_mov_reg(1, 2))
+            var bl_strcmp = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_strcmp, "name": "strcmp"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_strcmp)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "strcmp")
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+            var jump_false_string = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            var jump_end_string = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var int_compare_pos = bytes_len(ctx["code"])
+            set_u32_le(ctx["code"], br_lt_left, insn_b_cond((int_compare_pos - br_lt_left) / 4, 11))
+            set_u32_le(ctx["code"], br_lt_right, insn_b_cond((int_compare_pos - br_lt_right) / 4, 11))
+            push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
+            var jump_false_int = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+            var done_compare_pos = bytes_len(ctx["code"])
+            set_u32_le(ctx["code"], jump_end_string, insn_b((done_compare_pos - jump_end_string) / 4))
+            var false_jumps = [
+                {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond)},
+                {"pos": jump_false_int, "cond": _arm64_inverse_cond(true_cond)}
+            ]
+            return {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond), "jumps": false_jumps}
+        }
+
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
+        var jump_false_string_int = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        return _arm64_branch_false_result(jump_false_string_int, _arm64_inverse_cond(true_cond))
+    }
 
     if floaty != true {
         var l_singleton = _arm64_singleton_offset(l)
