@@ -5046,10 +5046,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																					        statement branching consumes the comparison immediately. The measured
 																					        generator profile keeps `user_decls` wall time roughly neutral but
 																					        cuts `user_decls` bytes from `340360` to `325368` and local ADR-data
-																					        fixups from `4665` to `4303`; continue treating this as
-																					        code-size/fixup-volume cleanup rather than the final wall-time fix.
-																					      - Rejected string-literal register branch follow-up (2026-05-04): a
-																					        narrower direct string-if experiment loaded literal operands directly
+																						        fixups from `4665` to `4303`; continue treating this as
+																						        code-size/fixup-volume cleanup rather than the final wall-time fix.
+																						      - Literal branch trait-probe hoist (2026-05-04): direct ARM64 `if`
+																						        comparisons against `true`, `false`, `nil`, and integer literals now
+																						        run the stackless singleton/literal branch path before broad
+																						        string/float trait probes, with known-float non-literal sides still
+																						        falling back to generic numeric lowering. The sequential generator
+																						        profile keeps `user_decls` wall time in the same band (~21.0s) while
+																						        trimming user-declaration bytes from `325368` to `323804`; this is a
+																						        safe constant-factor guard cleanup, not the final wall-time fix.
+																						      - Rejected string-literal register branch follow-up (2026-05-04): a
+																						        narrower direct string-if experiment loaded literal operands directly
 																					        into compare registers to avoid the temporary stack spill around
 																					        `strcmp`. It passed focused native/bytecode branch smokes and trimmed
 																					        generator `user_decls` bytes only from `325368` to `324612`, but two

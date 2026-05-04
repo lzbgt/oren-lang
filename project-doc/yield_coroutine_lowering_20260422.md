@@ -272,6 +272,12 @@ backend-shared value-helper slices landed.
     fallback as expression lowering. The generator profile keeps `user_decls` wall time roughly neutral
     but cuts `user_decls` bytes from `340360` to `325368` and local ADR-data fixups from `4665` to
     `4303`, so this is a guard-heavy code-size/fixup-volume cleanup rather than the final wall-time fix.
+  - Literal branch trait-probe hoist (2026-05-04): direct ARM64 `if` comparisons against `true`,
+    `false`, `nil`, and integer literals now run the stackless singleton/literal branch path before
+    broad string/float trait probes, while known-float non-literal sides stay on the generic numeric
+    path. The sequential generator profile keeps `user_decls` wall time in the same band (~21.0s) but
+    trims `user_decls` bytes from `325368` to `323804`; treat this as constant-factor guard cleanup, not
+    the final wall-time fix.
   - Rejected string-literal register branch follow-up (2026-05-04): a narrower ARM64 string-if branch
     experiment avoided the temporary stack spill for literal operands by loading literal pointers directly
     into compare registers. It passed focused branch/string smokes and trimmed generator `user_decls` bytes
