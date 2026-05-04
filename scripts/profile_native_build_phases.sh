@@ -12,9 +12,10 @@ out="${OREN_PROFILE_NATIVE_OUT:-build/tmp/native_build_phase_profile_${ts}.nativ
 log="${OREN_PROFILE_NATIVE_LOG:-build/logs/native_build_phase_profile_${ts}.log}"
 phase_log="${OREN_PROFILE_NATIVE_PHASE_LOG:-build/logs/native_build_phase_profile_${ts}.phases.log}"
 function_log="${OREN_PROFILE_NATIVE_FUNCTION_LOG:-build/logs/native_build_phase_profile_${ts}.functions.log}"
+stmt_log="${OREN_PROFILE_NATIVE_STMT_LOG:-build/logs/native_build_phase_profile_${ts}.stmts.log}"
 timeout_secs="${OREN_PROFILE_NATIVE_TIMEOUT_SECS:-180}"
 
-mkdir -p "$(dirname "$out")" "$(dirname "$log")" "$(dirname "$phase_log")" "$(dirname "$function_log")"
+mkdir -p "$(dirname "$out")" "$(dirname "$log")" "$(dirname "$phase_log")" "$(dirname "$function_log")" "$(dirname "$stmt_log")"
 
 echo "== native build phase profile =="
 echo "compiler=$compiler"
@@ -23,6 +24,9 @@ echo "platform=$platform"
 echo "log=$log"
 echo "phase_log=$phase_log"
 echo "function_log=$function_log"
+if [[ "${OREN_PROFILE_NATIVE_STMTS:-0}" != "0" ]]; then
+  echo "stmt_log=$stmt_log"
+fi
 
 if [[ ! -x "$compiler" ]]; then
   echo "ERROR: missing executable compiler: $compiler" >&2
@@ -46,6 +50,10 @@ start_s="$(date +%s)"
 : >"$function_log"
 export OREN_TRACE_BUILD_PHASES_PATH="$phase_log"
 export OREN_TRACE_ARM64_FUNCTIONS_PATH="$function_log"
+if [[ "${OREN_PROFILE_NATIVE_STMTS:-0}" != "0" ]]; then
+  : >"$stmt_log"
+  export OREN_TRACE_ARM64_STMTS_PATH="$stmt_log"
+fi
 if ! run_native_build_timeout_logged "$timeout_secs" "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$out" >>"$log" 2>&1; then
   echo "ERROR: native build failed; see $log" >&2
@@ -54,15 +62,17 @@ fi
 end_s="$(date +%s)"
 echo "real $((end_s - start_s))" >>"$log"
 
-python3 - "$phase_log" "$function_log" <<'PY'
+python3 - "$phase_log" "$function_log" "$stmt_log" <<'PY'
 import re
 import sys
 from pathlib import Path
 
 phase_log = Path(sys.argv[1])
 function_log = Path(sys.argv[2])
+stmt_log = Path(sys.argv[3])
 phase_re = re.compile(r"phase=([^ ]+) now_ns=([0-9]+)(.*)$")
 fn_re = re.compile(r"fn=(.*?) phase=([^ ]*) ms=([0-9]+) bytes=([0-9]+)$")
+stmt_re = re.compile(r"stmt=([^ ]*) phase=([^ ]*) fn=([^ ]*) count=([0-9]+) ms=([0-9]+) bytes=([0-9]+)$")
 
 events = []
 for line in phase_log.read_text(errors="replace").splitlines():
@@ -122,4 +132,35 @@ for phase, agg in sorted(by_phase.items(), key=lambda item: (item[1]["ms"], item
 print("== top function codegen bodies ==")
 for row in sorted(rows, key=lambda item: (item["ms"], item["bytes"]), reverse=True)[:25]:
     print(f"{row['ms']:10d} ms  {row['bytes']:10d} bytes  phase={row['phase']} fn={row['name']}")
+
+stmt_rows = []
+if stmt_log.exists() and stmt_log.stat().st_size > 0:
+    for line in stmt_log.read_text(errors="replace").splitlines():
+        match = stmt_re.search(line)
+        if not match:
+            continue
+        stmt_rows.append({
+            "stmt": match.group(1),
+            "phase": match.group(2),
+            "fn": match.group(3),
+            "count": int(match.group(4)),
+            "ms": int(match.group(5)),
+            "bytes": int(match.group(6)),
+        })
+
+if stmt_rows:
+    print("== inclusive statement codegen by phase/type ==")
+    by_phase_type = {}
+    for row in stmt_rows:
+        key = (row["phase"], row["stmt"])
+        agg = by_phase_type.setdefault(key, {"count": 0, "ms": 0, "bytes": 0})
+        agg["count"] += row["count"]
+        agg["ms"] += row["ms"]
+        agg["bytes"] += row["bytes"]
+    for (phase, stmt), agg in sorted(by_phase_type.items(), key=lambda item: (item[1]["ms"], item[1]["bytes"], item[1]["count"]), reverse=True)[:30]:
+        print(f"{agg['ms']:10d} ms  {agg['bytes']:10d} bytes  {agg['count']:6d} stmts  phase={phase} stmt={stmt}")
+
+    print("== top inclusive statement codegen function/type buckets ==")
+    for row in sorted(stmt_rows, key=lambda item: (item["ms"], item["bytes"], item["count"]), reverse=True)[:40]:
+        print(f"{row['ms']:10d} ms  {row['bytes']:10d} bytes  {row['count']:6d} stmts  phase={row['phase']} fn={row['fn']} stmt={row['stmt']}")
 PY

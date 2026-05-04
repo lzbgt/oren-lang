@@ -216,6 +216,14 @@ backend-shared value-helper slices landed.
     generator profile moves `fnwrap` from the prior ~5.8s / 29700 bytes / 37 funcs to ~3.9s / 28516
     bytes / 37 funcs, with local BL fixups down to 11174. Remaining backend work should still target
     user-declaration codegen, lambda-wrapper codegen, or the first BL resolve bucket.
+  - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
+    profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
+    statement buckets by phase/function/type. The default profile path remains phase/function-only to
+    avoid per-statement aggregation overhead. The first generator run shows large user bodies spend
+    most inclusive statement time in `ExprStmt(If)` (~16.5s / 854 stmts), with `Var` (~2.7s / 579) and
+    `Return` (~2.4s / 1088) behind it; wrapper cost is dominated by the synthesized function/body
+    envelope. A body-scope skip experiment regressed the profile, so the next implementation work
+    should target direct lambda-wrapper/body emission or broad conditional-lowering cost instead.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

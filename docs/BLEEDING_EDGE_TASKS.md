@@ -4964,6 +4964,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        prior ~5.8s / 29700 bytes / 37 funcs to ~3.9s / 28516 bytes / 37 funcs,
 														        and local BL fixups drop to 11174. Keep the remaining backend work focused
 														        on `user_decls`, `lambda_wrap`, and the first BL resolve bucket.
+														      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
+														        make profile-native-build-phases` now enables gated inclusive ARM64
+														        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
+														        path stays at phase/function granularity to avoid per-statement aggregation
+														        overhead. The first generator run shows `user_decls ExprStmt(If)` at ~16.5s
+														        / 854 stmts, `user_decls Var` at ~2.7s / 579 stmts, and `user_decls Return`
+														        at ~2.4s / 1088 stmts; wrapper cost is mostly the synthesized
+														        function/body envelope (`lambda_wrap ExprStmt(Function)` ~8.5s and
+														        `lambda_wrap Block` ~15.0s inclusive). A top-function body-scope skip
+														        experiment regressed the profile and should not be retried as-is.
 															      - the generator surface fixture now splits its formerly monolithic native
 															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /

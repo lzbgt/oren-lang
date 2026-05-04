@@ -319,6 +319,38 @@ fn _arm64_emit_block_weighted_loop_condition_gas(ctx) {
     return nil
 }
 
+fn _arm64_stmt_profile_record(ctx, phase, fn_name, stmt_type, ms, bytes) {
+    if ctx == nil { return nil }
+    var rows = ctx["arm64_stmt_profile"]
+    if rows == nil { return nil }
+    if phase == nil { phase = "" }
+    if fn_name == nil { fn_name = "" }
+    if stmt_type == nil { stmt_type = "" }
+    var key = phase + "\t" + fn_name + "\t" + stmt_type
+    var row = rows[key]
+    if row == nil {
+        row = {"phase": phase, "fn": fn_name, "stmt": stmt_type, "count": 0, "ms": 0, "bytes": 0}
+        rows[key] = row
+    }
+    row["count"] = row["count"] + 1
+    row["ms"] = row["ms"] + ms
+    row["bytes"] = row["bytes"] + bytes
+    return nil
+}
+
+fn _arm64_stmt_profile_kind(stmt) {
+    if stmt == nil { return "" }
+    var st = stmt["type"]
+    if st == nil { return "" }
+    if st == "ExprStmt" {
+        var e = stmt["expr"]
+        var et = nil
+        if e != nil { et = e["type"] }
+        if et != nil && et != "" { return "ExprStmt(" + et + ")" }
+    }
+    return st
+}
+
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
 fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
@@ -457,6 +489,20 @@ fn native_compile_stmt(ctx, stmt) {
         ctx["stmt_depth"] = depth - 1
         return false
     }
+    var stmt_prof_enabled = false
+    var stmt_prof_t0 = 0
+    var stmt_prof_code0 = 0
+    var stmt_prof_phase = nil
+    var stmt_prof_fn = nil
+    var stmt_prof_type = nil
+    if ctx["arm64_stmt_profile"] != nil {
+        stmt_prof_enabled = true
+        stmt_prof_t0 = oren_time_now_ns()
+        stmt_prof_code0 = bytes_len(ctx["code"])
+        stmt_prof_phase = ctx["arm64_codegen_phase"]
+        stmt_prof_fn = ctx["cur_fn_name"]
+        stmt_prof_type = _arm64_stmt_profile_kind(stmt)
+    }
     var dynamic_note_pos = nil
     var dynamic_span_start = nil
     if _arm64_dynamic_emitter_stmt_should_charge(ctx, stmt) == true {
@@ -472,6 +518,9 @@ fn native_compile_stmt(ctx, stmt) {
     if dynamic_note_pos != nil && dynamic_span_start != nil {
         var dynamic_amount = (bytes_len(ctx["code"]) - dynamic_span_start) / 4
         gc.native_patch_runtime_gas_note_amount_u32(ctx, dynamic_note_pos, dynamic_amount)
+    }
+    if stmt_prof_enabled == true {
+        _arm64_stmt_profile_record(ctx, stmt_prof_phase, stmt_prof_fn, stmt_prof_type, (oren_time_now_ns() - stmt_prof_t0) / 1000000, bytes_len(ctx["code"]) - stmt_prof_code0)
     }
     ctx["stmt_depth"] = depth - 1
     return r

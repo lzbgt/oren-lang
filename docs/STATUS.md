@@ -2442,6 +2442,16 @@ Local (fast):
   bytes / 37 funcs to ~3.9s / 28516 bytes / 37 funcs, and local BL fixups dropped to 11174. This is a
   safe wrapper-shape cleanup, not the final throughput fix; `user_decls`, `lambda_wrap`, and the first
   local BL resolve bucket remain the largest backend costs.
+- ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
+  statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
+  summarizes them without enabling the extra per-statement aggregation in the default profile path.
+  The first generator-surface run reports inclusive hotspots in large user-function bodies:
+  `user_decls ExprStmt(If)` ~16.5s / 854 stmts, `user_decls Var` ~2.7s / 579 stmts, and
+  `user_decls Return` ~2.4s / 1088 stmts. It also shows wrapper codegen is dominated by the wrapper
+  function/body envelope (`lambda_wrap ExprStmt(Function)` ~8.5s, `lambda_wrap Block` ~15.0s
+  inclusive), so the next implementation work should target direct lambda-wrapper/body emission or
+  the broad conditional-lowering cost in large generated user bodies. A top-function body-scope skip
+  experiment was measured and rejected because it regressed `user_decls`, `fnwrap`, and `lambda_wrap`.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to
