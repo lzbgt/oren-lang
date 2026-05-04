@@ -233,6 +233,10 @@ backend-shared value-helper slices landed.
     lambda body normally. The refreshed generator profile moves `lambda_wrap` to ~1.7s / 54968 bytes /
     52 funcs, so wrapper codegen is no longer the dominant native-build boundary; large user bodies and
     the first local BL resolve bucket remain.
+  - Wrapper emitter split (2026-05-04): the ARM64 direct fnwrap/lambdawrap emitters now live in
+    `lib/compiler/arm64_native_stmt_wrappers.oren` and call back into the statement compiler explicitly.
+    This preserves the shipped wrapper fast paths while keeping `arm64_native_stmt.oren` under the
+    2000-line guardrail for the next user-declaration lowering work.
   - Direct non-string comparison branches (2026-05-04): ARM64 `if` conditions whose condition is a
     non-string comparison now branch directly from integer/float compare flags instead of materializing
     a runtime boolean singleton and immediately normalizing it for truthiness. The refreshed generator

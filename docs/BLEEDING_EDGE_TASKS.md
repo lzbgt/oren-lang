@@ -4978,17 +4978,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																        ~0.95s / 19932 bytes / 37 funcs; reweight named-function wrappers down
 																        and keep the next backend slice on `user_decls`, `lambda_wrap`, or the
 																        first BL resolve bucket.
-																      - Direct fixed-lambdawrap prefix emission (2026-05-04): fixed-arity
-																        `__oren_lambda_*` wrappers keep the synthesized AST body for fallback
-																        and non-ARM64 paths, but ARM64 emits the generated env/arity checks
-																        plus capture/parameter binding prefix directly before compiling the
-																        original lambda body normally. The generator profile moves
-																        `lambda_wrap` from ~7.8s / 72368 bytes / 52 funcs to ~1.7s / 54968
-																        bytes / 52 funcs. Varargs lambdas still use the generic wrapper path;
-																        reweight remaining backend work toward `user_decls` and the first BL
-																        resolve bucket.
-																      - Direct non-string comparison branches (2026-05-04): ARM64 `if`
-																        conditions with non-string comparison expressions now branch directly
+																	      - Direct fixed-lambdawrap prefix emission (2026-05-04): fixed-arity
+																	        `__oren_lambda_*` wrappers keep the synthesized AST body for fallback
+																	        and non-ARM64 paths, but ARM64 emits the generated env/arity checks
+																	        plus capture/parameter binding prefix directly before compiling the
+																	        original lambda body normally. The generator profile moves
+																	        `lambda_wrap` from ~7.8s / 72368 bytes / 52 funcs to ~1.7s / 54968
+																	        bytes / 52 funcs. Varargs lambdas still use the generic wrapper path;
+																	        reweight remaining backend work toward `user_decls` and the first BL
+																	        resolve bucket.
+																	      - Wrapper emitter split (2026-05-04): the direct ARM64 fnwrap/lambdawrap
+																	        emitters now live in `lib/compiler/arm64_native_stmt_wrappers.oren`
+																	        and call back into statement compilation explicitly. This keeps
+																	        `arm64_native_stmt.oren` under the 2000-line guardrail without changing
+																	        the measured fast-wrapper behavior; treat it as maintainability
+																	        groundwork before the next `user_decls` slice.
+																	      - Direct non-string comparison branches (2026-05-04): ARM64 `if`
+																	        conditions with non-string comparison expressions now branch directly
 																        from integer/float compare flags instead of materializing a runtime
 																        boolean singleton and re-normalizing it for truthiness. The generator
 																        profile keeps `user_decls` time roughly neutral (~20.9s), but cuts

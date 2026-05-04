@@ -2465,6 +2465,10 @@ Local (fast):
   from ~7.8s / 72368 bytes / 52 funcs to ~1.7s / 54968 bytes / 52 funcs. Varargs lambdas still use the
   generic synthesized wrapper path. Remaining backend throughput work is now concentrated in large
   `user_decls` bodies and the first local BL resolve bucket.
+- ARM64 wrapper emitter split (2026-05-04): the direct fnwrap/lambdawrap emitters now live in
+  `lib/compiler/arm64_native_stmt_wrappers.oren`, keeping `arm64_native_stmt.oren` below the 2000-line
+  guardrail while preserving the ARM64-only fast wrapper path through an explicit statement-compile
+  callback. This is a maintainability slice, not a new measured throughput win.
 - ARM64 direct non-string comparison branches (2026-05-04): `if` conditions whose expression is a
   non-string comparison now branch directly from integer/float compare flags instead of materializing a
   runtime boolean singleton and immediately normalizing it for truthiness. The refreshed generator
