@@ -2676,6 +2676,12 @@ Local (fast):
   `iteration_delegate_steps`. Return codes and coverage are preserved. The uncontended native profile
   reports `user_decls` at ~20.4s / 323632 bytes / 282 funcs, with the largest generator fixture body now
   ~1.73s. Treat this as verifier-shape/codegen-scaling cleanup, not the backend wall-time solution.
+- ARM64 statement profiling now splits named-function declarations into subphase rows under
+  `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`, and the script prints a dedicated
+  function-declaration subphase table. The refreshed generator profile shows `user_decls
+  FunctionDecl(body)` at ~22.5s / 289KB out of the ~22.7s inclusive function-declaration bucket, while
+  prologue, params, enter, and epilogue are sub-millisecond. The remaining backend target is generated
+  body/conditional lowering, not function setup.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

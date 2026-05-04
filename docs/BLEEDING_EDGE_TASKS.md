@@ -5242,15 +5242,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																        hottest fixture chunks now around ~2.8s, ~2.2s, and ~2.1s. Keep this
 																        classified as fixture-shape/codegen-scaling cleanup; the first local BL
 																        resolve bucket still sits around ~2.4s.
-															      - the generator surface fixture was split again along independent assertion
-																        groups for the remaining hottest chunks: timeout wait coverage, decl/local
-																        generator coverage, and iteration/delegate-step coverage. Return codes and
-																        coverage are preserved. The uncontended native profile reports `user_decls`
-																        around ~20.4s / 323632 bytes / 282 funcs, with the largest generator
-																        fixture body now ~1.73s. Keep this classified as verifier-shape/codegen
-																        scaling cleanup, not the backend wall-time fix.
-																      - the coroutine surface fixture now uses the same split shape: four focused
-															        top-level chunks plus a tiny dispatcher, preserving return codes and
+																      - the generator surface fixture was split again along independent assertion
+																	        groups for the remaining hottest chunks: timeout wait coverage, decl/local
+																	        generator coverage, and iteration/delegate-step coverage. Return codes and
+																	        coverage are preserved. The uncontended native profile reports `user_decls`
+																	        around ~20.4s / 323632 bytes / 282 funcs, with the largest generator
+																	        fixture body now ~1.73s. Keep this classified as verifier-shape/codegen
+																	        scaling cleanup, not the backend wall-time fix.
+																      - the ARM64 statement profiler now records named-function declaration
+																	        subphases (`FunctionDecl(register/context/prologue/params/enter/body/epilogue)`)
+																	        and `profile-native-build-phases` summarizes them separately. The refreshed
+																	        generator statement profile shows `user_decls FunctionDecl(body)` at about
+																	        ~22.5s / 289KB of the ~22.7s inclusive function-declaration bucket, while
+																	        setup/params/epilogue remain sub-millisecond. Keep the next backend slice
+																	        on generated body/conditional lowering, especially the `ExprStmt(If:Infix(||,...))`
+																	        buckets, rather than function setup.
+																	      - the coroutine surface fixture now uses the same split shape: four focused
+																        top-level chunks plus a tiny dispatcher, preserving return codes and
 															        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and

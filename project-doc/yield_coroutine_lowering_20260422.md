@@ -404,6 +404,14 @@ backend-shared value-helper slices landed.
     `iteration_*`). Return codes and coverage are preserved. The uncontended native profile reports
     `user_decls` around ~20.4s / 323632 bytes / 282 funcs, with the largest generator fixture body now
     ~1.73s. Keep this classified as verifier-shape/codegen-scaling cleanup, not the backend wall-time fix.
+  - ARM64 function-declaration subphase profiling (2026-05-05): the gated
+    `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases` path now records named-function
+    `FunctionDecl(register/context/prologue/params/enter/body/epilogue)` rows and the script summarizes
+    those subphases separately. The refreshed generator profile shows `user_decls FunctionDecl(body)`
+    accounts for ~22.5s / 289KB of the ~22.7s inclusive function-declaration bucket, while prologue,
+    params, enter, and epilogue are byte-visible but sub-millisecond. This rules out function setup as
+    the next wall-time lever; continue targeting generated body/conditional lowering, especially the
+    large `ExprStmt(If:Infix(||,...))` buckets.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:
