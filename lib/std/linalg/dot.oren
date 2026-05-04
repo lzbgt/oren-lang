@@ -21,13 +21,11 @@ fn _is_int(v) {
 fn dot_f64(a, b) {
     var n = _vec2_len(a, b, "dot_f64")
     if oren_is_err(n) { return n }
-    var i = 0
-    var s = 0.0
-    while i < n {
-        s = s + a[i] * b[i]
-        i = i + 1
-    }
-    return s
+    var ap: []f64 = buffer.f64_pack_list(a)
+    if oren_is_err(ap) { return ap }
+    var bp: []f64 = buffer.f64_pack_list(b)
+    if oren_is_err(bp) { return bp }
+    return dot_f64_buf(ap, bp)
 }
 
 fn dot_f32(a, b) {

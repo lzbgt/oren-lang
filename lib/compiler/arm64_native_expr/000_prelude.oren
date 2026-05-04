@@ -513,6 +513,13 @@ fn native_expr_is_floaty(ctx, expr) {
             if nm == "oren_buf_dot_f64_strided" { return true }
             if nm == "oren_buf_reduce_sum_f32" { return true }
             if nm == "oren_buf_reduce_sum_f64" { return true }
+            if native_name_is_or_has_suffix(nm, "dot_f32", "_dot_f32") { return true }
+            if native_name_is_or_has_suffix(nm, "dot_f64", "_dot_f64") { return true }
+            if native_name_is_or_has_suffix(nm, "dot_f32_buf", "_dot_f32_buf") { return true }
+            if native_name_is_or_has_suffix(nm, "dot_f64_buf", "_dot_f64_buf") { return true }
+            if native_name_is_or_has_suffix(nm, "reduce_sum_f64_buf", "_reduce_sum_f64_buf") { return true }
+            if native_name_is_or_has_suffix(nm, "dot_f32_view", "_dot_f32_view") { return true }
+            if native_name_is_or_has_suffix(nm, "dot_f64_view", "_dot_f64_view") { return true }
             if native_name_is_or_has_suffix(nm, "abs_f", "_abs_f") { return true }
             if native_name_is_or_has_suffix(nm, "min_f", "_min_f") { return true }
             if native_name_is_or_has_suffix(nm, "max_f", "_max_f") { return true }

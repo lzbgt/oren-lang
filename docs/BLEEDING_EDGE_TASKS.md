@@ -1536,6 +1536,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      that call `linalg.dot_f64_buf(...)` from linking against the reduced core profile. The new
      native quick smoke `tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren`
      also guards `oren_buf_data_mod(...)` on native typed buffers.
+   - API cleanup (2026-05-04): `std:linalg` now exposes explicit `try_*` aliases over the public
+     dot/reduce/AXPY/GEMM value-or-error helpers, with native/bytecode module coverage and the
+     native typed-buffer runtime-profile smoke using representative `try_*` names.
    - New blocker isolated (2026-05-04): `tests/modules/test_integration_suite.oren --backend native`
      got past the stdlib cast-wrapper checks, then failed at the f32 typed-buffer matmul assertion.
      A focused probe showed bytecode computing `[1.0, 2.0, 3.0, 4.0]`, while native stored the wrong
@@ -1546,6 +1549,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      hook for typed custom iterables. Native quick includes
      `tests/fixtures/native_iterable_trait_forin_smoke.oren`, so local/imported
      `impl Iterable.iter_next` dispatch is guarded outside the full integration suite.
+   - Fix (2026-05-04): `std:linalg` scalar-list f64/f32 dot/AXPY/GEMM paths now pack through typed
+     buffers on the public facade path and common vector validation returns `oren_err` for non-lists,
+     so the broad native linalg module smoke no longer trips over untagged list-float carriers or
+     native `list_len` panics.
    - Fix (2026-05-04): AVM bytecode now covers the remaining raw integration IDs:
      `oren_time_mono_raw(...)`, `oren_buf_data_mod(...)`, and `oren_buf_add_i64_into(...)`.
      `tests/modules/test_integration_suite.oren` now passes on both native and bytecode and is part
@@ -5134,6 +5141,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      explicit `try_parse_hex`, `try_validate`, `try_rasterize`, `try_encode_rgba`, and
      `try_write_rgba_ppm` aliases over their existing value-or-error paths; covered by AVM UI
      smokes, the PPM module write smoke, and the Tier-1 result smoke (2026-05-04).
+   - New: `std:linalg` exposes explicit `try_*` aliases over its dot/reduce/AXPY/GEMM
+     value-or-error facade, including typed-buffer helpers; covered by the linalg module smoke
+     and Tier-1 native typed-buffer runtime-profile smoke (2026-05-04).
    - New: `std:buffer` slice helpers return `oren_err` on invalid input; covered by
      result smoke fixture (2026-03-05).
    - New: `std:encoding/base64` exposes structured `try_encode_bytes`,

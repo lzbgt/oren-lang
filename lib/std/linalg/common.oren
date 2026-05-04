@@ -8,11 +8,14 @@ fn _err_invalid_arg(msg) {
 }
 
 fn _vec2_len(a, b, ctx) {
+    var where = ctx
+    if where == nil { where = "linalg" }
+    if oren_type_tag(a) != 6 || oren_type_tag(b) != 6 {
+        return _err_invalid_arg(where + ": expects lists")
+    }
     var na = list.len(a)
     var nb = list.len(b)
     if na != nb {
-        var where = ctx
-        if where == nil { where = "linalg" }
         return _err_invalid_arg(where + ": length mismatch (" + oren_int_to_string(na) + " != " + oren_int_to_string(nb) + ")")
     }
     return na

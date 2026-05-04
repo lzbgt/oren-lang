@@ -2,6 +2,9 @@
 
 import common "std:linalg/common"
 import list "std:list"
+import buffer "std:buffer"
+import mf32 "std:linalg/matmul_f32"
+import mf64 "std:linalg/matmul_f64"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 
@@ -16,34 +19,32 @@ fn matmul_f64(a, b, m, n, p) {
         return _err_invalid_arg("matmul_f64: B length mismatch")
     }
 
-    var out = []
-    var i = 0
-    while i < m {
-        var j = 0
-        while j < p {
-            var k = 0
-            var s = 0.0
-            while k < n {
-                s = s + a[i * n + k] * b[k * p + j]
-                k = k + 1
-            }
-            list.push(out, s)
-            j = j + 1
-        }
-        i = i + 1
-    }
-    return out
+    var ab: []f64 = buffer.f64_pack_list(a)
+    if oren_is_err(ab) { return ab }
+    var bb: []f64 = buffer.f64_pack_list(b)
+    if oren_is_err(bb) { return bb }
+    var outb: []f64 = mf64.matmul_f64_buf(ab, bb, m, n, p)
+    if oren_is_err(outb) { return outb }
+    return buffer.f64_unpack_list(outb)
 }
 
 fn matmul_f32(a, b, m, n, p) {
-    var out = matmul_f64(a, b, m, n, p)
-    if oren_is_err(out) { return out }
-    var i = 0
-    while i < list.len(out) {
-        out[i] = f32(out[i])
-        i = i + 1
+    if m < 0 || n < 0 || p < 0 {
+        return _err_invalid_arg("matmul_f32: negative dims")
     }
-    return out
+    if list.len(a) != m * n {
+        return _err_invalid_arg("matmul_f32: A length mismatch")
+    }
+    if list.len(b) != n * p {
+        return _err_invalid_arg("matmul_f32: B length mismatch")
+    }
+    var ab: []f32 = buffer.f32_pack_list(a)
+    if oren_is_err(ab) { return ab }
+    var bb: []f32 = buffer.f32_pack_list(b)
+    if oren_is_err(bb) { return bb }
+    var outb: []f32 = mf32.matmul_f32_buf(ab, bb, m, n, p)
+    if oren_is_err(outb) { return outb }
+    return buffer.f32_unpack_list(outb)
 }
 
 // --- typed-buffer matmul ---

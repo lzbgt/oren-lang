@@ -6,6 +6,24 @@
 // Because x64 native v0 does not yet have tagged values, we use the same rolling heuristic
 // as the arm64 native backend to decide when to emit float operations.
 
+fn _x64_name_has_suffix(name, suffix) {
+    if name == nil || suffix == nil { return false }
+    var n = oren_string_len(name)
+    var m = oren_string_len(suffix)
+    if n < m { return false }
+    var i = 0
+    while i < m {
+        if oren_string_char_at(name, n - m + i) != oren_string_char_at(suffix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_name_is_or_has_suffix(name, exact, suffix) {
+    if name == exact { return true }
+    return _x64_name_has_suffix(name, suffix)
+}
+
 fn _x64_expr_is_floaty(ctx, expr) {
     // Heuristic, rolling "float propagation" for x64 native.
     //
@@ -24,8 +42,16 @@ fn _x64_expr_is_floaty(ctx, expr) {
     }
     if et == "Call" {
         var fnn = expr["fn"]
+        var nm = nil
         if fnn != nil && fnn["type"] == "Identifier" {
-            var nm = fnn["value"]
+            nm = fnn["value"]
+        } else {
+            if fnn != nil && fnn["type"] == "Member" {
+                var prop = fnn["prop"]
+                if prop != nil && prop["type"] == "Identifier" { nm = prop["value"] }
+            }
+        }
+        if nm != nil {
             // Native cast/bitcast intrinsics and common float-returning helpers.
             if nm == "oren_f32_round" { return true }
             if nm == "oren_u32_bits_to_f32" { return true }
@@ -36,6 +62,13 @@ fn _x64_expr_is_floaty(ctx, expr) {
             if nm == "oren_buf_dot_f32_slice" || nm == "oren_buf_dot_f64_slice" { return true }
             if nm == "oren_buf_dot_f32_strided" || nm == "oren_buf_dot_f64_strided" { return true }
             if nm == "oren_buf_reduce_sum_f32" || nm == "oren_buf_reduce_sum_f64" { return true }
+            if _x64_name_is_or_has_suffix(nm, "dot_f32", "_dot_f32") { return true }
+            if _x64_name_is_or_has_suffix(nm, "dot_f64", "_dot_f64") { return true }
+            if _x64_name_is_or_has_suffix(nm, "dot_f32_buf", "_dot_f32_buf") { return true }
+            if _x64_name_is_or_has_suffix(nm, "dot_f64_buf", "_dot_f64_buf") { return true }
+            if _x64_name_is_or_has_suffix(nm, "reduce_sum_f64_buf", "_reduce_sum_f64_buf") { return true }
+            if _x64_name_is_or_has_suffix(nm, "dot_f32_view", "_dot_f32_view") { return true }
+            if _x64_name_is_or_has_suffix(nm, "dot_f64_view", "_dot_f64_view") { return true }
         }
         return false
     }

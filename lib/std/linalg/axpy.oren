@@ -7,30 +7,42 @@ import list "std:list"
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 fn _vec2_len(a, b, ctx) { return common._vec2_len(a, b, ctx) }
 
-fn axpy_f64(alpha, x, y) {
+fn axpy_f64(alpha: f64, x, y) {
     var n = _vec2_len(x, y, "axpy_f64")
     if oren_is_err(n) { return n }
+    var xb: []f64 = buffer.f64_pack_list(x)
+    if oren_is_err(xb) { return xb }
+    var yb: []f64 = buffer.f64_pack_list(y)
+    if oren_is_err(yb) { return yb }
     var out = []
     var i = 0
     while i < n {
-        list.push(out, alpha * x[i] + y[i])
+        var xv: f64 = oren_buf_load_f64(xb, i)
+        var yv: f64 = oren_buf_load_f64(yb, i)
+        list.push(out, alpha * xv + yv)
         i = i + 1
     }
     return out
 }
 
-fn axpy_f64_in_place(alpha, x, y) {
+fn axpy_f64_in_place(alpha: f64, x, y) {
     var n = _vec2_len(x, y, "axpy_f64_in_place")
     if oren_is_err(n) { return n }
+    var xb: []f64 = buffer.f64_pack_list(x)
+    if oren_is_err(xb) { return xb }
+    var yb: []f64 = buffer.f64_pack_list(y)
+    if oren_is_err(yb) { return yb }
     var i = 0
     while i < n {
-        y[i] = alpha * x[i] + y[i]
+        var xv: f64 = oren_buf_load_f64(xb, i)
+        var yv: f64 = oren_buf_load_f64(yb, i)
+        y[i] = alpha * xv + yv
         i = i + 1
     }
     return y
 }
 
-fn axpy_f32(alpha, x, y) {
+fn axpy_f32(alpha: f64, x, y) {
     var out = axpy_f64(alpha, x, y)
     if oren_is_err(out) { return out }
     // Round each element to float32 boundary.

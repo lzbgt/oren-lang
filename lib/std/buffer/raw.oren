@@ -312,7 +312,7 @@ fn i64_unpack_list(buf: []i64) {
 
 fn f32_pack_list(xs) {
     // Safe: on success this path overwrites every lane before the fresh buffer is returned.
-    return _pack_list_like_new_buf_with(xs, "buffer.f32_pack_list", f32_new_uninit, _store_f32_buf_unchecked_direct, _validate_passthru_or_err)
+    return _pack_list_like_new_buf_with(xs, "buffer.f32_pack_list", f32_new_uninit, _store_f32_buf_direct, _validate_passthru_or_err)
 }
 
 fn f32_pack_list_into(out: []f32, xs) {
@@ -337,7 +337,7 @@ fn f32_unpack_list(buf: []f32) {
 
 fn f64_pack_list(xs) {
     // Safe: on success this path overwrites every lane before the fresh buffer is returned.
-    return _pack_list_like_new_buf_with(xs, "buffer.f64_pack_list", f64_new_uninit, _store_f64_buf_unchecked_direct, _validate_passthru_or_err)
+    return _pack_list_like_new_buf_with(xs, "buffer.f64_pack_list", f64_new_uninit, _store_f64_buf_direct, _validate_passthru_or_err)
 }
 
 fn f64_pack_list_into(out: []f64, xs) {

@@ -286,6 +286,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:crypto/pem` (`try_decode_blocks` / `try_decode_blocks_strict`; smoke: `tests/native/test_pem_decode_smoke.oren`)
   - `std:crypto/rand` (`try_bytes` / `try_fill`; guarded by native quick entropy smoke)
   - `std:crypto/sha1`, `std:crypto/sha256`, and `std:crypto/x509` (checked `try_*` hash helpers; AVM SHA vector smoke)
+  - `std:linalg` (`try_*` aliases over dot/reduce/AXPY/GEMM value-or-error helpers; module + Tier-1 native typed-buffer runtime-profile smokes)
   - `std:crypto/tls` (TLS facade; alias-layer over `std:net/tls`, including the structured `try_*` wrappers, while the TLS crypto-core split is implemented)
 - Native NET stack (native backend; rolling Tier‑1 focus):
   - `std:net/tcp` and `std:net/udp` (`try_*` aliases over syscall-style fd/byte-count APIs)
@@ -1631,6 +1632,10 @@ var b: []f64 = buffer.f64_new(6)
 // store elements using runtime helpers, then:
 var out: []f64 = linalg.matmul_f64_buf(a, b, 2, 3, 2)
 ```
+
+The public `std:linalg` facade also exposes explicit `try_*` aliases over its value-or-error
+dot/reduce/AXPY/GEMM helpers, for example `try_dot_f64_buf(...)`,
+`try_reduce_sum_f64_buf(...)`, and `try_matmul_f32_buf(...)`. Existing names remain available.
 
 Design goals:
 

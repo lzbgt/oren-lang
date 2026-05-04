@@ -115,7 +115,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades and the OS-specific TLS provider modules now
   also have structured adapters over the deterministic native loopback surfaces. Crypto helpers
   now also have checked `try_*` aliases for Base64 encode/decode, PEM decode, entropy,
-  SHA-1/SHA-256 hashing, and minimal X.509 hash helpers. `std:time` now has explicit
+  SHA-1/SHA-256 hashing, and minimal X.509 hash helpers. `std:linalg` now has explicit
+  `try_*` aliases over its dot/reduce/AXPY/GEMM value-or-error facade helpers, including
+  typed-buffer runtime-profile smokes. `std:time` now has explicit
   `try_parse_iso8601_utc` / `try_datetime_to_unix_ns` aliases over its existing `oren_err`
   parse/conversion paths. `std:argparse` now has `try_parse` as a structured bridge over
   its legacy parse result map while preserving help as a non-error early-exit, and `std:regex`
@@ -493,6 +495,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      primitives outside the core profile (`oren_buf_dot_f64`, `oren_buf_reduce_sum_f64`, etc.).
      A new Tier-1 native smoke (`tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren`)
      guards `std:linalg` typed-buffer calls together with native `oren_buf_data_mod(...)`.
+   - API cleanup (2026-05-04): `std:linalg` now exposes explicit `try_*` aliases over the facade's
+     value-or-error dot/reduce/AXPY/GEMM helpers; native/bytecode module coverage and the Tier-1
+     native typed-buffer runtime-profile smoke guard representative aliases.
    - Verified (2026-03-20): the hidden packed-bridge benchmarks compile and run through the Oren C
      backend with the expected `205`, `710`, `6590`, and `54380` outputs, which is enough to catch
      stdlib bridge portability bugs before paying for the slower full-runtime native probe.
@@ -2391,6 +2396,10 @@ Local (fast):
   sliced/strided f32/f64 dot helpers as float-returning calls. This fixes the native integration-suite
   blockers at `matmul_f32_buf[0]` and `matmul_f64_buf[0]`; linalg scratch storage is no longer the
   integration-suite boundary.
+- `std:linalg` scalar-list float helpers now avoid native untagged list-float ambiguity by packing
+  through typed buffers before dot/AXPY/GEMM math, and the common two-vector validator returns
+  `oren_err` for non-list operands before native `list_len` can panic. The broad linalg module smoke
+  now passes on both native and bytecode.
 - Trait-based `Iterable.iter_next` lowering now recognizes the generated generator-aware for-in bridge
   as the same iterator hook as `oren_iter_next(...)`, so typed custom iterables lower to their impl
   methods on native instead of falling back to generic runtime iteration. The native quick lane now
