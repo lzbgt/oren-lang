@@ -5040,15 +5040,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																				        `user_decls` code bytes from 452472 to 379528, so the remaining
 																				        backend work stays on lowering cost, not guard-chain code size.
 																				      - Direct string-comparison-if follow-up (2026-05-04): the same direct
-																				        ARM64 `if` branch path now covers string/string-literal comparisons
-																				        with the existing guarded `strcmp` semantics and native small-value
-																				        fallback. This avoids producing runtime boolean singletons when
-																				        statement branching consumes the comparison immediately. The measured
-																				        generator profile keeps `user_decls` wall time roughly neutral but
-																				        cuts `user_decls` bytes from `340360` to `325368` and local ADR-data
-																				        fixups from `4665` to `4303`; continue treating this as
-																				        code-size/fixup-volume cleanup rather than the final wall-time fix.
-																			      - Shared function epilogue follow-up (2026-05-04): generated ARM64
+																					        ARM64 `if` branch path now covers string/string-literal comparisons
+																					        with the existing guarded `strcmp` semantics and native small-value
+																					        fallback. This avoids producing runtime boolean singletons when
+																					        statement branching consumes the comparison immediately. The measured
+																					        generator profile keeps `user_decls` wall time roughly neutral but
+																					        cuts `user_decls` bytes from `340360` to `325368` and local ADR-data
+																					        fixups from `4665` to `4303`; continue treating this as
+																					        code-size/fixup-volume cleanup rather than the final wall-time fix.
+																					      - Rejected string-literal register branch follow-up (2026-05-04): a
+																					        narrower direct string-if experiment loaded literal operands directly
+																					        into compare registers to avoid the temporary stack spill around
+																					        `strcmp`. It passed focused native/bytecode branch smokes and trimmed
+																					        generator `user_decls` bytes only from `325368` to `324612`, but two
+																					        profiles regressed `user_decls` wall time to about `25.6s`; the branch
+																					        was reverted. Do not retry that literal-register path without stronger
+																					        evidence that compiler-side lowering cost is addressed too.
+																				      - Shared function epilogue follow-up (2026-05-04): generated ARM64
 																				        `return` statements now run call-depth exit if required, restore SP to
 																				        FP, and branch to one function-local epilogue instead of duplicating
 																				        the X19-X26/LR restore sequence at every return site. The uncontended
@@ -5075,9 +5083,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        experiment regressed the profile and should not be retried as-is.
 														        Follow-up probes also rejected a narrow `if { return }` block-skip matcher
 														        (unchanged code bytes, neutral-to-worse phase timings) and exclusive
-														        statement profiling via per-depth child accounting (timed out at the
-														        180s native-profile budget before `user_decls` completed).
-																      - the generator surface fixture now splits its formerly monolithic native
+															        statement profiling via per-depth child accounting (timed out at the
+															        180s native-profile budget before `user_decls` completed).
+															      - Condition-shaped statement profile follow-up (2026-05-04): the gated
+															        ARM64 statement profiler now breaks `ExprStmt(If)` down by condition
+															        shape without changing the default phase/function profile path. The
+															        refreshed generator run shows the largest inclusive `user_decls`
+															        buckets are `Infix(||,Infix(!=),Infix(!=))` (~6.4s / 179 stmts),
+															        `Infix(||,Infix(||),Infix(!=))` (~4.4s / 58 stmts),
+															        `Infix(!=,Call,String)` (~1.8s / 46 stmts), and
+															        `Infix(!=,Call,Boolean)` (~1.6s / 121 stmts). These remain
+															        inclusive timings; use them to rank probes, not as exclusive proof that
+															        the condition expression alone owns the whole bucket.
+																	      - the generator surface fixture now splits its formerly monolithic native
 															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).

@@ -272,6 +272,11 @@ backend-shared value-helper slices landed.
     fallback as expression lowering. The generator profile keeps `user_decls` wall time roughly neutral
     but cuts `user_decls` bytes from `340360` to `325368` and local ADR-data fixups from `4665` to
     `4303`, so this is a guard-heavy code-size/fixup-volume cleanup rather than the final wall-time fix.
+  - Rejected string-literal register branch follow-up (2026-05-04): a narrower ARM64 string-if branch
+    experiment avoided the temporary stack spill for literal operands by loading literal pointers directly
+    into compare registers. It passed focused branch/string smokes and trimmed generator `user_decls` bytes
+    only from `325368` to `324612`, but repeated profiles regressed `user_decls` wall time to about
+    `25.6s`; it was reverted. Do not retry that path without a lower-cost design.
   - Shared function epilogue follow-up (2026-05-04): ARM64 `return` statements now restore SP to FP and
     branch to one function-local epilogue after any required call-depth exit, instead of duplicating the
     callee-saved restore/ret sequence per return site. The generator profile keeps `user_decls` wall time
@@ -292,6 +297,12 @@ backend-shared value-helper slices landed.
     unchanged and was neutral-to-worse on phase timings; an exclusive statement-profiler variant using
     per-depth child counters also exceeded the 180s statement-profile budget before `user_decls`
     completed, so exclusive attribution needs a cheaper design before it is useful.
+  - Condition-shaped statement profile follow-up (2026-05-04): the same gated profile now splits
+    `ExprStmt(If)` buckets by condition shape. The refreshed generator profile ranks inclusive
+    `user_decls` buckets as `Infix(||,Infix(!=),Infix(!=))` (~6.4s / 179 stmts),
+    `Infix(||,Infix(||),Infix(!=))` (~4.4s / 58 stmts), `Infix(!=,Call,String)` (~1.8s / 46 stmts),
+    and `Infix(!=,Call,Boolean)` (~1.6s / 121 stmts). Treat these as ranking data, not exclusive
+    condition-lowering attribution.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

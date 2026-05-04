@@ -2512,6 +2512,12 @@ Local (fast):
   branching. The generator profile keeps `user_decls` wall time roughly neutral but reduces
   `user_decls` bytes from `340360` to `325368` and local ADR-data fixups from `4665` to `4303`; treat
   it as a guard-heavy code-size/fixup-volume cleanup, not the final wall-time fix.
+- Rejected ARM64 string-literal register branch path (2026-05-04): a narrower follow-up avoided the
+  temporary stack spill for direct `if` string comparisons where one side is a literal by loading the
+  literal pointer directly into a compare register. It passed focused branch/string smokes and reduced
+  generator `user_decls` bytes only from `325368` to `324612`, but repeated native profiles regressed
+  `user_decls` wall time to about `25.6s`. The path was reverted; do not retry literal-register string
+  branching without evidence that the emitted-code byte shave outweighs compiler-side lowering cost.
 - ARM64 shared function epilogue (2026-05-04): generated `return` statements now restore the stack and
   branch to one function-local epilogue instead of duplicating the X19-X26/LR restore sequence at every
   return site. Call-depth exit still runs before the shared return branch, preserving recursion-guard
@@ -2537,6 +2543,13 @@ Local (fast):
   matcher produced unchanged code bytes and neutral-to-worse phase timings, and exclusive statement
   profiling via per-depth child accounting pushed the statement-enabled native profile into the
   180s timeout before `user_decls` completed. Do not retry either shape without a cheaper design.
+- ARM64 statement profile condition detail (2026-05-04): the gated statement profiler now classifies
+  `ExprStmt(If)` buckets by condition shape, keeping the default phase/function profile unchanged. The
+  refreshed generator profile shows the largest inclusive `user_decls` condition buckets are
+  `Infix(||,Infix(!=),Infix(!=))` (~6.4s / 179 stmts), `Infix(||,Infix(||),Infix(!=))`
+  (~4.4s / 58 stmts), `Infix(!=,Call,String)` (~1.8s / 46 stmts), and `Infix(!=,Call,Boolean)`
+  (~1.6s / 121 stmts). These are inclusive statement timings, so use them to rank follow-up probes but
+  do not treat them as exclusive condition-lowering cost.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to
