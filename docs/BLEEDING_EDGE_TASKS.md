@@ -5287,15 +5287,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																		        map-returning without changing the original callee shape, including
 																		        imported namespace member calls such as `gen.next` / `gen.send` /
 																		        `gen.current_step`.
-																		        The refreshed default generator profile drops `user_decls` bytes from
-																		        `323172` to `302592` and local BL fixups from `11423` to `10920`, while
-																		        wall time stays in the same noisy ~20s band. The gated statement profile
-																		        now labels the hot buckets as `Index(map,str)`, so the next backend slice
-																		        should target typed map index term lowering itself rather than missing
-																		        receiver-kind propagation.
-																				      - the coroutine surface fixture now uses the same split shape: four focused
-																		        top-level chunks plus a tiny dispatcher, preserving return codes and
-															        coverage. The measured coroutine native profile now has the largest fixture
+																			        The refreshed default generator profile drops `user_decls` bytes from
+																			        `323172` to `302592` and local BL fixups from `11423` to `10920`, while
+																			        wall time stays in the same noisy ~20s band. The gated statement profile
+																			        now labels the hot buckets as `Index(map,str)`, so the next backend slice
+																			        should target typed map index term lowering itself rather than missing
+																			        receiver-kind propagation.
+																			      - ARM64 `Index(map,str-literal)` expression lowering now uses a direct
+																			        string-key map-get path that keeps nil/tracked-node/map-kind/map-magic
+																			        validation but avoids the generic container/key stack shuffle before
+																			        `oren_map_get_str`. The refreshed uncontended profile reports
+																			        `user_decls` at about `20.3s / 292072 bytes / 282 funcs`; the hot
+																			        `Index(map,str)` condition-term buckets are smaller but still dominant,
+																			        so the next credible backend slice needs to reduce the map
+																			        validation/get sequence itself.
+																					      - the coroutine surface fixture now uses the same split shape: four focused
+																			        top-level chunks plus a tiny dispatcher, preserving return codes and
+																        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and
 														        Mach-O local BL target resolution ~1.8s for the first 4096 local calls.

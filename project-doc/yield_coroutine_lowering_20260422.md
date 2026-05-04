@@ -442,6 +442,12 @@ backend-shared value-helper slices landed.
     and local BL fixups from `11423` to `10920`; wall time remains in the same noisy ~20s band. The gated
     statement profile now labels the hot condition-term buckets as `Index(map,str)`, so the remaining
     target is typed map index term lowering itself rather than missing receiver-kind propagation.
+  - ARM64 map string-literal index fast path (2026-05-05): `Index(map,str-literal)` expression lowering now
+    preserves nil/tracked-node/map-kind/map-magic validation but emits the string-key `oren_map_get_str` path
+    directly instead of using the generic container/key stack shuffle. The refreshed uncontended generator
+    profile reports `user_decls` at about `20.3s / 292072 bytes / 282 funcs`; statement-profiled
+    `Index(map,str)` condition terms shrink but remain the dominant conditional cost, so the next credible
+    lever is reducing the validation/get sequence itself.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

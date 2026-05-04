@@ -2710,6 +2710,12 @@ Local (fast):
   same noisy band at about `20.4s`. The gated statement profile now labels index terms as
   `Index(map,str)`, confirming the remaining hot cost is typed map index term lowering itself rather than
   missing receiver-kind propagation.
+- ARM64 `Index(map,str-literal)` expression lowering now has a direct string-key map-get path that preserves
+  the existing nil/tracked-node/map-kind/map-magic validation but avoids the generic container/key stack shuffle
+  and string-literal evaluation before `oren_map_get_str`. The refreshed uncontended generator profile moves
+  `user_decls` to about `20.3s / 292072 bytes / 282 funcs`; the gated statement profile shows the hot
+  `Index(map,str)` condition-term buckets are smaller but still dominant, so the next real lever is reducing
+  the map validation/get sequence itself rather than receiver-kind propagation.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

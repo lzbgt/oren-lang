@@ -7,6 +7,80 @@ fn _native_assume_list_index_enabled() {
     return g_native_assume_list_index == 1
 }
 
+fn _native_emit_load_cstr0_reg(ctx, s, reg) {
+    var data_off = native_data_add_cstr0(ctx, s)
+    if data_off == nil {
+        native_error(ctx, nil, "native backend: failed to add string literal data")
+        push_u32_le(ctx["code"], insn_movz(reg, 0))
+        return false
+    }
+    var adr_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off, "reg": reg})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], data_off)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], reg)
+    return true
+}
+
+fn native_emit_index_get_map_str_lit_inline(ctx, expr) {
+    if expr == nil || expr["type"] != "Index" { return false }
+    if expr["recv_kind"] != "map" { return false }
+    var ix = expr["index"]
+    if ix == nil || ix["type"] != "String" { return false }
+
+    native_compile_expr(ctx, expr["left"]) // container -> X0
+
+    // Preserve the existing deterministic index contract: nil and non-map values still panic.
+    push_u32_le(ctx["code"], insn_movz(2, 0))
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+    var br_non_nil = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    native_emit_panic(ctx, "Indexing on nil")
+    var non_nil_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
+
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = container
+    var bl_find_node = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
+    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+
+    push_u32_le(ctx["code"], insn_movz(4, 0))
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
+    var br_node_nonzero = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    native_emit_panic(ctx, "Index recv_kind=map but value is not a map")
+    var node_ok_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
+
+    emit_load_ptr_from_base_plus(ctx, 4, 0, 16) // X4 = tracked node kind
+    emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
+    push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+    var br_is_map = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    native_emit_panic(ctx, "Index recv_kind=map but value is not a map")
+    var map_kind_ok_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_is_map, insn_b_cond((map_kind_ok_pos - br_is_map) / 4, 0)) // EQ
+
+    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+    push_u32_le(ctx["code"], insn_add_imm(2, 0, 24))
+    push_u32_le(ctx["code"], insn_ldr_ptr(3, 2))
+    emit_load_i64_imm(ctx, 4, 1296121168)
+    push_u32_le(ctx["code"], insn_cmp_reg(3, 4))
+    var br_magic_ok = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    native_emit_panic(ctx, "Index recv_kind=map but value is not a map")
+    var magic_ok_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_magic_ok, insn_b_cond((magic_ok_pos - br_magic_ok) / 4, 0)) // EQ
+
+    if _native_emit_load_cstr0_reg(ctx, ix["value"], 1) != true { return true }
+    native_emit_named_bl_expr(ctx, "oren_map_get_str")
+    return true
+}
+
 fn native_emit_index_get_inline(ctx, expr) {
     // Fast-path list indexing directly in the native backend (no stdlib call),
     // with a deterministic fallback to typed `oren_map_get_*` for non-lists.
@@ -485,6 +559,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
     
 
         if expr["type"] == "Index" {
+            if native_emit_index_get_map_str_lit_inline(ctx, expr) == true { return true }
             return native_emit_index_get_inline(ctx, expr)
         }
     
