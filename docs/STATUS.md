@@ -2385,12 +2385,12 @@ Local (fast):
   `i32(x)`, `f32(x)`, etc. That fixes the native untagged-helper gap where `ints.u8(1.9)` and
   `casts.u8(1.9)` could bypass float-to-int truncation even though the bare cast syntax was already
   correct; `tests/modules/test_int_casts.oren` now guards the native and bytecode behavior.
-- Follow-up fact from restoring `tests/modules/test_integration_suite.oren --backend native`: the
-  suite now gets past the stdlib cast wrapper checks, but still fails at `matmul_f32_buf[0]`.
-  A focused native probe shows the f32 typed-buffer matmul path writes through f64 scratch values
-  after the native backend loses floaty state for `oren_buf_load_f64(...)` temporaries; bytecode
-  produces the expected `[1.0, 2.0, 3.0, 4.0]`. The next fix should target the native f64-scratch
-  load/store representation boundary in linalg rather than weakening the integration fixture.
+- `std:linalg.matmul_f32_buf(...)` and `matmul_f64_buf(...)` now protect native f64-scratch output
+  boundaries with explicitly typed store helpers, and ARM64 float-trait propagation recognizes the
+  sliced/strided f32/f64 dot helpers as float-returning calls. This fixes the native integration-suite
+  blockers at `matmul_f32_buf[0]` and `matmul_f64_buf[0]`; remaining integration-suite restoration
+  work is now the later trait-based `Iterable.iter_next` lowering/runtime path and bytecode native-ID
+  coverage rather than linalg scratch storage.
 - ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
   context instead of resetting module globals on every statement. Native phase profiling also splits
   wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.

@@ -184,6 +184,32 @@ assert_eq(oren_buf_load_f32(Cf, 1), f32(64.0), 82)
 assert_eq(oren_buf_load_f32(Cf, 2), f32(139.0), 83)
 assert_eq(oren_buf_load_f32(Cf, 3), f32(154.0), 84)
 
+// Non-packed 1x4 f32 matmul uses the dot4 scratch path. This specifically guards
+// the native f64-scratch -> f32 output boundary.
+var Af1: []f32 = buffer.f32_new(4)
+var Bf1: []f32 = buffer.f32_new(16)
+assert_true(!oren_is_err(Af1), 841)
+assert_true(!oren_is_err(Bf1), 842)
+oren_buf_store_f32(Af1, 0, 1.0)
+oren_buf_store_f32(Af1, 1, 2.0)
+oren_buf_store_f32(Af1, 2, 3.0)
+oren_buf_store_f32(Af1, 3, 4.0)
+var bf1_i = 0
+while bf1_i < 16 {
+    oren_buf_store_f32(Bf1, bf1_i, 0.0)
+    bf1_i = bf1_i + 1
+}
+oren_buf_store_f32(Bf1, 0, 1.0)
+oren_buf_store_f32(Bf1, 5, 1.0)
+oren_buf_store_f32(Bf1, 10, 1.0)
+oren_buf_store_f32(Bf1, 15, 1.0)
+var Cf1 = linalg.matmul_f32_buf(Af1, Bf1, 1, 4, 4)
+assert_true(!oren_is_err(Cf1), 843)
+assert_eq(oren_buf_load_f32(Cf1, 0), f32(1.0), 844)
+assert_eq(oren_buf_load_f32(Cf1, 1), f32(2.0), 845)
+assert_eq(oren_buf_load_f32(Cf1, 2), f32(3.0), 846)
+assert_eq(oren_buf_load_f32(Cf1, 3), f32(4.0), 847)
+
 // Trigger packed-B + dot-kernel path: n>=64 and p>=4.
 // Use easy-to-check values: A is all 1.0, each B column is constant (j+1),
 // so output row is [64, 128, 192, 256].

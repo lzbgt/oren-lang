@@ -5,6 +5,10 @@ import common "std:linalg/common"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 
+fn _store_f64_from_f64(out: []f64, idx, v: f64) {
+    return oren_buf_store_f64(out, idx, v)
+}
+
 fn matmul_f64_buf(a: []f64, b: []f64, m, n, p) {
     if m < 0 || n < 0 || p < 0 { return _err_invalid_arg("matmul_f64_buf: negative dims") }
     var na = buffer.len(a)
@@ -50,7 +54,7 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
         while j0 < p {
             var v = oren_buf_load_f64(b, k0 * p + j0)
             if oren_is_err(v) { return v }
-            oren_buf_store_f64(bt, j0 * n + k0, v)
+            _store_f64_from_f64(bt, j0 * n + k0, v)
             j0 = j0 + 1
         }
         k0 = k0 + 1
@@ -82,7 +86,7 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
                             if oren_is_err(v2) { return v2 }
                         }
                         var dst = (((bj * tiles_k + bk) * JB + j_in) * KB + k_in)
-                        oren_buf_store_f64(bp, dst, v2)
+                        _store_f64_from_f64(bp, dst, v2)
                         k_in = k_in + 1
                     }
                     j_in = j_in + 1
@@ -169,28 +173,28 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
 
                     // Store only in-range columns (packed B may include zero-padded columns).
                     if base_j_blk + 0 < p {
-                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 0), s00)
-                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 0), s10)
-                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 0), s20)
-                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 0), s30)
+                        _store_f64_from_f64(out, (i + 0) * p + (base_j_blk + 0), s00)
+                        _store_f64_from_f64(out, (i + 1) * p + (base_j_blk + 0), s10)
+                        _store_f64_from_f64(out, (i + 2) * p + (base_j_blk + 0), s20)
+                        _store_f64_from_f64(out, (i + 3) * p + (base_j_blk + 0), s30)
                     }
                     if base_j_blk + 1 < p {
-                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 1), s01)
-                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 1), s11)
-                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 1), s21)
-                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 1), s31)
+                        _store_f64_from_f64(out, (i + 0) * p + (base_j_blk + 1), s01)
+                        _store_f64_from_f64(out, (i + 1) * p + (base_j_blk + 1), s11)
+                        _store_f64_from_f64(out, (i + 2) * p + (base_j_blk + 1), s21)
+                        _store_f64_from_f64(out, (i + 3) * p + (base_j_blk + 1), s31)
                     }
                     if base_j_blk + 2 < p {
-                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 2), s02)
-                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 2), s12)
-                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 2), s22)
-                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 2), s32)
+                        _store_f64_from_f64(out, (i + 0) * p + (base_j_blk + 2), s02)
+                        _store_f64_from_f64(out, (i + 1) * p + (base_j_blk + 2), s12)
+                        _store_f64_from_f64(out, (i + 2) * p + (base_j_blk + 2), s22)
+                        _store_f64_from_f64(out, (i + 3) * p + (base_j_blk + 2), s32)
                     }
                     if base_j_blk + 3 < p {
-                        oren_buf_store_f64(out, (i + 0) * p + (base_j_blk + 3), s03)
-                        oren_buf_store_f64(out, (i + 1) * p + (base_j_blk + 3), s13)
-                        oren_buf_store_f64(out, (i + 2) * p + (base_j_blk + 3), s23)
-                        oren_buf_store_f64(out, (i + 3) * p + (base_j_blk + 3), s33)
+                        _store_f64_from_f64(out, (i + 0) * p + (base_j_blk + 3), s03)
+                        _store_f64_from_f64(out, (i + 1) * p + (base_j_blk + 3), s13)
+                        _store_f64_from_f64(out, (i + 2) * p + (base_j_blk + 3), s23)
+                        _store_f64_from_f64(out, (i + 3) * p + (base_j_blk + 3), s33)
                     }
 
                     bj_blk = bj_blk + 1
@@ -222,33 +226,33 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
                     if oren_is_err(rr2) { return rr2 }
 
                     // Store 4x4 block.
-                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 0))
-                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 1))
-                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 2))
-                    oren_buf_store_f64(out, (i + 0) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 3))
+                    _store_f64_from_f64(out, (i + 0) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 0))
+                    _store_f64_from_f64(out, (i + 0) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 1))
+                    _store_f64_from_f64(out, (i + 0) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 2))
+                    _store_f64_from_f64(out, (i + 0) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 3))
 
-                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 4))
-                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 5))
-                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 6))
-                    oren_buf_store_f64(out, (i + 1) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 7))
+                    _store_f64_from_f64(out, (i + 1) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 4))
+                    _store_f64_from_f64(out, (i + 1) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 5))
+                    _store_f64_from_f64(out, (i + 1) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 6))
+                    _store_f64_from_f64(out, (i + 1) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 7))
 
-                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 8))
-                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 9))
-                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 10))
-                    oren_buf_store_f64(out, (i + 2) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 11))
+                    _store_f64_from_f64(out, (i + 2) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 8))
+                    _store_f64_from_f64(out, (i + 2) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 9))
+                    _store_f64_from_f64(out, (i + 2) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 10))
+                    _store_f64_from_f64(out, (i + 2) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 11))
 
-                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 12))
-                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 13))
-                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 14))
-                    oren_buf_store_f64(out, (i + 3) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 15))
+                    _store_f64_from_f64(out, (i + 3) * p + (base_j_blk2 + 0), oren_buf_load_f64(tmp16, 12))
+                    _store_f64_from_f64(out, (i + 3) * p + (base_j_blk2 + 1), oren_buf_load_f64(tmp16, 13))
+                    _store_f64_from_f64(out, (i + 3) * p + (base_j_blk2 + 2), oren_buf_load_f64(tmp16, 14))
+                    _store_f64_from_f64(out, (i + 3) * p + (base_j_blk2 + 3), oren_buf_load_f64(tmp16, 15))
                 } else {
                     // Tail columns: fall back to the existing per-row dot kernels below.
                     var row2 = 0
                     while row2 < 4 {
-                        if base_j_blk2 + 0 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 0), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 0) * n, n)) }
-                        if base_j_blk2 + 1 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 1), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 1) * n, n)) }
-                        if base_j_blk2 + 2 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 2), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 2) * n, n)) }
-                        if base_j_blk2 + 3 < p { oren_buf_store_f64(out, (i + row2) * p + (base_j_blk2 + 3), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 3) * n, n)) }
+                        if base_j_blk2 + 0 < p { _store_f64_from_f64(out, (i + row2) * p + (base_j_blk2 + 0), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 0) * n, n)) }
+                        if base_j_blk2 + 1 < p { _store_f64_from_f64(out, (i + row2) * p + (base_j_blk2 + 1), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 1) * n, n)) }
+                        if base_j_blk2 + 2 < p { _store_f64_from_f64(out, (i + row2) * p + (base_j_blk2 + 2), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 2) * n, n)) }
+                        if base_j_blk2 + 3 < p { _store_f64_from_f64(out, (i + row2) * p + (base_j_blk2 + 3), oren_buf_dot_f64_slice(a, (i + row2) * n, bt, (base_j_blk2 + 3) * n, n)) }
                         row2 = row2 + 1
                     }
                 }
@@ -323,10 +327,10 @@ fn _matmul_f64_buf_kernel(out: []f64, a: []f64, b: []f64, m, n, p) {
                 bk2 = bk2 + 1
             }
 
-            if base_j + 0 < p { oren_buf_store_f64(out, i * p + (base_j + 0), s0) }
-            if base_j + 1 < p { oren_buf_store_f64(out, i * p + (base_j + 1), s1) }
-            if base_j + 2 < p { oren_buf_store_f64(out, i * p + (base_j + 2), s2) }
-            if base_j + 3 < p { oren_buf_store_f64(out, i * p + (base_j + 3), s3) }
+            if base_j + 0 < p { _store_f64_from_f64(out, i * p + (base_j + 0), s0) }
+            if base_j + 1 < p { _store_f64_from_f64(out, i * p + (base_j + 1), s1) }
+            if base_j + 2 < p { _store_f64_from_f64(out, i * p + (base_j + 2), s2) }
+            if base_j + 3 < p { _store_f64_from_f64(out, i * p + (base_j + 3), s3) }
 
             bj2 = bj2 + 1
         }

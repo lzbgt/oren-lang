@@ -477,7 +477,11 @@ fn native_expr_is_floaty(ctx, expr) {
             if nm == "oren_buf_load_f32" { return true }
             if nm == "oren_buf_load_f64" { return true }
             if nm == "oren_buf_dot_f32" { return true }
+            if nm == "oren_buf_dot_f32_slice" { return true }
+            if nm == "oren_buf_dot_f32_strided" { return true }
             if nm == "oren_buf_dot_f64" { return true }
+            if nm == "oren_buf_dot_f64_slice" { return true }
+            if nm == "oren_buf_dot_f64_strided" { return true }
             if nm == "oren_buf_reduce_sum_f32" { return true }
             if nm == "oren_buf_reduce_sum_f64" { return true }
         }

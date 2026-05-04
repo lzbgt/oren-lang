@@ -6,6 +6,10 @@ import list "std:list"
 
 fn _err_invalid_arg(msg) { return common._err_invalid_arg(msg) }
 
+fn _store_f32_from_f64(out: []f32, idx, v: f64) {
+    return oren_buf_store_f32(out, idx, f32(v))
+}
+
 fn matmul_f32_buf(a: []f32, b: []f32, m, n, p) {
     if m < 0 || n < 0 || p < 0 { return _err_invalid_arg("matmul_f32_buf: negative dims") }
     var na = buffer.len(a)
@@ -414,10 +418,10 @@ fn _matmul_f32_buf_kernel(out: []f32, a: []f32, b: []f32, m, n, p) {
                 }
             }
 
-            if base_j + 0 < p { oren_buf_store_f32(out, i * p + (base_j + 0), f32(s0)) }
-            if base_j + 1 < p { oren_buf_store_f32(out, i * p + (base_j + 1), f32(s1)) }
-            if base_j + 2 < p { oren_buf_store_f32(out, i * p + (base_j + 2), f32(s2)) }
-            if base_j + 3 < p { oren_buf_store_f32(out, i * p + (base_j + 3), f32(s3)) }
+            if base_j + 0 < p { _store_f32_from_f64(out, i * p + (base_j + 0), s0) }
+            if base_j + 1 < p { _store_f32_from_f64(out, i * p + (base_j + 1), s1) }
+            if base_j + 2 < p { _store_f32_from_f64(out, i * p + (base_j + 2), s2) }
+            if base_j + 3 < p { _store_f32_from_f64(out, i * p + (base_j + 3), s3) }
 
             bj2 = bj2 + 1
         }
