@@ -5095,6 +5095,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															        `Infix(!=,Call,Boolean)` (~1.6s / 121 stmts). These remain
 															        inclusive timings; use them to rank probes, not as exclusive proof that
 															        the condition expression alone owns the whole bucket.
+															      - Logical-branch flattening follow-up (2026-05-04): ARM64 direct `if`
+															        lowering now flattens same-operator `&&` / `||` chains before emitting
+															        branch lists. This preserves left-to-right short-circuit behavior while
+															        avoiding recursive same-shape lowering for generated guard chains. The
+															        first probe also exposed that the matcher must use bytewise compiler
+															        string comparison for operator matching; direct string equality could
+															        fail to flatten and recursively re-enter the same condition until
+															        call-depth overflow. After the fix, focused logical/integration smokes
+															        pass, code bytes stay unchanged, and the latest default-profile sample
+															        moves `user_decls` from ~25.1s to ~21.7s while statement buckets move
+															        only slightly (`|| != !=` ~6.43s -> ~6.37s). Treat this as structural
+															        cleanup, not the final wall-time fix.
 																	      - the generator surface fixture now splits its formerly monolithic native
 															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /

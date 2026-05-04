@@ -224,6 +224,16 @@ fn _arm64_patch_branch_false_jumps(ctx, br, target) {
     return nil
 }
 
+fn _arm64_collect_logical_terms(expr, op, out) {
+    if expr != nil && expr["type"] == "Infix" && _arm64_str_eq_bytes(expr["op"], op) == true {
+        _arm64_collect_logical_terms(expr["left"], op, out)
+        _arm64_collect_logical_terms(expr["right"], op, out)
+        return out
+    }
+    oren_list_push(out, expr)
+    return out
+}
+
 fn _arm64_emit_any_cond_branch_false(ctx, cond, tok, base_stack) {
     var direct = _arm64_emit_if_cond_branch_false(ctx, cond, tok)
     var delta = ctx["stack_size"] - base_stack
@@ -248,27 +258,49 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
 
     if op == "&&" {
         var base_stack_and = ctx["stack_size"]
-        var left_false = _arm64_emit_any_cond_branch_false(ctx, l, tok, base_stack_and)
-        var right_false = _arm64_emit_any_cond_branch_false(ctx, r, tok, base_stack_and)
+        var and_terms = []
+        _arm64_collect_logical_terms(cond, "&&", and_terms)
         var and_jumps = []
-        _arm64_append_branch_false_jumps(and_jumps, left_false)
-        _arm64_append_branch_false_jumps(and_jumps, right_false)
+        var ai = 0
+        while ai < oren_list_len(and_terms) {
+            var term_false = _arm64_emit_any_cond_branch_false(ctx, and_terms[ai], tok, base_stack_and)
+            _arm64_append_branch_false_jumps(and_jumps, term_false)
+            ai = ai + 1
+        }
         if oren_list_len(and_jumps) <= 0 { return nil }
         return {"pos": and_jumps[0]["pos"], "cond": and_jumps[0]["cond"], "jumps": and_jumps}
     }
     if op == "||" {
         var base_stack_or = ctx["stack_size"]
-        var left_false_or = _arm64_emit_any_cond_branch_false(ctx, l, tok, base_stack_or)
-        var jump_true_or = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-
-        var right_pos_or = bytes_len(ctx["code"])
-        _arm64_patch_branch_false_jumps(ctx, left_false_or, right_pos_or)
-        var right_false_or = _arm64_emit_any_cond_branch_false(ctx, r, tok, base_stack_or)
-
+        var or_terms = []
+        _arm64_collect_logical_terms(cond, "||", or_terms)
+        var or_n = oren_list_len(or_terms)
+        if or_n <= 0 { return nil }
+        var true_jumps = []
+        var last_false = nil
+        var oi = 0
+        while oi < or_n {
+            if last_false != nil {
+                var next_term_pos = bytes_len(ctx["code"])
+                _arm64_patch_branch_false_jumps(ctx, last_false, next_term_pos)
+                last_false = nil
+            }
+            last_false = _arm64_emit_any_cond_branch_false(ctx, or_terms[oi], tok, base_stack_or)
+            if oi + 1 < or_n {
+                var jump_true = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(true_jumps, jump_true)
+            }
+            oi = oi + 1
+        }
         var then_pos_or = bytes_len(ctx["code"])
-        set_u32_le(ctx["code"], jump_true_or, insn_b((then_pos_or - jump_true_or) / 4))
-        return right_false_or
+        var ti = 0
+        while ti < oren_list_len(true_jumps) {
+            var tp = true_jumps[ti]
+            set_u32_le(ctx["code"], tp, insn_b((then_pos_or - tp) / 4))
+            ti = ti + 1
+        }
+        return last_false
     }
 
     var left_stringy = exprm.native_expr_is_stringy(ctx, l)

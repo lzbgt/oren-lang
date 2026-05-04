@@ -303,6 +303,14 @@ backend-shared value-helper slices landed.
     `Infix(||,Infix(||),Infix(!=))` (~4.4s / 58 stmts), `Infix(!=,Call,String)` (~1.8s / 46 stmts),
     and `Infix(!=,Call,Boolean)` (~1.6s / 121 stmts). Treat these as ranking data, not exclusive
     condition-lowering attribution.
+  - Logical-branch flattening follow-up (2026-05-04): ARM64 direct `if` lowering now flattens
+    same-operator `&&` / `||` chains before emitting branch lists, preserving short-circuit evaluation while
+    avoiding recursive same-shape lowering. The first probe exposed that the helper has to use bytewise
+    compiler string comparison for operator matching; direct string equality can fail to flatten and
+    recursively re-enter the same condition until call-depth overflow. After the fix, focused smokes pass
+    and the latest profile moves `user_decls` from the prior noisy ~25.1s sample to ~21.7s, with unchanged
+    code bytes and only small condition-bucket movement. This is structural cleanup, not the final
+    wall-time fix.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

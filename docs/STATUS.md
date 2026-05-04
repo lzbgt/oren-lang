@@ -2550,6 +2550,14 @@ Local (fast):
   (~4.4s / 58 stmts), `Infix(!=,Call,String)` (~1.8s / 46 stmts), and `Infix(!=,Call,Boolean)`
   (~1.6s / 121 stmts). These are inclusive statement timings, so use them to rank follow-up probes but
   do not treat them as exclusive condition-lowering cost.
+- ARM64 logical-branch flattening (2026-05-04): direct `if` lowering now flattens same-operator `&&` /
+  `||` chains before emitting branch lists, preserving left-to-right short-circuit behavior while avoiding
+  recursive same-shape lowering for generated guard chains. A first probe exposed why this helper must use
+  bytewise compiler string comparison for operator matching: direct string equality can fail to flatten and
+  recursively re-enter the same condition. After that fix, focused logical/integration smokes pass; the
+  generator profile keeps code bytes unchanged and nudges `user_decls` from the latest noisy default-profile
+  sample (~25.1s) to ~21.7s, while gated statement buckets move only slightly (`|| != !=` ~6.43s -> ~6.37s).
+  Treat this as a structural lowering cleanup, not the final `user_decls` wall-time solution.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to
