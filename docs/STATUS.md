@@ -147,7 +147,7 @@ Design intent is bleeding‑edge (determinism + capability gating + AVM), but ex
 ### Backend readiness (rolling snapshot)
 
 - **C backend**: bootstrap path only; depends on host C toolchain; ABI/opcodes rolling; not production‑grade.
-- **Native backend**: Tier‑1 intent only; tagged‑value convergence still rolling; GC/allocator correctness is improving but not yet stable at production gates; hot‑loop parity still above target. The ARM64 self-host generator surface is now much healthier after the 2026-05-05 generic-call/string-literal cleanup: repeated default profiles put `user_decls` around `4.26s / 292000 bytes / 284 funcs`, down from the post-ABI-cache `~10.06s / 292000 bytes` baseline, with the remaining visible call row centered on runtime-observable generator tracing rather than broad ABI marshalling.
+- **Native backend**: Tier‑1 intent only; tagged‑value convergence still rolling; GC/allocator correctness is improving but not yet stable at production gates; hot‑loop parity still above target. The ARM64 self-host generator surface is now much healthier after the 2026-05-05 generic-call/string-literal cleanup: repeated default profiles put `user_decls` around `4.26s / 292000 bytes / 284 funcs`, down from the post-ABI-cache `~10.06s / 292000 bytes` baseline, with the remaining visible call row centered on runtime-observable generator tracing rather than broad ABI marshalling. Top-level integer-global preinit now also removes side-effect-free literal integer global assignments from `__top_level__` on non-gas builds; gas-accounting modes keep the old statement path so native gas surfaces stay observable.
 - **AVM backend**: deterministic VM; single‑threaded today; heap uses `malloc` (no GC yet); opcode/ABI stability is rolling; capability gating exists but maturity is below production.
 
 ### Feature readiness gaps (requested)
@@ -2780,6 +2780,12 @@ Local (fast):
   `17.9s / 337792 bytes / 284 funcs` from the post-ABI-cache `~10.06s / 292000 bytes`. The source probe was
   reverted; do not inline the full structured-error predicate at call sites without a smaller representation or
   a branch-only design that reduces emitted validation code.
+- ARM64 top-level global preparation now preinitializes plain integer-literal user globals directly into their
+  `.data` slots and omits the matching synthesized `Assign` statements from `__top_level__`. This is deliberately
+  narrower than the rejected emitted-sequence `Assign(Integer)` shortcut: it removes side-effect-free top-level
+  work instead of making the same statements cheaper. Runtime globals, non-literal initializers, negative prefix
+  expressions, and all statement/basic-block/block-weighted/dynamic-emitter gas-accounting builds keep the old
+  ordered assignment path so source-order side effects and native gas evidence remain intact.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

@@ -49,6 +49,33 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     return nm
 }
 
+fn _arm64_top_level_static_int_preinit_enabled() {
+    var mode = oren_env("OREN_NATIVE_GAS_ACCOUNTING")
+    if mode == nil || mode == "" || mode == "0" || mode == "loop" { return true }
+    if mode == "stmt" || mode == "statement" { return false }
+    if mode == "basic-block" || mode == "block-weighted" { return false }
+    if mode == "dynamic-emitter" { return false }
+    return true
+}
+
+fn _arm64_is_plain_integer_literal(expr) {
+    return expr != nil && expr["type"] == "Integer"
+}
+
+fn _arm64_preinit_global_int_literal(ctx, name_node, init_expr) {
+    if ctx == nil || name_node == nil || init_expr == nil { return false }
+    if name_node["type"] != "Identifier" || init_expr["type"] != "Integer" { return false }
+    var nm = name_node["value"]
+    if nm == nil || nm == "" || ctx["globals"] == nil { return false }
+    var data_off = ctx["globals"][nm] - 1
+    var iv = core.int_from_string(init_expr["value"])
+    bytes_set_u64_le(ctx["data"], data_off, iv)
+    if ctx["globals_int_const"] != nil {
+        ctx["globals_int_const"][nm] = iv
+    }
+    return true
+}
+
 fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
     // Normalize entry semantics for Tier‑1 native (arm64 parity with x86_64 + docs):
     // - Collect top-level globals (`var`) into `.data` slots
@@ -122,13 +149,18 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
         i = i + 1
     }
 
-    // Allocate user globals; defer all initializers into __top_level__.
+    var static_int_preinit = _arm64_top_level_static_int_preinit_enabled()
+
+    // Allocate user globals; defer effectful initializers into __top_level__.
     i = 0
     while i < oren_list_len(user_vars) {
         var st2 = user_vars[i]
         if st2 != nil {
             _arm64_alloc_global_slot(ctx, st2["name"], st2["value"], false)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if static_int_preinit && _arm64_is_plain_integer_literal(st2["value"]) {
+                _arm64_preinit_global_int_literal(ctx, st2["name"], st2["value"])
+            }
         }
         i = i + 1
     }
@@ -143,8 +175,12 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
     while j < oren_list_len(user_ordered) {
         var stx = user_ordered[j]
         if stx != nil && stx["type"] == "Var" {
-            // Execute global initializer in-order.
-            oren_list_push(top_stmts, {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]})
+            if static_int_preinit && _arm64_is_plain_integer_literal(stx["value"]) {
+                // Plain integer literals are side-effect-free and were already written into `.data`.
+            } else {
+                // Execute global initializer in-order.
+                oren_list_push(top_stmts, {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]})
+            }
         } else {
             oren_list_push(top_stmts, stx)
         }

@@ -666,6 +666,18 @@ if [[ "${OREN_QI_SKIP_BLOCK_SCOPE_SMOKE:-0}" != "1" ]]; then
   tail -n 3 "$bsf_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_TOP_LEVEL_INT_PREINIT_SMOKE:-0}" != "1" ]]; then
+  echo "== top-level integer preinit smoke ==" >>"$log"
+  tlp_src="tests/fixtures/tier1_native_top_level_int_preinit_main.oren"
+  tlp_log="build/logs/${compiler_base}_top_level_int_preinit.log"
+  rm -f "$tlp_log" 2>/dev/null || true
+  run_step_checked "top-level integer preinit smoke" "$tlp_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" test "$tlp_src" \
+    --backend native --platform "$platform"
+  echo "ok: top-level integer preinit smoke" >>"$tlp_log"
+  tail -n 3 "$tlp_log" >>"$log"
+fi
+
 if [[ "${OREN_QI_SKIP_VISIBILITY_SMOKE:-0}" != "1" ]]; then
   echo "== module visibility pub smoke ==" >>"$log"
   vis_pub_src="tests/fixtures/visibility/pub_ok_main.oren"

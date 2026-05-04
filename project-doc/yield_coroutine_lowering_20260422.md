@@ -518,6 +518,12 @@ backend-shared value-helper slices landed.
     ~1.3s / 318 calls to ~0.17s and `STD_generator__generator_cancel_target_err` arg-eval from ~1.7s /
     27 calls to ~0.12s. `_oren_generator_trace` remains a visible call row because its runtime env/trace
     semantics are observable; do not remove it without preserving `OREN_TRACE_GENERATOR_CORE`.
+  - ARM64 top-level integer-global preinit (2026-05-05): the backend now writes plain integer-literal user
+    globals directly into their `.data` slots and omits those side-effect-free assignments from the synthesized
+    `__top_level__` function on ordinary non-gas builds. This is not the earlier rejected in-place
+    `Assign(Integer)` fast path: runtime globals, negative prefix/non-literal initializers, and
+    `OREN_NATIVE_GAS_ACCOUNTING=stmt` / `basic-block` / `block-weighted` / `dynamic-emitter` builds still emit
+    the ordered assignment statements so gas accounting and source-order side effects stay observable.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

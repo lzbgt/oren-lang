@@ -1,0 +1,15 @@
+var base = 41
+var one = 1
+var neg_runtime = -5
+var after_neg = 7
+
+fn main() {
+    if base + one != 42 { return 10 }
+    if neg_runtime != -5 { return 11 }
+    if after_neg != 7 { return 12 }
+
+    base = base + one
+    if base != 42 { return 13 }
+    if one != 1 { return 14 }
+    return 0
+}
