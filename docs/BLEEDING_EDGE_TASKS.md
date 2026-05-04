@@ -4557,9 +4557,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     New (2026-05-04): JSON, YAML, and CBOR decode surfaces now provide direct
 	     structured-error wrappers (`try_decode`, plus CBOR sequence/typed-sequence variants).
 	     YAML native module codegen cost remains a performance task, but API availability is no
-	     longer blocked; stage2 native YAML decode/serde now preserves empty-line handling and
-	     compact serde keyword attributes via bytewise string comparisons. Remaining ok-map cleanup
-	     is mostly network/protocol APIs.
+	     longer blocked; stage1/stage2 native YAML decode/serde now preserves empty-line handling and
+	     compact serde keyword attributes via bytewise string comparisons. The optional native
+	     split-invariant list-push optimizer is opt-in (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`)
+	     after a stage1 YAML probe spent the whole 90s test budget in that pass. Remaining ok-map
+	     cleanup is mostly network/protocol APIs.
 	     New (2026-05-04): DNS/host/HPACK now also expose structured `try_*` wrappers over
 	     the already-tested ok-map APIs, reducing the remaining network/protocol migration
 	     backlog to broader HTTP/TLS/WebSocket surfaces and untested provider edges.
@@ -5383,7 +5385,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Started: GC safepoint helpers moved to `lib/compiler/arm64_native_gc.oren`.
    - Done: `lib/compiler/arm64_native_stmt.oren` split into loop/list/runtime modules (<2000 lines each).
    - Done: `lib/compiler/transpiler.oren` split into core/analysis/C-utils/lambda modules (<2000 lines each).
-   - Done: `lib/compiler/optimizer_loops.oren` split into list/arena modules (<2000 lines each).
+   - Done: `lib/compiler/optimizer_loops.oren` split into list/arena modules (<=2000 lines each).
    - Done: `lib/compiler/optimizer.oren` split into core/fold/DCE/list-int/list-reserve/TCO modules (<2000 lines each).
    - Done: `lib/runtime_native/100_time_gc_alloc.oren` split into trace/index/core modules (<2000 lines each).
    - Done: `lib/std/buffer.oren` split into the public facade plus `lib/std/buffer/view.oren`

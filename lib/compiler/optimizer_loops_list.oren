@@ -4,6 +4,7 @@ import bounds "optimizer_loops_bounds.oren"
 
 var ARENA_TRACE_BUDGET = 200
 var OPTLOOPS_BACKEND = nil
+var SPLIT_INVARIANT_LIST_PUSH_BUDGET = 64; var SPLIT_INVARIANT_LIST_PUSH_CANDIDATES = 0; var SPLIT_INVARIANT_LIST_PUSH_BUDGET_HIT = false
 
 fn _opt_str_eq(a, b) {
     if oren_is_string(a) && oren_is_string(b) { return oren_string_eq(a, b) }
@@ -12,6 +13,7 @@ fn _opt_str_eq(a, b) {
 
 fn set_backend(name) {
     OPTLOOPS_BACKEND = name
+    SPLIT_INVARIANT_LIST_PUSH_CANDIDATES = 0; SPLIT_INVARIANT_LIST_PUSH_BUDGET_HIT = false
     return nil
 }
 
@@ -1776,6 +1778,39 @@ fn _opt_stmt_is_list_push_with_tmp(stmt, tmp_name) {
     return {"name": nm, "list": list_name, "list_expr": args[0], "tmp_expr": args[1]}
 }
 
+fn _opt_stmt_maybe_split_invariant_candidate(stmt) {
+    if stmt == nil || stmt["type"] != "While" { return false }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
+    var idx_name = opthelp.is_ident(cond["left"])
+    if idx_name == nil { return false }
+    var body = stmt["body"]; if body == nil || body["type"] != "Block" { return false }
+    var ss = body["stmts"]
+    if ss == nil || oren_list_len(ss) != 4 { return false }
+    var st0 = ss[0]
+    if st0 == nil || (st0["type"] != "Var" && st0["type"] != "Assign") { return false }
+    var tmp_name = opthelp.is_ident(st0["name"]); if tmp_name == nil || st0["value"] == nil { return false }
+    var st1 = ss[1]
+    var if_stmt = nil
+    if st1 != nil && st1["type"] == "If" { if_stmt = st1 }
+    else if st1 != nil && st1["type"] == "ExprStmt" {
+        var e = st1["expr"]
+        if e != nil && e["type"] == "If" { if_stmt = e }
+    }
+    if if_stmt == nil || if_stmt["alt"] != nil { return false }
+    var consq = if_stmt["consq"]; if consq == nil || consq["type"] != "Block" { return false }
+    var cs = consq["stmts"]
+    if cs == nil || oren_list_len(cs) != 1 { return false }
+    if _opt_stmt_is_list_push_with_tmp(ss[2], tmp_name) == nil { return false }
+    return _opt_stmt_is_simple_inc(ss[3], idx_name)
+}
+
+fn _opt_split_invariant_budget_allows() {
+    if SPLIT_INVARIANT_LIST_PUSH_CANDIDATES < SPLIT_INVARIANT_LIST_PUSH_BUDGET { SPLIT_INVARIANT_LIST_PUSH_CANDIDATES = SPLIT_INVARIANT_LIST_PUSH_CANDIDATES + 1; return true }
+    if SPLIT_INVARIANT_LIST_PUSH_BUDGET_HIT != true { SPLIT_INVARIANT_LIST_PUSH_BUDGET_HIT = true; _opt_arena_trace("[arena] split-invariant list-push candidate budget exhausted; skipping remaining candidates") }
+    return false
+}
+
 fn _opt_split_invariant_list_push_while(stmt) {
     if stmt == nil || stmt["type"] != "While" { return nil }
     var cond = stmt["cond"]
@@ -1866,7 +1901,7 @@ fn _opt_split_invariant_list_push_while(stmt) {
 }
 
 fn split_invariant_list_push_in_block(block) {
-    if _opt_arena_backend_allows() != true { return false }
+    if _opt_arena_backend_allows() != true || oren_env("OREN_OPT_SPLIT_INVARIANT_LIST_PUSH") == nil { return false }
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
     if ss == nil { return false }
@@ -1876,7 +1911,7 @@ fn split_invariant_list_push_in_block(block) {
     while i < oren_list_len(ss) {
         var st = ss[i]
         var replaced = nil
-        if st != nil && st["type"] == "While" {
+        if _opt_stmt_maybe_split_invariant_candidate(st) && _opt_split_invariant_budget_allows() {
             replaced = _opt_split_invariant_list_push_while(st)
         }
         if replaced != nil {

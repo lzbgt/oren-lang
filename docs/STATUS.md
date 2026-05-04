@@ -2358,6 +2358,13 @@ Local (fast):
   `rtobj.apply.globals.done` from about 12.26s to about 0.55ms (`adopted=1`), moving the remaining
   native-build bottlenecks back to user declaration emission, wrapper emission, and Mach-O local BL
   target resolution.
+- The native-only split-invariant list-push optimizer is now budgeted off by default. A 2026-05-04
+  stage1 native YAML probe showed the pass consuming the whole 90s test budget inside
+  `split_invariant_list_push_in_block`; disabling the optional split while keeping the structural
+  prefilter/budget guard restored `tests/modules/test_yaml_comments.oren --backend native` to about
+  1s on stage1. The transform remains available as guarded opt-in compiler code
+  (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`) for future measured tuning, but it no longer blocks YAML
+  native fast-lane admission.
 - ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
   context instead of resetting module globals on every statement. Native phase profiling also splits
   wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.

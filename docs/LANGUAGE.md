@@ -3760,8 +3760,10 @@ Rolling status:
   `yaml.try_decode`, `cbor.try_decode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`,
   plus typed CBOR sequence variants). YAML native module build cost is still tracked as a
   performance task, so broad native YAML verification remains outside the default fast lane;
-  stage2 native YAML decode and serde fixtures now preserve parser empty-line checks and
-  compact `@serde(...)` keyword attributes.
+  stage1 and stage2 native YAML decode/serde fixtures now preserve parser empty-line checks and
+  compact `@serde(...)` keyword attributes. The previously pathological native split-invariant
+  list-push optimizer is opt-in (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`) so YAML native builds no
+  longer spend the full test budget in that optional transform by default.
 - Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
