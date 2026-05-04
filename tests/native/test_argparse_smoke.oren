@@ -8,6 +8,21 @@ fn main() {
     argparse.cmd_positional(sub, "file", true, "A required positional")
     argparse.cmd_option(sub, "--opt", "-o", "string", "", "An optional flag")
 
+    var parsed = argparse.try_parse(p, ["sub", "--opt", "value", "input.txt"])
+    if oren_is_err(parsed) {
+        print("argparse try_parse unexpectedly failed: " + oren_err_msg(parsed))
+        oren_exit(2)
+    }
+    if parsed["opts"]["opt"] != "value" {
+        print("argparse try_parse option mismatch")
+        oren_exit(3)
+    }
+    var bad = argparse.try_parse(p, ["sub", "--missing", "input.txt"])
+    if oren_is_err(bad) != true {
+        print("argparse try_parse did not return structured error")
+        oren_exit(4)
+    }
+
     // Just ensure rendering doesn't hang/crash under the native backend.
     var lines = argparse.render_help_lines(p, nil)
     var i = 0
@@ -19,4 +34,3 @@ fn main() {
     }
     print("argparse smoke OK")
 }
-

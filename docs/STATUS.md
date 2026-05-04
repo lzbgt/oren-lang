@@ -116,8 +116,10 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades and the OS-specific TLS provider modules now
   also have structured adapters over the deterministic native loopback surfaces. Crypto helpers
   now also have checked `try_*` aliases for PEM decode, entropy, SHA-1/SHA-256 hashing, and
-  minimal X.509 hash helpers. Stdlib migration breadth is still ongoing, mostly in deeper
-  protocol cleanup and older library edges. Rolling module visibility now exists via `pub`, and
+  minimal X.509 hash helpers. `std:argparse` now has `try_parse` as a structured bridge over
+  its legacy parse result map while preserving help as a non-error early-exit. Stdlib migration
+  breadth is still ongoing, mostly in deeper protocol cleanup and older library edges. Rolling
+  module visibility now exists via `pub`, and
   bytes/typed buffers are already partially shipped through `std:bytes` / `std:buffer`; dynamic
   module loading and user-defined methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
@@ -1396,6 +1398,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `std:crypto/rand.try_bytes` / `try_fill`, `std:crypto/pem.try_decode_blocks` /
      `try_decode_blocks_strict`, `std:crypto/sha1.try_sha1_*`,
      `std:crypto/sha256.try_sha256_*`, and `std:crypto/x509.try_sha256_hex_der`.
+   - New (2026-05-04): `std:argparse` now exposes `try_parse(...)`; it returns successful
+     parse maps and help maps (`ok=false`, `code=0`) directly, and converts real parse failures
+     into `oren_err` for callers that want the structured error convention.
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
      `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
    - Migration rule: modules with any `pub` declaration become closed-by-default to imports,

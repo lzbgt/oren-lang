@@ -276,7 +276,7 @@ See also: `docs/DESIGN.md#runtime-and-stdlib-layering` (distribution story and f
 These stdlib modules exist today and are exercised by regression fixtures:
 
 - CLI/strings:
-  - `std:argparse` (smoke: `tests/native/test_argparse_smoke.oren`)
+  - `std:argparse` (`try_parse` structured-error bridge; smoke: `tests/native/test_argparse_smoke.oren`)
   - `std:strings` (used by `std:crypto/pem` smoke)
   - `std:bytes` (smokes: `tests/native/qi/100_tests_basic.oren`, `tests/avm/test_smoke_suite.oren`)
 - Encoding / crypto helpers:
@@ -3767,6 +3767,9 @@ Rolling status:
   lane now includes YAML comments and serde-attribute codec smokes.
 - Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
+- CLI migration is also rolling: `std:argparse.parse(...)` keeps its legacy result map because
+  help is a non-error early-exit (`ok=false`, `code=0`), while `std:argparse.try_parse(...)`
+  returns successful/help maps directly and converts parse failures into `oren_err`.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
   resolution has `try_resolve_host_ipv4`, TCP/UDP have `try_*` syscall adapters, TLS has structured
   connect/wrap/read/write/cert/ALPN helpers, the OS-specific TLS provider modules mirror those

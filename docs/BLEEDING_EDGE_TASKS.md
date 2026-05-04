@@ -4583,6 +4583,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     where the semantics are deterministic and already tested: `rand.try_bytes` /
 	     `try_fill`, `pem.try_decode_blocks*`, `sha1.try_sha1_*`, `sha256.try_sha256_*`,
 	     and `x509.try_sha256_hex_der`.
+	     New (2026-05-04): `std:argparse` now has `try_parse(...)` as a structured bridge over
+	     the legacy parse map: successful parses and help early-exits stay as direct maps, while
+	     parse failures become `oren_err`.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level

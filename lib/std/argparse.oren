@@ -56,13 +56,13 @@ fn _split_csv_simple(s) {
     while i < oren_string_len(s) {
         if oren_string_char_at(s, i) == "," {
             var seg = _trim_spaces(oren_string_slice(s, start, i))
-            if seg != "" { list.push(out, seg) }
+            if _streq(seg, "") != true { list.push(out, seg) }
             start = i + 1
         }
         i = i + 1
     }
     var last = _trim_spaces(oren_string_slice(s, start, oren_string_len(s)))
-    if last != "" { list.push(out, last) }
+    if _streq(last, "") != true { list.push(out, last) }
     return out
 }
 
@@ -71,10 +71,10 @@ fn _parse_bool_env(v) {
     // - if env var is present but empty => true (compat with "presence means on")
     // - accepts: 1/0, true/false, yes/no, on/off (case-insensitive)
     if v == nil { return nil }
-    if v == "" { return true }
+    if _streq(v, "") { return true }
     var x = _lower_ascii(_trim_spaces(v))
-    if x == "1" || x == "true" || x == "yes" || x == "on" { return true }
-    if x == "0" || x == "false" || x == "no" || x == "off" { return false }
+    if _streq(x, "1") || _streq(x, "true") || _streq(x, "yes") || _streq(x, "on") { return true }
+    if _streq(x, "0") || _streq(x, "false") || _streq(x, "no") || _streq(x, "off") { return false }
     // Unknown token => treat as true for backward compatibility (env presence means enabled).
     return true
 }
@@ -123,7 +123,7 @@ fn _split_once(s, sep) {
     var i = 0
     var n = oren_string_len(s)
     while i < n {
-        if oren_string_slice(s, i, i + 1) == sep {
+        if _streq(oren_string_slice(s, i, i + 1), sep) {
             return [oren_string_slice(s, 0, i), oren_string_slice(s, i + 1, n)]
         }
         i = i + 1
@@ -133,10 +133,10 @@ fn _split_once(s, sep) {
 
 fn _to_int(s) {
     // v1: accept base-10, optional leading '-'.
-    if s == nil || s == "" { return nil }
+    if s == nil || _streq(s, "") { return nil }
     var i = 0
     var sign = 1
-    if oren_string_len(s) > 0 && oren_string_slice(s, 0, 1) == "-" {
+    if oren_string_len(s) > 0 && _streq(oren_string_slice(s, 0, 1), "-") {
         sign = -1
         i = 1
         if i >= oren_string_len(s) { return nil }
@@ -145,25 +145,25 @@ fn _to_int(s) {
     while i < oren_string_len(s) {
         var c = oren_string_slice(s, i, i + 1)
         var d = -1
-        if c == "0" { d = 0 }
+        if _streq(c, "0") { d = 0 }
         else {
-            if c == "1" { d = 1 }
+            if _streq(c, "1") { d = 1 }
             else {
-                if c == "2" { d = 2 }
+                if _streq(c, "2") { d = 2 }
                 else {
-                    if c == "3" { d = 3 }
+                    if _streq(c, "3") { d = 3 }
                     else {
-                        if c == "4" { d = 4 }
+                        if _streq(c, "4") { d = 4 }
                         else {
-                            if c == "5" { d = 5 }
+                            if _streq(c, "5") { d = 5 }
                             else {
-                                if c == "6" { d = 6 }
+                                if _streq(c, "6") { d = 6 }
                                 else {
-                                    if c == "7" { d = 7 }
+                                    if _streq(c, "7") { d = 7 }
                                     else {
-                                        if c == "8" { d = 8 }
+                                        if _streq(c, "8") { d = 8 }
                                         else {
-                                            if c == "9" { d = 9 }
+                                            if _streq(c, "9") { d = 9 }
                                         }
                                     }
                                 }
@@ -190,12 +190,12 @@ fn _normalize_key(name) {
     if n == 0 { return "" }
     var i = 0
     while i < n {
-        if oren_string_byte_at_unchecked(name, i) != 45 { break } // '-'
+        if !_streq(oren_string_char_at(name, i), "-") { break }
         i = i + 1
     }
     if i == 0 { return name }
     if i >= n { return "" }
-    return oren_string_slice_unchecked(name, i, n)
+    return oren_string_slice(name, i, n)
 }
 
 fn _opt_env(opt) {
@@ -292,8 +292,8 @@ fn cmd_flag_count_env(cmd, long_name, short_name, help, env_name) {
 fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     // kind: "string" | "int"
     var kind_code = 0
-    if kind == "string" { kind_code = 2 }
-    if kind == "int" { kind_code = 3 }
+    if _streq(kind, "string") { kind_code = 2 }
+    if _streq(kind, "int") { kind_code = 3 }
     if kind_code == 0 { kind_code = 2 }
     // [kind, long, short, help, default, required, multiple]
     var opt = [kind_code, long_name, short_name, help, default_value, false, false]
@@ -303,8 +303,8 @@ fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
 
 fn cmd_option_env(cmd, long_name, short_name, kind, default_value, help, env_name) {
     var kind_code = 0
-    if kind == "string" { kind_code = 2 }
-    if kind == "int" { kind_code = 3 }
+    if _streq(kind, "string") { kind_code = 2 }
+    if _streq(kind, "int") { kind_code = 3 }
     if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, default_value, false, false, env_name]
     list.push(cmd["options"], opt)
@@ -316,8 +316,8 @@ fn cmd_option_required(cmd, long_name, short_name, kind, help) {
     //
     // kind: "string" | "int"
     var kind_code = 0
-    if kind == "string" { kind_code = 2 }
-    if kind == "int" { kind_code = 3 }
+    if _streq(kind, "string") { kind_code = 2 }
+    if _streq(kind, "int") { kind_code = 3 }
     if kind_code == 0 { kind_code = 2 }
     // default is nil; required flag is true.
     var opt = [kind_code, long_name, short_name, help, nil, true, false]
@@ -327,8 +327,8 @@ fn cmd_option_required(cmd, long_name, short_name, kind, help) {
 
 fn cmd_option_required_env(cmd, long_name, short_name, kind, help, env_name) {
     var kind_code = 0
-    if kind == "string" { kind_code = 2 }
-    if kind == "int" { kind_code = 3 }
+    if _streq(kind, "string") { kind_code = 2 }
+    if _streq(kind, "int") { kind_code = 3 }
     if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, nil, true, false, env_name]
     list.push(cmd["options"], opt)
@@ -339,8 +339,8 @@ fn cmd_option_multi(cmd, long_name, short_name, kind, help) {
     // Repeatable option; collects values into a list.
     // Default is [].
     var kind_code = 0
-    if kind == "string" { kind_code = 2 }
-    if kind == "int" { kind_code = 3 }
+    if _streq(kind, "string") { kind_code = 2 }
+    if _streq(kind, "int") { kind_code = 3 }
     if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, [], false, true]
     list.push(cmd["options"], opt)
@@ -349,8 +349,8 @@ fn cmd_option_multi(cmd, long_name, short_name, kind, help) {
 
 fn cmd_option_multi_env(cmd, long_name, short_name, kind, help, env_name) {
     var kind_code = 0
-    if kind == "string" { kind_code = 2 }
-    if kind == "int" { kind_code = 3 }
+    if _streq(kind, "string") { kind_code = 2 }
+    if _streq(kind, "int") { kind_code = 3 }
     if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, [], false, true, env_name]
     list.push(cmd["options"], opt)
@@ -449,7 +449,7 @@ fn _suggest_option(cmd, tok) {
     if cmd == nil || tok == nil { return nil }
     if !_starts_with(tok, "--") { return nil }
     var want = _normalize_key(tok)
-    if want == "" { return nil }
+    if _streq(want, "") { return nil }
 
     var best = nil
     var bestd = 999
@@ -476,7 +476,7 @@ fn _suggest_command(p, name) {
     if p == nil || name == nil { return nil }
     if p["commands"] == nil { return nil }
     var want = name
-    if want == "" { return nil }
+    if _streq(want, "") { return nil }
 
     var best = nil
     var bestd = 999
@@ -484,7 +484,7 @@ fn _suggest_command(p, name) {
     while ci < list.len(p["commands"]) {
         var c = p["commands"][ci]
         var cn = c["name"]
-        if cn != nil && cn != "" {
+        if cn != nil && !_streq(cn, "") {
             var d = _edit_distance_limited(want, cn, 3)
             if d < bestd {
                 bestd = d
@@ -502,7 +502,7 @@ fn _opts_defaults(cmd) {
     var dbg_ap = oren_env("OREN_DEBUG_ARGPARSE")
     if dbg_ap != nil { print("DEBUG_ARGPARSE opts_defaults enter") }
     var skip_opts = oren_env("OREN_DEBUG_ARGPARSE_SKIP_OPTS")
-    if skip_opts != nil && skip_opts != "" {
+    if skip_opts != nil && !_streq(skip_opts, "") {
         if dbg_ap != nil { print("DEBUG_ARGPARSE opts_defaults skip") }
         return m
     }
@@ -520,16 +520,16 @@ fn _opts_defaults(cmd) {
     while oi < on {
         var o = opts[oi]
         if o == nil || oren_type_tag(o) != 6 || list.len(o) < 5 { oi = oi + 1; continue }
-        if dbg_opt_trace != nil && dbg_opt_trace != "" {
+        if dbg_opt_trace != nil && !_streq(dbg_opt_trace, "") {
             print("DEBUG_ARGPARSE opts_defaults opt_i=" + oren_int_to_string(oi))
         }
         var key_src = o[1]
-        if dbg_opt_trace != nil && dbg_opt_trace != "" {
+        if dbg_opt_trace != nil && !_streq(dbg_opt_trace, "") {
             print("DEBUG_ARGPARSE opts_defaults opt_i=" + oren_int_to_string(oi) + " key_tag=" + oren_int_to_string(oren_type_tag(key_src)))
         }
         if key_src == nil || oren_type_tag(key_src) != 4 { oi = oi + 1; continue }
         var key = _normalize_key(key_src)
-        if dbg_opt_trace != nil && dbg_opt_trace != "" {
+        if dbg_opt_trace != nil && !_streq(dbg_opt_trace, "") {
             print("DEBUG_ARGPARSE opts_defaults opt_i=" + oren_int_to_string(oi) + " norm_ok")
         }
         var defv = o[4]
@@ -543,7 +543,7 @@ fn _opts_defaults(cmd) {
         // CLI precedence remains: explicit argv options override defaults, and env-based defaults do
         // NOT mark res["seen"] (seen only reflects argv).
         var env_name = _opt_env(o)
-        if env_name != nil && env_name != "" {
+        if env_name != nil && !_streq(env_name, "") {
             var ev = oren_env(env_name)
             if ev != nil {
                 var kind = o[0]
@@ -591,7 +591,7 @@ fn _opts_required_keys(cmd) {
 
 fn _render_command_usage_line(p, cmd) {
     var name = p["name"]
-    if cmd != nil && cmd["name"] != "" { name = name + " " + cmd["name"] }
+    if cmd != nil && !_streq(cmd["name"], "") { name = name + " " + cmd["name"] }
     var s = name
     if cmd != nil {
         if list.len(cmd["options"]) > 0 { s = s + " [options]" }
@@ -617,7 +617,7 @@ fn render_help_lines(p, cmd_name) {
     }
 
     var lines = []
-    if p["desc"] != nil && p["desc"] != "" {
+    if p["desc"] != nil && !_streq(p["desc"], "") {
         list.push(lines, p["desc"])
         list.push(lines, "")
     }
@@ -630,7 +630,7 @@ fn render_help_lines(p, cmd_name) {
         list.push(lines, "Commands:")
         for c in p["commands"] {
             var line = "  " + c["name"]
-            if c["desc"] != nil && c["desc"] != "" {
+            if c["desc"] != nil && !_streq(c["desc"], "") {
                 line = line + "    " + c["desc"]
             }
             list.push(lines, line)
@@ -643,12 +643,12 @@ fn render_help_lines(p, cmd_name) {
         for o in cmd["options"] {
             var kind = o[0]
             var line2 = "  " + o[1]
-            if o[2] != nil && o[2] != "" { line2 = line2 + ", " + o[2] }
+            if o[2] != nil && !_streq(o[2], "") { line2 = line2 + ", " + o[2] }
             if kind == 2 { line2 = line2 + " <str>" }
             if kind == 3 { line2 = line2 + " <int>" }
-            if o[3] != nil && o[3] != "" { line2 = line2 + "    " + o[3] }
+            if o[3] != nil && !_streq(o[3], "") { line2 = line2 + "    " + o[3] }
             var envn = _opt_env(o)
-            if envn != nil && envn != "" { line2 = line2 + " (env: " + envn + ")" }
+            if envn != nil && !_streq(envn, "") { line2 = line2 + " (env: " + envn + ")" }
             list.push(lines, line2)
         }
         list.push(lines, "")
@@ -659,7 +659,7 @@ fn render_help_lines(p, cmd_name) {
         for pos in cmd["positionals"] {
             var line3 = "  " + pos[0]
             if pos[1] { line3 = line3 + " (required)" } else { line3 = line3 + " (optional)" }
-            if pos[2] != nil && pos[2] != "" { line3 = line3 + "    " + pos[2] }
+            if pos[2] != nil && !_streq(pos[2], "") { line3 = line3 + "    " + pos[2] }
             list.push(lines, line3)
         }
         list.push(lines, "")
@@ -681,11 +681,11 @@ fn _json_escape(s) {
     var i = 0
     while i < oren_string_len(s) {
         var c = oren_string_char_at(s, i)
-        if c == "\\" { out = out + "\\\\"; i = i + 1; continue }
-        if c == "\"" { out = out + "\\\""; i = i + 1; continue }
-        if c == "\n" { out = out + "\\n"; i = i + 1; continue }
-        if c == "\r" { out = out + "\\r"; i = i + 1; continue }
-        if c == "\t" { out = out + "\\t"; i = i + 1; continue }
+        if _streq(c, "\\") { out = out + "\\\\"; i = i + 1; continue }
+        if _streq(c, "\"") { out = out + "\\\""; i = i + 1; continue }
+        if _streq(c, "\n") { out = out + "\\n"; i = i + 1; continue }
+        if _streq(c, "\r") { out = out + "\\r"; i = i + 1; continue }
+        if _streq(c, "\t") { out = out + "\\t"; i = i + 1; continue }
         out = out + c
         i = i + 1
     }
@@ -830,8 +830,8 @@ fn render_help_json(p, cmd_name) {
 }
 
 fn _render_help_with_format(p, cmd_name, fmt) {
-    if fmt == nil || fmt == "" { return render_help(p, cmd_name) }
-    if fmt == "json" { return render_help_json(p, cmd_name) }
+    if fmt == nil || _streq(fmt, "") { return render_help(p, cmd_name) }
+    if _streq(fmt, "json") { return render_help_json(p, cmd_name) }
     // Unknown format: default to text (rolling).
     return render_help(p, cmd_name)
 }
@@ -909,7 +909,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
         if opt == nil {
             // Best-effort suggestion for UX (click-style): nearest option name.
             var sugg = _suggest_option(cmd, flag)
-            if sugg != nil && sugg != "" {
+            if sugg != nil && !_streq(sugg, "") {
                 res["err"] = "unknown option: " + tok + " (did you mean " + sugg + "?)"
             } else {
                 res["err"] = "unknown option: " + tok
@@ -976,7 +976,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
     }
 
     var t = _tokenize_short(tok_short)
-    if t["kind"] != "short" {
+    if !_streq(t["kind"], "short") {
         res["err"] = "unknown option: " + tok
         res["help"] = render_help(p, cmd_name)
         return {"ok": false, "res": res}
@@ -999,7 +999,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
     if is_value0 {
         var val0 = nil
         var next_i0 = i + 1
-        if tail != nil && tail != "" {
+        if tail != nil && !_streq(tail, "") {
             val0 = tail
         } else {
             if i + 1 >= list.len(argv) {
@@ -1041,7 +1041,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
         return {"ok": false, "res": res}
     }
 
-    if tail == nil || tail == "" {
+    if tail == nil || _streq(tail, "") {
         return {"ok": true, "next_i": i + 1}
     }
 
@@ -1106,7 +1106,7 @@ fn parse(p, argv) {
     if dbg_ap != nil {
         print("DEBUG_ARGPARSE start argv_len=" + oren_int_to_string(list.len(argv)))
     }
-    if dbg_exit != nil && dbg_exit == "start" { oren_exit(200) }
+    if dbg_exit != nil && _streq(dbg_exit, "start") { oren_exit(200) }
     if argv == nil { argv = [] }
 
     // Read settings (default to click-style).
@@ -1121,8 +1121,8 @@ fn parse(p, argv) {
     var root_cmd = p["root"]
     if dbg_ap != nil { print("DEBUG_ARGPARSE root defaults") }
     res["root_opts"] = _opts_defaults(root_cmd)
-    if dbg_exit != nil && dbg_exit == "root_defaults" { oren_exit(200) }
-    if dbg_ret != nil && dbg_ret == "root_defaults" { res["ok"] = true; return res }
+    if dbg_exit != nil && _streq(dbg_exit, "root_defaults") { oren_exit(200) }
+    if dbg_ret != nil && _streq(dbg_ret, "root_defaults") { res["ok"] = true; return res }
     // During root parsing, write option values into root_opts (click-style global options).
     res["opts"] = res["root_opts"]
 
@@ -1165,7 +1165,7 @@ fn parse(p, argv) {
         // If there are commands, this is an unknown command.
         if p != nil && p["commands"] != nil && list.len(p["commands"]) > 0 {
             var cs = _suggest_command(p, tok0)
-            if cs != nil && cs != "" {
+            if cs != nil && !_streq(cs, "") {
                 res["err"] = "unknown command: " + tok0 + " (did you mean " + cs + "?)"
             } else {
                 res["err"] = "unknown command: " + tok0
@@ -1179,19 +1179,19 @@ fn parse(p, argv) {
     }
     
     if dbg_ap != nil { print("DEBUG_ARGPARSE root parse done cmd=" + cmd_name) }
-    if dbg_exit != nil && dbg_exit == "root_parse" { oren_exit(200) }
-    if dbg_ret != nil && dbg_ret == "root_parse" { res["ok"] = true; res["cmd"] = cmd_name; return res }
+    if dbg_exit != nil && _streq(dbg_exit, "root_parse") { oren_exit(200) }
+    if dbg_ret != nil && _streq(dbg_ret, "root_parse") { res["ok"] = true; res["cmd"] = cmd_name; return res }
     res["cmd"] = cmd_name
     // If no subcommand is selected, treat the root options map as the effective opts.
     // This prevents root options like `--version` from being overwritten by defaults.
-    if cmd_name == "" {
+    if _streq(cmd_name, "") {
         res["opts"] = res["root_opts"]
     } else {
         res["opts"] = _opts_defaults(cmd)
     }
     if dbg_ap != nil { print("DEBUG_ARGPARSE cmd defaults done") }
-    if dbg_exit != nil && dbg_exit == "cmd_defaults" { oren_exit(200) }
-    if dbg_ret != nil && dbg_ret == "cmd_defaults" { res["ok"] = true; res["cmd"] = cmd_name; return res }
+    if dbg_exit != nil && _streq(dbg_exit, "cmd_defaults") { oren_exit(200) }
+    if dbg_ret != nil && _streq(dbg_ret, "cmd_defaults") { res["ok"] = true; res["cmd"] = cmd_name; return res }
 
     // Command args parsing phase.
     var pos = []
@@ -1237,7 +1237,7 @@ fn parse(p, argv) {
     if dbg_ap != nil {
         print("DEBUG_ARGPARSE cmd_parse done pos_len=" + oren_int_to_string(list.len(pos)) + " rest_len=" + oren_int_to_string(list.len(rest)))
     }
-    if dbg_ret != nil && dbg_ret == "cmd_parse" {
+    if dbg_ret != nil && _streq(dbg_ret, "cmd_parse") {
         res["ok"] = true
         res["cmd"] = cmd_name
         res["pos"] = pos
@@ -1259,7 +1259,7 @@ fn parse(p, argv) {
         res["help"] = render_help(p, cmd_name)
         return res
     }
-    if list.len(cmd["positionals"]) == 0 && cmd_name != "" && list.len(pos) > 0 {
+    if list.len(cmd["positionals"]) == 0 && !_streq(cmd_name, "") && list.len(pos) > 0 {
         res["err"] = "unexpected args"
         res["help"] = render_help(p, cmd_name)
         return res
@@ -1303,4 +1303,22 @@ fn parse(p, argv) {
     res["pos"] = pos
     res["rest"] = rest
     return res
+}
+
+fn try_parse(p, argv) {
+    // Structured-error bridge for new callers.
+    //
+    // `parse(...)` remains the compatibility surface and returns a legacy result map for
+    // success, help early-exit (`ok=false`, `code=0`), and parse errors. `try_parse(...)`
+    // returns the same successful/help maps, but converts parse failures into `oren_err`.
+    var r = parse(p, argv)
+    if r == nil { return oren_err(2, "argparse parse failed") }
+    if r["ok"] == true { return r }
+    if r["code"] == 0 { return r }
+
+    var code = r["code"]
+    if code == nil { code = 2 }
+    var msg = r["err"]
+    if msg == nil || _streq(msg, "") { msg = "argparse parse failed" }
+    return oren_err(code, msg)
 }
