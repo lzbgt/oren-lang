@@ -412,6 +412,13 @@ backend-shared value-helper slices landed.
     params, enter, and epilogue are byte-visible but sub-millisecond. This rules out function setup as
     the next wall-time lever; continue targeting generated body/conditional lowering, especially the
     large `ExprStmt(If:Infix(||,...))` buckets.
+  - ARM64 if-statement subphase profiling (2026-05-05): the same gated statement profile now records
+    `IfStmt(cond:<shape>)`, `IfStmt(consq)`, `IfStmt(alt)`, and patch rows, and the profile script
+    summarizes them separately. The refreshed generator statement profile shows the hot generated
+    guard buckets are condition lowering itself: `IfStmt(cond:Infix(||,Infix(!=),Infix(!=)))` at
+    ~6.8s / 179 stmts and nested-`||` at ~4.7s / 58 stmts, while all consequence lowering is ~2.3s
+    across 860 statements and else/patch work is negligible. This narrows the next backend slice to
+    direct logical-condition lowering, not return-body/block cleanup.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

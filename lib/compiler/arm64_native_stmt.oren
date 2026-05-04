@@ -519,6 +519,13 @@ fn _arm64_record_function_subprofile(ctx, phase, fn_name, label, t0, code0) {
     return nil
 }
 
+fn _arm64_record_if_subprofile(ctx, phase, fn_name, label, t0, code0) {
+    if ctx == nil { return nil }
+    if ctx["arm64_stmt_profile"] == nil { return nil }
+    profm.arm64_stmt_profile_record(ctx, phase, fn_name, label, (oren_time_now_ns() - t0) / 1000000, bytes_len(ctx["code"]) - code0)
+    return nil
+}
+
 fn native_compile_stmt_inner(ctx, stmt) {
     // Parser/normalization compatibility (rolling):
     // Some pipelines represent top-level `fn name(...) { ... }` as a raw Function statement,
@@ -979,6 +986,18 @@ fn native_compile_stmt_inner(ctx, stmt) {
 
         if expr["type"] == "If" {
             var base_stack = ctx["stack_size"]
+            var if_subprof_enabled = false
+            var if_subprof_phase = ctx["arm64_codegen_phase"]
+            if if_subprof_phase == nil { if_subprof_phase = "" }
+            var if_subprof_fn = ctx["cur_fn_name"]
+            if if_subprof_fn == nil { if_subprof_fn = "" }
+            var if_subprof_t0 = 0
+            var if_subprof_code0 = 0
+            if ctx["arm64_stmt_profile"] != nil {
+                if_subprof_enabled = true
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
             var direct_cond_branch = loopm._arm64_emit_if_cond_branch_false(ctx, expr["cond"], expr["token"])
             var jump_else_pos = nil
             if direct_cond_branch != nil { jump_else_pos = direct_cond_branch["pos"] }
@@ -996,6 +1015,11 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 jump_else_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
             }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(cond:" + profm.arm64_expr_profile_kind(expr["cond"]) + ")", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
 
             var prev_bb_if = ctx["arm64_basic_block_entry"]
             if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
@@ -1006,6 +1030,11 @@ fn native_compile_stmt_inner(ctx, stmt) {
             var cons_delta = ctx["stack_size"] - base_stack
             if cons_falls == true && cons_delta != 0 { loopm._arm64_restore_stack_to(ctx, base_stack) }
             else { ctx["stack_size"] = base_stack }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(consq)", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
 
             var jump_end_pos = nil
             if expr["alt"] != nil && cons_falls == true {
@@ -1029,6 +1058,11 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 if direct_cond_branch != nil { else_cond = direct_cond_branch["cond"] }
                 set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, else_cond))
             }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(else_patch)", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
 
             var alt_falls = true
             if expr["alt"] != nil {
@@ -1041,11 +1075,19 @@ fn native_compile_stmt_inner(ctx, stmt) {
             var alt_delta = ctx["stack_size"] - base_stack
             if alt_falls == true && alt_delta != 0 { loopm._arm64_restore_stack_to(ctx, base_stack) }
             else { ctx["stack_size"] = base_stack }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(alt)", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
 
             var end_target = bytes_len(ctx["code"])
             if jump_end_pos != nil {
                 var end_off = (end_target - jump_end_pos) / 4
                 set_u32_le(ctx["code"], jump_end_pos, insn_b(end_off))
+            }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(end_patch)", if_subprof_t0, if_subprof_code0)
             }
 
             // If there is no else-branch, the false path always falls through.

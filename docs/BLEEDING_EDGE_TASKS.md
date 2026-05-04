@@ -5257,7 +5257,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        setup/params/epilogue remain sub-millisecond. Keep the next backend slice
 																	        on generated body/conditional lowering, especially the `ExprStmt(If:Infix(||,...))`
 																	        buckets, rather than function setup.
-																	      - the coroutine surface fixture now uses the same split shape: four focused
+																      - the same gated statement profile now records `IfStmt(cond:<shape>)`,
+																	        `IfStmt(consq)`, `IfStmt(alt)`, and patch rows. The refreshed generator
+																	        profile shows the hot `ExprStmt(If)` cost is condition lowering:
+																	        `IfStmt(cond:Infix(||,Infix(!=),Infix(!=)))` is about ~6.8s / 179 stmts
+																	        and nested-`||` is about ~4.7s / 58 stmts, while all consequence lowering
+																	        is about ~2.3s across 860 statements. Keep the next backend slice on
+																	        direct logical-condition lowering, not function setup or return-body
+																	        cleanup.
+																		      - the coroutine surface fixture now uses the same split shape: four focused
 																        top-level chunks plus a tiny dispatcher, preserving return codes and
 															        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:

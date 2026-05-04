@@ -2682,6 +2682,12 @@ Local (fast):
   FunctionDecl(body)` at ~22.5s / 289KB out of the ~22.7s inclusive function-declaration bucket, while
   prologue, params, enter, and epilogue are sub-millisecond. The remaining backend target is generated
   body/conditional lowering, not function setup.
+- The same gated statement profile now splits `if` lowering into condition/consequence/alternate/patch
+  rows and prints a dedicated `if` subphase table. The refreshed generator profile shows generated guard
+  condition lowering is the main `ExprStmt(If)` cost: `IfStmt(cond:Infix(||,Infix(!=),Infix(!=)))` is
+  ~6.8s / 179 stmts and nested-`||` is ~4.7s / 58 stmts, while consequence lowering is ~2.3s across
+  860 statements. The next backend target is direct logical-condition lowering, not function setup or
+  return-body cleanup.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s
