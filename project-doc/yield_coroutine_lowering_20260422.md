@@ -334,6 +334,12 @@ backend-shared value-helper slices landed.
     the term to disjunction semantics. The fixture now guards that mixed `&&`/`||` shape explicitly. The
     refreshed generator profile trims `user_decls` bytes from `323804` to `322472` while wall time remains
     in the same band, so this is a guarded code-size cleanup rather than the final `user_decls` fix.
+  - Singleton-compare trait cleanup (2026-05-04): direct `if` comparisons against runtime singletons now
+    bypass the long float-trait classifier when the other side is syntactically non-float, an annotated
+    non-float direct call, or a known direct boolean helper (`oren_is_err`, `oren_generator_is_done`, and
+    the injected generator state predicates). This does not change emitted bytes, but the refreshed default
+    generator profile keeps `user_decls` around ~21.1s instead of the prior ~21.2s sample and wrapper
+    buckets also move slightly lower. Keep this classified as compiler-side constant-factor cleanup.
   - Statement loop length-hoist follow-up (2026-05-04): ARM64 block statement iteration, branch false-jump
     patching, return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)`
     values out of hot compiler loops. This does not change emitted code; the refreshed generator profile

@@ -144,6 +144,42 @@ fn _arm64_emit_load_singleton_ptr(ctx, tok, reg, off) {
     return nil
 }
 
+fn _arm64_direct_call_name(expr) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fnn = expr["fn"]
+    if fnn != nil && fnn["type"] == "Identifier" { return fnn["value"] }
+    return nil
+}
+
+fn _arm64_direct_call_returns_known_bool(nm) {
+    if nm == nil { return false }
+    if nm == "oren_is_err" { return true }
+    if nm == "_oren_generator_is_handle" { return true }
+    if nm == "_oren_generator_is_context" { return true }
+    if nm == "_oren_generator_started" { return true }
+    if nm == "_oren_generator_done" { return true }
+    if nm == "_oren_generator_closed" { return true }
+    if nm == "_oren_generator_cancel_requested" { return true }
+    if nm == "oren_generator_is_started" { return true }
+    if nm == "oren_generator_is_done" { return true }
+    if nm == "oren_generator_is_closed" { return true }
+    if nm == "oren_generator_is_cancel_requested" { return true }
+    return false
+}
+
+fn _arm64_expr_known_nonfloat_for_singleton(ctx, expr) {
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "Nil" || et == "Boolean" || et == "Integer" || et == "String" { return true }
+    var nm = _arm64_direct_call_name(expr)
+    if _arm64_direct_call_returns_known_bool(nm) == true { return true }
+    if nm != nil && ctx != nil && ctx["func_ret_kinds"] != nil {
+        var rk = ctx["func_ret_kinds"][nm]
+        if rk != nil { return exprm.native_kind_name_is_float(rk) != true }
+    }
+    return false
+}
+
 fn _arm64_emit_singleton_if_branch_false(ctx, tok, op, l, r) {
     if op != "==" && op != "!=" { return nil }
     var l_singleton = _arm64_singleton_offset(l)
@@ -155,7 +191,9 @@ fn _arm64_emit_singleton_if_branch_false(ctx, tok, op, l, r) {
 
     if r_singleton != nil {
         // Known float values intentionally stay on the generic numeric compare path.
-        if exprm.native_expr_is_floaty(ctx, l) == true { return nil }
+        if _arm64_expr_known_nonfloat_for_singleton(ctx, l) != true {
+            if exprm.native_expr_is_floaty(ctx, l) == true { return nil }
+        }
         native_compile_expr(ctx, l)
         _arm64_emit_load_singleton_ptr(ctx, tok, 1, r_singleton)
         push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
@@ -166,7 +204,9 @@ fn _arm64_emit_singleton_if_branch_false(ctx, tok, op, l, r) {
 
     if l_singleton != nil {
         // Known float values intentionally stay on the generic numeric compare path.
-        if exprm.native_expr_is_floaty(ctx, r) == true { return nil }
+        if _arm64_expr_known_nonfloat_for_singleton(ctx, r) != true {
+            if exprm.native_expr_is_floaty(ctx, r) == true { return nil }
+        }
         native_compile_expr(ctx, r)
         _arm64_emit_load_singleton_ptr(ctx, tok, 1, l_singleton)
         push_u32_le(ctx["code"], insn_cmp_reg(1, 0))

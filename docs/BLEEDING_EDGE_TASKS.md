@@ -5145,6 +5145,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        bytes from `323804` to `322472` while wall time stays in the same
 																	        band, so this is guarded code-size cleanup rather than the final
 																	        native build-time fix.
+																	      - Singleton-compare trait cleanup (2026-05-04): direct ARM64 `if`
+																	        comparisons against `true`, `false`, or `nil` now bypass the long
+																	        float-trait classifier when the other side is a literal, an
+																	        annotated non-float direct call, or a known direct runtime/generated
+																	        boolean helper such as `oren_is_err` or `oren_generator_is_done`.
+																	        Emitted bytes are unchanged, but the refreshed default profile keeps
+																	        `user_decls` around ~21.1s instead of the prior ~21.2s sample. This
+																	        is compiler-side constant-factor cleanup; keep the next backend work
+																	        focused on broad generated condition lowering.
 																	      - Statement loop length-hoist follow-up (2026-05-04): ARM64 block
 																	        iteration, branch false-jump patching, return-jump patching, and
 																	        logical branch helpers now hoist stable `oren_list_len(...)` values

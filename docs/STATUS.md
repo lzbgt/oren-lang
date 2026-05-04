@@ -2592,6 +2592,13 @@ Local (fast):
   native `dot_f64_view`. The refreshed generator profile trims `user_decls` bytes from `323804` to
   `322472`, with wall time still in the same band; this is a correctness-hardened code-size cleanup, not the
   final native build-time fix.
+- ARM64 singleton-compare trait cleanup (2026-05-04): direct `if` comparisons against `true`, `false`, or
+  `nil` now skip the long float-trait classifier when the non-singleton side is a literal, an annotated
+  non-float direct call, or a known direct runtime/generated boolean helper such as `oren_is_err` or
+  `oren_generator_is_done`. Emitted code bytes stay unchanged (`user_decls` still `322472`), but the refreshed
+  default generator profile moved `user_decls` from the previous ~21.2s sample to ~21.1s and kept wrapper
+  phases slightly lower. Treat this as compiler-side constant-factor cleanup; the remaining high-leverage
+  target is still broad generated condition lowering.
 - ARM64 statement loop length hoists (2026-05-04): block statement iteration, branch false-jump patching,
   return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)` values out of
   hot compiler loops. This does not change emitted code; the refreshed profile keeps `user_decls` in the
