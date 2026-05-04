@@ -2716,6 +2716,11 @@ Local (fast):
   `user_decls` to about `20.3s / 292072 bytes / 282 funcs`; the gated statement profile shows the hot
   `Index(map,str)` condition-term buckets are smaller but still dominant, so the next real lever is reducing
   the map validation/get sequence itself rather than receiver-kind propagation.
+- Rejected follow-up (2026-05-05): moving the checked `Index(map,str-literal)` validation into a new kept
+  `oren_map_get_str_checked` runtime helper built successfully but made native map/generator fixtures exit
+  `11`. Adding the name to the native-op spill surface did not fix the calling-convention/entry failure, so
+  the helper layer was reverted. Do not retry this path without first proving the helper uses the same native
+  direct-call ABI as `oren_map_get_str`.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

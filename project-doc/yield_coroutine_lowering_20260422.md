@@ -448,6 +448,10 @@ backend-shared value-helper slices landed.
     profile reports `user_decls` at about `20.3s / 292072 bytes / 282 funcs`; statement-profiled
     `Index(map,str)` condition terms shrink but remain the dominant conditional cost, so the next credible
     lever is reducing the validation/get sequence itself.
+  - Rejected helper path (2026-05-05): a new kept `oren_map_get_str_checked` runtime helper was tested to move
+    the validation sequence out of each ARM64 map string-literal index site. It built, but native map/generator
+    fixtures exited `11`; adding the helper name to the native-op spill surface did not fix the direct-call
+    ABI/entry failure. Keep this path closed until ABI parity with `oren_map_get_str` is proven.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

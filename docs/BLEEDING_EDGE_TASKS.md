@@ -5301,6 +5301,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																			        `Index(map,str)` condition-term buckets are smaller but still dominant,
 																			        so the next credible backend slice needs to reduce the map
 																			        validation/get sequence itself.
+																			      - rejected helper path: moving that checked validation into a new kept
+																			        `oren_map_get_str_checked` runtime helper built, but native map and
+																			        generator fixtures exited `11`; adding it to the native-op spill surface
+																			        did not fix the direct-call ABI/entry failure. Do not repeat this helper
+																			        design without first proving ABI parity with `oren_map_get_str`.
 																					      - the coroutine surface fixture now uses the same split shape: four focused
 																			        top-level chunks plus a tiny dispatcher, preserving return codes and
 																        coverage. The measured coroutine native profile now has the largest fixture
