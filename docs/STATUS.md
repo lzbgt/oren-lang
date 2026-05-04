@@ -115,7 +115,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades and the OS-specific TLS provider modules now
   also have structured adapters over the deterministic native loopback surfaces. Crypto helpers
   now also have checked `try_*` aliases for Base64 encode/decode, PEM decode, entropy,
-  SHA-1/SHA-256 hashing, and minimal X.509 hash helpers. `std:argparse` now has `try_parse` as a structured bridge over
+  SHA-1/SHA-256 hashing, and minimal X.509 hash helpers. `std:time` now has explicit
+  `try_parse_iso8601_utc` / `try_datetime_to_unix_ns` aliases over its existing `oren_err`
+  parse/conversion paths. `std:argparse` now has `try_parse` as a structured bridge over
   its legacy parse result map while preserving help as a non-error early-exit, and `std:regex`
   now has `try_compile` / `try_is_match` structured wrappers over the legacy compile result.
   Stdlib migration breadth is still ongoing, mostly in deeper protocol cleanup and older library

@@ -16,8 +16,20 @@ fn assert_eq(a, b, code) {
     fail(code)
 }
 
+fn streq(a, b) {
+    var alen = oren_string_len(a)
+    var blen = oren_string_len(b)
+    if alen != blen { return false }
+    var i = 0
+    while i < alen {
+        if oren_string_char_at(a, i) != oren_string_char_at(b, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn assert_streq(a, b, code) {
-    if a == b { return 0 }
+    if streq(a, b) { return 0 }
     print("got: " + a)
     print("expected: " + b)
     fail(code)
@@ -43,11 +55,20 @@ if result.is_err(dt1) { fail(20) }
 assert_eq(dt1.nanosecond, 123400000, 21)
 assert_streq(time.format_iso8601_utc(dt1), s1, 22)
 
+var dt_try = time.try_parse_iso8601_utc("2025-01-02T03:04:05.000000001Z")
+if result.is_err(dt_try) { fail(23) }
+assert_eq(dt_try.nanosecond, 1, 24)
+var dt_bad = time.try_parse_iso8601_utc("2025-01-02 03:04:05Z")
+assert_true(result.is_err(dt_bad), 25)
+
 // Unix ns conversion roundtrip.
 var ns0 = time.datetime_to_unix_ns(dt0)
 if result.is_err(ns0) { fail(30) }
 var dt0b = time.datetime_from_unix_ns(ns0)
 assert_streq(time.format_iso8601_utc(dt0b), s0, 31)
+var ns_try = time.try_datetime_to_unix_ns(dt0)
+if result.is_err(ns_try) { fail(32) }
+assert_eq(ns_try, ns0, 33)
 
 // Monotonic smoke (should not go backwards).
 var a = time.mono_raw()

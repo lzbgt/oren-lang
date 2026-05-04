@@ -5136,6 +5136,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `try_decode_bytes`, and `try_decode_bytes_strict` aliases; invalid input,
      invalid alphabet/length, and strict whitespace rejection are covered by the
      base64 module test and result smoke fixture (2026-05-04).
+   - New: `std:time` exposes explicit `try_parse_iso8601_utc` and
+     `try_datetime_to_unix_ns` aliases over its existing `oren_err` parse/conversion
+     paths; covered by the native/bytecode time module test (2026-05-04).
    - New: `std:crypto/pem.decode_blocks_strict` rejects whitespace inside base64
      payloads; `try_decode_blocks*` aliases are covered by native PEM/result smoke fixtures.
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return

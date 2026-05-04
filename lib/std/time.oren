@@ -157,6 +157,10 @@ fn datetime_to_unix_ns(dt) {
     return ns
 }
 
+fn try_datetime_to_unix_ns(dt) {
+    return datetime_to_unix_ns(dt)
+}
+
 fn datetime_from_unix_ns(ns) {
     var sec = floor_div(ns, 1000000000)
     var nsec = floor_mod(ns, 1000000000)
@@ -260,6 +264,10 @@ fn parse_iso8601_utc(s) {
     }
 
     return DateTime(year, month, day, hour, minute, second, nanosecond)
+}
+
+fn try_parse_iso8601_utc(s) {
+    return parse_iso8601_utc(s)
 }
 
 fn _pad2(n) {

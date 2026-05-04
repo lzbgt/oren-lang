@@ -280,6 +280,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:strings` (used by `std:crypto/pem` smoke)
   - `std:bytes` (smokes: `tests/native/qi/100_tests_basic.oren`, `tests/avm/test_smoke_suite.oren`)
   - `std:regex` (`try_compile` / `try_is_match`; smoke: `tests/modules/test_regex.oren`)
+  - `std:time` (`try_parse_iso8601_utc` / `try_datetime_to_unix_ns`; smoke: `tests/modules/test_time_std.oren`)
 - Encoding / crypto helpers:
   - `std:encoding/base64` (`try_encode_bytes` / `try_decode_bytes` / `try_decode_bytes_strict`; module + TLS/HTTPS/WSS loopback fixtures)
   - `std:crypto/pem` (`try_decode_blocks` / `try_decode_blocks_strict`; smoke: `tests/native/test_pem_decode_smoke.oren`)
