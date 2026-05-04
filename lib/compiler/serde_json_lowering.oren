@@ -32,13 +32,18 @@ fn serde_json_error(errs, msg) {
     return nil
 }
 
+fn serde_str_eq(a, b) {
+    if oren_is_string(a) && oren_is_string(b) { return oren_string_eq(a, b) }
+    return a == b
+}
+
 fn has_attr(node, name) {
     if node == nil { return false }
     var attrs = node["attrs"]
     if attrs == nil { return false }
     var i = 0
     while i < oren_list_len(attrs) {
-        if attrs[i] != nil && attrs[i]["name"] == name { return true }
+        if attrs[i] != nil && serde_str_eq(attrs[i]["name"], name) { return true }
         i = i + 1
     }
     return false
@@ -51,7 +56,7 @@ fn get_attr(node, name) {
     var i = 0
     while i < oren_list_len(attrs) {
         var a = attrs[i]
-        if a != nil && a["name"] == name { return a }
+        if a != nil && serde_str_eq(a["name"], name) { return a }
         i = i + 1
     }
     return nil
@@ -81,7 +86,7 @@ fn attr_kw_value(attr, key) {
     var i = 0
     while i < oren_list_len(args) {
         var a = args[i]
-        if a != nil && a["key"] == key {
+        if a != nil && serde_str_eq(a["key"], key) {
             return a["value"]
         }
         i = i + 1
@@ -102,8 +107,8 @@ fn attr_kw_bool(attr, key) {
     if v["type"] == "Boolean" { return v["value"] }
     // Accept 0/1 ints for convenience (still literal-only).
     if v["type"] == "Integer" {
-        if v["value"] == "0" { return false }
-        if v["value"] == "1" { return true }
+        if serde_str_eq(v["value"], "0") { return false }
+        if serde_str_eq(v["value"], "1") { return true }
     }
     return nil
 }
@@ -188,16 +193,16 @@ fn cbor_map(map_expr) {
 fn normalize_kind(kind) {
     if kind == nil { return nil }
     // Strip optional `oren.` prefix for internal uniformity.
-    if oren_string_len(kind) > 5 && oren_string_slice(kind, 0, 5) == "oren." {
+    if oren_string_len(kind) > 5 && serde_str_eq(oren_string_slice(kind, 0, 5), "oren.") {
         kind = oren_string_slice(kind, 5, oren_string_len(kind))
     }
     // Endian tags behave as the same width for value semantics.
-    if kind == "u16be" || kind == "u16le" { return "u16" }
-    if kind == "i16be" || kind == "i16le" { return "i16" }
-    if kind == "u32be" || kind == "u32le" { return "u32" }
-    if kind == "i32be" || kind == "i32le" { return "i32" }
-    if kind == "u64be" || kind == "u64le" { return "u64" }
-    if kind == "i64be" || kind == "i64le" { return "i64" }
+    if serde_str_eq(kind, "u16be") || serde_str_eq(kind, "u16le") { return "u16" }
+    if serde_str_eq(kind, "i16be") || serde_str_eq(kind, "i16le") { return "i16" }
+    if serde_str_eq(kind, "u32be") || serde_str_eq(kind, "u32le") { return "u32" }
+    if serde_str_eq(kind, "i32be") || serde_str_eq(kind, "i32le") { return "i32" }
+    if serde_str_eq(kind, "u64be") || serde_str_eq(kind, "u64le") { return "u64" }
+    if serde_str_eq(kind, "i64be") || serde_str_eq(kind, "i64le") { return "i64" }
     return kind
 }
 
@@ -206,9 +211,9 @@ fn serde_kind_for_ann(ann) {
     // (float support needs a stable JSON float story; add later.)
     if ann == nil { return nil }
     var k = normalize_kind(ann)
-    if k == "string" { return "string" }
-    if k == "bool" { return "bool" }
-    if k == "u8" || k == "i8" || k == "u16" || k == "i16" || k == "u32" || k == "i32" || k == "u64" || k == "i64" {
+    if serde_str_eq(k, "string") { return "string" }
+    if serde_str_eq(k, "bool") { return "bool" }
+    if serde_str_eq(k, "u8") || serde_str_eq(k, "i8") || serde_str_eq(k, "u16") || serde_str_eq(k, "i16") || serde_str_eq(k, "u32") || serde_str_eq(k, "i32") || serde_str_eq(k, "u64") || serde_str_eq(k, "i64") {
         return "int"
     }
     return nil
@@ -323,16 +328,16 @@ fn _serde_split_formats(s) {
     var i = 0
     while i < oren_string_len(s) {
         var ch = oren_string_char_at(s, i)
-        var is_sep = (ch == ",") || (ch == " ") || (ch == "\t") || (ch == "\n") || (ch == "\r")
+        var is_sep = serde_str_eq(ch, ",") || serde_str_eq(ch, " ") || serde_str_eq(ch, "\t") || serde_str_eq(ch, "\n") || serde_str_eq(ch, "\r")
         if is_sep {
-            if cur != "" { oren_list_push(out, cur) }
+            if serde_str_eq(cur, "") != true { oren_list_push(out, cur) }
             cur = ""
         } else {
             cur = cur + ch
         }
         i = i + 1
     }
-    if cur != "" { oren_list_push(out, cur) }
+    if serde_str_eq(cur, "") != true { oren_list_push(out, cur) }
     return out
 }
 
@@ -340,7 +345,7 @@ fn _serde_list_contains(xs, v) {
     if xs == nil { return false }
     var i = 0
     while i < oren_list_len(xs) {
-        if xs[i] == v { return true }
+        if serde_str_eq(xs[i], v) { return true }
         i = i + 1
     }
     return false
@@ -348,7 +353,7 @@ fn _serde_list_contains(xs, v) {
 
 fn _serde_list_push_unique(xs, v) {
     if xs == nil { return nil }
-    if v == nil || v == "" { return nil }
+    if v == nil || serde_str_eq(v, "") { return nil }
     if _serde_list_contains(xs, v) { return nil }
     oren_list_push(xs, v)
     return nil
@@ -395,10 +400,10 @@ fn ensure_bool_to_int_helper(stmts, prefix) {
     var i = 0
     while i < oren_list_len(stmts) {
         var s = stmts[i]
-        if s != nil && s["type"] == "Function" && s["name"] == fn_name {
+        if s != nil && s["type"] == "Function" && serde_str_eq(s["name"], fn_name) {
             return nil
         }
-        if s != nil && s["type"] == "ExprStmt" && s["expr"] != nil && s["expr"]["type"] == "Function" && s["expr"]["name"] == fn_name {
+        if s != nil && s["type"] == "ExprStmt" && s["expr"] != nil && s["expr"]["type"] == "Function" && serde_str_eq(s["expr"]["name"], fn_name) {
             return nil
         }
         i = i + 1
@@ -632,7 +637,7 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
     fi0 = 0
     while fi0 < oren_list_len(fmts) {
         var fmt0 = fmts[fi0]
-        if fmt0 != "json" && fmt0 != "yaml" && fmt0 != "cbor" {
+        if serde_str_eq(fmt0, "json") != true && serde_str_eq(fmt0, "yaml") != true && serde_str_eq(fmt0, "cbor") != true {
             serde_json_error(errs, "serde: unknown derive format '" + fmt0 + "' (supported: \"json\"|\"yaml\"|\"cbor\") (struct " + tname + ")")
             return nil
         }
@@ -679,14 +684,14 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
     var fmt_i = 0
     while fmt_i < oren_list_len(fmts) {
         var fmt = fmts[fmt_i]
-        if fmt == "cbor" {
+        if serde_str_eq(fmt, "cbor") {
             lower_one_type_cbor(type_stmt, stmts, pfx, field_info)
             fmt_i = fmt_i + 1
             continue
         }
 
         var is_yaml = false
-        if fmt == "yaml" { is_yaml = true }
+        if serde_str_eq(fmt, "yaml") { is_yaml = true }
         var enc_name = tname + "__json_encode"
         var dec_name = tname + "__json_decode"
         var kind_label = "JsonValue"
@@ -695,7 +700,7 @@ fn lower_one_type(type_stmt, stmts, prefix, errs) {
             dec_name = tname + "__yaml_decode"
             kind_label = "YamlValue"
         }
-        if pfx != "" {
+        if serde_str_eq(pfx, "") != true {
             enc_name = pfx + enc_name
             dec_name = pfx + dec_name
         }

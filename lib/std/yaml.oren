@@ -280,7 +280,7 @@ fn _parse_quoted_string(s, line_no) {
 
 fn _parse_scalar(tok, line_no) {
     tok = _trim(tok)
-    if tok == nil || tok == "" { return _err("expected scalar", line_no) }
+    if tok == nil || _streq(tok, "") { return _err("expected scalar", line_no) }
     if _streq(tok, "null") || _streq(tok, "~") { return _ok(ynull()) }
     if _streq(tok, "true") { return _ok(ybool(1)) }
     if _streq(tok, "false") { return _ok(ybool(0)) }
@@ -314,7 +314,7 @@ fn _peek_next_nonempty(lines, idx) {
     var i = idx
     while i < list.len(lines) {
         var ln = lines[i]
-        if ln != nil && _trim(ln) != "" { return i }
+        if ln != nil && _streq(_trim(ln), "") != true { return i }
         i = i + 1
     }
     return -1
@@ -333,7 +333,7 @@ fn _parse_block(lines, idx, indent) {
     var body = _trim(oren_string_slice(line, indent, oren_string_len(line)))
 
     var is_seq = false
-    if oren_string_len(body) >= 1 && oren_string_slice(body, 0, 1) == "-" { is_seq = true }
+    if oren_string_len(body) >= 1 && _streq(oren_string_slice(body, 0, 1), "-") { is_seq = true }
 
     if is_seq {
         var items = []
@@ -342,17 +342,17 @@ fn _parse_block(lines, idx, indent) {
             var raw = lines[i]
             if raw == nil { i = i + 1; continue }
             var raw2 = _trim(raw)
-            if raw2 == "" { i = i + 1; continue }
+            if _streq(raw2, "") { i = i + 1; continue }
             var ind2 = _line_indent(raw)
             if ind2 < 0 { return _err("tabs not supported", i + 1) }
             if ind2 < indent { break }
             if ind2 != indent { return _err("mixed indentation in sequence", i + 1) }
             var rest = _trim(oren_string_slice(raw, indent, oren_string_len(raw)))
-            if oren_string_len(rest) < 1 || oren_string_slice(rest, 0, 1) != "-" {
+            if oren_string_len(rest) < 1 || _streq(oren_string_slice(rest, 0, 1), "-") != true {
                 return _err("expected '-'", i + 1)
             }
             var after = _trim(oren_string_slice(rest, 1, oren_string_len(rest)))
-            if after == "" {
+            if _streq(after, "") {
                 // nested block
                 var ni = _peek_next_nonempty(lines, i + 1)
                 if ni < 0 { return _err("expected nested block", i + 1) }
@@ -379,7 +379,7 @@ fn _parse_block(lines, idx, indent) {
         var rawm = lines[i2]
         if rawm == nil { i2 = i2 + 1; continue }
         var rawm2 = _trim(rawm)
-        if rawm2 == "" { i2 = i2 + 1; continue }
+        if _streq(rawm2, "") { i2 = i2 + 1; continue }
         var indm = _line_indent(rawm)
         if indm < 0 { return _err("tabs not supported", i2 + 1) }
         if indm < indent { break }
@@ -402,7 +402,7 @@ fn _parse_block(lines, idx, indent) {
         var val_raw = oren_string_from_bytes(_slice_bytes(bs, kpos + 1, list.len(bs)))
         key_raw = _trim(key_raw)
         val_raw = _trim(val_raw)
-        if key_raw == "" { return _err("empty key", line_no) }
+        if _streq(key_raw, "") { return _err("empty key", line_no) }
 
         // key may be quoted
         var key = key_raw
@@ -413,7 +413,7 @@ fn _parse_block(lines, idx, indent) {
             key = rk["v"]["s"]
         }
 
-        if val_raw == "" {
+        if _streq(val_raw, "") {
             // nested block
             var ni2 = _peek_next_nonempty(lines, i2 + 1)
             if ni2 < 0 { return _err("expected nested block", line_no) }
@@ -479,7 +479,7 @@ fn try_decode(s) {
     var r = decode(s)
     if r["ok"] == 1 { return r["v"] }
     var msg = r["err"]
-    if msg == nil || msg == "" { msg = "yaml decode failed" }
+    if msg == nil || _streq(msg, "") { msg = "yaml decode failed" }
     var line = r["line"]
     if line != nil {
         msg = "line " + oren_int_to_string(line) + ": " + msg
@@ -527,7 +527,7 @@ fn _sort_keys(keys) {
 }
 
 fn _safe_bare_ident(s) {
-    if s == nil || s == "" { return false }
+    if s == nil || _streq(s, "") { return false }
     // Disallow reserved scalars (avoid ambiguity on decode).
     if _streq(s, "null") || _streq(s, "~") || _streq(s, "true") || _streq(s, "false") { return false }
     var bs = oren_bytes_from_string(s)
@@ -543,7 +543,7 @@ fn _safe_bare_ident(s) {
         i = i + 1
     }
     // Avoid leading '-' which could be parsed as a sequence item.
-    if oren_string_slice(s, 0, 1) == "-" { return false }
+    if _streq(oren_string_slice(s, 0, 1), "-") { return false }
     return true
 }
 

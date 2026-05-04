@@ -3759,7 +3759,9 @@ Rolling status:
   structured-error wrappers where native-codegen cost is already safe (`json.try_decode`,
   `yaml.try_decode`, `cbor.try_decode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`,
   plus typed CBOR sequence variants). YAML native module build cost is still tracked as a
-  performance task, so broad native YAML verification remains outside the default fast lane.
+  performance task, so broad native YAML verification remains outside the default fast lane;
+  stage2 native YAML decode and serde fixtures now preserve parser empty-line checks and
+  compact `@serde(...)` keyword attributes.
 - Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
@@ -4140,6 +4142,10 @@ runtime-owned capsule evidence from external runner watchdog timing. When caller
 In addition to the raw attribute list, `oren meta` also emits a **normalized** serde schema per struct when any `@serde...` / `@json...` attributes are present.
 
 This is designed so libraries can implement JSON/YAML/TOML/etc on top of a stable metadata contract (without importing compiler internals and without runtime reflection).
+
+Native compiler note: metadata and serde lowering compare attribute names/keys bytewise, not by
+pointer identity, so compact attributes such as `@serde(format="yaml", tag="User")` and field
+keywords like `rename`, `skip`, and `default` are portable across bytecode and native compilers.
 
 Shape (rolling, v1):
 

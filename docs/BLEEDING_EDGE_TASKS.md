@@ -4557,7 +4557,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     New (2026-05-04): JSON, YAML, and CBOR decode surfaces now provide direct
 	     structured-error wrappers (`try_decode`, plus CBOR sequence/typed-sequence variants).
 	     YAML native module codegen cost remains a performance task, but API availability is no
-	     longer blocked; remaining ok-map cleanup is mostly network/protocol APIs.
+	     longer blocked; stage2 native YAML decode/serde now preserves empty-line handling and
+	     compact serde keyword attributes via bytewise string comparisons. Remaining ok-map cleanup
+	     is mostly network/protocol APIs.
 	     New (2026-05-04): DNS/host/HPACK now also expose structured `try_*` wrappers over
 	     the already-tested ok-map APIs, reducing the remaining network/protocol migration
 	     backlog to broader HTTP/TLS/WebSocket surfaces and untested provider edges.

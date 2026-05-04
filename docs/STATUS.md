@@ -109,7 +109,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   JSON, YAML, and CBOR now also expose structured decode wrappers (`try_decode`, plus CBOR sequence
   and typed sequence variants) while keeping legacy `{ok, err}` decoders for compatibility.
   YAML's native module build cost remains a performance task, so YAML's direct wrapper is guarded
-  by portable bytecode/module tests rather than broad native fast-lane coverage.
+  by portable bytecode/module tests rather than broad native fast-lane coverage; stage2 native
+  YAML decode and serde-attribute fixtures now pass after removing native-sensitive direct string
+  equality from YAML parsing and serde attribute-key lookup.
   DNS/host/HPACK plus HTTP/WebSocket now also expose structured `try_*` wrappers over their
   tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades and the OS-specific TLS provider modules now
   also have structured adapters over the deterministic native loopback surfaces. Crypto helpers
@@ -1366,7 +1368,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New (2026-05-04): `std:json`, `std:yaml`, and `std:cbor` now provide structured-error
      decode bridges (`try_decode`, plus CBOR sequence/typed-sequence variants) over their legacy
      `{ok, err}` APIs, so new codec callers can stay on `oren_err` while existing callers remain
-     source-compatible. YAML native codegen cost is still tracked separately from API availability.
+     source-compatible. YAML native codegen cost is still tracked separately from API availability;
+     stage2 native YAML decode/serde parity now covers empty-line parsing plus compact
+     `@serde(format=..., tag=...)`, `rename`, `skip`, and `default` attribute lookup.
    - New (2026-05-04): `std:net/dns`, `std:net/host`, and `std:net/hpack` now provide direct
      structured-error wrappers over their tested legacy ok-map APIs (`try_query_a`,
      `try_resolve_a`, `try_resolve_host_ipv4`, `try_encode_header_block`,
