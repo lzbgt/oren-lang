@@ -1314,6 +1314,24 @@ run_step_checked "parser/runtime smoke (yield exchange surface native run)" "$yx
   "$yx_native_out"
 tail -n 5 "$yx_log"
 
+echo "== codec smoke (YAML native comments) =="
+yaml_comments_src="tests/modules/test_yaml_comments.oren"
+yaml_comments_log="build/logs/${compiler_base}_yaml_comments_native.log"
+rm -f "$yaml_comments_log" 2>/dev/null || true
+
+run_step_checked "codec smoke (YAML native comments)" "$yaml_comments_log" \
+  "$compiler" test "$yaml_comments_src" --backend native
+tail -n 5 "$yaml_comments_log"
+
+echo "== codec smoke (YAML native serde attrs) =="
+yaml_serde_src="tests/modules/test_yaml_serde_attrs.oren"
+yaml_serde_log="build/logs/${compiler_base}_yaml_serde_attrs_native.log"
+rm -f "$yaml_serde_log" 2>/dev/null || true
+
+run_step_checked "codec smoke (YAML native serde attrs)" "$yaml_serde_log" \
+  "$compiler" test "$yaml_serde_src" --backend native
+tail -n 5 "$yaml_serde_log"
+
 echo "native quick integration follow-on OK"
 echo "native quick integration follow-on OK" >>"$log"
 emit_retry_summary

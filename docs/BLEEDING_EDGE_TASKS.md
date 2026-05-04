@@ -4560,7 +4560,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     longer blocked; stage1/stage2 native YAML decode/serde now preserves empty-line handling and
 	     compact serde keyword attributes via bytewise string comparisons. The optional native
 	     split-invariant list-push optimizer is opt-in (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`)
-	     after a stage1 YAML probe spent the whole 90s test budget in that pass. Remaining ok-map
+	     after a stage1 YAML probe spent the whole 90s test budget in that pass. The fast native
+	     quick lane now includes YAML comments and serde-attribute codec smokes. Remaining ok-map
 	     cleanup is mostly network/protocol APIs.
 	     New (2026-05-04): DNS/host/HPACK now also expose structured `try_*` wrappers over
 	     the already-tested ok-map APIs, reducing the remaining network/protocol migration

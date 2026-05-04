@@ -3763,7 +3763,8 @@ Rolling status:
   stage1 and stage2 native YAML decode/serde fixtures now preserve parser empty-line checks and
   compact `@serde(...)` keyword attributes. The previously pathological native split-invariant
   list-push optimizer is opt-in (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`) so YAML native builds no
-  longer spend the full test budget in that optional transform by default.
+  longer spend the full test budget in that optional transform by default; the fast native quick
+  lane now includes YAML comments and serde-attribute codec smokes.
 - Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host

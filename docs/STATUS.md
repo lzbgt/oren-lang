@@ -2364,7 +2364,8 @@ Local (fast):
   prefilter/budget guard restored `tests/modules/test_yaml_comments.oren --backend native` to about
   1s on stage1. The transform remains available as guarded opt-in compiler code
   (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`) for future measured tuning, but it no longer blocks YAML
-  native fast-lane admission.
+  native fast-lane admission. The stage1 native quick integration now runs the YAML comments and
+  YAML serde-attribute module fixtures as follow-on codec smokes.
 - ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
   context instead of resetting module globals on every statement. Native phase profiling also splits
   wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.
