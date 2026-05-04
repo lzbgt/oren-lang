@@ -2388,9 +2388,18 @@ Local (fast):
 - `std:linalg.matmul_f32_buf(...)` and `matmul_f64_buf(...)` now protect native f64-scratch output
   boundaries with explicitly typed store helpers, and ARM64 float-trait propagation recognizes the
   sliced/strided f32/f64 dot helpers as float-returning calls. This fixes the native integration-suite
-  blockers at `matmul_f32_buf[0]` and `matmul_f64_buf[0]`; remaining integration-suite restoration
-  work is now the later trait-based `Iterable.iter_next` lowering/runtime path and bytecode native-ID
-  coverage rather than linalg scratch storage.
+  blockers at `matmul_f32_buf[0]` and `matmul_f64_buf[0]`; linalg scratch storage is no longer the
+  integration-suite boundary.
+- Trait-based `Iterable.iter_next` lowering now recognizes the generated generator-aware for-in bridge
+  as the same iterator hook as `oren_iter_next(...)`, so typed custom iterables lower to their impl
+  methods on native instead of falling back to generic runtime iteration. The native quick lane now
+  guards both local and imported typed iterable for-in with
+  `tests/fixtures/native_iterable_trait_forin_smoke.oren`.
+- Bytecode/AVM now covers the integration-suite raw runtime IDs that were still missing after native
+  integration passed: `oren_time_mono_raw(...)` lowers through the TIME domain, and CORE typed-buffer
+  natives cover `oren_buf_data_mod(...)` plus `oren_buf_add_i64_into(...)`. The fast native quick lane
+  now runs `tests/modules/test_integration_suite.oren` on both native and bytecode, so the restored
+  integration surface is guarded directly.
 - ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
   context instead of resetting module globals on every statement. Native phase profiling also splits
   wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.

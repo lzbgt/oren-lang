@@ -444,6 +444,24 @@ fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
 fn insn_str_w(rt, rn, offset) { return core.insn_str_w(rt, rn, offset) }
 fn insn_ldrsw(rt, rn, offset) { return core.insn_ldrsw(rt, rn, offset) }
 
+fn native_name_has_suffix(name, suffix) {
+    if name == nil || suffix == nil { return false }
+    var n = oren_string_len(name)
+    var m = oren_string_len(suffix)
+    if n < m { return false }
+    var i = 0
+    while i < m {
+        if oren_string_char_at(name, n - m + i) != oren_string_char_at(suffix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn native_name_is_or_has_suffix(name, exact, suffix) {
+    if name == exact { return true }
+    return native_name_has_suffix(name, suffix)
+}
+
 fn native_expr_is_floaty(ctx, expr) {
     // Heuristic, rolling "float propagation" for the native backend.
     //
@@ -467,9 +485,20 @@ fn native_expr_is_floaty(ctx, expr) {
     }
     if et == "Call" {
         var fnn = expr["fn"]
+        var nm = nil
         if fnn != nil && fnn["type"] == "Identifier" {
-            var nm = fnn["value"]
+            nm = fnn["value"]
+        } else {
+            if fnn != nil && fnn["type"] == "Member" {
+                var prop = fnn["prop"]
+                if prop != nil && prop["type"] == "Identifier" {
+                    nm = prop["value"]
+                }
+            }
+        }
+        if nm != nil {
             if nm == "fadd" || nm == "fsub" || nm == "fmul" || nm == "fdiv" { return true }
+            if nm == "f32" || nm == "f64" { return true }
             // Native runtime/library functions that are known to return float bits.
             if nm == "oren_f32_round" { return true }
             if nm == "oren_u32_bits_to_f32" { return true }
@@ -484,6 +513,37 @@ fn native_expr_is_floaty(ctx, expr) {
             if nm == "oren_buf_dot_f64_strided" { return true }
             if nm == "oren_buf_reduce_sum_f32" { return true }
             if nm == "oren_buf_reduce_sum_f64" { return true }
+            if native_name_is_or_has_suffix(nm, "abs_f", "_abs_f") { return true }
+            if native_name_is_or_has_suffix(nm, "min_f", "_min_f") { return true }
+            if native_name_is_or_has_suffix(nm, "max_f", "_max_f") { return true }
+            if native_name_is_or_has_suffix(nm, "clamp_f", "_clamp_f") { return true }
+            if native_name_is_or_has_suffix(nm, "_f64_from_bits", "_f64_from_bits") { return true }
+            if native_name_is_or_has_suffix(nm, "copysign", "_copysign") { return true }
+            if native_name_is_or_has_suffix(nm, "inf", "_inf") { return true }
+            if native_name_is_or_has_suffix(nm, "neg_inf", "_neg_inf") { return true }
+            if native_name_is_or_has_suffix(nm, "floor", "_floor") { return true }
+            if native_name_is_or_has_suffix(nm, "ceil", "_ceil") { return true }
+            if native_name_is_or_has_suffix(nm, "round", "_round") { return true }
+            if native_name_is_or_has_suffix(nm, "sqrt", "_sqrt") { return true }
+            if native_name_is_or_has_suffix(nm, "powi", "_powi") { return true }
+            if native_name_is_or_has_suffix(nm, "pow2i", "_pow2i") { return true }
+            if native_name_is_or_has_suffix(nm, "pow10_i", "_pow10_i") { return true }
+            if native_name_is_or_has_suffix(nm, "ldexp", "_ldexp") { return true }
+            if native_name_is_or_has_suffix(nm, "_exp_taylor", "_exp_taylor") { return true }
+            if native_name_is_or_has_suffix(nm, "exp2", "_exp2") { return true }
+            if native_name_is_or_has_suffix(nm, "exp", "_exp") { return true }
+            if native_name_is_or_has_suffix(nm, "log2", "_log2") { return true }
+            if native_name_is_or_has_suffix(nm, "lnf", "_lnf") { return true }
+            if native_name_is_or_has_suffix(nm, "ln", "_ln") { return true }
+            if native_name_is_or_has_suffix(nm, "pi", "_pi") { return true }
+            if native_name_is_or_has_suffix(nm, "tau", "_tau") { return true }
+            if native_name_is_or_has_suffix(nm, "_sin_poly", "_sin_poly") { return true }
+            if native_name_is_or_has_suffix(nm, "_cos_poly", "_cos_poly") { return true }
+            if native_name_is_or_has_suffix(nm, "sin", "_sin") { return true }
+            if native_name_is_or_has_suffix(nm, "cos", "_cos") { return true }
+            if native_name_is_or_has_suffix(nm, "tan", "_tan") { return true }
+            if native_name_is_or_has_suffix(nm, "atan", "_atan") { return true }
+            if native_name_is_or_has_suffix(nm, "atan2", "_atan2") { return true }
         }
         return false
     }
@@ -546,11 +606,23 @@ fn native_expr_is_inty_with_floaty(ctx, expr, is_floaty) {
     }
     if et == "Call" {
         var fnn = expr["fn"]
+        var nm = nil
         if fnn != nil && fnn["type"] == "Identifier" {
-            var nm = fnn["value"]
+            nm = fnn["value"]
+        } else {
+            if fnn != nil && fnn["type"] == "Member" {
+                var prop = fnn["prop"]
+                if prop != nil && prop["type"] == "Identifier" {
+                    nm = prop["value"]
+                }
+            }
+        }
+        if nm != nil {
             if nm == "oren_int" { return true }
             if nm == "iadd" || nm == "isub" || nm == "imul" || nm == "idiv" || nm == "imod" { return true }
             if nm == "oren_trunc_int" { return true }
+            if native_name_is_or_has_suffix(nm, "trunc_i64_from_f", "_trunc_i64_from_f") { return true }
+            if native_name_is_or_has_suffix(nm, "_f64_bits", "_f64_bits") { return true }
             if nm == "oren_f32_to_u32_bits" { return true }
             if nm == "oren_f64_to_u64_bits" { return true }
             if nm == "oren_string_len" { return true }

@@ -1,0 +1,66 @@
+import itmod "../modules/iterable_mod.oren"
+
+fn fail(code) {
+    print("native iterable trait for-in smoke FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+trait Iterable {
+    fn iter_next(self, idx, out_pair)
+}
+
+struct MyRange {
+    start: i32,
+    end: i32,
+    step: i32
+}
+
+impl Iterable for MyRange {
+    fn iter_next(self, idx, out_pair) {
+        var ok = 0
+        var val = nil
+        if idx >= 0 && self.step != 0 {
+            var v = self.start + idx * self.step
+            var ok_fwd = self.step > 0 && v < self.end
+            var ok_bwd = self.step < 0 && v > self.end
+            if ok_fwd || ok_bwd {
+                ok = 1
+                val = v
+            }
+        }
+        var out = out_pair
+        if out == nil { out = [0, nil] }
+        out[0] = ok
+        out[1] = val
+        return out
+    }
+}
+
+var r: MyRange = MyRange(0, 10, 1)
+var sum = 0
+for x: i32 in r {
+    sum = sum + x
+}
+assert_eq(sum, 45, 10)
+
+var r2: MyRange = MyRange(5, -1, -1)
+var sum2 = 0
+for x2: i32 in r2 {
+    sum2 = sum2 + x2
+}
+assert_eq(sum2, 15, 11)
+
+var r3: itmod.MyRange = itmod.new_range(0, 6, 1)
+var sum3 = 0
+for x3: i32 in r3 {
+    sum3 = sum3 + x3
+}
+assert_eq(sum3, 15, 12)
+
+print("native iterable trait for-in smoke OK")
+exit(0)

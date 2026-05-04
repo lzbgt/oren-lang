@@ -1323,6 +1323,26 @@ run_step_checked "linalg smoke (native typed-buffer runtime profile)" "$linalg_r
   "$compiler" test "$linalg_runtime_src" --backend native
 tail -n 5 "$linalg_runtime_log"
 
+echo "== trait iterable smoke (native for-in impl hook) =="
+iterable_trait_src="tests/fixtures/native_iterable_trait_forin_smoke.oren"
+iterable_trait_log="build/logs/${compiler_base}_native_iterable_trait_forin.log"
+rm -f "$iterable_trait_log" 2>/dev/null || true
+
+run_step_checked "trait iterable smoke (native for-in impl hook)" "$iterable_trait_log" \
+  "$compiler" test "$iterable_trait_src" --backend native
+tail -n 5 "$iterable_trait_log"
+
+echo "== module integration suite (native + bytecode) =="
+module_integration_src="tests/modules/test_integration_suite.oren"
+module_integration_log="build/logs/${compiler_base}_module_integration_suite.log"
+rm -f "$module_integration_log" 2>/dev/null || true
+
+run_step_checked "module integration suite (native)" "$module_integration_log" \
+  "$compiler" test "$module_integration_src" --backend native --platform "$platform"
+run_step_checked "module integration suite (bytecode)" "$module_integration_log" \
+  "$compiler" test "$module_integration_src" --backend bytecode --platform "$platform"
+tail -n 8 "$module_integration_log"
+
 echo "== codec smoke (YAML native comments) =="
 yaml_comments_src="tests/modules/test_yaml_comments.oren"
 yaml_comments_log="build/logs/${compiler_base}_yaml_comments_native.log"

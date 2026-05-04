@@ -446,7 +446,7 @@ astbin-seed-x64: oren
 # --- Testing & Verification ---
 
 # Fast native smoke (stage1): build+run one self-contained integration test.
-test-native-quick: oren
+test-native-quick: oren avm
 				@./scripts/guard_no_external_rg_dependency.sh
 				@./scripts/guard_no_msvc_comment_line_continuation.sh
 				@./scripts/run_native_quick_integration.sh "./$(OREN_BIN)"
@@ -456,7 +456,7 @@ test-native-quick: oren
 # Warm the rtobj seed first: this path builds the quick-integration fixture with `--debug`,
 # and the older 180s stage2 build budget now false-reds on healthy self-hosted debug rebuilds
 # during the local BL resolve phase, so keep the target aligned with the wider proven headroom.
-test-native-quick-stage2: oren_stage2 rtobj-seed-quick-stage2
+test-native-quick-stage2: oren_stage2 avm rtobj-seed-quick-stage2
 		@OREN_NATIVE_BUILD_TIMEOUT_SECS=240 OREN_NATIVE_RUN_TIMEOUT_SECS=120 \
 		  ./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
 

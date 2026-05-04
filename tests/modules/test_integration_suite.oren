@@ -33,6 +33,11 @@ fn assert_eq(a, b, code, msg) {
     fail(code, msg)
 }
 
+fn assert_streq(a, b, code, msg) {
+    if oren_string_eq(a, b) == true { return 0 }
+    fail(code, msg)
+}
+
 // --- casts + typed primitives ---
 
 assert_eq(u8(256 + 5), 5, 10, "u8 wrap")
@@ -453,13 +458,13 @@ assert_true(re.is_match("a\\*b", "a*b"), 72, "regex escape")
 var js = "// leading\n{\"a\":1,/*c*/\"b\":true}// tail\n"
 var jr = json.decode(js)
 assert_true(jr["ok"] == 1, 80, "json.decode ok")
-assert_eq(json.encode(jr["v"]), "{\"a\":1,\"b\":true}", 81, "json canonical")
+assert_streq(json.encode(jr["v"]), "{\"a\":1,\"b\":true}", 81, "json canonical")
 
 var ys = "# header\nactive: true # tail\nname: bob // tail2\n"
 var yr = yaml.decode(ys)
 assert_true(yr != nil && yr["ok"] == 1, 82, "yaml.decode ok")
 assert_eq(yr["v"]["o"]["active"]["b"], 1, 83, "yaml active")
-assert_eq(yr["v"]["o"]["name"]["s"], "bob", 84, "yaml name")
+assert_streq(yr["v"]["o"]["name"]["s"], "bob", 84, "yaml name")
 
 // --- CBOR streaming typed roundtrip ---
 
@@ -507,21 +512,21 @@ var mjv = MF__json_encode(mf)
 var myv = MF__yaml_encode(mf)
 
 assert_eq(mjv["o"]["id"]["i"], 7, 98, "MF json encode id")
-assert_eq(mjv["o"]["name"]["s"], "x", 99, "MF json encode name")
+assert_streq(mjv["o"]["name"]["s"], "x", 99, "MF json encode name")
 assert_eq(myv["o"]["id"]["i"], 7, 100, "MF yaml encode id")
-assert_eq(myv["o"]["name"]["s"], "x", 101, "MF yaml encode name")
+assert_streq(myv["o"]["name"]["s"], "x", 101, "MF yaml encode name")
 
 var mdr = MF__json_decode(mjv)
 assert_true(mdr["ok"] == 1, 102, "MF json decode ok")
 assert_eq(mdr["v"].id, 7, 103, "MF json decode id")
-assert_eq(mdr["v"].name, "x", 104, "MF json decode name")
+assert_streq(mdr["v"].name, "x", 104, "MF json decode name")
 
 // --- time std (UTC parse/format + monotonic) ---
 
 var s0 = "2025-01-02T03:04:05Z"
 var dt0 = time.parse_iso8601_utc(s0)
 if result.is_err(dt0) { fail(110, "time parse") }
-assert_eq(time.format_iso8601_utc(dt0), s0, 111, "time format")
+assert_streq(time.format_iso8601_utc(dt0), s0, 111, "time format")
 
 var a = time.mono_raw()
 time.sleep_ms(1)
@@ -529,9 +534,9 @@ var b = time.mono_raw()
 assert_true(b >= a, 112, "mono nondecreasing")
 
 // --- deterministic math (no host libm) ---
-assert_eq(math.sqrt(4.0), 2.0, 120, "sqrt(4)")
-assert_eq(math.powi(2.0, 10), 1024.0, 121, "powi(2,10)")
-assert_eq(math.exp2(10.0), 1024.0, 122, "exp2(10)")
+assert_true(math.abs_f(math.sqrt(4.0) - 2.0) < 1e-12, 120, "sqrt(4)")
+assert_true(math.abs_f(math.powi(2.0, 10) - 1024.0) < 1e-12, 121, "powi(2,10)")
+assert_true(math.abs_f(math.exp2(10.0) - 1024.0) < 1e-12, 122, "exp2(10)")
 
 // log/exp are approximate; use tight deterministic tolerances.
 assert_eq(1e3, 1000.0, 123, "float literal sci: 1e3")

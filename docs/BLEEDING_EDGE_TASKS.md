@@ -1537,11 +1537,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      native quick smoke `tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren`
      also guards `oren_buf_data_mod(...)` on native typed buffers.
    - New blocker isolated (2026-05-04): `tests/modules/test_integration_suite.oren --backend native`
-     now gets past the stdlib cast-wrapper checks, but fails at the f32 typed-buffer matmul
-     assertion. A focused probe shows bytecode computes `[1.0, 2.0, 3.0, 4.0]`, while native
-     stores the wrong f32 bits after routing through f64 scratch buffers; this is a native
-     floaty-state / f64-scratch representation boundary in linalg, not an integration-fixture
-     expectation issue.
+     got past the stdlib cast-wrapper checks, then failed at the f32 typed-buffer matmul assertion.
+     A focused probe showed bytecode computing `[1.0, 2.0, 3.0, 4.0]`, while native stored the wrong
+     f32 bits after routing through f64 scratch buffers; this was a native floaty-state /
+     f64-scratch representation boundary in linalg, not an integration-fixture expectation issue.
+   - Fix (2026-05-04): linalg f32/f64 scratch stores now preserve native float representation, and
+     impl lowering treats the generated generator-aware for-in bridge as an `oren_iter_next(...)`
+     hook for typed custom iterables. Native quick includes
+     `tests/fixtures/native_iterable_trait_forin_smoke.oren`, so local/imported
+     `impl Iterable.iter_next` dispatch is guarded outside the full integration suite.
+   - Fix (2026-05-04): AVM bytecode now covers the remaining raw integration IDs:
+     `oren_time_mono_raw(...)`, `oren_buf_data_mod(...)`, and `oren_buf_add_i64_into(...)`.
+     `tests/modules/test_integration_suite.oren` now passes on both native and bytecode and is part
+     of the fast native quick lane.
    - Verified (2026-03-20): those hidden packed-bridge benchmarks compile and return the expected
      `205` / `710` / `6590` / `54380` outputs through the Oren C backend, proving the bridge
      helpers are portable; the slower native steady probe remains the explicit next step for

@@ -111,6 +111,25 @@ fn impl_trait_method_lookup(impl_trait_methods, trait_name, type_name, method) {
     return nil
 }
 
+fn string_contains_needle(s, needle) {
+    if s == nil || needle == nil { return false }
+    var n = oren_string_len(s)
+    var m = oren_string_len(needle)
+    if m == 0 { return true }
+    if n < m { return false }
+    var i = 0
+    while i + m <= n {
+        if oren_string_slice(s, i, i + m) == needle { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn is_iter_next_hook_name(name) {
+    if name == "oren_iter_next" { return true }
+    return string_contains_needle(name, "__oren_generator_forin_next_f")
+}
+
 fn collect_trait_set(linked) {
     var set = {}
     if linked == nil { return set }
@@ -610,7 +629,8 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
 
     // Iterator extension hook (rolling v1):
     //
-    // `for x in y { ... }` desugars to `oren_iter_next(y, idx, out_pair)` for identifier iterables.
+    // `for x in y { ... }` desugars through the generator-aware for-in bridge. Non-generator
+    // identifier iterables still delegate to `oren_iter_next(y, idx, out_pair)` inside that bridge.
     //
     // If `y` has an explicit type annotation and that type implements the `Iterable` trait,
     // rewrite the call to the trait impl method:
@@ -620,7 +640,7 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
     // This preserves v0 behavior for built-in containers and untyped code, while allowing
     // custom deterministic iterables without introducing runtime vtables.
     var fn0 = expr["fn"]
-    if fn0 != nil && fn0["type"] == "Identifier" && fn0["value"] == "oren_iter_next" {
+    if fn0 != nil && fn0["type"] == "Identifier" && is_iter_next_hook_name(fn0["value"]) == true {
         var args0 = expr["args"]
         if args0 != nil && oren_list_len(args0) >= 3 {
             var recv0 = args0[0]

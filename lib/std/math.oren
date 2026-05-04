@@ -31,33 +31,33 @@ fn clamp_i(x, lo, hi) {
     return x
 }
 
-fn abs_f(x) {
+fn abs_f(x: f64) {
     if x < 0.0 { return -x }
     return x
 }
 
-fn min_f(a, b) {
+fn min_f(a: f64, b: f64) {
     if a < b { return a }
     return b
 }
 
-fn max_f(a, b) {
+fn max_f(a: f64, b: f64) {
     if a > b { return a }
     return b
 }
 
-fn clamp_f(x, lo, hi) {
+fn clamp_f(x: f64, lo: f64, hi: f64) {
     if x < lo { return lo }
     if x > hi { return hi }
     return x
 }
 
-fn is_nan(x) {
+fn is_nan(x: f64) {
     // IEEE-ish: NaN != NaN
     return x != x
 }
 
-fn _f64_bits(x) {
+fn _f64_bits(x: f64) {
     return oren_f64_to_u64_bits(f64(x))
 }
 
@@ -65,7 +65,7 @@ fn _f64_from_bits(u) {
     return oren_u64_bits_to_f64(u64(u))
 }
 
-fn is_inf(x) {
+fn is_inf(x: f64) {
     if is_nan(x) { return false }
     var b = _f64_bits(x)
     if oren_is_err(b) { return false }
@@ -73,20 +73,20 @@ fn is_inf(x) {
     return ((b >> 52) & 2047) == 2047 && (b & 4503599627370495) == 0
 }
 
-fn is_finite(x) {
+fn is_finite(x: f64) {
     if is_nan(x) { return false }
     var b = _f64_bits(x)
     if oren_is_err(b) { return false }
     return ((b >> 52) & 2047) != 2047
 }
 
-fn signbit(x) {
+fn signbit(x: f64) {
     var b = _f64_bits(x)
     if oren_is_err(b) { return false }
     return (b >> 63) != 0
 }
 
-fn copysign(x, y) {
+fn copysign(x: f64, y: f64) {
     var xb = _f64_bits(x)
     if oren_is_err(xb) { return xb }
     var yb = _f64_bits(y)
@@ -118,12 +118,12 @@ fn neg_inf() {
 // - `round(x)` is **half away from zero**.
 //   (Bankers rounding can be added later as a separate API if needed.)
 
-fn trunc_i64_from_f(x) {
+fn trunc_i64_from_f(x: f64) {
     // Returns int or Err.
     return oren_trunc_int(x)
 }
 
-fn floor(x) {
+fn floor(x: f64) {
     if is_nan(x) { return oren_err(4, "floor: NaN") }
     // Preserve -0.0 by returning the input.
     if x == 0.0 { return x }
@@ -138,7 +138,7 @@ fn floor(x) {
     return t - 1.0
 }
 
-fn ceil(x) {
+fn ceil(x: f64) {
     if is_nan(x) { return oren_err(4, "ceil: NaN") }
     if x == 0.0 { return x }
     var lim = 9223372036854775808.0 // 2^63
@@ -152,7 +152,7 @@ fn ceil(x) {
     return t + 1.0
 }
 
-fn round(x) {
+fn round(x: f64) {
     if is_nan(x) { return oren_err(4, "round: NaN") }
     if x == 0.0 { return x }
     var lim = 9223372036854775808.0 // 2^63
@@ -194,7 +194,7 @@ fn round(x) {
 // This is not a replacement for a tuned libm yet, but it is a correct, portable
 // building block for stdlib linalg/scientific code.
 
-fn sqrt(x) {
+fn sqrt(x: f64) {
     if is_nan(x) { return oren_err(4, "sqrt: NaN") }
     if x < 0.0 { return oren_err(4, "sqrt: negative") }
     if x == 0.0 { return x }
@@ -242,7 +242,7 @@ fn sqrt(x) {
     return g
 }
 
-fn powi(x, n) {
+fn powi(x: f64, n) {
     // Integer exponent power (deterministic, no libm).
     // For negative n, we return 1/(x^(-n)).
     if n == 0 { return 1.0 }
@@ -280,7 +280,7 @@ fn pow2i(e) {
     return _f64_from_bits(u64(1) << u64(e + 1074))
 }
 
-fn ldexp(x, e) {
+fn ldexp(x: f64, e) {
     // x * 2^e
     if is_nan(x) { return oren_err(4, "ldexp: NaN") }
     if x == 0.0 { return x }
@@ -288,7 +288,7 @@ fn ldexp(x, e) {
     return x * pow2i(e)
 }
 
-fn frexp(x) {
+fn frexp(x: f64) {
     // Returns [mantissa, exp] where x = mantissa * 2^exp and mantissa in [0.5, 1).
     // For x==0: returns [0.0, 0].
     if is_nan(x) { return oren_err(4, "frexp: NaN") }
@@ -325,7 +325,7 @@ fn frexp(x) {
 
 // --- exp/log (deterministic, no host libm) ---
 
-fn _exp_taylor(z) {
+fn _exp_taylor(z: f64) {
     // exp(z) for z in [0, ln2] via fixed-term Taylor series.
     // 12 terms is enough for good accuracy on this small interval.
     var term = 1.0
@@ -339,7 +339,7 @@ fn _exp_taylor(z) {
     return sum
 }
 
-fn exp2(x) {
+fn exp2(x: f64) {
     // 2^x via integer+fraction decomposition.
     if is_nan(x) { return oren_err(4, "exp2: NaN") }
     if x == 0.0 { return 1.0 }
@@ -362,7 +362,7 @@ fn exp2(x) {
     return scale * frac
 }
 
-fn exp(x) {
+fn exp(x: f64) {
     if is_nan(x) { return oren_err(4, "exp: NaN") }
     if x == 0.0 { return 1.0 }
     // exp(x) = 2^(x / ln2)
@@ -370,17 +370,30 @@ fn exp(x) {
     return exp2(x * INV_LN2)
 }
 
-fn log2(x) {
+fn log2(x: f64) {
     // Returns log2(x) for x > 0.
     if is_nan(x) { return oren_err(4, "log2: NaN") }
     if x == 0.0 { return neg_inf() }
     if x < 0.0 { return oren_err(4, "log2: negative") }
     if is_inf(x) { return x }
 
-    var fe = frexp(x)
-    if oren_is_err(fe) { return fe }
-    var m = fe[0]
-    var e = fe[1]
+    var b0 = _f64_bits(x)
+    if oren_is_err(b0) { return b0 }
+    var sign = b0 & 9223372036854775808
+    var exp0 = (b0 >> 52) & 2047
+    var mant = b0 & 4503599627370495
+    var adjust = 0
+    if exp0 == 0 {
+        var xn = x * 18014398509481984.0
+        var b1 = _f64_bits(xn)
+        if oren_is_err(b1) { return b1 }
+        exp0 = (b1 >> 52) & 2047
+        mant = b1 & 4503599627370495
+        adjust = 54
+    }
+    var m = _f64_from_bits(sign | (u64(1022) << 52) | mant)
+    if oren_is_err(m) { return m }
+    var e = exp0 - 1022 - adjust
 
     // ln(m) using atanh series: ln(m) = 2 * (t + t^3/3 + t^5/5 + ...)
     // where t = (m-1)/(m+1), |t| <= 1/3 for m in [0.5,1)
@@ -401,7 +414,7 @@ fn log2(x) {
     return f64(e) + ln_m * INV_LN2
 }
 
-fn ln(x) {
+fn ln(x: f64) {
     var v = log2(x)
     if oren_is_err(v) { return v }
     var LN2 = 0.6931471805599453
@@ -430,7 +443,7 @@ fn ln(x) {
 fn pi() { return 3.141592653589793 }
 fn tau() { return 6.283185307179586 }
 
-fn _sin_poly(r) {
+fn _sin_poly(r: f64) {
     var r2 = r * r
     // Horner, odd polynomial:
     // r * (1 + r2*(c3 + r2*(c5 + ...)))
@@ -443,7 +456,7 @@ fn _sin_poly(r) {
     return r + r * r2 * p
 }
 
-fn _cos_poly(r) {
+fn _cos_poly(r: f64) {
     var r2 = r * r
     var c10 = -1.0 / 3628800.0
     var c8 = 1.0 / 40320.0
@@ -455,7 +468,7 @@ fn _cos_poly(r) {
     return 1.0 + r2 * p
 }
 
-fn _reduce_pio2_medium(x) {
+fn _reduce_pio2_medium(x: f64) {
     // Cody-Waite style reduction (good up to ~2^20 * (pi/2)).
     // Returns [r, n_mod8] where r ~ x - n*pi/2, and n_mod8 is in [0..7].
     //
@@ -741,7 +754,7 @@ fn _kernel_rem_pio2(tx, e0, nx) {
     return [y0 + y1, (n & 7)]
 }
 
-fn _reduce_pio2_payne_hanek(x) {
+fn _reduce_pio2_payne_hanek(x: f64) {
     // Payne–Hanek reduction for large |x|.
     // Returns [r, q] where r in ~[-pi/4,pi/4], q in [0..3].
     if is_nan(x) { return oren_err(4, "_reduce_pio2: NaN") }
@@ -791,7 +804,7 @@ fn _reduce_pio2_payne_hanek(x) {
     return [r, q]
 }
 
-fn _reduce_pio2(x) {
+fn _reduce_pio2(x: f64) {
     // Returns [r, q] or Err where q in [0..3].
     if is_nan(x) { return oren_err(4, "_reduce_pio2: NaN") }
     if is_inf(x) { return oren_err(4, "_reduce_pio2: inf") }
@@ -811,7 +824,7 @@ fn _reduce_pio2(x) {
     return _reduce_pio2_payne_hanek(x)
 }
 
-fn sin(x) {
+fn sin(x: f64) {
     if x == 0.0 { return x } // preserve signed zero
     var rq = _reduce_pio2(x)
     if oren_is_err(rq) { return rq }
@@ -825,7 +838,7 @@ fn sin(x) {
     return 0.0 - cr
 }
 
-fn cos(x) {
+fn cos(x: f64) {
     if is_nan(x) { return oren_err(4, "cos: NaN") }
     if is_inf(x) { return oren_err(4, "cos: inf") }
     if x == 0.0 { return 1.0 }
@@ -851,7 +864,7 @@ fn cos(x) {
 // - atan2 matches the usual mathematical definition with sign handling for zeros.
 //
 
-fn atan(x) {
+fn atan(x: f64) {
     if is_nan(x) { return oren_err(4, "atan: NaN") }
     if x == 0.0 { return x } // preserve signed zero
     if is_inf(x) {
@@ -929,7 +942,7 @@ fn atan(x) {
     return res
 }
 
-fn atan2(y, x) {
+fn atan2(y: f64, x: f64) {
     if is_nan(x) || is_nan(y) { return oren_err(4, "atan2: NaN") }
     if is_inf(x) || is_inf(y) {
         // Defer to the generic logic below; it handles infinities with atan.

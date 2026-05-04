@@ -165,6 +165,26 @@
             }
             break;
         }
+        case 190: { // oren_buf_data_mod(buf, mod:int) -> int
+            if (nargs > 1
+                && (args[0].type == AVM_VAL_I32_BUF || args[0].type == AVM_VAL_I64_BUF || args[0].type == AVM_VAL_F32_BUF || args[0].type == AVM_VAL_F64_BUF)
+                && args[1].type == AVM_VAL_INT) {
+                AvmBuf* b = args[0].as.buf;
+                int64_t modv = args[1].as.i;
+                if (modv <= 0) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_data_mod: mod must be > 0"); break; }
+                if (modv > 4096) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_data_mod: mod too large"); break; }
+                if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_data_mod: invalid buffer"); break; }
+                if (b->len == 0) { res = avm_int(0); break; }
+                if (!b->data) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_data_mod: payload is nil"); break; }
+                // AVM never exposes raw buffer pointers to bytecode. Its typed-buffer kernels use
+                // deterministic byte loads/memcpy, so report the logical alignment contract shared
+                // with C/native instead of leaking private heap-header placement.
+                res = avm_int(0);
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_data_mod expects (buf, int)");
+            }
+            break;
+        }
         case 67: { // oren_buf_fill_i32(i32_buf, val:int) -> i32_buf
             if (nargs > 1 && args[0].type == AVM_VAL_I32_BUF && args[1].type == AVM_VAL_INT) {
                 AvmBuf* b = args[0].as.buf;
@@ -546,6 +566,47 @@
                 res = args[0];
             } else {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_add_i32_into expects (i32_buf, i32_buf, i32_buf)");
+            }
+            break;
+        }
+        case 191: { // oren_buf_add_i64_into(dst:i64_buf, a:i64_buf, b:i64_buf) -> i64_buf
+            if (nargs > 2 && args[0].type == AVM_VAL_I64_BUF && args[1].type == AVM_VAL_I64_BUF && args[2].type == AVM_VAL_I64_BUF) {
+                AvmBuf* dst = args[0].as.buf;
+                AvmBuf* a = args[1].as.buf;
+                AvmBuf* b = args[2].as.buf;
+                if (!dst || !a || !b || dst->elem_size != 8u || a->elem_size != 8u || b->elem_size != 8u) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_i64_into: invalid buffers"); break; }
+                if (dst->len != a->len || dst->len != b->len) { res = avm_err(AVM_ERR_INVALID_ARG, "buf_add_i64_into: length mismatch"); break; }
+                for (uint32_t i = 0; i < dst->len; i++) {
+                    uint32_t off = i * 8u;
+                    uint64_t ua = (uint64_t)a->data[off]
+                                | ((uint64_t)a->data[off + 1] << 8)
+                                | ((uint64_t)a->data[off + 2] << 16)
+                                | ((uint64_t)a->data[off + 3] << 24)
+                                | ((uint64_t)a->data[off + 4] << 32)
+                                | ((uint64_t)a->data[off + 5] << 40)
+                                | ((uint64_t)a->data[off + 6] << 48)
+                                | ((uint64_t)a->data[off + 7] << 56);
+                    uint64_t ub = (uint64_t)b->data[off]
+                                | ((uint64_t)b->data[off + 1] << 8)
+                                | ((uint64_t)b->data[off + 2] << 16)
+                                | ((uint64_t)b->data[off + 3] << 24)
+                                | ((uint64_t)b->data[off + 4] << 32)
+                                | ((uint64_t)b->data[off + 5] << 40)
+                                | ((uint64_t)b->data[off + 6] << 48)
+                                | ((uint64_t)b->data[off + 7] << 56);
+                    uint64_t us = ua + ub;
+                    dst->data[off] = (uint8_t)(us & 0xFFu);
+                    dst->data[off + 1] = (uint8_t)((us >> 8) & 0xFFu);
+                    dst->data[off + 2] = (uint8_t)((us >> 16) & 0xFFu);
+                    dst->data[off + 3] = (uint8_t)((us >> 24) & 0xFFu);
+                    dst->data[off + 4] = (uint8_t)((us >> 32) & 0xFFu);
+                    dst->data[off + 5] = (uint8_t)((us >> 40) & 0xFFu);
+                    dst->data[off + 6] = (uint8_t)((us >> 48) & 0xFFu);
+                    dst->data[off + 7] = (uint8_t)((us >> 56) & 0xFFu);
+                }
+                res = args[0];
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_buf_add_i64_into expects (i64_buf, i64_buf, i64_buf)");
             }
             break;
         }
