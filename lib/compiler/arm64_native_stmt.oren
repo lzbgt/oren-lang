@@ -9,6 +9,7 @@ import loopm "arm64_native_stmt_loops.oren"
 import setm "arm64_native_stmt_set.oren"
 import wrapm "arm64_native_stmt_wrappers.oren"
 import profm "arm64_native_stmt_profile.oren"
+import bindm "arm64_native_stmt_bindings.oren"
 
 // Re-export core helpers locally so the native stmt compiler stays readable.
 fn bytes_new() { return core.bytes_new() }
@@ -25,10 +26,8 @@ fn contains_curly_braces(s) { return core.contains_curly_braces(s) }
 
 fn scope_enter_codegen(ctx) { return core.scope_enter_codegen(ctx) }
 fn scope_current_codegen(ctx) { return core.scope_current_codegen(ctx) }
-fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy, prev_struct_type) { return core.scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy, prev_struct_type) }
 fn scope_exit_codegen(ctx) { return core.scope_exit_codegen(ctx) }
 fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos, name) }
-fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
 fn arm64_ctx_fixup_adr_code(ctx, pos, name, reg) { return core.arm64_ctx_fixup_adr_code(ctx, pos, name, reg) }
 
 fn _arm64_emit_function_epilogue(ctx) {
@@ -57,29 +56,6 @@ fn _arm64_normalize_ann_kind(ann) {
         }
     }
     return out
-}
-
-fn _arm64_expr_constructed_struct_type(ctx, expr) {
-    if ctx == nil || expr == nil { return nil }
-    if expr["type"] != "Call" { return nil }
-    if expr["spread"] != nil { return nil }
-    var fnn = expr["fn"]
-    if fnn == nil || fnn["type"] != "Identifier" { return nil }
-    var name = fnn["value"]
-    if name == nil || name == "" { return nil }
-    var kinds = ctx["type_field_kinds"]
-    if kinds != nil && kinds[name] != nil { return name }
-    return nil
-}
-
-fn _arm64_set_static_struct_type(ctx, is_local, name, type_name) {
-    if ctx == nil || name == nil { return nil }
-    if is_local == true {
-        if ctx["locals_struct_type"] != nil { ctx["locals_struct_type"][name] = type_name }
-    } else {
-        if ctx["globals_struct_type"] != nil { ctx["globals_struct_type"][name] = type_name }
-    }
-    return nil
 }
 
 fn _arm64_list_name_in_fast(list_name, lists) {
@@ -672,178 +648,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
         return native_compile_stmt_set(ctx, stmt)
     }
 
-	        if stmt["type"] == "Assign" {
-			            // Keep stack balanced after computing the RHS.
-			            var rhs_base_stack = ctx["stack_size"]
-			            native_compile_expr(ctx, stmt["value"])
-			            loopm._arm64_restore_stack_to(ctx, rhs_base_stack)
-        var is_floaty = exprm.native_expr_is_floaty(ctx, stmt["value"])
-        var is_inty = exprm.native_expr_is_inty_with_floaty(ctx, stmt["value"], is_floaty)
-        var int_const = exprm.native_expr_int_const(ctx, stmt["value"])
-        var is_stringy = exprm.native_expr_is_stringy(ctx, stmt["value"])
-        var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
-        var struct_type = _arm64_expr_constructed_struct_type(ctx, stmt["value"])
-			        var name = stmt["name"]["value"]
-		        var off_enc = ctx["locals"][name]
-		        if oren_type_tag(off_enc) != 0 {
-		            // Locals store offsets as `fp_off+1` so:
-		            // - `nil` remains the "missing" sentinel
-		            // - a real offset of 0 is representable (though FP-relative locals are negative)
-		            var fp_off = off_enc - 1
-		            emit_str_reg_fp_any(ctx, 0, fp_off)
-            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty }
-            if ctx["locals_inty"] != nil { ctx["locals_inty"][name] = is_inty }
-            if ctx["locals_int_const"] != nil { ctx["locals_int_const"][name] = int_const }
-            if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy }
-            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy }
-            _arm64_set_static_struct_type(ctx, true, name, struct_type)
-            return nil
-		        }
-	        
-	        var global_off_enc = ctx["globals"][name]
-	        if oren_type_tag(global_off_enc) != 0 {
-	            var global_off = global_off_enc - 1
-	            push_u32_le(ctx["code"], insn_sub_sp(16))
-	            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
+    if stmt["type"] == "Assign" { return bindm.native_compile_stmt_assign(ctx, stmt, native_compile_expr) }
 
-            var adr_pos = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": global_off, "reg": nil})
-            oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
-            oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], global_off)
-            oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
-            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
-            
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-            
-            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
-            if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty }
-            if ctx["globals_inty"] != nil { ctx["globals_inty"][name] = is_inty }
-            if ctx["globals_int_const"] != nil { ctx["globals_int_const"][name] = int_const }
-            if ctx["globals_stringy"] != nil { ctx["globals_stringy"][name] = is_stringy }
-            if ctx["globals_list_stringy"] != nil { ctx["globals_list_stringy"][name] = is_list_stringy }
-            _arm64_set_static_struct_type(ctx, false, name, struct_type)
-            return nil
-        }
-        
-        native_error(ctx, stmt["token"], "native backend: assignment to undefined variable " + name)
-        return nil
-    }
-
-	        if stmt["type"] == "Var" {
-		        // Expression stack hygiene:
-		        // `native_compile_expr` is intended to leave the stack balanced (result in X0),
-		        // but in rolling mode some call/syscall lowering paths have historically leaked
-		        // temporary stack slots.
-		        //
-			        // Restore to the pre-expression depth so subsequent local-slot allocation is stable.
-			        var rhs_base_stack = ctx["stack_size"]
-			        native_compile_expr(ctx, stmt["value"])
-			        loopm._arm64_restore_stack_to(ctx, rhs_base_stack)
-        var is_floaty2 = exprm.native_expr_is_floaty(ctx, stmt["value"])
-        var is_inty2 = exprm.native_expr_is_inty_with_floaty(ctx, stmt["value"], is_floaty2)
-        var int_const2 = exprm.native_expr_int_const(ctx, stmt["value"])
-        var is_stringy2 = exprm.native_expr_is_stringy(ctx, stmt["value"])
-        var is_list_stringy2 = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
-        var struct_type2 = _arm64_expr_constructed_struct_type(ctx, stmt["value"])
-
-        var name = stmt["name"]["value"]
-        
-        if ctx["in_function"] {
-            // `var` introduces a new binding in the current lexical scope.
-            // If the name was already declared in this same scope, treat it as
-            // re-initialization for backward compatibility.
-            var scope = scope_current_codegen(ctx)
-	            if scope != nil {
-	                if scope["names"][name] != nil {
-		                    var existing_off_enc = ctx["locals"][name]
-		                    if oren_type_tag(existing_off_enc) != 0 {
-		                        var fp_off_existing = existing_off_enc - 1
-		                        emit_str_reg_fp_any(ctx, 0, fp_off_existing)
-                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
-                        if ctx["locals_inty"] != nil { ctx["locals_inty"][name] = is_inty2 }
-                        if ctx["locals_int_const"] != nil { ctx["locals_int_const"][name] = int_const2 }
-                        if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
-                        if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
-                        _arm64_set_static_struct_type(ctx, true, name, struct_type2)
-                        return nil
-		                    }
-	                }
-	            }
-            
-	            push_u32_le(ctx["code"], insn_sub_sp(16))
-
-	            // Record previous binding so it can be restored when leaving the scope.
-            var prev_off = ctx["locals"][name]
-            var prev_floaty = nil
-            if ctx["locals_floaty"] != nil { prev_floaty = ctx["locals_floaty"][name] }
-            var prev_inty = nil
-            if ctx["locals_inty"] != nil { prev_inty = ctx["locals_inty"][name] }
-            var prev_int_const = nil
-            if ctx["locals_int_const"] != nil { prev_int_const = ctx["locals_int_const"][name] }
-            var prev_stringy = nil
-            if ctx["locals_stringy"] != nil { prev_stringy = ctx["locals_stringy"][name] }
-            var prev_list_stringy = nil
-            if ctx["locals_list_stringy"] != nil { prev_list_stringy = ctx["locals_list_stringy"][name] }
-            var prev_struct_type = nil
-            if ctx["locals_struct_type"] != nil { prev_struct_type = ctx["locals_struct_type"][name] }
-            scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy, prev_struct_type)
-
-	            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
-	            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
-		            //
-		            // Locals are addressed as FP-relative slots: slot is at [FP + fp_off], fp_off < 0.
-		            var fp_off = 0 - ctx["stack_size"]
-		            // Store the initializer into the newly allocated local slot via FP-relative
-		            // addressing, so the initialization does not depend on transient SP position.
-		            emit_str_reg_fp_any(ctx, 0, fp_off)
-            ctx["locals"][name] = fp_off + 1
-            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
-            if ctx["locals_inty"] != nil { ctx["locals_inty"][name] = is_inty2 }
-            if ctx["locals_int_const"] != nil { ctx["locals_int_const"][name] = int_const2 }
-            if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
-            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
-            _arm64_set_static_struct_type(ctx, true, name, struct_type2)
-		            ctx["stack_size"] = ctx["stack_size"] + 16
-        } else {
-            var data_off = bytes_len(ctx["data"])
-            var k = 0
-            while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
-            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
-            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
-            ctx["globals"][name] = data_off + 1
-            if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty2 }
-            if ctx["globals_inty"] != nil { ctx["globals_inty"][name] = is_inty2 }
-            if ctx["globals_int_const"] != nil { ctx["globals_int_const"][name] = int_const2 }
-            if ctx["globals_stringy"] != nil { ctx["globals_stringy"][name] = is_stringy2 }
-            if ctx["globals_list_stringy"] != nil { ctx["globals_list_stringy"][name] = is_list_stringy2 }
-            _arm64_set_static_struct_type(ctx, false, name, struct_type2)
-            
-            push_u32_le(ctx["code"], insn_sub_sp(16))
-            push_u32_le(ctx["code"], insn_str_x0_sp(0))
-            ctx["stack_size"] = ctx["stack_size"] + 16
-            
-            var adr_pos = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off, "reg": nil})
-            oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
-            oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], data_off)
-            oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
-            push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
-            
-            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-            push_u32_le(ctx["code"], insn_add_sp(16))
-            ctx["stack_size"] = ctx["stack_size"] - 16
-            
-            push_u32_le(ctx["code"], insn_str_ptr(0, 1))
-        }
-        return nil
-    }
+    if stmt["type"] == "Var" { return bindm.native_compile_stmt_var(ctx, stmt, native_compile_expr) }
     
     if stmt["type"] == "Return" {
         native_compile_expr(ctx, stmt["value"])

@@ -2644,6 +2644,11 @@ Local (fast):
   removed the `lambda_wrap Var(Call(Id:oren_list_get,2))` statement bucket, but default profiles stayed
   neutral-to-worse (`lambda_wrap` ~1.7-1.9s with identical emitted bytes), so the generic synthetic-`Var`
   binding path remains the shipped implementation.
+- ARM64 binding statement module split (2026-05-05): `Var` and `Assign` lowering moved from
+  `arm64_native_stmt.oren` into `arm64_native_stmt_bindings.oren`. The split preserves the existing
+  FP-relative local/global slot behavior and static trait propagation while reducing
+  `arm64_native_stmt.oren` from the guardrail edge to 1761 lines. Treat this as maintainability
+  groundwork for future `user_decls` work, not a profile win.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to

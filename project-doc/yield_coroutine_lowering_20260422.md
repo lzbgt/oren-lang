@@ -368,6 +368,10 @@ backend-shared value-helper slices landed.
     removed the `lambda_wrap Var(Call(Id:oren_list_get,2))` statement bucket, but default profiles stayed
     neutral-to-worse (`lambda_wrap` ~1.7-1.9s with identical emitted bytes), so the generic synthetic-`Var`
     binding path remains shipped.
+  - Binding statement split (2026-05-05): ARM64 `Var`/`Assign` lowering moved into
+    `arm64_native_stmt_bindings.oren`. It keeps FP-relative local/global slots and static trait propagation
+    unchanged while pulling `arm64_native_stmt.oren` down from the line-count guardrail edge to 1761 lines.
+    This is maintainability groundwork for future `user_decls` work, not a measured wall-time fix.
   - ARM64 dynamic string equality fix (2026-05-05): native `test_generator_std.oren` exposed that generic
     `assert_eq(a, b)` could compare two dynamic strings by pointer when neither parameter retained static
     string traits. Expression and direct-`if` equality lowering now try safe `oren_string_eq(...)` only for

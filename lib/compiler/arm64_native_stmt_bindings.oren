@@ -1,0 +1,180 @@
+import core "arm64_core.oren"
+import exprm "arm64_native_expr.oren"
+import basem "arm64_native_stmt_loops_base.oren"
+
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+
+fn emit_str_reg_fp_any(ctx, reg, offset) { return core.emit_str_reg_fp_any(ctx, reg, offset) }
+fn scope_current_codegen(ctx) { return core.scope_current_codegen(ctx) }
+fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy, prev_struct_type) { return core.scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy, prev_struct_type) }
+fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
+fn _arm64_restore_stack_to(ctx, base_stack) { return basem._arm64_restore_stack_to(ctx, base_stack) }
+fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+
+fn _arm64_expr_constructed_struct_type(ctx, expr) {
+    if ctx == nil || expr == nil { return nil }
+    if expr["type"] != "Call" { return nil }
+    if expr["spread"] != nil { return nil }
+    var fnn = expr["fn"]
+    if fnn == nil || fnn["type"] != "Identifier" { return nil }
+    var name = fnn["value"]
+    if name == nil || name == "" { return nil }
+    var kinds = ctx["type_field_kinds"]
+    if kinds != nil && kinds[name] != nil { return name }
+    return nil
+}
+
+fn _arm64_set_static_struct_type(ctx, is_local, name, type_name) {
+    if ctx == nil || name == nil { return nil }
+    if is_local == true {
+        if ctx["locals_struct_type"] != nil { ctx["locals_struct_type"][name] = type_name }
+    } else {
+        if ctx["globals_struct_type"] != nil { ctx["globals_struct_type"][name] = type_name }
+    }
+    return nil
+}
+
+fn _arm64_store_static_traits(ctx, is_local, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type) {
+    if is_local == true {
+        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty }
+        if ctx["locals_inty"] != nil { ctx["locals_inty"][name] = is_inty }
+        if ctx["locals_int_const"] != nil { ctx["locals_int_const"][name] = int_const }
+        if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy }
+        if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy }
+        _arm64_set_static_struct_type(ctx, true, name, struct_type)
+    } else {
+        if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty }
+        if ctx["globals_inty"] != nil { ctx["globals_inty"][name] = is_inty }
+        if ctx["globals_int_const"] != nil { ctx["globals_int_const"][name] = int_const }
+        if ctx["globals_stringy"] != nil { ctx["globals_stringy"][name] = is_stringy }
+        if ctx["globals_list_stringy"] != nil { ctx["globals_list_stringy"][name] = is_list_stringy }
+        _arm64_set_static_struct_type(ctx, false, name, struct_type)
+    }
+    return nil
+}
+
+fn _arm64_emit_store_x0_to_global(ctx, data_off) {
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+
+    var adr_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    arm64_ctx_fixup_adr_data(ctx, adr_pos, data_off, 0)
+    push_u32_le(ctx["code"], insn_add_imm(1, 0, 0))
+
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+
+    push_u32_le(ctx["code"], insn_str_ptr(0, 1))
+    return nil
+}
+
+fn _arm64_compile_binding_value(ctx, value, native_compile_expr_fn) {
+    var rhs_base_stack = ctx["stack_size"]
+    native_compile_expr_fn(ctx, value)
+    _arm64_restore_stack_to(ctx, rhs_base_stack)
+    return nil
+}
+
+fn native_compile_stmt_assign(ctx, stmt, native_compile_expr_fn) {
+    var value = stmt["value"]
+    _arm64_compile_binding_value(ctx, value, native_compile_expr_fn)
+    var is_floaty = exprm.native_expr_is_floaty(ctx, value)
+    var is_inty = exprm.native_expr_is_inty_with_floaty(ctx, value, is_floaty)
+    var int_const = exprm.native_expr_int_const(ctx, value)
+    var is_stringy = exprm.native_expr_is_stringy(ctx, value)
+    var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, value)
+    var struct_type = _arm64_expr_constructed_struct_type(ctx, value)
+    var name = stmt["name"]["value"]
+    var off_enc = ctx["locals"][name]
+    if oren_type_tag(off_enc) != 0 {
+        var fp_off = off_enc - 1
+        emit_str_reg_fp_any(ctx, 0, fp_off)
+        _arm64_store_static_traits(ctx, true, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type)
+        return nil
+    }
+
+    var global_off_enc = ctx["globals"][name]
+    if oren_type_tag(global_off_enc) != 0 {
+        var global_off = global_off_enc - 1
+        _arm64_emit_store_x0_to_global(ctx, global_off)
+        _arm64_store_static_traits(ctx, false, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type)
+        return nil
+    }
+
+    native_error(ctx, stmt["token"], "native backend: assignment to undefined variable " + name)
+    return nil
+}
+
+fn native_compile_stmt_var(ctx, stmt, native_compile_expr_fn) {
+    var value = stmt["value"]
+    _arm64_compile_binding_value(ctx, value, native_compile_expr_fn)
+    var is_floaty = exprm.native_expr_is_floaty(ctx, value)
+    var is_inty = exprm.native_expr_is_inty_with_floaty(ctx, value, is_floaty)
+    var int_const = exprm.native_expr_int_const(ctx, value)
+    var is_stringy = exprm.native_expr_is_stringy(ctx, value)
+    var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, value)
+    var struct_type = _arm64_expr_constructed_struct_type(ctx, value)
+    var name = stmt["name"]["value"]
+
+    if ctx["in_function"] {
+        var scope = scope_current_codegen(ctx)
+        if scope != nil {
+            if scope["names"][name] != nil {
+                var existing_off_enc = ctx["locals"][name]
+                if oren_type_tag(existing_off_enc) != 0 {
+                    var fp_off_existing = existing_off_enc - 1
+                    emit_str_reg_fp_any(ctx, 0, fp_off_existing)
+                    _arm64_store_static_traits(ctx, true, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type)
+                    return nil
+                }
+            }
+        }
+
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+
+        var prev_off = ctx["locals"][name]
+        var prev_floaty = nil
+        if ctx["locals_floaty"] != nil { prev_floaty = ctx["locals_floaty"][name] }
+        var prev_inty = nil
+        if ctx["locals_inty"] != nil { prev_inty = ctx["locals_inty"][name] }
+        var prev_int_const = nil
+        if ctx["locals_int_const"] != nil { prev_int_const = ctx["locals_int_const"][name] }
+        var prev_stringy = nil
+        if ctx["locals_stringy"] != nil { prev_stringy = ctx["locals_stringy"][name] }
+        var prev_list_stringy = nil
+        if ctx["locals_list_stringy"] != nil { prev_list_stringy = ctx["locals_list_stringy"][name] }
+        var prev_struct_type = nil
+        if ctx["locals_struct_type"] != nil { prev_struct_type = ctx["locals_struct_type"][name] }
+        scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy, prev_struct_type)
+
+        var fp_off = 0 - ctx["stack_size"]
+        emit_str_reg_fp_any(ctx, 0, fp_off)
+        ctx["locals"][name] = fp_off + 1
+        _arm64_store_static_traits(ctx, true, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type)
+        ctx["stack_size"] = ctx["stack_size"] + 16
+    } else {
+        var data_off = bytes_len(ctx["data"])
+        var k = 0
+        while k < 8 {
+            bytes_push(ctx["data"], 0)
+            k = k + 1
+        }
+        ctx["globals"][name] = data_off + 1
+        _arm64_store_static_traits(ctx, false, name, is_floaty, is_inty, int_const, is_stringy, is_list_stringy, struct_type)
+        _arm64_emit_store_x0_to_global(ctx, data_off)
+    }
+    return nil
+}
