@@ -18,6 +18,21 @@ fn _arm64_call_profile_done(ctx, route, callee, argc, start) {
     return nil
 }
 
+fn _arm64_call_abi_cache(ctx) {
+    if ctx == nil { return nil }
+    if ctx["arm64_call_abi_regc"] != nil { return nil }
+    var call_abi = ctx["call_abi"]
+    if call_abi == nil {
+        call_abi = callabi.arm64(ctx["platform"])
+        ctx["call_abi"] = call_abi
+    }
+    ctx["arm64_call_abi_int_arg_regs"] = call_abi["int_arg_regs"]
+    ctx["arm64_call_abi_regc"] = callabi.max_int_reg_args(call_abi)
+    ctx["arm64_call_abi_stack_slot"] = callabi.stack_arg_slot_bytes(call_abi)
+    ctx["arm64_call_abi_stack_align"] = callabi.stack_align_bytes(call_abi)
+    return nil
+}
+
 fn native_expr_chunk_call(ctx, expr) {
     if expr["type"] != "Call" { return false }
 
@@ -384,15 +399,27 @@ fn native_expr_chunk_call(ctx, expr) {
     // - first N integer/pointer args in registers (X0..)
     // - remaining args on stack as 8-byte slots
     // - stack is 16-byte aligned at call boundaries
+    _arm64_call_abi_cache(ctx)
     var call_abi = nil
-    if ctx != nil { call_abi = ctx["call_abi"] }
+    var int_arg_regs = nil
+    var regc = 0
+    var slot = 8
+    var align = 16
+    if ctx != nil {
+        call_abi = ctx["call_abi"]
+        int_arg_regs = ctx["arm64_call_abi_int_arg_regs"]
+        if ctx["arm64_call_abi_regc"] != nil { regc = ctx["arm64_call_abi_regc"] }
+        if ctx["arm64_call_abi_stack_slot"] != nil { slot = ctx["arm64_call_abi_stack_slot"] }
+        if ctx["arm64_call_abi_stack_align"] != nil { align = ctx["arm64_call_abi_stack_align"] }
+    }
     if call_abi == nil {
         // Best-effort fallback (should be set by the program compiler).
         call_abi = callabi.arm64(ctx["platform"])
+        int_arg_regs = call_abi["int_arg_regs"]
+        regc = callabi.max_int_reg_args(call_abi)
+        slot = callabi.stack_arg_slot_bytes(call_abi)
+        align = callabi.stack_align_bytes(call_abi)
     }
-    var regc = callabi.max_int_reg_args(call_abi)
-    var slot = callabi.stack_arg_slot_bytes(call_abi)
-    var align = callabi.stack_align_bytes(call_abi)
 
     // Our temporary arg-eval stack uses 16-byte slots. Convert into ABI form.
     // Save the current SP (points at arg[nargs-1] temporary slot) in X9.
@@ -419,31 +446,29 @@ fn native_expr_chunk_call(ctx, expr) {
     // Load register args from the temporary stack (do not destroy the ABI stack args).
     var reg_arg_count = nargs
     if reg_arg_count > regc { reg_arg_count = regc }
-			    var r = 0
-			    while r < reg_arg_count {
-				        var dst_reg = callabi.int_arg_reg(call_abi, r)
-				        if oren_type_tag(dst_reg) == 0 {
-				            // Rolling robustness:
-				            // Avoid spamming diagnostics for ABI issues (self-hosted compiler can emit many calls).
-				            // Fall back to AAPCS64 consecutive arg regs (X0..).
-			            //
-			            // If you need to diagnose ABI tables, enable:
-			            //   OREN_TRACE_NATIVE_ABI=1
-			            if ctx != nil && ctx["abi_int_arg_reg_missing_emitted"] != true {
-			                ctx["abi_int_arg_reg_missing_emitted"] = true
-			                if oren_env("OREN_TRACE_NATIVE_ABI") != nil {
-			                    print("[native_abi] missing int arg reg for arg " + oren_int_to_string(r) + " (fallback X" + oren_int_to_string(r) + ")")
-			                }
-			            }
-			            dst_reg = r
-			        } else {
-			            // `callabi.int_arg_reg` returns `reg+1` (to avoid nil/0 ambiguity).
-			            dst_reg = dst_reg - 1
-			        }
-		        var src_off2 = (nargs - 1 - r) * 16
-		        emit_load_ptr_from_base_plus(ctx, dst_reg, 9, src_off2)
-		        r = r + 1
-		    }
+    var r = 0
+    while r < reg_arg_count {
+        var dst_reg = nil
+        if int_arg_regs != nil && r < regc { dst_reg = int_arg_regs[r] }
+        if dst_reg == nil {
+            // Rolling robustness:
+            // Avoid spamming diagnostics for ABI issues (self-hosted compiler can emit many calls).
+            // Fall back to AAPCS64 consecutive arg regs (X0..).
+            //
+            // If you need to diagnose ABI tables, enable:
+            //   OREN_TRACE_NATIVE_ABI=1
+            if ctx != nil && ctx["abi_int_arg_reg_missing_emitted"] != true {
+                ctx["abi_int_arg_reg_missing_emitted"] = true
+                if oren_env("OREN_TRACE_NATIVE_ABI") != nil {
+                    print("[native_abi] missing int arg reg for arg " + oren_int_to_string(r) + " (fallback X" + oren_int_to_string(r) + ")")
+                }
+            }
+            dst_reg = r
+        }
+        var src_off2 = (nargs - 1 - r) * 16
+        emit_load_ptr_from_base_plus(ctx, dst_reg, 9, src_off2)
+        r = r + 1
+    }
 
     // BL
     var bl_pos = bytes_len(ctx["code"])

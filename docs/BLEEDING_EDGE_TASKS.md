@@ -5363,6 +5363,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																					        about `1.0s / 318 calls`. Keep the rejected generic small-call fast path
 																					        closed; the next call-side slice needs to target these helper sites while
 																					        preserving runtime trace/env semantics.
+																					      - ARM64 generic call lowering now caches stable ABI metadata on the native
+																					        context (`int_arg_regs`, register count, stack slot size, and stack
+																					        alignment) and reuses the raw register vector during call marshalling.
+																					        Emitted code stays unchanged, while the refreshed default profile moves
+																					        `user_decls` from about `12.25s / 292000 bytes / 284 funcs` to about
+																					        `10.06s / 292000 bytes / 284 funcs`. This is compiler-side ABI metadata
+																					        reuse, not the rejected broad direct small-call fast path.
 																						      - the coroutine surface fixture now uses the same split shape: four focused
 																				        top-level chunks plus a tiny dispatcher, preserving return codes and
 																        coverage. The measured coroutine native profile now has the largest fixture

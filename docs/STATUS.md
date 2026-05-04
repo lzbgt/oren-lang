@@ -2767,6 +2767,13 @@ Local (fast):
   `_oren_generator_err` about `1.2s / 10 calls`, and `oren_is_err` about `1.0s / 318 calls`. Keep the earlier
   zero/one-arg direct-call fast path closed because it regressed throughput; the next credible call-side slice
   needs to preserve runtime trace/env semantics while reducing these specific generic helper sites.
+- ARM64 generic call lowering now caches stable ABI metadata (`int_arg_regs`, register count, stack slot size,
+  and stack alignment) on the native context and reuses the raw register vector while marshalling direct calls.
+  This preserves the emitted call sequence and fallback ABI diagnostics while avoiding repeated `native_abi`
+  helper calls in every generated helper call. The refreshed default profile moves `user_decls` from about
+  `12.25s / 292000 bytes / 284 funcs` to about `10.06s / 292000 bytes / 284 funcs`; gated call rows shrink but
+  still show the remaining call-side target is specific generator helpers (`_oren_generator_trace`,
+  `oren_is_err`, generator error helpers), not a broad small-call fast path.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

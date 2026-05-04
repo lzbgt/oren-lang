@@ -496,6 +496,12 @@ backend-shared value-helper slices landed.
     ~1.2s / 10 calls, and `oren_is_err` is ~1.0s / 318 calls. Runtime trace/env semantics still matter, so
     do not remove `_oren_generator_trace` calls or resurrect the rejected generic small-call fast path without
     a narrower semantic proof.
+  - ARM64 generic call ABI cache (2026-05-05): direct call marshalling now caches stable ABI metadata on the
+    native context and reuses the raw integer-argument register vector instead of asking `native_abi` for the
+    same facts at every generated helper call. Emitted code remains unchanged, and the fallback ABI diagnostic
+    path stays intact. The refreshed default profile moves generator `user_decls` from ~12.25s / 292000 bytes /
+    284 funcs to ~10.06s / 292000 bytes / 284 funcs; remaining call rows still point at specific generator
+    helper semantics rather than a broad direct-call byte-size shortcut.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:
