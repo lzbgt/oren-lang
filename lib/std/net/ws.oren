@@ -88,6 +88,16 @@ fn _ws_new_client_key_base64() {
     return {"ok": 1, "v": base64.encode_bytes(b)}
 }
 
+fn client_key_base64() {
+    return _ws_new_client_key_base64()
+}
+
+fn try_client_key_base64() {
+    var r = client_key_base64()
+    if oren_map_get_str(r, "ok") == 1 { return oren_map_get_str(r, "v") }
+    return _err_result(r, "ws.client_key_base64 failed")
+}
+
 fn _starts_with(s, prefix) {
     if s == nil || prefix == nil { return 0 }
     var sl = oren_string_len(s)
@@ -184,6 +194,18 @@ fn _parse_ws_url(url) {
     }
 
     return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
+}
+
+fn parse_url(url) {
+    return _parse_ws_url(url)
+}
+
+fn try_parse_url(url) {
+    var r = parse_url(url)
+    if oren_map_get_str(r, "ok") == 1 {
+        return {"scheme": r["scheme"], "host": r["host"], "port": r["port"], "path": r["path"]}
+    }
+    return _err_result(r, "ws.parse_url failed")
 }
 
 fn _resolve_host_ipv4(host, timeout_ms, resolver) {

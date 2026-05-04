@@ -108,6 +108,8 @@ fn main() {
 
             // WSS surface (WebSocket over TLS).
             var _wr = ws.connect_resolver_opts("wss://127.0.0.1/", 1, 0, {"tls": {"insecure_skip_verify": 1}})
+            var _wpu = ws.try_parse_url("wss://127.0.0.1/")
+            var _wk = ws.try_client_key_base64()
 
             // Client wrapper surface (http2_client).
             var _c = h2c.new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})

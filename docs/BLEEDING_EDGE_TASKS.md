@@ -4563,8 +4563,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     backlog to broader HTTP/TLS/WebSocket surfaces and untested provider edges.
 	     New (2026-05-04): HTTP and WebSocket loopback-tested APIs now also have structured
 	     wrappers (`try_get_text`, `try_get_response`, `try_connect`, `try_accept`,
-	     `try_recv_text`, `try_send_text_*`), leaving TLS/provider-specific and deeper
-	     protocol edges as the main network ok-map cleanup.
+	     `try_recv_text`, `try_send_text_*`), and WebSocket low-level helpers now include
+	     `try_parse_url` / `try_client_key_base64`, leaving deeper protocol and older
+	     library edges as the main network ok-map cleanup.
 	     New (2026-05-04): TCP, UDP, TLS, crypto-facing TLS, and HTTP/2 framing/client facades now
 	     expose structured wrappers over tested deterministic surfaces (`tcp.try_*`, `udp.try_*`,
 	     `tls.try_connect`/`try_wrap_*`/IO/cert/ALPN helpers, `http2.try_parse_*`,

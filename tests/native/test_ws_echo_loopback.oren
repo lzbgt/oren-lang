@@ -320,6 +320,29 @@ fn run_case() {
     return rc
 }
 
+fn run_low_level_helpers() {
+    var u = ws.try_parse_url("ws://127.0.0.1:1234/chat")
+    if oren_is_err(u) {
+        print("ws_echo_loopback: FAIL parse_url err=" + oren_err_msg(u))
+        return 70
+    }
+    if strcmp(u["scheme"], "ws") != 0 { return 71 }
+    if strcmp(u["host"], "127.0.0.1") != 0 { return 72 }
+    if u["port"] != 1234 { return 73 }
+    if strcmp(u["path"], "/chat") != 0 { return 74 }
+
+    var bad = ws.try_parse_url("ftp://127.0.0.1/")
+    if !oren_is_err(bad) { return 75 }
+
+    var key = ws.try_client_key_base64()
+    if oren_is_err(key) {
+        print("ws_echo_loopback: FAIL client_key err=" + oren_err_msg(key))
+        return 76
+    }
+    if oren_string_len(key) != 24 { return 77 }
+    return 0
+}
+
 fn main() {
     // Optional stress knob for flaky platform bring-up:
     //   OREN_WS_ECHO_N=<n>  (defaults to 1)
@@ -333,6 +356,12 @@ fn main() {
     }
 
     _ensure_workers_for_spawned_servers("ws_echo_loopback")
+
+    var helper_rc = run_low_level_helpers()
+    if helper_rc != 0 {
+        print("ws_echo_loopback: FAIL low_level rc=" + oren_int_to_string(helper_rc))
+        exit(helper_rc)
+    }
 
     var i = 0
     while i < iters {

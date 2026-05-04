@@ -1376,6 +1376,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      loopback-tested APIs (`try_get_text`, `try_get_response`, `try_connect`,
      `try_connect_resolver`, `try_accept`, `try_recv_text`, `try_send_text_client`,
      `try_send_text_server`), while preserving the legacy ok-map and errno-returning functions.
+     WebSocket also exposes structured low-level helpers for URL parsing and client-key generation
+     (`try_parse_url`, `try_client_key_base64`).
    - New (2026-05-04): the lower NET/TLS/HTTP2 layers now expose structured wrappers too:
      `std:net/tcp` / `std:net/udp` have `try_*` aliases over fd/byte-count returns, `std:net/tls` and the
      `std:crypto/tls` facade have `try_connect`, `try_wrap_*`, `try_read_into`,
@@ -5218,7 +5220,7 @@ Status legend:
 | TLS v0 | Rolling | `lib/std/net/tls.oren` / `lib/std/crypto/tls.oren` (`try_connect`, `try_wrap_*`, `try_read_into`, `try_write_from`, cert/ALPN helpers) + OS providers | `tests/native/test_tls_loopback.oren` |
 | HTTP/1.1 GET | Rolling | `lib/std/net/http.oren` (`try_get_text`, `try_get_response`) | `tests/native/test_http_get_loopback.oren` |
 | HTTP/2 framing + HPACK v0 | Rolling | `lib/std/net/http2.oren` (`try_parse_*`, `try_write_frame_header`), `lib/std/net/http2_client.oren` (`try_new`, `try_request`), `lib/std/net/hpack.oren` (`try_encode_header_block`, `try_decode_header_block`) | `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren`, `tests/native/test_hpack_encode_rfc_c41.oren` |
-| WebSocket v0 | Rolling | `lib/std/net/ws.oren` (`try_connect`, `try_accept`, `try_recv_text`, `try_send_text_*`) | `tests/native/test_ws_echo_loopback.oren` |
+| WebSocket v0 | Rolling | `lib/std/net/ws.oren` (`try_parse_url`, `try_client_key_base64`, `try_connect`, `try_accept`, `try_recv_text`, `try_send_text_*`) | `tests/native/test_ws_echo_loopback.oren` |
 | Channels + select | Rolling | `lib/runtime_native/010_channels_*`, `lib/runtime_native/245_select.oren` | `tests/native/test_integration_suite.oren`, `tests/avm/test_smoke_suite.oren` |
 | Spawn + join | Rolling | `lib/runtime_native/260_threads.oren` | `tests/native/test_integration_suite.oren` |
 | Capsule model (capability gating) | Rolling | runtime + emit constraints | `docs/CAPABILITY_RUNTIME_CONTRACT.md`, `@oren.package(...)`, `policy.source_package_check`, `--enforce-package-policy`, `scripts/run_package_policy.sh`, `scripts/run_avm_package_policy.sh`, `scripts/run_native_package_policy.sh`, `OREN_NATIVE_PACKAGE_POLICY_RUN_JSON`, `make verify-capability-runtime-contract`, `make verify-capability-metadata`, `make verify-capability-manifest-policy`, `make verify-avm-package-policy-runner`, `make verify-native-package-policy-runner`, `make verify-native-capsule-resource-checks`, `tests/native/fixtures/capsule_*`, `tests/fixtures/meta_capabilities_src.oren` |

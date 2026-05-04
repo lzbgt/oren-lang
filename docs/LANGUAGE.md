@@ -292,7 +292,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:net/http2` (rolling: framing + `try_parse_frame_header` / `try_parse_settings_payload`; loopback fixtures cover SETTINGS/ACK + PING/ACK + CONTINUATION: `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren`)
   - `std:net/http2_client` (rolling: minimal HTTP/2 client layer with `try_new` / `try_request`; handshake + single-stream request/response; exercised by `tests/native/test_http2_headers_loopback.oren`)
   - `std:net/hpack` (rolling: HPACK encode/decode v0 (includes Huffman), plus `try_encode_header_block` / `try_decode_header_block` structured-error wrappers; smokes: `tests/native/test_hpack_smoke.oren`, `tests/native/test_hpack_encode_rfc_c41.oren`)
-  - `std:net/ws` (WebSocket v0, plus structured `try_connect` / `try_accept` / `try_recv_text` / `try_send_text_*` wrappers; loopback fixtures)
+  - `std:net/ws` (WebSocket v0, plus structured `try_parse_url` / `try_client_key_base64` / `try_connect` / `try_accept` / `try_recv_text` / `try_send_text_*` wrappers; loopback fixtures)
   - `std:net/tls` (TLS wrapper with structured `try_connect`, `try_wrap_*`, `try_read_into`, `try_write_from`, peer-cert, and ALPN helpers; used by `https://` and `wss://` loopback fixtures)
 
 For the detailed NET/TLS behavior and design constraints (determinism, pinning, providers), use the dedicated docs:
@@ -3767,8 +3767,9 @@ Rolling status:
   connect/wrap/read/write/cert/ALPN helpers, the OS-specific TLS provider modules mirror those
   direct `try_*` helpers for advanced provider callers, HTTP/2 framing/client has `try_parse_*` /
   `try_new` / `try_request`, HPACK has `try_encode_header_block` / `try_decode_header_block`,
-  HTTP has `try_get_text` / `try_get_response`, and WebSocket has `try_connect` / `try_accept` /
-  `try_recv_text` / `try_send_text_*`, so callers can opt into `oren_err` without breaking
+  HTTP has `try_get_text` / `try_get_response`, and WebSocket has `try_parse_url` /
+  `try_client_key_base64` / `try_connect` / `try_accept` / `try_recv_text` / `try_send_text_*`,
+  so callers can opt into `oren_err` without breaking
   legacy ok-map network code.
 - Design + migration notes: `docs/design/structured_error_model.md`
 
