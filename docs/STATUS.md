@@ -2669,6 +2669,13 @@ Local (fast):
   `generator_surface_part_decl_and_local_generators` (~2.2s), and
   `generator_surface_part_iteration_and_decls` (~2.1s). This is still fixture-shape/codegen-scaling
   cleanup, not the final backend fix; the first Mach-O local BL resolve bucket remains ~2.4s.
+- Generator surface fixture second re-split (2026-05-05): the remaining hottest generator fixture chunks
+  were split again along independent assertion groups. `timeout_policy_waits` is now
+  `timeout_policy_cancel_waits` plus `timeout_policy_stop_waits`; `decl_and_local_generators` is now
+  `decl_generators` plus `local_generators`; `iteration_and_decls` is now `iteration_basic` plus
+  `iteration_delegate_steps`. Return codes and coverage are preserved. The uncontended native profile
+  reports `user_decls` at ~20.4s / 323632 bytes / 282 funcs, with the largest generator fixture body now
+  ~1.73s. Treat this as verifier-shape/codegen-scaling cleanup, not the backend wall-time solution.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

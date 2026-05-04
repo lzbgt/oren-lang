@@ -5235,14 +5235,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															        The measured native profile improves `user_decls` from ~22.0s to ~20.7s
 															        and link/prep from ~14.6s to ~8.4s, while confirming large monolithic
 															        user functions are still a native-codegen scaling target.
-														      - the generator surface fixture was split once more into seven focused
-															        top-level chunks plus the dispatcher. Return codes and coverage are
-															        preserved; the refreshed native profile keeps `user_decls` in the same
+															      - the generator surface fixture was split once more into seven focused
+																        top-level chunks plus the dispatcher. Return codes and coverage are
+																        preserved; the refreshed native profile keeps `user_decls` in the same
 															        broad band but nudges it to ~20.6s / 323172 bytes / 276 funcs, with the
-															        hottest fixture chunks now around ~2.8s, ~2.2s, and ~2.1s. Keep this
-															        classified as fixture-shape/codegen-scaling cleanup; the first local BL
-															        resolve bucket still sits around ~2.4s.
-															      - the coroutine surface fixture now uses the same split shape: four focused
+																        hottest fixture chunks now around ~2.8s, ~2.2s, and ~2.1s. Keep this
+																        classified as fixture-shape/codegen-scaling cleanup; the first local BL
+																        resolve bucket still sits around ~2.4s.
+															      - the generator surface fixture was split again along independent assertion
+																        groups for the remaining hottest chunks: timeout wait coverage, decl/local
+																        generator coverage, and iteration/delegate-step coverage. Return codes and
+																        coverage are preserved. The uncontended native profile reports `user_decls`
+																        around ~20.4s / 323632 bytes / 282 funcs, with the largest generator
+																        fixture body now ~1.73s. Keep this classified as verifier-shape/codegen
+																        scaling cleanup, not the backend wall-time fix.
+																      - the coroutine surface fixture now uses the same split shape: four focused
 															        top-level chunks plus a tiny dispatcher, preserving return codes and
 															        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:

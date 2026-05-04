@@ -694,7 +694,7 @@ fn generator_surface_part_timeout_policy() {
     return 0
 }
 
-fn generator_surface_part_timeout_policy_waits() {
+fn generator_surface_part_timeout_policy_cancel_waits() {
     var gwatch2 = gen.start(counter_worker, [18])
     var gwatch2s0 = gen.next(gwatch2)
     if oren_is_err(gwatch2s0) == true || gwatch2s0["ok"] != true || gwatch2s0["value"] != 19 { return 173391 }
@@ -746,6 +746,10 @@ fn generator_surface_part_timeout_policy_waits() {
     if oren_is_err(gen.stop_after_wait(gwreq1, 0, 0, 1, "bad")) != true { return 17339673 }
     if oren_is_err(gen.stop_at_wait(gwreq1, 0, 0, 1, "bad")) != true { return 17339674 }
 
+    return 0
+}
+
+fn generator_surface_part_timeout_policy_stop_waits() {
     var gwcancel0 = gen.start(counter_worker, [33])
     var gwcancel0s0 = gen.next(gwcancel0)
     if oren_is_err(gwcancel0s0) == true || gwcancel0s0["ok"] != true || gwcancel0s0["value"] != 34 { return 17339675 }
@@ -815,6 +819,12 @@ fn generator_surface_part_timeout_policy_waits() {
     if oren_is_err(gen.stop_policy_wait(gpol3, {"mode": "cancel", "join_timeout_ms": "bad"})) != true { return 17339711 }
 
     return 0
+}
+
+fn generator_surface_part_timeout_policy_waits() {
+    var r0 = generator_surface_part_timeout_policy_cancel_waits()
+    if r0 != 0 { return r0 }
+    return generator_surface_part_timeout_policy_stop_waits()
 }
 
 fn generator_surface_part_cancel_close_hooks() {
@@ -1135,7 +1145,7 @@ fn generator_surface_part_close_finalize_hooks() {
     return 0
 }
 
-fn generator_surface_part_iteration_and_decls() {
+fn generator_surface_part_iteration_basic() {
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
     if oren_is_err(n0) == true { return 110 }
@@ -1185,6 +1195,10 @@ fn generator_surface_part_iteration_and_decls() {
     if oren_is_err(dd2) == true { return 1372 }
     if dd2["done"] != true || dd2["return"] != 67 { return 1373 }
 
+    return 0
+}
+
+fn generator_surface_part_iteration_delegate_steps() {
     var g4ds = gen.start(delegate_syntax_outer_worker, [20])
     var dsy0 = gen.next(g4ds)
     if oren_is_err(dsy0) == true { return 13731 }
@@ -1259,7 +1273,13 @@ fn generator_surface_part_iteration_and_decls() {
     return 0
 }
 
-fn generator_surface_part_decl_and_local_generators() {
+fn generator_surface_part_iteration_and_decls() {
+    var r0 = generator_surface_part_iteration_basic()
+    if r0 != 0 { return r0 }
+    return generator_surface_part_iteration_delegate_steps()
+}
+
+fn generator_surface_part_decl_generators() {
     var g5 = decl_counter(40)
     if oren_type_name(g5) != "generator" { return 1397 }
     var d0 = gen.next(g5)
@@ -1344,6 +1364,10 @@ fn generator_surface_part_decl_and_local_generators() {
     var bad_delegate_direct = oren_generator_delegate(123, 456)
     if oren_is_err(bad_delegate_direct) != true { return 1865 }
 
+    return 0
+}
+
+fn generator_surface_part_local_generators() {
     var local_bias = 7
     fn local_add(a, b) {
         return a + b + local_bias
@@ -1391,6 +1415,12 @@ fn generator_surface_part_decl_and_local_generators() {
     if gen.is_done(g10) != true || gen.return_value(g10) != 77 { return 192 }
 
     return 0
+}
+
+fn generator_surface_part_decl_and_local_generators() {
+    var r0 = generator_surface_part_decl_generators()
+    if r0 != 0 { return r0 }
+    return generator_surface_part_local_generators()
 }
 
 fn main() {

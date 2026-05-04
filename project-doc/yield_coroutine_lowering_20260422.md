@@ -399,6 +399,11 @@ backend-shared value-helper slices landed.
     chunk to ~2.8s in the refreshed native profile. `user_decls` remains in the same broad band but
     nudges to ~20.6s / 323172 bytes / 276 funcs, so this is fixture-shape/codegen-scaling cleanup; the
     first Mach-O local BL resolve bucket remains ~2.4s.
+  - Generator fixture second re-split (2026-05-05): the remaining hottest generator fixture chunks were
+    split along independent assertion groups (`timeout_policy_*`, `decl/local_generators`, and
+    `iteration_*`). Return codes and coverage are preserved. The uncontended native profile reports
+    `user_decls` around ~20.4s / 323632 bytes / 282 funcs, with the largest generator fixture body now
+    ~1.73s. Keep this classified as verifier-shape/codegen-scaling cleanup, not the backend wall-time fix.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:
