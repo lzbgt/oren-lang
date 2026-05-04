@@ -4990,6 +4990,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        profile still reports the same `790088` BL scan steps and first bucket
 																	        around `~2.40s`; treat it as a constant-factor simplification, not the
 																	        final traversal fix.
+																	      - Dead-vector cleanup (2026-05-05): the combined metadata-key resolver no
+																	        longer reads the old per-target length vector, so local BL/ADR-code
+																	        target caching stopped allocating and pushing that unused lane. The
+																	        refreshed opt-in profile still reports the same traversal class
+																	        (`11423` BL lookups, `336` unique targets, ~`801512` scan steps,
+																	        first bucket ~`2.47s`), so the next material resolver change must
+																	        reduce target-cache entries visited per lookup.
 																	      - Rejected metadata-bucket resolver follow-up (2026-05-04): both a
 																	        map-backed metadata-key bucket and a lean parallel-list metadata bucket
 																	        reduced detailed BL scan accounting from `790088` entries to the

@@ -2471,6 +2471,12 @@ Local (fast):
   (`790088` BL scan steps / `12567` byte comparisons), while the first BL bucket stays around `~2.40s`.
   This is a smaller constant-factor cleanup; the next material resolver win still needs fewer linear
   target-cache entries visited per lookup.
+- Local resolver dead-vector cleanup (2026-05-05): after the combined metadata-key change, the
+  per-target length vector was no longer read. It is now removed from the local BL/ADR-code resolver
+  cache path so each newly discovered target avoids one unused list write/allocation lane. The opt-in
+  resolver profile still shows the same traversal boundary (`11423` BL lookups, `336` unique targets,
+  about `801512` scan steps, first bucket `~2.47s`), so this is maintenance/constant-factor cleanup
+  rather than a traversal fix.
 - Rejected local resolver metadata buckets (2026-05-04): two stronger traversal-reduction prototypes
   were measured and reverted. A map-backed metadata-key bucket and a lean parallel-list metadata bucket
   both cut detailed BL scan accounting from `790088` entries to the candidate count (`12567`), but the

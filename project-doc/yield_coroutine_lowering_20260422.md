@@ -230,6 +230,11 @@ backend-shared value-helper slices landed.
     vectors. The generator profile remains behavior-compatible and keeps the same `790088` BL scan
     steps / `12567` byte comparisons, with the first bucket still about `~2.40s`; this is a
     constant-factor simplification rather than the final traversal fix.
+  - Local resolver dead-vector cleanup (2026-05-05): the combined metadata-key resolver no longer
+    needs the separate per-target length vector, so the local BL/ADR-code target cache stopped
+    allocating/pushing that unused lane. The refreshed opt-in profile still reports the same class of
+    traversal boundary (`11423` BL lookups, `336` unique targets, ~`801512` scan steps, first bucket
+    ~`2.47s`), so the next material resolver win still needs fewer target-cache entries visited.
   - Rejected metadata-bucket resolver follow-up (2026-05-04): both a map-backed metadata-key bucket and
     a lean parallel-list metadata bucket reduced detailed BL scan accounting from `790088` entries to
     the candidate count (`12567`), but the measured first BL resolve bucket stayed flat/slightly worse

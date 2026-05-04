@@ -106,7 +106,7 @@ fn _macho_target_meta_key(name_len, name_first, name_last) {
     return name_len * 65536 + name_first * 256 + name_last
 }
 
-fn _macho_lookup_function_linear(names, offs, meta_keys, lens, ctx, functions, name, stats) {
+fn _macho_lookup_function_linear(names, offs, meta_keys, ctx, functions, name, stats) {
     if name == nil {
         _macho_lookup_stats_add(stats, 0, 0, 0, 0, 1)
         return nil
@@ -141,7 +141,6 @@ fn _macho_lookup_function_linear(names, offs, meta_keys, lens, ctx, functions, n
         oren_list_push(names, name)
         oren_list_push(offs, off)
         oren_list_push(meta_keys, name_key)
-        oren_list_push(lens, name_len)
         appended = 1
     } else {
         missed = 1
@@ -1532,7 +1531,6 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var local_target_names = []
     var local_target_offs = []
     var local_target_meta_keys = []
-    var local_target_lens = []
     var local_target_stats = nil
     if phase_log != nil && oren_env("OREN_TRACE_MACHO_LOCAL_RESOLVE_STATS") != nil {
         local_target_stats = [0, 0, 0, 0, 0, 0]
@@ -1562,7 +1560,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var target_local = local_bl_target[i]
         if target_local == nil {
             var name_bl_local = local_bl_name[i]
-            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_lens, ctx, functions, name_bl_local, local_target_stats)
+            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, ctx, functions, name_bl_local, local_target_stats)
             if target_local == nil {
                 var e_local_bl = "native backend: undefined function " + name_bl_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
@@ -1621,7 +1619,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var target2_local = local_adr_code_target[i]
         if target2_local == nil {
             var name_ac_local = local_adr_code_name[i]
-            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_lens, ctx, functions, name_ac_local, local_target_stats)
+            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, ctx, functions, name_ac_local, local_target_stats)
             if target2_local == nil {
                 var e_local_ac = "native backend: undefined function " + name_ac_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))
