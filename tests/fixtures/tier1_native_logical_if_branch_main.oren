@@ -1,0 +1,32 @@
+var hits = 0
+
+fn mark(v) {
+    hits = hits + 1
+    return v
+}
+
+fn main() {
+    hits = 0
+    if mark(true) || mark(false) { } else { return 10 }
+    if hits != 1 { return 11 }
+
+    hits = 0
+    if mark(false) && mark(true) { return 12 }
+    if hits != 1 { return 13 }
+
+    hits = 0
+    if mark(false) || mark(true) { } else { return 14 }
+    if hits != 2 { return 15 }
+
+    hits = 0
+    if mark(true) && mark(true) { } else { return 16 }
+    if hits != 2 { return 17 }
+
+    var x = 7
+    var y = 9
+    if x != 7 || y != 9 || x + y != 16 { return 18 }
+    if x == 7 && y == 9 && x + y == 16 { } else { return 19 }
+    if x != 8 && y != 10 { } else { return 20 }
+    if x == 8 || y == 10 { return 21 }
+    return 0
+}

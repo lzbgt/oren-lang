@@ -2484,6 +2484,13 @@ Local (fast):
   keeps behavior and fixup counts stable while reducing total code bytes from 2514200 to 2505768 and
   `user_decls` code bytes from 460696 to 452472; treat this as a useful guard-heavy code-size cleanup,
   not a full solution for `user_decls` wall time.
+- ARM64 direct logical-if branches (2026-05-04): generated guard chains such as `a || b || c` and
+  `a && b` in `if` conditions now lower through branch-result lists instead of materializing
+  short-circuit boolean singleton values and then normalizing them for statement truthiness. The focused
+  fixture `tests/fixtures/tier1_native_logical_if_branch_main.oren` guards side-effect short-circuit
+  behavior, and the native quick lane runs it by default. The uncontended generator profile keeps
+  `user_decls` wall time roughly neutral (~20.9s) while reducing `user_decls` code bytes from 452472 to
+  379528; the remaining wall-time boundary is still large user-body lowering rather than wrapper codegen.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.

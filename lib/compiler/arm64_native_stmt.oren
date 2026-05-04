@@ -1256,10 +1256,20 @@ fn native_compile_stmt_inner(ctx, stmt) {
             }
             
             var else_target = bytes_len(ctx["code"])
-            var else_off = (else_target - jump_else_pos) / 4
-            var else_cond = 0
-            if direct_cond_branch != nil { else_cond = direct_cond_branch["cond"] }
-            set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, else_cond))
+            if direct_cond_branch != nil && direct_cond_branch["jumps"] != nil {
+                var false_jumps = direct_cond_branch["jumps"]
+                var fji = 0
+                while fji < oren_list_len(false_jumps) {
+                    var fj = false_jumps[fji]
+                    set_u32_le(ctx["code"], fj["pos"], insn_b_cond((else_target - fj["pos"]) / 4, fj["cond"]))
+                    fji = fji + 1
+                }
+            } else {
+                var else_off = (else_target - jump_else_pos) / 4
+                var else_cond = 0
+                if direct_cond_branch != nil { else_cond = direct_cond_branch["cond"] }
+                set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, else_cond))
+            }
             
             var alt_falls = true
             if expr["alt"] != nil {

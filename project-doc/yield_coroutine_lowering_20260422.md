@@ -249,6 +249,11 @@ backend-shared value-helper slices landed.
     singleton instead of treating the raw IEEE sign bit as an integer. The generator profile reduces
     total code bytes from 2514200 to 2505768 and `user_decls` code bytes from 460696 to 452472, while
     leaving the main `user_decls` wall-time boundary intact.
+  - Direct logical-if branch follow-up (2026-05-04): generated `if` guards that use `||` / `&&`
+    short-circuit chains now carry patchable false-branch lists directly through ARM64 statement lowering
+    instead of emitting a runtime boolean singleton and then re-normalizing it. The focused native quick
+    fixture verifies side-effect short-circuit behavior. The generator profile keeps `user_decls` wall
+    time roughly neutral (~20.9s) but cuts user-declaration code bytes from 452472 to 379528.
   - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
     profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
     statement buckets by phase/function/type. The default profile path remains phase/function-only to

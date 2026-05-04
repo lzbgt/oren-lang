@@ -630,6 +630,18 @@ if [[ "${OREN_QI_SKIP_RESULT_SMOKE:-0}" != "1" ]]; then
   tail -n 3 "$rs_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_LOGICAL_IF_SMOKE:-0}" != "1" ]]; then
+  echo "== logical if short-circuit smoke ==" >>"$log"
+  lif_src="tests/fixtures/tier1_native_logical_if_branch_main.oren"
+  lif_log="build/logs/${compiler_base}_logical_if_smoke.log"
+  rm -f "$lif_log" 2>/dev/null || true
+  run_step_checked "logical if short-circuit smoke" "$lif_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" test "$lif_src" \
+    --backend native --platform "$platform"
+  echo "ok: logical if short-circuit smoke" >>"$lif_log"
+  tail -n 3 "$lif_log" >>"$log"
+fi
+
 if [[ "${OREN_QI_SKIP_VISIBILITY_SMOKE:-0}" != "1" ]]; then
   echo "== module visibility pub smoke ==" >>"$log"
   vis_pub_src="tests/fixtures/visibility/pub_ok_main.oren"

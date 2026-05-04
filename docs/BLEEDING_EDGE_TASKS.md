@@ -5002,19 +5002,29 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        from 18719 to 17691. String/dynamic truthiness conditions remain on the
 																	        generic path.
 																		      - Stackless literal/singleton branch follow-up (2026-05-04): direct ARM64
-																		        `if` comparisons now avoid the temporary left-operand stack spill when
-																		        comparing against `true`, `false`, `nil`, or integer literals; wider
+																			        `if` comparisons now avoid the temporary left-operand stack spill when
+																			        comparing against `true`, `false`, `nil`, or integer literals; wider
 																		        and negative integer literals load through a scratch register. The
 																		        same slice fixes ARM64 `oren_bool_norm(float)` so `bool(-0.0)` compares
 																		        as `-0.0 != 0.0` before returning a runtime boolean singleton instead
 																		        of treating raw IEEE bits as an integer. The refreshed generator profile
 																		        keeps fixup counts stable while reducing total code bytes from 2514200
-																		        to 2505768 and `user_decls` bytes from 460696 to 452472. This is a
-																		        useful guard-heavy code-size cleanup, but `user_decls` wall time remains
-																		        the next real backend boundary.
-																	      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
-																	        make profile-native-build-phases` now enables gated inclusive ARM64
-															        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
+																			        to 2505768 and `user_decls` bytes from 460696 to 452472. This is a
+																			        useful guard-heavy code-size cleanup, but `user_decls` wall time remains
+																			        the next real backend boundary.
+																			      - Direct logical-if branch follow-up (2026-05-04): ARM64 `if`
+																			        conditions whose guards are short-circuit `||` / `&&` chains now carry
+																			        branch-result lists directly instead of materializing runtime boolean
+																			        singleton values and immediately normalizing them again for statement
+																			        truthiness. `tests/fixtures/tier1_native_logical_if_branch_main.oren`
+																			        verifies side-effect short-circuit behavior and is now part of native
+																			        quick integration. The uncontended generator profile keeps
+																			        `user_decls` wall time roughly neutral (~20.9s) while reducing
+																			        `user_decls` code bytes from 452472 to 379528, so the remaining
+																			        backend work stays on lowering cost, not guard-chain code size.
+																		      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
+																		        make profile-native-build-phases` now enables gated inclusive ARM64
+																        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
 														        path stays at phase/function granularity to avoid per-statement aggregation
 														        overhead. The first generator run shows `user_decls ExprStmt(If)` at ~16.5s
 														        / 854 stmts, `user_decls Var` at ~2.7s / 579 stmts, and `user_decls Return`

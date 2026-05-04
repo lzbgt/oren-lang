@@ -155,11 +155,88 @@ fn _arm64_int_lit_fits_cmp_imm(v) {
     return true
 }
 
+fn _arm64_branch_false_result(pos, cond) {
+    return {"pos": pos, "cond": cond, "jumps": [{"pos": pos, "cond": cond}]}
+}
+
+fn _arm64_append_branch_false_jumps(out, br) {
+    if br == nil { return out }
+    var jumps = br["jumps"]
+    if jumps != nil {
+        var i = 0
+        while i < oren_list_len(jumps) {
+            oren_list_push(out, jumps[i])
+            i = i + 1
+        }
+        return out
+    }
+    oren_list_push(out, {"pos": br["pos"], "cond": br["cond"]})
+    return out
+}
+
+fn _arm64_patch_branch_false_jumps(ctx, br, target) {
+    if br == nil { return nil }
+    var jumps = br["jumps"]
+    if jumps != nil {
+        var i = 0
+        while i < oren_list_len(jumps) {
+            var j = jumps[i]
+            set_u32_le(ctx["code"], j["pos"], insn_b_cond((target - j["pos"]) / 4, j["cond"]))
+            i = i + 1
+        }
+        return nil
+    }
+    set_u32_le(ctx["code"], br["pos"], insn_b_cond((target - br["pos"]) / 4, br["cond"]))
+    return nil
+}
+
+fn _arm64_emit_any_cond_branch_false(ctx, cond, tok, base_stack) {
+    var direct = _arm64_emit_if_cond_branch_false(ctx, cond, tok)
+    var delta = ctx["stack_size"] - base_stack
+    if delta != 0 { _arm64_restore_stack_to(ctx, base_stack) }
+    if direct != nil { return direct }
+
+    native_compile_expr(ctx, cond)
+    _arm64_emit_truthy_norm_in_x0(ctx, tok)
+    var delta2 = ctx["stack_size"] - base_stack
+    if delta2 != 0 { _arm64_restore_stack_to(ctx, base_stack) }
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jump_false = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    return _arm64_branch_false_result(jump_false, 0)
+}
+
 fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
     if cond == nil || cond["type"] != "Infix" { return nil }
     var op = cond["op"]
     var l = cond["left"]
     var r = cond["right"]
+
+    if op == "&&" {
+        var base_stack_and = ctx["stack_size"]
+        var left_false = _arm64_emit_any_cond_branch_false(ctx, l, tok, base_stack_and)
+        var right_false = _arm64_emit_any_cond_branch_false(ctx, r, tok, base_stack_and)
+        var and_jumps = []
+        _arm64_append_branch_false_jumps(and_jumps, left_false)
+        _arm64_append_branch_false_jumps(and_jumps, right_false)
+        if oren_list_len(and_jumps) <= 0 { return nil }
+        return {"pos": and_jumps[0]["pos"], "cond": and_jumps[0]["cond"], "jumps": and_jumps}
+    }
+    if op == "||" {
+        var base_stack_or = ctx["stack_size"]
+        var left_false_or = _arm64_emit_any_cond_branch_false(ctx, l, tok, base_stack_or)
+        var jump_true_or = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+
+        var right_pos_or = bytes_len(ctx["code"])
+        _arm64_patch_branch_false_jumps(ctx, left_false_or, right_pos_or)
+        var right_false_or = _arm64_emit_any_cond_branch_false(ctx, r, tok, base_stack_or)
+
+        var then_pos_or = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], jump_true_or, insn_b((then_pos_or - jump_true_or) / 4))
+        return right_false_or
+    }
+
     var left_stringy = exprm.native_expr_is_stringy(ctx, l)
     var right_stringy = exprm.native_expr_is_stringy(ctx, r)
     if left_stringy == true || right_stringy == true { return nil }
@@ -181,7 +258,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
                 var jump_false_rsingleton = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                return {"pos": jump_false_rsingleton, "cond": _arm64_inverse_cond(true_cond)}
+                return _arm64_branch_false_result(jump_false_rsingleton, _arm64_inverse_cond(true_cond))
             }
             if l_singleton != nil {
                 native_compile_expr(ctx, r)
@@ -189,7 +266,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
                 push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
                 var jump_false_lsingleton = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                return {"pos": jump_false_lsingleton, "cond": _arm64_inverse_cond(true_cond)}
+                return _arm64_branch_false_result(jump_false_lsingleton, _arm64_inverse_cond(true_cond))
             }
         }
 
@@ -204,7 +281,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
             }
             var jump_false_imm = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
-            return {"pos": jump_false_imm, "cond": _arm64_inverse_cond(true_cond)}
+            return _arm64_branch_false_result(jump_false_imm, _arm64_inverse_cond(true_cond))
         }
 
         var l_imm = _arm64_int_lit_value(l)
@@ -216,7 +293,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
                     push_u32_le(ctx["code"], insn_subs_imm(31, 0, l_imm)) // CMP X0, #imm
                     var jump_false_limm = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
-                    return {"pos": jump_false_limm, "cond": _arm64_inverse_cond(swapped_cond)}
+                    return _arm64_branch_false_result(jump_false_limm, _arm64_inverse_cond(swapped_cond))
                 }
             } else {
                 native_compile_expr(ctx, r)
@@ -224,7 +301,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
                 push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
                 var jump_false_limm2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                return {"pos": jump_false_limm2, "cond": _arm64_inverse_cond(true_cond)}
+                return _arm64_branch_false_result(jump_false_limm2, _arm64_inverse_cond(true_cond))
             }
         }
     }
@@ -250,7 +327,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
 
     var jump_false = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
-    return {"pos": jump_false, "cond": _arm64_inverse_cond(true_cond)}
+    return _arm64_branch_false_result(jump_false, _arm64_inverse_cond(true_cond))
 }
 
 
