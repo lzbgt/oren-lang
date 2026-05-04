@@ -1254,6 +1254,22 @@ fn main() {
     if r.is_err(bad_slice) != true { return 23 }
     var bad_slice_ty = strings.try_slice("hi", "x", 1)
     if r.is_err(bad_slice_ty) != true { return 905 }
+    var sw = strings.try_starts_with("hello", "he")
+    if r.is_err(sw) || sw != true { return 906 }
+    var ew = strings.try_ends_with("hello", "lo")
+    if r.is_err(ew) || ew != true { return 907 }
+    var ci = strings.try_contains("hello", "ell")
+    if r.is_err(ci) || ci != true { return 908 }
+    var ix = strings.try_index_of("hello", "ell")
+    if r.is_err(ix) || ix != 1 { return 909 }
+    var eq = strings.try_streq("same", "same")
+    if r.is_err(eq) || eq != true { return 910 }
+    var tr = strings.try_trim("  hi\t")
+    if r.is_err(tr) || strings.streq(tr, "hi") != true { return 911 }
+    var bad_sw = strings.try_starts_with(123, "he")
+    if r.is_err(bad_sw) != true { return 912 }
+    var bad_trim = strings.try_trim(123)
+    if r.is_err(bad_trim) != true { return 913 }
 
     // std:bytes structured errors
     var b = bytes.from_hex("00ff")

@@ -64,6 +64,48 @@ fn try_slice(s, start, end) {
     return oren_string_slice(s, start, end)
 }
 
+fn _two_strings_or_err(a, b, ctx) {
+    if _is_string(a) == false { return oren_err(4, ctx + ": first argument must be string") }
+    if _is_string(b) == false { return oren_err(4, ctx + ": second argument must be string") }
+    return nil
+}
+
+fn try_starts_with(s, prefix) {
+    var ok = _two_strings_or_err(s, prefix, "strings.try_starts_with")
+    if oren_is_err(ok) { return ok }
+    return starts_with(s, prefix)
+}
+
+fn try_ends_with(s, suffix) {
+    var ok = _two_strings_or_err(s, suffix, "strings.try_ends_with")
+    if oren_is_err(ok) { return ok }
+    return ends_with(s, suffix)
+}
+
+fn try_contains(s, sub) {
+    var ok = _two_strings_or_err(s, sub, "strings.try_contains")
+    if oren_is_err(ok) { return ok }
+    return contains(s, sub)
+}
+
+fn try_index_of(s, sub) {
+    var ok = _two_strings_or_err(s, sub, "strings.try_index_of")
+    if oren_is_err(ok) { return ok }
+    return index_of(s, sub)
+}
+
+fn try_streq(a, b) {
+    var ok = _two_strings_or_err(a, b, "strings.try_streq")
+    if oren_is_err(ok) { return ok }
+    return streq(a, b)
+}
+
+fn try_trim(s) {
+    var n = _len_or_err(s, "strings.try_trim")
+    if oren_is_err(n) { return n }
+    return trim(s)
+}
+
 fn starts_with(s, prefix) {
     if s == nil || prefix == nil { return false }
     var sb = oren_bytes_from_string(s)

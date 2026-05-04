@@ -277,7 +277,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
 
 - CLI/strings:
   - `std:argparse` (`try_parse` structured-error bridge; smoke: `tests/native/test_argparse_smoke.oren`)
-  - `std:strings` (used by `std:crypto/pem` smoke)
+  - `std:strings` (`try_len` / `try_char_at` / `try_slice`, plus checked predicate/trim helpers; module + result smokes)
   - `std:bytes` (smokes: `tests/native/qi/100_tests_basic.oren`, `tests/avm/test_smoke_suite.oren`)
   - `std:regex` (`try_compile` / `try_is_match`; smoke: `tests/modules/test_regex.oren`)
   - `std:time` (`try_parse_iso8601_utc` / `try_datetime_to_unix_ns`; smoke: `tests/modules/test_time_std.oren`)
@@ -3160,6 +3160,10 @@ Error behavior (portable rule):
   `bytes.try_to_u8_buf`, `bytes.try_to_string_slice`, and `bytes.try_to_u8_buf_slice`, so
   application code can stay on the portable structured-error surface instead of calling raw
   `oren_bytes_*` helpers directly.
+- Stdlib note: `std:strings` exposes checked wrappers for common operations that otherwise
+  reach unchecked string intrinsics on native backends: `try_len`, `try_char_at`, `try_slice`,
+  `try_starts_with`, `try_ends_with`, `try_contains`, `try_index_of`, `try_streq`, and `try_trim`.
+  Legacy convenience names remain available.
 
 Future direction (syntax sugar; no rewrite required):
 

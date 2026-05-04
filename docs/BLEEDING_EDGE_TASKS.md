@@ -5189,8 +5189,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      paths; covered by the native/bytecode time module test (2026-05-04).
    - New: `std:crypto/pem.decode_blocks_strict` rejects whitespace inside base64
      payloads; `try_decode_blocks*` aliases are covered by native PEM/result smoke fixtures.
-   - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return
-     `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
+   - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`, plus
+     `try_starts_with`/`try_ends_with`/`try_contains`/`try_index_of`/`try_streq`/`try_trim`)
+     return `oren_err` on invalid input; covered by module and result smoke fixtures (2026-05-04).
    - New: `std:bytes` structured helpers now cover the common packet-style multi-byte surface,
      slice/copy surface, and conversion surface too
      (`try_get_u16/u32/u64_*`, `try_get_i16/i32/i64_*`, `try_put_u16/i16/u32/i32/u64/i64_*`,
