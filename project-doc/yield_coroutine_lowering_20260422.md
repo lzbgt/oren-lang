@@ -344,7 +344,10 @@ backend-shared value-helper slices landed.
     (`STD_generator__generator_cancel_target_err`, `_oren_generator_err`), generator policy member calls
     (`stop_policy_wait`, `stop_policy`), and lambda-wrapper `oren_list_get` capture loads as the largest
     non-conditional buckets. Treat that as ranking data, not permission for generator-specific native
-    shortcuts without separate semantic/performance proof.
+    shortcuts without separate semantic/performance proof. A direct lambda-wrapper local-binding probe
+    removed the `lambda_wrap Var(Call(Id:oren_list_get,2))` statement bucket, but default profiles stayed
+    neutral-to-worse (`lambda_wrap` ~1.7-1.9s with identical emitted bytes), so the generic synthetic-`Var`
+    binding path remains shipped.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

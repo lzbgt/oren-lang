@@ -2594,7 +2594,10 @@ Local (fast):
   (`STD_generator__generator_cancel_target_err`, `_oren_generator_err`) plus generator policy member calls
   (`stop_policy_wait`, `stop_policy`) and lambda-wrapper `oren_list_get` capture loads. These are inclusive
   profiling facts for ranking; do not hard-code generator-specific native shortcuts without a separate
-  semantic/performance proof.
+  semantic/performance proof. A direct lambda-wrapper local-binding probe was measured and rejected: it
+  removed the `lambda_wrap Var(Call(Id:oren_list_get,2))` statement bucket, but default profiles stayed
+  neutral-to-worse (`lambda_wrap` ~1.7-1.9s with identical emitted bytes), so the generic synthetic-`Var`
+  binding path remains the shipped implementation.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to
