@@ -918,6 +918,10 @@ fn synth_fnwrap(fn_name, arity, varargs_fixed) {
     // The real target function already carries native call-depth guards. Avoid double-charging
     // thin named-function wrappers; lambda wrappers still need guards because they own the body.
     fun["__oren_no_call_depth"] = true
+    if varargs_fixed == nil {
+        fun["__oren_direct_fnwrap_target"] = fn_name
+        fun["__oren_direct_fnwrap_arity"] = arity
+    }
     return node_expr_stmt(fun)
 }
 

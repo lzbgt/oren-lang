@@ -221,6 +221,12 @@ backend-shared value-helper slices landed.
     generator profile moves `fnwrap` from the prior ~5.8s / 29700 bytes / 37 funcs to ~3.9s / 28516
     bytes / 37 funcs, with local BL fixups down to 11174. Remaining backend work should still target
     user-declaration codegen, lambda-wrapper codegen, or the first BL resolve bucket.
+  - Direct fixed-fnwrap body emission (2026-05-04): fixed-arity `__oren_fnwrap_*` functions now keep
+    their synthesized AST body for non-ARM64 backends but carry metadata so ARM64 emits the wrapper's
+    env/arity checks and target call directly inside the normal function frame. The refreshed generator
+    profile moves `fnwrap` to ~0.95s / 19932 bytes / 37 funcs, so named-function wrappers are no
+    longer the dominant wrapper boundary; `lambda_wrap`, `user_decls`, and the first BL resolve bucket
+    remain.
   - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
     profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
     statement buckets by phase/function/type. The default profile path remains phase/function-only to

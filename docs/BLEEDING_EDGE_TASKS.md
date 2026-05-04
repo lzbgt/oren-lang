@@ -4970,8 +4970,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        prior ~5.8s / 29700 bytes / 37 funcs to ~3.9s / 28516 bytes / 37 funcs,
 														        and local BL fixups drop to 11174. Keep the remaining backend work focused
 														        on `user_decls`, `lambda_wrap`, and the first BL resolve bucket.
-														      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
-														        make profile-native-build-phases` now enables gated inclusive ARM64
+															      - Direct fixed-fnwrap body emission (2026-05-04): fixed-arity
+															        `__oren_fnwrap_*` functions now keep the synthesized AST body for
+															        non-ARM64 backends but carry metadata so ARM64 emits the env/arity
+															        checks and target call directly inside the existing function frame. The
+															        generator profile moves `fnwrap` from ~4.0s / 28516 bytes / 37 funcs to
+															        ~0.95s / 19932 bytes / 37 funcs; reweight named-function wrappers down
+															        and keep the next backend slice on `user_decls`, `lambda_wrap`, or the
+															        first BL resolve bucket.
+															      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
+															        make profile-native-build-phases` now enables gated inclusive ARM64
 														        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
 														        path stays at phase/function granularity to avoid per-statement aggregation
 														        overhead. The first generator run shows `user_decls ExprStmt(If)` at ~16.5s

@@ -397,8 +397,47 @@ fn insn_svc(imm) { return core.insn_svc(imm) }
 	fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
 
 		// Delegate expression compilation to the expr module.
-		fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
-		fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+fn native_emit_panic(ctx, msg) { return exprm.native_emit_panic(ctx, msg) }
+
+fn _arm64_fnwrap_id(name) { return {"type": "Identifier", "value": name} }
+fn _arm64_fnwrap_int(v) { return {"type": "Integer", "value": oren_int_to_string(v)} }
+fn _arm64_fnwrap_call(name, args) { return {"type": "Call", "fn": _arm64_fnwrap_id(name), "args": args} }
+
+fn _arm64_emit_direct_fixed_fnwrap_body(ctx, target_name, arity) {
+    if target_name == nil || target_name == "" { return nil }
+    if oren_type_tag(arity) != 1 || arity < 0 { return nil }
+
+    // Keep the existing wrapper ABI and panic contract, but avoid lowering the
+    // synthesized wrapper as a generic Block/If/Return statement tree.
+    native_compile_expr(ctx, _arm64_fnwrap_id("__env"))
+    push_u32_le(ctx["code"], insn_movz(1, 0))
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+    var env_ok_jump = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    native_emit_panic(ctx, "env mismatch")
+    var env_ok_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], env_ok_jump, insn_b_cond((env_ok_pos - env_ok_jump) / 4, 0)) // EQ
+
+    native_compile_expr(ctx, _arm64_fnwrap_call("oren_list_len", [_arm64_fnwrap_id("__args")]))
+    emit_load_i64_imm(ctx, 1, arity)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+    var arity_ok_jump = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    native_emit_panic(ctx, "arity mismatch")
+    var arity_ok_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], arity_ok_jump, insn_b_cond((arity_ok_pos - arity_ok_jump) / 4, 0)) // EQ
+
+    var call_args = []
+    var i = 0
+    while i < arity {
+        oren_list_push(call_args, _arm64_fnwrap_call("oren_list_get", [_arm64_fnwrap_id("__args"), _arm64_fnwrap_int(i)]))
+        i = i + 1
+    }
+    native_compile_stmt(ctx, {"type": "Return", "value": _arm64_fnwrap_call(target_name, call_args)})
+    return false
+}
 
 
 
@@ -1537,7 +1576,13 @@ fn native_compile_stmt_inner(ctx, stmt) {
             
             var prev_bb_fn_body = ctx["arm64_basic_block_entry"]
             if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
-            native_compile_stmt(ctx, expr["body"])
+            var direct_fnwrap_target = expr["__oren_direct_fnwrap_target"]
+            var direct_fnwrap_arity = expr["__oren_direct_fnwrap_arity"]
+            if direct_fnwrap_target != nil {
+                _arm64_emit_direct_fixed_fnwrap_body(ctx, direct_fnwrap_target, direct_fnwrap_arity)
+            } else {
+                native_compile_stmt(ctx, expr["body"])
+            }
             ctx["arm64_basic_block_entry"] = prev_bb_fn_body
             
             push_u32_le(ctx["code"], insn_movz(0, 0))

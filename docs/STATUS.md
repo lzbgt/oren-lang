@@ -2452,6 +2452,12 @@ Local (fast):
   bytes / 37 funcs to ~3.9s / 28516 bytes / 37 funcs, and local BL fixups dropped to 11174. This is a
   safe wrapper-shape cleanup, not the final throughput fix; `user_decls`, `lambda_wrap`, and the first
   local BL resolve bucket remain the largest backend costs.
+- ARM64 direct fixed-fnwrap body emission (2026-05-04): fixed-arity `__oren_fnwrap_*` functions now
+  retain their synthesized AST bodies for non-ARM64 backends but carry metadata that lets ARM64 emit
+  the env/arity checks plus tail call body directly inside the normal function frame. The measured
+  generator profile moves `fnwrap` from ~4.0s / 28516 bytes / 37 funcs to ~0.95s / 19932 bytes /
+  37 funcs. This closes the named-function wrapper cost enough that remaining backend throughput work
+  should prioritize `user_decls`, `lambda_wrap`, and the first local BL resolve bucket.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.
