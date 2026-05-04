@@ -2517,7 +2517,9 @@ Local (fast):
   running broad string/float trait probes, while still falling back to generic numeric lowering when
   the non-literal side is statically floaty. The sequential generator profile keeps `user_decls` wall
   time in the same band (~21.0s) but trims user-declaration code bytes from `325368` to `323804`;
-  treat this as a safe constant-factor guard cleanup, not the final wall-time fix.
+  a follow-up also reuses already-known string-trait results inside the guarded `strcmp` decision
+  instead of walking both operands again. Treat this as safe constant-factor guard cleanup, not the
+  final wall-time fix.
 - Rejected ARM64 string-literal register branch path (2026-05-04): a narrower follow-up avoided the
   temporary stack spill for direct `if` string comparisons where one side is a literal by loading the
   literal pointer directly into a compare register. It passed focused branch/string smokes and reduced

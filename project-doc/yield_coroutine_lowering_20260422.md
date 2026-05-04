@@ -276,8 +276,9 @@ backend-shared value-helper slices landed.
     `false`, `nil`, and integer literals now run the stackless singleton/literal branch path before
     broad string/float trait probes, while known-float non-literal sides stay on the generic numeric
     path. The sequential generator profile keeps `user_decls` wall time in the same band (~21.0s) but
-    trims `user_decls` bytes from `325368` to `323804`; treat this as constant-factor guard cleanup, not
-    the final wall-time fix.
+    trims `user_decls` bytes from `325368` to `323804`; a follow-up also reuses already-known string-trait
+    results inside the guarded `strcmp` decision instead of walking both operands again. Treat this as
+    constant-factor guard cleanup, not the final wall-time fix.
   - Rejected string-literal register branch follow-up (2026-05-04): a narrower ARM64 string-if branch
     experiment avoided the temporary stack spill for literal operands by loading literal pointers directly
     into compare registers. It passed focused branch/string smokes and trimmed generator `user_decls` bytes

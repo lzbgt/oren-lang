@@ -5054,8 +5054,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																						        string/float trait probes, with known-float non-literal sides still
 																						        falling back to generic numeric lowering. The sequential generator
 																						        profile keeps `user_decls` wall time in the same band (~21.0s) while
-																						        trimming user-declaration bytes from `325368` to `323804`; this is a
-																						        safe constant-factor guard cleanup, not the final wall-time fix.
+																						        trimming user-declaration bytes from `325368` to `323804`; a follow-up
+																						        also reuses already-known string-trait results inside the guarded
+																						        `strcmp` decision instead of walking both operands again. This is safe
+																						        constant-factor guard cleanup, not the final wall-time fix.
 																						      - Rejected string-literal register branch follow-up (2026-05-04): a
 																						        narrower direct string-if experiment loaded literal operands directly
 																					        into compare registers to avoid the temporary stack spill around

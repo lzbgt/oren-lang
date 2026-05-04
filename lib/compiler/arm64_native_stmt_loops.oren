@@ -183,15 +183,13 @@ fn _arm64_int_lit_value(expr) {
     return intparse.parse_int_lit(expr["value"])
 }
 
-fn _arm64_cmp_may_use_strcmp(ctx, left, right) {
+fn _arm64_cmp_may_use_strcmp_known(ctx, left, right, ls, rs) {
     var l_is_nil = false
     var r_is_nil = false
     if left != nil && left["type"] == "Nil" { l_is_nil = true }
     if right != nil && right["type"] == "Nil" { r_is_nil = true }
     if l_is_nil == true || r_is_nil == true { return false }
 
-    var ls = exprm.native_expr_is_stringy(ctx, left)
-    var rs = exprm.native_expr_is_stringy(ctx, right)
     if ls == true && rs == true { return true }
 
     if ls == true && right != nil {
@@ -215,6 +213,12 @@ fn _arm64_cmp_may_use_strcmp(ctx, left, right) {
     var ot = other["type"]
     if ot == "Integer" || ot == "Float" || ot == "Boolean" { return false }
     return true
+}
+
+fn _arm64_cmp_may_use_strcmp(ctx, left, right) {
+    var ls = exprm.native_expr_is_stringy(ctx, left)
+    var rs = exprm.native_expr_is_stringy(ctx, right)
+    return _arm64_cmp_may_use_strcmp_known(ctx, left, right, ls, rs)
 }
 
 fn _arm64_int_lit_fits_cmp_imm(v) {
@@ -400,7 +404,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
     if true_cond == nil { return nil }
 
     if string_cmp == true {
-        var allow_strcmp = _arm64_cmp_may_use_strcmp(ctx, l, r)
+        var allow_strcmp = _arm64_cmp_may_use_strcmp_known(ctx, l, r, left_stringy, right_stringy)
         native_compile_expr(ctx, l)
         push_u32_le(ctx["code"], insn_sub_sp(16))
         push_u32_le(ctx["code"], insn_str_x0_sp(0))
