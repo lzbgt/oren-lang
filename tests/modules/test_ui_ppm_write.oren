@@ -10,6 +10,16 @@ fn assert_eq(a, b, code, msg) {
     fail(code, msg)
 }
 
+fn byte_len(xs) {
+    if oren_type_tag(xs) == 6 { return oren_list_len(xs) }
+    return oren_bytes_len(xs)
+}
+
+fn byte_get(xs, i) {
+    if oren_type_tag(xs) == 6 { return xs[i] }
+    return oren_bytes_get_u8(xs, i)
+}
+
 var w = 2
 var h = 1
 var rgba = oren_u8_buf_new(w * h * 4)
@@ -22,20 +32,23 @@ oren_buf_store_u8(rgba, 5, 255)
 oren_buf_store_u8(rgba, 6, 0)
 oren_buf_store_u8(rgba, 7, 255)
 
-var encoded = ppm.encode_rgba(rgba, w, h)
-if oren_is_err(encoded) { fail(10, "encode_rgba err") }
+var encoded = ppm.try_encode_rgba(rgba, w, h)
+if oren_is_err(encoded) { fail(10, "try_encode_rgba err") }
+
+var bad = ppm.try_encode_rgba(oren_u8_buf_new(3), w, h)
+if oren_is_err(bad) != true { fail(14, "try_encode_rgba length mismatch must err") }
 
 var path = "build/test_ui_ppm_write.ppm"
-var wr = ppm.write_rgba_ppm(path, rgba, w, h)
-if oren_is_err(wr) { fail(11, "write_rgba_ppm err") }
+var wr = ppm.try_write_rgba_ppm(path, rgba, w, h)
+if oren_is_err(wr) { fail(11, "try_write_rgba_ppm err") }
 
 var roundtrip = oren_read_bytes(path)
 if oren_is_err(roundtrip) { fail(12, "read_bytes err") }
-assert_eq(oren_bytes_len(roundtrip), oren_bytes_len(encoded), 13, "ppm size")
+assert_eq(byte_len(roundtrip), byte_len(encoded), 13, "ppm size")
 
 var i = 0
-while i < oren_bytes_len(encoded) {
-    assert_eq(oren_bytes_get_u8(roundtrip, i), oren_bytes_get_u8(encoded, i), 20 + i, "ppm byte")
+while i < byte_len(encoded) {
+    assert_eq(byte_get(roundtrip, i), byte_get(encoded, i), 20 + i, "ppm byte")
     i = i + 1
 }
 

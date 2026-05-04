@@ -16,6 +16,11 @@ fn assert_eq(a, b) {
     fail()
 }
 
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
 fn test_ppm_2x1() {
     var w = 2
     var h = 1
@@ -31,7 +36,8 @@ fn test_ppm_2x1() {
     oren_buf_store_u8(rgba, 6, 0)
     oren_buf_store_u8(rgba, 7, 255)
 
-    var out = ppm.encode_rgba(rgba, w, h)
+    var out = ppm.try_encode_rgba(rgba, w, h)
+    assert_true(oren_is_err(out) == false)
     assert_eq(oren_bytes_len(out), 17)
 
     // Header: "P6\n2 1\n255\n"
@@ -51,8 +57,13 @@ fn test_ppm_2x1() {
     }
 }
 
-fn main() {
-    test_ppm_2x1()
-    exit(0)
+fn test_ppm_encode_err() {
+    var bad = ppm.try_encode_rgba(oren_u8_buf_new(3), 2, 1)
+    assert_true(oren_is_err(bad) == true)
 }
 
+fn main() {
+    test_ppm_2x1()
+    test_ppm_encode_err()
+    exit(0)
+}

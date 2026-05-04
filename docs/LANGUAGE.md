@@ -3762,8 +3762,9 @@ Rolling status:
 - Checked stdlib surfaces already use that convention on current rolling builds, including
   `std:list`, `std:bytes`, `std:buffer`, `std:crypto/rand`, `std:crypto/pem`,
   `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:ui/commands`,
-  `std:ui/color`, and `std:ui/raster`; UI helpers also expose the explicit aliases
-  `try_validate`, `try_parse_hex`, and `try_rasterize`.
+  `std:ui/color`, `std:ui/raster`, and `std:ui/ppm`; UI helpers also expose the explicit
+  aliases `try_validate`, `try_parse_hex`, `try_rasterize`, `try_encode_rgba`, and
+  `try_write_rgba_ppm`.
 - Codec migration is rolling without a flag day: JSON/YAML/CBOR still keep their legacy
   `{ok, err, v, pos?}` decode APIs for existing callers, and JSON/YAML/CBOR now also expose
   structured-error wrappers where native-codegen cost is already safe (`json.try_decode`,

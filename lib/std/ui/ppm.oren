@@ -78,10 +78,18 @@ fn encode_rgba(rgba, w, h) {
     return buf
 }
 
+fn try_encode_rgba(rgba, w, h) {
+    return encode_rgba(rgba, w, h)
+}
+
 fn write_rgba_ppm(path, rgba, w, h) {
     // `oren_write_bytes` accepts both list<int> and u8_buf on the shared C/native runtimes,
     // so the encoded buffer can be written directly without unpacking back through a list.
     var b = encode_rgba(rgba, w, h)
     if oren_is_err(b) { return b }
     return oren_write_bytes(path, b)
+}
+
+fn try_write_rgba_ppm(path, rgba, w, h) {
+    return write_rgba_ppm(path, rgba, w, h)
 }
