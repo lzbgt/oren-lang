@@ -555,6 +555,49 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
     push_u32_le(ctx["code"], insn_add_sp(16))
     ctx["stack_size"] = ctx["stack_size"] - 16
 
+    if floaty != true && (op == "==" || op == "!=") && exprm.native_expr_needs_dynamic_string_eq(ctx, l, r) == true {
+        push_u32_le(ctx["code"], insn_mov_reg(19, 1)) // save left
+        push_u32_le(ctx["code"], insn_mov_reg(20, 0)) // save right
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+        push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+        exprm.native_emit_named_bl_expr(ctx, "oren_string_eq")
+
+        rt._arm64_emit_load_g_storage_ptr(ctx, tok, 2)
+        push_u32_le(ctx["code"], insn_ldr_ptr_off(2, 2, 384)) // X2 = true
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+        var br_dynamic_string_eq_singleton = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // B.EQ -> dynamic string equal
+        push_u32_le(ctx["code"], insn_movz(3, 1))
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 3))
+        var br_not_dynamic_string_eq = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // B.NE -> raw compare fallback
+
+        var dynamic_string_eq_pos = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], br_dynamic_string_eq_singleton, insn_b_cond((dynamic_string_eq_pos - br_dynamic_string_eq_singleton) / 4, 0)) // EQ
+        var false_jumps_dyn = []
+        if op == "!=" {
+            push_u32_le(ctx["code"], insn_cmp_reg(31, 31))
+            var jump_false_dynamic = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(false_jumps_dyn, {"pos": jump_false_dynamic, "cond": 0})
+        }
+        var jump_end_dynamic = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+
+        var dynamic_string_fallback = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], br_not_dynamic_string_eq, insn_b_cond((dynamic_string_fallback - br_not_dynamic_string_eq) / 4, 1)) // NE
+        push_u32_le(ctx["code"], insn_mov_reg(1, 19))
+        push_u32_le(ctx["code"], insn_mov_reg(0, 20))
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
+        var jump_false_int = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(false_jumps_dyn, {"pos": jump_false_int, "cond": _arm64_inverse_cond(true_cond)})
+
+        var done_dynamic_string_compare = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], jump_end_dynamic, insn_b((done_dynamic_string_compare - jump_end_dynamic) / 4))
+        return {"pos": false_jumps_dyn[0]["pos"], "cond": false_jumps_dyn[0]["cond"], "jumps": false_jumps_dyn}
+    }
+
     if floaty == true {
         if left_floaty == true { push_u32_le(ctx["code"], exprm.insn_fmov_d_x(0, 1)) }
         else { push_u32_le(ctx["code"], exprm.insn_scvtf(0, 1)) }

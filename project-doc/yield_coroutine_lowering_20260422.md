@@ -363,6 +363,13 @@ backend-shared value-helper slices landed.
     removed the `lambda_wrap Var(Call(Id:oren_list_get,2))` statement bucket, but default profiles stayed
     neutral-to-worse (`lambda_wrap` ~1.7-1.9s with identical emitted bytes), so the generic synthetic-`Var`
     binding path remains shipped.
+  - ARM64 dynamic string equality fix (2026-05-05): native `test_generator_std.oren` exposed that generic
+    `assert_eq(a, b)` could compare two dynamic strings by pointer when neither parameter retained static
+    string traits. Expression and direct-`if` equality lowering now try safe `oren_string_eq(...)` only for
+    operands that are neither statically stringy nor provably non-string, then fall back to raw pointer/int
+    comparison. This fixes `assert_eq(oren_type_name(g), "generator")` and keeps common generated guard
+    comparisons off the runtime string helper path; the uncontended generator profile stays near the prior
+    band (`user_decls` ~21.0s / 323192 bytes).
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

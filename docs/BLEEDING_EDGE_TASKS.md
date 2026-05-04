@@ -5185,10 +5185,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																		        generator-specific native shortcuts unless a separate proof shows
 																		        semantic safety and a real profile win. A direct lambda-wrapper
 																		        local-binding probe removed the `lambda_wrap Var(Call(Id:oren_list_get,2))`
-																		        statement bucket, but default profiles stayed neutral-to-worse
-																		        (`lambda_wrap` ~1.7-1.9s with identical emitted bytes), so it was
-																		        reverted instead of shipped.
-																			      - the generator surface fixture now splits its formerly monolithic native
+																			        statement bucket, but default profiles stayed neutral-to-worse
+																			        (`lambda_wrap` ~1.7-1.9s with identical emitted bytes), so it was
+																			        reverted instead of shipped.
+																				      - Dynamic string equality fix (2026-05-05): ARM64 expression and
+																			        direct-`if` equality lowering now use safe `oren_string_eq(...)`
+																			        only for truly dynamic equality operands (not statically stringy,
+																			        and not provably non-string). This fixes native
+																			        `tests/modules/test_generator_std.oren` at the generic
+																			        `assert_eq(oren_type_name(g), "generator")` boundary without
+																			        putting common int/bool/generated guards on the runtime string
+																			        helper path. The new `tier1_native_dynamic_string_eq_main.oren`
+																			        native-quick smoke covers branch and expression-value equality.
+																			        The uncontended profile stays in the prior band (`user_decls`
+																			        ~21.0s / 323192 bytes); the broader all-generic-`==` probe was
+																			        rejected after it inflated an overlapped profile to ~29s.
+																				      - the generator surface fixture now splits its formerly monolithic native
 																	        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 															        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).

@@ -259,6 +259,62 @@ fn native_emit_named_bl_expr(ctx, callee_name) {
     return nil
 }
 
+fn _arm64_expr_resolve_g_storage_name(ctx) {
+    if ctx == nil { return nil }
+    var gname = ctx["rt_g_storage_name"]
+    if gname != nil { return gname }
+    if ctx["globals"] == nil { return nil }
+    var match = nil
+    var match_count = 0
+    for k in ctx["globals"] {
+        var klen = oren_string_len(k)
+        var slen = 9
+        if klen >= slen {
+            var ok = true
+            var j = 0
+            while j < slen {
+                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at("g_storage", j) { ok = false; break }
+                j = j + 1
+            }
+            if ok {
+                match = k
+                match_count = match_count + 1
+                if match_count > 1 { break }
+            }
+        }
+    }
+    if match_count == 1 {
+        ctx["rt_g_storage_name"] = match
+        return match
+    }
+    return nil
+}
+
+fn _arm64_expr_emit_load_g_storage_ptr(ctx, tok, dst_reg) {
+    var gname = _arm64_expr_resolve_g_storage_name(ctx)
+    if gname == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+        native_error(ctx, tok, "native backend: missing runtime global g_storage")
+        push_u32_le(ctx["code"], insn_movz(dst_reg, 0))
+        return nil
+    }
+    var goff = ctx["globals"][gname] - 1
+    var adr_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": goff, "reg": dst_reg})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], goff)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], dst_reg)
+    push_u32_le(ctx["code"], insn_ldr_ptr(dst_reg, dst_reg))
+    return nil
+}
+
+fn _arm64_expr_emit_load_singleton_ptr(ctx, tok, dst_reg, off) {
+    _arm64_expr_emit_load_g_storage_ptr(ctx, tok, dst_reg)
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(dst_reg, dst_reg, off))
+    return nil
+}
+
 fn _native_fp_offsets_push_unique(offs, fp_off) {
     if offs == nil { return 0 }
     if fp_off == nil || fp_off >= 0 { return 0 }
@@ -835,6 +891,68 @@ fn native_expr_is_stringy(ctx, expr) {
         return false
     }
     return false
+}
+
+fn native_expr_call_returns_known_bool(nm) {
+    if nm == nil { return false }
+    if nm == "oren_is_err" { return true }
+    if nm == "oren_string_eq" { return true }
+    if nm == "native_value_is_nil" || nm == "native_value_is_false" || nm == "native_value_is_true" { return true }
+    if nm == "_oren_generator_is_handle" { return true }
+    if nm == "_oren_generator_is_context" { return true }
+    if nm == "_oren_generator_started" { return true }
+    if nm == "_oren_generator_done" { return true }
+    if nm == "_oren_generator_closed" { return true }
+    if nm == "_oren_generator_cancel_requested" { return true }
+    if nm == "oren_generator_is_started" { return true }
+    if nm == "oren_generator_is_done" { return true }
+    if nm == "oren_generator_is_closed" { return true }
+    if nm == "oren_generator_is_cancel_requested" { return true }
+    return false
+}
+
+fn native_expr_known_not_string_for_dynamic_eq(ctx, expr) {
+    if expr == nil { return false }
+    var et = expr["type"]
+    if et == "String" { return false }
+    if et == "Integer" || et == "Float" || et == "Boolean" || et == "Nil" { return true }
+    if et == "Array" || et == "Hash" { return true }
+    if native_expr_is_stringy(ctx, expr) == true { return false }
+    if native_expr_is_floaty(ctx, expr) == true { return true }
+    if native_expr_is_inty(ctx, expr) == true { return true }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" { return true }
+        if op == "&&" || op == "||" { return true }
+    }
+    if et == "Prefix" {
+        if expr["op"] == "!" { return true }
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        var nm = nil
+        if fnn != nil && fnn["type"] == "Identifier" { nm = fnn["value"] }
+        else {
+            if fnn != nil && fnn["type"] == "Member" {
+                var prop = fnn["prop"]
+                if prop != nil && prop["type"] == "Identifier" { nm = prop["value"] }
+            }
+        }
+        if native_expr_call_returns_known_bool(nm) == true { return true }
+        if nm != nil && ctx != nil && ctx["func_ret_kinds"] != nil {
+            var rk = ctx["func_ret_kinds"][nm]
+            if rk != nil && rk != "string" { return true }
+        }
+    }
+    return false
+}
+
+fn native_expr_needs_dynamic_string_eq(ctx, left, right) {
+    if native_expr_is_stringy(ctx, left) == true { return false }
+    if native_expr_is_stringy(ctx, right) == true { return false }
+    if native_expr_known_not_string_for_dynamic_eq(ctx, left) == true { return false }
+    if native_expr_known_not_string_for_dynamic_eq(ctx, right) == true { return false }
+    return true
 }
 fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }

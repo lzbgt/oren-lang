@@ -1315,7 +1315,40 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
                     return true
                 }
-                
+
+                var dynamic_string_eq_done_branch = nil
+                if (op == "==" || op == "!=") && native_expr_needs_dynamic_string_eq(ctx, expr["left"], expr["right"]) == true {
+                    // Generic function parameters can carry strings without static string traits.
+                    // Try the safe runtime string equality helper first; fall back to raw pointer/int
+                    // comparison when either side is not a string.
+                    push_u32_le(ctx["code"], insn_mov_reg(19, 1)) // save left
+                    push_u32_le(ctx["code"], insn_mov_reg(20, 0)) // save right
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+                    native_emit_named_bl_expr(ctx, "oren_string_eq")
+                    _arm64_expr_emit_load_singleton_ptr(ctx, expr["token"], 2, 384)
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                    var br_dynamic_string_eq_singleton = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.EQ -> dynamic string equal
+                    push_u32_le(ctx["code"], insn_movz(3, 1))
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 3))
+                    var br_not_dynamic_string_eq = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.NE -> raw compare fallback
+                    var dynamic_string_eq_pos = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_dynamic_string_eq_singleton, insn_b_cond((dynamic_string_eq_pos - br_dynamic_string_eq_singleton) / 4, 0)) // EQ
+                    if op == "==" {
+                        _arm64_expr_emit_load_singleton_ptr(ctx, expr["token"], 0, 384)
+                    } else {
+                        _arm64_expr_emit_load_singleton_ptr(ctx, expr["token"], 0, 376)
+                    }
+                    dynamic_string_eq_done_branch = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B end
+                    var dynamic_string_fallback = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_not_dynamic_string_eq, insn_b_cond((dynamic_string_fallback - br_not_dynamic_string_eq) / 4, 1)) // NE
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 19))
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 20))
+                }
+
                 // CMP X1, X0
                 push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
                 
@@ -1371,6 +1404,9 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 push_u32_le(ctx["code"], insn_mov_reg(0, 2))
                 var end_pos3 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_end3, insn_b((end_pos3 - br_end3) / 4))
+                if dynamic_string_eq_done_branch != nil {
+                    set_u32_le(ctx["code"], dynamic_string_eq_done_branch, insn_b((end_pos3 - dynamic_string_eq_done_branch) / 4))
+                }
                 return true
             }
             

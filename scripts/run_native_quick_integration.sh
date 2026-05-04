@@ -642,6 +642,18 @@ if [[ "${OREN_QI_SKIP_LOGICAL_IF_SMOKE:-0}" != "1" ]]; then
   tail -n 3 "$lif_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_DYNAMIC_STRING_EQ_SMOKE:-0}" != "1" ]]; then
+  echo "== dynamic string equality smoke ==" >>"$log"
+  dse_src="tests/fixtures/tier1_native_dynamic_string_eq_main.oren"
+  dse_log="build/logs/${compiler_base}_dynamic_string_eq.log"
+  rm -f "$dse_log" 2>/dev/null || true
+  run_step_checked "dynamic string equality smoke" "$dse_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" test "$dse_src" \
+    --backend native --platform "$platform"
+  echo "ok: dynamic string equality smoke" >>"$dse_log"
+  tail -n 3 "$dse_log" >>"$log"
+fi
+
 if [[ "${OREN_QI_SKIP_BLOCK_SCOPE_SMOKE:-0}" != "1" ]]; then
   echo "== block scope fastpath smoke ==" >>"$log"
   bsf_src="tests/fixtures/tier1_native_block_scope_fastpath_main.oren"

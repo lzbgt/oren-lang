@@ -2599,6 +2599,15 @@ Local (fast):
   default generator profile moved `user_decls` from the previous ~21.2s sample to ~21.1s and kept wrapper
   phases slightly lower. Treat this as compiler-side constant-factor cleanup; the remaining high-leverage
   target is still broad generated condition lowering.
+- ARM64 dynamic string equality fix (2026-05-05): expression and direct-`if` equality lowering now use the
+  safe runtime `oren_string_eq(...)` precheck only when neither side is statically stringy and neither side is
+  provably non-string. This fixes generic function-parameter equality such as `assert_eq(oren_type_name(g),
+  "generator")` in native `tests/modules/test_generator_std.oren` while keeping common int/bool/generated
+  guard comparisons on the existing direct paths. The new `tier1_native_dynamic_string_eq_main.oren` fixture is
+  wired into native quick and covers both branch and expression-value dynamic string equality. The uncontended
+  generator profile remains in the prior band (`user_decls` ~21.0s / 323192 bytes, `lambda_wrap` ~1.7s,
+  `fnwrap` ~0.95s); a broader first attempt that inserted the helper for all generic `==` / `!=` branches was
+  rejected after it inflated an overlapped profile to ~29s.
 - ARM64 statement loop length hoists (2026-05-04): block statement iteration, branch false-jump patching,
   return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)` values out of
   hot compiler loops. This does not change emitted code; the refreshed profile keeps `user_decls` in the

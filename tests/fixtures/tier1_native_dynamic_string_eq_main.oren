@@ -1,0 +1,40 @@
+fn eq_dyn(a, b) {
+    if a == b { return 1 }
+    return 0
+}
+
+fn ne_dyn(a, b) {
+    if a != b { return 1 }
+    return 0
+}
+
+fn eq_bool_dyn(a, b) {
+    return a == b
+}
+
+fn type_name_matches(v, want) {
+    return eq_dyn(oren_type_name(v), want)
+}
+
+fn main() {
+    var mid = oren_string_slice("xabc", 2, 4)
+    var same = "a" + mid
+
+    if eq_dyn(same, "abc") != 1 { return 1 }
+    if ne_dyn(same, "abd") != 1 { return 2 }
+    if eq_dyn(same, 123) != 0 { return 3 }
+    if ne_dyn(same, 123) != 1 { return 4 }
+
+    if eq_dyn(123, 123) != 1 { return 5 }
+    if ne_dyn(123, 124) != 1 { return 6 }
+    if eq_dyn(true, true) != 1 { return 7 }
+    if ne_dyn(false, true) != 1 { return 8 }
+
+    var xs = [1, 2, 3]
+    if type_name_matches(xs, "list") != 1 { return 9 }
+    if eq_bool_dyn(same, "abc") != true { return 10 }
+    if eq_bool_dyn(same, "abd") != false { return 11 }
+
+    print("tier1 dynamic string equality ok")
+    return 0
+}
