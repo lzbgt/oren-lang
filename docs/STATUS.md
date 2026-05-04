@@ -2491,6 +2491,12 @@ Local (fast):
   behavior, and the native quick lane runs it by default. The uncontended generator profile keeps
   `user_decls` wall time roughly neutral (~20.9s) while reducing `user_decls` code bytes from 452472 to
   379528; the remaining wall-time boundary is still large user-body lowering rather than wrapper codegen.
+- ARM64 shared function epilogue (2026-05-04): generated `return` statements now restore the stack and
+  branch to one function-local epilogue instead of duplicating the X19-X26/LR restore sequence at every
+  return site. Call-depth exit still runs before the shared return branch, preserving recursion-guard
+  semantics. The uncontended generator profile keeps `user_decls` wall time roughly neutral (~20.8s)
+  while reducing `user_decls` code bytes from 379528 to 340360; `lambda_wrap` falls from 53472 to 51096
+  bytes and `fnwrap` from 19932 to 18600 bytes.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.

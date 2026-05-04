@@ -30,6 +30,23 @@ fn arm64_ctx_fixup_bl(ctx, pos, name) { return core.arm64_ctx_fixup_bl(ctx, pos,
 fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
 fn arm64_ctx_fixup_adr_code(ctx, pos, name, reg) { return core.arm64_ctx_fixup_adr_code(ctx, pos, name, reg) }
 
+fn _arm64_emit_function_epilogue(ctx) {
+    push_u32_le(ctx["code"], insn_mov_sp_fp())
+
+    // Restore generated-function callee-saved registers from fixed FP-relative slots.
+    // X27/X28 are native heap globals and intentionally are not restored here.
+    var restore_base = 0 - 64
+    var rr = 19
+    while rr <= 26 {
+        var off = restore_base + (rr - 19) * 8
+        push_u32_le(ctx["code"], insn_ldur_reg(rr, 29, off))
+        rr = rr + 1
+    }
+    push_u32_le(ctx["code"], insn_ldp_post())
+    push_u32_le(ctx["code"], insn_ret())
+    return nil
+}
+
 fn _arm64_list_name_in_fast(list_name, lists) {
     if list_name == nil || lists == nil { return false }
     var i = 0
@@ -836,32 +853,14 @@ fn native_compile_stmt_inner(ctx, stmt) {
             ctx["stack_size"] = ctx["stack_size"] - 16
         }
 
-        push_u32_le(ctx["code"], insn_mov_sp_fp())
-
-        // Rolling ABI hygiene (native backend):
-        // Our generated functions must preserve a stable set of callee-saved registers.
-        //
-        // IMPORTANT:
-        // - The native backend reserves X27/X28 as *global heap registers* (heap_limit/heap_ptr).
-        // - Those registers are part of the native backend's global machine state and MUST NOT be
-        //   saved/restored by function prologues/epilogues, otherwise heap pointer updates done
-        //   inside callees would be rolled back on return (causing overlapping allocations and
-        //   allocator metadata corruption).
-        //
-        // Therefore we preserve X19-X26 here, and treat X27/X28 as reserved globals.
-        //
-        // Saved layout is at fixed offsets from FP (X29):
-        //   [FP-64..FP-8] = X19..X26 (8 regs * 8 bytes)
-        // Restore after MOV SP, FP so locals are discarded but saved area is still readable.
-        var save_base = 0 - 64
-        var rr = 19
-        while rr <= 26 {
-            var off = save_base + (rr - 19) * 8
-            push_u32_le(ctx["code"], insn_ldur_reg(rr, 29, off))
-            rr = rr + 1
+        if ctx["arm64_return_jumps"] != nil {
+            push_u32_le(ctx["code"], insn_mov_sp_fp())
+            var return_jump_pos = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["arm64_return_jumps"], return_jump_pos)
+        } else {
+            _arm64_emit_function_epilogue(ctx)
         }
-        push_u32_le(ctx["code"], insn_ldp_post())
-        push_u32_le(ctx["code"], insn_ret())
         return false
     }
     
@@ -1344,15 +1343,17 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	            var old_locals_stringy = ctx["locals_stringy"]
 	            var old_locals_list_stringy = ctx["locals_list_stringy"]
 	            var old_stack_size = ctx["stack_size"]
-	            var old_scope = ctx["scope"]
-	            var old_call_depth_enabled = ctx["call_depth_enabled"]
-	            var old_cur_fn_name = ctx["cur_fn_name"]
-	            ctx["locals"] = {}
-	            ctx["locals_floaty"] = {}
-	            ctx["locals_stringy"] = {}
-	            ctx["locals_list_stringy"] = {}
-	            ctx["stack_size"] = 0
-	            ctx["scope"] = nil
+		            var old_scope = ctx["scope"]
+		            var old_call_depth_enabled = ctx["call_depth_enabled"]
+		            var old_cur_fn_name = ctx["cur_fn_name"]
+		            var old_return_jumps = ctx["arm64_return_jumps"]
+		            ctx["locals"] = {}
+		            ctx["locals_floaty"] = {}
+		            ctx["locals_stringy"] = {}
+		            ctx["locals_list_stringy"] = {}
+		            ctx["stack_size"] = 0
+		            ctx["scope"] = nil
+		            ctx["arm64_return_jumps"] = []
             
 	            ctx["in_function"] = true
 	            ctx["cur_fn_name"] = fn_name
@@ -1578,18 +1579,14 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 // Ensure X0 remains 0 (helper may clobber caller-saved regs).
                 push_u32_le(ctx["code"], insn_movz(0, 0))
             }
-            push_u32_le(ctx["code"], insn_mov_sp_fp())
-
-            // Restore callee-saved registers (X19-X26) from fixed FP-relative slots.
-            var restore_base = 0 - 64
-            var rr = 19
-            while rr <= 26 {
-                var off2 = restore_base + (rr - 19) * 8
-                push_u32_le(ctx["code"], insn_ldur_reg(rr, 29, off2))
-                rr = rr + 1
-            }
-            push_u32_le(ctx["code"], insn_ldp_post())
-            push_u32_le(ctx["code"], insn_ret())
+	            var epilogue_pos = bytes_len(ctx["code"])
+	            var rji = 0
+	            while rji < oren_list_len(ctx["arm64_return_jumps"]) {
+	                var rj = ctx["arm64_return_jumps"][rji]
+	                set_u32_le(ctx["code"], rj, insn_b((epilogue_pos - rj) / 4))
+	                rji = rji + 1
+	            }
+	            _arm64_emit_function_epilogue(ctx)
             
             var func_end = bytes_len(ctx["code"])
             if ctx["arm64_function_profile"] != nil {
@@ -1635,10 +1632,11 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	            ctx["locals_stringy"] = old_locals_stringy
 	            ctx["locals_list_stringy"] = old_locals_list_stringy
 	            ctx["stack_size"] = old_stack_size
-	            ctx["scope"] = old_scope
-            ctx["call_depth_enabled"] = old_call_depth_enabled
-            return nil
-        }
+		            ctx["scope"] = old_scope
+	            ctx["call_depth_enabled"] = old_call_depth_enabled
+	            ctx["arm64_return_jumps"] = old_return_jumps
+	            return nil
+	        }
         
         if expr["type"] == "Call" {
             var fn_name = expr["fn"]["value"]

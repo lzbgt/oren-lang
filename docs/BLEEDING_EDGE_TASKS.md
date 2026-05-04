@@ -5022,6 +5022,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																			        `user_decls` wall time roughly neutral (~20.9s) while reducing
 																			        `user_decls` code bytes from 452472 to 379528, so the remaining
 																			        backend work stays on lowering cost, not guard-chain code size.
+																			      - Shared function epilogue follow-up (2026-05-04): generated ARM64
+																			        `return` statements now run call-depth exit if required, restore SP to
+																			        FP, and branch to one function-local epilogue instead of duplicating
+																			        the X19-X26/LR restore sequence at every return site. The uncontended
+																			        generator profile keeps `user_decls` wall time roughly neutral
+																			        (~20.8s) while reducing `user_decls` code bytes from 379528 to 340360;
+																			        wrapper bytes also fall (`lambda_wrap` 53472 -> 51096, `fnwrap`
+																			        19932 -> 18600). Continue treating wall-time lowering as the main
+																			        remaining backend task.
 																		      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
 																		        make profile-native-build-phases` now enables gated inclusive ARM64
 																        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile

@@ -254,6 +254,10 @@ backend-shared value-helper slices landed.
     instead of emitting a runtime boolean singleton and then re-normalizing it. The focused native quick
     fixture verifies side-effect short-circuit behavior. The generator profile keeps `user_decls` wall
     time roughly neutral (~20.9s) but cuts user-declaration code bytes from 452472 to 379528.
+  - Shared function epilogue follow-up (2026-05-04): ARM64 `return` statements now restore SP to FP and
+    branch to one function-local epilogue after any required call-depth exit, instead of duplicating the
+    callee-saved restore/ret sequence per return site. The generator profile keeps `user_decls` wall time
+    roughly neutral (~20.8s) while cutting user-declaration bytes from 379528 to 340360.
   - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
     profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
     statement buckets by phase/function/type. The default profile path remains phase/function-only to
