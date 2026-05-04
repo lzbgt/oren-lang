@@ -24,6 +24,7 @@ fn _is_int(v) {
 }
 
 fn _len_or_err(xs, ctx) {
+    if oren_type_tag(xs) != 6 { return oren_err(4, ctx + ": xs must be list") }
     var n = oren_list_len(xs)
     if n == nil || oren_is_err(n) { return oren_err(4, ctx + ": xs must be list") }
     return n
@@ -63,6 +64,7 @@ fn slice_copy(xs, off, n) {
     //
     // Errors are returned as Err maps (not panics) so callers can keep servers/HPC jobs alive.
     if xs == nil { return oren_err(4, "list.slice_copy: xs is nil") }
+    if oren_type_tag(xs) != 6 { return oren_err(4, "list.slice_copy: xs must be list") }
     if oren_type_tag(off) == 0 { off = 0 }
     if oren_type_tag(n) == 0 { n = 0 }
     if _is_int(off) == false { return oren_err(4, "list.slice_copy: off not int") }
@@ -94,6 +96,7 @@ fn slice_view(xs, off, n) {
     // Notes:
     // - The marker value **must** be a string literal in native mode so the runtime can use pointer equality safely.
     // - Malformed views iterate as an empty sequence (deterministic, avoids crashes).
+    if oren_type_tag(xs) != 6 { return {"__iter": "list_slice", "base": [], "off": 0, "len": 0} }
     var total = oren_list_len(xs)
     if total == nil || oren_is_err(total) { return {"__iter": "list_slice", "base": [], "off": 0, "len": 0} }
     if oren_type_tag(off) == 0 { off = 0 }
@@ -113,6 +116,35 @@ fn push(xs, v) {
 
 fn try_len(xs) {
     return _len_or_err(xs, "list.try_len")
+}
+
+fn try_is_empty(xs) {
+    var n = _len_or_err(xs, "list.try_is_empty")
+    if oren_is_err(n) { return n }
+    return n == 0
+}
+
+fn try_push(xs, v) {
+    var n = _len_or_err(xs, "list.try_push")
+    if oren_is_err(n) { return n }
+    oren_list_push(xs, v)
+    return nil
+}
+
+fn try_clone(xs) {
+    var n = _len_or_err(xs, "list.try_clone")
+    if oren_is_err(n) { return n }
+    var out = []
+    var i = 0
+    while i < n {
+        oren_list_push(out, xs[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn try_slice_copy(xs, off, n) {
+    return slice_copy(xs, off, n)
 }
 
 fn try_get(xs, i) {

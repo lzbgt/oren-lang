@@ -1192,6 +1192,11 @@ fn main() {
 
     // std:list structured error helpers
     var xs = [1, 2]
+    if list.try_len(xs) != 2 { return 1521 }
+    if list.try_is_empty(xs) != false { return 1522 }
+    if list.try_is_empty([]) != true { return 1523 }
+    if r.is_err(list.try_push(xs, 3)) { return 1524 }
+    if list.try_last(xs) != 3 { return 1525 }
     var okv = list.try_get(xs, 1)
     if r.is_err(okv) { return 6 }
     if okv != 2 { return 7 }
@@ -1203,15 +1208,21 @@ fn main() {
 
     var bad = list.try_set(xs, -1, 0)
     if r.is_err(bad) != true { return 9 }
-    var bad_copy = list.slice_copy(xs, "x", 1)
+    var copied_xs = list.try_clone(xs)
+    if r.is_err(copied_xs) || list.try_len(copied_xs) != 3 { return 1526 }
+    var copy_slice = list.try_slice_copy(xs, 1, 2)
+    if r.is_err(copy_slice) || list.try_get(copy_slice, 0) != 2 { return 1527 }
+    var bad_copy = list.try_slice_copy(xs, "x", 1)
     if r.is_err(bad_copy) != true { return 902 }
+    if r.is_err(list.try_clone(123)) != true { return 1528 }
+    if r.is_err(list.try_push(123, 1)) != true { return 1529 }
     var bad_view = list.slice_view(xs, "x", 1)
     var bad_view_count = 0
     for _x in bad_view { bad_view_count = bad_view_count + 1 }
     if bad_view_count != 0 { return 903 }
 
     var last = list.try_last(xs)
-    if r.is_err(last) || last != 2 { return 10 }
+    if r.is_err(last) || last != 3 { return 10 }
 
     var empty = []
     var empty_last = list.try_last(empty)
