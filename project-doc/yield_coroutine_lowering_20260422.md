@@ -473,6 +473,11 @@ backend-shared value-helper slices landed.
     ~10.05s, bytes 292176, funcs 285) and removed only one `Call,String` condition bucket. The probe was
     reverted; keep those facade checks name-based unless a new semantic/runtime-layout proof also produces
     a profile win.
+  - Rejected small direct named-call lowering (2026-05-05): a zero/one-argument ARM64 direct named-call fast
+    path passed stage2 and generator/task/coroutine surface verifiers and reduced generated `user_decls`
+    bytes to ~271652, but the uncontended default profile regressed `user_decls` wall time to ~49.5s. The
+    source probe was reverted; do not pursue this generic call-marshalling byte cut without a different
+    compiler-throughput profile.
   - Rejected helper path (2026-05-05): a new kept `oren_map_get_str_checked` runtime helper was tested to move
     the validation sequence out of each ARM64 map string-literal index site. It built, but native map/generator
     fixtures exited `11`; adding the helper name to the native-op spill surface did not fix the direct-call

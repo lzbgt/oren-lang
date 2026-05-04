@@ -5331,10 +5331,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																						        raw `MAP=7` / `LIST=6` tags built and passed focused surfaces, but the
 																						        default generator profile stayed flat/slightly worse (`user_decls`
 																						        about `10.05s`, bytes `292176`, funcs `285`) and removed only one
-																						        `Call,String` bucket. The probe was reverted; do not chase map/list
-																						        facade tag checks without new semantic proof and profile evidence.
-																						      - rejected helper path: moving that checked validation into a new kept
-																					        `oren_map_get_str_checked` runtime helper built, but native map and
+																							        `Call,String` bucket. The probe was reverted; do not chase map/list
+																							        facade tag checks without new semantic proof and profile evidence.
+																							      - rejected small direct named-call lowering: an ARM64 zero/one-arg direct
+																							        named-call fast path passed `make stage2` plus generator/task/coroutine
+																							        surface verifiers and reduced generated `user_decls` bytes to about
+																							        `271652`, but the uncontended default profile regressed `user_decls`
+																							        wall time to about `49.5s`. The source probe was reverted; generic
+																							        call-marshalling byte reduction is not worth a compiler-throughput
+																							        regression without a different design.
+																							      - rejected helper path: moving that checked validation into a new kept
+																						        `oren_map_get_str_checked` runtime helper built, but native map and
 																				        generator fixtures exited `11`; adding it to the native-op spill surface
 																				        did not fix the direct-call ABI/entry failure. Do not repeat this helper
 																				        design without first proving ABI parity with `oren_map_get_str`.

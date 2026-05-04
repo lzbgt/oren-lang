@@ -2742,6 +2742,11 @@ Local (fast):
   but the profile stayed flat/slightly worse (`user_decls` about `10.05s`, bytes up to `292176`, funcs up
   to `285`) and only removed one `Call,String` condition bucket. The source probe was reverted; keep
   map/list facade checks name-based unless a separate semantic/runtime-layout proof and profile win appear.
+- Rejected follow-up (2026-05-05): an ARM64 direct named-call fast path for zero/one-argument calls passed
+  `make stage2` plus generator/task/coroutine surface verifiers and reduced generated `user_decls` bytes to
+  about `271652`, but the uncontended native profile regressed `user_decls` wall time to about `49.5s`.
+  The source probe was reverted; do not trade generic call marshalling code size for much worse compiler
+  throughput without a different implementation and profile proof.
 - Rejected follow-up (2026-05-05): moving the checked `Index(map,str-literal)` validation into a new kept
   `oren_map_get_str_checked` runtime helper built successfully but made native map/generator fixtures exit
   `11`. Adding the name to the native-op spill surface did not fix the calling-convention/entry failure, so
