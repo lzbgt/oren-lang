@@ -167,7 +167,7 @@ fn _arm64_direct_call_returns_known_bool(nm) {
     return false
 }
 
-fn _arm64_expr_known_nonfloat_for_singleton(ctx, expr) {
+fn _arm64_expr_known_nonfloat_for_literal_cmp(ctx, expr) {
     if expr == nil { return false }
     var et = expr["type"]
     if et == "Nil" || et == "Boolean" || et == "Integer" || et == "String" { return true }
@@ -191,7 +191,7 @@ fn _arm64_emit_singleton_if_branch_false(ctx, tok, op, l, r) {
 
     if r_singleton != nil {
         // Known float values intentionally stay on the generic numeric compare path.
-        if _arm64_expr_known_nonfloat_for_singleton(ctx, l) != true {
+        if _arm64_expr_known_nonfloat_for_literal_cmp(ctx, l) != true {
             if exprm.native_expr_is_floaty(ctx, l) == true { return nil }
         }
         native_compile_expr(ctx, l)
@@ -204,7 +204,7 @@ fn _arm64_emit_singleton_if_branch_false(ctx, tok, op, l, r) {
 
     if l_singleton != nil {
         // Known float values intentionally stay on the generic numeric compare path.
-        if _arm64_expr_known_nonfloat_for_singleton(ctx, r) != true {
+        if _arm64_expr_known_nonfloat_for_literal_cmp(ctx, r) != true {
             if exprm.native_expr_is_floaty(ctx, r) == true { return nil }
         }
         native_compile_expr(ctx, r)
@@ -271,7 +271,9 @@ fn _arm64_emit_int_lit_if_branch_false(ctx, op, l, r) {
     var r_imm = _arm64_int_lit_value(r)
     if r_imm != nil {
         // Known float values intentionally stay on the generic numeric compare path.
-        if exprm.native_expr_is_floaty(ctx, l) == true { return nil }
+        if _arm64_expr_known_nonfloat_for_literal_cmp(ctx, l) != true {
+            if exprm.native_expr_is_floaty(ctx, l) == true { return nil }
+        }
         var true_cond_r = _arm64_cmp_cond_code(op, false)
         if true_cond_r == nil { return nil }
         native_compile_expr(ctx, l)
@@ -289,7 +291,9 @@ fn _arm64_emit_int_lit_if_branch_false(ctx, op, l, r) {
     var l_imm = _arm64_int_lit_value(l)
     if l_imm != nil {
         // Known float values intentionally stay on the generic numeric compare path.
-        if exprm.native_expr_is_floaty(ctx, r) == true { return nil }
+        if _arm64_expr_known_nonfloat_for_literal_cmp(ctx, r) != true {
+            if exprm.native_expr_is_floaty(ctx, r) == true { return nil }
+        }
         if _arm64_int_lit_fits_cmp_imm(l_imm) == true {
             var swapped_cond = _arm64_cmp_cond_code(_arm64_swapped_cmp_op(op), false)
             if swapped_cond == nil { return nil }
@@ -481,14 +485,9 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
     var string_cmp = false
     if left_stringy == true || right_stringy == true { string_cmp = true }
 
-    var left_floaty = exprm.native_expr_is_floaty(ctx, l)
-    var right_floaty = exprm.native_expr_is_floaty(ctx, r)
-    var floaty = false
-    if left_floaty == true || right_floaty == true { floaty = true }
-    var true_cond = _arm64_cmp_cond_code(op, floaty)
-    if true_cond == nil { return nil }
-
     if string_cmp == true {
+        var true_cond_string = _arm64_cmp_cond_code(op, false)
+        if true_cond_string == nil { return nil }
         var allow_strcmp = _arm64_cmp_may_use_strcmp_known(ctx, l, r, left_stringy, right_stringy)
         native_compile_expr(ctx, l)
         push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -534,17 +533,24 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
             var done_compare_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], jump_end_string, insn_b((done_compare_pos - jump_end_string) / 4))
             var false_jumps = [
-                {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond)},
-                {"pos": jump_false_int, "cond": _arm64_inverse_cond(true_cond)}
+                {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond_string)},
+                {"pos": jump_false_int, "cond": _arm64_inverse_cond(true_cond_string)}
             ]
-            return {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond), "jumps": false_jumps}
+            return {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond_string), "jumps": false_jumps}
         }
 
         push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
         var jump_false_string_int = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        return _arm64_branch_false_result(jump_false_string_int, _arm64_inverse_cond(true_cond))
+        return _arm64_branch_false_result(jump_false_string_int, _arm64_inverse_cond(true_cond_string))
     }
+
+    var left_floaty = exprm.native_expr_is_floaty(ctx, l)
+    var right_floaty = exprm.native_expr_is_floaty(ctx, r)
+    var floaty = false
+    if left_floaty == true || right_floaty == true { floaty = true }
+    var true_cond = _arm64_cmp_cond_code(op, floaty)
+    if true_cond == nil { return nil }
 
     native_compile_expr(ctx, l)
     push_u32_le(ctx["code"], insn_sub_sp(16))

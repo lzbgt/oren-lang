@@ -370,6 +370,11 @@ backend-shared value-helper slices landed.
     comparison. This fixes `assert_eq(oren_type_name(g), "generator")` and keeps common generated guard
     comparisons off the runtime string helper path; the uncontended generator profile stays near the prior
     band (`user_decls` ~21.0s / 323192 bytes).
+  - ARM64 guard-comparison trait cleanup (2026-05-05): direct `if` singleton/int-literal comparisons now share
+    the known-nonfloat classifier before falling back to expensive float-trait walks, and direct string
+    branches skip float classification entirely. Emitted bytes stay unchanged and the uncontended profile
+    remains in the noisy prior band (`user_decls` ~21.9s / 323172 bytes), so the main backend target remains
+    broader generated-body lowering.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

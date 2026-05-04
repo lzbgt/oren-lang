@@ -2608,6 +2608,11 @@ Local (fast):
   generator profile remains in the prior band (`user_decls` ~21.0s / 323192 bytes, `lambda_wrap` ~1.7s,
   `fnwrap` ~0.95s); a broader first attempt that inserted the helper for all generic `==` / `!=` branches was
   rejected after it inflated an overlapped profile to ~29s.
+- ARM64 guard-comparison trait skip (2026-05-05): direct `if` lowering now reuses the known-nonfloat literal
+  comparison guard for both singleton and integer-literal comparisons, and string comparison branches avoid
+  float-trait classification because the guarded string/integer fallback path does not consume float compare
+  flags. Emitted bytes stay unchanged (`user_decls` still 323172 bytes); the uncontended profile remains in
+  the noisy prior band at ~21.9s, so this is a compiler-side trait-walk cleanup, not a material wall-time fix.
 - ARM64 statement loop length hoists (2026-05-04): block statement iteration, branch false-jump patching,
   return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)` values out of
   hot compiler loops. This does not change emitted code; the refreshed profile keeps `user_decls` in the

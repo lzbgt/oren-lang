@@ -5196,12 +5196,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																			        `assert_eq(oren_type_name(g), "generator")` boundary without
 																			        putting common int/bool/generated guards on the runtime string
 																			        helper path. The new `tier1_native_dynamic_string_eq_main.oren`
-																			        native-quick smoke covers branch and expression-value equality.
-																			        The uncontended profile stays in the prior band (`user_decls`
-																			        ~21.0s / 323192 bytes); the broader all-generic-`==` probe was
-																			        rejected after it inflated an overlapped profile to ~29s.
-																				      - the generator surface fixture now splits its formerly monolithic native
-																	        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
+																				        native-quick smoke covers branch and expression-value equality.
+																				        The uncontended profile stays in the prior band (`user_decls`
+																				        ~21.0s / 323192 bytes); the broader all-generic-`==` probe was
+																				        rejected after it inflated an overlapped profile to ~29s.
+																				      - Guard-comparison trait cleanup (2026-05-05): direct ARM64 `if`
+																				        lowering now skips float-trait classification for known-nonfloat
+																				        singleton/int-literal comparisons and for guarded string branches,
+																				        where float compare flags are not consumed. Emitted bytes are
+																				        unchanged (`user_decls` 323172 bytes) and the uncontended profile
+																				        stays in the noisy prior band (~21.9s), so this is a small
+																				        compiler-side cleanup; keep the main target on broader
+																				        `user_decls` lowering.
+																					      - the generator surface fixture now splits its formerly monolithic native
+																		        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 															        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).
 															        The measured native profile improves `user_decls` from ~22.0s to ~20.7s
