@@ -20,6 +20,12 @@ import hpack "std:net/hpack"
 
 fn _err(msg) { return {"ok": 0, "err": msg} }
 
+fn _err_result(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
 fn _str_eq_bytes(a, b) {
     if a == nil && b == nil { return true }
     if a == nil || b == nil { return false }
@@ -236,6 +242,12 @@ fn new(conn, timeout_ms, opts) {
     return {"ok": 1, "c": c}
 }
 
+fn try_new(conn, timeout_ms, opts) {
+    var r = new(conn, timeout_ms, opts)
+    if r["ok"] == 1 { return r["c"] }
+    return _err_result(r, "http2_client.new failed")
+}
+
 fn request(c, headers, body_bytes, opts) {
     // Minimal request/response:
     // - single stream
@@ -332,4 +344,12 @@ fn request(c, headers, body_bytes, opts) {
     }
 
     return {"ok": 1, "status": status, "headers": hs, "body": body}
+}
+
+fn try_request(c, headers, body_bytes, opts) {
+    var r = request(c, headers, body_bytes, opts)
+    if r["ok"] == 1 {
+        return {"status": r["status"], "headers": r["headers"], "body": r["body"]}
+    }
+    return _err_result(r, "http2_client.request failed")
 }

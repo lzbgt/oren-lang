@@ -1,4 +1,5 @@
 import http "std:net/http"
+import tcp "std:net/tcp"
 import udp "std:net/udp"
 
 fn fill5(buf, a, b, c, d, e) {
@@ -43,8 +44,8 @@ fn test_tcp_loopback() {
     // Single-process: listen, connect, accept, then exchange data with timeouts.
     // This keeps the suite OS-neutral (no dependency on fork/pipe semantics).
 
-    var lfd = oren_tcp_listen_local(0) // port 0 => ephemeral
-    if lfd < 0 { fail(600) }
+    var lfd = tcp.try_listen_local(0) // port 0 => ephemeral
+    if oren_is_err(lfd) { fail(600) }
 
     // Determine the port chosen by the OS via getsockname.
     var sa = malloc(32)
@@ -58,36 +59,36 @@ fn test_tcp_loopback() {
     if port <= 0 { fail(603) }
 
     // Client connects first; accept picks up the queued connection.
-    var cfd2 = oren_tcp_connect("127.0.0.1", port, 2000)
-    if cfd2 < 0 { fail(0 - cfd2) }
+    var cfd2 = tcp.try_connect("127.0.0.1", port, 2000)
+    if oren_is_err(cfd2) { fail(605) }
 
-    var cfd = oren_tcp_accept(lfd, 2000)
-    if cfd < 0 { fail(604) }
+    var cfd = tcp.try_accept(lfd, 2000)
+    if oren_is_err(cfd) { fail(604) }
 
     // Client -> server: "hello"
     var outb2 = malloc(5)
     if outb2 == 0 { fail(610) }
     fill5(outb2, 104, 101, 108, 108, 111) // "hello"
-    var wn2 = oren_tcp_write_from(cfd2, outb2, 5, 2000)
-    if wn2 != 5 { fail(611) }
+    var wn2 = tcp.try_write_from(cfd2, outb2, 5, 2000)
+    if oren_is_err(wn2) || wn2 != 5 { fail(611) }
 
     var inb = malloc(5)
     if inb == 0 { fail(612) }
-    var rn = oren_tcp_read_into(cfd, inb, 5, 2000)
-    if rn != 5 { fail(613) }
+    var rn = tcp.try_read_into(cfd, inb, 5, 2000)
+    if oren_is_err(rn) || rn != 5 { fail(613) }
     if eq5(inb, 104, 101, 108, 108, 111) == 0 { fail(614) } // "hello"
 
     // Server -> client: "world"
     var outb = malloc(5)
     if outb == 0 { fail(615) }
     fill5(outb, 119, 111, 114, 108, 100) // "world"
-    var wn = oren_tcp_write_from(cfd, outb, 5, 2000)
-    if wn != 5 { fail(616) }
+    var wn = tcp.try_write_from(cfd, outb, 5, 2000)
+    if oren_is_err(wn) || wn != 5 { fail(616) }
 
     var inb2 = malloc(5)
     if inb2 == 0 { fail(617) }
-    var rn2 = oren_tcp_read_into(cfd2, inb2, 5, 2000)
-    if rn2 != 5 { fail(618) }
+    var rn2 = tcp.try_read_into(cfd2, inb2, 5, 2000)
+    if oren_is_err(rn2) || rn2 != 5 { fail(618) }
     if eq5(inb2, 119, 111, 114, 108, 100) == 0 { fail(619) } // "world"
 
     oren_tcp_close(cfd2)

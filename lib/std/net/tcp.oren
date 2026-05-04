@@ -12,7 +12,8 @@
 //   - `fd` / byte-count: `>= 0` on success
 //   - negative errno: `< 0` on failure
 //
-// If you prefer structured errors, wrap with `std/result.ok_or_errno`.
+// If you prefer structured errors, use the `try_*` aliases or wrap with
+// `std/result.ok_or_errno`.
 
 import result "std:result"
 
@@ -137,30 +138,70 @@ fn connect_ok(ip, port, timeout_ms) {
     return result.ok_or_errno(connect(ip, port, timeout_ms), "tcp.connect")
 }
 
+fn try_connect(ip, port, timeout_ms) {
+    return connect_ok(ip, port, timeout_ms)
+}
+
 fn listen_local_ok(port) {
     return result.ok_or_errno(listen_local(port), "tcp.listen_local")
+}
+
+fn try_listen_local(port) {
+    return listen_local_ok(port)
 }
 
 fn accept_ok(listen_fd, timeout_ms) {
     return result.ok_or_errno(accept(listen_fd, timeout_ms), "tcp.accept")
 }
 
+fn try_accept(listen_fd, timeout_ms) {
+    return accept_ok(listen_fd, timeout_ms)
+}
+
 fn read_into_ok(fd, buf, len, timeout_ms) {
     return result.ok_or_errno(read_into(fd, buf, len, timeout_ms), "tcp.read_into")
+}
+
+fn try_read_into(fd, buf, len, timeout_ms) {
+    return read_into_ok(fd, buf, len, timeout_ms)
 }
 
 fn write_from_ok(fd, buf, len, timeout_ms) {
     return result.ok_or_errno(write_from(fd, buf, len, timeout_ms), "tcp.write_from")
 }
 
+fn try_write_from(fd, buf, len, timeout_ms) {
+    return write_from_ok(fd, buf, len, timeout_ms)
+}
+
 fn set_keepalive_ok(fd, enable) {
     return result.ok_or_errno(set_keepalive(fd, enable), "tcp.set_keepalive")
+}
+
+fn try_set_keepalive(fd, enable) {
+    return set_keepalive_ok(fd, enable)
+}
+
+fn set_nodelay_ok(fd, enable) {
+    return result.ok_or_errno(set_nodelay(fd, enable), "tcp.set_nodelay")
+}
+
+fn try_set_nodelay(fd, enable) {
+    return set_nodelay_ok(fd, enable)
 }
 
 fn wait_any_readable_ok(fds, timeout_ms) {
     return result.ok_or_errno(wait_any_readable(fds, timeout_ms), "tcp.wait_any_readable")
 }
 
+fn try_wait_any_readable(fds, timeout_ms) {
+    return wait_any_readable_ok(fds, timeout_ms)
+}
+
 fn wait_any_writable_ok(fds, timeout_ms) {
     return result.ok_or_errno(wait_any_writable(fds, timeout_ms), "tcp.wait_any_writable")
+}
+
+fn try_wait_any_writable(fds, timeout_ms) {
+    return wait_any_writable_ok(fds, timeout_ms)
 }

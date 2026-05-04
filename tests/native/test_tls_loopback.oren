@@ -85,30 +85,25 @@ fn server_impl(listen_fd, pfx_b64) {
     // - Linux OpenSSL: server-side selection is wired (via `SSL_CTX_set_alpn_select_cb`).
     // - macOS SecureTransport: ALPN list is configured, but negotiated protocol is not asserted yet (best-effort).
     var srv_opts = {"alpn": ["http/1.1"]}
-    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
-    var ok = oren_map_get_str(r, "ok")
-    if ok != 1 {
-        var es = oren_map_get_str(r, "err")
-        if es != 0 {
-            print("tls_loopback: server wrap FAIL: " + es)
-        }
+    var conn = tls.try_wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
+    if oren_is_err(conn) {
+        print("tls_loopback: server wrap FAIL: " + oren_err_msg(conn))
         return 12
     }
-    var conn = oren_map_get_str(r, "conn")
     if conn == 0 { return 13 }
 
     var buf = malloc(16)
     if buf == 0 { tls.close(conn); return 14 }
-    var n = tls.read_into(conn, buf, 4, 5000)
-    if n != 4 {
+    var n = tls.try_read_into(conn, buf, 4, 5000)
+    if oren_is_err(n) || n != 4 {
         free(buf)
         tls.close(conn)
         return 15
     }
-    var wr = tls.write_from(conn, buf, 4, 5000)
+    var wr = tls.try_write_from(conn, buf, 4, 5000)
     free(buf)
     tls.close(conn)
-    if wr != 4 { return 16 }
+    if oren_is_err(wr) || wr != 4 { return 16 }
     return 0
 }
 
@@ -133,31 +128,27 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
     // - pin_cert_sha256_hex is enforced by std:net/tls.wrap_client
     // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    var ok = oren_map_get_str(cr, "ok")
-    if ok != 1 {
-        var es = oren_map_get_str(cr, "err")
-        if es != 0 { print("tls_loopback: FAIL client wrap: " + es) }
+    var conn = tls.try_wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_is_err(conn) {
+        print("tls_loopback: FAIL client wrap: " + oren_err_msg(conn))
         return 9
     }
-    var conn = oren_map_get_str(cr, "conn")
     if conn == 0 { return 10 }
 
     // Windows Schannel: server selects "http/1.1" from the client offer.
-    var ar = tls.negotiated_alpn(conn)
-    if oren_map_get_str(ar, "ok") != 1 {
+    var ap = tls.try_negotiated_alpn(conn)
+    if oren_is_err(ap) {
         tls.close(conn)
         return 11
     }
-    var ap = oren_map_get_str(ar, "v")
     if ap == nil || _str_eq_bytes(ap, "http/1.1") != true {
         tls.close(conn)
         return 12
     }
 
     var msg = "PING"
-    var wr = tls.write_from(conn, msg, 4, 5000)
-    if wr != 4 {
+    var wr = tls.try_write_from(conn, msg, 4, 5000)
+    if oren_is_err(wr) || wr != 4 {
         tls.close(conn)
         return 20
     }
@@ -166,8 +157,8 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
         tls.close(conn)
         return 21
     }
-    var rn = tls.read_into(conn, buf, 4, 5000)
-    if rn != 4 {
+    var rn = tls.try_read_into(conn, buf, 4, 5000)
+    if oren_is_err(rn) || rn != 4 {
         free(buf)
         tls.close(conn)
         return 22
@@ -180,13 +171,11 @@ fn _tls_client_impl(port, expected_leaf_sha256_hex) {
     free(buf)
 
     // Cross-check leaf hash query works (pinning is enforced already).
-    var hr = tls.peer_cert_sha256_hex(conn)
-    var hok = oren_map_get_str(hr, "ok")
-    if hok != 1 {
+    var hv = tls.try_peer_cert_sha256_hex(conn)
+    if oren_is_err(hv) {
         tls.close(conn)
         return 30
     }
-    var hv = oren_map_get_str(hr, "v")
     if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
         print("tls_loopback: FAIL cert pin mismatch")
         print("got=" + hv)
@@ -278,25 +267,21 @@ fn main_client() {
 
     // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    var ok = oren_map_get_str(cr, "ok")
-    if ok != 1 {
-        var es = oren_map_get_str(cr, "err")
-        if es != 0 { print("tls_loopback: FAIL client wrap: " + es) }
+    var conn = tls.try_wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_is_err(conn) {
+        print("tls_loopback: FAIL client wrap: " + oren_err_msg(conn))
         exit(9)
     }
-    var conn = oren_map_get_str(cr, "conn")
     if conn == 0 { exit(10) }
 
     // Linux OpenSSL: server selects "http/1.1" from the client offer.
-    var ar = tls.negotiated_alpn(conn)
-    if oren_map_get_str(ar, "ok") != 1 { tls.close(conn); exit(11) }
-    var ap = oren_map_get_str(ar, "v")
+    var ap = tls.try_negotiated_alpn(conn)
+    if oren_is_err(ap) { tls.close(conn); exit(11) }
     if ap == nil || _str_eq_bytes(ap, "http/1.1") != true { tls.close(conn); exit(12) }
 
     var msg = "PING"
-    var wr = tls.write_from(conn, msg, 4, 5000)
-    if wr != 4 {
+    var wr = tls.try_write_from(conn, msg, 4, 5000)
+    if oren_is_err(wr) || wr != 4 {
         tls.close(conn)
         exit(20)
     }
@@ -305,8 +290,8 @@ fn main_client() {
         tls.close(conn)
         exit(21)
     }
-    var rn = tls.read_into(conn, buf, 4, 5000)
-    if rn != 4 {
+    var rn = tls.try_read_into(conn, buf, 4, 5000)
+    if oren_is_err(rn) || rn != 4 {
         free(buf)
         tls.close(conn)
         exit(22)
@@ -318,13 +303,11 @@ fn main_client() {
     }
     free(buf)
 
-    var hr = tls.peer_cert_sha256_hex(conn)
-    var hok = oren_map_get_str(hr, "ok")
-    if hok != 1 {
+    var hv = tls.try_peer_cert_sha256_hex(conn)
+    if oren_is_err(hv) {
         tls.close(conn)
         exit(30)
     }
-    var hv = oren_map_get_str(hr, "v")
     if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
         print("tls_loopback: FAIL cert pin mismatch")
         print("got=" + hv)
@@ -420,26 +403,22 @@ fn main_client() {
 
     // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    var ok = oren_map_get_str(cr, "ok")
-    if ok != 1 {
-        var es = oren_map_get_str(cr, "err")
-        if es != 0 { print("tls_loopback: FAIL client wrap: " + es) }
+    var conn = tls.try_wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_is_err(conn) {
+        print("tls_loopback: FAIL client wrap: " + oren_err_msg(conn))
         exit(9)
     }
-    var conn = oren_map_get_str(cr, "conn")
     if conn == 0 {
         exit(10)
     }
 
     // macOS SecureTransport: ALPN negotiation/observation is currently treated as best-effort;
     // the loopback fixture does not assert a negotiated protocol yet (tracked in docs/DESIGN.md#tls-provider-availability).
-    var ar = tls.negotiated_alpn(conn)
-    if oren_map_get_str(ar, "ok") != 1 {
+    var ap = tls.try_negotiated_alpn(conn)
+    if oren_is_err(ap) {
         tls.close(conn)
         exit(11)
     }
-    var ap = oren_map_get_str(ar, "v")
     if ap != nil {
         // Best-effort: if the provider reports a negotiated protocol, ensure it matches the
         // server's advertised single-protocol list ("http/1.1") for this fixture.
@@ -450,8 +429,8 @@ fn main_client() {
     }
 
     var msg = "PING"
-    var wr = tls.write_from(conn, msg, 4, 5000)
-    if wr != 4 {
+    var wr = tls.try_write_from(conn, msg, 4, 5000)
+    if oren_is_err(wr) || wr != 4 {
         tls.close(conn)
         exit(20)
     }
@@ -460,8 +439,8 @@ fn main_client() {
         tls.close(conn)
         exit(21)
     }
-    var rn = tls.read_into(conn, buf, 4, 5000)
-    if rn != 4 {
+    var rn = tls.try_read_into(conn, buf, 4, 5000)
+    if oren_is_err(rn) || rn != 4 {
         free(buf)
         tls.close(conn)
         exit(22)
@@ -473,13 +452,11 @@ fn main_client() {
     }
     free(buf)
 
-    var hr = tls.peer_cert_sha256_hex(conn)
-    var hok = oren_map_get_str(hr, "ok")
-    if hok != 1 {
+    var hv = tls.try_peer_cert_sha256_hex(conn)
+    if oren_is_err(hv) {
         tls.close(conn)
         exit(30)
     }
-    var hv = oren_map_get_str(hr, "v")
     if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
         print("tls_loopback: FAIL cert pin mismatch")
         print("got=" + hv)

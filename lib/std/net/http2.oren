@@ -46,6 +46,12 @@ var SETTINGS_MAX_HEADER_LIST_SIZE = 6
 var CLIENT_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 var CLIENT_PREFACE_LEN = 24
 
+fn _err_result(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
 fn _u16_be_read(ptr0, off) {
     var b0 = ptr_get_byte(ptr0 + off + 0) & 255
     var b1 = ptr_get_byte(ptr0 + off + 1) & 255
@@ -119,6 +125,12 @@ fn write_frame_header(ptr0, length, typ, flags, stream_id) {
     return 0
 }
 
+fn try_write_frame_header(ptr0, length, typ, flags, stream_id) {
+    var rc = write_frame_header(ptr0, length, typ, flags, stream_id)
+    if rc == 0 { return 0 }
+    return oren_err(0 - rc, "http2.write_frame_header failed (errno=" + oren_int_to_string(0 - rc) + ")")
+}
+
 fn parse_frame_header(ptr0) {
     // Decode an HTTP/2 frame header (9 bytes) from ptr0[0..9).
     //
@@ -132,6 +144,14 @@ fn parse_frame_header(ptr0) {
     var sid_raw = _u32_be_read(ptr0, 5)
     var stream_id = sid_raw & 2147483647
     return {"ok": 1, "len": length, "type": typ, "flags": flags, "stream": stream_id}
+}
+
+fn try_parse_frame_header(ptr0) {
+    var r = parse_frame_header(ptr0)
+    if r["ok"] == 1 {
+        return {"len": r["len"], "type": r["type"], "flags": r["flags"], "stream": r["stream"]}
+    }
+    return _err_result(r, "http2.parse_frame_header failed")
 }
 
 // --- SETTINGS payload helpers (RFC 7540 §6.5) ---
@@ -186,4 +206,10 @@ fn parse_settings_payload(payload_bytes) {
         i = i + 6
     }
     return {"ok": 1, "settings": m}
+}
+
+fn try_parse_settings_payload(payload_bytes) {
+    var r = parse_settings_payload(payload_bytes)
+    if r["ok"] == 1 { return r["settings"] }
+    return _err_result(r, "http2.parse_settings_payload failed")
 }

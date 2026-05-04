@@ -294,16 +294,15 @@ fn _expect_body_ok(body) {
 
 fn _client_roundtrip(conn) {
     // Use stdlib HTTP/2 client facade to avoid re-embedding frame logic in tests.
-    var nr = h2c.new(conn, 5000, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
-    if nr["ok"] != 1 { return 0 - 11 }
-    var c = nr["c"]
-    var rr = h2c.request(c, [
+    var c = h2c.try_new(conn, 5000, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
+    if oren_is_err(c) { return 0 - 11 }
+    var rr = h2c.try_request(c, [
         {"name": ":method", "value": "GET"},
         {"name": ":scheme", "value": "https"},
         {"name": ":path", "value": "/"},
         {"name": ":authority", "value": "oren.test", "index": "inc"}
     ], nil, {"split_headers_at": 8})
-    if rr["ok"] != 1 { return 0 - 12 }
+    if oren_is_err(rr) { return 0 - 12 }
     if rr["status"] != 200 { return 0 - 13 }
     return _expect_body_ok(rr["body"])
 }
@@ -316,15 +315,13 @@ fn server_impl(listen_fd, pfx_b64) {
     if oren_is_err(pkcs12_bytes) { return 101 }
 
     var srv_opts = {"alpn": ["h2", "http/1.1"]}
-    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
-    if oren_map_get_str(r, "ok") != 1 { return 12 }
-    var conn = oren_map_get_str(r, "conn")
+    var conn = tls.try_wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
+    if oren_is_err(conn) { return 12 }
     if conn == 0 { return 13 }
 
-    var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc0 = _must_be_h2(v)
+    var al = tls.try_negotiated_alpn(conn)
+    if oren_is_err(al) != true {
+        var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); return 14 }
     }
 
@@ -342,9 +339,8 @@ fn server_impl(listen_fd, pfx_b64) {
     if fr["stream"] != 0 { tls.close(conn); return 19 }
     if fr["flags"] != 0 { tls.close(conn); return 19 }
     // Expect a small deterministic SETTINGS payload from the client.
-    var sp = h2.parse_settings_payload(fr["payload"])
-    if sp["ok"] != 1 { tls.close(conn); return 190 }
-    var sm = sp["settings"]
+    var sm = h2.try_parse_settings_payload(fr["payload"])
+    if oren_is_err(sm) { tls.close(conn); return 190 }
     if oren_map_get_int(sm, h2.SETTINGS_ENABLE_PUSH) != 0 { tls.close(conn); return 191 }
 
     // Respond with server SETTINGS (empty), then ACK client SETTINGS.
@@ -415,15 +411,13 @@ fn main() { exit(0) }
 @cfg(os="windows")
 fn _http2_headers_client_impl(port, expected_leaf_sha256_hex) {
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.connect("127.0.0.1", port, 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 { return 7 }
-    var conn = oren_map_get_str(cr, "conn")
+    var conn = tls.try_connect("127.0.0.1", port, 5000, tls_opts)
+    if oren_is_err(conn) { return 7 }
     if conn == 0 { return 8 }
 
-    var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc0 = _must_be_h2(v)
+    var al = tls.try_negotiated_alpn(conn)
+    if oren_is_err(al) != true {
+        var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); return 9 }
     }
 
@@ -503,15 +497,13 @@ fn main_client() {
     var fd = tcp.connect("127.0.0.1", port, 5000)
     if fd < 0 { exit(8) }
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 { exit(9) }
-    var conn = oren_map_get_str(cr, "conn")
+    var conn = tls.try_wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_is_err(conn) { exit(9) }
     if conn == 0 { exit(10) }
 
-    var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc0 = _must_be_h2(v)
+    var al = tls.try_negotiated_alpn(conn)
+    if oren_is_err(al) != true {
+        var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); exit(11) }
     }
 
@@ -576,15 +568,13 @@ fn main_client() {
     var fd = tcp.connect("127.0.0.1", port, 5000)
     if fd < 0 { exit(8) }
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 { exit(9) }
-    var conn = oren_map_get_str(cr, "conn")
+    var conn = tls.try_wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_is_err(conn) { exit(9) }
     if conn == 0 { exit(10) }
 
-    var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc0 = _must_be_h2(v)
+    var al = tls.try_negotiated_alpn(conn)
+    if oren_is_err(al) != true {
+        var rc0 = _must_be_h2(al)
         if rc0 != 0 { tls.close(conn); exit(11) }
     }
 

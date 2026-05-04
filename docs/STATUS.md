@@ -111,8 +111,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   YAML remains bridged through `std:result.from_ok_map(yaml.decode(...))` until its native
   codegen path is cheap enough for a direct wrapper without slowing verification.
   DNS/host/HPACK plus HTTP/WebSocket now also expose structured `try_*` wrappers over their
-  tested ok-map APIs. Stdlib migration breadth is still ongoing, mostly in TLS/provider edges
-  and broader protocol cleanup. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
+  tested ok-map APIs; TCP/TLS/HTTP2 facades now also have structured adapters over the
+  deterministic native loopback surfaces. Stdlib migration breadth is still ongoing, mostly in
+  provider-specific TLS internals and broader protocol cleanup. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
   partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
   methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
@@ -1373,6 +1374,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      loopback-tested APIs (`try_get_text`, `try_get_response`, `try_connect`,
      `try_connect_resolver`, `try_accept`, `try_recv_text`, `try_send_text_client`,
      `try_send_text_server`), while preserving the legacy ok-map and errno-returning functions.
+   - New (2026-05-04): the lower NET/TLS/HTTP2 layers now expose structured wrappers too:
+     `std:net/tcp` has `try_*` aliases over fd/byte-count returns, `std:net/tls` and the
+     `std:crypto/tls` facade have `try_connect`, `try_wrap_*`, `try_read_into`,
+     `try_write_from`, `try_peer_cert_sha256_hex`, and `try_negotiated_alpn`, while
+     `std:net/http2` / `std:net/http2_client` expose `try_parse_*`, `try_write_frame_header`,
+     `try_new`, and `try_request`.
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
      `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
    - Migration rule: modules with any `pub` declaration become closed-by-default to imports,
@@ -5196,11 +5203,11 @@ Status legend:
 |---|---|---|---|
 | TIME substrate (`oren_sleep_ms`, `oren_time_*`) | Rolling | `lib/runtime_native/100_time.oren` | `tests/native/test_time_suite.oren` |
 | RNG substrate (`oren_getentropy`) | Rolling | `lib/runtime_native/102_entropy.oren` | `tests/native/test_quick_integration_native.oren` |
-| NET substrate (TCP/UDP) | Rolling | `lib/runtime_native/240_tcp.oren`, `250_udp.oren` | `tests/native/test_net_suite.oren` |
+| NET substrate (TCP/UDP) | Rolling | `lib/runtime_native/240_tcp.oren`, `250_udp.oren`; `lib/std/net/tcp.oren` (`try_*` adapters) | `tests/native/test_net_suite.oren` |
 | DNS v0 | Rolling | `lib/std/net/dns.oren` (`try_query_a`, `try_resolve_a`) | `tests/native/test_dns_loopback.oren` |
-| TLS v0 | Rolling | `lib/std/net/tls.oren` + OS providers | `tests/native/test_tls_loopback.oren` |
+| TLS v0 | Rolling | `lib/std/net/tls.oren` / `lib/std/crypto/tls.oren` (`try_connect`, `try_wrap_*`, `try_read_into`, `try_write_from`, cert/ALPN helpers) + OS providers | `tests/native/test_tls_loopback.oren` |
 | HTTP/1.1 GET | Rolling | `lib/std/net/http.oren` (`try_get_text`, `try_get_response`) | `tests/native/test_http_get_loopback.oren` |
-| HTTP/2 framing + HPACK v0 | Rolling | `lib/std/net/http2.oren`, `lib/std/net/hpack.oren` (`try_encode_header_block`, `try_decode_header_block`) | `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren`, `tests/native/test_hpack_encode_rfc_c41.oren` |
+| HTTP/2 framing + HPACK v0 | Rolling | `lib/std/net/http2.oren` (`try_parse_*`, `try_write_frame_header`), `lib/std/net/http2_client.oren` (`try_new`, `try_request`), `lib/std/net/hpack.oren` (`try_encode_header_block`, `try_decode_header_block`) | `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren`, `tests/native/test_hpack_encode_rfc_c41.oren` |
 | WebSocket v0 | Rolling | `lib/std/net/ws.oren` (`try_connect`, `try_accept`, `try_recv_text`, `try_send_text_*`) | `tests/native/test_ws_echo_loopback.oren` |
 | Channels + select | Rolling | `lib/runtime_native/010_channels_*`, `lib/runtime_native/245_select.oren` | `tests/native/test_integration_suite.oren`, `tests/avm/test_smoke_suite.oren` |
 | Spawn + join | Rolling | `lib/runtime_native/260_threads.oren` | `tests/native/test_integration_suite.oren` |
