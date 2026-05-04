@@ -2774,6 +2774,12 @@ Local (fast):
   `12.25s / 292000 bytes / 284 funcs` to about `10.06s / 292000 bytes / 284 funcs`; gated call rows shrink but
   still show the remaining call-side target is specific generator helpers (`_oren_generator_trace`,
   `oren_is_err`, generator error helpers), not a broad small-call fast path.
+- Rejected follow-up (2026-05-05): direct ARM64 inline lowering for `oren_is_err(v)` preserved the runtime
+  convention (tracked-node lookup, map kind, map magic, then `"__err"` marker lookup) and passed focused
+  generator native/bytecode checks, but the default profile regressed `user_decls` to about
+  `17.9s / 337792 bytes / 284 funcs` from the post-ABI-cache `~10.06s / 292000 bytes`. The source probe was
+  reverted; do not inline the full structured-error predicate at call sites without a smaller representation or
+  a branch-only design that reduces emitted validation code.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

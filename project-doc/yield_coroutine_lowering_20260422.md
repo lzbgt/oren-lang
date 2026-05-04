@@ -502,6 +502,12 @@ backend-shared value-helper slices landed.
     path stays intact. The refreshed default profile moves generator `user_decls` from ~12.25s / 292000 bytes /
     284 funcs to ~10.06s / 292000 bytes / 284 funcs; remaining call rows still point at specific generator
     helper semantics rather than a broad direct-call byte-size shortcut.
+  - Rejected `oren_is_err` inline path (2026-05-05): an ARM64 direct lowering for `oren_is_err(v)` kept the
+    structured-error semantics intact by checking tracked-node membership, map kind, map magic, and the
+    `"__err"` marker before returning boolean singletons. Focused generator native/bytecode probes passed, but
+    the duplicated predicate inflated default `user_decls` to ~17.9s / 337792 bytes / 284 funcs from the
+    post-ABI-cache ~10.06s / 292000 bytes, so the source probe was reverted. The next `oren_is_err` attempt
+    needs a branch-only use-site or smaller runtime representation, not full call-site inlining.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

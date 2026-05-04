@@ -5363,15 +5363,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																					        about `1.0s / 318 calls`. Keep the rejected generic small-call fast path
 																					        closed; the next call-side slice needs to target these helper sites while
 																					        preserving runtime trace/env semantics.
-																					      - ARM64 generic call lowering now caches stable ABI metadata on the native
-																					        context (`int_arg_regs`, register count, stack slot size, and stack
-																					        alignment) and reuses the raw register vector during call marshalling.
-																					        Emitted code stays unchanged, while the refreshed default profile moves
-																					        `user_decls` from about `12.25s / 292000 bytes / 284 funcs` to about
-																					        `10.06s / 292000 bytes / 284 funcs`. This is compiler-side ABI metadata
-																					        reuse, not the rejected broad direct small-call fast path.
-																						      - the coroutine surface fixture now uses the same split shape: four focused
-																				        top-level chunks plus a tiny dispatcher, preserving return codes and
+																						      - ARM64 generic call lowering now caches stable ABI metadata on the native
+																						        context (`int_arg_regs`, register count, stack slot size, and stack
+																						        alignment) and reuses the raw register vector during call marshalling.
+																						        Emitted code stays unchanged, while the refreshed default profile moves
+																						        `user_decls` from about `12.25s / 292000 bytes / 284 funcs` to about
+																						        `10.06s / 292000 bytes / 284 funcs`. This is compiler-side ABI metadata
+																						        reuse, not the rejected broad direct small-call fast path.
+																						      - rejected `oren_is_err` inline path: directly lowering the full structured-error
+																						        predicate at each ARM64 call site preserved the runtime checks and passed
+																						        focused generator native/bytecode probes, but regressed default
+																						        `user_decls` to about `17.9s / 337792 bytes / 284 funcs` from the
+																						        post-ABI-cache `~10.06s / 292000 bytes`. Keep the full predicate in the
+																						        helper unless a branch-only or smaller representation avoids duplicating
+																						        tracked-node/map-magic/marker validation at every generated guard.
+																							      - the coroutine surface fixture now uses the same split shape: four focused
+																					        top-level chunks plus a tiny dispatcher, preserving return codes and
 																        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and
