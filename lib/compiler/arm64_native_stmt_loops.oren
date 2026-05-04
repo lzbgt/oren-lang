@@ -279,12 +279,13 @@ fn _arm64_branch_false_result(pos, cond) {
 fn _arm64_append_branch_false_jumps(out, br) {
     if br == nil { return out }
     var jumps = br["jumps"]
-    if jumps != nil {
-        var i = 0
-        while i < oren_list_len(jumps) {
-            oren_list_push(out, jumps[i])
-            i = i + 1
-        }
+	    if jumps != nil {
+	        var i = 0
+	        var n = oren_list_len(jumps)
+	        while i < n {
+	            oren_list_push(out, jumps[i])
+	            i = i + 1
+	        }
         return out
     }
     oren_list_push(out, {"pos": br["pos"], "cond": br["cond"]})
@@ -294,12 +295,13 @@ fn _arm64_append_branch_false_jumps(out, br) {
 fn _arm64_patch_branch_false_jumps(ctx, br, target) {
     if br == nil { return nil }
     var jumps = br["jumps"]
-    if jumps != nil {
-        var i = 0
-        while i < oren_list_len(jumps) {
-            var j = jumps[i]
-            set_u32_le(ctx["code"], j["pos"], insn_b_cond((target - j["pos"]) / 4, j["cond"]))
-            i = i + 1
+	    if jumps != nil {
+	        var i = 0
+	        var n = oren_list_len(jumps)
+	        while i < n {
+	            var j = jumps[i]
+	            set_u32_le(ctx["code"], j["pos"], insn_b_cond((target - j["pos"]) / 4, j["cond"]))
+	            i = i + 1
         }
         return nil
     }
@@ -341,17 +343,19 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
 
     if op == "&&" {
         var base_stack_and = ctx["stack_size"]
-        var and_terms = []
-        _arm64_collect_logical_terms(cond, "&&", and_terms)
-        var and_jumps = []
-        var ai = 0
-        while ai < oren_list_len(and_terms) {
-            var term_false = _arm64_emit_any_cond_branch_false(ctx, and_terms[ai], tok, base_stack_and)
-            _arm64_append_branch_false_jumps(and_jumps, term_false)
-            ai = ai + 1
-        }
-        if oren_list_len(and_jumps) <= 0 { return nil }
-        return {"pos": and_jumps[0]["pos"], "cond": and_jumps[0]["cond"], "jumps": and_jumps}
+	        var and_terms = []
+	        _arm64_collect_logical_terms(cond, "&&", and_terms)
+	        var and_n = oren_list_len(and_terms)
+	        var and_jumps = []
+	        var ai = 0
+	        while ai < and_n {
+	            var term_false = _arm64_emit_any_cond_branch_false(ctx, and_terms[ai], tok, base_stack_and)
+	            _arm64_append_branch_false_jumps(and_jumps, term_false)
+	            ai = ai + 1
+	        }
+	        var and_jump_n = oren_list_len(and_jumps)
+	        if and_jump_n <= 0 { return nil }
+	        return {"pos": and_jumps[0]["pos"], "cond": and_jumps[0]["cond"], "jumps": and_jumps}
     }
     if op == "||" {
         var base_stack_or = ctx["stack_size"]
@@ -376,12 +380,13 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
             }
             oi = oi + 1
         }
-        var then_pos_or = bytes_len(ctx["code"])
-        var ti = 0
-        while ti < oren_list_len(true_jumps) {
-            var tp = true_jumps[ti]
-            set_u32_le(ctx["code"], tp, insn_b((then_pos_or - tp) / 4))
-            ti = ti + 1
+	        var then_pos_or = bytes_len(ctx["code"])
+	        var ti = 0
+	        var true_n = oren_list_len(true_jumps)
+	        while ti < true_n {
+	            var tp = true_jumps[ti]
+	            set_u32_le(ctx["code"], tp, insn_b((then_pos_or - tp) / 4))
+	            ti = ti + 1
         }
         return last_false
     }

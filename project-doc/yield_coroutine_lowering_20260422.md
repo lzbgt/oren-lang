@@ -318,6 +318,13 @@ backend-shared value-helper slices landed.
     and the latest profile moves `user_decls` from the prior noisy ~25.1s sample to ~21.7s, with unchanged
     code bytes and only small condition-bucket movement. This is structural cleanup, not the final
     wall-time fix.
+  - Statement loop length-hoist follow-up (2026-05-04): ARM64 block statement iteration, branch false-jump
+    patching, return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)`
+    values out of hot compiler loops. This does not change emitted code; the refreshed generator profile
+    keeps `user_decls` in the previous band (~20.9s / 323804 bytes), with `lambda_wrap` ~1.7s and `fnwrap`
+    ~0.95s. A declaration-free block scope-frame skip was rejected after profiling because it regressed
+    `user_decls` to ~22.1s and wrapper phases too; the new block/shadow/`for var` smoke guards future
+    block-scope work in native quick.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

@@ -5113,12 +5113,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															        string comparison for operator matching; direct string equality could
 															        fail to flatten and recursively re-enter the same condition until
 															        call-depth overflow. After the fix, focused logical/integration smokes
-															        pass, code bytes stay unchanged, and the latest default-profile sample
-															        moves `user_decls` from ~25.1s to ~21.7s while statement buckets move
-															        only slightly (`|| != !=` ~6.43s -> ~6.37s). Treat this as structural
-															        cleanup, not the final wall-time fix.
-																	      - the generator surface fixture now splits its formerly monolithic native
-															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
+																        pass, code bytes stay unchanged, and the latest default-profile sample
+																        moves `user_decls` from ~25.1s to ~21.7s while statement buckets move
+																        only slightly (`|| != !=` ~6.43s -> ~6.37s). Treat this as structural
+																        cleanup, not the final wall-time fix.
+																      - Statement loop length-hoist follow-up (2026-05-04): ARM64 block
+																        iteration, branch false-jump patching, return-jump patching, and
+																        logical branch helpers now hoist stable `oren_list_len(...)` values
+																        out of hot compiler loops. This does not change emitted code; the
+																        refreshed generator profile keeps `user_decls` in the previous band
+																        (~20.9s / 323804 bytes), `lambda_wrap` ~1.7s, and `fnwrap` ~0.95s.
+																        A declaration-free block scope-frame skip built and passed focused
+																        checks, but regressed `user_decls` to ~22.1s and wrapper phases as
+																        well, so it was reverted. Keep the new block/shadow/`for var` scope
+																        smoke in native quick as the guardrail for any stronger scope design.
+																		      - the generator surface fixture now splits its formerly monolithic native
+																        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).
 														        The measured native profile improves `user_decls` from ~22.0s to ~20.7s

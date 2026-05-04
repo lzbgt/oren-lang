@@ -2566,6 +2566,13 @@ Local (fast):
   generator profile keeps code bytes unchanged and nudges `user_decls` from the latest noisy default-profile
   sample (~25.1s) to ~21.7s, while gated statement buckets move only slightly (`|| != !=` ~6.43s -> ~6.37s).
   Treat this as a structural lowering cleanup, not the final `user_decls` wall-time solution.
+- ARM64 statement loop length hoists (2026-05-04): block statement iteration, branch false-jump patching,
+  return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)` values out of
+  hot compiler loops. This does not change emitted code; the refreshed profile keeps `user_decls` in the
+  previous band (~20.9s / 323804 bytes), with `lambda_wrap` ~1.7s and `fnwrap` ~0.95s. A declaration-free
+  block scope-frame skip was measured and rejected because it regressed `user_decls` to ~22.1s and wrapper
+  phases as well. The new `tier1_native_block_scope_fastpath_main.oren` smoke is in native quick so future
+  block-scope optimizations must preserve shadowing and `for var` initializer scoping.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to

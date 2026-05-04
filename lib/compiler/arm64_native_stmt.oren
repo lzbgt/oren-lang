@@ -635,19 +635,20 @@ fn native_compile_stmt_inner(ctx, stmt) {
         return false
     }
     if stmt["type"] == "Block" {
+        var stmts = stmt["stmts"]
+        var stmt_count = oren_list_len(stmts)
         if ctx["in_function"] {
             scope_enter_codegen(ctx)
         }
         var old_fresh_caps = ctx["arm64_fresh_list_int_caps"]
         var fresh_caps = {}
         var base_stack = ctx["stack_size"]
-        var stmts = stmt["stmts"]
         var i = 0
         var falls_through = true
-        while i < oren_list_len(stmts) {
+        while i < stmt_count {
             var cur = stmts[i]
             var next = nil
-            if i + 1 < oren_list_len(stmts) { next = stmts[i + 1] }
+            if i + 1 < stmt_count { next = stmts[i + 1] }
             if _arm64_should_skip_reserve_stmt(cur, next, ctx) == true {
                 i = i + 1
                 continue
@@ -677,9 +678,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	            // fallthrough is impossible, later statements are either unreachable or in another CFG arm).
 	            ctx["stack_size"] = base_stack
 	        }
-		        if ctx["in_function"] {
-		            scope_exit_codegen(ctx)
-		        }
+			        if ctx["in_function"] {
+			            scope_exit_codegen(ctx)
+			        }
         ctx["arm64_fresh_list_int_caps"] = old_fresh_caps
         if falls_through == true { return nil }
         return false
@@ -1284,14 +1285,15 @@ fn native_compile_stmt_inner(ctx, stmt) {
             }
             
             var else_target = bytes_len(ctx["code"])
-            if direct_cond_branch != nil && direct_cond_branch["jumps"] != nil {
-                var false_jumps = direct_cond_branch["jumps"]
-                var fji = 0
-                while fji < oren_list_len(false_jumps) {
-                    var fj = false_jumps[fji]
-                    set_u32_le(ctx["code"], fj["pos"], insn_b_cond((else_target - fj["pos"]) / 4, fj["cond"]))
-                    fji = fji + 1
-                }
+	            if direct_cond_branch != nil && direct_cond_branch["jumps"] != nil {
+	                var false_jumps = direct_cond_branch["jumps"]
+	                var fji = 0
+	                var fjn = oren_list_len(false_jumps)
+	                while fji < fjn {
+	                    var fj = false_jumps[fji]
+	                    set_u32_le(ctx["code"], fj["pos"], insn_b_cond((else_target - fj["pos"]) / 4, fj["cond"]))
+	                    fji = fji + 1
+	                }
             } else {
                 var else_off = (else_target - jump_else_pos) / 4
                 var else_cond = 0
@@ -1608,13 +1610,15 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 // Ensure X0 remains 0 (helper may clobber caller-saved regs).
                 push_u32_le(ctx["code"], insn_movz(0, 0))
             }
-	            var epilogue_pos = bytes_len(ctx["code"])
-	            var rji = 0
-	            while rji < oren_list_len(ctx["arm64_return_jumps"]) {
-	                var rj = ctx["arm64_return_jumps"][rji]
-	                set_u32_le(ctx["code"], rj, insn_b((epilogue_pos - rj) / 4))
-	                rji = rji + 1
-	            }
+		            var epilogue_pos = bytes_len(ctx["code"])
+		            var rji = 0
+		            var return_jumps = ctx["arm64_return_jumps"]
+		            var rjn = oren_list_len(return_jumps)
+		            while rji < rjn {
+		                var rj = return_jumps[rji]
+		                set_u32_le(ctx["code"], rj, insn_b((epilogue_pos - rj) / 4))
+		                rji = rji + 1
+		            }
 	            _arm64_emit_function_epilogue(ctx)
             
             var func_end = bytes_len(ctx["code"])

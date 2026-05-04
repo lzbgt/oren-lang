@@ -1,0 +1,34 @@
+fn main() {
+    var outer = 7
+
+    {
+        if outer != 7 { return 10 }
+    }
+    if outer != 7 { return 11 }
+
+    {
+        var outer = 13
+        if outer != 13 { return 12 }
+    }
+    if outer != 7 { return 13 }
+
+    var i = 100
+    {
+        for var i = 0; i < 3; i = i + 1 {
+            if i < 0 { return 14 }
+        }
+    }
+    if i != 100 { return 15 }
+
+    {
+        if outer == 7 {
+            {
+                if i != 100 { return 16 }
+            }
+        } else {
+            return 17
+        }
+    }
+
+    return 0
+}
