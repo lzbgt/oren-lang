@@ -4583,10 +4583,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     New (2026-05-04): JSON, YAML, and CBOR codec surfaces now provide direct
 	     structured encode/decode wrappers (`try_encode` / `try_decode`, plus CBOR
 	     sequence/typed-sequence variants).
-	     Native ARM64 bool annotation normalization is now singleton-aware too, so serde
-	     bool fields preserve `false` when constructors and return boundaries re-normalize
-	     already-boolean values.
-	     YAML native quick coverage is now enabled after the optional split-invariant list-push
+		     Native ARM64 bool annotation normalization is now singleton-aware too, so serde
+		     bool fields preserve `false` when constructors and return boundaries re-normalize
+		     already-boolean values.
+		     Follow-up (2026-05-04): ARM64 native tracks static typed-struct field metadata for
+		     constructor results held in locals/globals/typed params, so `f32`/`f64` member reads preserve
+		     float representation after map-backed loads. It also tracks annotated user-function return
+		     kinds so `f32`/`f64` returned values stay floaty at call sites. The typed struct field module
+		     now guards this on native and bytecode.
+		     YAML native quick coverage is now enabled after the optional split-invariant list-push
 	     transform was moved off the default path; stage1/stage2 native YAML decode/serde now
 	     preserves empty-line handling and compact serde keyword attributes via bytewise string
 	     comparisons. The optional native

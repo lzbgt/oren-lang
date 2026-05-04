@@ -51,5 +51,24 @@ struct F32Box {
 var b = F32Box(16777217.0)
 if b.x != 16777216.0 { exit(8) }
 
+fn check_f32_box_param(x: F32Box): i64 {
+    if x.x != 16777216.0 { return 9 }
+    return 0
+}
+
+fn read_f32_box(x: F32Box): f64 {
+    return x.x
+}
+
+fn check_f32_box_local(): i64 {
+    var lb = F32Box(16777217.0)
+    if lb.x != 16777216.0 { return 10 }
+    return 0
+}
+
+if check_f32_box_param(b) != 0 { exit(9) }
+if check_f32_box_local() != 0 { exit(10) }
+if read_f32_box(b) != 16777216.0 { exit(11) }
+
 print("module typed_struct_fields OK")
 exit(0)

@@ -48,6 +48,7 @@ fn _stmt_to_function_decl(stmt) {
 // - ctx["declared_functions"]: map name->1 for declared functions
 // - ctx["func_arity"]: map name->param_count
 // - ctx["func_varargs_fixed"]: map name->fixed_param_count for varargs functions
+// - ctx["func_ret_kinds"]: map name->ret_ann_type when annotated
 // - ctx["func_decl_order"]: list of function names in deterministic (source) order
 //
 // Returns a list of Function AST nodes (in source order), or nil on error.
@@ -63,6 +64,7 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
 
     if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
     if ctx["func_varargs_fixed"] == nil { ctx["func_varargs_fixed"] = {} }
+    if ctx["func_ret_kinds"] == nil { ctx["func_ret_kinds"] = {} }
     if ctx["func_decl_order"] == nil { ctx["func_decl_order"] = [] }
 
     var out = []
@@ -96,6 +98,7 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
             // - `nil` can remain the sentinel for "missing", and
             // - call sites can decode with `enc-1` without needing special cases for 0.
             ctx["func_arity"][name] = pc + 1
+            if fn0["ret_ann_type"] != nil { ctx["func_ret_kinds"][name] = fn0["ret_ann_type"] }
             if pc > 0 {
                 var last = params[pc - 1]
                 if last != nil && last["is_varargs"] == true {
@@ -121,7 +124,7 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
 //
 // Side effects (merged):
 // - ctx["declared_functions"] (adds new names; errors on duplicates)
-// - ctx["func_arity"], ctx["func_varargs_fixed"], ctx["func_decl_order"]
+// - ctx["func_arity"], ctx["func_varargs_fixed"], ctx["func_ret_kinds"], ctx["func_decl_order"]
 //
 // Returns a list of Function AST nodes (from `linked`, in source order), or nil on error.
 fn collect_top_level_functions_merge(ctx, linked, err_prefix) {
@@ -135,6 +138,7 @@ fn collect_top_level_functions_merge(ctx, linked, err_prefix) {
 
     if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
     if ctx["func_varargs_fixed"] == nil { ctx["func_varargs_fixed"] = {} }
+    if ctx["func_ret_kinds"] == nil { ctx["func_ret_kinds"] = {} }
     if ctx["func_decl_order"] == nil { ctx["func_decl_order"] = [] }
 
     var declared = ctx["declared_functions"]
@@ -164,6 +168,7 @@ fn collect_top_level_functions_merge(ctx, linked, err_prefix) {
             }
 
             ctx["func_arity"][name] = pc + 1
+            if fn0["ret_ann_type"] != nil { ctx["func_ret_kinds"][name] = fn0["ret_ann_type"] }
             if pc > 0 {
                 var last = params[pc - 1]
                 if last != nil && last["is_varargs"] == true {

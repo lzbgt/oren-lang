@@ -25,6 +25,8 @@ fn _arm64_new_ctx(linked, platform) {
         "globals_int_const": {},
         "globals_stringy": {},
         "globals_list_stringy": {},
+        "globals_struct_type": {},
+        "type_field_kinds": {},
         "global_root_names": [],
         "global_root_offsets": [],
         "global_root_is_runtime": [],
@@ -35,6 +37,7 @@ fn _arm64_new_ctx(linked, platform) {
         "func_arity": {},
         // Named function varargs mapping (name -> fixed param count). Presence means varargs.
         "func_varargs_fixed": {},
+        "func_ret_kinds": {},
         "func_decl_order": [],
         // Named-function wrappers are only needed when a function is used as a *value*
         // (Identifier expression), not when it is only ever called directly.
@@ -54,6 +57,7 @@ fn _arm64_new_ctx(linked, platform) {
         "locals_int_const": {},
         "locals_stringy": {},
         "locals_list_stringy": {},
+        "locals_struct_type": {},
         "platform": platform,
         "call_abi": nabi.arm64(platform),
         "aliases": nil,

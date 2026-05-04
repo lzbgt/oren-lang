@@ -30,7 +30,7 @@ fn bytes_finalize(b) { return bb.bytes_finalize(b) }
 //
 // We implement lexical scopes with an undo log:
 // - scope_enter_codegen(): push a scope frame
-// - scope_mark_declared_codegen(name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy): record previous binding
+// - scope_mark_declared_codegen(...): record previous binding + type-trait metadata
 // - scope_exit_codegen(): restore previous bindings
 //
 fn scope_enter_codegen(ctx) {
@@ -42,14 +42,14 @@ fn scope_current_codegen(ctx) {
     return ctx["scope"]
 }
 
-fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy) {
+fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy, prev_struct_type) {
     var scope = scope_current_codegen(ctx)
     if scope == nil {
         scope_enter_codegen(ctx)
         scope = scope_current_codegen(ctx)
     }
     scope["names"][name] = 1
-    oren_list_push(scope["undo"], {"name": name, "prev": prev_off, "prev_floaty": prev_floaty, "prev_inty": prev_inty, "prev_int_const": prev_int_const, "prev_stringy": prev_stringy, "prev_list_stringy": prev_list_stringy})
+    oren_list_push(scope["undo"], {"name": name, "prev": prev_off, "prev_floaty": prev_floaty, "prev_inty": prev_inty, "prev_int_const": prev_int_const, "prev_stringy": prev_stringy, "prev_list_stringy": prev_list_stringy, "prev_struct_type": prev_struct_type})
 }
 
 fn scope_exit_codegen(ctx) {
@@ -107,6 +107,14 @@ fn scope_exit_codegen(ctx) {
                 ctx["locals_list_stringy"][name] = nil
             } else {
                 ctx["locals_list_stringy"][name] = pls
+            }
+        }
+        if ctx["locals_struct_type"] != nil {
+            var pst = u["prev_struct_type"]
+            if pst == nil {
+                ctx["locals_struct_type"][name] = nil
+            } else {
+                ctx["locals_struct_type"][name] = pst
             }
         }
         i = i - 1

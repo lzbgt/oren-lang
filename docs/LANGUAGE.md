@@ -2637,7 +2637,10 @@ Current semantics (implementation reality):
   - The compiler also canonicalizes one-argument `std:ints.*(...)` and `std:casts.*(...)`
     wrapper calls back to the same cast lowering when their imports resolve to the stdlib modules,
     so native builds do not lose float-to-int truncation semantics behind untagged helper calls.
-- `f32`: deterministic rounding boundary (via `oren_f32_round(x)`); `f64` remains the default float precision
+- `f32`: deterministic rounding boundary (via `oren_f32_round(x)`); `f64` remains the default float precision.
+  ARM64 native tracks statically known typed-struct fields for `f32`/`f64` member reads, so values rounded at
+  construction stay in float representation when loaded back through `obj.field`. Annotated user-function
+  returns of `f32`/`f64` are also tracked at ARM64 call sites.
 - endian-tagged integer kinds (`u16be`, `u32le`, etc.) are treated as the same width for value casts, but matter for packed-byte views and ABI layouts
 
 Other annotations are currently metadata-only and exist primarily for tooling and future stabilization (v1).

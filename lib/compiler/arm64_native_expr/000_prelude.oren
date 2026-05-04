@@ -462,6 +462,36 @@ fn native_name_is_or_has_suffix(name, exact, suffix) {
     return native_name_has_suffix(name, suffix)
 }
 
+fn native_expr_static_member_field_kind(ctx, expr) {
+    if ctx == nil || expr == nil { return nil }
+    if expr["type"] != "Member" { return nil }
+    var prop = expr["prop"]
+    if prop == nil || prop["type"] != "Identifier" { return nil }
+    var left = expr["left"]
+    if left == nil || left["type"] != "Identifier" { return nil }
+    var obj_name = left["value"]
+    var type_name = nil
+    if ctx["locals_struct_type"] != nil { type_name = ctx["locals_struct_type"][obj_name] }
+    if type_name == nil {
+        if ctx["globals_struct_type"] != nil { type_name = ctx["globals_struct_type"][obj_name] }
+    }
+    if type_name == nil { return nil }
+    var all = ctx["type_field_kinds"]
+    if all == nil { return nil }
+    var fields = all[type_name]
+    if fields == nil { return nil }
+    return fields[prop["value"]]
+}
+
+fn native_kind_name_is_float(kind) {
+    if kind == nil { return false }
+    var k = kind
+    if oren_string_len(k) > 5 {
+        if oren_string_slice(k, 0, 5) == "oren." { k = oren_string_slice(k, 5, oren_string_len(k)) }
+    }
+    return k == "f32" || k == "f64"
+}
+
 fn native_expr_is_floaty(ctx, expr) {
     // Heuristic, rolling "float propagation" for the native backend.
     //
@@ -483,6 +513,11 @@ fn native_expr_is_floaty(ctx, expr) {
         }
         return false
     }
+    if et == "Member" {
+        var fk = native_expr_static_member_field_kind(ctx, expr)
+        if fk == "f32" || fk == "f64" { return true }
+        return false
+    }
     if et == "Call" {
         var fnn = expr["fn"]
         var nm = nil
@@ -497,6 +532,9 @@ fn native_expr_is_floaty(ctx, expr) {
             }
         }
         if nm != nil {
+            if ctx != nil && ctx["func_ret_kinds"] != nil {
+                if native_kind_name_is_float(ctx["func_ret_kinds"][nm]) { return true }
+            }
             if nm == "fadd" || nm == "fsub" || nm == "fmul" || nm == "fdiv" { return true }
             if nm == "f32" || nm == "f64" { return true }
             // Native runtime/library functions that are known to return float bits.

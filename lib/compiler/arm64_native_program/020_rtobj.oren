@@ -168,6 +168,7 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
     if meta["declared_functions"] != nil { ctx["declared_functions"] = meta["declared_functions"] }
     if meta["func_arity"] != nil { ctx["func_arity"] = meta["func_arity"] }
     if meta["func_varargs_fixed"] != nil { ctx["func_varargs_fixed"] = meta["func_varargs_fixed"] }
+    if meta["func_ret_kinds"] != nil { ctx["func_ret_kinds"] = meta["func_ret_kinds"] }
     if meta["func_decl_order"] != nil { ctx["func_decl_order"] = meta["func_decl_order"] }
 
     // Prevent lambda wrapper name collisions with the cached runtime.
@@ -918,6 +919,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         "declared_functions": ctx["declared_functions"],
         "func_arity": ctx["func_arity"],
         "func_varargs_fixed": ctx["func_varargs_fixed"],
+        "func_ret_kinds": ctx["func_ret_kinds"],
         "func_decl_order": ctx["func_decl_order"],
         "lambda_counter_enc": ctx["lambda_counter"] + 1
     }

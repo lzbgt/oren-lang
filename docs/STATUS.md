@@ -1387,9 +1387,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      split-invariant list-push transform was moved off the default path; stage2 native YAML
      decode/serde parity now covers empty-line parsing plus compact
      `@serde(format=..., tag=...)`, `rename`, `skip`, and `default` attribute lookup.
-     The same slice fixed native ARM64 bool annotation normalization for runtime boolean singletons:
-     typed `false` fields and bool return boundaries now remain false instead of being treated as a
-     nonzero pointer during numeric `oren_bool_norm`.
+	     The same slice fixed native ARM64 bool annotation normalization for runtime boolean singletons:
+	     typed `false` fields and bool return boundaries now remain false instead of being treated as a
+	     nonzero pointer during numeric `oren_bool_norm`.
+	     Follow-up (2026-05-04): ARM64 native now records struct field annotation metadata and
+	     constructor-result types for locals/globals/typed params, so `f32`/`f64` typed-struct member reads
+	     keep float representation after map-backed field loads. ARM64 also records annotated user-function
+	     return kinds, so calls returning `f32`/`f64` are compared/arithmetic-lowered as floats at call sites.
+	     `tests/modules/test_typed_struct_fields.oren` now passes on native and bytecode, including top-level,
+	     parameter, local, and `read_f32_box(...): f64` returned `F32Box.x` reads.
    - New (2026-05-04): `std:net/dns`, `std:net/host`, and `std:net/hpack` now provide direct
      structured-error wrappers over their tested legacy ok-map APIs (`try_query_a`,
      `try_resolve_a`, `try_resolve_host_ipv4`, `try_encode_header_block`,
