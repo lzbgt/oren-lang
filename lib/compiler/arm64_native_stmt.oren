@@ -1326,19 +1326,23 @@ fn native_compile_stmt_inner(ctx, stmt) {
         
         if expr["type"] == "If" {
             var base_stack = ctx["stack_size"]
-            
-            native_compile_expr(ctx, expr["cond"])
-            loopm._arm64_emit_truthy_norm_in_x0(ctx, expr["token"])
-
+            var direct_cond_branch = loopm._arm64_emit_if_cond_branch_false(ctx, expr["cond"], expr["token"])
+            var jump_else_pos = nil
+            if direct_cond_branch != nil { jump_else_pos = direct_cond_branch["pos"] }
+            else {
+                native_compile_expr(ctx, expr["cond"])
+                loopm._arm64_emit_truthy_norm_in_x0(ctx, expr["token"])
+            }
             // Stack discipline (native backend; rolling correctness):
             // Ensure condition evaluation does not leave temporary stack slots live across the branch.
             var cond_delta = ctx["stack_size"] - base_stack
             if cond_delta != 0 { loopm._arm64_restore_stack_to(ctx, base_stack) }
 
-            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-
-            var jump_else_pos = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) 
+            if direct_cond_branch == nil {
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+                jump_else_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+            }
             
             var prev_bb_if = ctx["arm64_basic_block_entry"]
             if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
@@ -1358,7 +1362,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
             
             var else_target = bytes_len(ctx["code"])
             var else_off = (else_target - jump_else_pos) / 4
-            set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, 0)) 
+            var else_cond = 0
+            if direct_cond_branch != nil { else_cond = direct_cond_branch["cond"] }
+            set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, else_cond))
             
             var alt_falls = true
             if expr["alt"] != nil {

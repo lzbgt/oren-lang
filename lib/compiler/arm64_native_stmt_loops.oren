@@ -98,6 +98,67 @@ fn _arm64_emit_truthy_norm_in_x0(ctx, tok) { return basem._arm64_emit_truthy_nor
 fn _arm64_emit_while_generic(ctx, stmt) { return basem._arm64_emit_while_generic(ctx, stmt) }
 fn _arm64_set_compile_hooks(expr_fn, stmt_fn) { return basem._arm64_set_compile_hooks(expr_fn, stmt_fn) }
 
+fn _arm64_inverse_cond(cond) {
+    if cond == 0 { return 1 }   // EQ -> NE
+    if cond == 1 { return 0 }   // NE -> EQ
+    if cond == 4 { return 5 }   // MI -> PL
+    if cond == 10 { return 11 } // GE -> LT
+    if cond == 11 { return 10 } // LT -> GE
+    if cond == 12 { return 13 } // GT -> LE
+    if cond == 13 { return 12 } // LE -> GT
+    return 1
+}
+
+fn _arm64_cmp_cond_code(op, floaty) {
+    if op == "==" { return 0 }
+    if op == "!=" { return 1 }
+    if op == "<"  { if floaty == true { return 4 } else { return 11 } }
+    if op == ">"  { return 12 }
+    if op == "<=" { return 13 }
+    if op == ">=" { return 10 }
+    return nil
+}
+
+fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    var op = cond["op"]
+    var l = cond["left"]
+    var r = cond["right"]
+    var left_stringy = exprm.native_expr_is_stringy(ctx, l)
+    var right_stringy = exprm.native_expr_is_stringy(ctx, r)
+    if left_stringy == true || right_stringy == true { return nil }
+
+    var left_floaty = exprm.native_expr_is_floaty(ctx, l)
+    var right_floaty = exprm.native_expr_is_floaty(ctx, r)
+    var floaty = false
+    if left_floaty == true || right_floaty == true { floaty = true }
+    var true_cond = _arm64_cmp_cond_code(op, floaty)
+    if true_cond == nil { return nil }
+
+    native_compile_expr(ctx, l)
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+    native_compile_expr(ctx, r)
+    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+
+    if floaty == true {
+        if left_floaty == true { push_u32_le(ctx["code"], exprm.insn_fmov_d_x(0, 1)) }
+        else { push_u32_le(ctx["code"], exprm.insn_scvtf(0, 1)) }
+        if right_floaty == true { push_u32_le(ctx["code"], exprm.insn_fmov_d_x(1, 0)) }
+        else { push_u32_le(ctx["code"], exprm.insn_scvtf(1, 0)) }
+        push_u32_le(ctx["code"], exprm.insn_fcmp(0, 1))
+    } else {
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
+    }
+
+    var jump_false = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    return {"pos": jump_false, "cond": _arm64_inverse_cond(true_cond)}
+}
+
 
 
 fn _arm64_str_eq_bytes(a, b) {

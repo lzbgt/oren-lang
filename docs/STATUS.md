@@ -2465,6 +2465,12 @@ Local (fast):
   from ~7.8s / 72368 bytes / 52 funcs to ~1.7s / 54968 bytes / 52 funcs. Varargs lambdas still use the
   generic synthesized wrapper path. Remaining backend throughput work is now concentrated in large
   `user_decls` bodies and the first local BL resolve bucket.
+- ARM64 direct non-string comparison branches (2026-05-04): `if` conditions whose expression is a
+  non-string comparison now branch directly from integer/float compare flags instead of materializing a
+  runtime boolean singleton and immediately normalizing it for truthiness. The refreshed generator
+  profile keeps `user_decls` time roughly neutral (~20.9s) but reduces user-declaration code size from
+  ~505KB to ~461KB and drops local fixup volume from 18719 to 17691. String and dynamic truthiness
+  conditions stay on the existing generic path.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.

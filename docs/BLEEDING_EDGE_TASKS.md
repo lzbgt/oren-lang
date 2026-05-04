@@ -4987,6 +4987,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																        bytes / 52 funcs. Varargs lambdas still use the generic wrapper path;
 																        reweight remaining backend work toward `user_decls` and the first BL
 																        resolve bucket.
+																      - Direct non-string comparison branches (2026-05-04): ARM64 `if`
+																        conditions with non-string comparison expressions now branch directly
+																        from integer/float compare flags instead of materializing a runtime
+																        boolean singleton and re-normalizing it for truthiness. The generator
+																        profile keeps `user_decls` time roughly neutral (~20.9s), but cuts
+																        user-declaration code size from ~505KB to ~461KB and local fixup volume
+																        from 18719 to 17691. String/dynamic truthiness conditions remain on the
+																        generic path.
 																      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
 																        make profile-native-build-phases` now enables gated inclusive ARM64
 															        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile

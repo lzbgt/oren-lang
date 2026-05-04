@@ -233,6 +233,11 @@ backend-shared value-helper slices landed.
     lambda body normally. The refreshed generator profile moves `lambda_wrap` to ~1.7s / 54968 bytes /
     52 funcs, so wrapper codegen is no longer the dominant native-build boundary; large user bodies and
     the first local BL resolve bucket remain.
+  - Direct non-string comparison branches (2026-05-04): ARM64 `if` conditions whose condition is a
+    non-string comparison now branch directly from integer/float compare flags instead of materializing
+    a runtime boolean singleton and immediately normalizing it for truthiness. The refreshed generator
+    profile keeps `user_decls` time roughly neutral but cuts user-declaration code size from ~505KB to
+    ~461KB and local fixup volume from 18719 to 17691.
   - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
     profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
     statement buckets by phase/function/type. The default profile path remains phase/function-only to
