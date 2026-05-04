@@ -5351,6 +5351,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																					        `user_decls` about `11.2s`, and statement `Assign(Integer)` still about
 																					        `2.4s / 16 stmts` with identical bytes). The source probe was reverted;
 																					        do not chase global integer-literal lowering as the next wall-time lever.
+																					      - ARM64 call-expression profiling now records gated
+																					        `CallExpr(<route>:<callee>,<argc>)` rows and the profile script prints a
+																					        dedicated call-expression table. The refreshed default profile remains in
+																					        the current band at about `12.25s / 292000 bytes / 284 funcs` for
+																					        `user_decls`, while the gated profile shows the remaining generated body
+																					        cost is mostly generic generator helpers: `_oren_generator_trace`
+																					        about `1.5s / 21 calls`,
+																					        `STD_generator__generator_cancel_target_err` about `1.3s / 27 calls`,
+																					        `_oren_generator_err` about `1.2s / 10 calls`, and `oren_is_err`
+																					        about `1.0s / 318 calls`. Keep the rejected generic small-call fast path
+																					        closed; the next call-side slice needs to target these helper sites while
+																					        preserving runtime trace/env semantics.
 																						      - the coroutine surface fixture now uses the same split shape: four focused
 																				        top-level chunks plus a tiny dispatcher, preserving return codes and
 																        coverage. The measured coroutine native profile now has the largest fixture

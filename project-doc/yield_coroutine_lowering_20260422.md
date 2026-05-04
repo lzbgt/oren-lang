@@ -487,6 +487,15 @@ backend-shared value-helper slices landed.
     default `top` remained about ~2.33s, `user_decls` about ~11.2s, and statement `Assign(Integer)` stayed
     about ~2.4s / 16 statements with identical bytes. The source probe was reverted; global integer-literal
     lowering is not the next wall-time lever.
+  - ARM64 call-expression profiling (2026-05-05): the gated statement profile now records
+    `CallExpr(<route>:<callee>,<argc>)` rows and the profile script prints a call-expression table. The
+    refreshed default profile remains in the current band at ~12.25s / 292000 bytes / 284 funcs for
+    `user_decls`, while the gated profile shows the next generated-body target is specific generic generator
+    helper calls rather than map string-key lookup: `_oren_generator_trace` is ~1.5s / 21 calls,
+    `STD_generator__generator_cancel_target_err` is ~1.3s / 27 calls, `_oren_generator_err` is
+    ~1.2s / 10 calls, and `oren_is_err` is ~1.0s / 318 calls. Runtime trace/env semantics still matter, so
+    do not remove `_oren_generator_trace` calls or resurrect the rejected generic small-call fast path without
+    a narrower semantic proof.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

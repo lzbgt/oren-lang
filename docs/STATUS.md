@@ -2758,6 +2758,15 @@ Local (fast):
   `2.33s`, `user_decls` about `11.2s`) and statement `Assign(Integer)` remained about `2.4s` with identical
   code bytes. The source change was reverted; the remaining lever is not generic integer-literal expression
   lowering for globals.
+- ARM64 call-expression profiling now records gated `CallExpr(<route>:<callee>,<argc>)` rows under
+  `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`, and the profile script prints a dedicated
+  call-expression table. The refreshed default profile remains in the current band at about
+  `12.25s / 292000 bytes / 284 funcs` for `user_decls`, while the gated profile shows the remaining generated
+  body cost is mostly generic generator helper calls rather than map string-key lookup: `_oren_generator_trace`
+  is about `1.5s / 21 calls`, `STD_generator__generator_cancel_target_err` about `1.3s / 27 calls`,
+  `_oren_generator_err` about `1.2s / 10 calls`, and `oren_is_err` about `1.0s / 318 calls`. Keep the earlier
+  zero/one-arg direct-call fast path closed because it regressed throughput; the next credible call-side slice
+  needs to preserve runtime trace/env semantics while reducing these specific generic helper sites.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s
