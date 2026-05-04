@@ -4956,12 +4956,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															        `prefilled=0 resolved=11285`; a recent-first linear scan experiment was also
 															        measured and rejected. Reweight away from eager-target or scan-order retries
 															        unless another fixture gives different facts.
-															      - Follow-up cleanup (2026-05-04): the local target resolver now also stores
-															        each unique target name's last byte beside length and first byte before
-															        doing the full byte-content comparison. The refreshed generator profile is
-															        still dominated by the first BL resolve bucket (`~2386ms + ~25ms + ~62ms`,
-															        `n=11174`), so keep prioritizing `user_decls` / `lambda_wrap` unless a
-															        stronger first-bucket resolver design appears.
+																      - Follow-up cleanup (2026-05-04): the local target resolver now also stores
+																        each unique target name's last byte beside length and first byte before
+																        doing the full byte-content comparison. The refreshed generator profile is
+																        still dominated by the first BL resolve bucket (`~2386ms + ~25ms + ~62ms`,
+																        `n=11174`), so keep prioritizing `user_decls` / `lambda_wrap` unless a
+																        stronger first-bucket resolver design appears.
+																      - Local resolver scan diagnostics (2026-05-04): local BL/ADR-code resolve
+																        logs now include unique target count, lookup count, linear scan steps,
+																        metadata candidates, byte comparisons, appended targets, and misses at
+																        progress and completion points. The generator profile reports `11398`
+																        BL lookups over `332` unique targets, `790088` linear scan steps, and
+																        only `12567` full byte comparisons; by `i=4096`, `269` unique targets
+																        are already appended and `252115` scan steps are spent. Hoisting stable
+																        list lengths out of those hot loops trims later spans only modestly, so
+																        the next resolver design must reduce linear traversal itself rather
+																        than byte-comparison cost.
 															      - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*`
 															        functions now carry a compiler-internal marker that skips native call-depth
 														        enter/exit instrumentation on ARM64 and x64. The actual target function
@@ -5023,16 +5033,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																			        `user_decls` code bytes from 452472 to 379528, so the remaining
 																			        backend work stays on lowering cost, not guard-chain code size.
 																			      - Shared function epilogue follow-up (2026-05-04): generated ARM64
-																			        `return` statements now run call-depth exit if required, restore SP to
-																			        FP, and branch to one function-local epilogue instead of duplicating
-																			        the X19-X26/LR restore sequence at every return site. The uncontended
-																			        generator profile keeps `user_decls` wall time roughly neutral
-																			        (~20.8s) while reducing `user_decls` code bytes from 379528 to 340360;
-																			        wrapper bytes also fall (`lambda_wrap` 53472 -> 51096, `fnwrap`
-																			        19932 -> 18600). Continue treating wall-time lowering as the main
-																			        remaining backend task.
-																		      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
-																		        make profile-native-build-phases` now enables gated inclusive ARM64
+																				        `return` statements now run call-depth exit if required, restore SP to
+																				        FP, and branch to one function-local epilogue instead of duplicating
+																				        the X19-X26/LR restore sequence at every return site. The uncontended
+																				        generator profile keeps `user_decls` wall time roughly neutral
+																				        (~20.8s) while reducing `user_decls` code bytes from 379528 to 340360;
+																				        wrapper bytes also fall (`lambda_wrap` 53472 -> 51096, `fnwrap`
+																				        19932 -> 18600). Continue treating wall-time lowering as the main
+																				        remaining backend task.
+																				      - Rejected literal-return fast path (2026-05-04): a direct ARM64
+																				        emitter for `return nil` / singleton / integer-literal values built
+																				        and passed focused native smokes, but the generator profile stayed
+																				        neutral-to-worse (`user_decls` still about `20.9s` and `340360`
+																				        bytes), so it was reverted. Do not retry this narrow return path
+																				        without a new profile proving it is hot.
+																			      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
+																			        make profile-native-build-phases` now enables gated inclusive ARM64
 																        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
 														        path stays at phase/function granularity to avoid per-statement aggregation
 														        overhead. The first generator run shows `user_decls ExprStmt(If)` at ~16.5s

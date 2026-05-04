@@ -215,6 +215,14 @@ backend-shared value-helper slices landed.
     refreshed generator profile reports `~2386ms + ~25ms + ~62ms` local BL resolve buckets for
     `n=11174`, so this is only a small later-scan cleanup; the first bucket and wrapper/user
     declaration codegen remain the real backend-performance boundary.
+  - Local resolver scan diagnostics (2026-05-04): local BL/ADR-code resolve phase logs now record
+    unique target count, lookup count, linear scan steps, metadata candidates, byte comparisons,
+    appended targets, and misses at progress and completion points. The generator profile reports
+    `11398` BL lookups over `332` unique targets, `790088` scan steps, and only `12567` full byte
+    comparisons; by `i=4096`, `269` unique targets have already been appended and `252115` scan steps
+    have been paid. Hoisting stable list lengths out of those loops trims only a few later-span
+    milliseconds, so the next first-bucket resolver design must reduce linear traversal itself rather
+    than byte-comparison cost.
   - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions now skip
     native call-depth enter/exit instrumentation on ARM64 and x64 because the real target function
     still carries the guard. Lambda wrappers remain guarded because they own their body. The measured
@@ -258,6 +266,10 @@ backend-shared value-helper slices landed.
     branch to one function-local epilogue after any required call-depth exit, instead of duplicating the
     callee-saved restore/ret sequence per return site. The generator profile keeps `user_decls` wall time
     roughly neutral (~20.8s) while cutting user-declaration bytes from 379528 to 340360.
+  - Rejected literal-return fast path (2026-05-04): a direct ARM64 emitter for `return nil` / singleton /
+    integer-literal values built and passed focused native smokes, but the generator profile stayed
+    neutral-to-worse (`user_decls` still about `20.9s` and `340360` bytes), so it was reverted. Do not
+    retry this narrow path without new profile evidence.
   - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
     profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
     statement buckets by phase/function/type. The default profile path remains phase/function-only to

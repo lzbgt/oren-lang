@@ -2445,6 +2445,14 @@ Local (fast):
   generator profile remains content-correct and reports local BL resolve buckets around
   `~2386ms + ~25ms + ~62ms` for `n=11174`; this trims later scans but still leaves the first bucket
   as a real backend cost. Keep the main native-build focus on `user_decls` / `lambda_wrap`.
+- Local resolver scan diagnostics (2026-05-04): the same phase log now records unique-target count,
+  lookup count, linear scan steps, metadata candidates, byte comparisons, appended targets, and misses
+  at local BL/ADR-code resolve progress and completion points. The generator profile reports
+  `11398` BL lookups over only `332` unique targets, with `790088` linear scan steps and `12567` full
+  byte comparisons; by `i=4096` it has already appended `269` unique targets and scanned `252115`
+  entries. Hoisting stable list lengths out of the hot resolver loops trims a few later-span
+  milliseconds, but the first bucket remains around `~2.39s`, so the next resolver design needs to
+  reduce linear target-cache traversal rather than byte-comparison cost.
 - ARM64/x64 named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions are
   now marked as thin dispatch wrappers and skip native call-depth enter/exit instrumentation. The real
   target function still carries the stack-depth guard, while lambda wrappers remain guarded because
@@ -2497,6 +2505,11 @@ Local (fast):
   semantics. The uncontended generator profile keeps `user_decls` wall time roughly neutral (~20.8s)
   while reducing `user_decls` code bytes from 379528 to 340360; `lambda_wrap` falls from 53472 to 51096
   bytes and `fnwrap` from 19932 to 18600 bytes.
+- Rejected ARM64 literal-return fast path (2026-05-04): a direct emitter for `return nil` /
+  singleton / integer-literal values built and passed focused native smokes, but the generator profile
+  remained neutral-to-worse (`user_decls` still about `20.9s` and `340360` bytes), so it was reverted.
+  Do not retry that narrow path unless a new fixture shows literal-return lowering as a measured
+  bottleneck.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.

@@ -79,28 +79,69 @@ fn _macho_str_eq_bytes_known_len(a, b, len) {
     return true
 }
 
-fn _macho_lookup_function_linear(names, offs, lens, first_bytes, last_bytes, ctx, functions, name) {
-    if name == nil { return nil }
+fn _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, appended, missed) {
+    if stats == nil { return nil }
+    stats[0] = stats[0] + 1
+    stats[1] = stats[1] + scan_steps
+    stats[2] = stats[2] + meta_candidates
+    stats[3] = stats[3] + byte_compares
+    stats[4] = stats[4] + appended
+    stats[5] = stats[5] + missed
+    return nil
+}
+
+fn _macho_lookup_stats_detail(stats, unique_n) {
+    if stats == nil { return "" }
+    return " unique=" + oren_int_to_string(unique_n) +
+        " lookups=" + oren_int_to_string(stats[0]) +
+        " scan_steps=" + oren_int_to_string(stats[1]) +
+        " candidates=" + oren_int_to_string(stats[2]) +
+        " byte_cmps=" + oren_int_to_string(stats[3]) +
+        " appended=" + oren_int_to_string(stats[4]) +
+        " misses=" + oren_int_to_string(stats[5])
+}
+
+fn _macho_lookup_function_linear(names, offs, lens, first_bytes, last_bytes, ctx, functions, name, stats) {
+    if name == nil {
+        _macho_lookup_stats_add(stats, 0, 0, 0, 0, 1)
+        return nil
+    }
     var name_len = oren_string_len(name)
     var name_first = -1
     if name_len > 0 { name_first = oren_string_byte_at_unchecked(name, 0) & 255 }
     var name_last = -1
     if name_len > 0 { name_last = oren_string_byte_at_unchecked(name, name_len - 1) & 255 }
     var i = 0
-    while i < oren_list_len(names) {
+    var scan_steps = 0
+    var meta_candidates = 0
+    var byte_compares = 0
+    var names_n = oren_list_len(names)
+    while i < names_n {
+        scan_steps = scan_steps + 1
         if lens[i] == name_len && first_bytes[i] == name_first && last_bytes[i] == name_last {
-            if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true { return offs[i] }
+            meta_candidates = meta_candidates + 1
+            byte_compares = byte_compares + 1
+            if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
+                _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0)
+                return offs[i]
+            }
         }
         i = i + 1
     }
     var off = _macho_lookup_function(ctx, functions, name)
+    var appended = 0
+    var missed = 0
     if off != nil {
         oren_list_push(names, name)
         oren_list_push(offs, off)
         oren_list_push(lens, name_len)
         oren_list_push(first_bytes, name_first)
         oren_list_push(last_bytes, name_last)
+        appended = 1
+    } else {
+        missed = 1
     }
+    _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, appended, missed)
     return off
 }
 
@@ -1488,11 +1529,14 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var local_target_lens = []
     var local_target_first_bytes = []
     var local_target_last_bytes = []
-    if local_bl_target == nil || oren_list_len(local_bl_target) != oren_list_len(local_bl_name) {
-        local_bl_target = oren_list_new_cap(oren_list_len(local_bl_name))
+    var local_target_stats = nil
+    if phase_log != nil { local_target_stats = [0, 0, 0, 0, 0, 0] }
+    var local_bl_n = oren_list_len(local_bl_name)
+    if local_bl_target == nil || oren_list_len(local_bl_target) != local_bl_n {
+        local_bl_target = oren_list_new_cap(local_bl_n)
         if oren_is_err(local_bl_target) { local_bl_target = [] }
         i = 0
-        while i < oren_list_len(local_bl_name) {
+        while i < local_bl_n {
             oren_list_push(local_bl_target, nil)
             i = i + 1
         }
@@ -1501,16 +1545,18 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     i = 0
     var local_bl_prefilled = 0
     var local_bl_resolved = 0
-    while i < oren_list_len(local_bl_name) {
+    while i < local_bl_n {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
-                _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.progress", "i=" + oren_int_to_string(i))
+                _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.progress",
+                    "i=" + oren_int_to_string(i) +
+                    _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
             }
         }
         var target_local = local_bl_target[i]
         if target_local == nil {
             var name_bl_local = local_bl_name[i]
-            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_bl_local)
+            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_bl_local, local_target_stats)
             if target_local == nil {
                 var e_local_bl = "native backend: undefined function " + name_bl_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
@@ -1526,12 +1572,14 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     }
     if phase_log != nil {
         _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.done",
-            "n=" + oren_int_to_string(oren_list_len(local_bl_target)) +
+            "n=" + oren_int_to_string(local_bl_n) +
             " prefilled=" + oren_int_to_string(local_bl_prefilled) +
-            " resolved=" + oren_int_to_string(local_bl_resolved))
+            " resolved=" + oren_int_to_string(local_bl_resolved) +
+            _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
     }
     i = 0
-    while i < oren_list_len(local_bl_pos) {
+    var local_bl_pos_n = oren_list_len(local_bl_pos)
+    while i < local_bl_pos_n {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
                 _macho_phase_log_append(phase_log, "macho.fixups.local.bl.progress", "i=" + oren_int_to_string(i))
@@ -1543,28 +1591,31 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         set_u32_le(code, pos_bl_local, insn_bl(offset_local))
         i = i + 1
     }
-    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.done", "n=" + oren_int_to_string(oren_list_len(local_bl_pos))) }
-    if local_adr_code_target == nil || oren_list_len(local_adr_code_target) != oren_list_len(local_adr_code_name) {
-        local_adr_code_target = oren_list_new_cap(oren_list_len(local_adr_code_name))
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.done", "n=" + oren_int_to_string(local_bl_pos_n)) }
+    var local_adr_code_n = oren_list_len(local_adr_code_name)
+    if local_adr_code_target == nil || oren_list_len(local_adr_code_target) != local_adr_code_n {
+        local_adr_code_target = oren_list_new_cap(local_adr_code_n)
         if oren_is_err(local_adr_code_target) { local_adr_code_target = [] }
         i = 0
-        while i < oren_list_len(local_adr_code_name) {
+        while i < local_adr_code_n {
             oren_list_push(local_adr_code_target, nil)
             i = i + 1
         }
         fixups_local["adr_code_target"] = local_adr_code_target
     }
     i = 0
-    while i < oren_list_len(local_adr_code_name) {
+    while i < local_adr_code_n {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
-                _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.progress", "i=" + oren_int_to_string(i))
+                _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.progress",
+                    "i=" + oren_int_to_string(i) +
+                    _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
             }
         }
         var target2_local = local_adr_code_target[i]
         if target2_local == nil {
             var name_ac_local = local_adr_code_name[i]
-            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_ac_local)
+            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_ac_local, local_target_stats)
             if target2_local == nil {
                 var e_local_ac = "native backend: undefined function " + name_ac_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))
@@ -1576,7 +1627,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         i = i + 1
     }
     if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.resolve.unique.done", "n=" + oren_int_to_string(oren_list_len(local_target_names))) }
-    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.done", "n=" + oren_int_to_string(oren_list_len(local_adr_code_target))) }
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.done",
+            "n=" + oren_int_to_string(local_adr_code_n) +
+            _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
+    }
     i = 0
     while i < oren_list_len(local_adr_data_pos) {
         if phase_log != nil {
