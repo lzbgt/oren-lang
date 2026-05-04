@@ -5326,6 +5326,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																						        pass; the default generator profile remains in-band at about
 																						        `10.0s / 292000 bytes / 284 funcs`, so classify this as cross-surface
 																						        guard cleanup rather than the next large `user_decls` wall-time lever.
+																						      - rejected container tag broadening: switching remaining stdlib map/list
+																						        facade checks in `std:generator`, `std:task`, and `std:task_group` to
+																						        raw `MAP=7` / `LIST=6` tags built and passed focused surfaces, but the
+																						        default generator profile stayed flat/slightly worse (`user_decls`
+																						        about `10.05s`, bytes `292176`, funcs `285`) and removed only one
+																						        `Call,String` bucket. The probe was reverted; do not chase map/list
+																						        facade tag checks without new semantic proof and profile evidence.
 																						      - rejected helper path: moving that checked validation into a new kept
 																					        `oren_map_get_str_checked` runtime helper built, but native map and
 																				        generator fixtures exited `11`; adding it to the native-op spill surface

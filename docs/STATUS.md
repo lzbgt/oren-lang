@@ -2737,6 +2737,11 @@ Local (fast):
   bytecode/C/native surfaces. The refreshed default generator profile stays in the previous band at about
   `10.0s / 292000 bytes / 284 funcs`; this is cross-surface primitive guard cleanup, not the next large
   generator `user_decls` wall-time lever.
+- Rejected follow-up (2026-05-05): broadening that guard cleanup to map/list tag checks in
+  `std:generator`, `std:task`, and `std:task_group` built and passed the focused generator/task surfaces,
+  but the profile stayed flat/slightly worse (`user_decls` about `10.05s`, bytes up to `292176`, funcs up
+  to `285`) and only removed one `Call,String` condition bucket. The source probe was reverted; keep
+  map/list facade checks name-based unless a separate semantic/runtime-layout proof and profile win appear.
 - Rejected follow-up (2026-05-05): moving the checked `Index(map,str-literal)` validation into a new kept
   `oren_map_get_str_checked` runtime helper built successfully but made native map/generator fixtures exit
   `11`. Adding the name to the native-op spill surface did not fix the calling-convention/entry failure, so

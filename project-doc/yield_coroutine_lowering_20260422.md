@@ -467,6 +467,12 @@ backend-shared value-helper slices landed.
     intentionally remain name-based. The task/task-group and generator finalize/surface verifiers pass; the
     refreshed default generator profile remains in-band at ~10.0s / 292000 bytes / 284 funcs, so this is
     cross-surface guard cleanup rather than the next large `user_decls` lever.
+  - Rejected container-tag broadening (2026-05-05): replacing remaining stdlib map/list facade checks in
+    `std:generator`, `std:task`, and `std:task_group` with raw `MAP=7` / `LIST=6` tags built and passed
+    focused generator/task surfaces, but the default profile stayed flat/slightly worse (`user_decls`
+    ~10.05s, bytes 292176, funcs 285) and removed only one `Call,String` condition bucket. The probe was
+    reverted; keep those facade checks name-based unless a new semantic/runtime-layout proof also produces
+    a profile win.
   - Rejected helper path (2026-05-05): a new kept `oren_map_get_str_checked` runtime helper was tested to move
     the validation sequence out of each ARM64 map string-literal index site. It built, but native map/generator
     fixtures exited `11`; adding the helper name to the native-op spill surface did not fix the direct-call
