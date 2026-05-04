@@ -108,15 +108,14 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   accessors and `from_ok_map` / `to_ok_map` bridges for older `{"ok":...}` codec-style APIs.
   JSON, YAML, and CBOR now also expose structured decode wrappers (`try_decode`, plus CBOR sequence
   and typed sequence variants) while keeping legacy `{ok, err}` decoders for compatibility.
-  YAML's native module build cost remains a performance task, so YAML's direct wrapper is guarded
-  by portable bytecode/module tests rather than broad native fast-lane coverage; stage2 native
-  YAML decode and serde-attribute fixtures now pass after removing native-sensitive direct string
-  equality from YAML parsing and serde attribute-key lookup.
+  YAML's former native module build-cost blocker is mitigated by keeping the pathological
+  split-invariant list-push transform opt-in; the native quick lane now includes YAML comments
+  and serde-attribute smokes, while stage2 native YAML decode and serde-attribute fixtures pass.
   DNS/host/HPACK plus HTTP/WebSocket now also expose structured `try_*` wrappers over their
   tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades and the OS-specific TLS provider modules now
   also have structured adapters over the deterministic native loopback surfaces. Crypto helpers
-  now also have checked `try_*` aliases for PEM decode, entropy, SHA-1/SHA-256 hashing, and
-  minimal X.509 hash helpers. `std:argparse` now has `try_parse` as a structured bridge over
+  now also have checked `try_*` aliases for Base64 encode/decode, PEM decode, entropy,
+  SHA-1/SHA-256 hashing, and minimal X.509 hash helpers. `std:argparse` now has `try_parse` as a structured bridge over
   its legacy parse result map while preserving help as a non-error early-exit, and `std:regex`
   now has `try_compile` / `try_is_match` structured wrappers over the legacy compile result.
   Stdlib migration breadth is still ongoing, mostly in deeper protocol cleanup and older library
@@ -1376,8 +1375,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New (2026-05-04): `std:json`, `std:yaml`, and `std:cbor` now provide structured-error
      decode bridges (`try_decode`, plus CBOR sequence/typed-sequence variants) over their legacy
      `{ok, err}` APIs, so new codec callers can stay on `oren_err` while existing callers remain
-     source-compatible. YAML native codegen cost is still tracked separately from API availability;
-     stage2 native YAML decode/serde parity now covers empty-line parsing plus compact
+     source-compatible. YAML native quick coverage is now enabled after the optional
+     split-invariant list-push transform was moved off the default path; stage2 native YAML
+     decode/serde parity now covers empty-line parsing plus compact
      `@serde(format=..., tag=...)`, `rename`, `skip`, and `default` attribute lookup.
    - New (2026-05-04): `std:net/dns`, `std:net/host`, and `std:net/hpack` now provide direct
      structured-error wrappers over their tested legacy ok-map APIs (`try_query_a`,
@@ -1894,12 +1894,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      (2026-03-27).
    - New: `std:buffer` slice helpers return `oren_err` on invalid input; covered by
      result smoke fixture (2026-03-05).
-   - New: `std:encoding/base64.decode_bytes` error handling covered by result
-     smoke fixture (2026-03-05).
-   - New: `std:encoding/base64.encode_bytes` validates input and returns `oren_err`
-     on invalid values; covered by result smoke fixture (2026-03-05).
-   - New: `std:encoding/base64.decode_bytes_strict` rejects whitespace; covered by
-     result smoke fixture (2026-03-05).
+   - New: `std:encoding/base64` exposes structured `try_encode_bytes`,
+     `try_decode_bytes`, and `try_decode_bytes_strict` aliases; invalid input,
+     invalid alphabet/length, and strict whitespace rejection are covered by the
+     base64 module test and result smoke fixture (2026-05-04).
    - New: `std:crypto/pem.decode_blocks_strict` rejects whitespace inside base64
      payloads; `try_decode_blocks*` aliases are covered by native PEM/result smoke fixtures.
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return

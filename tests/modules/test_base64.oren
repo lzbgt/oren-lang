@@ -1,0 +1,45 @@
+import base64 "../../lib/std/encoding/base64.oren"
+import bytes "../../lib/std/bytes.oren"
+
+fn fail(code, msg) {
+    print("module base64 FAIL " + oren_int_to_string(code) + ": " + msg)
+    exit(code)
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn assert_err(x, code, msg) {
+    if oren_is_err(x) == true { return 0 }
+    fail(code, msg)
+}
+
+var encoded = base64.try_encode_bytes([77, 97, 110])
+assert_true(oren_is_err(encoded) != true, 10, "try_encode_bytes ok")
+assert_true(encoded == "TWFu", 11, "try_encode_bytes value")
+
+var decoded = base64.try_decode_bytes("TWFu")
+assert_true(oren_is_err(decoded) != true, 20, "try_decode_bytes ok")
+assert_true(bytes.try_len(decoded) == 3, 21, "try_decode_bytes len")
+assert_true(bytes.try_get_u8(decoded, 0) == 77, 22, "try_decode_bytes byte0")
+assert_true(bytes.try_get_u8(decoded, 1) == 97, 23, "try_decode_bytes byte1")
+assert_true(bytes.try_get_u8(decoded, 2) == 110, 24, "try_decode_bytes byte2")
+
+var decoded_ws = base64.try_decode_bytes("TQ==\n")
+assert_true(oren_is_err(decoded_ws) != true, 30, "try_decode_bytes accepts whitespace")
+assert_true(bytes.try_len(decoded_ws) == 1, 31, "try_decode_bytes whitespace len")
+assert_true(bytes.try_get_u8(decoded_ws, 0) == 77, 32, "try_decode_bytes whitespace byte")
+
+var strict_ok = base64.try_decode_bytes_strict("TQ==")
+assert_true(oren_is_err(strict_ok) != true, 40, "try_decode_bytes_strict ok")
+assert_true(bytes.try_get_u8(strict_ok, 0) == 77, 41, "try_decode_bytes_strict byte")
+
+assert_err(base64.try_encode_bytes(123), 50, "try_encode_bytes invalid input")
+assert_err(base64.try_decode_bytes("!!!"), 51, "try_decode_bytes invalid alphabet")
+assert_err(base64.try_decode_bytes("TQ="), 52, "try_decode_bytes invalid length")
+assert_err(base64.try_decode_bytes_strict("TQ==\n"), 53, "try_decode_bytes_strict rejects whitespace")
+
+print("module base64 OK")
+exit(0)

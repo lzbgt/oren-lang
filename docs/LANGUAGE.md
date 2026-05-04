@@ -281,7 +281,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:bytes` (smokes: `tests/native/qi/100_tests_basic.oren`, `tests/avm/test_smoke_suite.oren`)
   - `std:regex` (`try_compile` / `try_is_match`; smoke: `tests/modules/test_regex.oren`)
 - Encoding / crypto helpers:
-  - `std:encoding/base64` (TLS/HTTPS/WSS loopback fixtures)
+  - `std:encoding/base64` (`try_encode_bytes` / `try_decode_bytes` / `try_decode_bytes_strict`; module + TLS/HTTPS/WSS loopback fixtures)
   - `std:crypto/pem` (`try_decode_blocks` / `try_decode_blocks_strict`; smoke: `tests/native/test_pem_decode_smoke.oren`)
   - `std:crypto/rand` (`try_bytes` / `try_fill`; guarded by native quick entropy smoke)
   - `std:crypto/sha1`, `std:crypto/sha256`, and `std:crypto/x509` (checked `try_*` hash helpers; AVM SHA vector smoke)
@@ -3766,10 +3766,10 @@ Rolling status:
   `{ok, err, v, pos?}` decode APIs for existing callers, and JSON/YAML/CBOR now also expose
   structured-error wrappers where native-codegen cost is already safe (`json.try_decode`,
   `yaml.try_decode`, `cbor.try_decode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`,
-  plus typed CBOR sequence variants). YAML native module build cost is still tracked as a
-  performance task, so broad native YAML verification remains outside the default fast lane;
-  stage1 and stage2 native YAML decode/serde fixtures now preserve parser empty-line checks and
-  compact `@serde(...)` keyword attributes. The previously pathological native split-invariant
+  plus typed CBOR sequence variants). YAML native verification is back in the default fast lane
+  through comments and serde-attribute codec smokes; stage1 and stage2 native YAML decode/serde
+  fixtures preserve parser empty-line checks and compact `@serde(...)` keyword attributes.
+  The previously pathological native split-invariant
   list-push optimizer is opt-in (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`) so YAML native builds no
   longer spend the full test budget in that optional transform by default; the fast native quick
   lane now includes YAML comments and serde-attribute codec smokes.

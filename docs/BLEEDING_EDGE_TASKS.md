@@ -4575,9 +4575,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     `{"ok":...}` maps can interoperate with the structured error convention during migration.
 	     New (2026-05-04): JSON, YAML, and CBOR decode surfaces now provide direct
 	     structured-error wrappers (`try_decode`, plus CBOR sequence/typed-sequence variants).
-	     YAML native module codegen cost remains a performance task, but API availability is no
-	     longer blocked; stage1/stage2 native YAML decode/serde now preserves empty-line handling and
-	     compact serde keyword attributes via bytewise string comparisons. The optional native
+	     YAML native quick coverage is now enabled after the optional split-invariant list-push
+	     transform was moved off the default path; stage1/stage2 native YAML decode/serde now
+	     preserves empty-line handling and compact serde keyword attributes via bytewise string
+	     comparisons. The optional native
 	     split-invariant list-push optimizer is opt-in (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`)
 	     after a stage1 YAML probe spent the whole 90s test budget in that pass. The fast native
 	     quick lane now includes YAML comments and serde-attribute codec smokes. Remaining ok-map
@@ -5131,12 +5132,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (2026-03-27).
    - New: `std:buffer` slice helpers return `oren_err` on invalid input; covered by
      result smoke fixture (2026-03-05).
-   - New: `std:encoding/base64.decode_bytes` error handling covered by result
-     smoke fixture (2026-03-05).
-   - New: `std:encoding/base64.encode_bytes` validates input and returns `oren_err`
-     on invalid values; covered by result smoke fixture (2026-03-05).
-   - New: `std:encoding/base64.decode_bytes_strict` rejects whitespace; covered by
-     result smoke fixture (2026-03-05).
+   - New: `std:encoding/base64` exposes structured `try_encode_bytes`,
+     `try_decode_bytes`, and `try_decode_bytes_strict` aliases; invalid input,
+     invalid alphabet/length, and strict whitespace rejection are covered by the
+     base64 module test and result smoke fixture (2026-05-04).
    - New: `std:crypto/pem.decode_blocks_strict` rejects whitespace inside base64
      payloads; `try_decode_blocks*` aliases are covered by native PEM/result smoke fixtures.
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return

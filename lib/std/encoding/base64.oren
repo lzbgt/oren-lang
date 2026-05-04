@@ -6,9 +6,16 @@
 //
 // API:
 // - `encode_bytes(input_bytes)` -> string
+// - `try_encode_bytes(input_bytes)` -> string or oren_err
 // - `decode_bytes(b64_string)` -> bytes (u8_buf)
+// - `try_decode_bytes(b64_string)` -> bytes (u8_buf) or oren_err
+// - `try_decode_bytes_strict(b64_string)` -> bytes (u8_buf) or oren_err
 
 import list "std:list"
+
+fn _str_byte(s, i) {
+    return oren_string_char_code_at(s, i) & 255
+}
 
 fn _b64_table_ptr() {
     return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -16,7 +23,7 @@ fn _b64_table_ptr() {
 
 fn _b64_char(idx) {
     // idx in [0..63] => ASCII byte code
-    return ptr_get_byte(_b64_table_ptr() + idx) & 255
+    return _str_byte(_b64_table_ptr(), idx)
 }
 
 fn b64_is_ws(c) {
@@ -33,8 +40,11 @@ fn encode_bytes(input_bytes) {
         input_bytes = oren_bytes_pack([])
     }
 
-    var xs = oren_bytes_unpack(input_bytes) // list<u8>
-    if oren_is_err(xs) { return xs }
+    var xs = input_bytes
+    if oren_type_tag(input_bytes) != 6 {
+        xs = oren_bytes_unpack(input_bytes) // list<u8>
+        if oren_is_err(xs) { return xs }
+    }
     var n = list.len(xs)
     if n == nil || oren_is_err(n) { return oren_err(4, "base64.encode_bytes: input must be list<int> or u8_buf") }
 
@@ -65,7 +75,11 @@ fn encode_bytes(input_bytes) {
         i = i + 3
     }
 
-    return oren_string_from_bytes(oren_bytes_pack(out))
+    return oren_string_from_bytes(out)
+}
+
+fn try_encode_bytes(input_bytes) {
+    return encode_bytes(input_bytes)
 }
 
 fn _b64_val(c) {
@@ -89,7 +103,7 @@ fn _b64_count_clean_chars(s) {
     var i = 0
     var out = 0
     while i < n {
-        var c = ptr_get_byte(s + i) & 255
+        var c = _str_byte(s, i)
         if b64_is_ws(c) == 0 { out = out + 1 }
         i = i + 1
     }
@@ -113,7 +127,7 @@ fn decode_bytes(s) {
     var seen = 0
     var i = n - 1
     while i >= 0 && seen < 2 {
-        var c = ptr_get_byte(s + i) & 255
+        var c = _str_byte(s, i)
         if b64_is_ws(c) == 0 {
             seen = seen + 1
             if c == 61 { pad = pad + 1 }
@@ -128,8 +142,6 @@ fn decode_bytes(s) {
 
     var out = oren_u8_buf_new_uninit(out_len)
     if oren_is_err(out) { return out }
-    var outp = native_buf_data_ptr(out)
-    if outp == 0 && out_len != 0 { return oren_err(8, "base64.decode_bytes: alloc failed") }
 
     // Decode loop: read 4 non-ws chars at a time.
     var si = 0
@@ -140,7 +152,7 @@ fn decode_bytes(s) {
     while g < groups {
         var v0 = -9999
         while si < slen {
-            var c0 = ptr_get_byte(s + si) & 255
+            var c0 = _str_byte(s, si)
             si = si + 1
             v0 = _b64_val(c0)
             if v0 == -2 { continue } // ws
@@ -148,7 +160,7 @@ fn decode_bytes(s) {
         }
         var v1 = -9999
         while si < slen {
-            var c1 = ptr_get_byte(s + si) & 255
+            var c1 = _str_byte(s, si)
             si = si + 1
             v1 = _b64_val(c1)
             if v1 == -2 { continue } // ws
@@ -156,7 +168,7 @@ fn decode_bytes(s) {
         }
         var v2 = -9999
         while si < slen {
-            var c2 = ptr_get_byte(s + si) & 255
+            var c2 = _str_byte(s, si)
             si = si + 1
             v2 = _b64_val(c2)
             if v2 == -2 { continue } // ws
@@ -164,7 +176,7 @@ fn decode_bytes(s) {
         }
         var v3 = -9999
         while si < slen {
-            var c3 = ptr_get_byte(s + si) & 255
+            var c3 = _str_byte(s, si)
             si = si + 1
             v3 = _b64_val(c3)
             if v3 == -2 { continue } // ws
@@ -180,17 +192,20 @@ fn decode_bytes(s) {
 
         // First byte always present.
         if outi < out_len {
-            ptr_set_byte(outp + outi, (triple >> 16) & 255)
+            var rc0 = oren_bytes_set_u8(out, outi, (triple >> 16) & 255)
+            if oren_is_err(rc0) { return rc0 }
             outi = outi + 1
         }
         // Second byte present unless v2 is '='.
         if v2 >= 0 && outi < out_len {
-            ptr_set_byte(outp + outi, (triple >> 8) & 255)
+            var rc1 = oren_bytes_set_u8(out, outi, (triple >> 8) & 255)
+            if oren_is_err(rc1) { return rc1 }
             outi = outi + 1
         }
         // Third byte present unless v3 is '='.
         if v3 >= 0 && outi < out_len {
-            ptr_set_byte(outp + outi, triple & 255)
+            var rc2 = oren_bytes_set_u8(out, outi, triple & 255)
+            if oren_is_err(rc2) { return rc2 }
             outi = outi + 1
         }
 
@@ -200,6 +215,10 @@ fn decode_bytes(s) {
     return out
 }
 
+fn try_decode_bytes(s) {
+    return decode_bytes(s)
+}
+
 fn decode_bytes_strict(s) {
     // Strict variant: rejects any whitespace (for protocols that require exact base64).
     if s == nil { return oren_err(4, "base64.decode_bytes_strict: string is nil") }
@@ -207,9 +226,13 @@ fn decode_bytes_strict(s) {
     if n == nil || oren_is_err(n) { return oren_err(4, "base64.decode_bytes_strict: s must be string") }
     var i = 0
     while i < n {
-        var c = ptr_get_byte(s + i) & 255
+        var c = _str_byte(s, i)
         if b64_is_ws(c) == 1 { return oren_err(4, "base64.decode_bytes_strict: whitespace not allowed") }
         i = i + 1
     }
     return decode_bytes(s)
+}
+
+fn try_decode_bytes_strict(s) {
+    return decode_bytes_strict(s)
 }

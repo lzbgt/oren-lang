@@ -1228,13 +1228,13 @@ fn main() {
     if r.is_err(bad_slice) != true { return 13 }
 
     // std:encoding/base64 errors
-    var b64_bad = base64.decode_bytes("!!!")
+    var b64_bad = base64.try_decode_bytes("!!!")
     if r.is_err(b64_bad) != true { return 14 }
-    var b64_bad_in = base64.encode_bytes(123)
+    var b64_bad_in = base64.try_encode_bytes(123)
     if r.is_err(b64_bad_in) != true { return 15 }
-    var b64_ws = base64.decode_bytes_strict("TQ==\n")
+    var b64_ws = base64.try_decode_bytes_strict("TQ==\n")
     if r.is_err(b64_ws) != true { return 16 }
-    var b64_ok = base64.decode_bytes_strict("TQ==")
+    var b64_ok = base64.try_decode_bytes_strict("TQ==")
     if r.is_err(b64_ok) { return 17 }
     var b64_ok_len = bytes.try_len(b64_ok)
     if r.is_err(b64_ok_len) || b64_ok_len != 1 { return 18 }
