@@ -4940,12 +4940,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 													        (~13.2s / 300888 bytes), while wrapper cost is distributed across many
 													        small generated functions (`lambda_wrap` ~8.5s across 52 funcs, `fnwrap`
 													        ~4.4s across 37 funcs). It also exposes a separate Mach-O local BL target
-													        resolution spike (~2.6s in the first 4096 local BL fixups), but a
-													        map-backed target-cache experiment already hit the native profile timeout,
-													        so the next safe native optimization should reduce monolithic
-													        statement/function codegen overhead or change wrapper emission shape.
-														      - the generator surface fixture now splits its formerly monolithic native
-														        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
+														        resolution spike (~2.6s in the first 4096 local BL fixups), but a
+														        map-backed target-cache experiment already hit the native profile timeout,
+														        so the next safe native optimization should reduce monolithic
+														        statement/function codegen overhead or change wrapper emission shape.
+														      - Follow-up (2026-05-04): the local Mach-O resolver now stores unique-target
+														        string length and first byte beside its existing linear target cache. This
+														        preserves byte-content equality and avoids the rejected map/hash/string-identity
+														        cache designs. The refreshed generator profile improved only modestly
+														        (`~3419ms + ~107ms + ~146ms` local BL resolve buckets to
+														        `~3371ms + ~36ms + ~88ms`), so keep treating user-declaration/wrapper
+														        codegen and the first BL resolve bucket as the real remaining bottlenecks.
+															      - the generator surface fixture now splits its formerly monolithic native
+															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).
 														        The measured native profile improves `user_decls` from ~22.0s to ~20.7s

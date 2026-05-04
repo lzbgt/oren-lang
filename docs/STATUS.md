@@ -2425,6 +2425,12 @@ Local (fast):
   resolution spike (~2.6s in the first 4096 local BL fixups), but a map-backed Mach-O target-cache
   experiment is already known to hit the native profile timeout, so the safer next optimization is
   reducing monolithic statement/function codegen overhead or changing wrapper emission shape.
+- Update (2026-05-04): the first safe Mach-O local resolver cleanup keeps byte-content equality
+  semantics but records unique-target name length and first byte beside the existing linear target
+  cache. On the refreshed generator profile after the linalg portability work, the local BL resolve
+  span moved only modestly (`~3419ms + ~107ms + ~146ms` to `~3371ms + ~36ms + ~88ms`), so this is
+  a useful guardrail cleanup, not the final fix. The dominant remaining native-build work is still
+  ARM64 user-declaration/wrapper codegen and the first local BL resolve bucket.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to

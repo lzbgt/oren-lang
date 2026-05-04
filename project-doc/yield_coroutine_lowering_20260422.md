@@ -199,6 +199,12 @@ backend-shared value-helper slices landed.
     4096 local BL fixups); because a map-backed target-cache experiment already hit the profile
     timeout, the next safe native optimization should reduce monolithic statement/function codegen
     overhead or change wrapper emission shape.
+  - Mach-O local resolver metadata cleanup (2026-05-04): the local target resolver now keeps
+    byte-content equality but stores unique-target string length and first byte with the existing
+    linear cache. The refreshed generator profile improved the later BL resolve buckets
+    (`~107ms + ~146ms` to `~36ms + ~88ms`), but the first bucket remains about `~3.37s`; keep the
+    next native build work focused on user-declaration/wrapper codegen or a stronger first-bucket
+    resolver design.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around
