@@ -10,6 +10,8 @@
 // API:
 //   var r = regex.compile(pattern)
 //   if r["ok"]==1 { regex.is_match_compiled(r["v"], text) }
+//   var compiled = regex.try_compile(pattern) // NFA or oren_err
+//   var hit = regex.try_is_match(pattern, text) // bool or oren_err
 //
 // Convenience:
 //   regex.is_match(pattern, text)
@@ -433,6 +435,14 @@ fn compile(pattern) {
     return _post2nfa(p["v"])
 }
 
+fn try_compile(pattern) {
+    var r = compile(pattern)
+    if r["ok"] == 1 { return r["v"] }
+    var msg = r["err"]
+    if msg == nil { msg = "regex compile failed" }
+    return oren_err(2, msg)
+}
+
 fn _class_match(st, b) {
     var ranges = st["ranges"]
     var i = 0
@@ -534,4 +544,10 @@ fn is_match(pattern, text) {
     var r = compile(pattern)
     if r["ok"] != 1 { return false }
     return is_match_compiled(r["v"], text)
+}
+
+fn try_is_match(pattern, text) {
+    var nfa = try_compile(pattern)
+    if oren_is_err(nfa) { return nfa }
+    return is_match_compiled(nfa, text)
 }

@@ -4586,6 +4586,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     New (2026-05-04): `std:argparse` now has `try_parse(...)` as a structured bridge over
 	     the legacy parse map: successful parses and help early-exits stay as direct maps, while
 	     parse failures become `oren_err`.
+	     New (2026-05-04): `std:regex` now has `try_compile(...)` and `try_is_match(...)`,
+	     preserving the legacy compile `{ok, err, v}` map while giving new callers direct
+	     value-or-`oren_err` regex compilation/matching.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level

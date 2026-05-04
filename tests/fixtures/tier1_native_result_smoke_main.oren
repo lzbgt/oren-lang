@@ -14,6 +14,7 @@ import ui_color "std:ui/color"
 import ui_raster "std:ui/raster"
 import linalg "std:linalg"
 import json "std:json"
+import regex "std:regex"
 
 fn smoke_result_double(x) { return x * 2 }
 fn smoke_result_positive(x) {
@@ -1183,6 +1184,11 @@ fn main() {
     if r.is_err(parsed_json) == true || parsed_json["t"] != "object" || parsed_json["o"]["n"]["i"] != 3 { return 1515 }
     var bad_json = r.from_ok_map(json.decode("{"))
     if r.is_err(bad_json) != true || r.code(bad_json) != 4 { return 1516 }
+    var compiled_regex = regex.try_compile("a+")
+    if r.is_err(compiled_regex) == true { return 1517 }
+    if regex.is_match_compiled(compiled_regex, "xxaaa") != true { return 1518 }
+    if regex.try_is_match("a+", "bbb") != false { return 1519 }
+    if r.is_err(regex.try_is_match("(", "x")) != true { return 1520 }
 
     // std:list structured error helpers
     var xs = [1, 2]

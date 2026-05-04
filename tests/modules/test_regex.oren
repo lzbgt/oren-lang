@@ -21,9 +21,21 @@ fn assert_compile_err(pat, code) {
     fail(code)
 }
 
+fn assert_try_compile_err(pat, code) {
+    var r = re.try_compile(pat)
+    if oren_is_err(r) == true { return 0 }
+    fail(code)
+}
+
 // literals + search-anywhere
 assert_true(re.is_match("abc", "xxabcxx"), 10)
 assert_false(re.is_match("abc", "abx"), 11)
+
+var c0 = re.try_compile("abc")
+assert_true(oren_is_err(c0) != true, 12)
+assert_true(re.is_match_compiled(c0, "xxabcxx"), 13)
+assert_true(re.try_is_match("abc", "xxabcxx") == true, 14)
+assert_false(re.try_is_match("abc", "abx"), 15)
 
 // dot
 assert_true(re.is_match("a.c", "abc"), 20)
@@ -68,6 +80,8 @@ assert_compile_err("*", 82)
 assert_compile_err("\\", 83)
 assert_compile_err("[", 84)
 assert_compile_err("[a-", 85)
+assert_try_compile_err(")", 86)
+assert_true(oren_is_err(re.try_is_match("(", "x")) == true, 87)
 
 print("module regex OK")
 exit(0)

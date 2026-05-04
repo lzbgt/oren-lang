@@ -117,9 +117,10 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   also have structured adapters over the deterministic native loopback surfaces. Crypto helpers
   now also have checked `try_*` aliases for PEM decode, entropy, SHA-1/SHA-256 hashing, and
   minimal X.509 hash helpers. `std:argparse` now has `try_parse` as a structured bridge over
-  its legacy parse result map while preserving help as a non-error early-exit. Stdlib migration
-  breadth is still ongoing, mostly in deeper protocol cleanup and older library edges. Rolling
-  module visibility now exists via `pub`, and
+  its legacy parse result map while preserving help as a non-error early-exit, and `std:regex`
+  now has `try_compile` / `try_is_match` structured wrappers over the legacy compile result.
+  Stdlib migration breadth is still ongoing, mostly in deeper protocol cleanup and older library
+  edges. Rolling module visibility now exists via `pub`, and
   bytes/typed buffers are already partially shipped through `std:bytes` / `std:buffer`; dynamic
   module loading and user-defined methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
@@ -1401,6 +1402,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New (2026-05-04): `std:argparse` now exposes `try_parse(...)`; it returns successful
      parse maps and help maps (`ok=false`, `code=0`) directly, and converts real parse failures
      into `oren_err` for callers that want the structured error convention.
+   - New (2026-05-04): `std:regex` now exposes `try_compile(...)` and `try_is_match(...)` for
+     direct value-or-`oren_err` regex compilation/matching while preserving the legacy
+     `{ok, err, v}` `compile(...)` API.
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
      `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
    - Migration rule: modules with any `pub` declaration become closed-by-default to imports,

@@ -279,6 +279,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:argparse` (`try_parse` structured-error bridge; smoke: `tests/native/test_argparse_smoke.oren`)
   - `std:strings` (used by `std:crypto/pem` smoke)
   - `std:bytes` (smokes: `tests/native/qi/100_tests_basic.oren`, `tests/avm/test_smoke_suite.oren`)
+  - `std:regex` (`try_compile` / `try_is_match`; smoke: `tests/modules/test_regex.oren`)
 - Encoding / crypto helpers:
   - `std:encoding/base64` (TLS/HTTPS/WSS loopback fixtures)
   - `std:crypto/pem` (`try_decode_blocks` / `try_decode_blocks_strict`; smoke: `tests/native/test_pem_decode_smoke.oren`)
@@ -3770,6 +3771,9 @@ Rolling status:
 - CLI migration is also rolling: `std:argparse.parse(...)` keeps its legacy result map because
   help is a non-error early-exit (`ok=false`, `code=0`), while `std:argparse.try_parse(...)`
   returns successful/help maps directly and converts parse failures into `oren_err`.
+- Regex migration is rolling too: `std:regex.compile(...)` keeps the legacy `{ok, err, v}` compile
+  result, while `std:regex.try_compile(...)` and `std:regex.try_is_match(...)` return direct
+  values or `oren_err` for invalid patterns.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
   resolution has `try_resolve_host_ipv4`, TCP/UDP have `try_*` syscall adapters, TLS has structured
   connect/wrap/read/write/cert/ALPN helpers, the OS-specific TLS provider modules mirror those
