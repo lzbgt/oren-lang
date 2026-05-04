@@ -3755,12 +3755,11 @@ Rolling status:
   `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:ui/commands`,
   `std:ui/color`, and `std:ui/raster`.
 - Codec migration is rolling without a flag day: JSON/YAML/CBOR still keep their legacy
-  `{ok, err, v, pos?}` decode APIs for existing callers, and JSON/CBOR now also expose
+  `{ok, err, v, pos?}` decode APIs for existing callers, and JSON/YAML/CBOR now also expose
   structured-error wrappers where native-codegen cost is already safe (`json.try_decode`,
-  `cbor.try_decode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`, plus typed CBOR
-  sequence variants). YAML callers can use `std:result.from_ok_map(yaml.decode(...))`
-  until the native YAML module codegen path is cheap enough for a direct wrapper without
-  slowing verification.
+  `yaml.try_decode`, `cbor.try_decode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`,
+  plus typed CBOR sequence variants). YAML native module build cost is still tracked as a
+  performance task, so broad native YAML verification remains outside the default fast lane.
 - Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
@@ -4552,9 +4551,9 @@ YAML decode (config tolerance):
 - `std/yaml.decode(...)` accepts YAML `# ...` comments and also C/JSON-style `// ...` and `/* ... */` comments.
 - Comment detection is restricted (start/whitespace rule) to avoid breaking values like `http://example.com`.
   Encoders remain canonical (no comments).
-- YAML structured-error callers should currently use `std:result.from_ok_map(yaml.decode(...))`;
-  a direct `yaml.try_decode(...)` wrapper is deferred until the native YAML module codegen path
-  is cheap enough to keep Tier-1 iteration fast.
+- YAML structured-error callers can use `yaml.try_decode(...)`, which returns the decoded
+  `YamlValue` or `oren_err`. The legacy `yaml.decode(...)` `{ok, err, line?, v}` map remains
+  available for compatibility and for callers that need exact parser line metadata.
 
 CBOR streaming (rolling, v1):
 

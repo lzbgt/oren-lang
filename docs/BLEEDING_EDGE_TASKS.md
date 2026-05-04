@@ -4554,11 +4554,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     remaining work is stdlib migration breadth rather than core language/runtime availability.
 	     It also ships `from_ok_map` / `to_ok_map` bridges so older JSON/YAML/CBOR-style
 	     `{"ok":...}` maps can interoperate with the structured error convention during migration.
-	     New (2026-05-04): JSON and CBOR decode surfaces now provide direct structured-error
-	     wrappers (`try_decode`, plus CBOR sequence/typed-sequence variants). YAML remains
-	     bridged through `std:result.from_ok_map(yaml.decode(...))` until the native YAML
-	     codegen path is cheap enough for a direct wrapper; remaining ok-map cleanup is mostly
-	     network/protocol APIs.
+	     New (2026-05-04): JSON, YAML, and CBOR decode surfaces now provide direct
+	     structured-error wrappers (`try_decode`, plus CBOR sequence/typed-sequence variants).
+	     YAML native module codegen cost remains a performance task, but API availability is no
+	     longer blocked; remaining ok-map cleanup is mostly network/protocol APIs.
 	     New (2026-05-04): DNS/host/HPACK now also expose structured `try_*` wrappers over
 	     the already-tested ok-map APIs, reducing the remaining network/protocol migration
 	     backlog to broader HTTP/TLS/WebSocket surfaces and untested provider edges.

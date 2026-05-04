@@ -51,6 +51,12 @@ fn test_yaml_comments() {
     var r3 = yaml.decode(s3)
     assert_ok(r3, "decode url ok")
     assert(r3["v"]["o"]["url"]["s"] == "http://example.com", "url preserved")
+
+    var v4 = yaml.try_decode("answer: 42\n")
+    assert(oren_is_err(v4) != true, "try_decode ok")
+    assert(v4["o"]["answer"]["i"] == 42, "try_decode value")
+    var e4 = yaml.try_decode("answer:\n  bad\n")
+    assert(oren_is_err(e4) == true, "try_decode err")
 }
 
 test_yaml_comments()

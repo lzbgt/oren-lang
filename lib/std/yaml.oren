@@ -15,7 +15,7 @@
 // - No anchors, tags, merge keys, multi-doc, flow style, or complex scalars.
 //
 // NOTE: YAML 1.2 is a superset of JSON. This module also accepts JSON text as input
-// in `decode(...)` by delegating to std/json as a fallback.
+// in `decode(...)` / `try_decode(...)` by delegating to std/json as a fallback.
 //
 // YamlValue representation mirrors std/json's JsonValue (tagged) so serde lowering can
 // reuse the same shape across formats:
@@ -473,6 +473,18 @@ fn decode(s) {
     var r = _parse_block(plines, start, ind)
     if r["ok"] != 1 { return r }
     return {"ok": 1, "v": r["v"]}
+}
+
+fn try_decode(s) {
+    var r = decode(s)
+    if r["ok"] == 1 { return r["v"] }
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = "yaml decode failed" }
+    var line = r["line"]
+    if line != nil {
+        msg = "line " + oren_int_to_string(line) + ": " + msg
+    }
+    return oren_err(4, msg)
 }
 
 fn _bytes_cmp(a, b) {

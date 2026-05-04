@@ -106,10 +106,10 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   convention (`oren_err` / `oren_is_err` / `std:result`), and `std:result` now includes the
   common compositional helpers `map_ok`, `and_then`, `map_err`, and `or_else` plus `code`/`msg`
   accessors and `from_ok_map` / `to_ok_map` bridges for older `{"ok":...}` codec-style APIs.
-  JSON and CBOR now also expose structured decode wrappers (`try_decode`, plus CBOR sequence
-  and typed sequence variants) while keeping legacy `{ok, err}` decoders for compatibility;
-  YAML remains bridged through `std:result.from_ok_map(yaml.decode(...))` until its native
-  codegen path is cheap enough for a direct wrapper without slowing verification.
+  JSON, YAML, and CBOR now also expose structured decode wrappers (`try_decode`, plus CBOR sequence
+  and typed sequence variants) while keeping legacy `{ok, err}` decoders for compatibility.
+  YAML's native module build cost remains a performance task, so YAML's direct wrapper is guarded
+  by portable bytecode/module tests rather than broad native fast-lane coverage.
   DNS/host/HPACK plus HTTP/WebSocket now also expose structured `try_*` wrappers over their
   tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades now also have structured adapters over the
   deterministic native loopback surfaces. Crypto helpers now also have checked `try_*` aliases
@@ -1362,10 +1362,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Implemented (rolling): the structured error model is now the shipped value-or-error
      convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
      `std:result`; remaining work is stdlib migration breadth, not core feature availability.
-   - New (2026-05-04): `std:json` and `std:cbor` now provide structured-error decode bridges
-     (`try_decode`, plus CBOR sequence/typed-sequence variants) over their legacy `{ok, err}`
-     APIs, so new codec callers can stay on `oren_err` while existing callers remain
-     source-compatible. YAML remains compatible through `std:result.from_ok_map(yaml.decode(...))`.
+   - New (2026-05-04): `std:json`, `std:yaml`, and `std:cbor` now provide structured-error
+     decode bridges (`try_decode`, plus CBOR sequence/typed-sequence variants) over their legacy
+     `{ok, err}` APIs, so new codec callers can stay on `oren_err` while existing callers remain
+     source-compatible. YAML native codegen cost is still tracked separately from API availability.
    - New (2026-05-04): `std:net/dns`, `std:net/host`, and `std:net/hpack` now provide direct
      structured-error wrappers over their tested legacy ok-map APIs (`try_query_a`,
      `try_resolve_a`, `try_resolve_host_ipv4`, `try_encode_header_block`,
