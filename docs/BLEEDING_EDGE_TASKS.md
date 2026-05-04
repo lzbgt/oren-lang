@@ -5130,13 +5130,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															        string comparison for operator matching; direct string equality could
 															        fail to flatten and recursively re-enter the same condition until
 															        call-depth overflow. After the fix, focused logical/integration smokes
-																        pass, code bytes stay unchanged, and the latest default-profile sample
-																        moves `user_decls` from ~25.1s to ~21.7s while statement buckets move
-																        only slightly (`|| != !=` ~6.43s -> ~6.37s). Treat this as structural
-																        cleanup, not the final wall-time fix.
-																      - Statement loop length-hoist follow-up (2026-05-04): ARM64 block
-																        iteration, branch false-jump patching, return-jump patching, and
-																        logical branch helpers now hoist stable `oren_list_len(...)` values
+																		        pass, code bytes stay unchanged, and the latest default-profile sample
+																		        moves `user_decls` from ~25.1s to ~21.7s while statement buckets move
+																		        only slightly (`|| != !=` ~6.43s -> ~6.37s). Treat this as structural
+																		        cleanup, not the final wall-time fix.
+																	      - OR-branch single-jump inversion follow-up (2026-05-04): non-last
+																	        `||` terms now skip the unconditional true bridge only when the term
+																	        produces one false-branch placeholder, which can be safely inverted to
+																	        branch directly to the then-block. Composite terms such as `a && b`
+																	        keep the older bridge because inverting each false exit independently
+																	        changes conjunction semantics; the new logical fixture covers the
+																	        mixed validation shape that exposed the unsafe version through native
+																	        `dot_f64_view`. The refreshed generator profile trims `user_decls`
+																	        bytes from `323804` to `322472` while wall time stays in the same
+																	        band, so this is guarded code-size cleanup rather than the final
+																	        native build-time fix.
+																	      - Statement loop length-hoist follow-up (2026-05-04): ARM64 block
+																	        iteration, branch false-jump patching, return-jump patching, and
+																	        logical branch helpers now hoist stable `oren_list_len(...)` values
 																        out of hot compiler loops. This does not change emitted code; the
 																        refreshed generator profile keeps `user_decls` in the previous band
 																        (~20.9s / 323804 bytes), `lambda_wrap` ~1.7s, and `fnwrap` ~0.95s.

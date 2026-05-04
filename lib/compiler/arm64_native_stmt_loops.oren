@@ -292,6 +292,31 @@ fn _arm64_append_branch_false_jumps(out, br) {
     return out
 }
 
+fn _arm64_append_inverted_branch_jumps(out, br) {
+    if br == nil { return out }
+    var jumps = br["jumps"]
+    if jumps != nil {
+        var i = 0
+        var n = oren_list_len(jumps)
+        while i < n {
+            var j = jumps[i]
+            oren_list_push(out, {"pos": j["pos"], "cond": _arm64_inverse_cond(j["cond"])})
+            i = i + 1
+        }
+        return out
+    }
+    oren_list_push(out, {"pos": br["pos"], "cond": _arm64_inverse_cond(br["cond"])})
+    return out
+}
+
+fn _arm64_branch_false_jump_count(br) {
+    if br == nil { return 0 }
+    var jumps = br["jumps"]
+    if jumps != nil { return oren_list_len(jumps) }
+    if br["pos"] != nil { return 1 }
+    return 0
+}
+
 fn _arm64_patch_branch_false_jumps(ctx, br, target) {
     if br == nil { return nil }
     var jumps = br["jumps"]
@@ -363,30 +388,45 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
         _arm64_collect_logical_terms(cond, "||", or_terms)
         var or_n = oren_list_len(or_terms)
         if or_n <= 0 { return nil }
-        var true_jumps = []
+        var true_cond_jumps = []
+        var true_uncond_jumps = []
         var last_false = nil
         var oi = 0
         while oi < or_n {
-            if last_false != nil {
-                var next_term_pos = bytes_len(ctx["code"])
-                _arm64_patch_branch_false_jumps(ctx, last_false, next_term_pos)
-                last_false = nil
-            }
-            last_false = _arm64_emit_any_cond_branch_false(ctx, or_terms[oi], tok, base_stack_or)
             if oi + 1 < or_n {
-                var jump_true = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(true_jumps, jump_true)
+                var term_false = _arm64_emit_any_cond_branch_false(ctx, or_terms[oi], tok, base_stack_or)
+                // Inverting a single false placeholder is equivalent to branching on
+                // term-true. Composite terms such as "a && b" carry several false exits;
+                // inverting them independently would turn the conjunction into a
+                // disjunction, so those terms use the older unconditional-true bridge.
+                if _arm64_branch_false_jump_count(term_false) == 1 {
+                    _arm64_append_inverted_branch_jumps(true_cond_jumps, term_false)
+                } else {
+                    var jump_true = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(true_uncond_jumps, jump_true)
+                    var next_term_pos = bytes_len(ctx["code"])
+                    _arm64_patch_branch_false_jumps(ctx, term_false, next_term_pos)
+                }
+            } else {
+                last_false = _arm64_emit_any_cond_branch_false(ctx, or_terms[oi], tok, base_stack_or)
             }
             oi = oi + 1
         }
-	        var then_pos_or = bytes_len(ctx["code"])
-	        var ti = 0
-	        var true_n = oren_list_len(true_jumps)
-	        while ti < true_n {
-	            var tp = true_jumps[ti]
-	            set_u32_le(ctx["code"], tp, insn_b((then_pos_or - tp) / 4))
-	            ti = ti + 1
+        var then_pos_or = bytes_len(ctx["code"])
+        var ti = 0
+        var true_cond_n = oren_list_len(true_cond_jumps)
+        while ti < true_cond_n {
+            var tj = true_cond_jumps[ti]
+            set_u32_le(ctx["code"], tj["pos"], insn_b_cond((then_pos_or - tj["pos"]) / 4, tj["cond"]))
+            ti = ti + 1
+        }
+        var ui = 0
+        var true_uncond_n = oren_list_len(true_uncond_jumps)
+        while ui < true_uncond_n {
+            var up = true_uncond_jumps[ui]
+            set_u32_le(ctx["code"], up, insn_b((then_pos_or - up) / 4))
+            ui = ui + 1
         }
         return last_false
     }

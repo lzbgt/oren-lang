@@ -2583,6 +2583,15 @@ Local (fast):
   generator profile keeps code bytes unchanged and nudges `user_decls` from the latest noisy default-profile
   sample (~25.1s) to ~21.7s, while gated statement buckets move only slightly (`|| != !=` ~6.43s -> ~6.37s).
   Treat this as a structural lowering cleanup, not the final `user_decls` wall-time solution.
+- ARM64 OR-branch single-jump inversion (2026-05-04): non-last `||` terms now avoid the older
+  unconditional true bridge only when their false result is one conditional placeholder, inverting that
+  single branch to jump directly to the then-block while false falls through to the next term. Composite
+  terms such as `a && b` and guarded multi-jump comparisons deliberately keep the older bridge because
+  inverting each false exit independently changes conjunction semantics. The regression fixture now covers
+  the `al != 3 && al != 4 || bl != 3 && bl != 4` validation shape that exposed the unsafe version through
+  native `dot_f64_view`. The refreshed generator profile trims `user_decls` bytes from `323804` to
+  `322472`, with wall time still in the same band; this is a correctness-hardened code-size cleanup, not the
+  final native build-time fix.
 - ARM64 statement loop length hoists (2026-05-04): block statement iteration, branch false-jump patching,
   return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)` values out of
   hot compiler loops. This does not change emitted code; the refreshed profile keeps `user_decls` in the

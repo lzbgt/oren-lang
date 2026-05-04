@@ -34,5 +34,12 @@ fn main() {
     if s == "cancel" || s == "stop" { return 24 }
     if s == "request_cancel" && mark(true) { } else { return 25 }
     if hits != 3 { return 26 }
+
+    var al = 3
+    var bl = 3
+    if al != 3 && al != 4 || bl != 3 && bl != 4 { return 27 }
+    al = 5
+    if al != 3 && al != 4 || bl != 3 && bl != 4 { } else { return 28 }
+
     return 0
 }

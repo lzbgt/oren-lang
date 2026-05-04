@@ -325,6 +325,15 @@ backend-shared value-helper slices landed.
     and the latest profile moves `user_decls` from the prior noisy ~25.1s sample to ~21.7s, with unchanged
     code bytes and only small condition-bucket movement. This is structural cleanup, not the final
     wall-time fix.
+  - OR-branch single-jump inversion follow-up (2026-05-04): ARM64 direct `if` lowering now skips the
+    unconditional true bridge for non-last `||` terms only when the term produces one false-branch
+    placeholder; that placeholder is inverted into a direct then-block branch and the false path falls
+    through to the next OR term. A full inversion probe was rejected on correctness after native
+    integration failed through the `dot_f64_view` validation shape (`a && b || c && d`): each false exit
+    from a conjunction means "the whole conjunction is false", and inverting them independently changes
+    the term to disjunction semantics. The fixture now guards that mixed `&&`/`||` shape explicitly. The
+    refreshed generator profile trims `user_decls` bytes from `323804` to `322472` while wall time remains
+    in the same band, so this is a guarded code-size cleanup rather than the final `user_decls` fix.
   - Statement loop length-hoist follow-up (2026-05-04): ARM64 block statement iteration, branch false-jump
     patching, return-jump patching, and logical branch helper loops now hoist stable `oren_list_len(...)`
     values out of hot compiler loops. This does not change emitted code; the refreshed generator profile
