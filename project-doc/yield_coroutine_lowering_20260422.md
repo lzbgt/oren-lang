@@ -205,6 +205,11 @@ backend-shared value-helper slices landed.
     (`~107ms + ~146ms` to `~36ms + ~88ms`), but the first bucket remains about `~3.37s`; keep the
     next native build work focused on user-declaration/wrapper codegen or a stronger first-bucket
     resolver design.
+  - Local BL resolve counter follow-up (2026-05-04): phase logs now include `prefilled` and
+    `resolved` target counts. The generator profile reports `prefilled=0 resolved=11285`; an
+    eager-target experiment therefore does not help this surface, and a recent-first scan-order
+    experiment also regressed. Keep the next resolver pass fact-based rather than reopening those
+    two rejected hypotheses.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

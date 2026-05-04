@@ -2431,6 +2431,10 @@ Local (fast):
   span moved only modestly (`~3419ms + ~107ms + ~146ms` to `~3371ms + ~36ms + ~88ms`), so this is
   a useful guardrail cleanup, not the final fix. The dominant remaining native-build work is still
   ARM64 user-declaration/wrapper codegen and the first local BL resolve bucket.
+- Follow-up instrumentation (2026-05-04): local BL resolve phase logs now include `prefilled` and
+  `resolved` target counts. The generator profile reports `prefilled=0 resolved=11285`, and a
+  recent-first scan-order experiment regressed the same surface, so the next credible local-BL work
+  should avoid both eager-target and scan-order hypotheses unless a different fixture proves them.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to

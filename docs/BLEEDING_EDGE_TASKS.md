@@ -4951,6 +4951,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        (`~3419ms + ~107ms + ~146ms` local BL resolve buckets to
 														        `~3371ms + ~36ms + ~88ms`), so keep treating user-declaration/wrapper
 														        codegen and the first BL resolve bucket as the real remaining bottlenecks.
+														      - Follow-up instrumentation (2026-05-04): local BL resolve logs now include
+														        `prefilled` and `resolved` target counts. The generator profile reports
+														        `prefilled=0 resolved=11285`; a recent-first linear scan experiment was also
+														        measured and rejected. Reweight away from eager-target or scan-order retries
+														        unless another fixture gives different facts.
 															      - the generator surface fixture now splits its formerly monolithic native
 															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /

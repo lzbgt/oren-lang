@@ -1495,6 +1495,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         fixups_local["bl_target"] = local_bl_target
     }
     i = 0
+    var local_bl_prefilled = 0
+    var local_bl_resolved = 0
     while i < oren_list_len(local_bl_name) {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
@@ -1512,10 +1514,18 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 oren_exit(1)
             }
             local_bl_target[i] = target_local
+            local_bl_resolved = local_bl_resolved + 1
+        } else {
+            local_bl_prefilled = local_bl_prefilled + 1
         }
         i = i + 1
     }
-    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.done", "n=" + oren_int_to_string(oren_list_len(local_bl_target))) }
+    if phase_log != nil {
+        _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.done",
+            "n=" + oren_int_to_string(oren_list_len(local_bl_target)) +
+            " prefilled=" + oren_int_to_string(local_bl_prefilled) +
+            " resolved=" + oren_int_to_string(local_bl_resolved))
+    }
     i = 0
     while i < oren_list_len(local_bl_pos) {
         if phase_log != nil {
