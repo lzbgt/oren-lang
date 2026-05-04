@@ -242,6 +242,11 @@ backend-shared value-helper slices landed.
     a runtime boolean singleton and immediately normalizing it for truthiness. The refreshed generator
     profile keeps `user_decls` time roughly neutral but cuts user-declaration code size from ~505KB to
     ~461KB and local fixup volume from 18719 to 17691.
+  - Stackless literal/singleton branch follow-up (2026-05-04): direct ARM64 `if` comparisons now avoid
+    the temporary left-operand stack spill for `true` / `false` / `nil` singleton checks and small
+    integer literal checks. The generator profile reduces total code bytes from 2514200 to 2505768 and
+    `user_decls` code bytes from 460696 to 452472, while leaving the main `user_decls` wall-time
+    boundary intact.
   - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
     profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
     statement buckets by phase/function/type. The default profile path remains phase/function-only to

@@ -2475,6 +2475,11 @@ Local (fast):
   profile keeps `user_decls` time roughly neutral (~20.9s) but reduces user-declaration code size from
   ~505KB to ~461KB and drops local fixup volume from 18719 to 17691. String and dynamic truthiness
   conditions stay on the existing generic path.
+- ARM64 stackless literal/singleton branches (2026-05-04): the same direct `if` comparison path now
+  avoids the temporary stack spill for non-string/non-float comparisons against `true`, `false`, `nil`,
+  and small integer literals. The generator profile keeps behavior and fixup counts stable while
+  reducing total code bytes from 2514200 to 2505768 and `user_decls` code bytes from 460696 to 452472;
+  treat this as a useful guard-heavy code-size cleanup, not a full solution for `user_decls` wall time.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.

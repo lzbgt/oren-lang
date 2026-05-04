@@ -4995,14 +4995,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        groundwork before the next `user_decls` slice.
 																	      - Direct non-string comparison branches (2026-05-04): ARM64 `if`
 																	        conditions with non-string comparison expressions now branch directly
-																        from integer/float compare flags instead of materializing a runtime
-																        boolean singleton and re-normalizing it for truthiness. The generator
-																        profile keeps `user_decls` time roughly neutral (~20.9s), but cuts
-																        user-declaration code size from ~505KB to ~461KB and local fixup volume
-																        from 18719 to 17691. String/dynamic truthiness conditions remain on the
-																        generic path.
-																      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
-																        make profile-native-build-phases` now enables gated inclusive ARM64
+																	        from integer/float compare flags instead of materializing a runtime
+																	        boolean singleton and re-normalizing it for truthiness. The generator
+																	        profile keeps `user_decls` time roughly neutral (~20.9s), but cuts
+																	        user-declaration code size from ~505KB to ~461KB and local fixup volume
+																	        from 18719 to 17691. String/dynamic truthiness conditions remain on the
+																	        generic path.
+																	      - Stackless literal/singleton branch follow-up (2026-05-04): direct ARM64
+																	        `if` comparisons now avoid the temporary left-operand stack spill when
+																	        comparing against `true`, `false`, `nil`, or a small integer literal.
+																	        The refreshed generator profile keeps fixup counts stable while reducing
+																	        total code bytes from 2514200 to 2505768 and `user_decls` bytes from
+																	        460696 to 452472. This is a useful guard-heavy code-size cleanup, but
+																	        `user_decls` wall time remains the next real backend boundary.
+																	      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
+																	        make profile-native-build-phases` now enables gated inclusive ARM64
 															        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
 														        path stays at phase/function granularity to avoid per-statement aggregation
 														        overhead. The first generator run shows `user_decls ExprStmt(If)` at ~16.5s

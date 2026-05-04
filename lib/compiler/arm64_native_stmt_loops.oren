@@ -5,6 +5,7 @@ import intparse "int_lit.oren"
 import listm "arm64_native_stmt_loops_list.oren"
 import listemit "arm64_native_stmt_loops_list_emit.oren"
 import basem "arm64_native_stmt_loops_base.oren"
+import rt "arm64_native_stmt_runtime.oren"
 
 // List-loop delegates (defined in arm64_native_stmt_loops_list.oren).
 fn _arm64_is_list_int_push_call(ctx, stmt) { return listm._arm64_is_list_int_push_call(ctx, stmt) }
@@ -119,6 +120,37 @@ fn _arm64_cmp_cond_code(op, floaty) {
     return nil
 }
 
+fn _arm64_swapped_cmp_op(op) {
+    if op == "<" { return ">" }
+    if op == ">" { return "<" }
+    if op == "<=" { return ">=" }
+    if op == ">=" { return "<=" }
+    return op
+}
+
+fn _arm64_singleton_offset(expr) {
+    if expr == nil { return nil }
+    if expr["type"] == "Nil" { return 368 }
+    if expr["type"] == "Boolean" {
+        if expr["value"] == true { return 384 }
+        return 376
+    }
+    return nil
+}
+
+fn _arm64_emit_load_singleton_ptr(ctx, tok, reg, off) {
+    rt._arm64_emit_load_g_storage_ptr(ctx, tok, reg)
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(reg, reg, off))
+    return nil
+}
+
+fn _arm64_int_lit_small_imm(expr) {
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    var v = intparse.parse_int_lit(expr["value"])
+    if v < 0 || v > 4095 { return nil }
+    return v
+}
+
 fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
     if cond == nil || cond["type"] != "Infix" { return nil }
     var op = cond["op"]
@@ -134,6 +166,45 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
     if left_floaty == true || right_floaty == true { floaty = true }
     var true_cond = _arm64_cmp_cond_code(op, floaty)
     if true_cond == nil { return nil }
+
+    if floaty != true {
+        var l_singleton = _arm64_singleton_offset(l)
+        var r_singleton = _arm64_singleton_offset(r)
+        if (op == "==" || op == "!=") && (l_singleton != nil || r_singleton != nil) {
+            if r_singleton != nil {
+                native_compile_expr(ctx, l)
+                _arm64_emit_load_singleton_ptr(ctx, tok, 1, r_singleton)
+            } else {
+                native_compile_expr(ctx, r)
+                _arm64_emit_load_singleton_ptr(ctx, tok, 1, l_singleton)
+            }
+            push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+            var jump_false_singleton = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            return {"pos": jump_false_singleton, "cond": _arm64_inverse_cond(true_cond)}
+        }
+
+        var r_imm = _arm64_int_lit_small_imm(r)
+        if r_imm != nil {
+            native_compile_expr(ctx, l)
+            push_u32_le(ctx["code"], insn_subs_imm(31, 0, r_imm)) // CMP X0, #imm
+            var jump_false_imm = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            return {"pos": jump_false_imm, "cond": _arm64_inverse_cond(true_cond)}
+        }
+
+        var l_imm = _arm64_int_lit_small_imm(l)
+        if l_imm != nil {
+            var swapped_cond = _arm64_cmp_cond_code(_arm64_swapped_cmp_op(op), false)
+            if swapped_cond != nil {
+                native_compile_expr(ctx, r)
+                push_u32_le(ctx["code"], insn_subs_imm(31, 0, l_imm)) // CMP X0, #imm
+                var jump_false_limm = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                return {"pos": jump_false_limm, "cond": _arm64_inverse_cond(swapped_cond)}
+            }
+        }
+    }
 
     native_compile_expr(ctx, l)
     push_u32_le(ctx["code"], insn_sub_sp(16))
