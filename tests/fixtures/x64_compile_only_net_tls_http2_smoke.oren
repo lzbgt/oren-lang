@@ -20,6 +20,9 @@ import tcp "std:net/tcp"
 import dns "std:net/dns"
 import tls "std:net/tls"
 import ctls "std:crypto/tls"
+import tls_linux "std:net/tls_linux_openssl"
+import tls_macos "std:net/tls_macos_securetransport"
+import tls_win "std:net/tls_windows_schannel"
 import http "std:net/http"
 import h2 "std:net/http2"
 import hpack "std:net/hpack"
@@ -27,6 +30,47 @@ import h2c "std:net/http2_client"
 import ws "std:net/ws"
 import rand "std:crypto/rand"
 import pem "std:crypto/pem"
+
+@cfg(os="linux")
+fn _provider_try_refs(fd, conn) {
+    var _pc = tls_linux.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
+    var _ps = tls_linux.try_wrap_server_pkcs12(fd, 1, 0, "", {})
+    var _pr = tls_linux.try_read_into(conn, 0, 0, 1)
+    var _pw = tls_linux.try_write_from(conn, 0, 0, 1)
+    var _pp = tls_linux.try_peer_cert_sha256_hex(conn)
+    var _pa = tls_linux.try_negotiated_alpn(conn)
+    var _px = tls_linux.try_close(conn)
+    return 0
+}
+
+@cfg(os="macos")
+fn _provider_try_refs(fd, conn) {
+    var _pc = tls_macos.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
+    var _ps = tls_macos.try_wrap_server_pkcs12(fd, 1, 0, "", {})
+    var _pr = tls_macos.try_read_into(conn, 0, 0, 1)
+    var _pw = tls_macos.try_write_from(conn, 0, 0, 1)
+    var _pp = tls_macos.try_peer_cert_sha256_hex(conn)
+    var _pa = tls_macos.try_negotiated_alpn(conn)
+    var _px = tls_macos.try_close(conn)
+    return 0
+}
+
+@cfg(os="windows")
+fn _provider_try_refs(fd, conn) {
+    var _pc = tls_win.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1})
+    var _ps = tls_win.try_wrap_server_pkcs12(fd, 1, 0, "", {})
+    var _pr = tls_win.try_read_into(conn, 0, 0, 1)
+    var _pw = tls_win.try_write_from(conn, 0, 0, 1)
+    var _pp = tls_win.try_peer_cert_sha256_hex(conn)
+    var _pa = tls_win.try_negotiated_alpn(conn)
+    var _px = tls_win.try_close(conn)
+    return 0
+}
+
+@cfg(not_os="macos,linux,windows")
+fn _provider_try_refs(fd, conn) {
+    return 0
+}
 
 fn main() {
     // Keep runtime behavior trivial. The x64 compile-only gate does not run this program.
@@ -55,6 +99,7 @@ fn main() {
             // Crypto-facing TLS facade path (should remain a stable import; currently an alias layer).
             var _cr2 = ctls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
             var _tcr2 = ctls.try_wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+            var _ptr = _provider_try_refs(fd, conn)
 
             // HTTP/1.1 surface (TLS-backed GET response helper).
             // Note: we do not actually dial; this is just a type/symbol coverage hook.

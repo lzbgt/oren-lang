@@ -3764,7 +3764,8 @@ Rolling status:
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
   resolution has `try_resolve_host_ipv4`, TCP/UDP have `try_*` syscall adapters, TLS has structured
-  connect/wrap/read/write/cert/ALPN helpers, HTTP/2 framing/client has `try_parse_*` /
+  connect/wrap/read/write/cert/ALPN helpers, the OS-specific TLS provider modules mirror those
+  direct `try_*` helpers for advanced provider callers, HTTP/2 framing/client has `try_parse_*` /
   `try_new` / `try_request`, HPACK has `try_encode_header_block` / `try_decode_header_block`,
   HTTP has `try_get_text` / `try_get_response`, and WebSocket has `try_connect` / `try_accept` /
   `try_recv_text` / `try_send_text_*`, so callers can opt into `oren_err` without breaking

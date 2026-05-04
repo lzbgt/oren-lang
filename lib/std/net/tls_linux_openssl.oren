@@ -159,6 +159,19 @@ fn _ssl_error_want_write() { return 3 }
 fn _ssl_error_zero_return() { return 6 }
 
 @cfg(os="linux")
+fn _err_result(r, fallback) {
+    var msg = r["err"]
+    if msg == nil || msg == "" { msg = fallback }
+    return oren_err(4, msg)
+}
+
+@cfg(os="linux")
+fn _errno_result(rc, fallback) {
+    if rc >= 0 { return rc }
+    return oren_err(0 - rc, fallback + " failed (errno=" + oren_int_to_string(0 - rc) + ")")
+}
+
+@cfg(os="linux")
 fn _openssl_ssl_ctrl_set_tlsext_hostname_cmd() {
     // From OpenSSL headers (Ubuntu noble libssl-dev):
     // - /usr/include/openssl/ssl.h: `# define SSL_CTRL_SET_TLSEXT_HOSTNAME 55`
@@ -830,4 +843,47 @@ fn negotiated_alpn(conn) {
     var s = oren_string_from_bytes(b)
     if s == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: string_from_bytes failed"} }
     return {"ok": 1, "v": s}
+}
+
+@cfg(os="linux")
+fn try_wrap_client(fd, server_name, timeout_ms, opts) {
+    var r = wrap_client(fd, server_name, timeout_ms, opts)
+    if r["ok"] == 1 { return r["conn"] }
+    return _err_result(r, "tls_linux.wrap_client failed")
+}
+
+@cfg(os="linux")
+fn try_wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+    var r = wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
+    if r["ok"] == 1 { return r["conn"] }
+    return _err_result(r, "tls_linux.wrap_server_pkcs12 failed")
+}
+
+@cfg(os="linux")
+fn try_read_into(conn, buf, cap, timeout_ms) {
+    return _errno_result(read_into(conn, buf, cap, timeout_ms), "tls_linux.read_into")
+}
+
+@cfg(os="linux")
+fn try_write_from(conn, ptr0, len, timeout_ms) {
+    return _errno_result(write_from(conn, ptr0, len, timeout_ms), "tls_linux.write_from")
+}
+
+@cfg(os="linux")
+fn try_close(conn) {
+    return _errno_result(close(conn), "tls_linux.close")
+}
+
+@cfg(os="linux")
+fn try_peer_cert_sha256_hex(conn) {
+    var r = peer_cert_sha256_hex(conn)
+    if r["ok"] == 1 { return r["v"] }
+    return _err_result(r, "tls_linux.peer_cert_sha256_hex failed")
+}
+
+@cfg(os="linux")
+fn try_negotiated_alpn(conn) {
+    var r = negotiated_alpn(conn)
+    if r["ok"] == 1 { return r["v"] }
+    return _err_result(r, "tls_linux.negotiated_alpn failed")
 }

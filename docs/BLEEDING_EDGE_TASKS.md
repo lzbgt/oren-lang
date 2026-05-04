@@ -4568,8 +4568,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     New (2026-05-04): TCP, UDP, TLS, crypto-facing TLS, and HTTP/2 framing/client facades now
 	     expose structured wrappers over tested deterministic surfaces (`tcp.try_*`, `udp.try_*`,
 	     `tls.try_connect`/`try_wrap_*`/IO/cert/ALPN helpers, `http2.try_parse_*`,
-	     `http2_client.try_new`/`try_request`). Remaining network migration is now mostly
-	     provider-internal TLS details and deeper protocol APIs, not the primary facades.
+	     `http2_client.try_new`/`try_request`). Remaining network migration is now mostly deeper
+	     protocol APIs and older library edges, not the primary facades.
+	     New (2026-05-04): OS-specific TLS provider modules now also mirror those direct
+	     structured helpers (`try_wrap_*`, IO, cert hash, and ALPN), so advanced provider callers
+	     can bypass the facade without falling back to ok-map/errno handling.
 	     New (2026-05-04): crypto helper modules now also have checked structured aliases
 	     where the semantics are deterministic and already tested: `rand.try_bytes` /
 	     `try_fill`, `pem.try_decode_blocks*`, `sha1.try_sha1_*`, `sha256.try_sha256_*`,

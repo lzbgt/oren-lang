@@ -111,12 +111,13 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   YAML's native module build cost remains a performance task, so YAML's direct wrapper is guarded
   by portable bytecode/module tests rather than broad native fast-lane coverage.
   DNS/host/HPACK plus HTTP/WebSocket now also expose structured `try_*` wrappers over their
-  tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades now also have structured adapters over the
-  deterministic native loopback surfaces. Crypto helpers now also have checked `try_*` aliases
-  for PEM decode, entropy, SHA-1/SHA-256 hashing, and minimal X.509 hash helpers. Stdlib migration breadth is still ongoing, mostly in
-  provider-specific TLS internals and broader protocol cleanup. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
-  partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
-  methods remain unimplemented.
+  tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades and the OS-specific TLS provider modules now
+  also have structured adapters over the deterministic native loopback surfaces. Crypto helpers
+  now also have checked `try_*` aliases for PEM decode, entropy, SHA-1/SHA-256 hashing, and
+  minimal X.509 hash helpers. Stdlib migration breadth is still ongoing, mostly in deeper
+  protocol cleanup and older library edges. Rolling module visibility now exists via `pub`, and
+  bytes/typed buffers are already partially shipped through `std:bytes` / `std:buffer`; dynamic
+  module loading and user-defined methods remain unimplemented.
 - New (2026-03-27): `std:buffer` now also exposes checked `[]u8` slice/strided bridge ergonomics
   for typed-buffer callers that want to stay on the portable stdlib surface:
   `try_slice_to_u8_buf`, `try_slice_copy_from_string`, `try_slice_copy_from_string_slice`,
@@ -1381,6 +1382,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `try_write_from`, `try_peer_cert_sha256_hex`, and `try_negotiated_alpn`, while
      `std:net/http2` / `std:net/http2_client` expose `try_parse_*`, `try_write_frame_header`,
      `try_new`, and `try_request`.
+   - New (2026-05-04): the OS-specific TLS provider modules (`std:net/tls_linux_openssl`,
+     `std:net/tls_macos_securetransport`, and `std:net/tls_windows_schannel`) now mirror the
+     same direct `try_wrap_*`, IO, cert-hash, and ALPN helpers for advanced callers that bypass
+     the `std:net/tls` facade.
    - New (2026-05-04): core crypto helper modules now also expose checked structured aliases:
      `std:crypto/rand.try_bytes` / `try_fill`, `std:crypto/pem.try_decode_blocks` /
      `try_decode_blocks_strict`, `std:crypto/sha1.try_sha1_*`,
