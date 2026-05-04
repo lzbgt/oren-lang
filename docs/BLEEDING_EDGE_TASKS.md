@@ -5001,13 +5001,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        user-declaration code size from ~505KB to ~461KB and local fixup volume
 																	        from 18719 to 17691. String/dynamic truthiness conditions remain on the
 																	        generic path.
-																	      - Stackless literal/singleton branch follow-up (2026-05-04): direct ARM64
-																	        `if` comparisons now avoid the temporary left-operand stack spill when
-																	        comparing against `true`, `false`, `nil`, or a small integer literal.
-																	        The refreshed generator profile keeps fixup counts stable while reducing
-																	        total code bytes from 2514200 to 2505768 and `user_decls` bytes from
-																	        460696 to 452472. This is a useful guard-heavy code-size cleanup, but
-																	        `user_decls` wall time remains the next real backend boundary.
+																		      - Stackless literal/singleton branch follow-up (2026-05-04): direct ARM64
+																		        `if` comparisons now avoid the temporary left-operand stack spill when
+																		        comparing against `true`, `false`, `nil`, or integer literals; wider
+																		        and negative integer literals load through a scratch register. The
+																		        same slice fixes ARM64 `oren_bool_norm(float)` so `bool(-0.0)` compares
+																		        as `-0.0 != 0.0` before returning a runtime boolean singleton instead
+																		        of treating raw IEEE bits as an integer. The refreshed generator profile
+																		        keeps fixup counts stable while reducing total code bytes from 2514200
+																		        to 2505768 and `user_decls` bytes from 460696 to 452472. This is a
+																		        useful guard-heavy code-size cleanup, but `user_decls` wall time remains
+																		        the next real backend boundary.
 																	      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
 																	        make profile-native-build-phases` now enables gated inclusive ARM64
 															        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile

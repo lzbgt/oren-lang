@@ -1,4 +1,60 @@
 // Chunked out of native_compile_expr call handling for include coherence.
+fn _arm64_tail_emit_bool_singleton_from_cond(ctx, tok, cond) {
+    var gname = ctx["rt_g_storage_name"]
+    if gname == nil {
+        var match = nil
+        var match_count = 0
+        if ctx != nil && ctx["globals"] != nil {
+            for kk in ctx["globals"] {
+                var kklen = oren_string_len(kk)
+                var slen = 9
+                if kklen >= slen {
+                    var ok = true
+                    var jj = 0
+                    while jj < slen {
+                        if oren_string_char_at(kk, kklen - slen + jj) != oren_string_char_at("g_storage", jj) { ok = false; break }
+                        jj = jj + 1
+                    }
+                    if ok {
+                        match = kk
+                        match_count = match_count + 1
+                        if match_count > 1 { break }
+                    }
+                }
+            }
+        }
+        if match_count == 1 { gname = match; ctx["rt_g_storage_name"] = match }
+    }
+    if gname == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+        native_error(ctx, tok, "native backend: missing runtime global g_storage (needed for bool results)")
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        return nil
+    }
+
+    var goff = ctx["globals"][gname] - 1
+    var adr_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": goff, "reg": nil})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], goff)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
+    push_u32_le(ctx["code"], insn_ldr_ptr(0, 0)) // X0 = g_storage
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(1, 0, 376)) // X1 = false
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(2, 0, 384)) // X2 = true
+    var br_true = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+    var br_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    var true_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_true, insn_b_cond((true_pos - br_true) / 4, cond))
+    push_u32_le(ctx["code"], insn_mov_reg(0, 2))
+    var end_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
+    return nil
+}
+
 fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 
             if fn_name == "oren_f64_to_u64_bits" {
@@ -29,6 +85,30 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 }
                 native_compile_expr(ctx, args[0]) // X0 = bits
                 // Identity: float bits and int bits share the same carrier register.
+                return true
+            }
+
+            if fn_name == "oren_bool_norm" {
+                var args = expr["args"]
+                if args == nil || oren_list_len(args) != 1 {
+                    native_error(ctx, expr["token"], "native backend: oren_bool_norm expects 1 argument")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+                var a0 = args[0]
+                var is_float = native_expr_is_floaty(ctx, a0)
+                native_compile_expr(ctx, a0)
+                if is_float == true {
+                    // Float bool normalization is numeric `x != 0.0`; NaN is true,
+                    // and both +0.0 and -0.0 compare equal to zero.
+                    push_u32_le(ctx["code"], insn_fmov_d_x(0, 0))
+                    push_u32_le(ctx["code"], insn_movz(1, 0))
+                    push_u32_le(ctx["code"], insn_fmov_d_x(1, 1))
+                    push_u32_le(ctx["code"], insn_fcmp(0, 1))
+                } else {
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+                }
+                _arm64_tail_emit_bool_singleton_from_cond(ctx, expr["token"], 1) // NE
                 return true
             }
 

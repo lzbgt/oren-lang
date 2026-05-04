@@ -2477,9 +2477,13 @@ Local (fast):
   conditions stay on the existing generic path.
 - ARM64 stackless literal/singleton branches (2026-05-04): the same direct `if` comparison path now
   avoids the temporary stack spill for non-string/non-float comparisons against `true`, `false`, `nil`,
-  and small integer literals. The generator profile keeps behavior and fixup counts stable while
-  reducing total code bytes from 2514200 to 2505768 and `user_decls` code bytes from 460696 to 452472;
-  treat this as a useful guard-heavy code-size cleanup, not a full solution for `user_decls` wall time.
+  and integer literals. Wider/negative integer literals load once into a scratch register instead of
+  falling back to a stack spill. The follow-up also fixes the required ARM64 bool-normalization boundary:
+  `oren_bool_norm(float)` now compares as `x != 0.0` before returning runtime boolean singletons, so
+  `bool(-0.0)` is false instead of treating the raw IEEE sign bit as an integer. The generator profile
+  keeps behavior and fixup counts stable while reducing total code bytes from 2514200 to 2505768 and
+  `user_decls` code bytes from 460696 to 452472; treat this as a useful guard-heavy code-size cleanup,
+  not a full solution for `user_decls` wall time.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.

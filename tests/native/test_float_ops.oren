@@ -34,6 +34,11 @@ fn main() {
     assert_true(3.0 > 2, 32)
     assert_true(3.0 >= 3, 33)
 
+    // bool(...) uses numeric normalization, so both zero signs are false.
+    assert_eq(bool(0.0), false, 34)
+    assert_eq(bool(-0.0), false, 35)
+    assert_eq(bool(0.5), true, 36)
+
     // String concat remains supported (via oren_add string path).
     // Native backend string equality is still rolling, so validate via helpers.
     var s = "a" + "b"
