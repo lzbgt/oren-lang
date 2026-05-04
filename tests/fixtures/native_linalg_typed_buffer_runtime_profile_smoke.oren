@@ -1,0 +1,31 @@
+import buffer "std:buffer"
+import linalg "std:linalg"
+
+fn fail(code) {
+    print("native linalg typed-buffer runtime profile smoke FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    fail(code)
+}
+
+var a: []f64 = buffer.f64_new(3)
+var b: []f64 = buffer.f64_new(3)
+if oren_is_err(a) { fail(1) }
+if oren_is_err(b) { fail(2) }
+
+oren_buf_store_f64(a, 0, 1.0)
+oren_buf_store_f64(a, 1, 2.0)
+oren_buf_store_f64(a, 2, 3.0)
+oren_buf_store_f64(b, 0, 4.0)
+oren_buf_store_f64(b, 1, 5.0)
+oren_buf_store_f64(b, 2, 6.0)
+
+assert_eq(oren_buf_data_mod(a, 64), 0, 10)
+assert_eq(linalg.dot_f64_buf(a, b), 32.0, 11)
+assert_eq(linalg.reduce_sum_f64_buf(a), 6.0, 12)
+
+print("native linalg typed-buffer runtime profile smoke OK")
+exit(0)

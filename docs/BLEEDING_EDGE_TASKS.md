@@ -1531,6 +1531,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      family needed by the packed bridge, so both hidden packed-bridge benchmarks build on the
      default core profile and `std:linalg.dot_i32_list_int_packed(...)` no longer has to stay on a
      scalar fallback.
+   - Fix (2026-05-04): arm64/x64 native runtime-profile selection now treats `std:linalg` as a
+     full-runtime dependency when typed-buffer kernels are reachable, preventing native builds
+     that call `linalg.dot_f64_buf(...)` from linking against the reduced core profile. The new
+     native quick smoke `tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren`
+     also guards `oren_buf_data_mod(...)` on native typed buffers.
    - Verified (2026-03-20): those hidden packed-bridge benchmarks compile and return the expected
      `205` / `710` / `6590` / `54380` outputs through the Oren C backend, proving the bridge
      helpers are portable; the slower native steady probe remains the explicit next step for

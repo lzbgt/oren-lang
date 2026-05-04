@@ -243,8 +243,9 @@ assert_true(!oren_is_err(Af3), 101)
 assert_true(!oren_is_err(Bf3), 102)
 
 var r3 = 0
+var k3 = 0
 while r3 < m3 {
-    var k3 = 0
+    k3 = 0
     while k3 < n3 {
         oren_buf_store_f32(Af3, r3 * n3 + k3, f32(r3 + 1))
         k3 = k3 + 1

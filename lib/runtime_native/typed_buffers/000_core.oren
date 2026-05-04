@@ -98,6 +98,17 @@ fn native_buf_check(buf, tag, elem_size) {
     return 0
 }
 
+@oren.keep
+fn oren_buf_data_mod(buf, modv) {
+    if modv <= 0 { return oren_err(4, "buf_data_mod: mod must be > 0") }
+    if modv > 4096 { return oren_err(4, "buf_data_mod: mod too large") }
+    if native_buf_as_node(buf) == 0 { return oren_err(4, "buf_data_mod expects (buf, int)") }
+    if ptr_get(buf + 0) == 0 { return 0 }
+    var data = native_buf_data_ptr(buf)
+    if data == 0 { return oren_err(4, "buf_data_mod: payload is nil") }
+    return data % modv
+}
+
 fn native_buf_payload_is_mmap(buf) {
     if native_buf_as_node(buf) == 0 { return 0 }
     var len = ptr_get(buf + 0)

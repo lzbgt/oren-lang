@@ -487,6 +487,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      and the packed-bridge path now stays on that default profile. Heavier typed-buffer kernels
      still remain outside `core`, but the hidden packed-bridge benchmarks no longer need a
      full-runtime override just to reach `oren_buf_dot_i32(...)`.
+   - Fix (2026-05-04): native full-runtime profile selection now escalates when the module graph
+     reaches `std:linalg`, because f64/f32 dot, view-dot, and GEMM helpers use typed-buffer
+     primitives outside the core profile (`oren_buf_dot_f64`, `oren_buf_reduce_sum_f64`, etc.).
+     A new Tier-1 native smoke (`tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren`)
+     guards `std:linalg` typed-buffer calls together with native `oren_buf_data_mod(...)`.
    - Verified (2026-03-20): the hidden packed-bridge benchmarks compile and run through the Oren C
      backend with the expected `205`, `710`, `6590`, and `54380` outputs, which is enough to catch
      stdlib bridge portability bugs before paying for the slower full-runtime native probe.

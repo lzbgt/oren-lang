@@ -136,12 +136,20 @@ fn _arm64_should_use_full_native_runtime_profile(linked) {
     var g = linked["module_graph"]
     if g == nil { return true } // safe default
 
+    // std:linalg reaches the full typed-buffer runtime surface (`oren_buf_dot_f64`,
+    // GEMM helpers, etc.). The core runtime profile intentionally keeps only the
+    // small typed-buffer subset, so linalg imports must escalate deterministically.
+    var entry = g["entry"]
+    if _native_str_contains_bytes(entry, "/lib/std/linalg") ||
+       _native_str_contains_bytes(entry, "lib/std/linalg") ||
+       _native_str_contains_bytes(entry, "\\lib\\std\\linalg") ||
+       _native_str_contains_bytes(entry, "lib\\std\\linalg") { return true }
+
     // Any module under `lib/std/net/` needs the full runtime profile today because std:net calls
     // runtime primitives (`oren_tcp_*`, `oren_udp_*`, `oren_select_*`, `oren_net_get`).
     //
     // NOTE: module graph paths can be absolute (common on macOS/Linux) or repo-relative
     // (common when running from extracted bundles / remote shells). Match both.
-    var entry = g["entry"]
     if _native_str_contains_bytes(entry, "/lib/std/net/") ||
        _native_str_contains_bytes(entry, "lib/std/net/") ||
        _native_str_contains_bytes(entry, "\\lib\\std\\net\\") ||
@@ -154,6 +162,10 @@ fn _arm64_should_use_full_native_runtime_profile(linked) {
         var m = mods[i]
         if m != nil {
             var p = m["path"]
+            if _native_str_contains_bytes(p, "/lib/std/linalg") ||
+               _native_str_contains_bytes(p, "lib/std/linalg") ||
+               _native_str_contains_bytes(p, "\\lib\\std\\linalg") ||
+               _native_str_contains_bytes(p, "lib\\std\\linalg") { return true }
             if _native_str_contains_bytes(p, "/lib/std/net/") ||
                _native_str_contains_bytes(p, "lib/std/net/") ||
                _native_str_contains_bytes(p, "\\lib\\std\\net\\") ||

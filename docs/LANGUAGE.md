@@ -1636,6 +1636,10 @@ Design goals:
 - avoid boxed list overhead in numeric kernels
 - isolate hot loops so NEON microkernels can replace them without changing semantics
 - deterministic accumulation order for consensus and testing
+- Native backend note: importing reachable `std:linalg` typed-buffer kernels escalates native builds
+  to the full runtime profile, because f64/f32 dot, view-dot, and GEMM helpers depend on runtime
+  primitives that are intentionally outside the reduced core profile. The Tier-1 native smoke
+  `tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren` guards this boundary.
 
 SIMD (Tier‑1 HPC: arm64 NEON now, x86_64 SSE/AVX next) in the native runtime (rolling):
 

@@ -342,11 +342,11 @@ if oren_is_err(xi) { fail(168, "i32_new xi") }
 if oren_is_err(yi) { fail(169, "i32_new yi") }
 if oren_is_err(zi) { fail(170, "i32_new zi") }
 
-var ii = 0
-while ii < 8 {
-    oren_buf_store_i32(xi, ii, ii + 1)      // 1..8
-    oren_buf_store_i32(yi, ii, (ii + 1) * 10) // 10..80
-    ii = ii + 1
+var xi_i = 0
+while xi_i < 8 {
+    oren_buf_store_i32(xi, xi_i, xi_i + 1)      // 1..8
+    oren_buf_store_i32(yi, xi_i, (xi_i + 1) * 10) // 10..80
+    xi_i = xi_i + 1
 }
 
 var r_add = oren_buf_add_i32_into(zi, xi, yi)

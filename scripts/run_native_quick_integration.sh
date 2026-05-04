@@ -1314,6 +1314,15 @@ run_step_checked "parser/runtime smoke (yield exchange surface native run)" "$yx
   "$yx_native_out"
 tail -n 5 "$yx_log"
 
+echo "== linalg smoke (native typed-buffer runtime profile) =="
+linalg_runtime_src="tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren"
+linalg_runtime_log="build/logs/${compiler_base}_native_linalg_typed_buffer_runtime_profile.log"
+rm -f "$linalg_runtime_log" 2>/dev/null || true
+
+run_step_checked "linalg smoke (native typed-buffer runtime profile)" "$linalg_runtime_log" \
+  "$compiler" test "$linalg_runtime_src" --backend native
+tail -n 5 "$linalg_runtime_log"
+
 echo "== codec smoke (YAML native comments) =="
 yaml_comments_src="tests/modules/test_yaml_comments.oren"
 yaml_comments_log="build/logs/${compiler_base}_yaml_comments_native.log"
