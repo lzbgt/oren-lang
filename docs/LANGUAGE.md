@@ -285,7 +285,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:crypto/x509` (minimal helper layer; used by NET/TLS internals)
   - `std:crypto/tls` (TLS facade; alias-layer over `std:net/tls`, including the structured `try_*` wrappers, while the TLS crypto-core split is implemented)
 - Native NET stack (native backend; rolling Tier‑1 focus):
-  - `std:net/tcp` (`try_*` aliases over syscall-style fd/byte-count APIs), `std:net/udp`
+  - `std:net/tcp` and `std:net/udp` (`try_*` aliases over syscall-style fd/byte-count APIs)
   - `std:net/dns` (loopback fixtures + Windows default resolver smoke: `tests/fixtures/windows_dns_default_resolver_smoke.oren`; `try_query_a` / `try_resolve_a` return `oren_err` on failure)
   - `std:net/http` (structured response API, plus `try_get_text` / `try_get_response` `oren_err` wrappers; loopback fixtures)
   - `std:net/http2` (rolling: framing + `try_parse_frame_header` / `try_parse_settings_payload`; loopback fixtures cover SETTINGS/ACK + PING/ACK + CONTINUATION: `tests/native/test_http2_preface_loopback.oren`, `tests/native/test_http2_headers_loopback.oren`)
@@ -3762,7 +3762,7 @@ Rolling status:
 - Remaining migration work is mostly library cleanup: several older network/protocol modules still
   return ad-hoc `{ok, err}` maps, but that is no longer a missing core language/runtime feature.
 - The native NET migration is also rolling: DNS now has `try_query_a` / `try_resolve_a`, host
-  resolution has `try_resolve_host_ipv4`, TCP has `try_*` syscall adapters, TLS has structured
+  resolution has `try_resolve_host_ipv4`, TCP/UDP have `try_*` syscall adapters, TLS has structured
   connect/wrap/read/write/cert/ALPN helpers, HTTP/2 framing/client has `try_parse_*` /
   `try_new` / `try_request`, HPACK has `try_encode_header_block` / `try_decode_header_block`,
   HTTP has `try_get_text` / `try_get_response`, and WebSocket has `try_connect` / `try_accept` /

@@ -11,6 +11,9 @@
 // - Return convention (rolling):
 //   - `fd` / byte-count: `>= 0` on success
 //   - negative errno: `< 0` on failure
+//
+// If you prefer structured errors, use the `try_*` aliases or wrap with
+// `std/result.ok_or_errno`.
 
 import result "std:result"
 
@@ -60,14 +63,46 @@ fn bind_local_ok(port) {
     return result.ok_or_errno(bind_local(port), "udp.bind_local")
 }
 
+fn try_bind_local(port) {
+    return bind_local_ok(port)
+}
+
 fn sockname_port_ok(fd) {
     return result.ok_or_errno(sockname_port(fd), "udp.sockname_port")
+}
+
+fn try_sockname_port(fd) {
+    return sockname_port_ok(fd)
 }
 
 fn send_to_ok(fd, ip, port, buf, len, timeout_ms) {
     return result.ok_or_errno(send_to(fd, ip, port, buf, len, timeout_ms), "udp.send_to")
 }
 
+fn try_send_to(fd, ip, port, buf, len, timeout_ms) {
+    return send_to_ok(fd, ip, port, buf, len, timeout_ms)
+}
+
 fn recv_into_ok(fd, buf, len, timeout_ms) {
     return result.ok_or_errno(recv_into(fd, buf, len, timeout_ms), "udp.recv_into")
+}
+
+fn try_recv_into(fd, buf, len, timeout_ms) {
+    return recv_into_ok(fd, buf, len, timeout_ms)
+}
+
+fn recv_from_into_ok(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
+    return result.ok_or_errno(recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp), "udp.recv_from_into")
+}
+
+fn try_recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
+    return recv_from_into_ok(fd, buf, len, timeout_ms, sa_out, sa_lenp)
+}
+
+fn close_ok(fd) {
+    return result.ok_or_errno(close(fd), "udp.close")
+}
+
+fn try_close(fd) {
+    return close_ok(fd)
 }

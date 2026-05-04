@@ -4566,8 +4566,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     wrappers (`try_get_text`, `try_get_response`, `try_connect`, `try_accept`,
 	     `try_recv_text`, `try_send_text_*`), leaving TLS/provider-specific and deeper
 	     protocol edges as the main network ok-map cleanup.
-	     New (2026-05-04): TCP, TLS, crypto-facing TLS, and HTTP/2 framing/client facades now
-	     expose structured wrappers over tested deterministic surfaces (`tcp.try_*`,
+	     New (2026-05-04): TCP, UDP, TLS, crypto-facing TLS, and HTTP/2 framing/client facades now
+	     expose structured wrappers over tested deterministic surfaces (`tcp.try_*`, `udp.try_*`,
 	     `tls.try_connect`/`try_wrap_*`/IO/cert/ALPN helpers, `http2.try_parse_*`,
 	     `http2_client.try_new`/`try_request`). Remaining network migration is now mostly
 	     provider-internal TLS details and deeper protocol APIs, not the primary facades.
