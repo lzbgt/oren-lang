@@ -60,9 +60,16 @@ fn _arm64_expr_profile_index(expr) {
     var recv = expr["recv_kind"]
     if recv == nil || recv == "" { recv = "?" }
     var key = "?"
+    var ix = expr["index"]
     var kk = expr["known_key_kind"]
-    if kk == 0 { key = "int" }
-    if kk == 1 { key = "str" }
+    if kk == 0 {
+        key = "int"
+        if ix != nil && ix["type"] == "Integer" { key = "int_lit" }
+    }
+    if kk == 1 {
+        key = "str"
+        if ix != nil && ix["type"] == "String" { key = "str_lit" }
+    }
     return "Index(" + recv + "," + key + ")"
 }
 

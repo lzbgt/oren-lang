@@ -7,8 +7,58 @@ fn _native_assume_list_index_enabled() {
     return g_native_assume_list_index == 1
 }
 
+fn _native_expr_str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _native_data_add_map_key_cstr0_cached(ctx, s) {
+    if ctx == nil { return nil }
+    if s == nil { s = "" }
+    var names = ctx["arm64_map_key_cstr0_mru_names"]
+    var offs = ctx["arm64_map_key_cstr0_mru_offs"]
+    if names == nil || offs == nil {
+        names = []
+        offs = []
+        ctx["arm64_map_key_cstr0_mru_names"] = names
+        ctx["arm64_map_key_cstr0_mru_offs"] = offs
+    }
+    var i = 0
+    var n = oren_list_len(names)
+    while i < n {
+        if _native_expr_str_eq_bytes(names[i], s) == true { return offs[i] }
+        i = i + 1
+    }
+
+    var off = native_data_add_cstr0(ctx, s)
+    if off == nil { return nil }
+    var cap = 16
+    if n < cap {
+        oren_list_push(names, s)
+        oren_list_push(offs, off)
+        return off
+    }
+    var next = ctx["arm64_map_key_cstr0_mru_next"]
+    if oren_type_tag(next) == 0 { next = 0 }
+    names[next] = s
+    offs[next] = off
+    next = next + 1
+    if next >= cap { next = 0 }
+    ctx["arm64_map_key_cstr0_mru_next"] = next
+    return off
+}
+
 fn _native_emit_load_cstr0_reg(ctx, s, reg) {
-    var data_off = native_data_add_cstr0(ctx, s)
+    var data_off = _native_data_add_map_key_cstr0_cached(ctx, s)
     if data_off == nil {
         native_error(ctx, nil, "native backend: failed to add string literal data")
         push_u32_le(ctx["code"], insn_movz(reg, 0))
@@ -24,15 +74,49 @@ fn _native_emit_load_cstr0_reg(ctx, s, reg) {
     return true
 }
 
+fn _native_expr_record_stmt_profile(ctx, label, t0, code0) {
+    if ctx == nil { return nil }
+    var rows = ctx["arm64_stmt_profile"]
+    if rows == nil { return nil }
+    var phase = ctx["arm64_codegen_phase"]
+    if phase == nil { phase = "" }
+    var fn_name = ctx["cur_fn_name"]
+    if fn_name == nil { fn_name = "" }
+    if label == nil { label = "" }
+    var key = phase + "\t" + fn_name + "\t" + label
+    var row = rows[key]
+    if row == nil {
+        row = {"phase": phase, "fn": fn_name, "stmt": label, "count": 0, "ms": 0, "bytes": 0}
+        rows[key] = row
+    }
+    row["count"] = row["count"] + 1
+    row["ms"] = row["ms"] + ((oren_time_now_ns() - t0) / 1000000)
+    row["bytes"] = row["bytes"] + (bytes_len(ctx["code"]) - code0)
+    return nil
+}
+
+fn _native_expr_subprof_start(ctx) {
+    if ctx == nil || ctx["arm64_stmt_profile"] == nil { return nil }
+    return {"t": oren_time_now_ns(), "code": bytes_len(ctx["code"])}
+}
+
+fn _native_expr_subprof_done(ctx, label, start) {
+    if start == nil { return nil }
+    return _native_expr_record_stmt_profile(ctx, label, start["t"], start["code"])
+}
+
 fn native_emit_index_get_map_str_lit_inline(ctx, expr) {
     if expr == nil || expr["type"] != "Index" { return false }
     if expr["recv_kind"] != "map" { return false }
     var ix = expr["index"]
     if ix == nil || ix["type"] != "String" { return false }
 
+    var prof_start = _native_expr_subprof_start(ctx)
     native_compile_expr(ctx, expr["left"]) // container -> X0
+    _native_expr_subprof_done(ctx, "MapStrIndex(eval_recv)", prof_start)
 
     // Preserve the existing deterministic index contract: nil and non-map values still panic.
+    prof_start = _native_expr_subprof_start(ctx)
     push_u32_le(ctx["code"], insn_movz(2, 0))
     push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
     var br_non_nil = bytes_len(ctx["code"])
@@ -76,8 +160,13 @@ fn native_emit_index_get_map_str_lit_inline(ctx, expr) {
     var magic_ok_pos = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_magic_ok, insn_b_cond((magic_ok_pos - br_magic_ok) / 4, 0)) // EQ
 
+    _native_expr_subprof_done(ctx, "MapStrIndex(validate)", prof_start)
+    prof_start = _native_expr_subprof_start(ctx)
     if _native_emit_load_cstr0_reg(ctx, ix["value"], 1) != true { return true }
+    _native_expr_subprof_done(ctx, "MapStrIndex(load_key)", prof_start)
+    prof_start = _native_expr_subprof_start(ctx)
     native_emit_named_bl_expr(ctx, "oren_map_get_str")
+    _native_expr_subprof_done(ctx, "MapStrIndex(call)", prof_start)
     return true
 }
 

@@ -5289,19 +5289,28 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																		        `gen.current_step`.
 																			        The refreshed default generator profile drops `user_decls` bytes from
 																			        `323172` to `302592` and local BL fixups from `11423` to `10920`, while
-																			        wall time stays in the same noisy ~20s band. The gated statement profile
-																			        now labels the hot buckets as `Index(map,str)`, so the next backend slice
+																				        wall time stays in the same noisy ~20s band. The gated statement profile
+																				        now labels the hot buckets as `Index(map,str_lit)`, so the next backend slice
 																			        should target typed map index term lowering itself rather than missing
 																			        receiver-kind propagation.
 																			      - ARM64 `Index(map,str-literal)` expression lowering now uses a direct
 																			        string-key map-get path that keeps nil/tracked-node/map-kind/map-magic
 																			        validation but avoids the generic container/key stack shuffle before
 																			        `oren_map_get_str`. The refreshed uncontended profile reports
-																			        `user_decls` at about `20.3s / 292072 bytes / 282 funcs`; the hot
-																			        `Index(map,str)` condition-term buckets are smaller but still dominant,
-																			        so the next credible backend slice needs to reduce the map
-																			        validation/get sequence itself.
-																			      - rejected helper path: moving that checked validation into a new kept
+																				        `user_decls` at about `20.3s / 292072 bytes / 282 funcs`; the hot
+																				        `Index(map,str_lit)` condition-term buckets are smaller but still dominant,
+																				        so the next credible backend slice needs to reduce the map
+																				        validation/get sequence itself.
+																				      - ARM64 map-key C-string data lookup now has a narrow MRU inside the
+																				        direct `Index(map,"literal")` emitter. New gated `MapStrIndex(...)`
+																				        subphase rows show the actual prior hotspot was repeated
+																				        `native_data_add_cstr0` lookup for generator keys:
+																				        `MapStrIndex(load_key)` drops from about `11.9s / 263 exprs` to
+																				        about `0.17s / 263 exprs`, and the default generator profile moves
+																				        `user_decls` to about `11.1s / 292072 bytes / 282 funcs`. A shared
+																				        `native_data_add_cstr0` MRU was rejected because unrelated literals
+																				        polluted it and left `load_key` near `13.1s`.
+																				      - rejected helper path: moving that checked validation into a new kept
 																			        `oren_map_get_str_checked` runtime helper built, but native map and
 																			        generator fixtures exited `11`; adding it to the native-op spill surface
 																			        did not fix the direct-call ABI/entry failure. Do not repeat this helper

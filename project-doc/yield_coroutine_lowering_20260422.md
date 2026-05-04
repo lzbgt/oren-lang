@@ -440,14 +440,21 @@ backend-shared value-helper slices landed.
     C/native/bytecode lowering keep their backend-specific call handling. The refreshed generator profile drops
     `user_decls` bytes from `323172` to `302592`
     and local BL fixups from `11423` to `10920`; wall time remains in the same noisy ~20s band. The gated
-    statement profile now labels the hot condition-term buckets as `Index(map,str)`, so the remaining
+    statement profile now labels the hot condition-term buckets as `Index(map,str_lit)`, so the remaining
     target is typed map index term lowering itself rather than missing receiver-kind propagation.
   - ARM64 map string-literal index fast path (2026-05-05): `Index(map,str-literal)` expression lowering now
     preserves nil/tracked-node/map-kind/map-magic validation but emits the string-key `oren_map_get_str` path
     directly instead of using the generic container/key stack shuffle. The refreshed uncontended generator
     profile reports `user_decls` at about `20.3s / 292072 bytes / 282 funcs`; statement-profiled
-    `Index(map,str)` condition terms shrink but remain the dominant conditional cost, so the next credible
+    `Index(map,str_lit)` condition terms shrink but remain the dominant conditional cost, so the next credible
     lever is reducing the validation/get sequence itself.
+  - ARM64 map-key C-string MRU (2026-05-05): the direct `Index(map,"literal")` emitter now keeps a small
+    compiler-side MRU for map-key C-string data offsets, and statement profiling now breaks this fast path into
+    `MapStrIndex(eval_recv/validate/load_key/call)` subphases. The profile showed the prior cost was repeated
+    `native_data_add_cstr0` lookup for generator keys rather than validation emission: `MapStrIndex(load_key)`
+    moves from ~11.9s / 263 expressions to ~0.17s / 263 expressions, and default generator `user_decls` moves
+    to ~11.1s / 292072 bytes / 282 funcs. A broader shared `native_data_add_cstr0` MRU was tested and rejected
+    because unrelated string literals polluted it and left the same load-key bucket near ~13.1s.
   - Rejected helper path (2026-05-05): a new kept `oren_map_get_str_checked` runtime helper was tested to move
     the validation sequence out of each ARM64 map string-literal index site. It built, but native map/generator
     fixtures exited `11`; adding the helper name to the native-op spill surface did not fix the direct-call

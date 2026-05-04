@@ -2708,14 +2708,21 @@ Local (fast):
   deterministic across native/C/bytecode lowering. The refreshed default generator profile moves `user_decls` from
   `323172` to `302592` bytes and trims local BL fixups from `11423` to `10920`; wall time remains in the
   same noisy band at about `20.4s`. The gated statement profile now labels index terms as
-  `Index(map,str)`, confirming the remaining hot cost is typed map index term lowering itself rather than
+  `Index(map,str_lit)`, confirming the remaining hot cost is typed map index term lowering itself rather than
   missing receiver-kind propagation.
 - ARM64 `Index(map,str-literal)` expression lowering now has a direct string-key map-get path that preserves
   the existing nil/tracked-node/map-kind/map-magic validation but avoids the generic container/key stack shuffle
   and string-literal evaluation before `oren_map_get_str`. The refreshed uncontended generator profile moves
   `user_decls` to about `20.3s / 292072 bytes / 282 funcs`; the gated statement profile shows the hot
-  `Index(map,str)` condition-term buckets are smaller but still dominant, so the next real lever is reducing
+  `Index(map,str_lit)` condition-term buckets are smaller but still dominant, so the next real lever is reducing
   the map validation/get sequence itself rather than receiver-kind propagation.
+- ARM64 map-key string literal data lookup now has a narrow compiler-side MRU at the direct
+  `Index(map,"literal")` emission site, and the gated profile now splits `MapStrIndex(eval_recv/validate/load_key/call)`
+  subphases. This proved the prior wall-time hotspot was `native_data_add_cstr0` lookup for repeated generator
+  keys, not validation emission: `MapStrIndex(load_key)` drops from about `11.9s / 263 exprs` to about
+  `0.17s / 263 exprs`, and the default generator profile moves `user_decls` to about
+  `11.1s / 292072 bytes / 282 funcs`. A broader shared `native_data_add_cstr0` MRU was tested and rejected
+  because unrelated string literals polluted the cache and left `load_key` at about `13.1s`.
 - Rejected follow-up (2026-05-05): moving the checked `Index(map,str-literal)` validation into a new kept
   `oren_map_get_str_checked` runtime helper built successfully but made native map/generator fixtures exit
   `11`. Adding the name to the native-op spill surface did not fix the calling-convention/entry failure, so
