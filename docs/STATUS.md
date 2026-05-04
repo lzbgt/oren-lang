@@ -2649,6 +2649,11 @@ Local (fast):
   FP-relative local/global slot behavior and static trait propagation while reducing
   `arm64_native_stmt.oren` from the guardrail edge to 1761 lines. Treat this as maintainability
   groundwork for future `user_decls` work, not a profile win.
+- ARM64 terminator statement module split (2026-05-05): `break`, `continue`, shared return epilogue
+  patching, and `Return` lowering moved into `arm64_native_stmt_terminators.oren`. The same slice hoists
+  stable list lengths in the loop matcher identifier-use scanners. This preserves emitted behavior while
+  pulling `arm64_native_stmt.oren` down to 1659 lines; treat it as maintainability and compiler-loop
+  constant-factor cleanup, not a measured `user_decls` wall-time fix.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to

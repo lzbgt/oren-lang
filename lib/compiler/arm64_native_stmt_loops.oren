@@ -668,7 +668,8 @@ fn _arm64_is_simple_inc(stmt, idx_name) {
 fn _arm64_list_contains(xs, value) {
     if xs == nil { return false }
     var i = 0
-    while i < oren_list_len(xs) {
+    var n = oren_list_len(xs)
+    while i < n {
         if _arm64_str_eq_bytes(xs[i], value) { return true }
         i = i + 1
     }
@@ -689,7 +690,8 @@ fn _arm64_expr_uses_ident(exp, name) {
         if _arm64_expr_uses_ident(exp["fn"], name) { return true }
         var args = exp["args"]
         var i = 0
-        while i < oren_list_len(args) {
+        var n = oren_list_len(args)
+        while i < n {
             if _arm64_expr_uses_ident(args[i], name) { return true }
             i = i + 1
         }
@@ -705,7 +707,8 @@ fn _arm64_expr_uses_ident(exp, name) {
     if et == "Array" {
         var xs = exp["elements"]
         var j = 0
-        while j < oren_list_len(xs) {
+        var xn = oren_list_len(xs)
+        while j < xn {
             if _arm64_expr_uses_ident(xs[j], name) { return true }
             j = j + 1
         }
@@ -714,7 +717,8 @@ fn _arm64_expr_uses_ident(exp, name) {
     if et == "Hash" {
         var ps = exp["pairs"]
         var k = 0
-        while k < oren_list_len(ps) {
+        var pn = oren_list_len(ps)
+        while k < pn {
             if _arm64_expr_uses_ident(ps[k]["key"], name) { return true }
             if _arm64_expr_uses_ident(ps[k]["value"], name) { return true }
             k = k + 1
@@ -728,7 +732,8 @@ fn _arm64_expr_uses_ident(exp, name) {
 fn _arm64_expr_uses_any_ident(exp, names) {
     if exp == nil || names == nil { return false }
     var i = 0
-    while i < oren_list_len(names) {
+    var n = oren_list_len(names)
+    while i < n {
         if _arm64_expr_uses_ident(exp, names[i]) { return true }
         i = i + 1
     }

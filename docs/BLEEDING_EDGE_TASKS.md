@@ -5198,10 +5198,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																				      - Binding statement split (2026-05-05): ARM64 `Var`/`Assign`
 																				        lowering moved into `arm64_native_stmt_bindings.oren`, preserving
 																				        FP-relative local/global slot behavior and static trait propagation
-																				        while reducing `arm64_native_stmt.oren` from the guardrail edge to
-																				        1761 lines. This is maintainability groundwork for future
-																				        `user_decls` work, not a measured wall-time fix.
-																				      - Dynamic string equality fix (2026-05-05): ARM64 expression and
+																					        while reducing `arm64_native_stmt.oren` from the guardrail edge to
+																					        1761 lines. This is maintainability groundwork for future
+																					        `user_decls` work, not a measured wall-time fix.
+																					      - Terminator statement split (2026-05-05): ARM64 `break`, `continue`,
+																					        shared return-jump patching, and `Return` lowering moved into
+																					        `arm64_native_stmt_terminators.oren`. The same cleanup hoists
+																					        stable list lengths in loop matcher identifier-use scanners,
+																					        preserving emitted behavior while reducing `arm64_native_stmt.oren`
+																					        to 1659 lines. This is maintainability and compiler-loop cleanup,
+																					        not a material `user_decls` wall-time fix.
+																					      - Dynamic string equality fix (2026-05-05): ARM64 expression and
 																			        direct-`if` equality lowering now use safe `oren_string_eq(...)`
 																			        only for truly dynamic equality operands (not statically stringy,
 																			        and not provably non-string). This fixes native

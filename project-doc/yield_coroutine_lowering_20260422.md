@@ -372,6 +372,11 @@ backend-shared value-helper slices landed.
     `arm64_native_stmt_bindings.oren`. It keeps FP-relative local/global slots and static trait propagation
     unchanged while pulling `arm64_native_stmt.oren` down from the line-count guardrail edge to 1761 lines.
     This is maintainability groundwork for future `user_decls` work, not a measured wall-time fix.
+  - Terminator statement split (2026-05-05): ARM64 `break`, `continue`, shared return-jump patching, and
+    `Return` lowering moved into `arm64_native_stmt_terminators.oren`. The same cleanup hoists stable list
+    lengths in the loop matcher identifier-use scanners. It preserves generated-code behavior while reducing
+    `arm64_native_stmt.oren` to 1659 lines; this is maintainability and compiler-loop constant-factor work,
+    not a material `user_decls` wall-time fix.
   - ARM64 dynamic string equality fix (2026-05-05): native `test_generator_std.oren` exposed that generic
     `assert_eq(a, b)` could compare two dynamic strings by pointer when neither parameter retained static
     string traits. Expression and direct-`if` equality lowering now try safe `oren_string_eq(...)` only for

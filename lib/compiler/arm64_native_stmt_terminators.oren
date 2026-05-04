@@ -1,0 +1,126 @@
+import core "arm64_core.oren"
+import exprm "arm64_native_expr.oren"
+import basem "arm64_native_stmt_loops_base.oren"
+
+fn bytes_len(b) { return core.bytes_len(b) }
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_ldp_post() { return core.insn_ldp_post() }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
+fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
+fn insn_ret() { return core.insn_ret() }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+
+fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+fn _arm64_restore_stack_to(ctx, base_stack) { return basem._arm64_restore_stack_to(ctx, base_stack) }
+
+fn emit_function_epilogue(ctx) {
+    push_u32_le(ctx["code"], insn_mov_sp_fp())
+
+    // Restore generated-function callee-saved registers from fixed FP-relative slots.
+    // X27/X28 are native heap globals and intentionally are not restored here.
+    var restore_base = 0 - 64
+    var rr = 19
+    while rr <= 26 {
+        var off = restore_base + (rr - 19) * 8
+        push_u32_le(ctx["code"], insn_ldur_reg(rr, 29, off))
+        rr = rr + 1
+    }
+    push_u32_le(ctx["code"], insn_ldp_post())
+    push_u32_le(ctx["code"], insn_ret())
+    return nil
+}
+
+fn compile_break(ctx, stmt) {
+    var loop = ctx["loop_ctx"]
+    if loop == nil {
+        native_error(ctx, stmt["token"], "native backend: break outside of loop")
+        return nil
+    }
+
+    // Restore stack to the loop base before leaving.
+    var base_stack = loop["base_stack"]
+    _arm64_restore_stack_to(ctx, base_stack)
+
+    // Jump to loop end (patched after body is compiled).
+    var jpos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(loop["break_jumps"], jpos)
+    return false
+}
+
+fn compile_continue(ctx, stmt) {
+    var loop = ctx["loop_ctx"]
+    if loop == nil {
+        native_error(ctx, stmt["token"], "native backend: continue outside of loop")
+        return nil
+    }
+
+    // Restore stack to the loop base before continuing.
+    var base_stack = loop["base_stack"]
+    _arm64_restore_stack_to(ctx, base_stack)
+
+    // Jump to the loop-specific continue target.
+    // - while: condition start
+    // - for: post start (so post runs before re-checking condition)
+    var cont = loop["continue_pos"]
+    if cont != nil {
+        var back_pos = bytes_len(ctx["code"])
+        var back_off = (cont - back_pos) / 4
+        push_u32_le(ctx["code"], insn_b(back_off))
+    } else {
+        // Patch later (used for `for`, whose post-start is only known after body compilation).
+        var jpos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(loop["continue_jumps"], jpos)
+    }
+    return false
+}
+
+fn compile_return(ctx, stmt, native_compile_expr_fn) {
+    native_compile_expr_fn(ctx, stmt["value"])
+
+    // Decrement call depth before returning, preserving X0 across the helper call.
+    if ctx["call_depth_enabled"] == true {
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+
+        var bl_exit = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit, "name": "oren_call_depth_exit"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_exit)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_call_depth_exit")
+
+        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+    }
+
+    if ctx["arm64_return_jumps"] != nil {
+        push_u32_le(ctx["code"], insn_mov_sp_fp())
+        var return_jump_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["arm64_return_jumps"], return_jump_pos)
+    } else {
+        emit_function_epilogue(ctx)
+    }
+    return false
+}
+
+fn patch_return_jumps(ctx, epilogue_pos) {
+    var jumps = ctx["arm64_return_jumps"]
+    var i = 0
+    var n = oren_list_len(jumps)
+    while i < n {
+        var pos = jumps[i]
+        set_u32_le(ctx["code"], pos, insn_b((epilogue_pos - pos) / 4))
+        i = i + 1
+    }
+    return nil
+}
