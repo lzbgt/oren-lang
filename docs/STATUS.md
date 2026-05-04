@@ -1896,6 +1896,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: `std:list` structured helpers (`try_len`/`try_is_empty`/`try_push`/`try_clone`/
      `try_slice_copy`/`try_get`/`try_set`/`try_last`) return `oren_err` on invalid input;
      covered by module tests and the result smoke fixture (2026-03-05; widened 2026-05-04).
+   - New: `std:iter` checked range constructors (`try_range`/`try_range3`) return iterable maps
+     on valid integer parameters or `oren_err` on invalid range inputs; covered on native and
+     bytecode by `tests/modules/test_iter_range.oren` (2026-05-04).
    - New: `std:list.slice_copy`, `std:strings`, `std:bytes`, and `std:ui/commands.validate`
      now share the hardened non-nil int validation path used by `std:buffer`, so wrong-type
      scalar-like inputs return `oren_err` consistently instead of depending on backend coercion;

@@ -2691,6 +2691,8 @@ Implementation note (current compiler):
         - `step > 0`: value `< end`
         - `step < 0`: value `> end`
         - `step == 0`: yields an empty sequence (deterministic; avoids hangs)
+      - Checked constructors `iter.try_range(n)` and `iter.try_range3(start, end, step)` return the
+        same iterable maps on valid integer input or `oren_err` on invalid range parameters.
       - Representation (implementation detail, rolling):
         - `{"__iter":"range","start":0,"end":N,"step":1}`
   - Trait-based iterable extension (rolling v1, static-first, no vtables):

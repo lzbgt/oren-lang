@@ -12,9 +12,26 @@
 //
 // This is the minimal "stream-like iterable" story in v0.
 
+fn _is_int(v) {
+    if v == nil { return false }
+    var tag = oren_type_tag(v)
+    if tag == 1 { return true }
+    if tag == 0 || tag == 3 || tag == 4 || tag == 6 || tag == 7 || tag == 8 { return false }
+    if tag >= 9 && tag <= 15 { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == false
+}
+
 fn range(n) {
     // Yield integers 0..(n-1).
     return {"__iter": "range", "start": 0, "end": n, "step": 1}
+}
+
+fn try_range(n) {
+    if _is_int(n) == false { return oren_err(4, "iter.try_range: n not int") }
+    if n < 0 { return oren_err(4, "iter.try_range: n < 0") }
+    return range(n)
 }
 
 fn range3(start, end, step) {
@@ -24,4 +41,11 @@ fn range3(start, end, step) {
     //
     // step == 0 yields an empty sequence (deterministic, avoids infinite loops).
     return {"__iter": "range", "start": start, "end": end, "step": step}
+}
+
+fn try_range3(start, end, step) {
+    if _is_int(start) == false { return oren_err(4, "iter.try_range3: start not int") }
+    if _is_int(end) == false { return oren_err(4, "iter.try_range3: end not int") }
+    if _is_int(step) == false { return oren_err(4, "iter.try_range3: step not int") }
+    return range3(start, end, step)
 }

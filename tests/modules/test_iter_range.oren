@@ -17,12 +17,27 @@ for x in iter.range(5) {
 }
 assert_eq(sum0, 10, 10) // 0+1+2+3+4
 
+var sum_try0 = 0
+for x in iter.try_range(4) {
+    sum_try0 = sum_try0 + x
+}
+assert_eq(sum_try0, 6, 11) // 0+1+2+3
+if oren_is_err(iter.try_range("x")) != true { fail(12) }
+if oren_is_err(iter.try_range(0 - 1)) != true { fail(13) }
+
 // range3(start,end,step): positive step
 var sum1 = 0
 for x in iter.range3(2, 10, 3) {
     sum1 = sum1 + x
 }
 assert_eq(sum1, 2 + 5 + 8, 20)
+
+var sum_try1 = 0
+for x in iter.try_range3(1, 8, 2) {
+    sum_try1 = sum_try1 + x
+}
+assert_eq(sum_try1, 1 + 3 + 5 + 7, 21)
+if oren_is_err(iter.try_range3(0, "x", 1)) != true { fail(22) }
 
 // range3: negative step
 var sum2 = 0
@@ -45,6 +60,12 @@ for _ in iter.range3(0, 1000000, 0) {
 }
 assert_eq(count0, 0, 41)
 
+var count_try0 = 0
+for _ in iter.try_range3(0, 1000000, 0) {
+    count_try0 = count_try0 + 1
+    if count_try0 > 0 { fail(42) }
+}
+assert_eq(count_try0, 0, 43)
+
 print("module iter_range OK")
 exit(0)
-

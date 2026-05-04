@@ -15,6 +15,7 @@ import ui_raster "std:ui/raster"
 import linalg "std:linalg"
 import json "std:json"
 import regex "std:regex"
+import iter "std:iter"
 
 fn smoke_result_double(x) { return x * 2 }
 fn smoke_result_positive(x) {
@@ -1227,6 +1228,20 @@ fn main() {
     var empty = []
     var empty_last = list.try_last(empty)
     if r.is_err(empty_last) != true { return 11 }
+
+    // std:iter structured range constructors
+    var iter_sum = 0
+    for ix in iter.try_range(4) {
+        iter_sum = iter_sum + ix
+    }
+    if iter_sum != 6 { return 1530 }
+    var iter_sum2 = 0
+    for ix2 in iter.try_range3(1, 8, 2) {
+        iter_sum2 = iter_sum2 + ix2
+    }
+    if iter_sum2 != 16 { return 1531 }
+    if r.is_err(iter.try_range("x")) != true { return 1532 }
+    if r.is_err(iter.try_range3(0, "x", 1)) != true { return 1533 }
 
     var ui_smoke = smoke_ui_result_surface()
     if ui_smoke != 0 { return ui_smoke }
