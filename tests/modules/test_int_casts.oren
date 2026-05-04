@@ -15,5 +15,10 @@ if ints.u32(-1) != 4294967295 { exit(10) }
 if ints.i32(4294967295) != -1 { exit(11) }
 if ints.i32(2147483648) != -2147483648 { exit(12) }
 
+if ints.u8(1.9) != 1 { exit(13) }
+if ints.u8(-1.9) != 255 { exit(14) }
+if ints.i32(1.9) != 1 { exit(15) }
+if ints.i32(-1.9) != -1 { exit(16) }
+
 print("module int_casts OK")
 exit(0)

@@ -2621,6 +2621,9 @@ Current semantics (implementation reality):
     - float values outside int64 range clamp deterministically:
       - `+inf`/overflow → `INT64_MAX`
       - `-inf`/overflow → `INT64_MIN`
+  - The compiler also canonicalizes one-argument `std:ints.*(...)` and `std:casts.*(...)`
+    wrapper calls back to the same cast lowering when their imports resolve to the stdlib modules,
+    so native builds do not lose float-to-int truncation semantics behind untagged helper calls.
 - `f32`: deterministic rounding boundary (via `oren_f32_round(x)`); `f64` remains the default float precision
 - endian-tagged integer kinds (`u16be`, `u32le`, etc.) are treated as the same width for value casts, but matter for packed-byte views and ABI layouts
 

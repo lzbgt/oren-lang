@@ -1536,6 +1536,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      that call `linalg.dot_f64_buf(...)` from linking against the reduced core profile. The new
      native quick smoke `tests/fixtures/native_linalg_typed_buffer_runtime_profile_smoke.oren`
      also guards `oren_buf_data_mod(...)` on native typed buffers.
+   - New blocker isolated (2026-05-04): `tests/modules/test_integration_suite.oren --backend native`
+     now gets past the stdlib cast-wrapper checks, but fails at the f32 typed-buffer matmul
+     assertion. A focused probe shows bytecode computes `[1.0, 2.0, 3.0, 4.0]`, while native
+     stores the wrong f32 bits after routing through f64 scratch buffers; this is a native
+     floaty-state / f64-scratch representation boundary in linalg, not an integration-fixture
+     expectation issue.
    - Verified (2026-03-20): those hidden packed-bridge benchmarks compile and return the expected
      `205` / `710` / `6590` / `54380` outputs through the Oren C backend, proving the bridge
      helpers are portable; the slower native steady probe remains the explicit next step for

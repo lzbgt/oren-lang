@@ -22,7 +22,95 @@ import ast "ast.oren"
 // - Exact-size in-memory layout for non-packed structs (FFI/HPC).
 // - Float32 rounding semantics (needs explicit representation support).
 
+var TYPE_ANN_ALIASES = {}
+var TYPE_ANN_MODULE_GRAPH = nil
+
 fn int_lit(v) { return {"type": "Integer", "token": nil, "value": v} }
+
+fn ta_str_contains(s, needle) {
+    if s == nil || needle == nil { return false }
+    var n = oren_string_len(s)
+    var m = oren_string_len(needle)
+    if m == 0 { return true }
+    if n < m { return false }
+    var i = 0
+    while i <= n - m {
+        if oren_string_slice(s, i, i + m) == needle { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn ta_path_is_std_ints(path) {
+    if path == nil { return false }
+    if path == "std:ints" || path == "std/ints" || path == "std:ints.oren" || path == "std/ints.oren" { return true }
+    if path == "lib/std/ints.oren" { return true }
+    if ta_str_contains(path, "/lib/std/ints.oren") { return true }
+    if ta_str_contains(path, "\\lib\\std\\ints.oren") { return true }
+    return false
+}
+
+fn ta_path_is_std_casts(path) {
+    if path == nil { return false }
+    if path == "std:casts" || path == "std/casts" || path == "std:casts.oren" || path == "std/casts.oren" { return true }
+    if path == "lib/std/casts.oren" { return true }
+    if ta_str_contains(path, "/lib/std/casts.oren") { return true }
+    if ta_str_contains(path, "\\lib\\std\\casts.oren") { return true }
+    return false
+}
+
+fn ta_graph_path_for_prefix(prefix) {
+    var g = TYPE_ANN_MODULE_GRAPH
+    if g == nil || prefix == nil { return nil }
+    var imports = g["imports"]
+    var i = 0
+    while imports != nil && i < oren_list_len(imports) {
+        var e = imports[i]
+        if e != nil && e["prefix"] == prefix { return e["full"] }
+        i = i + 1
+    }
+    var mods = g["modules"]
+    i = 0
+    while mods != nil && i < oren_list_len(mods) {
+        var m = mods[i]
+        if m != nil && m["prefix"] == prefix { return m["path"] }
+        var imps = nil
+        if m != nil { imps = m["imports"] }
+        var j = 0
+        while imps != nil && j < oren_list_len(imps) {
+            var ie = imps[j]
+            if ie != nil && ie["prefix"] == prefix { return ie["full"] }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn ta_std_cast_member_kind(fn_expr) {
+    if fn_expr == nil || fn_expr["type"] != "Member" { return nil }
+    var left = fn_expr["left"]
+    var prop = fn_expr["prop"]
+    if left == nil || left["type"] != "Identifier" { return nil }
+    if prop == nil || prop["type"] != "Identifier" { return nil }
+    var prefix = TYPE_ANN_ALIASES[left["value"]]
+    if prefix == nil { return nil }
+    var path = ta_graph_path_for_prefix(prefix)
+    var name = prop["value"]
+    var kind = normalize_kind_for_value_cast(name)
+    if kind == nil { return nil }
+    if ta_path_is_std_casts(path) {
+        if kind == "u8" || kind == "i8" || kind == "u16" || kind == "i16" || kind == "u32" || kind == "i32" || kind == "u64" || kind == "i64" || kind == "bool" || kind == "f32" || kind == "f64" {
+            return kind
+        }
+    }
+    if ta_path_is_std_ints(path) {
+        if kind == "u8" || kind == "i8" || kind == "u16" || kind == "i16" || kind == "u32" || kind == "i32" || kind == "u64" || kind == "i64" {
+            return kind
+        }
+    }
+    return nil
+}
 
 fn mask_expr(x, mask_str) {
     return ast.new_infix(nil, x, "&", int_lit(mask_str))
@@ -88,7 +176,7 @@ fn expr_is_definitely_int(expr) {
     }
 
     if t == "Call" {
-        var fn0 = expr["function"]
+        var fn0 = expr["fn"]
         if fn0 != nil && fn0["type"] == "Identifier" {
             var nm = fn0["value"]
             // Explicit float boundaries are not int.
@@ -390,6 +478,10 @@ fn lower_expr_in_place(expr, type_kinds, ret_kind) {
                 return cast_expr_for_kind(nm1, args[0])
             }
         }
+        if fn1 != nil && fn1["type"] == "Member" && expr["spread"] == nil && oren_list_len(args) == 1 {
+            var kk_member = ta_std_cast_member_kind(fn1)
+            if kk_member != nil { return cast_expr_for_kind(kk_member, args[0]) }
+        }
 
         // Struct/class constructor normalization:
         // If callee is an Identifier that names a known type, cast args by field annotation.
@@ -577,25 +669,28 @@ fn collect_type_kinds_in_stmt(stmt, type_kinds) {
     return nil
 }
 
-	fn lower_linked_program_in_place(linked) {
-	    if linked == nil { return nil }
+fn lower_linked_program_in_place(linked) {
+    if linked == nil { return nil }
+    TYPE_ANN_ALIASES = linked["aliases"]
+    if TYPE_ANN_ALIASES == nil { TYPE_ANN_ALIASES = {} }
+    TYPE_ANN_MODULE_GRAPH = linked["module_graph"]
 
-	    // Build mapping: TypeName -> [field_kind_or_nil...]
-	    var type_kinds = {}
-	    var stmts = linked["statements"]
-	    var i = 0
-	    while i < oren_list_len(stmts) {
-	        collect_type_kinds_in_stmt(stmts[i], type_kinds)
-	        i = i + 1
-	    }
+    // Build mapping: TypeName -> [field_kind_or_nil...]
+    var type_kinds = {}
+    var stmts = linked["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        collect_type_kinds_in_stmt(stmts[i], type_kinds)
+        i = i + 1
+    }
 
-	    // Rewrite expressions in all statements.
-	    i = 0
-	    while i < oren_list_len(stmts) {
-	        lower_stmt_in_place(stmts[i], type_kinds, nil)
-	        i = i + 1
-	    }
+    // Rewrite expressions in all statements.
+    i = 0
+    while i < oren_list_len(stmts) {
+        lower_stmt_in_place(stmts[i], type_kinds, nil)
+        i = i + 1
+    }
 
-	    linked["type_kinds"] = type_kinds
-	    return linked
-	}
+    linked["type_kinds"] = type_kinds
+    return linked
+}

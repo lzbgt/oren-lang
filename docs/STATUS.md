@@ -2380,6 +2380,17 @@ Local (fast):
   (`OREN_OPT_SPLIT_INVARIANT_LIST_PUSH=1`) for future measured tuning, but it no longer blocks YAML
   native fast-lane admission. The stage1 native quick integration now runs the YAML comments and
   YAML serde-attribute module fixtures as follow-on codec smokes.
+- Type-annotation lowering now recognizes one-argument member calls through stdlib `std:ints` and
+  `std:casts` imports and rewrites them to the same deterministic cast sugar used for `u8(x)`,
+  `i32(x)`, `f32(x)`, etc. That fixes the native untagged-helper gap where `ints.u8(1.9)` and
+  `casts.u8(1.9)` could bypass float-to-int truncation even though the bare cast syntax was already
+  correct; `tests/modules/test_int_casts.oren` now guards the native and bytecode behavior.
+- Follow-up fact from restoring `tests/modules/test_integration_suite.oren --backend native`: the
+  suite now gets past the stdlib cast wrapper checks, but still fails at `matmul_f32_buf[0]`.
+  A focused native probe shows the f32 typed-buffer matmul path writes through f64 scratch values
+  after the native backend loses floaty state for `oren_buf_load_f64(...)` temporaries; bytecode
+  produces the expected `[1.0, 2.0, 3.0, 4.0]`. The next fix should target the native f64-scratch
+  load/store representation boundary in linalg rather than weakening the integration fixture.
 - ARM64 statement compilation now initializes the loop/statement compile hooks once per codegen
   context instead of resetting module globals on every statement. Native phase profiling also splits
   wrapper emission into `wrappers.scan.done`, `wrappers.fnwrap.done`, and `wrappers.lambda.done`.
