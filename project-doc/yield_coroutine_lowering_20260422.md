@@ -210,6 +210,12 @@ backend-shared value-helper slices landed.
     eager-target experiment therefore does not help this surface, and a recent-first scan-order
     experiment also regressed. Keep the next resolver pass fact-based rather than reopening those
     two rejected hypotheses.
+  - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions now skip
+    native call-depth enter/exit instrumentation on ARM64 and x64 because the real target function
+    still carries the guard. Lambda wrappers remain guarded because they own their body. The measured
+    generator profile moves `fnwrap` from the prior ~5.8s / 29700 bytes / 37 funcs to ~3.9s / 28516
+    bytes / 37 funcs, with local BL fixups down to 11174. Remaining backend work should still target
+    user-declaration codegen, lambda-wrapper codegen, or the first BL resolve bucket.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

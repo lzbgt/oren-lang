@@ -2435,6 +2435,13 @@ Local (fast):
   `resolved` target counts. The generator profile reports `prefilled=0 resolved=11285`, and a
   recent-first scan-order experiment regressed the same surface, so the next credible local-BL work
   should avoid both eager-target and scan-order hypotheses unless a different fixture proves them.
+- ARM64/x64 named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions are
+  now marked as thin dispatch wrappers and skip native call-depth enter/exit instrumentation. The real
+  target function still carries the stack-depth guard, while lambda wrappers remain guarded because
+  they own the lambda body. The generator native profile moved `fnwrap` from the prior ~5.8s / 29700
+  bytes / 37 funcs to ~3.9s / 28516 bytes / 37 funcs, and local BL fixups dropped to 11174. This is a
+  safe wrapper-shape cleanup, not the final throughput fix; `user_decls`, `lambda_wrap`, and the first
+  local BL resolve bucket remain the largest backend costs.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to

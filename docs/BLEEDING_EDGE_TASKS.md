@@ -4956,6 +4956,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        `prefilled=0 resolved=11285`; a recent-first linear scan experiment was also
 														        measured and rejected. Reweight away from eager-target or scan-order retries
 														        unless another fixture gives different facts.
+														      - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*`
+														        functions now carry a compiler-internal marker that skips native call-depth
+														        enter/exit instrumentation on ARM64 and x64. The actual target function
+														        still carries the guard, while lambda wrappers stay guarded because their
+														        wrapper is the body. The generator native profile moves `fnwrap` from the
+														        prior ~5.8s / 29700 bytes / 37 funcs to ~3.9s / 28516 bytes / 37 funcs,
+														        and local BL fixups drop to 11174. Keep the remaining backend work focused
+														        on `user_decls`, `lambda_wrap`, and the first BL resolve bucket.
 															      - the generator surface fixture now splits its formerly monolithic native
 															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /

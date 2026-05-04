@@ -1312,6 +1312,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
             var ffile0 = nil
             if ftok0 != nil { ffile0 = ftok0["file"] }
             if expr["__oren_from_runtime"] == true { ctx["call_depth_enabled"] = false }
+            if expr["__oren_no_call_depth"] == true { ctx["call_depth_enabled"] = false }
             if ffile0 == "lib/runtime_native.oren" { ctx["call_depth_enabled"] = false }
             if ffile0 == "lib/runtime_native_core.oren" { ctx["call_depth_enabled"] = false }
             if ffile0 == "lib/runtime_native_capsule.oren" { ctx["call_depth_enabled"] = false }
