@@ -36,7 +36,7 @@ fn _generator_core_src() {
     src = src + "    return _oren_generator_err(ctx, \"expected generator context\")\n"
     src = src + "}\n"
     src = src + "fn _oren_generator_expect_close_hook(hook, ctx) {\n"
-    src = src + "    if oren_type_name(hook) == \"func\" { return nil }\n"
+    src = src + "    if oren_type_tag(hook) == 8 { return nil }\n"
     src = src + "    return _oren_generator_err(ctx, \"expected zero-arg function finalizer hook\")\n"
     src = src + "}\n"
     src = src + "fn _oren_generator_get(gen, slot) { return oren_generator_slot_get_internal(gen, slot) }\n"

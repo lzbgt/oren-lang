@@ -24,9 +24,12 @@ fn _task_handle_ok(handle) {
     return oren_task_is_handle(handle) == true
 }
 
+fn _task_is_int(v) { return oren_type_tag(v) == 1 }
+fn _task_is_string(v) { return oren_type_tag(v) == 4 }
+
 fn _task_timeout_ms(ctx, timeout_ms) {
     if oren_type_tag(timeout_ms) == 0 { return -1 }
-    if oren_type_name(timeout_ms) != "int" {
+    if _task_is_int(timeout_ms) != true {
         return _task_err(ctx, "expected int timeout_ms")
     }
     return timeout_ms
@@ -42,7 +45,7 @@ fn _task_policy_map(ctx, policy) {
 
 fn _task_stop_mode(ctx, mode0) {
     if oren_type_tag(mode0) == 0 { return "stop" }
-    if oren_type_name(mode0) != "string" {
+    if _task_is_string(mode0) != true {
         return _task_err(ctx, "expected string mode")
     }
     var mode = mode0
@@ -55,7 +58,7 @@ fn _task_stop_mode(ctx, mode0) {
 
 fn _task_stop_timeout_ms(ctx, timeout_ms) {
     if oren_type_tag(timeout_ms) == 0 { return 0 }
-    if oren_type_name(timeout_ms) != "int" {
+    if _task_is_int(timeout_ms) != true {
         return _task_err(ctx, "expected int timeout_ms")
     }
     if timeout_ms < 0 { return 0 }
@@ -64,7 +67,7 @@ fn _task_stop_timeout_ms(ctx, timeout_ms) {
 
 fn _task_stop_deadline_ns_arg(ctx, deadline_ns) {
     if oren_type_tag(deadline_ns) == 0 { return nil }
-    if oren_type_name(deadline_ns) != "int" {
+    if _task_is_int(deadline_ns) != true {
         return _task_err(ctx, "expected int deadline_ns")
     }
     return deadline_ns
@@ -72,7 +75,7 @@ fn _task_stop_deadline_ns_arg(ctx, deadline_ns) {
 
 fn _task_stop_grace_ms(ctx, grace_ms) {
     if oren_type_tag(grace_ms) == 0 { return 0 }
-    if oren_type_name(grace_ms) != "int" {
+    if _task_is_int(grace_ms) != true {
         return _task_err(ctx, "expected int grace_ms")
     }
     if grace_ms < 0 { return 0 }
@@ -93,7 +96,7 @@ fn _task_stop_delay_ms(deadline_ns, timeout_ms) {
 
 fn _task_stop_join_timeout_arg(ctx, join_timeout_ms) {
     if oren_type_tag(join_timeout_ms) == 0 { return nil }
-    if oren_type_name(join_timeout_ms) != "int" {
+    if _task_is_int(join_timeout_ms) != true {
         return _task_err(ctx, "expected int join_timeout_ms")
     }
     return join_timeout_ms
@@ -107,7 +110,7 @@ fn _task_stop_wait_ms(delay_ms, grace_ms) {
 
 fn _task_stop_wait_budget_ms(ctx, join_timeout_ms, default_wait_ms) {
     if oren_type_tag(join_timeout_ms) == 0 { return default_wait_ms }
-    if oren_type_name(join_timeout_ms) != "int" {
+    if _task_is_int(join_timeout_ms) != true {
         return _task_err(ctx, "expected int join_timeout_ms")
     }
     if join_timeout_ms < 0 { return default_wait_ms }

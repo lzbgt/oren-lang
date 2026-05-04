@@ -2730,6 +2730,13 @@ Local (fast):
   `10.2s / 292144 bytes / 284 funcs`. A broader rewrite of handle/context checks to raw tags was rejected:
   native `test_generator_std.oren` failed at `gen.terminal_result(g)`, proving the std facade cannot use raw
   tag checks for dedicated generator objects without a separate runtime-layout proof.
+- `std:task` and `std:task_group` now follow the same primitive-only type-tag rule for `int`/`string`
+  policy arguments, and generated generator close-hook validation now checks the stable `FUNC` tag (`8`)
+  instead of calling `oren_type_name(hook)`. Map/list/generator handle/context checks remain name-based.
+  The task, task-group, generator surface, and generator-finalize verifiers pass across the relevant
+  bytecode/C/native surfaces. The refreshed default generator profile stays in the previous band at about
+  `10.0s / 292000 bytes / 284 funcs`; this is cross-surface primitive guard cleanup, not the next large
+  generator `user_decls` wall-time lever.
 - Rejected follow-up (2026-05-05): moving the checked `Index(map,str-literal)` validation into a new kept
   `oren_map_get_str_checked` runtime helper built successfully but made native map/generator fixtures exit
   `11`. Adding the name to the native-op spill surface did not fix the calling-convention/entry failure, so

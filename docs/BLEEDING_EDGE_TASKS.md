@@ -5310,16 +5310,24 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																					        `user_decls` to about `11.1s / 292072 bytes / 282 funcs`. A shared
 																					        `native_data_add_cstr0` MRU was rejected because unrelated literals
 																					        polluted it and left `load_key` near `13.1s`.
-																					      - `std:generator` now uses `oren_type_tag(...)` for primitive `int`/`string`
-																					        policy argument guards while preserving `oren_type_name(...)` for generator
-																					        handle/context and map checks. Focused generator checks pass, and the
-																					        default generator profile moves `user_decls` from about
-																					        `11.1s / 292072 bytes / 282 funcs` to about
-																					        `10.2s / 292144 bytes / 284 funcs`. A broader raw-tag rewrite for
-																					        generator handle/context checks was rejected because native
-																					        `test_generator_std.oren` failed at `gen.terminal_result(g)`.
-																					      - rejected helper path: moving that checked validation into a new kept
-																				        `oren_map_get_str_checked` runtime helper built, but native map and
+																						      - `std:generator` now uses `oren_type_tag(...)` for primitive `int`/`string`
+																						        policy argument guards while preserving `oren_type_name(...)` for generator
+																						        handle/context and map checks. Focused generator checks pass, and the
+																						        default generator profile moves `user_decls` from about
+																						        `11.1s / 292072 bytes / 282 funcs` to about
+																						        `10.2s / 292144 bytes / 284 funcs`. A broader raw-tag rewrite for
+																						        generator handle/context checks was rejected because native
+																						        `test_generator_std.oren` failed at `gen.terminal_result(g)`.
+																						      - `std:task` and `std:task_group` now also use primitive-only tag guards for
+																						        `int`/`string` policy arguments, and generated generator close-hook
+																						        validation uses the stable function tag (`8`) instead of `oren_type_name`.
+																						        Reflection-sensitive map/list/generator handle/context checks remain
+																						        name-based. The task/task-group and generator finalize/surface verifiers
+																						        pass; the default generator profile remains in-band at about
+																						        `10.0s / 292000 bytes / 284 funcs`, so classify this as cross-surface
+																						        guard cleanup rather than the next large `user_decls` wall-time lever.
+																						      - rejected helper path: moving that checked validation into a new kept
+																					        `oren_map_get_str_checked` runtime helper built, but native map and
 																				        generator fixtures exited `11`; adding it to the native-op spill surface
 																				        did not fix the direct-call ABI/entry failure. Do not repeat this helper
 																				        design without first proving ABI parity with `oren_map_get_str`.

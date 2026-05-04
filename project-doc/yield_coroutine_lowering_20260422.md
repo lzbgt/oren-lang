@@ -461,6 +461,12 @@ backend-shared value-helper slices landed.
     `user_decls` moves from ~11.1s / 292072 bytes / 282 funcs to ~10.2s / 292144 bytes / 284 funcs. A broader
     raw-tag rewrite for generator handles/contexts was rejected because native `test_generator_std.oren`
     failed at `gen.terminal_result(g)`, so keep that boundary closed without a runtime-layout proof.
+  - Primitive guard follow-up (2026-05-05): `std:task` and `std:task_group` now use the same tag-only rule
+    for `int`/`string` policy arguments, and generated generator close-hook validation checks the stable
+    `FUNC` tag (`8`) instead of reflecting `oren_type_name(hook)`. Map/list/generator handle/context checks
+    intentionally remain name-based. The task/task-group and generator finalize/surface verifiers pass; the
+    refreshed default generator profile remains in-band at ~10.0s / 292000 bytes / 284 funcs, so this is
+    cross-surface guard cleanup rather than the next large `user_decls` lever.
   - Rejected helper path (2026-05-05): a new kept `oren_map_get_str_checked` runtime helper was tested to move
     the validation sequence out of each ARM64 map string-literal index site. It built, but native map/generator
     fixtures exited `11`; adding the helper name to the native-op spill surface did not fix the direct-call
