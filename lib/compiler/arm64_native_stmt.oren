@@ -405,29 +405,26 @@ fn _arm64_fnwrap_id(name) { return {"type": "Identifier", "value": name} }
 fn _arm64_fnwrap_int(v) { return {"type": "Integer", "value": oren_int_to_string(v)} }
 fn _arm64_fnwrap_call(name, args) { return {"type": "Call", "fn": _arm64_fnwrap_id(name), "args": args} }
 
+fn _arm64_emit_guard_cmp_imm(ctx, expr, imm, ok_cond, msg) {
+    native_compile_expr(ctx, expr)
+    emit_load_i64_imm(ctx, 1, imm)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+    var ok_jump = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    native_emit_panic(ctx, msg)
+    var ok_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], ok_jump, insn_b_cond((ok_pos - ok_jump) / 4, ok_cond))
+    return nil
+}
+
 fn _arm64_emit_direct_fixed_fnwrap_body(ctx, target_name, arity) {
     if target_name == nil || target_name == "" { return nil }
     if oren_type_tag(arity) != 1 || arity < 0 { return nil }
 
     // Keep the existing wrapper ABI and panic contract, but avoid lowering the
     // synthesized wrapper as a generic Block/If/Return statement tree.
-    native_compile_expr(ctx, _arm64_fnwrap_id("__env"))
-    push_u32_le(ctx["code"], insn_movz(1, 0))
-    push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
-    var env_ok_jump = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    native_emit_panic(ctx, "env mismatch")
-    var env_ok_pos = bytes_len(ctx["code"])
-    set_u32_le(ctx["code"], env_ok_jump, insn_b_cond((env_ok_pos - env_ok_jump) / 4, 0)) // EQ
-
-    native_compile_expr(ctx, _arm64_fnwrap_call("oren_list_len", [_arm64_fnwrap_id("__args")]))
-    emit_load_i64_imm(ctx, 1, arity)
-    push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
-    var arity_ok_jump = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    native_emit_panic(ctx, "arity mismatch")
-    var arity_ok_pos = bytes_len(ctx["code"])
-    set_u32_le(ctx["code"], arity_ok_jump, insn_b_cond((arity_ok_pos - arity_ok_jump) / 4, 0)) // EQ
+    _arm64_emit_guard_cmp_imm(ctx, _arm64_fnwrap_id("__env"), 0, 0, "env mismatch") // EQ
+    _arm64_emit_guard_cmp_imm(ctx, _arm64_fnwrap_call("oren_list_len", [_arm64_fnwrap_id("__args")]), arity, 0, "arity mismatch") // EQ
 
     var call_args = []
     var i = 0
@@ -437,6 +434,73 @@ fn _arm64_emit_direct_fixed_fnwrap_body(ctx, target_name, arity) {
     }
     native_compile_stmt(ctx, {"type": "Return", "value": _arm64_fnwrap_call(target_name, call_args)})
     return false
+}
+
+fn _arm64_lambdawrap_arg_expr(idx, pnode) {
+    var val = _arm64_fnwrap_call("oren_list_get", [_arm64_fnwrap_id("__args"), _arm64_fnwrap_int(idx)])
+    var ann = nil
+    if pnode != nil { ann = pnode["ann_type"] }
+    if ann != nil && oren_string_len(ann) > 5 {
+        if oren_string_slice(ann, 0, 5) == "oren." { ann = oren_string_slice(ann, 5, oren_string_len(ann)) }
+    }
+    if ann == "f64" { return _arm64_fnwrap_call("oren_u64_bits_to_f64", [val]) }
+    if ann == "f32" { return _arm64_fnwrap_call("oren_u32_bits_to_f32", [val]) }
+    return val
+}
+
+fn _arm64_emit_direct_lambdawrap_body(ctx, def, fixed) {
+    if def == nil { return nil }
+    var fun = def["fun"]
+    if fun == nil { return nil }
+    var params = fun["params"]
+    if fixed >= 0 { return nil }
+
+    var base_stack = ctx["stack_size"]
+    scope_enter_codegen(ctx)
+
+    var caps = def["captures"]
+    if caps == nil { caps = [] }
+    var cap_count = oren_list_len(caps)
+    if cap_count == 0 {
+        _arm64_emit_guard_cmp_imm(ctx, _arm64_fnwrap_id("__env"), 0, 0, "closure env mismatch") // EQ
+    } else {
+        _arm64_emit_guard_cmp_imm(ctx, _arm64_fnwrap_id("__env"), 0, 1, "closure env mismatch") // NE
+        _arm64_emit_guard_cmp_imm(ctx, _arm64_fnwrap_call("oren_list_len", [_arm64_fnwrap_id("__env")]), cap_count, 0, "closure env mismatch") // EQ
+    }
+
+    var param_count = oren_list_len(params)
+    _arm64_emit_guard_cmp_imm(ctx, _arm64_fnwrap_call("oren_list_len", [_arm64_fnwrap_id("__args")]), param_count, 0, "arity mismatch") // EQ
+
+    var i = 0
+    while i < cap_count {
+        var cname = caps[i]
+        native_compile_stmt(ctx, {"type": "Var", "name": _arm64_fnwrap_id(cname), "value": _arm64_fnwrap_call("oren_list_get", [_arm64_fnwrap_id("__env"), _arm64_fnwrap_int(i)])})
+        i = i + 1
+    }
+
+    i = 0
+    while i < param_count {
+        var pnode = params[i]
+        native_compile_stmt(ctx, {"type": "Var", "name": _arm64_fnwrap_id(pnode["value"]), "value": _arm64_lambdawrap_arg_expr(i, pnode)})
+        i = i + 1
+    }
+
+    var body_stmts = fun["body"]["stmts"]
+    i = 0
+    var falls_through = true
+    while i < oren_list_len(body_stmts) {
+        var r = native_compile_stmt(ctx, body_stmts[i])
+        if r == false {
+            falls_through = false
+            break
+        }
+        i = i + 1
+    }
+
+    if falls_through == true { loopm._arm64_restore_stack_to(ctx, base_stack) }
+    else { ctx["stack_size"] = base_stack }
+    scope_exit_codegen(ctx)
+    return true
 }
 
 
@@ -1581,7 +1645,15 @@ fn native_compile_stmt_inner(ctx, stmt) {
             if direct_fnwrap_target != nil {
                 _arm64_emit_direct_fixed_fnwrap_body(ctx, direct_fnwrap_target, direct_fnwrap_arity)
             } else {
-                native_compile_stmt(ctx, expr["body"])
+                var direct_lambdawrap_def = expr["__oren_direct_lambdawrap_def"]
+                var direct_lambdawrap_fixed = expr["__oren_direct_lambdawrap_fixed"]
+                var emitted_direct_lambdawrap = false
+                if direct_lambdawrap_def != nil {
+                    if _arm64_emit_direct_lambdawrap_body(ctx, direct_lambdawrap_def, direct_lambdawrap_fixed) == true { emitted_direct_lambdawrap = true }
+                }
+                if emitted_direct_lambdawrap != true {
+                    native_compile_stmt(ctx, expr["body"])
+                }
             }
             ctx["arm64_basic_block_entry"] = prev_bb_fn_body
             

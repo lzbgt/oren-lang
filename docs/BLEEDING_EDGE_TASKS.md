@@ -4973,14 +4973,23 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															      - Direct fixed-fnwrap body emission (2026-05-04): fixed-arity
 															        `__oren_fnwrap_*` functions now keep the synthesized AST body for
 															        non-ARM64 backends but carry metadata so ARM64 emits the env/arity
-															        checks and target call directly inside the existing function frame. The
-															        generator profile moves `fnwrap` from ~4.0s / 28516 bytes / 37 funcs to
-															        ~0.95s / 19932 bytes / 37 funcs; reweight named-function wrappers down
-															        and keep the next backend slice on `user_decls`, `lambda_wrap`, or the
-															        first BL resolve bucket.
-															      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
-															        make profile-native-build-phases` now enables gated inclusive ARM64
-														        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
+																        checks and target call directly inside the existing function frame. The
+																        generator profile moves `fnwrap` from ~4.0s / 28516 bytes / 37 funcs to
+																        ~0.95s / 19932 bytes / 37 funcs; reweight named-function wrappers down
+																        and keep the next backend slice on `user_decls`, `lambda_wrap`, or the
+																        first BL resolve bucket.
+																      - Direct fixed-lambdawrap prefix emission (2026-05-04): fixed-arity
+																        `__oren_lambda_*` wrappers keep the synthesized AST body for fallback
+																        and non-ARM64 paths, but ARM64 emits the generated env/arity checks
+																        plus capture/parameter binding prefix directly before compiling the
+																        original lambda body normally. The generator profile moves
+																        `lambda_wrap` from ~7.8s / 72368 bytes / 52 funcs to ~1.7s / 54968
+																        bytes / 52 funcs. Varargs lambdas still use the generic wrapper path;
+																        reweight remaining backend work toward `user_decls` and the first BL
+																        resolve bucket.
+																      - Statement-profile follow-up (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1
+																        make profile-native-build-phases` now enables gated inclusive ARM64
+															        statement buckets via `OREN_TRACE_ARM64_STMTS_PATH`. The default profile
 														        path stays at phase/function granularity to avoid per-statement aggregation
 														        overhead. The first generator run shows `user_decls ExprStmt(If)` at ~16.5s
 														        / 854 stmts, `user_decls Var` at ~2.7s / 579 stmts, and `user_decls Return`

@@ -227,6 +227,12 @@ backend-shared value-helper slices landed.
     profile moves `fnwrap` to ~0.95s / 19932 bytes / 37 funcs, so named-function wrappers are no
     longer the dominant wrapper boundary; `lambda_wrap`, `user_decls`, and the first BL resolve bucket
     remain.
+  - Direct fixed-lambdawrap prefix emission (2026-05-04): fixed-arity `__oren_lambda_*` wrappers keep
+    their synthesized AST body for fallback and non-ARM64 paths, but ARM64 now emits the generated
+    env/arity checks plus capture/parameter binding prefix directly and then compiles the original
+    lambda body normally. The refreshed generator profile moves `lambda_wrap` to ~1.7s / 54968 bytes /
+    52 funcs, so wrapper codegen is no longer the dominant native-build boundary; large user bodies and
+    the first local BL resolve bucket remain.
   - ARM64 statement profiling (2026-05-04): `OREN_PROFILE_NATIVE_STMTS=1 make
     profile-native-build-phases` now enables `OREN_TRACE_ARM64_STMTS_PATH` and summarizes inclusive
     statement buckets by phase/function/type. The default profile path remains phase/function-only to

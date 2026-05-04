@@ -2458,6 +2458,13 @@ Local (fast):
   generator profile moves `fnwrap` from ~4.0s / 28516 bytes / 37 funcs to ~0.95s / 19932 bytes /
   37 funcs. This closes the named-function wrapper cost enough that remaining backend throughput work
   should prioritize `user_decls`, `lambda_wrap`, and the first local BL resolve bucket.
+- ARM64 direct fixed-lambdawrap prefix emission (2026-05-04): fixed-arity `__oren_lambda_*`
+  wrappers still retain the synthesized AST body for fallback/non-ARM64 paths, but ARM64 now consumes
+  wrapper metadata to emit the generated env/arity checks plus capture/parameter binding prefix
+  directly, then compiles the original lambda body normally. The generator profile moves `lambda_wrap`
+  from ~7.8s / 72368 bytes / 52 funcs to ~1.7s / 54968 bytes / 52 funcs. Varargs lambdas still use the
+  generic synthesized wrapper path. Remaining backend throughput work is now concentrated in large
+  `user_decls` bodies and the first local BL resolve bucket.
 - ARM64 statement profiling (2026-05-04): `OREN_TRACE_ARM64_STMTS_PATH` records gated inclusive
   statement codegen buckets, and `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`
   summarizes them without enabling the extra per-statement aggregation in the default profile path.

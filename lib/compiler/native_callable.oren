@@ -1026,5 +1026,7 @@ fn synth_lambda_wrapper(def) {
     }
 
     var wrapper_fun = {"type": "Function", "name": lname, "params": params, "body": node_block(stmts)}
+    wrapper_fun["__oren_direct_lambdawrap_def"] = def
+    wrapper_fun["__oren_direct_lambdawrap_fixed"] = fixed
     return node_expr_stmt(wrapper_fun)
 }
