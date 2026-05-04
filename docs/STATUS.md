@@ -2440,6 +2440,11 @@ Local (fast):
   `resolved` target counts. The generator profile reports `prefilled=0 resolved=11285`, and a
   recent-first scan-order experiment regressed the same surface, so the next credible local-BL work
   should avoid both eager-target and scan-order hypotheses unless a different fixture proves them.
+- Follow-up cleanup (2026-05-04): the local resolver now also records each unique target name's last
+  byte beside length and first byte before falling back to full byte-content comparison. The refreshed
+  generator profile remains content-correct and reports local BL resolve buckets around
+  `~2386ms + ~25ms + ~62ms` for `n=11174`; this trims later scans but still leaves the first bucket
+  as a real backend cost. Keep the main native-build focus on `user_decls` / `lambda_wrap`.
 - ARM64/x64 named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions are
   now marked as thin dispatch wrappers and skip native call-depth enter/exit instrumentation. The real
   target function still carries the stack-depth guard, while lambda wrappers remain guarded because

@@ -79,14 +79,16 @@ fn _macho_str_eq_bytes_known_len(a, b, len) {
     return true
 }
 
-fn _macho_lookup_function_linear(names, offs, lens, first_bytes, ctx, functions, name) {
+fn _macho_lookup_function_linear(names, offs, lens, first_bytes, last_bytes, ctx, functions, name) {
     if name == nil { return nil }
     var name_len = oren_string_len(name)
     var name_first = -1
     if name_len > 0 { name_first = oren_string_byte_at_unchecked(name, 0) & 255 }
+    var name_last = -1
+    if name_len > 0 { name_last = oren_string_byte_at_unchecked(name, name_len - 1) & 255 }
     var i = 0
     while i < oren_list_len(names) {
-        if lens[i] == name_len && first_bytes[i] == name_first {
+        if lens[i] == name_len && first_bytes[i] == name_first && last_bytes[i] == name_last {
             if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true { return offs[i] }
         }
         i = i + 1
@@ -97,6 +99,7 @@ fn _macho_lookup_function_linear(names, offs, lens, first_bytes, ctx, functions,
         oren_list_push(offs, off)
         oren_list_push(lens, name_len)
         oren_list_push(first_bytes, name_first)
+        oren_list_push(last_bytes, name_last)
     }
     return off
 }
@@ -1484,6 +1487,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var local_target_offs = []
     var local_target_lens = []
     var local_target_first_bytes = []
+    var local_target_last_bytes = []
     if local_bl_target == nil || oren_list_len(local_bl_target) != oren_list_len(local_bl_name) {
         local_bl_target = oren_list_new_cap(oren_list_len(local_bl_name))
         if oren_is_err(local_bl_target) { local_bl_target = [] }
@@ -1506,7 +1510,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var target_local = local_bl_target[i]
         if target_local == nil {
             var name_bl_local = local_bl_name[i]
-            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, ctx, functions, name_bl_local)
+            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_bl_local)
             if target_local == nil {
                 var e_local_bl = "native backend: undefined function " + name_bl_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
@@ -1560,7 +1564,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var target2_local = local_adr_code_target[i]
         if target2_local == nil {
             var name_ac_local = local_adr_code_name[i]
-            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, ctx, functions, name_ac_local)
+            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_ac_local)
             if target2_local == nil {
                 var e_local_ac = "native backend: undefined function " + name_ac_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))

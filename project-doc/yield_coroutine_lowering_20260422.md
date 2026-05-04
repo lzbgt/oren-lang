@@ -210,6 +210,11 @@ backend-shared value-helper slices landed.
     eager-target experiment therefore does not help this surface, and a recent-first scan-order
     experiment also regressed. Keep the next resolver pass fact-based rather than reopening those
     two rejected hypotheses.
+  - Local BL target metadata follow-up (2026-05-04): the resolver now records each unique target
+    name's last byte in addition to length and first byte before full byte-content comparison. The
+    refreshed generator profile reports `~2386ms + ~25ms + ~62ms` local BL resolve buckets for
+    `n=11174`, so this is only a small later-scan cleanup; the first bucket and wrapper/user
+    declaration codegen remain the real backend-performance boundary.
   - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions now skip
     native call-depth enter/exit instrumentation on ARM64 and x64 because the real target function
     still carries the guard. Lambda wrappers remain guarded because they own their body. The measured

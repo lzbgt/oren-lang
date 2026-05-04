@@ -4951,13 +4951,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        (`~3419ms + ~107ms + ~146ms` local BL resolve buckets to
 														        `~3371ms + ~36ms + ~88ms`), so keep treating user-declaration/wrapper
 														        codegen and the first BL resolve bucket as the real remaining bottlenecks.
-														      - Follow-up instrumentation (2026-05-04): local BL resolve logs now include
-														        `prefilled` and `resolved` target counts. The generator profile reports
-														        `prefilled=0 resolved=11285`; a recent-first linear scan experiment was also
-														        measured and rejected. Reweight away from eager-target or scan-order retries
-														        unless another fixture gives different facts.
-														      - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*`
-														        functions now carry a compiler-internal marker that skips native call-depth
+															      - Follow-up instrumentation (2026-05-04): local BL resolve logs now include
+															        `prefilled` and `resolved` target counts. The generator profile reports
+															        `prefilled=0 resolved=11285`; a recent-first linear scan experiment was also
+															        measured and rejected. Reweight away from eager-target or scan-order retries
+															        unless another fixture gives different facts.
+															      - Follow-up cleanup (2026-05-04): the local target resolver now also stores
+															        each unique target name's last byte beside length and first byte before
+															        doing the full byte-content comparison. The refreshed generator profile is
+															        still dominated by the first BL resolve bucket (`~2386ms + ~25ms + ~62ms`,
+															        `n=11174`), so keep prioritizing `user_decls` / `lambda_wrap` unless a
+															        stronger first-bucket resolver design appears.
+															      - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*`
+															        functions now carry a compiler-internal marker that skips native call-depth
 														        enter/exit instrumentation on ARM64 and x64. The actual target function
 														        still carries the guard, while lambda wrappers stay guarded because their
 														        wrapper is the body. The generator native profile moves `fnwrap` from the
