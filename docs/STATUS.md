@@ -2452,6 +2452,10 @@ Local (fast):
   inclusive), so the next implementation work should target direct lambda-wrapper/body emission or
   the broad conditional-lowering cost in large generated user bodies. A top-function body-scope skip
   experiment was measured and rejected because it regressed `user_decls`, `fnwrap`, and `lambda_wrap`.
+  Follow-up probes rejected two more tempting paths: a narrow ARM64 `if { return }` block-skip
+  matcher produced unchanged code bytes and neutral-to-worse phase timings, and exclusive statement
+  profiling via per-depth child accounting pushed the statement-enabled native profile into the
+  180s timeout before `user_decls` completed. Do not retry either shape without a cheaper design.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to

@@ -4974,7 +4974,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        function/body envelope (`lambda_wrap ExprStmt(Function)` ~8.5s and
 														        `lambda_wrap Block` ~15.0s inclusive). A top-function body-scope skip
 														        experiment regressed the profile and should not be retried as-is.
-															      - the generator surface fixture now splits its formerly monolithic native
+														        Follow-up probes also rejected a narrow `if { return }` block-skip matcher
+														        (unchanged code bytes, neutral-to-worse phase timings) and exclusive
+														        statement profiling via per-depth child accounting (timed out at the
+														        180s native-profile budget before `user_decls` completed).
+																      - the generator surface fixture now splits its formerly monolithic native
 															        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 														        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).

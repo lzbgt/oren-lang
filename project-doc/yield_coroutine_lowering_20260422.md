@@ -224,6 +224,10 @@ backend-shared value-helper slices landed.
     `Return` (~2.4s / 1088) behind it; wrapper cost is dominated by the synthesized function/body
     envelope. A body-scope skip experiment regressed the profile, so the next implementation work
     should target direct lambda-wrapper/body emission or broad conditional-lowering cost instead.
+    Follow-up probes rejected a narrow `if { return }` block-skip matcher because it left output size
+    unchanged and was neutral-to-worse on phase timings; an exclusive statement-profiler variant using
+    per-depth child counters also exceeded the 180s statement-profile budget before `user_decls`
+    completed, so exclusive attribution needs a cheaper design before it is useful.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around
