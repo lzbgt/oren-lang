@@ -36,6 +36,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
+- Reweight (2026-05-05): ARM64 self-host generator codegen no longer has the earlier generic-call ABI/string-literal wall-time shape. Gated `CallGenericSub(...)` profiling showed helper-call cost was dominated by argument expression lowering, and the separate ordinary string-literal C-string MRU moved repeated default `user_decls` profiles to about `4.26s / 292000 bytes / 284 funcs`. Next backend work should not reopen broad small-call or `oren_is_err` inlining; target runtime-observable generator trace/error semantics or the separate Mach-O local BL traversal boundary.
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
   capability domains, failure model, and verification map; `oren meta` now emits a per-source
   `capabilities` manifest for `@cap.requires` functions; artifact `--manifest` output now carries

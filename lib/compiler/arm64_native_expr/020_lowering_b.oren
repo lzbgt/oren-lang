@@ -18,6 +18,13 @@ fn _arm64_call_profile_done(ctx, route, callee, argc, start) {
     return nil
 }
 
+fn _arm64_call_generic_subprofile_done(ctx, callee, argc, subphase, start) {
+    if start == nil { return nil }
+    if subphase == nil { subphase = "" }
+    _native_expr_subprof_done(ctx, "CallGenericSub(" + subphase + ":" + callee + "," + oren_int_to_string(argc) + ")", start)
+    return nil
+}
+
 fn _arm64_call_abi_cache(ctx) {
     if ctx == nil { return nil }
     if ctx["arm64_call_abi_regc"] != nil { return nil }
@@ -383,6 +390,7 @@ fn native_expr_chunk_call(ctx, expr) {
     // Generic call
     var nargs = args_n_direct
     var i = 0
+    var generic_sub_start = _native_expr_subprof_start(ctx)
 
     // Push args
     while i < nargs {
@@ -392,6 +400,7 @@ fn native_expr_chunk_call(ctx, expr) {
         ctx["stack_size"] = ctx["stack_size"] + 16
         i = i + 1
     }
+    _arm64_call_generic_subprofile_done(ctx, call_profile_callee, nargs, "arg_eval", generic_sub_start)
 
     // Native calling convention marshalling (Tier-1): use the shared ABI descriptor.
     //
@@ -399,6 +408,7 @@ fn native_expr_chunk_call(ctx, expr) {
     // - first N integer/pointer args in registers (X0..)
     // - remaining args on stack as 8-byte slots
     // - stack is 16-byte aligned at call boundaries
+    generic_sub_start = _native_expr_subprof_start(ctx)
     _arm64_call_abi_cache(ctx)
     var call_abi = nil
     var int_arg_regs = nil
@@ -420,9 +430,11 @@ fn native_expr_chunk_call(ctx, expr) {
         slot = callabi.stack_arg_slot_bytes(call_abi)
         align = callabi.stack_align_bytes(call_abi)
     }
+    _arm64_call_generic_subprofile_done(ctx, call_profile_callee, nargs, "abi_meta", generic_sub_start)
 
     // Our temporary arg-eval stack uses 16-byte slots. Convert into ABI form.
     // Save the current SP (points at arg[nargs-1] temporary slot) in X9.
+    generic_sub_start = _native_expr_subprof_start(ctx)
     push_u32_le(ctx["code"], insn_add_imm(9, 31, 0)) // X9 = SP (temp args base)
 
     var stack_arg_count = 0
@@ -442,8 +454,10 @@ fn native_expr_chunk_call(ctx, expr) {
             k = k + 1
         }
     }
+    _arm64_call_generic_subprofile_done(ctx, call_profile_callee, nargs, "stack_args", generic_sub_start)
 
     // Load register args from the temporary stack (do not destroy the ABI stack args).
+    generic_sub_start = _native_expr_subprof_start(ctx)
     var reg_arg_count = nargs
     if reg_arg_count > regc { reg_arg_count = regc }
     var r = 0
@@ -469,8 +483,10 @@ fn native_expr_chunk_call(ctx, expr) {
         emit_load_ptr_from_base_plus(ctx, dst_reg, 9, src_off2)
         r = r + 1
     }
+    _arm64_call_generic_subprofile_done(ctx, call_profile_callee, nargs, "reg_args", generic_sub_start)
 
     // BL
+    generic_sub_start = _native_expr_subprof_start(ctx)
     var bl_pos = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": fn_name})
@@ -492,13 +508,16 @@ fn native_expr_chunk_call(ctx, expr) {
             push_u32_le(ctx["code"], insn_movz(0, 0)) // X0 = 0
         }
     }
+    _arm64_call_generic_subprofile_done(ctx, call_profile_callee, nargs, "bl_retfix", generic_sub_start)
 
     // Clean up: pop ABI stack args area and the temporary arg-eval slots.
+    generic_sub_start = _native_expr_subprof_start(ctx)
     var cleanup = abi_stack_bytes + nargs * 16
     if cleanup > 0 {
         emit_add_sp_any(ctx, cleanup)
         ctx["stack_size"] = ctx["stack_size"] - cleanup
     }
+    _arm64_call_generic_subprofile_done(ctx, call_profile_callee, nargs, "cleanup", generic_sub_start)
 
     _arm64_call_profile_done(ctx, "generic", call_profile_callee, nargs, call_profile_start)
     return true

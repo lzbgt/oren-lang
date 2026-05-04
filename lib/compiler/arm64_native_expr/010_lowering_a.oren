@@ -57,6 +57,42 @@ fn _native_data_add_map_key_cstr0_cached(ctx, s) {
     return off
 }
 
+fn _native_data_add_string_lit_cstr0_cached(ctx, s) {
+    if ctx == nil { return nil }
+    if s == nil { s = "" }
+    var names = ctx["arm64_string_lit_cstr0_mru_names"]
+    var offs = ctx["arm64_string_lit_cstr0_mru_offs"]
+    if names == nil || offs == nil {
+        names = []
+        offs = []
+        ctx["arm64_string_lit_cstr0_mru_names"] = names
+        ctx["arm64_string_lit_cstr0_mru_offs"] = offs
+    }
+    var i = 0
+    var n = oren_list_len(names)
+    while i < n {
+        if _native_expr_str_eq_bytes(names[i], s) == true { return offs[i] }
+        i = i + 1
+    }
+
+    var off = native_data_add_cstr0(ctx, s)
+    if off == nil { return nil }
+    var cap = 16
+    if n < cap {
+        oren_list_push(names, s)
+        oren_list_push(offs, off)
+        return off
+    }
+    var next = ctx["arm64_string_lit_cstr0_mru_next"]
+    if oren_type_tag(next) == 0 { next = 0 }
+    names[next] = s
+    offs[next] = off
+    next = next + 1
+    if next >= cap { next = 0 }
+    ctx["arm64_string_lit_cstr0_mru_next"] = next
+    return off
+}
+
 fn _native_emit_load_cstr0_reg(ctx, s, reg) {
     var data_off = _native_data_add_map_key_cstr0_cached(ctx, s)
     if data_off == nil {
@@ -517,7 +553,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
 
         if expr["type"] == "String" {
             var s = expr["value"]
-            var data_off = native_data_add_cstr0(ctx, s)
+            var data_off = _native_data_add_string_lit_cstr0_cached(ctx, s)
             if data_off == nil {
                 native_error(ctx, expr["token"], "native backend: failed to add string literal data")
                 push_u32_le(ctx["code"], insn_movz(0, 0))

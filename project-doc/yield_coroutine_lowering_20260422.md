@@ -508,6 +508,16 @@ backend-shared value-helper slices landed.
     the duplicated predicate inflated default `user_decls` to ~17.9s / 337792 bytes / 284 funcs from the
     post-ABI-cache ~10.06s / 292000 bytes, so the source probe was reverted. The next `oren_is_err` attempt
     needs a branch-only use-site or smaller runtime representation, not full call-site inlining.
+  - ARM64 generic call subphase profiling + string-literal C-string MRU (2026-05-05): the gated statement
+    profile now records `CallGenericSub(arg_eval|abi_meta|stack_args|reg_args|bl_retfix|cleanup:<callee>,argc)`
+    rows, proving the remaining hot generic helper rows are dominated by argument expression lowering rather
+    than ABI metadata or BL/fixup emission. A separate ordinary string-literal C-string MRU now feeds the
+    `String` expression path without sharing or polluting the already-measured map-key MRU. Repeated default
+    profiles move generator `user_decls` from the post-ABI-cache ~10.06s / 292000 bytes / 284 funcs to
+    ~4.26s / 292000 bytes / 284 funcs, while the statement profile collapses `oren_is_err` arg-eval from
+    ~1.3s / 318 calls to ~0.17s and `STD_generator__generator_cancel_target_err` arg-eval from ~1.7s /
+    27 calls to ~0.12s. `_oren_generator_trace` remains a visible call row because its runtime env/trace
+    semantics are observable; do not remove it without preserving `OREN_TRACE_GENERATOR_CORE`.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

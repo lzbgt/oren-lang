@@ -147,7 +147,7 @@ Design intent is bleeding‑edge (determinism + capability gating + AVM), but ex
 ### Backend readiness (rolling snapshot)
 
 - **C backend**: bootstrap path only; depends on host C toolchain; ABI/opcodes rolling; not production‑grade.
-- **Native backend**: Tier‑1 intent only; tagged‑value convergence still rolling; GC/allocator correctness is improving but not yet stable at production gates; hot‑loop parity still above target.
+- **Native backend**: Tier‑1 intent only; tagged‑value convergence still rolling; GC/allocator correctness is improving but not yet stable at production gates; hot‑loop parity still above target. The ARM64 self-host generator surface is now much healthier after the 2026-05-05 generic-call/string-literal cleanup: repeated default profiles put `user_decls` around `4.26s / 292000 bytes / 284 funcs`, down from the post-ABI-cache `~10.06s / 292000 bytes` baseline, with the remaining visible call row centered on runtime-observable generator tracing rather than broad ABI marshalling.
 - **AVM backend**: deterministic VM; single‑threaded today; heap uses `malloc` (no GC yet); opcode/ABI stability is rolling; capability gating exists but maturity is below production.
 
 ### Feature readiness gaps (requested)
