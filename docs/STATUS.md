@@ -2688,6 +2688,20 @@ Local (fast):
   ~6.8s / 179 stmts and nested-`||` is ~4.7s / 58 stmts, while consequence lowering is ~2.3s across
   860 statements. The next backend target is direct logical-condition lowering, not function setup or
   return-body cleanup.
+- ARM64 logical-condition profiling now records gated `CondTerm(<route>:<shape>)` rows under
+  `OREN_PROFILE_NATIVE_STMTS=1 make profile-native-build-phases`, and the profile script prints a
+  condition-term table. The first refreshed generator run shows the `||` guard cost is dominated by
+  `Index` terms compared to literals: `CondTerm(singleton:Infix(!=,Index,Boolean))` is ~6.0s / 130 terms
+  and `CondTerm(int_lit:Infix(!=,Index,Integer))` is ~5.2s / 157 terms. A scalar true-branch patch-list
+  experiment for OR lowering passed stage2/focused checks but left the hot `IfStmt(cond:||)` buckets
+  unchanged/slightly worse, so it was reverted; the next optimization needs to reduce term/index lowering
+  work rather than patch-list representation.
+- Known-map ARM64 `Index` lowering no longer emits the dead list fast-path block before the map fallback.
+  The branch/list path is still emitted for dynamic and list/list_int receivers, and map receivers keep the
+  existing tracked-node and map-magic validation before `oren_map_get_*`. Focused typed-struct/map fixtures
+  pass, but the generator profile is unchanged because its hot `Index` guard terms are not statically
+  marked `recv_kind="map"`; classify this as a bounded code-size cleanup for typed/map-index sites, not a
+  generator `user_decls` wall-time fix.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

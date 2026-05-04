@@ -192,6 +192,19 @@ if stmt_rows:
         for (phase, stmt), agg in sorted(by_if_stmt.items(), key=lambda item: (item[1]["ms"], item[1]["bytes"], item[1]["count"]), reverse=True)[:30]:
             print(f"{agg['ms']:10d} ms  {agg['bytes']:10d} bytes  {agg['count']:6d} stmts  phase={phase} stmt={stmt}")
 
+    cond_term_rows = [row for row in stmt_rows if row["stmt"].startswith("CondTerm(")]
+    if cond_term_rows:
+        print("== condition term lowering by phase/type ==")
+        by_cond_term = {}
+        for row in cond_term_rows:
+            key = (row["phase"], row["stmt"])
+            agg = by_cond_term.setdefault(key, {"count": 0, "ms": 0, "bytes": 0})
+            agg["count"] += row["count"]
+            agg["ms"] += row["ms"]
+            agg["bytes"] += row["bytes"]
+        for (phase, stmt), agg in sorted(by_cond_term.items(), key=lambda item: (item[1]["ms"], item[1]["bytes"], item[1]["count"]), reverse=True)[:40]:
+            print(f"{agg['ms']:10d} ms  {agg['bytes']:10d} bytes  {agg['count']:6d} terms  phase={phase} stmt={stmt}")
+
     print("== top inclusive statement codegen function/type buckets ==")
     for row in sorted(stmt_rows, key=lambda item: (item["ms"], item["bytes"], item["count"]), reverse=True)[:40]:
         print(f"{row['ms']:10d} ms  {row['bytes']:10d} bytes  {row['count']:6d} stmts  phase={row['phase']} fn={row['fn']} stmt={row['stmt']}")

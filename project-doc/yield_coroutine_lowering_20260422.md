@@ -419,6 +419,21 @@ backend-shared value-helper slices landed.
     ~6.8s / 179 stmts and nested-`||` at ~4.7s / 58 stmts, while all consequence lowering is ~2.3s
     across 860 statements and else/patch work is negligible. This narrows the next backend slice to
     direct logical-condition lowering, not return-body/block cleanup.
+  - ARM64 condition-term profiling (2026-05-05): the gated statement profile now records
+    `CondTerm(<route>:<shape>)` rows from recursive logical-condition lowering and the profile script
+    summarizes them separately. The first refreshed generator profile shows the dominant terms are
+    literal comparisons against `Index` results: `CondTerm(singleton:Infix(!=,Index,Boolean))` at
+    ~6.0s / 130 terms and `CondTerm(int_lit:Infix(!=,Index,Integer))` at ~5.2s / 157 terms. A scalar
+    OR true-branch patch-list experiment passed stage2 and focused logical/integration checks, but kept
+    the hot `IfStmt(cond:||)` buckets unchanged/slightly worse, so the source was reverted. The next
+    credible throughput slice should reduce term/index lowering work rather than changing patch-list
+    representation.
+  - ARM64 known-map index cleanup (2026-05-05): `Index` lowering now skips the dead list fast-path block
+    for receivers already annotated `recv_kind="map"`, while preserving dynamic/list lowering and the
+    existing tracked-node plus map-magic validation before map gets. Focused typed-struct/map fixtures
+    pass. The generator profile is unchanged because the hot generated guard terms are not statically
+    map-marked, so this is bounded map-index code-size cleanup rather than the generator `user_decls`
+    wall-time lever.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

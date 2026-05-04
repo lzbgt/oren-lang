@@ -5265,8 +5265,26 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        is about ~2.3s across 860 statements. Keep the next backend slice on
 																	        direct logical-condition lowering, not function setup or return-body
 																	        cleanup.
-																		      - the coroutine surface fixture now uses the same split shape: four focused
-																        top-level chunks plus a tiny dispatcher, preserving return codes and
+																	      - the ARM64 statement profiler now also records `CondTerm(<route>:<shape>)`
+																	        rows for logical-condition term lowering and the profile script prints a
+																	        condition-term table. The first refreshed generator profile shows the hot
+																	        generated `||` guards are dominated by `Index` terms compared to literals:
+																	        `CondTerm(singleton:Infix(!=,Index,Boolean))` is about ~6.0s / 130 terms
+																	        and `CondTerm(int_lit:Infix(!=,Index,Integer))` is about ~5.2s / 157 terms.
+																	        A scalar OR true-branch patch-list experiment passed stage2/focused checks
+																	        but left the hot `IfStmt(cond:||)` buckets unchanged/slightly worse, so it
+																	        was reverted. Keep the next backend slice on term/index lowering, not
+																	        patch-list representation.
+																	      - known-map ARM64 `Index` lowering now skips the dead list fast-path block
+																	        and enters the map path directly after the existing tracked-node/map-kind
+																	        checks. Dynamic and list/list_int receivers keep the list/dynamic path, and
+																	        map receivers keep map-magic validation before `oren_map_get_*`. Focused
+																	        typed-struct/map fixtures pass, but the generator profile is unchanged
+																	        because its hot guard `Index` terms are not statically `recv_kind="map"`.
+																	        Treat this as bounded map-index code-size cleanup, not the generator
+																	        wall-time fix.
+																			      - the coroutine surface fixture now uses the same split shape: four focused
+																	        top-level chunks plus a tiny dispatcher, preserving return codes and
 															        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and

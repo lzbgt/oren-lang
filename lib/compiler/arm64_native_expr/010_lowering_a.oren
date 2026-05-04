@@ -153,43 +153,46 @@ fn native_emit_index_get_inline(ctx, expr) {
         // If kind==MAP, `br_to_map` is patched later to map_pos.
     }
 
-    // --- List fast-path ---
-    // Restore container/index (X0=container, X1=index).
-    push_u32_le(ctx["code"], insn_mov_reg(0, 19))
-    push_u32_le(ctx["code"], insn_mov_reg(1, 20))
-    // count = *(container + 0)
-    push_u32_le(ctx["code"], insn_ldr_ptr(5, 0)) // X5 = count
+    var br_done = nil
+    if recv_kind0 != "map" {
+        // --- List fast-path ---
+        // Restore container/index (X0=container, X1=index).
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+        push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+        // count = *(container + 0)
+        push_u32_le(ctx["code"], insn_ldr_ptr(5, 0)) // X5 = count
 
-    // idx < 0 => panic (signed compare)
-    push_u32_le(ctx["code"], insn_movz(2, 0))
-    push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
-    var br_nonneg = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    native_emit_panic(ctx, "Index out of bounds (negative)")
-    var nonneg_pos = bytes_len(ctx["code"])
-    set_u32_le(ctx["code"], br_nonneg, insn_b_cond((nonneg_pos - br_nonneg) / 4, 10)) // GE
+        // idx < 0 => panic (signed compare)
+        push_u32_le(ctx["code"], insn_movz(2, 0))
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+        var br_nonneg = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        native_emit_panic(ctx, "Index out of bounds (negative)")
+        var nonneg_pos = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], br_nonneg, insn_b_cond((nonneg_pos - br_nonneg) / 4, 10)) // GE
 
-    // idx >= count => panic
-    push_u32_le(ctx["code"], insn_cmp_reg(1, 5))
-    var br_in_bounds = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    native_emit_panic(ctx, "Index out of bounds")
-    var in_bounds_pos = bytes_len(ctx["code"])
-    set_u32_le(ctx["code"], br_in_bounds, insn_b_cond((in_bounds_pos - br_in_bounds) / 4, 11)) // LT
+        // idx >= count => panic
+        push_u32_le(ctx["code"], insn_cmp_reg(1, 5))
+        var br_in_bounds = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        native_emit_panic(ctx, "Index out of bounds")
+        var in_bounds_pos = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], br_in_bounds, insn_b_cond((in_bounds_pos - br_in_bounds) / 4, 11)) // LT
 
-    // buf = *(container + 16)
-    push_u32_le(ctx["code"], insn_add_imm(2, 0, 16))
-    push_u32_le(ctx["code"], insn_ldr_ptr(6, 2)) // X6 = buf
+        // buf = *(container + 16)
+        push_u32_le(ctx["code"], insn_add_imm(2, 0, 16))
+        push_u32_le(ctx["code"], insn_ldr_ptr(6, 2)) // X6 = buf
 
-    // addr = buf + idx*8
-    emit_load_i64_imm(ctx, 2, 8)
-    push_u32_le(ctx["code"], insn_mul(7, 1, 2))        // X7 = idx * 8
-    push_u32_le(ctx["code"], insn_add_reg(7, 6, 7))    // X7 = buf + off
-    push_u32_le(ctx["code"], insn_ldr_ptr(0, 7))       // X0 = *(addr)
+        // addr = buf + idx*8
+        emit_load_i64_imm(ctx, 2, 8)
+        push_u32_le(ctx["code"], insn_mul(7, 1, 2))        // X7 = idx * 8
+        push_u32_le(ctx["code"], insn_add_reg(7, 6, 7))    // X7 = buf + off
+        push_u32_le(ctx["code"], insn_ldr_ptr(0, 7))       // X0 = *(addr)
 
-    // Jump to done.
-    var br_done = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
+        // Jump to done.
+        br_done = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+    }
 
     // --- Map fallback ---
     var map_pos = bytes_len(ctx["code"])
@@ -261,7 +264,7 @@ fn native_emit_index_get_inline(ctx, expr) {
     if br_to_map != nil {
         set_u32_le(ctx["code"], br_to_map, insn_b_cond((map_pos - br_to_map) / 4, 0)) // EQ
     }
-    set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+    if br_done != nil { set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4)) }
     return true
 }
 

@@ -5,6 +5,7 @@ import intparse "int_lit.oren"
 import listm "arm64_native_stmt_loops_list.oren"
 import listemit "arm64_native_stmt_loops_list_emit.oren"
 import basem "arm64_native_stmt_loops_base.oren"
+import profm "arm64_native_stmt_profile.oren"
 import rt "arm64_native_stmt_runtime.oren"
 
 // List-loop delegates (defined in arm64_native_stmt_loops_list.oren).
@@ -118,6 +119,11 @@ fn _arm64_cmp_cond_code(op, floaty) {
     if op == "<=" { return 13 }
     if op == ">=" { return 10 }
     return nil
+}
+
+fn _arm64_cond_branch_kind(ctx, kind, br) {
+    if ctx != nil { ctx["arm64_last_cond_branch_kind"] = kind }
+    return br
 }
 
 fn _arm64_swapped_cmp_op(op) {
@@ -389,10 +395,33 @@ fn _arm64_collect_logical_terms(expr, op, out) {
 }
 
 fn _arm64_emit_any_cond_branch_false(ctx, cond, tok, base_stack) {
+    var cond_prof_enabled = false
+    var cond_prof_phase = nil
+    var cond_prof_fn = nil
+    var cond_prof_kind = nil
+    var cond_prof_t0 = 0
+    var cond_prof_code0 = 0
+    if ctx["arm64_stmt_profile"] != nil {
+        cond_prof_enabled = true
+        cond_prof_phase = ctx["arm64_codegen_phase"]
+        cond_prof_fn = ctx["cur_fn_name"]
+        cond_prof_kind = profm.arm64_expr_profile_kind(cond)
+        cond_prof_t0 = oren_time_now_ns()
+        cond_prof_code0 = bytes_len(ctx["code"])
+    }
+    ctx["arm64_last_cond_branch_kind"] = nil
     var direct = _arm64_emit_if_cond_branch_false(ctx, cond, tok)
     var delta = ctx["stack_size"] - base_stack
     if delta != 0 { _arm64_restore_stack_to(ctx, base_stack) }
-    if direct != nil { return direct }
+    if direct != nil {
+        if cond_prof_enabled == true {
+            var direct_kind = ctx["arm64_last_cond_branch_kind"]
+            if direct_kind == nil { direct_kind = "direct" }
+            profm.arm64_stmt_profile_record(ctx, cond_prof_phase, cond_prof_fn, "CondTerm(" + direct_kind + ":" + cond_prof_kind + ")", (oren_time_now_ns() - cond_prof_t0) / 1000000, bytes_len(ctx["code"]) - cond_prof_code0)
+        }
+        ctx["arm64_last_cond_branch_kind"] = nil
+        return direct
+    }
 
     native_compile_expr(ctx, cond)
     _arm64_emit_truthy_norm_in_x0(ctx, tok)
@@ -401,7 +430,12 @@ fn _arm64_emit_any_cond_branch_false(ctx, cond, tok, base_stack) {
     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
     var jump_false = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
-    return _arm64_branch_false_result(jump_false, 0)
+    var fallback = _arm64_branch_false_result(jump_false, 0)
+    if cond_prof_enabled == true {
+        profm.arm64_stmt_profile_record(ctx, cond_prof_phase, cond_prof_fn, "CondTerm(fallback:" + cond_prof_kind + ")", (oren_time_now_ns() - cond_prof_t0) / 1000000, bytes_len(ctx["code"]) - cond_prof_code0)
+    }
+    ctx["arm64_last_cond_branch_kind"] = nil
+    return fallback
 }
 
 fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
@@ -423,8 +457,8 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
 	            ai = ai + 1
 	        }
 	        var and_jump_n = oren_list_len(and_jumps)
-	        if and_jump_n <= 0 { return nil }
-	        return {"pos": and_jumps[0]["pos"], "cond": and_jumps[0]["cond"], "jumps": and_jumps}
+		        if and_jump_n <= 0 { return nil }
+		        return _arm64_cond_branch_kind(ctx, "and", {"pos": and_jumps[0]["pos"], "cond": and_jumps[0]["cond"], "jumps": and_jumps})
     }
     if op == "||" {
         var base_stack_or = ctx["stack_size"]
@@ -472,13 +506,13 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
             set_u32_le(ctx["code"], up, insn_b((then_pos_or - up) / 4))
             ui = ui + 1
         }
-        return last_false
+        return _arm64_cond_branch_kind(ctx, "or", last_false)
     }
 
     var singleton_branch = _arm64_emit_singleton_if_branch_false(ctx, tok, op, l, r)
-    if singleton_branch != nil { return singleton_branch }
+    if singleton_branch != nil { return _arm64_cond_branch_kind(ctx, "singleton", singleton_branch) }
     var int_lit_branch = _arm64_emit_int_lit_if_branch_false(ctx, op, l, r)
-    if int_lit_branch != nil { return int_lit_branch }
+    if int_lit_branch != nil { return _arm64_cond_branch_kind(ctx, "int_lit", int_lit_branch) }
 
     var left_stringy = exprm.native_expr_is_stringy(ctx, l)
     var right_stringy = exprm.native_expr_is_stringy(ctx, r)
@@ -536,13 +570,13 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
                 {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond_string)},
                 {"pos": jump_false_int, "cond": _arm64_inverse_cond(true_cond_string)}
             ]
-            return {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond_string), "jumps": false_jumps}
+            return _arm64_cond_branch_kind(ctx, "string_strcmp", {"pos": jump_false_string, "cond": _arm64_inverse_cond(true_cond_string), "jumps": false_jumps})
         }
 
         push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
         var jump_false_string_int = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        return _arm64_branch_false_result(jump_false_string_int, _arm64_inverse_cond(true_cond_string))
+        return _arm64_cond_branch_kind(ctx, "string_raw", _arm64_branch_false_result(jump_false_string_int, _arm64_inverse_cond(true_cond_string)))
     }
 
     var left_floaty = exprm.native_expr_is_floaty(ctx, l)
@@ -601,7 +635,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
 
         var done_dynamic_string_compare = bytes_len(ctx["code"])
         set_u32_le(ctx["code"], jump_end_dynamic, insn_b((done_dynamic_string_compare - jump_end_dynamic) / 4))
-        return {"pos": false_jumps_dyn[0]["pos"], "cond": false_jumps_dyn[0]["cond"], "jumps": false_jumps_dyn}
+        return _arm64_cond_branch_kind(ctx, "dynamic_string_eq", {"pos": false_jumps_dyn[0]["pos"], "cond": false_jumps_dyn[0]["cond"], "jumps": false_jumps_dyn})
     }
 
     if floaty == true {
@@ -616,7 +650,9 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
 
     var jump_false = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
-    return _arm64_branch_false_result(jump_false, _arm64_inverse_cond(true_cond))
+    var generic_kind = "generic_int"
+    if floaty == true { generic_kind = "generic_float" }
+    return _arm64_cond_branch_kind(ctx, generic_kind, _arm64_branch_false_result(jump_false, _arm64_inverse_cond(true_cond)))
 }
 
 
