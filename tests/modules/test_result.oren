@@ -133,7 +133,7 @@ if s == "fallback" {
         print("Result FAIL (json.try_decode err)")
         exit(1)
     }
-    var c = ui_color.parse_hex("red")
+    var c = ui_color.try_parse_hex("red")
     if r.is_err(c) != true {
         print("Result FAIL (ui color err expected)")
         exit(1)

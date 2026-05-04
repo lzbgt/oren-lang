@@ -5130,6 +5130,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      scalar-like inputs return `oren_err` consistently instead of depending on backend coercion;
      malformed `std:list.slice_view` arguments still iterate as an empty sequence by contract
      (2026-03-27).
+   - New: `std:ui/color`, `std:ui/commands`, and `std:ui/raster` expose explicit
+     `try_parse_hex`, `try_validate`, and `try_rasterize` aliases over their existing
+     value-or-error paths; covered by AVM UI smokes and the Tier-1 result smoke (2026-05-04).
    - New: `std:buffer` slice helpers return `oren_err` on invalid input; covered by
      result smoke fixture (2026-03-05).
    - New: `std:encoding/base64` exposes structured `try_encode_bytes`,

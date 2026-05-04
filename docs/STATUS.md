@@ -1419,9 +1419,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: native quick integration now guards both success and failure paths for module visibility:
      `pub` imports, legacy-open imports, private imported members/types, and nested non-top-level
      `pub`.
-   - New (2026-04-22): `std:ui/color.parse_hex` and `std:ui/raster.rasterize` now also use the
-     structured error convention directly instead of ad-hoc `{ok, err}` failure maps on invalid
-     color inputs, and the result smoke / AVM UI tests guard that surface.
+   - New (2026-05-04): `std:ui/color`, `std:ui/commands`, and `std:ui/raster` now expose
+     structured `try_parse_hex`, `try_validate`, and `try_rasterize` aliases over their existing
+     value-or-error surfaces, and the result smoke / AVM UI tests guard those names directly.
    - New (2026-04-22): parser/backend guards now cover rolling `yield` sugar in both the Tier-1
      native quick path and the curated AVM lane, including value-carrying/result-position `yield`
      through the new parity-checked helper surface.

@@ -51,7 +51,7 @@ fn test_raster_simple() {
     var cmds = ui_render.render(root, nil)
     assert_eq(oren_list_len(cmds), 2)
 
-    var buf = ui_raster.rasterize(cmds, w, h, nil)
+    var buf = ui_raster.try_rasterize(cmds, w, h, nil)
     assert_true(oren_is_err(buf) == false)
     assert_eq(oren_bytes_len(buf), w * h * 4)
 
@@ -86,7 +86,7 @@ fn test_raster_simple() {
 }
 
 fn test_raster_err_context() {
-    var bad_bg = ui_raster.rasterize([], 1, 1, {"clear_color": "red"})
+    var bad_bg = ui_raster.try_rasterize([], 1, 1, {"clear_color": "red"})
     assert_true(oren_is_err(bad_bg) == true)
     assert_eq(oren_err_code(bad_bg), 4)
     assert_eq(oren_err_msg(bad_bg), "rasterize: clear_color: color must be #RRGGBB or #RRGGBBAA")
