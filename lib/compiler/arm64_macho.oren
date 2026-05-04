@@ -1534,7 +1534,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var local_target_meta_keys = []
     var local_target_lens = []
     var local_target_stats = nil
-    if phase_log != nil { local_target_stats = [0, 0, 0, 0, 0, 0] }
+    if phase_log != nil && oren_env("OREN_TRACE_MACHO_LOCAL_RESOLVE_STATS") != nil {
+        local_target_stats = [0, 0, 0, 0, 0, 0]
+    }
     var local_bl_n = oren_list_len(local_bl_name)
     if local_bl_target == nil || oren_list_len(local_bl_target) != local_bl_n {
         local_bl_target = oren_list_new_cap(local_bl_n)
@@ -1637,7 +1639,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
     }
     i = 0
-    while i < oren_list_len(local_adr_data_pos) {
+    var local_adr_data_n = oren_list_len(local_adr_data_pos)
+    while i < local_adr_data_n {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
                 _macho_phase_log_append(phase_log, "macho.fixups.local.adr_data.progress", "i=" + oren_int_to_string(i))
@@ -1656,9 +1659,10 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         set_u32_le(code, pos_ad_local + 4, insn_add_imm(reg_local, reg_local, page_off_local))
         i = i + 1
     }
-    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_data.done", "n=" + oren_int_to_string(oren_list_len(local_adr_data_pos))) }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_data.done", "n=" + oren_int_to_string(local_adr_data_n)) }
     i = 0
-    while i < oren_list_len(local_adr_code_pos) {
+    var local_adr_code_pos_n = oren_list_len(local_adr_code_pos)
+    while i < local_adr_code_pos_n {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
                 _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.progress", "i=" + oren_int_to_string(i))
@@ -1677,9 +1681,10 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         set_u32_le(code, pos_ac_local + 4, insn_add_imm(reg_ac_local, reg_ac_local, page_off2_local))
         i = i + 1
     }
-    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.done", "n=" + oren_int_to_string(oren_list_len(local_adr_code_pos))) }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.done", "n=" + oren_int_to_string(local_adr_code_pos_n)) }
     i = 0
-    while i < oren_list_len(local_got_pos) {
+    var local_got_n = oren_list_len(local_got_pos)
+    while i < local_got_n {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
                 _macho_phase_log_append(phase_log, "macho.fixups.local.got.progress", "i=" + oren_int_to_string(i))
@@ -1697,7 +1702,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         set_u32_le(code, pos_got_local + 4, insn_add_imm(16, 16, page_off3_local))
         i = i + 1
     }
-    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.got.done", "n=" + oren_int_to_string(oren_list_len(local_got_pos))) }
+    if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.got.done", "n=" + oren_int_to_string(local_got_n)) }
     if phase_log != nil {
         _macho_phase_log_append(phase_log, "macho.fixups.local.done", "n=" + oren_int_to_string(oren_list_len(fixups)))
         _macho_phase_log_append(phase_log, "macho.fixups.done", "total=" + oren_int_to_string(rtobj_fixups_n + oren_list_len(fixups)))

@@ -27,6 +27,9 @@ echo "function_log=$function_log"
 if [[ "${OREN_PROFILE_NATIVE_STMTS:-0}" != "0" ]]; then
   echo "stmt_log=$stmt_log"
 fi
+if [[ "${OREN_PROFILE_MACHO_RESOLVE_STATS:-0}" != "0" ]]; then
+  echo "macho_resolve_stats=1"
+fi
 
 if [[ ! -x "$compiler" ]]; then
   echo "ERROR: missing executable compiler: $compiler" >&2
@@ -53,6 +56,9 @@ export OREN_TRACE_ARM64_FUNCTIONS_PATH="$function_log"
 if [[ "${OREN_PROFILE_NATIVE_STMTS:-0}" != "0" ]]; then
   : >"$stmt_log"
   export OREN_TRACE_ARM64_STMTS_PATH="$stmt_log"
+fi
+if [[ "${OREN_PROFILE_MACHO_RESOLVE_STATS:-0}" != "0" ]]; then
+  export OREN_TRACE_MACHO_LOCAL_RESOLVE_STATS=1
 fi
 if ! run_native_build_timeout_logged "$timeout_secs" "$compiler" build "$src" \
   --backend native --platform "$platform" --no-cache --no-debug -o "$out" >>"$log" 2>&1; then

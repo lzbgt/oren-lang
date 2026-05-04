@@ -215,19 +215,26 @@ backend-shared value-helper slices landed.
     refreshed generator profile reports `~2386ms + ~25ms + ~62ms` local BL resolve buckets for
     `n=11174`, so this is only a small later-scan cleanup; the first bucket and wrapper/user
     declaration codegen remain the real backend-performance boundary.
-  - Local resolver scan diagnostics (2026-05-04): local BL/ADR-code resolve phase logs now record
-    unique target count, lookup count, linear scan steps, metadata candidates, byte comparisons,
-    appended targets, and misses at progress and completion points. The generator profile reports
+  - Local resolver scan diagnostics (2026-05-04): opt-in
+    `OREN_PROFILE_MACHO_RESOLVE_STATS=1 make profile-native-build-phases` records unique target count,
+    lookup count, linear scan steps, metadata candidates, byte comparisons, appended targets, and misses
+    at progress and completion points. The generator profile reports
     `11398` BL lookups over `332` unique targets, `790088` scan steps, and only `12567` full byte
     comparisons; by `i=4096`, `269` unique targets have already been appended and `252115` scan steps
-    have been paid. Hoisting stable list lengths out of those loops trims only a few later-span
-    milliseconds, so the next first-bucket resolver design must reduce linear traversal itself rather
-    than byte-comparison cost.
+    have been paid. Detailed counters are gated so the default native profile stays phase/function
+    oriented. Hoisting stable list lengths out of those loops trims only a few later-span milliseconds,
+    so the next first-bucket resolver design must reduce linear traversal itself rather than
+    byte-comparison cost.
   - Local resolver metadata-key cleanup (2026-05-04): the resolver now stores one combined
     `(length, first-byte, last-byte)` integer key per unique target instead of three separate metadata
     vectors. The generator profile remains behavior-compatible and keeps the same `790088` BL scan
     steps / `12567` byte comparisons, with the first bucket still about `~2.40s`; this is a
     constant-factor simplification rather than the final traversal fix.
+  - Rejected metadata-bucket resolver follow-up (2026-05-04): both a map-backed metadata-key bucket and
+    a lean parallel-list metadata bucket reduced detailed BL scan accounting from `790088` entries to
+    the candidate count (`12567`), but the measured first BL resolve bucket stayed flat/slightly worse
+    (`~2.40s` to `~2.43-2.45s`). Do not retry bucket discovery that only moves the traversal cost into
+    per-lookup map/list overhead.
   - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions now skip
     native call-depth enter/exit instrumentation on ARM64 and x64 because the real target function
     still carries the guard. Lambda wrappers remain guarded because they own their body. The measured
