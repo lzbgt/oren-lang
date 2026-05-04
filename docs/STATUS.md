@@ -2723,11 +2723,24 @@ Local (fast):
   `0.17s / 263 exprs`, and the default generator profile moves `user_decls` to about
   `11.1s / 292072 bytes / 282 funcs`. A broader shared `native_data_add_cstr0` MRU was tested and rejected
   because unrelated string literals polluted the cache and left `load_key` at about `13.1s`.
+- `std:generator` now uses `oren_type_tag(...)` for primitive `int`/`string` policy argument guards instead
+  of `oren_type_name(...)` string comparisons, while preserving `oren_type_name` for generator handle/context
+  and map checks where reflection semantics differ. The focused generator std/surface checks pass, and the
+  default generator profile moves `user_decls` from about `11.1s / 292072 bytes / 282 funcs` to about
+  `10.2s / 292144 bytes / 284 funcs`. A broader rewrite of handle/context checks to raw tags was rejected:
+  native `test_generator_std.oren` failed at `gen.terminal_result(g)`, proving the std facade cannot use raw
+  tag checks for dedicated generator objects without a separate runtime-layout proof.
 - Rejected follow-up (2026-05-05): moving the checked `Index(map,str-literal)` validation into a new kept
   `oren_map_get_str_checked` runtime helper built successfully but made native map/generator fixtures exit
   `11`. Adding the name to the native-op spill surface did not fix the calling-convention/entry failure, so
   the helper layer was reverted. Do not retry this path without first proving the helper uses the same native
   direct-call ABI as `oren_map_get_str`.
+- Rejected follow-up (2026-05-05): a narrow ARM64 fast path for top-level/global `Assign(Integer)` was tested
+  after the statement profile showed `top Assign(Integer)` around `2.4s / 16 stmts`. The probe built and
+  passed focused generator/type-boundary checks, but the refreshed default profile stayed flat (`top` about
+  `2.33s`, `user_decls` about `11.2s`) and statement `Assign(Integer)` remained about `2.4s` with identical
+  code bytes. The source change was reverted; the remaining lever is not generic integer-literal expression
+  lowering for globals.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

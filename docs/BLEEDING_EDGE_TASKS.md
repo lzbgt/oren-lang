@@ -5305,18 +5305,32 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																				        direct `Index(map,"literal")` emitter. New gated `MapStrIndex(...)`
 																				        subphase rows show the actual prior hotspot was repeated
 																				        `native_data_add_cstr0` lookup for generator keys:
-																				        `MapStrIndex(load_key)` drops from about `11.9s / 263 exprs` to
-																				        about `0.17s / 263 exprs`, and the default generator profile moves
-																				        `user_decls` to about `11.1s / 292072 bytes / 282 funcs`. A shared
-																				        `native_data_add_cstr0` MRU was rejected because unrelated literals
-																				        polluted it and left `load_key` near `13.1s`.
-																				      - rejected helper path: moving that checked validation into a new kept
-																			        `oren_map_get_str_checked` runtime helper built, but native map and
-																			        generator fixtures exited `11`; adding it to the native-op spill surface
-																			        did not fix the direct-call ABI/entry failure. Do not repeat this helper
-																			        design without first proving ABI parity with `oren_map_get_str`.
-																					      - the coroutine surface fixture now uses the same split shape: four focused
-																			        top-level chunks plus a tiny dispatcher, preserving return codes and
+																					        `MapStrIndex(load_key)` drops from about `11.9s / 263 exprs` to
+																					        about `0.17s / 263 exprs`, and the default generator profile moves
+																					        `user_decls` to about `11.1s / 292072 bytes / 282 funcs`. A shared
+																					        `native_data_add_cstr0` MRU was rejected because unrelated literals
+																					        polluted it and left `load_key` near `13.1s`.
+																					      - `std:generator` now uses `oren_type_tag(...)` for primitive `int`/`string`
+																					        policy argument guards while preserving `oren_type_name(...)` for generator
+																					        handle/context and map checks. Focused generator checks pass, and the
+																					        default generator profile moves `user_decls` from about
+																					        `11.1s / 292072 bytes / 282 funcs` to about
+																					        `10.2s / 292144 bytes / 284 funcs`. A broader raw-tag rewrite for
+																					        generator handle/context checks was rejected because native
+																					        `test_generator_std.oren` failed at `gen.terminal_result(g)`.
+																					      - rejected helper path: moving that checked validation into a new kept
+																				        `oren_map_get_str_checked` runtime helper built, but native map and
+																				        generator fixtures exited `11`; adding it to the native-op spill surface
+																				        did not fix the direct-call ABI/entry failure. Do not repeat this helper
+																				        design without first proving ABI parity with `oren_map_get_str`.
+																					      - rejected global integer assignment path: a narrow ARM64 fast path for
+																					        top-level/global `Assign(Integer)` built and passed focused generator and
+																					        type-boundary checks, but profiles stayed flat (`top` about `2.33s`,
+																					        `user_decls` about `11.2s`, and statement `Assign(Integer)` still about
+																					        `2.4s / 16 stmts` with identical bytes). The source probe was reverted;
+																					        do not chase global integer-literal lowering as the next wall-time lever.
+																						      - the coroutine surface fixture now uses the same split shape: four focused
+																				        top-level chunks plus a tiny dispatcher, preserving return codes and
 																        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and

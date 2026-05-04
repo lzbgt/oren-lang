@@ -11,6 +11,9 @@
 
 import time "std:time"
 
+fn _generator_is_int(v) { return oren_type_tag(v) == 1 }
+fn _generator_is_string(v) { return oren_type_tag(v) == 4 }
+
 fn _generator_cancel_target_err(ctx, msg) {
     return oren_err(4, ctx + ": " + msg)
 }
@@ -22,7 +25,7 @@ fn _generator_cancel_target_ok(target) {
 
 fn _generator_timeout_ms(ctx, timeout_ms) {
     if oren_type_tag(timeout_ms) == 0 { return 0 }
-    if oren_type_name(timeout_ms) != "int" {
+    if _generator_is_int(timeout_ms) != true {
         return _generator_cancel_target_err(ctx, "expected int timeout_ms")
     }
     if timeout_ms < 0 { return 0 }
@@ -31,7 +34,7 @@ fn _generator_timeout_ms(ctx, timeout_ms) {
 
 fn _generator_grace_ms(ctx, grace_ms) {
     if oren_type_tag(grace_ms) == 0 { return 0 }
-    if oren_type_name(grace_ms) != "int" {
+    if _generator_is_int(grace_ms) != true {
         return _generator_cancel_target_err(ctx, "expected int grace_ms")
     }
     if grace_ms < 0 { return 0 }
@@ -40,7 +43,7 @@ fn _generator_grace_ms(ctx, grace_ms) {
 
 fn _generator_deadline_delay_ms(ctx, deadline_ns) {
     if oren_type_tag(deadline_ns) == 0 { return 0 }
-    if oren_type_name(deadline_ns) != "int" {
+    if _generator_is_int(deadline_ns) != true {
         return _generator_cancel_target_err(ctx, "expected int deadline_ns")
     }
     var now_ns = time.now_ns()
@@ -66,7 +69,7 @@ fn _generator_policy_map(ctx, policy) {
 
 fn _generator_policy_mode(ctx, mode) {
     if oren_type_tag(mode) == 0 { return "stop" }
-    if oren_type_name(mode) != "string" {
+    if _generator_is_string(mode) != true {
         return _generator_cancel_target_err(ctx, "expected string mode")
     }
     if mode == "request" || mode == "request_cancel" { return "request_cancel" }
@@ -77,7 +80,7 @@ fn _generator_policy_mode(ctx, mode) {
 
 fn _generator_deadline_ns_arg(ctx, deadline_ns) {
     if oren_type_tag(deadline_ns) == 0 { return nil }
-    if oren_type_name(deadline_ns) != "int" {
+    if _generator_is_int(deadline_ns) != true {
         return _generator_cancel_target_err(ctx, "expected int deadline_ns")
     }
     return deadline_ns
@@ -85,7 +88,7 @@ fn _generator_deadline_ns_arg(ctx, deadline_ns) {
 
 fn _generator_join_timeout_arg(ctx, join_timeout_ms) {
     if oren_type_tag(join_timeout_ms) == 0 { return nil }
-    if oren_type_name(join_timeout_ms) != "int" {
+    if _generator_is_int(join_timeout_ms) != true {
         return _generator_cancel_target_err(ctx, "expected int join_timeout_ms")
     }
     return join_timeout_ms
@@ -133,7 +136,7 @@ fn _generator_wait_default_ms(delay_ms, grace_ms) {
 
 fn _generator_wait_budget_ms(ctx, join_timeout_ms, default_wait_ms) {
     if oren_type_tag(join_timeout_ms) == 0 { return default_wait_ms }
-    if oren_type_name(join_timeout_ms) != "int" {
+    if _generator_is_int(join_timeout_ms) != true {
         return _generator_cancel_target_err(ctx, "expected int join_timeout_ms")
     }
     if join_timeout_ms < 0 { return default_wait_ms }

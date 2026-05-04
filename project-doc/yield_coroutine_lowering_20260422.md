@@ -455,10 +455,21 @@ backend-shared value-helper slices landed.
     moves from ~11.9s / 263 expressions to ~0.17s / 263 expressions, and default generator `user_decls` moves
     to ~11.1s / 292072 bytes / 282 funcs. A broader shared `native_data_add_cstr0` MRU was tested and rejected
     because unrelated string literals polluted it and left the same load-key bucket near ~13.1s.
+  - `std:generator` primitive type-tag guards (2026-05-05): generator policy helpers now use
+    `oren_type_tag(...)` for primitive `int`/`string` argument checks, while preserving `oren_type_name(...)`
+    for generator handle/context and map checks. Focused generator checks pass, and default generator
+    `user_decls` moves from ~11.1s / 292072 bytes / 282 funcs to ~10.2s / 292144 bytes / 284 funcs. A broader
+    raw-tag rewrite for generator handles/contexts was rejected because native `test_generator_std.oren`
+    failed at `gen.terminal_result(g)`, so keep that boundary closed without a runtime-layout proof.
   - Rejected helper path (2026-05-05): a new kept `oren_map_get_str_checked` runtime helper was tested to move
     the validation sequence out of each ARM64 map string-literal index site. It built, but native map/generator
     fixtures exited `11`; adding the helper name to the native-op spill surface did not fix the direct-call
     ABI/entry failure. Keep this path closed until ABI parity with `oren_map_get_str` is proven.
+  - Rejected global integer assignment path (2026-05-05): a narrow ARM64 fast path for top-level/global
+    `Assign(Integer)` built and passed focused generator/type-boundary checks, but profiles stayed flat:
+    default `top` remained about ~2.33s, `user_decls` about ~11.2s, and statement `Assign(Integer)` stayed
+    about ~2.4s / 16 statements with identical bytes. The source probe was reverted; global integer-literal
+    lowering is not the next wall-time lever.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:
