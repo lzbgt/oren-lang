@@ -4571,6 +4571,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     `tls.try_connect`/`try_wrap_*`/IO/cert/ALPN helpers, `http2.try_parse_*`,
 	     `http2_client.try_new`/`try_request`). Remaining network migration is now mostly
 	     provider-internal TLS details and deeper protocol APIs, not the primary facades.
+	     New (2026-05-04): crypto helper modules now also have checked structured aliases
+	     where the semantics are deterministic and already tested: `rand.try_bytes` /
+	     `try_fill`, `pem.try_decode_blocks*`, `sha1.try_sha1_*`, `sha256.try_sha256_*`,
+	     and `x509.try_sha256_hex_der`.
    - Implemented (rolling): core `assert(cond, msg?)` statement + `oren test` runner.
    - Implemented (rolling): call-site spread + user-defined varargs (incl. `print(xs...)`).
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
@@ -5101,7 +5105,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `std:encoding/base64.decode_bytes_strict` rejects whitespace; covered by
      result smoke fixture (2026-03-05).
    - New: `std:crypto/pem.decode_blocks_strict` rejects whitespace inside base64
-     payloads; covered by result smoke fixture (2026-03-05).
+     payloads; `try_decode_blocks*` aliases are covered by native PEM/result smoke fixtures.
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
    - New: `std:bytes` structured helpers now cover the common packet-style multi-byte surface,

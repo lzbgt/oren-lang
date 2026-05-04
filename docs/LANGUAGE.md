@@ -281,8 +281,9 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:bytes` (smokes: `tests/native/qi/100_tests_basic.oren`, `tests/avm/test_smoke_suite.oren`)
 - Encoding / crypto helpers:
   - `std:encoding/base64` (TLS/HTTPS/WSS loopback fixtures)
-  - `std:crypto/pem` (smoke: `tests/native/test_pem_decode_smoke.oren`)
-  - `std:crypto/x509` (minimal helper layer; used by NET/TLS internals)
+  - `std:crypto/pem` (`try_decode_blocks` / `try_decode_blocks_strict`; smoke: `tests/native/test_pem_decode_smoke.oren`)
+  - `std:crypto/rand` (`try_bytes` / `try_fill`; guarded by native quick entropy smoke)
+  - `std:crypto/sha1`, `std:crypto/sha256`, and `std:crypto/x509` (checked `try_*` hash helpers; AVM SHA vector smoke)
   - `std:crypto/tls` (TLS facade; alias-layer over `std:net/tls`, including the structured `try_*` wrappers, while the TLS crypto-core split is implemented)
 - Native NET stack (native backend; rolling Tier‑1 focus):
   - `std:net/tcp` and `std:net/udp` (`try_*` aliases over syscall-style fd/byte-count APIs)
@@ -3750,7 +3751,8 @@ Rolling status:
   - compatibility bridges `from_ok_map(m)` and `to_ok_map(v)` for older stdlib surfaces that still
     return legacy `{"ok": 1, "v": ...}` / `{"ok": 0, "err": ...}` maps during the migration
 - Checked stdlib surfaces already use that convention on current rolling builds, including
-  `std:list`, `std:bytes`, `std:buffer`, `std:crypto/rand`, `std:ui/commands`,
+  `std:list`, `std:bytes`, `std:buffer`, `std:crypto/rand`, `std:crypto/pem`,
+  `std:crypto/sha1`, `std:crypto/sha256`, `std:crypto/x509`, `std:ui/commands`,
   `std:ui/color`, and `std:ui/raster`.
 - Codec migration is rolling without a flag day: JSON/YAML/CBOR still keep their legacy
   `{ok, err, v, pos?}` decode APIs for existing callers, and JSON/CBOR now also expose

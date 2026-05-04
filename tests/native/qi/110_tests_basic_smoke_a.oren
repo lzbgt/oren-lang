@@ -12,6 +12,13 @@ fn test_entropy() {
         print("QI: oren_getentropy failed rc=" + oren_int_to_string(rc))
         fail(73)
     }
+    var rb = rand.try_bytes(8)
+    if oren_is_err(rb) { fail(7101) }
+    if oren_buf_len(rb) != 8 { fail(7102) }
+    var bad_rb = rand.try_bytes(-1)
+    if oren_is_err(bad_rb) != true { fail(7103) }
+    var bad_fill = rand.try_fill(nil, 8)
+    if oren_is_err(bad_fill) != true { fail(7104) }
     return 0
 }
 

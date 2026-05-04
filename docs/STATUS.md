@@ -112,7 +112,8 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   codegen path is cheap enough for a direct wrapper without slowing verification.
   DNS/host/HPACK plus HTTP/WebSocket now also expose structured `try_*` wrappers over their
   tested ok-map APIs; TCP/UDP/TLS/HTTP2 facades now also have structured adapters over the
-  deterministic native loopback surfaces. Stdlib migration breadth is still ongoing, mostly in
+  deterministic native loopback surfaces. Crypto helpers now also have checked `try_*` aliases
+  for PEM decode, entropy, SHA-1/SHA-256 hashing, and minimal X.509 hash helpers. Stdlib migration breadth is still ongoing, mostly in
   provider-specific TLS internals and broader protocol cleanup. Rolling module visibility now exists via `pub`, and bytes/typed buffers are already
   partially shipped through `std:bytes` / `std:buffer`; dynamic module loading and user-defined
   methods remain unimplemented.
@@ -1380,6 +1381,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `try_write_from`, `try_peer_cert_sha256_hex`, and `try_negotiated_alpn`, while
      `std:net/http2` / `std:net/http2_client` expose `try_parse_*`, `try_write_frame_header`,
      `try_new`, and `try_request`.
+   - New (2026-05-04): core crypto helper modules now also expose checked structured aliases:
+     `std:crypto/rand.try_bytes` / `try_fill`, `std:crypto/pem.try_decode_blocks` /
+     `try_decode_blocks_strict`, `std:crypto/sha1.try_sha1_*`,
+     `std:crypto/sha256.try_sha256_*`, and `std:crypto/x509.try_sha256_hex_der`.
    - Implemented (2026-04-22): rolling module visibility boundaries via `pub` on top-level
      `fn`, `var`, `struct`/`class`, `enum` sugar expansions, and `ffi` declarations.
    - Migration rule: modules with any `pub` declaration become closed-by-default to imports,
@@ -1871,7 +1876,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: `std:encoding/base64.decode_bytes_strict` rejects whitespace; covered by
      result smoke fixture (2026-03-05).
    - New: `std:crypto/pem.decode_blocks_strict` rejects whitespace inside base64
-     payloads; covered by result smoke fixture (2026-03-05).
+     payloads; `try_decode_blocks*` aliases are covered by native PEM/result smoke fixtures.
    - New: `std:strings` structured helpers (`try_len`/`try_char_at`/`try_slice`) return
      `oren_err` on invalid input; covered by result smoke fixture (2026-03-05).
    - New: `std:bytes` structured helpers now cover the common packet-style multi-byte surface,

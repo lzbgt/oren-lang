@@ -9,6 +9,7 @@
 //
 // API (v0):
 // - `sha256_hex_der(der_bytes)` -> hex string of SHA-256 over DER bytes
+// - `try_sha256_hex_der(der_bytes)` validates byte-like input and returns `oren_err`.
 
 import sha256 "std:crypto/sha256"
 
@@ -17,3 +18,7 @@ fn sha256_hex_der(der_bytes) {
     return sha256.sha256_hex(der_bytes)
 }
 
+fn try_sha256_hex_der(der_bytes) {
+    if der_bytes == nil { return sha256.try_sha256_hex(oren_u8_buf_new(0)) }
+    return sha256.try_sha256_hex(der_bytes)
+}

@@ -6,8 +6,20 @@
 //
 // API:
 // - `sha1_bytes(input_bytes)` -> BYTES (len=20)
+// - `sha1_hex(input_bytes)` -> lowercase hex string
+// - `try_sha1_bytes(...)` / `try_sha1_hex(...)` validate byte-like inputs and return `oren_err`.
 
 import list "std:list"
+import bytes "std:bytes"
+
+fn _input_bytes_or_err(input_bytes, ctx) {
+    if input_bytes == nil { return oren_bytes_pack([]) }
+    var xs = bytes.try_unpack(input_bytes)
+    if oren_is_err(xs) {
+        return oren_err(4, ctx + ": expected list<int 0..255> or u8_buf")
+    }
+    return input_bytes
+}
 
 fn _u32(x) { return x & 4294967295 } // 0xFFFFFFFF
 
@@ -135,3 +147,18 @@ fn sha1_bytes(input_bytes) {
     return oren_bytes_pack(out)
 }
 
+fn sha1_hex(input_bytes) {
+    return oren_bytes_to_hex(sha1_bytes(input_bytes))
+}
+
+fn try_sha1_bytes(input_bytes) {
+    var checked = _input_bytes_or_err(input_bytes, "sha1.try_sha1_bytes")
+    if oren_is_err(checked) { return checked }
+    return sha1_bytes(checked)
+}
+
+fn try_sha1_hex(input_bytes) {
+    var d = try_sha1_bytes(input_bytes)
+    if oren_is_err(d) { return d }
+    return oren_bytes_to_hex(d)
+}

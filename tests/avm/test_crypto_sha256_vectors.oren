@@ -1,12 +1,29 @@
 import sha256 "std:crypto/sha256"
+import sha1 "std:crypto/sha1"
+import x509 "std:crypto/x509"
 
 fn fail(msg) {
     print("FAIL: " + msg)
     oren_exit(1)
 }
 
+fn streq(a, b) {
+    var ab = oren_bytes_from_string(a)
+    var bb = oren_bytes_from_string(b)
+    var an = oren_list_len(ab)
+    if an != oren_list_len(bb) { return false }
+    var i = 0
+    while i < an {
+        if ab[i] != bb[i] { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn assert_eq(got, want, label) {
-    if got != want {
+    if got == want { return nil }
+    if streq(got, want) { return nil }
+    {
         print("label=" + label)
         print("got =" + got)
         print("want=" + want)
@@ -21,14 +38,39 @@ fn main() {
     var empty = oren_bytes_pack([])
     var got0 = sha256.sha256_hex(empty)
     assert_eq(got0, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "empty")
+    var got0_try = sha256.try_sha256_hex(empty)
+    assert_eq(got0_try, got0, "empty try")
 
     var abc = oren_bytes_from_string("abc")
     var got1 = sha256.sha256_hex(oren_bytes_pack(abc))
     assert_eq(got1, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "abc")
+    var got1_try = sha256.try_sha256_hex(oren_bytes_pack(abc))
+    assert_eq(got1_try, got1, "abc try")
+    var bad = sha256.try_sha256_hex(123)
+    if oren_is_err(bad) != true {
+        fail("try_sha256_hex bad input should return err")
+    }
+    var bad_list = sha256.try_sha256_bytes([0, 256])
+    if oren_is_err(bad_list) != true {
+        fail("try_sha256_bytes bad list should return err")
+    }
+
+    var sha1_abc = sha1.try_sha1_hex(oren_bytes_pack(abc))
+    assert_eq(sha1_abc, "a9993e364706816aba3e25717850c26c9cd0d89d", "sha1 abc try")
+    var sha1_bad = sha1.try_sha1_bytes(123)
+    if oren_is_err(sha1_bad) != true {
+        fail("try_sha1_bytes bad input should return err")
+    }
+
+    var x509_abc = x509.try_sha256_hex_der(oren_bytes_pack(abc))
+    assert_eq(x509_abc, got1, "x509 sha256 der try")
+    var x509_bad = x509.try_sha256_hex_der(123)
+    if oren_is_err(x509_bad) != true {
+        fail("try_sha256_hex_der bad input should return err")
+    }
 
     print("sha256 vectors OK")
     oren_exit(0)
 }
 
 main()
-

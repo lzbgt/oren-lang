@@ -10,7 +10,7 @@
 // - encrypted PEM decryption
 //
 // API (v0):
-// - `decode_blocks(pem_text)` -> list of {"type": string, "bytes": u8_buf} or err
+// - `decode_blocks(pem_text)` / `try_decode_blocks(pem_text)` -> list of {"type": string, "bytes": u8_buf} or err
 
 import list "std:list"
 import strings "std:strings"
@@ -156,6 +156,10 @@ fn decode_blocks(pem_text) {
     return out
 }
 
+fn try_decode_blocks(pem_text) {
+    return decode_blocks(pem_text)
+}
+
 fn decode_blocks_strict(pem_text) {
     // Strict variant: reject whitespace inside base64 payloads.
     if pem_text == nil { return oren_err(4, "pem.decode_blocks_strict: pem_text is nil") }
@@ -221,4 +225,8 @@ fn decode_blocks_strict(pem_text) {
     }
 
     return out
+}
+
+fn try_decode_blocks_strict(pem_text) {
+    return decode_blocks_strict(pem_text)
 }

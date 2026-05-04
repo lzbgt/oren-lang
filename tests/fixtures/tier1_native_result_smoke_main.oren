@@ -1232,9 +1232,9 @@ fn main() {
     if r.is_err(b64_ok) { return 17 }
     var b64_ok_len = bytes.try_len(b64_ok)
     if r.is_err(b64_ok_len) || b64_ok_len != 1 { return 18 }
-    var pem_bad = pem.decode_blocks_strict("-----BEGIN CERT-----\nTQ== \n-----END CERT-----\n")
+    var pem_bad = pem.try_decode_blocks_strict("-----BEGIN CERT-----\nTQ== \n-----END CERT-----\n")
     if r.is_err(pem_bad) != true { return 19 }
-    var pem_ok = pem.decode_blocks_strict("-----BEGIN CERT-----\nTQ==\n-----END CERT-----")
+    var pem_ok = pem.try_decode_blocks_strict("-----BEGIN CERT-----\nTQ==\n-----END CERT-----")
     if r.is_err(pem_ok) { return 20 }
 
     // std:strings structured errors

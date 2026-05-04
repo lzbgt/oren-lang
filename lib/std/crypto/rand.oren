@@ -6,7 +6,8 @@
 //
 // Contract (v0):
 // - `fill(ptr, len)` fills `len` bytes at `ptr` and returns 0 on success, or -errno.
-// - `bytes(n)` returns BYTES (u8_buf) of length `n`, or a structured error map.
+// - `bytes(n)` / `try_bytes(n)` return BYTES (u8_buf) of length `n`, or `oren_err`.
+// - `try_fill(ptr, len)` returns 0 or `oren_err`.
 //
 // NOTE:
 // - This is a host effect and is not intended for AVM deterministic execution.
@@ -20,6 +21,10 @@ fn fill(ptr, len) {
     if oren_type_tag(len) == 0 { len = 0 }
     if len <= 0 { return 0 }
     return oren_getentropy(ptr, len)
+}
+
+fn try_fill(ptr, len) {
+    return result.ok_or_errno(fill(ptr, len), "rand.fill")
 }
 
 fn bytes(n) {
@@ -43,4 +48,8 @@ fn bytes(n) {
     }
     oren_ptr_free(p)
     return oren_bytes_pack(xs)
+}
+
+fn try_bytes(n) {
+    return bytes(n)
 }
