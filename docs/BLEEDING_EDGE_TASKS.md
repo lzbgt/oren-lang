@@ -5132,12 +5132,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																        refreshed generator profile keeps `user_decls` in the previous band
 																        (~20.9s / 323804 bytes), `lambda_wrap` ~1.7s, and `fnwrap` ~0.95s.
 																        A declaration-free block scope-frame skip built and passed focused
-																        checks, but regressed `user_decls` to ~22.1s and wrapper phases as
-																        well, so it was reverted. Keep the new block/shadow/`for var` scope
-																        smoke in native quick as the guardrail for any stronger scope design.
-																		      - the generator surface fixture now splits its formerly monolithic native
-																        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
-														        return codes are preserved, but the hottest function drops from ~13.2s /
+																	        checks, but regressed `user_decls` to ~22.1s and wrapper phases as
+																	        well, so it was reverted. Keep the new block/shadow/`for var` scope
+																	        smoke in native quick as the guardrail for any stronger scope design.
+																		      - Fresh-cap tracker fast path (2026-05-04): the ARM64 list-int
+																	        reserve-skip tracker now avoids cloning/scanning fresh-cap state when
+																	        no tracked cap exists, and its recursive expression scanner hoists
+																	        stable child-list lengths. Emitted code is unchanged. The default
+																	        generator profile stays in the previous band (~20.9s / 323804 bytes),
+																	        while the gated statement profile moves `user_decls Var` from ~2.85s
+																	        to ~2.76s and statement-profiled `user_decls` from ~23.0s to ~22.2s.
+																	        Keep this classified as compiler-loop cleanup; broader `user_decls`
+																	        wall time is still the main backend target.
+																			      - the generator surface fixture now splits its formerly monolithic native
+																	        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
+															        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).
 														        The measured native profile improves `user_decls` from ~22.0s to ~20.7s
 														        and link/prep from ~14.6s to ~8.4s, while confirming large monolithic

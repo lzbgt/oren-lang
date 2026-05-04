@@ -113,7 +113,8 @@ fn _arm64_expr_uses_tracked_list_ident(exp, tracked) {
         if _arm64_expr_uses_tracked_list_ident(exp["fn"], tracked) { return true }
         var args = exp["args"]
         var i = 0
-        while i < oren_list_len(args) {
+        var arg_count = oren_list_len(args)
+        while i < arg_count {
             if _arm64_expr_uses_tracked_list_ident(args[i], tracked) { return true }
             i = i + 1
         }
@@ -127,7 +128,8 @@ fn _arm64_expr_uses_tracked_list_ident(exp, tracked) {
     if et == "Array" {
         var xs = exp["elements"]
         var j = 0
-        while j < oren_list_len(xs) {
+        var elem_count = oren_list_len(xs)
+        while j < elem_count {
             if _arm64_expr_uses_tracked_list_ident(xs[j], tracked) { return true }
             j = j + 1
         }
@@ -136,7 +138,8 @@ fn _arm64_expr_uses_tracked_list_ident(exp, tracked) {
     if et == "Hash" {
         var ps = exp["pairs"]
         var k = 0
-        while k < oren_list_len(ps) {
+        var pair_count = oren_list_len(ps)
+        while k < pair_count {
             if _arm64_expr_uses_tracked_list_ident(ps[k]["key"], tracked) { return true }
             if _arm64_expr_uses_tracked_list_ident(ps[k]["value"], tracked) { return true }
             k = k + 1
@@ -166,15 +169,20 @@ fn _arm64_fresh_list_int_caps_after_stmt(fresh_caps, stmt) {
     var empty = {}
     if stmt == nil { return empty }
     if stmt["type"] != "Var" && stmt["type"] != "Assign" { return empty }
-    var out = _arm64_map_clone(fresh_caps)
     var name = stmt["name"]
     if name == nil || name["type"] != "Identifier" { return empty }
     var value = stmt["value"]
+    var init = _arm64_fresh_list_int_init_info(stmt)
+    var nm = name["value"]
+    if fresh_caps == nil || oren_map_len(fresh_caps) == 0 {
+        if init == nil { return empty }
+        empty[nm] = init["cap_expr"]
+        return empty
+    }
+    var out = _arm64_map_clone(fresh_caps)
     if _arm64_expr_uses_tracked_list_ident(value, out) == true {
         out = {}
     }
-    var init = _arm64_fresh_list_int_init_info(stmt)
-    var nm = name["value"]
     if init != nil {
         out[nm] = init["cap_expr"]
     } else {

@@ -332,6 +332,12 @@ backend-shared value-helper slices landed.
     ~0.95s. A declaration-free block scope-frame skip was rejected after profiling because it regressed
     `user_decls` to ~22.1s and wrapper phases too; the new block/shadow/`for var` smoke guards future
     block-scope work in native quick.
+  - Fresh-cap tracker fast path (2026-05-04): the ARM64 list-int reserve-skip tracker now avoids cloning and
+    recursively scanning fresh-cap maps when no tracked cap exists, and the remaining expression scanner
+    hoists stable child-list lengths. Emitted code is unchanged. The default generator profile remains in the
+    previous band (~20.9s / 323804 bytes), while the gated statement profile moves `user_decls Var` from
+    ~2.85s to ~2.76s and statement-profiled `user_decls` from ~23.0s to ~22.2s. This is compiler-loop
+    constant-factor cleanup, not the full `user_decls` wall-time fix.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

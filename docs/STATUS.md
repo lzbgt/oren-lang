@@ -2580,6 +2580,13 @@ Local (fast):
   block scope-frame skip was measured and rejected because it regressed `user_decls` to ~22.1s and wrapper
   phases as well. The new `tier1_native_block_scope_fastpath_main.oren` smoke is in native quick so future
   block-scope optimizations must preserve shadowing and `for var` initializer scoping.
+- ARM64 fresh-cap tracker fast path (2026-05-04): the list-int reserve-skip tracker now avoids cloning and
+  recursively scanning fresh-cap maps when no tracked list cap exists, and the remaining expression scanner
+  hoists stable child-list lengths. Emitted code is unchanged. The refreshed default generator profile keeps
+  `user_decls` in the previous band (~20.9s / 323804 bytes), while the gated statement profile moves
+  `user_decls Var` from ~2.85s to ~2.76s and statement-profiled `user_decls` from ~23.0s to ~22.2s.
+  Treat this as a measured compiler-loop constant-factor cleanup; the main backend target remains broader
+  `user_decls` wall time.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to
