@@ -5279,12 +5279,22 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        and enters the map path directly after the existing tracked-node/map-kind
 																	        checks. Dynamic and list/list_int receivers keep the list/dynamic path, and
 																	        map receivers keep map-magic validation before `oren_map_get_*`. Focused
-																	        typed-struct/map fixtures pass, but the generator profile is unchanged
-																	        because its hot guard `Index` terms are not statically `recv_kind="map"`.
-																	        Treat this as bounded map-index code-size cleanup, not the generator
-																	        wall-time fix.
-																			      - the coroutine surface fixture now uses the same split shape: four focused
-																	        top-level chunks plus a tiny dispatcher, preserving return codes and
+																		        typed-struct/map fixtures pass, but the generator profile is unchanged
+																		        because its hot guard `Index` terms are not statically `recv_kind="map"`.
+																		        Treat this as bounded map-index code-size cleanup, not the generator
+																		        wall-time fix.
+																		      - impl lowering now recognizes known generator step-result calls as
+																		        map-returning without changing the original callee shape, including
+																		        imported namespace member calls such as `gen.next` / `gen.send` /
+																		        `gen.current_step`.
+																		        The refreshed default generator profile drops `user_decls` bytes from
+																		        `323172` to `302592` and local BL fixups from `11423` to `10920`, while
+																		        wall time stays in the same noisy ~20s band. The gated statement profile
+																		        now labels the hot buckets as `Index(map,str)`, so the next backend slice
+																		        should target typed map index term lowering itself rather than missing
+																		        receiver-kind propagation.
+																				      - the coroutine surface fixture now uses the same split shape: four focused
+																		        top-level chunks plus a tiny dispatcher, preserving return codes and
 															        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and

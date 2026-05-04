@@ -330,6 +330,29 @@ fn resolve_ns_name(aliases, expr) {
     return nil
 }
 
+fn _impl_call_returns_generator_step_map(nm) {
+    if nm == "_oren_generator_step_value" { return true }
+    if nm == "_oren_generator_yield_step" { return true }
+    if nm == "_oren_generator_done_step" { return true }
+    if nm == "_oren_generator_done_result" { return true }
+    if nm == "_oren_generator_resume" { return true }
+    if nm == "oren_generator_next" { return true }
+    if nm == "oren_generator_send" { return true }
+    if nm == "oren_generator_current_step" { return true }
+    if nm == "STD_generator__oren_generator_step_value" { return true }
+    if nm == "STD_generator__oren_generator_yield_step" { return true }
+    if nm == "STD_generator__oren_generator_done_step" { return true }
+    if nm == "STD_generator__oren_generator_done_result" { return true }
+    if nm == "STD_generator__oren_generator_resume" { return true }
+    if nm == "STD_generator_oren_generator_next" { return true }
+    if nm == "STD_generator_oren_generator_send" { return true }
+    if nm == "STD_generator_oren_generator_current_step" { return true }
+    if nm == "STD_generator_next" { return true }
+    if nm == "STD_generator_send" { return true }
+    if nm == "STD_generator_current_step" { return true }
+    return false
+}
+
 fn infer_container_kind(expr, kind_env) {
     if expr == nil { return nil }
     var t = expr["type"]
@@ -367,9 +390,14 @@ fn infer_container_kind(expr, kind_env) {
         }
     }
     if t == "Call" {
+        if expr["return_kind"] == "map" { return "map" }
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
             var nm = fnn["value"]
+            // Generator step/result APIs return step maps (or structured error maps).
+            // Marking them map-like lets lowered `step["ok"]` guards use deterministic
+            // typed map indexing instead of falling back to dynamic receiver handling.
+            if _impl_call_returns_generator_step_map(nm) == true { return "map" }
             if nm == "oren_new_list_int" { return "list_int" }
             if nm == "oren_i32_buf_new" { return "buf" }
             if nm == "oren_i32_buf_pack_list_int" { return "buf" }
@@ -625,6 +653,7 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
                 return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"}, [argsR[0], argsR[1]])
             }
         }
+        if _impl_call_returns_generator_step_map(resolved) == true { expr["return_kind"] = "map" }
     }
 
     // Iterator extension hook (rolling v1):

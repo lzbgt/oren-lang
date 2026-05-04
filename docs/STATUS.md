@@ -2702,6 +2702,14 @@ Local (fast):
   pass, but the generator profile is unchanged because its hot `Index` guard terms are not statically
   marked `recv_kind="map"`; classify this as a bounded code-size cleanup for typed/map-index sites, not a
   generator `user_decls` wall-time fix.
+- Impl lowering now treats known generator step-result calls (`gen.next`, `gen.send`, `current_step`,
+  and their linked `STD_generator_*`/runtime names) as map-returning without changing the original callee
+  expression shape. This lets generator guard locals carry `recv_kind="map"` and keeps string keys
+  deterministic across native/C/bytecode lowering. The refreshed default generator profile moves `user_decls` from
+  `323172` to `302592` bytes and trims local BL fixups from `11423` to `10920`; wall time remains in the
+  same noisy band at about `20.4s`. The gated statement profile now labels index terms as
+  `Index(map,str)`, confirming the remaining hot cost is typed map index term lowering itself rather than
+  missing receiver-kind propagation.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

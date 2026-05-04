@@ -49,11 +49,21 @@ fn _arm64_expr_profile_atom(expr) {
     if et == "Nil" { return "Nil" }
     if et == "Identifier" { return "Identifier" }
     if et == "Call" { return "Call" }
-    if et == "Index" { return "Index" }
+    if et == "Index" { return _arm64_expr_profile_index(expr) }
     if et == "Member" { return "Member" }
     if et == "Prefix" { return "Prefix(" + expr["op"] + ")" }
     if et == "Infix" { return "Infix(" + expr["op"] + ")" }
     return et
+}
+
+fn _arm64_expr_profile_index(expr) {
+    var recv = expr["recv_kind"]
+    if recv == nil || recv == "" { recv = "?" }
+    var key = "?"
+    var kk = expr["known_key_kind"]
+    if kk == 0 { key = "int" }
+    if kk == 1 { key = "str" }
+    return "Index(" + recv + "," + key + ")"
 }
 
 fn _arm64_expr_profile_callee(expr) {

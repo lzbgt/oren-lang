@@ -434,6 +434,14 @@ backend-shared value-helper slices landed.
     pass. The generator profile is unchanged because the hot generated guard terms are not statically
     map-marked, so this is bounded map-index code-size cleanup rather than the generator `user_decls`
     wall-time lever.
+  - Generator step-result map inference (2026-05-05): impl lowering now marks known generator step-result
+    calls (`gen.next`, `gen.send`, `current_step`, and linked/runtime equivalents) as map-returning without
+    changing the original callee expression shape, so the kind hint survives local binding inference while
+    C/native/bytecode lowering keep their backend-specific call handling. The refreshed generator profile drops
+    `user_decls` bytes from `323172` to `302592`
+    and local BL fixups from `11423` to `10920`; wall time remains in the same noisy ~20s band. The gated
+    statement profile now labels the hot condition-term buckets as `Index(map,str)`, so the remaining
+    target is typed map index term lowering itself rather than missing receiver-kind propagation.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:
