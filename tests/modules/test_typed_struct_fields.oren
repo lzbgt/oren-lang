@@ -34,6 +34,16 @@ if h.e != 9 { exit(5) }
 if h.f != -1 { exit(6) }
 if h.ok != true { exit(7) }
 
+struct BoolBox {
+    ok: bool
+}
+var bf = BoolBox(false)
+if bf.ok == true { exit(70) }
+var bt = BoolBox(true)
+if bt.ok != true { exit(71) }
+var bc = BoolBox(3 == 4)
+if bc.ok == true { exit(72) }
+
 // f32 rounding: 16777217 (2^24+1) is not representable in float32; it rounds to 16777216.
 struct F32Box {
     x: f32

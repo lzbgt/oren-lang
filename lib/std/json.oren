@@ -395,3 +395,7 @@ fn encode(jv) {
     // Unknown tag: encode as null (rolling safety).
     return "null"
 }
+
+fn try_encode(jv) {
+    return encode(jv)
+}

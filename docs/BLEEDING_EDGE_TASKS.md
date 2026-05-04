@@ -4580,8 +4580,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 	     remaining work is stdlib migration breadth rather than core language/runtime availability.
 	     It also ships `from_ok_map` / `to_ok_map` bridges so older JSON/YAML/CBOR-style
 	     `{"ok":...}` maps can interoperate with the structured error convention during migration.
-	     New (2026-05-04): JSON, YAML, and CBOR decode surfaces now provide direct
-	     structured-error wrappers (`try_decode`, plus CBOR sequence/typed-sequence variants).
+	     New (2026-05-04): JSON, YAML, and CBOR codec surfaces now provide direct
+	     structured encode/decode wrappers (`try_encode` / `try_decode`, plus CBOR
+	     sequence/typed-sequence variants).
+	     Native ARM64 bool annotation normalization is now singleton-aware too, so serde
+	     bool fields preserve `false` when constructors and return boundaries re-normalize
+	     already-boolean values.
 	     YAML native quick coverage is now enabled after the optional split-invariant list-push
 	     transform was moved off the default path; stage1/stage2 native YAML decode/serde now
 	     preserves empty-line handling and compact serde keyword attributes via bytewise string

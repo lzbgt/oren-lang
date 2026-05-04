@@ -135,6 +135,20 @@ fn neq_zero_expr(x) {
     return ast.new_call(nil, {"type": "Identifier", "token": nil, "value": "oren_bool_norm"}, [x])
 }
 
+fn expr_is_definitely_bool(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Boolean" { return true }
+    if t == "Infix" {
+        var op = expr["op"]
+        if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" || op == "&&" || op == "||" {
+            return true
+        }
+    }
+    if t == "Prefix" && expr["op"] == "!" { return true }
+    return false
+}
+
 fn trunc_int_expr(x) {
     // Deterministic numeric truncation for float->int casts.
     // Implemented as a runtime helper in C/bytecode; native backend inlines it.
@@ -310,8 +324,13 @@ fn cast_expr_for_kind(kind, expr) {
         return trunc_int_expr(expr)
     }
 
-    // bool is normalized to a boolean value.
-    if k == "bool" { return neq_zero_expr(expr) }
+    // bool is normalized to a boolean value unless the expression is already
+    // a boolean-producing form. Native bool singletons are pointer values, so
+    // re-normalizing `false` through numeric `!= 0` would incorrectly produce true.
+    if k == "bool" {
+        if expr_is_definitely_bool(expr) { return expr }
+        return neq_zero_expr(expr)
+    }
 
     if k == "f32" {
         // Round to float32 precision (deterministic boundary).

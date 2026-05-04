@@ -25,7 +25,13 @@
 import list "std:list"
 
 fn cnull() { return {"t": "null"} }
-fn cbool(b) { return {"t": "bool", "b": b} }
+fn _bool_int01(b) {
+    if b == true { return 1 }
+    if b == 1 { return 1 }
+    return 0
+}
+
+fn cbool(b) { return {"t": "bool", "b": _bool_int01(b)} }
 fn cint(i) { return {"t": "int", "i": i} }
 fn cbytes(bs) { return {"t": "bytes", "bs": bs} }
 fn cstring(s) { return {"t": "string", "s": s} }
@@ -162,8 +168,8 @@ fn _encode_value(out, v) {
         return nil
     }
     if _streq(t, "bool") {
-        if v["b"] != 0 { _push_u8(out, 245) } // 0xf5 true
-        else { _push_u8(out, 244) }          // 0xf4 false
+        if _bool_int01(v["b"]) == 1 { _push_u8(out, 245) } // 0xf5 true
+        else { _push_u8(out, 244) }                       // 0xf4 false
         return nil
     }
     if _streq(t, "int") {
@@ -226,6 +232,10 @@ fn encode(v) {
     var out = []
     _encode_value(out, v)
     return out
+}
+
+fn try_encode(v) {
+    return encode(v)
 }
 
 fn _need(bs, pos, n) {
@@ -427,6 +437,10 @@ fn encode_sequence(items) {
     return out
 }
 
+fn try_encode_sequence(items) {
+    return encode_sequence(items)
+}
+
 // Typed helpers for serde-generated encode/decode functions.
 //
 // These helpers make it easy to build streaming protocols using the compiler-generated
@@ -446,6 +460,10 @@ fn encode_sequence_typed(items, encode_fn) {
         }
     }
     return encode_sequence(cvs)
+}
+
+fn try_encode_sequence_typed(items, encode_fn) {
+    return encode_sequence_typed(items, encode_fn)
 }
 
 fn decode_next_typed(bs, pos, decode_fn) {

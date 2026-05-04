@@ -1,4 +1,5 @@
 import cbor "../../lib/std/cbor.oren"
+import strings "../../lib/std/strings.oren"
 
 fn assert(cond, msg) {
     if !cond {
@@ -26,6 +27,14 @@ fn test_sequence_typed_roundtrip() {
 
     // Stream encode: concatenate a sequence of CBOR items.
     var bs = cbor.encode_sequence_typed(users, User__cbor_encode)
+    var bs_try = cbor.try_encode_sequence_typed(users, User__cbor_encode)
+    assert(oren_is_err(bs_try) != true, "try_encode_sequence_typed ok")
+    assert(oren_list_len(bs_try) == oren_list_len(bs), "try_encode_sequence_typed len")
+    var bi = 0
+    while bi < oren_list_len(bs) {
+        assert(bs_try[bi] == bs[bi], "try_encode_sequence_typed byte")
+        bi = bi + 1
+    }
 
     // Stream decode: parse + type-decode each item.
     var r = cbor.decode_sequence_typed(bs, User__cbor_decode)
@@ -35,17 +44,17 @@ fn test_sequence_typed_roundtrip() {
 
     assert(out[0].id == 1, "id0")
     assert(out[0].active == true, "active0")
-    assert(out[0].name == "a", "name0")
+    assert(strings.streq(out[0].name, "a"), "name0")
     assert(out[0].internal == 0, "internal default0")
 
     assert(out[1].id == 2, "id1")
-    assert(out[1].active == false, "active1")
-    assert(out[1].name == "b", "name1")
+    assert(out[1].active != true, "active1")
+    assert(strings.streq(out[1].name, "b"), "name1")
     assert(out[1].internal == 0, "internal default1")
 
     assert(out[2].id == 3, "id2")
     assert(out[2].active == true, "active2")
-    assert(out[2].name == "c", "name2")
+    assert(strings.streq(out[2].name, "c"), "name2")
     assert(out[2].internal == 0, "internal default2")
 
     // Incremental decode: one item at a time.
@@ -71,4 +80,3 @@ fn test_sequence_typed_roundtrip() {
 test_sequence_typed_roundtrip()
 print("ok")
 exit(0)
-

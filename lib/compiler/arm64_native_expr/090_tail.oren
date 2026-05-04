@@ -55,6 +55,76 @@ fn _arm64_tail_emit_bool_singleton_from_cond(ctx, tok, cond) {
     return nil
 }
 
+fn _arm64_tail_emit_bool_norm_nonfloat(ctx, tok) {
+    var gname = ctx["rt_g_storage_name"]
+    if gname == nil {
+        var match = nil
+        var match_count = 0
+        if ctx != nil && ctx["globals"] != nil {
+            for kk in ctx["globals"] {
+                var kklen = oren_string_len(kk)
+                var slen = 9
+                if kklen >= slen {
+                    var ok = true
+                    var jj = 0
+                    while jj < slen {
+                        if oren_string_char_at(kk, kklen - slen + jj) != oren_string_char_at("g_storage", jj) { ok = false; break }
+                        jj = jj + 1
+                    }
+                    if ok {
+                        match = kk
+                        match_count = match_count + 1
+                        if match_count > 1 { break }
+                    }
+                }
+            }
+        }
+        if match_count == 1 { gname = match; ctx["rt_g_storage_name"] = match }
+    }
+    if gname == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+        native_error(ctx, tok, "native backend: missing runtime global g_storage (needed for bool normalization)")
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        return nil
+    }
+
+    var goff = ctx["globals"][gname] - 1
+    var adr_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": goff, "reg": nil})
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], goff)
+    oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 1)
+    push_u32_le(ctx["code"], insn_ldr_ptr(1, 1)) // X1 = g_storage
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(2, 1, 376)) // X2 = false
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(3, 1, 384)) // X3 = true
+
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+    var br_false_singleton = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 3))
+    var br_true_singleton = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var br_true_numeric = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+
+    var false_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_false_singleton, insn_b_cond((false_pos - br_false_singleton) / 4, 0)) // EQ
+    push_u32_le(ctx["code"], insn_mov_reg(0, 2))
+    var br_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+
+    var true_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_true_singleton, insn_b_cond((true_pos - br_true_singleton) / 4, 0)) // EQ
+    set_u32_le(ctx["code"], br_true_numeric, insn_b_cond((true_pos - br_true_numeric) / 4, 1)) // NE
+    push_u32_le(ctx["code"], insn_mov_reg(0, 3))
+
+    var end_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
+    return nil
+}
+
 fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 
             if fn_name == "oren_f64_to_u64_bits" {
@@ -106,7 +176,8 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                     push_u32_le(ctx["code"], insn_fmov_d_x(1, 1))
                     push_u32_le(ctx["code"], insn_fcmp(0, 1))
                 } else {
-                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+                    _arm64_tail_emit_bool_norm_nonfloat(ctx, expr["token"])
+                    return true
                 }
                 _arm64_tail_emit_bool_singleton_from_cond(ctx, expr["token"], 1) // NE
                 return true

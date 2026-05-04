@@ -1,4 +1,5 @@
 import json "../../lib/std/json.oren"
+import strings "../../lib/std/strings.oren"
 
 fn assert(cond, msg) {
     if !cond {
@@ -13,22 +14,24 @@ fn test_decode_encode() {
     assert(r["ok"] == 1, "decode ok")
     var out = json.encode(r["v"])
     // keys are stored/iterated deterministically; encoder emits without spaces.
-    assert(out == "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}", "encode deterministic + escapes")
+    assert(strings.streq(out, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}"), "encode deterministic + escapes")
+    var out2 = json.try_encode(r["v"])
+    assert(oren_is_err(out2) != true && strings.streq(out2, out), "try_encode deterministic + escapes")
 }
 
 fn test_int_zero_not_null() {
     var v = json.jint(0)
-    assert(json.encode(v) == "0", "int zero encodes as number")
+    assert(strings.streq(json.encode(v), "0"), "int zero encodes as number")
     var rn = json.decode("null")
     assert(rn["ok"] == 1, "decode null ok")
-    assert(json.encode(rn["v"]) == "null", "null encodes as null")
+    assert(strings.streq(json.encode(rn["v"]), "null"), "null encodes as null")
 }
 
 fn test_nested() {
     var r = json.decode("{\"x\":[true,false,null,3]}")
     assert(r["ok"] == 1, "decode nested ok")
     var out = json.encode(r["v"])
-    assert(out == "{\"x\":[true,false,null,3]}", "nested roundtrip")
+    assert(strings.streq(out, "{\"x\":[true,false,null,3]}"), "nested roundtrip")
 }
 
 fn test_try_decode() {

@@ -30,6 +30,8 @@ if g_u8() != (1000 & 255) { exit(4) }
 // Bool normalization.
 if f_bool(0) { exit(5) }
 if !f_bool(123) { exit(6) }
+if f_bool(false) { exit(7) }
+if !f_bool(true) { exit(8) }
 
 print("module type_ann_fn_boundaries OK")
 exit(0)

@@ -43,8 +43,10 @@ fn test_sequence_bytes_and_decode_next() {
     // f6                    # null
     var items = [cbor.cint(1), cbor.cstring("x"), cbor.cbool(1), cbor.cnull()]
     var bs = cbor.encode_sequence(items)
+    var bs_try = cbor.try_encode_sequence(items)
     var exp = [1, 97, 120, 245, 246]
     assert_bytes_eq(bs, exp, "encode_sequence bytes")
+    assert_bytes_eq(bs_try, exp, "try_encode_sequence bytes")
 
     // decode_next
     var r1 = cbor.decode_next(bs, 0)
@@ -66,6 +68,12 @@ fn test_sequence_bytes_and_decode_next() {
     assert(oren_is_err(tr1) != true && tr1["v"]["i"] == 1 && tr1["pos"] == r1["pos"], "try_decode_next ok")
     var trs = cbor.try_decode_sequence(bs)
     assert(oren_is_err(trs) != true && oren_list_len(trs) == 4 && trs[1]["s"] == "x", "try_decode_sequence ok")
+    var one = cbor.try_encode(cbor.cint(7))
+    assert(oren_is_err(one) != true, "try_encode ok")
+    assert_bytes_eq(one, [7], "try_encode int bytes")
+    assert_bytes_eq(cbor.try_encode(cbor.cbool(0)), [244], "try_encode bool false int")
+    assert_bytes_eq(cbor.try_encode(cbor.cbool(false)), [244], "try_encode bool false singleton")
+    assert_bytes_eq(cbor.try_encode(cbor.cbool(true)), [245], "try_encode bool true singleton")
     var te = cbor.try_decode([255])
     assert(oren_is_err(te) == true, "try_decode err")
 }

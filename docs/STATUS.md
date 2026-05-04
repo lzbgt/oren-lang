@@ -106,8 +106,9 @@ Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/z
   convention (`oren_err` / `oren_is_err` / `std:result`), and `std:result` now includes the
   common compositional helpers `map_ok`, `and_then`, `map_err`, and `or_else` plus `code`/`msg`
   accessors and `from_ok_map` / `to_ok_map` bridges for older `{"ok":...}` codec-style APIs.
-  JSON, YAML, and CBOR now also expose structured decode wrappers (`try_decode`, plus CBOR sequence
-  and typed sequence variants) while keeping legacy `{ok, err}` decoders for compatibility.
+  JSON, YAML, and CBOR now also expose structured encode/decode wrappers (`try_encode` /
+  `try_decode`, plus CBOR sequence and typed sequence variants) while keeping legacy `{ok, err}`
+  decoders for compatibility.
   YAML's former native module build-cost blocker is mitigated by keeping the pathological
   split-invariant list-push transform opt-in; the native quick lane now includes YAML comments
   and serde-attribute smokes, while stage2 native YAML decode and serde-attribute fixtures pass.
@@ -1379,13 +1380,16 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Implemented (rolling): the structured error model is now the shipped value-or-error
      convention based on `oren_err`, `oren_is_err`, `oren_err_code`, `oren_err_msg`, and
      `std:result`; remaining work is stdlib migration breadth, not core feature availability.
-   - New (2026-05-04): `std:json`, `std:yaml`, and `std:cbor` now provide structured-error
-     decode bridges (`try_decode`, plus CBOR sequence/typed-sequence variants) over their legacy
-     `{ok, err}` APIs, so new codec callers can stay on `oren_err` while existing callers remain
-     source-compatible. YAML native quick coverage is now enabled after the optional
+   - New (2026-05-04): `std:json`, `std:yaml`, and `std:cbor` now provide structured encode/decode
+     bridges (`try_encode` / `try_decode`, plus CBOR sequence/typed-sequence variants) over their
+     legacy direct encode and `{ok, err}` decode APIs, so new codec callers can stay on explicit
+     value-or-error naming while existing callers remain source-compatible. YAML native quick coverage is now enabled after the optional
      split-invariant list-push transform was moved off the default path; stage2 native YAML
      decode/serde parity now covers empty-line parsing plus compact
      `@serde(format=..., tag=...)`, `rename`, `skip`, and `default` attribute lookup.
+     The same slice fixed native ARM64 bool annotation normalization for runtime boolean singletons:
+     typed `false` fields and bool return boundaries now remain false instead of being treated as a
+     nonzero pointer during numeric `oren_bool_norm`.
    - New (2026-05-04): `std:net/dns`, `std:net/host`, and `std:net/hpack` now provide direct
      structured-error wrappers over their tested legacy ok-map APIs (`try_query_a`,
      `try_resolve_a`, `try_resolve_host_ipv4`, `try_encode_header_block`,

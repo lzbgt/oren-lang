@@ -389,11 +389,12 @@ fn ensure_bool_to_int_helper(stmts, prefix) {
     // Insert once per program. The helper is pure and deterministic.
     //
     // __oren_serde_bool_to_int(x):
-    //   b = oren_bool_norm(x)
-    //   if b == true { return 1 }
+    //   if x == true { return 1 }
+    //   if x == 1 { return 1 }
     //   return 0
     //
-    // We avoid relying on truthiness of ints here; `oren_bool_norm` forces a bool.
+    // Serde bool fields should already be bool-like. Keep the carrier normalization
+    // explicit so a native runtime false singleton is never treated as a nonzero int.
     if prefix == nil { prefix = "" }
     var fn_name = prefix + "__oren_serde_bool_to_int"
 
@@ -410,18 +411,26 @@ fn ensure_bool_to_int_helper(stmts, prefix) {
     }
 
     var body = ast.new_block(nil)
-    var ifexpr = ast.new_if(
+    var if_true = ast.new_if(
         nil,
-        ast.new_infix(nil, ident("b"), "==", {"type": "Boolean", "token": nil, "value": true}),
+        ast.new_infix(nil, ident("x"), "==", {"type": "Boolean", "token": nil, "value": true}),
         ast.new_block(nil),
         ast.new_block(nil)
     )
-    ifexpr["consq"]["stmts"] = [ast.new_return(nil, int_lit("1"))]
-    ifexpr["alt"]["stmts"] = []
+    if_true["consq"]["stmts"] = [ast.new_return(nil, int_lit("1"))]
+    if_true["alt"]["stmts"] = []
+    var if_one = ast.new_if(
+        nil,
+        ast.new_infix(nil, ident("x"), "==", int_lit("1")),
+        ast.new_block(nil),
+        ast.new_block(nil)
+    )
+    if_one["consq"]["stmts"] = [ast.new_return(nil, int_lit("1"))]
+    if_one["alt"]["stmts"] = []
     body["stmts"] = [
-        ast.new_var(nil, ident("b"), call0("oren_bool_norm", [ident("x")])),
         // If is an expression node; wrap it as a statement for C backend transpilation.
-        ast.new_expr_stmt(nil, ifexpr),
+        ast.new_expr_stmt(nil, if_true),
+        ast.new_expr_stmt(nil, if_one),
         ast.new_return(nil, int_lit("0"))
     ]
 

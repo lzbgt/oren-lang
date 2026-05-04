@@ -14,6 +14,8 @@ import ui_color "std:ui/color"
 import ui_raster "std:ui/raster"
 import linalg "std:linalg"
 import json "std:json"
+import yaml "std:yaml"
+import cbor "std:cbor"
 import regex "std:regex"
 import iter "std:iter"
 
@@ -1185,6 +1187,14 @@ fn main() {
     if r.is_err(parsed_json) == true || parsed_json["t"] != "object" || parsed_json["o"]["n"]["i"] != 3 { return 1515 }
     var bad_json = r.from_ok_map(json.decode("{"))
     if r.is_err(bad_json) != true || r.code(bad_json) != 4 { return 1516 }
+    var json_encoded = json.try_encode(json.jobject({"n": json.jint(3)}))
+    if r.is_err(json_encoded) || strings.streq(json_encoded, "{\"n\":3}") != true { return 1534 }
+    var yaml_encoded = yaml.try_encode(yaml.yobject({"n": yaml.yint(3)}))
+    if r.is_err(yaml_encoded) || strings.streq(yaml_encoded, "n: 3\n") != true { return 1535 }
+    var cbor_encoded = cbor.try_encode(cbor.cint(7))
+    if r.is_err(cbor_encoded) || list.try_len(cbor_encoded) != 1 || list.try_get(cbor_encoded, 0) != 7 { return 1536 }
+    var cbor_seq_encoded = cbor.try_encode_sequence([cbor.cint(1), cbor.cbool(1)])
+    if r.is_err(cbor_seq_encoded) || list.try_len(cbor_seq_encoded) != 2 || list.try_get(cbor_seq_encoded, 0) != 1 || list.try_get(cbor_seq_encoded, 1) != 245 { return 1537 }
     var compiled_regex = regex.try_compile("a+")
     if r.is_err(compiled_regex) == true { return 1517 }
     if regex.is_match_compiled(compiled_regex, "xxaaa") != true { return 1518 }

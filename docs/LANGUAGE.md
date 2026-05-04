@@ -1085,6 +1085,10 @@ Rolling note (native backends):
 
 - numeric annotations like `: i64`, `: u64`, `: int` are treated as an “int kind” hint so map indexing `m[k]` can infer whether `k` is an integer key without relying on runtime pointer/int heuristics
 - typed buffer annotations like `[]i32` / `[]f64` are treated as a “buf kind” hint for receiver sugar like `b.len()`
+- `: bool` and `bool(x)` normalize numeric values with `x != 0`, but expressions that already
+  produce runtime boolean singletons keep those singletons. Native ARM64 `oren_bool_norm` is
+  singleton-aware, so `false` does not become true just because the runtime false object has a
+  nonzero address.
 
 ### Traits and `impl` (practical)
 
@@ -3782,8 +3786,9 @@ Rolling status:
 - Codec migration is rolling without a flag day: JSON/YAML/CBOR still keep their legacy
   `{ok, err, v, pos?}` decode APIs for existing callers, and JSON/YAML/CBOR now also expose
   structured-error wrappers where native-codegen cost is already safe (`json.try_decode`,
-  `yaml.try_decode`, `cbor.try_decode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`,
-  plus typed CBOR sequence variants). YAML native verification is back in the default fast lane
+  `json.try_encode`, `yaml.try_decode`, `yaml.try_encode`, `cbor.try_decode`,
+  `cbor.try_encode`, `cbor.try_decode_next`, `cbor.try_decode_sequence`,
+  plus typed CBOR sequence encode/decode variants). YAML native verification is back in the default fast lane
   through comments and serde-attribute codec smokes; stage1 and stage2 native YAML decode/serde
   fixtures preserve parser empty-line checks and compact `@serde(...)` keyword attributes.
   The previously pathological native split-invariant
@@ -4594,8 +4599,9 @@ YAML decode (config tolerance):
 - Comment detection is restricted (start/whitespace rule) to avoid breaking values like `http://example.com`.
   Encoders remain canonical (no comments).
 - YAML structured-error callers can use `yaml.try_decode(...)`, which returns the decoded
-  `YamlValue` or `oren_err`. The legacy `yaml.decode(...)` `{ok, err, line?, v}` map remains
-  available for compatibility and for callers that need exact parser line metadata.
+  `YamlValue` or `oren_err`; `yaml.try_encode(...)` mirrors deterministic `yaml.encode(...)`
+  under the value-or-error naming convention. The legacy `yaml.decode(...)` `{ok, err, line?, v}`
+  map remains available for compatibility and for callers that need exact parser line metadata.
 
 CBOR streaming (rolling, v1):
 
@@ -4604,15 +4610,18 @@ CBOR streaming (rolling, v1):
   - `cbor.decode_next(bytes, pos) -> {ok, err?, v?, pos}` (incremental)
   - `cbor.decode_sequence(bytes) -> {ok, err?, v:[CborValue...], pos}`
   - structured-error mirrors:
+    - `cbor.try_encode(value) -> bytes`
     - `cbor.try_decode(bytes) -> CborValue | oren_err`
     - `cbor.try_decode_next(bytes, pos) -> {v:CborValue, pos:int} | oren_err`
+    - `cbor.try_encode_sequence([CborValue...]) -> bytes`
     - `cbor.try_decode_sequence(bytes) -> [CborValue...] | oren_err`
   - serde-friendly typed helpers:
     - `cbor.encode_sequence_typed(items, Type__cbor_encode) -> bytes`
     - `cbor.decode_next_typed(bytes, pos, Type__cbor_decode) -> {ok, err?, v:<T>, pos}`
     - `cbor.decode_sequence_typed(bytes, Type__cbor_decode) -> {ok, err?, v:[T...], pos}`
-    - `cbor.try_decode_next_typed(...)` and `cbor.try_decode_sequence_typed(...)` mirror
-      those typed helpers with `oren_err` failures.
+    - `cbor.try_encode_sequence_typed(...)`, `cbor.try_decode_next_typed(...)`, and
+      `cbor.try_decode_sequence_typed(...)` mirror those typed helpers under the structured
+      value-or-error naming convention.
 
 Planned next step:
 

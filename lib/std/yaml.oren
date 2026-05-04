@@ -690,3 +690,7 @@ fn encode(v) {
     if !ends_with(out, "\n") { out = out + "\n" }
     return out
 }
+
+fn try_encode(v) {
+    return encode(v)
+}
