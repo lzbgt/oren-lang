@@ -375,6 +375,11 @@ backend-shared value-helper slices landed.
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around
     ~1.0s, ~4.1s, ~3.0s, and ~4.2s; the measured native profile improved `user_decls` from ~22.0s to
     ~20.7s and link/prep from ~14.6s to ~8.4s.
+  - Generator fixture re-split (2026-05-05): the same surface fixture is now split into seven focused
+    chunks plus the dispatcher, preserving return codes and coverage while cutting the largest fixture
+    chunk to ~2.8s in the refreshed native profile. `user_decls` remains in the same broad band but
+    nudges to ~20.6s / 323172 bytes / 276 funcs, so this is fixture-shape/codegen-scaling cleanup; the
+    first Mach-O local BL resolve bucket remains ~2.4s.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

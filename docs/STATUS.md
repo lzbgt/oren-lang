@@ -2640,6 +2640,14 @@ Local (fast):
   improved from ~22.0s to ~20.7s and the link/prep span improved from ~14.6s to ~8.4s. This is a
   verifier-performance fix, not a language semantic change; it also demonstrates that large
   monolithic user functions remain a real native-codegen scaling target.
+- Generator surface fixture re-split (2026-05-05): the previous four large chunks are now split
+  into seven focused top-level functions plus the dispatcher, preserving return codes and coverage
+  while further reducing the hottest generated fixture bodies. The refreshed native profile keeps
+  `user_decls` in the same broad band but nudges it to ~20.6s / 323172 bytes / 276 funcs; the largest
+  fixture chunks are now `generator_surface_part_timeout_policy_waits` (~2.8s),
+  `generator_surface_part_decl_and_local_generators` (~2.2s), and
+  `generator_surface_part_iteration_and_decls` (~2.1s). This is still fixture-shape/codegen-scaling
+  cleanup, not the final backend fix; the first Mach-O local BL resolve bucket remains ~2.4s.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

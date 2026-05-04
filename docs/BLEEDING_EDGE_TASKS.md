@@ -5204,12 +5204,19 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 															        return codes are preserved, but the hottest function drops from ~13.2s /
 														        300888 bytes to four smaller chunks (~1.0s, ~4.1s, ~3.0s, ~4.2s).
-														        The measured native profile improves `user_decls` from ~22.0s to ~20.7s
-														        and link/prep from ~14.6s to ~8.4s, while confirming large monolithic
-														        user functions are still a native-codegen scaling target.
-														      - the coroutine surface fixture now uses the same split shape: four focused
-														        top-level chunks plus a tiny dispatcher, preserving return codes and
-														        coverage. The measured coroutine native profile now has the largest fixture
+															        The measured native profile improves `user_decls` from ~22.0s to ~20.7s
+															        and link/prep from ~14.6s to ~8.4s, while confirming large monolithic
+															        user functions are still a native-codegen scaling target.
+														      - the generator surface fixture was split once more into seven focused
+															        top-level chunks plus the dispatcher. Return codes and coverage are
+															        preserved; the refreshed native profile keeps `user_decls` in the same
+															        broad band but nudges it to ~20.6s / 323172 bytes / 276 funcs, with the
+															        hottest fixture chunks now around ~2.8s, ~2.2s, and ~2.1s. Keep this
+															        classified as fixture-shape/codegen-scaling cleanup; the first local BL
+															        resolve bucket still sits around ~2.4s.
+															      - the coroutine surface fixture now uses the same split shape: four focused
+															        top-level chunks plus a tiny dispatcher, preserving return codes and
+															        coverage. The measured coroutine native profile now has the largest fixture
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and
 														        Mach-O local BL target resolution ~1.8s for the first 4096 local calls.
