@@ -5144,6 +5144,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																	        to ~2.76s and statement-profiled `user_decls` from ~23.0s to ~22.2s.
 																	        Keep this classified as compiler-loop cleanup; broader `user_decls`
 																	        wall time is still the main backend target.
+																			      - Statement shape/callee profile follow-up (2026-05-04): gated ARM64
+																	        statement profiling moved to `arm64_native_stmt_profile.oren`, reducing
+																	        `arm64_native_stmt.oren` line pressure while adding value/callee detail
+																	        for `Var`, `Assign`, and `Return` buckets. The refreshed generator
+																	        statement profile identifies generator error-return helpers
+																	        (`STD_generator__generator_cancel_target_err`, `_oren_generator_err`),
+																	        generator policy member calls (`stop_policy_wait`, `stop_policy`),
+																	        and lambda-wrapper `oren_list_get` capture loads as the largest
+																	        non-conditional buckets. Treat these as ranking data; avoid
+																	        generator-specific native shortcuts unless a separate proof shows
+																	        semantic safety and a real profile win.
 																			      - the generator surface fixture now splits its formerly monolithic native
 																	        `main` into four top-level chunks plus a tiny dispatcher. Coverage and
 															        return codes are preserved, but the hottest function drops from ~13.2s /

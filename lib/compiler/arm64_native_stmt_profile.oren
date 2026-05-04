@@ -1,0 +1,80 @@
+fn arm64_stmt_profile_record(ctx, phase, fn_name, stmt_type, ms, bytes) {
+    if ctx == nil { return nil }
+    var rows = ctx["arm64_stmt_profile"]
+    if rows == nil { return nil }
+    if phase == nil { phase = "" }
+    if fn_name == nil { fn_name = "" }
+    if stmt_type == nil { stmt_type = "" }
+    var key = phase + "\t" + fn_name + "\t" + stmt_type
+    var row = rows[key]
+    if row == nil {
+        row = {"phase": phase, "fn": fn_name, "stmt": stmt_type, "count": 0, "ms": 0, "bytes": 0}
+        rows[key] = row
+    }
+    row["count"] = row["count"] + 1
+    row["ms"] = row["ms"] + ms
+    row["bytes"] = row["bytes"] + bytes
+    return nil
+}
+
+fn arm64_stmt_profile_kind(stmt) {
+    if stmt == nil { return "" }
+    var st = stmt["type"]
+    if st == nil { return "" }
+    if st == "ExprStmt" {
+        var e = stmt["expr"]
+        var et = nil
+        if e != nil { et = e["type"] }
+        if et == "If" { return "ExprStmt(If:" + _arm64_expr_profile_kind(e["cond"]) + ")" }
+        if et != nil && et != "" { return "ExprStmt(" + et + ")" }
+    }
+    if st == "Var" { return "Var(" + _arm64_expr_profile_kind(stmt["value"]) + ")" }
+    if st == "Assign" { return "Assign(" + _arm64_expr_profile_kind(stmt["value"]) + ")" }
+    if st == "Return" { return "Return(" + _arm64_expr_profile_kind(stmt["value"]) + ")" }
+    return st
+}
+
+fn _arm64_expr_profile_atom(expr) {
+    if expr == nil { return "nil" }
+    var et = expr["type"]
+    if et == nil || et == "" { return "expr" }
+    if et == "String" { return "String" }
+    if et == "Integer" { return "Integer" }
+    if et == "Float" { return "Float" }
+    if et == "Boolean" { return "Boolean" }
+    if et == "Nil" { return "Nil" }
+    if et == "Identifier" { return "Identifier" }
+    if et == "Call" { return "Call" }
+    if et == "Index" { return "Index" }
+    if et == "Member" { return "Member" }
+    if et == "Prefix" { return "Prefix(" + expr["op"] + ")" }
+    if et == "Infix" { return "Infix(" + expr["op"] + ")" }
+    return et
+}
+
+fn _arm64_expr_profile_callee(expr) {
+    if expr == nil { return "nil" }
+    var et = expr["type"]
+    if et == "Identifier" { return "Id:" + expr["value"] }
+    if et == "Member" {
+        var prop = expr["prop"]
+        if prop != nil && prop["value"] != nil && prop["value"] != "" { return "Member:" + prop["value"] }
+    }
+    return _arm64_expr_profile_atom(expr)
+}
+
+fn _arm64_expr_profile_kind(expr) {
+    if expr == nil { return "nil" }
+    var et = expr["type"]
+    if et == "Call" {
+        var args = expr["args"]
+        var argc = 0
+        if args != nil { argc = oren_list_len(args) }
+        return "Call(" + _arm64_expr_profile_callee(expr["fn"]) + "," + oren_int_to_string(argc) + ")"
+    }
+    if et == "Infix" {
+        return "Infix(" + expr["op"] + "," + _arm64_expr_profile_atom(expr["left"]) + "," + _arm64_expr_profile_atom(expr["right"]) + ")"
+    }
+    if et == "Prefix" { return "Prefix(" + expr["op"] + "," + _arm64_expr_profile_atom(expr["right"]) + ")" }
+    return _arm64_expr_profile_atom(expr)
+}

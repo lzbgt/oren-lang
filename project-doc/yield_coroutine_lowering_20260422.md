@@ -338,6 +338,13 @@ backend-shared value-helper slices landed.
     previous band (~20.9s / 323804 bytes), while the gated statement profile moves `user_decls Var` from
     ~2.85s to ~2.76s and statement-profiled `user_decls` from ~23.0s to ~22.2s. This is compiler-loop
     constant-factor cleanup, not the full `user_decls` wall-time fix.
+  - Statement shape/callee profile follow-up (2026-05-04): gated ARM64 statement profiling moved into
+    `arm64_native_stmt_profile.oren` and now breaks `Var`, `Assign`, and `Return` buckets down by value/callee
+    shape. The refreshed generator statement profile points to generator error-return helpers
+    (`STD_generator__generator_cancel_target_err`, `_oren_generator_err`), generator policy member calls
+    (`stop_policy_wait`, `stop_policy`), and lambda-wrapper `oren_list_get` capture loads as the largest
+    non-conditional buckets. Treat that as ranking data, not permission for generator-specific native
+    shortcuts without separate semantic/performance proof.
   - Generator fixture split (2026-05-04): the surface fixture now preserves the same assertions and
     return codes while splitting the giant native `main` into four top-level chunks plus a tiny
     dispatcher. The hottest generated function dropped from ~13.2s / 300888 bytes to chunks around

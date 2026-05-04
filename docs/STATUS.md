@@ -2587,6 +2587,14 @@ Local (fast):
   `user_decls Var` from ~2.85s to ~2.76s and statement-profiled `user_decls` from ~23.0s to ~22.2s.
   Treat this as a measured compiler-loop constant-factor cleanup; the main backend target remains broader
   `user_decls` wall time.
+- ARM64 statement profile shape detail (2026-05-04): the gated statement profiler now lives in
+  `arm64_native_stmt_profile.oren`, keeping `arm64_native_stmt.oren` away from the 2000-line guardrail
+  while adding value/callee detail for `Var`, `Assign`, and `Return` buckets. The refreshed statement
+  profile shows the largest non-conditional buckets are generator error-return helpers
+  (`STD_generator__generator_cancel_target_err`, `_oren_generator_err`) plus generator policy member calls
+  (`stop_policy_wait`, `stop_policy`) and lambda-wrapper `oren_list_get` capture loads. These are inclusive
+  profiling facts for ranking; do not hard-code generator-specific native shortcuts without a separate
+  semantic/performance proof.
 - The generator surface fixture no longer compiles all runtime checks into one monolithic native
   `main`. It is split into four top-level chunks plus a tiny dispatcher, preserving the same return
   codes and coverage while reducing the hottest generated function from ~13.2s / 300888 bytes to
