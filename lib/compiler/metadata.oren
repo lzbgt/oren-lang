@@ -677,16 +677,17 @@ fn json_package_budgets(a) {
     return out
 }
 
-fn json_package_manifest(stmts) {
-    var a = package_attr_for_stmts(stmts)
+fn json_package_manifest_for_facts(a, domains) {
+    var required_domains = domains
+    if required_domains == nil { required_domains = [] }
     var out = "{\n"
     out = out + "    \"version\": 1,\n"
     if a == nil {
         out = out + "    \"declared\": false,\n"
         out = out + "    \"runtime_profile\": null,\n"
         out = out + "    \"cap_allow_domains\": [],\n"
-        out = out + "    \"source_required_domains\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
-        out = out + "    \"dependency_domain_union\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
+        out = out + "    \"source_required_domains\": " + json_string_array(required_domains) + ",\n"
+        out = out + "    \"dependency_domain_union\": " + json_string_array(required_domains) + ",\n"
         out = out + "    \"dependency_domain_union_status\": \"source_attrs_only\",\n"
         out = out + "    \"budgets\": { \"version\": 1, \"declared\": false }\n"
         out = out + "  }"
@@ -694,13 +695,17 @@ fn json_package_manifest(stmts) {
     }
     out = out + "    \"declared\": true,\n"
     out = out + "    \"runtime_profile\": " + json_string(attr_kw_string(a, "runtime_profile")) + ",\n"
-    out = out + "    \"cap_allow_domains\": " + json_string_array(package_cap_allow_domains(stmts)) + ",\n"
-    out = out + "    \"source_required_domains\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
-    out = out + "    \"dependency_domain_union\": " + json_string_array(cap_required_domains(stmts)) + ",\n"
+    out = out + "    \"cap_allow_domains\": " + json_string_array(package_attr_cap_allow_domains(a)) + ",\n"
+    out = out + "    \"source_required_domains\": " + json_string_array(required_domains) + ",\n"
+    out = out + "    \"dependency_domain_union\": " + json_string_array(required_domains) + ",\n"
     out = out + "    \"dependency_domain_union_status\": \"source_attrs_only\",\n"
     out = out + "    \"budgets\": " + json_package_budgets(a) + "\n"
     out = out + "  }"
     return out
+}
+
+fn json_package_manifest(stmts) {
+    return json_package_manifest_for_facts(package_attr_for_stmts(stmts), cap_required_domains(stmts))
 }
 
 fn package_budget_declared(a) {
@@ -747,8 +752,7 @@ fn package_policy_check_status(stmts, actual_runtime_profile, actual_cap_allow_d
     return package_policy_check_status_for_attr(package_attr_for_stmts(stmts), actual_runtime_profile, actual_cap_allow_domains)
 }
 
-fn json_package_policy_check(stmts, actual_runtime_profile, actual_cap_allow_domains) {
-    var a = package_attr_for_stmts(stmts)
+fn json_package_policy_check_for_attr(a, actual_runtime_profile, actual_cap_allow_domains) {
     var actual_profile = actual_runtime_profile
     if actual_profile == nil || actual_profile == "" { actual_profile = "none" }
     var actual_domains = normalize_domain_list(actual_cap_allow_domains)
@@ -787,6 +791,10 @@ fn json_package_policy_check(stmts, actual_runtime_profile, actual_cap_allow_dom
         "\"runtime_profile\": { \"declared\": " + json_string(declared_profile) + ", \"actual\": " + json_string(actual_profile) + ", \"status\": " + json_string(runtime_status) + " }, " +
         "\"cap_allow_domains\": { \"declared\": " + json_string_array(declared_domains) + ", \"actual\": " + json_string_array(actual_domains) + ", \"missing\": " + json_string_array(missing) + ", \"status\": " + json_string(cap_status) + " }, " +
         "\"budget_status\": " + json_string(budget_status) + " }"
+}
+
+fn json_package_policy_check(stmts, actual_runtime_profile, actual_cap_allow_domains) {
+    return json_package_policy_check_for_attr(package_attr_for_stmts(stmts), actual_runtime_profile, actual_cap_allow_domains)
 }
 
 fn cap_attr_domain(a) {

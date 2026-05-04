@@ -524,6 +524,12 @@ backend-shared value-helper slices landed.
     `Assign(Integer)` fast path: runtime globals, negative prefix/non-literal initializers, and
     `OREN_NATIVE_GAS_ACCOUNTING=stmt` / `basic-block` / `block-weighted` / `dynamic-emitter` builds still emit
     the ordered assignment statements so gas accounting and source-order side effects stay observable.
+  - Native link/profile split (2026-05-05): `make profile-native-build-phases` now records link-program
+    subphases inside the standard phase log, and package metadata/policy assembly reuses the already-computed
+    package attr plus capability-domain facts instead of rescanning statements for each JSON/status view. The
+    measured generator profile shows metadata substeps are sub-5ms and not the wall-time lever; the actual link
+    boundary is now visible as optimizer pass cost (~3.64s after `abi_layout`) and module parse (~2.55s). Keep
+    follow-up work on optimizer/link-program internals or the still-separate Mach-O local BL resolver boundary.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

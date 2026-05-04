@@ -367,11 +367,33 @@ fn _ml_append_test_runner_calls(stmts, tests) {
     return nil
 }
 
+fn _ml_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _ml_phase_log_append(path, phase, detail, t0) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var now = oren_time_now_ns()
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(now)
+    if t0 != nil && t0 > 0 {
+        line = line + " total_ms=" + oren_int_to_string((now - t0) / 1000000)
+    }
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
 fn link_program(entry_path, root_prog, config) {
     var trace_passes = oren_env("OREN_TRACE_PASSES") != nil
     var trace_phases = oren_env("OREN_TRACE_PHASES") != nil
+    var phase_log_path = _ml_phase_log_path()
     var t0 = 0
-    if trace_phases { t0 = oren_time_now_ns() }
+    if trace_phases || phase_log_path != nil { t0 = oren_time_now_ns() }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.enter", "path=" + entry_path, t0) }
     if trace_passes { print("[trace] link: start " + entry_path) }
     MODULES = {}
     MODULE_STACK = []
@@ -428,6 +450,7 @@ fn link_program(entry_path, root_prog, config) {
         var dt0 = oren_time_now_ns() - t0
         print("[phase] link discover done +" + oren_int_to_string(dt0 / 1000000) + "ms modules=" + oren_int_to_string(oren_list_len(MODULE_ORDER)))
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.discover.done", "modules=" + oren_int_to_string(oren_list_len(MODULE_ORDER)), t0) }
 
     // Parse all discovered modules in fork-parallel workers.
     _ml_parse_discovered_modules_parallel(config)
@@ -435,6 +458,7 @@ fn link_program(entry_path, root_prog, config) {
         var dt1 = oren_time_now_ns() - t0
         print("[phase] link parse done +" + oren_int_to_string(dt1 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.parse_modules.done", "", t0) }
 
     // Apply the same alias namespacing rule to the root module so its imports are
     // scoped and do not collide with nested module imports after linking.
@@ -528,6 +552,7 @@ fn link_program(entry_path, root_prog, config) {
         var dt2 = oren_time_now_ns() - t0
         print("[phase] link merge done +" + oren_int_to_string(dt2 / 1000000) + "ms stmts=" + oren_int_to_string(oren_list_len(merged_stmts)))
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.merge.done", "stmts=" + oren_int_to_string(oren_list_len(merged_stmts)), t0) }
     
     // Preserve metadata-only surfaces across module linking.
     // (Traits are not represented as executable statements yet in v0.)
@@ -589,6 +614,7 @@ fn link_program(entry_path, root_prog, config) {
         var dt3 = oren_time_now_ns() - t0
         print("[phase] link aliases done +" + oren_int_to_string(dt3 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.aliases.done", "", t0) }
 
     var linked = {
         "statements": merged_stmts,
@@ -654,6 +680,7 @@ fn link_program(entry_path, root_prog, config) {
         var dt4 = oren_time_now_ns() - t0
         print("[phase] pass type_name_resolve +" + oren_int_to_string(dt4 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.type_name_resolve.done", "", t0) }
 
     // Whole-program impl/method-call lowering:
     // - enables cross-module method call sugar without runtime vtables
@@ -675,6 +702,7 @@ fn link_program(entry_path, root_prog, config) {
         var dt5 = oren_time_now_ns() - t0
         print("[phase] pass impl_lowering +" + oren_int_to_string(dt5 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.impl_lowering.done", "", t0) }
 
     // Compile-time lowering: packed struct views over bytes.
     if trace_passes { print("[trace] pass: packview") }
@@ -694,6 +722,7 @@ fn link_program(entry_path, root_prog, config) {
         var dt5b = oren_time_now_ns() - t0
         print("[phase] pass packview +" + oren_int_to_string(dt5b / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.packview.done", "", t0) }
 
     // Always-on parity guard (native backend hazard):
     // - Comparing provably-scalar values (bool/int/float) to `nil` is almost always a bug.

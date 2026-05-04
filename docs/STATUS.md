@@ -2786,6 +2786,13 @@ Local (fast):
   work instead of making the same statements cheaper. Runtime globals, non-literal initializers, negative prefix
   expressions, and all statement/basic-block/block-weighted/dynamic-emitter gas-accounting builds keep the old
   ordered assignment path so source-order side effects and native gas evidence remain intact.
+- Native build phase profiling now splits the former coarse link/prep block into link-program subphases and
+  package metadata substeps. Metadata/package manifest assembly reuses precomputed package attrs and capability
+  domains, but the measured effect is intentionally classified as scan cleanup rather than a wall-time fix:
+  package metadata substeps are all sub-5ms on the generator surface. The new link profile facts show the real
+  link boundary is inside `link_program`: `link.abi_layout.done -> link.optimizer.done` is about 3.64s and
+  `link.discover.done -> link.parse_modules.done` is about 2.55s, while `user_decls` remains about
+  4.3s / 292000 bytes and first local BL resolution remains about 2.44s.
 - The coroutine surface fixture now follows the same split-fixture shape instead of compiling its
   full runtime contract into one native `main`. The four chunks keep the same return codes and
   coverage, while the measured coroutine native profile has the largest fixture chunk at ~2.0s

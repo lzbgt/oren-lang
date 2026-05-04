@@ -13,6 +13,7 @@
         }
         oren_exit(1)
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.nil_compare_guard.done", "", t0) }
 
     // Optional: typecheck pass (gradual typing).
     //
@@ -43,6 +44,7 @@
         var dt5c = oren_time_now_ns() - t0
         print("[phase] pass type_ann +" + oren_int_to_string(dt5c / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.type_ann.done", "", t0) }
 
     // Compile-time lowering: specialization call sugar.
     //   f[T](...) -> f__T(...)
@@ -65,6 +67,7 @@
         var dt6 = oren_time_now_ns() - t0
         print("[phase] pass generic_calls +" + oren_int_to_string(dt6 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.generic_calls.done", "", t0) }
 
     // Compile-time lowering: generic function monomorphization (rolling v0).
     //   fn f[T](...) + f[T](...) calls  ->  fn f__T(...)
@@ -85,6 +88,7 @@
         var dt7 = oren_time_now_ns() - t0
         print("[phase] pass generic_mono +" + oren_int_to_string(dt7 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.generic_mono.done", "", t0) }
 
     // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
     // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.
@@ -105,6 +109,7 @@
         var dt8 = oren_time_now_ns() - t0
         print("[phase] pass abi_layout +" + oren_int_to_string(dt8 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.abi_layout.done", "", t0) }
 
 
     // Optimizer baseline (safe, conservative).
@@ -114,6 +119,7 @@
         var dt9 = oren_time_now_ns() - t0
         print("[phase] pass optimizer +" + oren_int_to_string(dt9 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.optimizer.done", "", t0) }
 
     // Whole-program function DCE (rolling):
     // - keeps semantic/type/attr passes applied to the full program
@@ -125,6 +131,7 @@
         var dt10 = oren_time_now_ns() - t0
         print("[phase] pass global_dce +" + oren_int_to_string(dt10 / 1000000) + "ms")
     }
+    if phase_log_path != nil { _ml_phase_log_append(phase_log_path, "link.global_dce.done", "stmts=" + oren_int_to_string(oren_list_len(linked["statements"])), t0) }
 
     if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
     oren_gc_pin(prev_pin)

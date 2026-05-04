@@ -536,9 +536,11 @@ fn _compiler_run_meta_cmd(pos, opts, seen, dbg_flow) {
     _trace_introspection_phase(trace_intro_meta, "meta link", t0m)
     var meta_json = metadata.generate_metadata(linked)
     _trace_introspection_phase(trace_intro_meta, "meta summary", t0m)
-    var meta_domains = metadata.cap_required_domains(linked["statements"])
+    var meta_stmts = linked["statements"]
+    var meta_domains = metadata.cap_required_domains(meta_stmts)
     var meta_profile = _runtime_profile_request_for_manifest("meta", false)
-    var meta_policy = _artifact_manifest_policy_with_package("meta", false, [], meta_domains, metadata.json_package_manifest(linked["statements"]), metadata.json_package_policy_check(linked["statements"], meta_profile, []))
+    var meta_pkg_attr = metadata.package_attr_for_stmts(meta_stmts)
+    var meta_policy = _artifact_manifest_policy_with_package("meta", false, [], meta_domains, metadata.json_package_manifest_for_facts(meta_pkg_attr, meta_domains), metadata.json_package_policy_check_for_attr(meta_pkg_attr, meta_profile, []))
     ensure_dir(dirname(out_meta))
     var w = oren_write_file(out_meta, meta_json)
     if oren_is_err(w) {
