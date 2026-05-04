@@ -223,6 +223,11 @@ backend-shared value-helper slices landed.
     have been paid. Hoisting stable list lengths out of those loops trims only a few later-span
     milliseconds, so the next first-bucket resolver design must reduce linear traversal itself rather
     than byte-comparison cost.
+  - Local resolver metadata-key cleanup (2026-05-04): the resolver now stores one combined
+    `(length, first-byte, last-byte)` integer key per unique target instead of three separate metadata
+    vectors. The generator profile remains behavior-compatible and keeps the same `790088` BL scan
+    steps / `12567` byte comparisons, with the first bucket still about `~2.40s`; this is a
+    constant-factor simplification rather than the final traversal fix.
   - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions now skip
     native call-depth enter/exit instrumentation on ARM64 and x64 because the real target function
     still carries the guard. Lambda wrappers remain guarded because they own their body. The measured

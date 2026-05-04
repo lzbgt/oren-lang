@@ -4972,7 +4972,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																        list lengths out of those hot loops trims later spans only modestly, so
 																        the next resolver design must reduce linear traversal itself rather
 																        than byte-comparison cost.
-															      - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*`
+																      - Metadata-key cleanup (2026-05-04): the resolver now stores a single
+																        `(length, first-byte, last-byte)` integer key per unique target instead
+																        of three separate metadata vectors. This preserves byte-content
+																        equality and avoids the rejected cache families, but the generator
+																        profile still reports the same `790088` BL scan steps and first bucket
+																        around `~2.40s`; treat it as a constant-factor simplification, not the
+																        final traversal fix.
+																      - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*`
 															        functions now carry a compiler-internal marker that skips native call-depth
 														        enter/exit instrumentation on ARM64 and x64. The actual target function
 														        still carries the guard, while lambda wrappers stay guarded because their

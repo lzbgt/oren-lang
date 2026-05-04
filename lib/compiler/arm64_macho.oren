@@ -101,7 +101,12 @@ fn _macho_lookup_stats_detail(stats, unique_n) {
         " misses=" + oren_int_to_string(stats[5])
 }
 
-fn _macho_lookup_function_linear(names, offs, lens, first_bytes, last_bytes, ctx, functions, name, stats) {
+fn _macho_target_meta_key(name_len, name_first, name_last) {
+    if name_len <= 0 { return -1 }
+    return name_len * 65536 + name_first * 256 + name_last
+}
+
+fn _macho_lookup_function_linear(names, offs, meta_keys, lens, ctx, functions, name, stats) {
     if name == nil {
         _macho_lookup_stats_add(stats, 0, 0, 0, 0, 1)
         return nil
@@ -111,6 +116,7 @@ fn _macho_lookup_function_linear(names, offs, lens, first_bytes, last_bytes, ctx
     if name_len > 0 { name_first = oren_string_byte_at_unchecked(name, 0) & 255 }
     var name_last = -1
     if name_len > 0 { name_last = oren_string_byte_at_unchecked(name, name_len - 1) & 255 }
+    var name_key = _macho_target_meta_key(name_len, name_first, name_last)
     var i = 0
     var scan_steps = 0
     var meta_candidates = 0
@@ -118,7 +124,7 @@ fn _macho_lookup_function_linear(names, offs, lens, first_bytes, last_bytes, ctx
     var names_n = oren_list_len(names)
     while i < names_n {
         scan_steps = scan_steps + 1
-        if lens[i] == name_len && first_bytes[i] == name_first && last_bytes[i] == name_last {
+        if meta_keys[i] == name_key {
             meta_candidates = meta_candidates + 1
             byte_compares = byte_compares + 1
             if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
@@ -134,9 +140,8 @@ fn _macho_lookup_function_linear(names, offs, lens, first_bytes, last_bytes, ctx
     if off != nil {
         oren_list_push(names, name)
         oren_list_push(offs, off)
+        oren_list_push(meta_keys, name_key)
         oren_list_push(lens, name_len)
-        oren_list_push(first_bytes, name_first)
-        oren_list_push(last_bytes, name_last)
         appended = 1
     } else {
         missed = 1
@@ -1526,9 +1531,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     }
     var local_target_names = []
     var local_target_offs = []
+    var local_target_meta_keys = []
     var local_target_lens = []
-    var local_target_first_bytes = []
-    var local_target_last_bytes = []
     var local_target_stats = nil
     if phase_log != nil { local_target_stats = [0, 0, 0, 0, 0, 0] }
     var local_bl_n = oren_list_len(local_bl_name)
@@ -1556,7 +1560,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var target_local = local_bl_target[i]
         if target_local == nil {
             var name_bl_local = local_bl_name[i]
-            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_bl_local, local_target_stats)
+            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_lens, ctx, functions, name_bl_local, local_target_stats)
             if target_local == nil {
                 var e_local_bl = "native backend: undefined function " + name_bl_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
@@ -1615,7 +1619,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var target2_local = local_adr_code_target[i]
         if target2_local == nil {
             var name_ac_local = local_adr_code_name[i]
-            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_lens, local_target_first_bytes, local_target_last_bytes, ctx, functions, name_ac_local, local_target_stats)
+            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_lens, ctx, functions, name_ac_local, local_target_stats)
             if target2_local == nil {
                 var e_local_ac = "native backend: undefined function " + name_ac_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))

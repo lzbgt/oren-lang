@@ -2453,6 +2453,12 @@ Local (fast):
   entries. Hoisting stable list lengths out of the hot resolver loops trims a few later-span
   milliseconds, but the first bucket remains around `~2.39s`, so the next resolver design needs to
   reduce linear target-cache traversal rather than byte-comparison cost.
+- Local resolver metadata-key cleanup (2026-05-04): the resolver now stores one combined
+  `(length, first-byte, last-byte)` integer key per unique target instead of three separate metadata
+  vectors. The refreshed generator profile remains behavior-compatible and keeps the scan facts stable
+  (`790088` BL scan steps / `12567` byte comparisons), while the first BL bucket stays around `~2.40s`.
+  This is a smaller constant-factor cleanup; the next material resolver win still needs fewer linear
+  target-cache entries visited per lookup.
 - ARM64/x64 named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions are
   now marked as thin dispatch wrappers and skip native call-depth enter/exit instrumentation. The real
   target function still carries the stack-depth guard, while lambda wrappers remain guarded because
