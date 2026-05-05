@@ -460,10 +460,6 @@ fn _entry_size(name, value) {
     return 32 + oren_string_len(name) + oren_string_len(value)
 }
 
-fn _table_len(t) {
-    return list.len(oren_map_get_str(t, "entries"))
-}
-
 fn _table_get_entry(t, entry_index_1based) {
     // Dynamic table entry lookup by HPACK dynamic index (1 is most recent).
     var es = oren_map_get_str(t, "entries")

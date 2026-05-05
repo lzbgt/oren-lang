@@ -69,13 +69,9 @@ fn _buf_len_with_tag_or_err(buf, want_tag, ctx, want_label) {
     return common._buf_len_with_tag_or_err(buf, want_tag, ctx, want_label)
 }
 
-fn _new_i32_buf(n) { return raw.i32_new(n) }
 fn _new_i32_buf_uninit(n) { return raw.i32_new_uninit(n) }
-fn _new_i64_buf(n) { return raw.i64_new(n) }
 fn _new_i64_buf_uninit(n) { return raw.i64_new_uninit(n) }
-fn _new_f32_buf(n) { return raw.f32_new(n) }
 fn _new_f32_buf_uninit(n) { return raw.f32_new_uninit(n) }
-fn _new_f64_buf(n) { return raw.f64_new(n) }
 fn _new_f64_buf_uninit(n) { return raw.f64_new_uninit(n) }
 fn _store_i32_buf_direct(buf, idx, v) { return raw._store_i32_buf_direct(buf, idx, v) }
 fn _store_i32_buf_unchecked_direct(buf, idx, v) { return raw._store_i32_buf_unchecked_direct(buf, idx, v) }

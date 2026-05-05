@@ -11,11 +11,6 @@ fn _is_attr_name(a, name) {
     return a["type"] == "Attr" && a["name"] == name
 }
 
-fn _attr_list(node) {
-    if node == nil { return nil }
-    return node["attrs"]
-}
-
 fn _stmt_attrs(stmt) {
     if stmt == nil { return nil }
     var t = stmt["type"]

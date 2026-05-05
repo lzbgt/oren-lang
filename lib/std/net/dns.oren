@@ -376,14 +376,6 @@ fn _u16be_set(p, off, v) {
     return 0
 }
 
-fn _u32be_set(p, off, v) {
-    ptr_set_byte(p + off + 0, (v >> 24) & 255)
-    ptr_set_byte(p + off + 1, (v >> 16) & 255)
-    ptr_set_byte(p + off + 2, (v >> 8) & 255)
-    ptr_set_byte(p + off + 3, v & 255)
-    return 0
-}
-
 fn _write_qname(buf, cap, off, name) {
     // Write DNS QNAME encoding (labels) for an ASCII hostname like "a.b.c".
     // Returns {ok:1, off:<new_off>} or {ok:0, err:string}.

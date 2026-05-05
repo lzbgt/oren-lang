@@ -90,11 +90,6 @@ fn _frag(start, out_list) {
     return {"start": start, "out": out_list}
 }
 
-fn _is_meta(b) {
-    // meta chars that need escaping when literal
-    return b == 40 || b == 41 || b == 124 || b == 42 || b == 43 || b == 63 || b == 46 || b == 91 || b == 93 || b == 94 || b == 36 || b == 92
-}
-
 fn _re2post(pattern) {
     // Shunting-yard to postfix with explicit concat.
     // Based on Thompson construction style.

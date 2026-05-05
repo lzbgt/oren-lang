@@ -1888,3 +1888,12 @@ That path keeps the current repo state honest:
 - raw `oren_yield()` remains available as a low-level helper
 - full coroutine/generator semantics are still backlog, but the next work can start from the actual
   runtime seams and the now-proven helper surfaces above instead of rediscovering them in chat
+
+## Rolling cleanup notes
+
+- 2026-05-06: removed another stale private-helper batch whose names each had exactly one repo
+  occurrence before deletion. The cleanup spans compiler and stdlib modules but does not alter the
+  coroutine helper contract: `_arm64_cmp_may_use_strcmp`, `_attr_list`,
+  `_arm64_rtobj_encode_fixups`, `_astbin_g_read_string`, `_astbin_read_string_ref_v2`, `_is_meta`,
+  `_u32be_set`, `_table_len`, `_store_u8_buf_direct`, `_load_u8_buf_direct`,
+  `_pack_list_like_with`, `_new_i32_buf`, `_new_i64_buf`, `_new_f32_buf`, and `_new_f64_buf`.

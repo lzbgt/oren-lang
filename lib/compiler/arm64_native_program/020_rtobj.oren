@@ -395,33 +395,6 @@ fn _arm64_rtobj_encode_offsets_u8_from_int_list(xs) {
     return bytes_finalize(b)
 }
 
-fn _arm64_rtobj_encode_fixups(fixups) {
-    if fixups == nil { return [] }
-    var out = []
-    var i = 0
-    while i < oren_list_len(fixups) {
-        var f0 = fixups[i]
-        if f0 != nil {
-            // Only encode fixups that have an integer `pos`.
-            // Avoid `pos + 1` on missing values (nil) under the C runtime.
-            var pos = f0["pos"]
-            if oren_type_tag(pos) != 1 { i = i + 1; continue }
-            var f1 = {"type": f0["type"], "pos": (pos + 1)}
-            if f0["name"] != nil { f1["name"] = f0["name"] }
-            if f0["data_label"] != nil { f1["data_label"] = f0["data_label"] }
-            var data_off = f0["data_off"]
-            if oren_type_tag(data_off) == 1 { f1["data_off"] = (data_off + 1) }
-            // Preserve destination register for ADRP/ADD fixups.
-            // Store as +1 to avoid 0-as-nil when decoding under the native runtime.
-            var reg = f0["reg"]
-            if oren_type_tag(reg) == 1 { f1["reg"] = (reg + 1) }
-            oren_list_push(out, f1)
-        }
-        i = i + 1
-    }
-    return out
-}
-
 fn _arm64_rtobj_encode_fixups_compact(fixups) {
     if fixups == nil { return nil }
     var bl_n = 0
