@@ -537,6 +537,9 @@ backend-shared value-helper slices landed.
     moving from ~3.76s to ~3.31s, `list_int` from ~1.81s to ~1.46s, and reserve from ~0.64s to ~0.53s. A
     narrower list-int-only prefilter probe reduced candidates to `86/470`, but it raised list-scan overhead to ~53ms,
     left `list_int` around ~1.44s, and worsened optimizer total to ~3.42s, so the source probe was reverted.
+    A fold-pass stable-list-length hoist also passed stage2 and focused optimizer/generator gates, but repeated
+    profiles left `fold_ms` around ~0.97-1.02s and optimizer total around ~3.40-3.43s, so that source probe was
+    reverted as neutral-to-worse.
     A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
     profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
