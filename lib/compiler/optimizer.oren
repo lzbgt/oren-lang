@@ -61,6 +61,62 @@ fn _optimizer_phase_elapsed(start_ns) {
     return oren_time_now_ns() - start_ns
 }
 
+fn _optimizer_function_name(fun_expr) {
+    if fun_expr == nil { return "<unknown>" }
+    var nm = fun_expr["name"]
+    if nm == nil || nm == "" { return "<anon>" }
+    return nm
+}
+
+fn _optimizer_hot_update(hot, pass, fn_name, ns) {
+    if hot == nil || pass == nil || ns == nil || ns <= 0 { return nil }
+    if fn_name == nil || fn_name == "" { fn_name = "<unknown>" }
+    var ns1 = hot[pass + "_ns1"]
+    var ns2 = hot[pass + "_ns2"]
+    var ns3 = hot[pass + "_ns3"]
+    if ns1 == nil { ns1 = 0 }
+    if ns2 == nil { ns2 = 0 }
+    if ns3 == nil { ns3 = 0 }
+    if ns > ns1 {
+        hot[pass + "_ns3"] = ns2
+        hot[pass + "_fn3"] = hot[pass + "_fn2"]
+        hot[pass + "_ns2"] = ns1
+        hot[pass + "_fn2"] = hot[pass + "_fn1"]
+        hot[pass + "_ns1"] = ns
+        hot[pass + "_fn1"] = fn_name
+        return nil
+    }
+    if ns > ns2 {
+        hot[pass + "_ns3"] = ns2
+        hot[pass + "_fn3"] = hot[pass + "_fn2"]
+        hot[pass + "_ns2"] = ns
+        hot[pass + "_fn2"] = fn_name
+        return nil
+    }
+    if ns > ns3 {
+        hot[pass + "_ns3"] = ns
+        hot[pass + "_fn3"] = fn_name
+    }
+    return nil
+}
+
+fn _optimizer_hot_detail(hot, pass) {
+    if hot == nil || pass == nil { return "" }
+    var out = ""
+    var rank = 1
+    while rank <= 3 {
+        var rank_s = oren_int_to_string(rank)
+        var ns = hot[pass + "_ns" + rank_s]
+        var fn_name = hot[pass + "_fn" + rank_s]
+        if oren_type_tag(ns) != 0 && ns > 0 && oren_type_tag(fn_name) != 0 {
+            out = out + " " + pass + rank_s + "_fn=" + fn_name +
+                " " + pass + rank_s + "_ms=" + oren_int_to_string(ns / 1000000)
+        }
+        rank = rank + 1
+    }
+    return out
+}
+
 fn _optimizer_str_contains(hay, needle) {
     if hay == nil || needle == nil { return false }
     var hl = oren_string_len(hay)
@@ -259,60 +315,76 @@ fn lower_linked_program_in_place(linked) {
     var list_scan_ns = 0
     var list_candidate_count = 0
     var t_sub = 0
+    var hot = {}
     if trace_opt { print("[opt] stmts_len=" + oren_int_to_string(ss_len)) }
     while i < ss_len {
         if trace_opt && i == 0 { print("[opt] fold first stmt type=" + ss[i]["type"]) }
         if profile_phases { t_sub = oren_time_now_ns() }
         fold_stmt(ss[i], nn_env)
-        if profile_phases { fold_ns = fold_ns + _optimizer_phase_elapsed(t_sub) }
+        var fold_elapsed = 0
+        if profile_phases {
+            fold_elapsed = _optimizer_phase_elapsed(t_sub)
+            fold_ns = fold_ns + fold_elapsed
+        }
         // DCE for function bodies.
         if ss[i] != nil && ss[i]["type"] == "ExprStmt" && ss[i]["expr"] != nil && ss[i]["expr"]["type"] == "Function" {
+            var fn_expr = ss[i]["expr"]
+            var fn_name = _optimizer_function_name(fn_expr)
+            if profile_phases { _optimizer_hot_update(hot, "fold", fn_name, fold_elapsed) }
             fn_count = fn_count + 1
             // Try to eliminate simple non-tail recursion first (modulo constant), then do plain tail recursion elimination.
             if trace_opt && i == 0 { print("[opt] tco_modconst start") }
             if profile_phases { t_sub = oren_time_now_ns() }
-            _tco_modconst_function_in_place(ss[i]["expr"])
+            _tco_modconst_function_in_place(fn_expr)
             if profile_phases { tco_mod_ns = tco_mod_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] tco_modconst done") }
             if trace_opt && i == 0 { print("[opt] tco start") }
             if profile_phases { t_sub = oren_time_now_ns() }
-            _tco_function_in_place(ss[i]["expr"])
+            _tco_function_in_place(fn_expr)
             if profile_phases { tco_ns = tco_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] tco done") }
             if profile_phases { t_sub = oren_time_now_ns() }
-            optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
+            optloops.lower_simple_for_in_block(fn_expr["body"])
             if profile_phases { for_ns = for_ns + _optimizer_phase_elapsed(t_sub) }
             if profile_phases { t_sub = oren_time_now_ns() }
-            optloops.sink_list_lit_into_if(ss[i]["expr"]["body"])
+            optloops.sink_list_lit_into_if(fn_expr["body"])
             if profile_phases { sink_ns = sink_ns + _optimizer_phase_elapsed(t_sub) }
             var lower_allow_empty = true
             var body_may_touch_list = false
             if profile_phases { t_sub = oren_time_now_ns() }
-            body_may_touch_list = _optimizer_stmt_may_touch_list(ss[i]["expr"]["body"])
+            body_may_touch_list = _optimizer_stmt_may_touch_list(fn_expr["body"])
             if profile_phases { list_scan_ns = list_scan_ns + _optimizer_phase_elapsed(t_sub) }
             if body_may_touch_list {
                 list_candidate_count = list_candidate_count + 1
                 if profile_phases { t_sub = oren_time_now_ns() }
-                _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty, nil)
-                if profile_phases { list_int_ns = list_int_ns + _optimizer_phase_elapsed(t_sub) }
+                _opt_lower_int_only_lists_in_block_opts(fn_expr["body"], lower_allow_empty, nil)
+                if profile_phases {
+                    var list_int_elapsed = _optimizer_phase_elapsed(t_sub)
+                    list_int_ns = list_int_ns + list_int_elapsed
+                    _optimizer_hot_update(hot, "list_int", fn_name, list_int_elapsed)
+                }
             }
             if profile_phases { t_sub = oren_time_now_ns() }
-            optloops.split_invariant_list_push_in_block(ss[i]["expr"]["body"])
+            optloops.split_invariant_list_push_in_block(fn_expr["body"])
             if profile_phases { split_ns = split_ns + _optimizer_phase_elapsed(t_sub) }
             if profile_phases { t_sub = oren_time_now_ns() }
-            optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
+            optloops.wrap_arena_loops_in_block(fn_expr["body"])
             if profile_phases { arena_ns = arena_ns + _optimizer_phase_elapsed(t_sub) }
             if body_may_touch_list {
                 if profile_phases { t_sub = oren_time_now_ns() }
-                _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
-                if profile_phases { reserve_ns = reserve_ns + _optimizer_phase_elapsed(t_sub) }
+                _opt_insert_list_reserve_in_block(fn_expr["body"], nil, nil, nil, nil, nil)
+                if profile_phases {
+                    var reserve_elapsed = _optimizer_phase_elapsed(t_sub)
+                    reserve_ns = reserve_ns + reserve_elapsed
+                    _optimizer_hot_update(hot, "reserve", fn_name, reserve_elapsed)
+                }
             }
             if profile_phases { t_sub = oren_time_now_ns() }
-            optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
+            optconst.rewrite_const_mod_in_block(fn_expr["body"], nil)
             if profile_phases { const_ns = const_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] dce start") }
             if profile_phases { t_sub = oren_time_now_ns() }
-            dce_block_in_place(ss[i]["expr"]["body"])
+            dce_block_in_place(fn_expr["body"])
             if profile_phases { dce_ns = dce_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] dce done") }
         }
@@ -333,7 +405,10 @@ fn lower_linked_program_in_place(linked) {
             " arena_ms=" + oren_int_to_string(arena_ns / 1000000) +
             " reserve_ms=" + oren_int_to_string(reserve_ns / 1000000) +
             " const_ms=" + oren_int_to_string(const_ns / 1000000) +
-            " dce_ms=" + oren_int_to_string(dce_ns / 1000000)
+            " dce_ms=" + oren_int_to_string(dce_ns / 1000000) +
+            _optimizer_hot_detail(hot, "fold") +
+            _optimizer_hot_detail(hot, "list_int") +
+            _optimizer_hot_detail(hot, "reserve")
         _optimizer_phase_log_append(phase_log_path, "optimizer.summary", detail, phase_t0)
     }
     return nil

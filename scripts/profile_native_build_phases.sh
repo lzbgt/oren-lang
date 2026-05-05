@@ -197,6 +197,48 @@ if parse_module_rows:
             f"  cache_hit={row['cache_hit']}  path={row['path']}"
         )
 
+optimizer_hot_rows = []
+for phase_name, _ns, detail in events:
+    if phase_name != "optimizer.hot" and phase_name != "optimizer.summary":
+        continue
+    fields = {m.group(1): m.group(2) for m in detail_field_re.finditer(detail)}
+    if "pass" in fields:
+        try:
+            ms = int(fields.get("ms", "0"))
+        except ValueError:
+            ms = 0
+        try:
+            rank = int(fields.get("rank", "0"))
+        except ValueError:
+            rank = 0
+        optimizer_hot_rows.append({
+            "pass": fields.get("pass", ""),
+            "rank": rank,
+            "fn": fields.get("fn", ""),
+            "ms": ms,
+        })
+        continue
+    for pass_name in ("fold", "list_int", "reserve"):
+        for rank in (1, 2, 3):
+            fn = fields.get(f"{pass_name}{rank}_fn", "")
+            if not fn:
+                continue
+            try:
+                ms = int(fields.get(f"{pass_name}{rank}_ms", "0"))
+            except ValueError:
+                ms = 0
+            optimizer_hot_rows.append({
+                "pass": pass_name,
+                "rank": rank,
+                "fn": fn,
+                "ms": ms,
+            })
+
+if optimizer_hot_rows:
+    print("== optimizer hot function bodies by pass ==")
+    for row in sorted(optimizer_hot_rows, key=lambda item: (item["pass"], item["rank"])):
+        print(f"{row['ms']:10d} ms  pass={row['pass']} rank={row['rank']} fn={row['fn']}")
+
 rows = []
 if function_log.exists():
     for line in function_log.read_text(errors="replace").splitlines():
