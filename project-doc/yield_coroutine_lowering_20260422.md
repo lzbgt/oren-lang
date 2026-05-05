@@ -1897,3 +1897,7 @@ That path keeps the current repo state honest:
   `_arm64_rtobj_encode_fixups`, `_astbin_g_read_string`, `_astbin_read_string_ref_v2`, `_is_meta`,
   `_u32be_set`, `_table_len`, `_store_u8_buf_direct`, `_load_u8_buf_direct`,
   `_pack_list_like_with`, `_new_i32_buf`, `_new_i64_buf`, `_new_f32_buf`, and `_new_f64_buf`.
+- 2026-05-06: removed three unused non-prelude ARM64 statement imports (`abi`, `labi`, and
+  `loopm`) after narrowing the import scan to files without textual includes. This leaves prelude
+  imports and the imports-only AVM stdlib bundle alone because those aliases feed included files or
+  linker reachability rather than direct same-file token use.
