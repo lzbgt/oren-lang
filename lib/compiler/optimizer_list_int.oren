@@ -1428,7 +1428,9 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
         _opt_list_int_profile_add("use_scan", prof_part_t0)
         if list_empty_seen == true {
             if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
-            _opt_mark_list_int_touch_in_stmt(st, list_state, _opt_map_clone_safe(safe_ints), list_touch)
+            if opthelp.stmt_may_touch_list(st) == true {
+                _opt_mark_list_int_touch_in_stmt(st, list_state, _opt_map_clone_safe(safe_ints), list_touch)
+            }
             _opt_list_int_profile_add("touch", prof_part_t0)
         }
         if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }

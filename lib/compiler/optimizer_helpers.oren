@@ -298,3 +298,92 @@ fn stmt_may_assign_name(stmt) {
     }
     return false
 }
+
+fn stmt_may_contain_for(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "For" { return true }
+    if t == "Block" || t == "StmtList" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if stmt_may_contain_for(ss[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "If" {
+        if stmt_may_contain_for(stmt["consq"]) { return true }
+        return stmt_may_contain_for(stmt["alt"])
+    }
+    if t == "While" { return stmt_may_contain_for(stmt["body"]) }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil && stmt_may_contain_for(c["body"]) { return true }
+            ci = ci + 1
+        }
+        return stmt_may_contain_for(stmt["default"])
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            if stmt_may_contain_for(e["consq"]) { return true }
+            return stmt_may_contain_for(e["alt"])
+        }
+        if e != nil && e["type"] == "Switch" {
+            var cases2 = e["cases"]
+            var ci2 = 0
+            while cases2 != nil && ci2 < oren_list_len(cases2) {
+                var c2 = cases2[ci2]
+                if c2 != nil && stmt_may_contain_for(c2["body"]) { return true }
+                ci2 = ci2 + 1
+            }
+            return stmt_may_contain_for(e["default"])
+        }
+    }
+    return false
+}
+
+fn stmt_may_contain_if(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "If" { return true }
+    if t == "Block" || t == "StmtList" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if stmt_may_contain_if(ss[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "While" || t == "For" { return stmt_may_contain_if(stmt["body"]) }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil && stmt_may_contain_if(c["body"]) { return true }
+            ci = ci + 1
+        }
+        return stmt_may_contain_if(stmt["default"])
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" { return true }
+        if e != nil && e["type"] == "Switch" {
+            var cases2 = e["cases"]
+            var ci2 = 0
+            while cases2 != nil && ci2 < oren_list_len(cases2) {
+                var c2 = cases2[ci2]
+                if c2 != nil && stmt_may_contain_if(c2["body"]) { return true }
+                ci2 = ci2 + 1
+            }
+            return stmt_may_contain_if(e["default"])
+        }
+    }
+    return false
+}

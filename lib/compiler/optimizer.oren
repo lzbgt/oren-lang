@@ -163,7 +163,9 @@ fn lower_linked_program_in_place(linked) {
     var tco_scan_ns = 0
     var tco_mod_ns = 0
     var tco_ns = 0
+    var for_scan_ns = 0
     var for_ns = 0
+    var sink_scan_ns = 0
     var sink_ns = 0
     var list_int_ns = 0
     var split_ns = 0
@@ -215,24 +217,30 @@ fn lower_linked_program_in_place(linked) {
             }
             if trace_opt && i == 0 { print("[opt] tco done") }
             if profile_phases { t_sub = oren_time_now_ns() }
-            optloops.lower_simple_for_in_block(fn_expr["body"])
+            var body_may_lower_for = opthelp.stmt_may_contain_for(fn_expr["body"])
+            if profile_phases { for_scan_ns = for_scan_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases { t_sub = oren_time_now_ns() }
+            if body_may_lower_for { optloops.lower_simple_for_in_block(fn_expr["body"]) }
             if profile_phases {
                 var for_elapsed = _optimizer_phase_elapsed(t_sub)
                 for_ns = for_ns + for_elapsed
                 _optimizer_hot_update(hot, "for", fn_name, for_elapsed)
-            }
-            if profile_phases { t_sub = oren_time_now_ns() }
-            optloops.sink_list_lit_into_if(fn_expr["body"])
-            if profile_phases {
-                var sink_elapsed = _optimizer_phase_elapsed(t_sub)
-                sink_ns = sink_ns + sink_elapsed
-                _optimizer_hot_update(hot, "sink", fn_name, sink_elapsed)
             }
             var lower_allow_empty = true
             var body_may_touch_list = false
             if profile_phases { t_sub = oren_time_now_ns() }
             body_may_touch_list = opthelp.stmt_may_touch_list(fn_expr["body"])
             if profile_phases { list_scan_ns = list_scan_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases { t_sub = oren_time_now_ns() }
+            var body_may_sink_list_lit = body_may_touch_list && opthelp.stmt_may_contain_if(fn_expr["body"])
+            if profile_phases { sink_scan_ns = sink_scan_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases { t_sub = oren_time_now_ns() }
+            if body_may_sink_list_lit { optloops.sink_list_lit_into_if(fn_expr["body"]) }
+            if profile_phases {
+                var sink_elapsed = _optimizer_phase_elapsed(t_sub)
+                sink_ns = sink_ns + sink_elapsed
+                _optimizer_hot_update(hot, "sink", fn_name, sink_elapsed)
+            }
             if body_may_touch_list {
                 list_candidate_count = list_candidate_count + 1
                 if profile_phases { t_sub = oren_time_now_ns() }
@@ -284,7 +292,9 @@ fn lower_linked_program_in_place(linked) {
             " tco_scan_ms=" + oren_int_to_string(tco_scan_ns / 1000000) +
             " tco_mod_ms=" + oren_int_to_string(tco_mod_ns / 1000000) +
             " tco_ms=" + oren_int_to_string(tco_ns / 1000000) +
+            " for_scan_ms=" + oren_int_to_string(for_scan_ns / 1000000) +
             " for_ms=" + oren_int_to_string(for_ns / 1000000) +
+            " sink_scan_ms=" + oren_int_to_string(sink_scan_ns / 1000000) +
             " sink_ms=" + oren_int_to_string(sink_ns / 1000000) +
             " list_int_ms=" + oren_int_to_string(list_int_ns / 1000000) +
             " split_ms=" + oren_int_to_string(split_ns / 1000000) +

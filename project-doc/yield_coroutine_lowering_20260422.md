@@ -646,6 +646,11 @@ string-name comparisons.
 	    The reserve-safe follow-up makes `stmt_may_assign_name(...)` recursively precise for control-flow bodies, keeping real
 	    `Var`/`Assign`/`Set` invalidation while skipping assignment-free subtrees. That moves optimizer total to ~857ms,
 	    `reserve_ms` to ~46ms, and `reserve_safe_ms` to ~15ms on the generator profile.
+	    The next retained loop/list residual cleanup gates simple-`for` lowering on a real `For` body shape, gates list-literal
+	    sinking on both list-touch and `if` body shapes, reports `for_scan_ms` / `sink_scan_ms`, and skips list-int touch marking
+	    for statements that the shared conservative list-touch detector proves cannot touch lists. The measured profile keeps
+	    optimizer total in-band at ~852ms while moving `for_ms` to ~1ms, `sink_ms` to ~19ms, `list_int_ms` to ~177ms, and
+	    `list_int_touch_ms` to ~28ms.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 	    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object

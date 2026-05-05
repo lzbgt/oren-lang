@@ -272,7 +272,9 @@ for phase_name, _ns, detail in events:
             "tco_scan_ms",
             "tco_mod_ms",
             "tco_ms",
+            "for_scan_ms",
             "for_ms",
+            "sink_scan_ms",
             "sink_ms",
             "list_int_ms",
             "split_ms",
@@ -369,7 +371,9 @@ if optimizer_subphase_rows:
             f" tco_scan={row['tco_scan_ms']:5d}"
             f" tco_mod={row['tco_mod_ms']:5d}"
             f" tco={row['tco_ms']:5d}"
+            f" for_scan={row['for_scan_ms']:5d}"
             f" for={row['for_ms']:5d}"
+            f" sink_scan={row['sink_scan_ms']:5d}"
             f" sink={row['sink_ms']:5d}"
             f" list_int={row['list_int_ms']:5d}"
             f" split={row['split_ms']:5d}"
