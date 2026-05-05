@@ -198,10 +198,30 @@ if parse_module_rows:
         )
 
 macho_hot_rows = []
+macho_stat_rows = []
 for phase_name, _ns, detail in events:
     if phase_name not in ("macho.fixups.local.bl.resolve.done", "macho.fixups.local.adr_code.resolve.done"):
         continue
     fields = {m.group(1): m.group(2) for m in detail_field_re.finditer(detail)}
+    stat_row = {"phase": phase_name}
+    for key in (
+        "n",
+        "prefilled",
+        "resolved",
+        "unique",
+        "lookups",
+        "scan_steps",
+        "candidates",
+        "byte_cmps",
+        "appended",
+        "misses",
+        "insert_shifts",
+    ):
+        try:
+            stat_row[key] = int(fields.get(key, "0"))
+        except ValueError:
+            stat_row[key] = 0
+    macho_stat_rows.append(stat_row)
     prefix = "bl_top" if phase_name == "macho.fixups.local.bl.resolve.done" else "all_top"
     for rank in range(1, 6):
         name = fields.get(f"{prefix}{rank}", "")
@@ -217,6 +237,18 @@ for phase_name, _ns, detail in events:
             "name": name,
             "count": count,
         })
+
+if macho_stat_rows:
+    print("== Mach-O local resolve stats ==")
+    for row in sorted(macho_stat_rows, key=lambda item: item["phase"]):
+        print(
+            f"phase={row['phase']} n={row['n']:5d}"
+            f" prefilled={row['prefilled']:5d} resolved={row['resolved']:5d}"
+            f" unique={row['unique']:5d} lookups={row['lookups']:5d}"
+            f" scan_steps={row['scan_steps']:7d} candidates={row['candidates']:6d}"
+            f" byte_cmps={row['byte_cmps']:6d} appended={row['appended']:5d}"
+            f" misses={row['misses']:5d} insert_shifts={row['insert_shifts']:7d}"
+        )
 
 if macho_hot_rows:
     print("== Mach-O local resolve hot targets ==")
