@@ -36,7 +36,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
-- Reweight (2026-05-05): ARM64 self-host generator codegen no longer has the earlier generic-call ABI/string-literal wall-time shape. Gated `CallGenericSub(...)` profiling showed helper-call cost was dominated by argument expression lowering, and the separate ordinary string-literal C-string MRU moved repeated default `user_decls` profiles to about `4.26s / 292000 bytes / 284 funcs`. A follow-up top-level integer-global preinit removes side-effect-free literal integer global assignments from `__top_level__` on non-gas builds, while preserving the old emitted statements when `OREN_NATIVE_GAS_ACCOUNTING=stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter` is selected. Native build profiling now splits link-program subphases from package metadata scans: metadata manifest/policy substeps are sub-5ms after fact reuse, while `link.abi_layout.done -> link.optimizer.done` is about 3.64s and module parse is about 2.55s. Next backend work should not reopen broad small-call, `oren_is_err` inlining, or in-place global `Assign(Integer)` shortcuts; target optimizer/link-program pass cost, remaining runtime-observable generator helper semantics, or the separate Mach-O local BL traversal boundary.
+- Reweight (2026-05-05): ARM64 self-host generator codegen no longer has the earlier generic-call ABI/string-literal wall-time shape. Gated `CallGenericSub(...)` profiling showed helper-call cost was dominated by argument expression lowering, and the separate ordinary string-literal C-string MRU moved repeated default `user_decls` profiles to about `4.26s / 292000 bytes / 284 funcs`. A follow-up top-level integer-global preinit removes side-effect-free literal integer global assignments from `__top_level__` on non-gas builds, while preserving the old emitted statements when `OREN_NATIVE_GAS_ACCOUNTING=stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter` is selected. Native build profiling now splits link-program subphases from package metadata scans: metadata manifest/policy substeps are sub-5ms after fact reuse, while `link.abi_layout.done -> link.optimizer.done` is about 3.6s and module parse is about 2.5s. Module parse subprofiling shows the hot cost is `parser.parse_program` itself (`lib/std/generator.oren` about `1.32s` parser time), not lexer setup, file reads, cache probing, or prepare. Next backend work should not reopen broad small-call, `oren_is_err` inlining, in-place global `Assign(Integer)` shortcuts, or serial ASTBIN writes; target parser-level generator/task parse shape, optimizer/link-program pass cost, remaining runtime-observable generator helper semantics, or the separate Mach-O local BL traversal boundary.
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
   capability domains, failure model, and verification map; `oren meta` now emits a per-source
   `capabilities` manifest for `@cap.requires` functions; artifact `--manifest` output now carries
@@ -5412,16 +5412,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															        a cold fill, and cross-compiler cold rtobj seed builds are refused by default
 															        because the cache key validates runtime/backend compatibility, not which
 															        compiler binary emitted the runtime object.
-														      - Module parse profile follow-up (2026-05-05): serial module parsing now emits
-														        `link.parse_module.done` rows into the standard native build phase log, and
-														        `profile-native-build-phases` prints a module table. The refreshed generator
-														        profile identifies `lib/std/generator.oren` as the dominant parse module
-														        (~1.42s / 137 stmts), followed by `lib/std/task_group.oren` (~520ms / 62 stmts)
-														        and `lib/std/task.oren` (~322ms / 52 stmts). Reweight module-parse work toward
-														        those modules or persistent module-cache hits instead of the small tail. An
-														        opt-in serial module-cache write probe was rejected: writing only the first
-														        two ASTBIN cache entries pushed the profile to the 180s timeout, with
-														        `lib/std/time.oren` alone reporting ~114.5s including encode/write cost.
+															      - Module parse profile follow-up (2026-05-05): serial module parsing now emits
+															        `link.parse_module.done` rows into the standard native build phase log, and
+															        `profile-native-build-phases` prints a module table with read/cache/parse/
+															        lexer/parser/merge/prepare sub-buckets. The refreshed generator profile
+															        identifies `lib/std/generator.oren` as the dominant parse module (~1.43s /
+															        137 stmts) with ~1.32s in `parser.parse_program` and lexer setup rounding
+															        to 0ms, followed by `lib/std/task_group.oren` (~502ms / 62 stmts, ~317ms
+															        parser) and `lib/std/task.oren` (~321ms / 52 stmts, ~211ms parser).
+															        Reweight module-parse work toward parser-level generator/task shape or a
+															        non-serial-write cache design instead of file-read/cache/prepare work or
+															        the small tail. An opt-in serial module-cache write probe was rejected:
+															        writing only the first two ASTBIN cache entries pushed the profile to the
+															        180s timeout, with `lib/std/time.oren` alone reporting ~114.5s including
+															        encode/write cost.
 														      - ARM64 assignment/global trait propagation now reuses the already-computed
 														        float trait when deriving integer trait state. This removes redundant
 														        top-level expression walks in hot `var`, `assign`, and global-slot paths;

@@ -551,13 +551,16 @@ backend-shared value-helper slices landed.
     by default; the existing cache key proves runtime/backend compatibility, not that a stage1-emitted runtime
     object is safe to link into a stage2-emitted user binary.
   - Module parse profiling (2026-05-05): the serial module parse path now emits `link.parse_module.done` rows
-    into the standard phase log, and `scripts/profile_native_build_phases.sh` summarizes them by module path. The
-    refreshed generator profile identifies `lib/std/generator.oren` as the dominant parse module (~1.42s / 137
-    stmts), followed by `lib/std/task_group.oren` (~520ms / 62 stmts) and `lib/std/task.oren` (~322ms / 52 stmts).
-    Reweight module-parse follow-up toward those modules or persistent module-cache hits rather than the small
-    `reflect/result/list` tail. An opt-in serial module-cache write probe timed out before completing the profile:
-    it wrote only the first two ASTBIN cache entries and charged ~114.5s to `lib/std/time.oren` including
-    encode/write cost, so serial cache seeding was reverted as the wrong persistence strategy.
+    into the standard phase log, and `scripts/profile_native_build_phases.sh` summarizes them by module path with
+    read/cache/parse/lexer/parser/merge/prepare sub-buckets. The refreshed generator profile identifies
+    `lib/std/generator.oren` as the dominant parse module (~1.43s / 137 stmts) with ~1.32s in
+    `parser.parse_program` and lexer setup rounding to 0ms, followed by `lib/std/task_group.oren`
+    (~502ms / 62 stmts, ~317ms parser) and `lib/std/task.oren` (~321ms / 52 stmts, ~211ms parser).
+    Reweight module-parse follow-up toward parser-level generator/task shape or a non-serial-write cache design,
+    not file-read/cache/prepare work or the small `reflect/result/list` tail. An opt-in serial module-cache write
+    probe timed out before completing the profile: it wrote only the first two ASTBIN cache entries and charged
+    ~114.5s to `lib/std/time.oren` including encode/write cost, so serial cache seeding was reverted as the wrong
+    persistence strategy.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

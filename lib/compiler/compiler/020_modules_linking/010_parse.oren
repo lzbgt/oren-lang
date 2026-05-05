@@ -115,9 +115,20 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
 
     var prog = nil
     var cache_path = nil
+    var profile_parse = _ml_phase_log_path() != nil
+    var read_ms = 0
+    var cache_ms = 0
+    var parse_ms = 0
+    var lexer_ms = 0
+    var parser_ms = 0
+    var merge_ms = 0
+    var prepare_ms = 0
+    var t_part = 0
     var includes = _ml_include_list_if_aggregator(full)
     if includes == nil {
+        if profile_parse { t_part = oren_time_now_ns() }
         var rr = expand_includes_file_result(full, [])
+        if profile_parse { read_ms = read_ms + ((oren_time_now_ns() - t_part) / 1000000) }
         if rr["ok"] != true {
             var msg = rr["err"]
             if msg == nil { msg = "failed to read " + full }
@@ -126,6 +137,7 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
         var src = rr["src"]
         var src_fp = _ml_fingerprint2_string(src)
         if _ml_modcache_enabled() == true {
+            if profile_parse { t_part = oren_time_now_ns() }
             cache_path = _ml_modcache_path_for_module(full, prefix, src_fp, config)
             if cache_path != nil {
                 var bs_hit = oren_read_u8_buf(cache_path)
@@ -136,15 +148,21 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
                             _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
                             print("[modcache] hit " + cache_path)
                         }
+                        if profile_parse { cache_ms = cache_ms + ((oren_time_now_ns() - t_part) / 1000000) }
                         // Return both the decoded program and the original ASTBIN bytes so fork-parallel
                         // workers can avoid re-encoding work (a major win for large stdlib graphs).
-                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true}
+                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
                     }
                 }
             }
+            if profile_parse { cache_ms = cache_ms + ((oren_time_now_ns() - t_part) / 1000000) }
         }
+        if profile_parse { t_part = oren_time_now_ns() }
         var pr = _ml_parse_program_from_src_result(full, src)
+        if profile_parse { parse_ms = parse_ms + ((oren_time_now_ns() - t_part) / 1000000) }
         if pr["ok"] != true { return pr }
+        if pr["lexer_ms"] != nil { lexer_ms = lexer_ms + pr["lexer_ms"] }
+        if pr["parser_ms"] != nil { parser_ms = parser_ms + pr["parser_ms"] }
         prog = pr["prog"]
     } else {
         var merged_stmts = []
@@ -152,19 +170,26 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
         var ii = 0
         while ii < oren_list_len(includes) {
             var inc_full = includes[ii]
+            if profile_parse { t_part = oren_time_now_ns() }
             var rr2 = expand_includes_file_result(inc_full, [])
+            if profile_parse { read_ms = read_ms + ((oren_time_now_ns() - t_part) / 1000000) }
             if rr2["ok"] != true {
                 var msg2 = rr2["err"]
                 if msg2 == nil { msg2 = "failed to read " + inc_full }
                 return {"ok": false, "err": msg2}
             }
             var src2 = rr2["src"]
+            if profile_parse { t_part = oren_time_now_ns() }
             var pr2 = _ml_parse_program_from_src_result(inc_full, src2)
+            if profile_parse { parse_ms = parse_ms + ((oren_time_now_ns() - t_part) / 1000000) }
             if pr2["ok"] != true {
                 if pr2["errors"] != nil { return {"ok": false, "err": "parse errors in " + inc_full, "errors": pr2["errors"]} }
                 return {"ok": false, "err": "parse failed in " + inc_full}
             }
+            if pr2["lexer_ms"] != nil { lexer_ms = lexer_ms + pr2["lexer_ms"] }
+            if pr2["parser_ms"] != nil { parser_ms = parser_ms + pr2["parser_ms"] }
             var prog2 = pr2["prog"]
+            if profile_parse { t_part = oren_time_now_ns() }
             var si = 0
             while si < oren_list_len(prog2["statements"]) {
                 oren_list_push(merged_stmts, prog2["statements"][si])
@@ -177,16 +202,19 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
                     ti = ti + 1
                 }
             }
+            if profile_parse { merge_ms = merge_ms + ((oren_time_now_ns() - t_part) / 1000000) }
             ii = ii + 1
         }
         prog = {"statements": merged_stmts, "traits": merged_traits}
     }
 
+    if profile_parse { t_part = oren_time_now_ns() }
     var prep = _ml_prepare_module_program_in_place(full, prefix, prog, config)
+    if profile_parse { prepare_ms = prepare_ms + ((oren_time_now_ns() - t_part) / 1000000) }
     if prep["ok"] != true { return prep }
     // Note: cache write happens in parse workers (when fork-parallel is enabled) to avoid
     // extra astbin encoding work in the serial/thread parse paths.
-    return {"ok": true, "prog": prog, "cache_path": cache_path}
+    return {"ok": true, "prog": prog, "cache_path": cache_path, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
 }
 
 fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
@@ -613,7 +641,14 @@ fn _ml_parse_discovered_modules_serial(config) {
                     "path=" + m["path"] +
                     " stmts=" + oren_int_to_string(stmt_n) +
                     " traits=" + oren_int_to_string(trait_n) +
-                    " cache_hit=" + cache_hit,
+                    " cache_hit=" + cache_hit +
+                    " read_ms=" + oren_int_to_string(rr["read_ms"]) +
+                    " cache_ms=" + oren_int_to_string(rr["cache_ms"]) +
+                    " parse_ms=" + oren_int_to_string(rr["parse_ms"]) +
+                    " lexer_ms=" + oren_int_to_string(rr["lexer_ms"]) +
+                    " parser_ms=" + oren_int_to_string(rr["parser_ms"]) +
+                    " merge_ms=" + oren_int_to_string(rr["merge_ms"]) +
+                    " prepare_ms=" + oren_int_to_string(rr["prepare_ms"]),
                     mod_t0)
             }
         }

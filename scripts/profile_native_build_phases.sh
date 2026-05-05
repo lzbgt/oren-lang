@@ -125,18 +125,31 @@ for phase_name, _ns, detail in events:
         traits = int(fields.get("traits", "0"))
     except ValueError:
         traits = 0
+    sub_ms = {}
+    for key in ("read_ms", "cache_ms", "parse_ms", "lexer_ms", "parser_ms", "merge_ms", "prepare_ms"):
+        try:
+            sub_ms[key] = int(fields.get(key, "0"))
+        except ValueError:
+            sub_ms[key] = 0
     parse_module_rows.append({
         "path": fields.get("path", ""),
         "ms": ms,
         "stmts": stmts,
         "traits": traits,
         "cache_hit": fields.get("cache_hit", "0"),
+        **sub_ms,
     })
 
 if parse_module_rows:
     print("== module parse by path ==")
     for row in sorted(parse_module_rows, key=lambda item: (item["ms"], item["stmts"], item["traits"]), reverse=True)[:30]:
-        print(f"{row['ms']:10d} ms  {row['stmts']:6d} stmts  {row['traits']:5d} traits  cache_hit={row['cache_hit']}  path={row['path']}")
+        print(
+            f"{row['ms']:10d} ms  {row['stmts']:6d} stmts  {row['traits']:5d} traits"
+            f"  read={row['read_ms']:5d} cache={row['cache_ms']:5d} parse={row['parse_ms']:5d}"
+            f" lexer={row['lexer_ms']:5d} parser={row['parser_ms']:5d}"
+            f" merge={row['merge_ms']:5d} prepare={row['prepare_ms']:5d}"
+            f"  cache_hit={row['cache_hit']}  path={row['path']}"
+        )
 
 rows = []
 if function_log.exists():

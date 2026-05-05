@@ -502,14 +502,22 @@ fn _ml_parse_program_from_src_result(file, src) {
     // Like `_ml_parse_program_from_src`, but does not exit on parse errors.
     // Used by fork-parallel parse workers so they can report failures cleanly.
     if src == nil { return {"ok": false, "err": "empty source"} }
+    var profile_parse = _ml_phase_log_path() != nil
+    var lexer_ms = 0
+    var parser_ms = 0
+    var t_part = 0
+    if profile_parse { t_part = oren_time_now_ns() }
     var l = lexer.new_lexer(src)
     l["file"] = file
+    if profile_parse { lexer_ms = (oren_time_now_ns() - t_part) / 1000000 }
     var p = parser.new_parser(l)
     p["strict_attrs"] = STRICT_ATTRS
     p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
     p["strict_ident_prefixes"] = STRICT_IDENT_PREFIXES
     p["ident_allow_prefixes"] = IDENT_ALLOW_PREFIXES
+    if profile_parse { t_part = oren_time_now_ns() }
     var prog = parser.parse_program(p)
+    if profile_parse { parser_ms = (oren_time_now_ns() - t_part) / 1000000 }
 
     // Defensive: parser must return a program map with "statements".
     if prog == nil || prog["statements"] == nil || oren_is_list(prog["statements"]) != true {
@@ -537,7 +545,7 @@ fn _ml_parse_program_from_src_result(file, src) {
     src = nil
     l = nil
     p = nil
-    return {"ok": true, "prog": prog}
+    return {"ok": true, "prog": prog, "lexer_ms": lexer_ms, "parser_ms": parser_ms}
 }
 
 fn _ml_parse_include_bucket(bucket, out_dir) {
