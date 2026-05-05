@@ -828,7 +828,7 @@ fn generator_surface_timeout_direct_waits() {
     return 0
 }
 
-fn generator_surface_timeout_policy_wait_modes() {
+fn generator_surface_timeout_policy_request_wait() {
     var gpol0 = gen.start(cancel_probe_worker, [60, 127])
     var gpol0s0 = gen.next(gpol0)
     if oren_is_err(gpol0s0) == true || gpol0s0["ok"] != true || gpol0s0["value"] != 60 { return 17339689 }
@@ -840,6 +840,10 @@ fn generator_surface_timeout_policy_wait_modes() {
     var gpol0s1 = gen.send(gpol0, 4)
     if oren_is_err(gpol0s1) == true || gpol0s1["done"] != true || gpol0s1["return"] != 131 { return 17339693 }
 
+    return 0
+}
+
+fn generator_surface_timeout_policy_cancel_wait() {
     var gpol1 = gen.start(counter_worker, [21])
     var gpol1s0 = gen.next(gpol1)
     if oren_is_err(gpol1s0) == true || gpol1s0["ok"] != true || gpol1s0["value"] != 22 { return 17339694 }
@@ -857,6 +861,10 @@ fn generator_surface_timeout_policy_wait_modes() {
     if oren_is_err(gpol2rv) == true || gpol2rv != 14 { return 17339701 }
     if gen.is_cancel_requested(gpol2) != false || gen.cancel_reason(gpol2) != nil { return 17339702 }
 
+    return 0
+}
+
+fn generator_surface_timeout_policy_default_and_errors() {
     var gpol3 = gen.start(counter_worker, [35])
     var gpol3s0 = gen.next(gpol3)
     if oren_is_err(gpol3s0) == true || gpol3s0["ok"] != true || gpol3s0["value"] != 36 { return 17339703 }
@@ -872,6 +880,14 @@ fn generator_surface_timeout_policy_wait_modes() {
     if oren_is_err(gen.stop_policy_wait(gpol3, {"mode": "cancel", "join_timeout_ms": "bad"})) != true { return 17339711 }
 
     return 0
+}
+
+fn generator_surface_timeout_policy_wait_modes() {
+    var r0 = generator_surface_timeout_policy_request_wait()
+    if r0 != 0 { return r0 }
+    var r1 = generator_surface_timeout_policy_cancel_wait()
+    if r1 != 0 { return r1 }
+    return generator_surface_timeout_policy_default_and_errors()
 }
 
 fn generator_surface_part_timeout_policy_stop_waits() {
@@ -1297,7 +1313,7 @@ fn generator_surface_part_close_finalize_hooks() {
     return generator_surface_part_finalize_hook_cases()
 }
 
-fn generator_surface_iteration_nil_collect() {
+fn generator_surface_iteration_nil_and_bad_send() {
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
     if oren_is_err(n0) == true { return 110 }
@@ -1310,6 +1326,10 @@ fn generator_surface_iteration_nil_collect() {
     var bad = gen.send(g3, 99)
     if oren_is_err(bad) != true { return 120 }
 
+    return 0
+}
+
+fn generator_surface_iteration_collect_paths() {
     var g4 = gen.start(collect_worker, [5])
     var xs = gen.collect(g4)
     if oren_is_err(xs) == true { return 130 }
@@ -1325,6 +1345,12 @@ fn generator_surface_iteration_nil_collect() {
     if gen.is_done(g4b) != true || gen.return_value(g4b) != 39 { return 136 }
 
     return 0
+}
+
+fn generator_surface_iteration_nil_collect() {
+    var r0 = generator_surface_iteration_nil_and_bad_send()
+    if r0 != 0 { return r0 }
+    return generator_surface_iteration_collect_paths()
 }
 
 fn generator_surface_iteration_delegate_direct() {
@@ -1463,7 +1489,7 @@ fn generator_surface_part_iteration_and_decls() {
     return generator_surface_part_iteration_delegate_steps()
 }
 
-fn generator_surface_decl_counter_collect() {
+fn generator_surface_decl_counter_nil() {
     var g5 = decl_counter(40)
     if oren_type_name(g5) != "generator" { return 1397 }
     var d0 = gen.next(g5)
@@ -1484,6 +1510,10 @@ fn generator_surface_decl_counter_collect() {
     if oren_is_err(dn1) == true { return 148 }
     if dn1["done"] != true || dn1["return"] != 67 { return 149 }
 
+    return 0
+}
+
+fn generator_surface_decl_collect_paths() {
     var g7 = decl_collect(5)
     var dxs = gen.collect(g7)
     if oren_is_err(dxs) == true { return 150 }
@@ -1498,6 +1528,12 @@ fn generator_surface_decl_counter_collect() {
     if gen.is_done(g7d) != true || gen.return_value(g7d) != 38 { return 1532 }
 
     return 0
+}
+
+fn generator_surface_decl_counter_collect() {
+    var r0 = generator_surface_decl_counter_nil()
+    if r0 != 0 { return r0 }
+    return generator_surface_decl_collect_paths()
 }
 
 fn generator_surface_decl_var_generators() {

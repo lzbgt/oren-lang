@@ -3,6 +3,14 @@
 This note records the current `yield` implementation boundary after the shared-front-end syntax and
 backend-shared value-helper slices landed.
 
+## Build-profile note (2026-05-05)
+
+Generator/coroutine surface work is still using measured self-host profile evidence rather than
+manual fixture intuition. The latest native profile reporter prints phase-specific top function
+bodies for `user_decls`, `fnwrap`, and `lambda_wrap`; the generator surface fixture was split again
+around the remaining large timeout policy wait, nil/collect iteration, and declaration
+counter/collect assertion clusters while preserving dispatcher order and return-code semantics.
+
 ## Current shipped state
 
 - Bare statement `yield` is now shared-front-end sugar that lowers directly to `oren_yield_stmt()`.

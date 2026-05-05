@@ -437,6 +437,14 @@ print("== top function codegen bodies ==")
 for row in sorted(rows, key=lambda item: (item["ms"], item["bytes"]), reverse=True)[:25]:
     print(f"{row['ms']:10d} ms  {row['bytes']:10d} bytes  phase={row['phase']} fn={row['name']}")
 
+for hot_phase in ("user_decls", "fnwrap", "lambda_wrap"):
+    phase_rows = [row for row in rows if row["phase"] == hot_phase]
+    if not phase_rows:
+        continue
+    print(f"== top function codegen bodies for phase={hot_phase} ==")
+    for row in sorted(phase_rows, key=lambda item: (item["ms"], item["bytes"]), reverse=True)[:12]:
+        print(f"{row['ms']:10d} ms  {row['bytes']:10d} bytes  fn={row['name']}")
+
 stmt_rows = []
 if stmt_log.exists() and stmt_log.stat().st_size > 0:
     for line in stmt_log.read_text(errors="replace").splitlines():
