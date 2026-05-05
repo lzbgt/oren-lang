@@ -1899,6 +1899,12 @@ That path keeps the current repo state honest:
 - 2026-05-06: rejected a same-key append tweak for the sorted Mach-O local target cache. It reduced
   same-key byte compares (`16163 -> 12294`) but barely moved insertion shifts (`37056 -> 36925`) and
   left default first-touch BL timing at about `1.40s`; source was reverted.
+- 2026-05-06: rejected a sparse `bl_target` direct-offset probe for the hot Mach-O runtime BL
+  targets. The probe reused the existing compact `bl_target` lane as `(fixup_index, target)` pairs
+  and passed `make stage2`, but the stats-enabled native profile timed out at `180s` before
+  `arm64.codegen.user_decls.done`. Even existing-lane Oren list writes on hot emit paths are too
+  expensive; the next direct-offset design has to live below hot Oren map/list metadata or run as a
+  linear post-codegen materialization pass.
 - 2026-05-06: removed another stale private-helper batch whose names each had exactly one repo
   occurrence before deletion. The cleanup spans compiler and stdlib modules but does not alter the
   coroutine helper contract: `_arm64_cmp_may_use_strcmp`, `_attr_list`,
