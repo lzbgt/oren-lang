@@ -655,8 +655,13 @@ string-name comparisons.
     `task_group.terminal_results` and `join_all` from the top hot rows, and puts `std:task.stop_policy_wait`
     around 25ms (`header=0/body=24`). A follow-up primitive-tag cleanup removes the remaining local task/task-group
     int/string wrappers and moves the refreshed profile to `lib/std/task_group.oren` ~444ms / 64 stmts and
-    `lib/std/task.oren` ~306ms / 51 stmts. Reweight module-parse follow-up toward residual parser-body shapes
-    (`_task_group_validate_policy_shape`, `stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
+    `lib/std/task.oren` ~306ms / 51 stmts. A later structural task-group runtime-stop cleanup shares the runtime
+    preflight/validate/take-snapshot/default-policy merge path between `stop_policy(...)` and
+    `stop_policy_wait(...)` while preserving the empty-preflight early return and preflight-before-take ordering;
+    the exact profile moves `lib/std/task_group.oren` from `486ms / 64 stmts / parse_body_ms=296` to
+    `471ms / 65 stmts / parse_body_ms=289`, and the former `stop_policy` / `stop_policy_wait` hot rows drop
+    out of the top three. Reweight module-parse follow-up toward residual parser-body shapes
+    (`_task_group_validate_policy_shape`, `task.stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
     representation only if it beats the cloned-AST cache without importing ASTBIN codec codegen, not
     file-read/cache/prepare work or the small `reflect/result/list` tail.
     A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
