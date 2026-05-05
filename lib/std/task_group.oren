@@ -22,7 +22,6 @@ import list "std:list"
 import task "std:task"
 
 fn _task_group_surface() { return "task_group_v1" }
-fn _task_group_runtime_surface() { return "task_group_runtime_v0" }
 
 fn _task_group_err(ctx, msg) {
     return oren_err(4, ctx + ": " + msg)

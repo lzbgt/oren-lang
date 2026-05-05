@@ -57,19 +57,6 @@ fn _macho_lookup_function_cached(cache, ctx, functions, name) {
     return off
 }
 
-fn _macho_str_eq_bytes(a, b) {
-    if a == nil && b == nil { return true }
-    if a == nil || b == nil { return false }
-    var la = oren_string_len(a)
-    if la != oren_string_len(b) { return false }
-    var i = 0
-    while i < la {
-        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
-        i = i + 1
-    }
-    return true
-}
-
 fn _macho_str_eq_bytes_known_len(a, b, len) {
     var i = 0
     while i < len {

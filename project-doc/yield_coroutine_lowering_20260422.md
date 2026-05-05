@@ -53,6 +53,13 @@ move the real wall-time boundary: the exact final stats run still spent about `2
 and about `1945ms` to reach `i=4096`, effectively matching the old `~1.95s` first-touch cost after
 precompute. The resolver needs compact target ids/offsets that avoid both generic fixup fields and
 string-name comparisons.
+The follow-up source cleanup removed stale `_macho_str_eq_bytes(...)`; the retained sorted resolver
+continues to use the known-length byte compare on same-key candidate ranges. The same cleanup removed
+the unused `std:task_group` `_task_group_runtime_surface(...)` sentinel while preserving the real
+`_task_group_surface(...)` validation path. This does not change the performance target, but it keeps
+the resolver and task-group source shapes aligned with the rejected-path evidence: future work should
+add compact target metadata below the generic Oren map/list/fixup surfaces, not reintroduce
+string-name bypass helpers.
 
 ## Current shipped state
 
