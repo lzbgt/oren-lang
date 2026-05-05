@@ -41,6 +41,12 @@ native profiles timed out at `180s` before `user_decls`; it moved the cost into 
 `arm64_lookup_function(...)` map lookups during hot codegen. The next resolver implementation needs
 precomputed integer target ids/offsets or linear-time target materialization, not per-call map
 lookups from emit sites.
+A narrower sparse BL sid lane was tested next and rejected too. It annotated only the five measured
+hot targets and resolved those ids once during Mach-O emission, but the added generic fixup/list
+shape still made the stats-enabled native profile time out at `180s` before
+`arm64.codegen.user_decls.done` after `make stage2` passed. Treat this as evidence that the next
+first-touch resolver design must avoid generic Oren fixup fields on hot emit paths entirely: use a
+lower-level side vector or one linear post-codegen materialization pass for compact target metadata.
 
 ## Current shipped state
 
