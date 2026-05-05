@@ -30,6 +30,9 @@ generic Oren-map cache. Stats-enabled local resolver scan steps moved from about
 `107739`, and the default profile trims the later BL resolve tail from about `97ms + 126ms` to about
 `28ms + 57ms`; the first 4096 local BL fixups remain the real unresolved Mach-O bucket at about
 `1.9s`, so the next resolver design should target first-touch target materialization or symbol ids.
+An attempted whole-table preseed from `ctx["functions"]` plus `runtime_functions_enc` proved that
+first-touch lookup misses are the right target, but the implementation is rejected: it made the BL
+loop tens of milliseconds while spending about `96-97s` insertion-sorting `1891` target entries.
 
 ## Current shipped state
 
