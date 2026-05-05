@@ -259,6 +259,17 @@ fn fold_block_updates_nn_env(block) {
 }
 
 
+fn fold_control_body_stmt(stmt, nn_env) {
+    if stmt == nil { return nil }
+    if stmt["type"] == "Block" {
+        fold_stmt(stmt, nn_env)
+        return nil
+    }
+    fold_stmt(stmt, nn_env_push(nn_env_clone(nn_env)))
+    return nil
+}
+
+
 fn fold_type_strict_eq(op, left, right, nn_env) {
     if op != "==" && op != "!=" { return nil }
 
@@ -406,9 +417,9 @@ fn fold_expr(e, nn_env) {
     if t == "If" {
         e["cond"] = fold_child_expr(e["cond"], nn_env)
 
-        // Fold branches in isolation (do not let flow-sensitive facts leak across control-flow).
-        fold_stmt(e["consq"], nn_env_push(nn_env_clone(nn_env)))
-        if e["alt"] != nil { fold_stmt(e["alt"], nn_env_push(nn_env_clone(nn_env))) }
+        // Block bodies already isolate fact updates through fold_stmt(Block).
+        fold_control_body_stmt(e["consq"], nn_env)
+        if e["alt"] != nil { fold_control_body_stmt(e["alt"], nn_env) }
         return e
     }
     if t == "Array" {
@@ -539,15 +550,15 @@ fn fold_stmt(s, nn_env) {
     }
     if t == "While" {
         s["cond"] = fold_child_expr(s["cond"], nn_env)
-        // Fold loop body in isolation (loop-carried facts are not tracked here).
-        fold_stmt(s["body"], nn_env_push(nn_env_clone(nn_env)))
+        // Block bodies already isolate fact updates through fold_stmt(Block).
+        fold_control_body_stmt(s["body"], nn_env)
         return nil
     }
     if t == "For" {
         fold_stmt(s["init"], nn_env_push(nn_env_clone(nn_env)))
         s["cond"] = fold_child_expr(s["cond"], nn_env)
         s["post"] = fold_child_expr(s["post"], nn_env)
-        fold_stmt(s["body"], nn_env_push(nn_env_clone(nn_env)))
+        fold_control_body_stmt(s["body"], nn_env)
         return nil
     }
     return nil

@@ -658,6 +658,10 @@ string-name comparisons.
 		    keeps the cheap any-candidate precheck, while touch marking and final rewrite loops are skipped once no active candidate
 		    remains until later statement flow discovers a new candidate. The retained profile moves optimizer total to ~694ms,
 		    `list_int_ms` to ~133ms, `list_int_use_scan_ms` to ~36ms, and touch/rewrite buckets to 0ms.
+		    Fold control-body traversal now avoids clone/push isolation for ordinary block branch/loop bodies because
+		    `fold_stmt(Block)` already creates a local fact frame when direct `Var`/`Assign` statements can update facts. Non-block
+		    control bodies keep the old clone/push path. The retained profile moves optimizer total to ~514ms, `fold_ms` to ~60ms,
+		    `fold_env_push` to `352`, and `fold_env_clone` to `4`.
 		    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 		    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
