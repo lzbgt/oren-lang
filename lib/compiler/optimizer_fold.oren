@@ -12,13 +12,139 @@ fn is_string_lit(e) { return optcore.is_string_lit(e) }
 fn streq_bytes(a, b) { return optcore.streq_bytes(a, b) }
 fn expr_is_trivial_literal(e) { return optcore.expr_is_trivial_literal(e) }
 
+var OPT_FOLD_PROFILE_ENABLED = false
+var OPT_FOLD_EXPR_COUNT = 0
+var OPT_FOLD_EXPR_CALL_COUNT = 0
+var OPT_FOLD_EXPR_INFIX_COUNT = 0
+var OPT_FOLD_EXPR_IF_COUNT = 0
+var OPT_FOLD_EXPR_ARRAY_COUNT = 0
+var OPT_FOLD_EXPR_HASH_COUNT = 0
+var OPT_FOLD_EXPR_INDEX_COUNT = 0
+var OPT_FOLD_EXPR_MEMBER_COUNT = 0
+var OPT_FOLD_EXPR_FUNCTION_COUNT = 0
+var OPT_FOLD_EXPR_PREFIX_COUNT = 0
+var OPT_FOLD_EXPR_OTHER_COUNT = 0
+var OPT_FOLD_STMT_COUNT = 0
+var OPT_FOLD_STMT_BLOCK_COUNT = 0
+var OPT_FOLD_STMT_VAR_COUNT = 0
+var OPT_FOLD_STMT_ASSIGN_COUNT = 0
+var OPT_FOLD_STMT_SET_COUNT = 0
+var OPT_FOLD_STMT_EXPR_COUNT = 0
+var OPT_FOLD_STMT_RETURN_COUNT = 0
+var OPT_FOLD_STMT_WHILE_COUNT = 0
+var OPT_FOLD_STMT_FOR_COUNT = 0
+var OPT_FOLD_STMT_OTHER_COUNT = 0
+var OPT_FOLD_ENV_PUSH_COUNT = 0
+var OPT_FOLD_ENV_CLONE_COUNT = 0
+
+
+fn _opt_fold_profile_reset(enabled) {
+    OPT_FOLD_PROFILE_ENABLED = enabled == true
+    OPT_FOLD_EXPR_COUNT = 0
+    OPT_FOLD_EXPR_CALL_COUNT = 0
+    OPT_FOLD_EXPR_INFIX_COUNT = 0
+    OPT_FOLD_EXPR_IF_COUNT = 0
+    OPT_FOLD_EXPR_ARRAY_COUNT = 0
+    OPT_FOLD_EXPR_HASH_COUNT = 0
+    OPT_FOLD_EXPR_INDEX_COUNT = 0
+    OPT_FOLD_EXPR_MEMBER_COUNT = 0
+    OPT_FOLD_EXPR_FUNCTION_COUNT = 0
+    OPT_FOLD_EXPR_PREFIX_COUNT = 0
+    OPT_FOLD_EXPR_OTHER_COUNT = 0
+    OPT_FOLD_STMT_COUNT = 0
+    OPT_FOLD_STMT_BLOCK_COUNT = 0
+    OPT_FOLD_STMT_VAR_COUNT = 0
+    OPT_FOLD_STMT_ASSIGN_COUNT = 0
+    OPT_FOLD_STMT_SET_COUNT = 0
+    OPT_FOLD_STMT_EXPR_COUNT = 0
+    OPT_FOLD_STMT_RETURN_COUNT = 0
+    OPT_FOLD_STMT_WHILE_COUNT = 0
+    OPT_FOLD_STMT_FOR_COUNT = 0
+    OPT_FOLD_STMT_OTHER_COUNT = 0
+    OPT_FOLD_ENV_PUSH_COUNT = 0
+    OPT_FOLD_ENV_CLONE_COUNT = 0
+    return nil
+}
+
+
+fn _opt_fold_profile_expr(t) {
+    if OPT_FOLD_PROFILE_ENABLED != true { return nil }
+    OPT_FOLD_EXPR_COUNT = OPT_FOLD_EXPR_COUNT + 1
+    if t == "Call" { OPT_FOLD_EXPR_CALL_COUNT = OPT_FOLD_EXPR_CALL_COUNT + 1 }
+    else if t == "Infix" { OPT_FOLD_EXPR_INFIX_COUNT = OPT_FOLD_EXPR_INFIX_COUNT + 1 }
+    else if t == "If" { OPT_FOLD_EXPR_IF_COUNT = OPT_FOLD_EXPR_IF_COUNT + 1 }
+    else if t == "Array" { OPT_FOLD_EXPR_ARRAY_COUNT = OPT_FOLD_EXPR_ARRAY_COUNT + 1 }
+    else if t == "Hash" { OPT_FOLD_EXPR_HASH_COUNT = OPT_FOLD_EXPR_HASH_COUNT + 1 }
+    else if t == "Index" { OPT_FOLD_EXPR_INDEX_COUNT = OPT_FOLD_EXPR_INDEX_COUNT + 1 }
+    else if t == "Member" { OPT_FOLD_EXPR_MEMBER_COUNT = OPT_FOLD_EXPR_MEMBER_COUNT + 1 }
+    else if t == "Function" { OPT_FOLD_EXPR_FUNCTION_COUNT = OPT_FOLD_EXPR_FUNCTION_COUNT + 1 }
+    else if t == "Prefix" { OPT_FOLD_EXPR_PREFIX_COUNT = OPT_FOLD_EXPR_PREFIX_COUNT + 1 }
+    else { OPT_FOLD_EXPR_OTHER_COUNT = OPT_FOLD_EXPR_OTHER_COUNT + 1 }
+    return nil
+}
+
+
+fn _opt_fold_profile_stmt(t) {
+    if OPT_FOLD_PROFILE_ENABLED != true { return nil }
+    OPT_FOLD_STMT_COUNT = OPT_FOLD_STMT_COUNT + 1
+    if t == "Block" { OPT_FOLD_STMT_BLOCK_COUNT = OPT_FOLD_STMT_BLOCK_COUNT + 1 }
+    else if t == "Var" { OPT_FOLD_STMT_VAR_COUNT = OPT_FOLD_STMT_VAR_COUNT + 1 }
+    else if t == "Assign" { OPT_FOLD_STMT_ASSIGN_COUNT = OPT_FOLD_STMT_ASSIGN_COUNT + 1 }
+    else if t == "Set" { OPT_FOLD_STMT_SET_COUNT = OPT_FOLD_STMT_SET_COUNT + 1 }
+    else if t == "ExprStmt" { OPT_FOLD_STMT_EXPR_COUNT = OPT_FOLD_STMT_EXPR_COUNT + 1 }
+    else if t == "Return" { OPT_FOLD_STMT_RETURN_COUNT = OPT_FOLD_STMT_RETURN_COUNT + 1 }
+    else if t == "While" { OPT_FOLD_STMT_WHILE_COUNT = OPT_FOLD_STMT_WHILE_COUNT + 1 }
+    else if t == "For" { OPT_FOLD_STMT_FOR_COUNT = OPT_FOLD_STMT_FOR_COUNT + 1 }
+    else { OPT_FOLD_STMT_OTHER_COUNT = OPT_FOLD_STMT_OTHER_COUNT + 1 }
+    return nil
+}
+
+
+fn _opt_fold_profile_env(kind) {
+    if OPT_FOLD_PROFILE_ENABLED != true { return nil }
+    if kind == "push" { OPT_FOLD_ENV_PUSH_COUNT = OPT_FOLD_ENV_PUSH_COUNT + 1 }
+    else if kind == "clone" { OPT_FOLD_ENV_CLONE_COUNT = OPT_FOLD_ENV_CLONE_COUNT + 1 }
+    return nil
+}
+
+
+fn _opt_fold_profile_detail() {
+    if OPT_FOLD_PROFILE_ENABLED != true { return "" }
+    return " fold_exprs=" + oren_int_to_string(OPT_FOLD_EXPR_COUNT) +
+        " fold_expr_call=" + oren_int_to_string(OPT_FOLD_EXPR_CALL_COUNT) +
+        " fold_expr_infix=" + oren_int_to_string(OPT_FOLD_EXPR_INFIX_COUNT) +
+        " fold_expr_if=" + oren_int_to_string(OPT_FOLD_EXPR_IF_COUNT) +
+        " fold_expr_array=" + oren_int_to_string(OPT_FOLD_EXPR_ARRAY_COUNT) +
+        " fold_expr_hash=" + oren_int_to_string(OPT_FOLD_EXPR_HASH_COUNT) +
+        " fold_expr_index=" + oren_int_to_string(OPT_FOLD_EXPR_INDEX_COUNT) +
+        " fold_expr_member=" + oren_int_to_string(OPT_FOLD_EXPR_MEMBER_COUNT) +
+        " fold_expr_function=" + oren_int_to_string(OPT_FOLD_EXPR_FUNCTION_COUNT) +
+        " fold_expr_prefix=" + oren_int_to_string(OPT_FOLD_EXPR_PREFIX_COUNT) +
+        " fold_expr_other=" + oren_int_to_string(OPT_FOLD_EXPR_OTHER_COUNT) +
+        " fold_stmts=" + oren_int_to_string(OPT_FOLD_STMT_COUNT) +
+        " fold_stmt_block=" + oren_int_to_string(OPT_FOLD_STMT_BLOCK_COUNT) +
+        " fold_stmt_var=" + oren_int_to_string(OPT_FOLD_STMT_VAR_COUNT) +
+        " fold_stmt_assign=" + oren_int_to_string(OPT_FOLD_STMT_ASSIGN_COUNT) +
+        " fold_stmt_set=" + oren_int_to_string(OPT_FOLD_STMT_SET_COUNT) +
+        " fold_stmt_expr=" + oren_int_to_string(OPT_FOLD_STMT_EXPR_COUNT) +
+        " fold_stmt_return=" + oren_int_to_string(OPT_FOLD_STMT_RETURN_COUNT) +
+        " fold_stmt_while=" + oren_int_to_string(OPT_FOLD_STMT_WHILE_COUNT) +
+        " fold_stmt_for=" + oren_int_to_string(OPT_FOLD_STMT_FOR_COUNT) +
+        " fold_stmt_other=" + oren_int_to_string(OPT_FOLD_STMT_OTHER_COUNT) +
+        " fold_env_push=" + oren_int_to_string(OPT_FOLD_ENV_PUSH_COUNT) +
+        " fold_env_clone=" + oren_int_to_string(OPT_FOLD_ENV_CLONE_COUNT)
+}
+
+
 fn nn_env_new() { return [{}] }
 
 
 fn nn_env_push(env) {
+    _opt_fold_profile_env("push")
     var out = []
     var i = 0
-    while i < oren_list_len(env) {
+    var env_len = oren_list_len(env)
+    while i < env_len {
         oren_list_push(out, env[i])
         i = i + 1
     }
@@ -28,10 +154,12 @@ fn nn_env_push(env) {
 
 
 fn nn_env_clone(env) {
+    _opt_fold_profile_env("clone")
     if env == nil { return nn_env_new() }
     var out = []
     var i = 0
-    while i < oren_list_len(env) {
+    var env_len = oren_list_len(env)
+    while i < env_len {
         var frame = env[i]
         var f2 = {}
         if frame != nil {
@@ -190,7 +318,11 @@ fn fold_peephole_infix(op, left, right) {
 fn fold_expr(e, nn_env) {
     if e == nil { return nil }
     var t = e["type"]
+    _opt_fold_profile_expr(t)
     opt_trace("[opt] fold_expr t=" + t)
+    if t == "Identifier" || t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil" {
+        return e
+    }
     if t == "Prefix" {
         e["right"] = fold_expr(e["right"], nn_env)
         return e
@@ -220,15 +352,15 @@ fn fold_expr(e, nn_env) {
         e["cond"] = fold_expr(e["cond"], nn_env)
 
         // Fold branches in isolation (do not let flow-sensitive facts leak across control-flow).
-        var snap = nn_env_clone(nn_env)
-        fold_stmt(e["consq"], nn_env_push(nn_env_clone(snap)))
-        if e["alt"] != nil { fold_stmt(e["alt"], nn_env_push(nn_env_clone(snap))) }
+        fold_stmt(e["consq"], nn_env_push(nn_env_clone(nn_env)))
+        if e["alt"] != nil { fold_stmt(e["alt"], nn_env_push(nn_env_clone(nn_env))) }
         return e
     }
     if t == "Array" {
         var xs = e["elements"]
         var i = 0
-        while i < oren_list_len(xs) {
+        var xs_len = oren_list_len(xs)
+        while i < xs_len {
             xs[i] = fold_expr(xs[i], nn_env)
             i = i + 1
         }
@@ -237,7 +369,8 @@ fn fold_expr(e, nn_env) {
     if t == "Hash" {
         var ps = e["pairs"]
         var i2 = 0
-        while i2 < oren_list_len(ps) {
+        var ps_len = oren_list_len(ps)
+        while i2 < ps_len {
             ps[i2]["key"] = fold_expr(ps[i2]["key"], nn_env)
             ps[i2]["value"] = fold_expr(ps[i2]["value"], nn_env)
             i2 = i2 + 1
@@ -264,7 +397,8 @@ fn fold_expr(e, nn_env) {
             opt_trace("[opt] call: args is nil (treat as 0 args)")
         } else {
             var i3 = 0
-            while i3 < oren_list_len(args) {
+            var args_len = oren_list_len(args)
+            while i3 < args_len {
                 args[i3] = fold_expr(args[i3], nn_env)
                 i3 = i3 + 1
             }
@@ -284,12 +418,14 @@ fn fold_expr(e, nn_env) {
 fn fold_stmt(s, nn_env) {
     if s == nil { return nil }
     var t = s["type"]
+    _opt_fold_profile_stmt(t)
     opt_trace("[opt] fold_stmt t=" + t)
     if t == "Block" {
         var ss = s["stmts"]
         var env2 = nn_env_push(nn_env)
         var i = 0
-        while i < oren_list_len(ss) {
+        var ss_len = oren_list_len(ss)
+        while i < ss_len {
             fold_stmt(ss[i], env2)
             i = i + 1
         }
@@ -349,13 +485,11 @@ fn fold_stmt(s, nn_env) {
         return nil
     }
     if t == "For" {
-        var snap2 = nn_env_clone(nn_env)
-        fold_stmt(s["init"], nn_env_push(nn_env_clone(snap2)))
+        fold_stmt(s["init"], nn_env_push(nn_env_clone(nn_env)))
         s["cond"] = fold_expr(s["cond"], nn_env)
         s["post"] = fold_expr(s["post"], nn_env)
-        fold_stmt(s["body"], nn_env_push(nn_env_clone(snap2)))
+        fold_stmt(s["body"], nn_env_push(nn_env_clone(nn_env)))
         return nil
     }
     return nil
 }
-

@@ -37,6 +37,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
 - Reweight (2026-05-05): ARM64 self-host generator codegen no longer has the earlier generic-call ABI/string-literal wall-time shape. Gated `CallGenericSub(...)` profiling showed helper-call cost was dominated by argument expression lowering, and the separate ordinary string-literal C-string MRU moved repeated default `user_decls` profiles to about `4.26s / 292000 bytes / 284 funcs`. A follow-up top-level integer-global preinit removes side-effect-free literal integer global assignments from `__top_level__` on non-gas builds, while preserving the old emitted statements when `OREN_NATIVE_GAS_ACCOUNTING=stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter` is selected. Native build profiling now splits link-program subphases from package metadata scans: metadata manifest/policy substeps are sub-5ms after fact reuse, while `link.abi_layout.done -> link.optimizer.done` is about 3.6s and module parse is about 2.5s. Module parse subprofiling proved `lib/std/generator.oren` parse cost was mostly compiler-injected generator-core work; the retained non-forced-GC source-string plus cloned-AST statement-template cache moves generator parse to about `317-330ms` and `gen_core_ms` to about `25-26ms`, avoiding the older source-string-only reparsing boundary of about `481ms` / `188ms`. Retained task/task-group body cleanup now shares task-group stop/watch/wait/terminal-result loops, task-only join/detach loops, and the task timeout-detach block; focused surfaces pass, and removing local primitive int/string tag wrappers moves `lib/std/task_group.oren` to about `444ms / 64 stmts` with `parse_body_ms=272` and `lib/std/task.oren` to about `306ms / 51 stmts`. Optimizer profiles now embed top fold/list-int/reserve function bodies and list-pass internals in `optimizer.summary`; the first retained hot-function profile proved residual list-pass cost was dominated by large generator surface fixture chunks. Focused generator-surface fixture resplits now keep the same assertions and move optimizer total from about `3.16s` to about `1.98s`, `list_int_ms` from about `1.16s` to about `0.21s`, and the largest list-int body from about `135ms` to about `28ms`. The current internal profile shows list-int scan/use cost split as `lower` about `68ms`, `use_scan` about `40ms`, and `touch` about `47ms`; the retained scan cleanup avoids an unnecessary recursive-lowering seed clone, shares the conservative list-touch detector across top-level candidate filtering and nested lowering, skips no-op recursive lowering for statement forms with no lowerable/list-touching body, scans list uses only after a current-block candidate exists, and skips touch marking until an empty-list candidate exists, moving `list_int_scan_ms2` from about `863ms` to about `173ms`. Reserve remains dominated by safe-int maintenance, and the retained duplicate top-level assignment update skip keeps reserve near `0.25s`; a narrower reserve-state guard was reverted because it only reduced `reserve_safe_ms` by about `9ms` while worsening repeated optimizer totals. Do not reopen broad small-call, `oren_is_err` inlining, in-place global `Assign(Integer)` shortcuts, serial ASTBIN writes, parser-side ASTBIN template caching, parser trace-env caching, newest-first Mach-O local resolver scans, generic Oren-map-backed Mach-O local target caches, the task-group policy-shape helper extraction that caused a repeatable bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, or the `std:task.stop_policy_wait` helper split that only shifted the hot row into `_task_stop_policy_wait_stop_mode` and worsened task parse to about `339ms / 54 stmts`; target residual list-int rewrite/lower cost only with measured proof, residual parser-body shapes (`_task_group_validate_policy_shape`, `stop_policy_wait`, `_task_stop_fields`), true optimizer/link-program pass cost beyond fixture shape, a deeper generator-core representation only if it beats the cloned-AST cache without importing ASTBIN codec codegen, remaining runtime-observable generator helper semantics, or a different Mach-O local BL traversal design.
+- Reweight (2026-05-05): the fold pass now has gated shape counters in `optimizer.summary`, and the retained fold cleanup hoists stable lengths in fold-local loops, fast-returns leaf expressions, and removes clone-of-clone environments from isolated `if`/`for` folding. The profile moved optimizer total to about `1.79s`, `fold_ms` to about `641ms`, and fold environment clones from `2592` to `1317`. Remaining fold evidence is concrete: `19903` folded expressions, including `11527` leaf/other expressions, `2644` calls, `2489` infix nodes, and `1271` expression-level `if` nodes.
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
   capability domains, failure model, and verification map; `oren meta` now emits a per-source
   `capabilities` manifest for `@cap.requires` functions; artifact `--manifest` output now carries
@@ -5389,8 +5390,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and
 														        Mach-O local BL target resolution ~1.8s for the first 4096 local calls.
-														      - Optimizer follow-up (2026-05-05): the standard build-phase log now receives
-														        gated `optimizer.summary` subpass timing, and a conservative list-touch
+															      - Optimizer follow-up (2026-05-05): the standard build-phase log now receives
+															        gated `optimizer.summary` subpass timing, and a conservative list-touch
 														        prefilter skips the list-int/list-reserve optimizer passes for function bodies
 														        that cannot touch lists. The current generator profile reports `119/470`
 														        list candidates, ~20ms scan overhead, optimizer time down from ~3.76s to
@@ -5403,11 +5404,20 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 																        profiles left `fold_ms` around ~0.97-1.02s and optimizer total
 																        around ~3.40-3.43s, so that source probe was reverted too. A DCE-before-optimizer reorder passed stage2 plus focused
 																        generator/coroutine verifiers but regressed the default profile
-														        (`optimizer` ~5.1s, `user_decls` ~7.2s), so keep global DCE after the
-														        optimizer. Remaining high-leverage work is inside optimizer subpasses
-														        (`fold_ms` and residual list passes), module parsing, or the separate Mach-O
-														        local-BL boundary.
-														      - Rtobj seed follow-up (2026-05-05): the seed helper now accepts schema-versioned
+															        (`optimizer` ~5.1s, `user_decls` ~7.2s), so keep global DCE after the
+															        optimizer. Remaining high-leverage work is inside optimizer subpasses
+															        (`fold_ms` and residual list passes), module parsing, or the separate Mach-O
+															        local-BL boundary.
+															      - Optimizer fold follow-up (2026-05-05): `optimizer.summary` now carries
+															        fold-shape counters alongside hot fold/list-int/reserve bodies. The retained
+															        fold cleanup hoists stable list lengths in fold-local loops, fast-returns
+															        leaf expressions, and avoids clone-of-clone environments in isolated
+															        `if`/`for` folding. The measured profile moves optimizer total to ~1.79s,
+															        `fold_ms` to ~641ms, and `fold_env_clone` from `2592` to `1317`; remaining
+															        fold work is now evidenced by `19903` folded expressions, led by `11527`
+															        leaf/other nodes, `2644` calls, `2489` infix nodes, and `1271` expression
+															        `if` nodes.
+															      - Rtobj seed follow-up (2026-05-05): the seed helper now accepts schema-versioned
 														        runtime-object cache keys (`sN_b_*`) instead of only `s2_b_*`, and
 														        `make rtobj-seed` warms host core/full runtime profiles for both no-debug
 														        and debug. This closes the full-runtime no-debug miss observed when the

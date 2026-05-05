@@ -37,10 +37,13 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
 fn _optimizer_list_pass_profile_reset(enabled) {
     optlistint._opt_list_int_profile_reset(enabled)
     optlistreserve._opt_list_reserve_profile_reset(enabled)
+    optfold._opt_fold_profile_reset(enabled)
     return nil
 }
 fn _optimizer_list_pass_profile_detail() {
-    return optlistint._opt_list_int_profile_detail() + optlistreserve._opt_list_reserve_profile_detail()
+    return optfold._opt_fold_profile_detail() +
+        optlistint._opt_list_int_profile_detail() +
+        optlistreserve._opt_list_reserve_profile_detail()
 }
 fn _tco_modconst_function_in_place(fun_expr) { return opttco._tco_modconst_function_in_place(fun_expr) }
 fn _tco_function_in_place(fun_expr) { return opttco._tco_function_in_place(fun_expr) }

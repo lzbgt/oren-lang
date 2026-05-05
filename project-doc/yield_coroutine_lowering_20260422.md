@@ -560,10 +560,16 @@ backend-shared value-helper slices landed.
     ~2.05-2.07s, so it was reverted. A
     narrower list-int-only prefilter probe reduced candidates to `86/470`, but it raised list-scan overhead to ~53ms,
     left `list_int` around ~1.44s, and worsened optimizer total to ~3.42s, so the source probe was reverted.
-    A fold-pass stable-list-length hoist also passed stage2 and focused optimizer/generator gates, but repeated
-    profiles left `fold_ms` around ~0.97-1.02s and optimizer total around ~3.40-3.43s, so that source probe was
-    reverted as neutral-to-worse.
-    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
+	    A fold-pass stable-list-length hoist also passed stage2 and focused optimizer/generator gates, but repeated
+	    profiles left `fold_ms` around ~0.97-1.02s and optimizer total around ~3.40-3.43s, so that source probe was
+	    reverted as neutral-to-worse.
+	    A later fold-specific cleanup keeps the profile evidence and removes proven overhead instead: `optimizer.summary`
+	    now carries fold-shape counters, fold-local loops hoist stable list lengths, leaf expressions return before the
+	    complex-expression dispatch chain, and isolated `if`/`for` folding clones the original flow environment per branch
+	    instead of cloning an intermediate snapshot. The measured profile moves optimizer total to ~1.79s, `fold_ms` to
+	    ~641ms, and `fold_env_clone` from `2592` to `1317`; remaining fold evidence is `19903` folded expressions, led by
+	    `11527` leaf/other nodes, `2644` calls, `2489` infix nodes, and `1271` expression `if` nodes.
+	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
     profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
     cache directories (`sN_b_*`) instead of only legacy `s2_b_*` names, and `make rtobj-seed` warms both core and

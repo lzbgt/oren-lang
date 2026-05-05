@@ -237,6 +237,29 @@ for phase_name, _ns, detail in events:
     if phase_name == "optimizer.summary":
         sub = {"phase": "optimizer.summary"}
         for key in (
+            "fold_exprs",
+            "fold_expr_call",
+            "fold_expr_infix",
+            "fold_expr_if",
+            "fold_expr_array",
+            "fold_expr_hash",
+            "fold_expr_index",
+            "fold_expr_member",
+            "fold_expr_function",
+            "fold_expr_prefix",
+            "fold_expr_other",
+            "fold_stmts",
+            "fold_stmt_block",
+            "fold_stmt_var",
+            "fold_stmt_assign",
+            "fold_stmt_set",
+            "fold_stmt_expr",
+            "fold_stmt_return",
+            "fold_stmt_while",
+            "fold_stmt_for",
+            "fold_stmt_other",
+            "fold_env_push",
+            "fold_env_clone",
             "list_int_locals_ms",
             "list_int_nested_ms",
             "list_int_scan_ms2",
@@ -263,6 +286,35 @@ if optimizer_hot_rows:
     print("== optimizer hot function bodies by pass ==")
     for row in sorted(optimizer_hot_rows, key=lambda item: (item["pass"], item["rank"])):
         print(f"{row['ms']:10d} ms  pass={row['pass']} rank={row['rank']} fn={row['fn']}")
+
+if optimizer_subphase_rows:
+    print("== optimizer fold pass counts ==")
+    for row in optimizer_subphase_rows:
+        print(
+            f"exprs={row['fold_exprs']:6d}"
+            f" call={row['fold_expr_call']:5d}"
+            f" infix={row['fold_expr_infix']:5d}"
+            f" if={row['fold_expr_if']:4d}"
+            f" array={row['fold_expr_array']:4d}"
+            f" hash={row['fold_expr_hash']:4d}"
+            f" index={row['fold_expr_index']:4d}"
+            f" member={row['fold_expr_member']:4d}"
+            f" function={row['fold_expr_function']:4d}"
+            f" prefix={row['fold_expr_prefix']:4d}"
+            f" other={row['fold_expr_other']:5d}"
+            f" | stmts={row['fold_stmts']:6d}"
+            f" block={row['fold_stmt_block']:4d}"
+            f" var={row['fold_stmt_var']:5d}"
+            f" assign={row['fold_stmt_assign']:4d}"
+            f" set={row['fold_stmt_set']:4d}"
+            f" expr={row['fold_stmt_expr']:5d}"
+            f" return={row['fold_stmt_return']:5d}"
+            f" while={row['fold_stmt_while']:4d}"
+            f" for={row['fold_stmt_for']:4d}"
+            f" other={row['fold_stmt_other']:5d}"
+            f" | env_push={row['fold_env_push']:5d}"
+            f" env_clone={row['fold_env_clone']:5d}"
+        )
 
 if optimizer_subphase_rows:
     print("== optimizer list pass internals ==")
