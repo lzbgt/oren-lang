@@ -651,6 +651,9 @@ string-name comparisons.
 	    for statements that the shared conservative list-touch detector proves cannot touch lists. The measured profile keeps
 	    optimizer total in-band at ~852ms while moving `for_ms` to ~1ms, `sink_ms` to ~19ms, `list_int_ms` to ~177ms, and
 	    `list_int_touch_ms` to ~28ms.
+	    Fold block traversal now also skips dead non-nil fact frames: `fold_stmt(Block)` pushes only when direct `Var`/`Assign`
+	    statements can update that frame. The measured profile moves optimizer total to ~760ms, `fold_ms` to ~203ms, and
+	    `fold_env_push` from `3204` to `1667` while preserving branch/loop/function isolation.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 	    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object

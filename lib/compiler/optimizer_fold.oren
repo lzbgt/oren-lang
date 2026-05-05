@@ -243,6 +243,22 @@ fn expr_list_all_fold_leaf(xs) {
 }
 
 
+fn fold_block_updates_nn_env(block) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    var i = 0
+    while ss != nil && i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil {
+            var t = st["type"]
+            if t == "Var" || t == "Assign" { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+
 fn fold_type_strict_eq(op, left, right, nn_env) {
     if op != "==" && op != "!=" { return nil }
 
@@ -464,7 +480,8 @@ fn fold_stmt(s, nn_env) {
     if OPT_FOLD_TRACE_ENABLED == true { opt_trace("[opt] fold_stmt t=" + t) }
     if t == "Block" {
         var ss = s["stmts"]
-        var env2 = nn_env_push(nn_env)
+        var env2 = nn_env
+        if fold_block_updates_nn_env(s) { env2 = nn_env_push(nn_env) }
         var i = 0
         var ss_len = oren_list_len(ss)
         while i < ss_len {
