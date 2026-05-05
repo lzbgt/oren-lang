@@ -221,6 +221,18 @@ fn fold_child_expr(e, nn_env) {
 }
 
 
+fn expr_list_all_fold_leaf(xs) {
+    if xs == nil { return true }
+    var i = 0
+    var xs_len = oren_list_len(xs)
+    while i < xs_len {
+        if !expr_is_fold_leaf(xs[i]) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+
 fn fold_type_strict_eq(op, left, right, nn_env) {
     if op != "==" && op != "!=" { return nil }
 
@@ -408,8 +420,11 @@ fn fold_expr(e, nn_env) {
         return e
     }
     if t == "Call" {
-        e["fn"] = fold_child_expr(e["fn"], nn_env)
         var args = e["args"]
+        if expr_is_fold_leaf(e["fn"]) && expr_list_all_fold_leaf(args) && expr_is_fold_leaf(e["spread"]) {
+            return e
+        }
+        e["fn"] = fold_child_expr(e["fn"], nn_env)
         if args == nil {
             opt_trace("[opt] call: args is nil (treat as 0 args)")
         } else {
