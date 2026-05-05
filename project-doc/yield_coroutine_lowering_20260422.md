@@ -557,10 +557,12 @@ backend-shared value-helper slices landed.
   - Module parse profiling (2026-05-05): the serial module parse path now emits `link.parse_module.done` rows
     into the standard phase log, and `scripts/profile_native_build_phases.sh` summarizes them by module path with
     read/cache/parse/lexer/parser/merge/prepare plus parser-body, hot-statement, and generator-core sub-buckets.
-    The parser now caches only the generated generator-core source string on the normal non-forced-GC compiler path;
-    the cache is disabled for `OREN_COMPILER_GC=1|true` because compiler globals are not yet guaranteed native GC
-    roots under forced compiler GC. The refreshed profile moves `lib/std/generator.oren` from ~1.40s with
-    `gen_core_ms=1112` to ~481ms with `gen_core_ms=188` / `gen_core_parser_ms=188`.
+    The parser now caches the generated generator-core source string and a parsed generator-core statement template
+    on the normal non-forced-GC compiler path, cloning the cached AST before prepending it so later compiler passes
+    do not share mutable nodes across modules. Both caches are disabled for `OREN_COMPILER_GC=1|true` because
+    compiler globals are not yet guaranteed native GC roots under forced compiler GC. The refreshed profile moves
+    `lib/std/generator.oren` from ~1.40s with `gen_core_ms=1112` to ~317-330ms with `gen_core_ms=25-26` /
+    `gen_core_parser_ms=0`; the prior source-string-only cache boundary was ~481ms with `gen_core_ms=188`.
     A retained task/task-group parser-shape cleanup now shares task-group stop/watch/wait/terminal-result loops,
     task-only join/detach loops, and the task timeout-detach block without changing runtime preflight/take-snapshot
     ordering or task return shapes. Focused task/task-group/generator/coroutine surfaces pass; the native profile
@@ -568,7 +570,8 @@ backend-shared value-helper slices landed.
     `task_group.terminal_results` and `join_all` from the top hot rows, and puts `std:task.stop_policy_wait`
     around 25ms (`header=0/body=24`). Reweight module-parse follow-up toward residual parser-body shapes
     (`_task_group_validate_policy_shape`, `stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
-    representation that avoids reparsing, not file-read/cache/prepare work or the small `reflect/result/list` tail.
+    representation only if it beats the cloned-AST cache without importing ASTBIN codec codegen, not
+    file-read/cache/prepare work or the small `reflect/result/list` tail.
     A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
     bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. A separate
     `std:task.stop_policy_wait` stop-mode helper split passed stage2 and focused surfaces but moved

@@ -10,6 +10,7 @@ fn _program_needs_generator_core(prog) {
 }
 
 var _PARSER_GENERATOR_CORE_SRC_CACHE = nil
+var _PARSER_GENERATOR_CORE_STMT_CACHE = nil
 
 fn _generator_core_src_cache_enabled() {
     // Native compiler globals are not yet guaranteed GC roots under forced compiler GC.
@@ -455,6 +456,200 @@ fn _generator_core_src() {
     return src
 }
 
+fn _generator_core_clone_attr_arg(arg) {
+    if arg == nil { return nil }
+    return {"key": arg["key"], "value": _generator_core_clone_expr(arg["value"])}
+}
+
+fn _generator_core_clone_attrs(attrs) {
+    if attrs == nil { return nil }
+    var out = []
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil {
+            oren_list_push(out, nil)
+        } else {
+            var na = {"type": a["type"], "token": a["token"], "name": a["name"]}
+            var args = a["args"]
+            if args != nil {
+                var nargs = []
+                var j = 0
+                while j < oren_list_len(args) {
+                    oren_list_push(nargs, _generator_core_clone_attr_arg(args[j]))
+                    j = j + 1
+                }
+                na["args"] = nargs
+            }
+            oren_list_push(out, na)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _generator_core_clone_ident(id) {
+    if id == nil { return nil }
+    var out = {"type": "Identifier", "token": id["token"], "value": id["value"]}
+    if id["ann_type"] != nil { out["ann_type"] = id["ann_type"] }
+    if id["is_varargs"] != nil { out["is_varargs"] = id["is_varargs"] }
+    if id["attrs"] != nil { out["attrs"] = _generator_core_clone_attrs(id["attrs"]) }
+    if id["doc"] != nil { out["doc"] = id["doc"] }
+    return out
+}
+
+fn _generator_core_clone_ident_list(xs) {
+    var out = []
+    var i = 0
+    while xs != nil && i < oren_list_len(xs) {
+        oren_list_push(out, _generator_core_clone_ident(xs[i]))
+        i = i + 1
+    }
+    return out
+}
+
+fn _generator_core_clone_expr_list(xs) {
+    var out = []
+    var i = 0
+    while xs != nil && i < oren_list_len(xs) {
+        oren_list_push(out, _generator_core_clone_expr(xs[i]))
+        i = i + 1
+    }
+    return out
+}
+
+fn _generator_core_clone_hash_pairs(ps) {
+    var out = []
+    var i = 0
+    while ps != nil && i < oren_list_len(ps) {
+        var p = ps[i]
+        if p == nil {
+            oren_list_push(out, nil)
+        } else {
+            var np = {}
+            if p["key"] != nil { np["key"] = _generator_core_clone_expr(p["key"]) }
+            if p["value"] != nil { np["value"] = _generator_core_clone_expr(p["value"]) }
+            if p["k"] != nil { np["k"] = _generator_core_clone_expr(p["k"]) }
+            if p["v"] != nil { np["v"] = _generator_core_clone_expr(p["v"]) }
+            oren_list_push(out, np)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _generator_core_clone_expr(e) {
+    if e == nil { return nil }
+    var t = e["type"]
+    if t == "Identifier" { return _generator_core_clone_ident(e) }
+    if t == "Integer" || t == "Float" || t == "String" || t == "Boolean" {
+        return {"type": t, "token": e["token"], "value": e["value"]}
+    }
+    if t == "Nil" { return {"type": "Nil", "token": e["token"]} }
+    if t == "Prefix" {
+        return {"type": "Prefix", "token": e["token"], "op": e["op"], "right": _generator_core_clone_expr(e["right"])}
+    }
+    if t == "Infix" {
+        return {"type": "Infix", "token": e["token"], "left": _generator_core_clone_expr(e["left"]), "op": e["op"], "right": _generator_core_clone_expr(e["right"])}
+    }
+    if t == "If" {
+        var out_if = {"type": "If", "token": e["token"], "cond": _generator_core_clone_expr(e["cond"]), "consq": _generator_core_clone_stmt(e["consq"])}
+        if e["alt"] != nil { out_if["alt"] = _generator_core_clone_stmt(e["alt"]) }
+        return out_if
+    }
+    if t == "Call" {
+        var out_call = {"type": "Call", "token": e["token"], "fn": _generator_core_clone_expr(e["fn"]), "args": _generator_core_clone_expr_list(e["args"])}
+        if e["spread"] != nil { out_call["spread"] = _generator_core_clone_expr(e["spread"]) }
+        return out_call
+    }
+    if t == "Member" {
+        return {"type": "Member", "token": e["token"], "left": _generator_core_clone_expr(e["left"]), "prop": _generator_core_clone_expr(e["prop"])}
+    }
+    if t == "Index" {
+        return {"type": "Index", "token": e["token"], "left": _generator_core_clone_expr(e["left"]), "index": _generator_core_clone_expr(e["index"])}
+    }
+    if t == "Array" {
+        return {"type": "Array", "token": e["token"], "elements": _generator_core_clone_expr_list(e["elements"])}
+    }
+    if t == "Hash" {
+        return {"type": "Hash", "token": e["token"], "pairs": _generator_core_clone_hash_pairs(e["pairs"])}
+    }
+    if t == "SpawnExpr" {
+        return {"type": "SpawnExpr", "token": e["token"], "call": _generator_core_clone_expr(e["call"])}
+    }
+    if t == "Function" { return _generator_core_clone_function(e) }
+    return e
+}
+
+fn _generator_core_clone_stmt_list(xs) {
+    var out = []
+    var i = 0
+    while xs != nil && i < oren_list_len(xs) {
+        oren_list_push(out, _generator_core_clone_stmt(xs[i]))
+        i = i + 1
+    }
+    return out
+}
+
+fn _generator_core_clone_stmt(s) {
+    if s == nil { return nil }
+    var t = s["type"]
+    if t == "Block" || t == "StmtList" {
+        var out_block = {"type": t, "token": s["token"]}
+        var xs = s["stmts"]
+        if xs == nil { xs = s["statements"] }
+        out_block["stmts"] = _generator_core_clone_stmt_list(xs)
+        if s["origin"] != nil { out_block["origin"] = s["origin"] }
+        return out_block
+    }
+    if t == "Var" {
+        return {"type": "Var", "token": s["token"], "name": _generator_core_clone_ident(s["name"]), "value": _generator_core_clone_expr(s["value"])}
+    }
+    if t == "Assign" {
+        return {"type": "Assign", "token": s["token"], "name": _generator_core_clone_ident(s["name"]), "value": _generator_core_clone_expr(s["value"])}
+    }
+    if t == "Set" {
+        return {"type": "Set", "token": s["token"], "left": _generator_core_clone_expr(s["left"]), "value": _generator_core_clone_expr(s["value"])}
+    }
+    if t == "Return" {
+        return {"type": "Return", "token": s["token"], "value": _generator_core_clone_expr(s["value"])}
+    }
+    if t == "ExprStmt" {
+        var out_expr = {"type": "ExprStmt", "token": s["token"], "expr": _generator_core_clone_expr(s["expr"])}
+        if s["attrs"] != nil { out_expr["attrs"] = _generator_core_clone_attrs(s["attrs"]) }
+        if s["doc"] != nil { out_expr["doc"] = s["doc"] }
+        return out_expr
+    }
+    if t == "If" {
+        var out_if = {"type": "If", "token": s["token"], "cond": _generator_core_clone_expr(s["cond"]), "consq": _generator_core_clone_stmt(s["consq"])}
+        if s["alt"] != nil { out_if["alt"] = _generator_core_clone_stmt(s["alt"]) }
+        return out_if
+    }
+    if t == "While" {
+        return {"type": "While", "token": s["token"], "cond": _generator_core_clone_expr(s["cond"]), "body": _generator_core_clone_stmt(s["body"])}
+    }
+    if t == "For" {
+        return {"type": "For", "token": s["token"], "init": _generator_core_clone_stmt(s["init"]), "cond": _generator_core_clone_expr(s["cond"]), "post": _generator_core_clone_stmt(s["post"]), "body": _generator_core_clone_stmt(s["body"])}
+    }
+    if t == "Break" { return {"type": "Break", "token": s["token"]} }
+    if t == "Continue" { return {"type": "Continue", "token": s["token"]} }
+    if t == "Spawn" { return {"type": "Spawn", "token": s["token"], "call": _generator_core_clone_expr(s["call"])} }
+    return s
+}
+
+fn _generator_core_clone_function(fn0) {
+    if fn0 == nil { return nil }
+    var out = {"type": "Function", "token": fn0["token"], "name": fn0["name"], "params": _generator_core_clone_ident_list(fn0["params"]), "body": _generator_core_clone_stmt(fn0["body"])}
+    if fn0["attrs"] != nil { out["attrs"] = _generator_core_clone_attrs(fn0["attrs"]) }
+    if fn0["ret_ann_type"] != nil { out["ret_ann_type"] = fn0["ret_ann_type"] }
+    if fn0["type_params"] != nil { out["type_params"] = fn0["type_params"] }
+    if fn0["doc"] != nil { out["doc"] = fn0["doc"] }
+    if fn0["parse_ms"] != nil { out["parse_ms"] = fn0["parse_ms"] }
+    if fn0["parse_header_ms"] != nil { out["parse_header_ms"] = fn0["parse_header_ms"] }
+    if fn0["parse_body_ms"] != nil { out["parse_body_ms"] = fn0["parse_body_ms"] }
+    return out
+}
+
 fn _generator_core_stmts(p) {
     var file = p["file"]
     if file == nil { file = "" }
@@ -467,6 +662,13 @@ fn _generator_core_stmts(p) {
     var parser_ms = 0
     var t_part = 0
     if profile_parse { t_part = oren_time_now_ns() }
+    var cache_enabled = _generator_core_src_cache_enabled()
+    if cache_enabled == true && _PARSER_GENERATOR_CORE_STMT_CACHE != nil {
+        p["_profile_gen_core_src_ms"] = 0
+        p["_profile_gen_core_lexer_ms"] = 0
+        p["_profile_gen_core_parser_ms"] = 0
+        return _generator_core_clone_stmt_list(_PARSER_GENERATOR_CORE_STMT_CACHE)
+    }
     var src = _generator_core_src()
     if profile_parse {
         src_ms = (oren_time_now_ns() - t_part) / 1000000
@@ -496,5 +698,6 @@ fn _generator_core_stmts(p) {
         parser_add_error(p, "internal generator core parse failure")
         return []
     }
-    return prog["statements"]
+    if cache_enabled == true { _PARSER_GENERATOR_CORE_STMT_CACHE = prog["statements"] }
+    return _generator_core_clone_stmt_list(prog["statements"])
 }
