@@ -666,6 +666,18 @@ if [[ "${OREN_QI_SKIP_BLOCK_SCOPE_SMOKE:-0}" != "1" ]]; then
   tail -n 3 "$bsf_log" >>"$log"
 fi
 
+if [[ "${OREN_QI_SKIP_OPTIMIZER_CONST_MOD_SMOKE:-0}" != "1" ]]; then
+  echo "== optimizer const mod smoke ==" >>"$log"
+  ocm_src="tests/fixtures/optimizer_const_mod_rewrite_main.oren"
+  ocm_log="build/logs/${compiler_base}_optimizer_const_mod.log"
+  rm -f "$ocm_log" 2>/dev/null || true
+  run_step_checked "optimizer const mod smoke" "$ocm_log" \
+    run_with_timeout "$build_timeout_secs" "$compiler" test "$ocm_src" \
+    --backend native --platform "$platform"
+  echo "ok: optimizer const mod smoke" >>"$ocm_log"
+  tail -n 3 "$ocm_log" >>"$log"
+fi
+
 if [[ "${OREN_QI_SKIP_TOP_LEVEL_INT_PREINIT_SMOKE:-0}" != "1" ]]; then
   echo "== top-level integer preinit smoke ==" >>"$log"
   tlp_src="tests/fixtures/tier1_native_top_level_int_preinit_main.oren"

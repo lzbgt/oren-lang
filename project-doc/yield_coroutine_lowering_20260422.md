@@ -573,6 +573,11 @@ backend-shared value-helper slices landed.
 	    infix nodes, `1271` expression `if` nodes, and only `22` other nodes. A broader leaf-only prefix/index/member/infix
 	    route probe was reverted after early `fold_ms=437-438ms` profiles failed to hold on the final exact-tree profile
 	    (`fold_ms=451ms`, optimizer total ~1.58s).
+	    The const-mod propagation pass is now measured and gated too: `optimizer.summary` reports const expression/statement/env/rewrite
+	    counts, the build-phase report prints an `optimizer const pass counts` table, and the retained `% identifier`
+	    prefilter skips full env-mutating const propagation unless the exact rewrite shape exists. The refreshed generator profile
+	    moved `const_ms` from ~144ms to ~20ms and optimizer total to ~1.23s, with `const_prefilter_hit=0` on that fixture;
+	    `tests/fixtures/optimizer_const_mod_rewrite_main.oren` keeps the positive rewrite path covered in native quick integration.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
     profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object

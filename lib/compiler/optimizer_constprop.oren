@@ -6,7 +6,262 @@ import opthelp "optimizer_helpers.oren"
 // current block. This enables native fastmod on hot loops without changing
 // semantics (we only propagate literals, not arbitrary expressions).
 
+var OPT_CONST_PROFILE_ENABLED = false
+var OPT_CONST_EXPR_VISITS = 0
+var OPT_CONST_EXPR_CALL = 0
+var OPT_CONST_EXPR_INFIX = 0
+var OPT_CONST_EXPR_IF = 0
+var OPT_CONST_EXPR_ARRAY = 0
+var OPT_CONST_EXPR_HASH = 0
+var OPT_CONST_EXPR_INDEX = 0
+var OPT_CONST_EXPR_MEMBER = 0
+var OPT_CONST_EXPR_SPAWN = 0
+var OPT_CONST_EXPR_LEAF = 0
+var OPT_CONST_EXPR_OTHER = 0
+var OPT_CONST_STMT_VISITS = 0
+var OPT_CONST_STMT_BLOCK = 0
+var OPT_CONST_STMT_VAR = 0
+var OPT_CONST_STMT_ASSIGN = 0
+var OPT_CONST_STMT_SET = 0
+var OPT_CONST_STMT_EXPR = 0
+var OPT_CONST_STMT_RETURN = 0
+var OPT_CONST_STMT_IF = 0
+var OPT_CONST_STMT_LOOP = 0
+var OPT_CONST_STMT_SWITCH = 0
+var OPT_CONST_STMT_OTHER = 0
+var OPT_CONST_BLOCKS = 0
+var OPT_CONST_ENV_CLONES = 0
+var OPT_CONST_ENV_INTERSECTS = 0
+var OPT_CONST_ENV_SETS = 0
+var OPT_CONST_MOD_REWRITES = 0
+var OPT_CONST_PREFILTER_EXPR = 0
+var OPT_CONST_PREFILTER_STMT = 0
+var OPT_CONST_PREFILTER_BLOCK = 0
+var OPT_CONST_PREFILTER_HIT = 0
+
+fn _opt_const_profile_reset(enabled) {
+    OPT_CONST_PROFILE_ENABLED = enabled
+    OPT_CONST_EXPR_VISITS = 0
+    OPT_CONST_EXPR_CALL = 0
+    OPT_CONST_EXPR_INFIX = 0
+    OPT_CONST_EXPR_IF = 0
+    OPT_CONST_EXPR_ARRAY = 0
+    OPT_CONST_EXPR_HASH = 0
+    OPT_CONST_EXPR_INDEX = 0
+    OPT_CONST_EXPR_MEMBER = 0
+    OPT_CONST_EXPR_SPAWN = 0
+    OPT_CONST_EXPR_LEAF = 0
+    OPT_CONST_EXPR_OTHER = 0
+    OPT_CONST_STMT_VISITS = 0
+    OPT_CONST_STMT_BLOCK = 0
+    OPT_CONST_STMT_VAR = 0
+    OPT_CONST_STMT_ASSIGN = 0
+    OPT_CONST_STMT_SET = 0
+    OPT_CONST_STMT_EXPR = 0
+    OPT_CONST_STMT_RETURN = 0
+    OPT_CONST_STMT_IF = 0
+    OPT_CONST_STMT_LOOP = 0
+    OPT_CONST_STMT_SWITCH = 0
+    OPT_CONST_STMT_OTHER = 0
+    OPT_CONST_BLOCKS = 0
+    OPT_CONST_ENV_CLONES = 0
+    OPT_CONST_ENV_INTERSECTS = 0
+    OPT_CONST_ENV_SETS = 0
+    OPT_CONST_MOD_REWRITES = 0
+    OPT_CONST_PREFILTER_EXPR = 0
+    OPT_CONST_PREFILTER_STMT = 0
+    OPT_CONST_PREFILTER_BLOCK = 0
+    OPT_CONST_PREFILTER_HIT = 0
+    return nil
+}
+
+fn _opt_const_profile_detail() {
+    if OPT_CONST_PROFILE_ENABLED != true { return "" }
+    return " const_exprs=" + oren_int_to_string(OPT_CONST_EXPR_VISITS) +
+        " const_expr_call=" + oren_int_to_string(OPT_CONST_EXPR_CALL) +
+        " const_expr_infix=" + oren_int_to_string(OPT_CONST_EXPR_INFIX) +
+        " const_expr_if=" + oren_int_to_string(OPT_CONST_EXPR_IF) +
+        " const_expr_array=" + oren_int_to_string(OPT_CONST_EXPR_ARRAY) +
+        " const_expr_hash=" + oren_int_to_string(OPT_CONST_EXPR_HASH) +
+        " const_expr_index=" + oren_int_to_string(OPT_CONST_EXPR_INDEX) +
+        " const_expr_member=" + oren_int_to_string(OPT_CONST_EXPR_MEMBER) +
+        " const_expr_spawn=" + oren_int_to_string(OPT_CONST_EXPR_SPAWN) +
+        " const_expr_leaf=" + oren_int_to_string(OPT_CONST_EXPR_LEAF) +
+        " const_expr_other=" + oren_int_to_string(OPT_CONST_EXPR_OTHER) +
+        " const_stmts=" + oren_int_to_string(OPT_CONST_STMT_VISITS) +
+        " const_stmt_block=" + oren_int_to_string(OPT_CONST_STMT_BLOCK) +
+        " const_stmt_var=" + oren_int_to_string(OPT_CONST_STMT_VAR) +
+        " const_stmt_assign=" + oren_int_to_string(OPT_CONST_STMT_ASSIGN) +
+        " const_stmt_set=" + oren_int_to_string(OPT_CONST_STMT_SET) +
+        " const_stmt_expr=" + oren_int_to_string(OPT_CONST_STMT_EXPR) +
+        " const_stmt_return=" + oren_int_to_string(OPT_CONST_STMT_RETURN) +
+        " const_stmt_if=" + oren_int_to_string(OPT_CONST_STMT_IF) +
+        " const_stmt_loop=" + oren_int_to_string(OPT_CONST_STMT_LOOP) +
+        " const_stmt_switch=" + oren_int_to_string(OPT_CONST_STMT_SWITCH) +
+        " const_stmt_other=" + oren_int_to_string(OPT_CONST_STMT_OTHER) +
+        " const_blocks=" + oren_int_to_string(OPT_CONST_BLOCKS) +
+        " const_env_clone=" + oren_int_to_string(OPT_CONST_ENV_CLONES) +
+        " const_env_intersect=" + oren_int_to_string(OPT_CONST_ENV_INTERSECTS) +
+        " const_env_set=" + oren_int_to_string(OPT_CONST_ENV_SETS) +
+        " const_mod_rewrite=" + oren_int_to_string(OPT_CONST_MOD_REWRITES) +
+        " const_prefilter_expr=" + oren_int_to_string(OPT_CONST_PREFILTER_EXPR) +
+        " const_prefilter_stmt=" + oren_int_to_string(OPT_CONST_PREFILTER_STMT) +
+        " const_prefilter_block=" + oren_int_to_string(OPT_CONST_PREFILTER_BLOCK) +
+        " const_prefilter_hit=" + oren_int_to_string(OPT_CONST_PREFILTER_HIT)
+}
+
+fn _const_expr_may_need_mod_rewrite(expr) {
+    if expr == nil { return false }
+    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_PREFILTER_EXPR = OPT_CONST_PREFILTER_EXPR + 1 }
+    var t = expr["type"]
+    if t == "Infix" {
+        if expr["op"] == "%" {
+            var right = expr["right"]
+            if right != nil && right["type"] == "Identifier" { return true }
+        }
+        return _const_expr_may_need_mod_rewrite(expr["left"]) ||
+            _const_expr_may_need_mod_rewrite(expr["right"])
+    }
+    if t == "Call" {
+        var args = expr["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            if _const_expr_may_need_mod_rewrite(args[i]) { return true }
+            i = i + 1
+        }
+        if _const_expr_may_need_mod_rewrite(expr["spread"]) { return true }
+        return false
+    }
+    if t == "Prefix" { return _const_expr_may_need_mod_rewrite(expr["right"]) }
+    if t == "If" {
+        if _const_expr_may_need_mod_rewrite(expr["cond"]) { return true }
+        if _const_block_may_need_mod_rewrite_raw(expr["consq"]) { return true }
+        return _const_block_may_need_mod_rewrite_raw(expr["alt"])
+    }
+    if t == "Switch" {
+        if _const_expr_may_need_mod_rewrite(expr["value"]) { return true }
+        var cases = expr["cases"]
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            var c = cases[ci]
+            var vals = c["values"]
+            var vi = 0
+            while vi < oren_list_len(vals) {
+                if _const_expr_may_need_mod_rewrite(vals[vi]) { return true }
+                vi = vi + 1
+            }
+            if _const_block_may_need_mod_rewrite_raw(c["body"]) { return true }
+            ci = ci + 1
+        }
+        return _const_block_may_need_mod_rewrite_raw(expr["default"])
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        var i2 = 0
+        while i2 < oren_list_len(els) {
+            if _const_expr_may_need_mod_rewrite(els[i2]) { return true }
+            i2 = i2 + 1
+        }
+        return false
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i3 = 0
+        while i3 < oren_list_len(ps) {
+            if _const_expr_may_need_mod_rewrite(ps[i3]["key"]) { return true }
+            if _const_expr_may_need_mod_rewrite(ps[i3]["value"]) { return true }
+            i3 = i3 + 1
+        }
+        return false
+    }
+    if t == "Index" {
+        return _const_expr_may_need_mod_rewrite(expr["left"]) ||
+            _const_expr_may_need_mod_rewrite(expr["index"])
+    }
+    if t == "Member" { return _const_expr_may_need_mod_rewrite(expr["left"]) }
+    if t == "SpawnExpr" { return _const_expr_may_need_mod_rewrite(expr["call"]) }
+    return false
+}
+
+fn _const_stmt_may_need_mod_rewrite(stmt) {
+    if stmt == nil { return false }
+    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_PREFILTER_STMT = OPT_CONST_PREFILTER_STMT + 1 }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { xs = stmt["statements"] }
+        var i = 0
+        while i < oren_list_len(xs) {
+            if _const_stmt_may_need_mod_rewrite(xs[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "Var" || t == "Assign" { return _const_expr_may_need_mod_rewrite(stmt["value"]) }
+    if t == "Set" {
+        return _const_expr_may_need_mod_rewrite(stmt["left"]) ||
+            _const_expr_may_need_mod_rewrite(stmt["value"])
+    }
+    if t == "ExprStmt" { return _const_expr_may_need_mod_rewrite(stmt["expr"]) }
+    if t == "Return" { return _const_expr_may_need_mod_rewrite(stmt["value"]) }
+    if t == "If" {
+        if _const_expr_may_need_mod_rewrite(stmt["cond"]) { return true }
+        if _const_block_may_need_mod_rewrite_raw(stmt["consq"]) { return true }
+        return _const_block_may_need_mod_rewrite_raw(stmt["alt"])
+    }
+    if t == "While" {
+        if _const_expr_may_need_mod_rewrite(stmt["cond"]) { return true }
+        return _const_block_may_need_mod_rewrite_raw(stmt["body"])
+    }
+    if t == "For" {
+        if _const_stmt_may_need_mod_rewrite(stmt["init"]) { return true }
+        if _const_expr_may_need_mod_rewrite(stmt["cond"]) { return true }
+        if _const_stmt_may_need_mod_rewrite(stmt["post"]) { return true }
+        return _const_block_may_need_mod_rewrite_raw(stmt["body"])
+    }
+    if t == "Switch" {
+        if _const_expr_may_need_mod_rewrite(stmt["value"]) { return true }
+        var cases = stmt["cases"]
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            var c = cases[ci]
+            var vals = c["values"]
+            var vi = 0
+            while vi < oren_list_len(vals) {
+                if _const_expr_may_need_mod_rewrite(vals[vi]) { return true }
+                vi = vi + 1
+            }
+            if _const_block_may_need_mod_rewrite_raw(c["body"]) { return true }
+            ci = ci + 1
+        }
+        return _const_block_may_need_mod_rewrite_raw(stmt["default"])
+    }
+    if t == "Spawn" { return _const_expr_may_need_mod_rewrite(stmt["call"]) }
+    return false
+}
+
+fn _const_block_may_need_mod_rewrite_raw(block) {
+    if block == nil || block["type"] != "Block" { return false }
+    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_PREFILTER_BLOCK = OPT_CONST_PREFILTER_BLOCK + 1 }
+    var ss = block["stmts"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        if _const_stmt_may_need_mod_rewrite(ss[i]) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn const_block_may_need_mod_rewrite(block) {
+    var ok = _const_block_may_need_mod_rewrite_raw(block)
+    if ok == true && OPT_CONST_PROFILE_ENABLED == true {
+        OPT_CONST_PREFILTER_HIT = OPT_CONST_PREFILTER_HIT + 1
+    }
+    return ok
+}
+
 fn _const_env_clone(env) {
+    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_ENV_CLONES = OPT_CONST_ENV_CLONES + 1 }
     var out = {}
     if env == nil { return out }
     for k in env {
@@ -17,6 +272,7 @@ fn _const_env_clone(env) {
 }
 
 fn _const_env_intersect(a, b) {
+    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_ENV_INTERSECTS = OPT_CONST_ENV_INTERSECTS + 1 }
     var out = {}
     if a == nil || b == nil { return out }
     for k in a {
@@ -28,6 +284,7 @@ fn _const_env_intersect(a, b) {
 
 fn _const_env_set_from_expr(env, name, expr) {
     if env == nil || name == nil { return nil }
+    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_ENV_SETS = OPT_CONST_ENV_SETS + 1 }
     var val = nil
     if expr != nil {
         if expr["type"] == "Integer" {
@@ -44,6 +301,22 @@ fn _const_env_set_from_expr(env, name, expr) {
 fn _rewrite_expr_const_mod(expr, env) {
     if expr == nil { return nil }
     var t = expr["type"]
+    if OPT_CONST_PROFILE_ENABLED == true {
+        OPT_CONST_EXPR_VISITS = OPT_CONST_EXPR_VISITS + 1
+        if t == "Call" { OPT_CONST_EXPR_CALL = OPT_CONST_EXPR_CALL + 1 }
+        else if t == "Infix" { OPT_CONST_EXPR_INFIX = OPT_CONST_EXPR_INFIX + 1 }
+        else if t == "If" { OPT_CONST_EXPR_IF = OPT_CONST_EXPR_IF + 1 }
+        else if t == "Array" { OPT_CONST_EXPR_ARRAY = OPT_CONST_EXPR_ARRAY + 1 }
+        else if t == "Hash" { OPT_CONST_EXPR_HASH = OPT_CONST_EXPR_HASH + 1 }
+        else if t == "Index" { OPT_CONST_EXPR_INDEX = OPT_CONST_EXPR_INDEX + 1 }
+        else if t == "Member" { OPT_CONST_EXPR_MEMBER = OPT_CONST_EXPR_MEMBER + 1 }
+        else if t == "SpawnExpr" { OPT_CONST_EXPR_SPAWN = OPT_CONST_EXPR_SPAWN + 1 }
+        else if t == "Identifier" || t == "Integer" || t == "String" || t == "Boolean" || t == "Nil" {
+            OPT_CONST_EXPR_LEAF = OPT_CONST_EXPR_LEAF + 1
+        } else {
+            OPT_CONST_EXPR_OTHER = OPT_CONST_EXPR_OTHER + 1
+        }
+    }
     if t == "Call" {
         var args = expr["args"]
         if args != nil {
@@ -70,6 +343,7 @@ fn _rewrite_expr_const_mod(expr, env) {
                 var nm = right["value"]
                 if nm != nil && env != nil && env[nm] != nil {
                     expr["right"] = {"type": "Integer", "token": right["token"], "value": env[nm]}
+                    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_MOD_REWRITES = OPT_CONST_MOD_REWRITES + 1 }
                 }
             }
         }
@@ -121,6 +395,19 @@ fn _rewrite_expr_const_mod(expr, env) {
 fn _rewrite_const_mod_stmt(stmt, env) {
     if stmt == nil { return env }
     var t = stmt["type"]
+    if OPT_CONST_PROFILE_ENABLED == true {
+        OPT_CONST_STMT_VISITS = OPT_CONST_STMT_VISITS + 1
+        if t == "Block" || t == "StmtList" { OPT_CONST_STMT_BLOCK = OPT_CONST_STMT_BLOCK + 1 }
+        else if t == "Var" { OPT_CONST_STMT_VAR = OPT_CONST_STMT_VAR + 1 }
+        else if t == "Assign" { OPT_CONST_STMT_ASSIGN = OPT_CONST_STMT_ASSIGN + 1 }
+        else if t == "Set" { OPT_CONST_STMT_SET = OPT_CONST_STMT_SET + 1 }
+        else if t == "ExprStmt" { OPT_CONST_STMT_EXPR = OPT_CONST_STMT_EXPR + 1 }
+        else if t == "Return" { OPT_CONST_STMT_RETURN = OPT_CONST_STMT_RETURN + 1 }
+        else if t == "If" { OPT_CONST_STMT_IF = OPT_CONST_STMT_IF + 1 }
+        else if t == "While" || t == "For" { OPT_CONST_STMT_LOOP = OPT_CONST_STMT_LOOP + 1 }
+        else if t == "Switch" { OPT_CONST_STMT_SWITCH = OPT_CONST_STMT_SWITCH + 1 }
+        else { OPT_CONST_STMT_OTHER = OPT_CONST_STMT_OTHER + 1 }
+    }
     if t == "Block" || t == "StmtList" {
         var xs = stmt["stmts"]
         if xs == nil { xs = stmt["statements"] }
@@ -279,6 +566,7 @@ fn _rewrite_const_mod_stmt(stmt, env) {
 
 fn rewrite_const_mod_in_block(block, env) {
     if block == nil || block["type"] != "Block" { return env }
+    if OPT_CONST_PROFILE_ENABLED == true { OPT_CONST_BLOCKS = OPT_CONST_BLOCKS + 1 }
     if env == nil { env = {} }
     var ss = block["stmts"]
     if ss == nil { return env }

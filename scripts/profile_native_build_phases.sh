@@ -275,6 +275,37 @@ for phase_name, _ns, detail in events:
             "reserve_rewrite_ms",
             "reserve_recurse_ms",
             "reserve_safe_ms",
+            "const_exprs",
+            "const_expr_call",
+            "const_expr_infix",
+            "const_expr_if",
+            "const_expr_array",
+            "const_expr_hash",
+            "const_expr_index",
+            "const_expr_member",
+            "const_expr_spawn",
+            "const_expr_leaf",
+            "const_expr_other",
+            "const_stmts",
+            "const_stmt_block",
+            "const_stmt_var",
+            "const_stmt_assign",
+            "const_stmt_set",
+            "const_stmt_expr",
+            "const_stmt_return",
+            "const_stmt_if",
+            "const_stmt_loop",
+            "const_stmt_switch",
+            "const_stmt_other",
+            "const_blocks",
+            "const_env_clone",
+            "const_env_intersect",
+            "const_env_set",
+            "const_mod_rewrite",
+            "const_prefilter_expr",
+            "const_prefilter_stmt",
+            "const_prefilter_block",
+            "const_prefilter_hit",
         ):
             try:
                 sub[key] = int(fields.get(key, "0"))
@@ -335,6 +366,43 @@ if optimizer_subphase_rows:
             f" rewrite={row['reserve_rewrite_ms']:5d}"
             f" recurse={row['reserve_recurse_ms']:5d}"
             f" safe={row['reserve_safe_ms']:5d}"
+        )
+
+if optimizer_subphase_rows:
+    print("== optimizer const pass counts ==")
+    for row in optimizer_subphase_rows:
+        print(
+            f"exprs={row['const_exprs']:6d}"
+            f" call={row['const_expr_call']:5d}"
+            f" infix={row['const_expr_infix']:5d}"
+            f" if={row['const_expr_if']:4d}"
+            f" array={row['const_expr_array']:4d}"
+            f" hash={row['const_expr_hash']:4d}"
+            f" index={row['const_expr_index']:4d}"
+            f" member={row['const_expr_member']:4d}"
+            f" spawn={row['const_expr_spawn']:4d}"
+            f" leaf={row['const_expr_leaf']:5d}"
+            f" other={row['const_expr_other']:5d}"
+            f" | stmts={row['const_stmts']:6d}"
+            f" block={row['const_stmt_block']:4d}"
+            f" var={row['const_stmt_var']:5d}"
+            f" assign={row['const_stmt_assign']:4d}"
+            f" set={row['const_stmt_set']:4d}"
+            f" expr={row['const_stmt_expr']:5d}"
+            f" return={row['const_stmt_return']:5d}"
+            f" if={row['const_stmt_if']:4d}"
+            f" loop={row['const_stmt_loop']:4d}"
+            f" switch={row['const_stmt_switch']:4d}"
+            f" other={row['const_stmt_other']:5d}"
+            f" | blocks={row['const_blocks']:5d}"
+            f" env_clone={row['const_env_clone']:5d}"
+            f" env_intersect={row['const_env_intersect']:5d}"
+            f" env_set={row['const_env_set']:5d}"
+            f" mod_rewrite={row['const_mod_rewrite']:5d}"
+            f" | prefilter_expr={row['const_prefilter_expr']:6d}"
+            f" prefilter_stmt={row['const_prefilter_stmt']:6d}"
+            f" prefilter_block={row['const_prefilter_block']:5d}"
+            f" prefilter_hit={row['const_prefilter_hit']:4d}"
         )
 
 rows = []

@@ -1,0 +1,27 @@
+fn assert_eq(actual, expected, code) {
+    if actual != expected { exit(code) }
+}
+
+fn fold_mod_rhs_identifier(x) {
+    var denom = 7
+    return x % denom
+}
+
+fn fold_mod_rhs_identifier_after_alias(x) {
+    var source = 9
+    var denom = source
+    return x % denom
+}
+
+fn non_const_rhs_stays_runtime(x, denom) {
+    return x % denom
+}
+
+fn main() {
+    assert_eq(fold_mod_rhs_identifier(23), 2, 11)
+    assert_eq(fold_mod_rhs_identifier_after_alias(29), 2, 12)
+    assert_eq(non_const_rhs_stays_runtime(29, 5), 4, 13)
+    print("ok: optimizer const mod rewrite")
+}
+
+main()
