@@ -717,6 +717,10 @@ string-name comparisons.
     slightly lower (~321ms -> 318ms) and `stop_policy_wait` to ~24ms. A wider task-group `extend` loop unification
     plus watcher-join helper probe was reverted after it worsened the exact task-group module parse profile despite
     removing one hot row.
+    The next retained task/task-group parser cleanup bypasses `std:list` wrappers for simple internal length/push
+    operations, using `oren_list_len(...)` / `oren_list_push(...)` directly and dropping `std:task`'s now-dead list
+    import. The final exact profile moves `lib/std/task_group.oren` from 476ms / 65 stmts / `parse_body_ms=299` to
+    454ms / 65 stmts / `parse_body_ms=274`, and `lib/std/task.oren` from 310ms / 51 stmts to 300ms / 50 stmts.
     A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
     bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. A separate
     `std:task.stop_policy_wait` stop-mode helper split passed stage2 and focused surfaces but moved

@@ -13,7 +13,6 @@
 // - legacy native raw fallback handles (fork / Windows thread fallback) still use the low-level
 //   raw helpers directly and are not yet reflected by `is_handle(...)`
 
-import list "std:list"
 import time "std:time"
 
 fn _task_err(ctx, msg) {
@@ -289,13 +288,13 @@ fn join_all(handles, timeout_ms) {
     if oren_is_err(wait_ms) == true { return wait_ms }
     var out = []
     var i = 0
-    var n = list.len(handles)
+    var n = oren_list_len(handles)
     while i < n {
         var handle = handles[i]
         if _task_handle_ok(handle) != true {
             return _task_err("task.join_all", "expected task handle")
         }
-        list.push(out, oren_join_timeout(handle, wait_ms))
+        oren_list_push(out, oren_join_timeout(handle, wait_ms))
         i = i + 1
     }
     return out
