@@ -552,15 +552,17 @@ backend-shared value-helper slices landed.
     object is safe to link into a stage2-emitted user binary.
   - Module parse profiling (2026-05-05): the serial module parse path now emits `link.parse_module.done` rows
     into the standard phase log, and `scripts/profile_native_build_phases.sh` summarizes them by module path with
-    read/cache/parse/lexer/parser/merge/prepare sub-buckets. The refreshed generator profile identifies
-    `lib/std/generator.oren` as the dominant parse module (~1.43s / 137 stmts) with ~1.32s in
-    `parser.parse_program` and lexer setup rounding to 0ms, followed by `lib/std/task_group.oren`
-    (~502ms / 62 stmts, ~317ms parser) and `lib/std/task.oren` (~321ms / 52 stmts, ~211ms parser).
-    Reweight module-parse follow-up toward parser-level generator/task shape or a non-serial-write cache design,
-    not file-read/cache/prepare work or the small `reflect/result/list` tail. An opt-in serial module-cache write
-    probe timed out before completing the profile: it wrote only the first two ASTBIN cache entries and charged
-    ~114.5s to `lib/std/time.oren` including encode/write cost, so serial cache seeding was reverted as the wrong
-    persistence strategy.
+    read/cache/parse/lexer/parser/merge/prepare plus parser-body sub-buckets. The refreshed generator profile
+    identifies `lib/std/generator.oren` as the dominant parse module (~1.40s / 137 stmts) with `parser_ms=1288`,
+    `parse_body_ms=175`, and `gen_core_ms=1112`; `lib/std/task_group.oren` is ~485ms with `parse_body_ms=284`,
+    and `lib/std/task.oren` is ~313ms with `parse_body_ms=198`. Reweight module-parse follow-up toward
+    generator-core injection and task parser-body shape, not file-read/cache/prepare work or the small
+    `reflect/result/list` tail. An opt-in serial module-cache write probe timed out before completing the profile:
+    it wrote only the first two ASTBIN cache entries and charged ~114.5s to `lib/std/time.oren` including
+    encode/write cost, so serial cache seeding was reverted as the wrong persistence strategy. A parser-side
+    generator-core ASTBIN template-cache probe was also rejected: it reduced visible `gen_core_ms` to ~41ms but
+    made the native profile time out later in emit/codegen, so cache designs must avoid pulling ASTBIN codec
+    codegen into parser builds.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

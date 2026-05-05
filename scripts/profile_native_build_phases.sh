@@ -126,7 +126,20 @@ for phase_name, _ns, detail in events:
     except ValueError:
         traits = 0
     sub_ms = {}
-    for key in ("read_ms", "cache_ms", "parse_ms", "lexer_ms", "parser_ms", "merge_ms", "prepare_ms"):
+    for key in (
+        "read_ms",
+        "cache_ms",
+        "parse_ms",
+        "lexer_ms",
+        "parser_ms",
+        "parse_body_ms",
+        "gen_scan_ms",
+        "gen_core_ms",
+        "forin_bridge_ms",
+        "prepend_ms",
+        "merge_ms",
+        "prepare_ms",
+    ):
         try:
             sub_ms[key] = int(fields.get(key, "0"))
         except ValueError:
@@ -147,6 +160,9 @@ if parse_module_rows:
             f"{row['ms']:10d} ms  {row['stmts']:6d} stmts  {row['traits']:5d} traits"
             f"  read={row['read_ms']:5d} cache={row['cache_ms']:5d} parse={row['parse_ms']:5d}"
             f" lexer={row['lexer_ms']:5d} parser={row['parser_ms']:5d}"
+            f" body={row['parse_body_ms']:5d} gen_scan={row['gen_scan_ms']:5d}"
+            f" gen_core={row['gen_core_ms']:5d} forin_bridge={row['forin_bridge_ms']:5d}"
+            f" prepend={row['prepend_ms']:5d}"
             f" merge={row['merge_ms']:5d} prepare={row['prepare_ms']:5d}"
             f"  cache_hit={row['cache_hit']}  path={row['path']}"
         )

@@ -95,6 +95,15 @@ fn parse_type_name_after_colon(p) { return core.parse_type_name_after_colon(p) }
 fn parse_type_name_after_for(p) { return core.parse_type_name_after_for(p) }
 
 fn parse_program(p) {
+    var profile_parse = false
+    var profile_path = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if profile_path != nil && profile_path != "" && profile_path != "0" { profile_parse = true }
+    var parse_body_ms = 0
+    var gen_scan_ms = 0
+    var gen_core_ms = 0
+    var forin_bridge_ms = 0
+    var prepend_ms = 0
+    var t_part = 0
     var gcroot = {"parser": p, "lexer": p["l"], "input": p["l"]["input"]}
     var __prev_gc_pin = oren_gc_pin(gcroot)
     // Expose GC root for nested parse helpers (e.g. parse_block) to pin locals.
@@ -136,6 +145,7 @@ fn parse_program(p) {
         if trace_prog_every < 1 { trace_prog_every = 1 }
     }
     var trace_prog_countdown = 0
+    if profile_parse { t_part = oren_time_now_ns() }
     while p["cur"]["type"] != token.TOK_EOF {
         if trace_prog {
             if trace_prog_countdown <= 0 {
@@ -272,12 +282,42 @@ fn parse_program(p) {
         stmt_i = stmt_i + 1
         parser_next_token(p)
     }
-    if p["_skip_generator_core_inject"] != true && _program_needs_generator_core(prog) == true {
-        prog["statements"] = _prepend_stmts(prog["statements"], _generator_core_stmts(p))
+    if profile_parse {
+        parse_body_ms = (oren_time_now_ns() - t_part) / 1000000
+        t_part = oren_time_now_ns()
+    }
+    var needs_generator_core = false
+    if p["_skip_generator_core_inject"] != true {
+        needs_generator_core = _program_needs_generator_core(prog)
+    }
+    if profile_parse {
+        gen_scan_ms = (oren_time_now_ns() - t_part) / 1000000
+    }
+    if needs_generator_core == true {
+        if profile_parse { t_part = oren_time_now_ns() }
+        var gen_core_stmts = _generator_core_stmts(p)
+        if profile_parse {
+            gen_core_ms = (oren_time_now_ns() - t_part) / 1000000
+            t_part = oren_time_now_ns()
+        }
+        prog["statements"] = _prepend_stmts(prog["statements"], gen_core_stmts)
+        if profile_parse { prepend_ms = prepend_ms + ((oren_time_now_ns() - t_part) / 1000000) }
     }
     if p["_generator_forin_bridge_name"] != nil {
-        prog["statements"] = _prepend_stmts(prog["statements"], _generator_forin_bridge_stmts(p))
+        if profile_parse { t_part = oren_time_now_ns() }
+        var forin_bridge_stmts = _generator_forin_bridge_stmts(p)
+        if profile_parse {
+            forin_bridge_ms = (oren_time_now_ns() - t_part) / 1000000
+            t_part = oren_time_now_ns()
+        }
+        prog["statements"] = _prepend_stmts(prog["statements"], forin_bridge_stmts)
+        if profile_parse { prepend_ms = prepend_ms + ((oren_time_now_ns() - t_part) / 1000000) }
     }
+    p["_profile_parse_body_ms"] = parse_body_ms
+    p["_profile_gen_scan_ms"] = gen_scan_ms
+    p["_profile_gen_core_ms"] = gen_core_ms
+    p["_profile_forin_bridge_ms"] = forin_bridge_ms
+    p["_profile_prepend_ms"] = prepend_ms
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
     prog["traits"] = p["traits"]
     p["_gc_stmt"] = nil
