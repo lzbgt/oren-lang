@@ -535,7 +535,9 @@ backend-shared value-helper slices landed.
     compiler-side list-touch prefilter runs the list-int and list-reserve passes only on function bodies that may
     touch lists; the refreshed profile reports `119/470` list candidates, list scan overhead ~20ms, optimizer time
     moving from ~3.76s to ~3.31s, `list_int` from ~1.81s to ~1.46s, and reserve from ~0.64s to ~0.53s. A
-    DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
+    narrower list-int-only prefilter probe reduced candidates to `86/470`, but it raised list-scan overhead to ~53ms,
+    left `list_int` around ~1.44s, and worsened optimizer total to ~3.42s, so the source probe was reverted.
+    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
     profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
     cache directories (`sN_b_*`) instead of only legacy `s2_b_*` names, and `make rtobj-seed` warms both core and

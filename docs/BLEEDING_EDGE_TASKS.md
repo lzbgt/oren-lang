@@ -5390,8 +5390,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        that cannot touch lists. The current generator profile reports `119/470`
 														        list candidates, ~20ms scan overhead, optimizer time down from ~3.76s to
 														        ~3.31s, `list_int` down from ~1.81s to ~1.46s, and reserve down from ~0.64s
-														        to ~0.53s. A DCE-before-optimizer reorder passed stage2 plus focused
-														        generator/coroutine verifiers but regressed the default profile
+															        to ~0.53s. A narrower list-int-only prefilter probe reduced candidates
+															        to `86/470`, but raised scan overhead to ~53ms, left `list_int`
+															        around ~1.44s, and worsened optimizer total to ~3.42s, so the
+															        source probe was reverted. A DCE-before-optimizer reorder passed stage2 plus focused
+															        generator/coroutine verifiers but regressed the default profile
 														        (`optimizer` ~5.1s, `user_decls` ~7.2s), so keep global DCE after the
 														        optimizer. Remaining high-leverage work is inside optimizer subpasses
 														        (`fold_ms` and residual list passes), module parsing, or the separate Mach-O
