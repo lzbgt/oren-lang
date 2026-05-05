@@ -85,6 +85,12 @@ generic maps, string-name bypasses, fixup-side sid fields, or Oren-level global 
 The same pass removed unused local Mach-O forwarding wrappers left behind by prior emitter churn
 (`arm64_ctx_fixup_adr_data`, `push_u32_be`, `ceil_div`, `insn_adr`, `insn_ret`). That cleanup is
 source-shape only; it does not alter the remaining compact target-id/materialization boundary.
+The adjacent optimizer cleanup removed the stale `_opt_lower_int_only_lists_in_block(...)` wrapper;
+the active list-int optimizer entry path already calls `_opt_lower_int_only_lists_in_block_opts(...)`
+directly.
+The cleanup batch also removed the unused `_opt_block_has_unsafe_list_use(...)` helper from
+`optimizer_loops_list.oren`; the reset-aware unsafe-use helper remains live, and the file is back
+under the 2000-line guardrail.
 
 ## Current shipped state
 

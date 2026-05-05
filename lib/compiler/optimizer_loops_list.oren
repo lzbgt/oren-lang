@@ -863,18 +863,6 @@ fn _opt_block_find_stmt_index(block, stmt) {
     return nil
 }
 
-fn _opt_block_has_unsafe_list_use(block, name) {
-    if block == nil || block["type"] != "Block" { return false }
-    var ss = block["stmts"]
-    if ss == nil { return false }
-    var i = 0
-    while i < oren_list_len(ss) {
-        if _opt_stmt_has_unsafe_list_use(ss[i], name) { return true }
-        i = i + 1
-    }
-    return false
-}
-
 fn _opt_expr_has_unsafe_list_use_for_reset(expr, name) {
     if expr == nil { return false }
     var t = expr["type"]

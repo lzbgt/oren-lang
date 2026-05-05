@@ -1414,10 +1414,6 @@ fn _opt_list_lit_safe_int_elements(expr, safe_ints) {
 }
 
 
-fn _opt_lower_int_only_lists_in_block(block) {
-    return _opt_lower_int_only_lists_in_block_opts(block, false, nil)
-}
-
 fn _opt_list_int_expr_may_start_candidate(expr, allow_empty) {
     if expr == nil { return false }
     var t = expr["type"]
