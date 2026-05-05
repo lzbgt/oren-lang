@@ -35,14 +35,6 @@ fn _task_group_target_kind(target) {
     return nil
 }
 
-fn _task_group_target_ok(target) {
-    return _task_group_target_kind(target) != nil
-}
-
-fn _task_group_is_runtime(group) {
-    return oren_task_group_is_handle(group) == true
-}
-
 fn _task_group_runtime_add_target(ctx, group, target) {
     var rv = oren_task_group_add(group, target)
     if oren_is_err(rv) == true { return rv }
@@ -369,7 +361,7 @@ fn _task_group_detach_task_refs(ctx, refs, kinds, err_msg) {
 }
 
 fn is_group(group) {
-    if _task_group_is_runtime(group) == true { return true }
+    if oren_task_group_is_handle(group) == true { return true }
     if oren_type_name(group) != "map" { return false }
     if oren_map_get_str(group, "__task_group_surface") != _task_group_surface() { return false }
     var members = oren_map_get_str(group, "members")
@@ -377,7 +369,7 @@ fn is_group(group) {
 }
 
 fn is_runtime_group(group) {
-    return _task_group_is_runtime(group)
+    return oren_task_group_is_handle(group)
 }
 
 fn new(default_policy) {
@@ -396,7 +388,7 @@ fn new_runtime() {
 
 fn new_runtime_with_policy(default_policy) {
     var group = new_runtime()
-    if _task_group_is_runtime(group) != true { return group }
+    if oren_task_group_is_handle(group) != true { return group }
     var policy = _task_group_runtime_set_default_policy("task_group.new_runtime_with_policy", group, default_policy)
     if oren_is_err(policy) == true { return policy }
     return group
@@ -427,7 +419,7 @@ fn from_task_list_with_policy(targets, default_policy) {
 }
 
 fn count(group) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         return oren_task_group_count(group)
     }
     var members = _task_group_members_ref("task_group.count", group)
@@ -436,7 +428,7 @@ fn count(group) {
 }
 
 fn members(group) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         return oren_task_group_members(group)
     }
     var refs = _task_group_members_ref("task_group.members", group)
@@ -445,7 +437,7 @@ fn members(group) {
 }
 
 fn member_kinds(group) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         return oren_task_group_member_kinds(group)
     }
     var refs = _task_group_members_ref("task_group.member_kinds", group)
@@ -454,14 +446,14 @@ fn member_kinds(group) {
 }
 
 fn snapshot(group) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         return _task_group_runtime_snapshot("task_group.snapshot", group)
     }
     return _task_group_map_snapshot("task_group.snapshot", group)
 }
 
 fn default_policy(group) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         return _task_group_runtime_default_policy("task_group.default_policy", group)
     }
     var refs = _task_group_members_ref("task_group.default_policy", group)
@@ -470,7 +462,7 @@ fn default_policy(group) {
 }
 
 fn set_default_policy(group, policy0) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         var policy0r = _task_group_runtime_set_default_policy("task_group.set_default_policy", group, policy0)
         if oren_is_err(policy0r) == true { return policy0r }
         return group
@@ -484,12 +476,12 @@ fn set_default_policy(group, policy0) {
 }
 
 fn add(group, target) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         return _task_group_runtime_add_target("task_group.add", group, target)
     }
     var refs = _task_group_members_ref("task_group.add", group)
     if oren_is_err(refs) == true { return refs }
-    if _task_group_target_ok(target) != true {
+    if _task_group_target_kind(target) == nil {
         return _task_group_err("task_group.add", "expected generator handle, generator context, or task handle")
     }
     oren_list_push(refs, target)
@@ -497,7 +489,7 @@ fn add(group, target) {
 }
 
 fn extend(group, targets) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         if oren_type_name(targets) != "list" {
             return _task_group_err("task_group.extend", "expected list targets")
         }
@@ -519,7 +511,7 @@ fn extend(group, targets) {
     var i = 0
     while i < n {
         var target = targets[i]
-        if _task_group_target_ok(target) != true {
+        if _task_group_target_kind(target) == nil {
             return _task_group_err("task_group.extend", "expected generator handle, generator context, or task handle")
         }
         oren_list_push(refs, target)
@@ -529,7 +521,7 @@ fn extend(group, targets) {
 }
 
 fn stop_policy(group, policy0) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         var snapshot0 = _task_group_runtime_stop_snapshot("task_group.stop_policy", group, policy0)
         if oren_is_err(snapshot0) == true { return snapshot0 }
         if oren_list_len(snapshot0["members"]) == 0 { return [] }
@@ -543,7 +535,7 @@ fn stop_policy(group, policy0) {
 }
 
 fn stop_policy_wait(group, policy0) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         var snapshot0 = _task_group_runtime_stop_snapshot("task_group.stop_policy_wait", group, policy0)
         if oren_is_err(snapshot0) == true { return snapshot0 }
         if oren_list_len(snapshot0["members"]) == 0 { return [] }
@@ -629,7 +621,7 @@ fn stop_at_wait(group, deadline_ns, grace_ms, reason, join_timeout_ms) {
 }
 
 fn join_all(group, join_timeout_ms) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.join_all", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
         var wait_ms0 = _task_group_join_timeout_ms("task_group.join_all", join_timeout_ms)
@@ -653,7 +645,7 @@ fn join_all(group, join_timeout_ms) {
 }
 
 fn detach_all(group) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.detach_all", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
         var n0 = _task_group_detach_task_refs(
@@ -690,7 +682,7 @@ fn join_watchers(watchers, join_timeout_ms) {
 }
 
 fn terminal_results(group) {
-    if _task_group_is_runtime(group) == true {
+    if oren_task_group_is_handle(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.terminal_results", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
         return _task_group_terminal_results_for("task_group.terminal_results", snapshot0["members"], snapshot0["member_kinds"])
@@ -701,7 +693,7 @@ fn terminal_results(group) {
 }
 
 fn spawn_call_list(group, fn_obj, args_list) {
-    if _task_group_is_runtime(group) != true {
+    if oren_task_group_is_handle(group) != true {
         return _task_group_err("task_group.spawn_call_list", "expected runtime task group")
     }
     if oren_type_name(args_list) != "list" {

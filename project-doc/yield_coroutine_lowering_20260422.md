@@ -721,6 +721,12 @@ string-name comparisons.
     operations, using `oren_list_len(...)` / `oren_list_push(...)` directly and dropping `std:task`'s now-dead list
     import. The final exact profile moves `lib/std/task_group.oren` from 476ms / 65 stmts / `parse_body_ms=299` to
     454ms / 65 stmts / `parse_body_ms=274`, and `lib/std/task.oren` from 310ms / 51 stmts to 300ms / 50 stmts.
+    The adjacent retained predicate-wrapper cleanup removes `_generator_is_int`, `_generator_is_string`,
+    `_task_handle_ok`, `_task_group_is_runtime`, and `_task_group_target_ok`, replacing them with direct primitive
+    predicate/tag calls rather than local temporaries. Focused task/task-group/generator/coroutine surfaces pass; the
+    exact profile keeps parser-body timings stable while reducing source shape to `lib/std/generator.oren` 135 stmts,
+    `lib/std/task.oren` 49 stmts, and `lib/std/task_group.oren` 63 stmts, with `user_decls` in-band at ~2.68s / 328
+    funcs.
     A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
     bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. A separate
     `std:task.stop_policy_wait` stop-mode helper split passed stage2 and focused surfaces but moved
