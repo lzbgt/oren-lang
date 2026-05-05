@@ -1901,3 +1901,11 @@ That path keeps the current repo state honest:
   `loopm`) after narrowing the import scan to files without textual includes. This leaves prelude
   imports and the imports-only AVM stdlib bundle alone because those aliases feed included files or
   linker reachability rather than direct same-file token use.
+- 2026-05-06: rejected the apparent runtime-native dead-helper deletion found by source token and
+  `rg` checks. Removing the single-occurrence green scheduler wrappers/accessors, Darwin/Linux
+  metadata-size accessors, and `_netpoll_iocp_post_recvfrom(...)` made `./oren_stage2 build
+  tests/fixtures/task_surface_v0.oren --backend bytecode` segfault immediately after an initial
+  stage2 build. After clearing runtime astbin/rtobj seeds and rerunning with the explicit cold-seed
+  allowance, the remaining IOCP wrapper deletion reproduced a stage2 seed segfault. Source was
+  restored; runtime-native private helper reachability is not source-token-only because the runtime
+  bundle/rooting path can keep non-textual dependencies alive.
