@@ -334,6 +334,19 @@ fn collect_reads_stmt(s, reads) {
 }
 
 
+fn block_has_trivial_var(block) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    var i = 0
+    while ss != nil && i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil && st["type"] == "Var" && expr_trivial(st["value"]) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+
 fn dce_block_in_place(block) {
     // DCE only for locals inside blocks (function bodies), never for top-level globals.
     if block == nil || block["type"] != "Block" { return nil }
@@ -351,6 +364,7 @@ fn dce_block_in_place(block) {
         }
         i = i + 1
     }
+    if !block_has_trivial_var(block) { return nil }
 
     // Collect reads in this block (including nested blocks).
     var reads = {}
@@ -395,4 +409,3 @@ fn dce_block_in_place(block) {
 //
 // This is intentionally conservative to avoid introducing new runtime panics when
 // `n` or `list` are not the expected types.
-

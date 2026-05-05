@@ -6,6 +6,151 @@ fn int_lit(n) { return optcore.int_lit(n) }
 fn _tco_ident(name) { return {"type": "Identifier", "token": nil, "value": name} }
 
 
+fn _tco_expr_has_direct_self_call(e, fn_name) {
+    if e == nil || fn_name == nil || fn_name == "" { return false }
+    var t = e["type"]
+    if t == "Call" {
+        var fn_expr = e["fn"]
+        if fn_expr != nil && fn_expr["type"] == "Identifier" && fn_expr["value"] == fn_name { return true }
+        if _tco_expr_has_direct_self_call(fn_expr, fn_name) { return true }
+        var args = e["args"]
+        var ai = 0
+        while args != nil && ai < oren_list_len(args) {
+            if _tco_expr_has_direct_self_call(args[ai], fn_name) { return true }
+            ai = ai + 1
+        }
+        return _tco_expr_has_direct_self_call(e["spread"], fn_name)
+    }
+    if t == "Function" { return false }
+    if t == "Prefix" { return _tco_expr_has_direct_self_call(e["right"], fn_name) }
+    if t == "Infix" {
+        if _tco_expr_has_direct_self_call(e["left"], fn_name) { return true }
+        return _tco_expr_has_direct_self_call(e["right"], fn_name)
+    }
+    if t == "If" {
+        if _tco_expr_has_direct_self_call(e["cond"], fn_name) { return true }
+        if _tco_stmt_has_direct_self_call(e["consq"], fn_name) { return true }
+        return _tco_stmt_has_direct_self_call(e["alt"], fn_name)
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            if _tco_expr_has_direct_self_call(xs[i], fn_name) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while ps != nil && i2 < oren_list_len(ps) {
+            var p = ps[i2]
+            if p != nil {
+                if _tco_expr_has_direct_self_call(p["key"], fn_name) { return true }
+                if _tco_expr_has_direct_self_call(p["value"], fn_name) { return true }
+            }
+            i2 = i2 + 1
+        }
+        return false
+    }
+    if t == "Index" {
+        if _tco_expr_has_direct_self_call(e["left"], fn_name) { return true }
+        return _tco_expr_has_direct_self_call(e["index"], fn_name)
+    }
+    if t == "Member" { return _tco_expr_has_direct_self_call(e["left"], fn_name) }
+    if t == "SpawnExpr" { return _tco_expr_has_direct_self_call(e["call"], fn_name) }
+    if t == "Switch" {
+        if _tco_expr_has_direct_self_call(e["cond"], fn_name) { return true }
+        if _tco_expr_has_direct_self_call(e["target"], fn_name) { return true }
+        var cases = e["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil {
+                var vals = c["values"]
+                var vi = 0
+                while vals != nil && vi < oren_list_len(vals) {
+                    if _tco_expr_has_direct_self_call(vals[vi], fn_name) { return true }
+                    vi = vi + 1
+                }
+                if _tco_stmt_has_direct_self_call(c["body"], fn_name) { return true }
+            }
+            ci = ci + 1
+        }
+        return _tco_stmt_has_direct_self_call(e["default"], fn_name)
+    }
+    return false
+}
+
+
+fn _tco_stmt_has_direct_self_call(stmt, fn_name) {
+    if stmt == nil || fn_name == nil || fn_name == "" { return false }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if _tco_stmt_has_direct_self_call(ss[i], fn_name) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "Function" { return false }
+    if t == "Var" || t == "Assign" || t == "Return" { return _tco_expr_has_direct_self_call(stmt["value"], fn_name) }
+    if t == "Set" {
+        if _tco_expr_has_direct_self_call(stmt["left"], fn_name) { return true }
+        return _tco_expr_has_direct_self_call(stmt["value"], fn_name)
+    }
+    if t == "ExprStmt" { return _tco_expr_has_direct_self_call(stmt["expr"], fn_name) }
+    if t == "While" {
+        if _tco_expr_has_direct_self_call(stmt["cond"], fn_name) { return true }
+        return _tco_stmt_has_direct_self_call(stmt["body"], fn_name)
+    }
+    if t == "For" {
+        if _tco_stmt_has_direct_self_call(stmt["init"], fn_name) { return true }
+        if _tco_expr_has_direct_self_call(stmt["cond"], fn_name) { return true }
+        if _tco_stmt_has_direct_self_call(stmt["post"], fn_name) { return true }
+        return _tco_stmt_has_direct_self_call(stmt["body"], fn_name)
+    }
+    if t == "If" {
+        if _tco_expr_has_direct_self_call(stmt["cond"], fn_name) { return true }
+        if _tco_stmt_has_direct_self_call(stmt["consq"], fn_name) { return true }
+        return _tco_stmt_has_direct_self_call(stmt["alt"], fn_name)
+    }
+    if t == "Switch" {
+        if _tco_expr_has_direct_self_call(stmt["cond"], fn_name) { return true }
+        if _tco_expr_has_direct_self_call(stmt["target"], fn_name) { return true }
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil {
+                var vals = c["values"]
+                var vi = 0
+                while vals != nil && vi < oren_list_len(vals) {
+                    if _tco_expr_has_direct_self_call(vals[vi], fn_name) { return true }
+                    vi = vi + 1
+                }
+                if _tco_stmt_has_direct_self_call(c["body"], fn_name) { return true }
+            }
+            ci = ci + 1
+        }
+        return _tco_stmt_has_direct_self_call(stmt["default"], fn_name)
+    }
+    if t == "Spawn" { return _tco_expr_has_direct_self_call(stmt["call"], fn_name) }
+    return false
+}
+
+
+fn _tco_function_may_self_call(fun_expr) {
+    if fun_expr == nil || fun_expr["type"] != "Function" { return false }
+    var fn_name = fun_expr["name"]
+    if fn_name == nil || fn_name == "" { return false }
+    return _tco_stmt_has_direct_self_call(fun_expr["body"], fn_name)
+}
+
+
 fn _tco_expr_has_call(e) {
     // Conservative effect marker for optimizer transforms that can change call order.
     //
@@ -105,6 +250,7 @@ fn _tco_modconst_function_in_place(fun_expr) {
     if fun_expr == nil || fun_expr["type"] != "Function" { return false }
     var fn_name = fun_expr["name"]
     if fn_name == nil || fn_name == "" { return false }
+    if !_tco_function_may_self_call(fun_expr) { return false }
 
     // Params: identifiers only.
     var params0 = []
@@ -329,6 +475,7 @@ fn _tco_function_in_place(fun_expr) {
     if fun_expr == nil || fun_expr["type"] != "Function" { return nil }
     var fn_name = fun_expr["name"]
     if fn_name == nil || fn_name == "" { return nil }
+    if !_tco_function_may_self_call(fun_expr) { return nil }
 
     // Only handle plain identifier params.
     var params0 = []
@@ -356,4 +503,3 @@ fn _tco_function_in_place(fun_expr) {
     fun_expr["body"]["stmts"] = [w]
     return nil
 }
-

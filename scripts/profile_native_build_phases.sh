@@ -269,6 +269,7 @@ for phase_name, _ns, detail in events:
             "list_candidates",
             "fold_ms",
             "list_scan_ms",
+            "tco_scan_ms",
             "tco_mod_ms",
             "tco_ms",
             "for_ms",
@@ -365,6 +366,7 @@ if optimizer_subphase_rows:
             f" list_candidates={row['list_candidates']:5d}"
             f" | fold={row['fold_ms']:5d}"
             f" list_scan={row['list_scan_ms']:5d}"
+            f" tco_scan={row['tco_scan_ms']:5d}"
             f" tco_mod={row['tco_mod_ms']:5d}"
             f" tco={row['tco_ms']:5d}"
             f" for={row['for_ms']:5d}"

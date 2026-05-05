@@ -638,6 +638,11 @@ string-name comparisons.
 	    sub-millisecond bodies; the refreshed profile shows `tco` (~60ms), `for` (~30ms), and `dce` (~55ms) are distributed with
 	    no >=1ms hot function, while only one `sink` body reaches 1ms. Treat those buckets as pass-level structural overhead,
 	    not fixture-shape targets.
+	    The first retained residual cleanup keeps that structural focus: the optimizer driver now scans once for a direct self-call
+	    and skips both TCO passes when none exists, while DCE skips current-block read collection when no trivially-removable local
+	    `Var` exists after recursively optimizing child blocks. The native `tail_recursion_ok` and `non_tail_modconst_ok` fixtures
+	    still pass, and the generator profile moves `tco_mod+tco` from ~71ms to `tco_scan=19ms` plus zero rewrite work, `dce_ms`
+	    from ~55ms to ~11ms, and optimizer total to ~1052ms.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 	    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
