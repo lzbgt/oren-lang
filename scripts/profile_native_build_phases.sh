@@ -169,6 +169,15 @@ for phase_name, _ns, detail in events:
 
 if parse_module_rows:
     print("== module parse by path ==")
+    def hot_label(row, idx):
+        label = row[f"parse_hot{idx}_label"]
+        ms = row[f"parse_hot{idx}_ms"]
+        if not label:
+            return f":{ms}"
+        if ":ms=" in label:
+            return label
+        return f"{label}:{ms}"
+
     for row in sorted(parse_module_rows, key=lambda item: (item["ms"], item["stmts"], item["traits"]), reverse=True)[:30]:
         print(
             f"{row['ms']:10d} ms  {row['stmts']:6d} stmts  {row['traits']:5d} traits"
@@ -182,9 +191,9 @@ if parse_module_rows:
             f" gen_lexer={row['gen_core_lexer_ms']:5d} gen_parser={row['gen_core_parser_ms']:5d}"
             f" forin_bridge={row['forin_bridge_ms']:5d} prepend={row['prepend_ms']:5d}"
             f" merge={row['merge_ms']:5d} prepare={row['prepare_ms']:5d}"
-            f" hot1={row['parse_hot1_label']}:{row['parse_hot1_ms']}"
-            f" hot2={row['parse_hot2_label']}:{row['parse_hot2_ms']}"
-            f" hot3={row['parse_hot3_label']}:{row['parse_hot3_ms']}"
+            f" hot1={hot_label(row, 1)}"
+            f" hot2={hot_label(row, 2)}"
+            f" hot3={hot_label(row, 3)}"
             f"  cache_hit={row['cache_hit']}  path={row['path']}"
         )
 

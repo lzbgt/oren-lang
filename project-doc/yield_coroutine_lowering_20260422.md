@@ -563,6 +563,9 @@ backend-shared value-helper slices landed.
     `gen_core_ms=1112` to ~481ms with `gen_core_ms=188` / `gen_core_parser_ms=188`. The hot-statement rows show
     task/task-group cost is top-level function parsing: `task_group.stop_policy_wait`, `task_group.terminal_results`,
     `_task_group_validate_policy_shape`, `task.stop_policy_wait`, `_task_stop_fields`, and `task.cancel_after_wait`.
+    Hot function labels now carry `ms/header/body` splits; the refreshed profile shows these task/task-group rows are
+    body-dominated (`header=0` in the millisecond buckets), so the next parser-shape work should reduce function bodies
+    rather than parameter/header parsing.
     Reweight module-parse follow-up toward those parser-body shapes or a deeper generator-core representation that
     avoids reparsing, not file-read/cache/prepare work or the small `reflect/result/list` tail. An opt-in serial module-cache write
     probe timed out before completing the profile: it wrote only the first two ASTBIN cache entries and charged

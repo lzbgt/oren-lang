@@ -363,6 +363,9 @@ fn parse_block(p) {
 }
 
 fn parse_function(p) {
+    var profile_parse = p["_profile_parse"] == true
+    var t_fn_start = 0
+    if profile_parse { t_fn_start = oren_time_now_ns() }
     var tok = p["cur"]
     // Doc comments attach to the next declaration. Consume them at the start of
     // parsing the declaration so nested parsing (function body) can't clobber
@@ -483,10 +486,25 @@ fn parse_function(p) {
     if trace_fn_active { p["_trace_fn_active"] = true; p["_trace_fn_name"] = name }
     var prev_defer_yield_delegate_validate = p["_defer_yield_delegate_validate"]
     p["_defer_yield_delegate_validate"] = true
+    var t_fn_body = 0
+    var fn_header_ms = 0
+    if profile_parse {
+        t_fn_body = oren_time_now_ns()
+        fn_header_ms = (t_fn_body - t_fn_start) / 1000000
+    }
     var body = parse_block(p)
+    var fn_body_ms = 0
+    if profile_parse {
+        fn_body_ms = (oren_time_now_ns() - t_fn_body) / 1000000
+    }
     p["_defer_yield_delegate_validate"] = prev_defer_yield_delegate_validate
     if trace_fn_active { p["_trace_fn_active"] = nil; p["_trace_fn_name"] = nil }
     var fnn = ast.new_function(tok, name, params, body)
+    if profile_parse {
+        fnn["parse_ms"] = (oren_time_now_ns() - t_fn_start) / 1000000
+        fnn["parse_header_ms"] = fn_header_ms
+        fnn["parse_body_ms"] = fn_body_ms
+    }
     if type_params != nil { fnn["type_params"] = type_params }
     if ret_ann != nil { fnn["ret_ann_type"] = ret_ann }
     if doc != nil { fnn["doc"] = doc }

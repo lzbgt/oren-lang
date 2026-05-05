@@ -98,6 +98,7 @@ fn parse_program(p) {
     var profile_parse = false
     var profile_path = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
     if profile_path != nil && profile_path != "" && profile_path != "0" { profile_parse = true }
+    p["_profile_parse"] = profile_parse
     var parse_body_ms = 0
     var parse_prefix_ms = 0
     var parse_stmt_ms = 0
@@ -613,6 +614,17 @@ fn _parse_profile_stmt_label(stmt) {
         if expr != nil && expr["type"] == "Function" {
             var nm = expr["name"]
             if nm == nil { nm = "" }
+            var fn_ms = expr["parse_ms"]
+            if fn_ms != nil {
+                var header_ms = expr["parse_header_ms"]
+                var body_ms = expr["parse_body_ms"]
+                if header_ms == nil { header_ms = 0 }
+                if body_ms == nil { body_ms = 0 }
+                return "Function:" + nm +
+                    ":ms=" + oren_int_to_string(fn_ms) +
+                    ":header=" + oren_int_to_string(header_ms) +
+                    ":body=" + oren_int_to_string(body_ms)
+            }
             return "Function:" + nm
         }
         if expr != nil && expr["type"] != nil { return "ExprStmt:" + expr["type"] }
