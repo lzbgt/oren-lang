@@ -530,6 +530,13 @@ backend-shared value-helper slices landed.
     measured generator profile shows metadata substeps are sub-5ms and not the wall-time lever; the actual link
     boundary is now visible as optimizer pass cost (~3.64s after `abi_layout`) and module parse (~2.55s). Keep
     follow-up work on optimizer/link-program internals or the still-separate Mach-O local BL resolver boundary.
+  - Optimizer subprofile and list prefilter (2026-05-05): the optimizer now emits a gated
+    `optimizer.summary` phase row with aggregate subpass timing when build-phase logging is enabled. The retained
+    compiler-side list-touch prefilter runs the list-int and list-reserve passes only on function bodies that may
+    touch lists; the refreshed profile reports `119/470` list candidates, list scan overhead ~20ms, optimizer time
+    moving from ~3.76s to ~3.31s, `list_int` from ~1.81s to ~1.46s, and reserve from ~0.64s to ~0.53s. A
+    DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
+    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

@@ -36,10 +36,202 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
 fn _tco_modconst_function_in_place(fun_expr) { return opttco._tco_modconst_function_in_place(fun_expr) }
 fn _tco_function_in_place(fun_expr) { return opttco._tco_function_in_place(fun_expr) }
 
+fn _optimizer_phase_log_path() {
+    var p = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if p == nil || p == "" || p == "0" { return nil }
+    return p
+}
+
+fn _optimizer_phase_log_append(path, phase, detail, t0) {
+    if path == nil || phase == nil || phase == "" { return nil }
+    var now = oren_time_now_ns()
+    var line = "phase=" + phase + " now_ns=" + oren_int_to_string(now)
+    if t0 != nil && t0 > 0 {
+        line = line + " total_ms=" + oren_int_to_string((now - t0) / 1000000)
+    }
+    if detail != nil && detail != "" { line = line + " " + detail }
+    var prev = oren_read_file(path)
+    if oren_is_err(prev) { prev = "" }
+    oren_write_file(path, prev + line + "\n")
+    return nil
+}
+
+fn _optimizer_phase_elapsed(start_ns) {
+    if start_ns == nil || start_ns <= 0 { return 0 }
+    return oren_time_now_ns() - start_ns
+}
+
+fn _optimizer_str_contains(hay, needle) {
+    if hay == nil || needle == nil { return false }
+    var hl = oren_string_len(hay)
+    var nl = oren_string_len(needle)
+    if nl == 0 { return true }
+    if hl < nl { return false }
+    var i = 0
+    while i <= hl - nl {
+        var ok = true
+        var j = 0
+        while j < nl {
+            if oren_string_char_at(hay, i + j) != oren_string_char_at(needle, j) {
+                ok = false
+                break
+            }
+            j = j + 1
+        }
+        if ok { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _optimizer_expr_call_name(expr) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn_expr = expr["fn"]
+    if fn_expr == nil { return nil }
+    if fn_expr["type"] == "Identifier" { return fn_expr["value"] }
+    if fn_expr["type"] == "Member" {
+        var prop = fn_expr["prop"]
+        if prop != nil && prop["type"] == "Identifier" { return prop["value"] }
+    }
+    return nil
+}
+
+fn _optimizer_call_may_touch_list(expr) {
+    var nm = _optimizer_expr_call_name(expr)
+    if nm == nil { return true }
+    if _optimizer_str_contains(nm, "list") { return true }
+    if nm == "push" || nm == "len" || nm == "get" || nm == "set" || nm == "reserve" { return true }
+    if nm == "new" || nm == "new_cap" || nm == "int_new" || nm == "int_push" { return true }
+    if nm == "int_get" || nm == "int_set" || nm == "int_len" || nm == "int_reserve" { return true }
+    return false
+}
+
+fn _optimizer_expr_may_touch_list(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Identifier" || t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil" { return false }
+    if t == "Array" { return true }
+    if t == "Index" { return true }
+    if t == "Call" {
+        if _optimizer_call_may_touch_list(expr) { return true }
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            if _optimizer_expr_may_touch_list(args[i]) { return true }
+            i = i + 1
+        }
+        if _optimizer_expr_may_touch_list(expr["spread"]) { return true }
+        return _optimizer_expr_may_touch_list(expr["fn"])
+    }
+    if t == "Member" { return _optimizer_expr_may_touch_list(expr["left"]) }
+    if t == "Prefix" { return _optimizer_expr_may_touch_list(expr["right"]) }
+    if t == "Infix" {
+        if _optimizer_expr_may_touch_list(expr["left"]) { return true }
+        return _optimizer_expr_may_touch_list(expr["right"])
+    }
+    if t == "If" {
+        if _optimizer_expr_may_touch_list(expr["cond"]) { return true }
+        if _optimizer_stmt_may_touch_list(expr["consq"]) { return true }
+        return _optimizer_stmt_may_touch_list(expr["alt"])
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var pi = 0
+        while ps != nil && pi < oren_list_len(ps) {
+            var p = ps[pi]
+            if p != nil {
+                if _optimizer_expr_may_touch_list(p["key"]) { return true }
+                if _optimizer_expr_may_touch_list(p["value"]) { return true }
+            }
+            pi = pi + 1
+        }
+        return false
+    }
+    if t == "Function" { return _optimizer_stmt_may_touch_list(expr["body"]) }
+    if t == "SpawnExpr" { return _optimizer_expr_may_touch_list(expr["call"]) }
+    return false
+}
+
+fn _optimizer_stmt_may_touch_list(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Break" || t == "Continue" || t == "Import" || t == "Type" || t == "FFI" { return false }
+    if t == "StmtList" {
+        var sl = stmt["stmts"]
+        var si = 0
+        while sl != nil && si < oren_list_len(sl) {
+            if _optimizer_stmt_may_touch_list(sl[si]) { return true }
+            si = si + 1
+        }
+        return false
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if _optimizer_stmt_may_touch_list(ss[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "Var" { return _optimizer_expr_may_touch_list(stmt["value"]) }
+    if t == "Assign" { return _optimizer_expr_may_touch_list(stmt["value"]) }
+    if t == "Set" {
+        if _optimizer_expr_may_touch_list(stmt["left"]) { return true }
+        return _optimizer_expr_may_touch_list(stmt["value"])
+    }
+    if t == "Return" { return _optimizer_expr_may_touch_list(stmt["value"]) }
+    if t == "ExprStmt" { return _optimizer_expr_may_touch_list(stmt["expr"]) }
+    if t == "While" {
+        if _optimizer_expr_may_touch_list(stmt["cond"]) { return true }
+        return _optimizer_stmt_may_touch_list(stmt["body"])
+    }
+    if t == "For" {
+        if _optimizer_stmt_may_touch_list(stmt["init"]) { return true }
+        if _optimizer_expr_may_touch_list(stmt["cond"]) { return true }
+        if _optimizer_expr_may_touch_list(stmt["post"]) { return true }
+        return _optimizer_stmt_may_touch_list(stmt["body"])
+    }
+    if t == "If" {
+        if _optimizer_expr_may_touch_list(stmt["cond"]) { return true }
+        if _optimizer_stmt_may_touch_list(stmt["consq"]) { return true }
+        return _optimizer_stmt_may_touch_list(stmt["alt"])
+    }
+    if t == "Switch" {
+        if _optimizer_expr_may_touch_list(stmt["target"]) { return true }
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil {
+                var vals = c["values"]
+                var vi = 0
+                while vals != nil && vi < oren_list_len(vals) {
+                    if _optimizer_expr_may_touch_list(vals[vi]) { return true }
+                    vi = vi + 1
+                }
+                if _optimizer_stmt_may_touch_list(c["body"]) { return true }
+            }
+            ci = ci + 1
+        }
+        return _optimizer_stmt_may_touch_list(stmt["default"])
+    }
+    if t == "Function" { return _optimizer_stmt_may_touch_list(stmt["body"]) }
+    if t == "Spawn" { return _optimizer_expr_may_touch_list(stmt["call"]) }
+    return false
+}
+
 fn lower_linked_program_in_place(linked) {
     var trace_opt = oren_env("OREN_TRACE_OPTIMIZER") != nil
     if trace_opt { print("[opt] enter") }
     if linked == nil { return nil }
+    var phase_log_path = _optimizer_phase_log_path()
+    var phase_t0 = 0
+    var profile_phases = false
+    if phase_log_path != nil {
+        profile_phases = true
+        phase_t0 = oren_time_now_ns()
+    }
     var backend = nil
     if linked["config"] != nil { backend = linked["config"]["backend"] }
     optcore.set_backend(backend)
@@ -50,32 +242,99 @@ fn lower_linked_program_in_place(linked) {
     if trace_opt { print("[opt] got statements") }
     var i = 0
     var nn_env = nn_env_new()
-    if trace_opt { print("[opt] stmts_len=" + oren_int_to_string(oren_list_len(ss))) }
-    while i < oren_list_len(ss) {
+    var ss_len = 0
+    if ss != nil { ss_len = oren_list_len(ss) }
+    var fn_count = 0
+    var fold_ns = 0
+    var tco_mod_ns = 0
+    var tco_ns = 0
+    var for_ns = 0
+    var sink_ns = 0
+    var list_int_ns = 0
+    var split_ns = 0
+    var arena_ns = 0
+    var reserve_ns = 0
+    var const_ns = 0
+    var dce_ns = 0
+    var list_scan_ns = 0
+    var list_candidate_count = 0
+    var t_sub = 0
+    if trace_opt { print("[opt] stmts_len=" + oren_int_to_string(ss_len)) }
+    while i < ss_len {
         if trace_opt && i == 0 { print("[opt] fold first stmt type=" + ss[i]["type"]) }
+        if profile_phases { t_sub = oren_time_now_ns() }
         fold_stmt(ss[i], nn_env)
+        if profile_phases { fold_ns = fold_ns + _optimizer_phase_elapsed(t_sub) }
         // DCE for function bodies.
         if ss[i] != nil && ss[i]["type"] == "ExprStmt" && ss[i]["expr"] != nil && ss[i]["expr"]["type"] == "Function" {
+            fn_count = fn_count + 1
             // Try to eliminate simple non-tail recursion first (modulo constant), then do plain tail recursion elimination.
             if trace_opt && i == 0 { print("[opt] tco_modconst start") }
+            if profile_phases { t_sub = oren_time_now_ns() }
             _tco_modconst_function_in_place(ss[i]["expr"])
+            if profile_phases { tco_mod_ns = tco_mod_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] tco_modconst done") }
             if trace_opt && i == 0 { print("[opt] tco start") }
+            if profile_phases { t_sub = oren_time_now_ns() }
             _tco_function_in_place(ss[i]["expr"])
+            if profile_phases { tco_ns = tco_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] tco done") }
+            if profile_phases { t_sub = oren_time_now_ns() }
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
+            if profile_phases { for_ns = for_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases { t_sub = oren_time_now_ns() }
             optloops.sink_list_lit_into_if(ss[i]["expr"]["body"])
+            if profile_phases { sink_ns = sink_ns + _optimizer_phase_elapsed(t_sub) }
             var lower_allow_empty = true
-            _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty, nil)
+            var body_may_touch_list = false
+            if profile_phases { t_sub = oren_time_now_ns() }
+            body_may_touch_list = _optimizer_stmt_may_touch_list(ss[i]["expr"]["body"])
+            if profile_phases { list_scan_ns = list_scan_ns + _optimizer_phase_elapsed(t_sub) }
+            if body_may_touch_list {
+                list_candidate_count = list_candidate_count + 1
+                if profile_phases { t_sub = oren_time_now_ns() }
+                _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty, nil)
+                if profile_phases { list_int_ns = list_int_ns + _optimizer_phase_elapsed(t_sub) }
+            }
+            if profile_phases { t_sub = oren_time_now_ns() }
             optloops.split_invariant_list_push_in_block(ss[i]["expr"]["body"])
+            if profile_phases { split_ns = split_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases { t_sub = oren_time_now_ns() }
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
-            _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
+            if profile_phases { arena_ns = arena_ns + _optimizer_phase_elapsed(t_sub) }
+            if body_may_touch_list {
+                if profile_phases { t_sub = oren_time_now_ns() }
+                _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
+                if profile_phases { reserve_ns = reserve_ns + _optimizer_phase_elapsed(t_sub) }
+            }
+            if profile_phases { t_sub = oren_time_now_ns() }
             optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
+            if profile_phases { const_ns = const_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] dce start") }
+            if profile_phases { t_sub = oren_time_now_ns() }
             dce_block_in_place(ss[i]["expr"]["body"])
+            if profile_phases { dce_ns = dce_ns + _optimizer_phase_elapsed(t_sub) }
             if trace_opt && i == 0 { print("[opt] dce done") }
         }
         i = i + 1
+    }
+    if profile_phases {
+        var detail = "stmts=" + oren_int_to_string(ss_len) +
+            " funcs=" + oren_int_to_string(fn_count) +
+            " list_candidates=" + oren_int_to_string(list_candidate_count) +
+            " fold_ms=" + oren_int_to_string(fold_ns / 1000000) +
+            " list_scan_ms=" + oren_int_to_string(list_scan_ns / 1000000) +
+            " tco_mod_ms=" + oren_int_to_string(tco_mod_ns / 1000000) +
+            " tco_ms=" + oren_int_to_string(tco_ns / 1000000) +
+            " for_ms=" + oren_int_to_string(for_ns / 1000000) +
+            " sink_ms=" + oren_int_to_string(sink_ns / 1000000) +
+            " list_int_ms=" + oren_int_to_string(list_int_ns / 1000000) +
+            " split_ms=" + oren_int_to_string(split_ns / 1000000) +
+            " arena_ms=" + oren_int_to_string(arena_ns / 1000000) +
+            " reserve_ms=" + oren_int_to_string(reserve_ns / 1000000) +
+            " const_ms=" + oren_int_to_string(const_ns / 1000000) +
+            " dce_ms=" + oren_int_to_string(dce_ns / 1000000)
+        _optimizer_phase_log_append(phase_log_path, "optimizer.summary", detail, phase_t0)
     }
     return nil
 }

@@ -5384,6 +5384,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        chunk at ~2.0s, while still exposing broader compiler/backend costs:
 														        `user_decls` ~12.0s, global-root codegen ~6.3s, link/prep ~9.1s, and
 														        Mach-O local BL target resolution ~1.8s for the first 4096 local calls.
+														      - Optimizer follow-up (2026-05-05): the standard build-phase log now receives
+														        gated `optimizer.summary` subpass timing, and a conservative list-touch
+														        prefilter skips the list-int/list-reserve optimizer passes for function bodies
+														        that cannot touch lists. The current generator profile reports `119/470`
+														        list candidates, ~20ms scan overhead, optimizer time down from ~3.76s to
+														        ~3.31s, `list_int` down from ~1.81s to ~1.46s, and reserve down from ~0.64s
+														        to ~0.53s. A DCE-before-optimizer reorder passed stage2 plus focused
+														        generator/coroutine verifiers but regressed the default profile
+														        (`optimizer` ~5.1s, `user_decls` ~7.2s), so keep global DCE after the
+														        optimizer. Remaining high-leverage work is inside optimizer subpasses
+														        (`fold_ms` and residual list passes), module parsing, or the separate Mach-O
+														        local-BL boundary.
 														      - ARM64 assignment/global trait propagation now reuses the already-computed
 														        float trait when deriving integer trait state. This removes redundant
 														        top-level expression walks in hot `var`, `assign`, and global-slot paths;
