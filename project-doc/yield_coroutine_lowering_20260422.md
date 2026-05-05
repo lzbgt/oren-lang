@@ -24,6 +24,12 @@ module parse/codegen shape (`task_group.oren` about `471ms -> 616ms`, `user_decl
 The same profile batch rejected a scattered list-int trace-gating cleanup too: it preserved
 `OREN_TRACE_LIST_INT` behavior, but the added per-site trace checks regressed the default profile
 (`reserve_safe_ms` about `201ms -> 280ms`, `user_decls` about `3.38s -> 5.01s`).
+The adjacent Mach-O local resolver pass now keeps the local BL/ADR-code target cache sorted by
+compact metadata key, avoiding both full linear target-list traversal and the previously rejected
+generic Oren-map cache. Stats-enabled local resolver scan steps moved from about `875080` to about
+`107739`, and the default profile trims the later BL resolve tail from about `97ms + 126ms` to about
+`28ms + 57ms`; the first 4096 local BL fixups remain the real unresolved Mach-O bucket at about
+`1.9s`, so the next resolver design should target first-touch target materialization or symbol ids.
 
 ## Current shipped state
 

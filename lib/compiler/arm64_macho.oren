@@ -117,20 +117,26 @@ fn _macho_lookup_function_linear(names, offs, meta_keys, ctx, functions, name, s
     var name_last = -1
     if name_len > 0 { name_last = oren_string_byte_at_unchecked(name, name_len - 1) & 255 }
     var name_key = _macho_target_meta_key(name_len, name_first, name_last)
-    var i = 0
+    var lo = 0
+    var hi = oren_list_len(names)
     var scan_steps = 0
+    while lo < hi {
+        var mid = (lo + hi) / 2
+        scan_steps = scan_steps + 1
+        if meta_keys[mid] < name_key { lo = mid + 1 }
+        else { hi = mid }
+    }
     var meta_candidates = 0
     var byte_compares = 0
     var names_n = oren_list_len(names)
-    while i < names_n {
+    var i = lo
+    while i < names_n && meta_keys[i] == name_key {
         scan_steps = scan_steps + 1
-        if meta_keys[i] == name_key {
-            meta_candidates = meta_candidates + 1
-            byte_compares = byte_compares + 1
-            if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
-                _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0)
-                return offs[i]
-            }
+        meta_candidates = meta_candidates + 1
+        byte_compares = byte_compares + 1
+        if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
+            _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0)
+            return offs[i]
         }
         i = i + 1
     }
@@ -138,9 +144,19 @@ fn _macho_lookup_function_linear(names, offs, meta_keys, ctx, functions, name, s
     var appended = 0
     var missed = 0
     if off != nil {
-        oren_list_push(names, name)
-        oren_list_push(offs, off)
-        oren_list_push(meta_keys, name_key)
+        oren_list_push(names, nil)
+        oren_list_push(offs, nil)
+        oren_list_push(meta_keys, 0)
+        var j = names_n
+        while j > lo {
+            names[j] = names[j - 1]
+            offs[j] = offs[j - 1]
+            meta_keys[j] = meta_keys[j - 1]
+            j = j - 1
+        }
+        names[lo] = name
+        offs[lo] = off
+        meta_keys[lo] = name_key
         appended = 1
     } else {
         missed = 1
