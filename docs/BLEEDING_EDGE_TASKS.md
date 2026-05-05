@@ -79,6 +79,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Cleanup (2026-05-06): removed five unused local forwarding wrappers from `arm64_macho.oren` after the Mach-O probe churn (`arm64_ctx_fixup_adr_data`, `push_u32_be`, `ceil_div`, `insn_adr`, `insn_ret`). This is a source-shape cleanup only; it does not change the remaining compact target-id/materialization target.
 - Cleanup (2026-05-06): removed the stale `_opt_lower_int_only_lists_in_block(...)` wrapper from `optimizer_list_int.oren`; the optimizer driver and recursive lowering already use `_opt_lower_int_only_lists_in_block_opts(...)` directly.
 - Cleanup (2026-05-06): removed the unused `_opt_block_has_unsafe_list_use(...)` helper from `optimizer_loops_list.oren`; the reset-aware unsafe-use helper remains live, and the file is back below the rolling 2000-line guardrail.
+- Cleanup (2026-05-06): removed six more repo-proven stale private helpers from active compiler surfaces (`_dbg_is_ident`, `_json_obj_str`, `_rt_bundle_shell_quote`, `_path_is_sep_byte`, `_ml_parse_program_for_module_serial`, `_arm64_rtobj_clone_map_with_cap`). This is a bounded source-shape batch after verifying each helper had no repo caller.
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
   capability domains, failure model, and verification map; `oren meta` now emits a per-source
   `capabilities` manifest for `@cap.requires` functions; artifact `--manifest` output now carries

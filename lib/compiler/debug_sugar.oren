@@ -29,11 +29,6 @@ fn _dbg_prefix_string(tok, tag) {
     return tag + " " + file + ":"
 }
 
-fn _dbg_is_ident(expr, name) {
-    if expr == nil || name == nil { return false }
-    return expr["type"] == "Identifier" && expr["value"] == name
-}
-
 fn _dbg_make_print_call(call_expr, prefix) {
     var tok = nil
     if call_expr != nil { tok = call_expr["token"] }

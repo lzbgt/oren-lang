@@ -91,6 +91,11 @@ directly.
 The cleanup batch also removed the unused `_opt_block_has_unsafe_list_use(...)` helper from
 `optimizer_loops_list.oren`; the reset-aware unsafe-use helper remains live, and the file is back
 under the 2000-line guardrail.
+The same dead-helper sweep removed another repo-proven stale compiler batch from active surfaces:
+`_dbg_is_ident(...)`, `_json_obj_str(...)`, `_rt_bundle_shell_quote(...)`, `_path_is_sep_byte(...)`,
+`_ml_parse_program_for_module_serial(...)`, and `_arm64_rtobj_clone_map_with_cap(...)`. Each had only
+its own definition as a repo hit, so this is parser/codegen source-shape reduction rather than a
+behavior change.
 
 ## Current shipped state
 

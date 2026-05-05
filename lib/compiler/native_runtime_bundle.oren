@@ -106,22 +106,6 @@ fn _rt_bundle_runtime_fingerprint_v2(runtime_src) {
     return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
 }
 
-fn _rt_bundle_shell_quote(s) {
-    // Minimal single-quote shell escaping: ' -> '\''.
-    // This is used only for dev tooling (mkdir -p cache dir).
-    if s == nil { return "''" }
-    var out = "'"
-    var i = 0
-    while i < oren_string_len(s) {
-        var ch = oren_string_char_at(s, i)
-        if ch == "'" { out = out + "'\\''" }
-        else { out = out + ch }
-        i = i + 1
-    }
-    out = out + "'"
-    return out
-}
-
 fn _rt_bundle_path_to_windows_sep(s) {
     if s == nil { return "" }
     var out = ""

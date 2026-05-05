@@ -268,11 +268,6 @@ fn linked_summary_json(linked, entry_path) {
     return oren_string_join(out_parts)
 }
 
-fn _json_obj_str(k, v) {
-    if v == nil { return json_string(k) + ": null" }
-    return json_string(k) + ": " + v
-}
-
 fn module_graph_json(graph) {
     if graph == nil { return "{}\n" }
     var entry = graph["entry"]

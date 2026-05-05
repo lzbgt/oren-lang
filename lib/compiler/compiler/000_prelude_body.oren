@@ -175,13 +175,6 @@ fn _imod(a, b) {
     return a - (a / b) * b
 }
 
-fn _path_is_sep_byte(b) {
-    // Treat both '/' and '\\' as separators so Windows-style paths work too.
-    if b == 47 { return true } // '/'
-    if b == 92 { return true } // '\\'
-    return false
-}
-
 fn _path_to_windows_sep(s) {
     if s == nil { return "" }
     var out = ""

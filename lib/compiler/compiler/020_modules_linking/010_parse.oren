@@ -16,41 +16,6 @@
     return {"ok": true, "imports": out}
 }
 
-fn _ml_parse_program_for_module_serial(full, config) {
-    // Serial parser for a module, used inside parse workers to avoid nested spawning.
-    var includes = _ml_include_list_if_aggregator(full)
-    if includes == nil {
-        var rr = expand_includes_file_result(full, [])
-        if rr["ok"] != true { return nil }
-        var src = rr["src"]
-        return _ml_parse_program_from_src(full, src)
-    }
-    var merged_stmts = []
-    var merged_traits = []
-    var ii = 0
-    while ii < oren_list_len(includes) {
-        var inc_full = includes[ii]
-        var rr2 = expand_includes_file_result(inc_full, [])
-        if rr2["ok"] != true { return nil }
-        var src2 = rr2["src"]
-        var prog2 = _ml_parse_program_from_src(inc_full, src2)
-        var si = 0
-        while si < oren_list_len(prog2["statements"]) {
-            oren_list_push(merged_stmts, prog2["statements"][si])
-            si = si + 1
-        }
-        if prog2["traits"] != nil {
-            var ti = 0
-            while ti < oren_list_len(prog2["traits"]) {
-                oren_list_push(merged_traits, prog2["traits"][ti])
-                ti = ti + 1
-            }
-        }
-        ii = ii + 1
-    }
-    return {"statements": merged_stmts, "traits": merged_traits}
-}
-
 fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     // Apply the same per-module passes as `load_module`, but for already-parsed `prog`:
     // - collect toplevel renames + namespace import aliases
