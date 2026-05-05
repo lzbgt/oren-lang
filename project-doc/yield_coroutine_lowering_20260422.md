@@ -1896,6 +1896,9 @@ That path keeps the current repo state honest:
   profile shows `21120` shifts by the first `4096` local BL fixups and `37056` across all BL lookups,
   versus `106069` scan steps and `16163` byte compares. The next compact target-id or direct-offset
   materialization design should bypass both insertion maintenance and repeated string/name lookup.
+- 2026-05-06: rejected a same-key append tweak for the sorted Mach-O local target cache. It reduced
+  same-key byte compares (`16163 -> 12294`) but barely moved insertion shifts (`37056 -> 36925`) and
+  left default first-touch BL timing at about `1.40s`; source was reverted.
 - 2026-05-06: removed another stale private-helper batch whose names each had exactly one repo
   occurrence before deletion. The cleanup spans compiler and stdlib modules but does not alter the
   coroutine helper contract: `_arm64_cmp_may_use_strcmp`, `_attr_list`,
