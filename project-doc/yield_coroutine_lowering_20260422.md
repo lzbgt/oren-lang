@@ -561,15 +561,16 @@ backend-shared value-helper slices landed.
     the cache is disabled for `OREN_COMPILER_GC=1|true` because compiler globals are not yet guaranteed native GC
     roots under forced compiler GC. The refreshed profile moves `lib/std/generator.oren` from ~1.40s with
     `gen_core_ms=1112` to ~481ms with `gen_core_ms=188` / `gen_core_parser_ms=188`.
-    A retained task/task-group parser-shape cleanup now shares task-group stop/watch/wait/terminal-result loops
-    and the task timeout-detach block without changing runtime preflight/take-snapshot ordering or task return
-    shapes. Focused task/task-group/generator/coroutine surfaces pass; the native profile keeps
-    `lib/std/task_group.oren` around ~493ms / 63 stmts with `parse_body_ms=306`, removes
-    `task_group.terminal_results` from the top hot rows, and puts `std:task.stop_policy_wait` around 27ms
-    (`header=0/body=26`). Reweight module-parse follow-up toward residual parser-body shapes
-    (`_task_group_validate_policy_shape`, `join_all`, `stop_policy_wait`, `_task_stop_fields`) or a deeper
-    generator-core representation that avoids reparsing, not file-read/cache/prepare work or the small
-    `reflect/result/list` tail. An opt-in serial module-cache write
+    A retained task/task-group parser-shape cleanup now shares task-group stop/watch/wait/terminal-result loops,
+    task-only join/detach loops, and the task timeout-detach block without changing runtime preflight/take-snapshot
+    ordering or task return shapes. Focused task/task-group/generator/coroutine surfaces pass; the native profile
+    puts `lib/std/task_group.oren` around ~463ms / 66 stmts with `parse_body_ms=282`, removes
+    `task_group.terminal_results` and `join_all` from the top hot rows, and puts `std:task.stop_policy_wait`
+    around 25ms (`header=0/body=24`). Reweight module-parse follow-up toward residual parser-body shapes
+    (`_task_group_validate_policy_shape`, `stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
+    representation that avoids reparsing, not file-read/cache/prepare work or the small `reflect/result/list` tail.
+    A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
+    bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. An opt-in serial module-cache write
     probe timed out before completing the profile: it wrote only the first two ASTBIN cache entries and charged
     ~114.5s to `lib/std/time.oren` including encode/write cost, so serial cache seeding was reverted as the wrong
     persistence strategy. A parser-side generator-core ASTBIN template-cache probe was also rejected: it reduced

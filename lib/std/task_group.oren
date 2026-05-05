@@ -316,6 +316,39 @@ fn _task_group_terminal_results_for(ctx, refs, kinds) {
     return out
 }
 
+fn _task_group_task_member_kind(refs, kinds, i) {
+    if kinds != nil { return kinds[i] }
+    return _task_group_target_kind(refs[i])
+}
+
+fn _task_group_join_task_refs(ctx, refs, kinds, wait_ms, err_msg) {
+    var out = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        if _task_group_task_member_kind(refs, kinds, i) != "task" {
+            return _task_group_err(ctx, err_msg)
+        }
+        list.push(out, task.join_timeout(refs[i], wait_ms))
+        i = i + 1
+    }
+    return out
+}
+
+fn _task_group_detach_task_refs(ctx, refs, kinds, err_msg) {
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        if _task_group_task_member_kind(refs, kinds, i) != "task" {
+            return _task_group_err(ctx, err_msg)
+        }
+        var rv = task.detach(refs[i])
+        if oren_is_err(rv) == true { return rv }
+        i = i + 1
+    }
+    return n
+}
+
 fn is_group(group) {
     if _task_group_is_runtime(group) == true { return true }
     if oren_type_name(group) != "map" { return false }
@@ -596,20 +629,16 @@ fn join_all(group, join_timeout_ms) {
     if _task_group_is_runtime(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.join_all", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
-        var refs0 = snapshot0["members"]
-        var kinds0 = snapshot0["member_kinds"]
         var wait_ms0 = _task_group_join_timeout_ms("task_group.join_all", join_timeout_ms)
         if oren_is_err(wait_ms0) == true { return wait_ms0 }
-        var out0 = []
-        var i0 = 0
-        var n0 = list.len(refs0)
-        while i0 < n0 {
-            if kinds0[i0] != "task" {
-                return _task_group_err("task_group.join_all", "expected task-handle-only runtime group")
-            }
-            list.push(out0, task.join_timeout(refs0[i0], wait_ms0))
-            i0 = i0 + 1
-        }
+        var out0 = _task_group_join_task_refs(
+            "task_group.join_all",
+            snapshot0["members"],
+            snapshot0["member_kinds"],
+            wait_ms0,
+            "expected task-handle-only runtime group"
+        )
+        if oren_is_err(out0) == true { return out0 }
         oren_task_group_clear(group)
         return out0
     }
@@ -617,52 +646,26 @@ fn join_all(group, join_timeout_ms) {
     if oren_is_err(refs) == true { return refs }
     var wait_ms = _task_group_join_timeout_ms("task_group.join_all", join_timeout_ms)
     if oren_is_err(wait_ms) == true { return wait_ms }
-    var out = []
-    var i = 0
-    var n = list.len(refs)
-    while i < n {
-        var kind = _task_group_target_kind(refs[i])
-        if kind != "task" {
-            return _task_group_err("task_group.join_all", "expected task-handle-only group")
-        }
-        list.push(out, task.join_timeout(refs[i], wait_ms))
-        i = i + 1
-    }
-    return out
+    return _task_group_join_task_refs("task_group.join_all", refs, nil, wait_ms, "expected task-handle-only group")
 }
 
 fn detach_all(group) {
     if _task_group_is_runtime(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.detach_all", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
-        var refs0 = snapshot0["members"]
-        var kinds0 = snapshot0["member_kinds"]
-        var i0 = 0
-        var n0 = list.len(refs0)
-        while i0 < n0 {
-            if kinds0[i0] != "task" {
-                return _task_group_err("task_group.detach_all", "expected task-handle-only runtime group")
-            }
-            var rv = task.detach(refs0[i0])
-            if oren_is_err(rv) == true { return rv }
-            i0 = i0 + 1
-        }
+        var n0 = _task_group_detach_task_refs(
+            "task_group.detach_all",
+            snapshot0["members"],
+            snapshot0["member_kinds"],
+            "expected task-handle-only runtime group"
+        )
+        if oren_is_err(n0) == true { return n0 }
         oren_task_group_clear(group)
         return n0
     }
     var refs = _task_group_members_ref("task_group.detach_all", group)
     if oren_is_err(refs) == true { return refs }
-    var i = 0
-    var n = list.len(refs)
-    while i < n {
-        if _task_group_target_kind(refs[i]) != "task" {
-            return _task_group_err("task_group.detach_all", "expected task-handle-only group")
-        }
-        var rv = task.detach(refs[i])
-        if oren_is_err(rv) == true { return rv }
-        i = i + 1
-    }
-    return n
+    return _task_group_detach_task_refs("task_group.detach_all", refs, nil, "expected task-handle-only group")
 }
 
 fn join_watchers(watchers, join_timeout_ms) {
