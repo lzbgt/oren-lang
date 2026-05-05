@@ -744,6 +744,10 @@ target.
     preserved behavior and passed focused surfaces, but added a statement/function and left
     `_task_group_validate_policy_shape` as the top row, moving the exact profile to ~447ms / 63 stmts. The next
     validation attempt needs to remove the validation data shape itself, not reshuffle helper calls.
+    A task-validator factoring probe was rejected too: routing `_task_group_validate_policy_shape(...)` through a
+    new public `task.validate_stop_policy(...)` wrapper removed the duplicated task-group body and passed task,
+    task-group, C, and native checks, but repeated the known bytecode-only mixed task-group failure at `191096`.
+    Do not route runtime-group preflight through `std:task` policy helpers until that AVM mismatch is understood.
     `std:task.stop_policy(...)` and `stop_policy_wait(...)` now use the normalized `delay_ms` computed by
     `_task_stop_fields(...)` for request/cancel modes too, removing redundant deadline-wrapper branches and the
     unused returned `deadline_ns` field. The retained task profile stays in-band but moves `lib/std/task.oren`
