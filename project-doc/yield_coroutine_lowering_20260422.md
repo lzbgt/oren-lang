@@ -14,6 +14,10 @@ A follow-up ARM64 wrapper probe that routed constant-index `oren_list_get(...)` 
 ABI marshalling was rejected: it reduced emitted wrapper bytes but did not improve wrapper wall
 time, so source was reverted. Statement profiling keeps the target precise: wrapper cost is still
 generic `oren_list_get` argument-binding/lowering work, not just emitted call sequence size.
+A second direct lambda-wrapper local-binding probe was also rejected: it removed the visible
+`lambda_wrap` generic `oren_list_get` statement bucket, but default wrapper wall time regressed
+(`lambda_wrap` about `2.03s -> 2.28s`, `fnwrap` about `1.10s -> 1.31s`) because the work moved into
+uninstrumented wrapper body emission rather than disappearing.
 
 ## Current shipped state
 
