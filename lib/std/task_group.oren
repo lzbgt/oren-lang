@@ -28,9 +28,6 @@ fn _task_group_err(ctx, msg) {
     return oren_err(4, ctx + ": " + msg)
 }
 
-fn _task_group_is_int(v) { return oren_type_tag(v) == 1 }
-fn _task_group_is_string(v) { return oren_type_tag(v) == 4 }
-
 fn _task_group_target_kind(target) {
     var name = oren_type_name(target)
     if name == "generator" || name == "generator_context" { return name }
@@ -119,7 +116,7 @@ fn _task_group_validate_policy_shape(ctx, policy0) {
     if oren_type_tag(mode) == 0 {
         mode = "stop"
     } else {
-        if _task_group_is_string(mode) != true {
+        if oren_type_tag(mode) != 4 {
             return _task_group_err(ctx, "expected string mode")
         }
         if mode == "request" { mode = "request_cancel" }
@@ -129,10 +126,10 @@ fn _task_group_validate_policy_shape(ctx, policy0) {
     }
     var timeout_ms = oren_map_get_str(policy, "timeout_ms")
     var deadline_ns = oren_map_get_str(policy, "deadline_ns")
-    if oren_type_tag(timeout_ms) != 0 && _task_group_is_int(timeout_ms) != true {
+    if oren_type_tag(timeout_ms) != 0 && oren_type_tag(timeout_ms) != 1 {
         return _task_group_err(ctx, "expected int timeout_ms")
     }
-    if oren_type_tag(deadline_ns) != 0 && _task_group_is_int(deadline_ns) != true {
+    if oren_type_tag(deadline_ns) != 0 && oren_type_tag(deadline_ns) != 1 {
         return _task_group_err(ctx, "expected int deadline_ns")
     }
     if oren_type_tag(timeout_ms) != 0 && oren_type_tag(deadline_ns) != 0 {
@@ -140,7 +137,7 @@ fn _task_group_validate_policy_shape(ctx, policy0) {
     }
     var grace_ms = oren_map_get_str(policy, "grace_ms")
     if oren_type_tag(grace_ms) != 0 {
-        if _task_group_is_int(grace_ms) != true {
+        if oren_type_tag(grace_ms) != 1 {
             return _task_group_err(ctx, "expected int grace_ms")
         }
         if mode != "stop" && grace_ms > 0 {
@@ -148,7 +145,7 @@ fn _task_group_validate_policy_shape(ctx, policy0) {
         }
     }
     var join_timeout_ms = oren_map_get_str(policy, "join_timeout_ms")
-    if oren_type_tag(join_timeout_ms) != 0 && _task_group_is_int(join_timeout_ms) != true {
+    if oren_type_tag(join_timeout_ms) != 0 && oren_type_tag(join_timeout_ms) != 1 {
         return _task_group_err(ctx, "expected int join_timeout_ms")
     }
     return nil
@@ -174,7 +171,7 @@ fn _task_group_members_ref(ctx, group) {
 
 fn _task_group_join_timeout_ms(ctx, join_timeout_ms) {
     if oren_type_tag(join_timeout_ms) == 0 { return 2000 }
-    if _task_group_is_int(join_timeout_ms) != true {
+    if oren_type_tag(join_timeout_ms) != 1 {
         return _task_group_err(ctx, "expected int join_timeout_ms")
     }
     if join_timeout_ms < 0 { return 2000 }

@@ -568,7 +568,9 @@ backend-shared value-helper slices landed.
     ordering or task return shapes. Focused task/task-group/generator/coroutine surfaces pass; the native profile
     puts `lib/std/task_group.oren` around ~463ms / 66 stmts with `parse_body_ms=282`, removes
     `task_group.terminal_results` and `join_all` from the top hot rows, and puts `std:task.stop_policy_wait`
-    around 25ms (`header=0/body=24`). Reweight module-parse follow-up toward residual parser-body shapes
+    around 25ms (`header=0/body=24`). A follow-up primitive-tag cleanup removes the remaining local task/task-group
+    int/string wrappers and moves the refreshed profile to `lib/std/task_group.oren` ~444ms / 64 stmts and
+    `lib/std/task.oren` ~306ms / 51 stmts. Reweight module-parse follow-up toward residual parser-body shapes
     (`_task_group_validate_policy_shape`, `stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
     representation only if it beats the cloned-AST cache without importing ASTBIN codec codegen, not
     file-read/cache/prepare work or the small `reflect/result/list` tail.
