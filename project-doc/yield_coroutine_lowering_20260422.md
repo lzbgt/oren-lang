@@ -565,10 +565,12 @@ backend-shared value-helper slices landed.
 	    reverted as neutral-to-worse.
 	    A later fold-specific cleanup keeps the profile evidence and removes proven overhead instead: `optimizer.summary`
 	    now carries fold-shape counters, fold-local loops hoist stable list lengths, leaf expressions return before the
-	    complex-expression dispatch chain, and isolated `if`/`for` folding clones the original flow environment per branch
-	    instead of cloning an intermediate snapshot. The measured profile moves optimizer total to ~1.79s, `fold_ms` to
-	    ~641ms, and `fold_env_clone` from `2592` to `1317`; remaining fold evidence is `19903` folded expressions, led by
-	    `11527` leaf/other nodes, `2644` calls, `2489` infix nodes, and `1271` expression `if` nodes.
+	    complex-expression dispatch chain, leaf children skip recursive folding, and isolated `if`/`for` folding clones
+	    the original flow environment per branch instead of cloning an intermediate snapshot. Function-expression folding
+	    now also uses a fresh function environment directly instead of pushing a redundant empty frame. The measured profile
+	    moves optimizer total to ~1.57s, `fold_ms` to ~456ms, `fold_env_clone` from `2592` to `1317`, and `fold_env_push`
+	    from `3754` to `3192`; remaining fold evidence is `8398` non-leaf folded expressions, led by `2644` calls, `2489`
+	    infix nodes, `1271` expression `if` nodes, and only `22` other nodes.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
     profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object

@@ -208,6 +208,19 @@ fn expr_is_definitely_non_nil_trivial(e, nn_env) {
 }
 
 
+fn expr_is_fold_leaf(e) {
+    if e == nil { return true }
+    var t = e["type"]
+    return t == "Identifier" || t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil"
+}
+
+
+fn fold_child_expr(e, nn_env) {
+    if expr_is_fold_leaf(e) { return e }
+    return fold_expr(e, nn_env)
+}
+
+
 fn fold_type_strict_eq(op, left, right, nn_env) {
     if op != "==" && op != "!=" { return nil }
 
@@ -324,32 +337,36 @@ fn fold_expr(e, nn_env) {
         return e
     }
     if t == "Prefix" {
-        e["right"] = fold_expr(e["right"], nn_env)
+        e["right"] = fold_child_expr(e["right"], nn_env)
         return e
     }
     if t == "Infix" {
         opt_trace("[opt] infix: left fold start")
-        e["left"] = fold_expr(e["left"], nn_env)
+        e["left"] = fold_child_expr(e["left"], nn_env)
         opt_trace("[opt] infix: left fold done")
         opt_trace("[opt] infix: right fold start")
-        e["right"] = fold_expr(e["right"], nn_env)
+        e["right"] = fold_child_expr(e["right"], nn_env)
         opt_trace("[opt] infix: right fold done")
         // constant fold
         var op = e["op"]
         opt_trace("[opt] infix: op=" + op)
-        var folded = fold_infix(op, e["left"], e["right"])
-        opt_trace("[opt] infix: fold_infix done")
-        if folded != nil { return folded }
-        var folded_eq = fold_type_strict_eq(op, e["left"], e["right"], nn_env)
-        if folded_eq != nil { return folded_eq }
-        // peepholes
-        var peep = fold_peephole_infix(op, e["left"], e["right"])
-        opt_trace("[opt] infix: fold_peephole done")
-        if peep != nil { return peep }
+        if op == "+" || op == "-" || op == "*" {
+            var folded = fold_infix(op, e["left"], e["right"])
+            opt_trace("[opt] infix: fold_infix done")
+            if folded != nil { return folded }
+            // peepholes
+            var peep = fold_peephole_infix(op, e["left"], e["right"])
+            opt_trace("[opt] infix: fold_peephole done")
+            if peep != nil { return peep }
+        }
+        if op == "==" || op == "!=" {
+            var folded_eq = fold_type_strict_eq(op, e["left"], e["right"], nn_env)
+            if folded_eq != nil { return folded_eq }
+        }
         return e
     }
     if t == "If" {
-        e["cond"] = fold_expr(e["cond"], nn_env)
+        e["cond"] = fold_child_expr(e["cond"], nn_env)
 
         // Fold branches in isolation (do not let flow-sensitive facts leak across control-flow).
         fold_stmt(e["consq"], nn_env_push(nn_env_clone(nn_env)))
@@ -361,7 +378,7 @@ fn fold_expr(e, nn_env) {
         var i = 0
         var xs_len = oren_list_len(xs)
         while i < xs_len {
-            xs[i] = fold_expr(xs[i], nn_env)
+            xs[i] = fold_child_expr(xs[i], nn_env)
             i = i + 1
         }
         return e
@@ -371,27 +388,27 @@ fn fold_expr(e, nn_env) {
         var i2 = 0
         var ps_len = oren_list_len(ps)
         while i2 < ps_len {
-            ps[i2]["key"] = fold_expr(ps[i2]["key"], nn_env)
-            ps[i2]["value"] = fold_expr(ps[i2]["value"], nn_env)
+            ps[i2]["key"] = fold_child_expr(ps[i2]["key"], nn_env)
+            ps[i2]["value"] = fold_child_expr(ps[i2]["value"], nn_env)
             i2 = i2 + 1
         }
         return e
     }
     if t == "Index" {
-        e["left"] = fold_expr(e["left"], nn_env)
-        e["index"] = fold_expr(e["index"], nn_env)
+        e["left"] = fold_child_expr(e["left"], nn_env)
+        e["index"] = fold_child_expr(e["index"], nn_env)
         return e
     }
     if t == "Member" {
-        e["left"] = fold_expr(e["left"], nn_env)
+        e["left"] = fold_child_expr(e["left"], nn_env)
         return e
     }
     if t == "SpawnExpr" {
-        e["call"] = fold_expr(e["call"], nn_env)
+        e["call"] = fold_child_expr(e["call"], nn_env)
         return e
     }
     if t == "Call" {
-        e["fn"] = fold_expr(e["fn"], nn_env)
+        e["fn"] = fold_child_expr(e["fn"], nn_env)
         var args = e["args"]
         if args == nil {
             opt_trace("[opt] call: args is nil (treat as 0 args)")
@@ -399,16 +416,16 @@ fn fold_expr(e, nn_env) {
             var i3 = 0
             var args_len = oren_list_len(args)
             while i3 < args_len {
-                args[i3] = fold_expr(args[i3], nn_env)
+                args[i3] = fold_child_expr(args[i3], nn_env)
                 i3 = i3 + 1
             }
         }
-        if e["spread"] != nil { e["spread"] = fold_expr(e["spread"], nn_env) }
+        if e["spread"] != nil { e["spread"] = fold_child_expr(e["spread"], nn_env) }
         return e
     }
     if t == "Function" {
         // New flow environment for function locals.
-        fold_stmt(e["body"], nn_env_push(nn_env_new()))
+        fold_stmt(e["body"], nn_env_new())
         return e
     }
     return e
@@ -432,7 +449,7 @@ fn fold_stmt(s, nn_env) {
         return nil
     }
     if t == "Var" {
-        s["value"] = fold_expr(s["value"], nn_env)
+        s["value"] = fold_child_expr(s["value"], nn_env)
         if nn_env != nil {
             var nm = s["name"]
             if nm != nil && nm["type"] == "Identifier" {
@@ -448,7 +465,7 @@ fn fold_stmt(s, nn_env) {
         return nil
     }
     if t == "Assign" {
-        s["value"] = fold_expr(s["value"], nn_env)
+        s["value"] = fold_child_expr(s["value"], nn_env)
         if nn_env != nil {
             var left = s["left"]
             if left != nil && left["type"] == "Identifier" {
@@ -464,30 +481,30 @@ fn fold_stmt(s, nn_env) {
         return nil
     }
     if t == "Set" {
-        s["left"] = fold_expr(s["left"], nn_env)
-        s["value"] = fold_expr(s["value"], nn_env)
+        s["left"] = fold_child_expr(s["left"], nn_env)
+        s["value"] = fold_child_expr(s["value"], nn_env)
         return nil
     }
     if t == "ExprStmt" {
-        s["expr"] = fold_expr(s["expr"], nn_env)
+        s["expr"] = fold_child_expr(s["expr"], nn_env)
         return nil
     }
     if t == "Return" {
         opt_trace("[opt] return: fold value start")
-        s["value"] = fold_expr(s["value"], nn_env)
+        s["value"] = fold_child_expr(s["value"], nn_env)
         opt_trace("[opt] return: fold value done")
         return nil
     }
     if t == "While" {
-        s["cond"] = fold_expr(s["cond"], nn_env)
+        s["cond"] = fold_child_expr(s["cond"], nn_env)
         // Fold loop body in isolation (loop-carried facts are not tracked here).
         fold_stmt(s["body"], nn_env_push(nn_env_clone(nn_env)))
         return nil
     }
     if t == "For" {
         fold_stmt(s["init"], nn_env_push(nn_env_clone(nn_env)))
-        s["cond"] = fold_expr(s["cond"], nn_env)
-        s["post"] = fold_expr(s["post"], nn_env)
+        s["cond"] = fold_child_expr(s["cond"], nn_env)
+        s["post"] = fold_child_expr(s["post"], nn_env)
         fold_stmt(s["body"], nn_env_push(nn_env_clone(nn_env)))
         return nil
     }
