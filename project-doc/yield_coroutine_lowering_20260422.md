@@ -1905,6 +1905,14 @@ That path keeps the current repo state honest:
   `arm64.codegen.user_decls.done`. Even existing-lane Oren list writes on hot emit paths are too
   expensive; the next direct-offset design has to live below hot Oren map/list metadata or run as a
   linear post-codegen materialization pass.
+- 2026-05-06: retained the narrower Mach-O hot BL id lane. Selected hot runtime calls now store
+  compact negative ids in the existing `fixups_local_compact["bl_name"]` slot while the legacy
+  fixup maps keep string names. The Mach-O pass resolves those ids from six precomputed runtime
+  offsets before falling back to the sorted string resolver. Stats show `hot_id=7531`, BL string
+  lookups `11123 -> 3592`, scan steps `106069 -> 32627`, and byte compares `16163 -> 4077`; the
+  default first-4096 BL span moves to about `1.29s` from the recent `~1.40s` band. Insertion shifts
+  are still about `36598`, so the next design should remove tail insertion/direct-array
+  materialization for remaining names rather than adding another hot emit side lane.
 - 2026-05-06: removed another stale private-helper batch whose names each had exactly one repo
   occurrence before deletion. The cleanup spans compiler and stdlib modules but does not alter the
   coroutine helper contract: `_arm64_cmp_may_use_strcmp`, `_attr_list`,

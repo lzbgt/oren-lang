@@ -82,7 +82,7 @@ fn native_compile_stmt_set(ctx, stmt) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
         oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_find_node")
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -6)
 
         // If node == 0 => not a tracked container => panic deterministically.
         push_u32_le(ctx["code"], insn_movz(4, 0))

@@ -123,7 +123,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic0, "name": "native_list_len_panic"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic0)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_len_panic")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -5)
                 var magic_ok_pos0 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_magic_ok0, insn_b_cond((magic_ok_pos0 - br_magic_ok0) / 4, 0)) // EQ
                 // count (fallback)
@@ -147,10 +147,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
 	                emit_load_i64_imm(ctx, 1, 2)                 // X1 = stage (kind mismatch)
 	                var bl_list_panic1 = bytes_len(ctx["code"])
-	                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic1, "name": "native_list_len_panic"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic1)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_len_panic")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -5)
 		                var kind_ok_pos = bytes_len(ctx["code"])
 		                set_u32_le(ctx["code"], br_kind_ok, insn_b_cond((kind_ok_pos - br_kind_ok) / 4, 0)) // EQ
 		                set_u32_le(ctx["code"], br_kind_int_ok, insn_b_cond((kind_ok_pos - br_kind_int_ok) / 4, 0)) // EQ
@@ -168,7 +168,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic2, "name": "native_list_len_panic"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_list_panic2)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "native_list_len_panic")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -5)
 	                var is_list_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_is_list, insn_b_cond((is_list_pos - br_is_list) / 4, 0)) // EQ
 

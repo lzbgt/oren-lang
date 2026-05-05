@@ -56,6 +56,26 @@ fn _macho_lookup_function_cached(cache, ctx, functions, name) {
     return off
 }
 
+fn _macho_lookup_runtime_offset(rt, base, name) {
+    if rt == nil || name == nil { return nil }
+    var off_enc = rt[name]
+    if off_enc == nil { return nil }
+    if base == nil { base = 0 }
+    return base + _macho_decode_rtobj_fix_int(off_enc)
+}
+
+// Selected hot runtime calls store these negative ids in the compact BL name lane.
+// The legacy fixup map keeps string names; only the Mach-O compact path consumes ids.
+fn _macho_hot_bl_id_name(id) {
+    if id == -1 { return "oren_panic" }
+    if id == -2 { return "oren_ensure_tracked" }
+    if id == -3 { return "oren_call_depth_enter" }
+    if id == -4 { return "oren_call_depth_exit" }
+    if id == -5 { return "native_list_len_panic" }
+    if id == -6 { return "oren_find_node" }
+    return nil
+}
+
 fn _macho_str_eq_bytes_known_len(a, b, len) {
     var i = 0
     while i < len {
@@ -213,6 +233,15 @@ fn _macho_local_fixups_count_compact(fx) {
     return n
 }
 
+fn _macho_local_fixup_value_eq(k, av, bv) {
+    if av == bv { return true }
+    if k == "bl_name" {
+        if oren_type_tag(av) == 1 && _macho_hot_bl_id_name(av) == bv { return true }
+        if oren_type_tag(bv) == 1 && _macho_hot_bl_id_name(bv) == av { return true }
+    }
+    return false
+}
+
 fn _macho_local_fixups_compact_diff(a, b) {
     if a == nil && b == nil { return nil }
     if a == nil || b == nil { return "nil" }
@@ -236,7 +265,7 @@ fn _macho_local_fixups_compact_diff(a, b) {
         }
         var i = 0
         while i < an {
-            if av[i] != bv[i] {
+            if _macho_local_fixup_value_eq(k, av[i], bv[i]) != true {
                 return k + ".i=" + oren_int_to_string(i)
             }
             i = i + 1
@@ -1581,9 +1610,18 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var local_bl_n = oren_list_len(local_bl_name)
     var local_bl_target_valid = false
     if local_bl_target != nil && oren_list_len(local_bl_target) == local_bl_n { local_bl_target_valid = true }
+    var rt_hot = ctx["runtime_functions_enc"]
+    var rt_hot_base = ctx["rtobj_functions_base_code"]
+    var hot_bl_panic = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_panic")
+    var hot_bl_ensure_tracked = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_ensure_tracked")
+    var hot_bl_call_depth_enter = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_call_depth_enter")
+    var hot_bl_call_depth_exit = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_call_depth_exit")
+    var hot_bl_list_len_panic = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "native_list_len_panic")
+    var hot_bl_find_node = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_find_node")
     i = 0
     var local_bl_prefilled = 0
     var local_bl_resolved = 0
+    var local_bl_hot_id = 0
     var local_bl_pos_n = oren_list_len(local_bl_pos)
     while i < local_bl_n {
         if phase_log != nil {
@@ -1597,7 +1635,20 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         if local_bl_target_valid == true { target_local = local_bl_target[i] }
         if target_local == nil {
             var name_bl_local = local_bl_name[i]
-            target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
+            if oren_type_tag(name_bl_local) == 1 {
+                if name_bl_local == -1 { target_local = hot_bl_panic }
+                else if name_bl_local == -2 { target_local = hot_bl_ensure_tracked }
+                else if name_bl_local == -3 { target_local = hot_bl_call_depth_enter }
+                else if name_bl_local == -4 { target_local = hot_bl_call_depth_exit }
+                else if name_bl_local == -5 { target_local = hot_bl_list_len_panic }
+                else if name_bl_local == -6 { target_local = hot_bl_find_node }
+                if target_local != nil { local_bl_hot_id = local_bl_hot_id + 1 }
+                else { name_bl_local = _macho_hot_bl_id_name(name_bl_local) }
+                if name_bl_local == nil { name_bl_local = "unknown_hot_bl_id" }
+            }
+            if target_local == nil {
+                target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
+            }
             if target_local == nil {
                 var e_local_bl = "native backend: undefined function " + name_bl_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_bl))
@@ -1623,6 +1674,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.done",
             "n=" + oren_int_to_string(local_bl_n) +
             " prefilled=" + oren_int_to_string(local_bl_prefilled) +
+            " hot_id=" + oren_int_to_string(local_bl_hot_id) +
             " resolved=" + oren_int_to_string(local_bl_resolved) +
             _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)) +
             _macho_lookup_top_counts_detail(local_target_names, local_target_counts, "bl_top"))

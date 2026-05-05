@@ -95,7 +95,7 @@ fn compile_return(ctx, stmt, native_compile_expr_fn) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit, "name": "oren_call_depth_exit"})
         oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_exit)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_call_depth_exit")
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -4)
 
         push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
         push_u32_le(ctx["code"], insn_add_sp(16))

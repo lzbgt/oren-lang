@@ -1384,7 +1384,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_enter, "name": "oren_call_depth_enter"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_enter)
-	                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_call_depth_enter")
+	                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -3)
 	            }
 	            if fn_subprof_enabled == true {
 	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(enter)", fn_subprof_t0, fn_subprof_code0)
@@ -1422,7 +1422,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit2, "name": "oren_call_depth_exit"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_exit2)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_call_depth_exit")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -4)
                 // Ensure X0 remains 0 (helper may clobber caller-saved regs).
                 push_u32_le(ctx["code"], insn_movz(0, 0))
             }
