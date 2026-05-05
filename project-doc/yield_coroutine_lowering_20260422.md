@@ -33,6 +33,14 @@ generic Oren-map cache. Stats-enabled local resolver scan steps moved from about
 An attempted whole-table preseed from `ctx["functions"]` plus `runtime_functions_enc` proved that
 first-touch lookup misses are the right target, but the implementation is rejected: it made the BL
 loop tens of milliseconds while spending about `96-97s` insertion-sorting `1891` target entries.
+The retained resolver stats now also report hot local target names: the first `4096` local BL
+resolutions remain about `1.95s`, dominated by `oren_panic` and `oren_ensure_tracked` (`2305` refs
+each), `oren_call_depth_exit` (`1631`), `native_list_len_panic` (`474`), and `oren_find_node`
+(`438`). A direct-known-BL probe for those call sites was rejected after both default and stats
+native profiles timed out at `180s` before `user_decls`; it moved the cost into repeated
+`arm64_lookup_function(...)` map lookups during hot codegen. The next resolver implementation needs
+precomputed integer target ids/offsets or linear-time target materialization, not per-call map
+lookups from emit sites.
 
 ## Current shipped state
 

@@ -197,6 +197,32 @@ if parse_module_rows:
             f"  cache_hit={row['cache_hit']}  path={row['path']}"
         )
 
+macho_hot_rows = []
+for phase_name, _ns, detail in events:
+    if phase_name not in ("macho.fixups.local.bl.resolve.done", "macho.fixups.local.adr_code.resolve.done"):
+        continue
+    fields = {m.group(1): m.group(2) for m in detail_field_re.finditer(detail)}
+    prefix = "bl_top" if phase_name == "macho.fixups.local.bl.resolve.done" else "all_top"
+    for rank in range(1, 6):
+        name = fields.get(f"{prefix}{rank}", "")
+        if not name:
+            continue
+        try:
+            count = int(fields.get(f"{prefix}{rank}_count", "0"))
+        except ValueError:
+            count = 0
+        macho_hot_rows.append({
+            "phase": phase_name,
+            "rank": rank,
+            "name": name,
+            "count": count,
+        })
+
+if macho_hot_rows:
+    print("== Mach-O local resolve hot targets ==")
+    for row in sorted(macho_hot_rows, key=lambda item: (item["phase"], item["rank"])):
+        print(f"{row['count']:8d} refs  phase={row['phase']} rank={row['rank']} name={row['name']}")
+
 optimizer_hot_rows = []
 optimizer_subphase_rows = []
 for phase_name, _ns, detail in events:
