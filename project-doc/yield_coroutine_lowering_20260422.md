@@ -60,6 +60,13 @@ the unused `std:task_group` `_task_group_runtime_surface(...)` sentinel while pr
 the resolver and task-group source shapes aligned with the rejected-path evidence: future work should
 add compact target metadata below the generic Oren map/list/fixup surfaces, not reintroduce
 string-name bypass helpers.
+The next retained Mach-O cleanup keeps the same sorted resolver but removes avoidable BL fixup
+materialization around it: local BL fixups now resolve and patch each call in one pass when no valid
+prefilled `bl_target` lane exists. The default profile moves the first local BL span from the prior
+`~1.9s` boundary to about `1.41s`, while stats still report roughly `11123` BL lookups and `106069`
+scan steps. Treat the remaining Mach-O target as lower-level compact target-id/offset representation;
+the shipped win is from deleting nil-filled target-list materialization and the second BL apply loop,
+not from another name-cache strategy.
 
 ## Current shipped state
 

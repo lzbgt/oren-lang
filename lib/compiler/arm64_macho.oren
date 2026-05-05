@@ -1580,19 +1580,12 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         local_target_counts = []
     }
     var local_bl_n = oren_list_len(local_bl_name)
-    if local_bl_target == nil || oren_list_len(local_bl_target) != local_bl_n {
-        local_bl_target = oren_list_new_cap(local_bl_n)
-        if oren_is_err(local_bl_target) { local_bl_target = [] }
-        i = 0
-        while i < local_bl_n {
-            oren_list_push(local_bl_target, nil)
-            i = i + 1
-        }
-        fixups_local["bl_target"] = local_bl_target
-    }
+    var local_bl_target_valid = false
+    if local_bl_target != nil && oren_list_len(local_bl_target) == local_bl_n { local_bl_target_valid = true }
     i = 0
     var local_bl_prefilled = 0
     var local_bl_resolved = 0
+    var local_bl_pos_n = oren_list_len(local_bl_pos)
     while i < local_bl_n {
         if phase_log != nil {
             if i == 0 || i == 4096 || i == 8192 {
@@ -1601,7 +1594,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                     _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
             }
         }
-        var target_local = local_bl_target[i]
+        var target_local = nil
+        if local_bl_target_valid == true { target_local = local_bl_target[i] }
         if target_local == nil {
             var name_bl_local = local_bl_name[i]
             target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
@@ -1611,11 +1605,19 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 print(e_local_bl)
                 oren_exit(1)
             }
-            local_bl_target[i] = target_local
             local_bl_resolved = local_bl_resolved + 1
+            if local_bl_target_valid == true { local_bl_target[i] = target_local }
         } else {
             local_bl_prefilled = local_bl_prefilled + 1
         }
+        if phase_log != nil {
+            if i == 0 || i == 4096 || i == 8192 {
+                _macho_phase_log_append(phase_log, "macho.fixups.local.bl.progress", "i=" + oren_int_to_string(i))
+            }
+        }
+        var pos_bl_local = local_bl_pos[i]
+        var offset_local = (target_local - pos_bl_local) / 4
+        set_u32_le(code, pos_bl_local, insn_bl(offset_local))
         i = i + 1
     }
     if phase_log != nil {
@@ -1625,20 +1627,6 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             " resolved=" + oren_int_to_string(local_bl_resolved) +
             _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)) +
             _macho_lookup_top_counts_detail(local_target_names, local_target_counts, "bl_top"))
-    }
-    i = 0
-    var local_bl_pos_n = oren_list_len(local_bl_pos)
-    while i < local_bl_pos_n {
-        if phase_log != nil {
-            if i == 0 || i == 4096 || i == 8192 {
-                _macho_phase_log_append(phase_log, "macho.fixups.local.bl.progress", "i=" + oren_int_to_string(i))
-            }
-        }
-        var pos_bl_local = local_bl_pos[i]
-        var target_local = local_bl_target[i]
-        var offset_local = (target_local - pos_bl_local) / 4
-        set_u32_le(code, pos_bl_local, insn_bl(offset_local))
-        i = i + 1
     }
     if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.done", "n=" + oren_int_to_string(local_bl_pos_n)) }
     var local_adr_code_n = oren_list_len(local_adr_code_name)
