@@ -555,7 +555,9 @@ backend-shared value-helper slices landed.
     refreshed generator profile identifies `lib/std/generator.oren` as the dominant parse module (~1.42s / 137
     stmts), followed by `lib/std/task_group.oren` (~520ms / 62 stmts) and `lib/std/task.oren` (~322ms / 52 stmts).
     Reweight module-parse follow-up toward those modules or persistent module-cache hits rather than the small
-    `reflect/result/list` tail.
+    `reflect/result/list` tail. An opt-in serial module-cache write probe timed out before completing the profile:
+    it wrote only the first two ASTBIN cache entries and charged ~114.5s to `lib/std/time.oren` including
+    encode/write cost, so serial cache seeding was reverted as the wrong persistence strategy.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

@@ -5418,7 +5418,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        profile identifies `lib/std/generator.oren` as the dominant parse module
 														        (~1.42s / 137 stmts), followed by `lib/std/task_group.oren` (~520ms / 62 stmts)
 														        and `lib/std/task.oren` (~322ms / 52 stmts). Reweight module-parse work toward
-														        those modules or persistent module-cache hits instead of the small tail.
+														        those modules or persistent module-cache hits instead of the small tail. An
+														        opt-in serial module-cache write probe was rejected: writing only the first
+														        two ASTBIN cache entries pushed the profile to the 180s timeout, with
+														        `lib/std/time.oren` alone reporting ~114.5s including encode/write cost.
 														      - ARM64 assignment/global trait propagation now reuses the already-computed
 														        float trait when deriving integer trait state. This removes redundant
 														        top-level expression walks in hot `var`, `assign`, and global-slot paths;
