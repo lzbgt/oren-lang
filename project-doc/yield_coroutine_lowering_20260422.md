@@ -72,6 +72,10 @@ stats native profiles, but ADR-code fixups are only about `140` entries in the c
 the measured bucket stayed in the same noisy `~70-95ms` range while the phase ordering became less
 directly comparable. Keep the retained cleanup BL-only until ADR-code fixups become a large measured
 target.
+A one-entry previous-target reuse probe found `1055` adjacent same-name BL fixups but did not
+materially move the first-4096 wall-time boundary (`~1.42s` baseline vs `~1.41s` probe), so it was
+reverted. This further rules out small MRU/previous-target caches around the current string/name
+resolver.
 
 ## Current shipped state
 
