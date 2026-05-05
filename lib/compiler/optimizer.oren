@@ -25,6 +25,7 @@ import opthelp "optimizer_helpers.oren"
 // - Float folding/rounding.
 
 fn nn_env_new() { return optfold.nn_env_new() }
+fn set_trace_enabled(enabled) { return optfold.set_trace_enabled(enabled) }
 fn parse_int(s) { return optcore.parse_int(s) }
 fn fold_stmt(s, nn_env) { return optfold.fold_stmt(s, nn_env) }
 fn dce_block_in_place(block) { return optdce.dce_block_in_place(block) }
@@ -133,6 +134,7 @@ fn lower_linked_program_in_place(linked) {
     var trace_opt = oren_env("OREN_TRACE_OPTIMIZER") != nil
     if trace_opt { print("[opt] enter") }
     if linked == nil { return nil }
+    set_trace_enabled(trace_opt)
     var phase_log_path = _optimizer_phase_log_path()
     var phase_t0 = 0
     var profile_phases = false

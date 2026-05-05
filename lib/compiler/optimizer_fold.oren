@@ -1,6 +1,16 @@
 import optcore "optimizer_core.oren"
 
-fn opt_trace(msg) { return optcore.opt_trace(msg) }
+var OPT_FOLD_TRACE_ENABLED = false
+
+fn set_trace_enabled(enabled) {
+    OPT_FOLD_TRACE_ENABLED = enabled == true
+    return nil
+}
+
+fn opt_trace(msg) {
+    if OPT_FOLD_TRACE_ENABLED != true { return nil }
+    return optcore.opt_trace(msg)
+}
 fn is_int_lit(e) { return optcore.is_int_lit(e) }
 fn parse_int(s) { return optcore.parse_int(s) }
 fn small_int(n) { return optcore.small_int(n) }
@@ -344,7 +354,7 @@ fn fold_expr(e, nn_env) {
     if e == nil { return nil }
     var t = e["type"]
     _opt_fold_profile_expr(t)
-    opt_trace("[opt] fold_expr t=" + t)
+    if OPT_FOLD_TRACE_ENABLED == true { opt_trace("[opt] fold_expr t=" + t) }
     if t == "Identifier" || t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil" {
         return e
     }
@@ -361,7 +371,7 @@ fn fold_expr(e, nn_env) {
         opt_trace("[opt] infix: right fold done")
         // constant fold
         var op = e["op"]
-        opt_trace("[opt] infix: op=" + op)
+        if OPT_FOLD_TRACE_ENABLED == true { opt_trace("[opt] infix: op=" + op) }
         if op == "+" || op == "-" || op == "*" {
             var folded = fold_infix(op, e["left"], e["right"])
             opt_trace("[opt] infix: fold_infix done")
@@ -451,7 +461,7 @@ fn fold_stmt(s, nn_env) {
     if s == nil { return nil }
     var t = s["type"]
     _opt_fold_profile_stmt(t)
-    opt_trace("[opt] fold_stmt t=" + t)
+    if OPT_FOLD_TRACE_ENABLED == true { opt_trace("[opt] fold_stmt t=" + t) }
     if t == "Block" {
         var ss = s["stmts"]
         var env2 = nn_env_push(nn_env)
