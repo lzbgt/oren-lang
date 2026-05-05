@@ -5,6 +5,52 @@ import optcore "optimizer_core.oren"
 fn _opt_trace_list_int(msg) { return optcore._opt_trace_list_int(msg) }
 fn _opt_backend_allows_list_int_unchecked() { return optcore._opt_backend_allows_list_int_unchecked() }
 
+var OPT_LIST_INT_TRACE_ENABLED = nil
+var OPT_LIST_INT_PROFILE_ENABLED = false
+var OPT_LIST_INT_LOCALS_NS = 0
+var OPT_LIST_INT_NESTED_NS = 0
+var OPT_LIST_INT_SCAN_NS = 0
+var OPT_LIST_INT_REWRITE_INIT_NS = 0
+var OPT_LIST_INT_REWRITE_USES_NS = 0
+
+fn _opt_trace_list_int_enabled() {
+    if OPT_LIST_INT_TRACE_ENABLED == nil {
+        OPT_LIST_INT_TRACE_ENABLED = oren_env("OREN_TRACE_LIST_INT") != nil
+    }
+    return OPT_LIST_INT_TRACE_ENABLED == true
+}
+
+fn _opt_list_int_profile_reset(enabled) {
+    OPT_LIST_INT_PROFILE_ENABLED = enabled == true
+    OPT_LIST_INT_LOCALS_NS = 0
+    OPT_LIST_INT_NESTED_NS = 0
+    OPT_LIST_INT_SCAN_NS = 0
+    OPT_LIST_INT_REWRITE_INIT_NS = 0
+    OPT_LIST_INT_REWRITE_USES_NS = 0
+    return nil
+}
+
+fn _opt_list_int_profile_add(kind, start_ns) {
+    if OPT_LIST_INT_PROFILE_ENABLED != true { return nil }
+    if start_ns == nil || start_ns <= 0 { return nil }
+    var dt = oren_time_now_ns() - start_ns
+    if kind == "locals" { OPT_LIST_INT_LOCALS_NS = OPT_LIST_INT_LOCALS_NS + dt }
+    else if kind == "nested" { OPT_LIST_INT_NESTED_NS = OPT_LIST_INT_NESTED_NS + dt }
+    else if kind == "scan" { OPT_LIST_INT_SCAN_NS = OPT_LIST_INT_SCAN_NS + dt }
+    else if kind == "rewrite_init" { OPT_LIST_INT_REWRITE_INIT_NS = OPT_LIST_INT_REWRITE_INIT_NS + dt }
+    else if kind == "rewrite_uses" { OPT_LIST_INT_REWRITE_USES_NS = OPT_LIST_INT_REWRITE_USES_NS + dt }
+    return nil
+}
+
+fn _opt_list_int_profile_detail() {
+    if OPT_LIST_INT_PROFILE_ENABLED != true { return "" }
+    return " list_int_locals_ms=" + oren_int_to_string(OPT_LIST_INT_LOCALS_NS / 1000000) +
+        " list_int_nested_ms=" + oren_int_to_string(OPT_LIST_INT_NESTED_NS / 1000000) +
+        " list_int_scan_ms2=" + oren_int_to_string(OPT_LIST_INT_SCAN_NS / 1000000) +
+        " list_int_rewrite_init_ms=" + oren_int_to_string(OPT_LIST_INT_REWRITE_INIT_NS / 1000000) +
+        " list_int_rewrite_uses_ms=" + oren_int_to_string(OPT_LIST_INT_REWRITE_USES_NS / 1000000)
+}
+
 fn _opt_is_len_call(expr) {
     if expr == nil || expr["type"] != "Call" { return false }
     var fnn = expr["fn"]
@@ -320,7 +366,7 @@ fn _opt_safe_ints_after_stmt(stmt, safe_ints, tag) {
             else { safe_ints[nm] = false }
             var safe_flag = "0"
             if is_safe { safe_flag = "1" }
-            if tag == "uses" && (nm == "v" || nm == "v2") {
+            if tag == "uses" && (nm == "v" || nm == "v2") && _opt_trace_list_int_enabled() == true {
                 var keys = ""
                 for k in safe_ints {
                     if safe_ints[k] == true {
@@ -371,7 +417,7 @@ fn _opt_safe_ints_after_stmt(stmt, safe_ints, tag) {
         return safe_ints
     }
     if t == "If" {
-        if tag == "uses" && safe_ints != nil && safe_ints["j"] == true {
+        if tag == "uses" && safe_ints != nil && safe_ints["j"] == true && _opt_trace_list_int_enabled() == true {
             var keys_before = ""
             for k in safe_ints {
                 if safe_ints[k] == true {
@@ -386,7 +432,7 @@ fn _opt_safe_ints_after_stmt(stmt, safe_ints, tag) {
         var alt = _opt_map_clone_safe(safe_ints)
         if stmt["alt"] != nil { alt = _opt_safe_ints_after_stmt(stmt["alt"], alt, tag) }
         var out = _opt_safe_ints_intersect(consq, alt)
-        if tag == "uses" && out != nil && out["j"] == true {
+        if tag == "uses" && out != nil && out["j"] == true && _opt_trace_list_int_enabled() == true {
             var keys_after = ""
             for k2 in out {
                 if out[k2] == true {
@@ -728,10 +774,11 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
         var ss = stmt["stmts"]
         if ss != nil {
             var snap_ints = _opt_map_clone_safe(safe_ints)
+            var trace_list_int = _opt_trace_list_int_enabled()
             var i = 0
             while i < oren_list_len(ss) {
                 var st0 = ss[i]
-                if st0 != nil && st0["type"] == "ExprStmt" {
+                if trace_list_int == true && st0 != nil && st0["type"] == "ExprStmt" {
                     var en = st0["expr"]
                     var cn = _opt_call_name(en)
                     if cn == "oren_list_push" || cn == "STD_list_push" || cn == "oren_list_int_push" || cn == "STD_list_int_push" {
@@ -800,7 +847,7 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
                 }
                 _opt_scan_list_int_uses_stmt(ss[i], list_state, _opt_map_clone_safe(snap_ints))
                 snap_ints = _opt_safe_ints_after_stmt(ss[i], snap_ints, "uses")
-                if i + 1 < oren_list_len(ss) {
+                if trace_list_int == true && i + 1 < oren_list_len(ss) {
                     var nxt = ss[i + 1]
                     var log_next = false
                     if nxt != nil && nxt["type"] == "ExprStmt" {
@@ -1291,6 +1338,8 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
     var ss = block["stmts"]
     if ss == nil { return nil }
     var block_locals = {}
+    var prof_t0 = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
     var li = 0
     while li < oren_list_len(ss) {
         var stl = ss[li]
@@ -1300,6 +1349,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
         }
         li = li + 1
     }
+    _opt_list_int_profile_add("locals", prof_t0)
     var list_state = {}
     var list_inits = {}
     var list_touch = {}
@@ -1309,6 +1359,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
     var safe_ints = _opt_map_clone_safe(safe_ints_seed)
 
     var ai = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
     while ai < oren_list_len(ss) {
         var stn = ss[ai]
         if stn != nil {
@@ -1324,8 +1375,10 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
         }
         ai = ai + 1
     }
+    _opt_list_int_profile_add("nested", prof_t0)
 
     var i = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
     while i < oren_list_len(ss) {
         var st = ss[i]
         var safe_ints_touch = _opt_map_clone_safe(safe_ints)
@@ -1375,6 +1428,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
         }
         i = i + 1
     }
+    _opt_list_int_profile_add("scan", prof_t0)
 
     if list_empty_inits != nil {
         for k in list_empty_inits {
@@ -1395,6 +1449,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
 
     var out = []
     var j = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
     while j < oren_list_len(ss) {
         var stj = ss[j]
         var rewritten = false
@@ -1453,14 +1508,17 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
         if rewritten != true { oren_list_push(out, stj) }
         j = j + 1
     }
+    _opt_list_int_profile_add("rewrite_init", prof_t0)
 
     block["stmts"] = out
 
     var j2 = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
     while j2 < oren_list_len(out) {
         _opt_rewrite_list_int_stmt(out[j2], list_state)
         j2 = j2 + 1
     }
+    _opt_list_int_profile_add("rewrite_uses", prof_t0)
     return nil
 }
 

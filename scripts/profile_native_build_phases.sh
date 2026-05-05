@@ -198,6 +198,7 @@ if parse_module_rows:
         )
 
 optimizer_hot_rows = []
+optimizer_subphase_rows = []
 for phase_name, _ns, detail in events:
     if phase_name != "optimizer.hot" and phase_name != "optimizer.summary":
         continue
@@ -233,11 +234,48 @@ for phase_name, _ns, detail in events:
                 "fn": fn,
                 "ms": ms,
             })
+    if phase_name == "optimizer.summary":
+        sub = {"phase": "optimizer.summary"}
+        for key in (
+            "list_int_locals_ms",
+            "list_int_nested_ms",
+            "list_int_scan_ms2",
+            "list_int_rewrite_init_ms",
+            "list_int_rewrite_uses_ms",
+            "reserve_track_ms",
+            "reserve_collect_ms",
+            "reserve_insert_ms",
+            "reserve_rewrite_ms",
+            "reserve_recurse_ms",
+            "reserve_safe_ms",
+        ):
+            try:
+                sub[key] = int(fields.get(key, "0"))
+            except ValueError:
+                sub[key] = 0
+        optimizer_subphase_rows.append(sub)
 
 if optimizer_hot_rows:
     print("== optimizer hot function bodies by pass ==")
     for row in sorted(optimizer_hot_rows, key=lambda item: (item["pass"], item["rank"])):
         print(f"{row['ms']:10d} ms  pass={row['pass']} rank={row['rank']} fn={row['fn']}")
+
+if optimizer_subphase_rows:
+    print("== optimizer list pass internals ==")
+    for row in optimizer_subphase_rows:
+        print(
+            f"list_int locals={row['list_int_locals_ms']:5d}"
+            f" nested={row['list_int_nested_ms']:5d}"
+            f" scan={row['list_int_scan_ms2']:5d}"
+            f" rewrite_init={row['list_int_rewrite_init_ms']:5d}"
+            f" rewrite_uses={row['list_int_rewrite_uses_ms']:5d}"
+            f" | reserve track={row['reserve_track_ms']:5d}"
+            f" collect={row['reserve_collect_ms']:5d}"
+            f" insert={row['reserve_insert_ms']:5d}"
+            f" rewrite={row['reserve_rewrite_ms']:5d}"
+            f" recurse={row['reserve_recurse_ms']:5d}"
+            f" safe={row['reserve_safe_ms']:5d}"
+        )
 
 rows = []
 if function_log.exists():

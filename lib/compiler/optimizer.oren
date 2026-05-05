@@ -33,6 +33,14 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
 fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, last_list_lit_intsafe, last_list_int_new, last_int_safe) {
     return optlistreserve._opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, last_list_lit_intsafe, last_list_int_new, last_int_safe)
 }
+fn _optimizer_list_pass_profile_reset(enabled) {
+    optlistint._opt_list_int_profile_reset(enabled)
+    optlistreserve._opt_list_reserve_profile_reset(enabled)
+    return nil
+}
+fn _optimizer_list_pass_profile_detail() {
+    return optlistint._opt_list_int_profile_detail() + optlistreserve._opt_list_reserve_profile_detail()
+}
 fn _tco_modconst_function_in_place(fun_expr) { return opttco._tco_modconst_function_in_place(fun_expr) }
 fn _tco_function_in_place(fun_expr) { return opttco._tco_function_in_place(fun_expr) }
 
@@ -316,6 +324,7 @@ fn lower_linked_program_in_place(linked) {
     var list_candidate_count = 0
     var t_sub = 0
     var hot = {}
+    _optimizer_list_pass_profile_reset(profile_phases)
     if trace_opt { print("[opt] stmts_len=" + oren_int_to_string(ss_len)) }
     while i < ss_len {
         if trace_opt && i == 0 { print("[opt] fold first stmt type=" + ss[i]["type"]) }
@@ -408,7 +417,8 @@ fn lower_linked_program_in_place(linked) {
             " dce_ms=" + oren_int_to_string(dce_ns / 1000000) +
             _optimizer_hot_detail(hot, "fold") +
             _optimizer_hot_detail(hot, "list_int") +
-            _optimizer_hot_detail(hot, "reserve")
+            _optimizer_hot_detail(hot, "reserve") +
+            _optimizer_list_pass_profile_detail()
         _optimizer_phase_log_append(phase_log_path, "optimizer.summary", detail, phase_t0)
     }
     return nil

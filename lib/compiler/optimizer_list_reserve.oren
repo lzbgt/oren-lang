@@ -8,6 +8,48 @@ fn _opt_call_name(expr) { return listint._opt_call_name(expr) }
 fn _opt_safe_ints_after_stmt(stmt, safe_ints, tag) { return listint._opt_safe_ints_after_stmt(stmt, safe_ints, tag) }
 fn _opt_backend_allows_list_int_unchecked() { return optcore._opt_backend_allows_list_int_unchecked() }
 
+var OPT_RESERVE_PROFILE_ENABLED = false
+var OPT_RESERVE_TRACK_NS = 0
+var OPT_RESERVE_COLLECT_NS = 0
+var OPT_RESERVE_INSERT_NS = 0
+var OPT_RESERVE_REWRITE_NS = 0
+var OPT_RESERVE_RECURSE_NS = 0
+var OPT_RESERVE_SAFE_NS = 0
+
+fn _opt_list_reserve_profile_reset(enabled) {
+    OPT_RESERVE_PROFILE_ENABLED = enabled == true
+    OPT_RESERVE_TRACK_NS = 0
+    OPT_RESERVE_COLLECT_NS = 0
+    OPT_RESERVE_INSERT_NS = 0
+    OPT_RESERVE_REWRITE_NS = 0
+    OPT_RESERVE_RECURSE_NS = 0
+    OPT_RESERVE_SAFE_NS = 0
+    return nil
+}
+
+fn _opt_list_reserve_profile_add(kind, start_ns) {
+    if OPT_RESERVE_PROFILE_ENABLED != true { return nil }
+    if start_ns == nil || start_ns <= 0 { return nil }
+    var dt = oren_time_now_ns() - start_ns
+    if kind == "track" { OPT_RESERVE_TRACK_NS = OPT_RESERVE_TRACK_NS + dt }
+    else if kind == "collect" { OPT_RESERVE_COLLECT_NS = OPT_RESERVE_COLLECT_NS + dt }
+    else if kind == "insert" { OPT_RESERVE_INSERT_NS = OPT_RESERVE_INSERT_NS + dt }
+    else if kind == "rewrite" { OPT_RESERVE_REWRITE_NS = OPT_RESERVE_REWRITE_NS + dt }
+    else if kind == "recurse" { OPT_RESERVE_RECURSE_NS = OPT_RESERVE_RECURSE_NS + dt }
+    else if kind == "safe" { OPT_RESERVE_SAFE_NS = OPT_RESERVE_SAFE_NS + dt }
+    return nil
+}
+
+fn _opt_list_reserve_profile_detail() {
+    if OPT_RESERVE_PROFILE_ENABLED != true { return "" }
+    return " reserve_track_ms=" + oren_int_to_string(OPT_RESERVE_TRACK_NS / 1000000) +
+        " reserve_collect_ms=" + oren_int_to_string(OPT_RESERVE_COLLECT_NS / 1000000) +
+        " reserve_insert_ms=" + oren_int_to_string(OPT_RESERVE_INSERT_NS / 1000000) +
+        " reserve_rewrite_ms=" + oren_int_to_string(OPT_RESERVE_REWRITE_NS / 1000000) +
+        " reserve_recurse_ms=" + oren_int_to_string(OPT_RESERVE_RECURSE_NS / 1000000) +
+        " reserve_safe_ms=" + oren_int_to_string(OPT_RESERVE_SAFE_NS / 1000000)
+}
+
 fn _opt_collect_list_pushes_expr(expr, out) {
     if expr == nil { return nil }
     var t = expr["type"]
@@ -625,10 +667,12 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
     if last_int_safe == nil { last_int_safe = {} }
     var out = []
     var i = 0
+    var prof_t0 = 0
     while i < oren_list_len(ss) {
         var st = ss[i]
         var is_top_assign = st != nil && (st["type"] == "Var" || st["type"] == "Assign")
         if is_top_assign {
+            if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
             var nm = opthelp.is_ident(st["name"])
             if nm != nil {
                 var v = st["value"]
@@ -680,6 +724,7 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 if _opt_is_safe_int_expr(v, last_int_safe) { last_int_safe[nm] = true }
                 else { last_int_safe[nm] = false }
             }
+            _opt_list_reserve_profile_add("track", prof_t0)
         }
 
         if st != nil && st["type"] == "While" {
@@ -702,12 +747,15 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
             if n_ok {
                 var pushes = {}
                 var pushes_int = {}
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 _opt_collect_list_pushes_stmt(st["body"], pushes)
                 _opt_collect_list_int_pushes_stmt(st["body"], pushes_int)
                 var assigned = {}
                 opthelp.collect_assigned_names_stmt(assigned, st["body"])
                 var safe_ints = _opt_map_clone(last_int_safe)
                 if idx_name != nil { safe_ints[idx_name] = true }
+                _opt_list_reserve_profile_add("collect", prof_t0)
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 if pushes != nil {
                     for list_name in pushes {
                         if last_list_lit[list_name] == true && pushes_int[list_name] != true {
@@ -752,6 +800,8 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                         }
                     }
                 }
+                _opt_list_reserve_profile_add("insert", prof_t0)
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 if pushes != nil && assigned != nil {
                     var safe_lists = {}
                     for list_name2 in pushes {
@@ -774,14 +824,17 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                     }
                     if safe_lists_int != nil { _opt_rewrite_list_int_pushes_stmt(st["body"], safe_lists_int, safe_ints) }
                 }
+                _opt_list_reserve_profile_add("rewrite", prof_t0)
             }
             if st["body"] != nil {
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 var snap_list_lit = _opt_map_clone(last_list_lit)
                 var snap_list_lit_len = _opt_map_clone(last_list_lit_len)
                 var snap_list_lit_intsafe = _opt_map_clone(last_list_lit_intsafe)
                 var snap_list_int = _opt_map_clone(last_list_int_new)
                 var snap_int = _opt_map_clone(last_int_safe)
                 _opt_insert_list_reserve_in_block(st["body"], snap_list_lit, snap_list_lit_len, snap_list_lit_intsafe, snap_list_int, snap_int)
+                _opt_list_reserve_profile_add("recurse", prof_t0)
             }
         }
         if st != nil && st["type"] == "For" {
@@ -804,12 +857,15 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
             if n_ok2 {
                 var pushes2 = {}
                 var pushes2_int = {}
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 _opt_collect_list_pushes_stmt(st["body"], pushes2)
                 _opt_collect_list_int_pushes_stmt(st["body"], pushes2_int)
                 var assigned2 = {}
                 opthelp.collect_assigned_names_stmt(assigned2, st["body"])
                 var safe_ints2 = _opt_map_clone(last_int_safe)
                 if idx_name2 != nil { safe_ints2[idx_name2] = true }
+                _opt_list_reserve_profile_add("collect", prof_t0)
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 if pushes2 != nil {
                     for list_name2 in pushes2 {
                         if last_list_lit[list_name2] == true && pushes2_int[list_name2] != true {
@@ -854,6 +910,8 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                         }
                     }
                 }
+                _opt_list_reserve_profile_add("insert", prof_t0)
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 if pushes2 != nil && assigned2 != nil {
                     var safe_lists2 = {}
                     for list_name3 in pushes2 {
@@ -876,18 +934,22 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                     }
                     if safe_lists2_int != nil { _opt_rewrite_list_int_pushes_stmt(st["body"], safe_lists2_int, safe_ints2) }
                 }
+                _opt_list_reserve_profile_add("rewrite", prof_t0)
             }
             if st["body"] != nil {
+                if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
                 var snap_list_lit2 = _opt_map_clone(last_list_lit)
                 var snap_list_lit_len2 = _opt_map_clone(last_list_lit_len)
                 var snap_list_lit_intsafe2 = _opt_map_clone(last_list_lit_intsafe)
                 var snap_list_int2 = _opt_map_clone(last_list_int_new)
                 var snap_int2 = _opt_map_clone(last_int_safe)
                 _opt_insert_list_reserve_in_block(st["body"], snap_list_lit2, snap_list_lit_len2, snap_list_lit_intsafe2, snap_list_int2, snap_int2)
+                _opt_list_reserve_profile_add("recurse", prof_t0)
             }
         }
 
         if st != nil && st["type"] == "If" {
+            if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
             var snap_list_lit3 = _opt_map_clone(last_list_lit)
             var snap_list_lit_len3 = _opt_map_clone(last_list_lit_len)
             var snap_list_lit_intsafe3 = _opt_map_clone(last_list_lit_intsafe)
@@ -904,19 +966,23 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 var snap_int4 = _opt_map_clone(last_int_safe)
                 _opt_insert_list_reserve_in_block(st["alt"], snap_list_lit4, snap_list_lit_len4, snap_list_lit_intsafe4, snap_list_int4, snap_int4)
             }
+            _opt_list_reserve_profile_add("recurse", prof_t0)
         }
         if st != nil && st["type"] == "Block" {
+            if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
             var snap_list_lit5 = _opt_map_clone(last_list_lit)
             var snap_list_lit_len5 = _opt_map_clone(last_list_lit_len)
             var snap_list_lit_intsafe5 = _opt_map_clone(last_list_lit_intsafe)
             var snap_list_int5 = _opt_map_clone(last_list_int_new)
             var snap_int5 = _opt_map_clone(last_int_safe)
             _opt_insert_list_reserve_in_block(st, snap_list_lit5, snap_list_lit_len5, snap_list_lit_intsafe5, snap_list_int5, snap_int5)
+            _opt_list_reserve_profile_add("recurse", prof_t0)
         }
 
         oren_list_push(out, st)
-        last_int_safe = _opt_safe_ints_after_stmt(st, last_int_safe, "reserve")
         if is_top_assign != true {
+            if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
+            last_int_safe = _opt_safe_ints_after_stmt(st, last_int_safe, "reserve")
             var assigned = {}
             opthelp.collect_assigned_names_stmt(assigned, st)
             for nm2 in assigned {
@@ -925,6 +991,7 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 last_list_lit_intsafe[nm2] = false
                 last_list_int_new[nm2] = false
             }
+            _opt_list_reserve_profile_add("safe", prof_t0)
         }
         i = i + 1
     }
