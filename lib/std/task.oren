@@ -147,7 +147,6 @@ fn _task_stop_fields(ctx, policy0, want_join_timeout) {
     return {
         "mode": mode,
         "delay_ms": _task_stop_delay_ms(deadline_ns, timeout_ms),
-        "deadline_ns": deadline_ns,
         "grace_ms": grace_ms,
         "reason": oren_map_get_str(policy, "reason"),
         "join_timeout_ms": join_timeout_ms,
@@ -461,15 +460,9 @@ fn stop_policy(handle, policy0) {
     var fields = _task_stop_fields("task.stop_policy", policy0, false)
     if oren_is_err(fields) == true { return fields }
     if fields["mode"] == "request_cancel" {
-        if oren_type_tag(fields["deadline_ns"]) != 0 {
-            return request_cancel_at(handle, fields["deadline_ns"], fields["reason"])
-        }
         return request_cancel_after(handle, fields["delay_ms"], fields["reason"])
     }
     if fields["mode"] == "cancel" {
-        if oren_type_tag(fields["deadline_ns"]) != 0 {
-            return cancel_at(handle, fields["deadline_ns"], fields["reason"])
-        }
         return cancel_after(handle, fields["delay_ms"], fields["reason"])
     }
     var watcher = spawn _task_stop_after_worker(handle, fields["delay_ms"], fields["grace_ms"], fields["reason"])
@@ -486,15 +479,9 @@ fn stop_policy_wait(handle, policy0) {
     var fields = _task_stop_fields("task.stop_policy_wait", policy0, true)
     if oren_is_err(fields) == true { return fields }
     if fields["mode"] == "request_cancel" {
-        if oren_type_tag(fields["deadline_ns"]) != 0 {
-            return request_cancel_at_wait(handle, fields["deadline_ns"], fields["reason"], fields["join_timeout_ms"])
-        }
         return request_cancel_after_wait(handle, fields["delay_ms"], fields["reason"], fields["join_timeout_ms"])
     }
     if fields["mode"] == "cancel" {
-        if oren_type_tag(fields["deadline_ns"]) != 0 {
-            return cancel_at_wait(handle, fields["deadline_ns"], fields["reason"], fields["join_timeout_ms"])
-        }
         return cancel_after_wait(handle, fields["delay_ms"], fields["reason"], fields["join_timeout_ms"])
     }
     var wait_ms = _task_stop_wait_budget_ms(

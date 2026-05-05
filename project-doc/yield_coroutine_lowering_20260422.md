@@ -702,6 +702,12 @@ string-name comparisons.
     (`_task_group_validate_policy_shape`, `task.stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
     representation only if it beats the cloned-AST cache without importing ASTBIN codec codegen, not
     file-read/cache/prepare work or the small `reflect/result/list` tail.
+    `std:task.stop_policy(...)` and `stop_policy_wait(...)` now use the normalized `delay_ms` computed by
+    `_task_stop_fields(...)` for request/cancel modes too, removing redundant deadline-wrapper branches and the
+    unused returned `deadline_ns` field. The retained task profile stays in-band but moves `lib/std/task.oren`
+    slightly lower (~321ms -> 318ms) and `stop_policy_wait` to ~24ms. A wider task-group `extend` loop unification
+    plus watcher-join helper probe was reverted after it worsened the exact task-group module parse profile despite
+    removing one hot row.
     A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
     bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. A separate
     `std:task.stop_policy_wait` stop-mode helper split passed stage2 and focused surfaces but moved
