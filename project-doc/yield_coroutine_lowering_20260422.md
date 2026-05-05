@@ -724,6 +724,10 @@ string-name bypass helpers.
     slightly lower (~321ms -> 318ms) and `stop_policy_wait` to ~24ms. A wider task-group `extend` loop unification
     plus watcher-join helper probe was reverted after it worsened the exact task-group module parse profile despite
     removing one hot row.
+    `_task_stop_fields(...)` now also returns its private normalized fields as a positional list instead of a
+    string-keyed map that `stop_policy(...)` / `stop_policy_wait(...)` immediately re-indexed. The public stop-policy
+    API remains map-shaped. Focused task/task-group/generator/coroutine surfaces pass; the exact profile moves
+    `lib/std/task.oren` to ~286ms / 49 stmts, with `stop_policy_wait` ~19ms and `_task_stop_fields` ~14ms.
     The next retained task/task-group parser cleanup bypasses `std:list` wrappers for simple internal length/push
     operations, using `oren_list_len(...)` / `oren_list_push(...)` directly and dropping `std:task`'s now-dead list
     import. The final exact profile moves `lib/std/task_group.oren` from 476ms / 65 stmts / `parse_body_ms=299` to

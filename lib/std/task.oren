@@ -139,13 +139,7 @@ fn _task_stop_fields(ctx, policy0, want_join_timeout) {
         join_timeout_ms = _task_stop_join_timeout_arg(ctx, oren_map_get_str(policy, "join_timeout_ms"))
         if oren_is_err(join_timeout_ms) == true { return join_timeout_ms }
     }
-    return {
-        "mode": mode,
-        "delay_ms": _task_stop_delay_ms(deadline_ns, timeout_ms),
-        "grace_ms": grace_ms,
-        "reason": oren_map_get_str(policy, "reason"),
-        "join_timeout_ms": join_timeout_ms,
-    }
+    return [mode, _task_stop_delay_ms(deadline_ns, timeout_ms), grace_ms, oren_map_get_str(policy, "reason"), join_timeout_ms]
 }
 
 fn _task_stop_result(status, result, reason, detach_result) {
@@ -454,13 +448,13 @@ fn stop_policy(handle, policy0) {
     }
     var fields = _task_stop_fields("task.stop_policy", policy0, false)
     if oren_is_err(fields) == true { return fields }
-    if fields["mode"] == "request_cancel" {
-        return request_cancel_after(handle, fields["delay_ms"], fields["reason"])
+    if fields[0] == "request_cancel" {
+        return request_cancel_after(handle, fields[1], fields[3])
     }
-    if fields["mode"] == "cancel" {
-        return cancel_after(handle, fields["delay_ms"], fields["reason"])
+    if fields[0] == "cancel" {
+        return cancel_after(handle, fields[1], fields[3])
     }
-    var watcher = spawn _task_stop_after_worker(handle, fields["delay_ms"], fields["grace_ms"], fields["reason"])
+    var watcher = spawn _task_stop_after_worker(handle, fields[1], fields[2], fields[3])
     if oren_task_is_handle(watcher) != true {
         return _task_err("task.stop_policy", "failed to spawn stop watcher")
     }
@@ -473,40 +467,40 @@ fn stop_policy_wait(handle, policy0) {
     }
     var fields = _task_stop_fields("task.stop_policy_wait", policy0, true)
     if oren_is_err(fields) == true { return fields }
-    if fields["mode"] == "request_cancel" {
-        return request_cancel_after_wait(handle, fields["delay_ms"], fields["reason"], fields["join_timeout_ms"])
+    if fields[0] == "request_cancel" {
+        return request_cancel_after_wait(handle, fields[1], fields[3], fields[4])
     }
-    if fields["mode"] == "cancel" {
-        return cancel_after_wait(handle, fields["delay_ms"], fields["reason"], fields["join_timeout_ms"])
+    if fields[0] == "cancel" {
+        return cancel_after_wait(handle, fields[1], fields[3], fields[4])
     }
     var wait_ms = _task_stop_wait_budget_ms(
         "task.stop_policy_wait",
-        fields["join_timeout_ms"],
-        _task_stop_wait_ms(fields["delay_ms"], fields["grace_ms"])
+        fields[4],
+        _task_stop_wait_ms(fields[1], fields[2])
     )
     if oren_is_err(wait_ms) == true { return wait_ms }
-    var target_wait_ms = fields["grace_ms"]
-    if oren_type_tag(fields["join_timeout_ms"]) != 0 && fields["join_timeout_ms"] >= 0 {
-        if wait_ms <= fields["delay_ms"] {
+    var target_wait_ms = fields[2]
+    if oren_type_tag(fields[4]) != 0 && fields[4] >= 0 {
+        if wait_ms <= fields[1] {
             target_wait_ms = 0
         } else {
-            target_wait_ms = wait_ms - fields["delay_ms"]
+            target_wait_ms = wait_ms - fields[1]
         }
     }
     var watcher_wait_ms = wait_ms
-    if oren_type_tag(fields["join_timeout_ms"]) == 0 || fields["join_timeout_ms"] < 0 {
+    if oren_type_tag(fields[4]) == 0 || fields[4] < 0 {
         watcher_wait_ms = _task_request_wait_default_ms(wait_ms)
     }
-    if _task_can_use_delayed_native_wait(fields["delay_ms"], fields["join_timeout_ms"]) == true {
-        return oren_task_cancel_after_wait(handle, fields["delay_ms"], target_wait_ms, fields["reason"])
+    if _task_can_use_delayed_native_wait(fields[1], fields[4]) == true {
+        return oren_task_cancel_after_wait(handle, fields[1], target_wait_ms, fields[3])
     }
-    var watcher = spawn _task_stop_after_worker(handle, fields["delay_ms"], target_wait_ms, fields["reason"])
+    var watcher = spawn _task_stop_after_worker(handle, fields[1], target_wait_ms, fields[3])
     if oren_task_is_handle(watcher) != true {
         return _task_err("task.stop_policy_wait", "failed to spawn stop watcher")
     }
     var rv = join_timeout(watcher, watcher_wait_ms)
     if oren_is_err(rv) == true { return rv }
-    var timeout_rv = _task_timeout_detach_result(watcher, rv, fields["reason"])
+    var timeout_rv = _task_timeout_detach_result(watcher, rv, fields[3])
     if timeout_rv != nil { return timeout_rv }
     if oren_type_name(rv) != "map" {
         return _task_err("task.stop_policy_wait", "stop watcher returned invalid result")
