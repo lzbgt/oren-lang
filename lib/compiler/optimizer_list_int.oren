@@ -1348,6 +1348,21 @@ fn _opt_lower_int_only_lists_in_block(block) {
     return _opt_lower_int_only_lists_in_block_opts(block, false, nil)
 }
 
+fn _opt_list_int_stmt_has_lowerable_body(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" { return true }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        return e != nil && e["type"] == "If"
+    }
+    return false
+}
+
+fn _opt_list_int_has_any_candidate(list_state) {
+    if list_state == nil { return false }
+    return oren_map_len(list_state) > 0
+}
 
 fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
     if block == nil || block["type"] != "Block" { return nil }
@@ -1400,10 +1415,14 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
     while i < oren_list_len(ss) {
         var st = ss[i]
         if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
-        _opt_lower_int_only_lists_in_stmt(st, allow_empty, safe_ints)
+        if _opt_list_int_stmt_has_lowerable_body(st) == true {
+            _opt_lower_int_only_lists_in_stmt(st, allow_empty, safe_ints)
+        }
         _opt_list_int_profile_add("lower", prof_part_t0)
         if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
-        _opt_scan_list_int_uses_stmt(st, list_state, safe_ints)
+        if _opt_list_int_has_any_candidate(list_state) == true {
+            _opt_scan_list_int_uses_stmt(st, list_state, safe_ints)
+        }
         _opt_list_int_profile_add("use_scan", prof_part_t0)
         if list_empty_seen == true {
             if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }

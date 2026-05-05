@@ -548,11 +548,12 @@ backend-shared value-helper slices landed.
     row now also carries the top fold/list-int/reserve function bodies, avoiding separate phase-log append overhead;
     that data showed residual list-pass cost was dominated by generator surface fixture functions. Splitting the
     hottest basic/close/finalize/timeout/iteration/declaration/cancel-hook fixture bodies kept the generator surface verifier green and moved optimizer
-    total from ~3.16s to ~2.58s, `list_int_ms` from ~1.16s to ~0.79s, `reserve_ms` from ~0.45s to ~0.30s, and the
-    largest list-int body from ~135ms to ~39ms. The same summary now reports list-pass internals: skipping an unnecessary
-    recursive-lowering seed clone and delaying touch marking until an empty-list candidate exists moves `list_int_ms` to
-    ~0.49s and `list_int_scan_ms2` from ~863ms to ~492ms, with remaining scan-loop buckets split into `lower` ~191ms,
-    `use_scan` ~227ms, and `touch` ~50ms. Reserve is dominated by safe-int maintenance; skipping the duplicate top-level
+    total from ~3.16s to ~2.02s, `list_int_ms` from ~1.16s to ~0.29s, `reserve_ms` from ~0.45s to ~0.25s, and the
+    largest list-int body from ~135ms to ~32ms. The same summary now reports list-pass internals: skipping an unnecessary
+    recursive-lowering seed clone, skipping no-op recursive lowering for statement forms with no lowerable body, scanning
+    list uses only after a current-block candidate exists, and delaying touch marking until an empty-list candidate exists
+    moves `list_int_scan_ms2` from ~863ms to ~269ms, with remaining scan-loop buckets split into `lower` ~162ms,
+    `use_scan` ~40ms, and `touch` ~49ms. Reserve is dominated by safe-int maintenance; skipping the duplicate top-level
     `Var`/`Assign` safe-int update in the reserve pass moves `reserve_ms` to ~0.25s and `reserve_safe_ms` to ~221-225ms. A
     narrower list-int-only prefilter probe reduced candidates to `86/470`, but it raised list-scan overhead to ~53ms,
     left `list_int` around ~1.44s, and worsened optimizer total to ~3.42s, so the source probe was reverted.
