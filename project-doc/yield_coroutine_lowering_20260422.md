@@ -21,6 +21,9 @@ uninstrumented wrapper body emission rather than disappearing.
 The adjacent task-group parser-body probe that cached repeated `oren_type_tag(...)` results inside
 `_task_group_validate_policy_shape(...)` was also rejected: it passed focused surfaces, but regressed
 module parse/codegen shape (`task_group.oren` about `471ms -> 616ms`, `user_decls` about `3.38s -> 4.22s`).
+The same profile batch rejected a scattered list-int trace-gating cleanup too: it preserved
+`OREN_TRACE_LIST_INT` behavior, but the added per-site trace checks regressed the default profile
+(`reserve_safe_ms` about `201ms -> 280ms`, `user_decls` about `3.38s -> 5.01s`).
 
 ## Current shipped state
 
