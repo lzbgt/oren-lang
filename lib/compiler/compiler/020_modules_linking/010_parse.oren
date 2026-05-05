@@ -579,12 +579,15 @@ fn discover_module(base, path, config) {
 
 fn _ml_parse_discovered_modules_serial(config) {
     var i = 0
+    var phase_log_path = _ml_phase_log_path()
     while i < oren_list_len(MODULE_ORDER) {
         var m = MODULE_ORDER[i]
         if m["program"] == nil {
             if oren_env("OREN_PARSE_WORKER_TRACE") != nil {
                 print("[trace] parse serial module: " + m["path"])
             }
+            var mod_t0 = 0
+            if phase_log_path != nil { mod_t0 = oren_time_now_ns() }
             var rr = _ml_parse_and_prepare_module_result(m["path"], m["prefix"], config)
             if rr["ok"] != true {
                 print("Failed to parse module: " + m["path"])
@@ -599,6 +602,20 @@ fn _ml_parse_discovered_modules_serial(config) {
                 oren_exit(1)
             }
             m["program"] = rr["prog"]
+            if phase_log_path != nil {
+                var stmt_n = 0
+                var trait_n = 0
+                if rr["prog"] != nil && rr["prog"]["statements"] != nil { stmt_n = oren_list_len(rr["prog"]["statements"]) }
+                if rr["prog"] != nil && rr["prog"]["traits"] != nil { trait_n = oren_list_len(rr["prog"]["traits"]) }
+                var cache_hit = "0"
+                if rr["cache_hit"] == true { cache_hit = "1" }
+                _ml_phase_log_append(phase_log_path, "link.parse_module.done",
+                    "path=" + m["path"] +
+                    " stmts=" + oren_int_to_string(stmt_n) +
+                    " traits=" + oren_int_to_string(trait_n) +
+                    " cache_hit=" + cache_hit,
+                    mod_t0)
+            }
         }
         i = i + 1
     }

@@ -5408,10 +5408,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        and debug. This closes the full-runtime no-debug miss observed when the
 														        list-int parity fixture imported `std:linalg` and otherwise fell through to
 														        `rtobj.miss.build.start` despite compatible schema-3 cache artifacts. Isolated
-														        seed dirs can also copy from the persistent fallback seed dir before attempting
-														        a cold fill, and cross-compiler cold rtobj seed builds are refused by default
-														        because the cache key validates runtime/backend compatibility, not which
-														        compiler binary emitted the runtime object.
+															        seed dirs can also copy from the persistent fallback seed dir before attempting
+															        a cold fill, and cross-compiler cold rtobj seed builds are refused by default
+															        because the cache key validates runtime/backend compatibility, not which
+															        compiler binary emitted the runtime object.
+														      - Module parse profile follow-up (2026-05-05): serial module parsing now emits
+														        `link.parse_module.done` rows into the standard native build phase log, and
+														        `profile-native-build-phases` prints a module table. The refreshed generator
+														        profile identifies `lib/std/generator.oren` as the dominant parse module
+														        (~1.42s / 137 stmts), followed by `lib/std/task_group.oren` (~520ms / 62 stmts)
+														        and `lib/std/task.oren` (~322ms / 52 stmts). Reweight module-parse work toward
+														        those modules or persistent module-cache hits instead of the small tail.
 														      - ARM64 assignment/global trait propagation now reuses the already-computed
 														        float trait when deriving integer trait state. This removes redundant
 														        top-level expression walks in hot `var`, `assign`, and global-slot paths;

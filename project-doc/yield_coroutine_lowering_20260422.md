@@ -550,6 +550,12 @@ backend-shared value-helper slices landed.
     fallback seed dir before attempting a cold build, and the helper refuses cross-compiler cold rtobj seed builds
     by default; the existing cache key proves runtime/backend compatibility, not that a stage1-emitted runtime
     object is safe to link into a stage2-emitted user binary.
+  - Module parse profiling (2026-05-05): the serial module parse path now emits `link.parse_module.done` rows
+    into the standard phase log, and `scripts/profile_native_build_phases.sh` summarizes them by module path. The
+    refreshed generator profile identifies `lib/std/generator.oren` as the dominant parse module (~1.42s / 137
+    stmts), followed by `lib/std/task_group.oren` (~520ms / 62 stmts) and `lib/std/task.oren` (~322ms / 52 stmts).
+    Reweight module-parse follow-up toward those modules or persistent module-cache hits rather than the small
+    `reflect/result/list` tail.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:

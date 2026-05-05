@@ -107,6 +107,37 @@ for ms, prev_name, name, detail in sorted(deltas, reverse=True)[:15]:
     suffix = f" {detail}" if detail else ""
     print(f"{ms:10.3f} ms  {prev_name} -> {name}{suffix}")
 
+parse_module_rows = []
+detail_field_re = re.compile(r"([a-zA-Z_]+)=([^ ]*)")
+for phase_name, _ns, detail in events:
+    if phase_name != "link.parse_module.done":
+        continue
+    fields = {m.group(1): m.group(2) for m in detail_field_re.finditer(detail)}
+    try:
+        ms = int(fields.get("total_ms", "0"))
+    except ValueError:
+        ms = 0
+    try:
+        stmts = int(fields.get("stmts", "0"))
+    except ValueError:
+        stmts = 0
+    try:
+        traits = int(fields.get("traits", "0"))
+    except ValueError:
+        traits = 0
+    parse_module_rows.append({
+        "path": fields.get("path", ""),
+        "ms": ms,
+        "stmts": stmts,
+        "traits": traits,
+        "cache_hit": fields.get("cache_hit", "0"),
+    })
+
+if parse_module_rows:
+    print("== module parse by path ==")
+    for row in sorted(parse_module_rows, key=lambda item: (item["ms"], item["stmts"], item["traits"]), reverse=True)[:30]:
+        print(f"{row['ms']:10d} ms  {row['stmts']:6d} stmts  {row['traits']:5d} traits  cache_hit={row['cache_hit']}  path={row['path']}")
+
 rows = []
 if function_log.exists():
     for line in function_log.read_text(errors="replace").splitlines():
