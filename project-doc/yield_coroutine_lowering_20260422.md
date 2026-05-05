@@ -18,6 +18,9 @@ A second direct lambda-wrapper local-binding probe was also rejected: it removed
 `lambda_wrap` generic `oren_list_get` statement bucket, but default wrapper wall time regressed
 (`lambda_wrap` about `2.03s -> 2.28s`, `fnwrap` about `1.10s -> 1.31s`) because the work moved into
 uninstrumented wrapper body emission rather than disappearing.
+The adjacent task-group parser-body probe that cached repeated `oren_type_tag(...)` results inside
+`_task_group_validate_policy_shape(...)` was also rejected: it passed focused surfaces, but regressed
+module parse/codegen shape (`task_group.oren` about `471ms -> 616ms`, `user_decls` about `3.38s -> 4.22s`).
 
 ## Current shipped state
 
