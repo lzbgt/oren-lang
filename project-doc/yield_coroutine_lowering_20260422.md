@@ -47,6 +47,12 @@ shape still made the stats-enabled native profile time out at `180s` before
 `arm64.codegen.user_decls.done` after `make stage2` passed. Treat this as evidence that the next
 first-touch resolver design must avoid generic Oren fixup fields on hot emit paths entirely: use a
 lower-level side vector or one linear post-codegen materialization pass for compact target metadata.
+A Mach-O-loop hot-name bypass was rejected as well. It avoided emit-site overhead and cut stats
+counters (`lookups 11131 -> 3978`, `scan_steps 106353 -> 35716`, `hot_prefilled=7153`), but did not
+move the real wall-time boundary: the exact final stats run still spent about `213ms` before `i=0`
+and about `1945ms` to reach `i=4096`, effectively matching the old `~1.95s` first-touch cost after
+precompute. The resolver needs compact target ids/offsets that avoid both generic fixup fields and
+string-name comparisons.
 
 ## Current shipped state
 
