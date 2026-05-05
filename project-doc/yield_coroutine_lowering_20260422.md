@@ -67,6 +67,11 @@ prefilled `bl_target` lane exists. The default profile moves the first local BL 
 scan steps. Treat the remaining Mach-O target as lower-level compact target-id/offset representation;
 the shipped win is from deleting nil-filled target-list materialization and the second BL apply loop,
 not from another name-cache strategy.
+The adjacent ADR-code single-pass probe was rejected. It passed `make stage2` plus default and
+stats native profiles, but ADR-code fixups are only about `140` entries in the current build and
+the measured bucket stayed in the same noisy `~70-95ms` range while the phase ordering became less
+directly comparable. Keep the retained cleanup BL-only until ADR-code fixups become a large measured
+target.
 
 ## Current shipped state
 
