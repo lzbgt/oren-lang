@@ -240,6 +240,10 @@ backend-shared value-helper slices landed.
     the candidate count (`12567`), but the measured first BL resolve bucket stayed flat/slightly worse
     (`~2.40s` to `~2.43-2.45s`). Do not retry bucket discovery that only moves the traversal cost into
     per-lookup map/list overhead.
+  - Rejected newest-first resolver scan (2026-05-05): scanning the local target cache from newest to
+    oldest instead of oldest to newest made `make stage2` exceed the recent stage2 band with no progress
+    beyond self-hosted stage2 build startup, so it was terminated and reverted. The resolver needs a
+    different traversal design, not assumed temporal locality.
   - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions now skip
     native call-depth enter/exit instrumentation on ARM64 and x64 because the real target function
     still carries the guard. Lambda wrappers remain guarded because they own their body. The measured
