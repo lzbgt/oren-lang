@@ -718,6 +718,12 @@ string-name bypass helpers.
     (`_task_group_validate_policy_shape`, `task.stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
     representation only if it beats the cloned-AST cache without importing ASTBIN codec codegen, not
     file-read/cache/prepare work or the small `reflect/result/list` tail.
+    `_task_group_runtime_stop_snapshot(...)` now returns its private runtime stop carrier as
+    `[members, member_kinds, policy]` rather than a temporary string-keyed map immediately consumed by runtime
+    `stop_policy(...)` / `stop_policy_wait(...)`. The public `task_group.snapshot(...)` surface remains map-shaped.
+    Focused task/task-group/generator/coroutine surfaces pass; the exact profile moves `lib/std/task_group.oren`
+    to ~433ms / 62 stmts with `parse_body_ms=265`, leaving `_task_group_validate_policy_shape` as the real residual
+    task-group row.
     `std:task.stop_policy(...)` and `stop_policy_wait(...)` now use the normalized `delay_ms` computed by
     `_task_stop_fields(...)` for request/cancel modes too, removing redundant deadline-wrapper branches and the
     unused returned `deadline_ns` field. The retained task profile stays in-band but moves `lib/std/task.oren`
