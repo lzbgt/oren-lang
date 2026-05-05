@@ -228,6 +228,20 @@ fn insn_fcvtzs(rd, rn) { return core.insn_fcvtzs(rd, rn) }
 fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
 fn insn_add_4s(vd, vn, vm) { return core.insn_add_4s(vd, vn, vm) }
 
+fn _arm64_hot_bl_compact_name(callee_name) {
+    if callee_name == "oren_is_err" { return -7 }
+    if callee_name == "oren_map_get_str" { return -8 }
+    if callee_name == "oren_new_list" { return -9 }
+    if callee_name == "oren_list_get" { return -10 }
+    if callee_name == "oren_list_push_unchecked" { return -11 }
+    if callee_name == "_list_find_node_known_kind" { return -12 }
+    if callee_name == "oren_func" { return -13 }
+    if callee_name == "oren_list_push" { return -14 }
+    if callee_name == "oren_add" { return -15 }
+    if callee_name == "oren_map_get_int" { return -16 }
+    return callee_name
+}
+
 fn native_emit_gc_visible_call_expr(ctx, callee_name) {
     // Spill callee-saved regs so conservative GC sees register-held pointers.
     push_u32_le(ctx["code"], insn_stp_pair_pre(19, 20, 31, -16))
@@ -240,7 +254,7 @@ fn native_emit_gc_visible_call_expr(ctx, callee_name) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": callee_name})
     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], callee_name)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], _arm64_hot_bl_compact_name(callee_name))
 
     push_u32_le(ctx["code"], insn_ldp_pair_post(27, 28, 31, 16))
     push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 31, 16))
@@ -255,7 +269,7 @@ fn native_emit_named_bl_expr(ctx, callee_name) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": callee_name})
     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], callee_name)
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], _arm64_hot_bl_compact_name(callee_name))
     return nil
 }
 

@@ -102,7 +102,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], 0)
 	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "_list_find_node_known_kind"})
 	                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node)
-	                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+	                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -12)
 	
                 // node == 0 => fallback on magic or panic
                 push_u32_le(ctx["code"], insn_movz(1, 0))
@@ -253,7 +253,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_i, "name": "_list_find_node_known_kind"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node_i)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -12)
 
                 // node == 0 => fallback on magic or panic
                 push_u32_le(ctx["code"], insn_movz(1, 0))
@@ -358,7 +358,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 		                push_u32_le(ctx["code"], 0)
 		                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node2, "name": "_list_find_node_known_kind"})
 		                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node2)
-		                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+		                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -12)
 	
 	                // node == 0 => panic
 	                push_u32_le(ctx["code"], insn_movz(2, 0))
@@ -406,7 +406,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_list_push_unchecked"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push_unchecked")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -11)
                 var br_done2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
@@ -498,7 +498,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node2i, "name": "_list_find_node_known_kind"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node2i)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -12)
                 // Preserve node for panic footer traces.
                 push_u32_le(ctx["code"], insn_mov_reg(21, 0)) // X21 = node
 
@@ -744,7 +744,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_g, "name": "_list_find_node_known_kind"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node_g)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -12)
                 push_u32_le(ctx["code"], insn_mov_reg(21, 0)) // X21 = node
 
                 // node == 0 => panic
@@ -890,7 +890,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_s, "name": "_list_find_node_known_kind"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find_node_s)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -12)
 
                 // node == 0 => panic
                 push_u32_le(ctx["code"], insn_movz(2, 0))

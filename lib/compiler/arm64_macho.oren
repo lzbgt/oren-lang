@@ -73,6 +73,16 @@ fn _macho_hot_bl_id_name(id) {
     if id == -4 { return "oren_call_depth_exit" }
     if id == -5 { return "native_list_len_panic" }
     if id == -6 { return "oren_find_node" }
+    if id == -7 { return "oren_is_err" }
+    if id == -8 { return "oren_map_get_str" }
+    if id == -9 { return "oren_new_list" }
+    if id == -10 { return "oren_list_get" }
+    if id == -11 { return "oren_list_push_unchecked" }
+    if id == -12 { return "_list_find_node_known_kind" }
+    if id == -13 { return "oren_func" }
+    if id == -14 { return "oren_list_push" }
+    if id == -15 { return "oren_add" }
+    if id == -16 { return "oren_map_get_int" }
     return nil
 }
 
@@ -1618,6 +1628,16 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var hot_bl_call_depth_exit = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_call_depth_exit")
     var hot_bl_list_len_panic = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "native_list_len_panic")
     var hot_bl_find_node = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_find_node")
+    var hot_bl_is_err = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_is_err")
+    var hot_bl_map_get_str = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_map_get_str")
+    var hot_bl_new_list = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_new_list")
+    var hot_bl_list_get = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_get")
+    var hot_bl_list_push_unchecked = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_push_unchecked")
+    var hot_bl_find_node_known_kind = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "_list_find_node_known_kind")
+    var hot_bl_func = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_func")
+    var hot_bl_list_push = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_push")
+    var hot_bl_add = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_add")
+    var hot_bl_map_get_int = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_map_get_int")
     i = 0
     var local_bl_prefilled = 0
     var local_bl_resolved = 0
@@ -1642,6 +1662,16 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 else if name_bl_local == -4 { target_local = hot_bl_call_depth_exit }
                 else if name_bl_local == -5 { target_local = hot_bl_list_len_panic }
                 else if name_bl_local == -6 { target_local = hot_bl_find_node }
+                else if name_bl_local == -7 { target_local = hot_bl_is_err }
+                else if name_bl_local == -8 { target_local = hot_bl_map_get_str }
+                else if name_bl_local == -9 { target_local = hot_bl_new_list }
+                else if name_bl_local == -10 { target_local = hot_bl_list_get }
+                else if name_bl_local == -11 { target_local = hot_bl_list_push_unchecked }
+                else if name_bl_local == -12 { target_local = hot_bl_find_node_known_kind }
+                else if name_bl_local == -13 { target_local = hot_bl_func }
+                else if name_bl_local == -14 { target_local = hot_bl_list_push }
+                else if name_bl_local == -15 { target_local = hot_bl_add }
+                else if name_bl_local == -16 { target_local = hot_bl_map_get_int }
                 if target_local != nil { local_bl_hot_id = local_bl_hot_id + 1 }
                 else { name_bl_local = _macho_hot_bl_id_name(name_bl_local) }
                 if name_bl_local == nil { name_bl_local = "unknown_hot_bl_id" }

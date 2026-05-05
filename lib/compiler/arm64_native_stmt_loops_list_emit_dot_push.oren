@@ -107,7 +107,7 @@ fn _arm64_emit_find_list_node_known_kind(ctx, ptr_reg, dst_reg, want_kind) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find, "name": "_list_find_node_known_kind"})
     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_find)
-    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "_list_find_node_known_kind")
+    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -12)
     if dst_reg != 0 { push_u32_le(ctx["code"], insn_mov_reg(dst_reg, 0)) }
     return nil
 }

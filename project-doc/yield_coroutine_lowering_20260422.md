@@ -1913,6 +1913,13 @@ That path keeps the current repo state honest:
   default first-4096 BL span moves to about `1.29s` from the recent `~1.40s` band. Insertion shifts
   are still about `36598`, so the next design should remove tail insertion/direct-array
   materialization for remaining names rather than adding another hot emit side lane.
+- 2026-05-06: extended the same compact Mach-O BL id lane to the next measured runtime targets
+  without adding new fixup-side metadata. The compact `bl_name` slot now carries ids for the hot
+  runtime top names through `oren_map_get_int`; legacy fixup maps still carry strings. Stats move
+  `hot_id` to `9412`, BL string lookups to `1711`, scan steps to `14478`, and byte compares to
+  `1565`; the default first-4096 BL span moves to about `1.05s`. The remaining target is now the
+  long-tail insertion/name path, best attacked by direct target arrays or insertion-free
+  materialization rather than more Oren-level side lists/maps.
 - 2026-05-06: removed another stale private-helper batch whose names each had exactly one repo
   occurrence before deletion. The cleanup spans compiler and stdlib modules but does not alter the
   coroutine helper contract: `_arm64_cmp_may_use_strcmp`, `_attr_list`,

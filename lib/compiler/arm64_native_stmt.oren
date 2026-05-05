@@ -1512,7 +1512,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list2, "name": "oren_new_list"})
                         oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list2)
-                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
 
                         // Save fixed args list on stack.
                         push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -1536,7 +1536,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                             push_u32_le(ctx["code"], 0)
                             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push2, "name": "oren_list_push"})
                             oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push2)
-                            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
+                            oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
                             k2 = k2 + 1
                         }
 
@@ -1567,7 +1567,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list3, "name": "oren_new_list"})
                     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list3)
-                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
 
                     // Save fixed list on stack.
                     push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -1590,7 +1590,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push3, "name": "oren_list_push"})
                         oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push3)
-                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
                         k3 = k3 + 1
                     }
 
@@ -1615,7 +1615,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list, "name": "oren_new_list"})
                     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list)
-                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
 
                     push_u32_le(ctx["code"], insn_sub_sp(16))
                     push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1638,7 +1638,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                         push_u32_le(ctx["code"], 0)
                         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push, "name": "oren_list_push"})
                         oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push)
-                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
 
                         k = k + 1
                     }
@@ -1685,7 +1685,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list4, "name": "oren_new_list"})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list4)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_list")
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
 
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -1707,7 +1707,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push4, "name": "oren_list_push"})
                     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push4)
-                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_list_push")
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
                     k4 = k4 + 1
                 }
 
