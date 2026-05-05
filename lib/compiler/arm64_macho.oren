@@ -2,7 +2,6 @@ import codegen "codegen_arm64.oren"
 import core "arm64_core.oren"
 import abi "arm64_abi_macos.oren"
 
-fn arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) { return core.arm64_ctx_fixup_adr_data(ctx, pos, data_off, reg) }
 fn arm64_ctx_fixup_got_load(ctx, pos, got_index) { return core.arm64_ctx_fixup_got_load(ctx, pos, got_index) }
 
 fn macho_diag_escape(msg) {
@@ -462,19 +461,15 @@ fn bytes_finalize(b) { return codegen.bytes_finalize(b) }
 
 fn push_u32_le(buf, n) { return codegen.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return codegen.push_u64_le(buf, n) }
-fn push_u32_be(buf, n) { return codegen.push_u32_be(buf, n) }
 fn set_u32_le(buf, offset, n) { return codegen.set_u32_le(buf, offset, n) }
 
 fn align_up(n, align) { return codegen.align_up(n, align) }
-fn ceil_div(a, b) { return codegen.ceil_div(a, b) }
 fn int_mod(a, b) { return codegen.int_mod(a, b) }
 
 fn insn_movz(reg, imm16) { return codegen.insn_movz(reg, imm16) }
 fn insn_movk(reg, imm16, shift_idx) { return codegen.insn_movk(reg, imm16, shift_idx) }
 fn insn_bl(off) { return codegen.insn_bl(off) }
-fn insn_adr(reg, imm) { return codegen.insn_adr(reg, imm) }
 fn insn_adrp(reg, imm_pages) { return codegen.insn_adrp(reg, imm_pages) }
-fn insn_ret() { return codegen.insn_ret() }
 fn insn_svc(imm) { return core.insn_svc(imm) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_br(rn) { return core.insn_br(rn) }

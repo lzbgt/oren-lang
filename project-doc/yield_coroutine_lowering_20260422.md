@@ -82,6 +82,9 @@ eliminated lazy appends and made the BL loop itself roughly `100ms`, but the pre
 about `71.7s` for `1889` entries before the first BL fixup. The remaining viable direction is still
 lower-level target ids/offsets or direct target arrays carried from emission/materialized without
 generic maps, string-name bypasses, fixup-side sid fields, or Oren-level global target sorting.
+The same pass removed unused local Mach-O forwarding wrappers left behind by prior emitter churn
+(`arm64_ctx_fixup_adr_data`, `push_u32_be`, `ceil_div`, `insn_adr`, `insn_ret`). That cleanup is
+source-shape only; it does not alter the remaining compact target-id/materialization boundary.
 
 ## Current shipped state
 
