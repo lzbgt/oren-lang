@@ -728,6 +728,10 @@ string-name bypass helpers.
     task/task-group/generator/coroutine surfaces: the exact profile moved `lib/std/task_group.oren` back up to
     ~448ms / 62 stmts and made `_task_group_merge_policy` the second hot row at ~12ms. Keep the shipped key-list
     loop unless a future change deletes larger validation/merge structure.
+    A merge+validate wrapper probe was rejected for the same reason: `_task_group_merge_policy_validated(...)`
+    preserved behavior and passed focused surfaces, but added a statement/function and left
+    `_task_group_validate_policy_shape` as the top row, moving the exact profile to ~447ms / 63 stmts. The next
+    validation attempt needs to remove the validation data shape itself, not reshuffle helper calls.
     `std:task.stop_policy(...)` and `stop_policy_wait(...)` now use the normalized `delay_ms` computed by
     `_task_stop_fields(...)` for request/cancel modes too, removing redundant deadline-wrapper branches and the
     unused returned `deadline_ns` field. The retained task profile stays in-band but moves `lib/std/task.oren`
