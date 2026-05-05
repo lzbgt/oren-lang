@@ -250,10 +250,51 @@ fn stmt_may_assign_name(stmt) {
     if stmt == nil { return false }
     var t = stmt["type"]
     if t == "Assign" || t == "Var" || t == "Set" { return true }
-    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" { return true }
+    if t == "Block" || t == "StmtList" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if stmt_may_assign_name(ss[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "If" {
+        if stmt_may_assign_name(stmt["consq"]) { return true }
+        return stmt_may_assign_name(stmt["alt"])
+    }
+    if t == "While" { return stmt_may_assign_name(stmt["body"]) }
+    if t == "For" {
+        if stmt_may_assign_name(stmt["init"]) { return true }
+        if stmt_may_assign_name(stmt["post"]) { return true }
+        return stmt_may_assign_name(stmt["body"])
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil && stmt_may_assign_name(c["body"]) { return true }
+            ci = ci + 1
+        }
+        return stmt_may_assign_name(stmt["default"])
+    }
     if t == "ExprStmt" {
         var e = stmt["expr"]
-        if e != nil && (e["type"] == "If" || e["type"] == "Switch") { return true }
+        if e != nil && e["type"] == "If" {
+            if stmt_may_assign_name(e["consq"]) { return true }
+            return stmt_may_assign_name(e["alt"])
+        }
+        if e != nil && e["type"] == "Switch" {
+            var cases2 = e["cases"]
+            var ci2 = 0
+            while cases2 != nil && ci2 < oren_list_len(cases2) {
+                var c2 = cases2[ci2]
+                if c2 != nil && stmt_may_assign_name(c2["body"]) { return true }
+                ci2 = ci2 + 1
+            }
+            return stmt_may_assign_name(e["default"])
+        }
     }
     return false
 }

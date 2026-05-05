@@ -643,6 +643,9 @@ string-name comparisons.
 	    `Var` exists after recursively optimizing child blocks. The native `tail_recursion_ok` and `non_tail_modconst_ok` fixtures
 	    still pass, and the generator profile moves `tco_mod+tco` from ~71ms to `tco_scan=19ms` plus zero rewrite work, `dce_ms`
 	    from ~55ms to ~11ms, and optimizer total to ~1052ms.
+	    The reserve-safe follow-up makes `stmt_may_assign_name(...)` recursively precise for control-flow bodies, keeping real
+	    `Var`/`Assign`/`Set` invalidation while skipping assignment-free subtrees. That moves optimizer total to ~857ms,
+	    `reserve_ms` to ~46ms, and `reserve_safe_ms` to ~15ms on the generator profile.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 	    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
