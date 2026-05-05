@@ -629,6 +629,10 @@ string-name comparisons.
 	    prefilter skips full env-mutating const propagation unless the exact rewrite shape exists. The refreshed generator profile
 	    moved `const_ms` from ~144ms to ~20ms and optimizer total to ~1.23s, with `const_prefilter_hit=0` on that fixture;
 	    `tests/fixtures/optimizer_const_mod_rewrite_main.oren` keeps the positive rewrite path covered in native quick integration.
+	    A later reserve safe-maintenance guard skips no-op post-statement safe-int maintenance for statement shapes that cannot
+	    assign tracked locals, while preserving the original path for `Var`/`Assign`/`Set` and control-flow bodies. The exact
+	    profile moves optimizer total from ~1175ms to ~1140ms, `reserve_ms` from ~227ms to ~219ms, and `reserve_safe_ms`
+	    from ~198ms to ~190ms.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
     profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object

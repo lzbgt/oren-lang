@@ -980,7 +980,7 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
         }
 
         oren_list_push(out, st)
-        if is_top_assign != true {
+        if is_top_assign != true && opthelp.stmt_may_assign_name(st) == true {
             if OPT_RESERVE_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
             last_int_safe = _opt_safe_ints_after_stmt(st, last_int_safe, "reserve")
             var assigned = {}

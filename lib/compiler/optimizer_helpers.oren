@@ -245,3 +245,15 @@ fn collect_assigned_names_stmt(out, stmt) {
     }
     return nil
 }
+
+fn stmt_may_assign_name(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Assign" || t == "Var" || t == "Set" { return true }
+    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" { return true }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && (e["type"] == "If" || e["type"] == "Switch") { return true }
+    }
+    return false
+}
