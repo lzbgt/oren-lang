@@ -1348,15 +1348,81 @@ fn _opt_lower_int_only_lists_in_block(block) {
     return _opt_lower_int_only_lists_in_block_opts(block, false, nil)
 }
 
-fn _opt_list_int_stmt_has_lowerable_body(stmt) {
+fn _opt_list_int_expr_may_start_candidate(expr, allow_empty) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Call" {
+        var nm = _opt_call_name(expr)
+        if nm == "oren_new_list" || nm == "oren_list_new_cap" { return true }
+        if nm == "oren_arena_new_list" || nm == "oren_arena_new_list_auto" { return true }
+        if nm == "oren_new_list_int" || nm == "oren_arena_new_list_int" || nm == "oren_arena_new_list_int_auto" {
+            return true
+        }
+        return false
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els == nil { return false }
+        if oren_list_len(els) > 0 { return true }
+        return allow_empty == true
+    }
+    return false
+}
+
+fn _opt_list_int_stmt_may_start_candidate(stmt, allow_empty) {
     if stmt == nil { return false }
     var t = stmt["type"]
-    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" {
-        return opthelp.stmt_may_touch_list(stmt)
+    if t == "Var" || t == "Assign" {
+        return _opt_list_int_expr_may_start_candidate(stmt["value"], allow_empty)
+    }
+    if t == "Block" || t == "StmtList" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if _opt_list_int_stmt_may_start_candidate(ss[i], allow_empty) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "If" {
+        if _opt_list_int_stmt_may_start_candidate(stmt["consq"], allow_empty) { return true }
+        return _opt_list_int_stmt_may_start_candidate(stmt["alt"], allow_empty)
+    }
+    if t == "While" {
+        return _opt_list_int_stmt_may_start_candidate(stmt["body"], allow_empty)
+    }
+    if t == "For" {
+        return _opt_list_int_stmt_may_start_candidate(stmt["body"], allow_empty)
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil && _opt_list_int_stmt_may_start_candidate(c["body"], allow_empty) { return true }
+            ci = ci + 1
+        }
+        return _opt_list_int_stmt_may_start_candidate(stmt["default"], allow_empty)
     }
     if t == "ExprStmt" {
         var e = stmt["expr"]
-        return e != nil && e["type"] == "If" && opthelp.expr_may_touch_list(e)
+        if e != nil && e["type"] == "If" {
+            if _opt_list_int_stmt_may_start_candidate(e["consq"], allow_empty) { return true }
+            return _opt_list_int_stmt_may_start_candidate(e["alt"], allow_empty)
+        }
+    }
+    return false
+}
+
+fn _opt_list_int_stmt_has_lowerable_body(stmt, allow_empty) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" {
+        return _opt_list_int_stmt_may_start_candidate(stmt, allow_empty)
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        return e != nil && e["type"] == "If" && _opt_list_int_stmt_may_start_candidate(stmt, allow_empty)
     }
     return false
 }
@@ -1425,7 +1491,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
     while i < oren_list_len(ss) {
         var st = ss[i]
         if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
-        if _opt_list_int_stmt_has_lowerable_body(st) == true {
+        if _opt_list_int_stmt_has_lowerable_body(st, allow_empty) == true {
             _opt_lower_int_only_lists_in_stmt(st, allow_empty, safe_ints)
         }
         _opt_list_int_profile_add("lower", prof_part_t0)

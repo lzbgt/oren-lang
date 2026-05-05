@@ -662,6 +662,11 @@ string-name comparisons.
 		    `fold_stmt(Block)` already creates a local fact frame when direct `Var`/`Assign` statements can update facts. Non-block
 		    control bodies keep the old clone/push path. The retained profile moves optimizer total to ~514ms, `fold_ms` to ~60ms,
 		    `fold_env_push` to `352`, and `fold_env_clone` to `4`.
+		    Nested list-int lowering now uses a candidate-start detector instead of the broader conservative list-touch detector
+		    before recursing into branch/loop/switch/block bodies. The detector mirrors the actual lowerer surface and descends only
+		    when a nested `Var`/`Assign` can introduce a list/list-int constructor or potentially-safe list literal; use scanning and
+		    final rewrites stay on their existing guards. The retained profile moves optimizer total to ~422ms, `list_int_ms` to
+		    ~80ms, and `list_int_lower_ms` from ~67ms to ~4ms.
 		    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 		    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
