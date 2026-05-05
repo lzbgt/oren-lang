@@ -96,6 +96,10 @@ The same dead-helper sweep removed another repo-proven stale compiler batch from
 `_ml_parse_program_for_module_serial(...)`, and `_arm64_rtobj_clone_map_with_cap(...)`. Each had only
 its own definition as a repo hit, so this is parser/codegen source-shape reduction rather than a
 behavior change.
+A follow-up x64 cleanup removed four more repo-proven stale private helpers:
+`_elf_hash_sysv_u32(...)`, `_x64_env_enabled_default_true(...)`, `_emit_write_newline(...)`, and
+`_emit_parse_u64_decimal_from_cstr_ptr_x64(...)`. The live x64 code paths keep using their neighboring
+helpers; this is another source-shape cleanup.
 
 ## Current shipped state
 

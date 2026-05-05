@@ -94,12 +94,6 @@ fn _trace_x64_list_fast_loop(ctx, kind, info) {
     return nil
 }
 
-fn _x64_env_enabled_default_true(name) {
-    var v = oren_env(name)
-    if v == "0" || v == "false" { return false }
-    return true
-}
-
 fn _x64_env_enabled_default_false(name) {
     var v = oren_env(name)
     if v == "1" || v == "true" { return true }

@@ -535,22 +535,6 @@ fn _emit_format_plus0x_u64_hex_line(ctx, val_reg, buf_reg) {
     return nil
 }
 
-fn _emit_write_newline(ctx) {
-    var platform = ctx["platform"]
-    if platform != nil && platform["os"] == "windows" {
-        var nl_off = _data_add_cstr0(ctx, "\n")
-        // `nl_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
-        var lea_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1))
-        _emit_windows_write_ptr_len(ctx, 2, 11)
-        return nil
-    }
-    _emit_linux_write_str(ctx, "\n")
-    return nil
-}
-
 fn _emit_stack_trace_best_effort(ctx) {
     // Best-effort stack trace based on RBP chain.
     //

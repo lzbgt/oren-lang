@@ -92,44 +92,6 @@ fn _x64_should_use_full_native_runtime_profile(linked) {
     return false
 }
 
-fn _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, start_ptr_reg, dst_reg, labels, local_fixups) {
-    // Parse decimal digits at *(char*)start_ptr_reg into dst_reg (u64).
-    //
-    // Stops at first non-digit. Returns 0 if there are no digits.
-    //
-    // Clobbers: RAX, R10, R11
-    if ctx == nil { return nil }
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(dst_reg, 0))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(11, start_ptr_reg)) // r11 = cursor
-
-    var l_loop = _new_label(ctx, "parse_u64_digits_loop")
-    var l_done = _new_label(ctx, "parse_u64_digits_done")
-    _emit_label(ctx, labels, l_loop)
-
-    // eax = *(u8*)r11
-    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
-    // if eax < '0' => done
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 48))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
-    // if eax > '9' => done
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 57))
-    _emit_jcc_to_label(ctx, local_fixups, "g", l_done)
-
-    // eax -= '0'
-    bytes_extend(ctx["code"], insn_sub_r32_imm32(0, 48))
-    // dst = dst*10 + eax
-    bytes_extend(ctx["code"], insn_imul_r64_imm32(dst_reg, 10))
-    bytes_extend(ctx["code"], insn_movsxd_r64_r32(10, 0)) // r10 = digit
-    bytes_extend(ctx["code"], insn_add_r64_r64(dst_reg, 10))
-
-    // cursor++
-    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
-    _emit_jmp_to_label(ctx, local_fixups, l_loop)
-
-    _emit_label(ctx, labels, l_done)
-    return nil
-}
-
 fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {
     // Windows x64: capture the Win32 environment block pointer for the injected runtime.
     //
