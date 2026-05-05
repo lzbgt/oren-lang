@@ -1926,6 +1926,12 @@ That path keeps the current repo state honest:
   Stats remove insertion shifts entirely, raise raw scan steps to `268198`, and keep byte compares
   low at `1691`; the default first-4096 BL span remains slightly better at about `1.03s`. The next
   Mach-O target is now scan-free direct target arrays/materialization for the long tail.
+- 2026-05-06: rejected a BL-name future materialization probe. It reused the existing compact
+  `bl_name` list and rewrote later identical string entries to the first resolved positive target
+  offset, but that meant scanning the BL fixup list once per newly resolved string name. `make
+  stage2` passed; the stats profile then timed out at `180s` before the first `i=4096` local BL
+  progress mark after reaching `i=0`. Direct target arrays still need a linear construction path,
+  not O(unique-names * fixups) future rewrites.
 - 2026-05-06: removed another stale private-helper batch whose names each had exactly one repo
   occurrence before deletion. The cleanup spans compiler and stdlib modules but does not alter the
   coroutine helper contract: `_arm64_cmp_may_use_strcmp`, `_attr_list`,
