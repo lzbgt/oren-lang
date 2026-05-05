@@ -240,6 +240,10 @@ for phase_name, _ns, detail in events:
             "list_int_locals_ms",
             "list_int_nested_ms",
             "list_int_scan_ms2",
+            "list_int_lower_ms",
+            "list_int_use_scan_ms",
+            "list_int_touch_ms",
+            "list_int_candidate_ms",
             "list_int_rewrite_init_ms",
             "list_int_rewrite_uses_ms",
             "reserve_track_ms",
@@ -267,6 +271,10 @@ if optimizer_subphase_rows:
             f"list_int locals={row['list_int_locals_ms']:5d}"
             f" nested={row['list_int_nested_ms']:5d}"
             f" scan={row['list_int_scan_ms2']:5d}"
+            f" lower={row['list_int_lower_ms']:5d}"
+            f" use_scan={row['list_int_use_scan_ms']:5d}"
+            f" touch={row['list_int_touch_ms']:5d}"
+            f" candidate={row['list_int_candidate_ms']:5d}"
             f" rewrite_init={row['list_int_rewrite_init_ms']:5d}"
             f" rewrite_uses={row['list_int_rewrite_uses_ms']:5d}"
             f" | reserve track={row['reserve_track_ms']:5d}"

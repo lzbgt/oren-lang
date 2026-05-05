@@ -10,6 +10,10 @@ var OPT_LIST_INT_PROFILE_ENABLED = false
 var OPT_LIST_INT_LOCALS_NS = 0
 var OPT_LIST_INT_NESTED_NS = 0
 var OPT_LIST_INT_SCAN_NS = 0
+var OPT_LIST_INT_LOWER_NS = 0
+var OPT_LIST_INT_USE_SCAN_NS = 0
+var OPT_LIST_INT_TOUCH_NS = 0
+var OPT_LIST_INT_CANDIDATE_NS = 0
 var OPT_LIST_INT_REWRITE_INIT_NS = 0
 var OPT_LIST_INT_REWRITE_USES_NS = 0
 
@@ -25,6 +29,10 @@ fn _opt_list_int_profile_reset(enabled) {
     OPT_LIST_INT_LOCALS_NS = 0
     OPT_LIST_INT_NESTED_NS = 0
     OPT_LIST_INT_SCAN_NS = 0
+    OPT_LIST_INT_LOWER_NS = 0
+    OPT_LIST_INT_USE_SCAN_NS = 0
+    OPT_LIST_INT_TOUCH_NS = 0
+    OPT_LIST_INT_CANDIDATE_NS = 0
     OPT_LIST_INT_REWRITE_INIT_NS = 0
     OPT_LIST_INT_REWRITE_USES_NS = 0
     return nil
@@ -37,6 +45,10 @@ fn _opt_list_int_profile_add(kind, start_ns) {
     if kind == "locals" { OPT_LIST_INT_LOCALS_NS = OPT_LIST_INT_LOCALS_NS + dt }
     else if kind == "nested" { OPT_LIST_INT_NESTED_NS = OPT_LIST_INT_NESTED_NS + dt }
     else if kind == "scan" { OPT_LIST_INT_SCAN_NS = OPT_LIST_INT_SCAN_NS + dt }
+    else if kind == "lower" { OPT_LIST_INT_LOWER_NS = OPT_LIST_INT_LOWER_NS + dt }
+    else if kind == "use_scan" { OPT_LIST_INT_USE_SCAN_NS = OPT_LIST_INT_USE_SCAN_NS + dt }
+    else if kind == "touch" { OPT_LIST_INT_TOUCH_NS = OPT_LIST_INT_TOUCH_NS + dt }
+    else if kind == "candidate" { OPT_LIST_INT_CANDIDATE_NS = OPT_LIST_INT_CANDIDATE_NS + dt }
     else if kind == "rewrite_init" { OPT_LIST_INT_REWRITE_INIT_NS = OPT_LIST_INT_REWRITE_INIT_NS + dt }
     else if kind == "rewrite_uses" { OPT_LIST_INT_REWRITE_USES_NS = OPT_LIST_INT_REWRITE_USES_NS + dt }
     return nil
@@ -47,6 +59,10 @@ fn _opt_list_int_profile_detail() {
     return " list_int_locals_ms=" + oren_int_to_string(OPT_LIST_INT_LOCALS_NS / 1000000) +
         " list_int_nested_ms=" + oren_int_to_string(OPT_LIST_INT_NESTED_NS / 1000000) +
         " list_int_scan_ms2=" + oren_int_to_string(OPT_LIST_INT_SCAN_NS / 1000000) +
+        " list_int_lower_ms=" + oren_int_to_string(OPT_LIST_INT_LOWER_NS / 1000000) +
+        " list_int_use_scan_ms=" + oren_int_to_string(OPT_LIST_INT_USE_SCAN_NS / 1000000) +
+        " list_int_touch_ms=" + oren_int_to_string(OPT_LIST_INT_TOUCH_NS / 1000000) +
+        " list_int_candidate_ms=" + oren_int_to_string(OPT_LIST_INT_CANDIDATE_NS / 1000000) +
         " list_int_rewrite_init_ms=" + oren_int_to_string(OPT_LIST_INT_REWRITE_INIT_NS / 1000000) +
         " list_int_rewrite_uses_ms=" + oren_int_to_string(OPT_LIST_INT_REWRITE_USES_NS / 1000000)
 }
@@ -1379,12 +1395,22 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
 
     var i = 0
     if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
+    var prof_part_t0 = 0
+    var list_empty_seen = false
     while i < oren_list_len(ss) {
         var st = ss[i]
-        var safe_ints_touch = _opt_map_clone_safe(safe_ints)
-        _opt_lower_int_only_lists_in_stmt(st, allow_empty, safe_ints_touch)
+        if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
+        _opt_lower_int_only_lists_in_stmt(st, allow_empty, safe_ints)
+        _opt_list_int_profile_add("lower", prof_part_t0)
+        if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
         _opt_scan_list_int_uses_stmt(st, list_state, safe_ints)
-        _opt_mark_list_int_touch_in_stmt(st, list_state, safe_ints_touch, list_touch)
+        _opt_list_int_profile_add("use_scan", prof_part_t0)
+        if list_empty_seen == true {
+            if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
+            _opt_mark_list_int_touch_in_stmt(st, list_state, _opt_map_clone_safe(safe_ints), list_touch)
+            _opt_list_int_profile_add("touch", prof_part_t0)
+        }
+        if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
         if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
             var nm = opthelp.is_ident(st["name"])
             if nm != nil {
@@ -1404,6 +1430,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
                     if list_state[nm] == nil { list_state[nm] = true }
                     list_ctor_rewrite[nm] = ctor_int
                     list_empty_inits[nm] = true
+                    list_empty_seen = true
                     _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=" + init_call)
                 } else {
                     var lit_elems = _opt_list_lit_safe_int_elements(st["value"], safe_ints)
@@ -1415,6 +1442,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
                         if list_state[nm] == nil { list_state[nm] = true }
                         _opt_list_init_add(list_inits, nm, st)
                         list_empty_inits[nm] = true
+                        list_empty_seen = true
                         _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=empty_lit")
                     } else if st["value"] != nil && st["value"]["type"] == "Array" {
                         _opt_list_state_mark_unsafe_reason(list_state, nm, "init_array")
@@ -1426,6 +1454,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
                 else { safe_ints[nm] = false }
             }
         }
+        _opt_list_int_profile_add("candidate", prof_part_t0)
         i = i + 1
     }
     _opt_list_int_profile_add("scan", prof_t0)
