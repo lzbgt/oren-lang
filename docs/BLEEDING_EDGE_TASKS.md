@@ -5396,6 +5396,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 														        optimizer. Remaining high-leverage work is inside optimizer subpasses
 														        (`fold_ms` and residual list passes), module parsing, or the separate Mach-O
 														        local-BL boundary.
+														      - Rtobj seed follow-up (2026-05-05): the seed helper now accepts schema-versioned
+														        runtime-object cache keys (`sN_b_*`) instead of only `s2_b_*`, and
+														        `make rtobj-seed` warms host core/full runtime profiles for both no-debug
+														        and debug. This closes the full-runtime no-debug miss observed when the
+														        list-int parity fixture imported `std:linalg` and otherwise fell through to
+														        `rtobj.miss.build.start` despite compatible schema-3 cache artifacts. Isolated
+														        seed dirs can also copy from the persistent fallback seed dir before attempting
+														        a cold fill, and cross-compiler cold rtobj seed builds are refused by default
+														        because the cache key validates runtime/backend compatibility, not which
+														        compiler binary emitted the runtime object.
 														      - ARM64 assignment/global trait propagation now reuses the already-computed
 														        float trait when deriving integer trait state. This removes redundant
 														        top-level expression walks in hot `var`, `assign`, and global-slot paths;

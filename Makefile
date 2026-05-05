@@ -388,16 +388,20 @@ stage2: oren_stage2 astbin-seed rtobj-seed
 
 # Generate/update rtobj seed for the host platform (best-effort).
 # This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
-# Seed both non-debug and debug runtime objects because native quick integration uses `--debug`.
+# Seed both core/full and non-debug/debug runtime objects because ordinary fixtures can escalate
+# to the full runtime profile (for example std:linalg), while native quick integration uses `--debug`.
 # Capsule seeds are also hash-keyed, so let the seed script no-op/copy on cache hits instead of
 # force-refreshing `examples/hello` on every `make test`.
-# For the remaining cold capsule miss path, prefer the already-built stage1 compiler (`./oren`)
-# to populate the cache key once; the seed artifact is keyed by runtime hash + backend sig, not by
-# which compiler binary produced it.
+# Cross-compiler cold rtobj fills are intentionally refused by default because rolling native
+# runtime-object compatibility is not keyed by compiler binary. The stage1 build-compiler argument
+# below is therefore only a best-effort compatibility fallback for already-present matching cache
+# entries; current host core/full seeds are generated with the requested stage2 compiler.
 rtobj-seed: oren_stage2 astbin-seed
 			@if [ -n "$(HOST_PLATFORM)" ]; then \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --runtime-profile full --no-debug || true; \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --debug || true; \
+				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --runtime-profile full --debug || true; \
 				./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true; \
 			else \
 				echo "NOTE: host platform unknown; skipping rtobj seed"; \
@@ -410,13 +414,17 @@ rtobj-seed: oren_stage2 astbin-seed
 #
 # Warm x64 astbin seeds first so cold capsule rtobj fills can inject the prebuilt runtime astbin
 # directly instead of re-expanding the runtime on first miss.
-# Prefer stage1 for the one-time cold fill; hit/no-op behavior still keys the final artifact by
-# runtime hash + backend sig and still treats `./oren_stage2` as the requested compiler.
+# Cross targets remain best-effort: copy/no-op paths are cheap when compatible cache or fallback
+# seed entries already exist, while unsafe stage1-vs-stage2 cold fills are refused by the helper.
 rtobj-seed-x64: oren_stage2 astbin-seed-x64
 			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --runtime-profile full --no-debug || true
 			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --runtime-profile full --debug || true
 			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --no-debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --runtime-profile full --no-debug || true
 			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --debug || true
+			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --runtime-profile full --debug || true
 			@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true
 			@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --build-compiler "./$(OREN_BIN)" --capsule --no-debug || true
 

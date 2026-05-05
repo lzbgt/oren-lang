@@ -47,9 +47,16 @@ Options:
 Env:
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR   source rtobj cache dir (default: build/cache/native_runtime_obj)
   OREN_NATIVE_RUNTIME_OBJ_SEED_DIR    destination seed dir (default: build/cache/native_runtime_obj_seed)
+  OREN_NATIVE_RUNTIME_OBJ_FALLBACK_SEED_DIR
+                                      optional source seed dir used when the active seed/cache dirs are empty
+                                      (default: build/cache/native_runtime_obj_seed)
   OREN_FORCE_RUNTIME_OBJ_SEED         if set, do not take the fast no-op path
   OREN_NATIVE_RUNTIME_PROFILE         runtime profile override ("auto"/"core"/"minimal"/"full")
   OREN_RT_OBJ_SEED_BUILD_COMPILER     override compiler used for cold seed population builds
+  OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD
+                                      opt in to cold-building a seed with --build-compiler when it differs
+                                      from --compiler. Disabled by default because rolling native rtobj
+                                      compatibility is keyed by backend/runtime signatures, not compiler binary.
   OREN_RT_OBJ_SEED_BUILD_TIMEOUT_SECS timeout for the cold seed population build (default: 180)
   OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE
                                       opt-out for capsule rtobj caching (set to 0/false)
@@ -112,6 +119,7 @@ esac
 
 cache_dir="${OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR:-build/cache/native_runtime_obj}"
 seed_dir="${OREN_NATIVE_RUNTIME_OBJ_SEED_DIR:-build/cache/native_runtime_obj_seed}"
+fallback_seed_dir="${OREN_NATIVE_RUNTIME_OBJ_FALLBACK_SEED_DIR:-build/cache/native_runtime_obj_seed}"
 astbin_seed_dir="${OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR:-build/cache/native_runtime_astbin_seed}"
 
 dbg="d0"
@@ -282,13 +290,20 @@ PY
 find_seed_key() {
   local want_rh="${1:-}"
   if [[ ! -d "$seed_dir" ]]; then return 1; fi
+  find_key_in_dir "$seed_dir" "$want_rh"
+}
+
+find_key_in_dir() {
+  local dir="$1"
+  local want_rh="${2:-}"
+  if [[ ! -d "$dir" ]]; then return 1; fi
   local key
   # Prefer the explicit arch key; fall back to older `_a_unknown_` entries if present.
-	  key="$(
-	    (
-	      ls -1t "$seed_dir" 2>/dev/null | \
-	        grep -E "^s2_b_${backend}_" | \
-	        grep -F "_bv_${want_bv}_" | \
+		  key="$(
+		    (
+		      ls -1t "$dir" 2>/dev/null | \
+		        grep -E "^s[0-9]+_b_${backend}_" | \
+		        grep -F "_bv_${want_bv}_" | \
 	        grep -F "_os_${os}_" | \
 	        grep -F "_a_${arch}_" | \
 	        grep -F "_${dbg}_g" | \
@@ -296,12 +311,12 @@ find_seed_key() {
 	        head -n 1
 	    ) || true
 	  )"
-	  if [[ -z "$key" ]]; then
-	    key="$(
-	      (
-	        ls -1t "$seed_dir" 2>/dev/null | \
-	          grep -E "^s2_b_${backend}_" | \
-	          grep -F "_bv_${want_bv}_" | \
+		  if [[ -z "$key" ]]; then
+		    key="$(
+		      (
+		        ls -1t "$dir" 2>/dev/null | \
+		          grep -E "^s[0-9]+_b_${backend}_" | \
+		          grep -F "_bv_${want_bv}_" | \
 	          grep -F "_os_${os}_" | \
 	          grep -F "_a_unknown_" | \
 	          grep -F "_${dbg}_g" | \
@@ -319,37 +334,7 @@ find_latest_key() {
   local want_rh="${1:-}"
   if [[ ! -d "$cache_dir" ]]; then return 1; fi
   # Newest first (mtime order).
-  local key
-	  key="$(
-	    (
-	      ls -1t "$cache_dir" 2>/dev/null | \
-	        grep -E "^s2_b_${backend}_" | \
-	        grep -F "_bv_${want_bv}_" | \
-	        grep -F "_os_${os}_" | \
-	        grep -F "_a_${arch}_" | \
-	        grep -F "_${dbg}_g" | \
-	        { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; } | \
-	        head -n 1
-	    ) || true
-	  )"
-	  if [[ -z "$key" ]]; then
-	    # Backward-compatible fallback for older cache entries that used `_a_unknown`.
-	    key="$(
-	      (
-	        ls -1t "$cache_dir" 2>/dev/null | \
-	          grep -E "^s2_b_${backend}_" | \
-	          grep -F "_bv_${want_bv}_" | \
-	          grep -F "_os_${os}_" | \
-	          grep -F "_a_unknown_" | \
-	          grep -F "_${dbg}_g" | \
-	          { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; } | \
-	          head -n 1
-	      ) || true
-	    )"
-	  fi
-  if [[ -z "$key" ]]; then return 1; fi
-  echo "$key"
-  return 0
+  find_key_in_dir "$cache_dir" "$want_rh"
 }
 
 prune_seed_dir_keep() {
@@ -366,7 +351,7 @@ prune_seed_dir_keep() {
 	  names="$(
 	    (
 	      ls -1 "$seed_dir" 2>/dev/null | \
-	        grep -E "^s2_b_${backend}_" | \
+	        grep -E "^s[0-9]+_b_${backend}_" | \
 	        grep -F "_os_${os}_" | \
 	        grep -F "_${dbg}_g" | \
 	        { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; }
@@ -396,15 +381,22 @@ prune_seed_dir_keep() {
 copy_key_to_seed() {
   local key="$1"
   local want_rh="${2:-}"
+  copy_key_from_dir_to_seed "$cache_dir" "$key" "$want_rh"
+}
+
+copy_key_from_dir_to_seed() {
+  local src_dir="$1"
+  local key="$2"
+  local want_rh="${3:-}"
   mkdir -p "$seed_dir"
   prune_seed_dir_keep "$key" "$want_rh"
 
   rm -rf "$seed_dir/$key" 2>/dev/null || true
-  cp -R "$cache_dir/$key" "$seed_dir/"
+  cp -R "$src_dir/$key" "$seed_dir/"
   echo "OK: rtobj seed updated"
   echo "platform=$platform backend=$backend"
   echo "runtime_profile=${runtime_profile:-auto} runtime_entry=$runtime_entry"
-  echo "cache_dir=$cache_dir"
+  echo "source_dir=$src_dir"
   echo "seed_dir=$seed_dir"
   echo "key=$key"
 }
@@ -479,9 +471,24 @@ if [[ -z "$force" ]]; then
   fi
 fi
 
+if [[ -z "$force" && -n "$want_rh" && -n "$fallback_seed_dir" &&
+      "$fallback_seed_dir" != "$seed_dir" && "$fallback_seed_dir" != "0" &&
+      "$fallback_seed_dir" != "false" ]]; then
+  if key="$(find_key_in_dir "$fallback_seed_dir" "$want_rh")"; then
+    copy_key_from_dir_to_seed "$fallback_seed_dir" "$key" "$want_rh"
+    exit 0
+  fi
+fi
+
 echo "NOTE: no existing rtobj cache entry found; populating cache once via a small build..." >&2
 if [[ "$build_compiler" != "$compiler" ]]; then
   echo "NOTE: cold seed build compiler=$build_compiler (requested compiler=$compiler)" >&2
+  if [[ "${OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD:-0}" != "1" ]]; then
+    echo "ERROR: refusing cross-compiler cold rtobj seed build by default" >&2
+    echo "Hint: run make rtobj-seed with the requested compiler, provide a compatible fallback seed dir," >&2
+    echo "      or set OREN_RT_OBJ_SEED_ALLOW_CROSS_COMPILER_COLD_BUILD=1 for an explicit probe." >&2
+    exit 1
+  fi
 fi
 
 runtime_astbin_seed_path="$(find_runtime_astbin_seed_path || true)"

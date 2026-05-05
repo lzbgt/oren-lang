@@ -537,6 +537,14 @@ backend-shared value-helper slices landed.
     moving from ~3.76s to ~3.31s, `list_int` from ~1.81s to ~1.46s, and reserve from ~0.64s to ~0.53s. A
     DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
     profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
+  - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
+    cache directories (`sN_b_*`) instead of only legacy `s2_b_*` names, and `make rtobj-seed` warms both core and
+    full runtime profiles for no-debug/debug host seeds. This prevents full-runtime fixtures such as
+    `std:linalg` list-int parity from missing the no-debug seed and falling back to a slow `rtobj.miss.build.start`
+    path after schema-3 cache entries already exist. Isolated seed dirs can now be filled from the persistent
+    fallback seed dir before attempting a cold build, and the helper refuses cross-compiler cold rtobj seed builds
+    by default; the existing cache key proves runtime/backend compatibility, not that a stage1-emitted runtime
+    object is safe to link into a stage2-emitted user binary.
   - Coroutine fixture split (2026-05-04): the coroutine surface fixture now mirrors that structure
     with four focused chunks plus a dispatcher. The largest coroutine fixture chunk in the measured
     native profile is now ~2.0s, while the profile still leaves real compiler/backend work visible:
