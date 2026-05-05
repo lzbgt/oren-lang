@@ -721,7 +721,10 @@ string-name comparisons.
     bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. A separate
     `std:task.stop_policy_wait` stop-mode helper split passed stage2 and focused surfaces but moved
     `lib/std/task.oren` to ~339ms / 54 stmts and only shifted the hot row into `_task_stop_policy_wait_stop_mode`,
-    so it was reverted too. An opt-in serial module-cache write
+    so it was reverted too. A private `_task_group_validate_policy_shape(...)` precondition-tightening probe that
+    removed redundant policy-map normalization passed stage2 and focused task/task-group surfaces, but left the same
+    top hot row and moved `lib/std/task_group.oren` to ~477ms / 65 stmts, so it was reverted as too small to matter.
+    An opt-in serial module-cache write
     probe timed out before completing the profile: it wrote only the first two ASTBIN cache entries and charged
     ~114.5s to `lib/std/time.oren` including encode/write cost, so serial cache seeding was reverted as the wrong
     persistence strategy. A parser-side generator-core ASTBIN template-cache probe was also rejected: it reduced
