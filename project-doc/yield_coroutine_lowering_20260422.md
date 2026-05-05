@@ -570,7 +570,10 @@ backend-shared value-helper slices landed.
     (`_task_group_validate_policy_shape`, `stop_policy_wait`, `_task_stop_fields`) or a deeper generator-core
     representation that avoids reparsing, not file-read/cache/prepare work or the small `reflect/result/list` tail.
     A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
-    bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. An opt-in serial module-cache write
+    bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. A separate
+    `std:task.stop_policy_wait` stop-mode helper split passed stage2 and focused surfaces but moved
+    `lib/std/task.oren` to ~339ms / 54 stmts and only shifted the hot row into `_task_stop_policy_wait_stop_mode`,
+    so it was reverted too. An opt-in serial module-cache write
     probe timed out before completing the profile: it wrote only the first two ASTBIN cache entries and charged
     ~114.5s to `lib/std/time.oren` including encode/write cost, so serial cache seeding was reverted as the wrong
     persistence strategy. A parser-side generator-core ASTBIN template-cache probe was also rejected: it reduced
