@@ -10,6 +10,9 @@ manual fixture intuition. The latest native profile reporter prints phase-specif
 bodies for `user_decls`, `fnwrap`, and `lambda_wrap`; the generator surface fixture was split again
 around the remaining large timeout policy wait, nil/collect iteration, and declaration
 counter/collect assertion clusters while preserving dispatcher order and return-code semantics.
+A follow-up ARM64 wrapper probe that routed constant-index `oren_list_get(...)` calls around generic
+ABI marshalling was rejected: it reduced emitted wrapper bytes but did not improve wrapper wall
+time, so source was reverted.
 
 ## Current shipped state
 
