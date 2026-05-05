@@ -740,6 +740,11 @@ resolver.
     Focused task/task-group/generator/coroutine surfaces pass; the exact profile moves `lib/std/task_group.oren`
     to ~433ms / 62 stmts with `parse_body_ms=265`, leaving `_task_group_validate_policy_shape` as the real residual
     task-group row.
+    A broader runtime snapshot carrier probe was rejected: making all private runtime snapshots list-shaped while
+    wrapping only public `task_group.snapshot(...)` back into a map passed stage2 and focused task/task-group/generator/
+    coroutine gates, including mixed bytecode task-group/task, but moved the exact module profile to ~444ms / 62 stmts.
+    The helper-heavy variant was worse at ~445ms / 63 stmts. Keep the compact carrier scoped to stop snapshots until a
+    design also deletes validation shape.
     A direct `_task_group_merge_policy(...)` field-unroll probe was rejected after it passed stage2 and focused
     task/task-group/generator/coroutine surfaces: the exact profile moved `lib/std/task_group.oren` back up to
     ~448ms / 62 stmts and made `_task_group_merge_policy` the second hot row at ~12ms. Keep the shipped key-list
