@@ -547,9 +547,9 @@ backend-shared value-helper slices landed.
     moving from ~3.76s to ~3.31s, `list_int` from ~1.81s to ~1.46s, and reserve from ~0.64s to ~0.53s. The summary
     row now also carries the top fold/list-int/reserve function bodies, avoiding separate phase-log append overhead;
     that data showed residual list-pass cost was dominated by generator surface fixture functions. Splitting the
-    hottest basic/close/finalize/timeout fixture bodies kept the generator surface verifier green and moved optimizer
-    total from ~3.16s to ~2.76s, `list_int_ms` from ~1.16s to ~0.89s, `reserve_ms` from ~0.45s to ~0.34s, and the
-    largest list-int body from ~135ms to ~69ms. A
+    hottest basic/close/finalize/timeout/iteration/declaration/cancel-hook fixture bodies kept the generator surface verifier green and moved optimizer
+    total from ~3.16s to ~2.58s, `list_int_ms` from ~1.16s to ~0.79s, `reserve_ms` from ~0.45s to ~0.30s, and the
+    largest list-int body from ~135ms to ~39ms. A
     narrower list-int-only prefilter probe reduced candidates to `86/470`, but it raised list-scan overhead to ~53ms,
     left `list_int` around ~1.44s, and worsened optimizer total to ~3.42s, so the source probe was reverted.
     A fold-pass stable-list-length hoist also passed stage2 and focused optimizer/generator gates, but repeated

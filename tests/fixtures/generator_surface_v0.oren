@@ -886,7 +886,7 @@ fn generator_surface_part_timeout_policy_waits() {
     return generator_surface_part_timeout_policy_stop_waits()
 }
 
-fn generator_surface_part_cancel_hooks() {
+fn generator_surface_cancel_request_cases() {
     var gcan1 = gen.start(cancel_delegate_outer_worker, [60, 80])
     var gcan1s0 = gen.next(gcan1)
     if oren_is_err(gcan1s0) == true || gcan1s0["ok"] != true || gcan1s0["value"] != 60 { return 17339 }
@@ -907,6 +907,10 @@ fn generator_surface_part_cancel_hooks() {
     if gen.is_done(gcan2) != true || gen.is_closed(gcan2) != true { return 17347 }
     if gen.is_cancel_requested(gcan2) != true || gen.cancel_reason(gcan2) != 90 { return 17348 }
 
+    return 0
+}
+
+fn generator_surface_cancel_hard_cases() {
     var ghard0 = gen.start(counter_worker, [20])
     var ghard0s0 = gen.next(ghard0)
     if oren_is_err(ghard0s0) == true || ghard0s0["ok"] != true || ghard0s0["value"] != 21 { return 173481 }
@@ -935,6 +939,10 @@ fn generator_surface_part_cancel_hooks() {
     if gen.is_done(ghard1inner) != true || gen.is_closed(ghard1inner) != true { return 173494 }
     if gen.is_cancel_requested(ghard1inner) != true || gen.cancel_reason(ghard1inner) != 80 { return 173495 }
 
+    return 0
+}
+
+fn generator_surface_cancel_done_cases() {
     var ghard2 = gen.start(counter_worker, [15])
     var ghard2s0 = gen.next(ghard2)
     if oren_is_err(ghard2s0) == true || ghard2s0["ok"] != true || ghard2s0["value"] != 16 { return 173496 }
@@ -949,7 +957,15 @@ fn generator_surface_part_cancel_hooks() {
     return 0
 }
 
-fn generator_surface_close_basic_paths() {
+fn generator_surface_part_cancel_hooks() {
+    var r0 = generator_surface_cancel_request_cases()
+    if r0 != 0 { return r0 }
+    var r1 = generator_surface_cancel_hard_cases()
+    if r1 != 0 { return r1 }
+    return generator_surface_cancel_done_cases()
+}
+
+fn generator_surface_close_initial_paths() {
     var gc0 = gen.start(counter_worker, [15])
     var close0 = gen.close(gc0)
     if oren_is_err(close0) == true { return 1733 }
@@ -980,6 +996,10 @@ fn generator_surface_close_basic_paths() {
     if oren_is_err(close1done) == true { return 1745 }
     if close1done["done"] != true || close1done["return"] != nil { return 1746 }
 
+    return 0
+}
+
+fn generator_surface_close_completed_paths() {
     var gc2 = gen.start(counter_worker, [35])
     var gc2s0 = gen.next(gc2)
     if oren_is_err(gc2s0) == true { return 1747 }
@@ -1009,6 +1029,12 @@ fn generator_surface_close_basic_paths() {
     if gen.is_done(gc4) != true || gen.return_value(gc4) != nil { return 1761 }
 
     return 0
+}
+
+fn generator_surface_close_basic_paths() {
+    var r0 = generator_surface_close_initial_paths()
+    if r0 != 0 { return r0 }
+    return generator_surface_close_completed_paths()
 }
 
 fn generator_surface_close_delegate_paths() {
@@ -1074,7 +1100,7 @@ fn generator_surface_part_cancel_close_hooks() {
     return generator_surface_part_close_paths()
 }
 
-fn generator_surface_part_close_hook_cases() {
+fn generator_surface_close_hook_basic_cases() {
     var gc7 = gen.start(bad_on_close_worker, [])
     var gc7done = gen.next(gc7)
     if oren_is_err(gc7done) == true { return 1784 }
@@ -1103,6 +1129,10 @@ fn generator_surface_part_close_hook_cases() {
     if hook_box1[0] != 110 || hook_box1[1] != 100 { return 1797 }
     if gen.is_done(gc9) != true { return 1798 }
 
+    return 0
+}
+
+fn generator_surface_close_hook_error_cases() {
     var hook_box2 = []
     var gca = gen.start(close_hook_err_worker, [hook_box2])
     var gcas0 = gen.next(gca)
@@ -1130,7 +1160,13 @@ fn generator_surface_part_close_hook_cases() {
     return 0
 }
 
-fn generator_surface_finalize_hook_cases() {
+fn generator_surface_part_close_hook_cases() {
+    var r0 = generator_surface_close_hook_basic_cases()
+    if r0 != 0 { return r0 }
+    return generator_surface_close_hook_error_cases()
+}
+
+fn generator_surface_finalize_hook_basic_cases() {
     var final_box0 = []
     var gcc = gen.start(finalize_hook_worker, [final_box0, 120])
     var gccs0 = gen.next(gcc)
@@ -1155,6 +1191,10 @@ fn generator_surface_finalize_hook_cases() {
     if final_box1[0] != 160 || final_box1[1] != 150 || final_box1[2] != 140 { return 18113 }
     if gen.is_done(gcd) != true || gen.return_value(gcd) != 336 { return 18114 }
 
+    return 0
+}
+
+fn generator_surface_finalize_hook_error_cases() {
     var final_box2 = []
     var gce = gen.start(finalize_hook_err_worker, [final_box2])
     var gces0 = gen.next(gce)
@@ -1183,6 +1223,12 @@ fn generator_surface_finalize_hook_cases() {
     if gen.is_done(gcf) != true || gen.return_value(gcf) != 180 { return 18129 }
 
     return 0
+}
+
+fn generator_surface_finalize_hook_cases() {
+    var r0 = generator_surface_finalize_hook_basic_cases()
+    if r0 != 0 { return r0 }
+    return generator_surface_finalize_hook_error_cases()
 }
 
 fn generator_surface_defer_finalize_cases() {
@@ -1251,7 +1297,7 @@ fn generator_surface_part_close_finalize_hooks() {
     return generator_surface_part_finalize_hook_cases()
 }
 
-fn generator_surface_part_iteration_basic() {
+fn generator_surface_iteration_nil_collect() {
     var g2 = gen.start(nil_worker, [60])
     var n0 = gen.next(g2)
     if oren_is_err(n0) == true { return 110 }
@@ -1278,6 +1324,10 @@ fn generator_surface_part_iteration_basic() {
     if ys[0] != 9 || ys[1] != 10 || ys[2] != 11 { return 135 }
     if gen.is_done(g4b) != true || gen.return_value(g4b) != 39 { return 136 }
 
+    return 0
+}
+
+fn generator_surface_iteration_delegate_direct() {
     var g4c = gen.start(delegate_outer_worker, [30])
     var dg0 = gen.next(g4c)
     if oren_is_err(dg0) == true { return 1361 }
@@ -1304,7 +1354,13 @@ fn generator_surface_part_iteration_basic() {
     return 0
 }
 
-fn generator_surface_part_iteration_delegate_steps() {
+fn generator_surface_part_iteration_basic() {
+    var r0 = generator_surface_iteration_nil_collect()
+    if r0 != 0 { return r0 }
+    return generator_surface_iteration_delegate_direct()
+}
+
+fn generator_surface_iteration_delegate_syntax() {
     var g4ds = gen.start(delegate_syntax_outer_worker, [20])
     var dsy0 = gen.next(g4ds)
     if oren_is_err(dsy0) == true { return 13731 }
@@ -1327,6 +1383,10 @@ fn generator_surface_part_iteration_delegate_steps() {
     if oren_is_err(dst2) == true { return 13741 }
     if dst2["done"] != true || dst2["return"] != 77 { return 13742 }
 
+    return 0
+}
+
+fn generator_surface_iteration_delegate_worker_steps() {
     var g4e = gen.start(delegate_step_outer_worker, [50])
     var de0 = gen.next(g4e)
     if oren_is_err(de0) == true { return 1374 }
@@ -1349,6 +1409,10 @@ fn generator_surface_part_iteration_delegate_steps() {
     if oren_is_err(df2) == true { return 1384 }
     if df2["done"] != true || df2["return"] != 74 { return 1385 }
 
+    return 0
+}
+
+fn generator_surface_iteration_delegate_step_validation() {
     var started_inner = gen.start(delegate_inner_worker, [70])
     var started_step = gen.next(started_inner)
     if oren_is_err(started_step) == true { return 1386 }
@@ -1363,6 +1427,10 @@ fn generator_surface_part_iteration_delegate_steps() {
     if oren_is_err(started_step2) == true { return 13903 }
     if started_step2["done"] != true || started_step2["return"] != 60 { return 13904 }
 
+    return 0
+}
+
+fn generator_surface_iteration_delegate_collect() {
     var g4g = gen.start(delegate_collect_outer, [5])
     var dxs2 = gen.collect(g4g)
     if oren_is_err(dxs2) == true { return 1391 }
@@ -1379,13 +1447,23 @@ fn generator_surface_part_iteration_delegate_steps() {
     return 0
 }
 
+fn generator_surface_part_iteration_delegate_steps() {
+    var r0 = generator_surface_iteration_delegate_syntax()
+    if r0 != 0 { return r0 }
+    var r1 = generator_surface_iteration_delegate_worker_steps()
+    if r1 != 0 { return r1 }
+    var r2 = generator_surface_iteration_delegate_step_validation()
+    if r2 != 0 { return r2 }
+    return generator_surface_iteration_delegate_collect()
+}
+
 fn generator_surface_part_iteration_and_decls() {
     var r0 = generator_surface_part_iteration_basic()
     if r0 != 0 { return r0 }
     return generator_surface_part_iteration_delegate_steps()
 }
 
-fn generator_surface_part_decl_generators() {
+fn generator_surface_decl_counter_collect() {
     var g5 = decl_counter(40)
     if oren_type_name(g5) != "generator" { return 1397 }
     var d0 = gen.next(g5)
@@ -1419,6 +1497,10 @@ fn generator_surface_part_decl_generators() {
     if dsum != 27 { return 1531 }
     if gen.is_done(g7d) != true || gen.return_value(g7d) != 38 { return 1532 }
 
+    return 0
+}
+
+fn generator_surface_decl_var_generators() {
     var g7b = decl_var_counter(40)
     if oren_type_name(g7b) != "generator" { return 174 }
     var dv0 = gen.next(g7b)
@@ -1440,6 +1522,10 @@ fn generator_surface_part_decl_generators() {
     if oren_is_err(dl1) == true { return 184 }
     if dl1["done"] != true || dl1["return"] != 13 { return 185 }
 
+    return 0
+}
+
+fn generator_surface_decl_delegate_generators() {
     var g7e = decl_delegate(30)
     var dy0 = gen.next(g7e)
     if oren_is_err(dy0) == true { return 1851 }
@@ -1462,6 +1548,10 @@ fn generator_surface_part_decl_generators() {
     if oren_is_err(dz2) == true { return 1861 }
     if dz2["done"] != true || dz2["return"] != 83 { return 1862 }
 
+    return 0
+}
+
+fn generator_surface_decl_delegate_invalids() {
     var bad_delegate_seed = gen.start(counter_worker, [1])
     var bad_delegate_ctx = gen.delegate(123, bad_delegate_seed)
     if oren_is_err(bad_delegate_ctx) != true { return 1863 }
@@ -1471,6 +1561,16 @@ fn generator_surface_part_decl_generators() {
     if oren_is_err(bad_delegate_direct) != true { return 1865 }
 
     return 0
+}
+
+fn generator_surface_part_decl_generators() {
+    var r0 = generator_surface_decl_counter_collect()
+    if r0 != 0 { return r0 }
+    var r1 = generator_surface_decl_var_generators()
+    if r1 != 0 { return r1 }
+    var r2 = generator_surface_decl_delegate_generators()
+    if r2 != 0 { return r2 }
+    return generator_surface_decl_delegate_invalids()
 }
 
 fn generator_surface_part_local_generators() {
