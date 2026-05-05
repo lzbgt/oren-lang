@@ -2488,6 +2488,13 @@ Local (fast):
   order from oldest-first to newest-first made `make stage2` exceed the recent stage2 band with no
   additional progress past self-hosted stage2 build startup, so the probe was terminated and reverted.
   Do not assume BL fixups have enough temporal locality to justify newest-first linear scans.
+- Rejected name-keyed local resolver map cache (2026-05-05): replacing the local BL/ADR-code linear
+  target lists with an Oren map keyed by target name passed `make stage2`, but the stats-enabled native
+  profile timed out at 180s. The phase log reached only `i=4096` after about 154s with
+  `unique=277 lookups=4096 scan_steps=0 candidates=0 byte_cmps=0 appended=277`, proving the traversal
+  counters were removed by moving the cost into hot map lookup/insertion. Do not reopen a generic Oren
+  map cache for this resolver without a lower-level representation that proves sublinear lookup and a
+  lower first-bucket wall time.
 - ARM64/x64 named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions are
   now marked as thin dispatch wrappers and skip native call-depth enter/exit instrumentation. The real
   target function still carries the stack-depth guard, while lambda wrappers remain guarded because

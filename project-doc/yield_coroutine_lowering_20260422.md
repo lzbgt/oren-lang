@@ -244,6 +244,12 @@ backend-shared value-helper slices landed.
     oldest instead of oldest to newest made `make stage2` exceed the recent stage2 band with no progress
     beyond self-hosted stage2 build startup, so it was terminated and reverted. The resolver needs a
     different traversal design, not assumed temporal locality.
+  - Rejected name-keyed local resolver map cache (2026-05-05): replacing the local BL/ADR-code linear
+    target cache with an Oren map passed `make stage2`, but the stats-enabled native build profile timed
+    out at 180s. The phase log reached only the first 4096 BL fixups after about 154s while reporting
+    `scan_steps=0`, so the probe removed traversal accounting by shifting cost into hot map
+    lookup/insertion. Do not retry a generic Oren map for this boundary without a lower-level cache
+    representation and measured first-bucket wall-time reduction.
   - Named-function wrapper cleanup (2026-05-04): synthesized `__oren_fnwrap_*` functions now skip
     native call-depth enter/exit instrumentation on ARM64 and x64 because the real target function
     still carries the guard. Lambda wrappers remain guarded because they own their body. The measured
