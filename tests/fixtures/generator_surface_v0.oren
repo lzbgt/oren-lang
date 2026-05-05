@@ -433,7 +433,7 @@ fn bad_on_close_worker(co, args) {
     return 1
 }
 
-fn generator_surface_part_basic() {
+fn generator_surface_basic_channel_select() {
     var c1 = oren_new_channel()
     var c2 = oren_new_channel()
     if c1 == 0 || c2 == 0 { return 80 }
@@ -465,6 +465,10 @@ fn generator_surface_part_basic() {
     }
     if raw_idx1 == raw_idx2 { return 92 }
 
+    return 0
+}
+
+fn generator_surface_basic_facade_checks() {
     var g1 = gen.start(counter_worker, [40])
     if oren_type_name(g1) != "generator" { return 93 }
     if oren_type_tag(g1) != reflect.TAG_GENERATOR { return 931 }
@@ -483,6 +487,10 @@ fn generator_surface_part_basic() {
     if gen.terminal_result(g1) != 12 { return 10601 }
     if gen.is_closed(g1) != false || gen.terminal_error(g1) != nil { return 1061 }
 
+    return 0
+}
+
+fn generator_surface_basic_direct_checks() {
     var g1b = oren_generator_start(counter_worker, [20])
     if oren_type_name(g1b) != "generator" { return 107 }
     if oren_type_tag(g1b) != reflect.TAG_GENERATOR { return 1071 }
@@ -511,6 +519,11 @@ fn generator_surface_part_basic() {
     if oren_generator_is_done(g1b) != true || oren_generator_return_value(g1b) != 12 { return 167 }
     if oren_generator_current_step(g1b) != nil { return 1671 }
     if oren_generator_is_closed(g1b) != false || oren_generator_terminal_error(g1b) != nil { return 1672 }
+
+    return 0
+}
+
+fn generator_surface_basic_invalid_handles() {
     var bad_ctx = exchange_bad_context(20)
     if oren_is_err(bad_ctx) != true { return 168 }
     var bad_next = oren_generator_next(123)
@@ -540,6 +553,10 @@ fn generator_surface_part_basic() {
     if gen.is_cancel_requested(123) != false || gen.cancel_reason(123) != nil { return 17323 }
     if oren_generator_is_cancel_requested(123) != false || oren_generator_cancel_reason(123) != nil { return 17324 }
 
+    return 0
+}
+
+fn generator_surface_basic_cancel_state() {
     var gcan0 = gen.start(cancel_probe_worker, [50, 70])
     if gen.is_cancel_requested(gcan0) != false || gen.cancel_reason(gcan0) != nil { return 17325 }
     if oren_generator_is_cancel_requested(gcan0) != false || oren_generator_cancel_reason(gcan0) != nil { return 17326 }
@@ -563,6 +580,18 @@ fn generator_surface_part_basic() {
     if gen.cancel_reason(gcan0) != 70 { return 17338 }
 
     return 0
+}
+
+fn generator_surface_part_basic() {
+    var r0 = generator_surface_basic_channel_select()
+    if r0 != 0 { return r0 }
+    var r1 = generator_surface_basic_facade_checks()
+    if r1 != 0 { return r1 }
+    var r2 = generator_surface_basic_direct_checks()
+    if r2 != 0 { return r2 }
+    var r3 = generator_surface_basic_invalid_handles()
+    if r3 != 0 { return r3 }
+    return generator_surface_basic_cancel_state()
 }
 
 fn generator_surface_part_timeout_policy_request_cancel() {
@@ -616,7 +645,7 @@ fn generator_surface_part_timeout_policy_request_cancel() {
     return 0
 }
 
-fn generator_surface_part_timeout_policy_cancel_stop() {
+fn generator_surface_timeout_cancel_after_at() {
     var gwatch1 = gen.start(counter_worker, [22])
     var gwatch1s0 = gen.next(gwatch1)
     if oren_is_err(gwatch1s0) == true || gwatch1s0["ok"] != true || gwatch1s0["value"] != 23 { return 173386 }
@@ -649,6 +678,10 @@ fn generator_surface_part_timeout_policy_cancel_stop() {
     if gen.is_done(gat1) != true || gen.is_closed(gat1) != true { return 1733909 }
     if gen.is_cancel_requested(gat1) != true || gen.cancel_reason(gat1) != 85 { return 1733910 }
 
+    return 0
+}
+
+fn generator_surface_timeout_stop_after_at() {
     var gstop0 = gen.start(counter_worker, [28])
     var gstop0s0 = gen.next(gstop0)
     if oren_is_err(gstop0s0) == true || gstop0s0["ok"] != true || gstop0s0["value"] != 29 { return 17339101 }
@@ -696,6 +729,12 @@ fn generator_surface_part_timeout_policy_cancel_stop() {
     if gen.is_cancel_requested(gctx0) != true || gen.cancel_reason(gctx0) != 88 { return 17339124 }
 
     return 0
+}
+
+fn generator_surface_part_timeout_policy_cancel_stop() {
+    var r0 = generator_surface_timeout_cancel_after_at()
+    if r0 != 0 { return r0 }
+    return generator_surface_timeout_stop_after_at()
 }
 
 fn generator_surface_part_timeout_policy() {
@@ -759,7 +798,7 @@ fn generator_surface_part_timeout_policy_cancel_waits() {
     return 0
 }
 
-fn generator_surface_part_timeout_policy_stop_waits() {
+fn generator_surface_timeout_direct_waits() {
     var gwcancel0 = gen.start(counter_worker, [33])
     var gwcancel0s0 = gen.next(gwcancel0)
     if oren_is_err(gwcancel0s0) == true || gwcancel0s0["ok"] != true || gwcancel0s0["value"] != 34 { return 17339675 }
@@ -786,6 +825,10 @@ fn generator_surface_part_timeout_policy_stop_waits() {
     if oren_is_err(gwstop1rv) == true || gwstop1rv != 14 { return 17339687 }
     if gen.is_cancel_requested(gwstop1) != false || gen.cancel_reason(gwstop1) != nil { return 17339688 }
 
+    return 0
+}
+
+fn generator_surface_timeout_policy_wait_modes() {
     var gpol0 = gen.start(cancel_probe_worker, [60, 127])
     var gpol0s0 = gen.next(gpol0)
     if oren_is_err(gpol0s0) == true || gpol0s0["ok"] != true || gpol0s0["value"] != 60 { return 17339689 }
@@ -829,6 +872,12 @@ fn generator_surface_part_timeout_policy_stop_waits() {
     if oren_is_err(gen.stop_policy_wait(gpol3, {"mode": "cancel", "join_timeout_ms": "bad"})) != true { return 17339711 }
 
     return 0
+}
+
+fn generator_surface_part_timeout_policy_stop_waits() {
+    var r0 = generator_surface_timeout_direct_waits()
+    if r0 != 0 { return r0 }
+    return generator_surface_timeout_policy_wait_modes()
 }
 
 fn generator_surface_part_timeout_policy_waits() {
@@ -900,7 +949,7 @@ fn generator_surface_part_cancel_hooks() {
     return 0
 }
 
-fn generator_surface_part_close_paths() {
+fn generator_surface_close_basic_paths() {
     var gc0 = gen.start(counter_worker, [15])
     var close0 = gen.close(gc0)
     if oren_is_err(close0) == true { return 1733 }
@@ -959,6 +1008,10 @@ fn generator_surface_part_close_paths() {
     if close4 != nil { return 1760 }
     if gen.is_done(gc4) != true || gen.return_value(gc4) != nil { return 1761 }
 
+    return 0
+}
+
+fn generator_surface_close_delegate_paths() {
     var close_cells0 = [nil, nil]
     var gc5 = gen.start(delegate_chain_started_outer_worker, [close_cells0, 55])
     var gc5s0 = gen.next(gc5)
@@ -994,12 +1047,25 @@ fn generator_surface_part_close_paths() {
     if gen.is_done(gc6) != true || gen.return_value(gc6) != nil { return 1779 }
     if gen.is_done(gc6mid) != true || gen.return_value(gc6mid) != nil { return 1780 }
     if gen.is_done(gc6inner) != true || gen.return_value(gc6inner) != nil { return 1781 }
+
+    return 0
+}
+
+fn generator_surface_close_invalid_hooks() {
     if oren_is_err(gen.on_close(123, || nil)) != true { return 1782 }
     if oren_is_err(oren_generator_on_close(123, || nil)) != true { return 1783 }
     if oren_is_err(gen.on_finalize(123, || nil)) != true { return 17831 }
     if oren_is_err(oren_generator_on_finalize(123, || nil)) != true { return 17832 }
 
     return 0
+}
+
+fn generator_surface_part_close_paths() {
+    var r0 = generator_surface_close_basic_paths()
+    if r0 != 0 { return r0 }
+    var r1 = generator_surface_close_delegate_paths()
+    if r1 != 0 { return r1 }
+    return generator_surface_close_invalid_hooks()
 }
 
 fn generator_surface_part_cancel_close_hooks() {
@@ -1064,7 +1130,7 @@ fn generator_surface_part_close_hook_cases() {
     return 0
 }
 
-fn generator_surface_part_finalize_hook_cases() {
+fn generator_surface_finalize_hook_cases() {
     var final_box0 = []
     var gcc = gen.start(finalize_hook_worker, [final_box0, 120])
     var gccs0 = gen.next(gcc)
@@ -1116,6 +1182,10 @@ fn generator_surface_part_finalize_hook_cases() {
     if final_box3[0] != 141 || final_box3[1] != 142 { return 18128 }
     if gen.is_done(gcf) != true || gen.return_value(gcf) != 180 { return 18129 }
 
+    return 0
+}
+
+fn generator_surface_defer_finalize_cases() {
     var defer_box0 = []
     var gcg = gen.start(defer_finalize_worker, [defer_box0, 150])
     var gcgs0 = gen.next(gcg)
@@ -1167,6 +1237,12 @@ fn generator_surface_part_finalize_hook_cases() {
     if gen.is_done(gcj) != true || gen.return_value(gcj) != 210 { return 18158 }
 
     return 0
+}
+
+fn generator_surface_part_finalize_hook_cases() {
+    var r0 = generator_surface_finalize_hook_cases()
+    if r0 != 0 { return r0 }
+    return generator_surface_defer_finalize_cases()
 }
 
 fn generator_surface_part_close_finalize_hooks() {
