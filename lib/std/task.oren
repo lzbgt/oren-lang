@@ -169,17 +169,21 @@ fn _task_stop_result(status, result, reason, detach_result) {
 fn _task_stop_handle(handle, wait_ms, reason) {
     var rv = join_timeout(handle, wait_ms)
     if oren_is_err(rv) == true { return rv }
-    if rv == -60 {
-        var detach_rv = nil
-        if is_handle(handle) == true {
-            detach_rv = detach(handle)
-            if oren_is_err(detach_rv) == true {
-                return _task_stop_result("detach_error", rv, reason, detach_rv)
-            }
-        }
-        return _task_stop_result("detached", rv, reason, detach_rv)
-    }
+    var timeout_rv = _task_timeout_detach_result(handle, rv, reason)
+    if timeout_rv != nil { return timeout_rv }
     return _task_stop_result("joined", rv, reason, nil)
+}
+
+fn _task_timeout_detach_result(handle, rv, reason) {
+    if rv != -60 { return nil }
+    var detach_rv = nil
+    if is_handle(handle) == true {
+        detach_rv = detach(handle)
+        if oren_is_err(detach_rv) == true {
+            return _task_stop_result("detach_error", rv, reason, detach_rv)
+        }
+    }
+    return _task_stop_result("detached", rv, reason, detach_rv)
 }
 
 fn _task_request_then_stop_handle(handle, wait_ms, reason) {
@@ -355,16 +359,8 @@ fn cancel_after_wait(handle, timeout_ms, reason, join_timeout_ms) {
     if oren_is_err(watcher) == true { return watcher }
     var rv = join_timeout(watcher, wait)
     if oren_is_err(rv) == true { return rv }
-    if rv == -60 {
-        var detach_rv = nil
-        if is_handle(watcher) == true {
-            detach_rv = detach(watcher)
-            if oren_is_err(detach_rv) == true {
-                return _task_stop_result("detach_error", rv, reason, detach_rv)
-            }
-        }
-        return _task_stop_result("detached", rv, reason, detach_rv)
-    }
+    var timeout_rv = _task_timeout_detach_result(watcher, rv, reason)
+    if timeout_rv != nil { return timeout_rv }
     return rv
 }
 
@@ -531,16 +527,8 @@ fn stop_policy_wait(handle, policy0) {
     }
     var rv = join_timeout(watcher, watcher_wait_ms)
     if oren_is_err(rv) == true { return rv }
-    if rv == -60 {
-        var detach_rv = nil
-        if is_handle(watcher) == true {
-            detach_rv = detach(watcher)
-            if oren_is_err(detach_rv) == true {
-                return _task_stop_result("detach_error", rv, fields["reason"], detach_rv)
-            }
-        }
-        return _task_stop_result("detached", rv, fields["reason"], detach_rv)
-    }
+    var timeout_rv = _task_timeout_detach_result(watcher, rv, fields["reason"])
+    if timeout_rv != nil { return timeout_rv }
     if oren_type_name(rv) != "map" {
         return _task_err("task.stop_policy_wait", "stop watcher returned invalid result")
     }

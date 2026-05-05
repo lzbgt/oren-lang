@@ -181,28 +181,12 @@ fn _task_group_join_timeout_ms(ctx, join_timeout_ms) {
     return join_timeout_ms
 }
 
-fn _task_group_target_stop_watch(ctx, target, policy0) {
-    var kind = _task_group_target_kind(target)
-    if kind == nil {
-        return _task_group_err(ctx, "expected generator handle, generator context, or task handle")
-    }
-    return _task_group_target_stop_watch_kind(ctx, kind, target, policy0)
-}
-
 fn _task_group_target_stop_watch_kind(ctx, kind, target, policy0) {
     if kind != "task" && kind != "generator" && kind != "generator_context" {
         return _task_group_err(ctx, "expected runtime member kind")
     }
     if kind == "task" { return task.stop_policy(target, policy0) }
     return gen.stop_policy(target, policy0)
-}
-
-fn _task_group_target_stop_wait(ctx, target, policy0) {
-    var kind = _task_group_target_kind(target)
-    if kind == nil {
-        return _task_group_err(ctx, "expected generator handle, generator context, or task handle")
-    }
-    return _task_group_target_stop_wait_kind(ctx, kind, target, policy0)
 }
 
 fn _task_group_target_stop_wait_kind(ctx, kind, target, policy0) {
@@ -272,17 +256,64 @@ fn _task_group_kinds_for_refs(ctx, refs) {
     return kinds
 }
 
-fn _task_group_runtime_stop_watchers(ctx, refs, kinds, policy0) {
+fn _task_group_member_kind_or_scan(ctx, refs, kinds, i) {
+    if kinds != nil { return kinds[i] }
+    var kind = _task_group_target_kind(refs[i])
+    if kind == nil {
+        return _task_group_err(ctx, "expected generator handle, generator context, or task handle")
+    }
+    return kind
+}
+
+fn _task_group_stop_watchers(ctx, refs, kinds, policy0) {
     var watchers = []
     var i = 0
     var n = list.len(refs)
     while i < n {
-        var watcher = _task_group_target_stop_watch_kind(ctx, kinds[i], refs[i], policy0)
+        var kind = _task_group_member_kind_or_scan(ctx, refs, kinds, i)
+        if oren_is_err(kind) == true { return kind }
+        var watcher = _task_group_target_stop_watch_kind(ctx, kind, refs[i], policy0)
         if oren_is_err(watcher) == true { return watcher }
         list.push(watchers, watcher)
         i = i + 1
     }
     return watchers
+}
+
+fn _task_group_stop_wait_results(ctx, refs, kinds, policy0) {
+    var out = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        var kind = _task_group_member_kind_or_scan(ctx, refs, kinds, i)
+        if oren_is_err(kind) == true { return kind }
+        var result = _task_group_target_stop_wait_kind(ctx, kind, refs[i], policy0)
+        if oren_is_err(result) == true { return result }
+        list.push(out, result)
+        i = i + 1
+    }
+    return out
+}
+
+fn _task_group_terminal_results_for(ctx, refs, kinds) {
+    var out = []
+    var i = 0
+    var n = list.len(refs)
+    while i < n {
+        var kind = _task_group_member_kind_or_scan(ctx, refs, kinds, i)
+        if oren_is_err(kind) == true { return kind }
+        if kind == "task" {
+            return _task_group_err(ctx, "task handles require join_all")
+        }
+        if kind == "generator_context" {
+            return _task_group_err(ctx, "generator contexts do not have terminal results")
+        }
+        var result = gen.terminal_result(refs[i])
+        if oren_is_err(result) == true { return result }
+        list.push(out, result)
+        i = i + 1
+    }
+    return out
 }
 
 fn is_group(group) {
@@ -458,22 +489,13 @@ fn stop_policy(group, policy0) {
         if oren_is_err(snapshot0) == true { return snapshot0 }
         var policy0r = _task_group_merge_policy("task_group.stop_policy", snapshot0["default_policy"], policy0)
         if oren_is_err(policy0r) == true { return policy0r }
-        return _task_group_runtime_stop_watchers("task_group.stop_policy", snapshot0["members"], snapshot0["member_kinds"], policy0r)
+        return _task_group_stop_watchers("task_group.stop_policy", snapshot0["members"], snapshot0["member_kinds"], policy0r)
     }
     var refs = _task_group_members_ref("task_group.stop_policy", group)
     if oren_is_err(refs) == true { return refs }
     var policy = _task_group_merge_policy("task_group.stop_policy", oren_map_get_str(group, "default_policy"), policy0)
     if oren_is_err(policy) == true { return policy }
-    var watchers = []
-    var i = 0
-    var n = list.len(refs)
-    while i < n {
-        var watcher = _task_group_target_stop_watch("task_group.stop_policy", refs[i], policy)
-        if oren_is_err(watcher) == true { return watcher }
-        list.push(watchers, watcher)
-        i = i + 1
-    }
-    return watchers
+    return _task_group_stop_watchers("task_group.stop_policy", refs, nil, policy)
 }
 
 fn stop_policy_wait(group, policy0) {
@@ -489,33 +511,13 @@ fn stop_policy_wait(group, policy0) {
         if oren_is_err(snapshot0) == true { return snapshot0 }
         var policy0r = _task_group_merge_policy("task_group.stop_policy_wait", snapshot0["default_policy"], policy0)
         if oren_is_err(policy0r) == true { return policy0r }
-        var refs0 = snapshot0["members"]
-        var kinds0 = snapshot0["member_kinds"]
-        var out0 = []
-        var i0 = 0
-        var n0 = list.len(refs0)
-        while i0 < n0 {
-            var result0 = _task_group_target_stop_wait_kind("task_group.stop_policy_wait", kinds0[i0], refs0[i0], policy0r)
-            if oren_is_err(result0) == true { return result0 }
-            list.push(out0, result0)
-            i0 = i0 + 1
-        }
-        return out0
+        return _task_group_stop_wait_results("task_group.stop_policy_wait", snapshot0["members"], snapshot0["member_kinds"], policy0r)
     }
     var refs = _task_group_members_ref("task_group.stop_policy_wait", group)
     if oren_is_err(refs) == true { return refs }
     var policy = _task_group_merge_policy("task_group.stop_policy_wait", oren_map_get_str(group, "default_policy"), policy0)
     if oren_is_err(policy) == true { return policy }
-    var out = []
-    var i = 0
-    var n = list.len(refs)
-    while i < n {
-        var result = _task_group_target_stop_wait("task_group.stop_policy_wait", refs[i], policy)
-        if oren_is_err(result) == true { return result }
-        list.push(out, result)
-        i = i + 1
-    }
-    return out
+    return _task_group_stop_wait_results("task_group.stop_policy_wait", refs, nil, policy)
 }
 
 fn request_cancel(group, reason) {
@@ -685,45 +687,11 @@ fn terminal_results(group) {
     if _task_group_is_runtime(group) == true {
         var snapshot0 = _task_group_runtime_snapshot("task_group.terminal_results", group)
         if oren_is_err(snapshot0) == true { return snapshot0 }
-        var refs0 = snapshot0["members"]
-        var kinds0 = snapshot0["member_kinds"]
-        var out0 = []
-        var i0 = 0
-        var n0 = list.len(refs0)
-        while i0 < n0 {
-            var kind0 = kinds0[i0]
-            if kind0 == "task" {
-                return _task_group_err("task_group.terminal_results", "task handles require join_all")
-            }
-            if kind0 == "generator_context" {
-                return _task_group_err("task_group.terminal_results", "generator contexts do not have terminal results")
-            }
-            var result0 = gen.terminal_result(refs0[i0])
-            if oren_is_err(result0) == true { return result0 }
-            list.push(out0, result0)
-            i0 = i0 + 1
-        }
-        return out0
+        return _task_group_terminal_results_for("task_group.terminal_results", snapshot0["members"], snapshot0["member_kinds"])
     }
     var refs = _task_group_members_ref("task_group.terminal_results", group)
     if oren_is_err(refs) == true { return refs }
-    var out = []
-    var i = 0
-    var n = list.len(refs)
-    while i < n {
-        var kind = _task_group_target_kind(refs[i])
-        if kind == "task" {
-            return _task_group_err("task_group.terminal_results", "task handles require join_all")
-        }
-        if kind == "generator_context" {
-            return _task_group_err("task_group.terminal_results", "generator contexts do not have terminal results")
-        }
-        var result = gen.terminal_result(refs[i])
-        if oren_is_err(result) == true { return result }
-        list.push(out, result)
-        i = i + 1
-    }
-    return out
+    return _task_group_terminal_results_for("task_group.terminal_results", refs, nil)
 }
 
 fn spawn_call_list(group, fn_obj, args_list) {
