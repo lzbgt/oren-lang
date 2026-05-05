@@ -654,11 +654,10 @@ string-name comparisons.
 		    Fold block traversal now also skips dead non-nil fact frames: `fold_stmt(Block)` pushes only when direct `Var`/`Assign`
 		    statements can update that frame. The measured profile moves optimizer total to ~760ms, `fold_ms` to ~203ms, and
 		    `fold_env_push` from `3204` to `1667` while preserving branch/loop/function isolation.
-		    List-int lowering now distinguishes active safe candidates from entries that have already been invalidated. When no
-		    active candidate remains, use scanning, touch marking, and final rewrite loops are skipped until later statement flow
-		    discovers a new candidate. The retained profile moves optimizer total to ~712ms, `list_int_ms` to ~153ms, and
-		    touch/rewrite buckets to 0ms; `list_int_use_scan_ms` rises to ~56ms, so further work should target remaining lower/use
-		    scan structure only with net-profile proof.
+		    List-int lowering now distinguishes active safe candidates from entries that have already been invalidated. Use scanning
+		    keeps the cheap any-candidate precheck, while touch marking and final rewrite loops are skipped once no active candidate
+		    remains until later statement flow discovers a new candidate. The retained profile moves optimizer total to ~694ms,
+		    `list_int_ms` to ~133ms, `list_int_use_scan_ms` to ~36ms, and touch/rewrite buckets to 0ms.
 		    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 		    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
