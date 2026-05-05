@@ -245,7 +245,7 @@ for phase_name, _ns, detail in events:
             "ms": ms,
         })
         continue
-    for pass_name in ("fold", "list_int", "reserve"):
+    for pass_name in ("fold", "tco_mod", "tco", "for", "sink", "list_int", "reserve", "dce"):
         for rank in (1, 2, 3):
             fn = fields.get(f"{pass_name}{rank}_fn", "")
             if not fn:
@@ -263,6 +263,22 @@ for phase_name, _ns, detail in events:
     if phase_name == "optimizer.summary":
         sub = {"phase": "optimizer.summary"}
         for key in (
+            "total_ms",
+            "stmts",
+            "funcs",
+            "list_candidates",
+            "fold_ms",
+            "list_scan_ms",
+            "tco_mod_ms",
+            "tco_ms",
+            "for_ms",
+            "sink_ms",
+            "list_int_ms",
+            "split_ms",
+            "arena_ms",
+            "reserve_ms",
+            "const_ms",
+            "dce_ms",
             "fold_exprs",
             "fold_expr_call",
             "fold_expr_infix",
@@ -338,6 +354,28 @@ for phase_name, _ns, detail in events:
             except ValueError:
                 sub[key] = 0
         optimizer_subphase_rows.append(sub)
+
+if optimizer_subphase_rows:
+    print("== optimizer pass totals ==")
+    for row in optimizer_subphase_rows:
+        print(
+            f"total={row['total_ms']:5d} ms"
+            f" stmts={row['stmts']:5d}"
+            f" funcs={row['funcs']:5d}"
+            f" list_candidates={row['list_candidates']:5d}"
+            f" | fold={row['fold_ms']:5d}"
+            f" list_scan={row['list_scan_ms']:5d}"
+            f" tco_mod={row['tco_mod_ms']:5d}"
+            f" tco={row['tco_ms']:5d}"
+            f" for={row['for_ms']:5d}"
+            f" sink={row['sink_ms']:5d}"
+            f" list_int={row['list_int_ms']:5d}"
+            f" split={row['split_ms']:5d}"
+            f" arena={row['arena_ms']:5d}"
+            f" reserve={row['reserve_ms']:5d}"
+            f" const={row['const_ms']:5d}"
+            f" dce={row['dce_ms']:5d}"
+        )
 
 if optimizer_hot_rows:
     print("== optimizer hot function bodies by pass ==")

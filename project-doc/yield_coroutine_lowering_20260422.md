@@ -633,8 +633,13 @@ string-name comparisons.
 	    assign tracked locals, while preserving the original path for `Var`/`Assign`/`Set` and control-flow bodies. The exact
 	    profile moves optimizer total from ~1175ms to ~1140ms, `reserve_ms` from ~227ms to ~219ms, and `reserve_safe_ms`
 	    from ~198ms to ~190ms.
+	    Residual optimizer visibility now also covers `tco_mod`, `tco`, `for`, `sink`, and `dce` hot bodies, and the profile
+	    script prints an `optimizer pass totals` row. Hot-body ranking uses a 1ms threshold to avoid perturbing profiles with
+	    sub-millisecond bodies; the refreshed profile shows `tco` (~60ms), `for` (~30ms), and `dce` (~55ms) are distributed with
+	    no >=1ms hot function, while only one `sink` body reaches 1ms. Treat those buckets as pass-level structural overhead,
+	    not fixture-shape targets.
 	    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
-    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
+	    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
     cache directories (`sN_b_*`) instead of only legacy `s2_b_*` names, and `make rtobj-seed` warms both core and
     full runtime profiles for no-debug/debug host seeds. This prevents full-runtime fixtures such as

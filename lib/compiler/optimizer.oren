@@ -85,6 +85,7 @@ fn _optimizer_function_name(fun_expr) {
 
 fn _optimizer_hot_update(hot, pass, fn_name, ns) {
     if hot == nil || pass == nil || ns == nil || ns <= 0 { return nil }
+    if ns < 1000000 { return nil }
     if fn_name == nil || fn_name == "" { fn_name = "<unknown>" }
     var ns1 = hot[pass + "_ns1"]
     var ns2 = hot[pass + "_ns2"]
@@ -193,19 +194,35 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco_modconst start") }
             if profile_phases { t_sub = oren_time_now_ns() }
             _tco_modconst_function_in_place(fn_expr)
-            if profile_phases { tco_mod_ns = tco_mod_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases {
+                var tco_mod_elapsed = _optimizer_phase_elapsed(t_sub)
+                tco_mod_ns = tco_mod_ns + tco_mod_elapsed
+                _optimizer_hot_update(hot, "tco_mod", fn_name, tco_mod_elapsed)
+            }
             if trace_opt && i == 0 { print("[opt] tco_modconst done") }
             if trace_opt && i == 0 { print("[opt] tco start") }
             if profile_phases { t_sub = oren_time_now_ns() }
             _tco_function_in_place(fn_expr)
-            if profile_phases { tco_ns = tco_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases {
+                var tco_elapsed = _optimizer_phase_elapsed(t_sub)
+                tco_ns = tco_ns + tco_elapsed
+                _optimizer_hot_update(hot, "tco", fn_name, tco_elapsed)
+            }
             if trace_opt && i == 0 { print("[opt] tco done") }
             if profile_phases { t_sub = oren_time_now_ns() }
             optloops.lower_simple_for_in_block(fn_expr["body"])
-            if profile_phases { for_ns = for_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases {
+                var for_elapsed = _optimizer_phase_elapsed(t_sub)
+                for_ns = for_ns + for_elapsed
+                _optimizer_hot_update(hot, "for", fn_name, for_elapsed)
+            }
             if profile_phases { t_sub = oren_time_now_ns() }
             optloops.sink_list_lit_into_if(fn_expr["body"])
-            if profile_phases { sink_ns = sink_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases {
+                var sink_elapsed = _optimizer_phase_elapsed(t_sub)
+                sink_ns = sink_ns + sink_elapsed
+                _optimizer_hot_update(hot, "sink", fn_name, sink_elapsed)
+            }
             var lower_allow_empty = true
             var body_may_touch_list = false
             if profile_phases { t_sub = oren_time_now_ns() }
@@ -244,7 +261,11 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] dce start") }
             if profile_phases { t_sub = oren_time_now_ns() }
             dce_block_in_place(fn_expr["body"])
-            if profile_phases { dce_ns = dce_ns + _optimizer_phase_elapsed(t_sub) }
+            if profile_phases {
+                var dce_elapsed = _optimizer_phase_elapsed(t_sub)
+                dce_ns = dce_ns + dce_elapsed
+                _optimizer_hot_update(hot, "dce", fn_name, dce_elapsed)
+            }
             if trace_opt && i == 0 { print("[opt] dce done") }
         }
         i = i + 1
@@ -266,8 +287,13 @@ fn lower_linked_program_in_place(linked) {
             " const_ms=" + oren_int_to_string(const_ns / 1000000) +
             " dce_ms=" + oren_int_to_string(dce_ns / 1000000) +
             _optimizer_hot_detail(hot, "fold") +
+            _optimizer_hot_detail(hot, "tco_mod") +
+            _optimizer_hot_detail(hot, "tco") +
+            _optimizer_hot_detail(hot, "for") +
+            _optimizer_hot_detail(hot, "sink") +
             _optimizer_hot_detail(hot, "list_int") +
             _optimizer_hot_detail(hot, "reserve") +
+            _optimizer_hot_detail(hot, "dce") +
             _optimizer_list_pass_profile_detail()
         _optimizer_phase_log_append(phase_log_path, "optimizer.summary", detail, phase_t0)
     }
