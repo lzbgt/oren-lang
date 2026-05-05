@@ -667,6 +667,10 @@ string-name comparisons.
 		    when a nested `Var`/`Assign` can introduce a list/list-int constructor or potentially-safe list literal; use scanning and
 		    final rewrites stay on their existing guards. The retained profile moves optimizer total to ~422ms, `list_int_ms` to
 		    ~80ms, and `list_int_lower_ms` from ~67ms to ~4ms.
+		    List-int use scanning now also avoids cloning the safe-int map for every statement in a block. The scan clones only for
+		    statement/expression shapes that can mutate branch-local safe-int state, and post-statement safe-int recomputation now uses
+		    the shared `stmt_may_assign_name(...)` detector. The retained profile moves optimizer total to ~404ms, `list_int_ms` to
+		    ~68ms, `list_int_scan_ms2` to ~45ms, and `list_int_use_scan_ms` to ~24ms.
 		    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 		    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object

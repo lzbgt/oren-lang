@@ -861,8 +861,14 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
                         _opt_trace_list_int("[opt] list_int uses_pre_call name=" + cn + " keys=" + keys)
                     }
                 }
-                _opt_scan_list_int_uses_stmt(ss[i], list_state, _opt_map_clone_safe(snap_ints))
-                snap_ints = _opt_safe_ints_after_stmt(ss[i], snap_ints, "uses")
+                var scan_ints = snap_ints
+                if _opt_scan_list_int_uses_stmt_mutates_safe_ints(ss[i]) {
+                    scan_ints = _opt_map_clone_safe(snap_ints)
+                }
+                _opt_scan_list_int_uses_stmt(ss[i], list_state, scan_ints)
+                if opthelp.stmt_may_assign_name(ss[i]) {
+                    snap_ints = _opt_safe_ints_after_stmt(ss[i], snap_ints, "uses")
+                }
                 if trace_list_int == true && i + 1 < oren_list_len(ss) {
                     var nxt = ss[i + 1]
                     var log_next = false
@@ -915,6 +921,70 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
     }
     if t == "Function" { return nil }
     return nil
+}
+
+
+fn _opt_scan_list_int_uses_expr_mutates_safe_ints(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "If" || t == "Switch" { return true }
+    if t == "Call" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["fn"]) { return true }
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(args[i]) { return true }
+            i = i + 1
+        }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["spread"])
+    }
+    if t == "Index" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["left"]) { return true }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["index"])
+    }
+    if t == "Prefix" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["right"]) }
+    if t == "Infix" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["left"]) { return true }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["right"])
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        var i2 = 0
+        while els != nil && i2 < oren_list_len(els) {
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(els[i2]) { return true }
+            i2 = i2 + 1
+        }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["spread"])
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i3 = 0
+        while ps != nil && i3 < oren_list_len(ps) {
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(ps[i3]["key"]) { return true }
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(ps[i3]["value"]) { return true }
+            i3 = i3 + 1
+        }
+        return false
+    }
+    if t == "Member" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["left"]) }
+    return false
+}
+
+
+fn _opt_scan_list_int_uses_stmt_mutates_safe_ints(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "If" || t == "While" || t == "For" || t == "Switch" || t == "Block" {
+        return true
+    }
+    if t == "ExprStmt" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["expr"]) }
+    if t == "Return" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["value"]) }
+    if t == "Var" || t == "Assign" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["value"]) }
+    if t == "Set" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["left"]) { return true }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["value"])
+    }
+    return false
 }
 
 
