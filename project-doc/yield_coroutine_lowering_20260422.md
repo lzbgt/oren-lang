@@ -1920,6 +1920,12 @@ That path keeps the current repo state honest:
   `1565`; the default first-4096 BL span moves to about `1.05s`. The remaining target is now the
   long-tail insertion/name path, best attacked by direct target arrays or insertion-free
   materialization rather than more Oren-level side lists/maps.
+- 2026-05-06: retained an append-only local target cache after the compact-id work made the
+  remaining table small. The resolver no longer keeps target names sorted or shifts tail entries on
+  insertion; it appends resolved targets and filters by metadata key before string comparison.
+  Stats remove insertion shifts entirely, raise raw scan steps to `268198`, and keep byte compares
+  low at `1691`; the default first-4096 BL span remains slightly better at about `1.03s`. The next
+  Mach-O target is now scan-free direct target arrays/materialization for the long tail.
 - 2026-05-06: removed another stale private-helper batch whose names each had exactly one repo
   occurrence before deletion. The cleanup spans compiler and stdlib modules but does not alter the
   coroutine helper contract: `_arm64_cmp_may_use_strcmp`, `_attr_list`,
