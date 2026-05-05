@@ -519,6 +519,17 @@ fn _ml_parse_program_from_src_result(file, src) {
     var prog = parser.parse_program(p)
     if profile_parse { parser_ms = (oren_time_now_ns() - t_part) / 1000000 }
     var parse_body_ms = p["_profile_parse_body_ms"]
+    var parse_prefix_ms = p["_profile_parse_prefix_ms"]
+    var parse_stmt_ms = p["_profile_parse_stmt_ms"]
+    var parse_lower_ms = p["_profile_parse_lower_ms"]
+    var parse_yield_validate_ms = p["_profile_parse_yield_validate_ms"]
+    var parse_advance_ms = p["_profile_parse_advance_ms"]
+    var parse_hot1_ms = p["_profile_parse_hot1_ms"]
+    var parse_hot1_label = p["_profile_parse_hot1_label"]
+    var parse_hot2_ms = p["_profile_parse_hot2_ms"]
+    var parse_hot2_label = p["_profile_parse_hot2_label"]
+    var parse_hot3_ms = p["_profile_parse_hot3_ms"]
+    var parse_hot3_label = p["_profile_parse_hot3_label"]
     var gen_scan_ms = p["_profile_gen_scan_ms"]
     var gen_core_ms = p["_profile_gen_core_ms"]
     var gen_core_src_ms = p["_profile_gen_core_src_ms"]
@@ -553,7 +564,7 @@ fn _ml_parse_program_from_src_result(file, src) {
     src = nil
     l = nil
     p = nil
-    return {"ok": true, "prog": prog, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms}
+    return {"ok": true, "prog": prog, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "parse_prefix_ms": parse_prefix_ms, "parse_stmt_ms": parse_stmt_ms, "parse_lower_ms": parse_lower_ms, "parse_yield_validate_ms": parse_yield_validate_ms, "parse_advance_ms": parse_advance_ms, "parse_hot1_ms": parse_hot1_ms, "parse_hot1_label": parse_hot1_label, "parse_hot2_ms": parse_hot2_ms, "parse_hot2_label": parse_hot2_label, "parse_hot3_ms": parse_hot3_ms, "parse_hot3_label": parse_hot3_label, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms}
 }
 
 fn _ml_parse_include_bucket(bucket, out_dir) {

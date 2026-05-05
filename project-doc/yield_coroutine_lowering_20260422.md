@@ -552,14 +552,15 @@ backend-shared value-helper slices landed.
     object is safe to link into a stage2-emitted user binary.
   - Module parse profiling (2026-05-05): the serial module parse path now emits `link.parse_module.done` rows
     into the standard phase log, and `scripts/profile_native_build_phases.sh` summarizes them by module path with
-    read/cache/parse/lexer/parser/merge/prepare plus parser-body and generator-core sub-buckets. The parser now
-    caches only the generated generator-core source string on the normal non-forced-GC compiler path; the cache is
-    disabled for `OREN_COMPILER_GC=1|true` because compiler globals are not yet guaranteed native GC roots under
-    forced compiler GC. The refreshed profile moves `lib/std/generator.oren` from ~1.40s with `gen_core_ms=1112`
-    to ~490ms with `gen_core_ms=192` / `gen_core_parser_ms=192`; `lib/std/task_group.oren` remains ~507ms with
-    `parse_body_ms=311`, and `lib/std/task.oren` is ~332ms with `parse_body_ms=212`. Reweight module-parse
-    follow-up toward task parser-body shape or a deeper generator-core representation that avoids reparsing, not
-    file-read/cache/prepare work or the small `reflect/result/list` tail. An opt-in serial module-cache write
+    read/cache/parse/lexer/parser/merge/prepare plus parser-body, hot-statement, and generator-core sub-buckets.
+    The parser now caches only the generated generator-core source string on the normal non-forced-GC compiler path;
+    the cache is disabled for `OREN_COMPILER_GC=1|true` because compiler globals are not yet guaranteed native GC
+    roots under forced compiler GC. The refreshed profile moves `lib/std/generator.oren` from ~1.40s with
+    `gen_core_ms=1112` to ~481ms with `gen_core_ms=188` / `gen_core_parser_ms=188`. The hot-statement rows show
+    task/task-group cost is top-level function parsing: `task_group.stop_policy_wait`, `task_group.terminal_results`,
+    `_task_group_validate_policy_shape`, `task.stop_policy_wait`, `_task_stop_fields`, and `task.cancel_after_wait`.
+    Reweight module-parse follow-up toward those parser-body shapes or a deeper generator-core representation that
+    avoids reparsing, not file-read/cache/prepare work or the small `reflect/result/list` tail. An opt-in serial module-cache write
     probe timed out before completing the profile: it wrote only the first two ASTBIN cache entries and charged
     ~114.5s to `lib/std/time.oren` including encode/write cost, so serial cache seeding was reverted as the wrong
     persistence strategy. A parser-side generator-core ASTBIN template-cache probe was also rejected: it reduced

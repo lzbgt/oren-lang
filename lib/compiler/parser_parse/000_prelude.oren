@@ -99,6 +99,17 @@ fn parse_program(p) {
     var profile_path = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
     if profile_path != nil && profile_path != "" && profile_path != "0" { profile_parse = true }
     var parse_body_ms = 0
+    var parse_prefix_ms = 0
+    var parse_stmt_ms = 0
+    var parse_lower_ms = 0
+    var parse_yield_validate_ms = 0
+    var parse_advance_ms = 0
+    var parse_hot1_ms = 0
+    var parse_hot1_label = ""
+    var parse_hot2_ms = 0
+    var parse_hot2_label = ""
+    var parse_hot3_ms = 0
+    var parse_hot3_label = ""
     var gen_scan_ms = 0
     var gen_core_ms = 0
     var gen_core_src_ms = 0
@@ -107,6 +118,7 @@ fn parse_program(p) {
     var forin_bridge_ms = 0
     var prepend_ms = 0
     var t_part = 0
+    var t_step = 0
     var gcroot = {"parser": p, "lexer": p["l"], "input": p["l"]["input"]}
     var __prev_gc_pin = oren_gc_pin(gcroot)
     // Expose GC root for nested parse helpers (e.g. parse_block) to pin locals.
@@ -181,6 +193,7 @@ fn parse_program(p) {
         // We collect both deterministically and attach to the next declaration only.
         var doc_lines = []
         var attrs = []
+        if profile_parse { t_step = oren_time_now_ns() }
         p["_gc_doc_lines"] = doc_lines
         p["_gc_attrs"] = attrs
         gcroot["doc_lines"] = doc_lines
@@ -197,8 +210,31 @@ fn parse_program(p) {
         }
         var doc = docs_join(doc_lines)
         p["_pending_doc"] = doc
+        if profile_parse { parse_prefix_ms = parse_prefix_ms + ((oren_time_now_ns() - t_step) / 1000000) }
         p["_trace_stmt_i"] = stmt_i
+        if profile_parse { t_step = oren_time_now_ns() }
         var stmt = parse_statement(p)
+        if profile_parse {
+            var stmt_ms = (oren_time_now_ns() - t_step) / 1000000
+            parse_stmt_ms = parse_stmt_ms + stmt_ms
+            var stmt_label = _parse_profile_stmt_label(stmt)
+            if stmt_ms > parse_hot1_ms {
+                parse_hot3_ms = parse_hot2_ms
+                parse_hot3_label = parse_hot2_label
+                parse_hot2_ms = parse_hot1_ms
+                parse_hot2_label = parse_hot1_label
+                parse_hot1_ms = stmt_ms
+                parse_hot1_label = stmt_label
+            } else if stmt_ms > parse_hot2_ms {
+                parse_hot3_ms = parse_hot2_ms
+                parse_hot3_label = parse_hot2_label
+                parse_hot2_ms = stmt_ms
+                parse_hot2_label = stmt_label
+            } else if stmt_ms > parse_hot3_ms {
+                parse_hot3_ms = stmt_ms
+                parse_hot3_label = stmt_label
+            }
+        }
         p["_gc_stmt"] = stmt
         gcroot["stmt"] = stmt
         if stmt != nil {
@@ -230,8 +266,14 @@ fn parse_program(p) {
 	                                    s["doc"] = pending
 	                            }
 	                        }
+                            if profile_parse { t_step = oren_time_now_ns() }
                             s = maybe_lower_generator_decl_stmt(p, s)
+                            if profile_parse {
+                                parse_lower_ms = parse_lower_ms + ((oren_time_now_ns() - t_step) / 1000000)
+                                t_step = oren_time_now_ns()
+                            }
                             s = validate_stmt_yield_delegate_syntax(p, s)
+                            if profile_parse { parse_yield_validate_ms = parse_yield_validate_ms + ((oren_time_now_ns() - t_step) / 1000000) }
                             oren_list_push(prog["statements"], s)
 	                        si = si + 1
 	                    }
@@ -269,8 +311,14 @@ fn parse_program(p) {
                         }
 	                    }
 	                }
+                    if profile_parse { t_step = oren_time_now_ns() }
                     stmt = maybe_lower_generator_decl_stmt(p, stmt)
+                    if profile_parse {
+                        parse_lower_ms = parse_lower_ms + ((oren_time_now_ns() - t_step) / 1000000)
+                        t_step = oren_time_now_ns()
+                    }
                     stmt = validate_stmt_yield_delegate_syntax(p, stmt)
+                    if profile_parse { parse_yield_validate_ms = parse_yield_validate_ms + ((oren_time_now_ns() - t_step) / 1000000) }
                     oren_list_push(prog["statements"], stmt)
 	            }
 	        }
@@ -283,7 +331,9 @@ fn parse_program(p) {
         gcroot["attrs"] = nil
         gcroot["doc_lines"] = nil
         stmt_i = stmt_i + 1
+        if profile_parse { t_step = oren_time_now_ns() }
         parser_next_token(p)
+        if profile_parse { parse_advance_ms = parse_advance_ms + ((oren_time_now_ns() - t_step) / 1000000) }
     }
     if profile_parse {
         parse_body_ms = (oren_time_now_ns() - t_part) / 1000000
@@ -320,6 +370,17 @@ fn parse_program(p) {
         if profile_parse { prepend_ms = prepend_ms + ((oren_time_now_ns() - t_part) / 1000000) }
     }
     p["_profile_parse_body_ms"] = parse_body_ms
+    p["_profile_parse_prefix_ms"] = parse_prefix_ms
+    p["_profile_parse_stmt_ms"] = parse_stmt_ms
+    p["_profile_parse_lower_ms"] = parse_lower_ms
+    p["_profile_parse_yield_validate_ms"] = parse_yield_validate_ms
+    p["_profile_parse_advance_ms"] = parse_advance_ms
+    p["_profile_parse_hot1_ms"] = parse_hot1_ms
+    p["_profile_parse_hot1_label"] = parse_hot1_label
+    p["_profile_parse_hot2_ms"] = parse_hot2_ms
+    p["_profile_parse_hot2_label"] = parse_hot2_label
+    p["_profile_parse_hot3_ms"] = parse_hot3_ms
+    p["_profile_parse_hot3_label"] = parse_hot3_label
     p["_profile_gen_scan_ms"] = gen_scan_ms
     p["_profile_gen_core_ms"] = gen_core_ms
     p["_profile_gen_core_src_ms"] = gen_core_src_ms
@@ -536,6 +597,35 @@ fn _prepend_stmts(stmts, prefix_stmts) {
         i = i + 1
     }
     return out
+}
+
+fn _parse_profile_stmt_label(stmt) {
+    if stmt == nil { return "nil" }
+    var t = stmt["type"]
+    if t == nil { return "unknown" }
+    if t == "StmtList" {
+        var origin = stmt["origin"]
+        if origin == nil { origin = "" }
+        return "StmtList:" + origin
+    }
+    if t == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" {
+            var nm = expr["name"]
+            if nm == nil { nm = "" }
+            return "Function:" + nm
+        }
+        if expr != nil && expr["type"] != nil { return "ExprStmt:" + expr["type"] }
+    }
+    if t == "Var" {
+        var name = stmt["name"]
+        if name != nil && name["value"] != nil { return "Var:" + name["value"] }
+    }
+    if t == "Import" {
+        var path = stmt["path"]
+        if path != nil { return "Import:" + path }
+    }
+    return t
 }
 
 fn _generator_helper_name_used(name) {

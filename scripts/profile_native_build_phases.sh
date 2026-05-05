@@ -108,7 +108,7 @@ for ms, prev_name, name, detail in sorted(deltas, reverse=True)[:15]:
     print(f"{ms:10.3f} ms  {prev_name} -> {name}{suffix}")
 
 parse_module_rows = []
-detail_field_re = re.compile(r"([a-zA-Z_]+)=([^ ]*)")
+detail_field_re = re.compile(r"([a-zA-Z0-9_]+)=([^ ]*)")
 for phase_name, _ns, detail in events:
     if phase_name != "link.parse_module.done":
         continue
@@ -133,6 +133,14 @@ for phase_name, _ns, detail in events:
         "lexer_ms",
         "parser_ms",
         "parse_body_ms",
+        "parse_prefix_ms",
+        "parse_stmt_ms",
+        "parse_lower_ms",
+        "parse_yield_validate_ms",
+        "parse_advance_ms",
+        "parse_hot1_ms",
+        "parse_hot2_ms",
+        "parse_hot3_ms",
         "gen_scan_ms",
         "gen_core_ms",
         "gen_core_src_ms",
@@ -153,6 +161,9 @@ for phase_name, _ns, detail in events:
         "stmts": stmts,
         "traits": traits,
         "cache_hit": fields.get("cache_hit", "0"),
+        "parse_hot1_label": fields.get("parse_hot1_label", ""),
+        "parse_hot2_label": fields.get("parse_hot2_label", ""),
+        "parse_hot3_label": fields.get("parse_hot3_label", ""),
         **sub_ms,
     })
 
@@ -163,11 +174,17 @@ if parse_module_rows:
             f"{row['ms']:10d} ms  {row['stmts']:6d} stmts  {row['traits']:5d} traits"
             f"  read={row['read_ms']:5d} cache={row['cache_ms']:5d} parse={row['parse_ms']:5d}"
             f" lexer={row['lexer_ms']:5d} parser={row['parser_ms']:5d}"
-            f" body={row['parse_body_ms']:5d} gen_scan={row['gen_scan_ms']:5d}"
+            f" body={row['parse_body_ms']:5d} stmt={row['parse_stmt_ms']:5d}"
+            f" prefix={row['parse_prefix_ms']:5d} lower={row['parse_lower_ms']:5d}"
+            f" yield={row['parse_yield_validate_ms']:5d} advance={row['parse_advance_ms']:5d}"
+            f" gen_scan={row['gen_scan_ms']:5d}"
             f" gen_core={row['gen_core_ms']:5d} gen_src={row['gen_core_src_ms']:5d}"
             f" gen_lexer={row['gen_core_lexer_ms']:5d} gen_parser={row['gen_core_parser_ms']:5d}"
             f" forin_bridge={row['forin_bridge_ms']:5d} prepend={row['prepend_ms']:5d}"
             f" merge={row['merge_ms']:5d} prepare={row['prepare_ms']:5d}"
+            f" hot1={row['parse_hot1_label']}:{row['parse_hot1_ms']}"
+            f" hot2={row['parse_hot2_label']}:{row['parse_hot2_ms']}"
+            f" hot3={row['parse_hot3_label']}:{row['parse_hot3_ms']}"
             f"  cache_hit={row['cache_hit']}  path={row['path']}"
         )
 

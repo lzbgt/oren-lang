@@ -122,6 +122,17 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     var lexer_ms = 0
     var parser_ms = 0
     var parse_body_ms = 0
+    var parse_prefix_ms = 0
+    var parse_stmt_ms = 0
+    var parse_lower_ms = 0
+    var parse_yield_validate_ms = 0
+    var parse_advance_ms = 0
+    var parse_hot1_ms = 0
+    var parse_hot1_label = ""
+    var parse_hot2_ms = 0
+    var parse_hot2_label = ""
+    var parse_hot3_ms = 0
+    var parse_hot3_label = ""
     var gen_scan_ms = 0
     var gen_core_ms = 0
     var gen_core_src_ms = 0
@@ -159,7 +170,7 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
                         if profile_parse { cache_ms = cache_ms + ((oren_time_now_ns() - t_part) / 1000000) }
                         // Return both the decoded program and the original ASTBIN bytes so fork-parallel
                         // workers can avoid re-encoding work (a major win for large stdlib graphs).
-                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
+                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "parse_prefix_ms": parse_prefix_ms, "parse_stmt_ms": parse_stmt_ms, "parse_lower_ms": parse_lower_ms, "parse_yield_validate_ms": parse_yield_validate_ms, "parse_advance_ms": parse_advance_ms, "parse_hot1_ms": parse_hot1_ms, "parse_hot1_label": parse_hot1_label, "parse_hot2_ms": parse_hot2_ms, "parse_hot2_label": parse_hot2_label, "parse_hot3_ms": parse_hot3_ms, "parse_hot3_label": parse_hot3_label, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
                     }
                 }
             }
@@ -172,6 +183,14 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
         if pr["lexer_ms"] != nil { lexer_ms = lexer_ms + pr["lexer_ms"] }
         if pr["parser_ms"] != nil { parser_ms = parser_ms + pr["parser_ms"] }
         if pr["parse_body_ms"] != nil { parse_body_ms = parse_body_ms + pr["parse_body_ms"] }
+        if pr["parse_prefix_ms"] != nil { parse_prefix_ms = parse_prefix_ms + pr["parse_prefix_ms"] }
+        if pr["parse_stmt_ms"] != nil { parse_stmt_ms = parse_stmt_ms + pr["parse_stmt_ms"] }
+        if pr["parse_lower_ms"] != nil { parse_lower_ms = parse_lower_ms + pr["parse_lower_ms"] }
+        if pr["parse_yield_validate_ms"] != nil { parse_yield_validate_ms = parse_yield_validate_ms + pr["parse_yield_validate_ms"] }
+        if pr["parse_advance_ms"] != nil { parse_advance_ms = parse_advance_ms + pr["parse_advance_ms"] }
+        if pr["parse_hot1_ms"] != nil { parse_hot1_ms = pr["parse_hot1_ms"]; parse_hot1_label = pr["parse_hot1_label"] }
+        if pr["parse_hot2_ms"] != nil { parse_hot2_ms = pr["parse_hot2_ms"]; parse_hot2_label = pr["parse_hot2_label"] }
+        if pr["parse_hot3_ms"] != nil { parse_hot3_ms = pr["parse_hot3_ms"]; parse_hot3_label = pr["parse_hot3_label"] }
         if pr["gen_scan_ms"] != nil { gen_scan_ms = gen_scan_ms + pr["gen_scan_ms"] }
         if pr["gen_core_ms"] != nil { gen_core_ms = gen_core_ms + pr["gen_core_ms"] }
         if pr["gen_core_src_ms"] != nil { gen_core_src_ms = gen_core_src_ms + pr["gen_core_src_ms"] }
@@ -205,6 +224,15 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
             if pr2["lexer_ms"] != nil { lexer_ms = lexer_ms + pr2["lexer_ms"] }
             if pr2["parser_ms"] != nil { parser_ms = parser_ms + pr2["parser_ms"] }
             if pr2["parse_body_ms"] != nil { parse_body_ms = parse_body_ms + pr2["parse_body_ms"] }
+            if pr2["parse_prefix_ms"] != nil { parse_prefix_ms = parse_prefix_ms + pr2["parse_prefix_ms"] }
+            if pr2["parse_stmt_ms"] != nil { parse_stmt_ms = parse_stmt_ms + pr2["parse_stmt_ms"] }
+            if pr2["parse_lower_ms"] != nil { parse_lower_ms = parse_lower_ms + pr2["parse_lower_ms"] }
+            if pr2["parse_yield_validate_ms"] != nil { parse_yield_validate_ms = parse_yield_validate_ms + pr2["parse_yield_validate_ms"] }
+            if pr2["parse_advance_ms"] != nil { parse_advance_ms = parse_advance_ms + pr2["parse_advance_ms"] }
+            if pr2["parse_hot1_ms"] != nil && pr2["parse_hot1_ms"] > parse_hot1_ms {
+                parse_hot1_ms = pr2["parse_hot1_ms"]
+                parse_hot1_label = pr2["parse_hot1_label"]
+            }
             if pr2["gen_scan_ms"] != nil { gen_scan_ms = gen_scan_ms + pr2["gen_scan_ms"] }
             if pr2["gen_core_ms"] != nil { gen_core_ms = gen_core_ms + pr2["gen_core_ms"] }
             if pr2["gen_core_src_ms"] != nil { gen_core_src_ms = gen_core_src_ms + pr2["gen_core_src_ms"] }
@@ -238,7 +266,7 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     if prep["ok"] != true { return prep }
     // Note: cache write happens in parse workers (when fork-parallel is enabled) to avoid
     // extra astbin encoding work in the serial/thread parse paths.
-    return {"ok": true, "prog": prog, "cache_path": cache_path, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
+    return {"ok": true, "prog": prog, "cache_path": cache_path, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "parse_prefix_ms": parse_prefix_ms, "parse_stmt_ms": parse_stmt_ms, "parse_lower_ms": parse_lower_ms, "parse_yield_validate_ms": parse_yield_validate_ms, "parse_advance_ms": parse_advance_ms, "parse_hot1_ms": parse_hot1_ms, "parse_hot1_label": parse_hot1_label, "parse_hot2_ms": parse_hot2_ms, "parse_hot2_label": parse_hot2_label, "parse_hot3_ms": parse_hot3_ms, "parse_hot3_label": parse_hot3_label, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
 }
 
 fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
@@ -672,6 +700,17 @@ fn _ml_parse_discovered_modules_serial(config) {
                     " lexer_ms=" + oren_int_to_string(rr["lexer_ms"]) +
                     " parser_ms=" + oren_int_to_string(rr["parser_ms"]) +
                     " parse_body_ms=" + oren_int_to_string(rr["parse_body_ms"]) +
+                    " parse_prefix_ms=" + oren_int_to_string(rr["parse_prefix_ms"]) +
+                    " parse_stmt_ms=" + oren_int_to_string(rr["parse_stmt_ms"]) +
+                    " parse_lower_ms=" + oren_int_to_string(rr["parse_lower_ms"]) +
+                    " parse_yield_validate_ms=" + oren_int_to_string(rr["parse_yield_validate_ms"]) +
+                    " parse_advance_ms=" + oren_int_to_string(rr["parse_advance_ms"]) +
+                    " parse_hot1_ms=" + oren_int_to_string(rr["parse_hot1_ms"]) +
+                    " parse_hot1_label=" + rr["parse_hot1_label"] +
+                    " parse_hot2_ms=" + oren_int_to_string(rr["parse_hot2_ms"]) +
+                    " parse_hot2_label=" + rr["parse_hot2_label"] +
+                    " parse_hot3_ms=" + oren_int_to_string(rr["parse_hot3_ms"]) +
+                    " parse_hot3_label=" + rr["parse_hot3_label"] +
                     " gen_scan_ms=" + oren_int_to_string(rr["gen_scan_ms"]) +
                     " gen_core_ms=" + oren_int_to_string(rr["gen_core_ms"]) +
                     " gen_core_src_ms=" + oren_int_to_string(rr["gen_core_src_ms"]) +
