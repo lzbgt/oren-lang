@@ -671,6 +671,11 @@ string-name comparisons.
 		    statement/expression shapes that can mutate branch-local safe-int state, and post-statement safe-int recomputation now uses
 		    the shared `stmt_may_assign_name(...)` detector. The retained profile moves optimizer total to ~404ms, `list_int_ms` to
 		    ~68ms, `list_int_scan_ms2` to ~45ms, and `list_int_use_scan_ms` to ~24ms.
+		    A follow-up generator-surface fixture split that separated defer-finalize, collect/for-in, declaration collect, and local
+		    generator clusters is rejected: direct bytecode/native builds and the native profile passed, but the exact profile only moved
+		    labels into smaller for-in/local rows while aggregate `user_decls` stayed roughly neutral/slightly worse (~2.96s prior band vs
+		    raw ~2.99s) and optimizer total rose from ~404ms to ~456ms because the function surface grew. Keep fixture-shape work gated on
+		    aggregate wall-time wins, not top-row relabeling.
 		    A DCE-before-optimizer pass-order probe passed stage2 plus focused generator/coroutine verifiers but regressed the default
 		    profile (`optimizer` ~5.1s, `user_decls` ~7.2s), so global DCE stays after the optimizer.
   - Rtobj seed durability (2026-05-05): `scripts/build_rtobj_seed.sh` now matches schema-versioned runtime-object
