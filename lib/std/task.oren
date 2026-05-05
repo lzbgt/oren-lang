@@ -168,7 +168,7 @@ fn _task_stop_handle(handle, wait_ms, reason) {
 fn _task_timeout_detach_result(handle, rv, reason) {
     if rv != -60 { return nil }
     var detach_rv = nil
-    if is_handle(handle) == true {
+    if oren_task_is_handle(handle) == true {
         detach_rv = detach(handle)
         if oren_is_err(detach_rv) == true {
             return _task_stop_result("detach_error", rv, reason, detach_rv)
@@ -186,7 +186,7 @@ fn _task_request_then_stop_handle(handle, wait_ms, reason) {
             return oren_task_cancel_wait(handle, wait_ms, reason)
         }
     }
-    if is_done(handle) != true {
+    if oren_task_is_done(handle) != true {
         var rv0 = request_cancel(handle, reason)
         if oren_is_err(rv0) == true { return rv0 }
     }

@@ -727,6 +727,11 @@ string-name comparisons.
     exact profile keeps parser-body timings stable while reducing source shape to `lib/std/generator.oren` 135 stmts,
     `lib/std/task.oren` 49 stmts, and `lib/std/task_group.oren` 63 stmts, with `user_decls` in-band at ~2.68s / 328
     funcs.
+    The follow-up direct runtime predicate cleanup keeps the exported `std:task.is_handle(...)` / `is_done(...)`
+    surfaces but removes the remaining internal wrapper calls from `_task_timeout_detach_result(...)`,
+    `_task_request_then_stop_handle(...)`, and `_task_group_target_kind(...)`. Focused task/task-group/generator/
+    coroutine surfaces pass; the exact profile keeps statement counts stable and moves `lib/std/task.oren` to
+    ~285ms / 49 stmts, `lib/std/task_group.oren` to ~444ms / 63 stmts, and `user_decls` to ~2.67s / 328 funcs.
     A task-group policy-shape helper extraction is rejected for now: it passed stage2 but caused a repeatable
     bytecode-only `verify-task-group-task-surface-v0` failure at `191096`, while C/native stayed green. A separate
     `std:task.stop_policy_wait` stop-mode helper split passed stage2 and focused surfaces but moved

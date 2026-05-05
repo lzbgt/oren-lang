@@ -31,7 +31,7 @@ fn _task_group_err(ctx, msg) {
 fn _task_group_target_kind(target) {
     var name = oren_type_name(target)
     if name == "generator" || name == "generator_context" { return name }
-    if task.is_handle(target) == true { return "task" }
+    if oren_task_is_handle(target) == true { return "task" }
     return nil
 }
 
