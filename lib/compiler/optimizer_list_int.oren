@@ -1361,9 +1361,12 @@ fn _opt_list_int_stmt_has_lowerable_body(stmt) {
     return false
 }
 
-fn _opt_list_int_has_any_candidate(list_state) {
+fn _opt_list_int_has_active_candidate(list_state) {
     if list_state == nil { return false }
-    return oren_map_len(list_state) > 0
+    for k in list_state {
+        if list_state[k] == true { return true }
+    }
+    return false
 }
 
 fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
@@ -1422,11 +1425,11 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
         }
         _opt_list_int_profile_add("lower", prof_part_t0)
         if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
-        if _opt_list_int_has_any_candidate(list_state) == true {
+        if _opt_list_int_has_active_candidate(list_state) == true {
             _opt_scan_list_int_uses_stmt(st, list_state, safe_ints)
         }
         _opt_list_int_profile_add("use_scan", prof_part_t0)
-        if list_empty_seen == true {
+        if list_empty_seen == true && _opt_list_int_has_active_candidate(list_state) == true {
             if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
             if opthelp.stmt_may_touch_list(st) == true {
                 _opt_mark_list_int_touch_in_stmt(st, list_state, _opt_map_clone_safe(safe_ints), list_touch)
@@ -1497,6 +1500,10 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
                 _opt_list_state_mark_unsafe_reason(list_state, k2, "nested_assign")
             }
         }
+    }
+
+    if _opt_list_int_has_active_candidate(list_state) != true {
+        return nil
     }
 
     var out = []
