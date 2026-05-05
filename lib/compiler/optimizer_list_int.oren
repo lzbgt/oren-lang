@@ -1351,10 +1351,12 @@ fn _opt_lower_int_only_lists_in_block(block) {
 fn _opt_list_int_stmt_has_lowerable_body(stmt) {
     if stmt == nil { return false }
     var t = stmt["type"]
-    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" { return true }
+    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" {
+        return opthelp.stmt_may_touch_list(stmt)
+    }
     if t == "ExprStmt" {
         var e = stmt["expr"]
-        return e != nil && e["type"] == "If"
+        return e != nil && e["type"] == "If" && opthelp.expr_may_touch_list(e)
     }
     return false
 }

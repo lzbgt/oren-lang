@@ -5,6 +5,179 @@ fn is_ident(expr) {
     return expr["value"]
 }
 
+fn str_contains(hay, needle) {
+    if hay == nil || needle == nil { return false }
+    var hl = oren_string_len(hay)
+    var nl = oren_string_len(needle)
+    if nl == 0 { return true }
+    if hl < nl { return false }
+    var i = 0
+    while i <= hl - nl {
+        var ok = true
+        var j = 0
+        while j < nl {
+            if oren_string_char_at(hay, i + j) != oren_string_char_at(needle, j) {
+                ok = false
+                break
+            }
+            j = j + 1
+        }
+        if ok { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn expr_call_name(expr) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn_expr = expr["fn"]
+    if fn_expr == nil { return nil }
+    if fn_expr["type"] == "Identifier" { return fn_expr["value"] }
+    if fn_expr["type"] == "Member" {
+        var prop = fn_expr["prop"]
+        if prop != nil && prop["type"] == "Identifier" { return prop["value"] }
+    }
+    return nil
+}
+
+fn call_may_touch_list(expr) {
+    var nm = expr_call_name(expr)
+    if nm == nil { return true }
+    if str_contains(nm, "list") { return true }
+    if nm == "push" || nm == "len" || nm == "get" || nm == "set" || nm == "reserve" { return true }
+    if nm == "new" || nm == "new_cap" || nm == "int_new" || nm == "int_push" { return true }
+    if nm == "int_get" || nm == "int_set" || nm == "int_len" || nm == "int_reserve" { return true }
+    return false
+}
+
+fn expr_may_touch_list(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Identifier" || t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil" { return false }
+    if t == "Array" { return true }
+    if t == "Index" { return true }
+    if t == "Call" {
+        if call_may_touch_list(expr) { return true }
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            if expr_may_touch_list(args[i]) { return true }
+            i = i + 1
+        }
+        if expr_may_touch_list(expr["spread"]) { return true }
+        return expr_may_touch_list(expr["fn"])
+    }
+    if t == "Member" { return expr_may_touch_list(expr["left"]) }
+    if t == "Prefix" { return expr_may_touch_list(expr["right"]) }
+    if t == "Infix" {
+        if expr_may_touch_list(expr["left"]) { return true }
+        return expr_may_touch_list(expr["right"])
+    }
+    if t == "If" {
+        if expr_may_touch_list(expr["cond"]) { return true }
+        if stmt_may_touch_list(expr["consq"]) { return true }
+        return stmt_may_touch_list(expr["alt"])
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var pi = 0
+        while ps != nil && pi < oren_list_len(ps) {
+            var p = ps[pi]
+            if p != nil {
+                if expr_may_touch_list(p["key"]) { return true }
+                if expr_may_touch_list(p["value"]) { return true }
+            }
+            pi = pi + 1
+        }
+        return false
+    }
+    if t == "Switch" {
+        if expr_may_touch_list(expr["cond"]) { return true }
+        if expr_may_touch_list(expr["target"]) { return true }
+        var cases = expr["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil && stmt_may_touch_list(c["body"]) { return true }
+            ci = ci + 1
+        }
+        return stmt_may_touch_list(expr["default"])
+    }
+    if t == "Function" { return stmt_may_touch_list(expr["body"]) }
+    if t == "SpawnExpr" { return expr_may_touch_list(expr["call"]) }
+    return false
+}
+
+fn stmt_may_touch_list(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Break" || t == "Continue" || t == "Import" || t == "Type" || t == "FFI" { return false }
+    if t == "StmtList" {
+        var sl = stmt["stmts"]
+        var si = 0
+        while sl != nil && si < oren_list_len(sl) {
+            if stmt_may_touch_list(sl[si]) { return true }
+            si = si + 1
+        }
+        return false
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if stmt_may_touch_list(ss[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "Var" { return expr_may_touch_list(stmt["value"]) }
+    if t == "Assign" { return expr_may_touch_list(stmt["value"]) }
+    if t == "Set" {
+        if expr_may_touch_list(stmt["left"]) { return true }
+        return expr_may_touch_list(stmt["value"])
+    }
+    if t == "Return" { return expr_may_touch_list(stmt["value"]) }
+    if t == "ExprStmt" { return expr_may_touch_list(stmt["expr"]) }
+    if t == "While" {
+        if expr_may_touch_list(stmt["cond"]) { return true }
+        return stmt_may_touch_list(stmt["body"])
+    }
+    if t == "For" {
+        if stmt_may_touch_list(stmt["init"]) { return true }
+        if expr_may_touch_list(stmt["cond"]) { return true }
+        if expr_may_touch_list(stmt["post"]) { return true }
+        return stmt_may_touch_list(stmt["body"])
+    }
+    if t == "If" {
+        if expr_may_touch_list(stmt["cond"]) { return true }
+        if stmt_may_touch_list(stmt["consq"]) { return true }
+        return stmt_may_touch_list(stmt["alt"])
+    }
+    if t == "Switch" {
+        if expr_may_touch_list(stmt["cond"]) { return true }
+        if expr_may_touch_list(stmt["target"]) { return true }
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil {
+                var vals = c["values"]
+                var vi = 0
+                while vals != nil && vi < oren_list_len(vals) {
+                    if expr_may_touch_list(vals[vi]) { return true }
+                    vi = vi + 1
+                }
+                if stmt_may_touch_list(c["body"]) { return true }
+            }
+            ci = ci + 1
+        }
+        return stmt_may_touch_list(stmt["default"])
+    }
+    if t == "Function" { return stmt_may_touch_list(stmt["body"]) }
+    if t == "Spawn" { return expr_may_touch_list(stmt["call"]) }
+    return false
+}
+
 fn collect_assigned_names_stmt(out, stmt) {
     if out == nil || stmt == nil { return nil }
     var t = stmt["type"]
