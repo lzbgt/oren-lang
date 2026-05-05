@@ -76,6 +76,12 @@ A one-entry previous-target reuse probe found `1055` adjacent same-name BL fixup
 materially move the first-4096 wall-time boundary (`~1.42s` baseline vs `~1.41s` probe), so it was
 reverted. This further rules out small MRU/previous-target caches around the current string/name
 resolver.
+An Oren-level whole-table materialization probe was rejected too. Rebuilding target entries from
+`ctx["functions"]` plus `runtime_functions_enc` and shell-sorting by the existing metadata key
+eliminated lazy appends and made the BL loop itself roughly `100ms`, but the preseed/sort phase cost
+about `71.7s` for `1889` entries before the first BL fixup. The remaining viable direction is still
+lower-level target ids/offsets or direct target arrays carried from emission/materialized without
+generic maps, string-name bypasses, fixup-side sid fields, or Oren-level global target sorting.
 
 ## Current shipped state
 
