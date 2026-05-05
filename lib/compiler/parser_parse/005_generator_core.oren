@@ -9,7 +9,18 @@ fn _program_needs_generator_core(prog) {
     return false
 }
 
+var _PARSER_GENERATOR_CORE_SRC_CACHE = nil
+
+fn _generator_core_src_cache_enabled() {
+    // Native compiler globals are not yet guaranteed GC roots under forced compiler GC.
+    var force_gc = oren_env("OREN_COMPILER_GC")
+    if force_gc == "1" || force_gc == "true" { return false }
+    return true
+}
+
 fn _generator_core_src() {
+    var cache_enabled = _generator_core_src_cache_enabled()
+    if cache_enabled == true && _PARSER_GENERATOR_CORE_SRC_CACHE != nil { return _PARSER_GENERATOR_CORE_SRC_CACHE }
     var src = ""
     src = src + "fn _oren_generator_err(ctx, msg) { return oren_err(4, ctx + \": \" + msg) }\n"
     src = src + "fn _oren_generator_trace(msg) {\n"
@@ -440,6 +451,7 @@ fn _generator_core_src() {
     src = src + "        oren_list_push(out, step[\"value\"])\n"
     src = src + "    }\n"
     src = src + "}\n"
+    if cache_enabled == true { _PARSER_GENERATOR_CORE_SRC_CACHE = src }
     return src
 }
 
@@ -447,8 +459,25 @@ fn _generator_core_stmts(p) {
     var file = p["file"]
     if file == nil { file = "" }
     var helper_file = file + "#oren_generator_core_v0#" + parser_gensym(p, "__oren_generator_core_")
-    var l = lexer.new_lexer(_generator_core_src())
+    var profile_parse = false
+    var profile_path = oren_env("OREN_TRACE_BUILD_PHASES_PATH")
+    if profile_path != nil && profile_path != "" && profile_path != "0" { profile_parse = true }
+    var src_ms = 0
+    var lexer_ms = 0
+    var parser_ms = 0
+    var t_part = 0
+    if profile_parse { t_part = oren_time_now_ns() }
+    var src = _generator_core_src()
+    if profile_parse {
+        src_ms = (oren_time_now_ns() - t_part) / 1000000
+        t_part = oren_time_now_ns()
+    }
+    var l = lexer.new_lexer(src)
     l["file"] = helper_file
+    if profile_parse {
+        lexer_ms = (oren_time_now_ns() - t_part) / 1000000
+        t_part = oren_time_now_ns()
+    }
     var hp = core.new_parser(l)
     hp["file"] = helper_file
     hp["strict_attrs"] = p["strict_attrs"]
@@ -457,6 +486,12 @@ fn _generator_core_stmts(p) {
     hp["ident_allow_prefixes"] = p["ident_allow_prefixes"]
     hp["_skip_generator_core_inject"] = true
     var prog = parse_program(hp)
+    if profile_parse {
+        parser_ms = (oren_time_now_ns() - t_part) / 1000000
+    }
+    p["_profile_gen_core_src_ms"] = src_ms
+    p["_profile_gen_core_lexer_ms"] = lexer_ms
+    p["_profile_gen_core_parser_ms"] = parser_ms
     if oren_list_len(hp["errors"]) > 0 {
         parser_add_error(p, "internal generator core parse failure")
         return []

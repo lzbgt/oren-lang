@@ -521,6 +521,9 @@ fn _ml_parse_program_from_src_result(file, src) {
     var parse_body_ms = p["_profile_parse_body_ms"]
     var gen_scan_ms = p["_profile_gen_scan_ms"]
     var gen_core_ms = p["_profile_gen_core_ms"]
+    var gen_core_src_ms = p["_profile_gen_core_src_ms"]
+    var gen_core_lexer_ms = p["_profile_gen_core_lexer_ms"]
+    var gen_core_parser_ms = p["_profile_gen_core_parser_ms"]
     var forin_bridge_ms = p["_profile_forin_bridge_ms"]
     var prepend_ms = p["_profile_prepend_ms"]
 
@@ -550,7 +553,7 @@ fn _ml_parse_program_from_src_result(file, src) {
     src = nil
     l = nil
     p = nil
-    return {"ok": true, "prog": prog, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms}
+    return {"ok": true, "prog": prog, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms}
 }
 
 fn _ml_parse_include_bucket(bucket, out_dir) {

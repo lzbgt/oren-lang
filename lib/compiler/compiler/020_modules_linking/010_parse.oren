@@ -124,6 +124,9 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     var parse_body_ms = 0
     var gen_scan_ms = 0
     var gen_core_ms = 0
+    var gen_core_src_ms = 0
+    var gen_core_lexer_ms = 0
+    var gen_core_parser_ms = 0
     var forin_bridge_ms = 0
     var prepend_ms = 0
     var merge_ms = 0
@@ -156,7 +159,7 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
                         if profile_parse { cache_ms = cache_ms + ((oren_time_now_ns() - t_part) / 1000000) }
                         // Return both the decoded program and the original ASTBIN bytes so fork-parallel
                         // workers can avoid re-encoding work (a major win for large stdlib graphs).
-                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
+                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
                     }
                 }
             }
@@ -171,6 +174,9 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
         if pr["parse_body_ms"] != nil { parse_body_ms = parse_body_ms + pr["parse_body_ms"] }
         if pr["gen_scan_ms"] != nil { gen_scan_ms = gen_scan_ms + pr["gen_scan_ms"] }
         if pr["gen_core_ms"] != nil { gen_core_ms = gen_core_ms + pr["gen_core_ms"] }
+        if pr["gen_core_src_ms"] != nil { gen_core_src_ms = gen_core_src_ms + pr["gen_core_src_ms"] }
+        if pr["gen_core_lexer_ms"] != nil { gen_core_lexer_ms = gen_core_lexer_ms + pr["gen_core_lexer_ms"] }
+        if pr["gen_core_parser_ms"] != nil { gen_core_parser_ms = gen_core_parser_ms + pr["gen_core_parser_ms"] }
         if pr["forin_bridge_ms"] != nil { forin_bridge_ms = forin_bridge_ms + pr["forin_bridge_ms"] }
         if pr["prepend_ms"] != nil { prepend_ms = prepend_ms + pr["prepend_ms"] }
         prog = pr["prog"]
@@ -201,6 +207,9 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
             if pr2["parse_body_ms"] != nil { parse_body_ms = parse_body_ms + pr2["parse_body_ms"] }
             if pr2["gen_scan_ms"] != nil { gen_scan_ms = gen_scan_ms + pr2["gen_scan_ms"] }
             if pr2["gen_core_ms"] != nil { gen_core_ms = gen_core_ms + pr2["gen_core_ms"] }
+            if pr2["gen_core_src_ms"] != nil { gen_core_src_ms = gen_core_src_ms + pr2["gen_core_src_ms"] }
+            if pr2["gen_core_lexer_ms"] != nil { gen_core_lexer_ms = gen_core_lexer_ms + pr2["gen_core_lexer_ms"] }
+            if pr2["gen_core_parser_ms"] != nil { gen_core_parser_ms = gen_core_parser_ms + pr2["gen_core_parser_ms"] }
             if pr2["forin_bridge_ms"] != nil { forin_bridge_ms = forin_bridge_ms + pr2["forin_bridge_ms"] }
             if pr2["prepend_ms"] != nil { prepend_ms = prepend_ms + pr2["prepend_ms"] }
             var prog2 = pr2["prog"]
@@ -229,7 +238,7 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     if prep["ok"] != true { return prep }
     // Note: cache write happens in parse workers (when fork-parallel is enabled) to avoid
     // extra astbin encoding work in the serial/thread parse paths.
-    return {"ok": true, "prog": prog, "cache_path": cache_path, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
+    return {"ok": true, "prog": prog, "cache_path": cache_path, "read_ms": read_ms, "cache_ms": cache_ms, "parse_ms": parse_ms, "lexer_ms": lexer_ms, "parser_ms": parser_ms, "parse_body_ms": parse_body_ms, "gen_scan_ms": gen_scan_ms, "gen_core_ms": gen_core_ms, "gen_core_src_ms": gen_core_src_ms, "gen_core_lexer_ms": gen_core_lexer_ms, "gen_core_parser_ms": gen_core_parser_ms, "forin_bridge_ms": forin_bridge_ms, "prepend_ms": prepend_ms, "merge_ms": merge_ms, "prepare_ms": prepare_ms}
 }
 
 fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
@@ -665,6 +674,9 @@ fn _ml_parse_discovered_modules_serial(config) {
                     " parse_body_ms=" + oren_int_to_string(rr["parse_body_ms"]) +
                     " gen_scan_ms=" + oren_int_to_string(rr["gen_scan_ms"]) +
                     " gen_core_ms=" + oren_int_to_string(rr["gen_core_ms"]) +
+                    " gen_core_src_ms=" + oren_int_to_string(rr["gen_core_src_ms"]) +
+                    " gen_core_lexer_ms=" + oren_int_to_string(rr["gen_core_lexer_ms"]) +
+                    " gen_core_parser_ms=" + oren_int_to_string(rr["gen_core_parser_ms"]) +
                     " forin_bridge_ms=" + oren_int_to_string(rr["forin_bridge_ms"]) +
                     " prepend_ms=" + oren_int_to_string(rr["prepend_ms"]) +
                     " merge_ms=" + oren_int_to_string(rr["merge_ms"]) +

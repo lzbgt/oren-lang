@@ -101,6 +101,9 @@ fn parse_program(p) {
     var parse_body_ms = 0
     var gen_scan_ms = 0
     var gen_core_ms = 0
+    var gen_core_src_ms = 0
+    var gen_core_lexer_ms = 0
+    var gen_core_parser_ms = 0
     var forin_bridge_ms = 0
     var prepend_ms = 0
     var t_part = 0
@@ -298,6 +301,9 @@ fn parse_program(p) {
         var gen_core_stmts = _generator_core_stmts(p)
         if profile_parse {
             gen_core_ms = (oren_time_now_ns() - t_part) / 1000000
+            if p["_profile_gen_core_src_ms"] != nil { gen_core_src_ms = p["_profile_gen_core_src_ms"] }
+            if p["_profile_gen_core_lexer_ms"] != nil { gen_core_lexer_ms = p["_profile_gen_core_lexer_ms"] }
+            if p["_profile_gen_core_parser_ms"] != nil { gen_core_parser_ms = p["_profile_gen_core_parser_ms"] }
             t_part = oren_time_now_ns()
         }
         prog["statements"] = _prepend_stmts(prog["statements"], gen_core_stmts)
@@ -316,6 +322,9 @@ fn parse_program(p) {
     p["_profile_parse_body_ms"] = parse_body_ms
     p["_profile_gen_scan_ms"] = gen_scan_ms
     p["_profile_gen_core_ms"] = gen_core_ms
+    p["_profile_gen_core_src_ms"] = gen_core_src_ms
+    p["_profile_gen_core_lexer_ms"] = gen_core_lexer_ms
+    p["_profile_gen_core_parser_ms"] = gen_core_parser_ms
     p["_profile_forin_bridge_ms"] = forin_bridge_ms
     p["_profile_prepend_ms"] = prepend_ms
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).

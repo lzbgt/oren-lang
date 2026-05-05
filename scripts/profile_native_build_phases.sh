@@ -135,6 +135,9 @@ for phase_name, _ns, detail in events:
         "parse_body_ms",
         "gen_scan_ms",
         "gen_core_ms",
+        "gen_core_src_ms",
+        "gen_core_lexer_ms",
+        "gen_core_parser_ms",
         "forin_bridge_ms",
         "prepend_ms",
         "merge_ms",
@@ -161,8 +164,9 @@ if parse_module_rows:
             f"  read={row['read_ms']:5d} cache={row['cache_ms']:5d} parse={row['parse_ms']:5d}"
             f" lexer={row['lexer_ms']:5d} parser={row['parser_ms']:5d}"
             f" body={row['parse_body_ms']:5d} gen_scan={row['gen_scan_ms']:5d}"
-            f" gen_core={row['gen_core_ms']:5d} forin_bridge={row['forin_bridge_ms']:5d}"
-            f" prepend={row['prepend_ms']:5d}"
+            f" gen_core={row['gen_core_ms']:5d} gen_src={row['gen_core_src_ms']:5d}"
+            f" gen_lexer={row['gen_core_lexer_ms']:5d} gen_parser={row['gen_core_parser_ms']:5d}"
+            f" forin_bridge={row['forin_bridge_ms']:5d} prepend={row['prepend_ms']:5d}"
             f" merge={row['merge_ms']:5d} prepare={row['prepare_ms']:5d}"
             f"  cache_hit={row['cache_hit']}  path={row['path']}"
         )

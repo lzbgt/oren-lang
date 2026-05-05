@@ -36,7 +36,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
-- Reweight (2026-05-05): ARM64 self-host generator codegen no longer has the earlier generic-call ABI/string-literal wall-time shape. Gated `CallGenericSub(...)` profiling showed helper-call cost was dominated by argument expression lowering, and the separate ordinary string-literal C-string MRU moved repeated default `user_decls` profiles to about `4.26s / 292000 bytes / 284 funcs`. A follow-up top-level integer-global preinit removes side-effect-free literal integer global assignments from `__top_level__` on non-gas builds, while preserving the old emitted statements when `OREN_NATIVE_GAS_ACCOUNTING=stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter` is selected. Native build profiling now splits link-program subphases from package metadata scans: metadata manifest/policy substeps are sub-5ms after fact reuse, while `link.abi_layout.done -> link.optimizer.done` is about 3.6s and module parse is about 2.5s. Module parse subprofiling now proves `lib/std/generator.oren` parse cost is mostly compiler-injected generator-core reparsing (`gen_core_ms` about `1.11s` of `1.29s` parser time), while task/task-group cost is real parser-body work (`parse_body_ms` about `198ms`/`284ms`). Next backend work should not reopen broad small-call, `oren_is_err` inlining, in-place global `Assign(Integer)` shortcuts, serial ASTBIN writes, or parser-side ASTBIN template caching; target generator-core injection without pulling ASTBIN codec codegen into parser builds, task parser-body shape, optimizer/link-program pass cost, remaining runtime-observable generator helper semantics, or the separate Mach-O local BL traversal boundary.
+- Reweight (2026-05-05): ARM64 self-host generator codegen no longer has the earlier generic-call ABI/string-literal wall-time shape. Gated `CallGenericSub(...)` profiling showed helper-call cost was dominated by argument expression lowering, and the separate ordinary string-literal C-string MRU moved repeated default `user_decls` profiles to about `4.26s / 292000 bytes / 284 funcs`. A follow-up top-level integer-global preinit removes side-effect-free literal integer global assignments from `__top_level__` on non-gas builds, while preserving the old emitted statements when `OREN_NATIVE_GAS_ACCOUNTING=stmt`, `basic-block`, `block-weighted`, or `dynamic-emitter` is selected. Native build profiling now splits link-program subphases from package metadata scans: metadata manifest/policy substeps are sub-5ms after fact reuse, while `link.abi_layout.done -> link.optimizer.done` is about 3.6s and module parse is about 2.5s. Module parse subprofiling proved `lib/std/generator.oren` parse cost was mostly compiler-injected generator-core source construction; the retained non-forced-GC source-string cache moves generator parse to about `490ms` and `gen_core_ms` to about `192ms`, with remaining generator-core cost now actual parsing of the cached source. Task/task-group cost remains real parser-body work (`parse_body_ms` about `212ms`/`311ms`). Next backend work should not reopen broad small-call, `oren_is_err` inlining, in-place global `Assign(Integer)` shortcuts, serial ASTBIN writes, or parser-side ASTBIN template caching; target task parser-body shape, a deeper generator-core representation that avoids reparsing without importing ASTBIN codec codegen, optimizer/link-program pass cost, remaining runtime-observable generator helper semantics, or the separate Mach-O local BL traversal boundary.
 - New: `docs/CAPABILITY_RUNTIME_CONTRACT.md` now pins the current native runtime profiles,
   capability domains, failure model, and verification map; `oren meta` now emits a per-source
   `capabilities` manifest for `@cap.requires` functions; artifact `--manifest` output now carries
@@ -5412,22 +5412,25 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 															        a cold fill, and cross-compiler cold rtobj seed builds are refused by default
 															        because the cache key validates runtime/backend compatibility, not which
 															        compiler binary emitted the runtime object.
-																      - Module parse profile follow-up (2026-05-05): serial module parsing now emits
-																        `link.parse_module.done` rows into the standard native build phase log, and
-																        `profile-native-build-phases` prints a module table with read/cache/parse/
-																        lexer/parser/merge/prepare plus parser-body sub-buckets. The refreshed
-																        generator profile identifies `lib/std/generator.oren` as the dominant parse
-																        module (~1.40s / 137 stmts) with `parser_ms=1288`, `parse_body_ms=175`,
-																        and `gen_core_ms=1112`; `lib/std/task_group.oren` is ~485ms with
-																        `parse_body_ms=284`, and `lib/std/task.oren` is ~313ms with
-																        `parse_body_ms=198`. Reweight module-parse work toward generator-core
-																        injection and task parser-body shape instead of file-read/cache/prepare
-																        work or the small tail. An opt-in serial module-cache write probe was
-																        rejected after writing only the first two ASTBIN cache entries pushed the
-																        profile to the 180s timeout, with `lib/std/time.oren` alone reporting
-																        ~114.5s including encode/write cost. A parser-side generator-core ASTBIN
-																        template-cache probe was also rejected: it reduced visible `gen_core_ms`
-																        to ~41ms but made the native profile time out later in emit/codegen.
+																	      - Module parse profile follow-up (2026-05-05): serial module parsing now emits
+																	        `link.parse_module.done` rows into the standard native build phase log, and
+																	        `profile-native-build-phases` prints a module table with read/cache/parse/
+																	        lexer/parser/merge/prepare plus parser-body and generator-core sub-buckets.
+																	        The parser now caches only the generated generator-core source string on the
+																	        normal non-forced-GC compiler path; the cache is disabled for
+																	        `OREN_COMPILER_GC=1|true` because compiler globals are not yet guaranteed
+																	        native GC roots under forced compiler GC. The refreshed profile moves
+																	        `lib/std/generator.oren` from ~1.40s with `gen_core_ms=1112` to ~490ms
+																	        with `gen_core_ms=192` / `gen_core_parser_ms=192`. `lib/std/task_group.oren`
+																	        remains ~507ms with `parse_body_ms=311`, and `lib/std/task.oren` is
+																	        ~332ms with `parse_body_ms=212`. Reweight module-parse work toward
+																	        task parser-body shape or a deeper generator-core representation that avoids
+																	        reparsing, instead of file-read/cache/prepare work or the small tail. An
+																	        opt-in serial module-cache write probe was rejected after writing only the
+																	        first two ASTBIN cache entries pushed the profile to the 180s timeout.
+																	        A parser-side generator-core ASTBIN template-cache probe was also rejected:
+																	        it reduced visible `gen_core_ms` to ~41ms but made the native profile time
+																	        out later in emit/codegen.
 														      - ARM64 assignment/global trait propagation now reuses the already-computed
 														        float trait when deriving integer trait state. This removes redundant
 														        top-level expression walks in hot `var`, `assign`, and global-slot paths;
