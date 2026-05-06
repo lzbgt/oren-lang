@@ -874,7 +874,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_tag, "name": "oren_map_set_str"})
         oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set_tag)
-        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_map_set_str")
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -22)
 
         // For each field: oren_map_set_str(m, "field", value)
         i = 0
@@ -930,7 +930,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set, "name": "oren_map_set_str"})
             oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set)
-            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_map_set_str")
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], -22)
 
             i = i + 1
         }

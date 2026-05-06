@@ -1860,7 +1860,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": map_set_sym})
                     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos2)
-                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], map_set_sym)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], _arm64_hot_bl_compact_name(map_set_sym))
                 }
                 
                 i = i + 1

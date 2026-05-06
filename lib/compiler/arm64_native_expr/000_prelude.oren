@@ -244,6 +244,11 @@ fn _arm64_hot_bl_compact_name(callee_name) {
     if callee_name == "strcmp" { return -19 }
     if callee_name == "STD_generator_send" { return -20 }
     if callee_name == "STD_generator_is_done" { return -21 }
+    if callee_name == "oren_map_set_str" { return -22 }
+    if callee_name == "oren_type_name" { return -23 }
+    if callee_name == "STD_generator_cancel_reason" { return -24 }
+    if callee_name == "_oren_generator_context_exchange" { return -25 }
+    if callee_name == "STD_generator_is_cancel_requested" { return -26 }
     return callee_name
 }
 

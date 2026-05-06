@@ -1933,6 +1933,13 @@ That path keeps the current repo state honest:
   first-4096 BL span stays in-band/slightly lower at about `1.02s`. Further name-by-name ids are
   lower leverage unless a new clustered target appears; the remaining design target is scan-free
   direct target arrays/materialization.
+- 2026-05-06: retained a final compact-id batch for the next residual Mach-O BL leaders:
+  `oren_map_set_str`, `oren_type_name`, `STD_generator_cancel_reason`,
+  `_oren_generator_context_exchange`, and `STD_generator_is_cancel_requested`, including direct
+  `oren_map_set_str` emit sites. Stats move `hot_id` to `9923`, string lookups to `1200`, scan
+  steps to `177442`, and byte compares to `1122`; the default first-4096 BL span moves to about
+  `0.97s`. The remaining top names are scattered sub-32-reference targets, so further one-off ids
+  should be treated as low leverage unless a new profile exposes a larger cluster.
 - 2026-05-06: rejected a BL-name future materialization probe. It reused the existing compact
   `bl_name` list and rewrote later identical string entries to the first resolved positive target
   offset, but that meant scanning the BL fixup list once per newly resolved string name. `make

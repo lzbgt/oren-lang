@@ -221,7 +221,8 @@ fn native_compile_stmt_set(ctx, stmt) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": map_set_sym})
                 oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos)
-                oren_list_push(ctx["fixups_local_compact"]["bl_name"], map_set_sym)
+                if kk == 1 { oren_list_push(ctx["fixups_local_compact"]["bl_name"], -22) }
+                else { oren_list_push(ctx["fixups_local_compact"]["bl_name"], map_set_sym) }
             }
         }
 
@@ -280,7 +281,7 @@ fn native_compile_stmt_set(ctx, stmt) {
          push_u32_le(ctx["code"], 0)
          oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_map_set_str"})
          oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos2)
-         oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_map_set_str")
+         oren_list_push(ctx["fixups_local_compact"]["bl_name"], -22)
          
          return nil
     }

@@ -88,6 +88,11 @@ fn _macho_hot_bl_id_name(id) {
     if id == -19 { return "strcmp" }
     if id == -20 { return "STD_generator_send" }
     if id == -21 { return "STD_generator_is_done" }
+    if id == -22 { return "oren_map_set_str" }
+    if id == -23 { return "oren_type_name" }
+    if id == -24 { return "STD_generator_cancel_reason" }
+    if id == -25 { return "_oren_generator_context_exchange" }
+    if id == -26 { return "STD_generator_is_cancel_requested" }
     return nil
 }
 
@@ -1629,6 +1634,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var hot_bl_strcmp = _macho_lookup_function(ctx, functions, "strcmp")
     var hot_bl_std_generator_send = _macho_lookup_function(ctx, functions, "STD_generator_send")
     var hot_bl_std_generator_is_done = _macho_lookup_function(ctx, functions, "STD_generator_is_done")
+    var hot_bl_map_set_str = _macho_lookup_function(ctx, functions, "oren_map_set_str")
+    var hot_bl_type_name = _macho_lookup_function(ctx, functions, "oren_type_name")
+    var hot_bl_std_generator_cancel_reason = _macho_lookup_function(ctx, functions, "STD_generator_cancel_reason")
+    var hot_bl_generator_context_exchange = _macho_lookup_function(ctx, functions, "_oren_generator_context_exchange")
+    var hot_bl_std_generator_is_cancel_requested = _macho_lookup_function(ctx, functions, "STD_generator_is_cancel_requested")
     i = 0
     var local_bl_prefilled = 0
     var local_bl_resolved = 0
@@ -1668,6 +1678,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 else if name_bl_local == -19 { target_local = hot_bl_strcmp }
                 else if name_bl_local == -20 { target_local = hot_bl_std_generator_send }
                 else if name_bl_local == -21 { target_local = hot_bl_std_generator_is_done }
+                else if name_bl_local == -22 { target_local = hot_bl_map_set_str }
+                else if name_bl_local == -23 { target_local = hot_bl_type_name }
+                else if name_bl_local == -24 { target_local = hot_bl_std_generator_cancel_reason }
+                else if name_bl_local == -25 { target_local = hot_bl_generator_context_exchange }
+                else if name_bl_local == -26 { target_local = hot_bl_std_generator_is_cancel_requested }
                 if target_local != nil { local_bl_hot_id = local_bl_hot_id + 1 }
                 else { name_bl_local = _macho_hot_bl_id_name(name_bl_local) }
                 if name_bl_local == nil { name_bl_local = "unknown_hot_bl_id" }
