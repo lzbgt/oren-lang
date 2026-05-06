@@ -1940,6 +1940,11 @@ That path keeps the current repo state honest:
   steps to `177442`, and byte compares to `1122`; the default first-4096 BL span moves to about
   `0.97s`. The remaining top names are scattered sub-32-reference targets, so further one-off ids
   should be treated as low leverage unless a new profile exposes a larger cluster.
+- 2026-05-06: retained the compact-id dispatch array in the Mach-O BL loop. Negative ids now index a
+  precomputed target-offset list instead of paying a 26-way branch ladder for each hot id. Counters
+  are unchanged, but default first-4096 BL timing moves slightly lower (`~0.97s -> ~0.96s`). Treat
+  local id-dispatch cleanup as exhausted; the remaining target is still scan-free string long-tail
+  materialization.
 - 2026-05-06: rejected a BL-name future materialization probe. It reused the existing compact
   `bl_name` list and rewrote later identical string entries to the first resolved positive target
   offset, but that meant scanning the BL fixup list once per newly resolved string name. `make

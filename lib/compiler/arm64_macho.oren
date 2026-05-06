@@ -1639,6 +1639,34 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var hot_bl_std_generator_cancel_reason = _macho_lookup_function(ctx, functions, "STD_generator_cancel_reason")
     var hot_bl_generator_context_exchange = _macho_lookup_function(ctx, functions, "_oren_generator_context_exchange")
     var hot_bl_std_generator_is_cancel_requested = _macho_lookup_function(ctx, functions, "STD_generator_is_cancel_requested")
+    var hot_bl_targets = [
+        hot_bl_panic,
+        hot_bl_ensure_tracked,
+        hot_bl_call_depth_enter,
+        hot_bl_call_depth_exit,
+        hot_bl_list_len_panic,
+        hot_bl_find_node,
+        hot_bl_is_err,
+        hot_bl_map_get_str,
+        hot_bl_new_list,
+        hot_bl_list_get,
+        hot_bl_list_push_unchecked,
+        hot_bl_find_node_known_kind,
+        hot_bl_func,
+        hot_bl_list_push,
+        hot_bl_add,
+        hot_bl_map_get_int,
+        hot_bl_std_generator_next,
+        hot_bl_std_generator_start,
+        hot_bl_strcmp,
+        hot_bl_std_generator_send,
+        hot_bl_std_generator_is_done,
+        hot_bl_map_set_str,
+        hot_bl_type_name,
+        hot_bl_std_generator_cancel_reason,
+        hot_bl_generator_context_exchange,
+        hot_bl_std_generator_is_cancel_requested
+    ]
     i = 0
     var local_bl_prefilled = 0
     var local_bl_resolved = 0
@@ -1657,35 +1685,16 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         if target_local == nil {
             var name_bl_local = local_bl_name[i]
             if oren_type_tag(name_bl_local) == 1 {
-                if name_bl_local == -1 { target_local = hot_bl_panic }
-                else if name_bl_local == -2 { target_local = hot_bl_ensure_tracked }
-                else if name_bl_local == -3 { target_local = hot_bl_call_depth_enter }
-                else if name_bl_local == -4 { target_local = hot_bl_call_depth_exit }
-                else if name_bl_local == -5 { target_local = hot_bl_list_len_panic }
-                else if name_bl_local == -6 { target_local = hot_bl_find_node }
-                else if name_bl_local == -7 { target_local = hot_bl_is_err }
-                else if name_bl_local == -8 { target_local = hot_bl_map_get_str }
-                else if name_bl_local == -9 { target_local = hot_bl_new_list }
-                else if name_bl_local == -10 { target_local = hot_bl_list_get }
-                else if name_bl_local == -11 { target_local = hot_bl_list_push_unchecked }
-                else if name_bl_local == -12 { target_local = hot_bl_find_node_known_kind }
-                else if name_bl_local == -13 { target_local = hot_bl_func }
-                else if name_bl_local == -14 { target_local = hot_bl_list_push }
-                else if name_bl_local == -15 { target_local = hot_bl_add }
-                else if name_bl_local == -16 { target_local = hot_bl_map_get_int }
-                else if name_bl_local == -17 { target_local = hot_bl_std_generator_next }
-                else if name_bl_local == -18 { target_local = hot_bl_std_generator_start }
-                else if name_bl_local == -19 { target_local = hot_bl_strcmp }
-                else if name_bl_local == -20 { target_local = hot_bl_std_generator_send }
-                else if name_bl_local == -21 { target_local = hot_bl_std_generator_is_done }
-                else if name_bl_local == -22 { target_local = hot_bl_map_set_str }
-                else if name_bl_local == -23 { target_local = hot_bl_type_name }
-                else if name_bl_local == -24 { target_local = hot_bl_std_generator_cancel_reason }
-                else if name_bl_local == -25 { target_local = hot_bl_generator_context_exchange }
-                else if name_bl_local == -26 { target_local = hot_bl_std_generator_is_cancel_requested }
+                var hot_bl_idx = 0 - name_bl_local - 1
+                if hot_bl_idx >= 0 && hot_bl_idx < oren_list_len(hot_bl_targets) {
+                    target_local = hot_bl_targets[hot_bl_idx]
+                }
                 if target_local != nil { local_bl_hot_id = local_bl_hot_id + 1 }
-                else { name_bl_local = _macho_hot_bl_id_name(name_bl_local) }
-                if name_bl_local == nil { name_bl_local = "unknown_hot_bl_id" }
+                else {
+                    var name_bl_known = _macho_hot_bl_id_name(name_bl_local)
+                    if name_bl_known == nil { name_bl_known = "unknown_hot_bl_id" }
+                    name_bl_local = name_bl_known
+                }
             }
             if target_local == nil {
                 target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
