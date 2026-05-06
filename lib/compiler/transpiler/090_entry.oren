@@ -1,0 +1,276 @@
+// Helpers needed for transpile_entry
+fn dirname(path) {
+    var i = oren_string_len(path) - 1
+    while i >= 0 {
+        var ch = oren_string_char_at(path, i)
+        if ch == "/" || ch == "\\" {
+            if i == 0 { return ch }
+            return oren_string_slice(path, 0, i)
+        }
+        i = i - 1
+    }
+    return "."
+}
+
+fn collect_parts(program) {
+    var globals = []
+    var functions = []
+    var types = []
+    var main_body = []
+    var i = 0
+    while i < oren_list_len(program["statements"]) {
+        var s = program["statements"][i]
+        if s["type"] == "Import" {
+            // compile-time only
+        } else {
+            if s["type"] == "Type" {
+                oren_list_push(types, s)
+            } else {
+                if s["type"] == "Var" {
+                    // C backend: top-level `var` declares a global symbol, but the initializer
+                    // must execute in source order (NOT hoisted ahead of other top-level statements).
+                    //
+                    // We model that as:
+                    // - a global declaration (so other functions can reference it)
+                    // - an `Assign` statement in `main_body` at the exact original position.
+                    oren_list_push(globals, {"type": "VarDecl", "name": s["name"]})
+                    oren_list_push(main_body, {"type": "Assign", "name": s["name"], "value": s["value"]})
+                } else {
+                    var is_fn_decl = false
+                    if s["type"] == "ExprStmt" {
+                        if s["expr"]["type"] == "Function" {
+                            if s["expr"]["name"] != "" { is_fn_decl = true }
+                        }
+                    }
+                    if is_fn_decl { oren_list_push(functions, s["expr"]) } else { oren_list_push(main_body, s) }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return {"globals": globals, "functions": functions, "types": types, "main_body": main_body}
+}
+
+// Updated signature: pass MODULE_ORDER explicitly
+fn transpile_entry(entry_path, program, module_order, root_aliases) {
+    var units = []
+    var i = 0
+
+    // Process loaded modules
+    while i < oren_list_len(module_order) {
+        var mod2 = module_order[i]
+        var parts = collect_parts(mod2["program"])
+        oren_list_push(units, {"program": mod2["program"], "aliases": mod2["aliases"], "parts": parts, "prefix": mod2["prefix"]})
+        i = i + 1
+    }
+
+    // Process root program
+    var root_parts = collect_parts(program)
+    oren_list_push(units, {"program": program, "aliases": root_aliases, "parts": root_parts, "prefix": "root"})
+
+    var type_ns = {}
+    i = 0
+    while i < oren_list_len(units) {
+        var types = units[i]["parts"]["types"]
+        var j = 0
+        while j < oren_list_len(types) {
+            type_ns[types[j]["name"]["value"]] = true
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    var t = new_transpiler()
+    t["type_ns"] = type_ns
+
+    var has_user_main = false
+
+    // Preload all function names for direct-call lowering.
+    i = 0
+    while i < oren_list_len(units) {
+        var funs = units[i]["parts"]["functions"]
+
+        // Rolling: share function metadata extraction with other backends via CoreIR v0.
+        // `funs` is already a list of Function nodes; treat it as a "statements" list for CoreIR.
+        var meta = {"errors": []}
+        coreir.collect_top_level_functions(meta, {"statements": funs}, "c backend v0")
+        if meta["errors"] != nil && oren_list_len(meta["errors"]) > 0 {
+            print("OREN_DIAG kind=transpiler code=1 msg=coreir metadata error")
+            print("transpiler: coreir metadata error:")
+            var ei = 0
+            while ei < oren_list_len(meta["errors"]) {
+                print(meta["errors"][ei])
+                ei = ei + 1
+            }
+            oren_exit(1)
+        }
+
+        var order = meta["func_decl_order"]
+        if order != nil {
+            var j = 0
+            while j < oren_list_len(order) {
+                var nm = order[j]
+                oren_list_push(t["functions"], nm)
+                if nm == "main" { has_user_main = true }
+                var vf = nil
+                if meta["func_varargs_fixed"] != nil { vf = meta["func_varargs_fixed"][nm] }
+                if vf != nil { t["func_varargs_fixed"][nm] = vf }
+                j = j + 1
+            }
+        }
+
+        var types = units[i]["parts"]["types"]
+        var jt = 0
+        while jt < oren_list_len(types) {
+            oren_list_push(t["functions"], type_ctor_name(types[jt]))
+            jt = jt + 1
+        }
+        i = i + 1
+    }
+
+    emit(t, "#include <stdio.h>")
+    emit(t, "#include <stdlib.h>")
+    emit(t, "#include <string.h>")
+    emit(t, "#include " + CH_QUOTE + "runtime.h" + CH_QUOTE)
+    emit(t, "")
+
+    // Globals (all units).
+    i = 0
+    while i < oren_list_len(units) {
+        var globals = units[i]["parts"]["globals"]
+        var j = 0
+        while j < oren_list_len(globals) {
+            emit(t, "OrenValue " + c_ident(globals[j]["name"]["value"]) + ";")
+            j = j + 1
+        }
+        i = i + 1
+    }
+    emit(t, "")
+
+    // Collect all lambdas before emitting prototypes.
+    i = 0
+    while i < oren_list_len(units) {
+        t["aliases"] = units[i]["aliases"]
+        var pref = units[i]["prefix"]
+        // function bodies
+        var funs2 = units[i]["parts"]["functions"]
+        var jf = 0
+        while jf < oren_list_len(funs2) {
+            collect_lambdas_in_statement(t, pref, units[i]["aliases"], funs2[jf]["body"])
+            jf = jf + 1
+        }
+        // top-level statements
+        var body2 = units[i]["parts"]["main_body"]
+        var jb = 0
+        while jb < oren_list_len(body2) {
+            collect_lambdas_in_statement(t, pref, units[i]["aliases"], body2[jb])
+            jb = jb + 1
+        }
+        i = i + 1
+    }
+
+    // Prototypes (functions + constructors).
+    i = 0
+    while i < oren_list_len(units) {
+        var funs = units[i]["parts"]["functions"]
+        var j = 0
+        while j < oren_list_len(funs) {
+            emit(t, function_sig(funs[j]) + ";")
+            emit(t, fnwrap_sig_by_name(funs[j]["name"]) + ";")
+            j = j + 1
+        }
+        var types = units[i]["parts"]["types"]
+        j = 0
+        while j < oren_list_len(types) {
+            emit(t, type_ctor_sig(types[j]) + ";")
+            emit(t, fnwrap_sig_by_name(type_ctor_name(types[j])) + ";")
+            j = j + 1
+        }
+        i = i + 1
+    }
+    // Lambda prototypes.
+    i = 0
+    while i < oren_list_len(t["lambda_defs"]) {
+        emit(t, lambda_sig_by_name(t["lambda_defs"][i]["name"]) + ";")
+        i = i + 1
+    }
+    emit(t, "")
+
+    // Function bodies (functions + constructors).
+    i = 0
+    while i < oren_list_len(t["lambda_defs"]) {
+        transpile_lambda_def(t, t["lambda_defs"][i])
+        i = i + 1
+    }
+    i = 0
+    while i < oren_list_len(units) {
+        t["aliases"] = units[i]["aliases"]
+        var funs = units[i]["parts"]["functions"]
+        var j = 0
+        while j < oren_list_len(funs) {
+            transpile_function(t, funs[j])
+            j = j + 1
+        }
+        var types = units[i]["parts"]["types"]
+        j = 0
+        while j < oren_list_len(types) {
+            transpile_type_ctor(t, types[j])
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    emit(t, "int main(int argc, char **argv) {")
+    indent_more(t)
+    emit(t, "oren_init(argc, argv);")
+
+    // Register globals as GC roots
+    i = 0
+    while i < oren_list_len(units) {
+        var globals = units[i]["parts"]["globals"]
+        var j = 0
+        while j < oren_list_len(globals) {
+            emit(t, "oren_register_root(&" + c_ident(globals[j]["name"]["value"]) + ");")
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    // Execute module top-level statements first (excluding root unit).
+    i = 0
+    while i < oren_list_len(units) - 1 {
+        t["aliases"] = units[i]["aliases"]
+        t["inty"] = []
+        var body = units[i]["parts"]["main_body"]
+        var j = 0
+        while j < oren_list_len(body) {
+            emit(t, transpile_statement(t, body[j]))
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    // Root top-level statements last.
+    t["aliases"] = units[oren_list_len(units) - 1]["aliases"]
+    t["inty"] = []
+    var root_body = units[oren_list_len(units) - 1]["parts"]["main_body"]
+    i = 0
+    while i < oren_list_len(root_body) {
+        emit(t, transpile_statement(t, root_body[i]))
+        i = i + 1
+    }
+
+    // If the user defines `fn main()`, run it after all module top-level statements.
+    // This matches native+AVM entry behavior (rolling parity).
+    if has_user_main {
+        emit(t, c_fn_name("main") + "();")
+    }
+
+    emit(t, "oren_shutdown();")
+    emit(t, "return 0;")
+    indent_less(t)
+    emit(t, "}")
+
+    _transpiler_flush_lines(t, false)
+    return _transpiler_join_parts(t["chunks"])
+}
