@@ -1945,6 +1945,12 @@ That path keeps the current repo state honest:
   are unchanged, but default first-4096 BL timing moves slightly lower (`~0.97s -> ~0.96s`). Treat
   local id-dispatch cleanup as exhausted; the remaining target is still scan-free string long-tail
   materialization.
+- 2026-05-06: retained a compact private carrier for `std:generator` stop policies. The internal
+  `_generator_stop_policy_fields(...)` helper now returns `[mode, delay_ms, grace_ms, reason,
+  join_timeout_ms]` and normalizes deadline policies once, matching the earlier `std:task` cleanup
+  without changing the public policy map surface. Focused generator/coroutine gates pass; the native
+  profile moves `lib/std/generator.oren` to about `302ms` and reduces `STD_generator_stop_policy`
+  from the prior top `user_decls` row around `140ms` to about `46ms`.
 - 2026-05-06: rejected a BL-name future materialization probe. It reused the existing compact
   `bl_name` list and rewrote later identical string entries to the first resolved positive target
   offset, but that meant scanning the BL fixup list once per newly resolved string name. `make

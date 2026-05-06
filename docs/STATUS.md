@@ -2807,6 +2807,11 @@ Local (fast):
   bytecode/C/native surfaces. The refreshed default generator profile stays in the previous band at about
   `10.0s / 292000 bytes / 284 funcs`; this is cross-surface primitive guard cleanup, not the next large
   generator `user_decls` wall-time lever.
+- Update (2026-05-06): `_generator_stop_policy_fields(...)` now returns its private normalized policy
+  fields as `[mode, delay_ms, grace_ms, reason, join_timeout_ms]` instead of a temporary string-keyed map,
+  and deadline policies normalize to `delay_ms` once before dispatch. Focused generator/coroutine gates
+  pass, and the default native profile moves `lib/std/generator.oren` from the prior `~327ms` band to
+  about `302ms`; `STD_generator_stop_policy` drops from a top `user_decls` row near `140ms` to about `46ms`.
 - Rejected follow-up (2026-05-05): broadening that guard cleanup to map/list tag checks in
   `std:generator`, `std:task`, and `std:task_group` built and passed the focused generator/task surfaces,
   but the profile stayed flat/slightly worse (`user_decls` about `10.05s`, bytes up to `292176`, funcs up

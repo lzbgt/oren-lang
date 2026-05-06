@@ -105,6 +105,11 @@ fn _generator_stop_policy_fields(ctx, policy0, want_join_timeout) {
     if oren_is_err(timeout_ms) == true { return timeout_ms }
     deadline_ns = _generator_deadline_ns_arg(ctx, deadline_ns)
     if oren_is_err(deadline_ns) == true { return deadline_ns }
+    var delay_ms = timeout_ms
+    if oren_type_tag(deadline_ns) != 0 {
+        delay_ms = _generator_deadline_delay_ms(ctx, deadline_ns)
+        if oren_is_err(delay_ms) == true { return delay_ms }
+    }
     var grace_ms = _generator_grace_ms(ctx, oren_map_get_str(policy, "grace_ms"))
     if oren_is_err(grace_ms) == true { return grace_ms }
     if mode != "stop" && grace_ms > 0 {
@@ -115,14 +120,7 @@ fn _generator_stop_policy_fields(ctx, policy0, want_join_timeout) {
         join_timeout_ms = _generator_join_timeout_arg(ctx, oren_map_get_str(policy, "join_timeout_ms"))
         if oren_is_err(join_timeout_ms) == true { return join_timeout_ms }
     }
-    return {
-        "mode": mode,
-        "timeout_ms": timeout_ms,
-        "deadline_ns": deadline_ns,
-        "grace_ms": grace_ms,
-        "reason": oren_map_get_str(policy, "reason"),
-        "join_timeout_ms": join_timeout_ms,
-    }
+    return [mode, delay_ms, grace_ms, oren_map_get_str(policy, "reason"), join_timeout_ms]
 }
 
 fn _generator_wait_default_ms(delay_ms, grace_ms) {
@@ -361,19 +359,9 @@ fn stop_policy(target, policy) {
     }
     var fields = _generator_stop_policy_fields("generator.stop_policy", policy, false)
     if oren_is_err(fields) == true { return fields }
-    var mode = fields["mode"]
-    var timeout_ms = fields["timeout_ms"]
-    var deadline_ns = fields["deadline_ns"]
-    var grace_ms = fields["grace_ms"]
-    var reason = fields["reason"]
-    if oren_type_tag(deadline_ns) != 0 {
-        if mode == "request_cancel" { return request_cancel_at(target, deadline_ns, reason) }
-        if mode == "cancel" { return cancel_at(target, deadline_ns, reason) }
-        return stop_at(target, deadline_ns, grace_ms, reason)
-    }
-    if mode == "request_cancel" { return request_cancel_after(target, timeout_ms, reason) }
-    if mode == "cancel" { return cancel_after(target, timeout_ms, reason) }
-    return stop_after(target, timeout_ms, grace_ms, reason)
+    if fields[0] == "request_cancel" { return request_cancel_after(target, fields[1], fields[3]) }
+    if fields[0] == "cancel" { return cancel_after(target, fields[1], fields[3]) }
+    return stop_after(target, fields[1], fields[2], fields[3])
 }
 
 fn stop_policy_wait(target, policy) {
@@ -382,20 +370,9 @@ fn stop_policy_wait(target, policy) {
     }
     var fields = _generator_stop_policy_fields("generator.stop_policy_wait", policy, true)
     if oren_is_err(fields) == true { return fields }
-    var mode = fields["mode"]
-    var timeout_ms = fields["timeout_ms"]
-    var deadline_ns = fields["deadline_ns"]
-    var grace_ms = fields["grace_ms"]
-    var reason = fields["reason"]
-    var join_timeout_ms = fields["join_timeout_ms"]
-    if oren_type_tag(deadline_ns) != 0 {
-        if mode == "request_cancel" { return request_cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) }
-        if mode == "cancel" { return cancel_at_wait(target, deadline_ns, reason, join_timeout_ms) }
-        return stop_at_wait(target, deadline_ns, grace_ms, reason, join_timeout_ms)
-    }
-    if mode == "request_cancel" { return request_cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) }
-    if mode == "cancel" { return cancel_after_wait(target, timeout_ms, reason, join_timeout_ms) }
-    return stop_after_wait(target, timeout_ms, grace_ms, reason, join_timeout_ms)
+    if fields[0] == "request_cancel" { return request_cancel_after_wait(target, fields[1], fields[3], fields[4]) }
+    if fields[0] == "cancel" { return cancel_after_wait(target, fields[1], fields[3], fields[4]) }
+    return stop_after_wait(target, fields[1], fields[2], fields[3], fields[4])
 }
 
 fn delegate(co, inner) {
