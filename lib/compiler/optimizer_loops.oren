@@ -1,14 +1,18 @@
 import listm "optimizer_loops_list.oren"
 import arena "optimizer_loops_arena.oren"
+import splitm "optimizer_loops_split.oren"
 
-fn set_backend(name) { return listm.set_backend(name) }
+fn set_backend(name) {
+    listm.set_backend(name)
+    return splitm.set_backend(name)
+}
 
 fn sink_list_lit_into_if(block) {
     return listm.sink_list_lit_into_if(block)
 }
 
 fn split_invariant_list_push_in_block(block) {
-    return listm.split_invariant_list_push_in_block(block)
+    return splitm.split_invariant_list_push_in_block(block)
 }
 
 fn wrap_arena_loops_in_block(block) {
