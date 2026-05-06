@@ -100,6 +100,11 @@ A follow-up x64 cleanup removed four more repo-proven stale private helpers:
 `_elf_hash_sysv_u32(...)`, `_x64_env_enabled_default_true(...)`, `_emit_write_newline(...)`, and
 `_emit_parse_u64_decimal_from_cstr_ptr_x64(...)`. The live x64 code paths keep using their neighboring
 helpers; this is another source-shape cleanup.
+The next retained Mach-O step keeps the append-only local target cache but adds fixed first-byte
+buckets, so the remaining string BL/ADR-code lookups scan only one bucket before the existing
+metadata-key and byte-equality checks. The stats profile moves BL scan steps from `177442` to
+`52381`, and the default first-4096 BL span moves to about `0.60s` without generic maps, global
+sorting, fixup-side sid fields, or future-name rewrites.
 
 ## Current shipped state
 

@@ -134,13 +134,24 @@ fn _macho_target_meta_key(name_len, name_first, name_last) {
     return name_len * 65536 + name_first * 256 + name_last
 }
 
-fn _macho_lookup_function_linear(names, offs, meta_keys, counts, ctx, functions, name, stats) {
+fn _macho_target_buckets_new() {
+    var buckets = oren_list_new_cap(256)
+    if oren_is_err(buckets) { buckets = [] }
+    var i = 0
+    while i < 256 {
+        oren_list_push(buckets, [])
+        i = i + 1
+    }
+    return buckets
+}
+
+fn _macho_lookup_function_linear(names, offs, meta_keys, buckets, counts, ctx, functions, name, stats) {
     if name == nil {
         _macho_lookup_stats_add(stats, 0, 0, 0, 0, 1, 0)
         return nil
     }
     var name_len = oren_string_len(name)
-    var name_first = -1
+    var name_first = 0
     if name_len > 0 { name_first = oren_string_byte_at_unchecked(name, 0) & 255 }
     var name_last = -1
     if name_len > 0 { name_last = oren_string_byte_at_unchecked(name, name_len - 1) & 255 }
@@ -149,19 +160,39 @@ fn _macho_lookup_function_linear(names, offs, meta_keys, counts, ctx, functions,
     var scan_steps = 0
     var meta_candidates = 0
     var byte_compares = 0
-    var i = 0
-    while i < names_n {
-        scan_steps = scan_steps + 1
-        if meta_keys[i] == name_key {
-            meta_candidates = meta_candidates + 1
-            byte_compares = byte_compares + 1
-            if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
-                if counts != nil { counts[i] = counts[i] + 1 }
-                _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0, 0)
-                return offs[i]
+    var bucket = nil
+    if buckets != nil && name_first >= 0 && name_first < oren_list_len(buckets) { bucket = buckets[name_first] }
+    if bucket != nil {
+        var bi = 0
+        while bi < oren_list_len(bucket) {
+            var i = bucket[bi]
+            scan_steps = scan_steps + 1
+            if meta_keys[i] == name_key {
+                meta_candidates = meta_candidates + 1
+                byte_compares = byte_compares + 1
+                if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
+                    if counts != nil { counts[i] = counts[i] + 1 }
+                    _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0, 0)
+                    return offs[i]
+                }
             }
+            bi = bi + 1
         }
-        i = i + 1
+    } else {
+        var i = 0
+        while i < names_n {
+            scan_steps = scan_steps + 1
+            if meta_keys[i] == name_key {
+                meta_candidates = meta_candidates + 1
+                byte_compares = byte_compares + 1
+                if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
+                    if counts != nil { counts[i] = counts[i] + 1 }
+                    _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0, 0)
+                    return offs[i]
+                }
+            }
+            i = i + 1
+        }
     }
     var off = _macho_lookup_function(ctx, functions, name)
     var appended = 0
@@ -171,6 +202,7 @@ fn _macho_lookup_function_linear(names, offs, meta_keys, counts, ctx, functions,
         oren_list_push(names, name)
         oren_list_push(offs, off)
         oren_list_push(meta_keys, name_key)
+        if bucket != nil { oren_list_push(bucket, names_n) }
         if counts != nil { oren_list_push(counts, 1) }
         appended = 1
     } else {
@@ -1602,6 +1634,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var local_target_names = []
     var local_target_offs = []
     var local_target_meta_keys = []
+    var local_target_buckets = _macho_target_buckets_new()
     var local_target_counts = nil
     var local_target_stats = nil
     if phase_log != nil && oren_env("OREN_TRACE_MACHO_LOCAL_RESOLVE_STATS") != nil {
@@ -1697,7 +1730,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 }
             }
             if target_local == nil {
-                target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
+                target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_buckets, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
             }
             if target_local == nil {
                 var e_local_bl = "native backend: undefined function " + name_bl_local
@@ -1753,7 +1786,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var target2_local = local_adr_code_target[i]
         if target2_local == nil {
             var name_ac_local = local_adr_code_name[i]
-            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_counts, ctx, functions, name_ac_local, local_target_stats)
+            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_buckets, local_target_counts, ctx, functions, name_ac_local, local_target_stats)
             if target2_local == nil {
                 var e_local_ac = "native backend: undefined function " + name_ac_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))
