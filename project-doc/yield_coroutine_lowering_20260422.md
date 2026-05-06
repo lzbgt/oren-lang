@@ -1951,6 +1951,10 @@ That path keeps the current repo state honest:
   without changing the public policy map surface. Focused generator/coroutine gates pass; the native
   profile moves `lib/std/generator.oren` to about `302ms` and reduces `STD_generator_stop_policy`
   from the prior top `user_decls` row around `140ms` to about `46ms`.
+- 2026-05-06: rejected the adjacent generator deadline-wrapper unification. Routing `*_at` APIs
+  through the existing `*_after` wrappers passed focused generator/coroutine gates, but the native
+  profile traded a tiny parse-body win for worse whole-program cost (`optimizer ~459ms`,
+  `user_decls ~2695ms`, first BL span ~1040ms). Source was reverted.
 - 2026-05-06: rejected a BL-name future materialization probe. It reused the existing compact
   `bl_name` list and rewrote later identical string entries to the first resolved positive target
   offset, but that meant scanning the BL fixup list once per newly resolved string name. `make

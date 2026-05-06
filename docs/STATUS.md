@@ -2812,6 +2812,10 @@ Local (fast):
   and deadline policies normalize to `delay_ms` once before dispatch. Focused generator/coroutine gates
   pass, and the default native profile moves `lib/std/generator.oren` from the prior `~327ms` band to
   about `302ms`; `STD_generator_stop_policy` drops from a top `user_decls` row near `140ms` to about `46ms`.
+- Rejected follow-up (2026-05-06): routing the public `*_at` generator deadline wrappers through the
+  existing `*_after` wrappers passed `make stage2` plus focused generator/coroutine gates, but the profile
+  regressed optimizer/codegen (`optimizer ~400ms -> 459ms`, `user_decls ~2532ms -> 2695ms`). Source was
+  reverted; do not trade smaller deadline wrapper bodies for extra facade calls on this path.
 - Rejected follow-up (2026-05-05): broadening that guard cleanup to map/list tag checks in
   `std:generator`, `std:task`, and `std:task_group` built and passed the focused generator/task surfaces,
   but the profile stayed flat/slightly worse (`user_decls` about `10.05s`, bytes up to `292176`, funcs up
