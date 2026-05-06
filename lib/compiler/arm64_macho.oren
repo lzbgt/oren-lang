@@ -1,6 +1,7 @@
 import codegen "codegen_arm64.oren"
 import core "arm64_core.oren"
 import abi "arm64_abi_macos.oren"
+import resolve "arm64_macho_resolve.oren"
 
 fn arm64_ctx_fixup_got_load(ctx, pos, got_index) { return core.arm64_ctx_fixup_got_load(ctx, pos, got_index) }
 
@@ -15,234 +16,6 @@ fn macho_diag_escape(msg) {
         if c == "\t" { out = out + "\\t"; i = i + 1; continue }
         out = out + c
         i = i + 1
-    }
-    return out
-}
-
-fn _macho_decode_rtobj_fix_int(enc) {
-    if oren_type_tag(enc) == 0 { return nil }
-    return enc - 1
-}
-
-fn _macho_decode_rtobj_fix_reg(enc) {
-    if oren_type_tag(enc) != 1 { return nil }
-    if enc <= 0 { return nil }
-    return enc - 1
-}
-
-fn _macho_lookup_function(ctx, functions, name) {
-    if name == nil { return nil }
-    if functions != nil {
-        var off = functions[name]
-        if off != nil { return off }
-    }
-    var rt = ctx["runtime_functions_enc"]
-    if rt == nil { return nil }
-    var off_enc = rt[name]
-    if off_enc == nil { return nil }
-    var base = ctx["rtobj_functions_base_code"]
-    if base == nil { base = 0 }
-    return base + _macho_decode_rtobj_fix_int(off_enc)
-}
-
-fn _macho_lookup_function_cached(cache, ctx, functions, name) {
-    if name == nil { return nil }
-    if cache != nil {
-        var off_enc = cache[name]
-        if oren_type_tag(off_enc) != 0 { return off_enc - 1 }
-    }
-    var off = _macho_lookup_function(ctx, functions, name)
-    if cache != nil && oren_type_tag(off) != 0 { cache[name] = off + 1 }
-    return off
-}
-
-fn _macho_lookup_runtime_offset(rt, base, name) {
-    if rt == nil || name == nil { return nil }
-    var off_enc = rt[name]
-    if off_enc == nil { return nil }
-    if base == nil { base = 0 }
-    return base + _macho_decode_rtobj_fix_int(off_enc)
-}
-
-// Selected hot local calls store these negative ids in the compact BL name lane.
-// The legacy fixup map keeps string names; only the Mach-O compact path consumes ids.
-fn _macho_hot_bl_id_name(id) {
-    if id == -1 { return "oren_panic" }
-    if id == -2 { return "oren_ensure_tracked" }
-    if id == -3 { return "oren_call_depth_enter" }
-    if id == -4 { return "oren_call_depth_exit" }
-    if id == -5 { return "native_list_len_panic" }
-    if id == -6 { return "oren_find_node" }
-    if id == -7 { return "oren_is_err" }
-    if id == -8 { return "oren_map_get_str" }
-    if id == -9 { return "oren_new_list" }
-    if id == -10 { return "oren_list_get" }
-    if id == -11 { return "oren_list_push_unchecked" }
-    if id == -12 { return "_list_find_node_known_kind" }
-    if id == -13 { return "oren_func" }
-    if id == -14 { return "oren_list_push" }
-    if id == -15 { return "oren_add" }
-    if id == -16 { return "oren_map_get_int" }
-    if id == -17 { return "STD_generator_next" }
-    if id == -18 { return "STD_generator_start" }
-    if id == -19 { return "strcmp" }
-    if id == -20 { return "STD_generator_send" }
-    if id == -21 { return "STD_generator_is_done" }
-    if id == -22 { return "oren_map_set_str" }
-    if id == -23 { return "oren_type_name" }
-    if id == -24 { return "STD_generator_cancel_reason" }
-    if id == -25 { return "_oren_generator_context_exchange" }
-    if id == -26 { return "STD_generator_is_cancel_requested" }
-    return nil
-}
-
-fn _macho_str_eq_bytes_known_len(a, b, len) {
-    var i = 0
-    while i < len {
-        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
-        i = i + 1
-    }
-    return true
-}
-
-fn _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, appended, missed, insert_shifts) {
-    if stats == nil { return nil }
-    stats[0] = stats[0] + 1
-    stats[1] = stats[1] + scan_steps
-    stats[2] = stats[2] + meta_candidates
-    stats[3] = stats[3] + byte_compares
-    stats[4] = stats[4] + appended
-    stats[5] = stats[5] + missed
-    stats[6] = stats[6] + insert_shifts
-    return nil
-}
-
-fn _macho_lookup_stats_detail(stats, unique_n) {
-    if stats == nil { return "" }
-    return " unique=" + oren_int_to_string(unique_n) +
-        " lookups=" + oren_int_to_string(stats[0]) +
-        " scan_steps=" + oren_int_to_string(stats[1]) +
-        " candidates=" + oren_int_to_string(stats[2]) +
-        " byte_cmps=" + oren_int_to_string(stats[3]) +
-        " appended=" + oren_int_to_string(stats[4]) +
-        " misses=" + oren_int_to_string(stats[5]) +
-        " insert_shifts=" + oren_int_to_string(stats[6])
-}
-
-fn _macho_target_meta_key(name_len, name_first, name_last) {
-    if name_len <= 0 { return -1 }
-    return name_len * 65536 + name_first * 256 + name_last
-}
-
-fn _macho_target_buckets_new() {
-    var buckets = oren_list_new_cap(256)
-    if oren_is_err(buckets) { buckets = [] }
-    var i = 0
-    while i < 256 {
-        oren_list_push(buckets, [])
-        i = i + 1
-    }
-    return buckets
-}
-
-fn _macho_lookup_function_linear(names, offs, meta_keys, buckets, counts, ctx, functions, name, stats) {
-    if name == nil {
-        _macho_lookup_stats_add(stats, 0, 0, 0, 0, 1, 0)
-        return nil
-    }
-    var name_len = oren_string_len(name)
-    var name_first = 0
-    if name_len > 0 { name_first = oren_string_byte_at_unchecked(name, 0) & 255 }
-    var name_last = -1
-    if name_len > 0 { name_last = oren_string_byte_at_unchecked(name, name_len - 1) & 255 }
-    var name_key = _macho_target_meta_key(name_len, name_first, name_last)
-    var names_n = oren_list_len(names)
-    var scan_steps = 0
-    var meta_candidates = 0
-    var byte_compares = 0
-    var bucket = nil
-    if buckets != nil && name_first >= 0 && name_first < oren_list_len(buckets) { bucket = buckets[name_first] }
-    if bucket != nil {
-        var bi = 0
-        while bi < oren_list_len(bucket) {
-            var i = bucket[bi]
-            scan_steps = scan_steps + 1
-            if meta_keys[i] == name_key {
-                meta_candidates = meta_candidates + 1
-                byte_compares = byte_compares + 1
-                if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
-                    if counts != nil { counts[i] = counts[i] + 1 }
-                    _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0, 0)
-                    return offs[i]
-                }
-            }
-            bi = bi + 1
-        }
-    } else {
-        var i = 0
-        while i < names_n {
-            scan_steps = scan_steps + 1
-            if meta_keys[i] == name_key {
-                meta_candidates = meta_candidates + 1
-                byte_compares = byte_compares + 1
-                if _macho_str_eq_bytes_known_len(names[i], name, name_len) == true {
-                    if counts != nil { counts[i] = counts[i] + 1 }
-                    _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, 0, 0, 0)
-                    return offs[i]
-                }
-            }
-            i = i + 1
-        }
-    }
-    var off = _macho_lookup_function(ctx, functions, name)
-    var appended = 0
-    var missed = 0
-    var insert_shifts = 0
-    if off != nil {
-        oren_list_push(names, name)
-        oren_list_push(offs, off)
-        oren_list_push(meta_keys, name_key)
-        if bucket != nil { oren_list_push(bucket, names_n) }
-        if counts != nil { oren_list_push(counts, 1) }
-        appended = 1
-    } else {
-        missed = 1
-    }
-    _macho_lookup_stats_add(stats, scan_steps, meta_candidates, byte_compares, appended, missed, insert_shifts)
-    return off
-}
-
-fn _macho_lookup_top_counts_detail(names, counts, prefix) {
-    if names == nil || counts == nil { return "" }
-    var used = []
-    var out = ""
-    var rank = 1
-    var names_n = oren_list_len(names)
-    while rank <= 5 {
-        var best_i = -1
-        var best_count = 0
-        var i = 0
-        while i < names_n {
-            var already = false
-            var u = 0
-            while u < oren_list_len(used) {
-                if used[u] == i { already = true; break }
-                u = u + 1
-            }
-            if already != true {
-                var c = counts[i]
-                if c > best_count {
-                    best_count = c
-                    best_i = i
-                }
-            }
-            i = i + 1
-        }
-        if best_i < 0 || best_count <= 0 { break }
-        oren_list_push(used, best_i)
-        out = out + " " + prefix + oren_int_to_string(rank) + "=" + names[best_i] +
-            " " + prefix + oren_int_to_string(rank) + "_count=" + oren_int_to_string(best_count)
-        rank = rank + 1
     }
     return out
 }
@@ -269,8 +42,8 @@ fn _macho_local_fixups_count_compact(fx) {
 fn _macho_local_fixup_value_eq(k, av, bv) {
     if av == bv { return true }
     if k == "bl_name" {
-        if oren_type_tag(av) == 1 && _macho_hot_bl_id_name(av) == bv { return true }
-        if oren_type_tag(bv) == 1 && _macho_hot_bl_id_name(bv) == av { return true }
+        if oren_type_tag(av) == 1 && resolve._macho_hot_bl_id_name(av) == bv { return true }
+        if oren_type_tag(bv) == 1 && resolve._macho_hot_bl_id_name(bv) == av { return true }
     }
     return false
 }
@@ -1037,8 +810,8 @@ fn emit_debug_info(ctx, text_base, header_size) {
                 rt_start = _macho_read_u64_le_u8(rt_start_u8, ri1 * 8)
                 rt_end = _macho_read_u64_le_u8(rt_end_u8, ri1 * 8)
             } else {
-                rt_start = _macho_decode_rtobj_fix_int(rt_starts[ri1])
-                rt_end = _macho_decode_rtobj_fix_int(rt_ends[ri1])
+                rt_start = resolve._macho_decode_rtobj_fix_int(rt_starts[ri1])
+                rt_end = resolve._macho_decode_rtobj_fix_int(rt_ends[ri1])
             }
             if patch_pos != nil && rt_start != nil && rt_end != nil {
                 rt_funcs_kept = rt_funcs_kept + 1
@@ -1061,8 +834,8 @@ fn emit_debug_info(ctx, text_base, header_size) {
                 }
             }
             var rt_name = rt_names[ri1]
-            var rt_start = _macho_decode_rtobj_fix_int(rt_starts[ri1])
-            var rt_end = _macho_decode_rtobj_fix_int(rt_ends[ri1])
+            var rt_start = resolve._macho_decode_rtobj_fix_int(rt_starts[ri1])
+            var rt_end = resolve._macho_decode_rtobj_fix_int(rt_ends[ri1])
             if rt_name != nil && rt_start != nil && rt_end != nil {
                 rt_funcs_kept = rt_funcs_kept + 1
                 push_u64_le(p, base + rt_base_code + rt_start)
@@ -1090,8 +863,8 @@ fn emit_debug_info(ctx, text_base, header_size) {
             var rf1 = rt_funcs[ri1]
             if rf1 != nil {
                 var rt_name = rf1["name"]
-                var rt_start = _macho_decode_rtobj_fix_int(rf1["start_enc"])
-                var rt_end = _macho_decode_rtobj_fix_int(rf1["end_enc"])
+                var rt_start = resolve._macho_decode_rtobj_fix_int(rf1["start_enc"])
+                var rt_end = resolve._macho_decode_rtobj_fix_int(rf1["end_enc"])
                 if rt_name != nil && rt_start != nil && rt_end != nil {
                     rt_funcs_kept = rt_funcs_kept + 1
                     push_u64_le(p, base + rt_base_code + rt_start)
@@ -1171,7 +944,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         if nm != nil {
             if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
                 is_local = true
-            } else if _macho_lookup_function(ctx, functions, nm) != nil {
+            } else if resolve._macho_lookup_function(ctx, functions, nm) != nil {
                 is_local = true
             }
         }
@@ -1401,7 +1174,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             var pos_bl = 0
             if bl_poss_u8 != nil { pos_bl = rtobj_fix_base + _macho_read_u64_le_u8(bl_poss_u8, i * 8) }
-            else { pos_bl = rtobj_fix_base + _macho_decode_rtobj_fix_int(bl_poss[i]) }
+            else { pos_bl = rtobj_fix_base + resolve._macho_decode_rtobj_fix_int(bl_poss[i]) }
             var target_bl = nil
             var name_bl = nil
             if bl_target_u8 != nil {
@@ -1412,7 +1185,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             if target_bl == nil {
                 name_bl = bl_names[i]
-                target_bl = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl)
+                target_bl = resolve._macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_bl)
             }
             if target_bl == nil {
                 var e_bl = "native backend: undefined function " + name_bl
@@ -1453,10 +1226,10 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             var pos_ad = 0
             if adr_data_poss_u8 != nil { pos_ad = rtobj_fix_base + _macho_read_u64_le_u8(adr_data_poss_u8, k_ad * 8) }
-            else { pos_ad = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_data_poss[k_ad]) }
+            else { pos_ad = rtobj_fix_base + resolve._macho_decode_rtobj_fix_int(adr_data_poss[k_ad]) }
             var data_off_ad = 0
             if adr_data_offs_u8 != nil { data_off_ad = _macho_read_u64_le_u8(adr_data_offs_u8, k_ad * 8) }
-            else { data_off_ad = _macho_decode_rtobj_fix_int(adr_data_offs[k_ad]) }
+            else { data_off_ad = resolve._macho_decode_rtobj_fix_int(adr_data_offs[k_ad]) }
             var target_addr_ad = data_vmaddr + data_off_ad
             var pc_ad = code_vmaddr_base + pos_ad
             var pc_page_ad = pc_ad - int_mod(pc_ad, 4096)
@@ -1466,7 +1239,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var reg_ad = 0
             if adr_data_regs_u8 != nil { reg_ad = _macho_read_u64_le_u8(adr_data_regs_u8, k_ad * 8) }
             else {
-                var reg_ad_dec = _macho_decode_rtobj_fix_reg(adr_data_regs[k_ad])
+                var reg_ad_dec = resolve._macho_decode_rtobj_fix_reg(adr_data_regs[k_ad])
                 if reg_ad_dec != nil { reg_ad = reg_ad_dec }
             }
             set_u32_le(code, pos_ad, insn_adrp(reg_ad, delta_pages_ad))
@@ -1502,7 +1275,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             var pos_ac = 0
             if adr_code_poss_u8 != nil { pos_ac = rtobj_fix_base + _macho_read_u64_le_u8(adr_code_poss_u8, k_ac * 8) }
-            else { pos_ac = rtobj_fix_base + _macho_decode_rtobj_fix_int(adr_code_poss[k_ac]) }
+            else { pos_ac = rtobj_fix_base + resolve._macho_decode_rtobj_fix_int(adr_code_poss[k_ac]) }
             var target_ac = nil
             var name_ac = nil
             if adr_code_target_u8 != nil {
@@ -1513,7 +1286,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
             if target_ac == nil {
                 name_ac = adr_code_names[k_ac]
-                target_ac = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac)
+                target_ac = resolve._macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_ac)
             }
             if target_ac == nil {
                 var e_ac = "native backend: undefined function " + name_ac
@@ -1524,7 +1297,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var reg_ac = 0
             if adr_code_regs_u8 != nil { reg_ac = _macho_read_u64_le_u8(adr_code_regs_u8, k_ac * 8) }
             else {
-                var reg_ac_dec = _macho_decode_rtobj_fix_reg(adr_code_regs[k_ac])
+                var reg_ac_dec = resolve._macho_decode_rtobj_fix_reg(adr_code_regs[k_ac])
                 if reg_ac_dec != nil { reg_ac = reg_ac_dec }
             }
             var target_addr_ac = code_vmaddr_base + target_ac
@@ -1546,11 +1319,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 if i == 20000 { print("[emit] macho arm64: fixup[20000]") }
             }
             var fix_rt = rtobj_fixups[i]
-            var pos_rt = rtobj_fix_base + _macho_decode_rtobj_fix_int(fix_rt["pos"])
+            var pos_rt = rtobj_fix_base + resolve._macho_decode_rtobj_fix_int(fix_rt["pos"])
 
             if fix_rt["type"] == "bl" {
                 var name_rt = fix_rt["name"]
-                var target_rt = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_rt)
+                var target_rt = resolve._macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_rt)
                 if target_rt == nil {
                     var e_rt = "native backend: undefined function " + name_rt
                     print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_rt))
@@ -1562,14 +1335,14 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             }
 
             if fix_rt["type"] == "adr_data" {
-                var data_off_rt = _macho_decode_rtobj_fix_int(fix_rt["data_off"])
+                var data_off_rt = resolve._macho_decode_rtobj_fix_int(fix_rt["data_off"])
                 var target_addr_rt = data_vmaddr + data_off_rt
                 var pc_rt = text_base + header_size + pos_rt
                 var pc_page_rt = pc_rt - int_mod(pc_rt, 4096)
                 var target_page_rt = target_addr_rt - int_mod(target_addr_rt, 4096)
                 var delta_pages_rt = (target_page_rt - pc_page_rt) / 4096
                 var page_off_rt = int_mod(target_addr_rt, 4096)
-                var reg_rt = _macho_decode_rtobj_fix_int(fix_rt["reg"])
+                var reg_rt = resolve._macho_decode_rtobj_fix_int(fix_rt["reg"])
                 if reg_rt == nil { reg_rt = 0 }
                 set_u32_le(code, pos_rt, insn_adrp(reg_rt, delta_pages_rt))
                 set_u32_le(code, pos_rt + 4, insn_add_imm(reg_rt, reg_rt, page_off_rt))
@@ -1577,14 +1350,14 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
 
             if fix_rt["type"] == "adr_code" {
                 var name_rt2 = fix_rt["name"]
-                var target_rt2 = _macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_rt2)
+                var target_rt2 = resolve._macho_lookup_function_cached(fixup_target_cache, ctx, functions, name_rt2)
                 if target_rt2 == nil {
                     var e_rt2 = "native backend: undefined function " + name_rt2
                     print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_rt2))
                     print(e_rt2)
                     oren_exit(1)
                 }
-                var reg_rt2 = _macho_decode_rtobj_fix_int(fix_rt["reg"])
+                var reg_rt2 = resolve._macho_decode_rtobj_fix_int(fix_rt["reg"])
                 var target_addr_rt2 = text_base + header_size + target_rt2
                 var pc_rt2 = text_base + header_size + pos_rt
                 var pc_page_rt2 = pc_rt2 - int_mod(pc_rt2, 4096)
@@ -1634,7 +1407,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var local_target_names = []
     var local_target_offs = []
     var local_target_meta_keys = []
-    var local_target_buckets = _macho_target_buckets_new()
+    var local_target_buckets = resolve._macho_target_buckets_new()
     var local_target_counts = nil
     var local_target_stats = nil
     if phase_log != nil && oren_env("OREN_TRACE_MACHO_LOCAL_RESOLVE_STATS") != nil {
@@ -1646,32 +1419,32 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     if local_bl_target != nil && oren_list_len(local_bl_target) == local_bl_n { local_bl_target_valid = true }
     var rt_hot = ctx["runtime_functions_enc"]
     var rt_hot_base = ctx["rtobj_functions_base_code"]
-    var hot_bl_panic = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_panic")
-    var hot_bl_ensure_tracked = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_ensure_tracked")
-    var hot_bl_call_depth_enter = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_call_depth_enter")
-    var hot_bl_call_depth_exit = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_call_depth_exit")
-    var hot_bl_list_len_panic = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "native_list_len_panic")
-    var hot_bl_find_node = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_find_node")
-    var hot_bl_is_err = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_is_err")
-    var hot_bl_map_get_str = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_map_get_str")
-    var hot_bl_new_list = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_new_list")
-    var hot_bl_list_get = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_get")
-    var hot_bl_list_push_unchecked = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_push_unchecked")
-    var hot_bl_find_node_known_kind = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "_list_find_node_known_kind")
-    var hot_bl_func = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_func")
-    var hot_bl_list_push = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_push")
-    var hot_bl_add = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_add")
-    var hot_bl_map_get_int = _macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_map_get_int")
-    var hot_bl_std_generator_next = _macho_lookup_function(ctx, functions, "STD_generator_next")
-    var hot_bl_std_generator_start = _macho_lookup_function(ctx, functions, "STD_generator_start")
-    var hot_bl_strcmp = _macho_lookup_function(ctx, functions, "strcmp")
-    var hot_bl_std_generator_send = _macho_lookup_function(ctx, functions, "STD_generator_send")
-    var hot_bl_std_generator_is_done = _macho_lookup_function(ctx, functions, "STD_generator_is_done")
-    var hot_bl_map_set_str = _macho_lookup_function(ctx, functions, "oren_map_set_str")
-    var hot_bl_type_name = _macho_lookup_function(ctx, functions, "oren_type_name")
-    var hot_bl_std_generator_cancel_reason = _macho_lookup_function(ctx, functions, "STD_generator_cancel_reason")
-    var hot_bl_generator_context_exchange = _macho_lookup_function(ctx, functions, "_oren_generator_context_exchange")
-    var hot_bl_std_generator_is_cancel_requested = _macho_lookup_function(ctx, functions, "STD_generator_is_cancel_requested")
+    var hot_bl_panic = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_panic")
+    var hot_bl_ensure_tracked = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_ensure_tracked")
+    var hot_bl_call_depth_enter = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_call_depth_enter")
+    var hot_bl_call_depth_exit = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_call_depth_exit")
+    var hot_bl_list_len_panic = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "native_list_len_panic")
+    var hot_bl_find_node = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_find_node")
+    var hot_bl_is_err = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_is_err")
+    var hot_bl_map_get_str = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_map_get_str")
+    var hot_bl_new_list = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_new_list")
+    var hot_bl_list_get = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_get")
+    var hot_bl_list_push_unchecked = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_push_unchecked")
+    var hot_bl_find_node_known_kind = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "_list_find_node_known_kind")
+    var hot_bl_func = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_func")
+    var hot_bl_list_push = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_list_push")
+    var hot_bl_add = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_add")
+    var hot_bl_map_get_int = resolve._macho_lookup_runtime_offset(rt_hot, rt_hot_base, "oren_map_get_int")
+    var hot_bl_std_generator_next = resolve._macho_lookup_function(ctx, functions, "STD_generator_next")
+    var hot_bl_std_generator_start = resolve._macho_lookup_function(ctx, functions, "STD_generator_start")
+    var hot_bl_strcmp = resolve._macho_lookup_function(ctx, functions, "strcmp")
+    var hot_bl_std_generator_send = resolve._macho_lookup_function(ctx, functions, "STD_generator_send")
+    var hot_bl_std_generator_is_done = resolve._macho_lookup_function(ctx, functions, "STD_generator_is_done")
+    var hot_bl_map_set_str = resolve._macho_lookup_function(ctx, functions, "oren_map_set_str")
+    var hot_bl_type_name = resolve._macho_lookup_function(ctx, functions, "oren_type_name")
+    var hot_bl_std_generator_cancel_reason = resolve._macho_lookup_function(ctx, functions, "STD_generator_cancel_reason")
+    var hot_bl_generator_context_exchange = resolve._macho_lookup_function(ctx, functions, "_oren_generator_context_exchange")
+    var hot_bl_std_generator_is_cancel_requested = resolve._macho_lookup_function(ctx, functions, "STD_generator_is_cancel_requested")
     var hot_bl_targets = [
         hot_bl_panic,
         hot_bl_ensure_tracked,
@@ -1710,7 +1483,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             if i == 0 || i == 4096 || i == 8192 {
                 _macho_phase_log_append(phase_log, "macho.fixups.local.bl.resolve.progress",
                     "i=" + oren_int_to_string(i) +
-                    _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
+                    resolve._macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
             }
         }
         var target_local = nil
@@ -1724,13 +1497,13 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 }
                 if target_local != nil { local_bl_hot_id = local_bl_hot_id + 1 }
                 else {
-                    var name_bl_known = _macho_hot_bl_id_name(name_bl_local)
+                    var name_bl_known = resolve._macho_hot_bl_id_name(name_bl_local)
                     if name_bl_known == nil { name_bl_known = "unknown_hot_bl_id" }
                     name_bl_local = name_bl_known
                 }
             }
             if target_local == nil {
-                target_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_buckets, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
+                target_local = resolve._macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_buckets, local_target_counts, ctx, functions, name_bl_local, local_target_stats)
             }
             if target_local == nil {
                 var e_local_bl = "native backend: undefined function " + name_bl_local
@@ -1759,8 +1532,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             " prefilled=" + oren_int_to_string(local_bl_prefilled) +
             " hot_id=" + oren_int_to_string(local_bl_hot_id) +
             " resolved=" + oren_int_to_string(local_bl_resolved) +
-            _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)) +
-            _macho_lookup_top_counts_detail(local_target_names, local_target_counts, "bl_top"))
+            resolve._macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)) +
+            resolve._macho_lookup_top_counts_detail(local_target_names, local_target_counts, "bl_top"))
     }
     if phase_log != nil { _macho_phase_log_append(phase_log, "macho.fixups.local.bl.done", "n=" + oren_int_to_string(local_bl_pos_n)) }
     var local_adr_code_n = oren_list_len(local_adr_code_name)
@@ -1780,13 +1553,13 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             if i == 0 || i == 4096 || i == 8192 {
                 _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.progress",
                     "i=" + oren_int_to_string(i) +
-                    _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
+                    resolve._macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)))
             }
         }
         var target2_local = local_adr_code_target[i]
         if target2_local == nil {
             var name_ac_local = local_adr_code_name[i]
-            target2_local = _macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_buckets, local_target_counts, ctx, functions, name_ac_local, local_target_stats)
+            target2_local = resolve._macho_lookup_function_linear(local_target_names, local_target_offs, local_target_meta_keys, local_target_buckets, local_target_counts, ctx, functions, name_ac_local, local_target_stats)
             if target2_local == nil {
                 var e_local_ac = "native backend: undefined function " + name_ac_local
                 print("OREN_DIAG kind=codegen code=1 msg=" + macho_diag_escape(e_local_ac))
@@ -1801,8 +1574,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     if phase_log != nil {
         _macho_phase_log_append(phase_log, "macho.fixups.local.adr_code.resolve.done",
             "n=" + oren_int_to_string(local_adr_code_n) +
-            _macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)) +
-            _macho_lookup_top_counts_detail(local_target_names, local_target_counts, "all_top"))
+            resolve._macho_lookup_stats_detail(local_target_stats, oren_list_len(local_target_names)) +
+            resolve._macho_lookup_top_counts_detail(local_target_names, local_target_counts, "all_top"))
     }
     i = 0
     var local_adr_data_n = oren_list_len(local_adr_data_pos)
