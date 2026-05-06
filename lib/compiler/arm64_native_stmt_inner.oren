@@ -1,0 +1,1221 @@
+fn native_compile_stmt_inner(ctx, stmt) {
+    // Parser/normalization compatibility (rolling):
+    // Some pipelines represent top-level `fn name(...) { ... }` as a raw Function statement,
+    // and block-level `if cond { ... } else { ... }` as a statement node `type=="If"`.
+    //
+    // Tier‑1 native backends historically compiled only the expression-statement forms:
+    //   ExprStmt(Function) and ExprStmt(If)
+    //
+    // Runtime injection can bypass the full frontend normalization passes, so handle these
+    // statement forms here to avoid silently skipping critical guards (e.g. alloc-index init).
+    if stmt["type"] == "If" || stmt["type"] == "Function" {
+        return native_compile_stmt_inner(ctx, {"type": "ExprStmt", "token": stmt["token"], "expr": stmt})
+    }
+
+    if stmt["type"] == "Spawn" {
+        // Delegate to expression compilation, ignore result (X0)
+        var expr = {"type": "SpawnExpr", "call": stmt["call"]}
+        native_compile_expr(ctx, expr)
+        return nil
+    }
+    if stmt["type"] == "Break" { return termm.compile_break(ctx, stmt) }
+    if stmt["type"] == "Continue" { return termm.compile_continue(ctx, stmt) }
+    if stmt["type"] == "Block" {
+        var stmts = stmt["stmts"]
+        var stmt_count = oren_list_len(stmts)
+        if ctx["in_function"] {
+            scope_enter_codegen(ctx)
+        }
+        var old_fresh_caps = ctx["arm64_fresh_list_int_caps"]
+        var fresh_caps = {}
+        var base_stack = ctx["stack_size"]
+        var i = 0
+        var falls_through = true
+        while i < stmt_count {
+            var cur = stmts[i]
+            var next = nil
+            if i + 1 < stmt_count { next = stmts[i + 1] }
+            if _arm64_should_skip_reserve_stmt(cur, next, ctx) == true {
+                i = i + 1
+                continue
+            }
+            ctx["arm64_fresh_list_int_caps"] = fresh_caps
+            if _arm64_native_block_weighted_gas_enabled(ctx) == true && ctx["arm64_basic_block_entry"] == true {
+                ctx["arm64_basic_block_gas_weight_override"] = _arm64_block_weight_from_stmt_list(stmts, i)
+            }
+            var r = native_compile_stmt(ctx, cur)
+            if r == false {
+                falls_through = false
+                break
+            }
+            if _arm64_basic_block_gas_should_charge(ctx, next) != true && _arm64_stmt_starts_following_basic_block(cur) == true {
+                ctx["arm64_basic_block_entry"] = true
+            }
+            fresh_caps = _arm64_fresh_list_int_caps_after_stmt(fresh_caps, cur)
+            i = i + 1
+        }
+	        var delta = ctx["stack_size"] - base_stack
+	        // Restore stack only if we reach the end of this block via fallthrough.
+	        // If a terminator ended the block, this cleanup would be unreachable and can be skipped.
+	        if falls_through == true {
+	            loopm._arm64_restore_stack_to(ctx, base_stack)
+	        } else {
+	            // Keep compile-time stack accounting consistent for subsequent compilation (even if
+	            // fallthrough is impossible, later statements are either unreachable or in another CFG arm).
+	            ctx["stack_size"] = base_stack
+	        }
+			        if ctx["in_function"] {
+			            scope_exit_codegen(ctx)
+			        }
+        ctx["arm64_fresh_list_int_caps"] = old_fresh_caps
+        if falls_through == true { return nil }
+        return false
+    }
+
+    if stmt["type"] == "Set" {
+        return native_compile_stmt_set(ctx, stmt)
+    }
+
+    if stmt["type"] == "Assign" { return bindm.native_compile_stmt_assign(ctx, stmt, native_compile_expr) }
+
+    if stmt["type"] == "Var" { return bindm.native_compile_stmt_var(ctx, stmt, native_compile_expr) }
+
+    if stmt["type"] == "Return" { return termm.compile_return(ctx, stmt, native_compile_expr) }
+
+    if stmt["type"] == "For" {
+        // Native `for`:
+        // - init runs once
+        // - cond checked before each iteration (nil => true)
+        // - continue jumps to post start (so post runs), then loops back to cond
+        // - break exits the loop
+
+        var outer_base_stack = ctx["stack_size"]
+        if stmt["init"] != nil { native_compile_stmt(ctx, stmt["init"]) }
+
+        // Keep the generic `for` loop tick on the stack: the condition, body, and post clause
+        // can all compile arbitrary code that clobbers caller-saved X9/X10, so the slot-free
+        // inline-tick scheme used by dedicated fast loops is not safe here.
+        // GC tick local for throttling safepoints (u64 at SP+0 when at loop base).
+        // Allocate once for the whole loop scope.
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        push_u32_le(ctx["code"], insn_movz(9, 0))
+        emit_str_reg_sp_any(ctx, 9, 0)
+
+        var loop_base_stack = ctx["stack_size"]
+        loopm._arm64_trace_loop_stack(ctx, "for_loop", loop_base_stack, 2, 0, 16)
+        var start_pos = bytes_len(ctx["code"])
+        var dynamic_cond_note = nil
+        var dynamic_cond_start = nil
+        if _arm64_native_dynamic_emitter_gas_enabled(ctx) == true {
+            dynamic_cond_note = gc.native_emit_runtime_gas_note_amount_patchable_u32(ctx)
+            dynamic_cond_start = bytes_len(ctx["code"])
+        } else {
+            _arm64_emit_block_weighted_loop_condition_gas(ctx)
+        }
+
+        var prev_loop = ctx["loop_ctx"]
+        var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": nil, "break_jumps": [], "continue_jumps": []}
+        ctx["loop_ctx"] = loop
+
+        // Condition (nil => true)
+        if stmt["cond"] != nil {
+            native_compile_expr(ctx, stmt["cond"])
+        } else {
+            push_u32_le(ctx["code"], insn_movz(0, 1))
+        }
+        loopm._arm64_emit_truthy_norm_in_x0(ctx, stmt["token"])
+
+        // Stack discipline: condition temporaries must not leak across the loop branch.
+        var cond_delta = ctx["stack_size"] - loop_base_stack
+        if cond_delta != 0 { loopm._arm64_restore_stack_to(ctx, loop_base_stack) }
+
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jump_end_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        if dynamic_cond_note != nil && dynamic_cond_start != nil {
+            var dynamic_cond_amount = (bytes_len(ctx["code"]) - dynamic_cond_start) / 4
+            gc.native_patch_runtime_gas_note_amount_u32(ctx, dynamic_cond_note, dynamic_cond_amount)
+        }
+
+        // GC safepoint on loop entry (parity with C backend), throttled for performance.
+        // Call once per 256 iterations by default.
+        var prev_kind = ctx["loop_kind"]
+        ctx["loop_kind"] = "for_loop"
+        gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+        ctx["loop_kind"] = prev_kind
+
+        var prev_bb_for_body = ctx["arm64_basic_block_entry"]
+        if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
+        native_compile_stmt(ctx, stmt["body"])
+        ctx["arm64_basic_block_entry"] = prev_bb_for_body
+
+        // Ensure stack is restored to the loop base before post/next iter.
+        var loop_delta = ctx["stack_size"] - loop_base_stack
+        if loop_delta != 0 { loopm._arm64_restore_stack_to(ctx, loop_base_stack) }
+
+        // Post clause (continue target).
+        var post_start = bytes_len(ctx["code"])
+        loop["continue_pos"] = post_start
+        if stmt["post"] != nil {
+            var prev_bb_for_post = ctx["arm64_basic_block_entry"]
+            if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
+            native_compile_stmt(ctx, stmt["post"])
+            ctx["arm64_basic_block_entry"] = prev_bb_for_post
+        }
+
+        var post_delta = ctx["stack_size"] - loop_base_stack
+        if post_delta != 0 { loopm._arm64_restore_stack_to(ctx, loop_base_stack) }
+
+        // Jump back to the condition.
+        var loop_back_pos = bytes_len(ctx["code"])
+        var back_off = (start_pos - loop_back_pos) / 4
+        push_u32_le(ctx["code"], insn_b(back_off))
+
+        var end_target = bytes_len(ctx["code"])
+        var end_off = (end_target - jump_end_pos) / 4
+        set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0))
+
+        // Patch breaks/continues recorded inside the loop body.
+        var bi = 0
+        while bi < oren_list_len(loop["break_jumps"]) {
+            var bpos = loop["break_jumps"][bi]
+            var boff = (end_target - bpos) / 4
+            set_u32_le(ctx["code"], bpos, insn_b(boff))
+            bi = bi + 1
+        }
+        var ci = 0
+        while ci < oren_list_len(loop["continue_jumps"]) {
+            var cpos = loop["continue_jumps"][ci]
+            var coff = (post_start - cpos) / 4
+            set_u32_le(ctx["code"], cpos, insn_b(coff))
+            ci = ci + 1
+        }
+
+        ctx["loop_ctx"] = prev_loop
+
+	        // `for` introduces an init-scope like a block: pop init locals after the loop.
+	        // loop_base_stack includes the GC tick local.
+	        var init_delta = loop_base_stack - outer_base_stack
+	        if init_delta != 0 {
+	            if init_delta > 0 { emit_add_sp_any(ctx, init_delta) }
+	            else { emit_sub_sp_any(ctx, 0 - init_delta) }
+	            ctx["stack_size"] = outer_base_stack
+	        }
+	        return nil
+	    }
+
+    if stmt["type"] == "FFI" {
+        var name = stmt["name"]["value"]
+        if ctx["ffi_link_names"] == nil { ctx["ffi_link_names"] = {} }
+        var sym = stmt["link_name"]
+        if sym == nil || sym == "" { sym = name }
+        ctx["ffi_link_names"][name] = sym
+        ctx["imports"][name] = true
+        oren_list_push(ctx["import_list"], name)
+        _arm64_collect_ffi_ret_attrs(ctx, stmt, name)
+        return nil
+    }
+
+	        if stmt["type"] == "Type" {
+		        var name = stmt["name"]["value"]
+	            var fields = stmt["fields"]
+	            var n_fields = oren_list_len(fields)
+            if ctx["type_field_kinds"] != nil {
+                var fmap = {}
+                var tk = 0
+                while tk < n_fields {
+                    var fid0 = fields[tk]
+                    if fid0 != nil {
+                        var fkind0 = _arm64_normalize_ann_kind(fid0["ann_type"])
+                        if fkind0 != nil { fmap[fid0["value"]] = fkind0 }
+                    }
+                    tk = tk + 1
+                }
+                ctx["type_field_kinds"][name] = fmap
+            }
+
+	        // Expose the synthesized constructor as a first-class callable:
+	        // - identifier expressions like `var U = User` must typecheck/codegen
+	        // - wrapper synthesis (fn values) consults `ctx["func_decl_order"]` + `ctx["func_arity"]`
+	        if ctx["declared_functions"] != nil {
+	            if ctx["declared_functions"][name] != nil {
+	                native_error(ctx, stmt["token"], "native backend: duplicate top-level name " + name)
+	                return nil
+	            }
+	            ctx["declared_functions"][name] = true
+	        }
+        if ctx["func_arity"] != nil {
+            // Store as arity+1 so an arity of 0 is representable while still using `nil` as
+            // the sentinel for "missing" (call sites decode with `enc-1`).
+            ctx["func_arity"][name] = n_fields + 1
+        }
+	        if ctx["func_decl_order"] != nil {
+	            oren_list_push(ctx["func_decl_order"], name)
+	        }
+
+	        // Emit the constructor as a real function symbol so type constructors remain
+	        // first-class callables in native codegen.
+	        //
+	        // Rolling v0 decision: structs are map-shaped across backends.
+	        // Constructor returns a map with string keys:
+        //   struct User { id, name }  =>  fn User(id, name) { return {"id":id,"name":name} }
+        var jump_skip_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+
+        var func_start = bytes_len(ctx["code"])
+	        ctx["functions"][name] = func_start
+	        oren_list_push(ctx["function_names"], name)
+
+		        var old_locals = ctx["locals"]
+		        var old_locals_floaty = ctx["locals_floaty"]
+		        var old_locals_struct_type = ctx["locals_struct_type"]
+		        var old_locals_stringy = ctx["locals_stringy"]
+	        var old_locals_list_stringy = ctx["locals_list_stringy"]
+	        var old_stack_size = ctx["stack_size"]
+	        var old_cur_fn_name = ctx["cur_fn_name"]
+		        ctx["locals"] = {}
+		        ctx["locals_floaty"] = {}
+		        ctx["locals_struct_type"] = {}
+		        ctx["locals_stringy"] = {}
+	        ctx["locals_list_stringy"] = {}
+	        ctx["stack_size"] = 0
+
+	        ctx["in_function"] = true
+	        ctx["cur_fn_name"] = name
+
+	        push_u32_le(ctx["code"], insn_stp_pre())
+	        push_u32_le(ctx["code"], insn_mov_fp_sp())
+	        ctx["stack_size"] = ctx["stack_size"] + 16
+
+	        // Save args to stack locals for uniform access.
+	        var i = 0
+		        while i < n_fields {
+			            var f_name = fields[i]["value"]
+		            push_u32_le(ctx["code"], insn_sub_sp(16))
+		            push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
+		            var fp_off = 0 - ctx["stack_size"]
+			            ctx["locals"][f_name] = fp_off + 1
+                    var f_ann = _arm64_normalize_ann_kind(fields[i]["ann_type"])
+                    if f_ann == "f64" || f_ann == "f32" {
+                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][f_name] = true }
+                    }
+			            ctx["stack_size"] = ctx["stack_size"] + 16
+		            i = i + 1
+		        }
+
+        // m = oren_new_map(n_fields + 1)
+        // Reserve one extra slot for `__oren_type` (basic reflection / stable type naming).
+        push_u32_le(ctx["code"], insn_movz(0, n_fields + 1))
+        var bl_new_map = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_map, "name": "oren_new_map"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_map)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_new_map")
+
+        var map_ptr_off = ctx["stack_size"]
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+
+        // Tag type constructor maps with a stable type name:
+        //   User(id, name) => {"__oren_type":"User","id":id,"name":name}
+        //
+        // This is a rolling "reflection v0" affordance: it makes `oren_type_name(User(...))`
+        // return "User" instead of "map" without requiring a full reflective type system yet.
+        var m_sp_off_tag = ctx["stack_size"] - map_ptr_off - 16
+        emit_ldr_reg_sp_any(ctx, 0, m_sp_off_tag) // X0 = m
+
+        var key_off_tag = exprm.native_data_add_cstr0(ctx, "__oren_type")
+        var adr_key_tag = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_key_tag, "data_off": key_off_tag, "reg": 1}) // X1 = "__oren_type"
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_key_tag)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], key_off_tag)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 1)
+
+        var val_off_tag = exprm.native_data_add_cstr0(ctx, name)
+        var adr_val_tag = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_val_tag, "data_off": val_off_tag, "reg": 2}) // X2 = "User"
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_val_tag)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], val_off_tag)
+        oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 2)
+
+        var bl_set_tag = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_tag, "name": "oren_map_set_str"})
+        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set_tag)
+        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -22)
+
+        // For each field: oren_map_set_str(m, "field", value)
+        i = 0
+        while i < n_fields {
+            var f_name2 = fields[i]["value"]
+
+            // Push obj (m) on stack.
+            var m_sp_off = ctx["stack_size"] - map_ptr_off - 16
+            emit_ldr_reg_sp_any(ctx, 0, m_sp_off) // X0 = m
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // Build/dedup key string in the cstr0 pool and push it on stack.
+            // Embedded literals are registered once at startup via `oren_init_static_cstr0_table`,
+            // so per-use `oren_ensure_tracked` is unnecessary here.
+            var data_off = exprm.native_data_add_cstr0(ctx, f_name2)
+            var adr_pos = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off, "reg": nil})
+            oren_list_push(ctx["fixups_local_compact"]["adr_data_pos"], adr_pos)
+            oren_list_push(ctx["fixups_local_compact"]["adr_data_off"], data_off)
+            oren_list_push(ctx["fixups_local_compact"]["adr_data_reg"], 0)
+
+            push_u32_le(ctx["code"], insn_sub_sp(16))
+            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+	            // Load value -> X0 (from saved local slot).
+	            // Locals store offsets as `fp_off+1` to avoid nil/0 ambiguity under the native runtime.
+	            var off_enc = ctx["locals"][f_name2]
+	            var fp_off2 = off_enc - 1
+	            emit_ldr_reg_fp_any(ctx, 0, fp_off2)
+
+            // Pop key -> X1
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Pop obj -> X2
+            push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+            push_u32_le(ctx["code"], insn_add_sp(16))
+            ctx["stack_size"] = ctx["stack_size"] - 16
+
+            // Need X0=obj, X1=key, X2=val (currently X0=val, X1=key, X2=obj).
+            push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // val -> X3
+            push_u32_le(ctx["code"], insn_mov_reg(0, 2)) // obj -> X0
+            // X1 is key (ok)
+            push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // val -> X2
+
+            var bl_set = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set, "name": "oren_map_set_str"})
+            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_set)
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], -22)
+
+            i = i + 1
+        }
+
+        // return m
+        var m_sp_off2 = ctx["stack_size"] - map_ptr_off - 16
+        emit_ldr_reg_sp_any(ctx, 0, m_sp_off2)
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
+
+        push_u32_le(ctx["code"], insn_mov_sp_fp())
+        push_u32_le(ctx["code"], insn_ldp_post())
+        push_u32_le(ctx["code"], insn_ret())
+
+        var func_end = bytes_len(ctx["code"])
+        var skip_off = (func_end - jump_skip_pos) / 4
+        set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
+
+	        ctx["in_function"] = false
+	        ctx["cur_fn_name"] = old_cur_fn_name
+
+		        ctx["locals"] = old_locals
+		        ctx["locals_floaty"] = old_locals_floaty
+		        ctx["locals_struct_type"] = old_locals_struct_type
+		        ctx["locals_stringy"] = old_locals_stringy
+	        ctx["locals_list_stringy"] = old_locals_list_stringy
+	        ctx["stack_size"] = old_stack_size
+        return nil
+    }
+
+    if stmt["type"] == "While" {
+        var fast_lcg = loopm._arm64_match_fast_lcg_sum_while(ctx, stmt)
+        if fast_lcg != nil { return loopm._arm64_emit_fast_lcg_sum_while(ctx, stmt, fast_lcg) }
+        var fast_info = loopm._arm64_match_fast_list_int_push_while(ctx, stmt)
+        if fast_info != nil { return loopm._arm64_emit_fast_list_int_push_while(ctx, stmt, fast_info) }
+        var fast_box_push_info = loopm._arm64_match_fast_list_push_while(ctx, stmt)
+        if fast_box_push_info != nil { return loopm._arm64_emit_fast_list_push_while(ctx, stmt, fast_box_push_info) }
+        var fast_dot_info = loopm._arm64_match_fast_list_int_dot_while(ctx, stmt)
+        if fast_dot_info != nil { return loopm._arm64_emit_fast_list_int_dot_while(ctx, stmt, fast_dot_info) }
+        var fast_box_dot_info = loopm._arm64_match_fast_list_dot_while(ctx, stmt)
+        if fast_box_dot_info != nil { return loopm._arm64_emit_fast_list_dot_while(ctx, stmt, fast_box_dot_info) }
+        var fast_get_info = loopm._arm64_match_fast_list_int_get_sum_while(ctx, stmt)
+        if fast_get_info != nil { return loopm._arm64_emit_fast_list_int_get_sum_while(ctx, stmt, fast_get_info) }
+        var fast_box_get_info = loopm._arm64_match_fast_list_get_sum_while(ctx, stmt)
+        if fast_box_get_info != nil { return loopm._arm64_emit_fast_list_get_sum_while(ctx, stmt, fast_box_get_info) }
+        return loopm._arm64_emit_while_generic(ctx, stmt)
+    }
+
+    if stmt["type"] == "ExprStmt" {
+        var expr = stmt["expr"]
+
+        if expr["type"] == "If" {
+            var base_stack = ctx["stack_size"]
+            var if_subprof_enabled = false
+            var if_subprof_phase = ctx["arm64_codegen_phase"]
+            if if_subprof_phase == nil { if_subprof_phase = "" }
+            var if_subprof_fn = ctx["cur_fn_name"]
+            if if_subprof_fn == nil { if_subprof_fn = "" }
+            var if_subprof_t0 = 0
+            var if_subprof_code0 = 0
+            if ctx["arm64_stmt_profile"] != nil {
+                if_subprof_enabled = true
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
+            var direct_cond_branch = loopm._arm64_emit_if_cond_branch_false(ctx, expr["cond"], expr["token"])
+            var jump_else_pos = nil
+            if direct_cond_branch != nil { jump_else_pos = direct_cond_branch["pos"] }
+            else {
+                native_compile_expr(ctx, expr["cond"])
+                loopm._arm64_emit_truthy_norm_in_x0(ctx, expr["token"])
+            }
+            // Stack discipline (native backend; rolling correctness):
+            // Ensure condition evaluation does not leave temporary stack slots live across the branch.
+            var cond_delta = ctx["stack_size"] - base_stack
+            if cond_delta != 0 { loopm._arm64_restore_stack_to(ctx, base_stack) }
+
+            if direct_cond_branch == nil {
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+                jump_else_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+            }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(cond:" + profm.arm64_expr_profile_kind(expr["cond"]) + ")", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
+
+            var prev_bb_if = ctx["arm64_basic_block_entry"]
+            if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
+            var cons_r = native_compile_stmt(ctx, expr["consq"])
+            var cons_falls = true
+            if cons_r == false { cons_falls = false }
+
+            var cons_delta = ctx["stack_size"] - base_stack
+            if cons_falls == true && cons_delta != 0 { loopm._arm64_restore_stack_to(ctx, base_stack) }
+            else { ctx["stack_size"] = base_stack }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(consq)", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
+
+            var jump_end_pos = nil
+            if expr["alt"] != nil && cons_falls == true {
+                jump_end_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+            }
+
+            var else_target = bytes_len(ctx["code"])
+	            if direct_cond_branch != nil && direct_cond_branch["jumps"] != nil {
+	                var false_jumps = direct_cond_branch["jumps"]
+	                var fji = 0
+	                var fjn = oren_list_len(false_jumps)
+	                while fji < fjn {
+	                    var fj = false_jumps[fji]
+	                    set_u32_le(ctx["code"], fj["pos"], insn_b_cond((else_target - fj["pos"]) / 4, fj["cond"]))
+	                    fji = fji + 1
+	                }
+            } else {
+                var else_off = (else_target - jump_else_pos) / 4
+                var else_cond = 0
+                if direct_cond_branch != nil { else_cond = direct_cond_branch["cond"] }
+                set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, else_cond))
+            }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(else_patch)", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
+
+            var alt_falls = true
+            if expr["alt"] != nil {
+                if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
+                var alt_r = native_compile_stmt(ctx, expr["alt"])
+                if alt_r == false { alt_falls = false }
+            }
+            ctx["arm64_basic_block_entry"] = prev_bb_if
+
+            var alt_delta = ctx["stack_size"] - base_stack
+            if alt_falls == true && alt_delta != 0 { loopm._arm64_restore_stack_to(ctx, base_stack) }
+            else { ctx["stack_size"] = base_stack }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(alt)", if_subprof_t0, if_subprof_code0)
+                if_subprof_t0 = oren_time_now_ns()
+                if_subprof_code0 = bytes_len(ctx["code"])
+            }
+
+            var end_target = bytes_len(ctx["code"])
+            if jump_end_pos != nil {
+                var end_off = (end_target - jump_end_pos) / 4
+                set_u32_le(ctx["code"], jump_end_pos, insn_b(end_off))
+            }
+            if if_subprof_enabled == true {
+                _arm64_record_if_subprofile(ctx, if_subprof_phase, if_subprof_fn, "IfStmt(end_patch)", if_subprof_t0, if_subprof_code0)
+            }
+
+            // If there is no else-branch, the false path always falls through.
+            if expr["alt"] == nil {
+                if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
+                return nil
+            }
+            if cons_falls == true || alt_falls == true {
+                if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
+                return nil
+            }
+            return false
+        }
+
+        if expr["type"] == "Function" {
+	            var fn_name = expr["name"]
+
+            // Function expressions are only valid as lambdas in Tier‑1 native: name=="".
+            //
+            // Named functions are declarations and must only appear at top-level. Local
+            // `fn name(...) { ... }` declarations are lowered earlier into:
+            //   var name = fn (...) { ... }
+            // so they compile via the uniform callable ABI (lambda wrappers).
+            if fn_name == nil || fn_name == "" {
+                native_compile_expr(ctx, expr)
+                return nil
+            }
+            if ctx["in_function"] == true {
+                native_error(ctx, expr["token"], "native backend: local fn decl not lowered (expected var name = fn (...) { ... })")
+                return nil
+            }
+
+            while int_mod(bytes_len(ctx["code"]), 4) != 0 {
+                bytes_push(ctx["code"], 0)
+            }
+
+            var jump_skip_pos = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
+	            var func_start = bytes_len(ctx["code"])
+	            var fn_prof_t0 = 0
+	            var fn_prof_code0 = 0
+	            if ctx["arm64_function_profile"] != nil {
+	                fn_prof_t0 = oren_time_now_ns()
+	                fn_prof_code0 = func_start
+	            }
+	            var fn_subprof_enabled = false
+	            var fn_subprof_phase = ctx["arm64_codegen_phase"]
+	            if fn_subprof_phase == nil { fn_subprof_phase = "" }
+	            var fn_subprof_t0 = 0
+	            var fn_subprof_code0 = 0
+	            if ctx["arm64_stmt_profile"] != nil {
+	                fn_subprof_enabled = true
+	                fn_subprof_t0 = oren_time_now_ns()
+	                fn_subprof_code0 = bytes_len(ctx["code"])
+	            }
+	            ctx["functions"][fn_name] = func_start
+	            oren_list_push(ctx["function_names"], fn_name)
+	            if fn_name == "main" {
+	                ctx["main_idx"] = func_start
+	            }
+	            if fn_subprof_enabled == true {
+	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(register)", fn_subprof_t0, fn_subprof_code0)
+	                fn_subprof_t0 = oren_time_now_ns()
+	                fn_subprof_code0 = bytes_len(ctx["code"])
+	            }
+
+			            var old_locals = ctx["locals"]
+			            var old_locals_floaty = ctx["locals_floaty"]
+		            var old_locals_struct_type = ctx["locals_struct_type"]
+		            var old_locals_stringy = ctx["locals_stringy"]
+	            var old_locals_list_stringy = ctx["locals_list_stringy"]
+	            var old_stack_size = ctx["stack_size"]
+		            var old_scope = ctx["scope"]
+		            var old_call_depth_enabled = ctx["call_depth_enabled"]
+		            var old_cur_fn_name = ctx["cur_fn_name"]
+		            var old_return_jumps = ctx["arm64_return_jumps"]
+			            ctx["locals"] = {}
+			            ctx["locals_floaty"] = {}
+			            ctx["locals_struct_type"] = {}
+			            ctx["locals_stringy"] = {}
+		            ctx["locals_list_stringy"] = {}
+		            ctx["stack_size"] = 0
+		            ctx["scope"] = nil
+		            ctx["arm64_return_jumps"] = []
+
+	            ctx["in_function"] = true
+	            ctx["cur_fn_name"] = fn_name
+            // Stack safety instrumentation (native backend; rolling):
+            //
+            // Only instrument **user code** functions.
+            // Do NOT instrument the injected native runtime itself, because the runtime init path
+            // intentionally runs before global initializers are reliable and uses bootstrap
+            // invariants that must not be perturbed by extra helper calls.
+            //
+            // Runtime functions are tagged with token.file == runtime entry path.
+            ctx["call_depth_enabled"] = true
+            // If the call-depth guard is disabled for this build, skip inserting hooks.
+            var cd_platform = ctx["platform"]
+            if cd_platform != nil {
+                var cd_max = cd_platform["call_depth_max"]
+                if oren_type_tag(cd_max) != 0 && cd_max == 0 { ctx["call_depth_enabled"] = false }
+            }
+            var ftok0 = expr["token"]
+            var ffile0 = nil
+            if ftok0 != nil { ffile0 = ftok0["file"] }
+            if expr["__oren_from_runtime"] == true { ctx["call_depth_enabled"] = false }
+            if expr["__oren_no_call_depth"] == true { ctx["call_depth_enabled"] = false }
+            if ffile0 == "lib/runtime_native.oren" { ctx["call_depth_enabled"] = false }
+            if ffile0 == "lib/runtime_native_core.oren" { ctx["call_depth_enabled"] = false }
+            if ffile0 == "lib/runtime_native_capsule.oren" { ctx["call_depth_enabled"] = false }
+            if ffile0 != nil {
+                var nff = oren_string_len(ffile0)
+                // The runtime is split across many files under `lib/runtime_native/`.
+                // Never instrument those files, otherwise `oren_call_depth_enter/exit`
+                // can recurse through its own slow-path helpers (runtime code) and
+                // crash when multi-threading is enabled.
+                var prefix_runtime = "lib/runtime_native/"
+                var prefix_capsule = "lib/runtime_native_capsule/"
+                var npre_runtime = oren_string_len(prefix_runtime)
+                var npre_capsule = oren_string_len(prefix_capsule)
+                if nff >= npre_runtime {
+                    if oren_string_slice(ffile0, 0, npre_runtime) == prefix_runtime { ctx["call_depth_enabled"] = false }
+                }
+                if nff >= npre_capsule {
+                    if oren_string_slice(ffile0, 0, npre_capsule) == prefix_capsule { ctx["call_depth_enabled"] = false }
+                }
+                if nff >= 7 {
+                    if oren_string_slice(ffile0, 0, 7) == "<native:" { ctx["call_depth_enabled"] = false }
+                }
+            }
+            // Never instrument the helper functions themselves.
+            if fn_name == "oren_call_depth_enter" { ctx["call_depth_enabled"] = false }
+            if fn_name == "oren_call_depth_exit" { ctx["call_depth_enabled"] = false }
+            // Also never instrument the slow-path helpers, otherwise:
+            //   enter() -> native_call_depth_enter_slow() -> enter() -> ...
+            // which overflows the stack as soon as multithreading flips
+            // `g_runtime_single_threaded` to 0.
+            if fn_name == "native_call_depth_enter_slow" { ctx["call_depth_enabled"] = false }
+            if fn_name == "native_call_depth_exit_slow" { ctx["call_depth_enabled"] = false }
+	            if fn_name == "native_call_depth_enter_slow" || fn_name == "native_call_depth_exit_slow" {
+	                var dbg_cd = oren_env("OREN_DEBUG_CALL_DEPTH_GATING")
+	                if dbg_cd != nil && dbg_cd != "" {
+                    var f0 = "<nil>"
+                    if ffile0 != nil { f0 = ffile0 }
+                    var from_rt_s = "<nil>"
+                    if expr["__oren_from_runtime"] == true { from_rt_s = "true" }
+                    else if expr["__oren_from_runtime"] == false { from_rt_s = "false" }
+                    var enabled_s = "false"
+                    if ctx["call_depth_enabled"] == true { enabled_s = "true" }
+	                    print("[arm64_call_depth_gate] fn=" + fn_name + " file=" + f0 + " __oren_from_runtime=" + from_rt_s + " enabled=" + enabled_s)
+	                }
+	            }
+	            scope_enter_codegen(ctx) // function scope
+	            if fn_subprof_enabled == true {
+	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(context)", fn_subprof_t0, fn_subprof_code0)
+	                fn_subprof_t0 = oren_time_now_ns()
+	                fn_subprof_code0 = bytes_len(ctx["code"])
+	            }
+
+	            // --- Darwin bsdthread threadstart stubs (arm64 macOS) ---
+            //
+            // The kernel threadstart contract can enter user space with SP pointing at a
+            // guard page (PROT_NONE) near the pthread base. Therefore we must move SP into
+            // the actual usable stack area *before* emitting the standard prologue (which
+            // stores to [SP] / [SP,#-16]!).
+            //
+            // ABI (arm64):
+            // - `__oren_darwin_thread_start(self, kport, fun, arg, stacksize, flags)`
+            //   => X0=self, X4=stacksize
+            // - `__oren_darwin_start_wqthread(self, kport, a2, a3, a4, a5)`
+            //   => we conservatively treat X4 (a4) as a stacksize-like value too
+            //
+            // These symbols are registered at process init via `native_runtime_threading_init`
+            // and are not intended to be called from normal Oren code.
+            if ctx["platform"] != nil && ctx["platform"]["os"] == "macos" {
+                if fn_name == "__oren_darwin_thread_start" || fn_name == "__oren_darwin_start_wqthread" {
+                    // Move SP to the top of the thread's usable stack:
+                    //   SP = self + stacksize
+                    // then reserve a small fixed red-zone-like area to keep 16-byte alignment
+                    // and avoid immediate collisions with kernel/libplatform ABI scratch.
+                    //
+                    // Use X9 as scratch (overwritten later by the standard prologue).
+                    push_u32_le(ctx["code"], insn_add_reg(9, 0, 4))   // X9 = X0 + X4
+                    push_u32_le(ctx["code"], insn_add_imm(31, 9, 0))  // SP = X9
+                    push_u32_le(ctx["code"], insn_sub_sp(512))        // SP -= 512
+                }
+            }
+
+            push_u32_le(ctx["code"], insn_stp_pre())
+            push_u32_le(ctx["code"], insn_mov_fp_sp())
+            ctx["stack_size"] = ctx["stack_size"] + 16
+
+            // Save SP after the standard prologue (SP==FP here). If the caller passed stack arguments (arg8+),
+            // they are located at [saved_sp + 16 + (i-8)*8] relative to this base.
+            //
+            // IMPORTANT:
+            // Do this BEFORE allocating our own callee-saved spill area / locals, otherwise the offsets
+            // to caller arguments would be wrong.
+            push_u32_le(ctx["code"], insn_add_imm(9, 31, 0)) // X9 = SP
+
+            // Save callee-saved registers (native ABI: X19-X26) at fixed offsets from FP.
+            //
+            // NOTE:
+            // - We preserve X19-X26 as callee-saved to stabilize calls between generated functions.
+            // - X27/X28 are reserved global heap registers and MUST NOT be saved/restored here.
+            //
+            // Frame layout (relative to FP):
+            //   [FP]    = saved X29
+            //   [FP+8]  = saved X30 (LR)
+            //   [FP-64] = saved X19
+            //   ...
+            //   [FP-8]  = saved X26
+            //
+            // We allocate 64 bytes so subsequent locals pushes remain below the save area.
+            push_u32_le(ctx["code"], insn_sub_sp(64))
+            ctx["stack_size"] = ctx["stack_size"] + 64
+            var save_base = 0 - 64
+            var sr = 19
+	            while sr <= 26 {
+	                var off = save_base + (sr - 19) * 8
+	                push_u32_le(ctx["code"], insn_stur_reg(sr, 29, off))
+	                sr = sr + 1
+	            }
+	            if fn_subprof_enabled == true {
+	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(prologue)", fn_subprof_t0, fn_subprof_code0)
+	                fn_subprof_t0 = oren_time_now_ns()
+	                fn_subprof_code0 = bytes_len(ctx["code"])
+	            }
+
+	            var fn_scope = scope_current_codegen(ctx)
+	            var params_info = []
+            var params = expr["params"]
+            var n_params = oren_list_len(params)
+            var i = 0
+            while i < n_params {
+                var p = params[i]
+                var p_name = p["value"]
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                if i < 8 {
+                    push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
+                } else {
+                    // Load stack arg i (>=8) from caller stack into our local slot.
+                    // src = *(u64*)(saved_sp + 16 + (i-8)*8)
+                    var off = 16 + (i - 8) * 8
+                    emit_load_ptr_from_base_plus(ctx, 10, 9, off) // X10 = arg_i
+                    push_u32_le(ctx["code"], insn_str_reg_sp(10, 0))
+                }
+                // Param locals live below FP:
+                // - debug info uses a positive `p_off` and prints value via `caller_fp - p_off`
+                // - codegen locals use an FP-relative signed offset `fp_off = -p_off`
+                var p_off = ctx["stack_size"]
+                var fp_off = 0 - p_off
+                ctx["locals"][p_name] = fp_off + 1
+                ctx["stack_size"] = ctx["stack_size"] + 16
+                if fn_scope != nil { fn_scope["names"][p_name] = 1 }
+
+                // Type annotations (rolling): help the native backend decide whether a param is "floaty".
+                // Native float values are raw IEEE-754 f64 bits carried in registers (no tagged dynamic type).
+                // Without this, `x: f64` behaves like an int at runtime, breaking float arithmetic/comparisons.
+                var ann = nil
+                if p != nil { ann = p["ann_type"] }
+                if ann != nil {
+                    // Strip optional prefix `oren.` for uniformity.
+                    if oren_string_len(ann) > 5 {
+                        if oren_string_slice(ann, 0, 5) == "oren." {
+                            ann = oren_string_slice(ann, 5, oren_string_len(ann))
+                        }
+                    }
+                    if ann == "f64" || ann == "f32" {
+                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][p_name] = true }
+                    }
+                    if ctx["type_field_kinds"] != nil {
+                        if ctx["type_field_kinds"][ann] != nil {
+                            if ctx["locals_struct_type"] != nil { ctx["locals_struct_type"][p_name] = ann }
+                        }
+                    }
+                }
+
+                if ctx["platform"]["debug"] == true {
+                    oren_list_push(params_info, {"name": p_name, "offset": p_off})
+                }
+
+	                i = i + 1
+	            }
+	            if fn_subprof_enabled == true {
+	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(params)", fn_subprof_t0, fn_subprof_code0)
+	                fn_subprof_t0 = oren_time_now_ns()
+	                fn_subprof_code0 = bytes_len(ctx["code"])
+	            }
+
+	            // Stack safety: increment call depth after params are spilled so arg registers
+            // are free to be clobbered by the helper call.
+	            if ctx["call_depth_enabled"] == true {
+	                var bl_enter = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_enter, "name": "oren_call_depth_enter"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_enter)
+	                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -3)
+	            }
+	            if fn_subprof_enabled == true {
+	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(enter)", fn_subprof_t0, fn_subprof_code0)
+	                fn_subprof_t0 = oren_time_now_ns()
+	                fn_subprof_code0 = bytes_len(ctx["code"])
+	            }
+
+	            var prev_bb_fn_body = ctx["arm64_basic_block_entry"]
+            if _arm64_native_basic_block_gas_enabled(ctx) == true { ctx["arm64_basic_block_entry"] = true }
+            var direct_fnwrap_target = expr["__oren_direct_fnwrap_target"]
+            var direct_fnwrap_arity = expr["__oren_direct_fnwrap_arity"]
+            if direct_fnwrap_target != nil {
+                wrapm.emit_direct_fixed_fnwrap_body(ctx, direct_fnwrap_target, direct_fnwrap_arity, native_compile_stmt)
+            } else {
+                var direct_lambdawrap_def = expr["__oren_direct_lambdawrap_def"]
+                var direct_lambdawrap_fixed = expr["__oren_direct_lambdawrap_fixed"]
+                var emitted_direct_lambdawrap = false
+                if direct_lambdawrap_def != nil {
+                    if wrapm.emit_direct_lambdawrap_body(ctx, direct_lambdawrap_def, direct_lambdawrap_fixed, native_compile_stmt) == true { emitted_direct_lambdawrap = true }
+                }
+	                if emitted_direct_lambdawrap != true {
+	                    native_compile_stmt(ctx, expr["body"])
+	                }
+	            }
+	            ctx["arm64_basic_block_entry"] = prev_bb_fn_body
+	            if fn_subprof_enabled == true {
+	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(body)", fn_subprof_t0, fn_subprof_code0)
+	                fn_subprof_t0 = oren_time_now_ns()
+	                fn_subprof_code0 = bytes_len(ctx["code"])
+	            }
+
+	            push_u32_le(ctx["code"], insn_movz(0, 0))
+            if ctx["call_depth_enabled"] == true {
+                var bl_exit2 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_exit2, "name": "oren_call_depth_exit"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_exit2)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -4)
+                // Ensure X0 remains 0 (helper may clobber caller-saved regs).
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+            }
+		            var epilogue_pos = bytes_len(ctx["code"])
+		            termm.patch_return_jumps(ctx, epilogue_pos)
+		            termm.emit_function_epilogue(ctx)
+	            if fn_subprof_enabled == true {
+	                _arm64_record_function_subprofile(ctx, fn_subprof_phase, fn_name, "FunctionDecl(epilogue)", fn_subprof_t0, fn_subprof_code0)
+	            }
+
+	            var func_end = bytes_len(ctx["code"])
+            if ctx["arm64_function_profile"] != nil {
+                var fn_prof_phase = ctx["arm64_codegen_phase"]
+                if fn_prof_phase == nil { fn_prof_phase = "" }
+                oren_list_push(ctx["arm64_function_profile"], {
+                    "name": fn_name,
+                    "phase": fn_prof_phase,
+                    "ms": (oren_time_now_ns() - fn_prof_t0) / 1000000,
+                    "bytes": func_end - fn_prof_code0
+                })
+            }
+
+            if ctx["platform"]["debug"] == true {
+                var ftok = expr["token"]
+                var ffile = nil
+                var fline = 0
+                var fcol = 0
+                if ftok != nil {
+                    ffile = ftok["file"]
+                    if ftok["line"] != nil { fline = ftok["line"] }
+                    if ftok["col"] != nil { fcol = ftok["col"] }
+                }
+                oren_list_push(ctx["debug_info"]["funcs"], {
+                    "name": fn_name,
+                    "start": func_start,
+                    "end": func_end,
+                    "file": ffile,
+                    "line": fline,
+                    "col": fcol,
+                    "params": params_info
+                })
+            }
+
+            var skip_off = (func_end - jump_skip_pos) / 4
+            set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
+
+	            ctx["in_function"] = false
+	            ctx["cur_fn_name"] = old_cur_fn_name
+
+	            ctx["locals"] = old_locals
+	            ctx["locals_floaty"] = old_locals_floaty
+	            ctx["locals_struct_type"] = old_locals_struct_type
+	            ctx["locals_stringy"] = old_locals_stringy
+	            ctx["locals_list_stringy"] = old_locals_list_stringy
+	            ctx["stack_size"] = old_stack_size
+		            ctx["scope"] = old_scope
+	            ctx["call_depth_enabled"] = old_call_depth_enabled
+	            ctx["arm64_return_jumps"] = old_return_jumps
+	            return nil
+	        }
+
+        if expr["type"] == "Call" {
+            var fn_name = expr["fn"]["value"]
+
+            // NOTE: keep print/exit fast paths, but do NOT emit syscalls directly here.
+            // Keep all syscall emission centralized in `arm64_native_expr_syscalls.oren`.
+
+            if fn_name == "print" {
+                var args = expr["args"]
+                var argc = oren_list_len(args)
+                var spread = expr["spread"]
+                var arg0 = nil
+                if argc > 0 { arg0 = args[0] }
+
+                var is_fmt = false
+                if arg0 != nil && arg0["type"] == "String" && contains_curly_braces(arg0["value"]) {
+                    if argc > 1 || spread != nil { is_fmt = true }
+                }
+
+                if spread != nil {
+                    // Spread printing: lower to runtime helpers so we don't need to unroll
+                    // list elements in assembly.
+                    if is_fmt {
+                        // fixed list is args[1..]
+                        push_u32_le(ctx["code"], insn_movz(0, 0))
+                        var bl_new_list2 = bytes_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list2, "name": "oren_new_list"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list2)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
+
+                        // Save fixed args list on stack.
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+
+                        var k2 = 1
+                        while k2 < argc {
+                            native_compile_expr(ctx, args[k2])
+                            push_u32_le(ctx["code"], insn_sub_sp(16))
+                            push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                            ctx["stack_size"] = ctx["stack_size"] + 16
+
+                            push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                            push_u32_le(ctx["code"], insn_add_sp(16))
+                            ctx["stack_size"] = ctx["stack_size"] - 16
+
+                            push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+
+                            var bl_push2 = bytes_len(ctx["code"])
+                            push_u32_le(ctx["code"], 0)
+                            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push2, "name": "oren_list_push"})
+                            oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push2)
+                            oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
+                            k2 = k2 + 1
+                        }
+
+                        // Compile spread list and save on stack.
+                        native_compile_expr(ctx, spread)
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+
+                        // Compile fmt (arg0) last, then load fixed+spread into X1/X2.
+                        native_compile_expr(ctx, arg0)
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // fixed
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // spread
+                        push_u32_le(ctx["code"], insn_add_sp(32))
+                        ctx["stack_size"] = ctx["stack_size"] - 32
+
+                        var bl_fmt_sp = bytes_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fmt_sp, "name": "oren_print_fmt_spread"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_fmt_sp)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_print_fmt_spread")
+                        return nil
+                    }
+
+                    // Non-format: fixed list is args[0..] (may be empty)
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var bl_new_list3 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list3, "name": "oren_new_list"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list3)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
+
+                    // Save fixed list on stack.
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    var k3 = 0
+                    while k3 < argc {
+                        native_compile_expr(ctx, args[k3])
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                        push_u32_le(ctx["code"], insn_add_sp(16))
+                        ctx["stack_size"] = ctx["stack_size"] - 16
+
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                        var bl_push3 = bytes_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push3, "name": "oren_list_push"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push3)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
+                        k3 = k3 + 1
+                    }
+
+                    // Compile spread -> X0, move to X1, then restore fixed list into X0.
+                    native_compile_expr(ctx, spread)
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0)) // X1 = spread
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // X0 = fixed
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+
+                    var bl_sp = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sp, "name": "oren_print_spread"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_sp)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_print_spread")
+                    return nil
+                }
+
+                if is_fmt {
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var bl_new_list = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list, "name": "oren_new_list"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
+
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    var k = 1
+                    while k < argc {
+                        native_compile_expr(ctx, args[k])
+                        push_u32_le(ctx["code"], insn_sub_sp(16))
+                        push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                        ctx["stack_size"] = ctx["stack_size"] + 16
+
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                        push_u32_le(ctx["code"], insn_add_sp(16))
+                        ctx["stack_size"] = ctx["stack_size"] - 16
+
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+
+                        var bl_push = bytes_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push, "name": "oren_list_push"})
+                        oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push)
+                        oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
+
+                        k = k + 1
+                    }
+
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+
+                    native_compile_expr(ctx, arg0)
+
+                    var bl_fmt = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fmt, "name": "oren_print_fmt"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_fmt)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_print_fmt")
+                    return nil
+                }
+
+                // Non-format print: always go through runtime `oren_print` so sys_write gating applies
+                // (no direct sys_write syscall bypass in statement lowering).
+                if argc == 0 {
+                    // print() => newline
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var bl_nl = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_nl, "name": "oren_print_list"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_nl)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_print_list")
+                    return nil
+                }
+                if argc == 1 {
+                    native_compile_expr(ctx, arg0)
+                    var bl_pos_print = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_print, "name": "oren_print"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos_print)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_print")
+                    return nil
+                }
+
+                // print(a,b,...) => build args list and call oren_print_list(list)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var bl_new_list4 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_list4, "name": "oren_new_list"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_new_list4)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], -9)
+
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                var k4 = 0
+                while k4 < argc {
+                    native_compile_expr(ctx, args[k4])
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                    var bl_push4 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_push4, "name": "oren_list_push"})
+                    oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_push4)
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -14)
+                    k4 = k4 + 1
+                }
+
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+                var bl_pl = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pl, "name": "oren_print_list"})
+                oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pl)
+                oren_list_push(ctx["fixups_local_compact"]["bl_name"], "oren_print_list")
+                return nil
+            }
+
+            if fn_name == "exit" {
+                // Route through centralized syscall lowering so OS ABIs stay in one place.
+                // On Linux, `exit(2)` terminates only the calling thread; once OS threads exist,
+                // source-level `exit(...)` must terminate the whole process (`exit_group(2)`).
+                sysm.native_compile_syscall_call(ctx, "sys_exit_group", expr["args"], native_compile_expr)
+                return nil
+            }
+
+	            // General call expression statement: evaluate for side effects and discard value.
+	            var base_stack = ctx["stack_size"]
+	            native_compile_expr(ctx, expr)
+	            loopm._arm64_restore_stack_to(ctx, base_stack)
+	            return nil
+	        }
+
+        // General expression statement:
+	        // Evaluate the expression for side effects and discard its value.
+	        var base_stack = ctx["stack_size"]
+	        native_compile_expr(ctx, expr)
+	        loopm._arm64_restore_stack_to(ctx, base_stack)
+	        return nil
+	    }
+}
