@@ -1,0 +1,146 @@
+fn impl_mangled_name(trait_name, type_name, method) {
+    // Deterministic lowering name for impl methods (rolling).
+    //
+    // Rationale:
+    // - avoids introducing a runtime method table before the type system is stable
+    // - keeps compilation bootstrap-friendly (plain fns)
+    // - stable across backends (C/native/bytecode)
+    //
+    // Convention:
+    //   __oren_impl__<Trait>__<Type>__<method>
+    //
+    // Dots are replaced by underscores for C identifier stability downstream.
+    var out_t = _impl_mangle_type_part(trait_name)
+    var out_ty = _impl_mangle_type_part(type_name)
+    return "__oren_impl__" + out_t + "__" + out_ty + "__" + method
+}
+
+fn _impl_mangle_type_part(s) {
+    // Mangle a type-ish name into a valid identifier segment.
+    //
+    // Inputs include:
+    // - dotted names: `mod.Type`
+    // - pointer prefix: `*T`, `**T`
+    // - typed-buffer / slice prefix: `[]T`, `[][]T`
+    // - fixed arrays: `T[16]`, `*T[16]`
+    //
+    // Output must contain only `[A-Za-z0-9_]` so it can be used in a synthesized
+    // function name.
+    if s == nil { return "" }
+
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var c = oren_string_char_at(s, i)
+
+        if c == "." {
+            out = out + "_"
+            i = i + 1
+            continue
+        }
+        if c == "*" {
+            out = out + "ptr_"
+            i = i + 1
+            continue
+        }
+        if c == "[" {
+            // Typed-buffer prefix `[]`.
+            if i+1 < oren_string_len(s) && oren_string_char_at(s, i+1) == "]" {
+                out = out + "slice_"
+                i = i + 2
+                continue
+            }
+
+            // Fixed array suffix `[N]` (parser only emits numeric dims here).
+            var j = i + 1
+            var dims = ""
+            while j < oren_string_len(s) && oren_string_char_at(s, j) != "]" {
+                dims = dims + oren_string_char_at(s, j)
+                j = j + 1
+            }
+            if j < oren_string_len(s) && oren_string_char_at(s, j) == "]" && dims != "" {
+                out = out + "arr" + dims + "_"
+                i = j + 1
+                continue
+            }
+
+            // Fallback: keep deterministic but safe.
+            out = out + "_"
+            i = i + 1
+            continue
+        }
+
+        // In practice, the parser only emits identifier-safe characters in type names
+        // beyond the punctuators handled above; keep a conservative fallback anyway.
+        if c == "_" { out = out + c }
+        else { out = out + c }
+        i = i + 1
+    }
+
+    return out
+}
+
+fn parse_impl_decl(p) {
+    // impl Trait for Type { fn method(self, ...) { ... } ... }
+    //
+    // Rolling implementation:
+    // - Parser accepts impl blocks.
+    // - Each method is lowered to a plain top-level function with a deterministic name:
+    //     __oren_impl__Trait__Type__method(...)
+    //
+    // This unblocks early stdlib layering and tooling without committing to a stable
+    // method dispatch ABI yet.
+    var doc = parser_take_pending_doc(p)
+    if !expect_peek_ident_like(p, "impl trait name") { return ast.new_stmt_list([]) }
+    // cur is IDENT after expect_peek
+    var trait_name = parse_dotted_name(p)
+    if trait_name == nil { return ast.new_stmt_list([]) }
+
+    if !expect_peek(p, token.TOK_FOR) { return ast.new_stmt_list([]) }
+    var type_name = parse_type_name_after_for(p)
+    if type_name == nil { return ast.new_stmt_list([]) }
+
+    if !expect_peek(p, token.TOK_LBRACE) { return ast.new_stmt_list([]) }
+
+    var out = []
+    var impl_block_id = parser_gensym(p, "@impl_" + trait_name + "_" + type_name + "_")
+    parser_next_token(p)
+    while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+        if cur_is(p, token.TOK_DOC) {
+            var md = parse_doc_list(p)
+            if md != nil { p["_pending_doc"] = md }
+            continue
+        }
+        if cur_is(p, token.TOK_SEMICOLON) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_COMMA) { parser_next_token(p); continue }
+        if cur_is(p, token.TOK_FUNCTION) {
+            var st = parse_expr_stmt(p)
+            if st == nil { return ast.new_stmt_list(out) }
+            // st is ExprStmt(Function)
+            var fnn = st["expr"]
+            if fnn != nil && fnn["type"] == "Function" {
+                if doc != nil && fnn["doc"] == nil { fnn["doc"] = doc }
+                var mname = fnn["name"]
+                var newn = impl_mangled_name(trait_name, type_name, mname)
+                // Preserve impl identity for later whole-program passes:
+                // - enables cross-module method call lowering after module linking
+                // - enables coherence checks without parsing mangled identifiers
+                fnn["impl_trait"] = trait_name
+                fnn["impl_type"] = type_name
+                fnn["impl_method"] = mname
+                fnn["impl_mangled_base"] = newn
+                fnn["impl_block_id"] = impl_block_id
+                fnn["name"] = newn
+                impl_method_register(p, type_name, mname, newn)
+                impl_trait_method_register(p, trait_name, type_name, mname, newn)
+            }
+            oren_list_push(out, st)
+            parser_next_token(p)
+            continue
+        }
+        parser_add_error(p, "impl body expects 'fn' declarations")
+        return ast.new_stmt_list(out)
+    }
+    // p["cur"] is '}'.
+    return ast.new_stmt_list(out)
+}
