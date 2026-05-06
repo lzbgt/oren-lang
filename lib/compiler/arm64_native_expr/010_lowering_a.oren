@@ -1390,7 +1390,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_s, "name": "strcmp"})
                     oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_pos_s)
-                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], "strcmp")
+                    oren_list_push(ctx["fixups_local_compact"]["bl_name"], -19)
                     // strcmp returns -1/0/1 in X0. Compare against 0.
                     push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
                     var scond = cond_code

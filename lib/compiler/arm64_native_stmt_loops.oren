@@ -544,7 +544,7 @@ fn _arm64_emit_if_cond_branch_false(ctx, cond, tok) {
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_strcmp, "name": "strcmp"})
             oren_list_push(ctx["fixups_local_compact"]["bl_pos"], bl_strcmp)
-            oren_list_push(ctx["fixups_local_compact"]["bl_name"], "strcmp")
+            oren_list_push(ctx["fixups_local_compact"]["bl_name"], -19)
             push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             var jump_false_string = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)

@@ -1926,6 +1926,13 @@ That path keeps the current repo state honest:
   Stats remove insertion shifts entirely, raise raw scan steps to `268198`, and keep byte compares
   low at `1691`; the default first-4096 BL span remains slightly better at about `1.03s`. The next
   Mach-O target is now scan-free direct target arrays/materialization for the long tail.
+- 2026-05-06: extended the existing compact Mach-O BL id lane to the measured long-tail leaders
+  `STD_generator_next`, `STD_generator_start`, `strcmp`, `STD_generator_send`, and
+  `STD_generator_is_done` without adding new fixup-side metadata. Stats move `hot_id` to `9727`,
+  BL string lookups to `1396`, scan steps to `205608`, and byte compares to `1381`; the default
+  first-4096 BL span stays in-band/slightly lower at about `1.02s`. Further name-by-name ids are
+  lower leverage unless a new clustered target appears; the remaining design target is scan-free
+  direct target arrays/materialization.
 - 2026-05-06: rejected a BL-name future materialization probe. It reused the existing compact
   `bl_name` list and rewrote later identical string entries to the first resolved positive target
   offset, but that meant scanning the BL fixup list once per newly resolved string name. `make

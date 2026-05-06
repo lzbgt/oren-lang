@@ -239,6 +239,11 @@ fn _arm64_hot_bl_compact_name(callee_name) {
     if callee_name == "oren_list_push" { return -14 }
     if callee_name == "oren_add" { return -15 }
     if callee_name == "oren_map_get_int" { return -16 }
+    if callee_name == "STD_generator_next" { return -17 }
+    if callee_name == "STD_generator_start" { return -18 }
+    if callee_name == "strcmp" { return -19 }
+    if callee_name == "STD_generator_send" { return -20 }
+    if callee_name == "STD_generator_is_done" { return -21 }
     return callee_name
 }
 
