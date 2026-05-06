@@ -7,6 +7,7 @@
 
 // @include "arm64_native_expr/000_prelude.oren"
 // @include "arm64_native_expr/010_lowering_a.oren"
+// @include "arm64_native_expr/015_lowering_a_noncall.oren"
 // @include "arm64_native_expr/020_lowering_b.oren"
 // @include "arm64_native_expr/030_lowering_c.oren"
 // @include "arm64_native_expr/040_lowering_d.oren"
