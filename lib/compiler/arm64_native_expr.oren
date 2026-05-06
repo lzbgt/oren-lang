@@ -11,6 +11,7 @@
 // @include "arm64_native_expr/020_lowering_b.oren"
 // @include "arm64_native_expr/030_lowering_c.oren"
 // @include "arm64_native_expr/035_lowering_c_calls.oren"
+// @include "arm64_native_expr/036_lowering_c_simd.oren"
 // @include "arm64_native_expr/040_lowering_d.oren"
 // @include "arm64_native_expr/050_lowering_e.oren"
 // @include "arm64_native_expr/060_lowering_f.oren"
