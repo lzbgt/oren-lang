@@ -1,0 +1,830 @@
+fn _opt_scan_list_int_uses_expr_mutates_safe_ints(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "If" || t == "Switch" { return true }
+    if t == "Call" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["fn"]) { return true }
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(args[i]) { return true }
+            i = i + 1
+        }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["spread"])
+    }
+    if t == "Index" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["left"]) { return true }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["index"])
+    }
+    if t == "Prefix" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["right"]) }
+    if t == "Infix" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["left"]) { return true }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["right"])
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        var i2 = 0
+        while els != nil && i2 < oren_list_len(els) {
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(els[i2]) { return true }
+            i2 = i2 + 1
+        }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["spread"])
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i3 = 0
+        while ps != nil && i3 < oren_list_len(ps) {
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(ps[i3]["key"]) { return true }
+            if _opt_scan_list_int_uses_expr_mutates_safe_ints(ps[i3]["value"]) { return true }
+            i3 = i3 + 1
+        }
+        return false
+    }
+    if t == "Member" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(expr["left"]) }
+    return false
+}
+
+
+fn _opt_scan_list_int_uses_stmt_mutates_safe_ints(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "If" || t == "While" || t == "For" || t == "Switch" || t == "Block" {
+        return true
+    }
+    if t == "ExprStmt" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["expr"]) }
+    if t == "Return" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["value"]) }
+    if t == "Var" || t == "Assign" { return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["value"]) }
+    if t == "Set" {
+        if _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["left"]) { return true }
+        return _opt_scan_list_int_uses_expr_mutates_safe_ints(stmt["value"])
+    }
+    return false
+}
+
+
+fn _opt_list_int_call_establishes_int(nm, args, safe_ints) {
+    if nm == nil { return false }
+    if args == nil || oren_list_len(args) < 1 { return false }
+    if nm == "oren_list_push" || nm == "STD_list_push" ||
+       nm == "oren_list_int_push" || nm == "STD_list_int_push" {
+        if oren_list_len(args) < 2 { return false }
+        return _opt_is_safe_int_expr(args[1], safe_ints)
+    }
+    if nm == "oren_list_set" || nm == "STD_list_set" ||
+       nm == "oren_list_int_set" || nm == "STD_list_int_set" {
+        if oren_list_len(args) < 3 { return false }
+        return _opt_is_safe_int_expr(args[2], safe_ints)
+    }
+    return false
+}
+
+
+fn _opt_mark_list_int_touch_in_expr(expr, list_state, safe_ints, list_touch) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Call" {
+        var nm = _opt_call_name(expr)
+        var args = expr["args"]
+        if nm != nil && args != nil && oren_list_len(args) > 0 {
+            var recv_name = opthelp.is_ident(args[0])
+            if recv_name != nil && _opt_list_state_is_candidate(list_state, recv_name) {
+                if _opt_list_int_call_establishes_int(nm, args, safe_ints) == true {
+                    _opt_list_touch_mark(list_touch, recv_name)
+                }
+            }
+        }
+        if expr["fn"] != nil { _opt_mark_list_int_touch_in_expr(expr["fn"], list_state, safe_ints, list_touch) }
+        if args != nil {
+            var i = 0
+            while i < oren_list_len(args) {
+                _opt_mark_list_int_touch_in_expr(args[i], list_state, safe_ints, list_touch)
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil { _opt_mark_list_int_touch_in_expr(expr["spread"], list_state, safe_ints, list_touch) }
+        return nil
+    }
+    if t == "Index" {
+        _opt_mark_list_int_touch_in_expr(expr["left"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_expr(expr["index"], list_state, safe_ints, list_touch)
+        return nil
+    }
+    if t == "Prefix" { return _opt_mark_list_int_touch_in_expr(expr["right"], list_state, safe_ints, list_touch) }
+    if t == "Infix" {
+        _opt_mark_list_int_touch_in_expr(expr["left"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_expr(expr["right"], list_state, safe_ints, list_touch)
+        return nil
+    }
+    if t == "If" {
+        _opt_mark_list_int_touch_in_expr(expr["cond"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_stmt(expr["consq"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        if expr["alt"] != nil {
+            _opt_mark_list_int_touch_in_stmt(expr["alt"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        _opt_safe_ints_invalidate_in_stmt(expr["consq"], safe_ints)
+        if expr["alt"] != nil { _opt_safe_ints_invalidate_in_stmt(expr["alt"], safe_ints) }
+        return nil
+    }
+    if t == "Function" {
+        if expr["body"] != nil {
+            _opt_mark_list_int_touch_in_stmt(expr["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        return nil
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els != nil {
+            var i2 = 0
+            while i2 < oren_list_len(els) {
+                _opt_mark_list_int_touch_in_expr(els[i2], list_state, safe_ints, list_touch)
+                i2 = i2 + 1
+            }
+        }
+        if expr["spread"] != nil { _opt_mark_list_int_touch_in_expr(expr["spread"], list_state, safe_ints, list_touch) }
+        return nil
+    }
+    if t == "Map" {
+        var ps = expr["pairs"]
+        if ps != nil {
+            var i3 = 0
+            while i3 < oren_list_len(ps) {
+                if ps[i3] != nil {
+                    _opt_mark_list_int_touch_in_expr(ps[i3]["key"], list_state, safe_ints, list_touch)
+                    _opt_mark_list_int_touch_in_expr(ps[i3]["value"], list_state, safe_ints, list_touch)
+                }
+                i3 = i3 + 1
+            }
+        }
+        return nil
+    }
+    if t == "Member" { return _opt_mark_list_int_touch_in_expr(expr["left"], list_state, safe_ints, list_touch) }
+    if t == "Switch" {
+        _opt_mark_list_int_touch_in_expr(expr["cond"], list_state, safe_ints, list_touch)
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil {
+                    _opt_mark_list_int_touch_in_stmt(c["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+                }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil {
+            _opt_mark_list_int_touch_in_stmt(expr["default"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        if cases != nil {
+            var ci2 = 0
+            while ci2 < oren_list_len(cases) {
+                var c2 = cases[ci2]
+                if c2 != nil && c2["body"] != nil { _opt_safe_ints_invalidate_in_stmt(c2["body"], safe_ints) }
+                ci2 = ci2 + 1
+            }
+        }
+        if expr["default"] != nil { _opt_safe_ints_invalidate_in_stmt(expr["default"], safe_ints) }
+        return nil
+    }
+    return nil
+}
+
+
+fn _opt_mark_list_int_touch_in_stmt(stmt, list_state, safe_ints, list_touch) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "ExprStmt" { return _opt_mark_list_int_touch_in_expr(stmt["expr"], list_state, safe_ints, list_touch) }
+    if t == "Return" { return _opt_mark_list_int_touch_in_expr(stmt["value"], list_state, safe_ints, list_touch) }
+    if t == "Var" || t == "Assign" {
+        return _opt_mark_list_int_touch_in_expr(stmt["value"], list_state, safe_ints, list_touch)
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Index" {
+            var list_name = opthelp.is_ident(left["left"])
+            if list_name != nil && _opt_list_state_is_candidate(list_state, list_name) {
+                if _opt_is_safe_int_expr(stmt["value"], safe_ints) == true {
+                    _opt_list_touch_mark(list_touch, list_name)
+                }
+            }
+        }
+        _opt_mark_list_int_touch_in_expr(stmt["left"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_expr(stmt["value"], list_state, safe_ints, list_touch)
+        return nil
+    }
+    if t == "If" {
+        _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_stmt(stmt["consq"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        if stmt["alt"] != nil {
+            _opt_mark_list_int_touch_in_stmt(stmt["alt"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        return nil
+    }
+    if t == "While" {
+        _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch)
+        var safe_body = _opt_safe_ints_with_loop_idx(safe_ints, stmt["cond"])
+        _opt_mark_list_int_touch_in_stmt(stmt["body"], list_state, safe_body, list_touch)
+        _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _opt_mark_list_int_touch_in_stmt(stmt["init"], list_state, safe_ints, list_touch) }
+        if stmt["cond"] != nil { _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch) }
+        if stmt["post"] != nil { _opt_mark_list_int_touch_in_stmt(stmt["post"], list_state, safe_ints, list_touch) }
+        if stmt["body"] != nil {
+            var safe_body = _opt_safe_ints_with_loop_idx(safe_ints, stmt["cond"])
+            _opt_mark_list_int_touch_in_stmt(stmt["body"], list_state, safe_body, list_touch)
+        }
+        if stmt["init"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["init"], safe_ints) }
+        if stmt["post"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["post"], safe_ints) }
+        if stmt["body"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints) }
+        return nil
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss != nil {
+            var snap_ints = _opt_map_clone_safe(safe_ints)
+            var i = 0
+            while i < oren_list_len(ss) {
+                _opt_mark_list_int_touch_in_stmt(ss[i], list_state, _opt_map_clone_safe(snap_ints), list_touch)
+                snap_ints = _opt_safe_ints_after_stmt(ss[i], snap_ints, "touch")
+                i = i + 1
+            }
+        }
+        return nil
+    }
+    if t == "Switch" {
+        _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch)
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil {
+                    _opt_mark_list_int_touch_in_stmt(c["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+                }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil {
+            _opt_mark_list_int_touch_in_stmt(stmt["default"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        return nil
+    }
+    if t == "Function" { return nil }
+    return nil
+}
+
+
+fn _opt_rewrite_list_int_expr(expr, list_state) {
+    if expr == nil { return expr }
+    var t = expr["type"]
+    if t == "Index" {
+        var list_name = opthelp.is_ident(expr["left"])
+        if list_name != nil && _opt_list_state_is_safe(list_state, list_name) {
+            var get_name = "oren_list_int_get"
+            if _opt_backend_allows_list_int_unchecked() == true { get_name = "oren_list_int_get_unchecked" }
+            var fnn = {"type": "Identifier", "token": nil, "value": get_name}
+            var args = [expr["left"], expr["index"]]
+            return ast.new_call(expr["token"], fnn, args)
+        }
+        expr["left"] = _opt_rewrite_list_int_expr(expr["left"], list_state)
+        expr["index"] = _opt_rewrite_list_int_expr(expr["index"], list_state)
+        return expr
+    }
+    if t == "Call" {
+        var nm = _opt_call_name(expr)
+        var args2 = expr["args"]
+        if nm != nil && args2 != nil && oren_list_len(args2) > 0 {
+            var recv_name = opthelp.is_ident(args2[0])
+            if recv_name != nil && _opt_list_state_is_safe(list_state, recv_name) {
+                var new_nm = _opt_list_int_rewrite_name(nm)
+                if new_nm != nil {
+                    if _opt_backend_allows_list_int_unchecked() == true {
+                        if new_nm == "oren_list_int_len" { new_nm = "oren_list_int_len_unchecked" }
+                        if new_nm == "oren_list_int_get" { new_nm = "oren_list_int_get_unchecked" }
+                    }
+                    expr["fn"] = {"type": "Identifier", "token": nil, "value": new_nm}
+                } else if _opt_backend_allows_list_int_unchecked() == true {
+                    if nm == "oren_list_int_len" || nm == "STD_list_int_len" {
+                        expr["fn"] = {"type": "Identifier", "token": nil, "value": "oren_list_int_len_unchecked"}
+                    }
+                    if nm == "oren_list_int_get" || nm == "STD_list_int_get" {
+                        expr["fn"] = {"type": "Identifier", "token": nil, "value": "oren_list_int_get_unchecked"}
+                    }
+                }
+            }
+        }
+        if args2 != nil {
+            var i = 0
+            while i < oren_list_len(args2) {
+                args2[i] = _opt_rewrite_list_int_expr(args2[i], list_state)
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil { expr["spread"] = _opt_rewrite_list_int_expr(expr["spread"], list_state) }
+        return expr
+    }
+    if t == "Prefix" { expr["right"] = _opt_rewrite_list_int_expr(expr["right"], list_state); return expr }
+    if t == "Infix" {
+        expr["left"] = _opt_rewrite_list_int_expr(expr["left"], list_state)
+        expr["right"] = _opt_rewrite_list_int_expr(expr["right"], list_state)
+        return expr
+    }
+    if t == "If" {
+        expr["cond"] = _opt_rewrite_list_int_expr(expr["cond"], list_state)
+        _opt_rewrite_list_int_stmt(expr["consq"], list_state)
+        if expr["alt"] != nil { _opt_rewrite_list_int_stmt(expr["alt"], list_state) }
+        return expr
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els != nil {
+            var i2 = 0
+            while i2 < oren_list_len(els) {
+                els[i2] = _opt_rewrite_list_int_expr(els[i2], list_state)
+                i2 = i2 + 1
+            }
+        }
+        return expr
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        if ps != nil {
+            var i3 = 0
+            while i3 < oren_list_len(ps) {
+                ps[i3]["key"] = _opt_rewrite_list_int_expr(ps[i3]["key"], list_state)
+                ps[i3]["value"] = _opt_rewrite_list_int_expr(ps[i3]["value"], list_state)
+                i3 = i3 + 1
+            }
+        }
+        return expr
+    }
+    if t == "Member" { expr["left"] = _opt_rewrite_list_int_expr(expr["left"], list_state); return expr }
+    if t == "Switch" {
+        expr["cond"] = _opt_rewrite_list_int_expr(expr["cond"], list_state)
+        var cases2 = expr["cases"]
+        if cases2 != nil {
+            var ci2 = 0
+            while ci2 < oren_list_len(cases2) {
+                var c2 = cases2[ci2]
+                if c2 != nil && c2["body"] != nil { _opt_rewrite_list_int_stmt(c2["body"], list_state) }
+                ci2 = ci2 + 1
+            }
+        }
+        if expr["default"] != nil { _opt_rewrite_list_int_stmt(expr["default"], list_state) }
+        return expr
+    }
+    return expr
+}
+
+
+fn _opt_rewrite_list_int_stmt(stmt, list_state) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "ExprStmt" { stmt["expr"] = _opt_rewrite_list_int_expr(stmt["expr"], list_state); return nil }
+    if t == "Return" { stmt["value"] = _opt_rewrite_list_int_expr(stmt["value"], list_state); return nil }
+    if t == "Var" || t == "Assign" {
+        stmt["value"] = _opt_rewrite_list_int_expr(stmt["value"], list_state)
+        return nil
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Index" {
+            var list_name = opthelp.is_ident(left["left"])
+            if list_name != nil && _opt_list_state_is_safe(list_state, list_name) {
+                var idx_expr = _opt_rewrite_list_int_expr(left["index"], list_state)
+                var val_expr = _opt_rewrite_list_int_expr(stmt["value"], list_state)
+                var call = ast.new_call(stmt["token"],
+                    {"type": "Identifier", "token": nil, "value": "oren_list_int_set"},
+                    [left["left"], idx_expr, val_expr])
+                stmt["type"] = "ExprStmt"
+                stmt["expr"] = call
+                stmt["left"] = nil
+                stmt["value"] = nil
+                return nil
+            }
+        }
+        stmt["left"] = _opt_rewrite_list_int_expr(stmt["left"], list_state)
+        stmt["value"] = _opt_rewrite_list_int_expr(stmt["value"], list_state)
+        return nil
+    }
+    if t == "If" {
+        stmt["cond"] = _opt_rewrite_list_int_expr(stmt["cond"], list_state)
+        _opt_rewrite_list_int_stmt(stmt["consq"], list_state)
+        if stmt["alt"] != nil { _opt_rewrite_list_int_stmt(stmt["alt"], list_state) }
+        return nil
+    }
+    if t == "While" {
+        stmt["cond"] = _opt_rewrite_list_int_expr(stmt["cond"], list_state)
+        _opt_rewrite_list_int_stmt(stmt["body"], list_state)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _opt_rewrite_list_int_stmt(stmt["init"], list_state) }
+        if stmt["cond"] != nil { stmt["cond"] = _opt_rewrite_list_int_expr(stmt["cond"], list_state) }
+        if stmt["post"] != nil { _opt_rewrite_list_int_stmt(stmt["post"], list_state) }
+        if stmt["body"] != nil { _opt_rewrite_list_int_stmt(stmt["body"], list_state) }
+        return nil
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss != nil {
+            var i = 0
+            while i < oren_list_len(ss) {
+                _opt_rewrite_list_int_stmt(ss[i], list_state)
+                i = i + 1
+            }
+        }
+        return nil
+    }
+    if t == "Switch" {
+        stmt["cond"] = _opt_rewrite_list_int_expr(stmt["cond"], list_state)
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_rewrite_list_int_stmt(c["body"], list_state) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_rewrite_list_int_stmt(stmt["default"], list_state) }
+        return nil
+    }
+    if t == "Function" { return nil }
+    return nil
+}
+
+
+fn _opt_list_init_add(inits, name, stmt) {
+    if inits == nil || name == nil || stmt == nil { return nil }
+    var xs = inits[name]
+    if xs == nil { xs = []; inits[name] = xs }
+    oren_list_push(xs, {"stmt": stmt, "elements": nil})
+    return nil
+}
+
+
+fn _opt_list_init_add_elems(inits, name, stmt, elements) {
+    if inits == nil || name == nil || stmt == nil { return nil }
+    var xs = inits[name]
+    if xs == nil { xs = []; inits[name] = xs }
+    oren_list_push(xs, {"stmt": stmt, "elements": elements})
+    return nil
+}
+
+
+fn _opt_list_lit_safe_int_elements(expr, safe_ints) {
+    if expr == nil || expr["type"] != "Array" { return nil }
+    var els = expr["elements"]
+    if els == nil { return nil }
+    if oren_list_len(els) == 0 { return nil }
+    var i = 0
+    while i < oren_list_len(els) {
+        if _opt_is_safe_int_expr(els[i], safe_ints) != true { return nil }
+        i = i + 1
+    }
+    return els
+}
+
+
+fn _opt_list_int_expr_may_start_candidate(expr, allow_empty) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Call" {
+        var nm = _opt_call_name(expr)
+        if nm == "oren_new_list" || nm == "oren_list_new_cap" { return true }
+        if nm == "oren_arena_new_list" || nm == "oren_arena_new_list_auto" { return true }
+        if nm == "oren_new_list_int" || nm == "oren_arena_new_list_int" || nm == "oren_arena_new_list_int_auto" {
+            return true
+        }
+        return false
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els == nil { return false }
+        if oren_list_len(els) > 0 { return true }
+        return allow_empty == true
+    }
+    return false
+}
+
+fn _opt_list_int_stmt_may_start_candidate(stmt, allow_empty) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Var" || t == "Assign" {
+        return _opt_list_int_expr_may_start_candidate(stmt["value"], allow_empty)
+    }
+    if t == "Block" || t == "StmtList" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while ss != nil && i < oren_list_len(ss) {
+            if _opt_list_int_stmt_may_start_candidate(ss[i], allow_empty) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "If" {
+        if _opt_list_int_stmt_may_start_candidate(stmt["consq"], allow_empty) { return true }
+        return _opt_list_int_stmt_may_start_candidate(stmt["alt"], allow_empty)
+    }
+    if t == "While" {
+        return _opt_list_int_stmt_may_start_candidate(stmt["body"], allow_empty)
+    }
+    if t == "For" {
+        return _opt_list_int_stmt_may_start_candidate(stmt["body"], allow_empty)
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            if c != nil && _opt_list_int_stmt_may_start_candidate(c["body"], allow_empty) { return true }
+            ci = ci + 1
+        }
+        return _opt_list_int_stmt_may_start_candidate(stmt["default"], allow_empty)
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            if _opt_list_int_stmt_may_start_candidate(e["consq"], allow_empty) { return true }
+            return _opt_list_int_stmt_may_start_candidate(e["alt"], allow_empty)
+        }
+    }
+    return false
+}
+
+fn _opt_list_int_stmt_has_lowerable_body(stmt, allow_empty) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Block" || t == "If" || t == "While" || t == "For" || t == "Switch" {
+        return _opt_list_int_stmt_may_start_candidate(stmt, allow_empty)
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        return e != nil && e["type"] == "If" && _opt_list_int_stmt_may_start_candidate(stmt, allow_empty)
+    }
+    return false
+}
+
+fn _opt_list_int_has_any_candidate(list_state) {
+    if list_state == nil { return false }
+    return oren_map_len(list_state) > 0
+}
+
+fn _opt_list_int_has_active_candidate(list_state) {
+    if list_state == nil { return false }
+    for k in list_state {
+        if list_state[k] == true { return true }
+    }
+    return false
+}
+
+fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
+    if block == nil || block["type"] != "Block" { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var block_locals = {}
+    var prof_t0 = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
+    var li = 0
+    while li < oren_list_len(ss) {
+        var stl = ss[li]
+        if stl != nil && stl["type"] == "Var" {
+            var nml = opthelp.is_ident(stl["name"])
+            if nml != nil { block_locals[nml] = true }
+        }
+        li = li + 1
+    }
+    _opt_list_int_profile_add("locals", prof_t0)
+    var list_state = {}
+    var list_inits = {}
+    var list_touch = {}
+    var list_empty_inits = {}
+    var list_ctor_rewrite = {}
+    var assigned_nested = {}
+    var safe_ints = _opt_map_clone_safe(safe_ints_seed)
+
+    var ai = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
+    while ai < oren_list_len(ss) {
+        var stn = ss[ai]
+        if stn != nil {
+            var tn = stn["type"]
+            if tn == "If" || tn == "While" || tn == "For" || tn == "Switch" || tn == "Block" {
+                opthelp.collect_assigned_names_stmt(assigned_nested, stn)
+            } else if tn == "ExprStmt" {
+                var en = stn["expr"]
+                if en != nil && (en["type"] == "If" || en["type"] == "Switch") {
+                    opthelp.collect_assigned_names_stmt(assigned_nested, stn)
+                }
+            }
+        }
+        ai = ai + 1
+    }
+    _opt_list_int_profile_add("nested", prof_t0)
+
+    var i = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
+    var prof_part_t0 = 0
+    var list_empty_seen = false
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
+        if _opt_list_int_stmt_has_lowerable_body(st, allow_empty) == true {
+            _opt_lower_int_only_lists_in_stmt(st, allow_empty, safe_ints)
+        }
+        _opt_list_int_profile_add("lower", prof_part_t0)
+        if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
+        if _opt_list_int_has_any_candidate(list_state) == true {
+            _opt_scan_list_int_uses_stmt(st, list_state, safe_ints)
+        }
+        _opt_list_int_profile_add("use_scan", prof_part_t0)
+        if list_empty_seen == true && _opt_list_int_has_active_candidate(list_state) == true {
+            if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
+            if opthelp.stmt_may_touch_list(st) == true {
+                _opt_mark_list_int_touch_in_stmt(st, list_state, _opt_map_clone_safe(safe_ints), list_touch)
+            }
+            _opt_list_int_profile_add("touch", prof_part_t0)
+        }
+        if OPT_LIST_INT_PROFILE_ENABLED == true { prof_part_t0 = oren_time_now_ns() }
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil {
+                if st["type"] == "Assign" && block_locals[nm] != true {
+                    i = i + 1
+                    continue
+                }
+                var init_call = _opt_call_name(st["value"])
+                var ctor_int = nil
+                if init_call == "oren_new_list" || init_call == "oren_list_new_cap" { ctor_int = "oren_new_list_int" }
+                if init_call == "oren_arena_new_list" { ctor_int = "oren_arena_new_list_int" }
+                if init_call == "oren_arena_new_list_auto" { ctor_int = "oren_arena_new_list_int_auto" }
+                if init_call == "oren_new_list_int" || init_call == "oren_arena_new_list_int" || init_call == "oren_arena_new_list_int_auto" {
+                    if list_state[nm] == nil { list_state[nm] = true }
+                    _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=" + init_call)
+                } else if ctor_int != nil {
+                    if list_state[nm] == nil { list_state[nm] = true }
+                    list_ctor_rewrite[nm] = ctor_int
+                    list_empty_inits[nm] = true
+                    list_empty_seen = true
+                    _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=" + init_call)
+                } else {
+                    var lit_elems = _opt_list_lit_safe_int_elements(st["value"], safe_ints)
+                    if lit_elems != nil {
+                        if list_state[nm] == nil { list_state[nm] = true }
+                        _opt_list_init_add_elems(list_inits, nm, st, lit_elems)
+                        _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=lit")
+                    } else if allow_empty == true && _opt_is_empty_list_lit(st["value"]) {
+                        if list_state[nm] == nil { list_state[nm] = true }
+                        _opt_list_init_add(list_inits, nm, st)
+                        list_empty_inits[nm] = true
+                        list_empty_seen = true
+                        _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=empty_lit")
+                    } else if st["value"] != nil && st["value"]["type"] == "Array" {
+                        _opt_list_state_mark_unsafe_reason(list_state, nm, "init_array")
+                    } else {
+                        _opt_list_state_mark_unsafe_reason(list_state, nm, "init_value")
+                    }
+                }
+                if _opt_is_safe_int_expr(st["value"], safe_ints) { safe_ints[nm] = true }
+                else { safe_ints[nm] = false }
+            }
+        }
+        _opt_list_int_profile_add("candidate", prof_part_t0)
+        i = i + 1
+    }
+    _opt_list_int_profile_add("scan", prof_t0)
+
+    if list_empty_inits != nil {
+        for k in list_empty_inits {
+            if list_touch[k] != true {
+                _opt_trace_list_int("[opt] list_int empty_untouched name=" + k)
+                _opt_list_state_mark_unsafe_reason(list_state, k, "empty_untouched")
+            }
+        }
+    }
+    if assigned_nested != nil {
+        for k2 in assigned_nested {
+            if _opt_list_state_is_candidate(list_state, k2) == true {
+                _opt_trace_list_int("[opt] list_int nested_assign name=" + k2)
+                _opt_list_state_mark_unsafe_reason(list_state, k2, "nested_assign")
+            }
+        }
+    }
+
+    if _opt_list_int_has_active_candidate(list_state) != true {
+        return nil
+    }
+
+    var out = []
+    var j = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
+    while j < oren_list_len(ss) {
+        var stj = ss[j]
+        var rewritten = false
+        if stj != nil && (stj["type"] == "Var" || stj["type"] == "Assign") {
+            var nmj = opthelp.is_ident(stj["name"])
+            if nmj != nil && _opt_list_state_is_safe(list_state, nmj) {
+                var xsj = list_inits[nmj]
+                if xsj != nil {
+                    var k = 0
+                    while k < oren_list_len(xsj) {
+                        var info = xsj[k]
+                        if info != nil && info["stmt"] == stj {
+                            var elemsj = info["elements"]
+                            var cap = 0
+                            if elemsj != nil { cap = oren_list_len(elemsj) }
+                            stj["value"] = ast.new_call(nil,
+                                {"type": "Identifier", "token": nil, "value": "oren_new_list_int"},
+                                [{"type": "Integer", "token": nil, "value": oren_int_to_string(cap)}])
+                            oren_list_push(out, stj)
+                            if elemsj != nil {
+                                var push_name = "oren_list_int_push"
+                                if _opt_backend_allows_list_int_unchecked() == true {
+                                    push_name = "oren_list_int_push_unchecked"
+                                }
+                                var ei = 0
+                                while ei < oren_list_len(elemsj) {
+                                    var push_call = ast.new_call(nil,
+                                        {"type": "Identifier", "token": nil, "value": push_name},
+                                        [{"type": "Identifier", "token": nil, "value": nmj}, elemsj[ei]])
+                                    oren_list_push(out, ast.new_expr_stmt(nil, push_call))
+                                    ei = ei + 1
+                                }
+                            }
+                            _opt_trace_list_int("[opt] list_int rewrite init name=" + nmj)
+                            rewritten = true
+                            break
+                        }
+                        k = k + 1
+                    }
+                }
+                if rewritten != true {
+                    var ctor_rewrite = list_ctor_rewrite[nmj]
+                    if ctor_rewrite != nil {
+                        var v = stj["value"]
+                        if v != nil && v["type"] == "Call" {
+                            var fnv = v["fn"]
+                            if fnv != nil && fnv["type"] == "Identifier" {
+                                fnv["value"] = ctor_rewrite
+                                _opt_trace_list_int("[opt] list_int rewrite ctor name=" + nmj + " ctor=" + ctor_rewrite)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if rewritten != true { oren_list_push(out, stj) }
+        j = j + 1
+    }
+    _opt_list_int_profile_add("rewrite_init", prof_t0)
+
+    block["stmts"] = out
+
+    var j2 = 0
+    if OPT_LIST_INT_PROFILE_ENABLED == true { prof_t0 = oren_time_now_ns() }
+    while j2 < oren_list_len(out) {
+        _opt_rewrite_list_int_stmt(out[j2], list_state)
+        j2 = j2 + 1
+    }
+    _opt_list_int_profile_add("rewrite_uses", prof_t0)
+    return nil
+}
+
+
+fn _opt_lower_int_only_lists_in_stmt(stmt, allow_empty, safe_ints_seed) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" { return _opt_lower_int_only_lists_in_block_opts(stmt, allow_empty, safe_ints_seed) }
+    if t == "If" {
+        _opt_lower_int_only_lists_in_stmt(stmt["consq"], allow_empty, safe_ints_seed)
+        if stmt["alt"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["alt"], allow_empty, safe_ints_seed) }
+        return nil
+    }
+    if t == "While" || t == "For" {
+        if stmt["body"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["body"], allow_empty, safe_ints_seed) }
+        return nil
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_lower_int_only_lists_in_stmt(c["body"], allow_empty, safe_ints_seed) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["default"], allow_empty, safe_ints_seed) }
+        return nil
+    }
+    if t == "ExprStmt" && stmt["expr"] != nil && stmt["expr"]["type"] == "If" {
+        var e = stmt["expr"]
+        _opt_lower_int_only_lists_in_stmt(e["consq"], allow_empty, safe_ints_seed)
+        if e["alt"] != nil { _opt_lower_int_only_lists_in_stmt(e["alt"], allow_empty, safe_ints_seed) }
+        return nil
+    }
+    if t == "Function" { return nil }
+    return nil
+}

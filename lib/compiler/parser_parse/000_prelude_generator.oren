@@ -1,0 +1,846 @@
+fn _parse_profile_stmt_label(stmt) {
+    if stmt == nil { return "nil" }
+    var t = stmt["type"]
+    if t == nil { return "unknown" }
+    if t == "StmtList" {
+        var origin = stmt["origin"]
+        if origin == nil { origin = "" }
+        return "StmtList:" + origin
+    }
+    if t == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" {
+            var nm = expr["name"]
+            if nm == nil { nm = "" }
+            var fn_ms = expr["parse_ms"]
+            if fn_ms != nil {
+                var header_ms = expr["parse_header_ms"]
+                var body_ms = expr["parse_body_ms"]
+                if header_ms == nil { header_ms = 0 }
+                if body_ms == nil { body_ms = 0 }
+                return "Function:" + nm +
+                    ":ms=" + oren_int_to_string(fn_ms) +
+                    ":header=" + oren_int_to_string(header_ms) +
+                    ":body=" + oren_int_to_string(body_ms)
+            }
+            return "Function:" + nm
+        }
+        if expr != nil && expr["type"] != nil { return "ExprStmt:" + expr["type"] }
+    }
+    if t == "Var" {
+        var name = stmt["name"]
+        if name != nil && name["value"] != nil { return "Var:" + name["value"] }
+    }
+    if t == "Import" {
+        var path = stmt["path"]
+        if path != nil { return "Import:" + path }
+    }
+    return t
+}
+
+fn _generator_helper_name_used(name) {
+    if name == "oren_generator_start" { return true }
+    if name == "oren_generator_next" { return true }
+    if name == "oren_generator_send" { return true }
+    if name == "oren_generator_delegate" { return true }
+    if name == "oren_generator_on_finalize" { return true }
+    if name == "oren_generator_on_close" { return true }
+    if name == "oren_generator_close" { return true }
+    if name == "oren_generator_cancel" { return true }
+    if name == "oren_generator_request_cancel" { return true }
+    if name == "oren_generator_is_started" { return true }
+    if name == "oren_generator_is_done" { return true }
+    if name == "oren_generator_is_closed" { return true }
+    if name == "oren_generator_is_cancel_requested" { return true }
+    if name == "oren_generator_cancel_reason" { return true }
+    if name == "oren_generator_current_step" { return true }
+    if name == "oren_generator_return_value" { return true }
+    if name == "oren_generator_terminal_error" { return true }
+    if name == "oren_generator_collect" { return true }
+    if name == "_oren_generator_context_exchange" { return true }
+    return false
+}
+
+fn _expr_uses_generator_core(expr) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Identifier" {
+        return _generator_helper_name_used(expr["value"]) == true
+    }
+    if t == "Function" || t == "Lambda" {
+        return _stmt_uses_generator_core(expr["body"])
+    }
+    if t == "Prefix" {
+        return _expr_uses_generator_core(expr["right"])
+    }
+    if t == "Infix" {
+        if _expr_uses_generator_core(expr["left"]) == true { return true }
+        return _expr_uses_generator_core(expr["right"])
+    }
+    if t == "If" {
+        if _expr_uses_generator_core(expr["cond"]) == true { return true }
+        if _stmt_uses_generator_core(expr["consq"]) == true { return true }
+        return _stmt_uses_generator_core(expr["alt"])
+    }
+    if t == "Call" {
+        if _expr_uses_generator_core(expr["fn"]) == true { return true }
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            if _expr_uses_generator_core(args[i]) == true { return true }
+            i = i + 1
+        }
+        if expr["spread"] != nil { return _expr_uses_generator_core(expr["spread"]) }
+        return false
+    }
+    if t == "Member" {
+        if _expr_uses_generator_core(expr["left"]) == true { return true }
+        return _expr_uses_generator_core(expr["prop"])
+    }
+    if t == "Index" {
+        if _expr_uses_generator_core(expr["left"]) == true { return true }
+        return _expr_uses_generator_core(expr["index"])
+    }
+    if t == "Array" {
+        var elems = expr["elements"]
+        var ei = 0
+        while elems != nil && ei < oren_list_len(elems) {
+            if _expr_uses_generator_core(elems[ei]) == true { return true }
+            ei = ei + 1
+        }
+        return false
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var pi = 0
+        while pairs != nil && pi < oren_list_len(pairs) {
+            var pair = pairs[pi]
+            if pair["key"] != nil && _expr_uses_generator_core(pair["key"]) == true { return true }
+            if pair["value"] != nil && _expr_uses_generator_core(pair["value"]) == true { return true }
+            if pair["k"] != nil && _expr_uses_generator_core(pair["k"]) == true { return true }
+            if pair["v"] != nil && _expr_uses_generator_core(pair["v"]) == true { return true }
+            pi = pi + 1
+        }
+        return false
+    }
+    if t == "SpawnExpr" {
+        return _expr_uses_generator_core(expr["call"])
+    }
+    return false
+}
+
+fn _stmt_uses_generator_core(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            if _stmt_uses_generator_core(xs[i]) == true { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "ExprStmt" { return _expr_uses_generator_core(stmt["expr"]) }
+    if t == "Var" { return _expr_uses_generator_core(stmt["value"]) }
+    if t == "Assign" { return _expr_uses_generator_core(stmt["value"]) }
+    if t == "Set" {
+        if _expr_uses_generator_core(stmt["left"]) == true { return true }
+        return _expr_uses_generator_core(stmt["value"])
+    }
+    if t == "Return" { return _expr_uses_generator_core(stmt["value"]) }
+    if t == "While" {
+        if _expr_uses_generator_core(stmt["cond"]) == true { return true }
+        return _stmt_uses_generator_core(stmt["body"])
+    }
+    if t == "For" {
+        if _stmt_uses_generator_core(stmt["init"]) == true { return true }
+        if _expr_uses_generator_core(stmt["cond"]) == true { return true }
+        if _stmt_uses_generator_core(stmt["post"]) == true { return true }
+        return _stmt_uses_generator_core(stmt["body"])
+    }
+    if t == "If" {
+        if _expr_uses_generator_core(stmt["cond"]) == true { return true }
+        if _stmt_uses_generator_core(stmt["consq"]) == true { return true }
+        return _stmt_uses_generator_core(stmt["alt"])
+    }
+    if t == "Spawn" { return _expr_uses_generator_core(stmt["call"]) }
+    if t == "Switch" {
+        if _expr_uses_generator_core(stmt["value"]) == true { return true }
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            var vals = c["values"]
+            var vi = 0
+            while vals != nil && vi < oren_list_len(vals) {
+                if _expr_uses_generator_core(vals[vi]) == true { return true }
+                vi = vi + 1
+            }
+            if _stmt_uses_generator_core(c["body"]) == true { return true }
+            ci = ci + 1
+        }
+        return _stmt_uses_generator_core(stmt["default"])
+    }
+    return false
+}
+
+fn _generator_helper_hex_digit(n) {
+    return oren_string_char_at("0123456789abcdef", n)
+}
+
+fn _generator_helper_byte_hex(b) {
+    if b < 0 { b = 0 }
+    if b > 255 { b = 255 }
+    var hi = b / 16
+    var lo = b - (hi * 16)
+    return _generator_helper_hex_digit(hi) + _generator_helper_hex_digit(lo)
+}
+
+fn _generator_helper_file_hash(file) {
+    if file == nil || file == "" { return "0" }
+    var out = ""
+    var i = 0
+    var n = oren_string_len(file)
+    if n <= 24 {
+        while i < n {
+            out = out + _generator_helper_byte_hex(oren_string_byte_at_unchecked(file, i))
+            i = i + 1
+        }
+        return out
+    }
+    while i < 12 {
+        out = out + _generator_helper_byte_hex(oren_string_byte_at_unchecked(file, i))
+        i = i + 1
+    }
+    out = out + "_" + oren_int_to_string(n) + "_"
+    i = n - 12
+    while i < n {
+        out = out + _generator_helper_byte_hex(oren_string_byte_at_unchecked(file, i))
+        i = i + 1
+    }
+    return out
+}
+
+fn _generator_forin_bridge_name(p) {
+    var name = p["_generator_forin_bridge_name"]
+    if name != nil { return name }
+    var file = p["file"]
+    if file == nil { file = "" }
+    name = parser_gensym(p, "__oren_generator_forin_next_f" + _generator_helper_file_hash(file) + "_")
+    p["_generator_forin_bridge_name"] = name
+    return name
+}
+
+fn _generator_forin_bridge_src(name) {
+    var pair_name = name + "_pair"
+    var entry_name = name + "_entry"
+    var src = ""
+    src = src + "fn " + pair_name + "(out_pair, okv, value) {\n"
+    src = src + "    if oren_type_name(out_pair) == \"list\" && oren_list_len(out_pair) >= 2 {\n"
+    src = src + "        out_pair[0] = okv\n"
+    src = src + "        out_pair[1] = value\n"
+    src = src + "        return out_pair\n"
+    src = src + "    }\n"
+    src = src + "    return [okv, value]\n"
+    src = src + "}\n"
+    src = src + "fn " + entry_name + "(worker, args_list, yield_ch, resume_ch, done_ch, owner) {\n"
+    src = src + "    var retv = worker(oren_generator_context_new_internal(yield_ch, resume_ch, owner), args_list)\n"
+    src = src + "    oren_chan_send(done_ch, retv)\n"
+    src = src + "    return retv\n"
+    src = src + "}\n"
+    src = src + "fn " + name + "(container, idx, out_pair) {\n"
+    src = src + "    if oren_type_name(container) != \"generator\" { return oren_iter_next(container, idx, out_pair) }\n"
+    src = src + "    if idx < 0 { return " + pair_name + "(out_pair, 0, nil) }\n"
+    src = src + "    if oren_generator_slot_get_internal(container, 8) == true { return " + pair_name + "(out_pair, 0, nil) }\n"
+    src = src + "    var task = oren_generator_slot_get_internal(container, 6)\n"
+    src = src + "    if task == nil || task == 0 {\n"
+    src = src + "        task = spawn " + entry_name + "(\n"
+    src = src + "            oren_generator_slot_get_internal(container, 1),\n"
+    src = src + "            oren_generator_slot_get_internal(container, 2),\n"
+    src = src + "            oren_generator_slot_get_internal(container, 3),\n"
+    src = src + "            oren_generator_slot_get_internal(container, 4),\n"
+    src = src + "            oren_generator_slot_get_internal(container, 5),\n"
+    src = src + "            container\n"
+    src = src + "        )\n"
+    src = src + "        oren_generator_slot_set_internal(container, 6, task)\n"
+    src = src + "    }\n"
+    src = src + "    if oren_generator_slot_get_internal(container, 7) == true {\n"
+    src = src + "        oren_chan_send(oren_generator_slot_get_internal(container, 4), nil)\n"
+    src = src + "    } else {\n"
+    src = src + "        oren_generator_slot_set_internal(container, 7, true)\n"
+    src = src + "    }\n"
+    src = src + "    oren_yield()\n"
+    src = src + "    var sel = oren_select([[0, oren_generator_slot_get_internal(container, 5)], [0, oren_generator_slot_get_internal(container, 3)]])\n"
+    src = src + "    var slot = sel[0]\n"
+    src = src + "    var payload = sel[1]\n"
+    src = src + "    if slot == 0 {\n"
+    src = src + "        oren_generator_slot_set_internal(container, 8, true)\n"
+    src = src + "        oren_generator_slot_set_internal(container, 9, payload)\n"
+    src = src + "        oren_generator_slot_set_internal(container, 10, nil)\n"
+    src = src + "        oren_generator_slot_set_internal(container, 11, nil)\n"
+    src = src + "        task = oren_generator_slot_get_internal(container, 6)\n"
+    src = src + "        if task != nil && task != 0 { oren_join(task) }\n"
+    src = src + "        oren_generator_slot_set_internal(container, 6, nil)\n"
+    src = src + "        return " + pair_name + "(out_pair, 0, nil)\n"
+    src = src + "    }\n"
+    src = src + "    return " + pair_name + "(out_pair, 1, payload)\n"
+    src = src + "}\n"
+    return src
+}
+
+fn _generator_forin_bridge_stmts(p) {
+    var name = p["_generator_forin_bridge_name"]
+    if name == nil { return [] }
+    var file = p["file"]
+    if file == nil { file = "" }
+    var helper_file = file + "#generator_forin_bridge#" + name
+    var l = lexer.new_lexer(_generator_forin_bridge_src(name))
+    l["file"] = helper_file
+    var hp = core.new_parser(l)
+    hp["file"] = helper_file
+    hp["strict_attrs"] = p["strict_attrs"]
+    hp["attr_allow_prefixes"] = p["attr_allow_prefixes"]
+    hp["strict_ident_prefixes"] = p["strict_ident_prefixes"]
+    hp["ident_allow_prefixes"] = p["ident_allow_prefixes"]
+    hp["_skip_generator_core_inject"] = true
+    var prog = parse_program(hp)
+    if oren_list_len(hp["errors"]) > 0 {
+        parser_add_error(p, "internal generator for-in bridge parse failure")
+        return []
+    }
+    return prog["statements"]
+}
+
+fn _generator_nil_expr() {
+    return ast.new_nil(token.new_token(token.TOK_NIL, "nil"))
+}
+
+fn _local_fn_decl_name_ident(fun) {
+    if fun == nil { return nil }
+    var nm = fun["name"]
+    if nm == nil || nm == "" { return nil }
+    var tok = token.new_token(token.TOK_IDENT, nm)
+    var src = fun["token"]
+    if src != nil {
+        if src["file"] != nil { tok["file"] = src["file"] }
+        if src["line"] != nil { tok["line"] = src["line"] }
+        if src["col"] != nil { tok["col"] = src["col"] }
+        if src["pos"] != nil { tok["pos"] = src["pos"] }
+        if src["end"] != nil { tok["end"] = src["end"] }
+    }
+    return ast.new_identifier(tok)
+}
+
+fn _generator_var_decl_name_ident(stmt) {
+    if stmt == nil || stmt["type"] != "Var" { return nil }
+    var name = stmt["name"]
+    if name == nil || name["type"] != "Identifier" { return nil }
+    return name
+}
+
+fn _generator_var_decl_function(stmt) {
+    if stmt == nil || stmt["type"] != "Var" { return nil }
+    var value = stmt["value"]
+    if value == nil || value["type"] != "Function" { return nil }
+    return value
+}
+
+fn maybe_lower_local_fn_decl_stmt(p, stmt) {
+    if stmt == nil || stmt["type"] != "ExprStmt" { return stmt }
+    if p["block_depth"] <= 0 { return stmt }
+    var fun = stmt["expr"]
+    if fun == nil || fun["type"] != "Function" { return stmt }
+    var name_ident = _local_fn_decl_name_ident(fun)
+    if name_ident == nil { return stmt }
+    fun["decl_name"] = fun["name"]
+    fun["name"] = ""
+    return ast.new_var(fun["token"], name_ident, fun)
+}
+
+fn _generator_call_is_finalize_hook(fn_expr) {
+    if fn_expr == nil { return false }
+    if fn_expr["type"] == "Identifier" {
+        return fn_expr["value"] == "oren_generator_on_close" || fn_expr["value"] == "oren_generator_on_finalize"
+    }
+    if fn_expr["type"] != "Member" { return false }
+    var prop = fn_expr["prop"]
+    if prop == nil || prop["type"] != "Identifier" { return false }
+    return prop["value"] == "on_close" || prop["value"] == "on_finalize"
+}
+
+fn _generator_rewrite_yield_expr(expr, co_name) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+
+    if t == "Function" || t == "Lambda" { return expr }
+
+    if t == "Prefix" {
+        expr["right"] = _generator_rewrite_yield_expr(expr["right"], co_name)
+        return expr
+    }
+    if t == "Infix" {
+        expr["left"] = _generator_rewrite_yield_expr(expr["left"], co_name)
+        expr["right"] = _generator_rewrite_yield_expr(expr["right"], co_name)
+        return expr
+    }
+    if t == "If" {
+        expr["cond"] = _generator_rewrite_yield_expr(expr["cond"], co_name)
+        expr["consq"] = _generator_rewrite_yield_stmt(expr["consq"], co_name)
+        if expr["alt"] != nil { expr["alt"] = _generator_rewrite_yield_stmt(expr["alt"], co_name) }
+        return expr
+    }
+    if t == "Call" {
+        if expr["yield_delegate_expr"] == true {
+            var argsd = expr["args"]
+            if argsd != nil && oren_list_len(argsd) > 1 {
+                argsd[1] = _generator_rewrite_yield_expr(argsd[1], co_name)
+            }
+            if expr["yield_delegate_missing_context"] == true {
+                var ctx_tok2 = token.new_token(token.TOK_IDENT, co_name)
+                argsd[0] = ast.new_identifier(ctx_tok2)
+                expr["yield_delegate_missing_context"] = false
+                expr["yield_delegate_syntax_kind"] = "generator_decl_yield_from"
+            } else if argsd != nil && oren_list_len(argsd) > 0 {
+                argsd[0] = _generator_rewrite_yield_expr(argsd[0], co_name)
+            }
+            return expr
+        }
+        if expr["yield_value_expr"] == true {
+            var tok = expr["yield_token"]
+            if tok == nil { tok = expr["token"] }
+            var value_expr = _generator_nil_expr()
+            var args0 = expr["args"]
+            if args0 != nil && oren_list_len(args0) > 0 {
+                value_expr = _generator_rewrite_yield_expr(args0[0], co_name)
+            }
+            var ctx_tok = token.new_token(token.TOK_IDENT, co_name)
+            var out = yield_exchange_context_expr_call(
+                tok,
+                ast.new_identifier(ctx_tok),
+                value_expr,
+                expr["yield_value_explicit"] == true
+            )
+            out["yield_exchange_syntax_kind"] = "generator_decl"
+            return out
+        }
+        if expr["generator_finalize_expr"] == true {
+            expr["fn"] = _generator_rewrite_yield_expr(expr["fn"], co_name)
+            var finalize_args = expr["args"]
+            if expr["generator_finalize_missing_context"] == true {
+                var ctx_tokf = token.new_token(token.TOK_IDENT, co_name)
+                expr["args"] = [
+                    ast.new_identifier(ctx_tokf),
+                    _generator_rewrite_yield_expr(finalize_args[0], co_name)
+                ]
+                expr["generator_finalize_missing_context"] = false
+                expr["generator_finalize_syntax_kind"] = "generator_decl_defer"
+                return expr
+            }
+            var fi = 0
+            while finalize_args != nil && fi < oren_list_len(finalize_args) {
+                finalize_args[fi] = _generator_rewrite_yield_expr(finalize_args[fi], co_name)
+                fi = fi + 1
+            }
+            return expr
+        }
+        if _generator_call_is_finalize_hook(expr["fn"]) == true {
+            expr["fn"] = _generator_rewrite_yield_expr(expr["fn"], co_name)
+            var hook_args = expr["args"]
+            if hook_args != nil && oren_list_len(hook_args) == 1 {
+                var ctx_tok3 = token.new_token(token.TOK_IDENT, co_name)
+                expr["args"] = [
+                    ast.new_identifier(ctx_tok3),
+                    _generator_rewrite_yield_expr(hook_args[0], co_name)
+                ]
+                return expr
+            }
+        }
+        expr["fn"] = _generator_rewrite_yield_expr(expr["fn"], co_name)
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            args[i] = _generator_rewrite_yield_expr(args[i], co_name)
+            i = i + 1
+        }
+        if expr["spread"] != nil { expr["spread"] = _generator_rewrite_yield_expr(expr["spread"], co_name) }
+        return expr
+    }
+    if t == "Member" {
+        expr["left"] = _generator_rewrite_yield_expr(expr["left"], co_name)
+        expr["prop"] = _generator_rewrite_yield_expr(expr["prop"], co_name)
+        return expr
+    }
+    if t == "Index" {
+        expr["left"] = _generator_rewrite_yield_expr(expr["left"], co_name)
+        expr["index"] = _generator_rewrite_yield_expr(expr["index"], co_name)
+        return expr
+    }
+    if t == "Array" {
+        var elems = expr["elements"]
+        var ei = 0
+        while elems != nil && ei < oren_list_len(elems) {
+            elems[ei] = _generator_rewrite_yield_expr(elems[ei], co_name)
+            ei = ei + 1
+        }
+        return expr
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var pi = 0
+        while pairs != nil && pi < oren_list_len(pairs) {
+            var pair = pairs[pi]
+            if pair["key"] != nil { pair["key"] = _generator_rewrite_yield_expr(pair["key"], co_name) }
+            if pair["value"] != nil { pair["value"] = _generator_rewrite_yield_expr(pair["value"], co_name) }
+            if pair["k"] != nil { pair["k"] = _generator_rewrite_yield_expr(pair["k"], co_name) }
+            if pair["v"] != nil { pair["v"] = _generator_rewrite_yield_expr(pair["v"], co_name) }
+            pi = pi + 1
+        }
+        return expr
+    }
+    if t == "SpawnExpr" {
+        expr["call"] = _generator_rewrite_yield_expr(expr["call"], co_name)
+        return expr
+    }
+
+    return expr
+}
+
+fn _yield_delegate_source_site(expr) {
+    if expr == nil { return "yield from" }
+    var tok = expr["yield_token"]
+    if tok == nil { tok = expr["token"] }
+    if tok == nil { return "yield from" }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    var out = "yield from"
+    if file != nil && file != "" { out = out + " at " + file }
+    if line != nil && line > 0 {
+        out = out + ":" + oren_int_to_string(line)
+        if col != nil && col > 0 { out = out + ":" + oren_int_to_string(col) }
+    }
+    return out
+}
+
+fn _generator_finalize_source_site(expr) {
+    if expr == nil { return "defer" }
+    var tok = expr["generator_finalize_token"]
+    if tok == nil { tok = expr["token"] }
+    if tok == nil { return "defer" }
+    var file = tok["file"]
+    var line = tok["line"]
+    var col = tok["col"]
+    var out = "defer"
+    if file != nil && file != "" { out = out + " at " + file }
+    if line != nil && line > 0 {
+        out = out + ":" + oren_int_to_string(line)
+        if col != nil && col > 0 { out = out + ":" + oren_int_to_string(col) }
+    }
+    return out
+}
+
+fn _stmt_validate_yield_delegate_expr(p, expr) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Function" || t == "Lambda" { return nil }
+    if t == "Prefix" {
+        return _stmt_validate_yield_delegate_expr(p, expr["right"])
+    }
+    if t == "Infix" {
+        _stmt_validate_yield_delegate_expr(p, expr["left"])
+        _stmt_validate_yield_delegate_expr(p, expr["right"])
+        return nil
+    }
+    if t == "If" {
+        _stmt_validate_yield_delegate_expr(p, expr["cond"])
+        _stmt_validate_yield_delegate_stmt(p, expr["consq"])
+        if expr["alt"] != nil { _stmt_validate_yield_delegate_stmt(p, expr["alt"]) }
+        return nil
+    }
+    if t == "Call" {
+        if expr["yield_delegate_expr"] == true && expr["yield_delegate_missing_context"] == true {
+            parser_add_error(p, _yield_delegate_source_site(expr) + " requires 'in co' outside @oren.generator/@oren.coroutine declarations")
+            return nil
+        }
+        if expr["generator_finalize_expr"] == true && expr["generator_finalize_missing_context"] == true {
+            parser_add_error(p, _generator_finalize_source_site(expr) + " requires 'in co' outside @oren.generator/@oren.coroutine declarations")
+            return nil
+        }
+        _stmt_validate_yield_delegate_expr(p, expr["fn"])
+        var args = expr["args"]
+        var i = 0
+        while args != nil && i < oren_list_len(args) {
+            _stmt_validate_yield_delegate_expr(p, args[i])
+            i = i + 1
+        }
+        if expr["spread"] != nil { _stmt_validate_yield_delegate_expr(p, expr["spread"]) }
+        return nil
+    }
+    if t == "Member" {
+        _stmt_validate_yield_delegate_expr(p, expr["left"])
+        _stmt_validate_yield_delegate_expr(p, expr["prop"])
+        return nil
+    }
+    if t == "Index" {
+        _stmt_validate_yield_delegate_expr(p, expr["left"])
+        _stmt_validate_yield_delegate_expr(p, expr["index"])
+        return nil
+    }
+    if t == "Array" {
+        var elems = expr["elements"]
+        var ei = 0
+        while elems != nil && ei < oren_list_len(elems) {
+            _stmt_validate_yield_delegate_expr(p, elems[ei])
+            ei = ei + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var pairs = expr["pairs"]
+        var pi = 0
+        while pairs != nil && pi < oren_list_len(pairs) {
+            var pair = pairs[pi]
+            if pair["key"] != nil { _stmt_validate_yield_delegate_expr(p, pair["key"]) }
+            if pair["value"] != nil { _stmt_validate_yield_delegate_expr(p, pair["value"]) }
+            if pair["k"] != nil { _stmt_validate_yield_delegate_expr(p, pair["k"]) }
+            if pair["v"] != nil { _stmt_validate_yield_delegate_expr(p, pair["v"]) }
+            pi = pi + 1
+        }
+        return nil
+    }
+    if t == "SpawnExpr" {
+        _stmt_validate_yield_delegate_expr(p, expr["call"])
+        return nil
+    }
+    return nil
+}
+
+fn _stmt_validate_yield_delegate_stmt(p, stmt) {
+    if stmt == nil { return nil }
+    if stmt["yield_stmt"] == true { return nil }
+    var t = stmt["type"]
+    if t == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && expr["type"] == "Function" {
+            return _stmt_validate_yield_delegate_stmt(p, expr["body"])
+        }
+        return _stmt_validate_yield_delegate_expr(p, expr)
+    }
+    if t == "Var" {
+        var value = stmt["value"]
+        if value != nil && value["type"] == "Function" {
+            return _stmt_validate_yield_delegate_stmt(p, value["body"])
+        }
+        return _stmt_validate_yield_delegate_expr(p, value)
+    }
+    if t == "Assign" {
+        return _stmt_validate_yield_delegate_expr(p, stmt["value"])
+    }
+    if t == "Set" {
+        _stmt_validate_yield_delegate_expr(p, stmt["left"])
+        _stmt_validate_yield_delegate_expr(p, stmt["value"])
+        return nil
+    }
+    if t == "Return" { return _stmt_validate_yield_delegate_expr(p, stmt["value"]) }
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            _stmt_validate_yield_delegate_stmt(p, xs[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "While" {
+        _stmt_validate_yield_delegate_expr(p, stmt["cond"])
+        return _stmt_validate_yield_delegate_stmt(p, stmt["body"])
+    }
+    if t == "For" {
+        _stmt_validate_yield_delegate_stmt(p, stmt["init"])
+        _stmt_validate_yield_delegate_expr(p, stmt["cond"])
+        _stmt_validate_yield_delegate_stmt(p, stmt["post"])
+        return _stmt_validate_yield_delegate_stmt(p, stmt["body"])
+    }
+    if t == "If" {
+        _stmt_validate_yield_delegate_expr(p, stmt["cond"])
+        _stmt_validate_yield_delegate_stmt(p, stmt["consq"])
+        if stmt["alt"] != nil { _stmt_validate_yield_delegate_stmt(p, stmt["alt"]) }
+        return nil
+    }
+    if t == "Spawn" { return _stmt_validate_yield_delegate_expr(p, stmt["call"]) }
+    if t == "Switch" {
+        _stmt_validate_yield_delegate_expr(p, stmt["value"])
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            var vals = c["values"]
+            var vi = 0
+            while vals != nil && vi < oren_list_len(vals) {
+                _stmt_validate_yield_delegate_expr(p, vals[vi])
+                vi = vi + 1
+            }
+            _stmt_validate_yield_delegate_stmt(p, c["body"])
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { _stmt_validate_yield_delegate_stmt(p, stmt["default"]) }
+        return nil
+    }
+    return nil
+}
+
+fn validate_stmt_yield_delegate_syntax(p, stmt) {
+    if p["_defer_yield_delegate_validate"] == true { return stmt }
+    _stmt_validate_yield_delegate_stmt(p, stmt)
+    return stmt
+}
+
+fn _generator_rewrite_yield_stmt(stmt, co_name) {
+    if stmt == nil { return nil }
+    if stmt["yield_stmt"] == true {
+        var ctx_tok = token.new_token(token.TOK_IDENT, co_name)
+        var call = yield_exchange_context_expr_call(
+            stmt["token"],
+            ast.new_identifier(ctx_tok),
+            _generator_nil_expr(),
+            false
+        )
+        call["yield_exchange_syntax_kind"] = "generator_decl"
+        return ast.new_expr_stmt(stmt["token"], call)
+    }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        var i = 0
+        while xs != nil && i < oren_list_len(xs) {
+            xs[i] = _generator_rewrite_yield_stmt(xs[i], co_name)
+            i = i + 1
+        }
+        return stmt
+    }
+    if t == "Var" {
+        stmt["value"] = _generator_rewrite_yield_expr(stmt["value"], co_name)
+        return stmt
+    }
+    if t == "Assign" {
+        stmt["value"] = _generator_rewrite_yield_expr(stmt["value"], co_name)
+        return stmt
+    }
+    if t == "Set" {
+        stmt["left"] = _generator_rewrite_yield_expr(stmt["left"], co_name)
+        stmt["value"] = _generator_rewrite_yield_expr(stmt["value"], co_name)
+        return stmt
+    }
+    if t == "Return" {
+        stmt["value"] = _generator_rewrite_yield_expr(stmt["value"], co_name)
+        return stmt
+    }
+    if t == "ExprStmt" {
+        var expr = stmt["expr"]
+        if expr != nil && (expr["type"] == "Function" || expr["type"] == "Lambda") { return stmt }
+        stmt["expr"] = _generator_rewrite_yield_expr(expr, co_name)
+        return stmt
+    }
+    if t == "While" {
+        stmt["cond"] = _generator_rewrite_yield_expr(stmt["cond"], co_name)
+        stmt["body"] = _generator_rewrite_yield_stmt(stmt["body"], co_name)
+        return stmt
+    }
+    if t == "For" {
+        stmt["init"] = _generator_rewrite_yield_stmt(stmt["init"], co_name)
+        stmt["cond"] = _generator_rewrite_yield_expr(stmt["cond"], co_name)
+        stmt["post"] = _generator_rewrite_yield_stmt(stmt["post"], co_name)
+        stmt["body"] = _generator_rewrite_yield_stmt(stmt["body"], co_name)
+        return stmt
+    }
+    if t == "If" {
+        stmt["cond"] = _generator_rewrite_yield_expr(stmt["cond"], co_name)
+        stmt["consq"] = _generator_rewrite_yield_stmt(stmt["consq"], co_name)
+        if stmt["alt"] != nil { stmt["alt"] = _generator_rewrite_yield_stmt(stmt["alt"], co_name) }
+        return stmt
+    }
+    if t == "Spawn" {
+        stmt["call"] = _generator_rewrite_yield_expr(stmt["call"], co_name)
+        return stmt
+    }
+    if t == "Switch" {
+        stmt["value"] = _generator_rewrite_yield_expr(stmt["value"], co_name)
+        var cases = stmt["cases"]
+        var ci = 0
+        while cases != nil && ci < oren_list_len(cases) {
+            var c = cases[ci]
+            var vals = c["values"]
+            var vi = 0
+            while vals != nil && vi < oren_list_len(vals) {
+                vals[vi] = _generator_rewrite_yield_expr(vals[vi], co_name)
+                vi = vi + 1
+            }
+            c["body"] = _generator_rewrite_yield_stmt(c["body"], co_name)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { stmt["default"] = _generator_rewrite_yield_stmt(stmt["default"], co_name) }
+        return stmt
+    }
+    return stmt
+}
+
+fn maybe_lower_generator_decl_stmt(p, stmt) {
+    if stmt == nil { return stmt }
+    var func = nil
+    var decl_name = nil
+    var is_decl_stmt = false
+    if stmt["type"] == "ExprStmt" {
+        func = stmt["expr"]
+        if func == nil || func["type"] != "Function" { return stmt }
+        if _attrs_has_name(func["attrs"], "oren.generator") != true { return stmt }
+        decl_name = func["name"]
+        is_decl_stmt = true
+        if decl_name == nil || decl_name == "" {
+            parser_add_error(p, "@oren.generator/@oren.coroutine may only precede named function declarations or function-valued var bindings")
+            return stmt
+        }
+    } else {
+        if stmt["type"] != "Var" { return stmt }
+        func = _generator_var_decl_function(stmt)
+        if func == nil { return stmt }
+        var name_ident = _generator_var_decl_name_ident(stmt)
+        if name_ident == nil || _attrs_has_name(name_ident["attrs"], "oren.generator") != true { return stmt }
+        decl_name = name_ident["value"]
+        if decl_name == nil || decl_name == "" {
+            parser_add_error(p, "@oren.generator/@oren.coroutine on var requires named identifier")
+            return stmt
+        }
+    }
+    var co_name = parser_gensym(p, "@generator_co_")
+    var args_name = parser_gensym(p, "@generator_args_")
+    var worker_tok = token.new_token(token.TOK_BITOR, "|")
+    worker_tok["file"] = p["file"]
+    var worker_params = [
+        ast.new_identifier(token.new_token(token.TOK_IDENT, co_name)),
+        ast.new_identifier(token.new_token(token.TOK_IDENT, args_name))
+    ]
+    func["body"] = _generator_rewrite_yield_stmt(func["body"], co_name)
+    func["generator_source_body"] = func["body"]
+    var worker = ast.new_function(worker_tok, "", worker_params, func["body"])
+    worker["generator_decl_worker"] = true
+    var call_tok = token.new_token(token.TOK_LPAREN, "(")
+    var start_ident_tok = token.new_token(token.TOK_IDENT, "oren_generator_start")
+    var start_call = ast.new_call(call_tok, ast.new_identifier(start_ident_tok), [worker, ast.new_array(token.new_token(token.TOK_LBRACKET, "["), [])])
+    var body_tok = token.new_token(token.TOK_LBRACE, "{")
+    var wrapper_body = ast.new_block(body_tok)
+    oren_list_push(wrapper_body["stmts"], ast.new_return(token.new_token(token.TOK_RETURN, "return"), start_call))
+    if is_decl_stmt == true && p["block_depth"] > 0 {
+        var name_ident = _local_fn_decl_name_ident(func)
+        func["body"] = wrapper_body
+        func["generator_decl"] = true
+        func["decl_name"] = decl_name
+        func["name"] = ""
+        return ast.new_var(func["token"], name_ident, func)
+    }
+    func["body"] = wrapper_body
+    func["generator_decl"] = true
+    func["decl_name"] = decl_name
+    if is_decl_stmt != true { func["name"] = "" }
+    return stmt
+}
