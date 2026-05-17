@@ -12,6 +12,15 @@ compiler‑in‑AVM for sandboxed compilation.
 For the concise product thesis and mainstream-language differentiation line, see `docs/OREN_THESIS.md`.
 For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
 
+
+## Commercial support
+
+For teams evaluating capability-gated agent runtimes, deterministic execution, sandbox architecture, or compiler/runtime review work, I offer a paid architecture review through Agent-C:
+
+- Review page: https://x2.brucelu.top/agent-c/?source=github-oren-lang
+- Sample deliverable: https://x2.brucelu.top/agent-c/sample/
+- Checkout: https://x2.brucelu.top/agent-c/checkout/?source=github-oren-lang
+
 ## Quick start
 
 ```bash
