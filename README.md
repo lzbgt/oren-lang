@@ -17,9 +17,10 @@ For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIM
 
 For teams evaluating capability-gated agent runtimes, deterministic execution, sandbox architecture, or compiler/runtime review work, I offer a paid architecture review through Agent-C:
 
-- Review page: https://x2.brucelu.top/agent-c/?source=github-oren-lang
+- Review page: https://x2.brucelu.top/agent-c/?source=github-oren-lang-top
+- Ask a pre-sales question: https://x2.brucelu.top/products/contact/?offer=agentc&source=github-oren-lang-top
 - Sample deliverable: https://x2.brucelu.top/agent-c/sample/
-- Checkout: https://x2.brucelu.top/agent-c/checkout/?source=github-oren-lang
+- Checkout: https://x2.brucelu.top/agent-c/checkout/?source=github-oren-lang-top
 
 ## Quick start
 
