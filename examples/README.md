@@ -34,6 +34,17 @@ make examples-test
 - `examples/avm_multiverse_net_demo.oren` + `examples/avm_fixtures/multiverse_child_net.oren`
   - Demonstrate AVM-in-AVM (“multiverse”) + VirtualNET fixtures.
 
+
+## Architecture review support
+
+These examples are useful when evaluating deterministic runtime behavior, capability boundaries, native/bytecode backend tradeoffs, and agent-safe execution surfaces. For a paid review of how this kind of runtime design maps to your own agent infrastructure, use Agent-C:
+
+- Ask first: https://x2.brucelu.top/products/contact/?offer=agentc&source=github-oren-examples
+- Sample review: https://x2.brucelu.top/agent-c/sample/
+- Checkout: https://x2.brucelu.top/agent-c/checkout/?source=github-oren-examples
+
+Boundary: paid support is architecture review and setup guidance, not guaranteed production deployment or managed runtime operation.
+
 ## Running notes
 
 - Linux ELF and Windows PE artifacts are not runnable on macOS hosts.
