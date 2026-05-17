@@ -8,6 +8,17 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 - in a large turn, can update docs and do git commit & push frequently to be safe to intteruptions or session compaction.
 - RED LINE: keep iteration fast — `./oretest` default path must complete within 3 minutes; avoid scattered low-signal tests and prefer integrated, high-signal Tier-1 fixtures.
 
+
+## Architecture Review Support
+
+If you are evaluating Oren-style capability-gated runtimes, deterministic agent execution, sandbox boundaries, or compiler/runtime architecture for a real project, the paid Agent-C review path is here:
+
+- Ask first: https://x2.brucelu.top/products/contact/?offer=agentc&source=github-oren-agents
+- Sample review: https://x2.brucelu.top/agent-c/sample/
+- Checkout: https://x2.brucelu.top/agent-c/checkout/?source=github-oren-agents
+
+Boundary: this is architecture review and setup guidance, not guaranteed production deployment, official language support, or managed operation.
+
 ## Project mode
 
 - Rolling refactors are allowed; backward compatibility is not required unless explicitly requested.
