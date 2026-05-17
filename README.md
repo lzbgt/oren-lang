@@ -1,5 +1,8 @@
 # Oren (rolling)
 
+
+[![Paid_Agent_Runtime_Review](https://img.shields.io/badge/Paid_Agent_Runtime_Review-brightgreen)](https://x2.brucelu.top/agent-c/checkout/?source=github-badge-oren-lang) [![Ask_First](https://img.shields.io/badge/Ask_First-blue)](https://x2.brucelu.top/products/contact/?offer=agentc&source=github-badge-oren-lang) [![Sample](https://img.shields.io/badge/Sample-informational)](https://x2.brucelu.top/agent-c/sample/)
+
 Oren is a **self-hosted language + compiler** with three execution backends:
 
 - **C backend** (portable bootstrap)
