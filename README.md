@@ -1,8 +1,5 @@
 # Oren (rolling)
 
-
-[![Paid_Agent_Runtime_Review](https://img.shields.io/badge/Paid_Agent_Runtime_Review-brightgreen)](https://x2.brucelu.top/agent-c/checkout/?source=github-badge-oren-lang) [![Ask_First](https://img.shields.io/badge/Ask_First-blue)](https://x2.brucelu.top/products/contact/?offer=agentc&source=github-badge-oren-lang) [![Sample](https://img.shields.io/badge/Sample-informational)](https://x2.brucelu.top/agent-c/sample/)
-
 Oren is a **self-hosted language + compiler** with three execution backends:
 
 - **C backend** (portable bootstrap)
@@ -14,16 +11,6 @@ compiler‑in‑AVM for sandboxed compilation.
 
 For the concise product thesis and mainstream-language differentiation line, see `docs/OREN_THESIS.md`.
 For the current capability/runtime-profile contract, see `docs/CAPABILITY_RUNTIME_CONTRACT.md`.
-
-
-## Commercial support
-
-For teams evaluating capability-gated agent runtimes, deterministic execution, sandbox architecture, or compiler/runtime review work, I offer a paid architecture review through Agent-C:
-
-- Review page: https://x2.brucelu.top/agent-c/?source=github-oren-lang-top
-- Ask a pre-sales question: https://x2.brucelu.top/products/contact/?offer=agentc&source=github-oren-lang-top
-- Sample deliverable: https://x2.brucelu.top/agent-c/sample/
-- Checkout: https://x2.brucelu.top/agent-c/checkout/?source=github-oren-lang-top
 
 ## Quick start
 
