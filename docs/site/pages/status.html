@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Status - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="oren-status">Oren Status</h1>
+<p><strong>Last updated:</strong> 2026-05-26</p>
+<p>This is the current implementation status. It replaces the former rolling log with a</p>
+<p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
+<h2 id="overall-verdict">Overall Verdict</h2>
+<p>Oren is not yet production-stable at the level of industrial compilers such as</p>
+<p>LLVM/rustc/GCC/zig/go. It is a rolling self-hosted compiler with meaningful working</p>
+<p>surfaces, but the following blockers remain:</p>
+<ul>
+<li>native tagged-value convergence is incomplete;</li>
+<li>allocator/GC/runtime robustness is still a W5 gate;</li>
+<li>Tier-1 platform breadth is uneven;</li>
+<li>AVM is not production-ready as an iOS embeddable library;</li>
+<li>compiler-in-AVM is fixture-level rather than a packaged production pipeline.</li>
+</ul>
+<h2 id="backend-readiness">Backend Readiness</h2>
+<table>
+<tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>
+<tr><td>C</td><td>Portable bootstrap path through host C toolchain.</td><td>Useful baseline, not a stabilized external ABI promise.</td></tr>
+<tr><td>Native arm64 macOS</td><td>Most mature native path; broadest profile and fixture history.</td><td>Rolling Tier-1 intent.</td></tr>
+<tr><td>Native x64 Linux/Windows</td><td>Active bring-up with compile/runtime gates.</td><td>Not fully mature.</td></tr>
+<tr><td>Bytecode / AVM</td><td>Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces.</td><td>Experimental for production embedding.</td></tr>
+</table>
+<h2 id="avm-and-ios-readiness">AVM and iOS Readiness</h2>
+<p>Current verdict: <strong>not production-ready for iOS app embedding</strong>.</p>
+<p>Facts from the 2026-05-07 inspection:</p>
+<ul>
+<li>The repo has no iOS app/Xcode/Swift integration target for <code>libavm</code>.</li>
+<li><code>make avm</code> builds a host arm64 Mach-O executable, not a static library,</li>
+</ul>
+<p>  framework, xcframework, or Swift package.</p>
+<ul>
+<li><code>lib/avm/avm.h</code> still exposes fixed global/frame/stack limits and rolling</li>
+</ul>
+<p>  capability/budget fields.</p>
+<ul>
+<li><code>lib/avm/avm_alloc.c</code> uses global allocation-owner state, which is not a polished</li>
+</ul>
+<p>  reentrant embedder story.</p>
+<ul>
+<li><code>avm_free</code> aborts on leaked heap allocations; this is useful during development</li>
+</ul>
+<p>  but is not the expected production iOS failure model.</p>
+<ul>
+<li>Curated <code>make avm &amp;&amp; make test-avm</code> passes.</li>
+<li>Wildcard <code>AVM_TESTS=&quot;tests/avm/*.oren&quot;</code> is not a valid release gate today because</li>
+</ul>
+<p>  fixture-specific env/expected-error policy is encoded only in selected Makefile cases.</p>
+<ul>
+<li>A direct <code>AVM_IO_BYTES=128</code> run of <code>test_budget_io_fs</code> returns the expected</li>
+</ul>
+<p>  <code>AVM_ERR_BUDGET</code>, proving that specific runtime behavior while exposing harness debt.</p>
+<p>Detailed note: <code>project-doc/ios_avm_readiness_20260507.md</code>.</p>
+<h2 id="compiler-in-avm">Compiler-in-AVM</h2>
+<p>Current verdict: <strong>fixture-level bootstrap only</strong>.</p>
+<p>Working evidence:</p>
+<ul>
+<li><code>tests/avm/fixtures/compiler_in_avm_vfs_harness.oren</code> loads</li>
+</ul>
+<p>  <code>build/oren_compiler.obc</code> into a nested AVM universe and compiles a small program</p>
+<p>  through VFS.</p>
+<ul>
+<li><code>tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren</code> additionally</li>
+</ul>
+<p>  passes <code>build/stdlib_bundle.obc</code> as a stdlib OBC resource.</p>
+<p>Missing for production:</p>
+<ul>
+<li>stable compiler <code>.obc</code> artifact target;</li>
+<li>stdlib OBC resource packaging;</li>
+<li>default release gate for nested compile/run;</li>
+<li>iOS resource-loading and embedder lifecycle coverage.</li>
+</ul>
+<h2 id="current-p0-w5-work">Current P0 / W5 Work</h2>
+<ol>
+<li><strong>Runtime robustness</strong></li>
+</ol>
+<ul>
+<li>Keep allocator, GC/reuse, green runtime, and capability gates trustworthy.</li>
+<li>Verification entry: <code>make verify-runtime-robustness</code> plus <code>make test</code>.</li>
+</ul>
+<ol>
+<li><strong>Performance parity</strong></li>
+</ol>
+<ul>
+<li>Track hot loop and allocation profiles through existing benchmark/perf scripts.</li>
+<li>Retain only measured aggregate wins; many narrow codegen probes have been rejected</li>
+</ul>
+<p>     because they moved labels without moving wall time.</p>
+<ol>
+<li><strong>Tagged value convergence</strong></li>
+</ol>
+<ul>
+<li>Preserve cross-backend <code>oren_type_tag</code>, equality, truthiness, and panic parity.</li>
+<li>Fixture gates remain the migration guard.</li>
+</ul>
+<h2 id="current-p1-w4-work">Current P1 / W4 Work</h2>
+<ol>
+<li><strong>AVM iOS embeddability + compiler-in-AVM release gate</strong></li>
+</ol>
+<ul>
+<li>Add iOS simulator/device library packaging.</li>
+<li>Add Swift/Objective-C smoke host.</li>
+<li>Make embedder lifecycle and errors deterministic and non-aborting in production mode.</li>
+<li>Package compiler/stdlib OBC resources and gate nested compile/run.</li>
+</ul>
+<ol>
+<li><strong>AVM fixture manifest runner</strong></li>
+</ol>
+<ul>
+<li>Replace wildcard <code>AVM_TESTS</code> release expectations with manifest-driven per-fixture</li>
+</ul>
+<p>     policy: env, expected rc/error, capabilities, deterministic mode, and gate inclusion.</p>
+<ol>
+<li><strong>Cross-backend parity</strong></li>
+</ol>
+<ul>
+<li>Expand only around real gaps; keep C/native/OBC fixtures aligned.</li>
+</ul>
+<ol>
+<li><strong>Native scheduler and green-task maturity</strong></li>
+</ol>
+<ul>
+<li>Keep focused runtime gates cheap and deterministic.</li>
+</ul>
+<h2 id="current-p2-w3-work">Current P2 / W3 Work</h2>
+<ul>
+<li>AVM allocation slabs and list-int lowering.</li>
+<li>Deterministic AVM child-universe scheduling and snapshot/restore maturity.</li>
+<li>Platform breadth for Linux/Windows/x64 paths.</li>
+<li>Documentation and source-file guardrails.</li>
+</ul>
+<h2 id="key-verification-entrypoints">Key Verification Entrypoints</h2>
+<pre><code>./oretest
+./oretest --selfhost
+make test
+make test-curated
+make avm
+make test-avm
+make verify-backend-parity
+make verify-runtime-robustness
+make docs-site</code></pre>
+<h2 id="documentation-guardrail">Documentation Guardrail</h2>
+<p>Canonical docs should describe current implementation and live blockers only. Do not</p>
+<p>paste rolling turn logs into <code>docs/STATUS.md</code> or <code>docs/BLEEDING_EDGE_TASKS.md</code>; keep raw</p>
+<p>evidence in <code>build/logs/</code> and short dated conclusions in focused <code>project-doc/</code> files.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#oren-status">Oren Status</a>
+<a class="toc-l2" href="#overall-verdict">Overall Verdict</a>
+<a class="toc-l2" href="#backend-readiness">Backend Readiness</a>
+<a class="toc-l2" href="#avm-and-ios-readiness">AVM and iOS Readiness</a>
+<a class="toc-l2" href="#compiler-in-avm">Compiler-in-AVM</a>
+<a class="toc-l2" href="#current-p0-w5-work">Current P0 / W5 Work</a>
+<a class="toc-l2" href="#current-p1-w4-work">Current P1 / W4 Work</a>
+<a class="toc-l2" href="#current-p2-w3-work">Current P2 / W3 Work</a>
+<a class="toc-l2" href="#key-verification-entrypoints">Key Verification Entrypoints</a>
+<a class="toc-l2" href="#documentation-guardrail">Documentation Guardrail</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

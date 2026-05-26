@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Effect Ledger - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="effect-ledger-contract">Effect Ledger Contract</h1>
+<p><strong>Last updated:</strong> 2026-04-12</p>
+<p>This is the Oren v0 target contract for effect ledgers. It is a schema and tooling</p>
+<p>contract first: the runtime does not yet emit a complete ledger for every effect.</p>
+<p>The point is to define the evidence shape before adding more ad-hoc traces.</p>
+<h2 id="why-this-exists">Why This Exists</h2>
+<p>Oren&#x27;s differentiator is deterministic, capability-governed native/AVM execution</p>
+<p>with replayable evidence. A capability decision without a stable record is hard for</p>
+<p>agents, tests, and deployment controllers to audit. Logs are not enough: Oren needs</p>
+<p>typed effect records that can be replayed, diffed across backends, and attached to</p>
+<p>artifact manifests or minimized bug reports.</p>
+<h2 id="effect-ledger-v0">Effect Ledger v0</h2>
+<p>An effect ledger is an ordered JSON object:</p>
+<pre><code>{
+  &quot;version&quot;: 1,
+  &quot;schema&quot;: &quot;oren.effect-ledger.v0&quot;,
+  &quot;backend&quot;: &quot;native&quot;,
+  &quot;runtime_profile&quot;: &quot;capsule&quot;,
+  &quot;determinism_grade&quot;: &quot;replayable-host&quot;,
+  &quot;source_digest&quot;: &quot;sha256:...&quot;,
+  &quot;artifact_digest&quot;: &quot;sha256:...&quot;,
+  &quot;entries&quot;: [
+    {
+      &quot;seq&quot;: 0,
+      &quot;phase&quot;: &quot;run&quot;,
+      &quot;domain&quot;: &quot;FS&quot;,
+      &quot;operation&quot;: &quot;read_file&quot;,
+      &quot;resource&quot;: &quot;mount:workspace/path:data/input.txt&quot;,
+      &quot;decision&quot;: &quot;allow&quot;,
+      &quot;denial_reason&quot;: null,
+      &quot;budget_before&quot;: { &quot;cpu_steps&quot;: 1200, &quot;effect_calls&quot;: 8 },
+      &quot;budget_delta&quot;: { &quot;cpu_steps&quot;: 20, &quot;effect_calls&quot;: 1 },
+      &quot;budget_after&quot;: { &quot;cpu_steps&quot;: 1220, &quot;effect_calls&quot;: 9 },
+      &quot;input_digest&quot;: &quot;sha256:...&quot;,
+      &quot;output_digest&quot;: &quot;sha256:...&quot;,
+      &quot;redaction&quot;: &quot;path-salted-digest&quot;,
+      &quot;replay_mode&quot;: &quot;recorded&quot;,
+      &quot;schedule_epoch&quot;: 3,
+      &quot;source_span&quot;: &quot;tests/fixtures/example.oren:12:8&quot;
+    }
+  ]
+}</code></pre>
+<p>Required top-level fields:</p>
+<ul>
+<li><code>version</code>: integer schema version, currently <code>1</code>.</li>
+<li><code>schema</code>: stable schema id, currently <code>oren.effect-ledger.v0</code>.</li>
+<li><code>backend</code>: <code>native</code>, <code>bytecode</code>, <code>c</code>, or a future backend id.</li>
+<li><code>runtime_profile</code>: <code>core</code>, <code>full</code>, <code>capsule</code>, <code>avm</code>, <code>none</code>, or a future versioned profile.</li>
+<li><code>determinism_grade</code>: <code>pure</code>, <code>deterministic-host</code>, <code>replayable-host</code>, or <code>nondeterministic</code>.</li>
+<li><code>source_digest</code>: source or source-bundle digest when available.</li>
+<li><code>artifact_digest</code>: emitted artifact digest when available.</li>
+<li><code>entries</code>: ordered effect records.</li>
+</ul>
+<p>Required entry fields:</p>
+<ul>
+<li><code>seq</code>: monotonically increasing effect sequence number within this ledger.</li>
+<li><code>phase</code>: <code>compile</code>, <code>run</code>, <code>replay</code>, <code>test</code>, or <code>semantic-diff</code>.</li>
+<li><code>domain</code>: one of the capability domains from <code>docs/CAPABILITY_RUNTIME_CONTRACT.md</code>, such as</li>
+</ul>
+<p>  <code>FS</code>, <code>NET</code>, <code>PROC</code>, <code>ENV</code>, <code>TIME</code>, <code>RNG</code>, <code>EXIT</code>, or <code>AVM</code>.</p>
+<ul>
+<li><code>operation</code>: stable operation id, for example <code>read_file</code>, <code>tcp_connect</code>, <code>env_get</code>,</li>
+</ul>
+<p>  <code>time_now_ns</code>, <code>rand_u64</code>, <code>proc_spawn</code>, or <code>avm_run</code>.</p>
+<ul>
+<li><code>resource</code>: policy-readable resource label. Raw secrets or full host paths should not be</li>
+</ul>
+<p>  required in deterministic/capsule ledgers.</p>
+<ul>
+<li><code>decision</code>: <code>allow</code>, <code>deny</code>, <code>virtualize</code>, <code>replay</code>, or <code>redact</code>.</li>
+<li><code>denial_reason</code>: null for non-denials, otherwise a stable reason id such as</li>
+</ul>
+<p>  <code>domain_not_allowed</code>, <code>resource_not_allowed</code>, <code>budget_exceeded</code>, or <code>profile_forbidden</code>.</p>
+<ul>
+<li><code>budget_before</code>, <code>budget_delta</code>, <code>budget_after</code>: budget objects or null when not tracked.</li>
+<li><code>input_digest</code> and <code>output_digest</code>: digests or null; large payloads should not be embedded.</li>
+<li><code>redaction</code>: redaction policy id for sensitive fields.</li>
+<li><code>replay_mode</code>: <code>recorded</code>, <code>virtual</code>, <code>deterministic</code>, <code>nondeterministic</code>, or <code>not_replayable</code>.</li>
+<li><code>schedule_epoch</code>: scheduler epoch or null for non-concurrent contexts.</li>
+<li><code>source_span</code>: source location string or null when unavailable.</li>
+</ul>
+<h2 id="design-rules">Design Rules</h2>
+<ul>
+<li>Denial is data. A denied effect should be ledgerable even when native capsule mode also fails</li>
+</ul>
+<p>  closed for that API.</p>
+<ul>
+<li>The ledger is policy-readable, not a raw syscall trace. It records the language/runtime operation</li>
+</ul>
+<p>  and capability decision, not every host syscall detail.</p>
+<ul>
+<li>The ledger must be backend-comparable. Native and AVM records should converge on the same domain,</li>
+</ul>
+<p>  operation, decision, replay, and budget vocabulary even if their internal implementations differ.</p>
+<ul>
+<li>The ledger must be redaction-aware by default. Secret values, credentials, full host paths, and</li>
+</ul>
+<p>  unbounded output bytes belong behind digests or explicit redaction policy.</p>
+<ul>
+<li>The ledger should compose with semantic diffs. Cross-backend parity tooling should be able to</li>
+</ul>
+<p>  compare <code>entries</code> and budget deltas without scraping logs.</p>
+<ul>
+<li>The first repo-level semantic-diff consumer is intentionally smaller than the full ledger:</li>
+</ul>
+<p>  <code>scripts/run_backend_semantic_diff.sh</code> emits <code>oren.semantic-diff.v0</code> JSON with C/native/OBC</p>
+<p>  exit codes, normalized stdout/stderr hashes, log paths, and a pass/fail verdict. It also runs</p>
+<p>  a second native execution with <code>OREN_NATIVE_RUN_JSON=1</code> and the OBC artifact with</p>
+<p>  <code>--print-run-json</code>. Those runs record native/AVM <code>effect_ledger_summary</code> bridges, normalized</p>
+<p>  <code>budget_deltas</code>, AVM <code>avm.run.v1</code> <code>status</code> / <code>error</code> fields, ledger availability per</p>
+<p>  backend, and whether full all-backend ledger/budget</p>
+<p>  comparison is possible. The report also exposes explicit gas-surface metadata and currently marks</p>
+<p>  native/OBC gas as non-comparable because native <code>native_dynamic_emitter_tick_v0</code> is not the same unit as</p>
+<p>  AVM&#x27;s canonical <code>avm_opcode_cost_v0</code> opcode-dispatch gas surface. The AVM surface declares</p>
+<p>  <code>unit_scope=&quot;avm_canonical&quot;</code>, <code>runtime_path_aware=true</code>, <code>cross_arch_comparable=true</code>,</p>
+<p>  <code>conversion_ready=true</code>, and <code>avm_canonical=true</code>; native surfaces must not claim comparability</p>
+<p>  until they can target that unit honestly. Semantic diff also emits</p>
+<p>  <code>oren.avm-canonical-sidecar-gas.v0</code>, a same-source OBC sidecar that records the AVM canonical gas</p>
+<p>  evidence next to native runtime evidence while preserving <code>native_runtime_conversion=false</code> and</p>
+<p>  <code>package_policy_may_use=false</code>; higher-level calibration/decision reports preserve its</p>
+<p>  <code>same_run_stderr_equal</code> and <code>same_run_exit_code_equal</code> evidence. It includes</p>
+<p>  <code>oren.gas-surface-calibration.v0</code> empirical ratios for the</p>
+<p>  fixture, but those ratios are evidence only and are flagged as <code>not_a_conversion</code> until a real</p>
+<p>  conversion contract exists. <code>scripts/verify_backend_gas_surface_calibration_set.sh</code> writes an</p>
+<p>  <code>oren.gas-surface-calibration-set.v0</code> report from default smoke, loop-heavy, branch-heavy,</p>
+<p>  call-heavy, and allocation-heavy fixtures. The report keeps the current ratio spread explicit as <code>single_ratio_unsafe</code> and emits an</p>
+<p>  <code>oren.gas-surface-conversion-decision.v0</code> object that blocks package-policy gas conversion from a</p>
+<p>  single empirical ratio until Oren has package-bound AVM canonical sidecar gas or native</p>
+<p>  instruction-equivalent gas evidence.</p>
+<p>  The calibration samples also carry the native surface&#x27;s <code>unit_scope</code>, <code>target_arch</code>,</p>
+<p>  <code>unit_family</code>, <code>runtime_path_aware</code>, <code>cross_arch_comparable</code>, and <code>conversion_ready</code> metadata plus</p>
+<p>  the AVM surface&#x27;s canonical metadata, so the decision is blocked by declared surface semantics as well as by the observed ratio spread. Default</p>
+<p>  calibration-set reports also carry <code>required_sample_classes</code> / <code>observed_sample_classes</code> so a future</p>
+<p>  conversion rule cannot be inferred from only loop-heavy, branch-heavy, call-heavy, or allocation-heavy samples.</p>
+<p>  <code>docs/GAS_SURFACE_REGISTRY.md</code> is the gas-surface inventory, and <code>make verify-gas-surface-registry</code></p>
+<p>  emits <code>oren.gas-surface-registry-check.v0</code> to guard that registry against runtime JSON,</p>
+<p>  semantic-diff, package-policy, and AVM/native metadata drift.</p>
+<p>  C ledger export is still intentionally reported as unavailable rather than inferred from logs.</p>
+<ul>
+<li>The native package-policy runner can separately emit <code>oren.native-package-policy-run.v0</code></li>
+</ul>
+<p>  through <code>OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=&lt;path&gt;</code>. That file is runner-observed</p>
+<p>  wall/gas/heap/CPU-budget evidence for native capsule execution and can include a captured native</p>
+<p>  <code>effect_ledger</code> summary when the runner enables <code>OREN_NATIVE_RUN_JSON=1</code>; native heap budgets</p>
+<p>  are enforced from the captured <code>heap_bytes.used</code> live-heap scan, native CPU budgets are enforced</p>
+<p>  from child process resource usage where available, and native gas budgets are enforced from the</p>
+<p>  captured <code>native_stmt_loop_tick_v0</code> counter after the runner builds and runs the artifact with</p>
+<p>  <code>OREN_NATIVE_GAS_ACCOUNTING=stmt</code>; that surface is explicitly backend-local and not AVM-canonical.</p>
+<p>  With <code>OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1</code>, the same runner can additionally emit</p>
+<p>  package-bound <code>oren.avm-canonical-sidecar-gas.v0</code> evidence after building and running a bytecode</p>
+<p>  sidecar from the same source/package manifest under the declared AVM budgets. That evidence sets</p>
+<p>	  <code>package_policy_may_use=true</code> when stdout and exit status match the native run, or when the AVM</p>
+<p>	  canonical gas sidecar itself reports budget exhaustion. It records source/native-artifact/sidecar-artifact</p>
+<p>	  SHA-256 identity hashes, <code>program_args_sha256</code>, <code>package_policy_sha256</code>, <code>package_policy_declared</code>,</p>
+<p>	  explicit sidecar <code>avm.run.v1</code> fields (<code>sidecar_run_json_present</code>,</p>
+<p>	  <code>sidecar_run_json_schema</code>, <code>sidecar_run_json_status</code>, and <code>sidecar_run_json_error</code>),</p>
+<p>	  normalized stdout/stderr hashes,</p>
+<p>	  explicit <code>same_run_stderr_equal</code> evidence, concrete <code>native_exit_code</code> / <code>sidecar_exit_code</code> values,</p>
+<p>  <code>certification_status</code>, non-blocking</p>
+<p>  <code>certification_warnings</code>, <code>certification_failure_reasons</code>, and <code>package_policy_may_use_reason</code></p>
+<p>  while still preserving</p>
+<p>  <code>native_runtime_conversion=false</code>.</p>
+<p>  The native package-policy guard also injects an auditable verifier-only stdout mismatch</p>
+<p>  (<code>test_injection=&quot;stdout_suffix&quot;</code>) and requires <code>certification_status=&quot;unavailable&quot;</code>,</p>
+<p>  <code>certification_failure_reasons=[&quot;stdout_mismatch&quot;]</code>, <code>package_policy_may_use=false</code>, and</p>
+<p>  <code>budget_unavailable</code> runner status for that non-certified sidecar path.</p>
+<p>  It separately injects a verifier-only stderr mismatch (<code>test_injection=&quot;stderr_suffix&quot;</code>) and requires</p>
+<p>  <code>certification_warnings=[&quot;stderr_mismatch&quot;]</code> while preserving stdout/exit certification and AVM</p>
+<p>  sidecar gas enforcement. The guard also combines a schema-mismatched run JSON with a stderr-only</p>
+<p>  <code>budget exceeded (gas)</code> diagnostic (<code>test_injection=&quot;stderr_suffix+schema&quot;</code>) and requires</p>
+<p>  <code>budget_unavailable</code>, so stderr text cannot certify gas without canonical <code>avm.run.v1</code> evidence.</p>
+<p>  A verifier-only exit-code mismatch (<code>test_injection=&quot;exit_code&quot;</code>) now also</p>
+<p>  requires <code>certification_failure_reasons=[&quot;exit_code_mismatch&quot;, &quot;sidecar_exit_nonzero&quot;]</code>,</p>
+<p>  <code>package_policy_may_use=false</code>, and <code>budget_unavailable</code> so nonzero sidecar exits cannot be treated</p>
+<p>  as gas certificates. Additional verifier-only probes now remove sidecar run JSON</p>
+<p>(<code>test_injection=&quot;drop_run_json&quot;</code>), corrupt the sidecar run-JSON schema</p>
+<p>(<code>test_injection=&quot;schema&quot;</code>), remove the sidecar gas surface</p>
+<p>(<code>test_injection=&quot;drop_gas_surface&quot;</code>), force zero gas (<code>test_injection=&quot;zero_gas&quot;</code>), and force</p>
+<p>sidecar timeout (<code>test_injection=&quot;timeout&quot;</code>), requiring <code>missing_or_noncanonical_avm_run_json</code>,</p>
+<p><code>missing_or_noncanonical_avm_gas_surface</code>, <code>missing_or_nonpositive_avm_gas</code>, or <code>timeout</code> failure</p>
+<p>evidence before the runner reports <code>budget_unavailable</code>. A structured non-gas AVM run-error probe</p>
+<p>(<code>test_injection=&quot;run_error&quot;</code>) now</p>
+<p>also requires <code>sidecar_error</code> failure evidence while preserving canonical gas evidence. A sidecar</p>
+<p>build-failure probe (<code>test_injection=&quot;build_fail&quot;</code>) now also requires</p>
+<p><code>certification_status=&quot;build_failed&quot;</code> plus <code>certification_failure_reasons=[&quot;sidecar_build_failed&quot;]</code>,</p>
+<p>  preserving a structured non-certified sidecar record even when no AVM sidecar run exists. A</p>
+<p>  native-failure fixture now also requires <code>certification_status=&quot;not_run_native_failed&quot;</code> and</p>
+<p>  <code>certification_failure_reasons=[&quot;native_exit_nonzero&quot;]</code>, preserving the native program failure exit</p>
+<p>  instead of masking it as a package-policy sidecar certification failure.</p>
+<p>  With</p>
+<p>  <code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar</code>, or the dispatcher option</p>
+<p>  <code>scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar</code>, the runner turns that</p>
+<p>  package-bound sidecar into explicit <code>budget_gas</code> enforcement: <code>oren.native-package-policy-run.v0</code></p>
+<p>  reports <code>runner_wall_avm_canonical_gas</code>, <code>enforcement=&quot;avm-canonical-sidecar&quot;</code>, and</p>
+<p>  <code>enforcement_profile=&quot;avm-sidecar&quot;</code> while still preserving <code>native_runtime_conversion=false</code>.</p>
+<p>  The dispatcher now defaults native runs to <code>auto</code> unless an explicit profile or env override is</p>
+<p>  present. The <code>auto</code> profile chooses that same sidecar enforcement whenever the package declares</p>
+<p>  <code>budget_gas</code>, and records <code>requested_enforcement_profile=&quot;auto&quot;</code> beside the resolved profile in</p>
+<p>  runner JSON.</p>
+<ul>
+<li>Native capsule runtime now exposes <code>oren.native-capsule-effect-gates.v0</code> through</li>
+</ul>
+<p>  <code>native_capsule_effect_gate_summary_json()</code> and the native run JSON <code>domain_gates</code> field.</p>
+<p>  This is the first native-owned effect evidence bridge: it counts central capsule domain-gate</p>
+<p>  checks and denied gates.</p>
+<ul>
+<li>Native capsule runtime also exposes <code>oren.native-capsule-resource-checks.v0</code> through</li>
+</ul>
+<p>  <code>native_capsule_resource_check_summary_json()</code> and the native run JSON <code>resource_checks</code> field.</p>
+<p>  This counts selected concrete FS/NET/PROC resource allow/deny decisions after a domain gate,</p>
+<p>  such as FS prefix/mount checks, NET socket/endpoint checks, and PROC exec/argv/wait/kill checks.</p>
+<p>  It is still a summary bridge, not a complete ordered effect ledger.</p>
+<h2 id="verification-map">Verification Map</h2>
+<p>Use this guard when changing the effect-ledger contract or its doc wiring:</p>
+<pre><code>make verify-effect-ledger-contract
+make verify-avm-effect-ledger-json</code></pre>
+<p>The contract guard checks this schema note, the capability contract, the roadmap docs, Makefile</p>
+<p>wiring, and then runs the AVM JSON guard. The AVM guard checks the current</p>
+<p><code>effect_ledger_summary</code> runtime bridge with in-memory record logs, deterministic trace bytes,</p>
+<p><code>AVM_TIMEOUT_MS</code> wall-budget reporting, and the <code>AVM_LOG_BYTES</code> record-header budget edge. The</p>
+<p>native package-policy guard checks the current capsule domain-gate counter bridge, and</p>
+<p><code>make verify-native-capsule-resource-checks</code> checks the native resource-check summary bridge.</p>
+<p>Full native/AVM ledger parity fixtures are still future work.</p>
+<h2 id="current-avm-run-summary">Current AVM Run Summary</h2>
+<p>AVM <code>--print-run-json</code> now includes top-level <code>status</code> / <code>error</code> fields plus an</p>
+<p><code>effect_ledger_summary</code> object. This is intentionally not</p>
+<p>the full ordered ledger above; it is a compact bridge surface that reports whether deterministic</p>
+<p>mode, record/replay, and budget accounting were active for the run:</p>
+<pre><code>{
+  &quot;status&quot;: &quot;ok&quot;,
+  &quot;error&quot;: null,
+  &quot;effect_ledger_summary&quot;: {
+    &quot;schema&quot;: &quot;oren.effect-ledger-summary.v0&quot;,
+    &quot;backend&quot;: &quot;bytecode&quot;,
+    &quot;runtime_profile&quot;: &quot;avm&quot;,
+    &quot;determinism_grade&quot;: &quot;replayable-host&quot;,
+    &quot;determinism&quot;: {
+      &quot;enabled&quot;: true,
+      &quot;virtual_now_ns&quot;: 123456,
+      &quot;virtual_step_ns&quot;: 7,
+      &quot;virtual_sleep_ns&quot;: 0
+    },
+    &quot;record&quot;: { &quot;enabled&quot;: true, &quot;sink&quot;: &quot;mem&quot;, &quot;bytes&quot;: 64 },
+    &quot;replay&quot;: { &quot;enabled&quot;: false, &quot;source&quot;: &quot;none&quot;, &quot;bytes&quot;: 0, &quot;position&quot;: 0 },
+    &quot;budgets&quot;: {
+      &quot;gas&quot;: {
+        &quot;executed&quot;: 10,
+        &quot;remaining&quot;: 99990,
+        &quot;kind&quot;: &quot;avm_opcode_cost_v0&quot;,
+        &quot;surface&quot;: {
+          &quot;schema&quot;: &quot;oren.gas-surface.v0&quot;,
+          &quot;id&quot;: &quot;avm_opcode_cost_v0&quot;,
+          &quot;backend&quot;: &quot;bytecode&quot;,
+          &quot;unit&quot;: &quot;opcode_cost&quot;,
+          &quot;unit_scope&quot;: &quot;avm_canonical&quot;,
+          &quot;granularity&quot;: &quot;opcode_dispatch&quot;,
+          &quot;runtime_path_aware&quot;: true,
+          &quot;cross_arch_comparable&quot;: true,
+          &quot;conversion_ready&quot;: true,
+          &quot;avm_canonical&quot;: true
+        }
+      },
+      &quot;heap_bytes&quot;: { &quot;limit&quot;: 0, &quot;used&quot;: 0 },
+      &quot;wall_ms&quot;: { &quot;limit&quot;: 1000, &quot;elapsed_ns&quot;: 250000 },
+      &quot;io_bytes&quot;: { &quot;limit&quot;: 0, &quot;used&quot;: 0 },
+      &quot;log_bytes&quot;: { &quot;limit&quot;: 0, &quot;used&quot;: 64 },
+      &quot;trace_bytes&quot;: { &quot;enabled&quot;: false, &quot;limit&quot;: 0, &quot;used&quot;: 0, &quot;truncated&quot;: false }
+    }
+  }
+}</code></pre>
+<p>On VM failures the top-level <code>error</code> field is a structured error object, for example</p>
+<p><code>{&quot;code&quot;:9,&quot;msg&quot;:&quot;budget exceeded (gas)&quot;}</code> for AVM canonical gas exhaustion. The summary is useful</p>
+<p>for orchestration and smoke tests, but the future feature is still the full</p>
+<p>entry ledger with domains, operations, decisions, digests, redaction, replay, and source spans.</p>
+<p>The summary intentionally reports budget counters that already exist in the VM, rather than a</p>
+<p>parallel accounting system.</p>
+<p>Native executables can now opt into the same compact bridge by setting</p>
+<p><code>OREN_NATIVE_RUN_JSON=1</code>. On normal <code>main</code> return or explicit <code>exit(...)</code>, the native runtime</p>
+<p>prints one <code>oren.native-run.v0</code> JSON line containing <code>effect_ledger_summary</code>. Native currently</p>
+<p>reports <code>wall_ms.elapsed_ns</code> from runtime monotonic time, includes the</p>
+<p><code>oren.native-capsule-effect-gates.v0</code> <code>domain_gates</code> object, includes the</p>
+<p><code>oren.native-capsule-resource-checks.v0</code> <code>resource_checks</code> object, and reports <code>heap_bytes.used</code></p>
+<p>from a report-time scan of live native GC tracking nodes with <code>kind=&quot;tracked_live_scan&quot;</code>. Gas is</p>
+<p>reported as <code>kind=&quot;native_loop_safepoint_tick_v0&quot;</code> by default; backend loop poll sites charge their</p>
+<p>mask interval when they fire, while direct/manual native <code>oren_gc_safepoint()</code> arrivals charge one tick.</p>
+<p>When matching build/run invocations set <code>OREN_NATIVE_GAS_ACCOUNTING=stmt</code>, the same field reports</p>
+<p><code>kind=&quot;native_stmt_loop_tick_v0&quot;</code> and also charges backend statement/op boundaries. The exact synonym</p>
+<p><code>statement</code> reports the same surface, while <code>OREN_NATIVE_GAS_ACCOUNTING=basic-block</code> reports the</p>
+<p>distinct <code>kind=&quot;native_basic_block_tick_v0&quot;</code> surface for native lowering basic-block entry ticks plus</p>
+<p>loop-poll ticks. <code>OREN_NATIVE_GAS_ACCOUNTING=block-weighted</code> reports</p>
+<p><code>kind=&quot;native_block_weighted_tick_v0&quot;</code>, using static lowering-block weights plus explicit loop-condition</p>
+<p>charges and loop-poll ticks. <code>OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter</code> reports</p>
+<p><code>kind=&quot;native_dynamic_emitter_tick_v0&quot;</code>, using patchable runtime notes that charge executed backend emitter</p>
+<p>spans while excluding the gas-note call overhead itself. Semantic diff uses the dynamic-emitter mode so it</p>
+<p>has runtime path-aware native evidence, but each native gas object carries an explicit <code>surface</code> object with</p>
+<p><code>schema=&quot;oren.gas-surface.v0&quot;</code>, <code>unit_scope=&quot;backend_local&quot;</code>, <code>target_arch</code>, <code>unit_family</code>,</p>
+<p><code>runtime_path_aware=true</code>, <code>cross_arch_comparable=false</code>, <code>conversion_ready=false</code>, and</p>
+<p><code>avm_canonical=false</code>. For dynamic-emitter gas, arm64 reports</p>
+<p><code>unit_family=&quot;fixed_width_instruction_span&quot;</code> while x64 reports <code>unit_family=&quot;emitted_byte_span&quot;</code>, so</p>
+<p>both can expose path-aware evidence without pretending the counter is architecture-neutral instruction gas. That surface keeps native</p>
+<p><code>native_dynamic_emitter_tick_v0</code> distinct from AVM&#x27;s canonical <code>avm_opcode_cost_v0</code></p>
+<p>(<code>unit_scope=&quot;avm_canonical&quot;</code>, <code>runtime_path_aware=true</code>, <code>cross_arch_comparable=true</code>,</p>
+<p><code>conversion_ready=true</code>); semantic diff reports the current</p>
+<p>native/OBC gas surfaces as non-comparable until Oren validates a conversion contract. The exact native mode spelling</p>
+<p><code>instruction-equivalent</code> is reserved: today the guard proves it falls back to default loop-safepoint</p>
+<p>gas instead of silently aliasing statement, basic-block, block-weighted, or dynamic-emitter gas.</p>
+<p><code>make verify-native-gas-accounting-modes</code> guards those mode contracts. The native build cache key</p>
+<p>also records the normalized gas mode, and the dedicated gas-mode verifier forces <code>--no-cache</code> so</p>
+<p>emitted gas notes are tested directly. The current semantic-diff report also records empirical</p>
+<p><code>native_per_obc</code> and <code>obc_per_native</code> ratios</p>
+<p>under <code>oren.gas-surface-calibration.v0</code>; those numbers are calibration evidence, not a rule that</p>
+<p>package policy may use for enforcement. <code>make verify-backend-semantic-diff-gas-calibration</code> runs the</p>
+<p>same schema guard against an additional loop-heavy fixture, and</p>
+<p>  <code>make verify-backend-semantic-diff-gas-call-calibration</code> covers a function-call-heavy fixture, and</p>
+<p>  <code>make verify-backend-semantic-diff-gas-alloc-calibration</code> covers an allocation-heavy fixture.</p>
+<p><code>make verify-backend-gas-surface-calibration-set</code> writes an <code>oren.gas-surface-calibration-set.v0</code></p>
+<p>report proving the current ratio spread across default, loop-heavy, branch-heavy, call-heavy, and</p>
+<p>allocation-heavy fixtures is too fixture-sensitive to promote as a conversion rule. The same report</p>
+<p>carries an <code>oren.gas-surface-conversion-decision.v0</code> decision with <code>package_policy_may_convert=false</code></p>
+<p>and <code>required_next_surface=&quot;native_instruction_equivalent_or_package_bound_avm_canonical_sidecar_gas&quot;</code>,</p>
+<p>and preserves aggregate <code>avm_canonical_sidecar_exit_code_equal_all</code> plus</p>
+<p><code>avm_canonical_sidecar_test_injection_free</code> evidence for its semantic-diff sidecars, with</p>
+<p>  <code>avm_canonical_sidecar_identity_hashes_present_all=true</code> proving every sample still carries</p>
+<p>source/native-artifact/sidecar-artifact identity hashes. They also preserve</p>
+<p><code>avm_canonical_sidecar_input_binding_present_all=true</code>: semantic-diff sidecars explicitly bind empty</p>
+<p>	program args and no package policy, while package-policy sidecars bind the declared package policy</p>
+<p>	through <code>program_args_sha256</code> and <code>package_policy_sha256</code>. Per-sample calibration and native</p>
+<p>	instruction-surface decision records also preserve those hashes under</p>
+<p>	<code>avm_canonical_sidecar_*_sha256</code> fields, and now expose</p>
+<p>	<code>avm_canonical_sidecar_run_json_ok_all=true</code> so consumers can tell that every semantic-diff sidecar</p>
+<p>	had parseable <code>avm.run.v1</code> success evidence instead of inferring that from gas fields.</p>
+<p><code>make verify-backend-native-instruction-surface-decision</code> records a second blocker:</p>
+<p><code>oren.native-instruction-surface-decision.v0</code> rejects whole-binary native disassembly instruction counts</p>
+<p>as a runtime gas surface by cross-checking them against the current <code>native_dynamic_emitter_tick_v0</code></p>
+<p>runtime surface. Whole-binary counts include linked runtime text and are not per-executed-path evidence.</p>
+<p>	The earlier report (<code>build/reports/backend_native_instruction_surface_decision_20260412_083236_29513.json</code>)</p>
+<p>counted the same <code>474624</code> whole-binary native instructions for the default, loop-heavy, and branch-heavy</p>
+<p>	fixtures while AVM opcode gas varied. The default decision guard now also requires the call-heavy sample</p>
+<p>		and allocation-heavy sample classes, so the required next step is broadening the explicit</p>
+<p>		package-bound AVM canonical sidecar enforcement profile or adding instruction-equivalent native gas,</p>
+<p>		not promoting a static binary-size proxy.</p>
+<p>The first dynamic-emitter calibration set</p>
+<p>(<code>build/reports/backend_gas_surface_calibration_set_20260412_081109_85502.json</code>) narrowed the contract to</p>
+<p>runtime path-aware native evidence, but still blocked conversion: default smoke, loop-heavy, and</p>
+<p>branch-heavy samples measured <code>native_per_obc</code> ratios of <code>~16.82x</code>, <code>~4.07x</code>, and <code>~2.49x</code>, so</p>
+<p><code>single_ratio_unsafe</code> remains true.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#effect-ledger-contract">Effect Ledger Contract</a>
+<a class="toc-l2" href="#why-this-exists">Why This Exists</a>
+<a class="toc-l2" href="#effect-ledger-v0">Effect Ledger v0</a>
+<a class="toc-l2" href="#design-rules">Design Rules</a>
+<a class="toc-l2" href="#verification-map">Verification Map</a>
+<a class="toc-l2" href="#current-avm-run-summary">Current AVM Run Summary</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yield / Coroutine - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="yield-generator-coroutine-current-state">Yield / Generator / Coroutine Current State</h1>
+<p><strong>Updated:</strong> 2026-05-26</p>
+<p>This note keeps only the current implementation boundary. Historical probe logs were</p>
+<p>removed from this file; use git history and <code>build/logs/</code> for raw evidence.</p>
+<h2 id="shipped-surface">Shipped Surface</h2>
+<ul>
+<li>Bare statement <code>yield</code>.</li>
+<li>Value yield: <code>yield &lt;value&gt;</code>.</li>
+<li>Explicit exchange syntax:</li>
+<li><code>yield expr in (yield_ch, resume_ch)</code></li>
+<li><code>yield in (yield_ch, resume_ch)</code> for implicit <code>nil</code>.</li>
+<li><code>std:generator</code> facade over compiler-managed generator handles/contexts.</li>
+<li><code>std:coroutine</code> facade over the same handle/context contract.</li>
+</ul>
+<h2 id="compiler-metadata">Compiler Metadata</h2>
+<p><code>oren meta</code>, <code>dump linked</code>, and embedded OBC metadata expose the current yield surface:</p>
+<ul>
+<li><code>contains_yield</code></li>
+<li><code>yield_lowering</code></li>
+<li><code>yield_lowering.lowering_v0</code></li>
+<li><code>yield_lowering.prepared_v0</code> for the ready bare-yield subset</li>
+<li><code>contains_yield_value</code></li>
+<li><code>yield_value_surface</code></li>
+<li><code>contains_yield_exchange</code></li>
+<li><code>yield_exchange_surface</code></li>
+</ul>
+<p>The metadata is intentionally factual. It does not claim a full caller-visible resume</p>
+<p>channel unless the explicit exchange helper/syntax is used.</p>
+<h2 id="backend-behavior">Backend Behavior</h2>
+<ul>
+<li>The bytecode backend consumes <code>prepared_v0</code> for the ready bare-yield subset.</li>
+<li>C and native currently execute the same shipped helper surface rather than the explicit</li>
+</ul>
+<p>  bytecode lowering path.</p>
+<ul>
+<li>Cross-backend verifier coverage exists for the current bare-yield, value-yield, and</li>
+</ul>
+<p>  exchange helper surfaces.</p>
+<h2 id="generator-facade">Generator Facade</h2>
+<p><code>std:generator</code> standardizes the worker shape:</p>
+<pre><code>worker(co, args_list)</code></pre>
+<p>Worker-facing exchange uses <code>yield [expr] in co</code>. Handle operations include <code>start</code>,</p>
+<p><code>next</code>, <code>send</code>, <code>is_started</code>, <code>is_done</code>, <code>current_step</code>, <code>return_value</code>, and <code>collect</code>.</p>
+<h2 id="coroutine-facade">Coroutine Facade</h2>
+<p><code>std:coroutine</code> exposes the matching coroutine-oriented operations: <code>start</code>, <code>resume</code>,</p>
+<p><code>next</code>, <code>send</code>, <code>on_finalize</code>, <code>on_close</code>, <code>close</code>, <code>cancel</code>, <code>request_cancel</code>,</p>
+<p><code>delegate</code>, <code>delegate_step</code>, state queries, terminal result/error access, and collection.</p>
+<h2 id="cancellation-contract">Cancellation Contract</h2>
+<ul>
+<li><code>request_cancel(target, reason)</code> records a sticky request.</li>
+<li><code>cancel(target, reason)</code> records that request and then forces deterministic close.</li>
+<li><code>is_cancel_requested(target)</code> and <code>cancel_reason(target)</code> expose state.</li>
+<li>The first request wins and propagates down the active delegated child chain.</li>
+</ul>
+<h2 id="current-blockers">Current Blockers</h2>
+<ul>
+<li>The generator/coroutine ABI is still rolling.</li>
+<li>Task-group policy factoring is blocked by a bytecode latency-sensitive live-runtime</li>
+</ul>
+<p>  preflight issue; do not route task-group runtime validation through <code>std:task</code> helpers</p>
+<p>  until that latency issue is removed.</p>
+<ul>
+<li>Future work should keep verifier coverage focused on observable backend parity rather</li>
+</ul>
+<p>  than adding large rolling-history docs.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#yield-generator-coroutine-current-state">Yield / Generator / Coroutine Current State</a>
+<a class="toc-l2" href="#shipped-surface">Shipped Surface</a>
+<a class="toc-l2" href="#compiler-metadata">Compiler Metadata</a>
+<a class="toc-l2" href="#backend-behavior">Backend Behavior</a>
+<a class="toc-l2" href="#generator-facade">Generator Facade</a>
+<a class="toc-l2" href="#coroutine-facade">Coroutine Facade</a>
+<a class="toc-l2" href="#cancellation-contract">Cancellation Contract</a>
+<a class="toc-l2" href="#current-blockers">Current Blockers</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

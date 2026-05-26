@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tasks - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="bleeding-edge-goals-and-current-tasks">Bleeding-Edge Goals and Current Tasks</h1>
+<p><strong>Last updated:</strong> 2026-05-26</p>
+<p>This file is the concise task view. Detailed implementation status lives in</p>
+<p><code>docs/STATUS.md</code>; dated investigation notes live in <code>project-doc/</code>.</p>
+<h2 id="goals">Goals</h2>
+<ul>
+<li>Deterministic execution with capability-gated effects across native, C, and AVM.</li>
+<li>Cross-backend semantic parity guarded by fixtures and targeted verification.</li>
+<li>Native performance approaching C on hot loops and allocation-heavy workloads.</li>
+<li>Production-grade runtime robustness: allocator, GC/reuse, scheduler, and effect domains.</li>
+<li>AVM portable bytecode suitable for sandboxed execution once embedding and release</li>
+</ul>
+<p>  gates are mature.</p>
+<ul>
+<li>Documentation and tooling that stay small enough to navigate quickly.</li>
+</ul>
+<h2 id="p0-w5">P0 / W5</h2>
+<ol>
+<li><strong>Runtime robustness and allocator correctness</strong></li>
+</ol>
+<ul>
+<li>Keep <code>make verify-runtime-robustness</code> and <code>make test</code> green.</li>
+<li>Treat GC/reuse/list-header integrity as a blocking production concern.</li>
+</ul>
+<ol>
+<li><strong>Native performance parity</strong></li>
+</ol>
+<ul>
+<li>Track hot-loop and allocation gates through the existing performance scripts.</li>
+<li>Do not retain local codegen probes unless profiles prove aggregate wall-time wins.</li>
+</ul>
+<ol>
+<li><strong>Tagged value convergence</strong></li>
+</ol>
+<ul>
+<li>Preserve cross-backend <code>oren_type_tag</code>, equality, truthiness, and panic parity.</li>
+<li>Continue migration through compatibility fixtures rather than unguarded ABI rewrites.</li>
+</ul>
+<h2 id="p1-w4">P1 / W4</h2>
+<ol>
+<li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
+</ol>
+<ul>
+<li>Current verdict: not production-ready for an iOS app.</li>
+<li>Required: iOS simulator/device static library or xcframework, stable C embedder API,</li>
+</ul>
+<p>     Swift/Objective-C smoke host, deterministic lifecycle/error handling, compiler and</p>
+<p>     stdlib OBC resource packaging, and CI coverage.</p>
+<ul>
+<li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>
+</ul>
+<ol>
+<li><strong>AVM full-suite manifest runner</strong></li>
+</ol>
+<ul>
+<li>Current <code>make test-avm</code> curated list passes, but wildcard <code>AVM_TESTS=&quot;tests/avm/*.oren&quot;</code></li>
+</ul>
+<p>     is not a valid release gate because some fixtures require specific env budgets,</p>
+<p>     expected errors, or backend policy.</p>
+<ul>
+<li>Add a manifest with fixture path, expected rc/error, env, capability policy,</li>
+</ul>
+<p>     deterministic mode, and release-gate inclusion.</p>
+<ol>
+<li><strong>Cross-backend parity gates</strong></li>
+</ol>
+<ul>
+<li>Expand only where current fixtures expose gaps.</li>
+<li>Keep bytecode/C/native behavior aligned before adding new user-visible surfaces.</li>
+</ul>
+<ol>
+<li><strong>Native scheduler / green-task integration</strong></li>
+</ol>
+<ul>
+<li>Keep syscall-first constraints and focused green/runtime gates.</li>
+<li>Do not treat flake-only probes as retained work unless they improve a default gate.</li>
+</ul>
+<ol>
+<li><strong>Reserve + unchecked push generalization</strong></li>
+</ol>
+<ul>
+<li>Continue from measured optimizer/list-int evidence only.</li>
+</ul>
+<h2 id="p2-w3">P2 / W3</h2>
+<ol>
+<li><strong>AVM allocation slabs, typed buffers, and list-int lowering</strong></li>
+</ol>
+<ul>
+<li>Important for performance, but not sufficient for production iOS readiness without</li>
+</ul>
+<p>     embedding/package/harness gates.</p>
+<ol>
+<li><strong>Deterministic AVM scheduler maturity</strong></li>
+</ol>
+<ul>
+<li>Continue budgeted child-universe scheduling and snapshot/restore work after the</li>
+</ul>
+<p>     release harness can prove current behavior.</p>
+<ol>
+<li><strong>Platform breadth</strong></li>
+</ol>
+<ul>
+<li>Keep x64 Linux/Windows and arm64 Linux bring-up behind focused compile/runtime gates.</li>
+</ul>
+<ol>
+<li><strong>Docs and source guardrails</strong></li>
+</ol>
+<ul>
+<li>No source file should exceed 2000 lines.</li>
+<li>Keep canonical docs concise; archive raw history in logs or focused project notes.</li>
+</ul>
+<h2 id="closed-do-not-repeat-families">Closed/Do-Not-Repeat Families</h2>
+<ul>
+<li>Do not re-open Mach-O resolver variants based on generic Oren maps, global sorting,</li>
+</ul>
+<p>  future-name rewrites, fixup-side sid lists, or nested bucket structures unless a new</p>
+<p>  profile proves they beat the retained first-byte bucket resolver.</p>
+<ul>
+<li>Do not route task-group runtime policy validation through <code>std:task</code> helpers until the</li>
+</ul>
+<p>  bytecode latency issue is removed.</p>
+<ul>
+<li>Do not treat runtime-native single-occurrence private helpers as dead code without</li>
+</ul>
+<p>  stage2 plus fixture-build proof; runtime bundle/rooting can depend on non-textual</p>
+<p>  reachability.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#bleeding-edge-goals-and-current-tasks">Bleeding-Edge Goals and Current Tasks</a>
+<a class="toc-l2" href="#goals">Goals</a>
+<a class="toc-l2" href="#p0-w5">P0 / W5</a>
+<a class="toc-l2" href="#p1-w4">P1 / W4</a>
+<a class="toc-l2" href="#p2-w3">P2 / W3</a>
+<a class="toc-l2" href="#closed-do-not-repeat-families">Closed/Do-Not-Repeat Families</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

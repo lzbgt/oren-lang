@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Language - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="oren-language">Oren Language</h1>
+<p><strong>Last updated:</strong> 2026-05-26</p>
+<p>This is the concise current language reference. Oren is rolling: code and fixtures are</p>
+<p>the execution source of truth when a detail matters.</p>
+<h2 id="implementation-map">Implementation Map</h2>
+<ul>
+<li>Lexer/tokens: <code>lib/compiler/token.oren</code>, <code>lib/compiler/lexer.oren</code></li>
+<li>Parser: <code>lib/compiler/parser_parse/</code></li>
+<li>AST constructors: <code>lib/compiler/ast.oren</code></li>
+<li>Build pipeline: <code>lib/compiler/compiler/040_build_pipeline.oren</code></li>
+<li>Module linking: <code>lib/compiler/compiler/020_modules_linking.oren</code></li>
+<li>C backend: <code>lib/compiler/transpiler.oren</code>, <code>lib/runtime.[ch]</code></li>
+<li>Native backend: <code>lib/compiler/arm64_*</code>, <code>lib/compiler/x64_*</code>, <code>lib/runtime_native/</code></li>
+<li>Bytecode backend: <code>lib/compiler/codegen_bytecode/</code>, <code>lib/avm/</code></li>
+</ul>
+<h2 id="program-shape">Program Shape</h2>
+<pre><code>fn main() {
+    print(&quot;hello&quot;)
+    exit(0)
+}
+
+main()</code></pre>
+<p>Oren files are modules. Top-level statements execute in order after compilation/linking.</p>
+<h2 id="values">Values</h2>
+<p>Current value families:</p>
+<ul>
+<li><code>nil</code></li>
+<li>booleans</li>
+<li>integers</li>
+<li>floats</li>
+<li>strings</li>
+<li>lists and list-int optimized paths</li>
+<li>maps</li>
+<li>first-class functions/closures</li>
+<li>typed buffers: u8/i32/i64/f32/f64</li>
+<li>generator/coroutine handles and contexts</li>
+<li>structured errors</li>
+</ul>
+<p>Backend value representations are not fully converged yet. Use <code>oren_type_tag</code> and the</p>
+<p>cross-backend parity fixtures as the behavioral contract rather than assuming identical</p>
+<p>physical representation across C/native/AVM.</p>
+<h2 id="variables-and-control-flow">Variables and Control Flow</h2>
+<pre><code>var x = 1
+x = x + 1
+
+if x &gt; 1 {
+    print(&quot;large&quot;)
+} else {
+    print(&quot;small&quot;)
+}
+
+while x &lt; 10 {
+    x = x + 1
+}
+
+for item in xs {
+    print(item)
+}</code></pre>
+<p>Blocks use braces. <code>var</code> introduces locals. Assignment updates existing bindings.</p>
+<h2 id="functions">Functions</h2>
+<pre><code>fn add(a, b) {
+    return a + b
+}
+
+var f = fn(x) {
+    return x * 2
+}</code></pre>
+<p>Closures are supported. Function/generic/lowering behavior is still rolling; use fixtures</p>
+<p>for exact edge cases.</p>
+<h2 id="modules">Modules</h2>
+<pre><code>import math &quot;std:math&quot;
+
+fn main() {
+    print(math.sqrt(9))
+}</code></pre>
+<p>Imports are resolved by the compiler/linker pipeline. <code>std:*</code> modules are shipped with</p>
+<p>the repo and remain part of the rolling stdlib surface.</p>
+<h2 id="errors">Errors</h2>
+<p>Structured errors use the current runtime helpers:</p>
+<ul>
+<li><code>oren_err(code, msg)</code></li>
+<li><code>oren_is_err(v)</code></li>
+<li><code>oren_err_code(v)</code></li>
+<li><code>oren_err_msg(v)</code></li>
+</ul>
+<p>Stdlib result helpers build on this convention. Cross-backend error behavior is guarded</p>
+<p>by parity fixtures, not by a frozen external ABI.</p>
+<h2 id="type-checks">Type Checks</h2>
+<p><code>oren_type_tag(v)</code> and <code>oren_type_name(v)</code> expose runtime type information. Native tagged</p>
+<p>value convergence is still in progress; parity fixtures define what is guaranteed today.</p>
+<p>Always-on scalar/nil safety: numeric and bool scalar comparisons with <code>nil</code> are rejected</p>
+<p>by the compiler. Check the dynamic value first, then cast:</p>
+<pre><code>var raw = cfg[&quot;timeout_ms&quot;]
+var timeout_ms = 1000
+if raw != nil {
+    timeout_ms = i64(raw)
+}</code></pre>
+<h2 id="typecheck-mode">Typecheck Mode</h2>
+<p><code>oren build --typecheck</code> is opt-in and conservative. It checks obvious invalid casts and</p>
+<p>annotated call/return mismatches where values are statically known. It is not a full</p>
+<p>inference/unification system.</p>
+<h2 id="yield-generators-and-coroutines">Yield, Generators, and Coroutines</h2>
+<p>Current shipped surfaces:</p>
+<ul>
+<li>bare <code>yield</code></li>
+<li><code>yield &lt;value&gt;</code></li>
+<li>explicit exchange: <code>yield expr in (yield_ch, resume_ch)</code></li>
+<li><code>std:generator</code></li>
+<li><code>std:coroutine</code></li>
+</ul>
+<p>The compiler records yield metadata and the bytecode backend consumes the current</p>
+<p>prepared bare-yield subset. C/native execute the shared helper surface. The full</p>
+<p>generator/coroutine model is a rolling library/runtime contract, not a frozen language ABI.</p>
+<h2 id="capabilities-and-effects">Capabilities and Effects</h2>
+<p>The project tracks effect domains for filesystem, network, process, environment, time,</p>
+<p>randomness, and related runtime actions. AVM supports capability-gated deterministic</p>
+<p>fixtures and budgets. Native/C capability parity is guarded by dedicated contract tests.</p>
+<p>See <code>docs/CAPABILITY_RUNTIME_CONTRACT.md</code> and <code>docs/EFFECT_LEDGER_CONTRACT.md</code>.</p>
+<h2 id="cli">CLI</h2>
+<p>Common commands:</p>
+<pre><code>./oren build file.oren --backend c -o build/file_c
+./oren build file.oren --backend native -o build/file_native
+./oren build file.oren --backend bytecode -o build/file.obc
+./avm build/file.obc
+./oren meta file.oren
+./oren dump linked file.oren</code></pre>
+<h2 id="tests-as-spec">Tests as Spec</h2>
+<ul>
+<li>Native fixtures: <code>tests/native/fixtures/</code></li>
+<li>Module fixtures: <code>tests/modules/</code></li>
+<li>AVM fixtures: <code>tests/avm/</code></li>
+<li>Cross-backend fixtures: <code>tests/fixtures/</code></li>
+</ul>
+<p>When behavior changes, update the relevant fixture first, then update this document and</p>
+<p><code>docs/STATUS.md</code>.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#oren-language">Oren Language</a>
+<a class="toc-l2" href="#implementation-map">Implementation Map</a>
+<a class="toc-l2" href="#program-shape">Program Shape</a>
+<a class="toc-l2" href="#values">Values</a>
+<a class="toc-l2" href="#variables-and-control-flow">Variables and Control Flow</a>
+<a class="toc-l2" href="#functions">Functions</a>
+<a class="toc-l2" href="#modules">Modules</a>
+<a class="toc-l2" href="#errors">Errors</a>
+<a class="toc-l2" href="#type-checks">Type Checks</a>
+<a class="toc-l2" href="#typecheck-mode">Typecheck Mode</a>
+<a class="toc-l2" href="#yield-generators-and-coroutines">Yield, Generators, and Coroutines</a>
+<a class="toc-l2" href="#capabilities-and-effects">Capabilities and Effects</a>
+<a class="toc-l2" href="#cli">CLI</a>
+<a class="toc-l2" href="#tests-as-spec">Tests as Spec</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Current Implementation - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="current-implementation-map">Current Implementation Map</h1>
+<p><strong>Date:</strong> 2026-05-26</p>
+<h2 id="compiler">Compiler</h2>
+<ul>
+<li>Bootstrap CLI: <code>cmd/oren</code>.</li>
+<li>Self-hosted compiler: <code>lib/compiler/</code>.</li>
+<li>Build pipeline: <code>lib/compiler/compiler/040_build_pipeline.oren</code>.</li>
+<li>Parser: <code>lib/compiler/parser_parse/</code>.</li>
+<li>Module linking: <code>lib/compiler/compiler/020_modules_linking.oren</code>.</li>
+<li>Optimizers: <code>lib/compiler/optimizer*.oren</code>.</li>
+</ul>
+<h2 id="backends">Backends</h2>
+<ul>
+<li>C backend: <code>lib/compiler/transpiler.oren</code>, <code>lib/runtime.[ch]</code>.</li>
+<li>Native ARM64: <code>lib/compiler/arm64_*</code>.</li>
+<li>Native x64: <code>lib/compiler/x64_*</code>.</li>
+<li>Bytecode: <code>lib/compiler/codegen_bytecode/</code>.</li>
+<li>AVM runtime: <code>lib/avm/</code>.</li>
+</ul>
+<h2 id="runtime-and-stdlib">Runtime and Stdlib</h2>
+<ul>
+<li>Native runtime: <code>lib/runtime_native/</code>.</li>
+<li>C runtime: <code>lib/runtime.[ch]</code>.</li>
+<li>Stdlib: <code>lib/std/</code>.</li>
+<li>Capability and effect contracts: <code>docs/CAPABILITY_RUNTIME_CONTRACT.md</code>,</li>
+</ul>
+<p>  <code>docs/EFFECT_LEDGER_CONTRACT.md</code>.</p>
+<h2 id="verification">Verification</h2>
+<ul>
+<li>Fast smoke: <code>make test</code>.</li>
+<li>Curated broad gate: <code>make test-curated</code>.</li>
+<li>AVM: <code>make avm &amp;&amp; make test-avm</code>.</li>
+<li>Cross-backend parity: <code>make verify-backend-parity</code>.</li>
+<li>Runtime robustness: <code>make verify-runtime-robustness</code>.</li>
+<li>Docs site: <code>make docs-site</code>.</li>
+</ul>
+<h2 id="readiness">Readiness</h2>
+<p>Current readiness is tracked in <code>docs/STATUS.md</code>. The highest-priority blockers are</p>
+<p>runtime robustness, native performance/tagged-value convergence, AVM iOS embeddability,</p>
+<p>AVM fixture manifest coverage, and compiler-in-AVM packaging.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#current-implementation-map">Current Implementation Map</a>
+<a class="toc-l2" href="#compiler">Compiler</a>
+<a class="toc-l2" href="#backends">Backends</a>
+<a class="toc-l2" href="#runtime-and-stdlib">Runtime and Stdlib</a>
+<a class="toc-l2" href="#verification">Verification</a>
+<a class="toc-l2" href="#readiness">Readiness</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

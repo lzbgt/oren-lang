@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Start Here - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="oren-documentation">Oren Documentation</h1>
+<p><strong>Last updated:</strong> 2026-05-26</p>
+<p>This is the canonical entry point for current Oren documentation. It intentionally</p>
+<p>keeps only facts that match the current implementation and points historical or</p>
+<p>experimental notes to focused files.</p>
+<h2 id="what-oren-is">What Oren Is</h2>
+<p>Oren is a self-hosted language and compiler with three backend paths:</p>
+<ul>
+<li><strong>C backend</strong>: portable bootstrap path through a host C compiler.</li>
+<li><strong>Native backend</strong>: direct Mach-O/ELF/PE output; arm64 macOS is the most mature surface.</li>
+<li><strong>Bytecode backend</strong>: emits <code>.obc</code> bytecode for AVM, the deterministic capability-gated VM.</li>
+</ul>
+<p>The project is still in rolling mode. ABI/opcode stability, full native tagged-value</p>
+<p>convergence, AVM production embedding, and full Tier-1 platform maturity are not</p>
+<p>declared stable yet.</p>
+<h2 id="fast-navigation">Fast Navigation</h2>
+<ul>
+<li>Current readiness and priorities: <code>docs/STATUS.md</code></li>
+<li>Language manual and current semantics: <code>docs/LANGUAGE.md</code></li>
+<li>Compiler/runtime/backend design map: <code>docs/DESIGN.md</code></li>
+<li>Active TODOs: <code>TODOS.md</code></li>
+<li>AVM iOS readiness inspection: <code>project-doc/ios_avm_readiness_20260507.md</code></li>
+<li>Generated HTML docs site: <code>docs/site/index.html</code></li>
+</ul>
+<h2 id="common-commands">Common Commands</h2>
+<pre><code>./oretest
+./oretest --selfhost
+make
+make test
+make test-curated
+make avm
+make test-avm
+make docs-site</code></pre>
+<p><code>./oretest</code> is the preferred local entry point. <code>make test</code> maps to the fast native</p>
+<p>smoke path; use <code>make test-curated</code> for the broader capability/backend/surface bundle.</p>
+<h2 id="build-examples">Build Examples</h2>
+<pre><code># C backend
+./oren build examples/hello.oren --backend c -o build/hello_c
+
+# Native backend
+./oren build examples/hello.oren --backend native -o build/hello_native
+
+# Bytecode / AVM
+./oren build examples/hello.oren --backend bytecode -o build/hello.obc
+./avm build/hello.obc</code></pre>
+<h2 id="current-backend-reality">Current Backend Reality</h2>
+<ul>
+<li><strong>C backend</strong> is the portability/bootstrap baseline.</li>
+<li><strong>Native backend</strong> is fastest-moving; arm64 macOS has the strongest verification history.</li>
+<li><strong>AVM/OBC</strong> has deterministic execution, capability gates, budgets, VFS/VPROC/VNET</li>
+</ul>
+<p>  fixture surfaces, snapshots, and coroutine/generator fixtures, but remains below</p>
+<p>  production embedding maturity.</p>
+<ul>
+<li><strong>Compiler-in-AVM</strong> exists as fixture/bootstrap work, not as a packaged production</li>
+</ul>
+<p>  pipeline.</p>
+<h2 id="documentation-policy">Documentation Policy</h2>
+<p>Keep <code>docs/</code> concise and current. Put dated investigation evidence in <code>project-doc/</code></p>
+<p>only when it remains actionable. Avoid re-adding large rolling logs to canonical docs;</p>
+<p>use build logs for raw evidence and summarize only the retained conclusion.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#oren-documentation">Oren Documentation</a>
+<a class="toc-l2" href="#what-oren-is">What Oren Is</a>
+<a class="toc-l2" href="#fast-navigation">Fast Navigation</a>
+<a class="toc-l2" href="#common-commands">Common Commands</a>
+<a class="toc-l2" href="#build-examples">Build Examples</a>
+<a class="toc-l2" href="#current-backend-reality">Current Backend Reality</a>
+<a class="toc-l2" href="#documentation-policy">Documentation Policy</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

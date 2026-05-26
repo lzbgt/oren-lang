@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iOS AVM Readiness - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="ios-avm-readiness-inspection-2026-05-07">iOS AVM Readiness Inspection (2026-05-07)</h1>
+<h2 id="verdict">Verdict</h2>
+<p><code>libavm</code> and compiler-in-AVM are not production-ready for an iOS app in this repo.</p>
+<p>The current tree has useful AVM runtime and compiler-in-AVM fixture work, but it lacks the packaging, embeddability API, release gates, and iOS integration evidence needed for a production claim.</p>
+<h2 id="evidence">Evidence</h2>
+<ul>
+<li>iOS integration scan: <code>find . -maxdepth 5</code> for Xcode projects, Swift, ObjC/ObjC++, and iOS/iPhone names found only <code>native/orenui/cocoa/orenui_cocoa.m</code>; there is no iOS app target or libavm embedding tree in this repo.</li>
+<li>Build shape: <code>make avm</code> builds the host <code>avm</code> executable from <code>lib/avm/*.c</code> and <code>.inc</code> files. <code>file avm</code> reports a Mach-O arm64 executable; this is not a static library, framework, xcframework, Swift package, or Objective-C embedding API target.</li>
+<li>Runtime maturity: <code>docs/STATUS.md</code> and <code>docs/DESIGN.md</code> already mark the AVM backend as rolling: single-threaded, <code>malloc</code> heap, no GC, rolling opcode/ABI stability, rolling capability/budget fields, and deterministic scheduling still in progress.</li>
+<li>API/embedding risks: <code>lib/avm/avm.h</code> has fixed <code>MAX_GLOBALS</code>, <code>MAX_FRAMES</code>, and <code>AVM_STACK_SIZE</code>; allocator ownership in <code>lib/avm/avm_alloc.c</code> is held in global state; teardown in <code>lib/avm/avm_vm_core.c</code> aborts on leaked heap allocations. These are acceptable development guardrails but not a polished iOS embedder failure model.</li>
+<li>Curated AVM gate: <code>make avm &amp;&amp; make test-avm</code> passes in <code>build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log</code>.</li>
+<li>Full wildcard fixture gate: <code>make test-avm AVM_TESTS=&quot;tests/avm/*.oren&quot;</code> fails at <code>test_budget_io_fs</code> in <code>build/logs/make_test_avm_full_20260507_ios_avm_readiness_v1.log</code>. The fixture expects a small <code>AVM_IO_BYTES</code> budget, but the generic wildcard harness does not attach that per-fixture policy.</li>
+<li>Runtime budget behavior: a direct run with <code>AVM_IO_BYTES=128</code> returns <code>AVM error: code=9 msg=budget exceeded (io)</code> in <code>build/logs/avm_test_budget_io_fs_direct_20260507_ios_avm_readiness_v1.log</code>, so the immediate gap is harness/release manifest maturity, not this specific runtime budget check.</li>
+<li>Compiler-in-AVM status: <code>tests/avm/fixtures/compiler_in_avm_vfs_harness.oren</code> and <code>tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren</code> load <code>build/oren_compiler.obc</code> and optional <code>build/stdlib_bundle.obc</code> into nested AVM VFS fixtures, but they are not a default iOS release gate or packaged compiler-in-AVM product path.</li>
+</ul>
+<h2 id="reweighted-todos">Reweighted TODOs</h2>
+<ul>
+<li>P1/W4: Add an iOS libavm embeddability gate. Required outputs: iOS simulator/device static library or xcframework, stable C embedder API, Swift/ObjC smoke host, deterministic lifecycle/error handling, and CI coverage.</li>
+<li>P1/W4: Add an AVM fixture manifest runner. Required fields: fixture path, expected return code/error, required env budgets, backend policy, deterministic mode, host-effect expectations, and release-gate inclusion.</li>
+<li>P1/W4: Promote compiler-in-AVM packaging. Required outputs: stable <code>oren_compiler.obc</code> build target, stdlib OBC resource packaging, nested-AVM compile/run smoke in the default AVM release gate, and iOS resource-loading coverage.</li>
+<li>P1/W4: Harden embedder lifecycle. Remove CLI-only assumptions from the library path, make allocator ownership reentrant or explicitly single-VM guarded, and return structured errors instead of aborting on teardown leaks in production mode.</li>
+<li>P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.</li>
+</ul>
+<h2 id="verification-artifacts">Verification Artifacts</h2>
+<ul>
+<li>Curated AVM build/test: <code>build/logs/make_avm_20260507_ios_avm_readiness_v1.log</code>, <code>build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log</code>.</li>
+<li>Wildcard fixture failure: <code>build/logs/make_test_avm_full_20260507_ios_avm_readiness_v1.log</code>.</li>
+<li>Direct IO-budget run: <code>build/logs/avm_test_budget_io_fs_direct_20260507_ios_avm_readiness_v1.log</code>.</li>
+</ul>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#ios-avm-readiness-inspection-2026-05-07">iOS AVM Readiness Inspection (2026-05-07)</a>
+<a class="toc-l2" href="#verdict">Verdict</a>
+<a class="toc-l2" href="#evidence">Evidence</a>
+<a class="toc-l2" href="#reweighted-todos">Reweighted TODOs</a>
+<a class="toc-l2" href="#verification-artifacts">Verification Artifacts</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

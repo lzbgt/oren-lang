@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gas Surface - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="gas-surface-registry">Gas Surface Registry</h1>
+<p>This registry is the canonical inventory for gas counters that appear in Oren run JSON,</p>
+<p>semantic-diff reports, package-policy runner evidence, and calibration reports.</p>
+<p>The rule is intentionally strict: only AVM opcode gas is currently a conversion-ready</p>
+<p>canonical gas unit. Native counters are runtime evidence for native execution and native</p>
+<p>package-policy enforcement, but they are not AVM gas and must not be converted into AVM gas by</p>
+<p>a fixture-specific ratio.</p>
+<h2 id="registered-surfaces">Registered Surfaces</h2>
+<table>
+<tr><th>Surface</th><th>Backend</th><th>Unit scope</th><th>Unit family</th><th>Conversion status</th><th>Primary consumers</th></tr>
+<tr><td><code>avm_opcode_cost_v0</code></td><td><code>bytecode</code></td><td><code>avm_canonical</code></td><td>opcode dispatch</td><td><code>cross_arch_comparable=true</code>, <code>conversion_ready=true</code>, <code>avm_canonical=true</code></td><td>AVM <code>effect_ledger_summary</code>, semantic diff, calibration set</td></tr>
+<tr><td><code>native_loop_safepoint_tick_v0</code></td><td><code>native</code></td><td><code>backend_local</code></td><td>native loop safepoint</td><td><code>cross_arch_comparable=false</code>, <code>conversion_ready=false</code>, <code>avm_canonical=false</code></td><td>default native <code>OREN_NATIVE_RUN_JSON=1</code></td></tr>
+<tr><td><code>native_stmt_loop_tick_v0</code></td><td><code>native</code></td><td><code>backend_local</code></td><td>native statement or op</td><td><code>cross_arch_comparable=false</code>, <code>conversion_ready=false</code>, <code>avm_canonical=false</code></td><td>native package-policy gas budgets</td></tr>
+<tr><td><code>native_basic_block_tick_v0</code></td><td><code>native</code></td><td><code>backend_local</code></td><td>native lowering block</td><td><code>cross_arch_comparable=false</code>, <code>conversion_ready=false</code>, <code>avm_canonical=false</code></td><td>native gas-mode verification</td></tr>
+<tr><td><code>native_block_weighted_tick_v0</code></td><td><code>native</code></td><td><code>backend_local</code></td><td>native lowering block weight</td><td><code>cross_arch_comparable=false</code>, <code>conversion_ready=false</code>, <code>avm_canonical=false</code></td><td>native gas-mode verification</td></tr>
+<tr><td><code>native_dynamic_emitter_tick_v0</code></td><td><code>native</code></td><td><code>backend_local</code></td><td><code>fixed_width_instruction_span</code> on arm64, <code>emitted_byte_span</code> on x64</td><td><code>cross_arch_comparable=false</code>, <code>conversion_ready=false</code>, <code>avm_canonical=false</code></td><td>semantic diff and gas calibration</td></tr>
+</table>
+<h2 id="policy">Policy</h2>
+<ul>
+<li>Package-policy conversion from native gas to AVM gas is blocked until a validated conversion</li>
+</ul>
+<p>  contract exists.</p>
+<ul>
+<li><code>native_stmt_loop_tick_v0</code> can enforce native package <code>budget_gas</code>, but only as a native</li>
+</ul>
+<p>  statement/op plus loop-poll budget.</p>
+<ul>
+<li><code>native_dynamic_emitter_tick_v0</code> is runtime path-aware evidence for semantic diff, but it is</li>
+</ul>
+<p>  architecture-specific and remains non-conversion-ready.</p>
+<ul>
+<li><code>oren.avm-canonical-sidecar-gas.v0</code> is not a new gas surface. It is a semantic-diff</li>
+</ul>
+<p>  same-source sidecar that reuses the AVM canonical <code>avm_opcode_cost_v0</code> run for evidence while</p>
+<p>  preserving <code>package_policy_may_use=false</code>.</p>
+<ul>
+<li>The native package-policy runner&#x27;s <code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar</code> profile</li>
+</ul>
+<p>  can enforce package <code>budget_gas</code> from a package-bound <code>oren.avm-canonical-sidecar-gas.v0</code></p>
+<p>  certificate, reporting <code>runner_wall_avm_canonical_gas</code> and</p>
+<p>  <code>enforcement_profile=&quot;avm-sidecar&quot;</code>. The shared dispatcher exposes the same profile as</p>
+<p>  <code>scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar</code>, and</p>
+<p>  now defaults native runs to <code>auto</code> when no explicit profile or env override is present. <code>auto</code></p>
+<p>  selects that sidecar profile when the package declares <code>budget_gas</code>. This still is not a native</p>
+<p>  runtime gas conversion.</p>
+<ul>
+<li><code>instruction-equivalent</code> is a reserved native gas-accounting spelling. It must not alias any</li>
+</ul>
+<p>  current native surface until a real implementation and conversion contract exist.</p>
+<ul>
+<li>Calibration reports can record empirical ratios, but <code>oren.gas-surface-calibration.v0</code> and</li>
+</ul>
+<p>  <code>oren.gas-surface-calibration-set.v0</code> must keep those ratios out of enforcement.</p>
+<h2 id="avm-canonical-sidecar-evidence">AVM Canonical Sidecar Evidence</h2>
+<p>Semantic diff runs the same source through C, native, and OBC. The OBC leg can produce</p>
+<p><code>avm_opcode_cost_v0</code>, which is already AVM canonical and conversion-ready inside the AVM unit</p>
+<p>system. <code>oren.avm-canonical-sidecar-gas.v0</code> records that OBC value next to native backend-local</p>
+<p>gas for the same source/fixture, with <code>native_runtime_conversion=false</code>.</p>
+<p>That sidecar is useful for parity analysis because it gives every semantic-diff sample an AVM</p>
+<p>canonical gas certificate. Under semantic diff its scope is <code>semantic_diff_same_source_fixture</code>, so</p>
+<p>package policy must not use it. The native package-policy runner can opt into a stronger</p>
+<p><code>native_package_policy_same_source_artifact</code> sidecar with</p>
+<p><code>OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1</code>; that certificate is package-bound AVM evidence only when</p>
+<p>the bytecode sidecar runs with the same package budgets and matches native stdout/exit after run-JSON</p>
+<p>lines are removed, or when the sidecar itself reports AVM canonical gas budget exhaustion. Sidecar</p>
+<p>	records include source/native-artifact/sidecar-artifact SHA-256 identity hashes,</p>
+<p>	<code>program_args_sha256</code>, <code>package_policy_sha256</code>, <code>package_policy_declared</code>, normalized</p>
+<p>	stdout/stderr hashes, explicit sidecar <code>avm.run.v1</code> fields (<code>sidecar_run_json_present</code>,</p>
+<p>	<code>sidecar_run_json_schema</code>, <code>sidecar_run_json_status</code>, and <code>sidecar_run_json_error</code>),</p>
+<p>	explicit <code>same_run_stderr_equal</code> evidence,</p>
+<p>	concrete <code>native_exit_code</code> / <code>sidecar_exit_code</code> values, <code>certification_status</code>, non-blocking</p>
+<p><code>certification_warnings</code>, <code>certification_failure_reasons</code>, and</p>
+<p><code>package_policy_may_use_reason</code> so consumers can distinguish</p>
+<p>parity certificates, budget-exceeded certificates, and non-certified sidecar outcomes.</p>
+<p>Calibration-set and native instruction-surface decision reports preserve those identity hashes</p>
+<p>per sample and expose aggregate <code>avm_canonical_sidecar_identity_hashes_present_all</code> evidence.</p>
+<p>	They also preserve <code>avm_canonical_sidecar_input_binding_present_all</code>, with semantic-diff sidecars</p>
+<p>	bound to empty program args and no package policy while package-policy sidecars bind the declared</p>
+<p>	package policy and program args. They now also preserve</p>
+<p>	<code>avm_canonical_sidecar_run_json_ok_all</code> so report consumers can distinguish successful sidecar</p>
+<p>	<code>avm.run.v1</code> evidence from missing or non-certified sidecar runs.</p>
+<p>Verifier-only non-certified probes are auditable through <code>test_injection</code>; normal sidecar</p>
+<p>certificates must leave that field <code>null</code>, and the calibration-set / native instruction-surface</p>
+<p>decision reports preserve aggregate test-injection-free evidence for their semantic-diff sidecars.</p>
+<p>The native package-policy verifier covers both <code>stdout_suffix</code> as a certification failure and</p>
+<p><code>stderr_suffix</code> as a non-blocking warning path. It also covers <code>exit_code</code> as a certification failure</p>
+<p>for nonzero sidecar exits, preserving canonical gas evidence while forbidding package-policy use.</p>
+<p>It also covers <code>drop_run_json</code>, <code>schema</code>, <code>drop_gas_surface</code>, <code>zero_gas</code>, and <code>timeout</code> probes so missing,</p>
+<p>schema-mismatched, or nonpositive canonical run/gas metadata and sidecar timeouts are separately non-certified. It covers <code>run_error</code></p>
+<p>so structured non-gas AVM errors carry <code>sidecar_error</code> failure evidence instead of being flattened</p>
+<p>into generic exit mismatch. It also covers a <code>build_fail</code> probe so</p>
+<p>sidecar construction failure is reported as <code>certification_status=&quot;build_failed&quot;</code> with</p>
+<p><code>sidecar_build_failed</code>, not as a missing runner report. Native package failures before sidecar execution</p>
+<p>are reported as <code>certification_status=&quot;not_run_native_failed&quot;</code> with <code>native_exit_nonzero</code>, preserving</p>
+<p>the native exit instead of recasting it as a sidecar gas policy error.</p>
+<p>Budget-exceeded sidecar certificates prefer the structured AVM <code>avm.run.v1.error</code> object</p>
+<p>(<code>code=9</code>, <code>msg=&quot;budget exceeded (gas)&quot;</code>) over stderr text.</p>
+<p>The native package-policy guard also proves stderr text is not enough by combining a schema-mismatched</p>
+<p>sidecar run JSON with a stderr-only <code>budget exceeded (gas)</code> diagnostic; that evidence remains</p>
+<p><code>unavailable</code> until the canonical <code>avm.run.v1</code> schema and AVM gas surface are both certified.</p>
+<p><code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar</code>, dispatcher</p>
+<p><code>--gas-profile avm-sidecar</code> on <code>--backend native</code>, or the dispatcher default <code>auto</code> profile for a</p>
+<p>gas-budgeted package makes that certificate the runner&#x27;s gas enforcement profile. It still sets</p>
+<p><code>native_runtime_conversion=false</code> and uses AVM canonical <code>avm_opcode_cost_v0</code> units, not native</p>
+<p>backend-local gas units.</p>
+<h2 id="guards">Guards</h2>
+<p>Use these checks when changing gas accounting, run JSON, package policy, or semantic diff:</p>
+<pre><code>make verify-gas-surface-registry
+make verify-effect-ledger-contract
+make verify-backend-gas-surface-calibration-set
+make verify-backend-native-instruction-surface-decision
+make verify-native-gas-accounting-modes</code></pre>
+<p><code>make verify-gas-surface-registry</code> emits <code>oren.gas-surface-registry-check.v0</code> JSON under</p>
+<p><code>build/reports/</code> and verifies that the registry, runtime metadata, semantic-diff tooling, native</p>
+<p>package policy, and docs still agree on each surface&#x27;s canonicality and conversion status.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#gas-surface-registry">Gas Surface Registry</a>
+<a class="toc-l2" href="#registered-surfaces">Registered Surfaces</a>
+<a class="toc-l2" href="#policy">Policy</a>
+<a class="toc-l2" href="#avm-canonical-sidecar-evidence">AVM Canonical Sidecar Evidence</a>
+<a class="toc-l2" href="#guards">Guards</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

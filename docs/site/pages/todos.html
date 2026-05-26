@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TODOs - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="todos">TODOs</h1>
+<p>This file is a concise pointer for active reweighted work. Detailed historical status remains in <code>docs/STATUS.md</code>, and focused evidence notes live under <code>project-doc/</code>.</p>
+<h2 id="p1-w4-avm-ios-production-readiness">P1 / W4 - AVM iOS Production Readiness</h2>
+<ul>
+<li>Add an iOS libavm embeddability gate: iOS simulator/device static library or xcframework, stable C embedder API, Swift/Objective-C smoke host, deterministic lifecycle/error handling, and CI coverage.</li>
+<li>Add an AVM fixture manifest runner: fixture path, expected return code/error, required env budgets, backend policy, deterministic mode, host-effect expectations, and release-gate inclusion.</li>
+<li>Promote compiler-in-AVM packaging from fixture-only to release gate: stable <code>oren_compiler.obc</code> target, stdlib OBC resource packaging, nested-AVM compile/run smoke in the default AVM gate, and iOS resource-loading coverage.</li>
+<li>Harden libavm embedder lifecycle: remove CLI-only assumptions from the library path, make allocator ownership reentrant or explicitly single-VM guarded, and return structured errors instead of aborting on teardown leaks in production mode.</li>
+</ul>
+<p>Evidence and verdict: <code>project-doc/ios_avm_readiness_20260507.md</code>.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#todos">TODOs</a>
+<a class="toc-l2" href="#p1-w4-avm-ios-production-readiness">P1 / W4 - AVM iOS Production Readiness</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

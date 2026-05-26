@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="design-toolchain-language-compiler-runtime-avm">Design + Toolchain (Language + Compiler + Runtime + AVM)</h1>
+<p><strong>Last updated:</strong> 2026-04-11</p>
+<p>This document is the lean, canonical design + toolchain reference. It merges the former</p>
+<p>compiler/backend, runtime/stdlib, AVM, and toolchain/platform docs into one place.</p>
+<p>Scope: high-signal facts that remain true in rolling mode. For exact semantics,</p>
+<p>trust code + fixtures first (see <code>tests/</code> and <code>docs/STATUS.md</code>).</p>
+<p>---</p>
+<h2 id="system-overview-rolling">System overview (rolling)</h2>
+<p>Oren is a self-hosted language + compiler with three execution backends:</p>
+<ul>
+<li>C backend: portable bootstrap path via a host C toolchain.</li>
+<li>Native backend: direct Mach-O/ELF/PE output (Tier-1 intent).</li>
+<li>Bytecode backend (OBC): <code>.obc</code> for the AVM (deterministic, capability-gated VM).</li>
+</ul>
+<p>Design intent:</p>
+<ul>
+<li>Deterministic execution (agent-grade) with structured diagnostics.</li>
+<li>Capability-scoped effects (FS/NET/PROC/TIME/RNG/ENV).</li>
+<li>A path to compiler-in-AVM for sandboxed compilation.</li>
+</ul>
+<p>Rolling policy: ABI and opcodes can change until an explicit stabilization</p>
+<p>milestone is declared.</p>
+<p>---</p>
+<h2 id="compiler-pipeline-front-end-and-lowering">Compiler pipeline (front-end and lowering)</h2>
+<p>Primary pipeline entry: <code>lib/compiler/compiler/040_build_pipeline.oren</code>.</p>
+<p>Phases:</p>
+<p>1) Parse + AST: <code>lib/compiler/lexer.oren</code>, <code>lib/compiler/parser_parse/*</code>.</p>
+<p>2) Module linking + <code>@cfg</code> filtering: <code>lib/compiler/compiler/020_modules_linking.oren</code>.</p>
+<p>3) Lowering passes (impls, traits, generics, sugar) under <code>lib/compiler/</code>.</p>
+<p>4) Backend codegen (native / C / bytecode).</p>
+<p>Evidence:</p>
+<ul>
+<li>Parser and diagnostics fixtures: <code>tests/native/fixtures/</code>.</li>
+<li>Module behavior: <code>tests/modules/</code>.</li>
+</ul>
+<p>---</p>
+<h2 id="backend-outputs">Backend outputs</h2>
+<h3 id="c-backend-design-and-abi">C backend design and ABI</h3>
+<ul>
+<li>Emits C and builds via a host toolchain (used for stage0 -&gt; stage1).</li>
+<li>Entry: <code>lib/compiler/transpiler.oren</code> plus <code>lib/runtime.[ch]</code>.</li>
+</ul>
+<h3 id="native-backend-overview">Native backend overview</h3>
+<ul>
+<li>arm64: <code>lib/compiler/arm64_macho.oren</code>, <code>lib/compiler/arm64_elf.oren</code>.</li>
+<li>x64: <code>lib/compiler/x64_elf.oren</code>, <code>lib/compiler/x64_pe.oren</code>, <code>lib/compiler/x64_native_program.oren</code>.</li>
+<li>Runtime: <code>lib/runtime_native/</code> (syscall-first; avoid libc where practical).</li>
+</ul>
+<p>Entry semantics (rolling): entry stub -&gt; <code>native_runtime_init</code> -&gt; <code>__top_level__</code> -&gt; <code>main</code> (optional).</p>
+<p>Tier-1 intent targets: <code>arm64-macos</code>, <code>arm64-linux</code>, <code>x64-linux</code>, <code>x64-windows</code>.</p>
+<p>Dynamic linking (rolling):</p>
+<ul>
+<li>macOS: Mach-O binding opcodes + GOT stubs.</li>
+<li>Linux: dynamic ELF + <code>dlsym</code> resolver when at least one <code>--link</code>/<code>@ffi.link</code> is present.</li>
+<li>Windows: lazy <code>LoadLibraryA</code>/<code>GetProcAddress</code> stubs.</li>
+</ul>
+<p>Native tagged value representation is still converging; track gates in <code>docs/STATUS.md</code>.</p>
+<h3 id="native-runtime-layout">Native runtime layout</h3>
+<p>Native runtime layout details are enforced by the backend emitters and runtime</p>
+<p>helpers (literal pools, entry stub init, and runtime globals). Use source and</p>
+<p>fixtures as the ground truth: <code>lib/compiler/*</code> and <code>tests/native/fixtures/</code>.</p>
+<h3 id="native-backend-performance-playbook">Native backend performance playbook</h3>
+<p>Key levers for hot paths:</p>
+<ul>
+<li>Inty propagation and lowerings that avoid runtime helpers.</li>
+<li><code>LIST_INT</code> and typed buffer fast paths.</li>
+<li>Allocation fast paths (reuse, slabs).</li>
+</ul>
+<p>Gates live in <code>docs/STATUS.md</code>.</p>
+<h3 id="native-tagged-value-representation">Native tagged value representation</h3>
+<p>Tagged value convergence is still rolling. The canonical model and migration</p>
+<p>plan are tracked in <code>docs/STATUS.md</code>.</p>
+<p>Tagged value convergence plan (rolling, lean):</p>
+<ul>
+<li>Current facts (rolling):</li>
+<li>Native backend still has partial tagging; <code>oren_type_tag</code> is best-effort for scalars.</li>
+<li><code>nil</code>/<code>false</code>/<code>true</code> are runtime singleton values in native mode (not raw <code>0/1</code>).</li>
+<li>AVM uses a tagged <code>AvmValue</code> representation (<code>lib/avm/avm.h</code>).</li>
+<li>OrenType tag map (v0, shared across backends):</li>
+</ul>
+<table>
+<tr><th>Tag</th><th>Name</th><th>Notes</th></tr>
+<tr><td>0</td><td>nil</td><td>canonical null</td></tr>
+<tr><td>1</td><td>int</td><td>may also represent float in native v0</td></tr>
+<tr><td>2</td><td>float</td><td>defined in C/AVM</td></tr>
+<tr><td>3</td><td>bool</td><td><code>false</code>/<code>true</code> singletons</td></tr>
+<tr><td>4</td><td>string</td><td>UTF‑8 bytes</td></tr>
+<tr><td>5</td><td>py_obj</td><td>optional Python embedding</td></tr>
+<tr><td>6</td><td>list</td><td>list + list&lt;int&gt;</td></tr>
+<tr><td>7</td><td>map</td><td>deterministic ordered map</td></tr>
+<tr><td>8</td><td>func</td><td>first‑class function values</td></tr>
+<tr><td>9</td><td>u8_buf</td><td>typed buffer</td></tr>
+<tr><td>10</td><td>i32_buf</td><td>typed buffer</td></tr>
+<tr><td>11</td><td>i64_buf</td><td>typed buffer</td></tr>
+<tr><td>12</td><td>f32_buf</td><td>typed buffer</td></tr>
+<tr><td>13</td><td>f64_buf</td><td>typed buffer</td></tr>
+</table>
+<ul>
+<li>Backend mapping (rolling):</li>
+<li>C backend: <code>lib/runtime.h</code> <code>OrenType</code> enum is the source of truth.</li>
+<li>AVM: <code>AvmType</code> differs internally, but <code>oren_type_tag</code> maps to OrenType tags</li>
+</ul>
+<p>    (<code>AVM_VAL_LIST</code> and <code>AVM_VAL_LIST_INT</code> both map to tag 6).</p>
+<ul>
+<li>Native: <code>oren_type_tag</code> is best‑effort for scalars; container/buffer tags match</li>
+</ul>
+<p>    OrenType and list&lt;int&gt; reports tag 6 (list) until full tagging lands.</p>
+<ul>
+<li>Backend tag mapping table (rolling; <code>oren_type_tag</code> contract):</li>
+</ul>
+<table>
+<tr><th>OrenType tag</th><th>C backend (<code>lib/runtime.h</code>)</th><th>AVM (<code>lib/avm/avm.h</code>)</th><th>Native (<code>lib/runtime_native/130_printing.oren</code>)</th></tr>
+<tr><td>0 nil</td><td><code>OREN_TYPE_NIL</code></td><td><code>AVM_VAL_NIL</code></td><td><code>native_value_is_nil</code></td></tr>
+<tr><td>1 int</td><td><code>OREN_TYPE_INT</code></td><td><code>AVM_VAL_INT</code></td><td>best‑effort (scalars may report int)</td></tr>
+<tr><td>2 float</td><td><code>OREN_TYPE_FLOAT</code></td><td><code>AVM_VAL_FLOAT</code></td><td>may still report as tag 1</td></tr>
+<tr><td>3 bool</td><td><code>OREN_TYPE_BOOL</code></td><td><code>AVM_VAL_BOOL</code></td><td><code>native_value_is_false/true</code></td></tr>
+<tr><td>4 string</td><td><code>OREN_TYPE_STRING</code></td><td><code>AVM_VAL_STRING</code></td><td><code>oren_is_string</code></td></tr>
+<tr><td>5 py_obj</td><td><code>OREN_TYPE_PY_OBJ</code></td><td>n/a</td><td>n/a</td></tr>
+<tr><td>6 list</td><td><code>OREN_TYPE_LIST</code></td><td><code>AVM_VAL_LIST</code> + <code>AVM_VAL_LIST_INT</code></td><td><code>oren_is_list</code> + <code>oren_is_list_int</code></td></tr>
+<tr><td>7 map</td><td><code>OREN_TYPE_MAP</code></td><td><code>AVM_VAL_MAP</code></td><td><code>oren_is_map</code></td></tr>
+<tr><td>8 func</td><td><code>OREN_TYPE_FUNC</code></td><td><code>AVM_VAL_FUNC</code></td><td><code>oren_is_func</code></td></tr>
+<tr><td>9 u8_buf</td><td><code>OREN_TYPE_U8_BUF</code></td><td><code>AVM_VAL_BYTES</code> (u8 buffer)</td><td><code>oren_is_u8_buf</code></td></tr>
+<tr><td>10 i32_buf</td><td><code>OREN_TYPE_I32_BUF</code></td><td><code>AVM_VAL_I32_BUF</code></td><td><code>oren_is_i32_buf</code></td></tr>
+<tr><td>11 i64_buf</td><td><code>OREN_TYPE_I64_BUF</code></td><td><code>AVM_VAL_I64_BUF</code></td><td><code>oren_is_i64_buf</code></td></tr>
+<tr><td>12 f32_buf</td><td><code>OREN_TYPE_F32_BUF</code></td><td><code>AVM_VAL_F32_BUF</code></td><td><code>oren_is_f32_buf</code></td></tr>
+<tr><td>13 f64_buf</td><td><code>OREN_TYPE_F64_BUF</code></td><td><code>AVM_VAL_F64_BUF</code></td><td><code>oren_is_f64_buf</code></td></tr>
+</table>
+<ul>
+<li>Define a single <strong>canonical value model</strong> that can be represented in:</li>
+<li>native backend values,</li>
+<li>C backend values,</li>
+<li>AVM values (<code>AvmValue</code>).</li>
+<li>Pin the <strong>semantic invariants</strong> (truthiness, equality, type tests) and ensure</li>
+</ul>
+<p>  every backend honors the same edge cases.</p>
+<ul>
+<li>Stage the migration with <strong>compat shims</strong> so fixtures remain valid during</li>
+</ul>
+<p>  rollout (backend-by-backend switches).</p>
+<ul>
+<li>Add a fixture gate that asserts the <strong>same observed behavior</strong> across</li>
+</ul>
+<p>  native/C/OBC for representative mixed‑type programs.</p>
+<ul>
+<li>Fixtures must cover: truthiness, equality, type tags/names, container access,</li>
+</ul>
+<p>    and optional/dynamic value handling.</p>
+<ul>
+<li>Gate: parity fixtures + <code>make test</code> green on Tier‑1.</li>
+</ul>
+<h3 id="bytecode-backend-obc">Bytecode backend (OBC)</h3>
+<ul>
+<li>Compiler: <code>lib/compiler/codegen_bytecode/</code>.</li>
+<li>VM: <code>lib/avm/</code>.</li>
+<li>Output: <code>.obc</code> with constant pool + opcode stream.</li>
+</ul>
+<p>---</p>
+<h2 id="runtime-and-stdlib-layering">Runtime and stdlib layering</h2>
+<p>Layering model (rolling):</p>
+<p>1) Intrinsics: compiler/runtime-known primitives (string/list ops, alloc hooks).</p>
+<p>2) Builtin syslib: minimal shipped modules used by the toolchain (strings, bytes, math).</p>
+<p>3) Shipped stdlib: network, crypto, codecs, etc.</p>
+<p>4) Third-party libs.</p>
+<p>Constraints:</p>
+<ul>
+<li>Syscall-first for native runtime (no libc dependency for core services).</li>
+<li>Deterministic behavior for AVM and capability-scoped effects.</li>
+</ul>
+<p>Evidence:</p>
+<ul>
+<li>Runtime behavior: <code>tests/native/test_*</code> and fixtures under <code>tests/native/fixtures/</code>.</li>
+<li>Networking + TLS loopback gates: <code>tests/native/test_tls_loopback.oren</code>,</li>
+</ul>
+<p>  <code>tests/native/test_https_get_loopback.oren</code>, <code>tests/native/test_wss_echo_loopback.oren</code>.</p>
+<h3 id="tls-provider-availability">TLS provider availability</h3>
+<p>TLS is OS-dependent. Providers today live under <code>lib/std/net/</code>:</p>
+<ul>
+<li>macOS: SecureTransport.</li>
+<li>Linux: OpenSSL.</li>
+<li>Windows: Schannel/SSPI.</li>
+</ul>
+<p>When a provider is not implemented on a target, <code>tls.*</code> helpers return a structured error.</p>
+<h3 id="ui-v0-schema-headless-core">UI v0 schema (headless core)</h3>
+<p>Headless UI core is under <code>lib/std/ui/</code> with a JSON-like command schema used by</p>
+<p><code>std:ui/commands</code>. See <code>tests/avm/test_ui_*</code> for fixtures.</p>
+<p>---</p>
+<h2 id="avm-and-obc-bootstrap-spec-summary">AVM and OBC (bootstrap spec summary)</h2>
+<h3 id="value-model-rolling">Value model (rolling)</h3>
+<ul>
+<li><code>AvmValue</code> tagged union (<code>lib/avm/avm.h</code>).</li>
+<li>Stack-based VM (<code>lib/avm/avm_vm.c</code>).</li>
+<li>Heap: currently <code>malloc</code> for heap objects (no GC yet).</li>
+<li><code>LIST_INT</code> is an unboxed int64 list fast-path for tight loops.</li>
+</ul>
+<h3 id="obc-wire-format-today">OBC wire format (today)</h3>
+<ul>
+<li>Header: magic <code>0x0ECD</code>.</li>
+<li>Const count: <code>u16</code> little-endian.</li>
+<li>Constant pool:</li>
+<li><code>0</code>: NIL</li>
+<li><code>1</code>: INT (<code>u64</code> little-endian)</li>
+<li><code>2</code>: BOOL (<code>u8</code>)</li>
+<li><code>3</code>: FLOAT (<code>u64</code> float64 bit pattern)</li>
+<li><code>4</code>: STRING (<code>u16</code> length + bytes)</li>
+<li><code>8</code>: BYTES (<code>u32</code> length + bytes)</li>
+<li>Code: byte stream of 8-bit opcodes + operands.</li>
+</ul>
+<p>Rolling metadata conventions (unused BYTES constants appended by compiler):</p>
+<ul>
+<li><code>OREN_META\n1\n</code> + JSON metadata (same structure as native <code>--metadata</code>).</li>
+<li><code>OREN_OBX\n1\n</code> + binary export/reloc table used by the linker.</li>
+<li><code>OREN_SIG\n1\n</code> + ed25519 signature over a canonical hash (optional enforcement).</li>
+</ul>
+<h3 id="capability-model-rolling">Capability model (rolling)</h3>
+<ul>
+<li>Effects are grouped by domains (FS/NET/PROC/ENV/TIME/RNG).</li>
+<li>AVM can enforce domain allow-lists before execution.</li>
+<li>The current cross-runtime capability/profile contract is <code>docs/CAPABILITY_RUNTIME_CONTRACT.md</code>.</li>
+</ul>
+<p>Evidence:</p>
+<ul>
+<li>AVM smoke and determinism fixtures: <code>tests/avm/</code>.</li>
+</ul>
+<h3 id="avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly">AVM concurrency model (deterministic, syscall-first, aligned multiverse-friendly)</h3>
+<p>AVM runs single-threaded today. Deterministic scheduling and explicit budgeting</p>
+<p>remain rolling work items tracked in <code>docs/STATUS.md</code>.</p>
+<h3 id="avm-neon-mapping-plan-arm64-no-jit-first">AVM NEON mapping plan (arm64, no-JIT-first)</h3>
+<p>SIMD in AVM is gated and must remain deterministic. Tracking and coverage live</p>
+<p>in <code>docs/STATUS.md</code>.</p>
+<h3 id="avm-in-avm-multiverse-design-nested-virtual-universes">AVM in AVM multiverse design (nested virtual universes)</h3>
+<p>Nested AVM execution is supported behind capability gating (Domain AVM). The</p>
+<p>direction is deterministic, budgeted child universes with virtualized effects</p>
+<p>and snapshot/restore semantics. Track in <code>docs/STATUS.md</code>.</p>
+<p>---</p>
+<h2 id="performance-levers-rolling">Performance levers (rolling)</h2>
+<p>Hot-loop parity depends on compiler + runtime cooperation:</p>
+<ul>
+<li>Inty propagation and lowering to native arithmetic fast paths.</li>
+<li>Typed buffers and SIMD kernels (native + AVM).</li>
+<li>AVM TMP freelist (env-gated) for short-lived allocations.</li>
+<li>AVM list/list_int freelist (env-gated) for list payload churn.</li>
+</ul>
+<p>---</p>
+<h2 id="region-arena-allocation-plan-rolling">Region / arena allocation plan (rolling)</h2>
+<p>Goal: reduce GC overhead in hot loops by allocating short‑lived objects in a</p>
+<p>resettable arena instead of the GC heap.</p>
+<p>Constraints:</p>
+<ul>
+<li>Preserve determinism and safety (no use‑after‑free; no hidden lifetime extension).</li>
+<li>Work under current native runtime model (<code>oren_find_node</code> checks + list magic).</li>
+<li>Keep behavior identical across backends unless explicitly gated.</li>
+</ul>
+<p>Hot‑path selection (rolling):</p>
+<ul>
+<li>Auto mode targets syntactic <code>while</code>/<code>for</code> loops that allocate list/list_int in the loop body.</li>
+<li>Heuristics stay conservative: skip complex control flow or uncertain escapes.</li>
+<li>Explicit opt‑in/out annotations are supported: <code>@oren.arena</code> forces evaluation for</li>
+</ul>
+<p>  a loop, <code>@oren.arena_iter</code> forces per‑iteration push/pop, and <code>@oren.noarena</code></p>
+<p>  disables auto wrapping for that loop.</p>
+<p>Proposed compiler strategy (first slice):</p>
+<p>1) Escape analysis for loop‑local allocations (lists + list&lt;int&gt;):</p>
+<ul>
+<li>Only adopt arena for allocations that do not escape the loop body</li>
+</ul>
+<p>     (not returned, not stored in globals, not captured by closures).</p>
+<p>2) Lowering:</p>
+<ul>
+<li>Insert <code>arena_push()</code> at loop entry and <code>arena_pop()</code> at loop exit.</li>
+<li>Replace <code>oren_new_list</code> / <code>oren_new_list_int</code> + grow paths with</li>
+</ul>
+<p>     <code>arena_new_list</code> / <code>arena_new_list_int</code> (same layout; arena‑backed buffers).</p>
+<p>3) Fallback to GC heap when analysis is uncertain.</p>
+<p>4) Rolling auto‑mode (<code>OREN_ARENA_AUTO_LOOP=1</code>):</p>
+<ul>
+<li>Wraps simple loops and rewrites loop‑local list allocations only when usage</li>
+</ul>
+<p>    stays in safe list intrinsics (conservative escape check).</p>
+<ul>
+<li>Rewrites only <strong>unconditional top‑level</strong> <code>var</code>/<code>assign</code> list allocations in the loop</li>
+</ul>
+<p>    body (no conditional/nested rewrites).</p>
+<ul>
+<li>List literals (empty or non‑empty) are expanded to arena alloc + ordered pushes.</li>
+<li>Auto rewrites target <code>oren_arena_new_list_auto</code> / <code>oren_arena_new_list_int_auto</code></li>
+</ul>
+<p>    so runtime <code>OREN_ARENA_AUTO_LOOP=0</code> can force GC-backed list headers for debugging;</p>
+<p>    explicit <code>@oren.arena</code> stays on <code>oren_arena_new_list(_int)</code>.</p>
+<ul>
+<li><code>OREN_ARENA_PER_ITER=1</code> switches auto‑mode to per‑iteration push/pop instead of</li>
+</ul>
+<p>    loop‑scoped arenas (helps long‑lived loops).</p>
+<ul>
+<li>Heuristic: loops without a simple literal upper bound (e.g., <code>i &lt; 1000</code>) default</li>
+</ul>
+<p>    to per‑iteration mode to prevent unbounded arena growth. A const‑int bound stored</p>
+<p>    in a prior local (<code>var n = 1000; while i &lt; n</code>) is also treated as bounded if the</p>
+<p>    bound is not reassigned inside the loop.</p>
+<ul>
+<li>Requires the allocation to <strong>dominate first use</strong> in the loop body</li>
+</ul>
+<p>     (use‑before‑assign skips rewriting).</p>
+<ul>
+<li>Only wraps loops without <code>break</code>/<code>return</code>/<code>continue</code> in the same loop body</li>
+</ul>
+<p>     (nested-loop <code>continue</code> does not block the outer loop).</p>
+<ul>
+<li>When wrapped, <code>break</code>/<code>return</code>/<code>continue</code> in the same loop body get a pre‑exit</li>
+</ul>
+<p>     <code>arena_pop</code>; <code>continue</code> is allowed for <code>while</code> and <code>for</code> (post runs after pop).</p>
+<p>Runtime design (native):</p>
+<ul>
+<li>Arena allocates raw pages via <code>sys_mmap_private_anon</code>, with a bump pointer.</li>
+<li><code>arena_push()</code> records a mark; <code>arena_pop()</code> rewinds the bump pointer and</li>
+</ul>
+<p>  invalidates arena tracking for that generation.</p>
+<ul>
+<li>Arena objects must still be classified by <code>oren_find_node</code> so list operations</li>
+</ul>
+<p>  remain safe. This requires a <strong>separate arena tracking table</strong>:</p>
+<ul>
+<li>entries map <code>ptr -&gt; {kind, gen}</code> (not GC‑managed).</li>
+<li>on <code>arena_pop</code>, bump a generation counter and reset the table (lazily</li>
+</ul>
+<p>    ignore stale generations to avoid per‑iteration clears).</p>
+<p>Non‑goals (initial slice):</p>
+<ul>
+<li>Cross‑thread arenas or shared ownership.</li>
+<li>Replacing GC for long‑lived objects.</li>
+<li>Arena support for maps/structs until list paths are stable.</li>
+</ul>
+<p>Long‑lived loop policy (hybrid):</p>
+<ul>
+<li>Prefer <strong>per‑iteration sub‑arenas</strong> when escape analysis proves values do not</li>
+</ul>
+<p>  cross iteration boundaries (safe to reset each iteration).</p>
+<ul>
+<li>Any value that escapes the iteration (stored in outer scope, returned, or</li>
+</ul>
+<p>  captured) must allocate in the GC heap or an outer long‑lived arena; the</p>
+<p>  loop arena is reserved for iteration‑local temps.</p>
+<ul>
+<li>Otherwise use a <strong>loop‑scoped arena with budgets</strong>: enforce <code>OREN_ARENA_CAP_BYTES</code></li>
+</ul>
+<p>  and spill to GC once the cap is reached.</p>
+<ul>
+<li>For non‑terminating loops, <strong>epoch rotation</strong> reclaims arena pages at safe points</li>
+</ul>
+<p>  (spilled allocations remain in GC).</p>
+<p>Tracking/gates:</p>
+<ul>
+<li><code>alloc_churn</code>/<code>alloc_drop</code> should show near‑zero GC activity for arena‑eligible loops.</li>
+<li>Keep <code>make test</code> and Tier‑1 parity fixtures green.</li>
+<li>List&lt;int&gt; dot loops: consider an i32-range guard + SIMD dot kernel (accumulating in i64) to</li>
+</ul>
+<p>  unlock NEON/SSE2 parity without changing language semantics.</p>
+<ul>
+<li>Allocation fast paths (small object slabs, reuse).</li>
+</ul>
+<p>The weighted performance tracker and gates live in <code>docs/STATUS.md</code>.</p>
+<p>---</p>
+<h2 id="toolchain-platforms-build-verify-portability">Toolchain + Platforms (build, verify, portability)</h2>
+<h3 id="bootstrapping-stage0-stage2">Bootstrapping (stage0 -&gt; stage2)</h3>
+<p>Prereqs: Go 1.20+, a C compiler, and <code>make</code>.</p>
+<p>Canonical fast path:</p>
+<pre><code>make bootstrap   # stage0 Go compiler
+make            # stage1 self-hosted compiler
+make stage2     # stage2 self-host</code></pre>
+<p>Notes (rolling):</p>
+<ul>
+<li><code>make stage2</code> is the repo-supported entrypoint because the bootstrap backend can vary by host.</li>
+<li>Default: Stage 2 is bootstrapped via the native backend on Tier-1 hosts.</li>
+<li>Use the legacy C-backend bootstrap if needed: <code>make stage2 OREN_STAGE2_BACKEND=c</code>.</li>
+<li>Windows hosts default to MSVC <code>cl.exe</code> for C-backend builds. Stage0 and stage1 auto-configure</li>
+</ul>
+<p>  MSVC via <code>vswhere.exe</code> and <code>VsDevCmd.bat</code> / <code>vcvars64.bat</code> when <code>--cc</code> is not provided.</p>
+<ul>
+<li>Overrides: <code>OREN_MSVC_VSWHERE</code>, <code>OREN_MSVC_INSTALL_PATH</code>, <code>OREN_MSVC_DEV_CMD</code>.</li>
+<li>One-off MSVC commands: <code>scripts/win_msvc_cmd.cmd &lt;cmd&gt; ...</code>.</li>
+</ul>
+<h3 id="building-programs">Building programs</h3>
+<pre><code>./oren build your_prog.oren --backend {c|native|bytecode} -o build/your_prog</code></pre>
+<ul>
+<li><code>--platform &lt;arch&gt;-&lt;os&gt;</code> (or <code>OREN_PLATFORM</code>) selects the target; default is host.</li>
+<li>Default outputs when <code>-o/--out</code> is omitted:</li>
+<li><code>build/targets/&lt;arch&gt;-&lt;os&gt;/&lt;backend&gt;/&lt;basename&gt;</code> (native/c)</li>
+<li><code>build/targets/&lt;arch&gt;-windows/&lt;backend&gt;/&lt;basename&gt;.exe</code> (native/c, Windows)</li>
+<li><code>build/targets/avm/bytecode/&lt;basename&gt;.obc</code> (bytecode)</li>
+</ul>
+<p>When using <code>--emit-c</code>, avoid generating <code>*.oren.c</code> next to sources. Keep emitted C under</p>
+<p><code>build/</code> (or a temp dir) to prevent Makefile implicit-rule coupling.</p>
+<h3 id="build-caches-performance-critical">Build caches (performance-critical)</h3>
+<ul>
+<li>Build cache (default on): <code>build/cache</code> (override <code>--cache-dir</code> / <code>OREN_CACHE_DIR</code>, disable <code>OREN_NO_CACHE=1</code>).</li>
+<li>Native runtime AST cache (native backend):</li>
+<li>disable: <code>OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0</code></li>
+<li>override dir: <code>OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR=&lt;dir&gt;</code></li>
+<li>seed dir: <code>OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=&lt;dir&gt;</code> (use <code>make astbin-seed</code>)</li>
+<li>Native runtime object cache (native backend, Tier-1 throughput):</li>
+<li>disable: <code>OREN_NATIVE_RUNTIME_OBJ_CACHE=0</code></li>
+<li>override dir: <code>OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR=&lt;dir&gt;</code></li>
+<li>seed dir: <code>OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=&lt;dir&gt;</code> (use <code>make rtobj-seed</code>)</li>
+</ul>
+<h3 id="verification-fast-path">Verification (fast path)</h3>
+<p>Local (fast):</p>
+<ul>
+<li><code>make test</code></li>
+<li><code>make verify-native-quick</code></li>
+<li><code>make test-native-all</code></li>
+</ul>
+<p>Cross-arch Tier-1 matrix (when touching native/runtime/net):</p>
+<ul>
+<li><code>./scripts/verify_native_matrix.sh</code></li>
+<li><code>./scripts/verify_native_net_matrix.sh</code></li>
+<li><code>./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win</code></li>
+<li><code>./scripts/verify_stage0_windows_bootstrap.sh</code></li>
+</ul>
+<p>Local x64-linux execution (QEMU in the Linux container):</p>
+<ul>
+<li><code>make verify-x64-linux-qemu</code></li>
+<li>optional: <code>make verify-x64-linux-qemu-net</code>, <code>make verify-x64-linux-qemu-tls</code></li>
+</ul>
+<h3 id="remote-x64-workflow-win11-wsl2-optional">Remote x64 workflow (Win11 + WSL2 optional)</h3>
+<p>The x64 Tier-1 gates run on a remote Windows 11 host (WSL2 optional) via the scripts above.</p>
+<p>Prefer using the scripts; they own the copy/run logic and logging.</p>
+<p>Notes (rolling):</p>
+<ul>
+<li>Remote staging uses <code>G:\work</code> by default (C: is often full on the host).</li>
+<li>Logs are stored under <code>project-doc/remote/&lt;timestamp&gt;/...</code>.</li>
+<li>If the default host/proxy is unreachable, override via the script flags/env (see script headers).</li>
+</ul>
+<h3 id="portability-cfg">Portability + <code>@cfg</code></h3>
+<p>Rules of thumb:</p>
+<ul>
+<li>Keep <code>@cfg</code> at the boundary; tests should share a core and hide platform glue behind tiny <code>@cfg</code> wrappers.</li>
+<li>Prefer portable stdlib APIs over per-file <code>@cfg</code> where possible.</li>
+<li>Use <code>@cfg</code> primarily for FFI bindings, constants, and syscall layout differences.</li>
+</ul>
+<h3 id="avm-tooling">AVM tooling</h3>
+<p><code>./avm</code> includes disassembly and trace tooling. Run <code>./avm --help</code> for the current CLI surface.</p>
+<h3 id="cli-completion">CLI completion</h3>
+<p>Shell completion is generated by the compiler:</p>
+<ul>
+<li><code>oren completion bash</code></li>
+<li><code>oren completion zsh</code></li>
+</ul>
+<p>One-shot activation:</p>
+<pre><code>source &lt;(oren completion bash)</code></pre>
+<pre><code>source &lt;(oren completion zsh)</code></pre>
+<p>---</p>
+<h2 id="canonical-references">Canonical references</h2>
+<ul>
+<li>Entry point: <code>docs/README.md</code></li>
+<li>Language manual + spec: <code>docs/LANGUAGE.md</code></li>
+<li>Status, tracker, feature matrix: <code>docs/STATUS.md</code></li>
+<li>Sources of truth: <code>tests/</code> and <code>lib/</code></li>
+</ul>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#design-toolchain-language-compiler-runtime-avm">Design + Toolchain (Language + Compiler + Runtime + AVM)</a>
+<a class="toc-l2" href="#system-overview-rolling">System overview (rolling)</a>
+<a class="toc-l2" href="#compiler-pipeline-front-end-and-lowering">Compiler pipeline (front-end and lowering)</a>
+<a class="toc-l2" href="#backend-outputs">Backend outputs</a>
+<a class="toc-l3" href="#c-backend-design-and-abi">C backend design and ABI</a>
+<a class="toc-l3" href="#native-backend-overview">Native backend overview</a>
+<a class="toc-l3" href="#native-runtime-layout">Native runtime layout</a>
+<a class="toc-l3" href="#native-backend-performance-playbook">Native backend performance playbook</a>
+<a class="toc-l3" href="#native-tagged-value-representation">Native tagged value representation</a>
+<a class="toc-l3" href="#bytecode-backend-obc">Bytecode backend (OBC)</a>
+<a class="toc-l2" href="#runtime-and-stdlib-layering">Runtime and stdlib layering</a>
+<a class="toc-l3" href="#tls-provider-availability">TLS provider availability</a>
+<a class="toc-l3" href="#ui-v0-schema-headless-core">UI v0 schema (headless core)</a>
+<a class="toc-l2" href="#avm-and-obc-bootstrap-spec-summary">AVM and OBC (bootstrap spec summary)</a>
+<a class="toc-l3" href="#value-model-rolling">Value model (rolling)</a>
+<a class="toc-l3" href="#obc-wire-format-today">OBC wire format (today)</a>
+<a class="toc-l3" href="#capability-model-rolling">Capability model (rolling)</a>
+<a class="toc-l3" href="#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly">AVM concurrency model (deterministic, syscall-first, aligned multiverse-friendly)</a>
+<a class="toc-l3" href="#avm-neon-mapping-plan-arm64-no-jit-first">AVM NEON mapping plan (arm64, no-JIT-first)</a>
+<a class="toc-l3" href="#avm-in-avm-multiverse-design-nested-virtual-universes">AVM in AVM multiverse design (nested virtual universes)</a>
+<a class="toc-l2" href="#performance-levers-rolling">Performance levers (rolling)</a>
+<a class="toc-l2" href="#region-arena-allocation-plan-rolling">Region / arena allocation plan (rolling)</a>
+<a class="toc-l2" href="#toolchain-platforms-build-verify-portability">Toolchain + Platforms (build, verify, portability)</a>
+<a class="toc-l3" href="#bootstrapping-stage0-stage2">Bootstrapping (stage0 -&gt; stage2)</a>
+<a class="toc-l3" href="#building-programs">Building programs</a>
+<a class="toc-l3" href="#build-caches-performance-critical">Build caches (performance-critical)</a>
+<a class="toc-l3" href="#verification-fast-path">Verification (fast path)</a>
+<a class="toc-l3" href="#remote-x64-workflow-win11-wsl2-optional">Remote x64 workflow (Win11 + WSL2 optional)</a>
+<a class="toc-l3" href="#portability-cfg">Portability + `@cfg`</a>
+<a class="toc-l3" href="#avm-tooling">AVM tooling</a>
+<a class="toc-l3" href="#cli-completion">CLI completion</a>
+<a class="toc-l2" href="#canonical-references">Canonical references</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

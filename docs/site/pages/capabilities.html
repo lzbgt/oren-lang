@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capabilities - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="capability-runtime-contract">Capability Runtime Contract</h1>
+<p><strong>Last updated:</strong> 2026-04-12</p>
+<p>This is the current Oren v0 contract for capability-governed execution and native</p>
+<p>runtime profiles. It is a rolling engineering contract, not a security certification:</p>
+<p>the code and fixtures below define what users can rely on today, and <code>docs/STATUS.md</code></p>
+<p>tracks the gaps.</p>
+<h2 id="why-this-exists">Why This Exists</h2>
+<p>Oren&#x27;s product thesis is deterministic, capability-governed execution across native</p>
+<p>and AVM bytecode backends. That requires a stable vocabulary for:</p>
+<ul>
+<li>which host-effect domains exist;</li>
+<li>which runtime profile a native build injects;</li>
+<li>where compile-time capsule checks end and runtime allowlists begin;</li>
+<li>which verification targets prove the contract.</li>
+</ul>
+<h2 id="native-runtime-profiles">Native Runtime Profiles</h2>
+<p>Native builds select one injected runtime entry file:</p>
+<table>
+<tr><th>Profile</th><th>Entry file</th><th>Selection</th><th>Contract</th></tr>
+<tr><td><code>core</code> / <code>minimal</code></td><td><code>lib/runtime_native_core.oren</code></td><td><code>OREN_NATIVE_RUNTIME_PROFILE=core</code> or <code>minimal</code>; also the default <code>auto</code> seed profile</td><td>Smaller non-capsule runtime for typical programs. Includes capsule stubs, core typed buffers, file/path helpers, select, threads, yield, SHA-256, time, RNG, env helpers, and basic IO. Excludes heavy HPC typed-buffer kernels, TCP/UDP networking, <code>oren_net_get</code>, AVM bridge, and AVM-only helpers.</td></tr>
+<tr><td><code>full</code></td><td><code>lib/runtime_native.oren</code></td><td><code>OREN_NATIVE_RUNTIME_PROFILE=full</code>, or <code>auto</code> when the native compiler sees <code>std:net/*</code> imports</td><td>Full non-capsule runtime. Includes TCP/UDP, full typed-buffer/HPC surfaces, <code>oren_net_get</code>, and the AVM bridge. It uses permissive capsule stubs, not capsule syscall hooks.</td></tr>
+<tr><td><code>capsule</code></td><td><code>lib/runtime_native_capsule.oren</code></td><td><code>./oren build ... --backend native --capsule</code> or platform capsule mode</td><td>Capsule-enabled native runtime. Includes <code>runtime_native/040_capsule_core.oren</code>, FS/NET/proc/time syscall hooks, and the full-runtime networking, typed-buffer, and AVM bridge surfaces behind domain checks. Capsule selection takes precedence over <code>OREN_NATIVE_RUNTIME_PROFILE</code>.</td></tr>
+</table>
+<p>The arm64 and x64 native backends use the same selection policy. The seed builder</p>
+<p>mirrors it: <code>scripts/build_rtobj_seed.sh --capsule</code> seeds the capsule entry, while</p>
+<p><code>--runtime-profile &lt;full|core|minimal&gt;</code> seeds non-capsule entries.</p>
+<h2 id="capability-layers">Capability Layers</h2>
+<p>Oren has three capability layers today.</p>
+<ol>
+<li><strong>Native compile-time capsule layer.</strong></li>
+</ol>
+<p>   Capsule mode rejects calls to functions annotated with</p>
+<p>   <code>@cap.requires(domain=&quot;FS|NET|PROC|ENV|TIME|RNG&quot;)</code> unless the domain is enrolled</p>
+<p>   with <code>--cap-allow-domains</code> or <code>OREN_CAP_ALLOW_DOMAINS</code>. It also rejects direct</p>
+<p>   user <code>sys_*</code> intrinsics and <code>ffi</code> declarations in capsule mode.</p>
+<ol>
+<li><strong>Native runtime allowlist layer.</strong></li>
+</ol>
+<p>   The capsule runtime maps enrolled domains to concrete resource allowlists. For</p>
+<p>   example, enrolling <code>FS</code> permits the domain, but the runtime still checks mounts</p>
+<p>   or path prefixes before allowing host filesystem access.</p>
+<ol>
+<li><strong>AVM policy layer.</strong></li>
+</ol>
+<p>   The bytecode backend tags effectful native calls by AVM domain. The AVM can run</p>
+<p>   with allowed-domain masks, VirtualFS/VirtualNET/VirtualPROC-style fixtures,</p>
+<p>   budgets, snapshots, and record/replay surfaces for deterministic effect handling.</p>
+<h2 id="source-metadata-manifest">Source Metadata Manifest</h2>
+<p><code>oren meta &lt;file.oren&gt; -o out.meta.json</code> and native <code>--metadata</code> output now include</p>
+<p>normalized package/capability manifests in addition to the raw declaration attributes:</p>
+<pre><code>{
+  &quot;package&quot;: {
+    &quot;version&quot;: 1,
+    &quot;declared&quot;: false,
+    &quot;runtime_profile&quot;: null,
+    &quot;cap_allow_domains&quot;: [],
+    &quot;source_required_domains&quot;: [&quot;FS&quot;, &quot;TIME&quot;, &quot;RNG&quot;],
+    &quot;dependency_domain_union&quot;: [&quot;FS&quot;, &quot;TIME&quot;, &quot;RNG&quot;],
+    &quot;dependency_domain_union_status&quot;: &quot;source_attrs_only&quot;,
+    &quot;budgets&quot;: { &quot;version&quot;: 1, &quot;declared&quot;: false }
+  },
+  &quot;capabilities&quot;: {
+    &quot;version&quot;: 1,
+    &quot;required_domains&quot;: [&quot;FS&quot;, &quot;TIME&quot;, &quot;RNG&quot;],
+    &quot;functions&quot;: [
+      { &quot;name&quot;: &quot;read_fs&quot;, &quot;domains&quot;: [&quot;FS&quot;] },
+      { &quot;name&quot;: &quot;timed_random&quot;, &quot;domains&quot;: [&quot;TIME&quot;, &quot;RNG&quot;] }
+    ]
+  }
+}</code></pre>
+<p>This manifest is an introspection and tooling contract. It does not replace capsule</p>
+<p>enforcement: native capsule checks still reject disallowed annotated calls at build time,</p>
+<p>and the capsule runtime still applies resource allowlists at runtime. The manifest gives</p>
+<p>package tooling, build orchestrators, and agent-facing planners a deterministic way to see</p>
+<p>which source-level functions require host-effect domains before selecting a runtime profile</p>
+<p>or policy.</p>
+<p><code>dependency_domain_union</code> is intentionally marked <code>source_attrs_only</code>: it is the linked</p>
+<p>source-level <code>@cap.requires</code> union, not yet a full stdlib/runtime effect proof.</p>
+<p>Artifact <code>--manifest</code> output also carries a policy block that ties the artifact hash to</p>
+<p>the source capability domains and selected build-policy inputs:</p>
+<pre><code>{
+  &quot;version&quot;: 1,
+  &quot;kind&quot;: &quot;native&quot;,
+  &quot;sha256&quot;: &quot;...&quot;,
+  &quot;policy&quot;: {
+    &quot;version&quot;: 1,
+    &quot;backend&quot;: &quot;native&quot;,
+    &quot;runtime_profile&quot;: &quot;auto&quot;,
+    &quot;runtime_path&quot;: &quot;backend-auto&quot;,
+    &quot;capsule&quot;: false,
+    &quot;cap_allow_domains&quot;: [&quot;FS&quot;],
+    &quot;source_required_domains&quot;: [&quot;FS&quot;, &quot;TIME&quot;, &quot;RNG&quot;],
+    &quot;source_package&quot;: {
+      &quot;version&quot;: 1,
+      &quot;declared&quot;: true,
+      &quot;runtime_profile&quot;: &quot;capsule&quot;,
+      &quot;cap_allow_domains&quot;: [&quot;FS&quot;],
+      &quot;source_required_domains&quot;: [&quot;FS&quot;, &quot;TIME&quot;, &quot;RNG&quot;],
+      &quot;dependency_domain_union&quot;: [&quot;FS&quot;, &quot;TIME&quot;, &quot;RNG&quot;],
+      &quot;dependency_domain_union_status&quot;: &quot;source_attrs_only&quot;,
+      &quot;budgets&quot;: { &quot;version&quot;: 1, &quot;declared&quot;: true, &quot;cpu_ms&quot;: 10, &quot;gas&quot;: 100000 }
+    },
+    &quot;source_package_check&quot;: {
+      &quot;version&quot;: 1,
+      &quot;declared&quot;: true,
+      &quot;status&quot;: &quot;mismatch_observed&quot;,
+      &quot;runtime_profile&quot;: {
+        &quot;declared&quot;: &quot;capsule&quot;,
+        &quot;actual&quot;: &quot;none&quot;,
+        &quot;status&quot;: &quot;backend_not_runtime_profiled&quot;
+      },
+      &quot;cap_allow_domains&quot;: {
+        &quot;declared&quot;: [&quot;FS&quot;],
+        &quot;actual&quot;: [&quot;FS&quot;],
+        &quot;missing&quot;: [],
+        &quot;status&quot;: &quot;covers&quot;
+      },
+      &quot;budget_status&quot;: &quot;declared_not_enforced&quot;
+    },
+    &quot;budgets&quot;: { &quot;version&quot;: 1, &quot;declared&quot;: false }
+  }
+}</code></pre>
+<p><code>runtime_profile</code> is the build-policy request. In the native default <code>auto</code> mode, the</p>
+<p>backend still resolves the concrete runtime path from env/import heuristics, so</p>
+<p><code>runtime_path</code> is <code>backend-auto</code> rather than a false claim about a final path. Artifact-level</p>
+<p>budget policy is still explicit: the manifest-level <code>policy.budgets</code> object stays unset until a</p>
+<p>build/run policy has actually applied a budget, while <code>policy.source_package.budgets</code> records</p>
+<p>source-declared intent.</p>
+<p>Source files can now declare a first package-policy marker through a declaration</p>
+<p>attribute:</p>
+<pre><code>@oren.package(runtime_profile=&quot;capsule&quot;, cap_allow_domains=&quot;FS,ENV&quot;, budget_gas=100000, budget_heap_bytes=1048576, budget_wall_ms=1000)
+var package_policy = 1</code></pre>
+<p>That marker does not silently change the normal compiler backend or runtime profile. It</p>
+<p>normalizes into <code>metadata.package</code> and artifact <code>policy.source_package</code>. Artifact manifests</p>
+<p>also emit observe-only <code>policy.source_package_check</code> status so package tooling can compare</p>
+<p>declared intent against actual build flags and runtime-profile request without turning that</p>
+<p>comparison into enforcement by default. Strict builds can opt into rejection with</p>
+<p><code>--enforce-package-policy</code> or <code>OREN_ENFORCE_PACKAGE_POLICY=1</code>.</p>
+<p>Package-policy execution can now use one dispatcher:</p>
+<pre><code>scripts/run_package_policy.sh --backend avm path/to/source.oren -- --print-run-json
+scripts/run_package_policy.sh --backend native path/to/source.oren -- arg0 arg1
+scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar path/to/source.oren
+scripts/run_package_policy.sh --backend native --gas-profile auto path/to/source.oren</code></pre>
+<p>The AVM convenience wrapper remains:</p>
+<pre><code>scripts/run_avm_package_policy.sh path/to/source.oren -- --print-run-json</code></pre>
+<p>The AVM runner builds bytecode with <code>--manifest</code>, reads <code>policy.source_package</code>, and maps the</p>
+<p>current enforceable subset into AVM runtime policy: <code>runtime_profile=&quot;capsule&quot;</code> becomes</p>
+<p>capsule/deny-by-default execution with an AVM domain allowlist, <code>budget_gas</code> becomes <code>AVM_GAS</code>,</p>
+<p><code>budget_heap_bytes</code> becomes <code>AVM_MEM_BYTES</code>, and <code>budget_wall_ms</code> becomes <code>AVM_TIMEOUT_MS</code>.</p>
+<p>When callers pass <code>--print-run-json</code>, the AVM <code>effect_ledger_summary.budgets</code> bridge reports</p>
+<p>the applied gas, heap, and wall budget fields, including <code>wall_ms.limit</code> and <code>wall_ms.elapsed_ns</code>;</p>
+<p>the same <code>avm.run.v1</code> line also carries <code>status</code> and a structured <code>error</code> object for VM failures,</p>
+<p>so package sidecar enforcement can key off <code>AVM_ERR_BUDGET</code> / <code>budget exceeded (gas)</code> without</p>
+<p>scraping stderr diagnostics.</p>
+<p>Before execution, the runner also scans the bytecode policy surface and fails closed if</p>
+<p>static used AVM domains exceed the package allowlist. Existing stricter env budgets stay</p>
+<p>stricter. Broader env budgets are narrowed to the package declaration.</p>
+<p>The native runner consumes the same source package policy and builds with <code>--capsule</code>,</p>
+<p><code>--enforce-package-policy</code>, and package-derived <code>--cap-allow-domains</code>, then runs with</p>
+<p>matching <code>OREN_CAPSULE=1</code> / <code>OREN_CAP_ALLOW_DOMAINS</code>. It enforces <code>budget_wall_ms</code> with a</p>
+<p>process watchdog, enforces <code>budget_heap_bytes</code> by capturing native <code>OREN_NATIVE_RUN_JSON=1</code></p>
+<p>live-heap scan evidence after the process returns, and enforces <code>budget_cpu_ms</code> from child</p>
+<p>process resource usage when the host exposes that accounting surface. It now also enforces</p>
+<p><code>budget_gas</code> from the runtime-owned <code>native_stmt_loop_tick_v0</code> counter in native run JSON. The</p>
+<p>runner builds and runs gas-budgeted artifacts with <code>OREN_NATIVE_GAS_ACCOUNTING=stmt</code>. This is a</p>
+<p>scoped v0 statement+loop budget: backend statement/op boundaries charge one tick, backend loop poll</p>
+<p>sites charge their mask interval when they fire, and direct/manual runtime safepoint arrivals still</p>
+<p>charge one tick. It is not an instruction-equivalent gas model, so the native run JSON gas object</p>
+<p>also carries <code>surface.schema=&quot;oren.gas-surface.v0&quot;</code> with <code>id=&quot;native_stmt_loop_tick_v0&quot;</code>,</p>
+<p><code>unit_scope=&quot;backend_local&quot;</code>, <code>target_arch</code>, <code>unit_family=&quot;native_statement_or_op&quot;</code>,</p>
+<p><code>cross_arch_comparable=false</code>, <code>conversion_ready=false</code>, and <code>avm_canonical=false</code>. The accepted</p>
+<p>package-policy fine gas spellings remain <code>1</code>, <code>stmt</code>, and <code>statement</code>. The separate</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=basic-block</code>, <code>OREN_NATIVE_GAS_ACCOUNTING=block-weighted</code>, and</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter</code> spellings are runtime evidence surfaces</p>
+<p>(<code>native_basic_block_tick_v0</code>, <code>native_block_weighted_tick_v0</code>, and <code>native_dynamic_emitter_tick_v0</code>), while</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=instruction-equivalent</code> is intentionally reserved and does not alias any</p>
+<p>current fine-grained surface. It currently falls back to the default loop-safepoint surface until an</p>
+<p>actual instruction-equivalent implementation exists. Direct native-runner package-policy gas budgets</p>
+<p>use the <code>native-stmt</code> enforcement profile by default; the shared dispatcher defaults native runs to</p>
+<p>the <code>auto</code> profile unless an explicit profile or <code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE</code> override is</p>
+<p>already present. Setting</p>
+<p><code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar</code> or the dispatcher option</p>
+<p><code>scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar</code> switches <code>budget_gas</code></p>
+<p>enforcement to the package-bound AVM canonical sidecar profile instead of native statement gas; the</p>
+<p>runner then reports</p>
+<p><code>runner_wall_avm_canonical_gas</code>, <code>enforcement=&quot;avm-canonical-sidecar&quot;</code>, and</p>
+<p><code>enforcement_profile=&quot;avm-sidecar&quot;</code> in <code>oren.native-package-policy-run.v0</code>.</p>
+<p><code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=auto</code>, dispatcher <code>--gas-profile auto</code>, or the dispatcher</p>
+<p>native default resolves to <code>avm-sidecar</code> when the package declares <code>budget_gas</code> and otherwise stays on</p>
+<p><code>native-stmt</code>. When</p>
+<p><code>OREN_NATIVE_PACKAGE_POLICY_RUN_JSON=&lt;path&gt;</code> is set, it writes</p>
+<p><code>oren.native-package-policy-run.v0</code> JSON with runner-observed wall/gas/heap/CPU-budget evidence, the</p>
+<p>native capsule/domain policy that was applied, and any captured native runtime <code>effect_ledger</code></p>
+<p>summary. When <code>OREN_NATIVE_PACKAGE_POLICY_AVM_SIDECAR=1</code> is set, the native runner also builds a</p>
+<p>bytecode sidecar from the same source and package manifest, runs it under the declared package AVM</p>
+<p>budgets, checks stdout/exit parity with the native run after removing run-JSON lines, and records</p>
+<p><code>oren.avm-canonical-sidecar-gas.v0</code> with <code>policy_scope=&quot;native_package_policy_same_source_artifact&quot;</code>,</p>
+<p>source/native-artifact/sidecar-artifact SHA-256 identity hashes, <code>program_args_sha256</code>,</p>
+<p>	<code>package_policy_sha256</code>, <code>package_policy_declared</code>, normalized stdout/stderr hashes,</p>
+<p>	explicit sidecar <code>avm.run.v1</code> fields (<code>sidecar_run_json_present</code>, <code>sidecar_run_json_schema</code>,</p>
+<p>	<code>sidecar_run_json_status</code>, and <code>sidecar_run_json_error</code>),</p>
+<p>	explicit <code>same_run_stderr_equal</code> evidence, concrete</p>
+<p><code>native_exit_code</code> / <code>sidecar_exit_code</code> values, an explicit</p>
+<p><code>certification_status</code>, machine-readable non-blocking <code>certification_warnings</code>, and machine-readable</p>
+<p><code>certification_failure_reasons</code> for non-certified sidecar outcomes. The runner verifier now has an</p>
+<p>auditable stdout-mismatch probe (<code>test_injection=&quot;stdout_suffix&quot;</code>) proving non-certified sidecar</p>
+<p>evidence fails closed with <code>budget_unavailable</code> instead of being accepted by gas enforcement, plus a</p>
+<p>stderr-mismatch probe (<code>test_injection=&quot;stderr_suffix&quot;</code>) proving non-blocking warnings do not revoke a</p>
+<p>valid stdout/exit AVM gas certificate, and an exit-code mismatch probe</p>
+<p>(<code>test_injection=&quot;exit_code&quot;</code>) proving nonzero sidecar exits are non-certified rather than usable gas</p>
+<p>evidence. It also combines schema-mismatched run JSON with a stderr-only <code>budget exceeded (gas)</code></p>
+<p>diagnostic (<code>test_injection=&quot;stderr_suffix+schema&quot;</code>) and requires <code>budget_unavailable</code>, so stderr</p>
+<p>text cannot certify gas without canonical <code>avm.run.v1</code> evidence. It also probes dropped run JSON</p>
+<p>(<code>test_injection=&quot;drop_run_json&quot;</code>), dropped gas-surface metadata</p>
+<p>(<code>test_injection=&quot;drop_gas_surface&quot;</code>), schema-mismatched run JSON</p>
+<p>(<code>test_injection=&quot;schema&quot;</code>), zero gas (<code>test_injection=&quot;zero_gas&quot;</code>), and sidecar</p>
+<p>timeout (<code>test_injection=&quot;timeout&quot;</code>) so missing canonical gas evidence fails closed instead of becoming</p>
+<p>package-policy gas enforcement. It also probes structured non-gas AVM run errors</p>
+<p>(<code>test_injection=&quot;run_error&quot;</code>) and requires <code>certification_failure_reasons</code> to include</p>
+<p><code>sidecar_error</code> so consumers can distinguish them from plain exit-code mismatches. A sidecar build-failure</p>
+<p>probe (<code>test_injection=&quot;build_fail&quot;</code>) also emits a structured non-certified sidecar record with</p>
+<p><code>certification_status=&quot;build_failed&quot;</code> and <code>certification_failure_reasons=[&quot;sidecar_build_failed&quot;]</code></p>
+<p>instead of leaving consumers to infer policy state from a missing JSON report.</p>
+<p>If the native package run itself exits nonzero before sidecar execution, the runner preserves that</p>
+<p>native failure and records <code>certification_status=&quot;not_run_native_failed&quot;</code> with</p>
+<p><code>certification_failure_reasons=[&quot;native_exit_nonzero&quot;]</code>, rather than replacing the native exit with a</p>
+<p>generic gas-certification error.</p>
+<p>That sidecar is package-bound AVM canonical evidence, not a native runtime gas conversion; only the</p>
+<p>resolved <code>avm-sidecar</code> gas profile uses it as package <code>budget_gas</code> enforcement. The <code>auto</code> profile</p>
+<p>can resolve there for gas-budgeted packages.</p>
+<p>Native capsule runtime now also exposes a smaller runtime evidence surface:</p>
+<p><code>native_capsule_effect_gate_summary_json()</code> returns <code>oren.native-capsule-effect-gates.v0</code>,</p>
+<p>counting central domain-gate checks for <code>FS</code>, <code>NET</code>, <code>PROC</code>, <code>ENV</code>, <code>TIME</code>, and <code>RNG</code>.</p>
+<p><code>native_capsule_resource_check_summary_json()</code> returns <code>oren.native-capsule-resource-checks.v0</code>,</p>
+<p>counting selected resource allow/deny outcomes after successful domain gates, including FS</p>
+<p>path/mount checks, NET socket/endpoint/fd checks, and PROC exec/argv/wait/kill checks. These are</p>
+<p>intentionally not the full native effect ledger, but they give package-policy and semantic-diff</p>
+<p>tools runtime-owned counter surfaces instead of relying only on process watchdog evidence.</p>
+<p>Separately, native executables support <code>OREN_NATIVE_RUN_JSON=1</code> for a runtime-emitted</p>
+<p><code>oren.native-run.v0</code> stdout line. That bridge currently reports the native</p>
+<p><code>effect_ledger_summary</code> schema with monotonic <code>wall_ms.elapsed_ns</code>, native capsule</p>
+<p>domain-gate counters, resource-check counters, and a scanned <code>heap_bytes.used</code> value for live</p>
+<p>tracked native heap nodes.</p>
+<p>Gas is reported as <code>native_loop_safepoint_tick_v0</code> by default; backend loop poll sites charge their</p>
+<p>mask interval and direct/manual <code>oren_gc_safepoint()</code> arrivals charge one tick. When</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=stmt</code> is set for matching build/run invocations, the same field reports</p>
+<p><code>native_stmt_loop_tick_v0</code>, adding backend statement/op-boundary ticks to the loop-safepoint surface.</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=statement</code> is an exact synonym for <code>stmt</code>;</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=basic-block</code> reports <code>native_basic_block_tick_v0</code>, adding native lowering</p>
+<p>basic-block entry ticks plus loop-poll ticks as a distinct non-AVM-canonical surface.</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=block-weighted</code> reports <code>native_block_weighted_tick_v0</code>, adding static</p>
+<p>lowering-block weights plus loop-condition charges and loop-poll ticks.</p>
+<p><code>OREN_NATIVE_GAS_ACCOUNTING=dynamic-emitter</code> reports <code>native_dynamic_emitter_tick_v0</code>, adding runtime</p>
+<p>path-aware backend emitter span ticks. Every native</p>
+<p>gas object also includes an <code>oren.gas-surface.v0</code> descriptor with <code>unit_scope=&quot;backend_local&quot;</code>,</p>
+<p><code>target_arch</code>, <code>unit_family</code>, <code>runtime_path_aware=true</code>, <code>cross_arch_comparable=false</code>,</p>
+<p><code>conversion_ready=false</code>, and <code>avm_canonical=false</code>; dynamic-emitter&#x27;s <code>unit_family</code> is still</p>
+<p>architecture-specific (<code>fixed_width_instruction_span</code> on arm64, <code>emitted_byte_span</code> on x64). AVM run JSON marks</p>
+<p><code>avm_opcode_cost_v0</code> as the canonical opcode-dispatch gas target with <code>unit_scope=&quot;avm_canonical&quot;</code>,</p>
+<p><code>runtime_path_aware=true</code>, <code>cross_arch_comparable=true</code>, <code>conversion_ready=true</code>, and</p>
+<p>	<code>avm_canonical=true</code>; semantic diff now reports the native and AVM gas surfaces as non-comparable</p>
+<p>	when native cannot honestly target that unit, instead of treating positive counters as the same unit.</p>
+<p>Semantic diff also records <code>oren.avm-canonical-sidecar-gas.v0</code>: a same-source OBC sidecar using</p>
+<p>the AVM canonical <code>avm_opcode_cost_v0</code> value beside native runtime gas, with</p>
+<p><code>native_runtime_conversion=false</code> and <code>package_policy_may_use=false</code> because semantic-diff fixtures</p>
+<p>are analysis-only and not package/input-bound. The native package-policy runner now has that</p>
+<p>separate package-bound profile through <code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar</code>, direct</p>
+<p>dispatcher <code>--gas-profile avm-sidecar</code>, or the native dispatcher&#x27;s default <code>auto</code> profile for</p>
+<p>gas-budgeted packages; semantic diff fixtures remain analysis-only and still cannot grant</p>
+<p>package-policy authority. Both semantic-diff and package-policy sidecar records carry normalized</p>
+<p>stdout/stderr hashes plus <code>package_policy_may_use_reason</code>; semantic-diff sidecars explicitly bind</p>
+<p>empty program args and no package policy, while package-policy sidecars bind the exact program args</p>
+<p>	and declared package policy with stable SHA-256 fields. Consumers can audit whether the</p>
+<p>	certificate came from stdout/exit parity or from AVM canonical budget exhaustion, inspect the</p>
+<p>	sidecar <code>avm.run.v1</code> status/error that produced the gas evidence, and inspect</p>
+<p>	<code>certification_failure_reasons</code> when certification is unavailable.</p>
+<p>Verifier-only test injection is explicit in the sidecar record and must stay absent from normal</p>
+<p>semantic-diff/package-policy certificates.</p>
+<p>	<code>docs/GAS_SURFACE_REGISTRY.md</code> and <code>make verify-gas-surface-registry</code> keep that gas-surface inventory</p>
+<p>	and conversion status aligned with runtime JSON, semantic-diff, and package-policy evidence.</p>
+<p>The exact <code>instruction-equivalent</code> spelling is a reserved request and is guarded not</p>
+<p>to alias <code>stmt</code>, <code>basic-block</code>, <code>block-weighted</code>, or <code>dynamic-emitter</code>; future backend work can add that surface without</p>
+<p>changing the existing field shape. The current native instruction-surface decision guard also rejects</p>
+<p>whole-binary disassembly instruction counts as a conversion shortcut, because that count includes linked</p>
+<p>runtime text instead of dynamic per-executed-path gas; the guard now cross-checks that rejected static</p>
+<p>proxy against the current <code>native_dynamic_emitter_tick_v0</code> runtime surface. Native artifact cache keys include the normalized <code>OREN_NATIVE_GAS_ACCOUNTING</code></p>
+<p>mode, and the gas-mode verifier also uses <code>--no-cache</code>, so compile-time mode changes cannot be</p>
+<p>certified by stale cached artifacts.</p>
+<p>Package-policy JSON remains runner-observed wall/gas/heap/CPU evidence with captured runtime summaries,</p>
+<p>while direct <code>OREN_NATIVE_RUN_JSON=1</code> is runtime-observed evidence.</p>
+<h2 id="domain-contract">Domain Contract</h2>
+<table>
+<tr><th>Domain</th><th>Native capsule meaning</th><th>Runtime knobs / AVM notes</th></tr>
+<tr><td><code>CORE</code></td><td>Pure/core execution. Native capsule code does not require an explicit <code>CORE</code> allow bit.</td><td>AVM domain <code>CORE</code> is domain <code>0</code> and is used for pure/core VM calls.</td></tr>
+<tr><td><code>FS</code></td><td>Files, paths, stat/readdir, binary IO, and filesystem syscalls.</td><td>Native: <code>OREN_FS_MOUNTS</code>, <code>OREN_FS_MOUNTS_READ</code>, <code>OREN_FS_MOUNTS_WRITE</code>, <code>OREN_FS_ALLOW_PREFIXES</code>, <code>OREN_FS_ALLOW_READ_PREFIXES</code>, <code>OREN_FS_ALLOW_WRITE_PREFIXES</code>. AVM: FS domain plus VirtualFS and host-FS policy fixtures.</td></tr>
+<tr><td><code>NET</code></td><td>TCP/UDP/socket surfaces and network syscalls.</td><td>Native: <code>OREN_NET_ALLOW_LOOPBACK</code>, <code>OREN_NET_ALLOW_TCP_CONNECT</code>, <code>OREN_NET_ALLOW_TCP_LISTEN</code>, <code>OREN_NET_TCP_CONNECT_MAP</code>, <code>OREN_NET_TCP_LISTEN_MAP</code>. AVM: NET domain plus VirtualNET/multiverse fixtures.</td></tr>
+<tr><td><code>PROC</code></td><td>Process spawn, system shell helpers, process-related syscalls, threads, wait/kill ownership edges, and controlled child environment.</td><td>Native: <code>OREN_PROC_ALLOW_EXEC_PREFIXES</code>, <code>OREN_PROC_ALLOW_SYSTEM</code>, <code>OREN_PROC_INHERIT_ENV</code>, <code>OREN_PROC_ALLOW_ENV_KEYS</code>, <code>OREN_PROC_ALLOW_ARGV</code>. AVM: PROC domain plus VirtualPROC/multiverse fixtures.</td></tr>
+<tr><td><code>ENV</code></td><td>Environment variable reads.</td><td>Native: <code>oren_env</code> / <code>oren_getenv</code> are annotated with <code>ENV</code>; capsule-denied <code>oren_getenv</code> reads return <code>0</code>, so <code>oren_env</code> returns <code>nil</code>. AVM: ENV is domain <code>7</code> and is covered by record/replay env fixtures.</td></tr>
+<tr><td><code>TIME</code></td><td>Wall-clock, sleep, wait, and time-adjacent syscall hooks.</td><td>Native: <code>@cap.requires(domain=&quot;TIME&quot;)</code> plus capsule syscall hooks. AVM: TIME is domain <code>2</code>; deterministic and record/replay fixtures cover time behavior.</td></tr>
+<tr><td><code>RNG</code></td><td>Entropy and random-number APIs.</td><td>Native: <code>@cap.requires(domain=&quot;RNG&quot;)</code>. AVM: RNG is domain <code>3</code>; deterministic and record/replay fixtures cover random behavior.</td></tr>
+<tr><td><code>EXIT</code></td><td>Process or VM exit behavior.</td><td>Native process exit is not a native capsule allow bit today. AVM: EXIT is domain <code>6</code> so replay and nested VM runs can model exit as data instead of terminating the host process early.</td></tr>
+<tr><td><code>AVM</code></td><td>Nested bytecode execution from native full runtime through the AVM bridge.</td><td>Native: the bridge is in the full and capsule runtimes, not the core runtime. AVM: AVM is domain <code>8</code> for nested multiverse execution.</td></tr>
+</table>
+<h2 id="failure-model">Failure Model</h2>
+<ul>
+<li>Native compile-time capsule failures are hard build errors: disallowed annotated</li>
+</ul>
+<p>  calls, direct user <code>sys_*</code> intrinsics, and <code>ffi</code> declarations are rejected before</p>
+<p>  native code is emitted.</p>
+<ul>
+<li>Native runtime capsule failures fail closed. The runtime prints <code>CAPSULE DENY: ...</code></li>
+</ul>
+<p>  diagnostics with hints for the relevant domain or resource allowlist, then uses</p>
+<p>  the policy-specific failure path for that API.</p>
+<ul>
+<li>AVM failures are VM policy errors or structured VM results. Record/replay fixtures</li>
+</ul>
+<p>  must keep effect behavior deterministic and must not accidentally terminate the</p>
+<p>  host process from inside replayed or nested execution.</p>
+<h2 id="what-is-not-stable-yet">What Is Not Stable Yet</h2>
+<ul>
+<li>The native runtime profile is still selected by env/import heuristic, not enforced by</li>
+</ul>
+<p>  the package marker. The source package marker records declared intent for tooling only.</p>
+<ul>
+<li><code>policy.source_package_check</code> is observe-only by default. It can report <code>mismatch_observed</code>;</li>
+</ul>
+<p>  <code>--enforce-package-policy</code> / <code>OREN_ENFORCE_PACKAGE_POLICY=1</code> turns that status into a build</p>
+<p>  error.</p>
+<ul>
+<li>Capability budgets are now representable in package metadata. The AVM package-policy</li>
+</ul>
+<p>  runner applies the gas/heap/wall subset to concrete AVM runtime knobs; the native runner</p>
+<p>  applies capsule domains, wall-time process watchdogs, heap-budget checks from native-run JSON</p>
+<p>  live-heap scans, CPU-budget checks from child process resource usage where available, and a</p>
+<p>  scoped default <code>native_stmt_loop_tick_v0</code> gas check with explicit backend-local/non-conversion-ready</p>
+<p>  <code>oren.gas-surface.v0</code> metadata. The native runner can also opt into</p>
+<p>  <code>OREN_NATIVE_PACKAGE_POLICY_GAS_PROFILE=avm-sidecar</code>, which is also exposed as</p>
+<p>  <code>scripts/run_package_policy.sh --backend native --gas-profile avm-sidecar</code>. The dispatcher defaults</p>
+<p>  native runs to <code>auto</code>, and <code>--gas-profile auto</code> resolves to the same profile when <code>budget_gas</code> is</p>
+<p>  declared. That path enforces <code>budget_gas</code> with the package-bound AVM canonical sidecar</p>
+<p>  (<code>avm_opcode_cost_v0</code>) and reports</p>
+<p>  <code>runner_wall_avm_canonical_gas</code>. They are</p>
+<p>  not yet a complete native instruction-equivalent enforcement contract because the default native</p>
+<p>  package gas is still statement+loop-granular, and the newer <code>native_dynamic_emitter_tick_v0</code></p>
+<p>  semantic-diff surface is</p>
+<p>  runtime path-aware emitter evidence rather than AVM-opcode-equivalent gas. Native capsule</p>
+<p>  runtime knobs are domain/resource allowlists first.</p>
+<ul>
+<li>Full effect-ledger runtime emission is not complete yet. The target schema is pinned in</li>
+</ul>
+<p>  <code>docs/EFFECT_LEDGER_CONTRACT.md</code>, and AVM <code>--print-run-json</code> already emits a compact</p>
+<p>  <code>effect_ledger_summary</code> bridge so future native/AVM work uses one backend-comparable</p>
+<p>  vocabulary instead of ad-hoc logs. Native capsule builds now expose</p>
+<p>  <code>oren.native-capsule-effect-gates.v0</code> domain-gate counters and</p>
+<p>  <code>oren.native-capsule-resource-checks.v0</code> resource-check counters as native-side runtime evidence</p>
+<p>  bridges, but full native ordered effect and budget ledgers are still future work.</p>
+<ul>
+<li>The native and AVM policy vocabularies are converging but not fully unified. For</li>
+</ul>
+<p>  example, AVM has explicit <code>CORE</code>, <code>EXIT</code>, and <code>AVM</code> domains while native capsule</p>
+<p>  enrollment currently focuses on <code>FS</code>, <code>NET</code>, <code>PROC</code>, <code>ENV</code>, <code>TIME</code>, and <code>RNG</code>.</p>
+<h2 id="verification-map">Verification Map</h2>
+<p>Use these targets when changing the capability or runtime-profile contract:</p>
+<pre><code>make verify-capability-runtime-contract
+make verify-capability-metadata
+make verify-capability-manifest-policy
+make verify-effect-ledger-contract
+make verify-avm-effect-ledger-json
+make verify-avm-package-policy-runner
+make verify-native-package-policy-runner
+make verify-native-capsule-resource-checks
+make test-native-capsule-smoke-stage2
+make test-avm
+make verify-backend-parity
+make test</code></pre>
+<p>Important fixture families:</p>
+<ul>
+<li>Native capsule compile-time and runtime fixtures: <code>tests/native/fixtures/capsule_*.oren</code></li>
+</ul>
+<p>  and <code>tests/native/fixtures/capsule_runtime_*.oren</code>.</p>
+<ul>
+<li>Source-level capability metadata fixture: <code>tests/fixtures/meta_capabilities_src.oren</code>.</li>
+<li>AVM policy, record/replay, budget, snapshot, and multiverse fixtures: <code>tests/avm/</code>.</li>
+<li>Cross-backend semantic parity smokes: <code>make verify-backend-parity</code>.</li>
+<li>Contract drift guards: <code>scripts/verify_capability_runtime_contract.sh</code> and</li>
+</ul>
+<p>  <code>scripts/verify_capability_metadata.sh</code>.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#capability-runtime-contract">Capability Runtime Contract</a>
+<a class="toc-l2" href="#why-this-exists">Why This Exists</a>
+<a class="toc-l2" href="#native-runtime-profiles">Native Runtime Profiles</a>
+<a class="toc-l2" href="#capability-layers">Capability Layers</a>
+<a class="toc-l2" href="#source-metadata-manifest">Source Metadata Manifest</a>
+<a class="toc-l2" href="#domain-contract">Domain Contract</a>
+<a class="toc-l2" href="#failure-model">Failure Model</a>
+<a class="toc-l2" href="#what-is-not-stable-yet">What Is Not Stable Yet</a>
+<a class="toc-l2" href="#verification-map">Verification Map</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>
