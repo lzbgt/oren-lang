@@ -49,6 +49,10 @@ This file is the concise task view. Detailed implementation status lives in
      gate, broader compiler/stdlib surface coverage, and CI coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
+   - Follow-up distribution design: after the GUI bridge gate, publish a curated
+     signed OBC store repo with package manifests, hashes, capability declarations,
+     and iOS download/verify/run flow. Design note:
+     `project-doc/obc_store_distribution_design_20260529.md`.
 
 2. **AVM full-suite manifest runner**
    - Current `make test-avm` curated list passes, but wildcard `AVM_TESTS="tests/avm/*.oren"`

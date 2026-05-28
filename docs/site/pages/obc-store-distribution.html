@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OBC Store Distribution - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="obc-store-distribution.html">OBC Store Distribution</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="obc-store-distribution-design">OBC Store Distribution Design</h1>
+<p>Yes: after the GUI bridge is usable, a public Git repository can distribute OBC</p>
+<p>programs as app experiences. The iPhone app can download signed OBC packages,</p>
+<p>show metadata/screenshots, run them inside <code>libavm</code>, and map portable Oren APIs</p>
+<p>to app capabilities such as graphics, VFS, virtual network, virtual process,</p>
+<p>time, stdout, and future input mailboxes.</p>
+<p>The store should not distribute raw, unindexed <code>.obc</code> blobs as the main contract.</p>
+<p>It should distribute small signed packages with a machine-readable manifest,</p>
+<p>capability declaration, compatibility constraints, hashes, and optional assets.</p>
+<h2 id="product-model">Product Model</h2>
+<ul>
+<li><strong>Oren program author</strong> publishes source and release artifacts.</li>
+<li><strong>OBC store repo</strong> stores immutable package releases and a signed index.</li>
+<li><strong>iOS Note app</strong> fetches the index, filters compatible packages, downloads a</li>
+</ul>
+<p>  selected package, verifies signatures/hashes, and runs it through <code>libavm</code>.</p>
+<ul>
+<li><strong>libavm</strong> enforces package capabilities, budgets, deterministic or interactive</li>
+</ul>
+<p>  time mode, and bridge mailboxes.</p>
+<ul>
+<li><strong>Host adapter SDK</strong> renders GUI packages through <code>std:gfx</code> command buffers and</li>
+</ul>
+<p>  sends input events back to AVM.</p>
+<p>This makes the app experience similar to installing mini-programs, but the trust</p>
+<p>boundary stays strict: an OBC package is data executed by AVM under declared</p>
+<p>capabilities, not native iOS code.</p>
+<h2 id="package-layout">Package Layout</h2>
+<p>Recommended package directory:</p>
+<pre><code>packages/&lt;publisher&gt;/&lt;name&gt;/&lt;version&gt;/
+  package.json
+  program.obc
+  assets/
+    icon.png
+    screenshots/
+      iphone-01.png
+      iphone-02.png
+    data/
+      optional-fixture.bin
+  README.md
+  signature.minisig</code></pre>
+<p><code>program.obc</code> is the executable bytecode. Assets are optional and should be</p>
+<p>treated as VirtualFS inputs or host presentation metadata, not arbitrary host</p>
+<p>filesystem paths.</p>
+<h2 id="manifest-contract">Manifest Contract</h2>
+<p>Minimum <code>package.json</code> shape:</p>
+<pre><code>{
+  &quot;schema&quot;: &quot;oren.obc.package.v0&quot;,
+  &quot;name&quot;: &quot;plot-demo&quot;,
+  &quot;publisher&quot;: &quot;oren-labs&quot;,
+  &quot;version&quot;: &quot;0.1.0&quot;,
+  &quot;title&quot;: &quot;2D Plot Demo&quot;,
+  &quot;summary&quot;: &quot;Interactive scientific plotting example.&quot;,
+  &quot;entry_obc&quot;: &quot;program.obc&quot;,
+  &quot;obc_sha256&quot;: &quot;&lt;hex&gt;&quot;,
+  &quot;source_commit&quot;: &quot;&lt;optional-git-commit&gt;&quot;,
+  &quot;oren_min&quot;: &quot;0.0.rolling&quot;,
+  &quot;avm_abi_min&quot;: 3,
+  &quot;stdlib_bundle&quot;: &quot;stdlib_bundle.obc&quot;,
+  &quot;capabilities&quot;: [&quot;CORE&quot;, &quot;TIME&quot;, &quot;GFX&quot;, &quot;INPUT&quot;],
+  &quot;time_mode&quot;: &quot;interactive&quot;,
+  &quot;budgets&quot;: {
+    &quot;gas&quot;: 5000000,
+    &quot;heap_bytes&quot;: 33554432,
+    &quot;io_bytes&quot;: 1048576,
+    &quot;frame_commands&quot;: 20000
+  },
+  &quot;vfs_mounts&quot;: [
+    { &quot;virtual&quot;: &quot;/assets/&quot;, &quot;package_path&quot;: &quot;assets/data/&quot;, &quot;read_only&quot;: true }
+  ],
+  &quot;ui&quot;: {
+    &quot;kind&quot;: &quot;gfx&quot;,
+    &quot;canvas&quot;: { &quot;width&quot;: 390, &quot;height&quot;: 844, &quot;scale&quot;: &quot;device&quot; },
+    &quot;requires_input&quot;: true
+  }
+}</code></pre>
+<p>Rules:</p>
+<ul>
+<li>The manifest declares capabilities before execution. The host must never infer</li>
+</ul>
+<p>  permissions from code behavior after launch.</p>
+<ul>
+<li><code>time_mode</code> is explicit. Scientific simulations can use deterministic time;</li>
+</ul>
+<p>  interactive UI demos can use wall-clock <code>avm_embed_config_interactive_default</code>.</p>
+<ul>
+<li>Network should default to VirtualNET fixtures unless the app intentionally</li>
+</ul>
+<p>  supports a reviewed host-network bridge.</p>
+<ul>
+<li>Process execution should stay VirtualPROC on iOS.</li>
+<li>GUI packages require the future <code>GFX</code> capability and frame mailbox.</li>
+</ul>
+<h2 id="store-index">Store Index</h2>
+<p>The root repo should publish a compact signed index:</p>
+<pre><code>index.json
+index.minisig
+packages/...</code></pre>
+<p>Index shape:</p>
+<pre><code>{
+  &quot;schema&quot;: &quot;oren.obc.store.index.v0&quot;,
+  &quot;generated_at&quot;: &quot;2026-05-29T00:00:00Z&quot;,
+  &quot;packages&quot;: [
+    {
+      &quot;id&quot;: &quot;oren-labs/plot-demo&quot;,
+      &quot;version&quot;: &quot;0.1.0&quot;,
+      &quot;manifest&quot;: &quot;packages/oren-labs/plot-demo/0.1.0/package.json&quot;,
+      &quot;manifest_sha256&quot;: &quot;&lt;hex&gt;&quot;,
+      &quot;tags&quot;: [&quot;science&quot;, &quot;plot&quot;, &quot;gfx&quot;],
+      &quot;min_app&quot;: &quot;0.1.0&quot;
+    }
+  ]
+}</code></pre>
+<p>The app downloads <code>index.json</code>, verifies <code>index.minisig</code>, then downloads package</p>
+<p>manifests and OBC files by hash. A normal public GitHub repo is enough for the</p>
+<p>first curated store because package count is small and immutable releases are</p>
+<p>easy to audit. Later, the same schema can be served through CDN mirrors.</p>
+<h2 id="ios-app-flow">iOS App Flow</h2>
+<ol>
+<li>Fetch signed <code>index.json</code>.</li>
+<li>Filter packages by <code>avm_abi_min</code>, required capabilities, app version, and GUI</li>
+</ol>
+<p>   support.</p>
+<ol>
+<li>Download <code>package.json</code>, <code>program.obc</code>, and selected assets.</li>
+<li>Verify manifest hash, OBC hash, and package signature.</li>
+<li>Create an <code>AvmEmbedConfig</code>.</li>
+<li>Apply capabilities and budgets from the manifest.</li>
+<li>Use deterministic default config for reproducible/headless packages, or</li>
+</ol>
+<p>   <code>avm_embed_config_interactive_default(...)</code> for wall-clock UI packages.</p>
+<ol>
+<li>Inject package assets into VirtualFS with <code>avm_embed_vfs_put(...)</code>.</li>
+<li>Run OBC on an AVM worker thread, not the iOS main thread.</li>
+<li>For GUI packages, attach the graphics mailbox to the host adapter SDK view.</li>
+<li>Surface stdout, result, errors, and capability-denial diagnostics in the app UI.</li>
+</ol>
+<h2 id="gui-dependency">GUI Dependency</h2>
+<p>Without the GUI bridge, an OBC store can still distribute command-line or</p>
+<p>calculation packages, but the iPhone user experience is limited to input forms,</p>
+<p>stdout, files, and result values.</p>
+<p>With the GUI bridge ready, OBC packages become visible app experiences:</p>
+<ul>
+<li>scientific plots;</li>
+<li>calculators and notebooks;</li>
+<li>simulations;</li>
+<li>educational animations;</li>
+<li>small 2D/3D demos;</li>
+<li>data viewers.</li>
+</ul>
+<p>The Oren code still uses portable APIs such as <code>std:gfx</code>, <code>std:input</code>,</p>
+<p><code>std:time</code>, <code>std:fs</code>, and <code>std:net</code>. The iOS app only supplies adapters and</p>
+<p>capabilities.</p>
+<h2 id="security-boundary">Security Boundary</h2>
+<ul>
+<li>OBC packages are untrusted by default.</li>
+<li>Every host effect requires an explicit capability.</li>
+<li>Package signatures prove publisher identity; OBC hashes prove artifact</li>
+</ul>
+<p>  integrity.</p>
+<ul>
+<li>The app should refuse packages with unknown schema versions or unsupported AVM</li>
+</ul>
+<p>  ABI requirements.</p>
+<ul>
+<li>Runtime budgets must be enforced by AVM, not by UI convention.</li>
+<li>Host filesystem/network/process access should remain unavailable unless a</li>
+</ul>
+<p>  reviewed bridge explicitly implements it.</p>
+<h2 id="release-gates">Release Gates</h2>
+<p>Before publishing an official public OBC store:</p>
+<ol>
+<li><code>make verify-libavm-ios</code> proves iOS device/simulator linkage and app-style</li>
+</ol>
+<p>   OBC execution.</p>
+<ol>
+<li>The graphics bridge has a bytecode fixture, host C smoke, and iOS adapter</li>
+</ol>
+<p>   smoke.</p>
+<ol>
+<li>A package verifier validates manifests, hashes, signatures, capabilities, and</li>
+</ol>
+<p>   budget bounds.</p>
+<ol>
+<li>The iOS Note app can download a signed fixture package, verify it, run it,</li>
+</ol>
+<p>   render one GUI frame if applicable, and report failure diagnostics.</p>
+<ol>
+<li>The stdlib bundle manifest records which modules are available to store</li>
+</ol>
+<p>   packages and why excluded modules are excluded.</p>
+<h2 id="initial-public-repo-shape">Initial Public Repo Shape</h2>
+<p>Suggested public repository:</p>
+<pre><code>oren-obc-store/
+  README.md
+  index.json
+  index.minisig
+  schemas/
+    package.v0.schema.json
+    index.v0.schema.json
+  packages/
+    oren-labs/
+      hello/
+      plot-demo/
+      calculator/
+  tools/
+    verify_store.py
+    pack_obc.py</code></pre>
+<p>Start with a tiny curated store. Do not accept third-party packages until the</p>
+<p>signature, review, package verifier, and app install UX are stable.</p>
+<h2 id="decision">Decision</h2>
+<p>Create the public OBC store after the GUI bridge reaches its first release gate.</p>
+<p>Until then, design the package/index schema and verifier inside this repo so the</p>
+<p>iOS app integration can be tested with local fixture packages first.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#obc-store-distribution-design">OBC Store Distribution Design</a>
+<a class="toc-l2" href="#product-model">Product Model</a>
+<a class="toc-l2" href="#package-layout">Package Layout</a>
+<a class="toc-l2" href="#manifest-contract">Manifest Contract</a>
+<a class="toc-l2" href="#store-index">Store Index</a>
+<a class="toc-l2" href="#ios-app-flow">iOS App Flow</a>
+<a class="toc-l2" href="#gui-dependency">GUI Dependency</a>
+<a class="toc-l2" href="#security-boundary">Security Boundary</a>
+<a class="toc-l2" href="#release-gates">Release Gates</a>
+<a class="toc-l2" href="#initial-public-repo-shape">Initial Public Repo Shape</a>
+<a class="toc-l2" href="#decision">Decision</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

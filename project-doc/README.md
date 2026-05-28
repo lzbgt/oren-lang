@@ -9,6 +9,7 @@ Canonical current docs live in `docs/`.
 
 - `current_implementation_20260526.md` - compact current implementation map.
 - `avm_ios_graphics_design_20260529.md` - AVM-to-iOS graphics command-buffer and Metal host design.
+- `obc_store_distribution_design_20260529.md` - public signed OBC package/store design for iOS app experiences.
 - `ios_avm_readiness_20260507.md` - AVM/iOS production readiness inspection.
 - `yield_coroutine_lowering_20260422.md` - current yield/generator/coroutine boundary.
 - `repo_inspection_20260404.md` - current repo map.

@@ -21,6 +21,7 @@ DOCS = [
     ("Current Implementation", "project-doc/current_implementation_20260526.md", "current-implementation"),
     ("iOS AVM Readiness", "project-doc/ios_avm_readiness_20260507.md", "ios-avm-readiness"),
     ("AVM iOS Graphics", "project-doc/avm_ios_graphics_design_20260529.md", "avm-ios-graphics"),
+    ("OBC Store Distribution", "project-doc/obc_store_distribution_design_20260529.md", "obc-store-distribution"),
     ("Yield / Coroutine", "project-doc/yield_coroutine_lowering_20260422.md", "yield-coroutine"),
 ]
 

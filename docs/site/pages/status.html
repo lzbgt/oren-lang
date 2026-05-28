@@ -27,6 +27,7 @@
 <a href="current-implementation.html">Current Implementation</a>
 <a href="ios-avm-readiness.html">iOS AVM Readiness</a>
 <a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="obc-store-distribution.html">OBC Store Distribution</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
     <main class="content">
@@ -100,6 +101,12 @@
 </ul>
 <p>  <code>build/plugins/oren.obc</code>, runs the compiler <code>.obc</code> inside a child AVM universe</p>
 <p>  with VirtualFS stdlib resources, extracts <code>out.obc</code>, and runs that bytecode.</p>
+<ul>
+<li>OBC distribution design is documented in</li>
+</ul>
+<p>  <code>project-doc/obc_store_distribution_design_20260529.md</code>: after the GUI bridge</p>
+<p>  release gate, a public signed OBC store repo can distribute app experiences</p>
+<p>  that the iOS app downloads, verifies, and runs through <code>libavm</code>.</p>
 <ul>
 <li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
 </ul>

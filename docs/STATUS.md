@@ -64,6 +64,10 @@ Facts from the 2026-05-28 implementation pass:
 - `make verify-libavm-ios` also builds `build/plugins/stdlib_bundle.obc` and
   `build/plugins/oren.obc`, runs the compiler `.obc` inside a child AVM universe
   with VirtualFS stdlib resources, extracts `out.obc`, and runs that bytecode.
+- OBC distribution design is documented in
+  `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge
+  release gate, a public signed OBC store repo can distribute app experiences
+  that the iOS app downloads, verifies, and runs through `libavm`.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;
