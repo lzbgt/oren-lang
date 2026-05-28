@@ -49,6 +49,34 @@ The right split is:
 
 ## Proposed Architecture
 
+### 0. Host Burden Boundary
+
+The host app is the OS translator, but Oren should reduce host burden by making that
+translation narrow and data-driven. The portable contract should be:
+
+```text
+Oren program -> std:gfx/std:ui/std:input APIs -> libavm validated mailboxes -> host adapters
+```
+
+Oren owns the meaning of portable operations such as `plot`, `line`, `mesh`, `text`,
+`pointer_down`, and `resize`. `libavm` owns capability checks, budgets, schema/version
+validation, deterministic storage, and typed frame/input queues. The host owns only
+device-specific adapters: iOS maps frames to Metal/`MTKView`, macOS to Metal/AppKit,
+Windows to Direct3D or CPU fallback, Android to Vulkan/OpenGL ES/Canvas, and so on.
+
+This means each host app should not reimplement Oren semantics. It should implement a
+small conformance-targeted adapter for stable command/event schemas, plus lifecycle and
+permission handling required by the OS.
+
+To make that practical, ship host conformance assets with the feature:
+
+- schema files for frame and input payloads;
+- golden AVM fixtures that publish known frames and consume known events;
+- a reference CPU rasterizer for 2D geometry-only verification;
+- sample Swift/Objective-C iOS, macOS, and Windows adapters;
+- capability and budget tests for oversized frames, unsupported schema versions, and
+  missing graphics permission.
+
 ### 1. Graphics Domain and Frame Mailbox
 
 Add an AVM graphics capability domain, separate from FS/NET/PROC. The VM may create a

@@ -90,6 +90,27 @@
 </ul>
 <p>  needs a typed frame/event channel.</p>
 <h2 id="proposed-architecture">Proposed Architecture</h2>
+<h3 id="0-host-burden-boundary">0. Host Burden Boundary</h3>
+<p>The host app is the OS translator, but Oren should reduce host burden by making that</p>
+<p>translation narrow and data-driven. The portable contract should be:</p>
+<pre><code>Oren program -&gt; std:gfx/std:ui/std:input APIs -&gt; libavm validated mailboxes -&gt; host adapters</code></pre>
+<p>Oren owns the meaning of portable operations such as <code>plot</code>, <code>line</code>, <code>mesh</code>, <code>text</code>,</p>
+<p><code>pointer_down</code>, and <code>resize</code>. <code>libavm</code> owns capability checks, budgets, schema/version</p>
+<p>validation, deterministic storage, and typed frame/input queues. The host owns only</p>
+<p>device-specific adapters: iOS maps frames to Metal/<code>MTKView</code>, macOS to Metal/AppKit,</p>
+<p>Windows to Direct3D or CPU fallback, Android to Vulkan/OpenGL ES/Canvas, and so on.</p>
+<p>This means each host app should not reimplement Oren semantics. It should implement a</p>
+<p>small conformance-targeted adapter for stable command/event schemas, plus lifecycle and</p>
+<p>permission handling required by the OS.</p>
+<p>To make that practical, ship host conformance assets with the feature:</p>
+<ul>
+<li>schema files for frame and input payloads;</li>
+<li>golden AVM fixtures that publish known frames and consume known events;</li>
+<li>a reference CPU rasterizer for 2D geometry-only verification;</li>
+<li>sample Swift/Objective-C iOS, macOS, and Windows adapters;</li>
+<li>capability and budget tests for oversized frames, unsupported schema versions, and</li>
+</ul>
+<p>  missing graphics permission.</p>
 <h3 id="1-graphics-domain-and-frame-mailbox">1. Graphics Domain and Frame Mailbox</h3>
 <p>Add an AVM graphics capability domain, separate from FS/NET/PROC. The VM may create a</p>
 <p>bounded frame command buffer only when that domain is enabled.</p>
@@ -236,6 +257,7 @@ fn main() {
 <a class="toc-l2" href="#source-facts">Source Facts</a>
 <a class="toc-l2" href="#non-goals">Non-Goals</a>
 <a class="toc-l2" href="#proposed-architecture">Proposed Architecture</a>
+<a class="toc-l3" href="#0-host-burden-boundary">0. Host Burden Boundary</a>
 <a class="toc-l3" href="#1-graphics-domain-and-frame-mailbox">1. Graphics Domain and Frame Mailbox</a>
 <a class="toc-l3" href="#2-oren-stdlib-surface">2. Oren Stdlib Surface</a>
 <a class="toc-l3" href="#3-ios-host-rendering">3. iOS Host Rendering</a>
