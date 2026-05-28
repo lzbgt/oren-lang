@@ -241,7 +241,7 @@ fn native_alloc_index_get(ptr) {
                 idx = iadd(idx, 1) & mask
                 continue
             }
-            if ptr_get(iadd(slot, 40)) != native_node_magic() {
+            if (ptr_get(iadd(slot, 40)) - native_node_magic()) != 0 {
                 // Corrupted/alien entry: tombstone it so future probes skip it.
                 if bad_ptr != 0 {
                     var slot_ptr = ptr_get(slot)

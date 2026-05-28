@@ -51,6 +51,7 @@
 </ol>
 <ul>
 <li>Keep <code>make verify-runtime-robustness</code> and <code>make test</code> green.</li>
+<li>2026-05-29: native quick <code>Error 139</code> is fixed; runtime identity checks now avoid recursive string-aware equality.</li>
 <li>Treat GC/reuse/list-header integrity as a blocking production concern.</li>
 </ul>
 <ol>
@@ -118,9 +119,8 @@
 </ul>
 <p>     fractional positive-base, infinity edge, and negative-base real-domain cases.</p>
 <ul>
-<li>Gate app-visible additions through AVM bytecode fixtures first, then native/C</li>
+<li>Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.</li>
 </ul>
-<p>     parity once the existing native quick <code>Error 139</code> baseline is cleared.</p>
 <ol>
 <li><strong>Native scheduler / green-task integration</strong></li>
 </ol>

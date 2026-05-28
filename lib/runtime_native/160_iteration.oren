@@ -343,8 +343,8 @@ fn oren_string_eq(a, b) {
     // Safety (native backend):
     // Values are not tagged at runtime; never call `strcmp` on non-strings.
     // `native_is_string_ptr` is a safe predicate (tracked STRING or embedded cstr0 literal).
-    if oren_is_string(a) != true { return false }
-    if oren_is_string(b) != true { return false }
+    if native_is_string_ptr(a) == 0 { return false }
+    if native_is_string_ptr(b) == 0 { return false }
     return strcmp(a, b) == 0
 }
 

@@ -124,6 +124,7 @@ Working evidence:
 
 1. **Runtime robustness**
    - Keep allocator, GC/reuse, green runtime, and capability gates trustworthy.
+   - 2026-05-29: native quick `Error 139` is fixed; runtime identity checks now avoid recursive string-aware equality.
    - Verification entry: `make verify-runtime-robustness` plus `make test`.
 
 2. **Performance parity**

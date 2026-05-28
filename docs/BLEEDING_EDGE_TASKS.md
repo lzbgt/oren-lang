@@ -19,6 +19,7 @@ This file is the concise task view. Detailed implementation status lives in
 
 1. **Runtime robustness and allocator correctness**
    - Keep `make verify-runtime-robustness` and `make test` green.
+   - 2026-05-29: native quick `Error 139` is fixed; runtime identity checks now avoid recursive string-aware equality.
    - Treat GC/reuse/list-header integrity as a blocking production concern.
 
 2. **Native performance parity**
@@ -61,8 +62,7 @@ This file is the concise task view. Detailed implementation status lives in
    - Expand `std:math` toward C/C++ mathlib coverage without host-libm dependency.
    - Current retained surface includes `pow` / `power` for integer, negative,
      fractional positive-base, infinity edge, and negative-base real-domain cases.
-   - Gate app-visible additions through AVM bytecode fixtures first, then native/C
-     parity once the existing native quick `Error 139` baseline is cleared.
+   - Gate app-visible additions through AVM bytecode fixtures first, then native/C parity.
 
 5. **Native scheduler / green-task integration**
    - Keep syscall-first constraints and focused green/runtime gates.

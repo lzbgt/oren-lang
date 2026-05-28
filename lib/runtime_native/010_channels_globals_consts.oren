@@ -396,19 +396,19 @@ fn native_value_true() { return global_get_value_true() }
 fn native_value_is_nil(v) {
     var vn = native_value_nil()
     if vn == 0 { return false }
-    return v == vn
+    return (v - vn) == 0
 }
 
 fn native_value_is_false(v) {
     var vf = native_value_false()
     if vf == 0 { return false }
-    return v == vf
+    return (v - vf) == 0
 }
 
 fn native_value_is_true(v) {
     var vt = native_value_true()
     if vt == 0 { return false }
-    return v == vt
+    return (v - vt) == 0
 }
 
 fn native_value_is_falsey(v) {
