@@ -103,9 +103,13 @@ var f = fn(x) {
 
 fn main() {
     print(math.sqrt(9))
+    print(math.power(2.0, -1.0))
+    print(math.power(2.0, 4.3))
 }</code></pre>
 <p>Imports are resolved by the compiler/linker pipeline. <code>std:*</code> modules are shipped with</p>
-<p>the repo and remain part of the rolling stdlib surface.</p>
+<p>the repo and remain part of the rolling stdlib surface. <code>std:math</code> is deterministic</p>
+<p>and portable rather than host-<code>libm</code> backed; current power APIs are <code>pow(x, y)</code>,</p>
+<p><code>power(x, y)</code>, and exact integer-exponent <code>powi(x, n)</code>.</p>
 <h2 id="errors">Errors</h2>
 <p>Structured errors use the current runtime helpers:</p>
 <ul>

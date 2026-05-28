@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals and Current Tasks
 
-**Last updated:** 2026-05-28
+**Last updated:** 2026-05-29
 
 This file is the concise task view. Detailed implementation status lives in
 `docs/STATUS.md`; dated investigation notes live in `project-doc/`.
@@ -57,11 +57,18 @@ This file is the concise task view. Detailed implementation status lives in
    - Expand only where current fixtures expose gaps.
    - Keep bytecode/C/native behavior aligned before adding new user-visible surfaces.
 
-4. **Native scheduler / green-task integration**
+4. **Scientific stdlib math breadth**
+   - Expand `std:math` toward C/C++ mathlib coverage without host-libm dependency.
+   - Current retained surface includes `pow` / `power` for integer, negative,
+     fractional positive-base, infinity edge, and negative-base real-domain cases.
+   - Gate app-visible additions through AVM bytecode fixtures first, then native/C
+     parity once the existing native quick `Error 139` baseline is cleared.
+
+5. **Native scheduler / green-task integration**
    - Keep syscall-first constraints and focused green/runtime gates.
    - Do not treat flake-only probes as retained work unless they improve a default gate.
 
-5. **Reserve + unchecked push generalization**
+6. **Reserve + unchecked push generalization**
    - Continue from measured optimizer/list-int evidence only.
 
 ## P2 / W3

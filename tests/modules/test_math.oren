@@ -15,6 +15,13 @@ fn assert_eq(a, b, code) {
     fail(code)
 }
 
+fn assert_close(a, b, eps, code) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    if d <= eps { return 0 }
+    fail(code)
+}
+
 // ints
 assert_eq(math.abs_i(0), 0, 10)
 assert_eq(math.abs_i(5), 5, 11)
@@ -41,6 +48,16 @@ assert_eq(math.clamp_f(99.0, 0.0, 10.0), 10.0, 44)
 var nanv = 0.0 / 0.0
 assert_true(math.is_nan(nanv), 50)
 assert_true(math.is_nan(0.0) != true, 51)
+
+// real-valued power
+assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 60)
+assert_close(math.power(2.0, 4.3), 19.698311, 1e-5, 61)
+assert_close(math.pow(-2.0, 3.0), -8.0, 1e-12, 62)
+assert_close(math.pow(-2.0, -3.0), -0.125, 1e-12, 63)
+assert_true(oren_is_err(math.pow(-2.0, 0.5)), 64)
+assert_close(math.pow(1.0, math.inf()), 1.0, 1e-12, 65)
+assert_close(math.pow(-1.0, math.inf()), 1.0, 1e-12, 66)
+assert_true(math.is_inf(math.pow(0.5, math.neg_inf())), 67)
 
 print("module math OK")
 exit(0)

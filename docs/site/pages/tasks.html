@@ -30,7 +30,7 @@
     </nav>
     <main class="content">
       <h1 id="bleeding-edge-goals-and-current-tasks">Bleeding-Edge Goals and Current Tasks</h1>
-<p><strong>Last updated:</strong> 2026-05-28</p>
+<p><strong>Last updated:</strong> 2026-05-29</p>
 <p>This file is the concise task view. Detailed implementation status lives in</p>
 <p><code>docs/STATUS.md</code>; dated investigation notes live in <code>project-doc/</code>.</p>
 <h2 id="goals">Goals</h2>
@@ -109,6 +109,18 @@
 <li>Expand only where current fixtures expose gaps.</li>
 <li>Keep bytecode/C/native behavior aligned before adding new user-visible surfaces.</li>
 </ul>
+<ol>
+<li><strong>Scientific stdlib math breadth</strong></li>
+</ol>
+<ul>
+<li>Expand <code>std:math</code> toward C/C++ mathlib coverage without host-libm dependency.</li>
+<li>Current retained surface includes <code>pow</code> / <code>power</code> for integer, negative,</li>
+</ul>
+<p>     fractional positive-base, infinity edge, and negative-base real-domain cases.</p>
+<ul>
+<li>Gate app-visible additions through AVM bytecode fixtures first, then native/C</li>
+</ul>
+<p>     parity once the existing native quick <code>Error 139</code> baseline is cleared.</p>
 <ol>
 <li><strong>Native scheduler / green-task integration</strong></li>
 </ol>

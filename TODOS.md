@@ -12,3 +12,8 @@ This file is a concise pointer for active reweighted work. Detailed historical s
 - Finish embedder lifecycle hardening: make allocator ownership reentrant or explicitly single-VM guarded, define app-level failure policy for teardown leaks, and keep host-only subprocess paths unavailable in iOS builds.
 
 Evidence and verdict: `project-doc/ios_avm_readiness_20260507.md`.
+
+## P1 / W4 - Scientific Math Stdlib
+
+- Keep `std:math` host-libm-free and bytecode/AVM-gated for app embedding. `pow` / `power` now cover integer, negative, and fractional positive-base exponents including `power(2,-1)` and `power(2,4.3)`.
+- Continue expanding toward C/C++ mathlib breadth with focused fixtures for each function family before exposing it as app-stable.

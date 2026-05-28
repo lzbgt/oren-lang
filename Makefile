@@ -255,6 +255,7 @@ endif
 		tests/avm/test_list_sum_opcodes.oren \
 		tests/avm/test_list_dot_opcodes.oren \
 		tests/avm/test_list_int_basic.oren \
+		tests/avm/test_std_math_pow.oren \
 		tests/avm/test_list_freelist_env.oren \
 		tests/avm/test_ui_color_v0.oren \
 		tests/avm/test_ui_layout_v0.oren \

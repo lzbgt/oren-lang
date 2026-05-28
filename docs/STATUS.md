@@ -1,6 +1,6 @@
 # Oren Status
 
-**Last updated:** 2026-05-28
+**Last updated:** 2026-05-29
 
 This is the current implementation status. It replaces the former rolling log with a
 small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.
@@ -100,6 +100,25 @@ Missing for production:
 - allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
 - manifest-driven AVM fixture release runner;
 - broader stdlib/compiler surface coverage beyond the current smoke program.
+
+## Scientific Stdlib Math
+
+Current verdict: **portable deterministic foundation, still expanding toward C/C++
+mathlib breadth**.
+
+Working evidence:
+
+- `std:math` avoids host `libm` so bytecode/AVM, C, and native backends share the
+  same source-level semantics.
+- Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and
+  bit helpers, rounding, `sqrt`, `powi`, `pow`, `power`, `pow2i`, `ldexp`,
+  `frexp`, `exp2`, `exp`, `log2`, `ln`, `sin`, `cos`, `atan`, and `atan2`.
+- `pow` / `power` cover the app-visible cases `power(2,-1)` and
+  `power(2,4.3)` through deterministic integer-exponent and
+  `exp2(y * log2(x))` paths. Negative bases accept integer exponents and reject
+  fractional exponents as real-domain errors.
+- `tests/avm/test_std_math_pow.oren` is now in the curated `make test-avm` set,
+  so the iOS AVM path proves this surface in bytecode.
 
 ## Current P0 / W5 Work
 

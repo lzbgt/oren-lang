@@ -264,6 +264,49 @@ fn powi(x: f64, n) {
     return acc
 }
 
+fn _pow_integral_exponent(y: f64) {
+    if !is_finite(y) { return oren_err(4, "pow: non-finite integer exponent") }
+    var yi = trunc_i64_from_f(y)
+    if oren_is_err(yi) { return yi }
+    if f64(yi) != y { return oren_err(4, "pow: fractional exponent") }
+    return yi
+}
+
+fn pow(x: f64, y: f64) {
+    // Real-valued power, deterministic and host-libm-free.
+    // - Integer exponents use `powi` so `pow(2,-1)` is exact enough and negative
+    //   bases remain in the real domain when valid.
+    // - Positive non-integer powers use x^y = 2^(y*log2(x)).
+    // - Negative base with a fractional exponent is complex-valued, so std:math
+    //   returns Err rather than inventing a real result.
+    if is_nan(x) || is_nan(y) { return oren_err(4, "pow: NaN") }
+    if y == 0.0 { return 1.0 }
+    if x == 1.0 { return 1.0 }
+    if y == 1.0 { return x }
+    if is_inf(y) {
+        var ax = abs_f(x)
+        if ax == 1.0 { return 1.0 }
+        if signbit(y) {
+            if ax > 1.0 { return 0.0 }
+            return inf()
+        }
+        if ax > 1.0 { return inf() }
+        return 0.0
+    }
+
+    var yi = _pow_integral_exponent(y)
+    if !oren_is_err(yi) { return powi(x, yi) }
+
+    if x < 0.0 { return oren_err(4, "pow: negative base fractional exponent") }
+    var lx = log2(x)
+    if oren_is_err(lx) { return lx }
+    return exp2(y * lx)
+}
+
+fn power(x: f64, y: f64) {
+    return pow(x, y)
+}
+
 // --- exponent helpers (frexp/ldexp equivalents) ---
 
 fn pow2i(e) {

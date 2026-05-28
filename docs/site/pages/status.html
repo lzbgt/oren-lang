@@ -30,7 +30,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-status">Oren Status</h1>
-<p><strong>Last updated:</strong> 2026-05-28</p>
+<p><strong>Last updated:</strong> 2026-05-29</p>
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
@@ -150,6 +150,29 @@
 <li>manifest-driven AVM fixture release runner;</li>
 <li>broader stdlib/compiler surface coverage beyond the current smoke program.</li>
 </ul>
+<h2 id="scientific-stdlib-math">Scientific Stdlib Math</h2>
+<p>Current verdict: **portable deterministic foundation, still expanding toward C/C++</p>
+<p>mathlib breadth**.</p>
+<p>Working evidence:</p>
+<ul>
+<li><code>std:math</code> avoids host <code>libm</code> so bytecode/AVM, C, and native backends share the</li>
+</ul>
+<p>  same source-level semantics.</p>
+<ul>
+<li>Current core includes integer/float abs/min/max/clamp, IEEE-ish predicates and</li>
+</ul>
+<p>  bit helpers, rounding, <code>sqrt</code>, <code>powi</code>, <code>pow</code>, <code>power</code>, <code>pow2i</code>, <code>ldexp</code>,</p>
+<p>  <code>frexp</code>, <code>exp2</code>, <code>exp</code>, <code>log2</code>, <code>ln</code>, <code>sin</code>, <code>cos</code>, <code>atan</code>, and <code>atan2</code>.</p>
+<ul>
+<li><code>pow</code> / <code>power</code> cover the app-visible cases <code>power(2,-1)</code> and</li>
+</ul>
+<p>  <code>power(2,4.3)</code> through deterministic integer-exponent and</p>
+<p>  <code>exp2(y * log2(x))</code> paths. Negative bases accept integer exponents and reject</p>
+<p>  fractional exponents as real-domain errors.</p>
+<ul>
+<li><code>tests/avm/test_std_math_pow.oren</code> is now in the curated <code>make test-avm</code> set,</li>
+</ul>
+<p>  so the iOS AVM path proves this surface in bytecode.</p>
 <h2 id="current-p0-w5-work">Current P0 / W5 Work</h2>
 <ol>
 <li><strong>Runtime robustness</strong></li>
@@ -236,6 +259,7 @@ make docs-site</code></pre>
 <a class="toc-l2" href="#backend-readiness">Backend Readiness</a>
 <a class="toc-l2" href="#avm-and-ios-readiness">AVM and iOS Readiness</a>
 <a class="toc-l2" href="#compiler-in-avm">Compiler-in-AVM</a>
+<a class="toc-l2" href="#scientific-stdlib-math">Scientific Stdlib Math</a>
 <a class="toc-l2" href="#current-p0-w5-work">Current P0 / W5 Work</a>
 <a class="toc-l2" href="#current-p1-w4-work">Current P1 / W4 Work</a>
 <a class="toc-l2" href="#current-p2-w3-work">Current P2 / W3 Work</a>

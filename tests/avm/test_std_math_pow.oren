@@ -1,0 +1,31 @@
+@myorg.tag(name="avm-std-math-pow")
+
+import math "../../lib/std/math.oren"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_close(a, b, eps) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    assert_true(d <= eps)
+}
+
+assert_close(math.pow(2.0, -1.0), 0.5, 1e-12)
+assert_close(math.power(2.0, 4.3), 19.698311, 1e-5)
+assert_close(math.pow(-2.0, 3.0), -8.0, 1e-12)
+assert_close(math.pow(-2.0, -3.0), -0.125, 1e-12)
+assert_true(oren_is_err(math.pow(-2.0, 0.5)))
+assert_close(math.pow(1.0, math.inf()), 1.0, 1e-12)
+assert_close(math.pow(-1.0, math.inf()), 1.0, 1e-12)
+assert_true(math.is_inf(math.pow(0.5, math.neg_inf())))
+
+print("avm std math pow OK")

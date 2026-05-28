@@ -94,11 +94,15 @@ import math "std:math"
 
 fn main() {
     print(math.sqrt(9))
+    print(math.power(2.0, -1.0))
+    print(math.power(2.0, 4.3))
 }
 ```
 
 Imports are resolved by the compiler/linker pipeline. `std:*` modules are shipped with
-the repo and remain part of the rolling stdlib surface.
+the repo and remain part of the rolling stdlib surface. `std:math` is deterministic
+and portable rather than host-`libm` backed; current power APIs are `pow(x, y)`,
+`power(x, y)`, and exact integer-exponent `powi(x, n)`.
 
 ## Errors
 
