@@ -25,6 +25,7 @@ nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q '_avm_embed_open'
 nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q '_avm_embed_open'
 for sym in \
   _avm_embed_set_argv \
+  _avm_embed_config_interactive_default \
   _avm_embed_vfs_put \
   _avm_embed_vfs_get \
   _avm_embed_vfs_snapshot \
@@ -61,7 +62,7 @@ fn main() {
     var rc2 = oren_system("missing-proc")
     if rc2 != 44 { oren_exit(16) }
     var t0 = time.now_ns()
-    var sr = time.sleep_ms(1)
+    var sr = time.sleep_ms(25)
     if sr != 0 { oren_exit(17) }
     if time.now_unix_ns() < t0 { oren_exit(18) }
     oren_exit(9)
@@ -95,6 +96,13 @@ cat > "$TMP_DIR/embed_smoke.c" <<'SMOKE'
 
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
+
+static uint64_t host_now_ns(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
 
 int main(void) {
     AvmEmbedConfig cfg;
@@ -134,6 +142,21 @@ int main(void) {
     if (avm_embed_output_get(handle, &stdout_data, &stdout_len, &result) != AVM_EMBED_OK) return 17;
     if (stdout_len != 0) return 18;
     avm_embed_free_bytes(stdout_data);
+    avm_embed_close(handle);
+
+    avm_embed_config_interactive_default(&cfg);
+    uint64_t wall0 = host_now_ns();
+    handle = avm_embed_open(&cfg, &result);
+    if (!handle || result.status != AVM_EMBED_OK) return 19;
+    if (avm_embed_set_argv(handle, 3, argv, &result) != AVM_EMBED_OK) return 20;
+    if (avm_embed_vfs_put(handle, "input.txt", input, sizeof(input), &result) != AVM_EMBED_OK) return 21;
+    if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 22;
+    if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 23;
+    if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 24;
+    if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 25;
+    uint64_t wall1 = host_now_ns();
+    if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 26;
+    if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 27;
     avm_embed_close(handle);
     return 0;
 }

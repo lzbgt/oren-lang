@@ -68,7 +68,8 @@
 </ul>
 <p>  deterministic config, budgets, virtual FS/PROC/NET defaults, structured result</p>
 <p>  fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:</p>
-<p>  <code>avm_embed_set_argv</code>, <code>avm_embed_vfs_put</code>, <code>avm_embed_vfs_get</code>,</p>
+<p>  <code>avm_embed_config_interactive_default</code>, <code>avm_embed_set_argv</code>,</p>
+<p>  <code>avm_embed_vfs_put</code>, <code>avm_embed_vfs_get</code>,</p>
 <p>  <code>avm_embed_vfs_snapshot</code>, <code>avm_embed_vnet_put</code>, <code>avm_embed_vproc_put</code>,</p>
 <p>  <code>avm_embed_vproc_set_default_exit</code>, <code>avm_embed_set_output_capture</code>,</p>
 <p>  <code>avm_embed_output_get</code>, <code>avm_embed_output_clear</code>, and <code>avm_embed_free_bytes</code>.</p>
@@ -78,7 +79,9 @@
 <p>  so <code>std:time.now_ns</code>, <code>std:time.mono_raw</code>, <code>std:time.now_unix_ns</code>, and</p>
 <p>  <code>std:time.sleep_ms</code> work from AVM bytecode without extra app-side capability</p>
 <p>  wiring. Deterministic mode maps all three clocks to virtual time; non-deterministic</p>
-<p>  <code>now_unix_ns</code> uses host realtime.</p>
+<p>  app mode is available through <code>avm_embed_config_interactive_default(...)</code>, where</p>
+<p>  <code>sleep_ms</code> blocks the AVM worker on wall-clock time and <code>now_unix_ns</code> uses host</p>
+<p>  realtime. Hosts must run this off the UI thread.</p>
 <ul>
 <li>The AVM stdlib bundle root includes the compiler/app-critical portable subset plus</li>
 </ul>

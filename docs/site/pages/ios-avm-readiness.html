@@ -60,6 +60,13 @@
 <p>  TIME is virtual by default for <code>std:time.now_ns</code>, <code>std:time.mono_raw</code>,</p>
 <p>  <code>std:time.now_unix_ns</code>, and <code>std:time.sleep_ms</code>.</p>
 <ul>
+<li>Interactive app mode after 2026-05-29: call</li>
+</ul>
+<p>  <code>avm_embed_config_interactive_default(...)</code> before <code>avm_embed_open(...)</code> when</p>
+<p>  user-visible delays should use wall-clock time. This keeps virtual FS/PROC/NET</p>
+<p>  defaults but makes <code>std:time.sleep_ms</code> block the AVM worker; do not run it on</p>
+<p>  the iOS main thread.</p>
+<ul>
 <li>AVM stdlib bundle after 2026-05-29: the bundle root includes <code>std:time</code> alongside</li>
 </ul>
 <p>  the existing compiler/app-critical portable subset. Broader pure-stdlib expansion</p>

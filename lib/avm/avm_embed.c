@@ -68,6 +68,14 @@ void avm_embed_config_default(AvmEmbedConfig* config) {
     config->net_backend_kind = 1;
 }
 
+void avm_embed_config_interactive_default(AvmEmbedConfig* config) {
+    avm_embed_config_default(config);
+    if (!config) return;
+    // Interactive host apps need wall-clock TIME effects. Keep virtual FS/PROC/NET
+    // defaults so app mode does not silently gain host filesystem/network/process access.
+    config->deterministic = 0;
+}
+
 static int avm_embed_valid_handle(AvmEmbedHandle* handle) {
     return handle && handle->magic == AVM_EMBED_HANDLE_MAGIC && handle->vm;
 }

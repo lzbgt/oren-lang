@@ -40,7 +40,8 @@ Facts from the 2026-05-28 implementation pass:
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
   fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:
-  `avm_embed_set_argv`, `avm_embed_vfs_put`, `avm_embed_vfs_get`,
+  `avm_embed_config_interactive_default`, `avm_embed_set_argv`,
+  `avm_embed_vfs_put`, `avm_embed_vfs_get`,
   `avm_embed_vfs_snapshot`, `avm_embed_vnet_put`, `avm_embed_vproc_put`,
   `avm_embed_vproc_set_default_exit`, `avm_embed_set_output_capture`,
   `avm_embed_output_get`, `avm_embed_output_clear`, and `avm_embed_free_bytes`.
@@ -48,7 +49,9 @@ Facts from the 2026-05-28 implementation pass:
   so `std:time.now_ns`, `std:time.mono_raw`, `std:time.now_unix_ns`, and
   `std:time.sleep_ms` work from AVM bytecode without extra app-side capability
   wiring. Deterministic mode maps all three clocks to virtual time; non-deterministic
-  `now_unix_ns` uses host realtime.
+  app mode is available through `avm_embed_config_interactive_default(...)`, where
+  `sleep_ms` blocks the AVM worker on wall-clock time and `now_unix_ns` uses host
+  realtime. Hosts must run this off the UI thread.
 - The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
   `std:time`; broader pure-stdlib expansion should be manifest-gated so bundle build
   time stays inside the repo iteration budget.

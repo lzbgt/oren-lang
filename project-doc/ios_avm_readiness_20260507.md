@@ -28,6 +28,11 @@ allocator/lifecycle hardening.
   virtual FS/PROC/NET backends, and avoid host filesystem/network/process effects.
   TIME is virtual by default for `std:time.now_ns`, `std:time.mono_raw`,
   `std:time.now_unix_ns`, and `std:time.sleep_ms`.
+- Interactive app mode after 2026-05-29: call
+  `avm_embed_config_interactive_default(...)` before `avm_embed_open(...)` when
+  user-visible delays should use wall-clock time. This keeps virtual FS/PROC/NET
+  defaults but makes `std:time.sleep_ms` block the AVM worker; do not run it on
+  the iOS main thread.
 - AVM stdlib bundle after 2026-05-29: the bundle root includes `std:time` alongside
   the existing compiler/app-critical portable subset. Broader pure-stdlib expansion
   should be manifest-gated so bundle build time remains acceptable.

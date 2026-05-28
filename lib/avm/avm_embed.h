@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#define AVM_EMBED_ABI_VERSION 2u
+#define AVM_EMBED_ABI_VERSION 3u
 
 enum {
     AVM_EMBED_OK = 0,
@@ -49,6 +49,7 @@ typedef struct {
 } AvmEmbedResult;
 
 void avm_embed_config_default(AvmEmbedConfig* config);
+void avm_embed_config_interactive_default(AvmEmbedConfig* config);
 void avm_embed_result_clear(AvmEmbedResult* result);
 
 AvmEmbedHandle* avm_embed_open(const AvmEmbedConfig* config, AvmEmbedResult* result);
