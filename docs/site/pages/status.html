@@ -30,7 +30,7 @@
     </nav>
     <main class="content">
       <h1 id="oren-status">Oren Status</h1>
-<p><strong>Last updated:</strong> 2026-05-26</p>
+<p><strong>Last updated:</strong> 2026-05-28</p>
 <p>This is the current implementation status. It replaces the former rolling log with a</p>
 <p>small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.</p>
 <h2 id="overall-verdict">Overall Verdict</h2>
@@ -41,7 +41,10 @@
 <li>native tagged-value convergence is incomplete;</li>
 <li>allocator/GC/runtime robustness is still a W5 gate;</li>
 <li>Tier-1 platform breadth is uneven;</li>
-<li>AVM is not production-ready as an iOS embeddable library;</li>
+<li>AVM now has an iOS xcframework packaging gate and embedder C API, but is not</li>
+</ul>
+<p>  yet production-ready as a complete iOS app runtime/compiler package;</p>
+<ul>
 <li>compiler-in-AVM is fixture-level rather than a packaged production pipeline.</li>
 </ul>
 <h2 id="backend-readiness">Backend Readiness</h2>
@@ -53,13 +56,31 @@
 <tr><td>Bytecode / AVM</td><td>Deterministic VM with capability gates, budgets, snapshots, VFS/VPROC/VNET fixtures, coroutine/generator surfaces.</td><td>Experimental for production embedding.</td></tr>
 </table>
 <h2 id="avm-and-ios-readiness">AVM and iOS Readiness</h2>
-<p>Current verdict: <strong>not production-ready for iOS app embedding</strong>.</p>
-<p>Facts from the 2026-05-07 inspection:</p>
+<p>Current verdict: <strong>partially productionized, not complete production-ready for iOS apps</strong>.</p>
+<p>Facts from the 2026-05-28 implementation pass:</p>
 <ul>
-<li>The repo has no iOS app/Xcode/Swift integration target for <code>libavm</code>.</li>
-<li><code>make avm</code> builds a host arm64 Mach-O executable, not a static library,</li>
+<li><code>make verify-libavm-ios</code> builds <code>build/libavm/ios/LibAVM.xcframework</code> for</li>
 </ul>
-<p>  framework, xcframework, or Swift package.</p>
+<p>  <code>iphoneos-arm64</code> and <code>iphonesimulator-arm64</code>, exports public AVM headers, and</p>
+<p>  links a tiny iOS embedder smoke for both SDKs.</p>
+<ul>
+<li><code>lib/avm/avm_embed.h</code> exposes an opaque-handle C embedder API with</li>
+</ul>
+<p>  deny-by-default deterministic config, budgets, virtual FS/PROC/NET defaults,</p>
+<p>  structured result fields, and explicit lifecycle calls.</p>
+<ul>
+<li><code>avm_new()</code> now returns <code>NULL</code> on VM/stack allocation failure instead of</li>
+</ul>
+<p>  dereferencing failed allocations.</p>
+<ul>
+<li>iOS embed builds define <code>AVM_EMBED_NO_ABORT_ON_LEAK</code> and <code>AVM_IOS_EMBED</code>;</li>
+</ul>
+<p>  teardown leak aborts stay enabled for normal development builds, while iOS</p>
+<p>  packaging avoids an app-process abort path.</p>
+<ul>
+<li>Host subprocess execution is compiled out of iOS embed builds; PROC must use</li>
+</ul>
+<p>  the virtual backend path there.</p>
 <ul>
 <li><code>lib/avm/avm.h</code> still exposes fixed global/frame/stack limits and rolling</li>
 </ul>
@@ -68,10 +89,6 @@
 <li><code>lib/avm/avm_alloc.c</code> uses global allocation-owner state, which is not a polished</li>
 </ul>
 <p>  reentrant embedder story.</p>
-<ul>
-<li><code>avm_free</code> aborts on leaked heap allocations; this is useful during development</li>
-</ul>
-<p>  but is not the expected production iOS failure model.</p>
 <ul>
 <li>Curated <code>make avm &amp;&amp; make test-avm</code> passes.</li>
 <li>Wildcard <code>AVM_TESTS=&quot;tests/avm/*.oren&quot;</code> is not a valid release gate today because</li>
@@ -129,9 +146,12 @@
 <li><strong>AVM iOS embeddability + compiler-in-AVM release gate</strong></li>
 </ol>
 <ul>
-<li>Add iOS simulator/device library packaging.</li>
+<li>Keep <code>make verify-libavm-ios</code> green.</li>
 <li>Add Swift/Objective-C smoke host.</li>
-<li>Make embedder lifecycle and errors deterministic and non-aborting in production mode.</li>
+<li>Finish lifecycle maturity: allocator ownership/reentrancy, explicit resource</li>
+</ul>
+<p>     loading, and app-level failure policy.</p>
+<ul>
 <li>Package compiler/stdlib OBC resources and gate nested compile/run.</li>
 </ul>
 <ol>

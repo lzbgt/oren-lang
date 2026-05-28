@@ -97,7 +97,12 @@ void avm_abort(AvmVM* vm, AvmValue err) {
 
 AvmVM* avm_new() {
     AvmVM* vm = (AvmVM*)malloc(sizeof(AvmVM));
+    if (!vm) return NULL;
     vm->stack_base = (AvmValue*)malloc(sizeof(AvmValue) * AVM_STACK_SIZE);
+    if (!vm->stack_base) {
+        free(vm);
+        return NULL;
+    }
     vm->stack = vm->stack_base;
     vm->sp = 0;
     vm->pc = 0;
@@ -212,7 +217,9 @@ void avm_free(AvmVM* vm) {
     if (vm->heap_allocs_head != NULL || vm->heap_used_bytes != 0) {
         fprintf(stderr, "AVM LEAK: heap_allocs_head=%p heap_used_bytes=%llu\n",
             vm->heap_allocs_head, (unsigned long long)vm->heap_used_bytes);
+#if !defined(AVM_EMBED_NO_ABORT_ON_LEAK)
         abort();
+#endif
     }
 
     // Tear down cooperative scheduler (tasks/channels) if it was initialized.

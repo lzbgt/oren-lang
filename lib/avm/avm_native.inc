@@ -176,9 +176,14 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                         break;
                     }
                 }
+#if defined(AVM_IOS_EMBED)
+                res = avm_err_domop(AVM_ERR_NOT_IMPLEMENTED, "host subprocess unavailable in iOS embed build", 5, 0);
+                break;
+#else
                 int ret = system((char*)args[0].as.p);
                 res.type = AVM_VAL_INT;
                 res.as.i = ret;
+#endif
             }
             break;
         }

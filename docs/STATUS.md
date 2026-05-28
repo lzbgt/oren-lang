@@ -1,6 +1,6 @@
 # Oren Status
 
-**Last updated:** 2026-05-26
+**Last updated:** 2026-05-28
 
 This is the current implementation status. It replaces the former rolling log with a
 small source-of-truth snapshot. Use code, fixtures, and build logs for raw evidence.
@@ -14,7 +14,8 @@ surfaces, but the following blockers remain:
 - native tagged-value convergence is incomplete;
 - allocator/GC/runtime robustness is still a W5 gate;
 - Tier-1 platform breadth is uneven;
-- AVM is not production-ready as an iOS embeddable library;
+- AVM now has an iOS xcframework packaging gate and embedder C API, but is not
+  yet production-ready as a complete iOS app runtime/compiler package;
 - compiler-in-AVM is fixture-level rather than a packaged production pipeline.
 
 ## Backend Readiness
@@ -28,19 +29,27 @@ surfaces, but the following blockers remain:
 
 ## AVM and iOS Readiness
 
-Current verdict: **not production-ready for iOS app embedding**.
+Current verdict: **partially productionized, not complete production-ready for iOS apps**.
 
-Facts from the 2026-05-07 inspection:
+Facts from the 2026-05-28 implementation pass:
 
-- The repo has no iOS app/Xcode/Swift integration target for `libavm`.
-- `make avm` builds a host arm64 Mach-O executable, not a static library,
-  framework, xcframework, or Swift package.
+- `make verify-libavm-ios` builds `build/libavm/ios/LibAVM.xcframework` for
+  `iphoneos-arm64` and `iphonesimulator-arm64`, exports public AVM headers, and
+  links a tiny iOS embedder smoke for both SDKs.
+- `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
+  deny-by-default deterministic config, budgets, virtual FS/PROC/NET defaults,
+  structured result fields, and explicit lifecycle calls.
+- `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
+  dereferencing failed allocations.
+- iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;
+  teardown leak aborts stay enabled for normal development builds, while iOS
+  packaging avoids an app-process abort path.
+- Host subprocess execution is compiled out of iOS embed builds; PROC must use
+  the virtual backend path there.
 - `lib/avm/avm.h` still exposes fixed global/frame/stack limits and rolling
   capability/budget fields.
 - `lib/avm/avm_alloc.c` uses global allocation-owner state, which is not a polished
   reentrant embedder story.
-- `avm_free` aborts on leaked heap allocations; this is useful during development
-  but is not the expected production iOS failure model.
 - Curated `make avm && make test-avm` passes.
 - Wildcard `AVM_TESTS="tests/avm/*.oren"` is not a valid release gate today because
   fixture-specific env/expected-error policy is encoded only in selected Makefile cases.
@@ -86,9 +95,10 @@ Missing for production:
 ## Current P1 / W4 Work
 
 1. **AVM iOS embeddability + compiler-in-AVM release gate**
-   - Add iOS simulator/device library packaging.
+   - Keep `make verify-libavm-ios` green.
    - Add Swift/Objective-C smoke host.
-   - Make embedder lifecycle and errors deterministic and non-aborting in production mode.
+   - Finish lifecycle maturity: allocator ownership/reentrancy, explicit resource
+     loading, and app-level failure policy.
    - Package compiler/stdlib OBC resources and gate nested compile/run.
 
 2. **AVM fixture manifest runner**

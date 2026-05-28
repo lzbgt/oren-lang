@@ -1732,6 +1732,13 @@ $(AVM_BIN): $(AVM_C_SRC) $(AVM_INC) build/avm_root_pubkey.inc
 	fi
 	@$(AVM_CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o "$(AVM_BIN)" $(AVM_C_SRC)
 
+.PHONY: libavm-ios libavm-ios-xcframework verify-libavm-ios
+libavm-ios libavm-ios-xcframework:
+	@./scripts/build_libavm_ios.sh
+
+verify-libavm-ios:
+	@./scripts/verify_libavm_ios.sh
+
 # --- Example Builds ---
 
 examples-test: oren avm

@@ -30,7 +30,7 @@
     </nav>
     <main class="content">
       <h1 id="bleeding-edge-goals-and-current-tasks">Bleeding-Edge Goals and Current Tasks</h1>
-<p><strong>Last updated:</strong> 2026-05-26</p>
+<p><strong>Last updated:</strong> 2026-05-28</p>
 <p>This file is the concise task view. Detailed implementation status lives in</p>
 <p><code>docs/STATUS.md</code>; dated investigation notes live in <code>project-doc/</code>.</p>
 <h2 id="goals">Goals</h2>
@@ -72,12 +72,16 @@
 <li><strong>AVM iOS embeddability and compiler-in-AVM release gate</strong></li>
 </ol>
 <ul>
-<li>Current verdict: not production-ready for an iOS app.</li>
-<li>Required: iOS simulator/device static library or xcframework, stable C embedder API,</li>
+<li>Current verdict: iOS <code>LibAVM.xcframework</code> packaging and a C embedder API now</li>
 </ul>
-<p>     Swift/Objective-C smoke host, deterministic lifecycle/error handling, compiler and</p>
-<p>     stdlib OBC resource packaging, and CI coverage.</p>
+<p>     exist, but the app/runtime/compiler package is not production-complete.</p>
 <ul>
+<li>Remaining required work: Swift/Objective-C smoke host, allocator ownership or</li>
+</ul>
+<p>     explicit single-VM guard, compiler and stdlib OBC resource packaging, manifest</p>
+<p>     AVM release gate, and CI coverage.</p>
+<ul>
+<li>Gate: <code>make verify-libavm-ios</code>.</li>
 <li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>
 </ul>
 <ol>
