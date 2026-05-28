@@ -74,9 +74,10 @@
 <ul>
 <li>Current verdict: iOS <code>LibAVM.xcframework</code> packaging and a C embedder API now</li>
 </ul>
-<p>     exist. <code>make verify-libavm-ios</code> now proves host compile-to-OBC, iOS C smoke</p>
-<p>     linkage, host embedder load/run, and a nested compiler-in-AVM stdlib-OBC</p>
-<p>     compile/run smoke.</p>
+<p>     exist. The public API includes argv and VFS input/output helpers required by</p>
+<p>     app-host compile/run bridges. <code>make verify-libavm-ios</code> now proves host</p>
+<p>     compile-to-OBC, iOS C smoke linkage, host embedder argv/VFS load/run, and a</p>
+<p>     nested compiler-in-AVM stdlib-OBC compile/run smoke.</p>
 <ul>
 <li>Remaining required work: Swift/Objective-C smoke host, allocator ownership or</li>
 </ul>

@@ -55,6 +55,11 @@ AvmEmbedHandle* avm_embed_open(const AvmEmbedConfig* config, AvmEmbedResult* res
 void avm_embed_close(AvmEmbedHandle* handle);
 
 AvmVM* avm_embed_vm(AvmEmbedHandle* handle);
+int avm_embed_set_argv(AvmEmbedHandle* handle, int argc, const char* const* argv, AvmEmbedResult* result);
+int avm_embed_vfs_put(AvmEmbedHandle* handle, const char* path, const uint8_t* data, size_t len, AvmEmbedResult* result);
+int avm_embed_vfs_get(AvmEmbedHandle* handle, const char* path, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
+int avm_embed_vfs_snapshot(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result);
+void avm_embed_free_bytes(uint8_t* data);
 int avm_embed_program_from_obc_bytes(const uint8_t* data, size_t len, int verify_strict, AvmEmbedProgram** out_program, AvmEmbedResult* result);
 void avm_embed_program_free(AvmEmbedProgram* program);
 AvmProgram* avm_embed_program_view(AvmEmbedProgram* program);

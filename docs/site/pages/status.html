@@ -41,10 +41,11 @@
 <li>native tagged-value convergence is incomplete;</li>
 <li>allocator/GC/runtime robustness is still a W5 gate;</li>
 <li>Tier-1 platform breadth is uneven;</li>
-<li>AVM now has an iOS xcframework packaging gate, embedder C API, and full</li>
+<li>AVM now has an iOS xcframework packaging gate, embedder C API with argv/VFS</li>
 </ul>
-<p>  compiler-in-AVM smoke gate, but still needs app-host lifecycle coverage before</p>
-<p>  it should be called a complete production iOS package.</p>
+<p>  input/output helpers, and full compiler-in-AVM smoke gate, but still needs</p>
+<p>  app-host lifecycle coverage before it should be called a complete production</p>
+<p>  iOS package.</p>
 <h2 id="backend-readiness">Backend Readiness</h2>
 <table>
 <tr><th>Backend</th><th>Current state</th><th>Production posture</th></tr>
@@ -64,14 +65,16 @@
 <ul>
 <li><code>lib/avm/avm_embed.h</code> exposes an opaque-handle C embedder API with</li>
 </ul>
-<p>  deny-by-default deterministic config, budgets, virtual FS/PROC/NET defaults,</p>
-<p>  structured result fields, and explicit lifecycle calls.</p>
+<p>  deterministic config, budgets, virtual FS/PROC/NET defaults, structured result</p>
+<p>  fields, explicit lifecycle calls, and public argv/VFS helpers:</p>
+<p>  <code>avm_embed_set_argv</code>, <code>avm_embed_vfs_put</code>, <code>avm_embed_vfs_get</code>,</p>
+<p>  <code>avm_embed_vfs_snapshot</code>, and <code>avm_embed_free_bytes</code>.</p>
 <ul>
 <li>The embedder API can now parse, verify, load, and run <code>.obc</code> bytes from memory.</li>
 </ul>
 <p>  The iOS gate compiles a tiny Oren source to <code>.obc</code>, embeds those bytes into a C</p>
 <p>  smoke, links that smoke for iPhoneOS and simulator, and runs the same bytes</p>
-<p>  through the host libavm embed API.</p>
+<p>  through the host libavm embed API with argv plus VFS read/write roundtrip.</p>
 <ul>
 <li><code>make verify-libavm-ios</code> also builds <code>build/plugins/stdlib_bundle.obc</code> and</li>
 </ul>
@@ -133,7 +136,11 @@
 <p>  <code>--no-cache</code>) for embedded compiler runs.</p>
 <p>Missing for production:</p>
 <ul>
-<li>Swift/Objective-C app-host smoke that loads bundled resources from an app bundle;</li>
+<li>Swift/Objective-C app-host smoke that loads bundled <code>oren.obc</code> and</li>
+</ul>
+<p>  <code>stdlib_bundle.obc</code> resources from an app bundle and uses the public VFS helpers</p>
+<p>  to extract <code>out.obc</code>;</p>
+<ul>
 <li>allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;</li>
 <li>manifest-driven AVM fixture release runner;</li>
 <li>broader stdlib/compiler surface coverage beyond the current smoke program.</li>

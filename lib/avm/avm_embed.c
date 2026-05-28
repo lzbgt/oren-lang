@@ -13,6 +13,8 @@ struct AvmEmbedHandle {
     AvmVM* vm;
     int verify_strict;
     AvmEmbedProgram* owned_program;
+    int argc;
+    char** argv;
 };
 
 struct AvmEmbedProgram {
@@ -28,6 +30,16 @@ static void avm_embed_set_message(AvmEmbedResult* result, const char* message) {
     snprintf(result->message, sizeof(result->message), "%s", message);
 }
 
+static int avm_embed_fail(AvmEmbedResult* result, int status, int avm_error_code, const char* message) {
+    if (result) {
+        avm_embed_result_clear(result);
+        result->status = status;
+        result->avm_error_code = avm_error_code;
+        avm_embed_set_message(result, message);
+    }
+    return status;
+}
+
 void avm_embed_result_clear(AvmEmbedResult* result) {
     if (!result) return;
     memset(result, 0, sizeof(*result));
@@ -40,7 +52,7 @@ void avm_embed_config_default(AvmEmbedConfig* config) {
     config->struct_size = (uint32_t)sizeof(*config);
     config->deterministic = 1;
     config->verify_strict = 1;
-    config->allowed_native_domains = (UINT64_C(1) << 0) | (UINT64_C(1) << 6);
+    config->allowed_native_domains = (UINT64_C(1) << 0) | (UINT64_C(1) << 1) | (UINT64_C(1) << 6);
     config->gas_limit = 5000000ull;
     config->heap_limit_bytes = 32ull * 1024ull * 1024ull;
     config->io_limit_bytes = 1024ull * 1024ull;
@@ -53,6 +65,66 @@ void avm_embed_config_default(AvmEmbedConfig* config) {
 
 static int avm_embed_valid_handle(AvmEmbedHandle* handle) {
     return handle && handle->magic == AVM_EMBED_HANDLE_MAGIC && handle->vm;
+}
+
+static void avm_embed_free_argv(AvmEmbedHandle* handle) {
+    if (!handle) return;
+    if (handle->argv) {
+        for (int i = 0; i < handle->argc; i++) free(handle->argv[i]);
+        free(handle->argv);
+    }
+    handle->argv = NULL;
+    handle->argc = 0;
+    if (handle->vm) {
+        handle->vm->argv = NULL;
+        handle->vm->argc = 0;
+    }
+}
+
+static AvmVfs* avm_embed_vfs_get_or_create_vm(AvmVM* vm) {
+    if (!vm) return NULL;
+    if (vm->vfs) return (AvmVfs*)vm->vfs;
+    AvmVfs* v = (AvmVfs*)avm_heap_malloc_k(sizeof(AvmVfs), AVM_ALLOC_KIND_VFS);
+    if (!v) return NULL;
+    v->entries = NULL;
+    v->count = 0;
+    v->cap = 0;
+    vm->vfs = v;
+    return v;
+}
+
+static AvmVfsEntry* avm_embed_vfs_find_entry(AvmVfs* v, const char* path) {
+    if (!v || !path) return NULL;
+    for (uint32_t i = 0; i < v->count; i++) {
+        if (v->entries[i].path && strcmp(v->entries[i].path, path) == 0) return &v->entries[i];
+    }
+    return NULL;
+}
+
+static int avm_embed_vfs_ensure_cap(AvmVfs* v, uint32_t need) {
+    if (!v) return 0;
+    if (need <= v->cap) return 1;
+    uint32_t nc = v->cap ? v->cap : 16;
+    while (nc < need) nc *= 2;
+    AvmVfsEntry* ne = (AvmVfsEntry*)avm_heap_realloc_k(v->entries, sizeof(AvmVfsEntry) * (size_t)nc, AVM_ALLOC_KIND_VFS);
+    if (!ne) return 0;
+    for (uint32_t i = v->cap; i < nc; i++) {
+        ne[i].path = NULL;
+        ne[i].data = NULL;
+        ne[i].len = 0;
+    }
+    v->entries = ne;
+    v->cap = nc;
+    return 1;
+}
+
+static int avm_embed_write_u32_le(uint8_t* out, size_t cap, size_t* pos, uint32_t v) {
+    if (!out || !pos || *pos > cap || cap - *pos < 4) return 0;
+    out[(*pos)++] = (uint8_t)(v & 0xFFu);
+    out[(*pos)++] = (uint8_t)((v >> 8) & 0xFFu);
+    out[(*pos)++] = (uint8_t)((v >> 16) & 0xFFu);
+    out[(*pos)++] = (uint8_t)((v >> 24) & 0xFFu);
+    return 1;
 }
 
 static void avm_embed_apply_config(AvmVM* vm, const AvmEmbedConfig* config) {
@@ -271,6 +343,7 @@ AvmEmbedHandle* avm_embed_open(const AvmEmbedConfig* config, AvmEmbedResult* res
 
 void avm_embed_close(AvmEmbedHandle* handle) {
     if (!handle) return;
+    avm_embed_free_argv(handle);
     if (handle->magic == AVM_EMBED_HANDLE_MAGIC && handle->vm) {
         avm_free(handle->vm);
     }
@@ -282,6 +355,176 @@ void avm_embed_close(AvmEmbedHandle* handle) {
 
 AvmVM* avm_embed_vm(AvmEmbedHandle* handle) {
     return avm_embed_valid_handle(handle) ? handle->vm : NULL;
+}
+
+int avm_embed_set_argv(AvmEmbedHandle* handle, int argc, const char* const* argv, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || argc < 0 || (argc > 0 && !argv)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed argv argument");
+    }
+
+    char** next = NULL;
+    if (argc > 0) {
+        next = (char**)calloc((size_t)argc, sizeof(char*));
+        if (!next) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate argv array");
+        for (int i = 0; i < argc; i++) {
+            const char* s = argv[i] ? argv[i] : "";
+            size_t n = strlen(s);
+            next[i] = (char*)malloc(n + 1);
+            if (!next[i]) {
+                for (int j = 0; j < argc; j++) free(next[j]);
+                free(next);
+                return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy argv string");
+            }
+            memcpy(next[i], s, n + 1);
+        }
+    }
+
+    avm_embed_free_argv(handle);
+    handle->argc = argc;
+    handle->argv = next;
+    handle->vm->argc = argc;
+    handle->vm->argv = next;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_vfs_put(AvmEmbedHandle* handle, const char* path, const uint8_t* data, size_t len, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || !path || (len > 0 && !data) || len > (size_t)UINT32_MAX) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VFS put argument");
+    }
+
+    AvmVM* prev_owner = NULL;
+    avm_alloc_owner_push(handle->vm, &prev_owner);
+    handle->vm->fs_backend_kind = 1;
+    AvmVfs* v = avm_embed_vfs_get_or_create_vm(handle->vm);
+    if (!v) {
+        avm_alloc_owner_pop(prev_owner);
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate AVM VFS");
+    }
+
+    AvmVfsEntry* e = avm_embed_vfs_find_entry(v, path);
+    char* next_path = NULL;
+    uint8_t* next_data = NULL;
+    uint32_t next_len = (uint32_t)len;
+    if (!e) {
+        if (!avm_embed_vfs_ensure_cap(v, v->count + 1)) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to grow AVM VFS");
+        }
+        size_t path_len = strlen(path);
+        next_path = (char*)avm_heap_malloc_k(path_len + 1, AVM_ALLOC_KIND_VFS);
+        if (!next_path) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy VFS path");
+        }
+        memcpy(next_path, path, path_len + 1);
+    }
+    if (len > 0) {
+        next_data = (uint8_t*)avm_heap_malloc_k(len, AVM_ALLOC_KIND_VFS);
+        if (!next_data) {
+            if (next_path) avm_heap_free(next_path);
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy VFS file bytes");
+        }
+        memcpy(next_data, data, len);
+    }
+
+    if (!e) {
+        e = &v->entries[v->count++];
+        e->path = next_path;
+        e->data = NULL;
+        e->len = 0;
+    } else if (e->data) {
+        avm_heap_free(e->data);
+    }
+    e->data = next_data;
+    e->len = next_len;
+    avm_alloc_owner_pop(prev_owner);
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_vfs_get(AvmEmbedHandle* handle, const char* path, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
+    if (out_data) *out_data = NULL;
+    if (out_len) *out_len = 0;
+    if (!avm_embed_valid_handle(handle) || !path || !out_data || !out_len) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VFS get argument");
+    }
+    AvmVfs* v = handle->vm->vfs ? (AvmVfs*)handle->vm->vfs : NULL;
+    AvmVfsEntry* e = avm_embed_vfs_find_entry(v, path);
+    if (!e) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "AVM VFS path not found");
+    }
+    uint8_t* copy = NULL;
+    if (e->len > 0) {
+        copy = (uint8_t*)malloc((size_t)e->len);
+        if (!copy) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy VFS file bytes");
+        memcpy(copy, e->data, (size_t)e->len);
+    }
+    *out_data = copy;
+    *out_len = (size_t)e->len;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_vfs_snapshot(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
+    if (out_data) *out_data = NULL;
+    if (out_len) *out_len = 0;
+    if (!avm_embed_valid_handle(handle) || !out_data || !out_len) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VFS snapshot argument");
+    }
+    AvmVfs* v = handle->vm->vfs ? (AvmVfs*)handle->vm->vfs : NULL;
+    uint32_t count = v ? v->count : 0;
+    size_t total = 8u + 4u;
+    for (uint32_t i = 0; i < count; i++) {
+        AvmVfsEntry* e = &v->entries[i];
+        size_t path_len = e->path ? strlen(e->path) : 0;
+        if (path_len > (size_t)UINT32_MAX) {
+            return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "VFS path too large for snapshot");
+        }
+        if (total > SIZE_MAX - 8u - path_len - (size_t)e->len) {
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "VFS snapshot too large");
+        }
+        total += 8u + path_len + (size_t)e->len;
+    }
+
+    uint8_t* buf = (uint8_t*)malloc(total ? total : 1u);
+    if (!buf) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate VFS snapshot");
+    size_t pos = 0;
+    memcpy(buf + pos, "AVMVFS01", 8u);
+    pos += 8u;
+    if (!avm_embed_write_u32_le(buf, total, &pos, count)) {
+        free(buf);
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to write VFS snapshot");
+    }
+    for (uint32_t i = 0; i < count; i++) {
+        AvmVfsEntry* e = &v->entries[i];
+        size_t path_len = e->path ? strlen(e->path) : 0;
+        if (!avm_embed_write_u32_le(buf, total, &pos, (uint32_t)path_len)) {
+            free(buf);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to write VFS snapshot path length");
+        }
+        if (path_len > 0) {
+            memcpy(buf + pos, e->path, path_len);
+            pos += path_len;
+        }
+        if (!avm_embed_write_u32_le(buf, total, &pos, e->len)) {
+            free(buf);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to write VFS snapshot body length");
+        }
+        if (e->len > 0) {
+            memcpy(buf + pos, e->data, (size_t)e->len);
+            pos += (size_t)e->len;
+        }
+    }
+    *out_data = buf;
+    *out_len = total;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+void avm_embed_free_bytes(uint8_t* data) {
+    free(data);
 }
 
 int avm_embed_program_from_obc_bytes(const uint8_t* data, size_t len, int verify_strict, AvmEmbedProgram** out_program, AvmEmbedResult* result) {
