@@ -77,6 +77,22 @@ To make that practical, ship host conformance assets with the feature:
 - capability and budget tests for oversized frames, unsupported schema versions, and
   missing graphics permission.
 
+Oren should also ship optional host-side extension SDK components, not just schemas.
+These SDKs are platform-specific packages maintained with the Oren/libavm contract:
+
+- `OrenAVMGraphicsKit` for iOS/macOS: Swift/Objective-C wrapper around `libavm`,
+  an `MTKView` renderer, frame mailbox polling, input-event encoding, lifecycle hooks,
+  and fixture-driven conformance tests.
+- `oren-avm-gfx-win` for Windows: C/C++ wrapper around `libavm`, a Direct3D or CPU
+  fallback renderer, input-event encoding, and the same frame-schema conformance tests.
+- `oren-avm-gfx-headless`: portable C reference adapter that validates frames and can
+  rasterize 2D geometry for CI without a GPU.
+
+The host app can then call the SDK at a high level, for example "attach this AVM handle
+to this view", rather than manually translating every Oren graphics command. The SDK
+still remains outside AVM's deterministic core: it owns OS objects, GPU resources, view
+lifecycle, and platform permissions, while AVM owns the portable command/event contract.
+
 ### 1. Graphics Domain and Frame Mailbox
 
 Add an AVM graphics capability domain, separate from FS/NET/PROC. The VM may create a

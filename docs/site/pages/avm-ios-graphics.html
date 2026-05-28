@@ -111,6 +111,25 @@
 <li>capability and budget tests for oversized frames, unsupported schema versions, and</li>
 </ul>
 <p>  missing graphics permission.</p>
+<p>Oren should also ship optional host-side extension SDK components, not just schemas.</p>
+<p>These SDKs are platform-specific packages maintained with the Oren/libavm contract:</p>
+<ul>
+<li><code>OrenAVMGraphicsKit</code> for iOS/macOS: Swift/Objective-C wrapper around <code>libavm</code>,</li>
+</ul>
+<p>  an <code>MTKView</code> renderer, frame mailbox polling, input-event encoding, lifecycle hooks,</p>
+<p>  and fixture-driven conformance tests.</p>
+<ul>
+<li><code>oren-avm-gfx-win</code> for Windows: C/C++ wrapper around <code>libavm</code>, a Direct3D or CPU</li>
+</ul>
+<p>  fallback renderer, input-event encoding, and the same frame-schema conformance tests.</p>
+<ul>
+<li><code>oren-avm-gfx-headless</code>: portable C reference adapter that validates frames and can</li>
+</ul>
+<p>  rasterize 2D geometry for CI without a GPU.</p>
+<p>The host app can then call the SDK at a high level, for example &quot;attach this AVM handle</p>
+<p>to this view&quot;, rather than manually translating every Oren graphics command. The SDK</p>
+<p>still remains outside AVM&#x27;s deterministic core: it owns OS objects, GPU resources, view</p>
+<p>lifecycle, and platform permissions, while AVM owns the portable command/event contract.</p>
 <h3 id="1-graphics-domain-and-frame-mailbox">1. Graphics Domain and Frame Mailbox</h3>
 <p>Add an AVM graphics capability domain, separate from FS/NET/PROC. The VM may create a</p>
 <p>bounded frame command buffer only when that domain is enabled.</p>
