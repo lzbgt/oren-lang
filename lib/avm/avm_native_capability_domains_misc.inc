@@ -245,16 +245,22 @@
                     }
                 }
 
+                AvmVM* child = avm_new();
+                if (!child) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 AvmProgram* prog = (AvmProgram*)malloc(sizeof(AvmProgram));
-                if (!prog) return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
-                if (!avm_parse_obc_from_bytes(args[0].as.b, prog)) {
+                if (!prog) {
+                    avm_free(child);
+                    return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
+                }
+                if (!avm_parse_obc_from_bytes(child, args[0].as.b, prog)) {
+                    avm_free(child);
                     free(prog);
                     return avm_err_domop(AVM_ERR_INVALID_ARG, "invalid obc bytes", domain, op);
                 }
 
-                AvmVM* child = avm_new();
                 child->argc = 0;
                 child->argv = NULL;
+                child->prog_constants_heap_owned = 1;
                 char** child_argv = NULL;
                 int child_argc = 0;
                 // Nested universes must not touch the host filesystem by default.
@@ -382,7 +388,13 @@
                         return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                     }
                 }
-                if (avm_map_get_key(cfg, "vfs_fixtures", &v) && v.type == AVM_VAL_BYTES && v.as.b && v.as.b->data) {
+                if (avm_map_get_key(cfg, "vfs_fixtures", &v)) {
+                    if (v.type != AVM_VAL_BYTES || !v.as.b || !v.as.b->data) {
+                        char msg[128];
+                        snprintf(msg, sizeof(msg), "vfs_fixtures expects BYTES, got type=%d", (int)v.type);
+                        avm_free(child);
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, msg, domain, op);
+                    }
                     if (child->fs_backend_kind == 1) {
                         const uint8_t* data = v.as.b->data;
                         size_t len = (size_t)v.as.b->len;
@@ -568,8 +580,8 @@
                 AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
                 if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); child->argv = NULL; child->argc = 0; }
                 avm_free(child);
-                // `prog->constants` may include malloc-allocated STRING/BYTES values; those were
-                // freed by `avm_free(child)` via `avm_release_heap_all` (constants are roots).
+                // The constants array is malloc-owned, while referenced constants are child-heap
+                // objects and are released by `avm_free(child)` because constants are VM roots.
                 if (prog->constants) free(prog->constants);
                 free(prog);
                 return ret;

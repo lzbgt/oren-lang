@@ -7,14 +7,11 @@ set -euo pipefail
 # - produce a precompiled stdlib bundle `.obc` that can be linked into other bytecode programs
 #   without shipping stdlib sources
 #
-# Future goal:
-# - also produce `oren.obc` (compiler-in-AVM) once the compiler-in-AVM entrypoint is stabilized
-#
 # Outputs:
 # - build/plugins/stdlib_bundle.obc
 #
 # Optional:
-# - OREN_BUILD_COMPILER_OBC=1 will attempt to build `oren.obc` (may be heavy/rolling).
+# - OREN_BUILD_COMPILER_OBC=1 builds `oren.obc` for the compiler-in-AVM gate.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -55,8 +52,12 @@ if [[ "${OREN_BUILD_COMPILER_OBC:-0}" == "1" ]]; then
   echo "== build: compiler (.obc, self-contained) ==" >&2
   echo "src=$comp_src" >&2
   echo "out=$comp_out" >&2
-  "$COMPILER" build "$comp_src" --backend bytecode -o "$comp_out" \
-    --stdlib-mode obc --stdlib-obc "$stdlib_out" >"$comp_log" 2>&1
+  if ! "$COMPILER" build "$comp_src" --backend bytecode -o "$comp_out" \
+    --stdlib-mode obc --stdlib-obc "$stdlib_out" >"$comp_log" 2>&1; then
+    echo "FAIL: compiler OBC build failed" >&2
+    tail -n 120 "$comp_log" >&2 || true
+    exit 3
+  fi
   test -f "$comp_out" || { echo "FAIL: did not produce $comp_out" >&2; tail -n 120 "$comp_log" >&2 || true; exit 3; }
   echo "OK: built $comp_out" >&2
 fi

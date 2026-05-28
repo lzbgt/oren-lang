@@ -6,6 +6,7 @@
 #include "avm_vm_values.h"
 
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,6 +19,13 @@
 //
 // Design constraints:
 // - single-threaded, deterministic, no host syscalls
+
+static AvmValue avm_err_map_key_unsupported_at(AvmVM* vm, AvmValue key, const char* op) {
+    char msg[160];
+    snprintf(msg, sizeof(msg), "%s map key type not supported (need nil/bool/int/string): type=%d pc=%d",
+        op ? op : "map", (int)key.type, vm ? vm->pc : -1);
+    return avm_err(AVM_ERR_INVALID_ARG, msg);
+}
 // - shared heap + globals between tasks (like greenlets within one VM)
 // - blocking ops (`join`, `chan_recv`, `select_recv`) yield to other runnable tasks
 //
@@ -314,13 +322,21 @@ void avm_run(AvmVM* vm) {
             case 0x06: { // LOAD_GLOBAL u16
                 uint16_t idx = code[vm->pc++];
                 idx |= (uint16_t)code[vm->pc++] << 8;
-                if (idx < MAX_GLOBALS) vm->stack[vm->sp++] = vm->globals[idx];
+                if (idx >= MAX_GLOBALS) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "LOAD_GLOBAL out of range"));
+                    break;
+                }
+                vm->stack[vm->sp++] = vm->globals[idx];
                 break;
             }
             case 0x07: { // STORE_GLOBAL u16
                 uint16_t idx = code[vm->pc++];
                 idx |= (uint16_t)code[vm->pc++] << 8;
-                if (idx < MAX_GLOBALS) vm->globals[idx] = vm->stack[--vm->sp];
+                if (idx >= MAX_GLOBALS) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "STORE_GLOBAL out of range"));
+                    break;
+                }
+                vm->globals[idx] = vm->stack[--vm->sp];
                 break;
             }
             case 0x10: { // ADD
@@ -979,7 +995,7 @@ void avm_run(AvmVM* vm) {
                         val = sl->items[i - (int)fixed];
                     }
                     if (!avm_map_key_supported(key)) {
-                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "TYPE_CTOR_MAP_SPREAD key type not supported"));
+                        avm_abort(vm, avm_err_map_key_unsupported_at(vm, key, "TYPE_CTOR_MAP_SPREAD"));
                         break;
                     }
                     if (!avm_map_set_sorted(map, key, val)) {
@@ -1646,7 +1662,11 @@ select2_done:
                     AvmValue val = vm->stack[--vm->sp];
                     AvmValue key = vm->stack[--vm->sp];
                     if (!avm_map_key_supported(key)) {
-                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
+                        char msg[192];
+                        snprintf(msg, sizeof(msg),
+                            "NEW_MAP key type not supported (need nil/bool/int/string): type=%d pc=%d pair=%u/%u sp=%d val_type=%d",
+                            (int)key.type, vm ? vm->pc : -1, (unsigned)i, (unsigned)pairs, vm ? vm->sp : -1, (int)val.type);
+                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, msg));
                         break;
                     }
                     if (!avm_map_set_sorted(map, key, val)) {
@@ -1682,7 +1702,7 @@ select2_done:
                         res = avm_int(obj.as.li->items[i]);
                     } else if (obj.type == AVM_VAL_MAP) {
                         if (!avm_map_key_supported(key)) {
-                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
+                            avm_abort(vm, avm_err_map_key_unsupported_at(vm, key, "GET_INDEX"));
                             break;
                         }
                         int found = 0;
@@ -1887,7 +1907,7 @@ select2_done:
                         if (obj.as.l->all_int && val.type != AVM_VAL_INT) obj.as.l->all_int = 0;
                     } else if (obj.type == AVM_VAL_MAP) {
                         if (!avm_map_key_supported(key)) {
-                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
+                            avm_abort(vm, avm_err_map_key_unsupported_at(vm, key, "SET_INDEX"));
                             break;
                         }
                         if (!avm_map_set_sorted(obj.as.m, key, val)) {

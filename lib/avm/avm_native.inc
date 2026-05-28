@@ -45,6 +45,8 @@ static const char* avm_oren_type_name_from_tag(int64_t tag) {
     }
 }
 
+#include "avm_native_ptr_helpers.inc"
+
 #include "avm_generator_native_helpers.inc"
 
 static int avm_i32_pack_extract(AvmValue v, int assume_int, int32_t* out) {
@@ -1415,6 +1417,7 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+#include "avm_native_compiler_cases.inc"
         case 35: { // oren_bytes_from_hex(string) -> bytes
             if (nargs > 0 && args[0].type == AVM_VAL_STRING) {
                 const char* s = (const char*)args[0].as.p;

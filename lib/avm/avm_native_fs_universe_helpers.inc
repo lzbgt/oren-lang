@@ -45,7 +45,7 @@ static AvmValue avm_vfs_snapshot_bytes_value(AvmVM* child) {
     return out;
 }
 
-static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
+static int avm_parse_obc_from_bytes(AvmVM* owner, const AvmBytes* obc, AvmProgram* out) {
     if (!obc || !out) return 0;
     if (!obc->data || obc->len < 4) return 0;
 
@@ -71,6 +71,9 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
     if (!consts && n_consts > 0) return 0;
     for (uint16_t i = 0; i < n_consts; i++) consts[i].type = AVM_VAL_NIL;
 
+    AvmVM* prev_owner = NULL;
+    avm_alloc_owner_push(owner, &prev_owner);
+
     for (uint16_t i = 0; i < n_consts; i++) {
         if (pos >= len) goto fail;
         uint8_t type = data[pos++];
@@ -95,12 +98,22 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
             consts[i].as.i = b ? 1 : 0;
             continue;
         }
+        if (type == 3) { // FLOAT (f64 bits as u64 little-endian)
+            if (pos + 8 > len) goto fail;
+            uint64_t bits = 0;
+            for (int k = 0; k < 8; k++) bits |= (uint64_t)data[pos++] << (k * 8);
+            double d = 0.0;
+            memcpy(&d, &bits, sizeof(bits));
+            consts[i].type = AVM_VAL_FLOAT;
+            consts[i].as.f = d;
+            continue;
+        }
         if (type == 4) { // STRING
             if (pos + 2 > len) goto fail;
             uint16_t slen = (uint16_t)data[pos] | ((uint16_t)data[pos + 1] << 8);
             pos += 2;
             if (pos + slen > len) goto fail;
-            char* s = (char*)malloc((size_t)slen + 1);
+            char* s = (char*)avm_heap_malloc_k((size_t)slen + 1, AVM_ALLOC_KIND_STRING);
             if (!s) goto fail;
             if (slen > 0) memcpy(s, data + pos, slen);
             s[slen] = 0;
@@ -117,14 +130,14 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
                 ((uint32_t)data[pos + 3] << 24);
             pos += 4;
             if (pos + blen > len) goto fail;
-            AvmBytes* b = (AvmBytes*)malloc(sizeof(AvmBytes));
+            AvmBytes* b = (AvmBytes*)avm_heap_malloc_k(sizeof(AvmBytes), AVM_ALLOC_KIND_BYTES);
             if (!b) goto fail;
             b->len = (int)blen;
             b->capacity = (int)blen;
             b->data = NULL;
             if (blen > 0) {
-                b->data = (uint8_t*)malloc((size_t)blen);
-                if (!b->data) { free(b); goto fail; }
+                b->data = (uint8_t*)avm_heap_malloc_k((size_t)blen, AVM_ALLOC_KIND_BYTES);
+                if (!b->data) { avm_heap_free(b); goto fail; }
                 memcpy(b->data, data + pos, blen);
             }
             pos += blen;
@@ -140,16 +153,18 @@ static int avm_parse_obc_from_bytes(const AvmBytes* obc, AvmProgram* out) {
     out->code_len = len - pos;
     out->constants = consts;
     out->const_count = n_consts;
+    avm_alloc_owner_pop(prev_owner);
     return 1;
 
 fail:
+    avm_alloc_owner_pop(prev_owner);
     if (consts) {
         for (uint16_t i = 0; i < n_consts; i++) {
             if (consts[i].type == AVM_VAL_STRING && consts[i].as.p) {
-                free(consts[i].as.p);
+                avm_heap_free(consts[i].as.p);
             } else if (consts[i].type == AVM_VAL_BYTES && consts[i].as.b) {
-                if (consts[i].as.b->data) free(consts[i].as.b->data);
-                free(consts[i].as.b);
+                if (consts[i].as.b->data) avm_heap_free(consts[i].as.b->data);
+                avm_heap_free(consts[i].as.b);
             }
             consts[i].type = AVM_VAL_NIL;
         }

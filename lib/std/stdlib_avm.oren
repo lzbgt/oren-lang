@@ -7,8 +7,8 @@
 // Notes:
 // - Keep this file "imports-only". Linking removes Import statements, but importing a module pulls it
 //   into the linked program and exports its public symbols via `--obc-lib`.
-// - This is intentionally a *minimal* subset (P0) to unblock the plugin workflow smoke test.
-// - Modules that depend on host pointers / OS effects / time APIs / crypto parsing are excluded for now.
+// - Include compiler-facing pure stdlib modules needed by the iOS compiler-in-AVM chain.
+// - Modules that depend on host-only effects remain excluded until they have AVM capability-domain shims.
 //
 // Build:
 //   ./oren_stage2 build lib/std/stdlib_avm.oren --backend bytecode -o build/plugins/stdlib_bundle.obc --obc-lib
@@ -19,6 +19,8 @@ import casts "std:casts"
 import ints "std:ints"
 import iter "std:iter"
 import list "std:list"
+import math "std:math"
 import assert_mod "std:assert"
 import result "std:result"
 import strings "std:strings"
+import argparse "std:argparse"

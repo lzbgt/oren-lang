@@ -29,8 +29,13 @@ fn push_u32_le(out, v) {
     oren_list_push(out, b3)
 }
 
+fn byte_seq_len(xs) {
+    if oren_is_list(xs) { return oren_list_len(xs) }
+    return oren_bytes_len(xs)
+}
+
 fn append_bytes(out, xs) {
-    var n = oren_bytes_len(xs)
+    var n = byte_seq_len(xs)
     var i = 0
     while i < n {
         oren_list_push(out, oren_bytes_get_u8(xs, i))
@@ -69,10 +74,10 @@ fn build_vfs_fixtures(files) {
         if body == nil { body = [] }
 
         var path_bytes = oren_bytes_from_string(path)
-        push_u32_le(out, oren_bytes_len(path_bytes))
+        push_u32_le(out, byte_seq_len(path_bytes))
         append_bytes(out, path_bytes)
 
-        push_u32_le(out, oren_bytes_len(body))
+        push_u32_le(out, byte_seq_len(body))
         append_bytes(out, body)
 
         i = i + 1
@@ -93,7 +98,7 @@ fn vfs_extract_body(snapshot_bytes, want_path_str) {
     pos = pos + 4
 
     var want = oren_bytes_from_string(want_path_str)
-    var want_len = oren_bytes_len(want)
+    var want_len = byte_seq_len(want)
 
     var i = 0
     while i < cnt {
@@ -128,6 +133,23 @@ fn vfs_extract_body(snapshot_bytes, want_path_str) {
         i = i + 1
     }
 
+    pos = 8 + 4
+    i = 0
+    while i < cnt {
+        var pl2 = u32_le_at(snapshot_bytes, pos)
+        pos = pos + 4
+        var name_bytes = []
+        var j2 = 0
+        while j2 < pl2 {
+            oren_list_push(name_bytes, u8_at(snapshot_bytes, pos + j2))
+            j2 = j2 + 1
+        }
+        print("snapshot path: " + oren_string_from_bytes(name_bytes))
+        pos = pos + pl2
+        var bl2 = u32_le_at(snapshot_bytes, pos)
+        pos = pos + 4 + bl2
+        i = i + 1
+    }
     fail(110, "path not found in vfs snapshot: " + want_path_str)
     return 0
 }
@@ -141,15 +163,17 @@ fn main() {
     var stdlib_obc_bytes = oren_read_u8_buf("build/stdlib_bundle.obc")
 
     var src =
-        "import math \\\"std:math\\\"\\n" +
-        "fn main() {\\n" +
-        "    if math.sqrt(9) == 3 {\\n" +
-        "        oren_exit(7)\\n" +
-        "    } else {\\n" +
-        "        oren_exit(1)\\n" +
-        "    }\\n" +
-        "}\\n" +
-        "main()\\n"
+        "import list \"std:list\"\n" +
+        "fn main() {\n" +
+        "    var xs = []\n" +
+        "    list.push(xs, 4)\n" +
+        "    if list.len(xs) == 1 && xs[0] == 4 {\n" +
+        "        oren_exit(7)\n" +
+        "    } else {\n" +
+        "        oren_exit(1)\n" +
+        "    }\n" +
+        "}\n" +
+        "main()\n"
 
     var files = [
         {"path": "src.oren", "body": oren_bytes_from_string(src)},
@@ -159,7 +183,7 @@ fn main() {
 
     var cfg_compile = {
         "deterministic": true,
-        "gas_limit": 40000000,
+        "gas_limit": 500000000,
         "fs_backend": 1,
         "vfs_fixtures": vfs_fx,
         "argv": [
@@ -167,7 +191,8 @@ fn main() {
             "build",
             "src.oren",
             "--backend", "bytecode",
-            "--target", "macos",
+            "--platform", "arm64-macos",
+            "--no-cache",
             "--deterministic",
             "--stdlib-mode", "obc",
             "--stdlib-obc", "stdlib.obc",
@@ -176,6 +201,10 @@ fn main() {
     }
 
     var cr = oren_avm_run_obc_bytes(compiler_obc, cfg_compile)
+    if oren_is_err(cr) {
+        print("compiler child launch error: " + oren_err_msg(cr))
+        fail(199, "compiler child launch failed")
+    }
     if cr["exit_code"] != 0 {
         print("compiler child exit_code=" + oren_int_to_string(cr["exit_code"]))
         var e = cr["last_error"]

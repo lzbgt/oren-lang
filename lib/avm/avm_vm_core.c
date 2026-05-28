@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 const char* avm_op_name(uint8_t op) {
     switch (op) {
@@ -188,6 +189,8 @@ AvmVM* avm_new() {
     vm->trace_bytes_truncated = 0;
     vm->break_pcs = NULL;
     vm->break_pc_count = 0;
+    memset(vm->ptr_handles, 0, sizeof(vm->ptr_handles));
+    vm->ptr_handle_count = 0;
     vm->sched = NULL;
     vm->argc = 0;
     vm->argv = NULL;

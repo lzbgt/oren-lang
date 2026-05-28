@@ -77,8 +77,10 @@ static void avm_release_heap(AvmVM* vm) {
     collect_value_objects(&objs, vm->env);
     for (int i = 0; i < vm->frame_count; i++) collect_value_objects(&objs, vm->frames[i].env);
 
-    // Program constants are part of VM semantics (PUSH_CONST copies references).
-    if (vm->prog && vm->prog->constants) {
+    // Program constants are roots only when the loader allocated referenced
+    // constants on this VM heap. CLI/embed loaders still own their constant
+    // pools externally and free them through their own pool cleanup path.
+    if (vm->prog_constants_heap_owned && vm->prog && vm->prog->constants) {
         for (size_t i = 0; i < vm->prog->const_count; i++) {
             collect_value_objects(&objs, vm->prog->constants[i]);
         }

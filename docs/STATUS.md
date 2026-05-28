@@ -14,9 +14,9 @@ surfaces, but the following blockers remain:
 - native tagged-value convergence is incomplete;
 - allocator/GC/runtime robustness is still a W5 gate;
 - Tier-1 platform breadth is uneven;
-- AVM now has an iOS xcframework packaging gate and embedder C API, but is not
-  yet production-ready as a complete iOS app runtime/compiler package;
-- compiler-in-AVM is fixture-level rather than a packaged production pipeline.
+- AVM now has an iOS xcframework packaging gate, embedder C API, and full
+  compiler-in-AVM smoke gate, but still needs app-host lifecycle coverage before
+  it should be called a complete production iOS package.
 
 ## Backend Readiness
 
@@ -29,7 +29,7 @@ surfaces, but the following blockers remain:
 
 ## AVM and iOS Readiness
 
-Current verdict: **partially productionized, not complete production-ready for iOS apps**.
+Current verdict: **production-chain smoke ready, not fully app-production mature**.
 
 Facts from the 2026-05-28 implementation pass:
 
@@ -43,6 +43,9 @@ Facts from the 2026-05-28 implementation pass:
   The iOS gate compiles a tiny Oren source to `.obc`, embeds those bytes into a C
   smoke, links that smoke for iPhoneOS and simulator, and runs the same bytes
   through the host libavm embed API.
+- `make verify-libavm-ios` also builds `build/plugins/stdlib_bundle.obc` and
+  `build/plugins/oren.obc`, runs the compiler `.obc` inside a child AVM universe
+  with VirtualFS stdlib resources, extracts `out.obc`, and runs that bytecode.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;
@@ -64,7 +67,7 @@ Detailed note: `project-doc/ios_avm_readiness_20260507.md`.
 
 ## Compiler-in-AVM
 
-Current verdict: **fixture-level bootstrap only**.
+Current verdict: **release-gated smoke path is green**.
 
 Working evidence:
 
@@ -73,15 +76,20 @@ Working evidence:
   through VFS.
 - `tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren` additionally
   passes `build/stdlib_bundle.obc` as a stdlib OBC resource.
+- `scripts/verify_compiler_in_avm_ios_chain.sh` builds both OBC resources with
+  `./oren`, runs the stdlib-OBC nested compiler harness through `./avm`, and is
+  called by `make verify-libavm-ios`.
+- The retained fixes include child-owned OBC constant parsing with explicit VM
+  ownership flags, a larger explicit AVM global table cap for the compiler OBC,
+  VFS `write_bytes` support for BYTES, and current CLI args (`--platform`,
+  `--no-cache`) for embedded compiler runs.
 
 Missing for production:
 
-- stable compiler `.obc` artifact target;
-- compiler `.obc` packaging is still blocked: a 2026-05-28 probe built
-  `build/plugins/stdlib_bundle.obc`, then segfaulted building `build/plugins/oren.obc`
-  from `oren.oren` with `--stdlib-mode obc`;
-- default release gate for nested compile/run;
-- iOS resource-loading and embedder lifecycle coverage.
+- Swift/Objective-C app-host smoke that loads bundled resources from an app bundle;
+- allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
+- manifest-driven AVM fixture release runner;
+- broader stdlib/compiler surface coverage beyond the current smoke program.
 
 ## Current P0 / W5 Work
 
@@ -105,7 +113,7 @@ Missing for production:
    - Add Swift/Objective-C smoke host.
    - Finish lifecycle maturity: allocator ownership/reentrancy, explicit resource
      loading, and app-level failure policy.
-   - Package compiler/stdlib OBC resources and gate nested compile/run.
+   - Expand compiler/stdlib OBC smoke coverage beyond the current release gate.
 
 2. **AVM fixture manifest runner**
    - Replace wildcard `AVM_TESTS` release expectations with manifest-driven per-fixture
@@ -133,6 +141,8 @@ make test
 make test-curated
 make avm
 make test-avm
+make verify-libavm-ios
+make verify-compiler-in-avm-ios-chain
 make verify-backend-parity
 make verify-runtime-robustness
 make docs-site

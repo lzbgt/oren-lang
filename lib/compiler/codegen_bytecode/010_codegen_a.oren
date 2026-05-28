@@ -1065,6 +1065,43 @@ fn bytecode_compile_expr(ctx, expr) {
 	        if name == "oren_f64_to_u64_bits" { native_id = 111 }
 	        if name == "oren_u64_bits_to_f64" { native_id = 112 }
         if name == "oren_map_len" { native_id = 113 }
+        if name == "ptr_get" { native_id = 192 }
+        if name == "ptr_set" { native_id = 193 }
+        if name == "ptr_get_byte" { native_id = 194 }
+        if name == "ptr_set_byte" { native_id = 195 }
+        if name == "iadd" { native_id = 196 }
+        if name == "oren_buf_data_ptr_unchecked" { native_id = 197 }
+        if name == "oren_gc_pin" { native_id = 198 }
+        if name == "oren_is_u8_buf" { native_id = 199 }
+        if name == "oren_string_byte_at_unchecked" { native_id = 200 }
+        if name == "oren_iter_next_entry" { native_id = 201 }
+        if name == "oren_is_string" { native_id = 202 }
+        if name == "oren_string_char_at_unchecked" { native_id = 203 }
+        if name == "oren_string_slice_unchecked" { native_id = 204 }
+        if name == "oren_map_set_int" { native_id = 205 }
+        if name == "oren_string_join" { native_id = 206 }
+        if name == "oren_is_list" { native_id = 207 }
+        if name == "oren_is_map" { native_id = 208 }
+        if name == "oren_is_buf" { native_id = 209 }
+        if name == "oren_map_set_str_unchecked" { native_id = 210 }
+        if name == "oren_list_new_cap" { native_id = 211 }
+        if name == "oren_map_new_cap" { native_id = 212 }
+        if name == "oren_map_push_entry_str_unchecked" { native_id = 213 }
+        if name == "oren_map_push_entry_int_unchecked" { native_id = 214 }
+        if name == "oren_map_build_finalize_unchecked" { native_id = 215 }
+        if name == "oren_sha256_string" { native_id = 216 }
+        if name == "oren_read_u8_buf" { native_id = 217 }
+        if name == "oren_file_stat_size_mtime_ns" { native_id = 218 }
+        if name == "oren_rename" { native_id = 219 }
+        if name == "oren_list_get" { native_id = 220 }
+        if name == "oren_mkdir_p" { native_id = 221 }
+        if name == "oren_is_file" { native_id = 222 }
+        if name == "oren_rm_rf" { native_id = 223 }
+        if name == "oren_sleep_ns" { native_id = 224 }
+        if name == "oren_is_done" { native_id = 225 }
+        if name == "oren_gc_safepoint" { native_id = 226 }
+        if name == "oren_unlink" { native_id = 227 }
+        if name == "oren_resolve_symbol" { native_id = 228 }
         // Reflection-ish helpers (rolling):
         // - `oren_type_tag(x)` is used pervasively in stdlib to detect nil without relying on scalar-nil comparisons.
         if name == "oren_type_tag" { native_id = 146 }

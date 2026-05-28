@@ -33,16 +33,13 @@ This file is the concise task view. Detailed implementation status lives in
 
 1. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging and a C embedder API now
-     exist, and `make verify-libavm-ios` now proves host compile-to-OBC plus
-     embedder load/run through libavm, but the app/runtime/compiler package is
-     not production-complete.
+     exist. `make verify-libavm-ios` now proves host compile-to-OBC, iOS C smoke
+     linkage, host embedder load/run, and a nested compiler-in-AVM stdlib-OBC
+     compile/run smoke.
    - Remaining required work: Swift/Objective-C smoke host, allocator ownership or
-     explicit single-VM guard, compiler OBC resource packaging, manifest
-     AVM release gate, and CI coverage.
-   - Current compiler-OBC blocker: `build/plugins/stdlib_bundle.obc` builds, but
-     `OREN_BUILD_COMPILER_OBC=1 ./scripts/build_avm_plugins.sh` segfaults while
-     producing `build/plugins/oren.obc`.
-   - Gate: `make verify-libavm-ios`.
+     explicit single-VM guard, app-bundle resource loading coverage, manifest
+     AVM release gate, broader compiler/stdlib surface coverage, and CI coverage.
+   - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
 
 2. **AVM full-suite manifest runner**

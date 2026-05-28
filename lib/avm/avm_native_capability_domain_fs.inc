@@ -37,7 +37,11 @@
             switch (op) {
                 case 0: { // read_file -> STRING
                     AvmVfsEntry* e = avm_vfs_find(v, path ? path : "");
-                    if (!e) return avm_err_domop(AVM_ERR_NOT_FOUND, "vfs: file not found", domain, op);
+                    if (!e) {
+                        char msg[256];
+                        snprintf(msg, sizeof(msg), "vfs: file not found: %s (entries=%u)", path ? path : "", v ? (unsigned)v->count : 0u);
+                        return avm_err_domop(AVM_ERR_NOT_FOUND, msg, domain, op);
+                    }
                     // Preflight record log capacity, similar to host read_file: need 86 + len
                     if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
                         uint64_t need = 86ull + (uint64_t)e->len;
@@ -78,9 +82,15 @@
                     return ret;
                 }
                 case 2: { // write_bytes -> NIL
-                    if (nargs < 2 || args[1].type != AVM_VAL_LIST || !args[1].as.l) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expects (path, list)", domain, op);
-                    AvmList* list = args[1].as.l;
-                    uint32_t len = (uint32_t)(list->count < 0 ? 0 : list->count);
+                    if (nargs < 2) return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expects (path, bytes|list)", domain, op);
+                    uint32_t len = 0;
+                    if (args[1].type == AVM_VAL_BYTES && args[1].as.b) {
+                        len = (uint32_t)(args[1].as.b->len < 0 ? 0 : args[1].as.b->len);
+                    } else if (args[1].type == AVM_VAL_LIST && args[1].as.l) {
+                        len = (uint32_t)(args[1].as.l->count < 0 ? 0 : args[1].as.l->count);
+                    } else {
+                        return avm_err_domop(AVM_ERR_INVALID_ARG, "vfs: write_bytes expects (path, bytes|list)", domain, op);
+                    }
                     // Preflight record log capacity, similar to host write_bytes: need 81
                     if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
                         if (!avm_log_can_fit(vm, 81ull)) {
@@ -90,7 +100,14 @@
                         }
                     }
                     if (!avm_io_charge(vm, (uint64_t)len, (int)domain, (int)op)) return vm->last_error;
-                    if (!avm_vfs_put_list(vm, path ? path : "", list)) {
+                    int ok = 0;
+                    if (args[1].type == AVM_VAL_BYTES) {
+                        AvmBytes* b = args[1].as.b;
+                        ok = avm_vfs_put(vm, path ? path : "", b ? b->data : NULL, len);
+                    } else {
+                        ok = avm_vfs_put_list(vm, path ? path : "", args[1].as.l);
+                    }
+                    if (!ok) {
                         AvmValue err = avm_alloc_fail_value();
                         avm_abort(vm, err);
                         return err;
@@ -102,7 +119,11 @@
                 }
                 case 3: { // read_bytes -> BYTES
                     AvmVfsEntry* e = avm_vfs_find(v, path ? path : "");
-                    if (!e) return avm_err_domop(AVM_ERR_NOT_FOUND, "vfs: file not found", domain, op);
+                    if (!e) {
+                        char msg[256];
+                        snprintf(msg, sizeof(msg), "vfs: file not found: %s (entries=%u)", path ? path : "", v ? (unsigned)v->count : 0u);
+                        return avm_err_domop(AVM_ERR_NOT_FOUND, msg, domain, op);
+                    }
                     // Preflight record log capacity: legacy read_bytes returns LIST<int> of length len.
                     // value_size(LIST aux=len): 18 + len*9; entry_size: 68 + that = 86 + len*9
                     if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {

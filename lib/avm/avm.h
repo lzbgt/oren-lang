@@ -7,12 +7,13 @@
 
 #include "sha256.h"
 
-#define MAX_GLOBALS 256
+#define MAX_GLOBALS 1024
 #define MAX_FRAMES 65536
 #define AVM_STACK_SIZE 16777216
 #define AVM_FREELIST_BUCKETS 16
 #define AVM_GENERATOR_HANDLE_SLOTS 16
 #define AVM_GENERATOR_CONTEXT_SLOTS 4
+#define AVM_PTR_HANDLE_MAX 4096
 
 typedef enum {
     AVM_VAL_NIL = 0,
@@ -103,6 +104,14 @@ typedef struct AvmBuf {
     uint32_t elem_size; // 4 for i32/f32, 8 for i64/f64
 } AvmBuf;
 
+typedef struct AvmPtrHandle {
+    AvmType type;
+    void* owner;
+    uint8_t* data;
+    int64_t len;
+    int readonly;
+} AvmPtrHandle;
+
 typedef struct AvmGeneratorHandle {
     uint64_t magic;
     AvmValue slots[AVM_GENERATOR_HANDLE_SLOTS];
@@ -148,6 +157,7 @@ typedef struct {
     int pc;
     int running;
     AvmProgram* prog;
+    int prog_constants_heap_owned;
     
     AvmValue globals[MAX_GLOBALS];
     AvmFrame frames[MAX_FRAMES];
@@ -331,6 +341,11 @@ typedef struct {
     // Debug/breakpoints (rolling): if any breakpoints are set, VM pauses before executing an instruction at that pc.
     int* break_pcs;
     int break_pc_count;
+
+    // VM-local pointer handles for bytecode compiler/tooling internals.
+    // These are deterministic handles, not host addresses.
+    AvmPtrHandle ptr_handles[AVM_PTR_HANDLE_MAX];
+    int ptr_handle_count;
 
     // Cooperative tasks + channels (rolling, v1 direction):
     // - Opaque internal scheduler state allocated by avm_vm.c
