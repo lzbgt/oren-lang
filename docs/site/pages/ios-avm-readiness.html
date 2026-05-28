@@ -31,12 +31,13 @@
     <main class="content">
       <h1 id="ios-avm-readiness-inspection-current-through-2026-05-28">iOS AVM Readiness Inspection (current through 2026-05-28)</h1>
 <h2 id="verdict">Verdict</h2>
-<p><code>libavm</code> is now buildable as an iOS xcframework with an embedder C API, but the</p>
-<p>full AVM runtime plus compiler-in-AVM package is still not production-ready for</p>
-<p>an iOS app.</p>
-<p>The 2026-05-28 implementation closes the first packaging/API gap. Remaining</p>
-<p>production blockers are release-gate maturity, app-host integration, resource</p>
-<p>packaging for compiler-in-AVM, and allocator/lifecycle hardening.</p>
+<p><code>libavm</code> is now buildable as an iOS xcframework with an embedder C API and an</p>
+<p>Oren-source-to-bytecode-to-libavm run gate, but the full compiler-in-AVM package</p>
+<p>is still not production-ready for an iOS app.</p>
+<p>The 2026-05-28 implementation closes the first packaging/API gap and proves the</p>
+<p>host-compile-to-OBC plus embedded-libavm-run chain. Remaining production blockers</p>
+<p>are app-host integration, compiler-in-AVM resource packaging, and allocator/lifecycle</p>
+<p>hardening.</p>
 <h2 id="evidence">Evidence</h2>
 <ul>
 <li>iOS integration scan on 2026-05-07 found no iOS app target or libavm embedding tree in this repo.</li>
@@ -50,6 +51,16 @@
 <p>  <code>AvmEmbedHandle</code>, <code>AvmEmbedConfig</code>, and <code>AvmEmbedResult</code>; defaults are</p>
 <p>  deterministic, deny host effects except CORE/EXIT, set budgets, and use</p>
 <p>  virtual FS/PROC/NET backends.</p>
+<ul>
+<li>OBC resource API after 2026-05-28: <code>avm_embed_run_obc_bytes(...)</code> parses,</li>
+</ul>
+<p>  verifies, loads, and runs <code>.obc</code> bytes owned by the embedder handle.</p>
+<ul>
+<li>Compile/run chain after 2026-05-28: <code>make verify-libavm-ios</code> compiles a tiny</li>
+</ul>
+<p>  Oren source to <code>.obc</code>, embeds those bytes into a C smoke, links that smoke for</p>
+<p>  iPhoneOS and simulator, and runs the same <code>.obc</code> through the host libavm embed</p>
+<p>  API with <code>exit_code=7</code>.</p>
 <ul>
 <li>Lifecycle hardening after 2026-05-28: <code>avm_new()</code> returns <code>NULL</code> on VM/stack</li>
 </ul>
@@ -72,14 +83,15 @@
 <li>Current iOS library gate: <code>make verify-libavm-ios</code> passes in <code>build/logs/make_verify_libavm_ios_20260528_embed_v2.log</code>.</li>
 <li>Full wildcard fixture gate: <code>make test-avm AVM_TESTS=&quot;tests/avm/*.oren&quot;</code> fails at <code>test_budget_io_fs</code> in <code>build/logs/make_test_avm_full_20260507_ios_avm_readiness_v1.log</code>. The fixture expects a small <code>AVM_IO_BYTES</code> budget, but the generic wildcard harness does not attach that per-fixture policy.</li>
 <li>Runtime budget behavior: a direct run with <code>AVM_IO_BYTES=128</code> returns <code>AVM error: code=9 msg=budget exceeded (io)</code> in <code>build/logs/avm_test_budget_io_fs_direct_20260507_ios_avm_readiness_v1.log</code>, so the immediate gap is harness/release manifest maturity, not this specific runtime budget check.</li>
-<li>Compiler-in-AVM status: <code>tests/avm/fixtures/compiler_in_avm_vfs_harness.oren</code> and <code>tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren</code> load <code>build/oren_compiler.obc</code> and optional <code>build/stdlib_bundle.obc</code> into nested AVM VFS fixtures, but they are not a default iOS release gate or packaged compiler-in-AVM product path.</li>
+<li>Compiler-in-AVM status: <code>tests/avm/fixtures/compiler_in_avm_vfs_harness.oren</code> and <code>tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren</code> load <code>build/oren_compiler.obc</code> and optional <code>build/stdlib_bundle.obc</code> into nested AVM VFS fixtures, but they are not a default iOS release gate or packaged compiler-in-AVM product path. A 2026-05-28 packaging probe built <code>build/plugins/stdlib_bundle.obc</code> and then segfaulted while building <code>build/plugins/oren.obc</code>, so compiler-in-AVM packaging remains blocked.</li>
 </ul>
 <h2 id="reweighted-todos">Reweighted TODOs</h2>
 <ul>
 <li>Done 2026-05-28: Add an iOS libavm embeddability gate and stable C embedder entry surface. Output: <code>LibAVM.xcframework</code>, public embedder headers, simulator/device link smoke, and <code>make verify-libavm-ios</code>.</li>
+<li>Done 2026-05-28: Add an OBC bytes embedder path. <code>make verify-libavm-ios</code> now proves host Oren source compilation to <code>.obc</code>, iOS smoke linkage with those bytes, and host libavm embedder execution of those bytes.</li>
 <li>P1/W4: Add a Swift/ObjC iOS smoke host. Required proof: bundled <code>.obc</code> load, virtual FS/PROC/NET config, run result surfaced through <code>AvmEmbedResult</code>, and app-style lifecycle teardown.</li>
 <li>P1/W4: Add an AVM fixture manifest runner. Required fields: fixture path, expected return code/error, required env budgets, backend policy, deterministic mode, host-effect expectations, and release-gate inclusion.</li>
-<li>P1/W4: Promote compiler-in-AVM packaging. Required outputs: stable <code>oren_compiler.obc</code> build target, stdlib OBC resource packaging, nested-AVM compile/run smoke in the default AVM release gate, and iOS resource-loading coverage.</li>
+<li>P1/W4: Promote compiler-in-AVM packaging. Required outputs: stable <code>oren_compiler.obc</code> build target, nested-AVM compile/run smoke in the default AVM release gate, and iOS resource-loading coverage. Current blocker: full compiler <code>.obc</code> build segfaults after stdlib OBC packaging succeeds.</li>
 <li>P1/W4: Finish embedder lifecycle. Make allocator ownership reentrant or explicitly single-VM guarded, document the app failure model, and keep host-only paths unavailable in iOS builds.</li>
 <li>P1/W3/W4 dependency: Continue AVM allocation/scheduler maturity, but do not treat those as sufficient for iOS production readiness until the packaging/API/harness gates above exist.</li>
 </ul>
@@ -87,6 +99,8 @@
 <ul>
 <li>Curated AVM build/test: <code>build/logs/make_avm_20260507_ios_avm_readiness_v1.log</code>, <code>build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log</code>.</li>
 <li>Current iOS xcframework gate: <code>build/logs/make_verify_libavm_ios_20260528_embed_v2.log</code>, nested build log <code>build/logs/build_libavm_ios.log</code>.</li>
+<li>Current OBC embed chain gate: <code>build/logs/make_verify_libavm_ios_20260528_obc_chain_v2.log</code>, OBC build log <code>build/logs/libavm_ios_embed_chain_obc_build.log</code>.</li>
+<li>Compiler-OBC packaging blocker: <code>build/logs/build_avm_plugins_compiler_obc_20260528_probe_v1.log</code>, compiler build log <code>build/logs/build_oren_obc.log</code>.</li>
 <li>Current curated AVM gate: <code>build/logs/make_test_avm_20260528_libavm_ios_embed_v1.log</code>.</li>
 <li>Wildcard fixture failure: <code>build/logs/make_test_avm_full_20260507_ios_avm_readiness_v1.log</code>.</li>
 <li>Direct IO-budget run: <code>build/logs/avm_test_budget_io_fs_direct_20260507_ios_avm_readiness_v1.log</code>.</li>

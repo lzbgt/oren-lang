@@ -24,7 +24,11 @@ while IFS= read -r src; do
 done < <(
   find lib/avm -maxdepth 1 -name '*.c' \
     ! -name 'main.c' \
-    ! -name 'avm_cli_*.c' \
+    ! -name 'avm_cli_disasm.c' \
+    ! -name 'avm_cli_dump.c' \
+    ! -name 'avm_cli_fs.c' \
+    ! -name 'avm_cli_policy.c' \
+    ! -name 'avm_cli_util.c' \
     -print | sort
   printf '%s\n' third_party/tweetnacl/tweetnacl.c
 )

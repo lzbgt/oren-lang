@@ -39,6 +39,10 @@ Facts from the 2026-05-28 implementation pass:
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deny-by-default deterministic config, budgets, virtual FS/PROC/NET defaults,
   structured result fields, and explicit lifecycle calls.
+- The embedder API can now parse, verify, load, and run `.obc` bytes from memory.
+  The iOS gate compiles a tiny Oren source to `.obc`, embeds those bytes into a C
+  smoke, links that smoke for iPhoneOS and simulator, and runs the same bytes
+  through the host libavm embed API.
 - `avm_new()` now returns `NULL` on VM/stack allocation failure instead of
   dereferencing failed allocations.
 - iOS embed builds define `AVM_EMBED_NO_ABORT_ON_LEAK` and `AVM_IOS_EMBED`;
@@ -73,7 +77,9 @@ Working evidence:
 Missing for production:
 
 - stable compiler `.obc` artifact target;
-- stdlib OBC resource packaging;
+- compiler `.obc` packaging is still blocked: a 2026-05-28 probe built
+  `build/plugins/stdlib_bundle.obc`, then segfaulted building `build/plugins/oren.obc`
+  from `oren.oren` with `--stdlib-mode obc`;
 - default release gate for nested compile/run;
 - iOS resource-loading and embedder lifecycle coverage.
 
