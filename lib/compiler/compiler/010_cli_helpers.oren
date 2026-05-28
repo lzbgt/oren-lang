@@ -414,6 +414,7 @@ fn parse_platform_spec(s) {
     // Used by the CLI to support a single platform flag for arch+OS.
     if s == nil { return nil }
     if s == "" { return nil }
+    if s == "avm-ios" || s == "ios-avm" { return {"arch": "avm64", "os": "avm"} }
     var n = oren_string_len(s)
     if n == 0 { return nil }
     var dash = -1
@@ -785,8 +786,8 @@ fn completion_emit(shell) {
         print("    if [[ \"$cur\" == --target=* ]]; then local v=\"${cur#--target=}\"; COMPREPLY=( $(compgen -W \"macos linux windows\" -- \"$v\") ); COMPREPLY=( \"${COMPREPLY[@]/#/--target=}\" ); return 0; fi")
         print("    if [[ \"$prev\" == \"--arch\" ]]; then COMPREPLY=( $(compgen -W \"arm64 x64\" -- \"$cur\") ); return 0; fi")
         print("    if [[ \"$cur\" == --arch=* ]]; then local v=\"${cur#--arch=}\"; COMPREPLY=( $(compgen -W \"arm64 x64\" -- \"$v\") ); COMPREPLY=( \"${COMPREPLY[@]/#/--arch=}\" ); return 0; fi")
-        print("    if [[ \"$prev\" == \"--platform\" ]]; then COMPREPLY=( $(compgen -W \"arm64-macos arm64-linux x64-windows x64-linux\" -- \"$cur\") ); return 0; fi")
-        print("    if [[ \"$cur\" == --platform=* ]]; then local v=\"${cur#--platform=}\"; COMPREPLY=( $(compgen -W \"arm64-macos arm64-linux x64-windows x64-linux\" -- \"$v\") ); COMPREPLY=( \"${COMPREPLY[@]/#/--platform=}\" ); return 0; fi")
+        print("    if [[ \"$prev\" == \"--platform\" ]]; then COMPREPLY=( $(compgen -W \"avm-ios arm64-macos arm64-linux x64-windows x64-linux\" -- \"$cur\") ); return 0; fi")
+        print("    if [[ \"$cur\" == --platform=* ]]; then local v=\"${cur#--platform=}\"; COMPREPLY=( $(compgen -W \"avm-ios arm64-macos arm64-linux x64-windows x64-linux\" -- \"$v\") ); COMPREPLY=( \"${COMPREPLY[@]/#/--platform=}\" ); return 0; fi")
         print("  fi")
         print("")
         print("  # Positional completion (minimal):")
@@ -915,8 +916,8 @@ fn completion_emit(shell) {
         print("    if [[ \"$cur\" == --target=* ]]; then compadd -P \"--target=\" -- macos linux windows; return 0; fi")
         print("    if [[ \"$prev\" == \"--arch\" ]]; then compadd -- arm64 x64; return 0; fi")
         print("    if [[ \"$cur\" == --arch=* ]]; then compadd -P \"--arch=\" -- arm64 x64; return 0; fi")
-        print("    if [[ \"$prev\" == \"--platform\" ]]; then compadd -- arm64-macos arm64-linux x64-windows x64-linux; return 0; fi")
-        print("    if [[ \"$cur\" == --platform=* ]]; then compadd -P \"--platform=\" -- arm64-macos arm64-linux x64-windows x64-linux; return 0; fi")
+        print("    if [[ \"$prev\" == \"--platform\" ]]; then compadd -- avm-ios arm64-macos arm64-linux x64-windows x64-linux; return 0; fi")
+        print("    if [[ \"$cur\" == --platform=* ]]; then compadd -P \"--platform=\" -- avm-ios arm64-macos arm64-linux x64-windows x64-linux; return 0; fi")
         print("  fi")
         print("  # Positional completion (minimal):")
         print("  if [[ \"$cmd\" == \"dump\" && \"$cur\" != -* ]]; then")

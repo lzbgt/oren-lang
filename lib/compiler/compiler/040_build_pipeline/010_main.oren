@@ -248,7 +248,7 @@ fn compiler_main() {
         if trace_build { print("[build] parsed platform=" + platform0) }
         var ps0 = parse_platform_spec(platform0)
         if ps0 == nil {
-            var emsg0 = "oren build: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+            var emsg0 = "oren build: invalid --platform " + platform0 + " (expected: avm-ios or <arch>-<os>)"
             emit_diag("compile", 2, emsg0)
             print(emsg0)
             oren_exit(2)
@@ -265,7 +265,7 @@ fn compiler_main() {
         }
     }
     if (target == nil || target == "" || arch == nil || arch == "") {
-        var emsg_det3 = "oren build: could not determine target platform; pass --platform <arch>-<os> or set OREN_PLATFORM"
+        var emsg_det3 = "oren build: could not determine target platform; pass --platform avm-ios or <arch>-<os>, or set OREN_PLATFORM"
         emit_diag("compile", 2, emsg_det3)
         print(emsg_det3)
         oren_exit(2)

@@ -324,7 +324,7 @@ fn _compiler_run_dump_cmd(pos, opts, seen, dbg_flow) {
     if platform0 != nil && platform0 != "" {
         var ps0 = parse_platform_spec(platform0)
         if ps0 == nil {
-            var emsg0 = "oren dump: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+            var emsg0 = "oren dump: invalid --platform " + platform0 + " (expected: avm-ios or <arch>-<os>)"
             emit_diag("compile", 2, emsg0)
             print(emsg0)
             oren_exit(2)
@@ -470,7 +470,7 @@ fn _compiler_run_meta_cmd(pos, opts, seen, dbg_flow) {
     if platform0 != nil && platform0 != "" {
         var ps0 = parse_platform_spec(platform0)
         if ps0 == nil {
-            var emsg0 = "oren meta: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
+            var emsg0 = "oren meta: invalid --platform " + platform0 + " (expected: avm-ios or <arch>-<os>)"
             emit_diag("compile", 2, emsg0)
             print(emsg0)
             oren_exit(2)
