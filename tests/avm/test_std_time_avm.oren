@@ -1,0 +1,19 @@
+import time "std:time"
+
+fn main() {
+    var t0 = time.now_ns()
+    var u0 = time.now_unix_ns()
+    var m0 = time.mono_raw()
+    var slept = time.sleep_ms(2)
+    var t1 = time.now_ns()
+
+    if slept != 0 { oren_exit(901) }
+    if u0 < t0 { oren_exit(902) }
+    if m0 < t0 { oren_exit(903) }
+    if t1 <= t0 { oren_exit(904) }
+
+    print("avm std time OK")
+    oren_exit(0)
+}
+
+main()

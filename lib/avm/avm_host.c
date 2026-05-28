@@ -12,6 +12,12 @@ uint64_t avm_now_ns(void) {
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 
+uint64_t avm_unix_ns(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) return 0;
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
 uint64_t prng_next_u64(uint64_t* state) {
     // xorshift64* (deterministic, fast). Not cryptographically secure.
     uint64_t x = *state;
@@ -42,4 +48,3 @@ uint64_t host_random_u64(void) {
     return v;
 #endif
 }
-

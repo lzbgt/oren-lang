@@ -192,6 +192,7 @@ int avm_log_can_fit(AvmVM* vm, uint64_t bytes);
 
 // --- Host time + entropy (non-deterministic mode) ---
 uint64_t avm_now_ns(void);
+uint64_t avm_unix_ns(void);
 uint64_t prng_next_u64(uint64_t* state);
 uint64_t host_random_u64(void);
 

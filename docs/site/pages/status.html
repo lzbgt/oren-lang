@@ -73,13 +73,20 @@
 <p>  <code>avm_embed_vproc_set_default_exit</code>, <code>avm_embed_set_output_capture</code>,</p>
 <p>  <code>avm_embed_output_get</code>, <code>avm_embed_output_clear</code>, and <code>avm_embed_free_bytes</code>.</p>
 <ul>
+<li>Default embed configs allow deterministic TIME alongside CORE/FS/NET/PROC/EXIT,</li>
+</ul>
+<p>  so <code>std:time.now_ns</code>, <code>std:time.mono_raw</code>, <code>std:time.now_unix_ns</code>, and</p>
+<p>  <code>std:time.sleep_ms</code> work from AVM bytecode without extra app-side capability</p>
+<p>  wiring. Deterministic mode maps all three clocks to virtual time; non-deterministic</p>
+<p>  <code>now_unix_ns</code> uses host realtime.</p>
+<ul>
 <li>The embedder API can now parse, verify, load, and run <code>.obc</code> bytes from memory.</li>
 </ul>
 <p>  The iOS gate compiles a tiny Oren source to <code>.obc</code>, embeds those bytes into a C</p>
 <p>  smoke, links that smoke for iPhoneOS and simulator, and runs the same bytes</p>
 <p>  through the host libavm embed API with argv, VFS read/write roundtrip,</p>
-<p>  VirtualNET fixture lookup, VirtualPROC fixture/default exits, and captured</p>
-<p>  stdout retrieval/clear.</p>
+<p>  deterministic TIME, VirtualNET fixture lookup, VirtualPROC fixture/default exits,</p>
+<p>  and captured stdout retrieval/clear.</p>
 <ul>
 <li><code>make verify-libavm-ios</code> also builds <code>build/plugins/stdlib_bundle.obc</code> and</li>
 </ul>

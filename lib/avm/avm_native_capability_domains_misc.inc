@@ -114,7 +114,7 @@
                 return ret;
             }
             case 1: { // sleep_ms(ms)
-                AvmValue ret = avm_nil();
+                AvmValue ret = avm_int(0);
                 int64_t ms = 0;
                 if (nargs > 0 && args[0].type == AVM_VAL_INT) ms = args[0].as.i;
                 if (ms < 0) ms = 0;
@@ -126,6 +126,22 @@
                     if (vm->virtual_sleep_ns < prev) vm->virtual_sleep_ns = UINT64_MAX;
                 } else {
                     usleep((useconds_t)(ms * 1000));
+                }
+                if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
+                if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);
+                return ret;
+            }
+            case 2: { // unix_ns()
+                AvmValue ret;
+                if (vm->deterministic) {
+                    __uint128_t t = (__uint128_t)vm->virtual_now_ns;
+                    t += (__uint128_t)vm->virtual_sleep_ns;
+                    t += (__uint128_t)vm->gas_executed * (__uint128_t)vm->virtual_step_ns;
+                    uint64_t t64 = (t > (__uint128_t)UINT64_MAX) ? UINT64_MAX : (uint64_t)t;
+                    int64_t out = (t64 > (uint64_t)INT64_MAX) ? INT64_MAX : (int64_t)t64;
+                    ret = avm_int(out);
+                } else {
+                    ret = avm_int((int64_t)avm_unix_ns());
                 }
                 if (vm->record_log_bytes) { uint32_t p = (uint32_t)vm->record_log_bytes->len; (void)rr_write_entry_mem(vm, vm->record_log_bytes, &p, domain, op, args, nargs, ret); }
                 if (vm->record_log) (void)rr_write_entry(vm, vm->record_log, domain, op, args, nargs, ret);

@@ -43,6 +43,8 @@ OREN_SRC="$TMP_DIR/embed_chain.oren"
 OBC_OUT="$TMP_DIR/embed_chain.obc"
 OBC_HEADER="$TMP_DIR/embed_chain_obc.h"
 cat > "$OREN_SRC" <<'OREN'
+import time "std:time"
+
 fn main() {
     var args = oren_args()
     if oren_list_len(args) != 3 { oren_exit(10) }
@@ -58,6 +60,10 @@ fn main() {
     if rc1 != 21 { oren_exit(15) }
     var rc2 = oren_system("missing-proc")
     if rc2 != 44 { oren_exit(16) }
+    var t0 = time.now_ns()
+    var sr = time.sleep_ms(1)
+    if sr != 0 { oren_exit(17) }
+    if time.now_unix_ns() < t0 { oren_exit(18) }
     oren_exit(9)
 }
 main()

@@ -55,8 +55,10 @@
 <li>Embedder API after 2026-05-28: <code>lib/avm/avm_embed.h</code> provides an opaque</li>
 </ul>
 <p>  <code>AvmEmbedHandle</code>, <code>AvmEmbedConfig</code>, and <code>AvmEmbedResult</code>; defaults are</p>
-<p>  deterministic, set budgets, allow CORE/FS/NET/PROC/EXIT with the default</p>
+<p>  deterministic, set budgets, allow CORE/FS/TIME/NET/PROC/EXIT with the default</p>
 <p>  virtual FS/PROC/NET backends, and avoid host filesystem/network/process effects.</p>
+<p>  TIME is virtual by default for <code>std:time.now_ns</code>, <code>std:time.mono_raw</code>,</p>
+<p>  <code>std:time.now_unix_ns</code>, and <code>std:time.sleep_ms</code>.</p>
 <ul>
 <li>App bridge API after 2026-05-28: <code>avm_embed_set_argv(...)</code> copies program argv</li>
 </ul>
@@ -80,8 +82,8 @@
 <p>  Oren source to <code>.obc</code>, embeds those bytes into a C smoke, links that smoke for</p>
 <p>  iPhoneOS and simulator, and runs the same <code>.obc</code> through the host libavm embed</p>
 <p>  API with <code>exit_code=9</code>, argv injection, VFS input, VFS output extraction,</p>
-<p>  VFS snapshot verification, VirtualNET <code>oren_net_get(...)</code>, VirtualPROC</p>
-<p>  <code>oren_system(...)</code>, and captured stdout retrieval/clear.</p>
+<p>  VFS snapshot verification, deterministic TIME, VirtualNET <code>oren_net_get(...)</code>,</p>
+<p>  VirtualPROC <code>oren_system(...)</code>, and captured stdout retrieval/clear.</p>
 <ul>
 <li>Compiler-in-AVM chain after 2026-05-28: <code>make verify-libavm-ios</code> also calls</li>
 </ul>

@@ -242,6 +242,7 @@ endif
 		tests/avm/test_job_scan.oren \
 		tests/avm/test_snapshot_resume.oren \
 		tests/avm/test_multiverse_invalid_obc.oren \
+		tests/avm/test_std_time_avm.oren \
 		tests/avm/test_time_rng_deterministic.oren \
 		tests/avm/test_time_rng_record_replay_mem.oren \
 		tests/avm/test_budget_gas.oren \

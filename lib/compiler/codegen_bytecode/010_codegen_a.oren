@@ -964,6 +964,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_env" { native_domain = AVM_DOMAIN_ENV; native_op = 0 }
         if name == "oren_time_now_ns" { native_domain = AVM_DOMAIN_TIME; native_op = 0 }
         if name == "oren_time_mono_raw" { native_domain = AVM_DOMAIN_TIME; native_op = 0 }
+        if name == "oren_time_unix_ns" { native_domain = AVM_DOMAIN_TIME; native_op = 2 }
         if name == "oren_sleep_ms" { native_domain = AVM_DOMAIN_TIME; native_op = 1 }
         if name == "oren_rand_u64" { native_domain = AVM_DOMAIN_RNG; native_op = 0 }
         if name == "oren_rand_seed" { native_domain = AVM_DOMAIN_RNG; native_op = 1 }

@@ -24,8 +24,10 @@ allocator/lifecycle hardening.
   non-CLI AVM sources for `iphoneos-arm64` and `iphonesimulator-arm64`.
 - Embedder API after 2026-05-28: `lib/avm/avm_embed.h` provides an opaque
   `AvmEmbedHandle`, `AvmEmbedConfig`, and `AvmEmbedResult`; defaults are
-  deterministic, set budgets, allow CORE/FS/NET/PROC/EXIT with the default
+  deterministic, set budgets, allow CORE/FS/TIME/NET/PROC/EXIT with the default
   virtual FS/PROC/NET backends, and avoid host filesystem/network/process effects.
+  TIME is virtual by default for `std:time.now_ns`, `std:time.mono_raw`,
+  `std:time.now_unix_ns`, and `std:time.sleep_ms`.
 - App bridge API after 2026-05-28: `avm_embed_set_argv(...)` copies program argv
   into the VM, `avm_embed_vfs_put(...)` injects VirtualFS file bytes,
   `avm_embed_vfs_get(...)` copies VirtualFS output bytes back to the app,
@@ -43,8 +45,8 @@ allocator/lifecycle hardening.
   Oren source to `.obc`, embeds those bytes into a C smoke, links that smoke for
   iPhoneOS and simulator, and runs the same `.obc` through the host libavm embed
   API with `exit_code=9`, argv injection, VFS input, VFS output extraction,
-  VFS snapshot verification, VirtualNET `oren_net_get(...)`, VirtualPROC
-  `oren_system(...)`, and captured stdout retrieval/clear.
+  VFS snapshot verification, deterministic TIME, VirtualNET `oren_net_get(...)`,
+  VirtualPROC `oren_system(...)`, and captured stdout retrieval/clear.
 - Compiler-in-AVM chain after 2026-05-28: `make verify-libavm-ios` also calls
   `scripts/verify_compiler_in_avm_ios_chain.sh`, which builds
   `build/plugins/stdlib_bundle.obc` and `build/plugins/oren.obc`, injects them

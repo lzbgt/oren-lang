@@ -11,8 +11,11 @@ fn main() {
     oren_rand_seed(12345)
 
     var t1 = oren_time_now_ns()
-    oren_sleep_ms(10)
+    var sleep_rc = oren_sleep_ms(10)
+    if sleep_rc != 0 { oren_exit(901) }
     var t2 = oren_time_now_ns()
+    var t3 = oren_time_unix_ns()
+    if t3 < t2 { oren_exit(902) }
 
     var r1 = oren_rand_u64()
     var r2 = oren_rand_u64()
@@ -21,4 +24,3 @@ fn main() {
 }
 
 main()
-

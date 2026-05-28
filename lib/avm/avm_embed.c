@@ -54,6 +54,7 @@ void avm_embed_config_default(AvmEmbedConfig* config) {
     config->verify_strict = 1;
     config->allowed_native_domains = (UINT64_C(1) << 0) |
         (UINT64_C(1) << 1) |
+        (UINT64_C(1) << 2) |
         (UINT64_C(1) << 4) |
         (UINT64_C(1) << 5) |
         (UINT64_C(1) << 6);
