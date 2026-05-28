@@ -60,6 +60,11 @@
 <p>  TIME is virtual by default for <code>std:time.now_ns</code>, <code>std:time.mono_raw</code>,</p>
 <p>  <code>std:time.now_unix_ns</code>, and <code>std:time.sleep_ms</code>.</p>
 <ul>
+<li>AVM stdlib bundle after 2026-05-29: the bundle root includes <code>std:time</code> alongside</li>
+</ul>
+<p>  the existing compiler/app-critical portable subset. Broader pure-stdlib expansion</p>
+<p>  should be manifest-gated so bundle build time remains acceptable.</p>
+<ul>
 <li>App bridge API after 2026-05-28: <code>avm_embed_set_argv(...)</code> copies program argv</li>
 </ul>
 <p>  into the VM, <code>avm_embed_vfs_put(...)</code> injects VirtualFS file bytes,</p>

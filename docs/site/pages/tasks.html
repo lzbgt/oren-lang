@@ -83,6 +83,11 @@
 <p>     argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a</p>
 <p>     nested compiler-in-AVM stdlib-OBC compile/run smoke.</p>
 <ul>
+<li>AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules</li>
+</ul>
+<p>     by default, but expand through a manifest/size gate so bundle build time remains</p>
+<p>     acceptable; keep host-only modules out until AVM shims exist.</p>
+<ul>
 <li>Remaining required work: Swift/Objective-C smoke host, allocator ownership or</li>
 </ul>
 <p>     explicit single-VM guard, app-bundle resource loading coverage, stderr or</p>

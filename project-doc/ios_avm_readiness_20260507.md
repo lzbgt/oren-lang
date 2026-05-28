@@ -28,6 +28,9 @@ allocator/lifecycle hardening.
   virtual FS/PROC/NET backends, and avoid host filesystem/network/process effects.
   TIME is virtual by default for `std:time.now_ns`, `std:time.mono_raw`,
   `std:time.now_unix_ns`, and `std:time.sleep_ms`.
+- AVM stdlib bundle after 2026-05-29: the bundle root includes `std:time` alongside
+  the existing compiler/app-critical portable subset. Broader pure-stdlib expansion
+  should be manifest-gated so bundle build time remains acceptable.
 - App bridge API after 2026-05-28: `avm_embed_set_argv(...)` copies program argv
   into the VM, `avm_embed_vfs_put(...)` injects VirtualFS file bytes,
   `avm_embed_vfs_get(...)` copies VirtualFS output bytes back to the app,

@@ -80,6 +80,11 @@
 <p>  wiring. Deterministic mode maps all three clocks to virtual time; non-deterministic</p>
 <p>  <code>now_unix_ns</code> uses host realtime.</p>
 <ul>
+<li>The AVM stdlib bundle root includes the compiler/app-critical portable subset plus</li>
+</ul>
+<p>  <code>std:time</code>; broader pure-stdlib expansion should be manifest-gated so bundle build</p>
+<p>  time stays inside the repo iteration budget.</p>
+<ul>
 <li>The embedder API can now parse, verify, load, and run <code>.obc</code> bytes from memory.</li>
 </ul>
 <p>  The iOS gate compiles a tiny Oren source to <code>.obc</code>, embeds those bytes into a C</p>

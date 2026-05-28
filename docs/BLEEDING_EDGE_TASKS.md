@@ -40,6 +40,9 @@ This file is the concise task view. Detailed implementation status lives in
      now proves host compile-to-OBC, iOS C smoke linkage, host embedder
      argv/VFS/TIME/VNET/VPROC load/run, captured stdout retrieval/clear, and a
      nested compiler-in-AVM stdlib-OBC compile/run smoke.
+   - AVM stdlib bundle policy: include portable pure/capability-backed stdlib modules
+     by default, but expand through a manifest/size gate so bundle build time remains
+     acceptable; keep host-only modules out until AVM shims exist.
    - Remaining required work: Swift/Objective-C smoke host, allocator ownership or
      explicit single-VM guard, app-bundle resource loading coverage, stderr or
      structured diagnostic capture if the Note UI needs it, manifest AVM release

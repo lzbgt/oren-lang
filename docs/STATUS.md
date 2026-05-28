@@ -49,6 +49,9 @@ Facts from the 2026-05-28 implementation pass:
   `std:time.sleep_ms` work from AVM bytecode without extra app-side capability
   wiring. Deterministic mode maps all three clocks to virtual time; non-deterministic
   `now_unix_ns` uses host realtime.
+- The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
+  `std:time`; broader pure-stdlib expansion should be manifest-gated so bundle build
+  time stays inside the repo iteration budget.
 - The embedder API can now parse, verify, load, and run `.obc` bytes from memory.
   The iOS gate compiles a tiny Oren source to `.obc`, embeds those bytes into a C
   smoke, links that smoke for iPhoneOS and simulator, and runs the same bytes

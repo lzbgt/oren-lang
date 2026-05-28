@@ -164,7 +164,11 @@ fn main() {
 
     var src =
         "import list \"std:list\"\n" +
+        "import time \"std:time\"\n" +
         "fn main() {\n" +
+        "    var sr = time.sleep_ms(1)\n" +
+        "    if sr != 0 { oren_exit(2) }\n" +
+        "    if time.now_unix_ns() < 0 { oren_exit(3) }\n" +
         "    var xs = []\n" +
         "    list.push(xs, 4)\n" +
         "    if list.len(xs) == 1 && xs[0] == 4 {\n" +
@@ -224,7 +228,7 @@ fn main() {
     var cfg_run = {
         "deterministic": true,
         "gas_limit": 1000000,
-        "allowed_domains": (1 << 0) + (1 << 6)
+        "allowed_domains": (1 << 0) + (1 << 2) + (1 << 6)
     }
     var pr = oren_avm_run_obc_bytes(program_obc, cfg_run)
     if pr["exit_code"] != 7 {
