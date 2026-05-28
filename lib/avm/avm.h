@@ -214,6 +214,12 @@ typedef struct {
     // Internal: VirtualNET fixtures table (owned by VM heap; freed on teardown via leak-free teardown).
     void* vnet;
 
+    // Embedder stdout capture (rolling): disabled for CLI by default, enabled by libavm embed.
+    int stdout_capture_enabled;
+    char* stdout_capture;
+    size_t stdout_capture_len;
+    size_t stdout_capture_cap;
+
     // Execution budgets (rolling): 0 means "no limit".
     uint64_t gas_remaining;
     uint64_t deadline_ns;

@@ -107,6 +107,8 @@ static inline AvmValue avm_mod_values(AvmVM* vm, AvmValue a, AvmValue b, int* ok
 
 AvmValue avm_list_int_new(int cap);
 void avm_print_value_no_nl(AvmValue v);
+void avm_output_text(AvmVM* vm, const char* data, size_t len);
+void avm_output_value_no_nl(AvmVM* vm, AvmValue v);
 const char* avm_val_type_short(AvmValue v);
 
 #endif

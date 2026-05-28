@@ -31,6 +31,9 @@ for sym in \
   _avm_embed_vnet_put \
   _avm_embed_vproc_put \
   _avm_embed_vproc_set_default_exit \
+  _avm_embed_set_output_capture \
+  _avm_embed_output_get \
+  _avm_embed_output_clear \
   _avm_embed_free_bytes; do
   nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
   nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
@@ -50,6 +53,7 @@ fn main() {
     if oren_is_err(w) { oren_exit(13) }
     var body = oren_net_get("https://note.local/probe")
     if body != "net-ok" { oren_exit(14) }
+    print("stdout:" + body)
     var rc1 = oren_system("probe-ok")
     if rc1 != 21 { oren_exit(15) }
     var rc2 = oren_system("missing-proc")
@@ -100,6 +104,7 @@ int main(void) {
     if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 5;
     if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 6;
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 7;
+    if (avm_embed_set_output_capture(handle, 1, &result) != AVM_EMBED_OK) return 8;
     if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 8;
     if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 9;
     uint8_t* out = 0;
@@ -112,6 +117,17 @@ int main(void) {
     if (avm_embed_vfs_snapshot(handle, &snap, &snap_len, &result) != AVM_EMBED_OK) return 12;
     if (snap_len < 12 || memcmp(snap, "AVMVFS01", 8) != 0) return 13;
     avm_embed_free_bytes(snap);
+    uint8_t* stdout_data = 0;
+    size_t stdout_len = 0;
+    if (avm_embed_output_get(handle, &stdout_data, &stdout_len, &result) != AVM_EMBED_OK) return 14;
+    if (stdout_len != 14 || memcmp(stdout_data, "stdout:net-ok\n", 14) != 0) return 15;
+    avm_embed_free_bytes(stdout_data);
+    if (avm_embed_output_clear(handle, &result) != AVM_EMBED_OK) return 16;
+    stdout_data = 0;
+    stdout_len = 99;
+    if (avm_embed_output_get(handle, &stdout_data, &stdout_len, &result) != AVM_EMBED_OK) return 17;
+    if (stdout_len != 0) return 18;
+    avm_embed_free_bytes(stdout_data);
     avm_embed_close(handle);
     return 0;
 }

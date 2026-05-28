@@ -26,6 +26,7 @@ static AvmValue avm_err_map_key_unsupported_at(AvmVM* vm, AvmValue key, const ch
         op ? op : "map", (int)key.type, vm ? vm->pc : -1);
     return avm_err(AVM_ERR_INVALID_ARG, msg);
 }
+
 // - shared heap + globals between tasks (like greenlets within one VM)
 // - blocking ops (`join`, `chan_recv`, `select_recv`) yield to other runnable tasks
 //
@@ -592,8 +593,8 @@ void avm_run(AvmVM* vm) {
             case 0x20: { // PRINT
                 if (vm->sp > 0) {
                     AvmValue v = vm->stack[--vm->sp];
-                    avm_print_value_no_nl(v);
-                    printf("\n");
+                    avm_output_value_no_nl(vm, v);
+                    avm_output_text(vm, "\n", 1u);
                 }
                 break;
             }
@@ -604,7 +605,7 @@ void avm_run(AvmVM* vm) {
                 }
                 AvmValue lst = vm->stack[--vm->sp];
                 if (lst.type == AVM_VAL_NIL) {
-                    printf("\n");
+                    avm_output_text(vm, "\n", 1u);
                     break;
                 }
                 if (lst.type != AVM_VAL_LIST || !lst.as.l) {
@@ -613,10 +614,10 @@ void avm_run(AvmVM* vm) {
                 }
                 AvmList* l = lst.as.l;
                 for (int i = 0; i < l->count; i++) {
-                    avm_print_value_no_nl(l->items[i]);
-                    if (i < l->count - 1) printf(" ");
+                    avm_output_value_no_nl(vm, l->items[i]);
+                    if (i < l->count - 1) avm_output_text(vm, " ", 1u);
                 }
-                printf("\n");
+                avm_output_text(vm, "\n", 1u);
                 break;
             }
             case 0x30: { // JMP i16

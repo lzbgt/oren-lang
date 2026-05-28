@@ -129,6 +129,10 @@ AvmVM* avm_new() {
     vm->proc_exit_code = 0;
     vm->net_backend_kind = 0;
     vm->vnet = NULL;
+    vm->stdout_capture_enabled = 0;
+    vm->stdout_capture = NULL;
+    vm->stdout_capture_len = 0;
+    vm->stdout_capture_cap = 0;
     vm->gas_remaining = 0;
     vm->deadline_ns = 0;
     vm->cancelled = 0;
@@ -231,6 +235,7 @@ void avm_free(AvmVM* vm) {
 
     if (vm->stack_base) free(vm->stack_base);
     if (vm->break_pcs) free(vm->break_pcs);
+    if (vm->stdout_capture) free(vm->stdout_capture);
     if (vm->fs_allow_prefixes) {
         for (int i = 0; i < vm->fs_allow_prefix_count; i++) {
             if (vm->fs_allow_prefixes[i]) free(vm->fs_allow_prefixes[i]);

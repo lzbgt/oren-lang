@@ -71,6 +71,12 @@ static int avm_embed_valid_handle(AvmEmbedHandle* handle) {
     return handle && handle->magic == AVM_EMBED_HANDLE_MAGIC && handle->vm;
 }
 
+static void avm_embed_output_clear_vm(AvmVM* vm) {
+    if (!vm) return;
+    vm->stdout_capture_len = 0;
+    if (vm->stdout_capture) vm->stdout_capture[0] = 0;
+}
+
 static void avm_embed_free_argv(AvmEmbedHandle* handle) {
     if (!handle) return;
     if (handle->argv) {
@@ -363,6 +369,7 @@ AvmEmbedHandle* avm_embed_open(const AvmEmbedConfig* config, AvmEmbedResult* res
     handle->magic = AVM_EMBED_HANDLE_MAGIC;
     handle->verify_strict = config->verify_strict ? 1 : 0;
     avm_embed_apply_config(handle->vm, config);
+    handle->vm->stdout_capture_enabled = 1;
     avm_embed_fill_from_vm(handle->vm, result);
     return handle;
 }
@@ -551,6 +558,40 @@ int avm_embed_vfs_snapshot(AvmEmbedHandle* handle, uint8_t** out_data, size_t* o
 
 void avm_embed_free_bytes(uint8_t* data) {
     free(data);
+}
+
+int avm_embed_set_output_capture(AvmEmbedHandle* handle, int enabled, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed output capture argument");
+    }
+    handle->vm->stdout_capture_enabled = enabled ? 1 : 0;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_output_get(AvmEmbedHandle* handle, uint8_t** out_data, size_t* out_len, AvmEmbedResult* result) {
+    if (out_data) *out_data = NULL;
+    if (out_len) *out_len = 0;
+    if (!avm_embed_valid_handle(handle) || !out_data || !out_len) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed output get argument");
+    }
+    size_t len = handle->vm->stdout_capture_len;
+    uint8_t* copy = (uint8_t*)malloc(len ? len : 1u);
+    if (!copy) return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy AVM output bytes");
+    if (len > 0 && handle->vm->stdout_capture) memcpy(copy, handle->vm->stdout_capture, len);
+    *out_data = copy;
+    *out_len = len;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_output_clear(AvmEmbedHandle* handle, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed output clear argument");
+    }
+    avm_embed_output_clear_vm(handle->vm);
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
 }
 
 int avm_embed_vnet_put(AvmEmbedHandle* handle, const char* url, const uint8_t* body, size_t len, AvmEmbedResult* result) {
@@ -808,6 +849,7 @@ int avm_embed_run_loaded(AvmEmbedHandle* handle, AvmEmbedResult* result) {
         }
         return AVM_EMBED_ERR_INVALID_ARG;
     }
+    if (handle->vm->stdout_capture_enabled) avm_embed_output_clear_vm(handle->vm);
     avm_run(handle->vm);
     avm_embed_fill_from_vm(handle->vm, result);
     return result ? result->status : (avm_is_err_val(handle->vm->last_error) ? AVM_EMBED_ERR_VM : AVM_EMBED_OK);

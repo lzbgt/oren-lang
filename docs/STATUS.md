@@ -15,9 +15,9 @@ surfaces, but the following blockers remain:
 - allocator/GC/runtime robustness is still a W5 gate;
 - Tier-1 platform breadth is uneven;
 - AVM now has an iOS xcframework packaging gate, embedder C API with argv,
-  VirtualFS, VirtualNET, and VirtualPROC helpers, and full compiler-in-AVM smoke
-  gate, but still needs app-host lifecycle coverage before it should be called a
-  complete production iOS package.
+  VirtualFS, VirtualNET, VirtualPROC, and stdout-capture helpers, plus a full
+  compiler-in-AVM smoke gate, but still needs app-host lifecycle coverage before
+  it should be called a complete production iOS package.
 
 ## Backend Readiness
 
@@ -39,15 +39,17 @@ Facts from the 2026-05-28 implementation pass:
   links a tiny iOS embedder smoke for both SDKs.
 - `lib/avm/avm_embed.h` exposes an opaque-handle C embedder API with
   deterministic config, budgets, virtual FS/PROC/NET defaults, structured result
-  fields, explicit lifecycle calls, and public virtual-backend helpers:
+  fields, captured stdout, explicit lifecycle calls, and public app-backend helpers:
   `avm_embed_set_argv`, `avm_embed_vfs_put`, `avm_embed_vfs_get`,
   `avm_embed_vfs_snapshot`, `avm_embed_vnet_put`, `avm_embed_vproc_put`,
-  `avm_embed_vproc_set_default_exit`, and `avm_embed_free_bytes`.
+  `avm_embed_vproc_set_default_exit`, `avm_embed_set_output_capture`,
+  `avm_embed_output_get`, `avm_embed_output_clear`, and `avm_embed_free_bytes`.
 - The embedder API can now parse, verify, load, and run `.obc` bytes from memory.
   The iOS gate compiles a tiny Oren source to `.obc`, embeds those bytes into a C
   smoke, links that smoke for iPhoneOS and simulator, and runs the same bytes
   through the host libavm embed API with argv, VFS read/write roundtrip,
-  VirtualNET fixture lookup, and VirtualPROC fixture/default exits.
+  VirtualNET fixture lookup, VirtualPROC fixture/default exits, and captured
+  stdout retrieval/clear.
 - `make verify-libavm-ios` also builds `build/plugins/stdlib_bundle.obc` and
   `build/plugins/oren.obc`, runs the compiler `.obc` inside a child AVM universe
   with VirtualFS stdlib resources, extracts `out.obc`, and runs that bytecode.
@@ -94,7 +96,7 @@ Missing for production:
 - Swift/Objective-C app-host smoke that loads bundled `oren.obc` and
   `stdlib_bundle.obc` resources from an app bundle and uses the public virtual
   backend helpers to feed source/resources, extract `out.obc`, and provide
-  deterministic network/process fixtures;
+  deterministic network/process fixtures plus captured stdout/stderr UI data;
 - allocator ownership/reentrancy hardening or an explicit single-VM embedder policy;
 - manifest-driven AVM fixture release runner;
 - broader stdlib/compiler surface coverage beyond the current smoke program.

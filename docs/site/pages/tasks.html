@@ -75,15 +75,17 @@
 <li>Current verdict: iOS <code>LibAVM.xcframework</code> packaging and a C embedder API now</li>
 </ul>
 <p>     exist. The public API includes argv, VFS input/output, VirtualNET fixture,</p>
-<p>     and VirtualPROC fixture/default helpers required by app-host compile/run</p>
-<p>     bridges. <code>make verify-libavm-ios</code> now proves host compile-to-OBC, iOS C smoke</p>
-<p>     linkage, host embedder argv/VFS/VNET/VPROC load/run, and a nested</p>
-<p>     compiler-in-AVM stdlib-OBC compile/run smoke.</p>
+<p>     VirtualPROC fixture/default, and stdout-capture helpers required by</p>
+<p>     app-host compile/run bridges. <code>make verify-libavm-ios</code> now proves host</p>
+<p>     compile-to-OBC, iOS C smoke linkage, host embedder argv/VFS/VNET/VPROC</p>
+<p>     load/run, captured stdout retrieval/clear, and a nested compiler-in-AVM</p>
+<p>     stdlib-OBC compile/run smoke.</p>
 <ul>
 <li>Remaining required work: Swift/Objective-C smoke host, allocator ownership or</li>
 </ul>
-<p>     explicit single-VM guard, app-bundle resource loading coverage, manifest</p>
-<p>     AVM release gate, broader compiler/stdlib surface coverage, and CI coverage.</p>
+<p>     explicit single-VM guard, app-bundle resource loading coverage, stderr or</p>
+<p>     structured diagnostic capture if the Note UI needs it, manifest AVM release</p>
+<p>     gate, broader compiler/stdlib surface coverage, and CI coverage.</p>
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>
 <li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>
