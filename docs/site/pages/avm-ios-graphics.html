@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AVM iOS Graphics - Oren Docs</title>
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Oren Docs</a>
+    <button id="navToggle" aria-label="Toggle navigation">Menu</button>
+  </header>
+  <div class="layout">
+    <nav id="sideNav" class="side">
+      <input id="searchBox" type="search" placeholder="Search docs..." autocomplete="off"><div id="searchResults"></div>
+      <div class="nav-group-title">Core</div><a href="start.html">Start Here</a>
+<a href="status.html">Status</a>
+<a href="tasks.html">Tasks</a>
+<a href="language.html">Language</a>
+<a href="design.html">Design</a>
+<a href="readiness.html">Readiness Tools</a>
+<a href="capabilities.html">Capabilities</a>
+<a href="effect-ledger.html">Effect Ledger</a>
+<a href="gas-surface.html">Gas Surface</a>
+<a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
+<a href="current-implementation.html">Current Implementation</a>
+<a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
+<a href="yield-coroutine.html">Yield / Coroutine</a>
+    </nav>
+    <main class="content">
+      <h1 id="avm-ios-graphics-design">AVM iOS Graphics Design</h1>
+<p><strong>Date:</strong> 2026-05-29</p>
+<h2 id="verdict">Verdict</h2>
+<p>For iOS, Oren programs running inside AVM should not call OpenGL, UIKit, or Metal</p>
+<p>directly. AVM should produce deterministic graphics commands and the Note app should</p>
+<p>own screen presentation through native iOS views. The production path should target</p>
+<p>Metal/MetalKit on iOS, not OpenGL ES: Apple marks OpenGL ES deprecated on iOS 12 and</p>
+<p>points high-performance GPU work to Metal. <code>MTKView</code> is the correct host view shape for</p>
+<p>GPU-backed rendering because it is a Metal-aware <code>UIView</code> on iOS and provides render</p>
+<p>pass/drawable management.</p>
+<p>The right split is:</p>
+<ul>
+<li><strong>Oren/AVM:</strong> compute scientific results, construct scene/frame command buffers,</li>
+</ul>
+<p>  validate them, and publish them through a deterministic embedder channel.</p>
+<ul>
+<li><strong>Note iOS host:</strong> run AVM ticks, receive frame commands, translate them to</li>
+</ul>
+<p>  UIKit/CoreGraphics/Metal draw calls, present on the main UI thread, and inject input</p>
+<p>  events back into AVM.</p>
+<h2 id="source-facts">Source Facts</h2>
+<ul>
+<li>Apple OpenGL ES archive: <code>project-doc/web/apple-ios-graphics-20260529/apple-opengles-introduction.html</code>.</li>
+</ul>
+<p>  It states that OpenGL ES was deprecated in iOS 12 and recommends Metal for</p>
+<p>  high-performance GPU code.</p>
+<ul>
+<li>Apple Metal sample markdown: <code>project-doc/web/apple-ios-graphics-20260529/apple-metal-draw-view.md</code>.</li>
+</ul>
+<p>  It describes using MetalKit to create a view and render pass for drawing view contents.</p>
+<ul>
+<li>Apple <code>MTKView</code> markdown: <code>project-doc/web/apple-ios-graphics-20260529/apple-metalkit-mtkview.md</code>.</li>
+</ul>
+<p>  It describes <code>MTKView</code> as a Metal-aware view that creates, configures, and displays</p>
+<p>  Metal objects, backed by <code>CAMetalLayer</code>.</p>
+<ul>
+<li>Current AVM embed API: <code>lib/avm/avm_embed.h</code> exposes argv, VFS, VNET, VPROC,</li>
+</ul>
+<p>  stdout capture, OBC load, and run helpers. It has no frame mailbox, input-event queue,</p>
+<p>  texture/buffer handoff, or graphics capability domain yet.</p>
+<ul>
+<li>Current Oren UI stdlib: <code>lib/std/ui/</code> already uses the right architectural pattern:</li>
+</ul>
+<p>  headless node/render command buffers plus a deterministic software rasterizer and a</p>
+<p>  separate host shim. That pattern should be generalized for AVM app graphics.</p>
+<h2 id="non-goals">Non-Goals</h2>
+<ul>
+<li>Do not embed a raw OpenGL ES context in AVM as the iOS production path. It is deprecated</li>
+</ul>
+<p>  and creates the wrong ownership model: AVM bytecode would need host GPU context access,</p>
+<p>  lifecycle coupling, and background/foreground handling.</p>
+<ul>
+<li>Do not let bytecode call UIKit or Metal directly. UIKit/Metal object lifetimes and thread</li>
+</ul>
+<p>  rules belong to the app host.</p>
+<ul>
+<li>Do not make drawing depend on stdout text parsing. stdout remains diagnostics; graphics</li>
+</ul>
+<p>  needs a typed frame/event channel.</p>
+<h2 id="proposed-architecture">Proposed Architecture</h2>
+<h3 id="1-graphics-domain-and-frame-mailbox">1. Graphics Domain and Frame Mailbox</h3>
+<p>Add an AVM graphics capability domain, separate from FS/NET/PROC. The VM may create a</p>
+<p>bounded frame command buffer only when that domain is enabled.</p>
+<p>Embedder API shape:</p>
+<pre><code>int avm_embed_gfx_frame_get(AvmEmbedHandle* h, uint8_t** out_data, size_t* out_len,
+                            AvmEmbedResult* r);
+int avm_embed_gfx_frame_clear(AvmEmbedHandle* h, AvmEmbedResult* r);
+int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t event_len,
+                            AvmEmbedResult* r);</code></pre>
+<p>The payload should be a versioned binary or canonical JSON envelope in v0:</p>
+<pre><code>{
+  &quot;schema&quot;: &quot;oren.gfx.frame.v0&quot;,
+  &quot;w&quot;: 1179,
+  &quot;h&quot;: 2556,
+  &quot;scale&quot;: 3,
+  &quot;ops&quot;: []
+}</code></pre>
+<p>Use VFS as a temporary proof path if needed (<code>/out/frame.gfx.json</code>), but the production</p>
+<p>bridge should use an explicit graphics mailbox so the Note app does not poll arbitrary</p>
+<p>files and so graphics budgets can be accounted separately from filesystem IO.</p>
+<h3 id="2-oren-stdlib-surface">2. Oren Stdlib Surface</h3>
+<p>Add <code>std:gfx</code> as data-first APIs. It should not expose platform objects.</p>
+<p>Initial modules:</p>
+<ul>
+<li><code>std:gfx/frame</code>: frame envelope, viewport, clear, command-buffer validation.</li>
+<li><code>std:gfx/canvas2d</code>: rectangles, lines, polylines, paths, circles, text labels,</li>
+</ul>
+<p>  image/bitmap references, charts/plots.</p>
+<ul>
+<li><code>std:gfx/mesh3d</code>: camera, transform, material, vertex/index buffers, draw calls.</li>
+<li><code>std:gfx/input</code>: pointer, keyboard, gesture, resize, frame-tick events.</li>
+</ul>
+<p>The scientific app use case should start with 2D plotting and simple 3D meshes:</p>
+<pre><code>import gfx &quot;std:gfx/canvas2d&quot;
+
+fn main() {
+    var f = gfx.frame(800, 600)
+    gfx.clear(f, &quot;#0b1020&quot;)
+    gfx.polyline(f, [[0, 0], [1, 2], [2, 1]], {&quot;color&quot;:&quot;#55ccff&quot;, &quot;width&quot;:2})
+    gfx.present(f)
+}</code></pre>
+<p><code>gfx.present(frame)</code> writes the frame to the AVM graphics mailbox. In bytecode tests it</p>
+<p>can be read and validated without any iOS UI.</p>
+<h3 id="3-ios-host-rendering">3. iOS Host Rendering</h3>
+<p>The Note app should create one graphics host view per AVM canvas:</p>
+<ul>
+<li>Use UIKit/SwiftUI only for app composition, layout, and input ownership.</li>
+<li>Use <code>MTKView</code> for GPU rendering when frames contain 3D meshes, many 2D primitives,</li>
+</ul>
+<p>  or animated charts.</p>
+<ul>
+<li>Use CoreGraphics/UIKit image presentation only for a simple v0 fallback where AVM emits</li>
+</ul>
+<p>  a software RGBA buffer or the host rasterizes a small 2D command list.</p>
+<ul>
+<li>Keep all UIKit view mutation on the main actor/main dispatch queue.</li>
+<li>Run AVM compute/tick work off the main thread, then hand frame payloads back to the main</li>
+</ul>
+<p>  actor for presentation.</p>
+<p>Host loop:</p>
+<ol>
+<li>User edits/runs Oren code in Note.</li>
+<li>Note compiles source to OBC through the compiler-in-AVM or host compile path.</li>
+<li>Note opens <code>AvmEmbedHandle</code> with graphics domain enabled and deterministic budgets.</li>
+<li>Note runs one VM tick or run-to-pause interval.</li>
+<li>Note calls <code>avm_embed_gfx_frame_get</code>.</li>
+<li>Note validates schema/version/limits, translates ops to Metal buffers/pipelines, and</li>
+</ol>
+<p>   presents through <code>MTKView</code>.</p>
+<ol>
+<li>Note captures touch/keyboard/resize events and calls <code>avm_embed_gfx_input_put</code> before</li>
+</ol>
+<p>   the next VM tick.</p>
+<h3 id="4-2d-command-set-v0">4. 2D Command Set v0</h3>
+<p>Keep v0 small and deterministic:</p>
+<ul>
+<li><code>clear {color}</code></li>
+<li><code>fill_rect {x,y,w,h,color}</code></li>
+<li><code>stroke_line {x1,y1,x2,y2,color,width}</code></li>
+<li><code>polyline {points,color,width}</code></li>
+<li><code>path {verbs,coords,fill,stroke,width}</code></li>
+<li><code>circle {cx,cy,r,fill,stroke,width}</code></li>
+<li><code>text {x,y,text,color,size,align}</code> with host-font caveat</li>
+<li><code>image {id,x,y,w,h}</code> where image bytes are supplied through VFS or a future asset API</li>
+</ul>
+<p>Text is the only non-deterministic visual area because fonts differ by platform and OS</p>
+<p>version. For scientific correctness tests, use geometry/text metadata checks rather than</p>
+<p>pixel-perfect host text rendering.</p>
+<h3 id="5-3d-command-set-v0">5. 3D Command Set v0</h3>
+<p>Keep 3D scene commands explicit and bounded:</p>
+<ul>
+<li><code>camera {projection, view}</code></li>
+<li><code>mesh {id, vertex_format, vertices, indices}</code></li>
+<li><code>material {id, base_color, roughness, metallic}</code></li>
+<li><code>draw_mesh {mesh, material, transform}</code></li>
+<li><code>line3d {points,color,width}</code> for scientific visualization</li>
+</ul>
+<p>The host should compile/cache Metal pipeline state. AVM should not own shader compilation</p>
+<p>in v0. If programmable shaders are needed later, use a restricted material/shader DSL with</p>
+<p>offline validation, not arbitrary Metal Shading Language strings from bytecode.</p>
+<h3 id="6-budgets-and-safety">6. Budgets and Safety</h3>
+<p>Add explicit limits:</p>
+<ul>
+<li>max frame bytes;</li>
+<li>max op count;</li>
+<li>max vertex/index bytes;</li>
+<li>max texture bytes;</li>
+<li>max frames per run/tick;</li>
+<li>max input queue bytes;</li>
+<li>allowed graphics schema versions.</li>
+</ul>
+<p>Frame publication should fail with an AVM graphics budget error, not crash or silently drop.</p>
+<h3 id="7-verification-plan">7. Verification Plan</h3>
+<p>Required gates before Note integration should be called production-ready:</p>
+<ol>
+<li>AVM bytecode fixture creates a 2D frame and host test reads it from the graphics mailbox.</li>
+<li>Host-side C embed smoke validates <code>avm_embed_gfx_frame_get</code> and input injection.</li>
+<li>iOS simulator/device link smoke proves the new graphics API exports from</li>
+</ol>
+<p>   <code>LibAVM.xcframework</code>.</p>
+<ol>
+<li>Note-side Swift smoke mounts <code>MTKView</code>, runs a bundled OBC, renders one 2D frame, and</li>
+</ol>
+<p>   injects one touch event.</p>
+<ol>
+<li>Deterministic headless raster test compares software raster output for geometry-only ops.</li>
+<li>3D smoke renders a single indexed triangle/mesh through the host Metal renderer.</li>
+</ol>
+<h2 id="implementation-order">Implementation Order</h2>
+<ol>
+<li>Define <code>oren.gfx.frame.v0</code> and add AVM-side mailbox storage plus C embed getter/clearer.</li>
+<li>Add <code>std:gfx/frame</code> and <code>std:gfx/canvas2d</code> with validator-only bytecode fixtures.</li>
+<li>Add iOS C smoke to <code>make verify-libavm-ios</code> for exported graphics symbols.</li>
+<li>Add Note Swift/ObjC bridge smoke using <code>MTKView</code> and one frame.</li>
+<li>Add <code>std:gfx/mesh3d</code> after the 2D path is proven.</li>
+</ol>
+<p>This keeps Oren useful for scientific calculation and visualization while preserving the</p>
+<p>right app boundary: AVM computes and describes frames; iOS renders them.</p>
+    </main>
+    <aside class="toc">
+      <h2>On This Page</h2>
+      <a class="toc-l1" href="#avm-ios-graphics-design">AVM iOS Graphics Design</a>
+<a class="toc-l2" href="#verdict">Verdict</a>
+<a class="toc-l2" href="#source-facts">Source Facts</a>
+<a class="toc-l2" href="#non-goals">Non-Goals</a>
+<a class="toc-l2" href="#proposed-architecture">Proposed Architecture</a>
+<a class="toc-l3" href="#1-graphics-domain-and-frame-mailbox">1. Graphics Domain and Frame Mailbox</a>
+<a class="toc-l3" href="#2-oren-stdlib-surface">2. Oren Stdlib Surface</a>
+<a class="toc-l3" href="#3-ios-host-rendering">3. iOS Host Rendering</a>
+<a class="toc-l3" href="#4-2d-command-set-v0">4. 2D Command Set v0</a>
+<a class="toc-l3" href="#5-3d-command-set-v0">5. 3D Command Set v0</a>
+<a class="toc-l3" href="#6-budgets-and-safety">6. Budgets and Safety</a>
+<a class="toc-l3" href="#7-verification-plan">7. Verification Plan</a>
+<a class="toc-l2" href="#implementation-order">Implementation Order</a>
+    </aside>
+  </div>
+  <script src="../assets/search-index.js"></script>
+  <script src="../assets/site.js"></script>
+</body>
+</html>

@@ -26,6 +26,7 @@
 <a href="todos.html">TODOs</a><div class="nav-group-title">Project Notes</div><a href="project-notes.html">Project Notes</a>
 <a href="current-implementation.html">Current Implementation</a>
 <a href="ios-avm-readiness.html">iOS AVM Readiness</a>
+<a href="avm-ios-graphics.html">AVM iOS Graphics</a>
 <a href="yield-coroutine.html">Yield / Coroutine</a>
     </nav>
     <main class="content">
@@ -36,6 +37,7 @@
 <li>Keep the new <code>make verify-libavm-ios</code> gate green. It now builds <code>LibAVM.xcframework</code>, exports the embedder headers, compiles a tiny Oren source to <code>.obc</code>, links that bytecode into iOS device/simulator smoke binaries, and runs the same <code>.obc</code> through the host embed API with argv plus VirtualFS input/output, VirtualNET fixtures, VirtualPROC fixtures/default exits, and captured stdout retrieval/clear.</li>
 <li>Keep <code>make verify-compiler-in-avm-ios-chain</code> green. It now builds <code>stdlib_bundle.obc</code> and <code>oren.obc</code>, runs the compiler <code>.obc</code> inside AVM with VirtualFS stdlib resources, extracts <code>out.obc</code>, and runs the compiled output.</li>
 <li>Add a Swift/Objective-C iOS smoke host that opens <code>AvmEmbedHandle</code>, loads bundled <code>.obc</code> resources, feeds source/stdlib files through <code>avm_embed_vfs_put</code>, extracts <code>out.obc</code> through <code>avm_embed_vfs_get</code>, injects optional deterministic network/process fixtures with <code>avm_embed_vnet_put</code> and <code>avm_embed_vproc_put</code>, runs with virtual FS/PROC/NET, and reports <code>AvmEmbedResult</code> plus captured stdout into the Note UI.</li>
+<li>Design and gate an AVM graphics bridge for iOS: Oren emits deterministic 2D/3D command buffers; the iOS host owns UIKit/Metal presentation and feeds input/events back through an explicit embed API. Design note: <code>project-doc/avm_ios_graphics_design_20260529.md</code>.</li>
 <li>Add an AVM fixture manifest runner: fixture path, expected return code/error, required env budgets, backend policy, deterministic mode, host-effect expectations, and release-gate inclusion.</li>
 <li>Expand compiler-in-AVM packaging from the current smoke gate to app-bundle resource loading and broader compiler/stdlib surface coverage.</li>
 <li>Finish embedder lifecycle hardening: make allocator ownership reentrant or explicitly single-VM guarded, define app-level failure policy for teardown leaks, and keep host-only subprocess paths unavailable in iOS builds.</li>
@@ -46,12 +48,17 @@
 <li>Keep <code>std:math</code> host-libm-free and bytecode/AVM-gated for app embedding. <code>pow</code> / <code>power</code> now cover integer, negative, and fractional positive-base exponents including <code>power(2,-1)</code> and <code>power(2,4.3)</code>.</li>
 <li>Continue expanding toward C/C++ mathlib breadth with focused fixtures for each function family before exposing it as app-stable.</li>
 </ul>
+<h2 id="p3-w2-language-ergonomics">P3 / W2 - Language Ergonomics</h2>
+<ul>
+<li>Add anonymous imports after higher-priority AVM app surfaces are gated. Proposed syntax: <code>import . &quot;std:math&quot;</code> to bring public module entities into the current namespace; optionally consider <code>use &quot;std:math&quot;</code> only if it does not conflict with existing grammar or dependency scanning. The implementation must define collision rules, visibility behavior, cache/import-scan support, and cross-backend fixtures before retention.</li>
+</ul>
     </main>
     <aside class="toc">
       <h2>On This Page</h2>
       <a class="toc-l1" href="#todos">TODOs</a>
 <a class="toc-l2" href="#p1-w4-avm-ios-production-readiness">P1 / W4 - AVM iOS Production Readiness</a>
 <a class="toc-l2" href="#p1-w4-scientific-math-stdlib">P1 / W4 - Scientific Math Stdlib</a>
+<a class="toc-l2" href="#p3-w2-language-ergonomics">P3 / W2 - Language Ergonomics</a>
     </aside>
   </div>
   <script src="../assets/search-index.js"></script>
