@@ -33,10 +33,11 @@ This file is the concise task view. Detailed implementation status lives in
 
 1. **AVM iOS embeddability and compiler-in-AVM release gate**
    - Current verdict: iOS `LibAVM.xcframework` packaging and a C embedder API now
-     exist. The public API includes argv and VFS input/output helpers required by
-     app-host compile/run bridges. `make verify-libavm-ios` now proves host
-     compile-to-OBC, iOS C smoke linkage, host embedder argv/VFS load/run, and a
-     nested compiler-in-AVM stdlib-OBC compile/run smoke.
+     exist. The public API includes argv, VFS input/output, VirtualNET fixture,
+     and VirtualPROC fixture/default helpers required by app-host compile/run
+     bridges. `make verify-libavm-ios` now proves host compile-to-OBC, iOS C smoke
+     linkage, host embedder argv/VFS/VNET/VPROC load/run, and a nested
+     compiler-in-AVM stdlib-OBC compile/run smoke.
    - Remaining required work: Swift/Objective-C smoke host, allocator ownership or
      explicit single-VM guard, app-bundle resource loading coverage, manifest
      AVM release gate, broader compiler/stdlib surface coverage, and CI coverage.

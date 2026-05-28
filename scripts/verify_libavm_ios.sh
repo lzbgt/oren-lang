@@ -28,6 +28,9 @@ for sym in \
   _avm_embed_vfs_put \
   _avm_embed_vfs_get \
   _avm_embed_vfs_snapshot \
+  _avm_embed_vnet_put \
+  _avm_embed_vproc_put \
+  _avm_embed_vproc_set_default_exit \
   _avm_embed_free_bytes; do
   nm -gU "$OUT_ROOT/iphoneos-arm64/libavm.a" | grep -q "$sym"
   nm -gU "$OUT_ROOT/iphonesimulator-arm64/libavm.a" | grep -q "$sym"
@@ -45,6 +48,12 @@ fn main() {
     if s != "abc" { oren_exit(12) }
     var w = oren_write_file("out.txt", args[1] + ":" + s)
     if oren_is_err(w) { oren_exit(13) }
+    var body = oren_net_get("https://note.local/probe")
+    if body != "net-ok" { oren_exit(14) }
+    var rc1 = oren_system("probe-ok")
+    if rc1 != 21 { oren_exit(15) }
+    var rc2 = oren_system("missing-proc")
+    if rc2 != 44 { oren_exit(16) }
     oren_exit(9)
 }
 main()
@@ -87,17 +96,21 @@ int main(void) {
     if (avm_embed_set_argv(handle, 3, argv, &result) != AVM_EMBED_OK) return 3;
     static const uint8_t input[] = {'a', 'b', 'c'};
     if (avm_embed_vfs_put(handle, "input.txt", input, sizeof(input), &result) != AVM_EMBED_OK) return 4;
-    if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 5;
-    if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 6;
+    static const uint8_t body[] = {'n', 'e', 't', '-', 'o', 'k'};
+    if (avm_embed_vnet_put(handle, "https://note.local/probe", body, sizeof(body), &result) != AVM_EMBED_OK) return 5;
+    if (avm_embed_vproc_put(handle, "probe-ok", 21, &result) != AVM_EMBED_OK) return 6;
+    if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 7;
+    if (avm_embed_run_obc_bytes(handle, kEmbedChainObc, kEmbedChainObcLen, &result) != AVM_EMBED_OK) return 8;
+    if (result.status != AVM_EMBED_OK || result.exit_code != 9) return 9;
     uint8_t* out = 0;
     size_t out_len = 0;
-    if (avm_embed_vfs_get(handle, "out.txt", &out, &out_len, &result) != AVM_EMBED_OK) return 7;
-    if (out_len != 7 || memcmp(out, "ios:abc", 7) != 0) return 8;
+    if (avm_embed_vfs_get(handle, "out.txt", &out, &out_len, &result) != AVM_EMBED_OK) return 10;
+    if (out_len != 7 || memcmp(out, "ios:abc", 7) != 0) return 11;
     avm_embed_free_bytes(out);
     uint8_t* snap = 0;
     size_t snap_len = 0;
-    if (avm_embed_vfs_snapshot(handle, &snap, &snap_len, &result) != AVM_EMBED_OK) return 9;
-    if (snap_len < 12 || memcmp(snap, "AVMVFS01", 8) != 0) return 10;
+    if (avm_embed_vfs_snapshot(handle, &snap, &snap_len, &result) != AVM_EMBED_OK) return 12;
+    if (snap_len < 12 || memcmp(snap, "AVMVFS01", 8) != 0) return 13;
     avm_embed_free_bytes(snap);
     avm_embed_close(handle);
     return 0;

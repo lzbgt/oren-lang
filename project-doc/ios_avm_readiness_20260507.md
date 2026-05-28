@@ -3,17 +3,17 @@
 ## Verdict
 
 `libavm` is now buildable as an iOS xcframework with an embedder C API, public
-argv/VFS input-output helpers, an Oren-source-to-bytecode-to-libavm run gate, and
-a compiler-in-AVM stdlib-OBC compile/run smoke gate. It is ready for a Note-side
-integration pass, but still not fully production-ready for an iOS app until
-app-bundle resource loading, Swift/ObjC host integration, and lifecycle policy
-are gated.
+argv/VFS/VNET/VPROC virtual-backend helpers, an Oren-source-to-bytecode-to-libavm
+run gate, and a compiler-in-AVM stdlib-OBC compile/run smoke gate. It is ready
+for a Note-side integration pass, but still not fully production-ready for an iOS
+app until app-bundle resource loading, Swift/ObjC host integration, and lifecycle
+policy are gated.
 
 The 2026-05-28 implementation closes the first packaging/API gap and the later
-argv/VFS bridge gap reported by the Note app. It proves host-compile-to-OBC,
-embedded-libavm-run, compiler-OBC packaging, and nested compiler-in-AVM smoke
-chain. Remaining production blockers are app-host integration, iOS resource
-loading from an app bundle, broader compiler/stdlib coverage, and
+virtual-backend bridge gap reported by the Note app. It proves
+host-compile-to-OBC, embedded-libavm-run, compiler-OBC packaging, and nested
+compiler-in-AVM smoke chain. Remaining production blockers are app-host
+integration, iOS resource loading from an app bundle, broader compiler/stdlib coverage, and
 allocator/lifecycle hardening.
 
 ## Evidence
@@ -24,20 +24,24 @@ allocator/lifecycle hardening.
   non-CLI AVM sources for `iphoneos-arm64` and `iphonesimulator-arm64`.
 - Embedder API after 2026-05-28: `lib/avm/avm_embed.h` provides an opaque
   `AvmEmbedHandle`, `AvmEmbedConfig`, and `AvmEmbedResult`; defaults are
-  deterministic, set budgets, allow CORE/FS/EXIT with the default VirtualFS
-  backend, and use virtual FS/PROC/NET backends.
+  deterministic, set budgets, allow CORE/FS/NET/PROC/EXIT with the default
+  virtual FS/PROC/NET backends, and avoid host filesystem/network/process effects.
 - App bridge API after 2026-05-28: `avm_embed_set_argv(...)` copies program argv
   into the VM, `avm_embed_vfs_put(...)` injects VirtualFS file bytes,
   `avm_embed_vfs_get(...)` copies VirtualFS output bytes back to the app,
-  `avm_embed_vfs_snapshot(...)` exports the `AVMVFS01` snapshot format, and
-  `avm_embed_free_bytes(...)` releases returned app-owned buffers.
+  `avm_embed_vfs_snapshot(...)` exports the `AVMVFS01` snapshot format,
+  `avm_embed_vnet_put(...)` injects deterministic network fixture bodies,
+  `avm_embed_vproc_put(...)` injects per-command process fixture exit codes,
+  `avm_embed_vproc_set_default_exit(...)` sets the default VirtualPROC exit code,
+  and `avm_embed_free_bytes(...)` releases returned app-owned buffers.
 - OBC resource API after 2026-05-28: `avm_embed_run_obc_bytes(...)` parses,
   verifies, loads, and runs `.obc` bytes owned by the embedder handle.
 - Compile/run chain after 2026-05-28: `make verify-libavm-ios` compiles a tiny
   Oren source to `.obc`, embeds those bytes into a C smoke, links that smoke for
   iPhoneOS and simulator, and runs the same `.obc` through the host libavm embed
   API with `exit_code=9`, argv injection, VFS input, VFS output extraction, and
-  VFS snapshot verification.
+  VFS snapshot verification, VirtualNET `oren_net_get(...)`, and VirtualPROC
+  `oren_system(...)`.
 - Compiler-in-AVM chain after 2026-05-28: `make verify-libavm-ios` also calls
   `scripts/verify_compiler_in_avm_ios_chain.sh`, which builds
   `build/plugins/stdlib_bundle.obc` and `build/plugins/oren.obc`, injects them
@@ -62,7 +66,7 @@ allocator/lifecycle hardening.
 - Curated AVM gate: `make avm && make test-avm` passes in `build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log`.
 - Current AVM gate: `make test-avm` passes in `build/logs/make_test_avm_20260528_libavm_ios_embed_v1.log`.
 - Current iOS full-chain gate: `make verify-libavm-ios` passes in
-  `build/logs/make_verify_libavm_ios_20260528_embed_vfs_api_v2.log`.
+  `build/logs/make_verify_libavm_ios_20260528_embed_virtual_backends_v1.log`.
 - Full wildcard fixture gate: `make test-avm AVM_TESTS="tests/avm/*.oren"` fails at `test_budget_io_fs` in `build/logs/make_test_avm_full_20260507_ios_avm_readiness_v1.log`. The fixture expects a small `AVM_IO_BYTES` budget, but the generic wildcard harness does not attach that per-fixture policy.
 - Runtime budget behavior: a direct run with `AVM_IO_BYTES=128` returns `AVM error: code=9 msg=budget exceeded (io)` in `build/logs/avm_test_budget_io_fs_direct_20260507_ios_avm_readiness_v1.log`, so the immediate gap is harness/release manifest maturity, not this specific runtime budget check.
 - Compiler-in-AVM status: `tests/avm/fixtures/compiler_in_avm_vfs_stdlib_obc_harness.oren`
@@ -74,10 +78,11 @@ allocator/lifecycle hardening.
 
 - Done 2026-05-28: Add an iOS libavm embeddability gate and stable C embedder entry surface. Output: `LibAVM.xcframework`, public embedder headers, simulator/device link smoke, and `make verify-libavm-ios`.
 - Done 2026-05-28: Add an OBC bytes embedder path. `make verify-libavm-ios` now proves host Oren source compilation to `.obc`, iOS smoke linkage with those bytes, and host libavm embedder execution of those bytes.
-- Done 2026-05-28: Add the app-facing argv/VFS bridge API missing from
+- Done 2026-05-28: Add the app-facing virtual-backend bridge API missing from
   `avm_embed.h`. The iOS verifier now requires exported symbols and a host smoke
   that calls `avm_embed_set_argv`, `avm_embed_vfs_put`,
-  `avm_embed_vfs_get`, and `avm_embed_vfs_snapshot`.
+  `avm_embed_vfs_get`, `avm_embed_vfs_snapshot`, `avm_embed_vnet_put`,
+  `avm_embed_vproc_put`, and `avm_embed_vproc_set_default_exit`.
 - P1/W4: Add a Swift/ObjC iOS smoke host. Required proof: bundled `.obc` load, virtual FS/PROC/NET config, run result surfaced through `AvmEmbedResult`, and app-style lifecycle teardown.
 - P1/W4: Add an AVM fixture manifest runner. Required fields: fixture path, expected return code/error, required env budgets, backend policy, deterministic mode, host-effect expectations, and release-gate inclusion.
 - Done 2026-05-28: Promote compiler-in-AVM smoke packaging into
@@ -93,7 +98,7 @@ allocator/lifecycle hardening.
 - Curated AVM build/test: `build/logs/make_avm_20260507_ios_avm_readiness_v1.log`, `build/logs/make_test_avm_20260507_ios_avm_readiness_v1.log`.
 - Current iOS xcframework gate: `build/logs/make_verify_libavm_ios_20260528_embed_v2.log`, nested build log `build/logs/build_libavm_ios.log`.
 - Current OBC embed chain gate: `build/logs/make_verify_libavm_ios_20260528_obc_chain_v2.log`, OBC build log `build/logs/libavm_ios_embed_chain_obc_build.log`.
-- Current argv/VFS embed API gate: `build/logs/make_verify_libavm_ios_20260528_embed_vfs_api_v2.log`.
+- Current virtual-backend embed API gate: `build/logs/make_verify_libavm_ios_20260528_embed_virtual_backends_v1.log`.
 - Compiler-in-AVM chain gate: `build/logs/make_verify_compiler_in_avm_ios_chain_20260528_full_chain_v1.log`,
   nested logs `build/logs/build_avm_plugins_compiler_obc_20260528_full_chain_v1.log`
   and `build/logs/run_compiler_in_avm_vfs_stdlib_obc_harness_20260528_full_chain_v1.log`.

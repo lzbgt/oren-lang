@@ -52,7 +52,11 @@ void avm_embed_config_default(AvmEmbedConfig* config) {
     config->struct_size = (uint32_t)sizeof(*config);
     config->deterministic = 1;
     config->verify_strict = 1;
-    config->allowed_native_domains = (UINT64_C(1) << 0) | (UINT64_C(1) << 1) | (UINT64_C(1) << 6);
+    config->allowed_native_domains = (UINT64_C(1) << 0) |
+        (UINT64_C(1) << 1) |
+        (UINT64_C(1) << 4) |
+        (UINT64_C(1) << 5) |
+        (UINT64_C(1) << 6);
     config->gas_limit = 5000000ull;
     config->heap_limit_bytes = 32ull * 1024ull * 1024ull;
     config->io_limit_bytes = 1024ull * 1024ull;
@@ -116,6 +120,28 @@ static int avm_embed_vfs_ensure_cap(AvmVfs* v, uint32_t need) {
     v->entries = ne;
     v->cap = nc;
     return 1;
+}
+
+static AvmVnet* avm_embed_vnet_get_or_create_vm(AvmVM* vm) {
+    if (!vm) return NULL;
+    if (vm->vnet) return (AvmVnet*)vm->vnet;
+    AvmVnet* v = (AvmVnet*)avm_heap_malloc_k(sizeof(AvmVnet), AVM_ALLOC_KIND_VNET);
+    if (!v) return NULL;
+    v->entries = NULL;
+    v->count = 0;
+    vm->vnet = v;
+    return v;
+}
+
+static AvmVproc* avm_embed_vproc_get_or_create_vm(AvmVM* vm) {
+    if (!vm) return NULL;
+    if (vm->vproc) return (AvmVproc*)vm->vproc;
+    AvmVproc* v = (AvmVproc*)avm_heap_malloc_k(sizeof(AvmVproc), AVM_ALLOC_KIND_VPROC);
+    if (!v) return NULL;
+    v->entries = NULL;
+    v->count = 0;
+    vm->vproc = v;
+    return v;
 }
 
 static int avm_embed_write_u32_le(uint8_t* out, size_t cap, size_t* pos, uint32_t v) {
@@ -525,6 +551,131 @@ int avm_embed_vfs_snapshot(AvmEmbedHandle* handle, uint8_t** out_data, size_t* o
 
 void avm_embed_free_bytes(uint8_t* data) {
     free(data);
+}
+
+int avm_embed_vnet_put(AvmEmbedHandle* handle, const char* url, const uint8_t* body, size_t len, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || !url || (len > 0 && !body) || len > (size_t)UINT32_MAX) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VNET put argument");
+    }
+
+    AvmVM* prev_owner = NULL;
+    avm_alloc_owner_push(handle->vm, &prev_owner);
+    handle->vm->net_backend_kind = 1;
+    AvmVnet* v = avm_embed_vnet_get_or_create_vm(handle->vm);
+    if (!v) {
+        avm_alloc_owner_pop(prev_owner);
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate AVM VNET");
+    }
+
+    AvmVnetEntry* e = avm_vnet_find(handle->vm, url);
+    char* next_url = NULL;
+    uint8_t* next_body = NULL;
+    if (!e) {
+        if (v->count == UINT32_MAX || (size_t)v->count + 1u > SIZE_MAX / sizeof(AvmVnetEntry)) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "AVM VNET fixture table too large");
+        }
+        size_t url_len = strlen(url);
+        if (url_len > (size_t)UINT32_MAX) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "VNET URL too large");
+        }
+        next_url = (char*)avm_heap_malloc_k(url_len + 1, AVM_ALLOC_KIND_VNET);
+        if (!next_url) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy VNET URL");
+        }
+        memcpy(next_url, url, url_len + 1);
+    }
+    if (len > 0) {
+        next_body = (uint8_t*)avm_heap_malloc_k(len, AVM_ALLOC_KIND_VNET);
+        if (!next_body) {
+            if (next_url) avm_heap_free(next_url);
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy VNET body");
+        }
+        memcpy(next_body, body, len);
+    }
+
+    if (!e) {
+        AvmVnetEntry* ne = (AvmVnetEntry*)avm_heap_realloc_k(v->entries, sizeof(AvmVnetEntry) * (size_t)(v->count + 1u), AVM_ALLOC_KIND_VNET);
+        if (!ne) {
+            if (next_url) avm_heap_free(next_url);
+            if (next_body) avm_heap_free(next_body);
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to grow AVM VNET");
+        }
+        v->entries = ne;
+        e = &v->entries[v->count++];
+        e->url = next_url;
+        e->body = NULL;
+        e->body_len = 0;
+    } else if (e->body) {
+        avm_heap_free(e->body);
+    }
+    e->body = next_body;
+    e->body_len = (uint32_t)len;
+    avm_alloc_owner_pop(prev_owner);
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_vproc_put(AvmEmbedHandle* handle, const char* command, int exit_code, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle) || !command) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VPROC put argument");
+    }
+
+    AvmVM* prev_owner = NULL;
+    avm_alloc_owner_push(handle->vm, &prev_owner);
+    handle->vm->proc_backend_kind = 1;
+    AvmVproc* v = avm_embed_vproc_get_or_create_vm(handle->vm);
+    if (!v) {
+        avm_alloc_owner_pop(prev_owner);
+        return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to allocate AVM VPROC");
+    }
+
+    AvmVprocEntry* e = avm_vproc_find(handle->vm, command);
+    char* next_cmd = NULL;
+    if (!e) {
+        if (v->count == UINT32_MAX || (size_t)v->count + 1u > SIZE_MAX / sizeof(AvmVprocEntry)) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "AVM VPROC fixture table too large");
+        }
+        size_t cmd_len = strlen(command);
+        if (cmd_len > (size_t)UINT32_MAX) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "VPROC command too large");
+        }
+        next_cmd = (char*)avm_heap_malloc_k(cmd_len + 1, AVM_ALLOC_KIND_VPROC);
+        if (!next_cmd) {
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to copy VPROC command");
+        }
+        memcpy(next_cmd, command, cmd_len + 1);
+        AvmVprocEntry* ne = (AvmVprocEntry*)avm_heap_realloc_k(v->entries, sizeof(AvmVprocEntry) * (size_t)(v->count + 1u), AVM_ALLOC_KIND_VPROC);
+        if (!ne) {
+            avm_heap_free(next_cmd);
+            avm_alloc_owner_pop(prev_owner);
+            return avm_embed_fail(result, AVM_EMBED_ERR_ALLOC, AVM_ERR_BUDGET, "failed to grow AVM VPROC");
+        }
+        v->entries = ne;
+        e = &v->entries[v->count++];
+        e->cmd = next_cmd;
+    }
+    e->exit_code = (int32_t)exit_code;
+    avm_alloc_owner_pop(prev_owner);
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
+}
+
+int avm_embed_vproc_set_default_exit(AvmEmbedHandle* handle, int exit_code, AvmEmbedResult* result) {
+    if (!avm_embed_valid_handle(handle)) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed VPROC default argument");
+    }
+    handle->vm->proc_backend_kind = 1;
+    handle->vm->proc_exit_code = exit_code;
+    avm_embed_fill_from_vm(handle->vm, result);
+    return result ? result->status : AVM_EMBED_OK;
 }
 
 int avm_embed_program_from_obc_bytes(const uint8_t* data, size_t len, int verify_strict, AvmEmbedProgram** out_program, AvmEmbedResult* result) {
