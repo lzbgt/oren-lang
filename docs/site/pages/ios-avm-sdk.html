@@ -237,6 +237,15 @@
 <p>  OBC receives a bounded list of address strings only, never native resolver</p>
 <p>  handles, sockets, or OS descriptors.</p>
 <ul>
+<li>iOS <code>OrenAVMKit</code> enforces live VNET lifecycle limits in the host provider.</li>
+</ul>
+<p>  <code>liveNetworkMaxSessions</code> caps open virtual sessions and</p>
+<p>  <code>liveNetworkSessionByteLimitBytes</code> caps cumulative read/write bytes per</p>
+<p>  session. Hosts can adjust both at runtime with</p>
+<p>  <code>configureLiveNetworkSessionLimitsWithMaxSessions:byteLimitBytes:error:</code>,</p>
+<p>  so user settings or package permissions can tighten policy without rebuilding</p>
+<p>  OBC.</p>
+<ul>
 <li>Naming note: Oren native/runtime code already has raw <code>sys_select</code> for OS file</li>
 </ul>
 <p>  descriptors. AVM uses virtual-session readiness; <code>session_select*</code> is the</p>
@@ -275,7 +284,7 @@
 <li>Full OBC network capability is still the target. The next NET layers should add</li>
 </ul>
 <p>  WebSocket, listen/accept where app policy allows, cancellation,</p>
-<p>  stronger per-session byte budgets, lifecycle handling, deterministic</p>
+<p>  broader lifecycle handling, deterministic</p>
 <p>  fixture/replay support, and any compatibility aliases needed for non-AVM</p>
 <p>  <code>std:net/tcp</code> / <code>std:net/udp</code> callers.</p>
 <h3 id="orenavmprocessprovider">OrenAVMProcessProvider</h3>

@@ -77,7 +77,8 @@ This file is the concise task view. Detailed implementation status lives in
      `std:ui/avm.next_event()` maps, and a default UIKit/CoreGraphics
      `OrenAVMGraphicsView` renderer for the current `fill_rect`/`text`/
      `stroke_line`/`circle` subset, plus OBC-safe virtual DNS through
-     `std:net/avm/dns` and the iOS live-NET resolver callback.
+     `std:net/avm/dns` and the iOS live-NET resolver callback, and SDK-enforced
+     live VNET session-count/per-session-byte limits.
      Remaining SDK work: permission prompt UX/persisted grants/runtime revocation,
      WebSocket/listen/accept/cancellation on the VNET
      session protocol, event-bus cancellation/FS/package events without exposing raw sockets to OBC, compiler helper

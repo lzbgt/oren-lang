@@ -189,6 +189,14 @@
 <p>  and timeout policy. OBC receives only address strings, not resolver handles or</p>
 <p>  native socket descriptors.</p>
 <ul>
+<li>iOS <code>OrenAVMKit</code> now enforces live VNET session limits in the host-backed</li>
+</ul>
+<p>  provider: <code>liveNetworkMaxSessions</code> caps open virtual TCP/UDP sessions, and</p>
+<p>  <code>liveNetworkSessionByteLimitBytes</code> caps total bytes read/written per session.</p>
+<p>  Apps can update those limits at runtime with</p>
+<p>  <code>configureLiveNetworkSessionLimitsWithMaxSessions:byteLimitBytes:error:</code>.</p>
+<p>  The iOS verifier proves an intentional byte-budget failure path.</p>
+<ul>
 <li>OBC packages can now publish runtime permission intent through</li>
 </ul>
 <p>  <code>std:avm/permission.request*</code>, which maps to a separate <code>PERMISSION</code> capability</p>

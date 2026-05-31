@@ -402,6 +402,8 @@ int main(void) {
         BOOL prefetchNetwork = env[@"OREN_AVM_SDK_NET_PREFETCH"] != nil;
         BOOL liveNetwork = env[@"OREN_AVM_SDK_NET_LIVE"] != nil;
         BOOL defaultLiveNetwork = env[@"OREN_AVM_SDK_NET_DEFAULT_LIVE"] != nil;
+        NSInteger expectedExit = env[@"OREN_AVM_SDK_EXPECT_EXIT"] ? env[@"OREN_AVM_SDK_EXPECT_EXIT"].integerValue : 9;
+        NSString* sessionByteLimit = env[@"OREN_AVM_SDK_SESSION_BYTE_LIMIT"];
 
         OrenAVMRuntimeConfig* cfg = [OrenAVMRuntimeConfig interactiveAppDefaults];
         if (cfg.timeMode != OrenAVMTimeModeInteractiveWallClock) return 31;
@@ -409,6 +411,9 @@ int main(void) {
         if (cfg.netBackend != OrenAVMVirtualBackendVirtual) return 33;
         if (cfg.procBackend != OrenAVMVirtualBackendVirtual) return 34;
         if (!cfg.liveNetworkEnabled) return 69;
+        if (cfg.liveNetworkMaxSessions == 0) return 80;
+        if (cfg.liveNetworkSessionByteLimitBytes == 0) return 81;
+        if (sessionByteLimit) cfg.liveNetworkSessionByteLimitBytes = (uint64_t)sessionByteLimit.longLongValue;
 
         OrenAVMRuntime* runtime = [[OrenAVMRuntime alloc] initWithConfig:cfg];
         if (!runtime) return 35;
@@ -417,6 +422,9 @@ int main(void) {
             if (![runtime disableLiveNetworkWithError:&error]) return 70;
             if (![runtime enableLiveNetworkWithAllowedHosts:nil timeoutSeconds:5.0 error:&error]) return 71;
         }
+        if (![runtime configureLiveNetworkSessionLimitsWithMaxSessions:cfg.liveNetworkMaxSessions
+                                                        byteLimitBytes:cfg.liveNetworkSessionByteLimitBytes
+                                                                 error:&error]) return 82;
         if (![runtime setArgv:@[@"oren", @"ios", netURL, tcpURL] error:&error]) return 36;
         NSData* input = [@"abc" dataUsingEncoding:NSUTF8StringEncoding];
         if (![runtime putVFSFileAtPath:@"input.txt" data:input error:&error]) return 37;
@@ -461,7 +469,8 @@ int main(void) {
         OrenAVMRunResult* result = [runtime runOBCData:obc error:&error];
         uint64_t wall1 = host_now_ns();
         if (!result) return 41;
-        if (result.exitCode != 9) return 42;
+        if (result.exitCode != expectedExit) return 42;
+        if (expectedExit != 9) return 0;
         if (wall1 <= wall0 || wall1 - wall0 < 10000000ull) return 43;
         NSDictionary<NSString*, id>* permission = [runtime getPermissionRequestWithError:&error];
         if (!permission) return 72;
@@ -673,9 +682,9 @@ ready = pathlib.Path(sys.argv[3])
 srv = socket.socket()
 srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 srv.bind(("127.0.0.1", port))
-srv.listen(4)
+srv.listen(5)
 ready.write_text("ready\n", encoding="utf-8")
-for _ in range(4):
+for _ in range(5):
     conn, _addr = srv.accept()
     try:
         conn.recv(4096)
@@ -702,16 +711,17 @@ ready = pathlib.Path(sys.argv[2])
 srv = socket.socket()
 srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 srv.bind(("127.0.0.1", port))
-srv.listen(1)
+srv.listen(2)
 ready.write_text("ready\n", encoding="utf-8")
-conn, _addr = srv.accept()
-try:
-    data = conn.recv(4)
-    if data == b"ping":
-        conn.sendall(b"pong")
-finally:
-    conn.close()
-    srv.close()
+for _ in range(2):
+    conn, _addr = srv.accept()
+    try:
+        data = conn.recv(4)
+        if data == b"ping":
+            conn.sendall(b"pong")
+    finally:
+        conn.close()
+srv.close()
 PY
 TCP_SERVER_PID=$!
 python3 - "$UDP_PORT" "$UDP_READY" > "$LOG_DIR/libavm_ios_sdk_udp_server.log" 2>&1 <<'PY' &
@@ -763,6 +773,12 @@ OREN_AVM_SDK_NET_ALLOWED_HOST="127.0.0.1" \
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
 OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" \
+  "$HOST_SDK_BIN"
+OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
+OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \
+OREN_AVM_SDK_TCP_URL="tcp://127.0.0.1:${TCP_PORT}" \
+OREN_AVM_SDK_SESSION_BYTE_LIMIT=7 \
+OREN_AVM_SDK_EXPECT_EXIT=60 \
   "$HOST_SDK_BIN"
 OREN_AVM_SDK_NET_DEFAULT_LIVE=1 \
 OREN_AVM_SDK_NET_URL="http://127.0.0.1:${NET_PORT}/net.txt" \

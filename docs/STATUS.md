@@ -131,6 +131,12 @@ Facts from the 2026-05-28 implementation pass:
   virtual DNS request to `getaddrinfo` under the same dynamic live-NET allowlist
   and timeout policy. OBC receives only address strings, not resolver handles or
   native socket descriptors.
+- iOS `OrenAVMKit` now enforces live VNET session limits in the host-backed
+  provider: `liveNetworkMaxSessions` caps open virtual TCP/UDP sessions, and
+  `liveNetworkSessionByteLimitBytes` caps total bytes read/written per session.
+  Apps can update those limits at runtime with
+  `configureLiveNetworkSessionLimitsWithMaxSessions:byteLimitBytes:error:`.
+  The iOS verifier proves an intentional byte-budget failure path.
 - OBC packages can now publish runtime permission intent through
   `std:avm/permission.request*`, which maps to a separate `PERMISSION` capability
   domain rather than the broader nested-AVM domain. AVM stores the latest request

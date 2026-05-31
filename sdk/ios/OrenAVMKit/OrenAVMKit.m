@@ -134,6 +134,8 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     cfg.liveNetworkEnabled = NO;
     cfg.liveNetworkAllowedHosts = nil;
     cfg.liveNetworkTimeoutSeconds = 15.0;
+    cfg.liveNetworkMaxSessions = 64u;
+    cfg.liveNetworkSessionByteLimitBytes = 1024ull * 1024ull;
     cfg.verifyStrict = YES;
     return cfg;
 }
@@ -160,6 +162,8 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     cfg.liveNetworkEnabled = self.liveNetworkEnabled;
     cfg.liveNetworkAllowedHosts = [self.liveNetworkAllowedHosts copy];
     cfg.liveNetworkTimeoutSeconds = self.liveNetworkTimeoutSeconds;
+    cfg.liveNetworkMaxSessions = self.liveNetworkMaxSessions;
+    cfg.liveNetworkSessionByteLimitBytes = self.liveNetworkSessionByteLimitBytes;
     cfg.verifyStrict = self.verifyStrict;
     return cfg;
 }
@@ -401,8 +405,11 @@ static UIColor* OrenAVMGfxColor(const uint8_t* rgba) {
     uint64_t _ioLimitBytes;
     NSSet<NSString*>* _liveNetworkAllowedHosts;
     NSTimeInterval _liveNetworkTimeoutSeconds;
+    uint32_t _liveNetworkMaxSessions;
+    uint64_t _liveNetworkSessionByteLimitBytes;
     NSURLSession* _networkSession;
     NSMutableDictionary<NSNumber*, NSNumber*>* _networkSockets;
+    NSMutableDictionary<NSNumber*, NSNumber*>* _networkSessionByteCounts;
     uint32_t _nextNetworkSessionId;
 }
 
@@ -422,6 +429,39 @@ static int OrenAVMRuntimeSocketForSession(OrenAVMRuntime* runtime, uint32_t sess
         if (value) fd = value.intValue;
     }
     return fd;
+}
+
+static BOOL OrenAVMRuntimeCanUseSessionBytes(OrenAVMRuntime* runtime, uint32_t sessionId, uint64_t len) {
+    if (runtime->_liveNetworkSessionByteLimitBytes == 0 || len == 0) return YES;
+    __block BOOL allowed = NO;
+    @synchronized (runtime) {
+        uint64_t used = [runtime->_networkSessionByteCounts[@(sessionId)] unsignedLongLongValue];
+        allowed = used <= runtime->_liveNetworkSessionByteLimitBytes &&
+            len <= runtime->_liveNetworkSessionByteLimitBytes - used;
+    }
+    return allowed;
+}
+
+static size_t OrenAVMRuntimeClampSessionReadLen(OrenAVMRuntime* runtime, uint32_t sessionId, size_t maxLen) {
+    if (runtime->_liveNetworkSessionByteLimitBytes == 0 || maxLen == 0) return maxLen;
+    __block size_t out = 0;
+    @synchronized (runtime) {
+        uint64_t used = [runtime->_networkSessionByteCounts[@(sessionId)] unsignedLongLongValue];
+        if (used < runtime->_liveNetworkSessionByteLimitBytes) {
+            uint64_t remaining = runtime->_liveNetworkSessionByteLimitBytes - used;
+            out = maxLen > remaining ? (size_t)remaining : maxLen;
+        }
+    }
+    return out;
+}
+
+static void OrenAVMRuntimeChargeSessionBytes(OrenAVMRuntime* runtime, uint32_t sessionId, uint64_t len) {
+    if (len == 0) return;
+    @synchronized (runtime) {
+        NSNumber* key = @(sessionId);
+        uint64_t used = [runtime->_networkSessionByteCounts[key] unsignedLongLongValue];
+        runtime->_networkSessionByteCounts[key] = @(used + len);
+    }
 }
 
 static BOOL OrenAVMRuntimeFetchURLData(NSURL* url,
@@ -634,10 +674,15 @@ static int OrenAVMRuntimeNetSessionOpen(void* userData, const char* spec, uint32
     if (fd < 0) return -1;
 
     @synchronized (runtime) {
+        if (runtime->_liveNetworkMaxSessions > 0 && runtime->_networkSockets.count >= runtime->_liveNetworkMaxSessions) {
+            close(fd);
+            return -1;
+        }
         runtime->_nextNetworkSessionId += 1u;
         if (runtime->_nextNetworkSessionId == 0) runtime->_nextNetworkSessionId = 1u;
         *outSessionId = runtime->_nextNetworkSessionId;
         runtime->_networkSockets[@(*outSessionId)] = @(fd);
+        runtime->_networkSessionByteCounts[@(*outSessionId)] = @0;
     }
     return 0;
 }
@@ -647,6 +692,7 @@ static int OrenAVMRuntimeNetSessionWrite(void* userData, uint32_t sessionId, con
     OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
     int fd = OrenAVMRuntimeSocketForSession(runtime, sessionId);
     if (fd < 0) return -1;
+    if (!OrenAVMRuntimeCanUseSessionBytes(runtime, sessionId, (uint64_t)len)) return -1;
     OrenAVMRuntimeSetSocketTimeout(fd, timeoutMs);
     size_t total = 0;
     while (total < len) {
@@ -654,6 +700,7 @@ static int OrenAVMRuntimeNetSessionWrite(void* userData, uint32_t sessionId, con
         if (n <= 0) return -1;
         total += (size_t)n;
     }
+    OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)total);
     *outWritten = total;
     return 0;
 }
@@ -665,6 +712,7 @@ static int OrenAVMRuntimeNetSessionRead(void* userData, uint32_t sessionId, size
     OrenAVMRuntime* runtime = (__bridge OrenAVMRuntime*)userData;
     int fd = OrenAVMRuntimeSocketForSession(runtime, sessionId);
     if (fd < 0) return -1;
+    maxLen = OrenAVMRuntimeClampSessionReadLen(runtime, sessionId, maxLen);
     if (maxLen == 0) return 0;
     uint8_t* buf = (uint8_t*)malloc(maxLen);
     if (!buf) return -1;
@@ -678,6 +726,7 @@ static int OrenAVMRuntimeNetSessionRead(void* userData, uint32_t sessionId, size
         free(buf);
         return 0;
     }
+    OrenAVMRuntimeChargeSessionBytes(runtime, sessionId, (uint64_t)n);
     *outData = buf;
     *outLen = (size_t)n;
     return 0;
@@ -773,6 +822,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
         if (value) {
             fd = value.intValue;
             [runtime->_networkSockets removeObjectForKey:key];
+            [runtime->_networkSessionByteCounts removeObjectForKey:key];
         }
     }
     if (fd < 0) return -1;
@@ -785,6 +835,8 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     if (!self) return nil;
     OrenAVMRuntimeConfig* effective = config ?: [OrenAVMRuntimeConfig deterministicDefaults];
     _ioLimitBytes = effective.ioLimitBytes;
+    _liveNetworkMaxSessions = effective.liveNetworkMaxSessions;
+    _liveNetworkSessionByteLimitBytes = effective.liveNetworkSessionByteLimitBytes;
     AvmEmbedConfig embedConfig = [effective makeEmbedConfig];
     AvmEmbedResult result;
     _handle = avm_embed_open(&embedConfig, &result);
@@ -794,6 +846,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     sessionConfig.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
     _networkSession = [NSURLSession sessionWithConfiguration:sessionConfig];
     _networkSockets = [NSMutableDictionary dictionary];
+    _networkSessionByteCounts = [NSMutableDictionary dictionary];
     _nextNetworkSessionId = 0;
     if (effective.liveNetworkEnabled) {
         _liveNetworkAllowedHosts = [effective.liveNetworkAllowedHosts copy];
@@ -821,6 +874,7 @@ static int OrenAVMRuntimeNetSessionClose(void* userData, uint32_t sessionId) {
     @synchronized (self) {
         for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
         [_networkSockets removeAllObjects];
+        [_networkSessionByteCounts removeAllObjects];
     }
     [_networkSession invalidateAndCancel];
     if (_handle) avm_embed_close(_handle);
@@ -996,6 +1050,28 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     return YES;
 }
 
+- (BOOL)configureLiveNetworkSessionLimitsWithMaxSessions:(uint32_t)maxSessions
+                                          byteLimitBytes:(uint64_t)byteLimitBytes
+                                                   error:(NSError**)error {
+    @synchronized (self) {
+        if (maxSessions > 0 && _networkSockets.count > maxSessions) {
+            return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
+                                            @"live NET max sessions is below current open session count");
+        }
+        if (byteLimitBytes > 0) {
+            for (NSNumber* usedValue in _networkSessionByteCounts.allValues) {
+                if (usedValue.unsignedLongLongValue > byteLimitBytes) {
+                    return OrenAVMKitAssignSDKError(error, AVM_EMBED_ERR_VM,
+                                                    @"live NET byte limit is below current session usage");
+                }
+            }
+        }
+        _liveNetworkMaxSessions = maxSessions;
+        _liveNetworkSessionByteLimitBytes = byteLimitBytes;
+    }
+    return YES;
+}
+
 - (BOOL)disableLiveNetworkWithError:(NSError**)error {
     _liveNetworkAllowedHosts = nil;
     _liveNetworkTimeoutSeconds = 15.0;
@@ -1009,6 +1085,7 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
     @synchronized (self) {
         for (NSNumber* fdValue in _networkSockets.allValues) close(fdValue.intValue);
         [_networkSockets removeAllObjects];
+        [_networkSessionByteCounts removeAllObjects];
     }
     return YES;
 }

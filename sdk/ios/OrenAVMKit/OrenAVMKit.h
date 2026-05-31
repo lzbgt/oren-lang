@@ -47,6 +47,8 @@ typedef NS_ENUM(NSInteger, OrenAVMVirtualBackend) {
 @property(nonatomic) BOOL liveNetworkEnabled;
 @property(nonatomic, nullable, copy) NSSet<NSString*>* liveNetworkAllowedHosts;
 @property(nonatomic) NSTimeInterval liveNetworkTimeoutSeconds;
+@property(nonatomic) uint32_t liveNetworkMaxSessions;
+@property(nonatomic) uint64_t liveNetworkSessionByteLimitBytes;
 @property(nonatomic) BOOL verifyStrict;
 
 + (instancetype)deterministicDefaults;
@@ -86,6 +88,9 @@ createIntermediateDirectories:(BOOL)createIntermediateDirectories
 - (BOOL)enableLiveNetworkWithAllowedHosts:(nullable NSSet<NSString*>*)allowedHosts
                            timeoutSeconds:(NSTimeInterval)timeoutSeconds
                                     error:(NSError* _Nullable* _Nullable)error;
+- (BOOL)configureLiveNetworkSessionLimitsWithMaxSessions:(uint32_t)maxSessions
+                                          byteLimitBytes:(uint64_t)byteLimitBytes
+                                                   error:(NSError* _Nullable* _Nullable)error;
 - (BOOL)disableLiveNetworkWithError:(NSError* _Nullable* _Nullable)error;
 - (BOOL)fetchURLIntoVirtualNet:(NSURL*)url
                   allowedHosts:(nullable NSSet<NSString*>*)allowedHosts
