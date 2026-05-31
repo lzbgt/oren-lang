@@ -64,7 +64,8 @@ This file is the concise task view. Detailed implementation status lives in
      game-grade GUI path: display-link pacing, retained resource handles, budget
      gates, low-latency input ordering, Metal/`MTKView`, richer drawing ops, and
      richer IME/composition input helpers. The `OGF0` frame header now includes
-     sequence/native-drawable/target-refresh metadata.
+     sequence/native-drawable/target-refresh metadata, and AVM validates `OGF0`
+     frames plus `OGE0` host input events before accepting them.
      Design notes: `project-doc/ios_avm_sdk_design_20260531.md`,
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated

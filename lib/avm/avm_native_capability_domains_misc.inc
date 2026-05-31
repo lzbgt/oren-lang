@@ -249,6 +249,10 @@
                 if (!data || len == 0 || len > (size_t)UINT32_MAX) {
                     return avm_err_domop(AVM_ERR_INVALID_ARG, "gfx.present_frame invalid frame size", domain, op);
                 }
+                char gfx_err[160];
+                if (!avm_gfx_validate_frame(data, len, gfx_err, sizeof(gfx_err))) {
+                    return avm_err_domop(AVM_ERR_INVALID_ARG, gfx_err, domain, op);
+                }
                 if (!avm_io_charge(vm, (uint64_t)len, domain, op)) return vm->last_error;
                 uint8_t* copy = (uint8_t*)malloc(len);
                 if (!copy) return avm_err_domop(AVM_ERR_BUDGET, "gfx.present_frame allocation failed", domain, op);

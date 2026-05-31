@@ -1,0 +1,50 @@
+// AVM headless UI test: GFX frame protocol validation rejects malformed OGF0.
+
+import ui_avm "std:ui/avm"
+import bytes "std:bytes"
+
+fn fail() {
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(v) {
+    if v { return 0 }
+    fail()
+}
+
+fn main() {
+    var bad_magic = bytes.try_pack([
+        79, 71, 88, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0
+    ])
+    var r1 = ui_avm.present_bytes(bad_magic)
+    assert_true(oren_is_err(r1))
+    assert_true(oren_err_code(r1) == 4)
+
+    var trailing = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        255
+    ])
+    var r2 = ui_avm.present_bytes(trailing)
+    assert_true(oren_is_err(r2))
+    assert_true(oren_err_code(r2) == 4)
+
+    var bad_op = bytes.try_pack([
+        79, 71, 70, 48, 1, 0, 40, 0,
+        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        99, 0, 0, 0
+    ])
+    var r3 = ui_avm.present_bytes(bad_op)
+    assert_true(oren_is_err(r3))
+    assert_true(oren_err_code(r3) == 4)
+
+    exit(0)
+}
+
+main()

@@ -97,7 +97,9 @@
 <p>  <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, and <code>circle</code>.</p>
 <ul>
 <li>Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.</li>
+<li>AVM validates <code>OGF0</code> frame headers/op records and <code>OGE0</code> input event</li>
 </ul>
+<p>  headers/payload lengths at the mailbox boundary before accepting them.</p>
 <p>This is a correct bootstrap, not the final game-grade renderer contract.</p>
 <h2 id="high-refresh-contract">High-Refresh Contract</h2>
 <p>The VM must not assume one Oren tick per display refresh. A 120 Hz screen gives an</p>
@@ -226,6 +228,10 @@
 <li>Done: add <code>OGF0</code> v1 frame sequence, native drawable-size metadata, and target</li>
 </ol>
 <p>   refresh hint while rolling compatibility is cheap.</p>
+<ol>
+<li>Done: add mailbox-boundary protocol validation for malformed <code>OGF0</code> frames and</li>
+</ol>
+<p>   <code>OGE0</code> host input events.</p>
 <ol>
 <li>Add budget fixtures for oversized frames and event queues.</li>
 <li>Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.</li>

@@ -295,6 +295,9 @@ typedef struct {
     uint32_t cap;
 } AvmGfxInputQueue;
 
+int avm_gfx_validate_frame(const uint8_t* data, size_t len, char* err, size_t err_cap);
+int avm_gfx_validate_event(const uint8_t* data, size_t len, char* err, size_t err_cap);
+
 // --- Heap release from snapshot module (internal wrapper) ---
 void avm_release_heap_all(AvmVM* vm);
 

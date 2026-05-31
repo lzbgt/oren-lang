@@ -640,6 +640,10 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* handle, const uint8_t* event_data, s
     if (!avm_embed_valid_handle(handle) || !event_data || event_len == 0 || event_len > (size_t)UINT32_MAX) {
         return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, "invalid AVM embed GFX input put argument");
     }
+    char gfx_err[160];
+    if (!avm_gfx_validate_event(event_data, event_len, gfx_err, sizeof(gfx_err))) {
+        return avm_embed_fail(result, AVM_EMBED_ERR_INVALID_ARG, AVM_ERR_INVALID_ARG, gfx_err);
+    }
 
     AvmGfxInputQueue* q = (AvmGfxInputQueue*)handle->vm->gfx_input_queue;
     if (!q) {

@@ -91,8 +91,10 @@ Facts from the 2026-05-28 implementation pass:
   `oren_gfx_present_frame`; embedders can read and clear it with
   `avm_embed_gfx_frame_get` and `avm_embed_gfx_frame_clear`. The current `OGF0`
   frame header includes sequence, logical size, native drawable size, scale, and
-  target refresh hint metadata for high-refresh/high-resolution hosts. Hosts enqueue
-  binary input events with `avm_embed_gfx_input_put`; OBC pulls raw bytes through
+  target refresh hint metadata for high-refresh/high-resolution hosts. AVM now
+  validates `OGF0` frame headers/op records before accepting a frame. Hosts enqueue
+  binary input events with `avm_embed_gfx_input_put`; AVM validates `OGE0` event
+  headers/payload lengths before queuing them, and OBC pulls raw bytes through
   `std:ui/avm.pull_event_bytes()` or structured maps through
   `std:ui/avm.next_event()`. `poll_event_bytes()` remains a thin alias.
   `OrenAVMKit` exposes matching Objective-C

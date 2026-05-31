@@ -212,6 +212,9 @@ int avm_embed_gfx_input_put(AvmEmbedHandle* h, const uint8_t* event_data, size_t
 <p>cover <code>fill_rect</code>, <code>text</code>, <code>stroke_line</code>, <code>circle</code>, pointer, resize, key, and text</p>
 <p>input events; later geometry, mesh, image, material, and IME/composition opcodes</p>
 <p>should extend the same binary stream.</p>
+<p>AVM validates <code>OGF0</code> headers/op records before accepting OBC-published frames and</p>
+<p>validates <code>OGE0</code> headers/payload lengths before accepting host input. This keeps</p>
+<p>host adapters from having to defensively parse arbitrary byte strings from the VM.</p>
 <p>The retained implementation uses the explicit graphics mailbox, not VFS or stdout.</p>
 <p>Frame publication is charged against AVM I/O budget so graphics output cannot grow</p>
 <p>unbounded.</p>

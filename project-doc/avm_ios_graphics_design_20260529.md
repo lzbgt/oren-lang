@@ -172,6 +172,10 @@ cover `fill_rect`, `text`, `stroke_line`, `circle`, pointer, resize, key, and te
 input events; later geometry, mesh, image, material, and IME/composition opcodes
 should extend the same binary stream.
 
+AVM validates `OGF0` headers/op records before accepting OBC-published frames and
+validates `OGE0` headers/payload lengths before accepting host input. This keeps
+host adapters from having to defensively parse arbitrary byte strings from the VM.
+
 The retained implementation uses the explicit graphics mailbox, not VFS or stdout.
 Frame publication is charged against AVM I/O budget so graphics output cannot grow
 unbounded.

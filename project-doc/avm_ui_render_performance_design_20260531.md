@@ -59,6 +59,8 @@ Implemented as of 2026-05-31:
 - iOS `OrenAVMGraphicsView` renders the current CoreGraphics fallback subset:
   `fill_rect`, `text`, `stroke_line`, and `circle`.
 - Host helpers can enqueue pointer, resize, key, and UTF-8 text input events.
+- AVM validates `OGF0` frame headers/op records and `OGE0` input event
+  headers/payload lengths at the mailbox boundary before accepting them.
 
 This is a correct bootstrap, not the final game-grade renderer contract.
 
@@ -182,9 +184,11 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
 1. Freeze the performance contract and keep docs/tests aligned.
 2. Done: add `OGF0` v1 frame sequence, native drawable-size metadata, and target
    refresh hint while rolling compatibility is cheap.
-3. Add budget fixtures for oversized frames and event queues.
-4. Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.
-5. Add retained resources, batching, and resource lifetime records.
-6. Add Metal/`MTKView` renderer as the game-grade iOS path.
-7. Add richer 2D and 3D command sets.
-8. Add game/app package smoke in the Note host or iOS SDK harness.
+3. Done: add mailbox-boundary protocol validation for malformed `OGF0` frames and
+   `OGE0` host input events.
+4. Add budget fixtures for oversized frames and event queues.
+5. Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.
+6. Add retained resources, batching, and resource lifetime records.
+7. Add Metal/`MTKView` renderer as the game-grade iOS path.
+8. Add richer 2D and 3D command sets.
+9. Add game/app package smoke in the Note host or iOS SDK harness.
