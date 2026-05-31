@@ -49,6 +49,12 @@ This file is the concise task view. Detailed implementation status lives in
      gate, broader compiler/stdlib surface coverage, and CI coverage.
    - Gates: `make verify-libavm-ios` and `make verify-compiler-in-avm-ios-chain`.
    - Evidence: `project-doc/ios_avm_readiness_20260507.md`.
+   - Stdlib OBC gate: `make verify-libavm-ios` now also runs
+     `scripts/verify_avm_stdlib_obc_surface.sh`, compiling a representative app
+     fixture against `build/plugins/stdlib_bundle.obc` and running it in AVM. The
+     smoke imports `std:buffer`, `std:bytes`, `std:json`, `std:linalg`,
+     `std:math`, `std:strings`, `std:time`, and `std:ui/avm`, preventing missing
+     app-facing exports such as `STD_linalg_dot_f64` from reaching the iOS app.
    - SDK slices retained: `OrenAVMKit.xcframework` now provides deterministic and
      interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,
      verifier proof that interactive `std:time.sleep_ms` blocks the AVM worker on
@@ -67,7 +73,9 @@ This file is the concise task view. Detailed implementation status lives in
      sequence/native-drawable/target-refresh metadata, and AVM validates `OGF0`
      frames plus `OGE0` host input events before accepting them. Curated gates now
      cover malformed-frame rejection, op-count cap rejection, frame I/O-budget
-     rejection, and the host input queue depth cap.
+     rejection, the host input queue depth cap, non-1000 resize scale propagation,
+     latest-frame replacement/clear semantics, and FIFO pointer down/move/up
+     ordering before mixed key/text events.
      Design notes: `project-doc/ios_avm_sdk_design_20260531.md`,
      `project-doc/avm_ui_render_performance_design_20260531.md`.
    - Follow-up distribution design: after the GUI bridge gate, publish a curated

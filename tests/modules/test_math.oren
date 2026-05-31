@@ -37,12 +37,15 @@ assert_eq(math.clamp_i(99, 0, 10), 10, 24)
 assert_eq(math.abs_f(0.0), 0.0, 30)
 assert_eq(math.abs_f(1.25), 1.25, 31)
 assert_eq(math.abs_f(0.0 - 1.25), 1.25, 32)
+assert_eq(math.fabs(0.0 - 1.25), 1.25, 33)
 
 assert_eq(math.min_f(1.0, 2.0), 1.0, 40)
 assert_eq(math.max_f(1.0, 2.0), 2.0, 41)
 assert_eq(math.clamp_f(5.0, 0.0, 10.0), 5.0, 42)
 assert_eq(math.clamp_f(0.0 - 5.0, 0.0, 10.0), 0.0, 43)
 assert_eq(math.clamp_f(99.0, 0.0, 10.0), 10.0, 44)
+assert_eq(math.fmin(1.0, 2.0), 1.0, 45)
+assert_eq(math.fmax(1.0, 2.0), 2.0, 46)
 
 // NaN predicate (IEEE-ish). 0.0/0.0 should yield NaN.
 var nanv = 0.0 / 0.0
@@ -58,6 +61,17 @@ assert_true(oren_is_err(math.pow(-2.0, 0.5)), 64)
 assert_close(math.pow(1.0, math.inf()), 1.0, 1e-12, 65)
 assert_close(math.pow(-1.0, math.inf()), 1.0, 1e-12, 66)
 assert_true(math.is_inf(math.pow(0.5, math.neg_inf())), 67)
+
+// C/C++ mathlib aliases and common functions
+assert_eq(math.trunc(1.9), 1.0, 70)
+assert_eq(math.trunc(0.0 - 1.9), -1.0, 71)
+assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 72)
+assert_close(math.fmod(0.0 - 5.5, 2.0), -1.5, 1e-12, 73)
+assert_close(math.log(3.0), math.ln(3.0), 1e-12, 74)
+assert_close(math.log10(1000.0), 3.0, 1e-10, 75)
+assert_close(math.exp10(3.0), 1000.0, 1e-6, 76)
+assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 80)
+assert_true(oren_is_err(math.fmod(1.0, 0.0)), 81)
 
 print("module math OK")
 exit(0)

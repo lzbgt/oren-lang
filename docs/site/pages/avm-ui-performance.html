@@ -103,7 +103,15 @@
 <ul>
 <li>Curated gates cover malformed-frame rejection, op-count cap rejection, frame</li>
 </ul>
-<p>  I/O-budget rejection, and the host input queue depth cap.</p>
+<p>  I/O-budget rejection, the host input queue depth cap, non-1000 resize scale</p>
+<p>  propagation, latest-frame replacement/clear semantics, and FIFO pointer</p>
+<p>  down/move/up ordering before mixed key/text events.</p>
+<ul>
+<li>The iOS verification chain now also compiles and runs a stdlib OBC surface smoke</li>
+</ul>
+<p>  that imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:json</code>, <code>std:linalg</code>, <code>std:math</code>,</p>
+<p>  <code>std:strings</code>, <code>std:time</code>, and <code>std:ui/avm</code>, so GUI app dependencies fail in the</p>
+<p>  repo gate instead of later in app integration.</p>
 <p>This is a correct bootstrap, not the final game-grade renderer contract.</p>
 <h2 id="high-refresh-contract">High-Refresh Contract</h2>
 <p>The VM must not assume one Oren tick per display refresh. A 120 Hz screen gives an</p>
@@ -241,8 +249,11 @@
 </ol>
 <p>   input queue depth.</p>
 <ol>
-<li>Add low-latency ordering fixtures across multiple input events.</li>
-<li>Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.</li>
+<li>Done: add latest-frame replacement/clear, high-resolution resize scale, and</li>
+</ol>
+<p>   FIFO pointer down/move/up ordering gates in the iOS embed verifier.</p>
+<ol>
+<li>Add Note/iOS display-link smoke for high-refresh pacing behavior.</li>
 <li>Add retained resources, batching, and resource lifetime records.</li>
 <li>Add Metal/<code>MTKView</code> renderer as the game-grade iOS path.</li>
 <li>Add richer 2D and 3D command sets.</li>

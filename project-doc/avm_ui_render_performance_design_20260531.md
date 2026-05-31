@@ -62,7 +62,13 @@ Implemented as of 2026-05-31:
 - AVM validates `OGF0` frame headers/op records and `OGE0` input event
   headers/payload lengths at the mailbox boundary before accepting them.
 - Curated gates cover malformed-frame rejection, op-count cap rejection, frame
-  I/O-budget rejection, and the host input queue depth cap.
+  I/O-budget rejection, the host input queue depth cap, non-1000 resize scale
+  propagation, latest-frame replacement/clear semantics, and FIFO pointer
+  down/move/up ordering before mixed key/text events.
+- The iOS verification chain now also compiles and runs a stdlib OBC surface smoke
+  that imports `std:buffer`, `std:bytes`, `std:json`, `std:linalg`, `std:math`,
+  `std:strings`, `std:time`, and `std:ui/avm`, so GUI app dependencies fail in the
+  repo gate instead of later in app integration.
 
 This is a correct bootstrap, not the final game-grade renderer contract.
 
@@ -190,8 +196,9 @@ Before expanding to Metal/3D or a much larger command set, add gates for:
    `OGE0` host input events.
 4. Done: add budget/depth fixtures for oversized frames, op-count caps, and
    input queue depth.
-5. Add low-latency ordering fixtures across multiple input events.
-6. Add Note/iOS display-link smoke for high-refresh and high-resolution behavior.
+5. Done: add latest-frame replacement/clear, high-resolution resize scale, and
+   FIFO pointer down/move/up ordering gates in the iOS embed verifier.
+6. Add Note/iOS display-link smoke for high-refresh pacing behavior.
 7. Add retained resources, batching, and resource lifetime records.
 8. Add Metal/`MTKView` renderer as the game-grade iOS path.
 9. Add richer 2D and 3D command sets.

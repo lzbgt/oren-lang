@@ -33,9 +33,14 @@ allocator/lifecycle hardening.
   user-visible delays should use wall-clock time. This keeps virtual FS/PROC/NET
   defaults but makes `std:time.sleep_ms` block the AVM worker; do not run it on
   the iOS main thread.
-- AVM stdlib bundle after 2026-05-29: the bundle root includes `std:time` alongside
-  the existing compiler/app-critical portable subset. Broader pure-stdlib expansion
-  should be manifest-gated so bundle build time remains acceptable.
+- AVM stdlib bundle after 2026-05-31: the bundle root includes `std:time`,
+  `std:ui/avm`, `std:linalg`, and the existing compiler/app-critical portable
+  subset. The iOS verifier now runs `scripts/verify_avm_stdlib_obc_surface.sh`,
+  which compiles a representative app fixture against `stdlib_bundle.obc` and runs
+  it in AVM. The fixture imports `std:buffer`, `std:bytes`, `std:json`,
+  `std:linalg`, `std:math`, `std:strings`, `std:time`, and `std:ui/avm`, catching
+  missing bundled exports such as `STD_linalg_dot_f64`. Broader pure-stdlib
+  expansion should be manifest-gated so bundle build time remains acceptable.
 - App bridge API after 2026-05-28: `avm_embed_set_argv(...)` copies program argv
   into the VM, `avm_embed_vfs_put(...)` injects VirtualFS file bytes,
   `avm_embed_vfs_get(...)` copies VirtualFS output bytes back to the app,
@@ -71,6 +76,11 @@ allocator/lifecycle hardening.
   `build/plugins/stdlib_bundle.obc` and `build/plugins/oren.obc`, injects them
   into a nested VirtualFS harness, compiles a small `std:list` program inside AVM,
   extracts `out.obc`, and runs that output with `exit_code=7`.
+- Stdlib-OBC app surface after 2026-05-31: `make verify-libavm-ios` also calls
+  `scripts/verify_avm_stdlib_obc_surface.sh`, which compiles
+  `tests/fixtures/avm_stdlib_obc_surface_smoke.oren` with `--stdlib-mode obc` and
+  proves buffer/bytes/json/linalg/math/strings/time/UI AVM APIs link and run from
+  the bundled stdlib OBC.
 - AVM fixes retained for the chain: child-owned OBC string/bytes constants for
   nested universes with an explicit VM-owned constant-root flag, float constants in
   the nested OBC parser, explicit global-index failures plus a `MAX_GLOBALS=1024`

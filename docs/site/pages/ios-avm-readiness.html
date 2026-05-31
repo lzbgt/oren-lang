@@ -70,10 +70,15 @@
 <p>  defaults but makes <code>std:time.sleep_ms</code> block the AVM worker; do not run it on</p>
 <p>  the iOS main thread.</p>
 <ul>
-<li>AVM stdlib bundle after 2026-05-29: the bundle root includes <code>std:time</code> alongside</li>
+<li>AVM stdlib bundle after 2026-05-31: the bundle root includes <code>std:time</code>,</li>
 </ul>
-<p>  the existing compiler/app-critical portable subset. Broader pure-stdlib expansion</p>
-<p>  should be manifest-gated so bundle build time remains acceptable.</p>
+<p>  <code>std:ui/avm</code>, <code>std:linalg</code>, and the existing compiler/app-critical portable</p>
+<p>  subset. The iOS verifier now runs <code>scripts/verify_avm_stdlib_obc_surface.sh</code>,</p>
+<p>  which compiles a representative app fixture against <code>stdlib_bundle.obc</code> and runs</p>
+<p>  it in AVM. The fixture imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:json</code>,</p>
+<p>  <code>std:linalg</code>, <code>std:math</code>, <code>std:strings</code>, <code>std:time</code>, and <code>std:ui/avm</code>, catching</p>
+<p>  missing bundled exports such as <code>STD_linalg_dot_f64</code>. Broader pure-stdlib</p>
+<p>  expansion should be manifest-gated so bundle build time remains acceptable.</p>
 <ul>
 <li>App bridge API after 2026-05-28: <code>avm_embed_set_argv(...)</code> copies program argv</li>
 </ul>
@@ -119,6 +124,13 @@
 <p>  <code>build/plugins/stdlib_bundle.obc</code> and <code>build/plugins/oren.obc</code>, injects them</p>
 <p>  into a nested VirtualFS harness, compiles a small <code>std:list</code> program inside AVM,</p>
 <p>  extracts <code>out.obc</code>, and runs that output with <code>exit_code=7</code>.</p>
+<ul>
+<li>Stdlib-OBC app surface after 2026-05-31: <code>make verify-libavm-ios</code> also calls</li>
+</ul>
+<p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, which compiles</p>
+<p>  <code>tests/fixtures/avm_stdlib_obc_surface_smoke.oren</code> with <code>--stdlib-mode obc</code> and</p>
+<p>  proves buffer/bytes/json/linalg/math/strings/time/UI AVM APIs link and run from</p>
+<p>  the bundled stdlib OBC.</p>
 <ul>
 <li>AVM fixes retained for the chain: child-owned OBC string/bytes constants for</li>
 </ul>

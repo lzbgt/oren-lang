@@ -290,7 +290,13 @@ Add explicit limits:
 Frame publication should fail with an AVM graphics budget error, not crash or silently drop.
 Curated AVM/iOS gates now cover malformed `OGF0` rejection, op-count cap rejection,
 frame I/O-budget rejection, malformed `OGE0` rejection, and the host input queue
-depth cap.
+depth cap. The iOS verifier also covers non-1000 resize scale propagation,
+latest-frame replacement/clear semantics, and FIFO pointer down/move/up ordering
+before mixed key/text events.
+The same iOS verification chain now includes a stdlib OBC surface smoke for
+`std:buffer`, `std:bytes`, `std:json`, `std:linalg`, `std:math`, `std:strings`,
+`std:time`, and `std:ui/avm`, so graphics apps do not reach Note with missing
+bundle exports such as `STD_linalg_dot_f64`.
 
 ### 7. Verification Plan
 
@@ -319,9 +325,11 @@ Required gates before Note integration should be called production-ready:
 8. Done: add frame sequence, native drawable-size metadata, and target refresh hint to the `OGF0` header for high-refresh/high-resolution hosts.
 9. Done: add protocol/budget gates for malformed frames/events, op-count caps,
    frame I/O budget, and host input queue depth.
-10. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
-11. Add IME/composition helpers.
-12. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
+10. Done: add high-resolution resize scale, latest-frame replacement/clear, and
+    FIFO pointer down/move/up ordering gates.
+11. Next: add Note Swift/ObjC bridge smoke that mounts `OrenAVMGraphicsView`, runs a bundled OBC, renders one frame, and injects one touch.
+12. Add IME/composition helpers.
+13. Add `std:gfx/canvas2d` / `std:gfx/mesh3d` and Metal rendering after the current `std:ui` frame path is proven in the app.
 
 This keeps Oren useful for scientific calculation and visualization while preserving the
 right app boundary: AVM computes and describes frames; iOS renders them.

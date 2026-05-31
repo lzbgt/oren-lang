@@ -99,6 +99,14 @@
 <ul>
 <li>Gates: <code>make verify-libavm-ios</code> and <code>make verify-compiler-in-avm-ios-chain</code>.</li>
 <li>Evidence: <code>project-doc/ios_avm_readiness_20260507.md</code>.</li>
+<li>Stdlib OBC gate: <code>make verify-libavm-ios</code> now also runs</li>
+</ul>
+<p>     <code>scripts/verify_avm_stdlib_obc_surface.sh</code>, compiling a representative app</p>
+<p>     fixture against <code>build/plugins/stdlib_bundle.obc</code> and running it in AVM. The</p>
+<p>     smoke imports <code>std:buffer</code>, <code>std:bytes</code>, <code>std:json</code>, <code>std:linalg</code>,</p>
+<p>     <code>std:math</code>, <code>std:strings</code>, <code>std:time</code>, and <code>std:ui/avm</code>, preventing missing</p>
+<p>     app-facing exports such as <code>STD_linalg_dot_f64</code> from reaching the iOS app.</p>
+<ul>
 <li>SDK slices retained: <code>OrenAVMKit.xcframework</code> now provides deterministic and</li>
 </ul>
 <p>     interactive configs, virtual FS/NET/PROC helpers, OBC run, stdout capture,</p>
@@ -118,7 +126,9 @@
 <p>     sequence/native-drawable/target-refresh metadata, and AVM validates <code>OGF0</code></p>
 <p>     frames plus <code>OGE0</code> host input events before accepting them. Curated gates now</p>
 <p>     cover malformed-frame rejection, op-count cap rejection, frame I/O-budget</p>
-<p>     rejection, and the host input queue depth cap.</p>
+<p>     rejection, the host input queue depth cap, non-1000 resize scale propagation,</p>
+<p>     latest-frame replacement/clear semantics, and FIFO pointer down/move/up</p>
+<p>     ordering before mixed key/text events.</p>
 <p>     Design notes: <code>project-doc/ios_avm_sdk_design_20260531.md</code>,</p>
 <p>     <code>project-doc/avm_ui_render_performance_design_20260531.md</code>.</p>
 <ul>

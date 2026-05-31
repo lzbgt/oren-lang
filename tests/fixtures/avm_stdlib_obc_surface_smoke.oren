@@ -1,0 +1,69 @@
+// AVM stdlib OBC surface smoke for iOS/app-facing modules.
+//
+// Build with:
+//   --backend bytecode --stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc
+
+import buffer "std:buffer"
+import bytes "std:bytes"
+import json "std:json"
+import linalg "std:linalg"
+import math "std:math"
+import strings "std:strings"
+import time "std:time"
+import ui_avm "std:ui/avm"
+
+fn fail(code) {
+    print("avm stdlib obc surface FAIL " + oren_int_to_string(code))
+    exit(code)
+}
+
+fn assert_true(v, code) {
+    if v { return 0 }
+    fail(code)
+}
+
+fn assert_close(a, b, eps, code) {
+    var d = a - b
+    if d < 0.0 { d = 0.0 - d }
+    assert_true(d <= eps, code)
+}
+
+fn main() {
+    var ib = buffer.i32_new(3)
+    if oren_is_err(ib) { fail(10) }
+    if oren_is_err(buffer.try_store_i32(ib, 0, 7)) { fail(11) }
+    if oren_is_err(buffer.try_store_i32(ib, 1, 11)) { fail(12) }
+    if buffer.try_load_i32(ib, 0) != 7 { fail(13) }
+    if buffer.try_load_i32(ib, 1) != 11 { fail(14) }
+
+    var bs = bytes.pack([104, 105])
+    if bytes.to_hex(bs) != "6869" { fail(20) }
+    if bytes.to_string(bs) != "hi" { fail(21) }
+
+    var jv = json.try_decode("{\"a\":1,\"b\":\"x\"}")
+    if oren_is_err(jv) { fail(30) }
+    if jv["t"] != "object" { fail(31) }
+    if jv["o"]["a"]["i"] != 1 { fail(32) }
+    if json.encode(json.jarray([json.jint(1), json.jstring("x")])) != "[1,\"x\"]" { fail(33) }
+
+    assert_close(linalg.dot_f64([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]), 32.0, 1e-12, 35)
+
+    assert_close(math.pow(2.0, -1.0), 0.5, 1e-12, 40)
+    assert_close(math.fmod(5.5, 2.0), 1.5, 1e-12, 41)
+    assert_close(math.log10(1000.0), 3.0, 1e-10, 42)
+    assert_close(math.hypot(3.0, 4.0), 5.0, 1e-12, 43)
+
+    if strings.starts_with("hello", "he") != true { fail(50) }
+    if strings.ends_with("hello", "lo") != true { fail(51) }
+
+    var t0 = time.now_ns()
+    if time.sleep_ms(1) != 0 { fail(60) }
+    if time.now_ns() < t0 { fail(61) }
+
+    var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 2, "h": 2, "color": "#010203"}]
+    if ui_avm.present_frame(cmds, 2, 2, {"strict_bounds": true, "sequence": 1}) != 0 { fail(70) }
+
+    print("avm stdlib obc surface OK")
+}
+
+main()

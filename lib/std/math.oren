@@ -36,14 +36,26 @@ fn abs_f(x: f64) {
     return x
 }
 
+fn fabs(x: f64): f64 {
+    return abs_f(x)
+}
+
 fn min_f(a: f64, b: f64) {
     if a < b { return a }
     return b
 }
 
+fn fmin(a: f64, b: f64): f64 {
+    return min_f(a, b)
+}
+
 fn max_f(a: f64, b: f64) {
     if a > b { return a }
     return b
+}
+
+fn fmax(a: f64, b: f64): f64 {
+    return max_f(a, b)
 }
 
 fn clamp_f(x: f64, lo: f64, hi: f64) {
@@ -178,6 +190,23 @@ fn round(x: f64) {
     return t - 1.0
 }
 
+fn trunc(x: f64): f64 {
+    if is_nan(x) { return oren_err(4, "trunc: NaN") }
+    if x == 0.0 { return x }
+    if x > 0.0 { return floor(x) }
+    return ceil(x)
+}
+
+fn fmod(x: f64, y: f64) {
+    if is_nan(x) || is_nan(y) { return oren_err(4, "fmod: NaN") }
+    if y == 0.0 { return oren_err(4, "fmod: zero divisor") }
+    if is_inf(x) { return oren_err(4, "fmod: inf dividend") }
+    if is_inf(y) { return x }
+    var q = trunc(x / y)
+    if oren_is_err(q) { return q }
+    return x - q * y
+}
+
 // --- sqrt / pow (HPC foundation) ---
 //
 // sqrt(x) semantics:
@@ -237,6 +266,19 @@ fn sqrt(x: f64) {
     var i = 0
     while i < 8 {
         g = 0.5 * (g + xn / g)
+        i = i + 1
+    }
+    return g
+}
+
+fn _sqrt_nonnegative_f64(x: f64): f64 {
+    if x == 0.0 { return x }
+    if is_inf(x) { return x }
+    var g = x
+    if g < 1.0 { g = 1.0 }
+    var i = 0
+    while i < 20 {
+        g = 0.5 * (g + x / g)
         i = i + 1
     }
     return g
@@ -462,6 +504,23 @@ fn ln(x: f64) {
     if oren_is_err(v) { return v }
     var LN2 = 0.6931471805599453
     return v * LN2
+}
+
+fn log(x: f64) {
+    return ln(x)
+}
+
+fn log10(x: f64) {
+    var v = log2(x)
+    if oren_is_err(v) { return v }
+    var INV_LOG2_10 = 0.3010299956639812
+    return v * INV_LOG2_10
+}
+
+fn exp10(x: f64) {
+    if is_nan(x) { return oren_err(4, "exp10: NaN") }
+    var LOG2_10 = 3.321928094887362
+    return exp2(x * LOG2_10)
 }
 
 // --- trig (deterministic, no host libm) ---
@@ -1007,13 +1066,29 @@ fn atan2(y: f64, x: f64) {
     // General case.
     var z = atan(abs_f(y / x))
     if oren_is_err(z) { return z }
+    var zf: f64 = z
 
     // Quadrant adjustments (match fdlibm/openlibm intent).
     if x > 0.0 {
-        if y < 0.0 { return 0.0 - z }
-        return z
+        if y < 0.0 { return 0.0 - zf }
+        return zf
     }
     // x < 0
-    if y < 0.0 { return (z - pi()) }
-    return (pi() - z)
+    if y < 0.0 { return (zf - pi()) }
+    return (pi() - zf)
+}
+
+fn hypot(x: f64, y: f64) {
+    if is_nan(x) || is_nan(y) { return oren_err(4, "hypot: NaN") }
+    if is_inf(x) || is_inf(y) { return inf() }
+    var ax = abs_f(x)
+    var ay = abs_f(y)
+    if ax < ay {
+        var tmp = ax
+        ax = ay
+        ay = tmp
+    }
+    if ax == 0.0 { return 0.0 }
+    var r = ay / ax
+    return ax * _sqrt_nonnegative_f64(1.0 + r * r)
 }

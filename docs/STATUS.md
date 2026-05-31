@@ -55,8 +55,9 @@ Facts from the 2026-05-28 implementation pass:
   `sleep_ms` blocks the AVM worker on wall-clock time and `now_unix_ns` uses host
   realtime. Hosts must run this off the UI thread.
 - The AVM stdlib bundle root includes the compiler/app-critical portable subset plus
-  `std:time`; broader pure-stdlib expansion should be manifest-gated so bundle build
-  time stays inside the repo iteration budget.
+  app-facing modules such as `std:time`, `std:ui/avm`, and `std:linalg`.
+  Broader pure-stdlib expansion should be manifest-gated so bundle build time stays
+  inside the repo iteration budget.
 - The embedder API can now parse, verify, load, and run `.obc` bytes from memory.
   The iOS gate compiles a tiny Oren source to `.obc`, embeds those bytes into a C
   smoke, links that smoke for iPhoneOS and simulator, and runs the same bytes
@@ -66,6 +67,13 @@ Facts from the 2026-05-28 implementation pass:
 - `make verify-libavm-ios` also builds `build/plugins/stdlib_bundle.obc` and
   `build/plugins/oren.obc`, runs the compiler `.obc` inside a child AVM universe
   with VirtualFS stdlib resources, extracts `out.obc`, and runs that bytecode.
+- `make verify-libavm-ios` now also runs
+  `scripts/verify_avm_stdlib_obc_surface.sh`: it compiles a representative app
+  fixture with `--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc`
+  and runs the result in AVM. The smoke imports `std:buffer`, `std:bytes`,
+  `std:json`, `std:linalg`, `std:math`, `std:strings`, `std:time`, and
+  `std:ui/avm`, proving common app-facing exports including
+  `STD_linalg_dot_f64` are actually linkable from the bundled stdlib OBC.
 - OBC distribution design is documented in
   `project-doc/obc_store_distribution_design_20260529.md`: after the GUI bridge
   release gate, a public signed OBC store repo can distribute app experiences
@@ -98,7 +106,9 @@ Facts from the 2026-05-28 implementation pass:
   `std:ui/avm.pull_event_bytes()` or structured maps through
   `std:ui/avm.next_event()`. `poll_event_bytes()` remains a thin alias. Curated
   gates now cover malformed-frame rejection, op-count cap rejection, frame
-  I/O-budget rejection, and the host input queue depth cap.
+  I/O-budget rejection, the host input queue depth cap, non-1000 resize scale
+  propagation, latest-frame replacement/clear semantics, and FIFO pointer
+  down/move/up ordering before mixed key/text events.
   `OrenAVMKit` exposes matching Objective-C
   helpers including a convenience binary pointer-event encoder. The iOS verifier
   checks exported symbols, device/simulator SDK linkage, and a host OBC run that

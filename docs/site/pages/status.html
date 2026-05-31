@@ -90,8 +90,9 @@
 <ul>
 <li>The AVM stdlib bundle root includes the compiler/app-critical portable subset plus</li>
 </ul>
-<p>  <code>std:time</code>; broader pure-stdlib expansion should be manifest-gated so bundle build</p>
-<p>  time stays inside the repo iteration budget.</p>
+<p>  app-facing modules such as <code>std:time</code>, <code>std:ui/avm</code>, and <code>std:linalg</code>.</p>
+<p>  Broader pure-stdlib expansion should be manifest-gated so bundle build time stays</p>
+<p>  inside the repo iteration budget.</p>
 <ul>
 <li>The embedder API can now parse, verify, load, and run <code>.obc</code> bytes from memory.</li>
 </ul>
@@ -105,6 +106,15 @@
 </ul>
 <p>  <code>build/plugins/oren.obc</code>, runs the compiler <code>.obc</code> inside a child AVM universe</p>
 <p>  with VirtualFS stdlib resources, extracts <code>out.obc</code>, and runs that bytecode.</p>
+<ul>
+<li><code>make verify-libavm-ios</code> now also runs</li>
+</ul>
+<p>  <code>scripts/verify_avm_stdlib_obc_surface.sh</code>: it compiles a representative app</p>
+<p>  fixture with <code>--stdlib-mode obc --stdlib-obc build/plugins/stdlib_bundle.obc</code></p>
+<p>  and runs the result in AVM. The smoke imports <code>std:buffer</code>, <code>std:bytes</code>,</p>
+<p>  <code>std:json</code>, <code>std:linalg</code>, <code>std:math</code>, <code>std:strings</code>, <code>std:time</code>, and</p>
+<p>  <code>std:ui/avm</code>, proving common app-facing exports including</p>
+<p>  <code>STD_linalg_dot_f64</code> are actually linkable from the bundled stdlib OBC.</p>
 <ul>
 <li>OBC distribution design is documented in</li>
 </ul>
@@ -147,7 +157,9 @@
 <p>  <code>std:ui/avm.pull_event_bytes()</code> or structured maps through</p>
 <p>  <code>std:ui/avm.next_event()</code>. <code>poll_event_bytes()</code> remains a thin alias. Curated</p>
 <p>  gates now cover malformed-frame rejection, op-count cap rejection, frame</p>
-<p>  I/O-budget rejection, and the host input queue depth cap.</p>
+<p>  I/O-budget rejection, the host input queue depth cap, non-1000 resize scale</p>
+<p>  propagation, latest-frame replacement/clear semantics, and FIFO pointer</p>
+<p>  down/move/up ordering before mixed key/text events.</p>
 <p>  <code>OrenAVMKit</code> exposes matching Objective-C</p>
 <p>  helpers including a convenience binary pointer-event encoder. The iOS verifier</p>
 <p>  checks exported symbols, device/simulator SDK linkage, and a host OBC run that</p>

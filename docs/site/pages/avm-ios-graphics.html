@@ -327,7 +327,13 @@ fn main() {
 <p>Frame publication should fail with an AVM graphics budget error, not crash or silently drop.</p>
 <p>Curated AVM/iOS gates now cover malformed <code>OGF0</code> rejection, op-count cap rejection,</p>
 <p>frame I/O-budget rejection, malformed <code>OGE0</code> rejection, and the host input queue</p>
-<p>depth cap.</p>
+<p>depth cap. The iOS verifier also covers non-1000 resize scale propagation,</p>
+<p>latest-frame replacement/clear semantics, and FIFO pointer down/move/up ordering</p>
+<p>before mixed key/text events.</p>
+<p>The same iOS verification chain now includes a stdlib OBC surface smoke for</p>
+<p><code>std:buffer</code>, <code>std:bytes</code>, <code>std:json</code>, <code>std:linalg</code>, <code>std:math</code>, <code>std:strings</code>,</p>
+<p><code>std:time</code>, and <code>std:ui/avm</code>, so graphics apps do not reach Note with missing</p>
+<p>bundle exports such as <code>STD_linalg_dot_f64</code>.</p>
 <h3 id="7-verification-plan">7. Verification Plan</h3>
 <p>Required gates before Note integration should be called production-ready:</p>
 <ol>
@@ -361,6 +367,10 @@ fn main() {
 <li>Done: add protocol/budget gates for malformed frames/events, op-count caps,</li>
 </ol>
 <p>   frame I/O budget, and host input queue depth.</p>
+<ol>
+<li>Done: add high-resolution resize scale, latest-frame replacement/clear, and</li>
+</ol>
+<p>    FIFO pointer down/move/up ordering gates.</p>
 <ol>
 <li>Next: add Note Swift/ObjC bridge smoke that mounts <code>OrenAVMGraphicsView</code>, runs a bundled OBC, renders one frame, and injects one touch.</li>
 <li>Add IME/composition helpers.</li>

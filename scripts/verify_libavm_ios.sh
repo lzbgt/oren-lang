@@ -89,13 +89,19 @@ fn main() {
     if ev["kind"] != "pointer" || ev["phase"] != "down" { oren_exit(33) }
     if ev["x"] != 1 || ev["y"] != 2 || ev["pointer_id"] != 7 { oren_exit(34) }
     var ev2 = ui_avm.next_event()
-    if ev2["kind"] != "resize" { oren_exit(39) }
-    if ev2["width"] != 4 || ev2["height"] != 3 || ev2["scale_milli"] != 1000 { oren_exit(40) }
+    if ev2["kind"] != "pointer" || ev2["phase"] != "move" { oren_exit(35) }
+    if ev2["x"] != 2 || ev2["y"] != 3 || ev2["pointer_id"] != 7 { oren_exit(36) }
     var ev3 = ui_avm.next_event()
-    if ev3["kind"] != "key" || ev3["phase"] != "down" { oren_exit(44) }
-    if ev3["key_code"] != 65 || ev3["modifiers"] != 1 { oren_exit(45) }
+    if ev3["kind"] != "pointer" || ev3["phase"] != "up" { oren_exit(37) }
+    if ev3["x"] != 3 || ev3["y"] != 4 || ev3["pointer_id"] != 7 { oren_exit(38) }
     var ev4 = ui_avm.next_event()
-    if ev4["kind"] != "text" || ev4["text"] != "hi" { oren_exit(48) }
+    if ev4["kind"] != "resize" { oren_exit(39) }
+    if ev4["width"] != 4 || ev4["height"] != 3 || ev4["scale_milli"] != 3000 { oren_exit(40) }
+    var ev5 = ui_avm.next_event()
+    if ev5["kind"] != "key" || ev5["phase"] != "down" { oren_exit(44) }
+    if ev5["key_code"] != 65 || ev5["modifiers"] != 1 { oren_exit(45) }
+    var ev6 = ui_avm.next_event()
+    if ev6["kind"] != "text" || ev6["text"] != "hi" { oren_exit(48) }
     if ui_avm.next_event() != nil { oren_exit(52) }
     var gr2 = ui_avm.present_frame(cmds, 4, 3, {
         "strict_bounds": true,
@@ -160,9 +166,17 @@ int main(void) {
         79, 71, 69, 48, 0, 0, 0, 0, 1, 0, 12, 0,
         1, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0
     };
+    static const uint8_t pointer_move_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 2, 0, 12, 0,
+        2, 0, 0, 0, 3, 0, 0, 0, 7, 0, 0, 0
+    };
+    static const uint8_t pointer_up_event[] = {
+        79, 71, 69, 48, 0, 0, 0, 0, 3, 0, 12, 0,
+        3, 0, 0, 0, 4, 0, 0, 0, 7, 0, 0, 0
+    };
     static const uint8_t resize_event[] = {
         79, 71, 69, 48, 0, 0, 0, 0, 16, 0, 12, 0,
-        4, 0, 0, 0, 3, 0, 0, 0, 232, 3, 0, 0
+        4, 0, 0, 0, 3, 0, 0, 0, 184, 11, 0, 0
     };
     static const uint8_t key_event[] = {
         79, 71, 69, 48, 0, 0, 0, 0, 32, 0, 8, 0,
@@ -199,6 +213,8 @@ int main(void) {
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 7;
     if (avm_embed_gfx_input_put(handle, bad_event, sizeof(bad_event), &result) == AVM_EMBED_OK) return 37;
     if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
+    if (avm_embed_gfx_input_put(handle, pointer_move_event, sizeof(pointer_move_event), &result) != AVM_EMBED_OK) return 42;
+    if (avm_embed_gfx_input_put(handle, pointer_up_event, sizeof(pointer_up_event), &result) != AVM_EMBED_OK) return 43;
     if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
@@ -249,6 +265,8 @@ int main(void) {
     if (avm_embed_vproc_set_default_exit(handle, 44, &result) != AVM_EMBED_OK) return 24;
     if (avm_embed_gfx_input_put(handle, bad_event, sizeof(bad_event), &result) == AVM_EMBED_OK) return 37;
     if (avm_embed_gfx_input_put(handle, input_event, sizeof(input_event), &result) != AVM_EMBED_OK) return 33;
+    if (avm_embed_gfx_input_put(handle, pointer_move_event, sizeof(pointer_move_event), &result) != AVM_EMBED_OK) return 42;
+    if (avm_embed_gfx_input_put(handle, pointer_up_event, sizeof(pointer_up_event), &result) != AVM_EMBED_OK) return 43;
     if (avm_embed_gfx_input_put(handle, resize_event, sizeof(resize_event), &result) != AVM_EMBED_OK) return 34;
     if (avm_embed_gfx_input_put(handle, key_event, sizeof(key_event), &result) != AVM_EMBED_OK) return 35;
     if (avm_embed_gfx_input_put(handle, text_event, sizeof(text_event), &result) != AVM_EMBED_OK) return 36;
@@ -318,7 +336,9 @@ int main(void) {
         if (![runtime putVirtualProcExitForCommand:@"probe-ok" exitCode:21 error:&error]) return 39;
         if (![runtime setVirtualProcDefaultExitCode:44 error:&error]) return 40;
         if (![runtime putGraphicsPointerEventWithKind:1 x:1 y:2 pointerId:7 error:&error]) return 51;
-        if (![runtime putGraphicsResizeEventWithWidth:4 height:3 scaleMilli:1000 error:&error]) return 54;
+        if (![runtime putGraphicsPointerEventWithKind:2 x:2 y:3 pointerId:7 error:&error]) return 58;
+        if (![runtime putGraphicsPointerEventWithKind:3 x:3 y:4 pointerId:7 error:&error]) return 59;
+        if (![runtime putGraphicsResizeEventWithWidth:4 height:3 scaleMilli:3000 error:&error]) return 54;
         if (![runtime putGraphicsKeyEventWithKind:32 keyCode:65 modifiers:1 error:&error]) return 55;
         if (![runtime putGraphicsTextInputString:@"hi" error:&error]) return 56;
 
